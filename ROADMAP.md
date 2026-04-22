@@ -4,7 +4,7 @@
 
 ---
 
-## Stage 1 — Core Shell `🔄 In Progress`
+## Stage 1 — Core Shell `✅ Code complete — awaiting macOS smoke test`
 
 **Exit criteria:** Geoff can open the app, get multiple terminal tabs, run Claude Code in them.
 
@@ -18,70 +18,54 @@
 - [x] `shared/types.ts` — DuoRequest/Response/CommandName, IPC channel map, ElectronAPI surface
 - [x] `shared/constants.ts` — main-process paths (socket, session partition, skill install dir)
 
-> **Learning:** `shared/constants.ts` uses Node.js `os`/`path` — renderer components
+> **Note:** `shared/constants.ts` uses Node.js `os`/`path` — renderer components
 > must not import it directly. Renderer-safe values are defined inline.
 
 ### Main Process ✅
 - [x] `electron/main.ts` — BrowserWindow (1440×900, dark, `hiddenInset` titlebar), IPC setup
-- [x] `electron/preload.ts` — contextBridge PTY API: create/write/resize/kill/onData/onExit/onTitle
+- [x] `electron/preload.ts` — contextBridge PTY API: create/write/resize/kill/onData/onExit
 - [x] `electron/pty-manager.ts` — node-pty session pool keyed by tab UUID; data/exit IPC events
 
-### Renderer — Terminal ✅ (awaiting macOS test)
+### Renderer — Terminal ✅
 - [x] `renderer/App.tsx` — split layout, tab state, drag-to-resize (20–80%)
 - [x] `renderer/components/TabBar.tsx` — tab list, ×close, +new, active indicator
-- [x] `renderer/components/TerminalPane.tsx` — one xterm.js instance per tab, hidden-not-unmounted on switch, FitAddon + ResizeObserver, OSC title → tab name
+- [x] `renderer/components/TerminalPane.tsx` — one xterm.js instance per tab, hidden-not-unmounted on switch, FitAddon + ResizeObserver, OSC title → tab name via `term.onTitleChange()`
 - [x] `renderer/hooks/useKeyboardShortcuts.ts` — ⌘T, ⌘W, ⌘1–9, ⌘⇧[/]
 - [x] Custom xterm.js dark theme (Zinc palette, purple cursor)
 
-### Remaining for Stage 1
-- [ ] `npm install` + `npm run dev` on macOS — first real smoke test (node-pty native rebuild)
-- [ ] CWD tracking per PTY tab (needed by Stage 4 skills panel)
-- [ ] Handle "last tab closed" gracefully
+### Still to verify on macOS
+- [ ] `npm install` + `npm run dev` smoke test (node-pty native rebuild)
+- [ ] Handle "last tab closed" gracefully (keep at least one open)
 
 ---
 
-## Stage 2 + 3 — Browser Pane + `duo` Bridge `⬜ Not Started`
-
-> **Decision:** Stages 2 and 3 will be implemented together since the CDP bridge
-> is only meaningful with a real WebContentsView in place.
+## Stage 2 + 3 — Browser Pane + `duo` Bridge `✅ Code complete — awaiting macOS smoke test`
 
 **Exit criteria (Stage 2):** Geoff can log into Google once, reopen the app, and still be logged in. Google Docs renders correctly.
 
 **Exit criteria (Stage 3):** From any terminal tab, `duo text` returns the contents of whatever's in the browser.
 
-### Browser pane (Stage 2)
-- [x] `electron/browser-manager.ts` — typed stub
-- [x] `renderer/components/BrowserPane.tsx` — address bar + nav chrome (disabled placeholder)
-- [x] `renderer/components/AddressBar.tsx` — URL input with edit/commit/escape
+### Browser pane (Stage 2) ✅
+- [x] `electron/browser-manager.ts` — WebContentsView per tab; active tab has real bounds, inactive tabs are 1×1; SSO via `persist:duo-browser`; popup redirection; goBack/goForward/reload/switchTab using Electron `navigationHistory` API
+- [x] `renderer/components/BrowserPane.tsx` — live address bar + nav buttons; ResizeObserver sends pixel bounds to main process so WebContentsView overlays exactly
+- [x] `renderer/components/AddressBar.tsx` — URL input with smart URL expansion (bare domain → https://, plain text → Google search)
+- [x] `renderer/hooks/useBrowserState.ts` — subscribes to `browser:state` IPC
+- [x] Bounds sync: renderer → `browser:bounds` IPC → main repositions WebContentsView on split resize / window resize
+- [x] SSO persistence via `BROWSER_SESSION_PARTITION` (`persist:duo-browser`)
+- [x] `browser:navigate` + `browser:state` IPC channels wired in main.ts
 
-> **Decision:** Browser pane uses minimal UX — address bar + back/forward/reload only.
-> No visible tab bar in the browser pane. `duo tabs` / `duo tab <n>` manage browser tabs
-> programmatically via CLI.
+### CLI bridge (Stage 3) ✅
+- [x] `electron/cdp-bridge.ts` — getDOM, getText, click, fill (React native-setter), evalJS, screenshot (full page or selector-clipped), waitForSelector
+- [x] `electron/socket-server.ts` — Unix domain socket, newline-JSON protocol, all 12 commands, socket chmod 0o700
+- [x] `electron/main.ts` — SocketServer wired; CDP attached after first bounds report
+- [x] `cli/duo.ts` — all 12 commands + `install` command (symlinks binary to /usr/local/bin/duo)
+- [x] `cli/duo` — pre-compiled esbuild binary, tracked in git, ready to install without a build step
+- [x] `package.json` — `build:cli` esbuild script for when CLI source changes
 
-- [ ] `BrowserManager`: create WebContentsView, attach to `mainWindow.contentView`
-- [ ] Bounds sync: renderer → IPC → main repositions view on split resize / window resize
-- [ ] Navigation: address bar commits, back/forward/reload wired
-- [ ] SSO persistence via `BROWSER_SESSION_PARTITION` (`persist:duo-browser`)
-- [ ] `browser:navigate` + `browser:state` IPC channels in main.ts
-- [ ] Browser tabs managed internally (not visible in UI); `duo tab <n>` switches between them
-
-### CLI bridge (Stage 3)
-- [x] `cli/duo.ts` — full command dispatch (all 13 commands), socket transport, help text
-- [x] `cli/install.sh` — symlink to `/usr/local/bin/duo` or `~/.local/bin/duo`
-- [x] `electron/socket-server.ts` — stub with protocol docs, types wired
-- [x] `electron/cdp-bridge.ts` — stub with all method signatures
-
-> **Decision:** `duo` CLI is compiled to a self-contained binary via **esbuild** (no
-> external Node.js required on the user's machine). The binary lives in the app bundle's
-> `cli/` extra-resources directory; `install.sh` symlinks it to `/usr/local/bin/duo`.
-
-- [ ] `CdpBridge`: implement all CDP commands via `webContents.debugger`
-- [ ] `SocketServer`: listen on `SOCKET_PATH`, dispatch to CdpBridge
-- [ ] Wire `SocketServer` startup into `electron/main.ts`
-- [ ] Add esbuild script to compile `cli/duo.ts` → binary in `cli/duo`
-- [ ] `scripts/postinstall.ts` called on first launch: install skill + run `install.sh`
-- [ ] CLI symlink installation dialog on first launch (Electron dialog)
+### Still to verify on macOS
 - [ ] End-to-end: `duo text` returns page content from terminal tab
+- [ ] SSO: Google sign-in persists after app relaunch
+- [ ] First-launch install dialog (Electron dialog before installing CLI + skill) — currently installs silently; dialog is a next step
 
 > **DOM size note:** `duo dom` on a long Google Doc can be very large. Plan to add
 > `duo text --max-chars N` and `duo text --save-to <file>` before Stage 5.

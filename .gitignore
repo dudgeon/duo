@@ -1,21 +1,10 @@
 node_modules/
 out/
 dist/
-*.local
 
 # macOS
 .DS_Store
 *.pem
-
-# Build artifacts
-build/icon.icns
-build/icon.ico
-
-# Electron builder
-dist/
-
-# Coverage
-coverage/
 
 # Editor
 .idea/
@@ -30,3 +19,13 @@ npm-debug.log*
 # Environment
 .env
 .env.local
+
+# Coverage
+coverage/
+
+# Stage 6: icon and entitlements files are generated before distribution
+# build/icon.icns
+# build/entitlements.mac.plist
+
+# cli/duo is intentionally tracked — pre-built binary so Geoff can install
+# without a build step. Regenerate with: npm run build:cli

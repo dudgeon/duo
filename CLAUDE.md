@@ -72,6 +72,19 @@ end-to-end test on macOS (requires Electron/node-pty to build natively).
 
 ---
 
+## Pre-built CLI binary (`cli/duo`)
+
+`cli/duo` is a compiled esbuild bundle intentionally tracked in git so Geoff
+can install the CLI without running a build step (`node cli/duo install`).
+
+**If you change `cli/duo.ts`**, you must regenerate and commit the binary:
+```bash
+npm run build:cli   # rebuilds cli/duo from cli/duo.ts
+git add cli/duo && git commit -m "build: regenerate cli/duo binary"
+```
+
+---
+
 ## Build commands
 
 ```bash

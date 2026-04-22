@@ -112,12 +112,12 @@ export class BrowserManager {
 
   goBack(): void {
     const wc = this.activeView().webContents
-    if (wc.canGoBack()) wc.goBack()
+    if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
   }
 
   goForward(): void {
     const wc = this.activeView().webContents
-    if (wc.canGoForward()) wc.goForward()
+    if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
   }
 
   reload(): void {
@@ -183,8 +183,8 @@ export class BrowserManager {
     const state: BrowserState = {
       url: wc.getURL() || 'about:blank',
       title: wc.getTitle() || '',
-      canGoBack: wc.canGoBack(),
-      canGoForward: wc.canGoForward(),
+      canGoBack: wc.navigationHistory.canGoBack(),
+      canGoForward: wc.navigationHistory.canGoForward(),
       isLoading: wc.isLoading()
     }
     this.onStateChange(state)

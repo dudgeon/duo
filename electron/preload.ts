@@ -32,12 +32,6 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, code: number) => cb(code)
       ipcRenderer.once(IPC.PTY_EXIT(id), handler)
       return () => ipcRenderer.removeListener(IPC.PTY_EXIT(id), handler)
-    },
-
-    onTitle: (id, cb) => {
-      const handler = (_: IpcRendererEvent, title: string) => cb(title)
-      ipcRenderer.on(IPC.PTY_TITLE(id), handler)
-      return () => ipcRenderer.removeListener(IPC.PTY_TITLE(id), handler)
     }
   },
 

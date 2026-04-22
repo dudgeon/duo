@@ -12,10 +12,12 @@ files:
   - "!node_modules/**/*"
 
 extraResources:
+  # skill/ is copied to app bundle so first-launch postinstall can copy it to ~/.claude/skills/duo/
   - from: skill/
     to: skill/
     filter:
       - "**/*"
+  # cli/ contains the pre-built duo binary, installed via 'duo install' on first launch
   - from: cli/
     to: cli/
     filter:
@@ -28,16 +30,20 @@ mac:
       arch:
         - arm64
         - x64
+  # Stage 6: create build/icon.icns before running npm run dist
   icon: build/icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
+  # Stage 6: create build/entitlements.mac.plist before signing
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
 
 dmg:
   title: "Duo ${version}"
+  # Stage 6: set sign: true and provide Apple Developer ID cert
   sign: false
 
 asar: true
 asarUnpack:
+  # node-pty native module cannot live inside asar archive
   - "**/node_modules/node-pty/**"

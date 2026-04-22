@@ -76,7 +76,6 @@ export const IPC = {
   PTY_KILL: 'pty:kill',
   PTY_DATA: (id: string) => `pty:data:${id}`,
   PTY_EXIT: (id: string) => `pty:exit:${id}`,
-  PTY_TITLE: (id: string) => `pty:title:${id}`,
 
   // Renderer → main
   BROWSER_NAVIGATE: 'browser:navigate',
@@ -106,7 +105,8 @@ export interface ElectronPtyAPI {
   kill: (id: string) => Promise<void>
   onData: (id: string, cb: (data: string) => void) => () => void
   onExit: (id: string, cb: (code: number) => void) => () => void
-  onTitle: (id: string, cb: (title: string) => void) => () => void
+  // Note: tab titles come from xterm.js Terminal.onTitleChange() (OSC sequences),
+  // not via IPC — no main-process emit needed.
 }
 
 export interface ElectronBrowserAPI {
