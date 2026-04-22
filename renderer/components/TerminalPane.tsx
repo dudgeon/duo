@@ -3,7 +3,9 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { TabSession } from '@shared/types'
-import { TERMINAL_DEFAULTS } from '@shared/constants'
+
+// scrollback defined here; shared/constants.ts uses Node.js os/path and can't be imported in renderer
+const SCROLLBACK = 10_000
 
 interface TerminalPaneProps {
   tabs: TabSession[]
@@ -74,7 +76,7 @@ function TerminalInstance({ tab, isActive, onTitleChange }: InstanceProps) {
       fontSize: 13,
       lineHeight: 1.4,
       cursorBlink: true,
-      scrollback: TERMINAL_DEFAULTS.scrollback,
+      scrollback: SCROLLBACK,
       allowProposedApi: true
     })
 
