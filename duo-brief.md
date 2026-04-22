@@ -5,6 +5,16 @@
 > **Status:** Planning complete, ready to scaffold Stage 1
 > **Last updated:** 2026-04-22
 
+> ⚠️ **Implementation notes for Claude instances reading this brief:**
+>
+> 1. **Name is confirmed as "Duo".** The brief uses "orbit" / "Orbit" throughout as a placeholder — this was the working name before the owner confirmed "Duo". The CLI is `duo`, the socket is `duo.sock`, the skill installs to `~/.claude/skills/duo/`. Do not rename anything back to "orbit".
+>
+> 2. **Brainstem.cc / MCP integration is deferred.** Sections of this brief that describe brainstem.cc API queries for the Skills panel (§3, §8) reflect a future aspiration, not current scope. For MVP, the Skills panel is CWD-scan only. See `ROADMAP.md` for current Stage 4 spec.
+>
+> 3. **Socket path is `~/Library/Application Support/duo/duo.sock`**, not `/tmp/orbit.sock` as mentioned in some sections. The app data directory is preferred for persistence and security. See `docs/DECISIONS.md`.
+>
+> 4. **Stages 1–3 are implemented.** This brief describes the full vision; `ROADMAP.md` tracks what's actually done. Read `CLAUDE.md` for current state before making decisions.
+
 -----
 
 ## 1. One-Liner

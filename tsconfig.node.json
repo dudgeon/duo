@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "types": ["node"]
+  },
+  "include": [
+    "electron/**/*",
+    "shared/**/*",
+    "scripts/**/*",
+    "electron.vite.config.*"
+  ],
+  "exclude": ["node_modules"]
+}

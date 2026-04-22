@@ -1,0 +1,31 @@
+node_modules/
+out/
+dist/
+
+# macOS
+.DS_Store
+*.pem
+
+# Editor
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+
+# Coverage
+coverage/
+
+# Stage 6: icon and entitlements files are generated before distribution
+# build/icon.icns
+# build/entitlements.mac.plist
+
+# cli/duo is intentionally tracked — pre-built binary so Geoff can install
+# without a build step. Regenerate with: npm run build:cli
