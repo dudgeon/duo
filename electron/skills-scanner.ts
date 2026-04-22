@@ -38,7 +38,5 @@ export async function scanSkills(cwd: string): Promise<SkillEntry[]> {
     }
   }
 
-  // TODO Stage 4: query brainstem.cc API for personal context
-
   return entries
 }

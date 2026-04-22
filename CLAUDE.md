@@ -96,10 +96,20 @@ Claude Code.
 
 ---
 
+## Locked decisions (from owner)
+
+| Decision | Choice |
+|---|---|
+| App name | Duo — CLI is `duo`, skill at `~/.claude/skills/duo/` |
+| CLI packaging | esbuild compiled binary — no Node.js on user's PATH needed |
+| Browser tab UX | Address bar + nav only; no visible tab bar; `duo tab <n>` for switching |
+| Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
+| Stage 2 + 3 | Implemented together in one pass |
+
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Brainstem.cc API access for Skills panel | Before Stage 4 |
-| Distribution plan (personal vs. Trailblazers timeline) | Before Stage 6 |
-| Apple Developer ID for code signing | Before Stage 6 |
+| Apple Developer ID cert | Before Stage 6 |
+| Distribution timeline (personal → Trailblazers) | Before Stage 6 |
+| Socket auth approach for Trailblazers | Before Stage 6 |

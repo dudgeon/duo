@@ -142,17 +142,33 @@ new `@xterm/*` packages throughout.
 
 ---
 
-## Brainstem.cc API (Stage 4)
+## CLI packaging: esbuild compiled binary (Stage 3)
 
-**Status:** Not yet researched — needed for Stage 4.
+**Decision:** `cli/duo.ts` is compiled to a self-contained Node.js binary using
+**esbuild** with `--bundle --platform=node --outfile=cli/duo`. The output is a
+single JS file with a `#!/usr/bin/env node` shebang, but all imports inlined —
+no `node_modules` on the target machine required.
 
-Geoff's personal MCP server at brainstem.cc provides cross-session context.
-For Stage 4, the skills scanner should optionally query it for context relevant
-to the active CWD.
+**Build command (to add to package.json):**
+```json
+"build:cli": "esbuild cli/duo.ts --bundle --platform=node --outfile=cli/duo"
+```
 
-**Open questions:**
-- Is there a REST API, or only MCP protocol?
-- What auth is needed (API key, OAuth)?
-- What does a "relevant context for CWD" query look like?
+**electron-builder:** The `cli/` directory is already in `extraResources`, so
+the compiled binary will be bundled into the app. `install.sh` symlinks it to
+`/usr/local/bin/duo`.
 
-**Action:** Ask Geoff for brainstem.cc API docs before implementing Stage 4.
+**Alternative considered: `pkg`** — produces a true self-contained executable
+with Node.js runtime embedded (~40 MB). Unnecessary for this use case since
+macOS ships with Node.js available in most developer setups, and the esbuild
+approach is faster to build and iterate. Revisit for Stage 6 if Trailblazers
+users don't have Node.js.
+
+---
+
+## Skills Panel — CWD scan only (Stage 4)
+
+**Decision:** Brainstem.cc / MCP integration is not included. The skills panel
+shows only what CWD scanning finds: `SKILL.md`, `CLAUDE.md`, `.claude/skills/`.
+
+No external API, no auth, no network call. The panel is purely local and instant.

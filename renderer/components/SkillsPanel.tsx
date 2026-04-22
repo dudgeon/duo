@@ -13,8 +13,7 @@ export function SkillsPanel({ skills, cwd, isLoading = false }: SkillsPanelProps
   const SOURCE_LABEL: Record<SkillEntry['source'], string> = {
     'SKILL.md': 'skill',
     'CLAUDE.md': 'claude',
-    '.claude/skills': 'skills/',
-    'brainstem': 'brainstem'
+    '.claude/skills': 'skills/'
   }
 
   return (

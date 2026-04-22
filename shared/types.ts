@@ -49,7 +49,7 @@ export interface BrowserTab {
 export interface SkillEntry {
   name: string
   path: string
-  source: 'SKILL.md' | 'CLAUDE.md' | '.claude/skills' | 'brainstem'
+  source: 'SKILL.md' | 'CLAUDE.md' | '.claude/skills'
 }
 
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
