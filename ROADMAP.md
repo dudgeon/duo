@@ -88,19 +88,33 @@
 
 ---
 
-## Stage 4 — Skills Context Panel `⬜ Not Started`
+## Stage 4 — Skills Context Panel `⬜ Deprioritized`
 
-**Exit criteria:** Switching between tabs shows skills scoped to that tab's CWD.
+> **Not urgent — do other things first. Revisit before Stage 5.**
 
-> **Decision:** No brainstem.cc / MCP integration. Skills panel is CWD-scan only.
+**Purpose:** A collapsible right sidebar showing the Claude Code skills available
+to the agent running in the active terminal tab.
+
+**Two scopes (both must be shown):**
+1. **Project scope** — skills in the directory where Claude Code was invoked
+   (the PTY's *launch* CWD, not the shell's moving CWD). Scanned for:
+   `SKILL.md`, `CLAUDE.md`, `.claude/skills/`
+2. **Home scope** — skills in `~/.claude/skills/` (available to Claude regardless
+   of project)
+
+> **CWD tracking:** No shell hooks or polling needed. The relevant CWD is the
+> PTY's *initial* working directory — captured at `pty:create` time and fixed
+> for the life of that tab. If Claude moves directories inside the terminal, the
+> Skills panel still reflects what Claude was launched into.
 
 - [x] `electron/skills-scanner.ts` — CWD scan: SKILL.md, CLAUDE.md, .claude/skills
 - [x] `renderer/components/SkillsPanel.tsx` — UI component (not yet in layout)
 - [x] `renderer/hooks/useSkillsContext.ts` — stub, returns empty
 
-- [ ] CWD tracking per PTY tab (chokidar or `echo $PWD` polling)
-- [ ] `skills:scan` IPC handler in main.ts; `useSkillsContext` wired to IPC
-- [ ] `SkillsPanel` integrated into App layout (collapsible right sidebar)
+- [ ] Pass PTY launch CWD through `TabSession` (already in type, needs to be wired)
+- [ ] `skills:scan` IPC handler: scan launch CWD + `~/.claude/skills/`, merge results
+- [ ] `useSkillsContext` wired to IPC
+- [ ] `SkillsPanel` added as collapsible third column (right of browser pane, toggle with ⌘⇧S or similar)
 
 ---
 
@@ -143,6 +157,10 @@
 | Browser tab UX | **Minimal — address bar only** | No tab bar in browser pane; tabs managed via `duo tab <n>` |
 | Brainstem / MCP | **Not included** | Stage 4 is CWD-scan only; `SkillEntry.source` type simplified |
 | Stage order | **2 + 3 together** | Browser pane and CDP bridge implemented in one pass |
+| Skills panel layout | **Collapsible sidebar** | Third column right of browser pane |
+| Skills CWD source | **PTY launch CWD** | No shell hooks; capture at `pty:create` time; two scopes: project + home |
+| First-launch install | **Electron permission dialog** | Prompt before installing CLI + skill |
+| Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; get cert before Stage 6 |
 
 ## Open Questions
 

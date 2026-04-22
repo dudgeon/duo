@@ -107,6 +107,7 @@ Claude Code.
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Stage 2 + 3 | Implemented together in one pass |
 | Skills panel layout | Collapsible sidebar — third column right of browser pane |
+| Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes: project + home |
 | First-launch install | Electron permission dialog before installing CLI + skill |
 | Distribution / cert | No cert yet — personal use only; get cert before Stage 6 |
 
@@ -114,7 +115,6 @@ Claude Code.
 
 | Question | Priority |
 |---|---|
-| CWD tracking for Skills panel — needs clarification from Geoff | Before Stage 4 |
 | Apple Developer ID cert | Before Stage 6 |
 | Distribution timeline (personal → Trailblazers) | Before Stage 6 |
 | Socket auth approach for Trailblazers | Before Stage 6 |
