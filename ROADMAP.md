@@ -132,6 +132,34 @@ to the agent running in the active terminal tab.
 
 ---
 
+## Stage 7 — Agent-Driven File Viewer / Browser `⬜ Backlog — discuss before starting`
+
+**Purpose:** Let the agent (via the `duo` skill) open arbitrary files in a file
+viewer pane, and manipulate a file browser to bring focus to arbitrary files
+and folders. Makes file-oriented work (reviewing diffs, screenshots, PDFs,
+generated artifacts) as natural as driving the web browser is today.
+
+**Open questions to resolve with Geoff before implementation:**
+- Is this a new pane (fourth column) or does it share the browser pane?
+- Which file types must render natively (images, PDFs, markdown, code, video)?
+- Does the file browser mirror the PTY launch CWD, or is it independently navigable?
+- Should selection/focus events flow back to Claude Code (e.g. "user selected X")?
+
+**Sketch of CLI surface (for later discussion):**
+- `duo open <path>` — open a file in the viewer pane
+- `duo reveal <path>` — focus a file/folder in the file browser (no open)
+- `duo ls [path]` — list directory contents via the bridge
+- `duo viewer close` / `duo viewer state`
+
+- [ ] Decide pane layout + viewer scope (file types, max size)
+- [ ] `electron/file-viewer.ts` — renderer component(s) per supported file type
+- [ ] `electron/file-browser.ts` — tree/list UI with reveal + focus APIs
+- [ ] CDP-equivalent bridge methods for viewer/browser (open, reveal, state)
+- [ ] New socket commands wired through `cli/duo.ts`
+- [ ] `skill/SKILL.md` updated with viewer/browser patterns + examples
+
+---
+
 ## Decisions Log (from owner)
 
 | Decision | Choice | Impact |
