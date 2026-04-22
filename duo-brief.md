@@ -82,18 +82,19 @@ These have been discussed and settled. Do not reopen without cause.
 
 ## 7. Decisions Pending / Assumptions Made
 
-The following were not directly answered by the owner; reasonable assumptions were made and should be confirmed before or during Stage 1.
+The following were not directly answered by the owner; reasonable assumptions were made and should be confirmed before or during Stage 1. Rows marked **OPEN — OWNER ACTION** are hard blockers on their target stage and cannot be resolved by Claude without input from Geoff.
 
-|Topic              |Assumption                                                                     |Confirm before                                                |
-|-------------------|-------------------------------------------------------------------------------|--------------------------------------------------------------|
-|Name               |`orbit` is a working placeholder                                               |Stage 5 (skill authoring, since the skill name is user-facing)|
-|Distribution scope |Geoff personal → Trailblazers cohort → broader PM community (staged)           |Stage 6 (signing/notarization setup)                          |
-|Layout model       |Resizable split: terminals on left, browser on right, sidebar for skills       |Stage 1                                                       |
-|Skills data sources|CWD scan (SKILL.md, .claude/, CLAUDE.md) + brainstem.cc API                    |Stage 4                                                       |
-|Starting point     |Greenfield                                                                     |—                                                             |
-|Agent topology     |Each terminal tab = independent Claude Code session; all tabs share one browser|Stage 1                                                       |
-|UI aesthetic       |Dark, dense, professional-tool feel (reference: Warp × Linear)                 |Stage 6                                                       |
-|Browser tabs       |Multiple tabs within the single browser pane                                   |Stage 2                                                       |
+|Topic              |Status / Assumption                                                                                                                                          |Confirm before                                                |
+|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+|Name               |`orbit` is a working placeholder                                                                                                                             |Stage 5 (skill authoring, since the skill name is user-facing)|
+|Distribution scope |Geoff personal → Trailblazers cohort → broader PM community (staged)                                                                                         |Stage 6 (signing/notarization setup)                          |
+|Layout model       |**OPEN — OWNER ACTION.** Ten candidates (Cockpit, Classic IDE, Mirror, Tri-column, Diptych, Stage, Shell-first, Focus, Duplex, Zen) laid out in `docs/ux/layout-options.html`. Owner must pick one (or a hybrid) — this choice rewrites §4, §8, §11 Stage 1, and §12. **Blocks Stage 1 scaffolding.** |Stage 1 start                                                 |
+|Working pane model |**OPEN — OWNER ACTION (dependent on layout choice).** The working pane is polymorphic (browser / file viewer / markdown editor). Decide: (a) single instance with mode toggle vs. tabbed like VS Code, (b) per-terminal-tab state vs. shared across terminals, (c) whether the markdown editor is a local-files surface only or also a Docs edit surface.|Stage 1 start                                                 |
+|Skills data sources|CWD scan (SKILL.md, .claude/, CLAUDE.md) + brainstem.cc API                                                                                                  |Stage 4                                                       |
+|Starting point     |Greenfield                                                                                                                                                   |—                                                             |
+|Agent topology     |Each terminal tab = independent Claude Code session; all tabs share one browser                                                                              |Stage 1                                                       |
+|UI aesthetic       |Dark, dense, professional-tool feel (reference: Warp × Linear)                                                                                               |Stage 6                                                       |
+|Browser tabs       |Multiple tabs within the single browser pane                                                                                                                 |Stage 2                                                       |
 
 -----
 
@@ -212,14 +213,23 @@ The skill is the spec. If it’s painful to write, the CLI surface is wrong.
 
 ## 11. Roadmap — Build Stages
 
+> **Open decisions blocking the roadmap** — track these in §7, action belongs to the owner:
+>
+> 1. **Layout model (blocks Stage 1).** Pick one of the ten candidates in `docs/ux/layout-options.html` (or a hybrid). This determines the window chrome, the sidebars, and where the terminal lives. Stage 1 cannot scaffold the window layout without it.
+> 2. **Working pane model (blocks Stage 1).** Working pane is polymorphic (browser / file viewer / markdown editor). Decide tabbed vs. mode-toggle, per-tab state vs. shared, and whether the markdown editor is a local-files surface or also an edit path for Google Docs. Interacts with the layout decision.
+>
+> Everything below assumes both decisions are made. Until they are, Stage 1 is only safe to advance on scaffolding that is layout-agnostic (Electron app shell, build tooling, one PTY, one browser view — wired up without committing to a window layout).
+
 ### Stage 1 — Core shell (Week 1)
 
 - Electron app scaffold with electron-vite + React + Tailwind
-- Resizable split layout (terminal left, browser right placeholder)
+- **Window layout per the §7 "Layout model" decision** (see `docs/ux/layout-options.html`). Resizable split; exact geometry determined by the chosen layout option.
+- **Working pane shell** per the §7 "Working pane model" decision (tabbed vs. mode-toggle; per-tab vs. shared state). Browser / file viewer / markdown editor modes stubbed even if only one is wired up in Stage 1.
 - xterm.js + node-pty: one working terminal
 - Tab bar for multiple terminal sessions
-- Keyboard shortcuts: new tab, close tab, cycle tabs, focus toggle
+- Keyboard shortcuts: new tab, close tab, cycle tabs, focus toggle; plus any hotkeys the chosen layout needs (e.g. drawer toggles for Focus/Stage/Shell-first).
 - **Exit criteria:** Geoff can open the app, get multiple terminal tabs, run Claude Code in them.
+- **Blocked on:** §7 "Layout model" and "Working pane model" rows. Do not scaffold the window until both are resolved.
 
 ### Stage 2 — Browser pane (Week 1–2)
 
@@ -385,6 +395,7 @@ If you are a Claude instance picking this up, here’s what you need to know:
 1. **If blocked on an open question in §7, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming — these can be resolved in-flight.
 1. **Suggested first task:** scaffold the repo per §12, get electron-vite + React + Tailwind running, render a single xterm.js terminal backed by node-pty. One file, one window, one working terminal. Everything else builds from there.
 1. **Before touching Stage 2/3/5, read §17 and `docs/research/vscode-1.110-integrated-browser.md`.** Google Docs read/edit is the flagship success test for this project, and the naive DOM approach does not work — canvas rendering requires the accessibility tree for reads and synthesized input (or the Docs REST API) for writes. The acceptance criteria in §11 Stages 2, 3, and 5 are the go/no-go gates.
+1. **Do not commit the window layout before the owner picks one.** The ten candidates are in `docs/ux/layout-options.html`; the decision is tracked as OPEN — OWNER ACTION in §7 and blocks Stage 1 scaffolding of the window chrome (see the call-out at the top of §11). Scaffolding that is layout-agnostic (Electron shell, build tooling, PTY, browser view wiring) can proceed in parallel.
 
 -----
 
