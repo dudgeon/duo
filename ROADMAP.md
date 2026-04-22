@@ -132,6 +132,93 @@ to the agent running in the active terminal tab.
 
 ---
 
+## Stage 7 — Agent-Driven File Navigator + Viewer `⬜ Backlog — scoped, not scheduled`
+
+**Purpose:** Give the app a shared file navigator (a Finder/VS-Code-style
+tree) and a file viewer, both drivable by the agent via the `duo` skill.
+Makes file-oriented work (reviewing diffs, markdown briefs, generated
+artifacts) as natural as driving the web browser is today.
+
+**Core flow (from Geoff):**
+The navigator is the primary surface for picking *where to work*.
+User browses to a folder → "open terminal here" seeds a new tab's launch
+CWD from the navigator's current folder → user runs `claude` in that tab.
+After the handoff, the navigator is free: the user (or agent) can go
+deeper, shallower, or sideways without affecting any existing tab.
+
+**Decisions (from Geoff):**
+- **Layout:** new fourth column, right of the browser pane (alongside the
+  collapsible Skills panel from Stage 4).
+- **Navigator scope:** **one shared, app-level tree.** Not per-tab. State
+  (expanded folders, current selection, scroll) persists across tab
+  switches. *Terminal* and *viewer/editor* may become tabbed later; the
+  navigator never does.
+- **Navigation freedom:** fully free — anywhere on disk the user can
+  normally read. The navigator is *not* pinned to any tab's CWD. The
+  Stage 4 Skills panel stays per-tab and pinned to PTY launch CWD — they
+  answer different questions ("which project is this tree showing" vs.
+  "which skills does this Claude have").
+- **CWD handoff:** new tabs launched via the navigator inherit the
+  navigator's *current* folder as their launch CWD. After launch, the
+  tab's CWD is frozen (existing behavior) even if the navigator moves.
+- **File types v1:** Markdown (rendered) + code (syntax-highlighted plain
+  text). Images, PDFs, and other rich types are **future** but must not be
+  precluded — see "Architecture guardrails" below.
+- **Agent `reveal` behavior:** `duo reveal <path>` takes over the shared
+  tree and jumps it to `<path>`. Simple and obvious for v1; revisit if
+  yanking user focus proves annoying (see "Ideas" below).
+- **Selection events:** pull-only for v1 — agent queries current selection
+  via `duo viewer state`. No push notifications into Claude Code's stdin.
+
+**Ideas (not committed backlog):**
+- **Gentler reveal:** instead of jumping the tree, show a pending-reveal
+  toast ("Claude wants to show you foo.md — click to jump"). Adds UI;
+  defer until the simple version is shown to be disruptive.
+- **Reveal history / back button** on the navigator so the user can undo
+  an agent-driven jump.
+- **Event log** the agent can poll (`duo viewer events --since <cursor>`)
+  for user file selections. Adds state + cursor semantics; defer until
+  there's real demand.
+- **Push notifications** into the active tab (inject into stdin, or
+  surface via `duo watch`). Complex; skip unless there's a clear
+  user-collab flow.
+
+**Architecture guardrails (so markdown-only v1 doesn't preclude images/PDFs):**
+- Viewer is a **per-type component registry** keyed by MIME/extension, not
+  a single Monaco/CodeMirror instance. v1 registers `.md` and
+  `.ts/.js/...`; later PRs register `.png`, `.pdf` without rewriting the
+  shell.
+- File contents flow to the renderer as `Buffer` (not forced `utf8`), so
+  binary payloads work when we add them.
+- Prefer an Electron **custom protocol handler** (e.g. `duo-file://`) for
+  renderer → disk reads rather than shipping bytes over IPC. Keeps large
+  PDFs/images off the IPC bus and gives us a single place to enforce
+  path policy.
+- CLI + socket commands take `path` + optional `mime`, never assume text.
+- Viewer state IPC carries `{path, mime, size}` — no `{text}` field baked
+  in.
+- **Viewer is viewer-shaped now.** Even though viewer may become tabbed
+  later, v1 ships a single-slot viewer. Keep the component API
+  (`open(path)`, `close()`, `state()`) stable so a later tabbed wrapper
+  can multiplex without churning callers.
+
+**Sketch of CLI surface:**
+- `duo open <path>` — open a file in the viewer pane
+- `duo reveal <path>` — focus a file/folder in the shared navigator
+- `duo ls [path]` — list directory contents via the bridge
+- `duo viewer close` / `duo viewer state`
+- `duo nav state` — current navigator folder + selection
+
+- [ ] `electron/navigator.ts` — single shared tree UI, expand/collapse/reveal
+- [ ] `electron/file-viewer.ts` — viewer shell + per-type component registry (markdown + code for v1)
+- [ ] "Open terminal here" action wired from navigator → `pty:create` with chosen CWD
+- [ ] Custom protocol handler (`duo-file://`) with path policy enforcement
+- [ ] Bridge methods for navigator/viewer: open, reveal, state, ls, nav-state
+- [ ] New socket commands wired through `cli/duo.ts`
+- [ ] `skill/SKILL.md` updated with navigator/viewer patterns + examples
+
+---
+
 ## Decisions Log (from owner)
 
 | Decision | Choice | Impact |
