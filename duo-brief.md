@@ -40,8 +40,9 @@ It is also a **personal daily driver** for Geoff. The design choices reflect bot
 - Real Chromium (so Google SSO, Google Docs, modern web apps all work)
 - Snappy, responsive UI — terminal must feel as fast as iTerm/Warp
 - Multiple terminal tabs, one shared browser
-- Agent can read DOM, click, fill, inject JS, navigate, screenshot
-- Skills context panel scoped to active terminal’s CWD
+- Agent can read DOM **and the accessibility tree**, click, fill, **type**, inject JS, navigate, screenshot, **read console logs**
+- **Google Docs is a first-class target: the agent can both read and edit the doc currently open in the browser pane.** See §17 and the Stage 2/3/5 acceptance criteria in §11.
+- Skills context panel scoped to active terminal's CWD
 - Ship an accompanying skill that teaches Claude Code how to use the app
 
 ### Non-Goals (explicitly out of scope for MVP)
@@ -141,22 +142,33 @@ The CLI is the agent’s API surface. It must be stable, predictable, and output
 
 ### Command reference (draft)
 
-|Command                                         |Description                             |Output                  |
-|------------------------------------------------|----------------------------------------|------------------------|
-|`orbit navigate <url>`                          |Navigate the browser to URL             |JSON: `{ok, url, title}`|
-|`orbit url`                                     |Current URL                             |plain text              |
-|`orbit title`                                   |Current page title                      |plain text              |
-|`orbit dom`                                     |Full page HTML (outerHTML)              |HTML to stdout          |
-|`orbit text`                                    |Visible text content (innerText of body)|plain text              |
-|`orbit text --selector <css>`                   |innerText of matching element           |plain text              |
-|`orbit click <selector>`                        |Click element by CSS selector           |JSON: `{ok, error?}`    |
-|`orbit fill <selector> <value>`                 |Fill input                              |JSON: `{ok, error?}`    |
-|`orbit eval <js>`                               |Execute JS, return result               |JSON-serialized result  |
-|`orbit screenshot [--out path] [--selector css]`|PNG screenshot                          |Path to file            |
-|`orbit tabs`                                    |List open browser tabs                  |JSON array              |
-|`orbit tab <n>`                                 |Switch to browser tab N                 |JSON: `{ok}`            |
-|`orbit wait <selector> [--timeout ms]`          |Wait for element                        |JSON: `{ok, error?}`    |
-|`orbit --version`                               |Version string (must match skill)       |plain text              |
+|Command                                                |Description                                                                            |Output                      |
+|-------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------|
+|`orbit navigate <url>`                                 |Navigate the browser to URL                                                            |JSON: `{ok, url, title}`    |
+|`orbit url`                                            |Current URL                                                                            |plain text                  |
+|`orbit title`                                          |Current page title                                                                     |plain text                  |
+|`orbit dom`                                            |Full page HTML (outerHTML)                                                             |HTML to stdout              |
+|`orbit text`                                           |Visible text content (innerText of body)                                               |plain text                  |
+|`orbit text --selector <css>`                          |innerText of matching element                                                          |plain text                  |
+|`orbit ax [--selector <css>] [--format md\|json]`      |Accessibility-tree snapshot. **Required** for canvas-rendered apps (Google Docs, etc.) |Markdown (default) or JSON  |
+|`orbit click <selector>`                               |Click element by CSS selector                                                          |JSON: `{ok, error?}`        |
+|`orbit fill <selector> <value>`                        |Fill input (DOM-level `value =` + input events)                                        |JSON: `{ok, error?}`        |
+|`orbit type <text>`                                    |Synthesize keystrokes into the focused element via CDP `Input.insertText`              |JSON: `{ok, error?}`        |
+|`orbit key <keyname> [--modifiers cmd,shift,...]`      |Dispatch a single key event (e.g. `Enter`, `ArrowDown`, `Backspace`)                   |JSON: `{ok, error?}`        |
+|`orbit focus <selector>`                               |Move focus to the matching element (for subsequent `type`/`key`)                       |JSON: `{ok, error?}`        |
+|`orbit eval <js>`                                      |Execute JS, return result                                                              |JSON-serialized result      |
+|`orbit screenshot [--out path] [--selector css]`       |PNG screenshot                                                                         |Path to file                |
+|`orbit console [--since <ts>] [--follow] [--level ...]`|Dump buffered console messages; with `--follow`, stream live                           |NDJSON (one event per line) |
+|`orbit tabs`                                           |List open browser tabs                                                                 |JSON array                  |
+|`orbit tab <n>`                                        |Switch to browser tab N                                                                |JSON: `{ok}`                |
+|`orbit wait <selector> [--timeout ms]`                 |Wait for element                                                                       |JSON: `{ok, error?}`        |
+|`orbit --version`                                      |Version string (must match skill)                                                      |plain text                  |
+
+### Notes on the read/write primitives
+
+- **`orbit ax` is first-class, not a fallback.** Modern web apps increasingly render to `<canvas>` (Google Docs/Sheets/Slides, Figma, newer Notion editors, spreadsheets, whiteboards). For these, `orbit text` and `orbit dom` return structural chrome without document content. The accessibility tree — which apps expose for screen readers — is the only reliable text path. Implemented via CDP `Accessibility.getFullAXTree` and `Accessibility.getPartialAXTree` (scoped by selector). Default Markdown output mirrors VS Code 1.110's `readPage` approach; JSON mode returns the raw tree for programmatic use. See `docs/research/vscode-1.110-integrated-browser.md`.
+- **`orbit type` + `orbit key` are the edit path for canvas apps.** Canvas editors route input through a hidden `contenteditable` or input element; setting `value` does nothing. We synthesize input via CDP `Input.insertText` (text) and `Input.dispatchKeyEvent` (named keys) against the focused element.
+- **`orbit console` surfaces what the agent would otherwise miss.** Main process subscribes to CDP `Runtime.consoleAPICalled` + `Log.entryAdded` and maintains a ring buffer per browser tab. Claude Code reaches for this after `orbit eval` or page interactions to diagnose failures.
 
 ### Protocol (CLI ↔ socket)
 
@@ -184,10 +196,12 @@ The skill lives at `~/.claude/skills/orbit/SKILL.md` after install. It teaches C
 1. **When to reach for `orbit`** vs. alternatives (WebFetch, file reads)
 1. **The command surface** — ref to §9
 1. **Common patterns:**
-- “Read a Google Doc” → `orbit navigate <url>` → wait for load → `orbit text --selector .kix-appview-canvas`
-- “Fill and submit a form” → `orbit fill`, `orbit click`
-- “Verify a visual state” → `orbit screenshot` → report back to user
-- “Iterate on a generated HTML artifact” → write file → `orbit navigate file://...` → `orbit screenshot`
+- **Read a Google Doc** → `orbit navigate <url>` → `orbit wait '[role="document"]'` → `orbit ax --selector '[role="document"]'`. Do **not** use `orbit text --selector .kix-appview-canvas` — Docs renders to a canvas and the DOM selector yields almost no content. The accessibility tree is the read path. (See §17.)
+- **Edit a Google Doc** → focus the editing surface (`orbit focus '[role="document"]'` or `orbit click '[role="document"]'`) → `orbit type "<text>"` and/or `orbit key Enter/Backspace/ArrowDown/...`. For structural edits (tables, headings), prefer the Google Docs REST API path documented in §17.
+- **Fill and submit a form** → `orbit fill`, `orbit click`
+- **Verify a visual state** → `orbit screenshot` → report back to user
+- **Diagnose a failing page interaction** → `orbit console --since <ts>` to inspect errors/warnings emitted since the last action
+- **Iterate on a generated HTML artifact** → write file → `orbit navigate file://...` → `orbit screenshot`
 1. **Error recovery** — when a selector fails, retry with `orbit dom` to inspect, or use `orbit eval` for custom queries
 1. **When NOT to use it** — static fetches (use WebFetch), reading local files (use Read), reading terminal state (not its job)
 1. **Pinned version** — skill tests `orbit --version` matches its compatible range
@@ -214,14 +228,27 @@ The skill is the spec. If it’s painful to write, the CLI surface is wrong.
 - Google SSO session persistence (partition → `~/Library/Application Support/orbit/browser-session`)
 - Multiple browser tabs within the browser pane
 - **Exit criteria:** Geoff can log into Google once, reopen the app, still be logged in. Google Docs renders correctly.
+- **Google Docs acceptance criteria (required to exit Stage 2):**
+  - A.2.1 — Open a Google Doc URL after a cold app launch with a logged-in session; the doc renders fully (no SSO bounce, no `X-Frame-Options` error, no accounts chooser loop).
+  - A.2.2 — Typing into the doc directly in the browser pane using the host keyboard produces characters at the cursor and they persist after reload. (Proves the WebContentsView passes keyboard focus through.)
+  - A.2.3 — Closing and reopening the app preserves the session — the same Doc reopens without re-authentication.
+  - A.2.4 — The user-agent the Electron browser presents to Google does not trip challenge flows (no repeated "unusual activity" interstitials over a 10-minute session).
 
 ### Stage 3 — `orbit` bridge (Week 2)
 
 - Unix socket server in main process
-- CDP wiring: navigate, dom, text, click, fill, eval, screenshot (core set first)
+- CDP wiring: navigate, dom, text, **ax**, click, fill, **type**, **key**, **focus**, eval, screenshot, **console** (core set first; see §9)
 - `orbit` CLI binary (compiled or Node.js shebang), installed via postinstall or bundled in DMG with a symlink step
 - Install script: `/usr/local/bin/orbit` symlink
-- **Exit criteria:** From any terminal tab in the app, `orbit text` returns the contents of whatever’s in the browser.
+- Console capture: main process subscribes to `Runtime.consoleAPICalled` and `Log.entryAdded` per tab and maintains a per-tab ring buffer (default 500 entries)
+- **Exit criteria:** From any terminal tab in the app, `orbit text` returns the contents of whatever's in the browser.
+- **Google Docs acceptance criteria (required to exit Stage 3):**
+  - A.3.1 — **Read round-trip.** With a Google Doc loaded in the browser pane, `orbit ax --selector '[role="document"]'` returns the full document text in the same order as it appears on screen, including headings and list structure, within 2s for a 20-page doc.
+  - A.3.2 — **Write round-trip.** From a terminal, the sequence `orbit focus '[role="document"]'` → `orbit key End` → `orbit type "Duo smoke test ⟨uuid⟩"` causes the string to appear at the end of the document and to persist after reload.
+  - A.3.3 — **Read-after-write.** Re-running `orbit ax` after A.3.2 returns text that contains the same `⟨uuid⟩`. (Proves read and write operate on the same live document state.)
+  - A.3.4 — **Multi-tab isolation.** With two Claude Code terminal tabs, both can issue `orbit ax` / `orbit type` against the shared browser without cross-talk (no lost events, no interleaved text at the wrong cursor position when issued sequentially).
+  - A.3.5 — **Console visibility.** `orbit eval 'console.warn("hello")'` followed by `orbit console --since <ts>` returns a row containing `"hello"` with level `warn`.
+  - A.3.6 — **No DOM fallback regression.** `orbit text --selector '.kix-appview-canvas'` returns an empty or near-empty string on Google Docs — documenting *why* `orbit ax` exists. The skill example is explicit about this.
 
 ### Stage 4 — Skills context panel (Week 2–3)
 
@@ -234,10 +261,15 @@ The skill is the spec. If it’s painful to write, the CLI surface is wrong.
 ### Stage 5 — `orbit` skill (Week 3)
 
 - Author `SKILL.md` per §10
-- Worked examples folder alongside the skill
+- Worked examples folder alongside the skill: `read-google-doc.md`, `edit-google-doc.md`, `fill-form.md`, `iterate-artifact.md`, `diagnose-console.md`
 - Installer drops skill into `~/.claude/skills/orbit/`
 - Version pinning between CLI and skill
 - **Exit criteria:** A fresh Claude Code session in the app autonomously discovers and uses `orbit` to read a Google Doc.
+- **Google Docs acceptance criteria (required to exit Stage 5 — this is the flagship success test):**
+  - A.5.1 — **Unprimed read.** With no prior context, a fresh Claude Code session given the prompt "summarize the doc open in my browser" discovers the `orbit` skill, reads via `orbit ax`, and returns an accurate summary. No human guidance, no reminder about canvas rendering.
+  - A.5.2 — **Unprimed edit.** A fresh session given "add a bullet to the risks section of the doc open in my browser saying '⟨X⟩'" completes the edit autonomously using `orbit focus` + `orbit key` + `orbit type`, and the bullet is visible to the user. The agent verifies with a follow-up `orbit ax`.
+  - A.5.3 — **Error recovery.** If the agent's first approach fails (e.g. wrong selector, focus lost), the skill's guidance leads it to retry successfully within 3 attempts — no dead end where the agent concludes "it can't be done."
+  - A.5.4 — **Honest non-goals.** The skill is explicit that complex structural edits (inserting a table, reformatting a heading block) should prefer the Docs REST API path (§17.5) rather than synthesized keystrokes, and documents when the API path is available.
 
 ### Stage 6 — Polish & distribution (ongoing)
 
@@ -321,17 +353,22 @@ orbit/
 |Skill drifts from CLI surface                                                  |Medium  |Version-pin the skill against `orbit --version`; add a smoke test that runs each example in CI.                       |
 |Apple notarization friction                                                    |Low     |One-time setup cost; standard process.                                                                                |
 |Performance: large DOM dumps (e.g. a long Google Doc) blow past terminal buffer|Medium  |`orbit text` + `--selector` narrowing; add `orbit text --max-chars N`; consider a `--save-to <file>` option.          |
+|Canvas-rendered apps (Google Docs/Sheets/Slides, Figma) invisible to DOM reads |High    |First-class `orbit ax` accessibility-tree path (§9, §17); skill explicitly steers agents off `orbit text` for these.  |
+|Google Docs DOM changes break synthesized-input edits                          |Medium  |Target ARIA roles (`[role="document"]`) not class names; skill's error-recovery loop retries with refocus (§17.6); REST API escape hatch for structural edits (§17.4).|
+|Docs REST API consent UX interrupts agent flow                                 |Low     |One-time consent; cached in Electron session; skill documents the prompt so the agent surfaces it to the user.        |
 
 -----
 
 ## 15. Glossary
 
 - **CDP** — Chrome DevTools Protocol. The wire protocol used to inspect and control Chromium. Electron exposes this via `webContents.debugger`.
-- **WebContentsView** — Electron’s modern API for embedding a Chromium view inside a BrowserWindow. Replaces the deprecated BrowserView.
+- **WebContentsView** — Electron's modern API for embedding a Chromium view inside a BrowserWindow. Replaces the deprecated BrowserView.
 - **node-pty** — Node.js bindings for spawning pseudo-terminal processes. Used to run real shells with full terminal semantics.
 - **xterm.js** — Browser-side terminal emulator. Renders PTY output into a canvas/DOM terminal.
-- **Brainstem** — Geoff’s personal knowledge management system at brainstem.cc, exposed as an MCP server. Relevant for the skills panel’s “context” source.
-- **Trailblazers** — Geoff’s pilot cohort of Capital One PMs getting early Claude Code access.
+- **Accessibility tree (AXTree)** — The structured representation of a page that browsers expose to screen readers, reachable via CDP `Accessibility.getFullAXTree`. For canvas-rendered apps like Google Docs, this tree — not the DOM — is where the actual document content lives. See §17 and `docs/research/vscode-1.110-integrated-browser.md`.
+- **Kix** — Google Docs' editor engine. Renders the document body to a `<canvas>` element with a hidden contenteditable for input. The reason `orbit ax` exists.
+- **Brainstem** — Geoff's personal knowledge management system at brainstem.cc, exposed as an MCP server. Relevant for the skills panel's "context" source.
+- **Trailblazers** — Geoff's pilot cohort of Capital One PMs getting early Claude Code access.
 
 -----
 
@@ -347,3 +384,88 @@ If you are a Claude instance picking this up, here’s what you need to know:
 1. **The skill-along-with-the-app is not an afterthought.** It is Stage 5 and a first-class deliverable. The app without the skill is 60% of the value. The skill without the app is 0%. Ship both or ship neither.
 1. **If blocked on an open question in §7, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming — these can be resolved in-flight.
 1. **Suggested first task:** scaffold the repo per §12, get electron-vite + React + Tailwind running, render a single xterm.js terminal backed by node-pty. One file, one window, one working terminal. Everything else builds from there.
+1. **Before touching Stage 2/3/5, read §17 and `docs/research/vscode-1.110-integrated-browser.md`.** Google Docs read/edit is the flagship success test for this project, and the naive DOM approach does not work — canvas rendering requires the accessibility tree for reads and synthesized input (or the Docs REST API) for writes. The acceptance criteria in §11 Stages 2, 3, and 5 are the go/no-go gates.
+
+-----
+
+## 17. Google Docs First-Class Support
+
+> Google Docs is the flagship target for Duo's agent↔browser bridge (see §2 and §3.1). This section consolidates the design decisions that make read-and-edit work end-to-end. It exists because the obvious approach (DOM scraping) does not work on Google Docs, and the failure mode is silent — a selector returns an empty string, the agent assumes the doc is empty, and the user sees hallucinated summaries. Do not ship without the acceptance criteria in §11 Stages 2/3/5 passing.
+
+### 17.1 The core problem
+
+Google Docs (the "Kix" editor, since ~2021) renders the document body to an HTML `<canvas>` element, not to a live DOM tree. Consequences:
+
+- `document.body.innerText` contains the Docs chrome (menus, toolbars) but almost none of the document text.
+- `document.querySelector('.kix-appview-canvas')` returns the canvas element, but `.innerText` on it is empty because canvas has no text children.
+- Keyboard input is not captured by visible elements — Docs uses a hidden `contenteditable` element (roughly `.docs-texteventtarget-iframe` descendants) for IME and input handling.
+
+This is the same pattern used by Google Sheets, Google Slides, Figma, and increasingly Notion's newer surfaces. Solving it for Docs unlocks the class.
+
+### 17.2 Read strategy — accessibility tree
+
+Google Docs exposes the full document to screen readers via ARIA. The browser's accessibility tree therefore contains the actual document content with structure (headings, lists, tables). We reach it via CDP:
+
+- `Accessibility.getFullAXTree` — full tree for the current page
+- `Accessibility.getPartialAXTree { backendNodeId }` — subtree rooted at a selector (we resolve the selector via `DOM.querySelector` first)
+
+The `orbit ax` command (see §9) wraps this and by default renders to Markdown using a small converter in the main process. For a Google Doc, the canonical invocation is:
+
+```bash
+orbit navigate https://docs.google.com/document/d/<id>/edit
+orbit wait '[role="document"]'
+orbit ax --selector '[role="document"]'
+```
+
+Output should be stable (paragraph order matches screen order) and fast (< 2s for a 20-page document; see A.3.1).
+
+### 17.3 Edit strategy — synthesized input
+
+For casual edits (appending text, replacing a selection, applying Cmd-B to the current selection), synthesizing keystrokes is sufficient:
+
+1. Focus the document: `orbit focus '[role="document"]'` (uses CDP `DOM.focus` on the resolved node; falls back to a click if focus fails).
+2. Position the cursor: `orbit key End`, `orbit key Home`, or use `orbit key ArrowDown --modifiers shift` to select.
+3. Insert text: `orbit type "..."` issues `Input.insertText`, which mimics IME input and is what Docs' hidden event target expects.
+4. Named keys for structure: `orbit key Enter` (new paragraph), `orbit key Tab` (list indent), `orbit key Backspace`, and modifier chords like `orbit key b --modifiers cmd` (bold).
+
+Synthesized-input edits are the default because they work without any extra OAuth scope beyond what the user's Google login already provides.
+
+### 17.4 Edit strategy — when to escalate to the Docs REST API
+
+Synthesized keystrokes are fragile for structural edits: inserting a table, rewriting a whole heading block, moving content across sections. For those, prefer the Google Docs REST API:
+
+- Endpoint: `https://docs.googleapis.com/v1/documents/{id}:batchUpdate`
+- Auth: bootstrap an OAuth access token from the signed-in Electron session (the user already consented at login). Scope: `https://www.googleapis.com/auth/documents`. First call triggers a consent dialog in the browser pane.
+- Exposed to agents as `orbit docs apply <json-patch>` (future command; not in Stage 3 core). Implementation lives in the main process so the access token never leaves the app.
+
+Skill guidance (§10, A.5.4): prefer synthesized input for simple text edits, escalate to the API for structural changes. The skill's `edit-google-doc.md` example documents both paths.
+
+### 17.5 Security posture
+
+Duo's threat model is a single trusted user on a trusted machine, so unlike VS Code 1.110 (see `docs/research/vscode-1.110-integrated-browser.md`) we do not require per-page "Share with Agent" consent. However:
+
+- The Unix socket is mode `0600` and lives under `~/Library/Application Support/duo/` (user-owned).
+- The Docs REST API path requires one-time explicit consent in the browser pane before the first write. The consent is cached in the Electron session, not in the socket bridge.
+- A future "paranoid mode" (Stage 6+) could adopt VS Code's per-tab share-with-agent gating. Not in MVP scope.
+
+### 17.6 Failure modes and telemetry
+
+Before Stage 5 declares done, the following failure modes must have explicit handling in the skill:
+
+| Failure                                                           | Detection                                        | Skill guidance                                                                     |
+|-------------------------------------------------------------------|--------------------------------------------------|------------------------------------------------------------------------------------|
+| Agent uses `orbit text` on a Google Doc and gets ~nothing         | Empty/near-empty output on a known-large doc     | Skill teaches: retry with `orbit ax`. `text` on `.kix-appview-canvas` is a trap.   |
+| Focus is lost between `orbit focus` and `orbit type`              | Text appears in the wrong element or not at all  | Skill: re-issue `orbit focus` immediately before `orbit type`; check `orbit url`.  |
+| Doc opens behind account chooser / SSO bounce                     | `orbit ax` returns a Google account-picker tree  | User remediation: log in once in the browser pane. Skill surfaces this clearly.    |
+| Docs API consent not yet granted                                  | `orbit docs apply` returns `{error: "consent"}`  | Skill: tell user to click through the consent prompt that appeared in the pane.    |
+| Long doc + naive full-tree fetch exceeds terminal buffer          | `orbit ax` output > N MB                         | Skill: use `--selector` to narrow; use `--format json` and pipe to `jq`.           |
+
+### 17.7 Acceptance criteria summary
+
+The Google Docs experience ships only when **all** of the following pass:
+
+- §11 Stage 2: A.2.1 – A.2.4 (browser + SSO foundation)
+- §11 Stage 3: A.3.1 – A.3.6 (CLI read, write, round-trip, multi-tab, console, no-regression)
+- §11 Stage 5: A.5.1 – A.5.4 (unprimed read, unprimed edit, error recovery, honest non-goals)
+
+If any criterion is failing at the end of its stage, the stage does not exit. This is the forcing function that keeps the flagship use case real instead of aspirational.
