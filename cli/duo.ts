@@ -139,7 +139,14 @@ async function main(): Promise<void> {
         const selectorIdx = rest.indexOf('--selector')
         const outputPath = outIdx !== -1 ? rest[outIdx + 1] : undefined
         const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : undefined
-        out(await send('screenshot', { outputPath, selector }))
+        const b64 = await send('screenshot', { selector }) as string
+        if (outputPath) {
+          const abs = path.resolve(outputPath)
+          fs.writeFileSync(abs, Buffer.from(b64, 'base64'))
+          out(`Saved to ${abs}`)
+        } else {
+          out(b64)
+        }
         break
       }
       case 'tabs':
@@ -158,12 +165,36 @@ async function main(): Promise<void> {
         out(await send('wait', { selector, timeout }))
         break
       }
+      case 'install':
+        runInstall()
+        break
+
       default:
         die(`Unknown command: ${cmd}\nRun duo --help for usage`)
     }
   } catch (err) {
     die(err instanceof Error ? err.message : String(err))
   }
+}
+
+// Symlinks this binary to /usr/local/bin/duo (or ~/.local/bin/duo as fallback).
+// Called automatically on first launch by Duo.app; can also be run manually.
+function runInstall(): void {
+  const self = process.execPath  // path to the compiled duo binary
+  const targets = ['/usr/local/bin/duo', path.join(os.homedir(), '.local', 'bin', 'duo')]
+
+  for (const target of targets) {
+    try {
+      fs.mkdirSync(path.dirname(target), { recursive: true })
+      try { fs.unlinkSync(target) } catch { /* doesn't exist */ }
+      fs.symlinkSync(self, target)
+      out(`Installed: ${target} → ${self}`)
+      return
+    } catch {
+      // Try next target (e.g. /usr/local/bin might need sudo)
+    }
+  }
+  die('Could not install duo. Try: sudo ln -sf ' + self + ' /usr/local/bin/duo')
 }
 
 function printHelp(): void {
@@ -186,6 +217,7 @@ COMMANDS
   tabs                            List open browser tabs (JSON)
   tab <n>                         Switch to browser tab N
   wait <selector> [--timeout ms]  Wait for element to appear
+  install                         Symlink duo to /usr/local/bin/duo
 
 FLAGS
   --version, -v    Print version

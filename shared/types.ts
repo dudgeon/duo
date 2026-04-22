@@ -44,6 +44,21 @@ export interface BrowserTab {
   isActive: boolean
 }
 
+export interface BrowserState {
+  url: string
+  title: string
+  canGoBack: boolean
+  canGoForward: boolean
+  isLoading: boolean
+}
+
+export interface BrowserBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 // ── Skills panel ─────────────────────────────────────────────────────────────
 
 export interface SkillEntry {
@@ -63,7 +78,14 @@ export const IPC = {
   PTY_EXIT: (id: string) => `pty:exit:${id}`,
   PTY_TITLE: (id: string) => `pty:title:${id}`,
 
+  // Renderer → main
   BROWSER_NAVIGATE: 'browser:navigate',
+  BROWSER_BACK: 'browser:back',
+  BROWSER_FORWARD: 'browser:forward',
+  BROWSER_RELOAD: 'browser:reload',
+  BROWSER_BOUNDS: 'browser:bounds',
+
+  // Main → renderer
   BROWSER_STATE: 'browser:state',
 
   SKILLS_SCAN: 'skills:scan',
@@ -87,9 +109,19 @@ export interface ElectronPtyAPI {
   onTitle: (id: string, cb: (title: string) => void) => () => void
 }
 
+export interface ElectronBrowserAPI {
+  navigate: (url: string) => Promise<{ ok: boolean; url: string; title: string }>
+  back: () => void
+  forward: () => void
+  reload: () => void
+  setBounds: (bounds: BrowserBounds) => void
+  onStateChange: (cb: (state: BrowserState) => void) => () => void
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
+  browser: ElectronBrowserAPI
 }
 
 declare global {

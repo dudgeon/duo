@@ -39,6 +39,29 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.PTY_TITLE(id), handler)
       return () => ipcRenderer.removeListener(IPC.PTY_TITLE(id), handler)
     }
+  },
+
+  browser: {
+    navigate: (url) =>
+      ipcRenderer.invoke(IPC.BROWSER_NAVIGATE, { url }),
+
+    back: () =>
+      ipcRenderer.send(IPC.BROWSER_BACK),
+
+    forward: () =>
+      ipcRenderer.send(IPC.BROWSER_FORWARD),
+
+    reload: () =>
+      ipcRenderer.send(IPC.BROWSER_RELOAD),
+
+    setBounds: (bounds) =>
+      ipcRenderer.send(IPC.BROWSER_BOUNDS, bounds),
+
+    onStateChange: (cb) => {
+      const handler = (_: IpcRendererEvent, state: Parameters<typeof cb>[0]) => cb(state)
+      ipcRenderer.on(IPC.BROWSER_STATE, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_STATE, handler)
+    }
   }
 }
 
