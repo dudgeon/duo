@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * orbit CLI — the agent's API surface into the running Orbit app.
+ * duo CLI — the agent's API surface into the running Duo app.
  * Called by Claude Code like any shell command; communicates with the Electron
- * main process over a Unix socket at ~/Library/Application Support/orbit/orbit.sock
+ * main process over a Unix socket at ~/Library/Application Support/duo/duo.sock
  *
  * See §9 of duo-brief.md for the full command reference.
  */
@@ -12,17 +12,17 @@ import * as os from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
 import { randomUUID } from 'crypto'
-import type { OrbitRequest, OrbitResponse } from '../shared/types'
+import type { DuoRequest, DuoResponse } from '../shared/types'
 
 const VERSION = '0.1.0'
-const SOCKET_PATH = path.join(os.homedir(), 'Library', 'Application Support', 'orbit', 'orbit.sock')
+const SOCKET_PATH = path.join(os.homedir(), 'Library', 'Application Support', 'duo', 'duo.sock')
 const TIMEOUT_MS = 10_000
 
 // ── Socket transport ─────────────────────────────────────────────────────────
 
 async function send(cmd: string, args: Record<string, unknown> = {}): Promise<unknown> {
   if (!fs.existsSync(SOCKET_PATH)) {
-    die('Cannot connect: Orbit app is not running.\nLaunch Orbit.app first.')
+    die('Cannot connect: Duo app is not running.\nLaunch Duo.app first.')
   }
 
   return new Promise((resolve, reject) => {
@@ -34,7 +34,7 @@ async function send(cmd: string, args: Record<string, unknown> = {}): Promise<un
     socket.setTimeout(TIMEOUT_MS)
 
     socket.on('connect', () => {
-      const req: OrbitRequest = { id, cmd: cmd as OrbitRequest['cmd'], args }
+      const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args }
       socket.write(JSON.stringify(req) + '\n')
     })
 
@@ -45,7 +45,7 @@ async function send(cmd: string, args: Record<string, unknown> = {}): Promise<un
       for (const line of lines) {
         if (!line.trim()) continue
         try {
-          const res: OrbitResponse = JSON.parse(line)
+          const res: DuoResponse = JSON.parse(line)
           if (res.id === id) {
             done = true
             socket.destroy()
@@ -75,7 +75,7 @@ function out(value: unknown): void {
 }
 
 function die(msg: string, code = 1): never {
-  process.stderr.write(`orbit: ${msg}\n`)
+  process.stderr.write(`duo: ${msg}\n`)
   process.exit(code)
 }
 
@@ -99,7 +99,7 @@ async function main(): Promise<void> {
   try {
     switch (cmd) {
       case 'navigate': {
-        const url = rest[0] ?? die('Usage: orbit navigate <url>')
+        const url = rest[0] ?? die('Usage: duo navigate <url>')
         out(await send('navigate', { url }))
         break
       }
@@ -119,18 +119,18 @@ async function main(): Promise<void> {
         break
       }
       case 'click': {
-        const selector = rest[0] ?? die('Usage: orbit click <selector>')
+        const selector = rest[0] ?? die('Usage: duo click <selector>')
         out(await send('click', { selector }))
         break
       }
       case 'fill': {
         const [selector, value] = rest
-        if (!selector || !value) die('Usage: orbit fill <selector> <value>')
+        if (!selector || !value) die('Usage: duo fill <selector> <value>')
         out(await send('fill', { selector, value }))
         break
       }
       case 'eval': {
-        const js = rest.join(' ') || die('Usage: orbit eval <js>')
+        const js = rest.join(' ') || die('Usage: duo eval <js>')
         out(await send('eval', { js }))
         break
       }
@@ -147,19 +147,19 @@ async function main(): Promise<void> {
         break
       case 'tab': {
         const n = parseInt(rest[0] ?? '', 10)
-        if (isNaN(n)) die('Usage: orbit tab <n>')
+        if (isNaN(n)) die('Usage: duo tab <n>')
         out(await send('tab', { n }))
         break
       }
       case 'wait': {
-        const selector = rest[0] ?? die('Usage: orbit wait <selector> [--timeout ms]')
+        const selector = rest[0] ?? die('Usage: duo wait <selector> [--timeout ms]')
         const timeoutIdx = rest.indexOf('--timeout')
         const timeout = timeoutIdx !== -1 ? parseInt(rest[timeoutIdx + 1], 10) : undefined
         out(await send('wait', { selector, timeout }))
         break
       }
       default:
-        die(`Unknown command: ${cmd}\nRun orbit --help for usage`)
+        die(`Unknown command: ${cmd}\nRun duo --help for usage`)
     }
   } catch (err) {
     die(err instanceof Error ? err.message : String(err))
@@ -168,10 +168,10 @@ async function main(): Promise<void> {
 
 function printHelp(): void {
   console.log(`
-orbit ${VERSION} — CLI bridge to the Orbit desktop app
+duo ${VERSION} — CLI bridge to the Duo desktop app
 
 USAGE
-  orbit <command> [options]
+  duo <command> [options]
 
 COMMANDS
   navigate <url>                  Navigate to URL
@@ -198,6 +198,6 @@ EXIT CODES
 }
 
 main().catch((err) => {
-  process.stderr.write(`orbit: unhandled error: ${err}\n`)
+  process.stderr.write(`duo: unhandled error: ${err}\n`)
   process.exit(1)
 })

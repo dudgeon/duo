@@ -1,4 +1,4 @@
-# Orbit — Roadmap
+# Duo — Roadmap
 
 > Status legend: ✅ done · 🔄 in progress · ⬜ not started
 
@@ -56,17 +56,17 @@
 
 ---
 
-## Stage 3 — `orbit` Bridge `⬜ Not Started`
+## Stage 3 — `duo` Bridge `⬜ Not Started`
 
-**Exit criteria:** From any terminal tab in the app, `orbit text` returns the contents of whatever's in the browser.
+**Exit criteria:** From any terminal tab in the app, `duo text` returns the contents of whatever's in the browser.
 
 - [ ] `electron/cdp-bridge.ts` — implement all CDP commands (navigate, dom, text, click, fill, eval, screenshot, wait)
 - [ ] `electron/socket-server.ts` — Unix socket server, JSON line-delimited protocol
-- [ ] `cli/orbit.ts` — compile to executable (esbuild or `pkg`), test all commands
+- [ ] `cli/duo.ts` — compile to executable (esbuild or `pkg`), test all commands
 - [ ] `cli/install.sh` — verified on macOS
 - [ ] `scripts/postinstall.ts` — called from `electron/main.ts` on first launch
 - [ ] CLI symlink installation dialog on first launch
-- [ ] End-to-end: Claude Code in terminal tab → `orbit text` → returns Google Doc text
+- [ ] End-to-end: Claude Code in terminal tab → `duo text` → returns Google Doc text
 
 ---
 
@@ -83,18 +83,17 @@
 
 ---
 
-## Stage 5 — `orbit` Skill `⬜ Not Started`
+## Stage 5 — `duo` Skill `⬜ Not Started`
 
-**Exit criteria:** A fresh Claude Code session in the app autonomously discovers and uses `orbit` to read a Google Doc.
+**Exit criteria:** A fresh Claude Code session in the app autonomously discovers and uses `duo` to read a Google Doc.
 
 - [x] `skill/SKILL.md` — authored per §10 of brief
 - [x] `skill/examples/read-google-doc.md`
 - [x] `skill/examples/fill-form.md`
 - [x] `skill/examples/iterate-artifact.md`
-- [ ] Version pinning: skill tests `orbit --version` matches compatible range
+- [ ] Version pinning: skill tests `duo --version` matches compatible range
 - [ ] Smoke test in CI: each example runs without error
 - [ ] `scripts/postinstall.ts` — installs skill on first launch (verified)
-- [ ] **Confirm working name "Orbit" with Geoff before skill is published** (§7 of brief)
 
 ---
 
@@ -118,7 +117,6 @@
 
 | Question | Assumption Made | Needs Confirmation Before |
 |---|---|---|
-| App name | "Orbit" (coined by Claude, not Geoff) | Stage 5 (skill authoring) |
 | Distribution scope | Personal → Trailblazers → broader | Stage 6 |
 | Browser tab count | Multiple tabs in single pane | Stage 2 |
 | Skills data sources | CWD scan + brainstem.cc | Stage 4 |

@@ -6,22 +6,22 @@ export interface TabSession {
   cwd: string
 }
 
-// ── Orbit socket protocol ────────────────────────────────────────────────────
+// ── Duo socket protocol ──────────────────────────────────────────────────────
 
-export interface OrbitRequest {
+export interface DuoRequest {
   id: string
-  cmd: OrbitCommandName
+  cmd: DuoCommandName
   args: Record<string, unknown>
 }
 
-export interface OrbitResponse {
+export interface DuoResponse {
   id: string
   ok: boolean
   result?: unknown
   error?: string
 }
 
-export type OrbitCommandName =
+export type DuoCommandName =
   | 'navigate'
   | 'url'
   | 'title'

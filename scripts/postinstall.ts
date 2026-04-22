@@ -1,6 +1,6 @@
-// Postinstall script — runs after the Orbit app first launches.
-// 1. Installs the orbit skill to ~/.claude/skills/orbit/
-// 2. Copies orbit CLI to the resources dir (handled by electron-builder extraResources)
+// Postinstall script — runs after the Duo app first launches.
+// 1. Installs the duo skill to ~/.claude/skills/duo/
+// 2. Copies duo CLI to the resources dir (handled by electron-builder extraResources)
 // 3. Prompts for CLI symlink installation
 
 import * as fs from 'fs'

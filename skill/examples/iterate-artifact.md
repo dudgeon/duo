@@ -5,7 +5,7 @@ screenshots it, and iterates based on what it sees.
 
 ```bash
 # Step 1: Generate the artifact
-cat > /tmp/orbit-artifact.html << 'EOF'
+cat > /tmp/duo-artifact.html << 'EOF'
 <!DOCTYPE html>
 <html>
 <head>
@@ -24,18 +24,18 @@ cat > /tmp/orbit-artifact.html << 'EOF'
 EOF
 
 # Step 2: Load it in the browser
-orbit navigate "file:///tmp/orbit-artifact.html"
+duo navigate "file:///tmp/duo-artifact.html"
 
 # Step 3: Screenshot
-orbit screenshot --out /tmp/orbit-artifact-v1.png
+duo screenshot --out /tmp/duo-artifact-v1.png
 
 # Step 4: Inspect and iterate — edit the HTML, reload, screenshot again
-orbit navigate "file:///tmp/orbit-artifact.html"
-orbit screenshot --out /tmp/orbit-artifact-v2.png
+duo navigate "file:///tmp/duo-artifact.html"
+duo screenshot --out /tmp/duo-artifact-v2.png
 ```
 
 **Notes:**
 
-- `file://` URLs load instantly; no `orbit wait` needed.
-- Share the screenshot path with the user using `Read /tmp/orbit-artifact-v1.png`.
-- For interactive artifacts, use `orbit click` and `orbit fill` after loading.
+- `file://` URLs load instantly; no `duo wait` needed.
+- Share the screenshot path with the user using `Read /tmp/duo-artifact-v1.png`.
+- For interactive artifacts, use `duo click` and `duo fill` after loading.

@@ -1,4 +1,4 @@
-# Orbit — Research Notes
+# Duo — Research Notes
 
 > Findings that informed decisions during the planning and build phases.
 > Not a living document — update when new research changes a decision.
@@ -57,9 +57,9 @@ const result = await dbg.sendCommand('Runtime.evaluate', {
 })
 ```
 
-**Key CDP domains for the orbit CLI surface:**
+**Key CDP domains for the duo CLI surface:**
 
-| orbit command | CDP method |
+| duo command | CDP method |
 |---|---|
 | `navigate` | `Page.navigate` |
 | `dom` | `DOM.getOuterHTML` (or `Runtime.evaluate` on `document.documentElement.outerHTML`) |
@@ -70,10 +70,10 @@ const result = await dbg.sendCommand('Runtime.evaluate', {
 | `screenshot` | `Page.captureScreenshot` |
 | `wait` | Poll `DOM.querySelector` until element found or timeout |
 
-**Large DOM issue:** `orbit dom` on a long Google Doc will return a very large
+**Large DOM issue:** `duo dom` on a long Google Doc will return a very large
 string. The brief flags this as a known risk (§14). Mitigations to implement:
-- `orbit text --max-chars N` to truncate
-- `orbit text --save-to <file>` to write to disk instead of stdout
+- `duo text --max-chars N` to truncate
+- `duo text --save-to <file>` to write to disk instead of stdout
 - Encourage `--selector` narrowing in the skill docs
 
 ---

@@ -1,4 +1,4 @@
-# Orbit — Architecture Decisions
+# Duo — Architecture Decisions
 
 > All decisions in §6 of the brief are LOCKED. This document adds rationale,
 > implementation notes, and records any decisions made during build.
@@ -52,14 +52,14 @@ owned by the main process and positioned behind the renderer window.
 **Implementation notes:**
 - The renderer has no direct access to the WebContentsView — it's a main-process
   construct. The renderer sends bounds via IPC; the main process repositions the view.
-- Session partition: `persist:orbit-browser` → survives app restart
+- Session partition: `persist:duo-browser` → survives app restart
 - The view should be created once and repositioned, not recreated on tab switch
 
 ---
 
 ### Agent ↔ browser bridge: Unix socket + CLI
 
-**Choice:** `orbit` CLI over `~/Library/Application Support/orbit/orbit.sock`
+**Choice:** `duo` CLI over `~/Library/Application Support/duo/duo.sock`
 
 **Why locked:** User explicitly rejected MCP. CLI tool on PATH is the most
 Claude-Code-native pattern — the agent calls it like any shell command. No
@@ -67,9 +67,9 @@ protocol overhead, no schema negotiation, no extra install step.
 
 **Implementation notes:**
 - Protocol: JSON line-delimited (request/response matched by UUID)
-- Socket path: in `~/Library/Application Support/orbit/` (sandbox-safe vs `/tmp`)
+- Socket path: in `~/Library/Application Support/duo/` (sandbox-safe vs `/tmp`)
 - Security: for MVP, any local process can send commands. Before wider distribution,
-  add a launch-time auth token written to `~/.orbit/token` and validated on each connection.
+  add a launch-time auth token written to `~/.duo/token` and validated on each connection.
 - Error contract: non-zero exit on failure, human-readable stderr, JSON result on stdout
 
 ---
@@ -117,11 +117,11 @@ and Intel; no separate downloads.
 
 ## Decisions made during build
 
-### Socket path: `~/Library/Application Support/orbit/` not `/tmp`
+### Socket path: `~/Library/Application Support/duo/` not `/tmp`
 
 **Decision date:** Stage 1 scaffold  
 **Rationale:** `/tmp` is cleaned on reboot and is not sandbox-safe on macOS.
-`~/Library/Application Support/orbit/` is the conventional macOS app data location
+`~/Library/Application Support/duo/` is the conventional macOS app data location
 and persists across reboots. Consistent with `BROWSER_SESSION_PATH`.
 
 ---
@@ -145,8 +145,8 @@ when a tab becomes visible to handle deferred layout.
 
 ---
 
-### Working name "Orbit" — not confirmed by owner
+### App name: "Duo" — confirmed by owner
 
-**Status:** Assumption (see §7 of brief)  
-**Action required:** Confirm with Geoff before Stage 5 (skill authoring), since
-the skill name is user-facing and will appear in `~/.claude/skills/orbit/`.
+**Status:** Confirmed  
+**Decision:** The app is named "Duo". The CLI is `duo`. The skill installs to
+`~/.claude/skills/duo/`. No further confirmation needed.

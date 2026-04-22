@@ -1,5 +1,5 @@
-appId: cc.brainstem.orbit
-productName: Orbit
+appId: cc.brainstem.duo
+productName: Duo
 copyright: Copyright © 2026 Geoff
 
 directories:
@@ -35,7 +35,7 @@ mac:
   entitlementsInherit: build/entitlements.mac.plist
 
 dmg:
-  title: "Orbit ${version}"
+  title: "Duo ${version}"
   sign: false
 
 asar: true

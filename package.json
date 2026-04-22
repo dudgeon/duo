@@ -1,5 +1,5 @@
 {
-  "name": "orbit",
+  "name": "duo",
   "version": "0.1.0",
   "description": "macOS desktop app pairing Claude Code terminals with an embedded Chrome browser",
   "main": "out/main/index.js",

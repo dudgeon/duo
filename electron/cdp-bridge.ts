@@ -1,7 +1,7 @@
 // Stage 3: CDP command executor
 //
 // Uses Electron's built-in webContents.debugger API — no external Chrome
-// DevTools connection required. Commands map directly to the orbit CLI surface.
+// DevTools connection required. Commands map directly to the duo CLI surface.
 
 import type { WebContents } from 'electron'
 
