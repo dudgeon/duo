@@ -1,0 +1,43 @@
+appId: cc.brainstem.orbit
+productName: Orbit
+copyright: Copyright © 2026 Geoff
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**/*
+  - package.json
+  - "!node_modules/**/*"
+
+extraResources:
+  - from: skill/
+    to: skill/
+    filter:
+      - "**/*"
+  - from: cli/
+    to: cli/
+    filter:
+      - "**/*"
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+dmg:
+  title: "Orbit ${version}"
+  sign: false
+
+asar: true
+asarUnpack:
+  - "**/node_modules/node-pty/**"

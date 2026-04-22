@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    @apply h-full w-full overflow-hidden bg-surface-0 text-zinc-100;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* macOS traffic-light region — reserved by hiddenInset title bar */
+  .titlebar-drag {
+    -webkit-app-region: drag;
+  }
+  .titlebar-nodrag {
+    -webkit-app-region: no-drag;
+  }
+}
+
+@layer components {
+  /* xterm.js host element fills its container */
+  .xterm-host {
+    @apply w-full h-full overflow-hidden;
+  }
+
+  .xterm-host .xterm {
+    @apply h-full;
+    padding: 8px;
+  }
+
+  .xterm-host .xterm-viewport {
+    @apply rounded-none;
+  }
+
+  /* Resize divider */
+  .split-divider {
+    @apply w-px bg-border cursor-col-resize shrink-0 transition-colors duration-100;
+  }
+  .split-divider:hover,
+  .split-divider.dragging {
+    @apply bg-accent w-0.5;
+  }
+}
