@@ -18,25 +18,24 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 ## Current state (as of 2026-04-22)
 
-**Stage 1 scaffold complete.** The full project structure, build config, and
-Stage 1 implementation are in place. The app is not yet tested end-to-end
-(requires macOS with Electron/node-pty).
+**Stages 1–3 implemented.** All code is written and pushed. Awaiting first
+end-to-end test on macOS (requires Electron/node-pty to build natively).
 
 **What's done:**
 - All config: `package.json`, `electron.vite.config.ts`, `tsconfig.*.json`,
   `electron-builder.yml`, Tailwind, PostCSS
 - Electron main process: `BrowserWindow`, PTY manager, IPC handlers, preload
 - Renderer: split layout, tab bar, xterm.js terminals (one per tab), keyboard shortcuts
-- Stubs for Stages 2–4: `browser-manager.ts`, `cdp-bridge.ts`, `socket-server.ts`, `skills-scanner.ts`
-- CLI: `cli/duo.ts` (complete command dispatch, socket client)
+- Browser pane: `BrowserManager` (WebContentsView, SSO persistence, tab management)
+- CLI bridge: `CdpBridge` (CDP via debugger), `SocketServer` (Unix socket, 12 commands)
+- CLI: `cli/duo` binary pre-built; `duo install` symlinks to `/usr/local/bin/duo`
 - Skill: `skill/SKILL.md` + three example files
-- Docs: `ROADMAP.md`, `docs/DECISIONS.md`, `docs/RESEARCH.md`
+- Docs: `ROADMAP.md`, `docs/DECISIONS.md`, `docs/RESEARCH.md`, `docs/FIRST-RUN.md`
 
-**What's next (finish Stage 1):**
-1. Run `npm install` on macOS (triggers `electron-rebuild` for node-pty)
-2. Run `npm run dev` and verify the app launches with working terminal tabs
-3. Fix any issues found during manual testing
-4. Update `ROADMAP.md` checkboxes
+**What's next:**
+1. Follow `docs/FIRST-RUN.md` on macOS — 10-step smoke test
+2. Fix any issues found
+3. Stage 4: Skills panel (collapsible sidebar, CWD-scan)
 
 ---
 
@@ -57,17 +56,19 @@ Stage 1 implementation are in place. The app is not yet tested end-to-end
 
 ---
 
-## Instructions from the brief
+## Working style — Claude instances must follow these
 
-1. **Do not re-debate the stack.** Electron, xterm.js, WebContentsView, Unix socket CLI — all locked. See `docs/DECISIONS.md`.
+1. **Ask before deciding.** Use the `AskUserQuestion` tool whenever there is a meaningful choice to make — layout, UX behaviour, approach, prioritisation, open questions. Do not silently pick one option and implement it. Batch related questions (up to 4 per call) so Geoff can answer them in one shot and you can proceed without interruption.
 
-2. **The CLI is the spec.** Every time a new CLI command is added, update `cli/duo.ts`, `skill/SKILL.md`, and the command reference in `duo-brief.md §9`.
+2. **Do not re-debate the stack.** Electron, xterm.js, WebContentsView, Unix socket CLI — all locked. See `docs/DECISIONS.md`.
 
-3. **The skill is a first-class deliverable.** Ship both the app and `skill/SKILL.md`, or neither. The skill is how Claude Code discovers the tool.
+3. **The CLI is the spec.** Every time a new CLI command is added, update `cli/duo.ts`, `skill/SKILL.md`, and the command reference in `duo-brief.md §9`.
 
-4. **If blocked on an open question in `duo-brief.md §7`, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming.
+4. **The skill is a first-class deliverable.** Ship both the app and `skill/SKILL.md`, or neither. The skill is how Claude Code discovers the tool.
 
-5. **Stage order matters.** Do not try to implement Stage 3 before Stage 2 is working. The socket server is useless without a real browser.
+5. **If blocked on an open question in `duo-brief.md §7`, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming.
+
+6. **Stage order matters.** Do not try to implement Stage 3 before Stage 2 is working. The socket server is useless without a real browser.
 
 ---
 
@@ -105,11 +106,15 @@ Claude Code.
 | Browser tab UX | Address bar + nav only; no visible tab bar; `duo tab <n>` for switching |
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Stage 2 + 3 | Implemented together in one pass |
+| Skills panel layout | Collapsible sidebar — third column right of browser pane |
+| First-launch install | Electron permission dialog before installing CLI + skill |
+| Distribution / cert | No cert yet — personal use only; get cert before Stage 6 |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
+| CWD tracking for Skills panel — needs clarification from Geoff | Before Stage 4 |
 | Apple Developer ID cert | Before Stage 6 |
 | Distribution timeline (personal → Trailblazers) | Before Stage 6 |
 | Socket auth approach for Trailblazers | Before Stage 6 |
