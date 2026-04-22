@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Duo — Layout Options</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --surface: #11161d;
+    --surface-2: #161c26;
+    --border: #1f2833;
+    --text: #e6edf3;
+    --text-dim: #b8c1cc;
+    --muted: #7d8894;
+    --accent: #6ee7b7;
+
+    /* Wireframe region palette — consistent across all cards */
+    --c-terminal: #1e2a3a;
+    --c-terminal-fg: #9ad5b0;
+    --c-working: #ede6d1;
+    --c-working-fg: #2a2a2a;
+    --c-files: #3e5670;
+    --c-tools: #5b4974;
+    --c-drawer-edge: rgba(255,255,255,0.16);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 48px 24px 96px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    max-width: 1280px;
+    margin: 0 auto 40px;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 30px;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+  .sub {
+    color: var(--text-dim);
+    margin: 0 0 20px;
+    max-width: 820px;
+    font-size: 15px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    display: inline-block;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .swatch.drawer {
+    background: transparent;
+    border: 1px dashed var(--c-drawer-edge);
+  }
+
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+  }
+  .card .header-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+  }
+  .card h2 {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .card h2 .num {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    margin-right: 8px;
+  }
+  .tag {
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+  .tag.recommend {
+    color: var(--accent);
+  }
+  .desc {
+    color: var(--text-dim);
+    margin: 10px 0 18px;
+    font-size: 14px;
+  }
+
+  /* Wireframe */
+  .wireframe {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: #05080c;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    display: grid;
+    gap: 2px;
+    padding: 2px;
+    margin-bottom: 18px;
+    position: relative;
+  }
+  .region {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    user-select: none;
+    overflow: hidden;
+  }
+  .region .label-main {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    text-align: center;
+    padding: 4px;
+  }
+  .region .sublabel {
+    font-size: 8px;
+    font-weight: 500;
+    opacity: 0.7;
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+
+  .r-term { background: var(--c-terminal); color: var(--c-terminal-fg); }
+  .r-work { background: var(--c-working); color: var(--c-working-fg); }
+  .r-files { background: var(--c-files); color: #fff; }
+  .r-tools { background: var(--c-tools); color: #fff; }
+
+  /* Drawer variants — faded + dashed to signal "hidden by default" */
+  .drawer {
+    opacity: 0.55;
+    outline: 1px dashed rgba(255,255,255,0.35);
+    outline-offset: -3px;
+  }
+  .drawer::after {
+    content: "drawer";
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-size: 8px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    text-transform: none;
+    color: rgba(255,255,255,0.65);
+  }
+
+  /* Tiny tab strip for panes that are tabbed */
+  .tabs {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    right: 4px;
+    height: 8px;
+    display: flex;
+    gap: 2px;
+    pointer-events: none;
+  }
+  .tabs i {
+    height: 100%;
+    background: rgba(0,0,0,0.25);
+    border-radius: 2px 2px 0 0;
+    flex: 0 0 18%;
+  }
+  .tabs i:first-child {
+    background: rgba(0,0,0,0.5);
+  }
+  .r-work .tabs i { background: rgba(0,0,0,0.18); }
+  .r-work .tabs i:first-child { background: rgba(0,0,0,0.38); }
+
+  /* Individual layout grids */
+  .wf-cockpit   { grid-template-columns: 48px 1fr 1fr 48px; }
+  .wf-classic   { grid-template: "f w t" 2fr
+                                 "f term t" 1fr
+                                 / 56px 1fr 56px; }
+  .wf-classic .gf { grid-area: f; }
+  .wf-classic .gw { grid-area: w; }
+  .wf-classic .gt { grid-area: t; }
+  .wf-classic .gterm { grid-area: term; }
+
+  .wf-mirror    { grid-template-columns: 48px 1.1fr 1fr; }
+  .wf-tri       { grid-template-columns: 1fr 1fr 1fr; }
+  .wf-diptych   { grid-template-columns: 32px 1fr 1fr 32px; }
+
+  .wf-stage     { grid-template-rows: 2fr 1fr; }
+  .wf-shell     { grid-template-rows: 2fr 1fr; } /* terminal on top */
+  .wf-focus     { grid-template-columns: 1fr; }
+  .wf-duplex    { grid-template: "a b" 1fr
+                                 "c d" 1fr
+                                 / 1fr 1fr; }
+  .wf-duplex .ga { grid-area: a; }
+  .wf-duplex .gb { grid-area: b; }
+  .wf-duplex .gc { grid-area: c; }
+  .wf-duplex .gd { grid-area: d; }
+
+  .wf-zen       { grid-template-columns: 1fr 1fr; }
+
+  /* For the Focus layout, we overlay small drawer stubs on edges */
+  .focus-overlays {
+    position: absolute;
+    inset: 2px;
+    pointer-events: none;
+  }
+  .focus-overlays .stub {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.9);
+    background: rgba(0,0,0,0.35);
+    border: 1px dashed rgba(255,255,255,0.45);
+    border-radius: 3px;
+    padding: 2px 6px;
+  }
+  .focus-overlays .stub.l  { top: 8px; bottom: 8px; left: 4px; writing-mode: vertical-rl; }
+  .focus-overlays .stub.r  { top: 8px; bottom: 8px; right: 4px; writing-mode: vertical-rl; }
+  .focus-overlays .stub.b  { left: 8px; right: 8px; bottom: 4px; }
+
+  /* Split columns for pros/cons */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    font-size: 13.5px;
+    margin-top: auto;
+  }
+  .columns h3 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .columns ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--text);
+  }
+  .columns li { margin-bottom: 5px; color: var(--text-dim); }
+  .columns li::marker { color: var(--muted); }
+
+  .best-for {
+    font-size: 12.5px;
+    color: var(--muted);
+    margin: 0 0 16px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border-left: 2px solid var(--border);
+    border-radius: 0 4px 4px 0;
+  }
+  .best-for strong {
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  footer {
+    max-width: 1280px;
+    margin: 56px auto 0;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  footer p { margin: 0 0 8px; }
+  footer code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: var(--surface);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Duo — Layout Options</h1>
+  <p class="sub">
+    Ten candidate layouts for the main window. The variables are: where the terminal sits,
+    whether the working pane is tabbed or mode-toggled, and how the two side panels
+    (file browser + agent tools) are exposed. Review side by side, then we update the brief.
+  </p>
+  <div class="legend">
+    <span><i class="swatch" style="background:var(--c-terminal)"></i>Terminal (agent)</span>
+    <span><i class="swatch" style="background:var(--c-working)"></i>Working pane — browser / file viewer / markdown editor</span>
+    <span><i class="swatch" style="background:var(--c-files)"></i>File browser</span>
+    <span><i class="swatch" style="background:var(--c-tools)"></i>Agent tools / skills</span>
+    <span><i class="swatch drawer"></i>Drawer (hidden by default)</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- 01 Cockpit -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">01</span>Cockpit</h2>
+      <span class="tag">Your proposed layout</span>
+    </div>
+    <p class="desc">Two persistent sidebars flank a primary split: working pane left (tabbed, polymorphic), terminal right. The agent is the dominant action surface; the working pane is what it operates on.</p>
+    <div class="wireframe wf-cockpit">
+      <div class="region r-files"><div class="label-main">Files</div></div>
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working<span class="sublabel">browser · md · file</span></div>
+      </div>
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Terminal</div>
+      </div>
+      <div class="region r-tools"><div class="label-main">Tools</div></div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> users who want both inputs and agent tools one click away, always visible.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Clear agent-primary framing</li>
+          <li>Separates inputs (files) from actions (tools)</li>
+          <li>Familiar IDE-adjacent chrome</li>
+          <li>Every surface persistently visible</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Four columns is tight on 13" displays</li>
+          <li>Working pane ends up ~35% of width</li>
+          <li>Two sidebars add visual noise</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 Classic IDE -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">02</span>Classic IDE</h2>
+      <span class="tag">VS Code-style</span>
+    </div>
+    <p class="desc">File browser left, working pane center-top (tabbed), terminal as a bottom strip, agent tools right. Closest to what PMs already know from VS Code or Cursor.</p>
+    <div class="wireframe wf-classic">
+      <div class="region r-files gf"><div class="label-main">Files</div></div>
+      <div class="region r-work gw">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working</div>
+      </div>
+      <div class="region r-tools gt"><div class="label-main">Tools</div></div>
+      <div class="region r-term gterm"><div class="label-main">Terminal</div></div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> teams coming from VS Code who want zero relearning cost.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Lowest learning curve</li>
+          <li>Working pane dominates visually</li>
+          <li>File browser placement is conventional</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Bottom-strip terminal fights the "agent-primary" thesis</li>
+          <li>Horizontal terminal is narrow for Claude Code output</li>
+          <li>Less differentiated from existing tools</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 Mirror -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">03</span>Mirror</h2>
+      <span class="tag">Inverse VS Code</span>
+    </div>
+    <p class="desc">File browser + working pane on the left, terminal on the right. No persistent right sidebar — agent tools live in a command palette (Cmd-K) or overlay.</p>
+    <div class="wireframe wf-mirror">
+      <div class="region r-files"><div class="label-main">Files</div></div>
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working</div>
+      </div>
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Terminal</div>
+      </div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> users who want the working pane wide and the agent adjacent, without a second sidebar.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Wider working pane than Cockpit</li>
+          <li>Less chrome — three zones, not four</li>
+          <li>Agent-on-right still reads as primary action</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Agent tools/skills harder to discover</li>
+          <li>Power-user palette required for skill switching</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 Tri-column -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">04</span>Tri-column</h2>
+      <span class="tag">Equal thirds</span>
+    </div>
+    <p class="desc">Three columns of equal weight: file browser, working pane, terminal. Agent tools are a drawer that slides over the terminal when invoked.</p>
+    <div class="wireframe wf-tri">
+      <div class="region r-files"><div class="label-main">Files</div></div>
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Working</div>
+      </div>
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Terminal</div>
+      </div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> wide displays (27"+) where three equal columns each have real breathing room.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Balanced visual weight</li>
+          <li>File browser is a peer, not an afterthought</li>
+          <li>No second sidebar cluttering edges</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Working pane feels narrow on 13" screens</li>
+          <li>Three equal columns makes the hierarchy ambiguous</li>
+          <li>Google Docs UI gets cramped at this width</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 05 Diptych -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">05</span>Diptych</h2>
+      <span class="tag">Balanced 50/50</span>
+    </div>
+    <p class="desc">Strict 50/50 split: working pane left (tabbed), terminal right (tabbed). Sidebars are thin icon rails that hover-expand into full panels.</p>
+    <div class="wireframe wf-diptych">
+      <div class="region r-files"><div class="label-main" style="font-size:9px">F</div></div>
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working</div>
+      </div>
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Terminal</div>
+      </div>
+      <div class="region r-tools"><div class="label-main" style="font-size:9px">T</div></div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> users who want persistent access to sidebars without giving up screen space.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Working pane and terminal both get ~48% width</li>
+          <li>Sidebars are always reachable (icon rail)</li>
+          <li>Hover-expand keeps panels out of the way</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>No dominant surface — hierarchy is flat</li>
+          <li>Hover-expand adds latency and accidental triggers</li>
+          <li>Icon rails need good iconography to be legible</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 06 Stage -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">06</span>Stage</h2>
+      <span class="tag">Content hero</span>
+    </div>
+    <p class="desc">The working pane takes the top two-thirds of the window; the terminal is a full-width strip beneath. Sidebars are drawers triggered by hotkeys.</p>
+    <div class="wireframe wf-stage">
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working<span class="sublabel">dominant</span></div>
+      </div>
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Terminal</div>
+      </div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> doc-centric sessions — reviewing a PRD in Docs while the agent produces changes below.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Working pane feels like the main event</li>
+          <li>Terminal as strip is natural for short agent replies</li>
+          <li>Clean, uncluttered default view</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Inverts the "agent-primary" thesis</li>
+          <li>Long Claude output scrolls a lot in a bottom strip</li>
+          <li>Drawer sidebars require discovery</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 07 Shell-first -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">07</span>Shell-first</h2>
+      <span class="tag">Terminal hero</span>
+    </div>
+    <p class="desc">Inverse of Stage: terminal is the dominant top region, working pane is a collapsible preview beneath. Sidebars are drawers.</p>
+    <div class="wireframe wf-shell">
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Terminal<span class="sublabel">dominant</span></div>
+      </div>
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Working</div>
+      </div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> agent-watching sessions — long-running Claude tasks where the transcript is the primary artifact.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Maximalist agent-primary framing</li>
+          <li>Full terminal width for wide Claude output</li>
+          <li>Working pane preview still glanceable</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Reading/editing a Google Doc feels cramped</li>
+          <li>Working pane gets demoted to "preview"</li>
+          <li>Not a natural PM-friendly layout</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 08 Focus -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">08</span>Focus</h2>
+      <span class="tag">One surface at a time</span>
+    </div>
+    <p class="desc">One dominant surface (user picks working pane or terminal); everything else is a drawer triggered by hotkey or hover. Distraction-free.</p>
+    <div class="wireframe wf-focus" style="position:relative">
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working<span class="sublabel">fullscreen</span></div>
+      </div>
+      <div class="focus-overlays">
+        <div class="stub l">Files</div>
+        <div class="stub r">Tools</div>
+        <div class="stub b">Terminal ↑</div>
+      </div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> solo deep-work sessions — one thing at a time, keyboard-driven.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Maximum real estate for the active surface</li>
+          <li>Minimal chrome — zen feel</li>
+          <li>Great for demos and screen shares</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Can't watch agent while reading docs</li>
+          <li>Heavy keyboard dependency</li>
+          <li>Hostile to newcomers — no visible affordances</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 09 Duplex -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">09</span>Duplex</h2>
+      <span class="tag">Parallel workflows</span>
+    </div>
+    <p class="desc">Two stacked pairs, each a (working pane + terminal) duo. A PM can run two fully-visible parallel sessions — e.g., PRD review above, research session below.</p>
+    <div class="wireframe wf-duplex">
+      <div class="region r-work ga"><div class="label-main">Working A</div></div>
+      <div class="region r-term gb"><div class="label-main">Terminal A</div></div>
+      <div class="region r-work gc"><div class="label-main">Working B</div></div>
+      <div class="region r-term gd"><div class="label-main">Terminal B</div></div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> users who routinely run two independent Claude sessions they want to compare at a glance.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Both sessions visible and active simultaneously</li>
+          <li>No tab-switching to check on the other</li>
+          <li>Unique — no existing tool does this well</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Very dense; each quadrant is ~half normal size</li>
+          <li>Google Docs barely fits at this scale</li>
+          <li>Complex to implement (double the panes and routing)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 Zen -->
+  <section class="card">
+    <div class="header-row">
+      <h2><span class="num">10</span>Zen</h2>
+      <span class="tag">Palette-driven</span>
+    </div>
+    <p class="desc">Two-pane main window — working left, terminal right — and that's it. File browser and agent tools are palette overlays (Cmd-P, Cmd-K) rather than persistent panels.</p>
+    <div class="wireframe wf-zen">
+      <div class="region r-work">
+        <div class="tabs"><i></i><i></i><i></i></div>
+        <div class="label-main">Working</div>
+      </div>
+      <div class="region r-term">
+        <div class="tabs"><i></i><i></i></div>
+        <div class="label-main">Terminal</div>
+      </div>
+    </div>
+    <p class="best-for"><strong>Best for:</strong> keyboard-native users who dislike permanent sidebars and prefer invoking panels on demand.</p>
+    <div class="columns">
+      <div>
+        <h3>Pros</h3>
+        <ul>
+          <li>Maximum screen area for content</li>
+          <li>Cleanest, most intentional aesthetic</li>
+          <li>Palette scales well as features grow</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Cons</h3>
+        <ul>
+          <li>Worst discoverability — new users are lost</li>
+          <li>File browser as palette loses spatial navigation</li>
+          <li>Skills viewer in a palette is awkward to browse</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p><strong style="color:var(--text-dim)">How to read the wireframes.</strong> Tab strips (the little rectangles along the top of a region) indicate that surface is tabbed. Dashed outlines indicate drawers — panels hidden by default, invoked by hotkey or hover. All layouts assume the working pane is polymorphic (browser / markdown editor / file viewer) with per-tab mode.</p>
+  <p><strong style="color:var(--text-dim)">Picking.</strong> Once you choose — or identify a hybrid — we update <code>duo-brief.md</code> §4, §7 (layout model), §8 (architecture diagram), §11 (Stage 1 exit criteria) and the repo structure in §12.</p>
+</footer>
+
+</body>
+</html>
