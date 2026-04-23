@@ -11,8 +11,8 @@
 Before any build command, verify:
 
 ```bash
-node --version    # must be >= 20
-npm --version     # must be >= 10
+node --version    # must be >= 18
+npm --version     # must be >= 9
 sw_vers           # must be macOS (node-pty requires macOS for full testing)
 xcode-select -p   # must print a path (Xcode CLT required for node-pty rebuild)
 ```
@@ -139,6 +139,47 @@ duo --version    # → 0.1.0
 
 ---
 
+## Sync skill + subagent to `~/.claude/` after edits
+
+The repo tracks the canonical source for the skill and the `duo-browser`
+subagent, but the running Claude Code sessions on this machine read from:
+
+- `~/.claude/skills/duo/SKILL.md` + `~/.claude/skills/duo/examples/*.md`
+- `~/.claude/agents/duo-browser.md`
+
+These are **plain file copies**, not symlinks. Edits to `skill/SKILL.md`,
+`skill/examples/*.md`, or `agents/duo-browser.md` in the repo **do not
+propagate automatically** — your live Claude Code session keeps using the
+previous copy until you sync.
+
+**Run this after any edit to `skill/` or `agents/`:**
+
+```bash
+npm run sync:claude
+# → Synced skill + subagent to ~/.claude/
+```
+
+The script is:
+```bash
+mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents
+cp skill/SKILL.md           ~/.claude/skills/duo/SKILL.md
+cp skill/examples/*.md      ~/.claude/skills/duo/examples/
+cp agents/duo-browser.md    ~/.claude/agents/duo-browser.md
+```
+
+**Do not skip this step when testing a skill change.** A fresh Claude Code
+session picks up whatever is at `~/.claude/skills/duo/` at the moment it
+reads the skill list — if you edited the repo and forgot to sync, your
+validation run was against the previous version and its conclusions are
+invalid.
+
+End users don't run `sync:claude` — they get the skill + subagent from the
+Stage 6 first-launch installer, which copies the bundled versions from
+`Duo.app/Contents/Resources/` into `~/.claude/`. This npm script is a
+dev-only convenience that mirrors what the installer will do.
+
+---
+
 ## End-to-end test sequence
 
 With `npm run dev` running and `duo` installed:
@@ -172,13 +213,14 @@ duo tabs                                   # → [{id:1, url:..., isActive:true}
 
 ## File map for common tasks
 
-| Task | Edit these files |
-|---|---|
-| Add a new CLI command | `cli/duo.ts`, `electron/socket-server.ts`, `shared/types.ts` (DuoCommandName), `skill/SKILL.md` |
-| Change browser nav behaviour | `electron/browser-manager.ts`, `renderer/components/BrowserPane.tsx` |
-| Change how CDP commands work | `electron/cdp-bridge.ts` |
-| Add a new IPC channel | `shared/types.ts` (IPC object), `electron/main.ts`, `electron/preload.ts`, `shared/types.ts` (ElectronAPI) |
-| Change terminal behaviour | `electron/pty-manager.ts`, `renderer/components/TerminalPane.tsx` |
+| Task | Edit these files | After |
+|---|---|---|
+| Add a new CLI command | `cli/duo.ts`, `electron/socket-server.ts`, `shared/types.ts` (DuoCommandName), `skill/SKILL.md` | `npm run build:cli` + `npm run sync:claude` |
+| Change browser nav behaviour | `electron/browser-manager.ts`, `renderer/components/BrowserPane.tsx` | restart `npm run dev` (main-process change) |
+| Change how CDP commands work | `electron/cdp-bridge.ts` | restart `npm run dev` |
+| Add a new IPC channel | `shared/types.ts` (IPC object), `electron/main.ts`, `electron/preload.ts`, `shared/types.ts` (ElectronAPI) | restart `npm run dev` |
+| Change terminal behaviour | `electron/pty-manager.ts`, `renderer/components/TerminalPane.tsx` | restart `npm run dev` if main-process |
+| Edit skill or subagent prose | `skill/SKILL.md`, `skill/examples/*.md`, `agents/duo-browser.md` | `npm run sync:claude` (required — see section above) |
 
 ---
 

@@ -74,6 +74,30 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 6. **Stage order matters.** Do not try to implement Stage 3 before Stage 2 is working. The socket server is useless without a real browser.
 
+7. **After editing `skill/` or `agents/`, sync to `~/.claude/`.** The repo
+   tracks the canonical source, but Claude Code running on this machine
+   reads from `~/.claude/skills/duo/` and `~/.claude/agents/duo-browser.md`.
+   These are plain-file **copies**, not symlinks — edits in the repo do
+   not propagate automatically. After any change to `skill/SKILL.md`,
+   `skill/examples/*.md`, or `agents/duo-browser.md`, run:
+
+   ```bash
+   npm run sync:claude
+   ```
+
+   This copies the repo versions into `~/.claude/` so live Claude Code
+   sessions — including whatever session is driving this repo — pick up
+   the change on their next skill / subagent lookup. If you don't sync,
+   your edits are invisible until the user either restarts their Claude
+   Code session or manually re-copies. The rule applies equally to edits
+   the user makes by hand: remind them to `npm run sync:claude` after any
+   manual edit.
+
+   End users don't run this script — they get the skill + agent from the
+   Stage 6 first-launch installer (which does its own `fs.copyFile` from
+   the app bundle into `~/.claude/`). `sync:claude` is a dev-only
+   convenience.
+
 ---
 
 ## Pre-built CLI binary (`cli/duo`)

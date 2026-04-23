@@ -10,6 +10,7 @@
     "postinstall": "electron-rebuild",
     "build:cli": "esbuild cli/duo.ts --bundle --platform=node --outfile=cli/duo && chmod +x cli/duo",
     "build:all": "npm run build && npm run build:cli",
+    "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp agents/duo-browser.md ~/.claude/agents/duo-browser.md && echo 'Synced skill + subagent to ~/.claude/'",
     "pack": "npm run build:all && electron-builder --dir",
     "dist": "npm run build:all && electron-builder",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
