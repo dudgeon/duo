@@ -1,28 +1,58 @@
 # Example: Read a Google Doc
 
-**Scenario:** The user has a PRD open in Google Docs and wants Claude to read
-and suggest edits.
+**Scenario:** The user says "summarize the doc open in my browser" or "what
+does the PRD say about X?" and the Duo browser has a Google Doc open.
+
+## The trap
+
+Don't do this:
 
 ```bash
-# 1. Navigate to the doc (user must already be logged into Google)
-duo navigate "https://docs.google.com/document/d/YOUR_DOC_ID/edit"
-
-# 2. Wait for the Kix editor canvas to load
-duo wait ".kix-appview-canvas" --timeout 10000
-
-# 3. Read the visible text
+# Empty or near-empty output — the trap
 duo text --selector ".kix-appview-canvas"
 ```
 
-**Notes:**
+Google Docs (and Sheets, Slides, Figma, and newer Notion editors) render the
+document body to an HTML `<canvas>`. Canvas elements have no text children,
+so DOM-based text extraction returns chrome (menus, toolbars) with none of
+the actual document content. `duo text` will succeed and return a few dozen
+characters of UI labels; there is no error to tell you the read failed.
 
-- The `.kix-appview-canvas` selector targets the Google Docs editor viewport.
-  If it times out, the SSO session may have expired — ask the user to log in
-  via the browser pane and retry.
-- For very long docs, use `duo eval` to extract just a section:
-  ```bash
-  duo eval "Array.from(document.querySelectorAll('.kix-paragraphrenderer')).slice(0,20).map(el => el.innerText).join('\n')"
-  ```
-- Google Docs renders lazily; scroll position affects which paragraphs are
-  in the DOM. Use `duo eval window.scrollTo(0,0)` before reading if you
-  need content from the top.
+## The right way
+
+```bash
+# 1. Navigate if not already there (or skip if duo url already points at the doc)
+duo navigate "https://docs.google.com/document/d/DOC_ID/edit"
+
+# 2. Wait for the doc body to mount
+duo wait '[role="document"]' --timeout 10000
+
+# 3. Read via the accessibility tree
+duo ax --selector '[role="document"]'
+```
+
+`duo ax` pulls the CDP accessibility tree and renders it to Markdown:
+headings become `# …`, list items become `- …`, links become `[text](#)`,
+and paragraphs come through as plain text. The output reflects the live
+visible document in screen order.
+
+## Narrowing for long docs
+
+For very large documents, `duo ax` output can get sizeable. Options:
+
+```bash
+# Narrow to a labelled landmark
+duo ax --selector '[role="region"][aria-label="Risks"]'
+
+# Or fetch as JSON and process programmatically
+duo ax --format json | jq '.children[] | select(.role == "heading")'
+```
+
+## If the doc doesn't load
+
+- `duo ax` returns an account-picker tree: the user's SSO session is stale.
+  Ask them to log in via the browser pane.
+- `duo wait '[role="document"]'` times out: the page may be stuck on a
+  "requesting access" screen. Use `duo screenshot` to see what's on screen.
+- Doc loads but `ax` is empty: the user is probably in a preview/embed view,
+  not the editor. Navigate to the `/edit` URL.

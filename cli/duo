@@ -211,7 +211,7 @@ Run duo --help for usage`);
   }
 }
 function runInstall() {
-  const self = process.execPath;
+  const self = fs.realpathSync(process.argv[1]);
   const targets = ["/usr/local/bin/duo", path.join(os.homedir(), ".local", "bin", "duo")];
   for (const target of targets) {
     try {

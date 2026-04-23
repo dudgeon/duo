@@ -224,7 +224,10 @@ async function main(): Promise<void> {
 // Symlinks this binary to /usr/local/bin/duo (or ~/.local/bin/duo as fallback).
 // Called automatically on first launch by Duo.app; can also be run manually.
 function runInstall(): void {
-  const self = process.execPath  // path to the compiled duo binary
+  // process.argv[1] is the script that was invoked (cli/duo), not the Node
+  // binary at process.execPath. fs.realpathSync resolves any already-existing
+  // symlinks so we always point at the real file.
+  const self = fs.realpathSync(process.argv[1])
   const targets = ['/usr/local/bin/duo', path.join(os.homedir(), '.local', 'bin', 'duo')]
 
   for (const target of targets) {
