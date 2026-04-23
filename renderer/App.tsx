@@ -4,7 +4,8 @@ import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { FilesPane } from './components/FilesPane'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
-import type { TabSession } from '@shared/types'
+import { useNavigator, computePendingCwd } from './hooks/useNavigator'
+import type { TabSession, DirEntry } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -23,35 +24,36 @@ function makeTab(cwd: string): TabSession {
 
 export function App() {
   const home = window.electron.env.HOME || '~'
+  const nav = useNavigator(home)
+  const pendingCwd = computePendingCwd(nav.state)
+
   const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home)])
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id)
 
-  // Middle ↔ right split (terminal vs working pane). Files column is
-  // fixed-width for Phase 2; resize handle arrives in Phase 4.
   const [splitPct, setSplitPct] = useState(55)
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
 
-  // Stage 10 § D1/D5 — files column visibility (manual + auto).
   const [filesCollapsed, setFilesCollapsed] = useState(false)
-  // Track auto-collapse so manual expand after a narrow-window collapse
-  // doesn't get stomped the moment ResizeObserver fires.
   const lastAutoCollapseState = useRef(false)
 
-  // Stage 10 § D31 — focus tracking across columns.
   const [focusedColumn, setFocusedColumn] = useState<FocusedColumn>('terminal')
+
+  const activeTab = tabs.find(t => t.id === activeTabId)
 
   // ── Tab actions ────────────────────────────────────────────────────────────
 
+  // Stage 10 § D9: new terminal tabs launch in `pendingCwd`, which is the
+  // navigator's current folder (or the selected file's parent).
   const newTab = useCallback(() => {
-    const tab = makeTab(home)
+    const tab = makeTab(pendingCwd)
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
-  }, [home])
+  }, [pendingCwd])
 
   const closeTab = useCallback((id: string) => {
     setTabs(prev => {
-      if (prev.length === 1) return prev // keep at least one
+      if (prev.length === 1) return prev
       const next = prev.filter(t => t.id !== id)
       if (id === activeTabId) {
         const idx = prev.findIndex(t => t.id === id)
@@ -63,6 +65,28 @@ export function App() {
 
   const updateTabTitle = useCallback((id: string, title: string) => {
     setTabs(prev => prev.map(t => t.id === id ? { ...t, title } : t))
+  }, [])
+
+  // Stage 10 § D1: follow-mode — unless the navigator is pinned, moving
+  // between terminal tabs updates the navigator's cwd to that tab's launch
+  // CWD. This is the "context drawer" behavior.
+  useEffect(() => {
+    if (nav.state.pinned || !activeTab) return
+    if (nav.state.cwd === activeTab.cwd) return
+    nav.setCwd(activeTab.cwd)
+  }, [activeTab, nav])
+
+  // ── File-open from the navigator ───────────────────────────────────────────
+
+  const onOpenFile = useCallback(async (entry: DirEntry) => {
+    // Phase 4 MVP: route only through the browser's `open` command, which
+    // creates a new WorkingPane tab. Phase 5 adds per-type renderers so
+    // `.md` opens as preview in-renderer, etc. For now we just load the
+    // file:// URL in a browser tab — it renders fine for images and PDFs,
+    // a plain text dump for text, and a "can't display" for unknowns. Not
+    // the final experience but proves the path.
+    await window.electron.browser.addTab(`file://${encodeURI(entry.path)}`)
+    setFocusedColumn('working')
   }, [])
 
   // ── Split-pane resize (middle/right) ───────────────────────────────────────
@@ -98,7 +122,6 @@ export function App() {
   useEffect(() => {
     const check = () => {
       const narrow = window.innerWidth < AUTO_COLLAPSE_WIDTH
-      // Only drive auto-collapse transitions — don't override manual expand.
       if (narrow !== lastAutoCollapseState.current) {
         lastAutoCollapseState.current = narrow
         if (narrow) setFilesCollapsed(true)
@@ -114,16 +137,11 @@ export function App() {
   useKeyboardShortcuts({
     newTerminalTab: newTab,
     newBrowserTab: () => { window.electron.browser.addTab() },
-    // Stage 10 § D29 — ⌘W is focus-aware. Terminal column closes its tab;
-    // working column closes the active browser tab. Files column does nothing
-    // (navigator tree isn't tabbed — the nav has a collapse, not a close).
     closeTab: () => {
       if (focusedColumn === 'working') {
-        // Close active browser tab via the existing IPC. The browser manager
-        // refuses to close the last tab, so we don't need to guard here.
         void (async () => {
-          const tabs = await window.electron.browser.getTabs()
-          const active = tabs.find(t => t.isActive)
+          const btabs = await window.electron.browser.getTabs()
+          const active = btabs.find(t => t.isActive)
           if (active) await window.electron.browser.closeTab(active.id)
         })()
       } else {
@@ -133,7 +151,6 @@ export function App() {
     tabs,
     activeTabId,
     setActiveTabId,
-    // Stage 10 § D5 — ⌘B toggles Files column.
     toggleFilesColumn: () => setFilesCollapsed(prev => !prev)
   })
 
@@ -141,25 +158,27 @@ export function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-surface-0">
-      {/* macOS traffic-light row — a top chrome band so the red/yellow/green
-          buttons have space and the three-column workspace starts below. */}
       <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center">
         <div className="w-20 shrink-0" />
         <div className="flex-1" />
       </div>
 
-      {/* Three-column workspace */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Files (left) */}
         <div
           className="h-full shrink-0"
           onMouseDown={() => setFocusedColumn('files')}
           aria-label="Files column"
         >
-          <FilesPane collapsed={filesCollapsed} focused={focusedColumn === 'files'} />
+          <FilesPane
+            collapsed={filesCollapsed}
+            focused={focusedColumn === 'files'}
+            home={home}
+            state={nav.state}
+            actions={nav.actions}
+            onOpenFile={onOpenFile}
+          />
         </div>
 
-        {/* Middle (terminal + tab bar; agent-tools slot reserved but empty) */}
         <div
           ref={splitContainerRef}
           className="flex flex-1 overflow-hidden"
@@ -179,6 +198,7 @@ export function App() {
               onSelect={setActiveTabId}
               onNew={newTab}
               onClose={closeTab}
+              pendingCwd={pendingCwd}
             />
             <div className="flex-1 overflow-hidden">
               <TerminalPane
@@ -187,9 +207,6 @@ export function App() {
                 onTitleChange={updateTabTitle}
               />
             </div>
-            {/* Stage 12 agent-tools dock (placeholder) — collapsed to nothing
-                until that stage ships. The div is present so the layout
-                preserves its spot. */}
           </div>
 
           <div
@@ -197,9 +214,6 @@ export function App() {
             onMouseDown={onDividerMouseDown}
           />
 
-          {/* Working pane (right) — polymorphic shell with unified tab strip.
-              Browser is the only tab type in Phase 3; editor / preview arrive
-              in Phase 5. */}
           <div
             className={[
               'flex-1 overflow-hidden border-l transition-colors',

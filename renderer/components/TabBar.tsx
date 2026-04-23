@@ -6,9 +6,15 @@ interface TabBarProps {
   onSelect: (id: string) => void
   onNew: () => void
   onClose: (id: string) => void
+  /** Shown in the `+` button tooltip so the user can check where the next
+   *  terminal will launch (Stage 10 § D10). */
+  pendingCwd?: string
 }
 
-export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose, pendingCwd }: TabBarProps) {
+  const newTabTip = pendingCwd
+    ? `New terminal tab (⌘⇧T) — launches in ${pendingCwd}`
+    : 'New terminal tab (⌘⇧T)'
   return (
     // The traffic-light spacer + window drag region moved up to the App-level
     // top chrome row (Stage 10 Phase 2). The terminal tab bar lives inside the
@@ -34,7 +40,7 @@ export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose }: TabBarPr
       <button
         onClick={onNew}
         className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-surface-3 transition-colors"
-        title="New terminal tab (⌘⇧T)"
+        title={newTabTip}
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
