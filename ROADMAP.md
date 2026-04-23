@@ -24,7 +24,7 @@ deliver the north-star experience. Re-sequenced:
 | 3 | `duo` CLI bridge + CDP primitives | ✅ done |
 | 5 | Skill + subagent authoring | ✅ done |
 | 8 | Agent-generated HTML via `duo open` | ✅ done |
-| **9** | **Prose-first terminal (reader mode, TUI-safe)** | ⬜ **next — flagship half #1** |
+| **9** | **Cozy-mode terminal (typography v1)** | ⬜ **next — flagship half #1** |
 | **10** | **File browser / context drawer** | ⬜ **prereq for the editor** |
 | **11** | **Collaborative markdown editor — human↔agent** | ⬜ **flagship half #2** |
 | 12 | Unified skill + connector management surface | ⬜ (supersedes old Stage 4) |
@@ -429,54 +429,92 @@ tab just like any other browser pane.
 
 ---
 
-## Stage 9 — Prose-first terminal (reader mode) `⬜ Next — flagship half #1`
+## Stage 9 — Cozy-mode terminal (typography v1) `⬜ Next — flagship half #1`
+
+> **Naming:** The terminal's flagship feature is "cozy mode" — per
+> owner, because it's both **reading** (long agent prose) and (in a
+> later wave) **writing** (composition decorations).
+> [docs/research/terminal-cozy-mode.md](docs/research/terminal-cozy-mode.md)
+> grounds the scope in what's actually feasible inside xterm.js around
+> a running Claude Code instance.
 
 **Layout placement:** middle column, top region (the terminal part of
 the locked three-column layout in [DECISIONS.md § Layout model](docs/DECISIONS.md)).
-Stage 9 is typography + chrome only; the column relocation itself
-happens as part of Stage 10.
+Stage 9 is typography + outer-pane chrome only; the column relocation
+itself happens as part of Stage 10.
 
-**Goal:** turn the terminal into a reading surface for long, prose-heavy
-agent conversations — without breaking Claude Code's TUI rendering. Per
+**Goal:** ship the **reading** half of cozy mode — a terminal that feels
+good for long, prose-heavy agent conversations — without breaking
+Claude Code's TUI rendering. Per
 [VISION.md § The flagship bet](docs/VISION.md#the-flagship-bet--the-reading-and-writing-pair).
 
+**Resolved decisions (from research + owner):**
+
+- **Scope:** per-terminal-tab toggle. Browser and editor tabs are
+  unaffected; they have their own typography stories.
+- **Keybinding:** menu item only (no global shortcut). Label: "Cozy
+  mode (current tab)" under View.
+- **What cozy mode v1 does:** typography pass + reader-width cap on
+  the terminal pane.
+    - `fontSize` 13 → 14.
+    - `lineHeight` 1.2 → 1.4 (xterm.js's option, not CSS).
+    - Softer foreground color for less TUI fatigue.
+    - Generous outer-pane padding (16–20px).
+    - CSS `max-width` on the terminal host at ~92ch so that wrapped
+      agent prose doesn't stretch edge-to-edge on wide displays.
+      `FitAddon.fit()` recomputes cols; `SIGWINCH` propagates to
+      Claude Code, which re-lays out naturally. We already wire this
+      resize path.
+- **What cozy mode v1 does NOT do:**
+    - **No compose-area markdown rendering.** Claude Code runs its
+      own Ink-based input editor; stylizing it from the outside would
+      mean building a Warp-style composition interposer. That is a
+      separate, significantly bigger piece of work. See
+      [research note §4](docs/research/terminal-cozy-mode.md).
+    - **No click-to-cursor.** Claude Code turns on mouse tracking
+      mode 1003; our click handler would collide with Claude's. Mouse
+      passthrough to Claude is the right v1 behavior — its click
+      handling in its own input editor is likely already adequate.
+      See [research note §5](docs/research/terminal-cozy-mode.md).
+    - **No letter-spacing or per-line CSS.** Breaks xterm.js cell
+      alignment and selection.
+    - **No DOM-renderer switch.** Slower on long output; the canvas /
+      WebGL renderer stays. See [research note §2](docs/research/terminal-cozy-mode.md).
+
 **Exit criteria:**
-- A PM using Claude Code for a 30-minute exploratory conversation finds
-  the terminal *pleasant to read*, not taxing.
-- Claude Code's interactive UI (progress spinners, box-drawing borders,
-  diff output, `shift+tab` mode switches, confirmation prompts) renders
-  exactly as it does in iTerm/Warp. No visual regressions in the TUI.
 
-**Design commitments** (from VISION):
-- Cell grid stays stable — monospaced font, stable column width.
-- Reader mode adjusts *chrome* and *typography*, not *metrics*. Line
-  height, letter-spacing, font size, contrast, soft reader-width limit
-  for wrapped agent prose.
-- Markdown-aware styling of agent output (headings, code fences,
-  emphasis) when the preceding content is recognizably agent prose.
-  Never apply to TUI-owned regions.
-- No surprise truncation of a long answer — the scrollback handles it.
+- Active terminal tab with cozy on feels *pleasant to read* for a
+  30-minute exploratory conversation.
+- Claude Code's TUI — box-drawing borders, progress spinners, diff
+  output, `shift+tab` mode switches, `/tui fullscreen` — renders
+  correctly in both cozy-on and cozy-off. No regressions.
+- Toggle on/off survives a full agent answer streaming in without
+  visual corruption.
+- Reader-width max-width gracefully no-ops on narrow displays.
 
-**Open decisions:**
-- [ ] Reader-mode toggle: global (one pref for all tabs) vs per-tab?
-      VISION leans per-tab so a user can have a "reader" tab for
-      skim-reading and a "dev" tab for hands-on editing.
-- [ ] Keybinding: `⌘⌥R`? Or menu item + no shortcut?
-- [ ] How to distinguish "agent prose" from "TUI output" in the
-      stream. Options: (a) pattern-match Claude Code's TUI frame
-      boundaries; (b) give agents a wrapper ANSI sequence they can
-      bracket prose with; (c) best-effort line heuristics (long lines
-      with no control codes → prose). Start with (c) behind a feature
-      flag.
+**Work items:**
 
-**Scope sketch:**
-- [ ] xterm.js theme variants + custom CSS for the host div, toggle
-      via a renderer-side pref state.
-- [ ] Line-height and letter-spacing experiments — must not break
-      `FitAddon.fit()` math.
-- [ ] Agent-prose soft-width limit via CSS (`max-width` on the
-      scrollback region) — keeps wrapped prose readable without
-      shrinking the PTY cell grid.
+- [ ] Per-tab cozy state in renderer; menu item wired via Electron's
+      app menu (View → Cozy mode).
+- [ ] `TerminalPane` applies the cozy theme, font size, line height,
+      padding, and max-width when the per-tab flag is on.
+- [ ] Validation against the [research note §6 checklist](docs/research/terminal-cozy-mode.md):
+      Claude Code box-drawing, spinners, diff output, fullscreen mode,
+      mouse events, stream-in-progress toggle, cozy ↔ default round
+      trip.
+
+**Follow-up stages (not Stage 9):**
+
+- **Stage 9b — Compose-area interposer (deferred).** The *writing*
+  half of cozy mode — markdown-rendered composition — requires
+  taking over Claude Code's input area. That's Warp-scale work
+  (Warp wrote a terminal from scratch in Rust specifically for this).
+  Defer; may fold into the Stage 11 editor arc once we have a
+  production text-editing model to reuse. See
+  [research note §4](docs/research/terminal-cozy-mode.md).
+- Watch `anthropics/claude-code#22528` and `#26235` — if Claude Code
+  starts emitting OSC 133 or custom prose-region markers, we gain
+  scrollback decoration options and click-to-cursor becomes safer.
 - [ ] Regression test checklist: TUI rendering inside Claude Code,
       `vim`, `less`, `fzf`, `htop`.
 - [ ] Minimum: reader theme and default theme are both dark,
@@ -489,6 +527,12 @@ bullet is now this stage.
 
 ## Stage 10 — File browser / context drawer `⬜ Prereq for Stage 11`
 
+> [docs/research/file-navigator-v1.md](docs/research/file-navigator-v1.md)
+> grounds the v1 spec — it maps the current PTY launch-CWD plumbing,
+> names the data model for `navigatorCwd` / pending CWD, enumerates
+> the UX flows, and captures open decisions (follow-mode default,
+> hidden files, search, file watchers, …).
+
 **Layout placement:** leftmost column, full-height, narrow. Per the
 owner's locked layout (see [DECISIONS.md § Layout model](docs/DECISIONS.md)).
 This stage also owns the layout reshape: relocating the terminal from
@@ -496,6 +540,10 @@ the left to the middle column and promoting today's `BrowserPane` +
 `BrowserTabStrip` into a higher-level `WorkingPane` shell whose
 unified tab strip supports mixed types (browser today; editor and
 preview to follow in Stages 10 and 11).
+
+**CLI naming settled** (was open): the file-surface CLI is **`duo view
+<path>`**. `duo open` stays the browser-tab command (from Stage 8).
+See [research note §6](docs/research/file-navigator-v1.md).
 
 **Goal:** a sidebar surface that shows files around the current working
 directory plus a pinned home scope, lets the user drag any file into the
