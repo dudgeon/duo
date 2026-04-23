@@ -72,9 +72,13 @@
 - [x] E2E: `duo navigate / url / title / text / ax / focus / type / key / console / screenshot / eval` all round-trip correctly
 - [x] SSO persistence: Docs stays logged-in across relaunches
 - [x] Canvas path: `duo ax --selector '[role="document"]'` returns structured Markdown for a Google Doc
+- [x] **Google Docs rich-text path (verified on a 48k-char production PRD):** same-origin `fetch('/document/d/<id>/export?format=md')` returns the **full** doc as clean Markdown (H1–H6, `**bold**`, `*italic*`, links, `---`, lists). Session-authenticated via cookies; not viewport-limited; bypasses every DOM/noscript trap. This is now the primary read path in the skill. `duo ax` moved to fallback.
+- [x] **Docs in-page annotator:** `_docs_annotate_getAnnotatedText('')` returns `{ getText, getAnnotations, getSelection, setSelection }`. `getText()` is the full plaintext (not viewport-limited); `setSelection([{start,end}])` is the only reliable programmatic cursor placement inside a Doc.
 
-### Open
-- [ ] First-launch install dialog (Electron prompt before installing CLI + skill) — currently installs via `./cli/duo install` + manual `cp`. Stage 6.
+### Known limitations
+- [ ] **Google Docs keyboard path is broken.** `duo key <named>` (Enter, Arrow*, Backspace, Home, End) and all modifier shortcuts (`Cmd+B/I/U/Z/A`, `Cmd+Alt+1..6`) are silent no-ops on a Docs page. Root cause: Docs listens on a hidden `.docs-texteventtarget-iframe`; CDP `Input.dispatchKeyEvent` delivers to the main frame's focused element, and `duo focus` (which uses `el.focus()` in page JS) can't cross the iframe boundary. `Input.insertText` (i.e. `duo type`) works because it bypasses the keyboard pipeline. Fix requires attaching CDP to the iframe's frame target or routing via a different input API. Until fixed, the skill tells the agent: insert plain text via `duo type`, and defer styling to the user or the Docs REST API. See commit d3d5e0e for the empirical report.
+- [ ] **No Docs REST API escalation path yet.** Structural edits (tables, heading changes, styled blocks) should use `documents.googleapis.com/v1/documents/{id}:batchUpdate` with the `documents` OAuth scope. The Duo app should grow a one-time consent flow so the token can be bootstrapped from the signed-in Electron session (brief §17.4). Until then, agents must defer styling to the user.
+- [ ] First-launch install dialog (Electron prompt before installing CLI + skill) — currently installs via `./cli/duo install` + `npm run sync:claude`. Stage 6.
 - [ ] `duo wait --timeout N` races with the CLI's 10s socket timeout for N ≥ 10000. Fix: make the CLI socket timeout `max(N + buffer, default)`.
 
 > **DOM size note:** `duo dom` on long pages is still large. `duo ax --format json` is usually the better structured option; for text-only views, narrow with `--selector`. A `--max-chars` or `--save-to` flag remains a nice-to-have but isn't blocking.
@@ -230,6 +234,81 @@ deeper, shallower, or sideways without affecting any existing tab.
 - [ ] Bridge methods for navigator/viewer: open, reveal, state, ls, nav-state
 - [ ] New socket commands wired through `cli/duo.ts`
 - [ ] `skill/SKILL.md` updated with navigator/viewer patterns + examples
+
+---
+
+## Stage 8 — Agent-generated HTML artifacts in the browser `✅ v1 shipped`
+
+**Goal:** Claude Code can generate HTML (interactive prototypes, rich
+training material, data viz, simple tools) and load it into the Duo
+browser pane on demand. Users can say "show me a countdown timer for
+5 minutes" or "open that" referring to the file Claude just wrote, and
+the artifact appears in a new tab, ready to interact with.
+
+**Primary use cases:**
+- **Interactive prototyping.** User says "show me {UI idea}" → Claude
+  writes HTML → Duo opens it → user plays with it → iterative
+  refinement.
+- **Rich training material.** PMs often want to explain a concept with
+  a small simulation or interactive diagram — Claude generates it in
+  a single HTML file on the fly.
+- **Disposable tools.** Quick date calculators, one-off data
+  visualizations, pretty-printed JSON inspectors — things that would
+  otherwise need a separate webapp.
+
+**User flow:**
+```
+user: "show me a countdown timer, 5 minutes"
+claude (code): writes /tmp/countdown-xyz.html
+claude (code): runs `duo open /tmp/countdown-xyz.html`
+duo: opens a new browser tab with the file loaded, activates it
+user: sees the timer, uses it, asks "make the font bigger"
+claude (code): rewrites the file, `duo navigate <same-file-url>`
+              (current tab = the prototype tab, so this is a reload)
+duo: reloads with the new styles
+```
+
+**Core mechanic:** `duo open <path-or-url>` — a higher-level command
+that:
+- Accepts a local file path (absolute or relative) → resolves to `file://`
+- Accepts any URL scheme and passes it through
+- Opens in a new browser tab and makes it active
+- Returns `{ok, id, url, title}` so the agent knows which tab to drive next
+
+**Interaction after open:** once loaded, every other `duo` command
+(click, fill, type, eval, screenshot, ax, wait) works against the new
+tab just like any other browser pane.
+
+**Scope for first pass:**
+- [x] New socket command `open` → calls existing `BrowserManager.openTab(url)`.
+- [x] `duo open <path-or-url>` in `cli/duo.ts` with path resolution
+      (absolute path, `~/` expansion, relative-to-cwd, URL passthrough).
+- [x] `BrowserManager.openTab` returns the resolved `{url, title}` after
+      load (with a 2s settle deadline) so agents know exactly what
+      they just showed.
+- [x] `skill/examples/iterate-artifact.md` — rewritten around the
+      `duo open` + `duo navigate` (reload in place) pattern.
+- [x] `skill/SKILL.md` — "Show the user a generated HTML artifact"
+      pattern with the `duo open` vs `duo navigate` decision rule.
+- [x] `agents/duo-browser.md` — subagent prefers `duo open` for
+      prototype / artifact delivery.
+- [x] Smoke test: generated `/tmp/duo-countdown.html` (interactive 5-min
+      timer), `duo open`'d it, verified new tab created and active,
+      clicked `#start`, read elapsed time after 3s, clicked `#reset`,
+      confirmed state reset. Also verified URL passthrough
+      (`duo open https://example.com` creates new tab with live page).
+
+**Deliberately deferred:**
+- In-place reload after the agent updates a file. Workaround: call
+  `duo navigate <same-url>` (targets the active tab). Revisit if the
+  workaround feels annoying in practice.
+- A `duo reload` command. Same workaround as above.
+- Artifact-scoped permissions (e.g. block a prototype from making
+  outbound fetch calls). MVP treats agent-generated HTML as fully
+  trusted — it comes from the same agent the user is talking to.
+- Overlap with Stage 7 file viewer: that's for *user-authored* files
+  in the navigator; `duo open` is for *agent-generated* content in
+  the browser pane. Different surfaces; can coexist.
 
 ---
 

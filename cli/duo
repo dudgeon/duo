@@ -99,6 +99,12 @@ async function main() {
         out(await send("navigate", { url }));
         break;
       }
+      case "open": {
+        const target = rest[0] ?? die("Usage: duo open <path-or-url>");
+        const resolved = resolveOpenTarget(target);
+        out(await send("open", { url: resolved }));
+        break;
+      }
       case "url":
         out(await send("url"));
         break;
@@ -210,6 +216,17 @@ Run duo --help for usage`);
     die(err instanceof Error ? err.message : String(err));
   }
 }
+function resolveOpenTarget(target) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target;
+  let absolute;
+  if (target.startsWith("~/") || target === "~") {
+    absolute = path.resolve(target.replace(/^~/, os.homedir()));
+  } else {
+    absolute = path.resolve(process.cwd(), target);
+  }
+  const encoded = absolute.split("/").map((seg) => encodeURIComponent(seg).replace(/%2F/g, "/")).join("/");
+  return "file://" + encoded;
+}
 function runInstall() {
   const self = fs.realpathSync(process.argv[1]);
   const targets = ["/usr/local/bin/duo", path.join(os.homedir(), ".local", "bin", "duo")];
@@ -236,7 +253,11 @@ USAGE
   duo <command> [options]
 
 COMMANDS
-  navigate <url>                  Navigate to URL
+  navigate <url>                  Navigate active tab to URL
+  open <path-or-url>              Open a local file or URL in a NEW browser
+                                  tab and activate it. Useful for showing the
+                                  user generated HTML artifacts or
+                                  prototypes.
   url                             Print current URL
   title                           Print current page title
   dom                             Print full page HTML

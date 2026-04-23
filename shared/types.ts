@@ -23,6 +23,7 @@ export interface DuoResponse {
 
 export type DuoCommandName =
   | 'navigate'
+  | 'open'
   | 'url'
   | 'title'
   | 'dom'
@@ -141,7 +142,7 @@ export interface ElectronBrowserAPI {
   setBounds: (bounds: BrowserBounds) => void
   getState: () => Promise<BrowserState>
   getTabs: () => Promise<BrowserTab[]>
-  addTab: (url?: string) => Promise<{ id: number }>
+  addTab: (url?: string) => Promise<{ ok: boolean; id: number; url: string; title: string }>
   switchTab: (id: number) => Promise<{ ok: boolean; error?: string }>
   closeTab: (id: number) => Promise<{ ok: boolean; error?: string }>
   onStateChange: (cb: (state: BrowserState) => void) => () => void

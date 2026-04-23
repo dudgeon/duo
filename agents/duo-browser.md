@@ -165,6 +165,39 @@ duo wait ".success" --timeout 5000
 duo text --selector ".success"
 ```
 
+### Showing the user an agent-generated HTML artifact
+
+When the task is "show me {UI idea}", "make me a {prototype}", or the
+user refers to an HTML file the parent just wrote ("open that"):
+
+1. Write the HTML to disk (the parent may have already done this).
+2. Open it in a **new** tab with `duo open <path>`. Path resolution
+   (absolute, `~/`, relative to the parent's CWD) is handled by the
+   CLI. This returns `{ok, id, url, title}` — the new tab is active.
+3. Optionally interact with the artifact to verify it works: click
+   a button, read a field, take a screenshot.
+4. Return to the parent: "Opened `<filename>` in tab `<id>`; {brief
+   description of what the user will see}."
+
+```bash
+duo open /tmp/countdown.html
+# → { ok: true, id: 2, url: "file:///tmp/countdown.html", title: "Countdown" }
+duo click "#start"         # verify it's interactive
+```
+
+**Iteration on the same artifact.** When the user asks for a tweak,
+rewrite the file on disk and use `duo navigate <same-file-url>` —
+because the artifact's tab is the active one, navigate reloads in
+place without piling up tabs.
+
+```bash
+# after rewriting /tmp/countdown.html with a bigger font:
+duo navigate "file:///tmp/countdown.html"
+```
+
+Use `duo open` for the first load and for any new artifact. Use `duo
+navigate` for re-load-in-place.
+
 ## Diagnosing failures
 
 When a click or eval doesn't do what you expected:

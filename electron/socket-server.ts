@@ -80,6 +80,12 @@ export class SocketServer {
           result = await this.browser.navigate(url)
           break
         }
+        case 'open': {
+          const url = args['url'] as string
+          if (!url) throw new Error('open requires a url arg')
+          result = await this.browser.openTab(url)
+          break
+        }
         case 'url':
           result = this.browser.getActiveUrl()
           break

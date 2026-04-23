@@ -136,7 +136,8 @@ against the live browser.
 
 | Command | What it does |
 |---|---|
-| `duo navigate <url>` | Navigate the active browser tab |
+| `duo navigate <url>` | Navigate the **active** browser tab |
+| `duo open <path-or-url>` | Open a local file or URL in a **new** tab, activate it (use for showing agent-generated artifacts) |
 | `duo url` / `duo title` | Current URL / page title |
 | `duo text [--selector <css>]` | Visible text (DOM `innerText`) |
 | `duo ax [--selector <css>] [--format md\|json]` | **Accessibility tree** — required for canvas apps |

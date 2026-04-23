@@ -80,10 +80,23 @@ export class BrowserManager {
     return entry
   }
 
-  async openTab(url = 'about:blank'): Promise<{ id: number }> {
+  async openTab(url = 'about:blank'): Promise<{ ok: true; id: number; url: string; title: string }> {
     const entry = this.addTab(url)
     await this.switchTab(entry.id)
-    return { id: entry.id }
+    // Wait briefly for the loaded page to settle so we can return its real
+    // URL and title (the initial render may not yet have emitted
+    // did-navigate). Best-effort — cap at ~2s.
+    const deadline = Date.now() + 2000
+    while (Date.now() < deadline) {
+      if (!entry.view.webContents.isLoading()) break
+      await new Promise(r => setTimeout(r, 100))
+    }
+    return {
+      ok: true,
+      id: entry.id,
+      url: entry.view.webContents.getURL() || url,
+      title: entry.view.webContents.getTitle() || ''
+    }
   }
 
   async switchTab(n: number): Promise<{ ok: boolean; error?: string }> {

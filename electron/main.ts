@@ -134,7 +134,7 @@ function setupIPC(): void {
   })
 
   ipcMain.handle(IPC.BROWSER_ADD_TAB, async (_event, { url }: { url?: string }) => {
-    if (!browserManager) return { id: -1 }
+    if (!browserManager) return { ok: false, id: -1, url: '', title: '' }
     return browserManager.openTab(url)
   })
 

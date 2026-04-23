@@ -44,7 +44,8 @@ to launch it before retrying.
 
 | Command | Purpose | Output |
 |---|---|---|
-| `duo navigate <url>` | Navigate the browser | JSON: `{ok, url, title}` |
+| `duo navigate <url>` | Navigate the **active tab** to URL | JSON: `{ok, url, title}` |
+| `duo open <path-or-url>` | Open a local file or URL in a **new** tab, activate it. Use for showing the user agent-generated artifacts. | JSON: `{ok, id, url, title}` |
 | `duo url` | Current URL | plain text |
 | `duo title` | Current page title | plain text |
 | `duo text [--selector <css>]` | Visible text (DOM `innerText`) | plain text |
@@ -212,14 +213,54 @@ duo wait ".success" --timeout 5000
 duo text --selector ".success"
 ```
 
-### Iterate on a generated HTML artifact
+### Show the user a generated HTML artifact ("show me X" / "open that")
+
+When the user asks for an interactive prototype, a quick visualization,
+or "show me {UI idea}", write the HTML to disk and open it in a new
+browser tab with `duo open`. A single command handles path resolution
+(absolute, `~/…`, relative) and opens a fresh tab so existing tabs
+aren't disturbed.
 
 ```bash
-# write the file locally, then:
-duo navigate "file:///tmp/prototype.html"
-duo screenshot --out /tmp/prototype.png
-# review the screenshot, tweak, repeat
+# 1. Generate HTML locally
+cat > /tmp/countdown.html << 'EOF'
+<!doctype html>
+<!-- your prototype here -->
+EOF
+
+# 2. Open it in a new tab (becomes active)
+duo open /tmp/countdown.html
+# → { ok: true, id: 2, url: "file:///tmp/countdown.html", title: "Countdown" }
+
+# 3. Interact with it — the new tab is active, so every other duo command
+#    targets it automatically:
+duo click "#start"
+duo eval "document.getElementById('t').textContent"
+duo screenshot --out /tmp/countdown.png
 ```
+
+**Iterating.** Once the artifact is open and the user asks for a
+change, rewrite the same file and reload the same tab by re-navigating:
+
+```bash
+# rewrite /tmp/countdown.html with the new styles…
+duo navigate "file:///tmp/countdown.html"   # targets the ACTIVE tab
+```
+
+The active tab is the artifact you just opened, so `duo navigate`
+reloads in place — no new tabs accumulate.
+
+**When to use `duo open` vs `duo navigate`:**
+
+- `duo open <path-or-url>` — first load of a new artifact, or any time
+  you want a fresh tab. Use this for "show me X" and "open that".
+- `duo navigate <url>` — replaces the URL of the currently-active tab.
+  Use this for iterating on the prototype in place, or for navigating
+  an existing tab to a different page.
+
+`duo open` accepts the same URL schemes as `duo navigate` (http(s),
+file, about, data, etc.), plus local file paths with `~/` or relative
+paths — path resolution happens client-side.
 
 ### Diagnose a failing interaction with the page
 

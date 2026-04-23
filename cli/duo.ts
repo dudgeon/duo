@@ -103,6 +103,12 @@ async function main(): Promise<void> {
         out(await send('navigate', { url }))
         break
       }
+      case 'open': {
+        const target = rest[0] ?? die('Usage: duo open <path-or-url>')
+        const resolved = resolveOpenTarget(target)
+        out(await send('open', { url: resolved }))
+        break
+      }
       case 'url':
         out(await send('url'))
         break
@@ -221,6 +227,29 @@ async function main(): Promise<void> {
   }
 }
 
+// Resolves a `duo open` argument to a URL the browser can load:
+//   - Anything with a URL scheme (http, https, file, about, chrome, data, duo-file)
+//     passes through unchanged.
+//   - `~/foo`, absolute paths, and relative paths all resolve to absolute
+//     file paths, then become `file://` URLs with proper encoding.
+function resolveOpenTarget(target: string): string {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(target)) return target   // already a URL
+  let absolute: string
+  if (target.startsWith('~/') || target === '~') {
+    absolute = path.resolve(target.replace(/^~/, os.homedir()))
+  } else {
+    absolute = path.resolve(process.cwd(), target)
+  }
+  // Use pathToFileURL via URL constructor pattern to get correct encoding
+  // (spaces, utf-8, etc). Node's url.pathToFileURL would be cleaner, but
+  // the bundled CLI avoids importing extra modules for portability.
+  const encoded = absolute
+    .split('/')
+    .map(seg => encodeURIComponent(seg).replace(/%2F/g, '/'))
+    .join('/')
+  return 'file://' + encoded
+}
+
 // Symlinks this binary to /usr/local/bin/duo (or ~/.local/bin/duo as fallback).
 // Called automatically on first launch by Duo.app; can also be run manually.
 function runInstall(): void {
@@ -252,7 +281,11 @@ USAGE
   duo <command> [options]
 
 COMMANDS
-  navigate <url>                  Navigate to URL
+  navigate <url>                  Navigate active tab to URL
+  open <path-or-url>              Open a local file or URL in a NEW browser
+                                  tab and activate it. Useful for showing the
+                                  user generated HTML artifacts or
+                                  prototypes.
   url                             Print current URL
   title                           Print current page title
   dom                             Print full page HTML
