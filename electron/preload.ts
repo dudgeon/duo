@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { IPC } from '../shared/types'
-import type { ElectronAPI } from '../shared/types'
+import type { ElectronAPI, FileChangeEvent, FileWatchPush } from '../shared/types'
 
 const api: ElectronAPI = {
   env: {
@@ -77,6 +77,35 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.BROWSER_TABS, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_TABS, handler)
     }
+  },
+
+  files: {
+    list: (p) => ipcRenderer.invoke(IPC.FILES_LIST, { path: p }),
+
+    read: (p) => ipcRenderer.invoke(IPC.FILES_READ, { path: p }),
+
+    openExternal: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_EXTERNAL, { path: p }),
+
+    revealInFinder: (p) => ipcRenderer.invoke(IPC.FILES_REVEAL_IN_FINDER, { path: p }),
+
+    watch: async (paths, cb) => {
+      // Give every subscription its own id so pushes can be routed back to
+      // the caller's callback. The id lives in the renderer; main process
+      // just echoes it on each FILES_CHANGED push.
+      const id = `w_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+      const handler = (_: IpcRendererEvent, push: FileWatchPush) => {
+        if (push.id === id) cb(push.event)
+      }
+      ipcRenderer.on(IPC.FILES_CHANGED, handler)
+      await ipcRenderer.invoke(IPC.FILES_WATCH_START, { id, paths })
+      return async () => {
+        ipcRenderer.removeListener(IPC.FILES_CHANGED, handler)
+        await ipcRenderer.invoke(IPC.FILES_WATCH_STOP, { id })
+      }
+    },
+
+    updateWatchPaths: (id, paths) =>
+      ipcRenderer.invoke(IPC.FILES_WATCH_UPDATE, { id, paths })
   }
 }
 

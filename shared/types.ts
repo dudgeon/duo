@@ -87,6 +87,33 @@ export interface SkillEntry {
   source: 'SKILL.md' | 'CLAUDE.md' | '.claude/skills'
 }
 
+// ── Files / navigator (Stage 10) ─────────────────────────────────────────────
+
+export interface DirEntry {
+  name: string
+  path: string                          // absolute
+  kind: 'file' | 'directory'
+  size?: number                         // files only
+  mtimeMs?: number                      // files only
+}
+
+export interface FileReadResult {
+  bytes: Uint8Array                     // IPC-serializable; main sends Uint8Array
+  mime: string
+  size: number
+  mtimeMs: number
+}
+
+export interface FileChangeEvent {
+  kind: 'added' | 'changed' | 'removed'
+  path: string
+}
+
+export interface FileWatchPush {
+  id: string                            // matches the subscription id
+  event: FileChangeEvent
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -114,7 +141,17 @@ export const IPC = {
   BROWSER_TABS: 'browser:tabs',
 
   SKILLS_SCAN: 'skills:scan',
-  SKILLS_RESULT: 'skills:result'
+  SKILLS_RESULT: 'skills:result',
+
+  // Stage 10 — file navigator + previewers
+  FILES_LIST: 'files:list',
+  FILES_READ: 'files:read',
+  FILES_OPEN_EXTERNAL: 'files:open-external',
+  FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
+  FILES_WATCH_START: 'files:watch-start',
+  FILES_WATCH_UPDATE: 'files:watch-update',
+  FILES_WATCH_STOP: 'files:watch-stop',
+  FILES_CHANGED: 'files:changed'         // main → renderer push
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -150,10 +187,30 @@ export interface ElectronBrowserAPI {
   onTabsChange: (cb: (tabs: BrowserTab[]) => void) => () => void
 }
 
+export interface ElectronFilesAPI {
+  list: (path: string) => Promise<DirEntry[]>
+  read: (path: string) => Promise<FileReadResult>
+  openExternal: (path: string) => Promise<void>
+  revealInFinder: (path: string) => Promise<void>
+  /**
+   * Start a filesystem watcher on the given paths. Returns an `unwatch`
+   * function. The callback fires on each add/change/remove event.
+   * Paths are watched at depth 0 — caller is responsible for also watching
+   * the parents of any expanded subtrees.
+   */
+  watch: (
+    paths: string[],
+    cb: (event: FileChangeEvent) => void
+  ) => Promise<() => Promise<void>>
+  /** Update the set of watched paths on an existing subscription. */
+  updateWatchPaths: (id: string, paths: string[]) => Promise<void>
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
   browser: ElectronBrowserAPI
+  files: ElectronFilesAPI
 }
 
 declare global {

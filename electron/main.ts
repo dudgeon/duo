@@ -4,6 +4,7 @@ import { PtyManager } from './pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
+import { FilesService } from './files-service'
 import { IPC } from '../shared/types'
 import type { BrowserBounds, BrowserState, BrowserTab } from '../shared/types'
 
@@ -11,6 +12,7 @@ nativeTheme.themeSource = 'dark'
 
 let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
+const filesService = new FilesService()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 
@@ -78,6 +80,7 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   ptyManager.dispose()
+  void filesService.dispose()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -146,5 +149,35 @@ function setupIPC(): void {
   ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (_event, { id }: { id: number }) => {
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.closeTab(id)
+  })
+
+  // ── Files (Stage 10) ──────────────────────────────────────────────────────
+
+  ipcMain.handle(IPC.FILES_LIST, (_event, { path: p }: { path: string }) => {
+    return filesService.list(p)
+  })
+
+  ipcMain.handle(IPC.FILES_READ, (_event, { path: p }: { path: string }) => {
+    return filesService.read(p)
+  })
+
+  ipcMain.handle(IPC.FILES_OPEN_EXTERNAL, (_event, { path: p }: { path: string }) => {
+    return filesService.openExternal(p)
+  })
+
+  ipcMain.handle(IPC.FILES_REVEAL_IN_FINDER, (_event, { path: p }: { path: string }) => {
+    filesService.revealInFinder(p)
+  })
+
+  ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths }: { id: string; paths: string[] }) => {
+    filesService.startWatch(id, paths, event.sender, IPC.FILES_CHANGED)
+  })
+
+  ipcMain.handle(IPC.FILES_WATCH_UPDATE, (_event, { id, paths }: { id: string; paths: string[] }) => {
+    return filesService.updateWatchPaths(id, paths)
+  })
+
+  ipcMain.handle(IPC.FILES_WATCH_STOP, (_event, { id }: { id: string }) => {
+    return filesService.stopWatch(id)
   })
 }
