@@ -101,6 +101,35 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 ---
 
+## Claude Code sandbox — must read before touching transport, install, or CLI file I/O
+
+Claude Code runs each Bash tool call inside a macOS Seatbelt sandbox that
+(a) blocks writes outside the working directory, (b) gates
+Unix-domain-socket outbound connections behind an explicit
+`allowUnixSockets: true`, and (c) permits localhost TCP. Duo's entire
+agent-side bridge today is a single Unix socket at
+`~/Library/Application Support/duo/duo.sock` — which means **every `duo`
+command silently fails inside a sandboxed Claude Code session**.
+The user sees a hung or `ECONNREFUSED` Bash call with no hint that the
+sandbox is the cause.
+
+Before changing any code in `cli/duo.ts`, `electron/socket-server.ts`,
+the install path, or the skill's troubleshooting guidance, read
+`docs/DECISIONS.md` → Open ADRs → **Sandbox-tolerant transport and
+install paths for the `duo` CLI**. That ADR inventories what breaks,
+explains the `dudgeon/chrome-cdp-skill` precedent (localhost TCP +
+auth-token file), and names the planned direction: TCP fallback
+alongside the Unix socket, `duo doctor` diagnostic,
+`~/.claude/bin/duo` as the preferred install target, skill-docs
+troubleshooting section, and a bundled settings fragment. Roadmap
+items cross-reference the ADR from Stages 5, 13, and 14.
+
+The work is planful and roadmap-aligned — not a patch. If you find a
+new sandbox failure mode not listed in the ADR, add it there rather
+than routing around it ad hoc.
+
+---
+
 ## Pre-built CLI binary (`cli/duo`)
 
 `cli/duo` is a compiled esbuild bundle intentionally tracked in git so Geoff

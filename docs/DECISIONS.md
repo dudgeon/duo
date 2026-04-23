@@ -221,3 +221,146 @@ appears inside Claude Code sessions that Duo itself spawned?
 Stage 5's first-launch flow — skill no longer lives under `~/.claude/`.
 
 **Decision owner:** Geoff.
+
+---
+
+### Sandbox-tolerant transport and install paths for the `duo` CLI
+
+**Status:** 🟡 Open / Proposed
+**Raised:** 2026-04-23
+**Needed before:** Stage 14 (distribution). Skill-docs portion is cheap
+and can land before the flagship pair; transport + install changes land
+with polish.
+
+**Problem statement.** Claude Code runs each Bash tool invocation inside
+a macOS Seatbelt-based sandbox. Enterprise deployments (e.g. Capital
+One) have this enabled by default. The sandbox:
+
+- **Blocks filesystem writes outside the current working directory.**
+  Reads outside cwd are generally allowed.
+- **Gates Unix-domain-socket outbound connections behind explicit
+  `allowUnixSockets: true`.** The default disallows them; the Claude
+  Code docs warn that `allowUnixSockets` "can inadvertently grant
+  access to powerful system services" (e.g. the Docker socket), so
+  enterprise admins tend to leave it off.
+- **Permits localhost TCP by default.** The network filter is
+  domain/proxy-based, not a blanket loopback block. `127.0.0.1` and
+  `::1` are reachable.
+- **Is inherited by all child processes** spawned from a sandboxed
+  Bash call. Detaching / unref'ing doesn't escape it.
+
+Duo's entire agent-side bridge runs on a single Unix domain socket at
+`~/Library/Application Support/duo/duo.sock`. Every `duo` CLI command
+opens a fresh `net.createConnection(SOCKET_PATH)`. In a sandboxed
+Claude Code session this means **every** `duo` call fails — and it
+fails silently enough that Claude sees one failed Bash call, keeps
+following the skill's instructions, and the user is left debugging
+without any signal pointing at the sandbox as the culprit.
+
+This is the same shape of problem that hit `pasky/chrome-cdp-skill`:
+page-level CDP operations broke under Claude Code's sandbox while
+list/window operations (which happen to be plain HTTP GETs against
+`localhost:9222/json/list`) still worked. The
+`dudgeon/chrome-cdp-skill` fork's fix is a per-tab detached daemon
+listening on `127.0.0.1:<random-port>` with an NDJSON + auth-token
+protocol — localhost TCP passes the sandbox's network filter. See
+that repo's `skills/chrome-cdp/scripts/cdp.mjs` lines 555–679 for the
+reference implementation (TCP listener, token file, CLI reconnect).
+
+**Impact inventory** (2026-04-23 audit of current tree):
+
+| Operation | File:line | Sandbox verdict |
+|---|---|---|
+| Every `duo` command (navigate, url, title, dom, text, ax, click, fill, focus, type, key, eval, screenshot, console, tabs, tab, close, wait, open) | `cli/duo.ts:29` — `net.createConnection(SOCKET_PATH)` | ❌ **All fail** — Unix socket blocked without explicit opt-in |
+| `fs.existsSync(SOCKET_PATH)` pre-connect check | `cli/duo.ts:24` | ✅ Reads outside cwd allowed |
+| `duo install` symlink creation | `cli/duo.ts:266–272` — `/usr/local/bin/duo`, falls back to `~/.local/bin/duo` | ❌ Both paths write outside cwd |
+| `duo screenshot --out <path>` | `cli/duo.ts:195` | ⚠️ Only if `<path>` resolves outside cwd |
+| `duo open <relative/path>` resolution | `cli/duo.ts:237–257` | ✅ Pure reads; only the socket hop matters |
+| First-launch installer → `~/.claude/skills/duo/` | `scripts/postinstall.ts` | ✅ `~/.claude/` is writable per docs |
+| Skill discovery scanning `~/.claude/skills/` | `electron/skills-scanner.ts` | ✅ Runs in unsandboxed Electron main process |
+
+The Electron side (socket creation, chmod, bind, listen in
+`electron/socket-server.ts`) is unaffected: the user's Electron app
+runs outside the Claude Code sandbox. The failure surface is entirely
+on the CLI side — what `claude` shells out to from inside a Duo
+terminal.
+
+A note on the existing "Decisions made during build → Socket path:
+`~/Library/Application Support/duo/` not `/tmp`" entry above: that
+choice is still correct (persistence across reboots, macOS convention)
+but the "sandbox-safe" framing overstated the case. The path is
+*read-reachable* from inside the Claude Code sandbox, but the **Unix
+socket connection itself is not** on default policy. This ADR
+clarifies and supersedes that framing.
+
+**Proposed direction.**
+
+1. **TCP fallback alongside the Unix socket.** In
+   `electron/socket-server.ts`, additionally
+   `server.listen(0, '127.0.0.1')` (ephemeral port; Electron owns
+   both listeners). Write the chosen port and a per-install auth
+   token to `~/Library/Application Support/duo/duo.port` — a small
+   JSON file the sandboxed CLI can *read* (reads outside cwd are
+   allowed). In `cli/duo.ts`, try the Unix socket first; on `EPERM`
+   / `ECONNREFUSED` / connect timeout, read the port file and
+   reconnect over TCP, sending the token as the first NDJSON line
+   of the handshake. Keeps the fast path, heals sandboxed runs
+   transparently. ~100 LoC change; mirrors the chrome-cdp-skill
+   pattern.
+
+2. **`duo doctor` diagnostic.** A new CLI verb that reports, in
+   order: Electron app reachable via Unix socket? via TCP
+   fallback? install path writable? `~/.claude/skills/duo/` present
+   and current? `duo --version` vs. Electron app version? Prints a
+   clear "Claude Code sandbox detected (Unix socket blocked) —
+   falling back to TCP" line when the fallback kicks in. The skill
+   instructs the agent to run `duo doctor` on the first failed
+   command so the sandbox failure mode is named, not inferred.
+
+3. **Sandbox-safe install path.** Change `duo install` to prefer
+   `~/.claude/bin/duo` (the `~/.claude/` tree is writable under
+   Claude Code's sandbox), fall back to `~/.local/bin/duo`, and
+   only touch `/usr/local/bin/duo` on explicit opt-in. Emit a
+   one-line `export PATH=…` fragment for the user's rc after a
+   successful install.
+
+4. **Ship a recommended Claude Code settings fragment.** In
+   `skill/SKILL.md`, add a "Troubleshooting → Claude Code sandbox"
+   section with a copy-pasteable `.claude/settings.json` allowlist
+   (socket path read-allowed + `allowUnixSockets: true`) for teams
+   who prefer the Unix-socket fast path. The CLI's TCP fallback
+   means nobody *needs* this, but it documents the minimum
+   allowlist for sandbox-conscious reviewers.
+
+5. **Last-resort escape hatch.** `dangerouslyDisableSandbox` is
+   surfaced as a Bash tool parameter in some Claude Code builds but
+   disabled outright in managed enterprise settings
+   (`allowUnsandboxedCommands: false`). We mention it in the skill's
+   troubleshooting section as a manual option, do not rely on it.
+
+**Rejected alternatives.**
+
+- **File-based IPC (request/response files in cwd).** Would work
+  under the sandbox's cwd-scoped writes, but the Electron app does
+  not know which PTY CWDs to watch, and each Duo tab has an
+  independent launch CWD. Adds state explosion for no win over TCP.
+- **Named pipes / FIFOs.** Same sandbox class as Unix sockets; no
+  advantage.
+- **Daemon-per-tab like chrome-cdp-skill.** Duo already owns one
+  long-lived Electron process; per-tab daemons solve a problem
+  (Chrome "Allow debugging" modal) that doesn't exist here.
+- **Ship the CLI as a native-compiled binary with a different
+  sandbox surface.** Doesn't change Seatbelt's behavior — the
+  sandbox wraps the process, not the binary.
+
+**Cross-references into the roadmap:**
+- **Stage 5 (skill + subagent authoring, ✅ shipped)** picks up a
+  new doc item: "Troubleshooting → Claude Code sandbox" section in
+  `skill/SKILL.md` + `agents/duo-browser.md`. Cheap, can land
+  immediately.
+- **Stage 13 (interaction polish, ⬜)** picks up the TCP fallback
+  and `duo doctor` work items.
+- **Stage 14 (polish & distribution, ⬜)** picks up the install-path
+  cleanup and the bundled settings fragment.
+
+**Decision owner:** Geoff.
