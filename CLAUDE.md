@@ -18,24 +18,23 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 ## Current state (as of 2026-04-22)
 
-**Stages 1–3 implemented.** All code is written and pushed. Awaiting first
-end-to-end test on macOS (requires Electron/node-pty to build natively).
+**Stages 1–3 shipped and verified end-to-end. Stage 5 skill + subagent shipped and verified.**
 
 **What's done:**
-- All config: `package.json`, `electron.vite.config.ts`, `tsconfig.*.json`,
-  `electron-builder.yml`, Tailwind, PostCSS
-- Electron main process: `BrowserWindow`, PTY manager, IPC handlers, preload
-- Renderer: split layout, tab bar, xterm.js terminals (one per tab), keyboard shortcuts
-- Browser pane: `BrowserManager` (WebContentsView, SSO persistence, tab management)
-- CLI bridge: `CdpBridge` (CDP via debugger), `SocketServer` (Unix socket, 12 commands)
-- CLI: `cli/duo` binary pre-built; `duo install` symlinks to `/usr/local/bin/duo`
-- Skill: `skill/SKILL.md` + three example files
-- Docs: `ROADMAP.md`, `docs/DECISIONS.md`, `docs/RESEARCH.md`, `docs/FIRST-RUN.md`
+- Electron main process, preload, PTY manager
+- Renderer: split layout, terminal tab bar, xterm.js terminals, keyboard shortcuts (`⌘T` browser tab, `⌘⇧T` terminal tab, `⌘L` address bar, `⌘W`, `⌘1-9`, `⌘⇧[`/`]`)
+- Browser pane with its own **tab strip** (add/switch/close, numeric IDs via `duo tab <n>`)
+- SSO persistence across relaunches (Google Docs stays logged in)
+- `CdpBridge` full set: navigate, url, title, dom, text, **ax** (accessibility tree — the canvas-app read path), click, fill, **focus**, **type**, **key**, eval, screenshot, **console** (ring buffer + filters), tabs, tab, wait
+- CLI: `cli/duo` esbuild binary + `duo install` symlinks to `~/.local/bin/duo` or `/usr/local/bin/duo`
+- Skill: `skill/SKILL.md` with YAML frontmatter so Claude Code auto-discovers it; prescriptive Docs rules (no `duo dom`, no `/export?format=txt`, only `duo ax`); scroll-to-expand technique for long docs
+- **Subagent:** `agents/duo-browser.md` — Bash-only driver, preferred entry point for multi-step browser work (keeps parent context clean)
+- End-to-end verification: fresh Claude Code in Duo terminal → auto-discovers skill → drives browser → returns accurate summary (A.5.1 + A.5.3 covered)
 
-**What's next:**
-1. Follow `docs/FIRST-RUN.md` on macOS — 10-step smoke test
-2. Fix any issues found
-3. Stage 4: Skills panel (collapsible sidebar, CWD-scan)
+**What's next (see `ROADMAP.md`):**
+- First-launch installer that copies `skill/` + `agents/` into `~/.claude/` automatically (currently manual)
+- Stage 4 — wire SkillsPanel into the layout (scanner already exists)
+- Backlog items raised by owner: reader-mode typography, markdown editor pane, browser tab numbers in UI, terminal selection improvements, file navigator (Stage 7)
 
 ---
 
@@ -43,16 +42,21 @@ end-to-end test on macOS (requires Electron/node-pty to build natively).
 
 | File | Purpose |
 |---|---|
-| `duo-brief.md` | Full project brief — read before making decisions |
-| `ROADMAP.md` | Stage-by-stage checklist with completion indicators |
-| `docs/DECISIONS.md` | All architecture decisions with rationale |
-| `docs/RESEARCH.md` | Technical research notes for each stage |
-| `shared/types.ts` | All shared types + IPC channel names |
-| `shared/constants.ts` | Paths, defaults, partition names |
+| `README.md` | Elevator pitch, quick start, CLI reference, architecture diagram |
+| `duo-brief.md` | Full vision brief — read before making architectural decisions |
+| `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog |
+| `docs/DECISIONS.md` | Locked architectural decisions with rationale (+ open ADR on skill scoping) |
+| `docs/FIRST-RUN.md` | Thorough setup + smoke-test procedure |
+| `docs/RESEARCH.md` | Technical research notes that informed decisions |
+| `shared/types.ts` | Shared types + IPC channel names |
+| `electron/constants.ts` | Node-only paths (socket, session partition, skill install dir) |
 | `electron/main.ts` | Electron main process entry |
+| `electron/cdp-bridge.ts` | CDP command executor (ax tree renderer, console ring buffer, key/focus/type) |
+| `electron/browser-manager.ts` | WebContentsView tabs + SSO partition |
 | `electron/pty-manager.ts` | node-pty session pool |
 | `renderer/App.tsx` | Root React component, split layout |
-| `skill/SKILL.md` | The duo skill (teaches Claude Code how to use the CLI) |
+| `skill/SKILL.md` | Claude Code skill (auto-discovered via YAML frontmatter) |
+| `agents/duo-browser.md` | Subagent for multi-step browser work |
 
 ---
 
@@ -116,12 +120,12 @@ Claude Code.
 |---|---|
 | App name | Duo — CLI is `duo`, skill at `~/.claude/skills/duo/` |
 | CLI packaging | esbuild compiled binary — no Node.js on user's PATH needed |
-| Browser tab UX | Address bar + nav only; no visible tab bar; `duo tab <n>` for switching |
+| Browser tabs | Visible tab strip inside BrowserPane; also drivable via `duo tab <n>` from the CLI |
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Stage 2 + 3 | Implemented together in one pass |
-| Skills panel layout | Collapsible sidebar — third column right of browser pane |
+| Skills panel layout | Collapsible sidebar — third column right of browser pane (scanner implemented; UI not yet wired) |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes: project + home |
-| First-launch install | Electron permission dialog before installing CLI + skill |
+| First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | No cert yet — personal use only; get cert before Stage 6 |
 
 ## Open questions needing Geoff's input

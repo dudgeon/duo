@@ -1,7 +1,9 @@
 # Duo — First Run Procedures
 
-> Follow these steps in order when you get home.
-> Each section has a clear pass/fail check. Do not skip sections.
+> Thorough, step-by-step setup and smoke-test. If you just want to get
+> running, the quick-start in [README.md](../README.md) is shorter.
+> Each section below has a clear pass/fail check — do not skip sections
+> when verifying a fresh machine.
 
 ---
 
@@ -11,8 +13,8 @@
 |---|---|
 | macOS 13 Ventura or later | `sw_vers` |
 | Xcode Command Line Tools | `xcode-select -p` → should print a path |
-| Node.js ≥ 20 | `node --version` → should print `v20.x.x` or higher |
-| npm ≥ 10 | `npm --version` |
+| Node.js ≥ 18 | `node --version` → should print `v18.x.x` or higher |
+| npm ≥ 9 | `npm --version` |
 | Git | `git --version` |
 
 If Node.js is missing: install via `brew install node` or `nvm install 20`.
@@ -227,6 +229,34 @@ duo eval 'document.title'    # → "Example Domain"
 duo eval '1 + 1'             # → 2
 ```
 
+### 6i. Accessibility tree (canvas apps)
+
+```bash
+duo ax                                       # Markdown render of full AX tree
+duo ax --selector h1                         # narrowed
+duo ax --format json | head -40              # structured
+```
+
+### 6j. Write primitives (focus / type / key)
+
+```bash
+# Inject a test input into the current page
+duo eval "const i=document.createElement('input'); i.id='duo-test'; document.body.appendChild(i); 'ok'"
+duo focus '#duo-test'
+duo type "hello duo"
+duo key Backspace
+duo eval "document.getElementById('duo-test').value"   # → "hello du"
+```
+
+### 6k. Console capture
+
+```bash
+TS=$(date +%s000)
+duo eval 'console.warn("smoke-test"); 42'
+duo console --since $TS --level warn
+# → NDJSON line containing text "smoke-test"
+```
+
 **Pass check:** All commands above return expected output without errors.
 
 ---
@@ -273,22 +303,26 @@ npm run typecheck
 
 ---
 
-## Step 10 — Update the roadmap
+## Step 10 — Install skill + subagent for Claude Code
 
-Open `ROADMAP.md` and check off the completed items:
+So a fresh Claude Code session launched in a Duo terminal discovers the
+skill and the `duo-browser` subagent automatically:
 
+```bash
+mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents
+cp skill/SKILL.md            ~/.claude/skills/duo/SKILL.md
+cp skill/examples/*.md       ~/.claude/skills/duo/examples/
+cp agents/duo-browser.md     ~/.claude/agents/duo-browser.md
 ```
-- [x] BrowserManager: create WebContentsView, attach to window.contentView
-- [x] Bounds sync: renderer → IPC → main
-- [x] Navigation: address bar commits, back/forward/reload wired
-- [x] SSO persistence via BROWSER_SESSION_PARTITION
-- [x] browser:navigate + browser:state IPC channels in main.ts
-- [x] CdpBridge: implement all CDP commands via webContents.debugger
-- [x] SocketServer: listen on SOCKET_PATH, dispatch to CdpBridge
-- [x] Wire SocketServer startup into electron/main.ts
-- [x] Add esbuild script to compile cli/duo.ts → binary in cli/duo
-- [x] End-to-end: duo text returns page content from terminal tab
+
+Then inside a Duo terminal tab:
+
+```bash
+claude "summarize the page open in my browser"
 ```
+
+**Pass check:** the session's skills list includes `duo`, and it calls
+`duo url` / `duo ax` without needing any priming.
 
 ---
 
@@ -324,12 +358,8 @@ Open `ROADMAP.md` and check off the completed items:
 
 ---
 
-## What comes next (Stage 4)
+## What comes next
 
-After all 10 steps above pass:
-
-1. **CWD tracking per tab** — emit `cwd` updates from PTY via shell precmd hook or polling
-2. **Skills scanner** — scan the active tab's CWD for SKILL.md / CLAUDE.md / `.claude/skills/`
-3. **Skills panel** — collapsible right sidebar showing available skills
-
-Ping in chat when Stage 3 tests pass and we'll move to Stage 4.
+See [ROADMAP.md](../ROADMAP.md) for the current stage status and the
+unscheduled backlog (reader mode, markdown editor, browser tab
+numbers, terminal selection improvements, file navigator).

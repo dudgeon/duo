@@ -120,7 +120,7 @@ The architectural walls that block Claude Code from VS Code's browser do **not**
 | # | Capability                        | In Duo                                                                                 |
 |---|-----------------------------------|----------------------------------------------------------------------------------------|
 | 1 | Real Chromium with authenticated URLs | WebContentsView is real Chromium with persistent session (Stage 2)                 |
-| 2 | CLI access from terminal          | Core design — `orbit <cmd>` over Unix socket (Stage 3)                                 |
+| 2 | CLI access from terminal          | Core design — `duo <cmd>` over Unix socket (Stage 3)                                   |
 | 3 | CDP access                        | Free via `webContents.debugger.sendCommand(...)` in the main process                   |
 | 4 | Google auth with persistent sessions | Electron `session` + partition persists cookies (Stage 2)                           |
 | 5 | Accessibility tree                | `Accessibility.getFullAXTree` via CDP — the read path for canvas-rendered apps         |
