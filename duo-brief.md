@@ -1,9 +1,18 @@
-# Duo — Project Brief
+# Duo — Project Brief (engineering, Stages 1–5)
 
 > **Name:** Duo (CLI: `duo`, socket: `~/Library/Application Support/duo/duo.sock`, skill: `~/.claude/skills/duo/`)
 > **Owner:** Geoff
 > **Status:** Stages 1–3 implemented; Stage 5 skill + subagent authored and verified end-to-end.
 > **Last updated:** 2026-04-22
+
+> **Product framing has moved to [docs/VISION.md](docs/VISION.md).** That
+> doc is the current north star — persona, principles, and the flagship
+> "readable terminal + docs-style markdown editor" bet. This brief is
+> retained as the engineering reference for Stages 1–5: the CLI spec (§9),
+> the architecture (§8), the Google Docs first-class read/write path (§17),
+> and the acceptance criteria (§11) are still authoritative. Where the
+> brief's product framing ("a tool for PMs using Claude Code at Capital
+> One") differs from the vision doc, the vision doc wins.
 
 > This is the full vision brief. For current build state see [ROADMAP.md](ROADMAP.md). For architecture decisions see [docs/DECISIONS.md](docs/DECISIONS.md). For first-time setup see [docs/FIRST-RUN.md](docs/FIRST-RUN.md). Brainstem.cc / MCP integration mentioned in §3, §8 is a future aspiration — the shipping Skills panel (Stage 4) is CWD-scan only.
 

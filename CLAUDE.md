@@ -43,7 +43,8 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 | File | Purpose |
 |---|---|
 | `README.md` | Elevator pitch, quick start, CLI reference, architecture diagram |
-| `duo-brief.md` | Full vision brief — read before making architectural decisions |
+| `docs/VISION.md` | Product north star — persona, principles, flagship bet. Read before making product/UX decisions. |
+| `duo-brief.md` | Original engineering brief (Stages 1–5). Architecture + Google Docs path are authoritative; product framing is superseded by `docs/VISION.md`. |
 | `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog |
 | `docs/DECISIONS.md` | Locked architectural decisions with rationale (+ open ADR on skill scoping) |
 | `docs/FIRST-RUN.md` | Thorough setup + smoke-test procedure |
