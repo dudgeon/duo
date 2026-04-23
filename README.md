@@ -1,29 +1,55 @@
 # Duo
 
-A macOS-native desktop app that pairs multiple Claude Code terminal sessions
-with an embedded Chromium browser, connected by a local CLI bridge so Claude
-Code can read and drive the browser — including authenticated Google Docs —
-as naturally as it runs shell commands.
+A macOS workspace for working **alongside an agent**. Duo pairs a terminal
+tuned for long human↔agent conversation with an embedded Chromium browser,
+a local CLI bridge, and (soon) a file browser and markdown editor — all in
+one signed app. Today the supported agent is
+[Claude Code](https://www.anthropic.com/claude-code); the architecture is
+BYO-harness.
 
 ![status: Stages 1–3 shipped, Stage 5 skill verified end-to-end](https://img.shields.io/badge/status-stages_1--3_shipped-brightgreen)
 
+> **Product north star lives in [docs/VISION.md](docs/VISION.md)** —
+> persona, principles, and the flagship "readable terminal + docs-style
+> markdown editor" bet. Read that for the *why*. This README is the *how*.
+
 ---
 
-## Why this exists
+## Who this is for
 
-Product managers using Claude Code hit a recurring wall: they want the agent
+Primarily, **product managers and other non-SWE knowledge workers** who
+want to work with an agent the way they already work in Google Docs or
+Notion — beautifully, safely, and without learning the terminal or the
+file system first. Duo smooths the rough edges of running an agent like
+Claude Code so the people least equipped to adopt it are actually able to.
+
+Duo is **not an agent.** It is a harness for someone else's agent.
+The terminal is still there — the agent lives in it — but everything
+around the terminal is designed for someone who does not.
+
+See [docs/VISION.md](docs/VISION.md) for the full persona and the
+aspirational capability set.
+
+---
+
+## What it is today
+
+At this point in the roadmap, Duo is a terminal + browser + agent-bridge
+in one native macOS app. The PM-facing surfaces (readable prose terminal,
+docs-style markdown editor, file browser, visual skill/connector management)
+are the next bets — see [ROADMAP.md](ROADMAP.md) and
+[docs/VISION.md](docs/VISION.md).
+
+A recurring pain point for the primary persona is that they want the agent
 to work with what's **on their screen** — a PRD in Google Docs, a live
 dashboard, a generated HTML prototype — and every bridge is awkward. Copy /
 paste, external MCP servers, browser-automation tools that break on Google
 SSO. Duo collapses the terminal, the browser, and the agent-bridge into one
-signed macOS app that installs by dragging to `/Applications`.
+signed macOS app that installs by dragging to `/Applications`. Authenticated
+Google Docs read/edit is the flagship success test for this foundation
+layer.
 
-Duo is also a personal daily driver: shippable quality for a broader PM
-cohort, prototype speed in the MVP.
-
----
-
-## What it does today
+What's shipped today:
 
 - **Terminal tabs** (xterm.js + node-pty) side-by-side with a real
   **Chromium browser pane** (Electron `WebContentsView`), in one window.
@@ -38,6 +64,9 @@ cohort, prototype speed in the MVP.
 - **First-class support for canvas-rendered apps** (Google Docs, Sheets,
   Slides, Figma) via the accessibility tree — not DOM scraping, which
   silently returns empty on these surfaces.
+
+Duo is also a personal daily driver for the owner: shippable quality for a
+broader cohort, prototype speed in the MVP.
 
 ---
 
@@ -234,8 +263,8 @@ Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
 
 ## Further reading
 
-- **[duo-brief.md](duo-brief.md)** — the full vision brief. Read this for
-  the "why" and for features not yet implemented.
+- **[docs/VISION.md](docs/VISION.md)** — product north star: persona, jobs
+  to be done, principles, flagship bet. Start here for *why* Duo exists.
 - **[ROADMAP.md](ROADMAP.md)** — current status, per stage, plus the
   unscheduled backlog.
 - **[docs/DECISIONS.md](docs/DECISIONS.md)** — locked architectural
@@ -246,6 +275,10 @@ Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
   and xterm notes that shaped the build.
 - **[skill/SKILL.md](skill/SKILL.md)** — the Claude Code skill installed
   alongside the app. Readable as-is for humans, too.
+- **[duo-brief.md](duo-brief.md)** — the original engineering brief for
+  Stages 1–5. Product framing is superseded by `docs/VISION.md`; the
+  technical detail (especially the Google Docs read/write path in §17)
+  remains the authoritative reference.
 
 ---
 
