@@ -4,10 +4,11 @@
 
 import { useRef, useEffect } from 'react'
 import { AddressBar } from './AddressBar'
+import { BrowserTabStrip } from './BrowserTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 
 export function BrowserPane() {
-  const { state, navigate } = useBrowserState()
+  const { state, tabs, navigate, addTab, switchTab, closeTab } = useBrowserState()
   const contentRef = useRef<HTMLDivElement>(null)
 
   // Keep the WebContentsView positioned over this div as the split moves or
@@ -39,6 +40,14 @@ export function BrowserPane() {
 
   return (
     <div className="flex flex-col w-full h-full bg-surface-1 border-l border-border">
+      {/* Browser tab strip */}
+      <BrowserTabStrip
+        tabs={tabs}
+        onSelect={(id) => { switchTab(id) }}
+        onNew={() => { addTab() }}
+        onClose={(id) => { closeTab(id) }}
+      />
+
       {/* Address bar / nav chrome */}
       <div className="flex items-center h-10 px-3 gap-2 border-b border-border shrink-0">
         <div className="flex items-center gap-1">

@@ -83,9 +83,15 @@ export const IPC = {
   BROWSER_FORWARD: 'browser:forward',
   BROWSER_RELOAD: 'browser:reload',
   BROWSER_BOUNDS: 'browser:bounds',
+  BROWSER_GET_STATE: 'browser:get-state',
+  BROWSER_GET_TABS: 'browser:get-tabs',
+  BROWSER_ADD_TAB: 'browser:add-tab',
+  BROWSER_SWITCH_TAB: 'browser:switch-tab',
+  BROWSER_CLOSE_TAB: 'browser:close-tab',
 
   // Main → renderer
   BROWSER_STATE: 'browser:state',
+  BROWSER_TABS: 'browser:tabs',
 
   SKILLS_SCAN: 'skills:scan',
   SKILLS_RESULT: 'skills:result'
@@ -115,7 +121,13 @@ export interface ElectronBrowserAPI {
   forward: () => void
   reload: () => void
   setBounds: (bounds: BrowserBounds) => void
+  getState: () => Promise<BrowserState>
+  getTabs: () => Promise<BrowserTab[]>
+  addTab: (url?: string) => Promise<{ id: number }>
+  switchTab: (id: number) => Promise<{ ok: boolean; error?: string }>
+  closeTab: (id: number) => Promise<{ ok: boolean; error?: string }>
   onStateChange: (cb: (state: BrowserState) => void) => () => void
+  onTabsChange: (cb: (tabs: BrowserTab[]) => void) => () => void
 }
 
 export interface ElectronAPI {

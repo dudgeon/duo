@@ -34,7 +34,7 @@ export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose }: TabBarPr
       <button
         onClick={onNew}
         className="titlebar-nodrag shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-surface-3 transition-colors"
-        title="New tab (⌘T)"
+        title="New terminal tab (⌘⇧T)"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>

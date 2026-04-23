@@ -14,6 +14,7 @@ import { BROWSER_SESSION_PARTITION } from './constants'
 import type { CdpBridge } from './cdp-bridge'
 
 type StateCallback = (state: BrowserState) => void
+type TabsCallback = (tabs: BrowserTab[]) => void
 
 interface TabEntry {
   view: WebContentsView
@@ -24,15 +25,22 @@ export class BrowserManager {
   private window: BrowserWindow
   private cdp: CdpBridge
   private onStateChange: StateCallback
+  private onTabsChange: TabsCallback
   private tabs: TabEntry[] = []
   private activeIndex = 0
   private nextId = 1
   private currentBounds: BrowserBounds = { x: 0, y: 0, width: 0, height: 0 }
 
-  constructor(window: BrowserWindow, cdp: CdpBridge, onStateChange: StateCallback) {
+  constructor(
+    window: BrowserWindow,
+    cdp: CdpBridge,
+    onStateChange: StateCallback,
+    onTabsChange: TabsCallback
+  ) {
     this.window = window
     this.cdp = cdp
     this.onStateChange = onStateChange
+    this.onTabsChange = onTabsChange
     this.addTab()  // open the first tab
   }
 
@@ -63,11 +71,19 @@ export class BrowserManager {
 
     this.wireEvents(view)
 
-    if (url !== 'about:blank') {
-      view.webContents.loadURL(url).catch(() => null)
-    }
+    // Always load a URL — even about:blank. Without it, the WebContents stays
+    // in an uninitialized state where getURL() returns '' and CDP attach fails,
+    // which would swallow switchTab's state emits.
+    view.webContents.loadURL(url).catch(() => null)
 
+    this.emitTabs()
     return entry
+  }
+
+  async openTab(url = 'about:blank'): Promise<{ id: number }> {
+    const entry = this.addTab(url)
+    await this.switchTab(entry.id)
+    return { id: entry.id }
   }
 
   async switchTab(n: number): Promise<{ ok: boolean; error?: string }> {
@@ -81,9 +97,45 @@ export class BrowserManager {
     this.activeIndex = idx
     this.tabs[idx].view.setBounds(this.currentBounds)
 
-    // Reattach debugger to new active webContents
-    await this.cdp.attach(this.tabs[idx].view.webContents)
+    // Emit UI updates first — CDP attach is best-effort and must not block
+    // the state/tab-strip updates the renderer needs.
     this.emitState()
+    this.emitTabs()
+
+    try {
+      await this.cdp.attach(this.tabs[idx].view.webContents)
+    } catch (err) {
+      console.warn('[BrowserManager] CDP attach failed on switchTab:', err)
+    }
+    return { ok: true }
+  }
+
+  async closeTab(n: number): Promise<{ ok: boolean; error?: string }> {
+    const idx = this.tabs.findIndex(t => t.id === n)
+    if (idx === -1) return { ok: false, error: `No tab with id ${n}` }
+    if (this.tabs.length === 1) return { ok: false, error: 'Cannot close last tab' }
+
+    const [removed] = this.tabs.splice(idx, 1)
+    try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }
+    try { removed.view.webContents.close() } catch { /* ignore */ }
+
+    // If we removed the active tab, activate its neighbor (prefer the one to the left)
+    if (idx === this.activeIndex) {
+      this.activeIndex = Math.max(0, idx - 1)
+      const newActive = this.tabs[this.activeIndex]
+      newActive.view.setBounds(this.currentBounds)
+      this.emitState()
+      try {
+        await this.cdp.attach(newActive.view.webContents)
+      } catch (err) {
+        console.warn('[BrowserManager] CDP attach failed on closeTab:', err)
+      }
+    } else if (idx < this.activeIndex) {
+      // Closed a tab to the left; shift our pointer
+      this.activeIndex -= 1
+    }
+
+    this.emitTabs()
     return { ok: true }
   }
 
@@ -166,7 +218,9 @@ export class BrowserManager {
   private wireEvents(view: WebContentsView): void {
     const wc = view.webContents
     const emit = () => {
-      // Only emit if this is the active tab
+      // Title/url changes on any tab affect the tab strip
+      this.emitTabs()
+      // URL/loading state in the chrome only tracks the active tab
       if (this.tabs[this.activeIndex]?.view === view) this.emitState()
     }
     wc.on('did-navigate', emit)
@@ -176,15 +230,22 @@ export class BrowserManager {
     wc.on('did-stop-loading', emit)
   }
 
-  private emitState(): void {
+  getState(): BrowserState {
     const wc = this.activeView().webContents
-    const state: BrowserState = {
+    return {
       url: wc.getURL() || 'about:blank',
       title: wc.getTitle() || '',
       canGoBack: wc.navigationHistory.canGoBack(),
       canGoForward: wc.navigationHistory.canGoForward(),
       isLoading: wc.isLoading()
     }
-    this.onStateChange(state)
+  }
+
+  private emitState(): void {
+    this.onStateChange(this.getState())
+  }
+
+  private emitTabs(): void {
+    this.onTabsChange(this.getTabs())
   }
 }

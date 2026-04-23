@@ -51,10 +51,31 @@ const api: ElectronAPI = {
     setBounds: (bounds) =>
       ipcRenderer.send(IPC.BROWSER_BOUNDS, bounds),
 
+    getState: () =>
+      ipcRenderer.invoke(IPC.BROWSER_GET_STATE),
+
+    getTabs: () =>
+      ipcRenderer.invoke(IPC.BROWSER_GET_TABS),
+
+    addTab: (url) =>
+      ipcRenderer.invoke(IPC.BROWSER_ADD_TAB, { url }),
+
+    switchTab: (id) =>
+      ipcRenderer.invoke(IPC.BROWSER_SWITCH_TAB, { id }),
+
+    closeTab: (id) =>
+      ipcRenderer.invoke(IPC.BROWSER_CLOSE_TAB, { id }),
+
     onStateChange: (cb) => {
       const handler = (_: IpcRendererEvent, state: Parameters<typeof cb>[0]) => cb(state)
       ipcRenderer.on(IPC.BROWSER_STATE, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_STATE, handler)
+    },
+
+    onTabsChange: (cb) => {
+      const handler = (_: IpcRendererEvent, tabs: Parameters<typeof cb>[0]) => cb(tabs)
+      ipcRenderer.on(IPC.BROWSER_TABS, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_TABS, handler)
     }
   }
 }

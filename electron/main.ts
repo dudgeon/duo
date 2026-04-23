@@ -5,7 +5,7 @@ import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
 import { IPC } from '../shared/types'
-import type { BrowserBounds } from '../shared/types'
+import type { BrowserBounds, BrowserState, BrowserTab } from '../shared/types'
 
 nativeTheme.themeSource = 'dark'
 
@@ -35,9 +35,12 @@ function createWindow(): void {
 
   // Browser manager owns WebContentsViews and forwards state to renderer
   const cdpBridge = new CdpBridge()
-  browserManager = new BrowserManager(mainWindow, cdpBridge, (state) => {
-    mainWindow?.webContents.send(IPC.BROWSER_STATE, state)
-  })
+  browserManager = new BrowserManager(
+    mainWindow,
+    cdpBridge,
+    (state: BrowserState) => mainWindow?.webContents.send(IPC.BROWSER_STATE, state),
+    (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs)
+  )
 
   // Socket server starts listening; CLI connects here
   ensureSocketDir()
@@ -120,5 +123,28 @@ function setupIPC(): void {
   // the split moves or the window resizes. We reposition the WebContentsView.
   ipcMain.on(IPC.BROWSER_BOUNDS, (_event, bounds: BrowserBounds) => {
     browserManager?.setBounds(bounds)
+  })
+
+  ipcMain.handle(IPC.BROWSER_GET_STATE, () => {
+    return browserManager?.getState() ?? null
+  })
+
+  ipcMain.handle(IPC.BROWSER_GET_TABS, () => {
+    return browserManager?.getTabs() ?? []
+  })
+
+  ipcMain.handle(IPC.BROWSER_ADD_TAB, async (_event, { url }: { url?: string }) => {
+    if (!browserManager) return { id: -1 }
+    return browserManager.openTab(url)
+  })
+
+  ipcMain.handle(IPC.BROWSER_SWITCH_TAB, async (_event, { id }: { id: number }) => {
+    if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
+    return browserManager.switchTab(id)
+  })
+
+  ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (_event, { id }: { id: number }) => {
+    if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
+    return browserManager.closeTab(id)
   })
 }

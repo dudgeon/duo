@@ -2,27 +2,43 @@ import { useEffect } from 'react'
 import type { TabSession } from '@shared/types'
 
 interface Options {
-  newTab: () => void
+  newTerminalTab: () => void
+  newBrowserTab: () => void
   closeTab: () => void
   tabs: TabSession[]
   activeTabId: string
   setActiveTabId: (id: string) => void
 }
 
-export function useKeyboardShortcuts({ newTab, closeTab, tabs, activeTabId, setActiveTabId }: Options) {
+export function useKeyboardShortcuts({
+  newTerminalTab,
+  newBrowserTab,
+  closeTab,
+  tabs,
+  activeTabId,
+  setActiveTabId
+}: Options) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const meta = e.metaKey // ⌘ on macOS
+      const key = e.key.toLowerCase()
 
-      // ⌘T — new tab
-      if (meta && e.key === 't') {
+      // ⌘T — new browser tab (Chrome parity)
+      if (meta && !e.shiftKey && key === 't') {
         e.preventDefault()
-        newTab()
+        newBrowserTab()
+        return
+      }
+
+      // ⌘⇧T — new terminal tab
+      if (meta && e.shiftKey && key === 't') {
+        e.preventDefault()
+        newTerminalTab()
         return
       }
 
       // ⌘L — focus the address bar (Chrome parity)
-      if (meta && e.key === 'l') {
+      if (meta && key === 'l') {
         const el = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
         if (el) {
           e.preventDefault()
@@ -32,22 +48,22 @@ export function useKeyboardShortcuts({ newTab, closeTab, tabs, activeTabId, setA
         return
       }
 
-      // ⌘W — close active tab
-      if (meta && e.key === 'w') {
+      // ⌘W — close active terminal tab
+      if (meta && key === 'w') {
         e.preventDefault()
         closeTab()
         return
       }
 
-      // ⌘1–⌘9 — jump to tab N
-      if (meta && e.key >= '1' && e.key <= '9') {
+      // ⌘1–⌘9 — jump to terminal tab N
+      if (meta && key >= '1' && key <= '9') {
         e.preventDefault()
-        const idx = parseInt(e.key, 10) - 1
+        const idx = parseInt(key, 10) - 1
         if (idx < tabs.length) setActiveTabId(tabs[idx].id)
         return
       }
 
-      // ⌘⇧[ — previous tab
+      // ⌘⇧[ — previous terminal tab
       if (meta && e.shiftKey && e.key === '[') {
         e.preventDefault()
         const idx = tabs.findIndex(t => t.id === activeTabId)
@@ -56,7 +72,7 @@ export function useKeyboardShortcuts({ newTab, closeTab, tabs, activeTabId, setA
         return
       }
 
-      // ⌘⇧] — next tab
+      // ⌘⇧] — next terminal tab
       if (meta && e.shiftKey && e.key === ']') {
         e.preventDefault()
         const idx = tabs.findIndex(t => t.id === activeTabId)
@@ -68,5 +84,5 @@ export function useKeyboardShortcuts({ newTab, closeTab, tabs, activeTabId, setA
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [newTab, closeTab, tabs, activeTabId, setActiveTabId])
+  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId])
 }

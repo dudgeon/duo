@@ -75,7 +75,8 @@ export function App() {
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
   useKeyboardShortcuts({
-    newTab,
+    newTerminalTab: newTab,
+    newBrowserTab: () => { window.electron.browser.addTab() },
     closeTab: () => closeTab(activeTabId),
     tabs,
     activeTabId,
