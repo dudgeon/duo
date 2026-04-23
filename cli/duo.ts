@@ -214,6 +214,33 @@ async function main(): Promise<void> {
         out(await send('close', { n }))
         break
       }
+      case 'view': {
+        const target = rest[0] ?? die('Usage: duo view <path>')
+        const resolved = resolveFilePath(target)
+        out(await send('view', { path: resolved }))
+        break
+      }
+      case 'reveal': {
+        const target = rest[0] ?? die('Usage: duo reveal <path>')
+        const resolved = resolveFilePath(target)
+        out(await send('reveal', { path: resolved }))
+        break
+      }
+      case 'ls': {
+        const target = rest[0]
+        const resolved = target ? resolveFilePath(target) : undefined
+        out(await send('ls', resolved ? { path: resolved } : {}))
+        break
+      }
+      case 'nav-state':
+      case 'nav': {
+        // `duo nav state` and `duo nav-state` are equivalent spellings.
+        if (cmd === 'nav' && rest[0] !== 'state') {
+          die('Usage: duo nav state')
+        }
+        out(await send('nav-state'))
+        break
+      }
       case 'wait': {
         const selector = rest[0] ?? die('Usage: duo wait <selector> [--timeout ms]')
         const timeoutIdx = rest.indexOf('--timeout')
@@ -231,6 +258,18 @@ async function main(): Promise<void> {
   } catch (err) {
     die(err instanceof Error ? err.message : String(err))
   }
+}
+
+// Resolves a filesystem path arg to an absolute path (no `file://` prefix),
+// expanding `~` and making relative paths absolute against the CLI's CWD.
+// Used by `duo view` / `duo reveal` / `duo ls` (they talk in raw paths;
+// it's the working pane that translates to `file://` when needed).
+function resolveFilePath(input: string): string {
+  if (input.startsWith('~/') || input === '~') {
+    return path.resolve(input.replace(/^~/, os.homedir()))
+  }
+  if (path.isAbsolute(input)) return input
+  return path.resolve(process.cwd(), input)
 }
 
 // Resolves a `duo open` argument to a URL the browser can load:
@@ -314,6 +353,19 @@ COMMANDS
   tab <n>                         Switch to browser tab N
   close <n>                       Close browser tab N (cannot close the last)
   wait <selector> [--timeout ms]  Wait for element to appear
+
+  view <path>                     Open a file in the working pane (new tab,
+                                  type inferred from extension). Distinct
+                                  from \`open\` (which opens a URL/HTML in
+                                  a browser tab).
+  reveal <path>                   Move the file navigator to <path> and
+                                  surface a dismissible chip so the user
+                                  knows you moved their tree.
+  ls [path]                       List directory contents (JSON). Defaults
+                                  to the navigator's current folder.
+  nav state                       Print navigator state (cwd, selection,
+                                  expanded folders, pinned flag).
+
   install                         Symlink duo to /usr/local/bin/duo
 
 FLAGS

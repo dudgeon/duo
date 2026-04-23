@@ -46,6 +46,10 @@ export function App() {
   const [fileTabs, setFileTabs] = useState<FileTab[]>([])
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
 
+  // Stage 10 Phase 6 § D16 — dismissible chip when the agent drives the
+  // navigator via `duo reveal`. Cleared after ~4s or by user dismiss.
+  const [revealChip, setRevealChip] = useState<string | null>(null)
+
   const activeTab = tabs.find(t => t.id === activeTabId)
 
   // ── Tab actions ────────────────────────────────────────────────────────────
@@ -82,6 +86,17 @@ export function App() {
     if (nav.state.cwd === activeTab.cwd) return
     nav.setCwd(activeTab.cwd)
   }, [activeTab, nav])
+
+  // Stage 10 Phase 6: push navigator-state snapshots to the main process
+  // so `duo nav state` can read the current value without a renderer RPC.
+  useEffect(() => {
+    window.electron.nav.pushState({
+      cwd: nav.state.cwd,
+      selected: nav.state.selected,
+      expanded: [...nav.state.expanded],
+      pinned: nav.state.pinned
+    })
+  }, [nav.state.cwd, nav.state.selected, nav.state.expanded, nav.state.pinned])
 
   // ── File-open from the navigator ───────────────────────────────────────────
 
@@ -122,6 +137,30 @@ export function App() {
   const onOpenMarkdown = useCallback((path: string) => {
     const name = path.slice(path.lastIndexOf('/') + 1) || path
     openFile(path, name)
+  }, [openFile])
+
+  // Stage 10 Phase 6: `duo reveal <path>` from the CLI. Move the navigator
+  // to that path and surface a dismissible chip.
+  useEffect(() => {
+    return window.electron.nav.onReveal((p) => {
+      nav.actions.navigateTo(p)
+      setRevealChip(p)
+    })
+  }, [nav.actions])
+
+  // Auto-dismiss the chip after 4 seconds.
+  useEffect(() => {
+    if (!revealChip) return
+    const h = setTimeout(() => setRevealChip(null), 4000)
+    return () => clearTimeout(h)
+  }, [revealChip])
+
+  // Stage 10 Phase 6: `duo view <path>` from the CLI. Open as a file tab.
+  useEffect(() => {
+    return window.electron.nav.onView((p) => {
+      const name = p.slice(p.lastIndexOf('/') + 1) || p
+      openFile(p, name)
+    })
   }, [openFile])
 
   // ── Split-pane resize (middle/right) ───────────────────────────────────────
@@ -216,6 +255,8 @@ export function App() {
             state={nav.state}
             actions={nav.actions}
             onOpenFile={onOpenFile}
+            revealChip={revealChip}
+            onDismissRevealChip={() => setRevealChip(null)}
           />
         </div>
 

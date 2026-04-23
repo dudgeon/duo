@@ -6,7 +6,22 @@ import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
 import { FilesService } from './files-service'
 import { IPC } from '../shared/types'
-import type { BrowserBounds, BrowserState, BrowserTab } from '../shared/types'
+import type {
+  BrowserBounds,
+  BrowserState,
+  BrowserTab,
+  NavStateSnapshot
+} from '../shared/types'
+
+// Last nav state snapshot the renderer pushed. Drives `duo nav state`.
+// Starts with sensible defaults so a CLI call before the renderer has
+// pushed anything returns a well-formed object.
+let navState: NavStateSnapshot = {
+  cwd: process.env.HOME ?? '/',
+  selected: null,
+  expanded: [],
+  pinned: false
+}
 
 nativeTheme.themeSource = 'dark'
 
@@ -46,7 +61,11 @@ function createWindow(): void {
 
   // Socket server starts listening; CLI connects here
   ensureSocketDir()
-  socketServer = new SocketServer(cdpBridge, browserManager)
+  socketServer = new SocketServer(cdpBridge, browserManager, filesService, {
+    getState: getNavState,
+    reveal: sendReveal,
+    view: sendView
+  })
   socketServer.start()
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -180,4 +199,34 @@ function setupIPC(): void {
   ipcMain.handle(IPC.FILES_WATCH_STOP, (_event, { id }: { id: string }) => {
     return filesService.stopWatch(id)
   })
+
+  // ── Navigator state cache (Stage 10 Phase 6) ──────────────────────────────
+  // Renderer pushes its navigator state on every change; main caches the last
+  // snapshot for `duo nav state` to return without a renderer round-trip.
+
+  ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
+    navState = snapshot
+  })
+}
+
+// Helpers exposed to SocketServer via `NavBridge` (passed below).
+
+export function getNavState(): NavStateSnapshot {
+  return navState
+}
+
+export function sendReveal(path: string): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.NAV_REVEAL, path)
+  return { ok: true }
+}
+
+export function sendView(path: string): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.NAV_VIEW, path)
+  return { ok: true }
 }

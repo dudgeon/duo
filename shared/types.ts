@@ -41,6 +41,11 @@ export type DuoCommandName =
   | 'tab'
   | 'close'
   | 'wait'
+  // Stage 10 Phase 6 — navigator + file-surface commands
+  | 'view'
+  | 'reveal'
+  | 'ls'
+  | 'nav-state'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -142,6 +147,15 @@ export interface FileWatchPush {
   event: FileChangeEvent
 }
 
+// Renderer → main snapshot of navigator state. Main caches the latest value
+// for the CLI's `duo nav state` response.
+export interface NavStateSnapshot {
+  cwd: string
+  selected: { path: string; kind: 'file' | 'folder' } | null
+  expanded: string[]                    // absolute paths
+  pinned: boolean
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -179,7 +193,12 @@ export const IPC = {
   FILES_WATCH_START: 'files:watch-start',
   FILES_WATCH_UPDATE: 'files:watch-update',
   FILES_WATCH_STOP: 'files:watch-stop',
-  FILES_CHANGED: 'files:changed'         // main → renderer push
+  FILES_CHANGED: 'files:changed',        // main → renderer push
+
+  // Stage 10 Phase 6 — navigator state + agent-facing commands
+  NAV_STATE_PUSH: 'nav:state-push',      // renderer → main (cache state for CLI)
+  NAV_VIEW: 'nav:view',                  // main → renderer (open a file in WorkingPane)
+  NAV_REVEAL: 'nav:reveal'               // main → renderer (move navigator + chip)
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -234,11 +253,22 @@ export interface ElectronFilesAPI {
   updateWatchPaths: (id: string, paths: string[]) => Promise<void>
 }
 
+export interface ElectronNavAPI {
+  /** Push the latest navigator state into the main-process cache.
+   *  Main returns this on `duo nav state`. */
+  pushState: (snapshot: NavStateSnapshot) => void
+  /** Subscribe to `duo reveal <path>` commands coming in from the CLI. */
+  onReveal: (cb: (path: string) => void) => () => void
+  /** Subscribe to `duo view <path>` commands coming in from the CLI. */
+  onView: (cb: (path: string) => void) => () => void
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
   browser: ElectronBrowserAPI
   files: ElectronFilesAPI
+  nav: ElectronNavAPI
 }
 
 declare global {

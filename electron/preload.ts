@@ -1,7 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { IpcRendererEvent } from 'electron'
 import { IPC } from '../shared/types'
-import type { ElectronAPI, FileChangeEvent, FileWatchPush } from '../shared/types'
+import type {
+  ElectronAPI,
+  FileChangeEvent,
+  FileWatchPush,
+  NavStateSnapshot
+} from '../shared/types'
 
 const api: ElectronAPI = {
   env: {
@@ -106,6 +111,24 @@ const api: ElectronAPI = {
 
     updateWatchPaths: (id, paths) =>
       ipcRenderer.invoke(IPC.FILES_WATCH_UPDATE, { id, paths })
+  },
+
+  nav: {
+    pushState: (snapshot: NavStateSnapshot) => {
+      ipcRenderer.send(IPC.NAV_STATE_PUSH, snapshot)
+    },
+
+    onReveal: (cb) => {
+      const handler = (_: IpcRendererEvent, path: string) => cb(path)
+      ipcRenderer.on(IPC.NAV_REVEAL, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_REVEAL, handler)
+    },
+
+    onView: (cb) => {
+      const handler = (_: IpcRendererEvent, path: string) => cb(path)
+      ipcRenderer.on(IPC.NAV_VIEW, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_VIEW, handler)
+    }
   }
 }
 

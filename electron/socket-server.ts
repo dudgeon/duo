@@ -14,15 +14,32 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserManager } from './browser-manager'
-import type { DuoRequest, DuoResponse, ConsoleLevel } from '../shared/types'
+import type { FilesService } from './files-service'
+import type {
+  DuoRequest,
+  DuoResponse,
+  ConsoleLevel,
+  NavStateSnapshot
+} from '../shared/types'
 import { SOCKET_PATH } from './constants'
+
+export interface NavBridge {
+  /** Returns the most recent snapshot pushed by the renderer. */
+  getState: () => NavStateSnapshot
+  /** Ask the renderer to move the navigator to `path` + fire a chip. */
+  reveal: (path: string) => { ok: boolean; error?: string }
+  /** Ask the renderer to open `path` as a file tab in the WorkingPane. */
+  view: (path: string) => { ok: boolean; error?: string }
+}
 
 export class SocketServer {
   private server: net.Server | null = null
 
   constructor(
     private readonly cdp: CdpBridge,
-    private readonly browser: BrowserManager
+    private readonly browser: BrowserManager,
+    private readonly files: FilesService,
+    private readonly nav: NavBridge
   ) {}
 
   start(): void {
@@ -181,6 +198,28 @@ export class SocketServer {
           const timeout = args['timeout'] as number | undefined
           if (!selector) throw new Error('wait requires a selector arg')
           result = await this.cdp.waitForSelector(selector, timeout)
+          break
+        }
+        // Stage 10 Phase 6 — navigator + file-surface commands
+        case 'view': {
+          const p = args['path'] as string
+          if (!p) throw new Error('view requires a path arg')
+          result = this.nav.view(p)
+          break
+        }
+        case 'reveal': {
+          const p = args['path'] as string
+          if (!p) throw new Error('reveal requires a path arg')
+          result = this.nav.reveal(p)
+          break
+        }
+        case 'ls': {
+          const p = (args['path'] as string | undefined) ?? this.nav.getState().cwd
+          result = await this.files.list(p)
+          break
+        }
+        case 'nav-state': {
+          result = this.nav.getState()
           break
         }
         default:

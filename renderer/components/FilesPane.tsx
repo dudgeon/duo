@@ -15,6 +15,8 @@ interface FilesPaneProps {
   state: NavigatorState
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
+  revealChip: string | null
+  onDismissRevealChip: () => void
 }
 
 export function FilesPane({
@@ -23,7 +25,9 @@ export function FilesPane({
   home,
   state,
   actions,
-  onOpenFile
+  onOpenFile,
+  revealChip,
+  onDismissRevealChip
 }: FilesPaneProps) {
   return (
     <div
@@ -50,6 +54,11 @@ export function FilesPane({
             <PinButton pinned={state.pinned} onClick={actions.togglePinned} />
           </div>
 
+          {/* Reveal chip — Stage 10 § D16 */}
+          {revealChip && (
+            <RevealChip path={revealChip} onDismiss={onDismissRevealChip} />
+          )}
+
           {/* Tree */}
           <FileTree
             state={state}
@@ -73,6 +82,30 @@ function CollapsedRail() {
           strokeLinejoin="round"
         />
       </svg>
+    </div>
+  )
+}
+
+function RevealChip({ path, onDismiss }: { path: string; onDismiss: () => void }) {
+  // Stage 10 § D16 — surfaces agent-driven navigator changes so the user
+  // knows the tree moved without their input. Short-lived; dismissable.
+  const shortPath = path.length > 40 ? '…' + path.slice(path.length - 40) : path
+  return (
+    <div className="mx-2 mt-2 mb-1 px-2 py-1.5 rounded bg-accent/15 text-accent-foreground flex items-center gap-2 text-[11px]">
+      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true" className="text-accent shrink-0">
+        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+        <path d="M6 3.5v2.5l2 1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+      <span className="truncate flex-1 text-zinc-300">Claude moved to <span className="text-zinc-100" title={path}>{shortPath}</span></span>
+      <button
+        onClick={onDismiss}
+        className="shrink-0 w-4 h-4 rounded flex items-center justify-center text-zinc-500 hover:text-zinc-100 hover:bg-surface-3 transition-colors"
+        aria-label="Dismiss"
+      >
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+          <path d="M1 1l6 6M7 1L1 7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+      </button>
     </div>
   )
 }
