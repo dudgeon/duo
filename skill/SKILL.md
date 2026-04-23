@@ -61,6 +61,10 @@ to launch it before retrying.
 | `duo console [--since <ms>] [--level log,warn,error,...] [--limit N]` | Buffered console events | NDJSON |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs | JSON |
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
+| `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rendered preview, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
+| `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
+| `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
+| `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |
 
 ## Patterns
 
@@ -212,6 +216,54 @@ duo click 'button[type="submit"]'
 duo wait ".success" --timeout 5000
 duo text --selector ".success"
 ```
+
+### Show the user a local file ("open this PRD", "preview that image")
+
+Use `duo view <path>` to open any local file in the Viewer/Editor column:
+
+```bash
+duo view ~/Documents/prd.md       # markdown → rendered preview
+duo view /tmp/chart.png           # image → inline preview
+duo view ~/tmp/notes.pdf          # pdf → Electron's native viewer
+```
+
+The tab uses the filename as its title; the path is in the tooltip. If the
+file is already open in a tab, `duo view` activates that tab rather than
+creating a duplicate. Unknown types (`.xlsx`, `.mov`, etc.) show a card
+with an "Open with default app" button — don't grind; tell the user.
+
+**Never use** `duo open <path>` for local files — that's the browser
+command (takes URLs and loads them in a browser tab). Two commands, two
+columns:
+
+- `duo open <url-or-path>` → **browser tab** (URLs, HTML artifacts you want
+  to render live, file:// URLs when you explicitly want browser rendering).
+- `duo view <path>` → **editor/preview tab** (the normal answer for local
+  files the user wants to read / edit).
+
+### Navigate the user's file browser ("show me where that lives")
+
+If you've just modified a file and want the user to see it in their
+navigator, use `duo reveal`:
+
+```bash
+duo reveal ~/Documents/prd.md
+```
+
+The navigator jumps to that folder and a chip appears so the user knows
+the tree moved because of you. Pair with `duo view` when you want to both
+open a file and surface its location.
+
+### Discover files without opening them
+
+```bash
+duo ls                          # contents of the user's current nav folder
+duo ls ~/Documents              # specific path
+duo nav state                   # { cwd, selected, expanded, pinned }
+```
+
+Good for deciding what to do next without guessing; cheaper than asking
+the user.
 
 ### Show the user a generated HTML artifact ("show me X" / "open that")
 

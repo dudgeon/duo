@@ -151,6 +151,9 @@ against the live browser.
 | `duo screenshot [--out <path>] [--selector <css>]` | PNG capture |
 | `duo console [--since <ms>] [--level ...] [--limit N]` | Buffered console events (NDJSON) |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List, switch, or close browser tabs (can't close the last one) |
+| `duo view <path>` | Open a local file in the Viewer/Editor column (markdown preview / image / pdf / "Open with default app"). Distinct from `duo open` (browser/URL). |
+| `duo reveal <path>` | Move the file navigator to `<path>` with a dismissible chip. |
+| `duo ls [path]` / `duo nav state` | Inspect directory contents / navigator state (JSON). |
 | `duo wait <selector> [--timeout <ms>]` | Block until element appears |
 | `duo install` | Symlink CLI into PATH |
 
