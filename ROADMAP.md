@@ -60,9 +60,14 @@ for the full ADR. Mapping to stages:
 - **Terminal** → middle-top, relocated from left during the Stage 10
   reshape.
 - **Agent tools** → middle-bottom, collapsible, Stage 12.
-- **Viewer/Editor** → right. One polymorphic surface, single slot.
-  Browser mode is shipped (becomes one of N modes); markdown editor
-  mode is Stage 11; per-type file preview mode is Stage 10.
+- **Viewer/Editor** → right. Tabbed polymorphic surface with **one
+  unified tab strip across all modalities**. A tab can be a browser
+  page, a markdown editor, an HTML/code source editor, or a file
+  preview (image/PDF/CSV). The same file can live in multiple tabs
+  under different types (edit the source in tab 3, render it in
+  browser tab 4). `duo tabs` returns the mixed list; tab IDs are
+  continuous regardless of type. Browser tabs are shipped; editor
+  and preview tab types land in Stages 10–11.
 
 Today's layout (terminal-left, browser-right, no Files column) is a
 waypoint. The reshape lands with Stage 10.
@@ -487,8 +492,10 @@ bullet is now this stage.
 **Layout placement:** leftmost column, full-height, narrow. Per the
 owner's locked layout (see [DECISIONS.md § Layout model](docs/DECISIONS.md)).
 This stage also owns the layout reshape: relocating the terminal from
-the left to the middle column and reorganizing the existing browser
-pane as the "browser mode" of the right-column Viewer/Editor shell.
+the left to the middle column and promoting today's `BrowserPane` +
+`BrowserTabStrip` into a higher-level `WorkingPane` shell whose
+unified tab strip supports mixed types (browser today; editor and
+preview to follow in Stages 10 and 11).
 
 **Goal:** a sidebar surface that shows files around the current working
 directory plus a pinned home scope, lets the user drag any file into the
@@ -547,12 +554,16 @@ type. Per [VISION.md § Visual file browser / context drawer](docs/VISION.md#vis
 
 ## Stage 11 — Collaborative markdown editor (human↔agent) `⬜ Flagship half #2`
 
-**Layout placement:** one of the modes of the right-column
-Viewer/Editor shell (single-slot, shared across terminal tabs; browser
-is another mode). The editor replaces the browser view in the right
-column when a `.md` file is opened. Scope is local `.md` files only —
-Google Docs stays in browser mode via the verified `/export?format=md`
-read path. See [DECISIONS.md § Layout model](docs/DECISIONS.md).
+**Layout placement:** a new tab type (`editor`) inside the right-column
+Viewer/Editor shell. The shell has one unified tab strip across all
+modalities — browser, editor, preview — so the same `duo tabs`
+list can contain mixed types (e.g. tab 1 Gmail, tab 2 a `.md` file,
+tab 3 an HTML source editor, tab 4 a rendered-browser tab of that
+HTML file). The editor does not replace the browser; it sits beside
+browser tabs in the shared strip. Scope is local `.md` files only —
+Google Docs stays as a browser-type tab via the verified
+`/export?format=md` read path. See
+[DECISIONS.md § Layout model](docs/DECISIONS.md).
 
 **Goal:** build a rich editing surface for local `.md` files that
 **feels like Google Docs** on the human side and is **a first-class
@@ -728,10 +739,13 @@ and [§ Connector / MCP setup wizard](docs/VISION.md#connector--mcp-setup-wizard
 **Goal:** a cluster of small UX wins that matter once the flagship pair
 is up. Pulls from the unscheduled backlog the user raised earlier.
 
-- [ ] **Browser tab numbers in the UI.** Render the 1-based `duo
-      tabs` id on each tab chip so a user can naturally say "read tab
-      1, write the summary into tab 2". Requires no plumbing change
-      — the IDs are already in the `BrowserTab` state.
+- [ ] **Tab numbers in the unified Viewer/Editor tab strip.** Render
+      the 1-based `duo tabs` id on each tab chip so the user can
+      naturally say "read tab 1, write the summary into tab 2". Works
+      across all tab types (browser, editor, preview) since the tab
+      strip is unified (see [DECISIONS.md § Layout model](docs/DECISIONS.md)).
+      Plumbing already exists for browser tabs; this stage just ensures
+      the visible chip renders the id for every type.
 - [ ] **Terminal selection / clipboard refinements.** Click to move
       cursor (when the foreground process isn't in mouse-tracking
       mode), `⌘A` copies the current command composer line, `⌘⇧A`

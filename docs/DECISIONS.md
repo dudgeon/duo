@@ -186,35 +186,55 @@ historical.
   - **Agent tools** (bottom, collapsible, optional) — unified skill +
     connector surface. Stage 12. Collapsed state gives the terminal
     the full middle column.
-- **Viewer/Editor** (right, full-height, wide) — single polymorphic
-  surface. Shows one thing at a time:
-    - Browser (current behavior, with its own in-mode tab strip).
+- **Viewer/Editor** (right, full-height, wide) — tabbed polymorphic
+  surface with **one unified tab strip** across every modality. Each
+  tab carries a type:
+    - Browser (a web page loaded via `WebContentsView`).
     - Markdown editor for `.md` files (Stage 11).
-    - File preview for non-`.md` types (images, PDF, CSV — Stage 10
-      per-type registry).
+    - File preview / source-editor for non-`.md` types — images, PDF,
+      CSV, HTML source, code (Stage 10 per-type registry).
+  Clicking a tab swaps what's rendered. The same file may appear in
+  multiple tabs under different types — e.g. tab 3 editing
+  `prototype.html` as source and tab 4 rendering the same file in
+  browser mode.
 
 **Working-pane model — resolved sub-decisions:**
 
-- **Single slot, not tabbed** for v1 (keeps the old Stage 7
-  commitment: component API stable so a later tabbed wrapper can
-  multiplex without rewriting callers).
-- **Shared across terminal tabs**, not per-tab. The viewer/editor is
-  one surface the user looks at; switching terminals does not change
-  what's on the right.
+- **Tabbed from the start, unified across modalities.** Not "single
+  slot with a later tabbed wrapper." Tab IDs are continuous (1..N)
+  regardless of type, so `duo tabs` / `duo tab <n>` / `duo close <n>`
+  (already shipped for browser tabs in Stage 8) extend naturally to
+  cover editor and preview tabs without a breaking change to the
+  semantic.
+- **Shared across terminal tabs**, not per-terminal-tab. The right
+  column is one working surface the user looks at; switching which
+  terminal is active on the left does not change what's on the right.
 - **Markdown editor scope: local `.md` files only.** Google Docs
-  stays in the browser mode of the viewer (via the verified
-  `/export?format=md` read and the `duo` write primitives). The
-  Stage 11 editor does not edit live Docs.
+  stays in a browser-type tab (via the verified `/export?format=md`
+  read and the `duo` write primitives). The Stage 11 editor does not
+  edit live Docs.
+- **Terminal tabs are a separate strip.** The middle column's
+  terminal has its own tab bar (current behavior unchanged). Terminal
+  tabs and working-pane tabs don't share numbering; `duo tabs`
+  continues to mean working-pane tabs.
 
 **Implementation implications:**
 
 - Today's layout — terminal-left, browser-right, no Files column — is
   a waypoint. The reshape happens as part of Stage 10 (which adds the
-  Files column) and Stage 11 (which adds the .md editor mode to the
-  Viewer/Editor column).
-- The current `BrowserPane` becomes the "browser mode" of the
-  Viewer/Editor polymorphic shell — one of several modes. Browser
-  tabs stay; they're in-mode chrome.
+  Files column) and Stage 11 (which adds the `.md` editor as a tab
+  type).
+- The current `BrowserPane` + `BrowserTabStrip` become one renderer
+  inside a larger `WorkingPane` shell. The tab strip is hoisted up to
+  the shell (so it can show non-browser tabs too); each tab
+  dispatches to a type-specific renderer (browser / editor /
+  preview) at render time.
+- Each tab carries `{ id, type, title, ...typeSpecific }`. Browser
+  tabs keep `url`; editor tabs add `path` + dirty-state; preview
+  tabs add `mime`. The CLI surface extends without breaking: `duo
+  tabs` returns the full mixed list; agents can filter by `type` if
+  they want. `duo open` stays the creation command; `--as <type>`
+  (or inference from extension) chooses the renderer.
 - The terminal moves from the left column to the middle column at
   reshape time. The xterm.js / node-pty plumbing is unaffected.
 - Agent tools panel (middle-bottom) is deferred to Stage 12 but the
