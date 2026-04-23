@@ -7,7 +7,7 @@ one signed app. Today the supported agent is
 [Claude Code](https://www.anthropic.com/claude-code); the architecture is
 BYO-harness.
 
-![status: Stages 1–3 shipped, Stage 5 skill verified end-to-end](https://img.shields.io/badge/status-stages_1--3_shipped-brightgreen)
+![status: foundation shipped, flagship reading/writing pair next](https://img.shields.io/badge/status-foundation_shipped-brightgreen)
 
 > **Product north star lives in [docs/VISION.md](docs/VISION.md)** —
 > persona, principles, and the flagship "readable terminal + docs-style
@@ -252,13 +252,22 @@ duo/
 
 Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
 
-- ✅ **Stage 1 — Core shell** (Electron + React + xterm.js + node-pty, tabs, keybindings)
-- ✅ **Stage 2 — Browser pane** (WebContentsView, SSO persistence, browser tab strip, address bar)
-- ✅ **Stage 3 — `duo` bridge** (socket server, CLI, all read + write + console primitives including the `ax` accessibility-tree reader for canvas apps)
-- ⏸ **Stage 4 — Skills context panel** (scanner implemented; UI not yet in layout)
-- ✅ **Stage 5 — Skill authoring** (SKILL.md + `duo-browser` subagent + examples; end-to-end A.5.1 verified in a fresh Claude Code session)
-- ⬜ **Stage 6 — Polish + distribution** (app icon, code signing, auto-update, first-launch installer, session restore)
-- ⬜ **Stage 7 — File navigator + viewer** (scoped, not scheduled)
+**Shipped (foundation):**
+- ✅ **Stage 1** — Core shell (Electron + React + xterm.js + node-pty, tabs, keybindings)
+- ✅ **Stage 2** — Browser pane (WebContentsView, SSO persistence, tab strip, address bar)
+- ✅ **Stage 3** — `duo` CLI bridge (socket server, CDP primitives, rich Google Docs read via `/export?format=md`)
+- ✅ **Stage 5** — Skill + `duo-browser` subagent (end-to-end verified in a fresh Claude Code session)
+- ✅ **Stage 8** — `duo open` for agent-generated HTML in a new tab (`duo close` for cleanup)
+
+**Next — the flagship reading/writing pair** (per [VISION.md](docs/VISION.md)):
+- ⬜ **Stage 9** — Prose-first terminal (reader typography, TUI-safe)
+- ⬜ **Stage 10** — File browser / context drawer (prereq for the editor)
+- ⬜ **Stage 11** — Collaborative markdown editor (human↔agent, live formatting, track changes, overwrite safety — covers open issues [#5](https://github.com/dudgeon/duo/issues/5), [#6](https://github.com/dudgeon/duo/issues/6), [#7](https://github.com/dudgeon/duo/issues/7))
+
+**After the flagship:**
+- ⬜ **Stage 12** — Unified skill + connector management surface (supersedes Stage 4)
+- ⬜ **Stage 13** — Interaction polish (tab numbers in UI, terminal selection refinements, `duo reload`)
+- ⬜ **Stage 14 / old Stage 6** — Polish + distribution (code signing, installer, auto-update, theming — held until the flagship lands)
 
 ---
 

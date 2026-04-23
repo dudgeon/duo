@@ -1,6 +1,41 @@
 # Duo — Roadmap
 
 > Status legend: ✅ done · 🔄 in progress · ⬜ not started
+>
+> Stage numbers are a chronological record of when work was planned, not a
+> priority order. For the actual build order going forward, read
+> **[Build order](#build-order-resequenced-per-visionmd) below**.
+
+---
+
+## Build order (re-sequenced per [VISION.md](docs/VISION.md))
+
+[VISION.md](docs/VISION.md) names "the reading and writing pair" — a
+prose-first terminal + a docs-style markdown editor — as the flagship
+bet. Everything else is supporting cast. With that framing, the original
+stage order was wrong: polish + distribution (Stage 6) and a thin file
+viewer (Stage 7) were scheduled before the two surfaces that actually
+deliver the north-star experience. Re-sequenced:
+
+| # | Stage | Ship state |
+|---|---|---|
+| 1 | Core shell (terminal, tabs, layout) | ✅ done |
+| 2 | Browser pane + SSO | ✅ done |
+| 3 | `duo` CLI bridge + CDP primitives | ✅ done |
+| 5 | Skill + subagent authoring | ✅ done |
+| 8 | Agent-generated HTML via `duo open` | ✅ done |
+| **9** | **Prose-first terminal (reader mode, TUI-safe)** | ⬜ **next — flagship half #1** |
+| **10** | **File browser / context drawer** | ⬜ **prereq for the editor** |
+| **11** | **Collaborative markdown editor — human↔agent** | ⬜ **flagship half #2** |
+| 12 | Unified skill + connector management surface | ⬜ (supersedes old Stage 4) |
+| 13 | Tab numbers in UI + terminal selection polish | ⬜ |
+| 14 | Polish + distribution (code signing, installer, theming) | ⬜ (was Stage 6 — held until flagship ships) |
+
+Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator +
+viewer — thin read-only version) are **superseded** by this sequence.
+Their work items are absorbed into Stages 10, 11, and 12. The original
+sections below are preserved for history and for the architectural
+guardrails they captured.
 
 ---
 
@@ -85,9 +120,13 @@
 
 ---
 
-## Stage 4 — Skills Context Panel `⬜ Deprioritized`
+## Stage 4 — Skills Context Panel `⬜ Superseded by Stage 12`
 
-> **Not urgent — do other things first. Revisit before Stage 5.**
+> **Superseded.** This stage was a narrow CWD-scan sidebar — the scanner
+> (`electron/skills-scanner.ts`) already exists. The broader product need
+> — unified skill + connector management — is now **Stage 12**, which
+> absorbs these work items and extends them with MCP setup + toggle +
+> templates per VISION §Skill discovery, install, and editing.
 
 **Purpose:** A collapsible right sidebar showing the Claude Code skills available
 to the agent running in the active terminal tab.
@@ -134,7 +173,13 @@ to the agent running in the active terminal tab.
 
 ---
 
-## Stage 6 — Polish & Distribution `⬜ Not Started`
+## Stage 6 — Polish & Distribution `⬜ Held — after the flagship pair`
+
+> **Held.** Originally scheduled next; re-sequenced per VISION.md to land
+> **after** Stages 9 + 10 + 11 (the flagship reading/writing pair). We
+> don't want a polished DMG of a half-product. Re-numbered to **Stage 14**
+> in the build order above; the bullets below remain the definition of
+> done for that stage.
 
 **Exit criteria:** A PM in the Trailblazers cohort can install and use without terminal setup.
 
@@ -150,7 +195,26 @@ to the agent running in the active terminal tab.
 
 ---
 
-## Stage 7 — Agent-Driven File Navigator + Viewer `⬜ Backlog — scoped, not scheduled`
+## Stage 7 — Agent-Driven File Navigator + Viewer `⬜ Superseded by Stages 10 + 11`
+
+> **Superseded.** This stage's thin "markdown + code viewer" framing
+> undersized the writing surface that VISION.md subsequently named as the
+> flagship. Split into:
+>
+> - **Stage 10** — file browser / context drawer. The navigator half of
+>   this stage, plus VISION's "drag file into the conversation"
+>   framing. Keeps the architectural guardrails below (per-type
+>   component registry, `duo-file://` protocol, Buffer not forced utf8).
+> - **Stage 11** — the collaborative markdown editor. The viewer half
+>   of this stage becomes the editor-viewer spectrum. "Read-only
+>   markdown + code" is still the v1 for non-`.md` file types; `.md`
+>   files get the full editor.
+>
+> One naming-collision note: this stage originally sketched
+> `duo open <path>` for the file viewer. That name is now taken by Stage
+> 8 (HTML-in-browser). The file-viewer analog will be renamed — candidates:
+> `duo view <path>`, `duo edit <path>`, `duo reveal <path>`. Pick at
+> Stage 10 kickoff.
 
 **Purpose:** Give the app a shared file navigator (a Finder/VS-Code-style
 tree) and a file viewer, both drivable by the agent via the `duo` skill.
@@ -297,6 +361,7 @@ tab just like any other browser pane.
       clicked `#start`, read elapsed time after 3s, clicked `#reset`,
       confirmed state reset. Also verified URL passthrough
       (`duo open https://example.com` creates new tab with live page).
+- [x] `duo close <n>` — close a tab from the CLI (refuses the last).
 
 **Deliberately deferred:**
 - In-place reload after the agent updates a file. Workaround: call
@@ -306,90 +371,316 @@ tab just like any other browser pane.
 - Artifact-scoped permissions (e.g. block a prototype from making
   outbound fetch calls). MVP treats agent-generated HTML as fully
   trusted — it comes from the same agent the user is talking to.
-- Overlap with Stage 7 file viewer: that's for *user-authored* files
-  in the navigator; `duo open` is for *agent-generated* content in
-  the browser pane. Different surfaces; can coexist.
+
+---
+
+## Stage 9 — Prose-first terminal (reader mode) `⬜ Next — flagship half #1`
+
+**Goal:** turn the terminal into a reading surface for long, prose-heavy
+agent conversations — without breaking Claude Code's TUI rendering. Per
+[VISION.md § The flagship bet](docs/VISION.md#the-flagship-bet--the-reading-and-writing-pair).
+
+**Exit criteria:**
+- A PM using Claude Code for a 30-minute exploratory conversation finds
+  the terminal *pleasant to read*, not taxing.
+- Claude Code's interactive UI (progress spinners, box-drawing borders,
+  diff output, `shift+tab` mode switches, confirmation prompts) renders
+  exactly as it does in iTerm/Warp. No visual regressions in the TUI.
+
+**Design commitments** (from VISION):
+- Cell grid stays stable — monospaced font, stable column width.
+- Reader mode adjusts *chrome* and *typography*, not *metrics*. Line
+  height, letter-spacing, font size, contrast, soft reader-width limit
+  for wrapped agent prose.
+- Markdown-aware styling of agent output (headings, code fences,
+  emphasis) when the preceding content is recognizably agent prose.
+  Never apply to TUI-owned regions.
+- No surprise truncation of a long answer — the scrollback handles it.
+
+**Open decisions:**
+- [ ] Reader-mode toggle: global (one pref for all tabs) vs per-tab?
+      VISION leans per-tab so a user can have a "reader" tab for
+      skim-reading and a "dev" tab for hands-on editing.
+- [ ] Keybinding: `⌘⌥R`? Or menu item + no shortcut?
+- [ ] How to distinguish "agent prose" from "TUI output" in the
+      stream. Options: (a) pattern-match Claude Code's TUI frame
+      boundaries; (b) give agents a wrapper ANSI sequence they can
+      bracket prose with; (c) best-effort line heuristics (long lines
+      with no control codes → prose). Start with (c) behind a feature
+      flag.
+
+**Scope sketch:**
+- [ ] xterm.js theme variants + custom CSS for the host div, toggle
+      via a renderer-side pref state.
+- [ ] Line-height and letter-spacing experiments — must not break
+      `FitAddon.fit()` math.
+- [ ] Agent-prose soft-width limit via CSS (`max-width` on the
+      scrollback region) — keeps wrapped prose readable without
+      shrinking the PTY cell grid.
+- [ ] Regression test checklist: TUI rendering inside Claude Code,
+      `vim`, `less`, `fzf`, `htop`.
+- [ ] Minimum: reader theme and default theme are both dark,
+      professional, and discernibly different.
+
+**Pulls in from old backlog:** the "Reader mode for the terminal"
+bullet is now this stage.
+
+---
+
+## Stage 10 — File browser / context drawer `⬜ Prereq for Stage 11`
+
+**Goal:** a sidebar surface that shows files around the current working
+directory plus a pinned home scope, lets the user drag any file into the
+agent conversation, and understands what the agent can do with each
+type. Per [VISION.md § Visual file browser / context drawer](docs/VISION.md#visual-file-browser--context-drawer).
+
+**Exit criteria:**
+- A PM can see the contents of the folder they're working in without
+  knowing or typing a path.
+- Clicking a `.md` file opens it in the Stage 11 editor; clicking a
+  `.png`/`.pdf` opens a read-only preview; clicking a `.csv` offers a
+  summary action.
+- "Open terminal here" seeds a new terminal tab with the selected
+  folder as its launch CWD — preserving the Stage 7 decision.
+- The agent can drive the navigator via `duo` commands (reveal, ls,
+  state) without trampling the user's current selection.
+
+**Keeps from old Stage 7:**
+- Single shared, app-level tree (not per-tab).
+- CWD handoff ("open terminal here" → `pty:create`).
+- Architecture guardrails:
+    - Per-type component registry (not a single editor instance).
+    - `duo-file://` custom protocol handler for renderer → disk reads.
+    - `Buffer` not forced utf8; binary types supported.
+    - CLI commands take `path` + optional `mime`.
+- CLI surface: `duo view <path>` (renamed from `duo open`), `duo reveal
+  <path>`, `duo ls [path]`, `duo viewer close`, `duo viewer state`,
+  `duo nav state`.
+
+**Adds from VISION:**
+- "Drag file → conversation" UX. Dropping a file into the active
+  terminal issues `@path` into Claude Code's input (or the equivalent
+  syntax the harness expects), so the file enters context without the
+  user typing the path.
+- Per-file-type action chips: summarize-this-CSV, diff-these-two,
+  convert-PDF-to-markdown — driven by skills. Skill surface (Stage 12)
+  catalogues which actions are available.
+- Pinned "home scope" shortcut in the drawer (`~/` + any starred
+  folders) for the "where are my docs again" moment.
+
+**Work items:**
+- [ ] `electron/navigator.ts` — shared tree UI, expand/collapse/reveal.
+- [ ] Custom protocol handler (`duo-file://`) with path-policy checks.
+- [ ] Bridge methods: `open/view/reveal/state/ls/nav-state`.
+- [ ] New socket commands wired through `cli/duo.ts`.
+- [ ] Drag-to-conversation: Electron's `dragstart` on a navigator row →
+      shell input injection to the active PTY (`ptyManager.write` with
+      `@path ` + space).
+- [ ] Per-type previewers registered for: `.md` (full Stage 11 editor),
+      `.png`/`.jpg`/`.gif` (native image), `.pdf` (Electron's built-in
+      viewer), `.csv` (first 50 rows in a scrollable table).
+- [ ] `skill/SKILL.md` updated with navigator/viewer patterns +
+      drag-to-conversation affordance.
+
+---
+
+## Stage 11 — Collaborative markdown editor (human↔agent) `⬜ Flagship half #2`
+
+**Goal:** build a rich editing surface for local `.md` files that
+**feels like Google Docs** on the human side and is **a first-class
+collaboration surface** on the agent side. Not "a markdown renderer."
+The editor is a view onto a file the agent reads and writes too, and
+the experience of working together inside it is the point.
+
+**Why this is flagship-scale, not a backlog bullet:**
+- This is the surface PMs will spend the most time in. Terminal and
+  browser are instrumental; the editor is where drafts happen.
+- Every other cloud-docs editor the primary persona knows — Google
+  Docs, Notion, Quip, Dropbox Paper — has invested dozens of
+  person-years into live formatting, typography, collaboration, and
+  change review. Duo doesn't need to match all of that, but it needs to
+  make the collaboration-with-an-agent shape feel native rather than
+  grafted on.
+- Open GitHub issues #5, #6, #7 all describe this editor.
+
+**Exit criteria:**
+- A PM opens a `.md` file, sees clean prose typography (no visible
+  asterisks or pound signs unless they explicitly show markup), types,
+  saves, and the file on disk is plain markdown the agent can read and
+  rewrite.
+- When the agent rewrites the same file, the editor shows what changed
+  (issue #5), and the user can accept, reject, or ignore the change
+  (issue #6).
+- Nothing is ever lost to an accidental overwrite (issue #7).
+
+**Sub-stages** (ordered by dependency — each validates the next):
+
+### 11a — Core editor and file binding
+
+- [ ] Pick the editor framework. Primary candidates:
+    - **ProseMirror (direct or via TipTap):** canonical foundation for
+      collaborative editors (Notion, CodeMirror, Tiptap all build on
+      it). Rich model, clean markdown round-trip via remark.
+      Heavier.
+    - **CodeMirror 6 + markdown plugin:** lighter, text-centric,
+      great fine-grained editing, but decorations-driven "live
+      formatting" is more work to polish.
+    - **Lexical:** newer, React-native. Good alignment with our
+      renderer but less mature collaboration story.
+  Decision at Stage 11a kickoff; blocking.
+- [ ] Live formatting for the markdown subset we commit to: H1–H6,
+      bold, italic, inline code, code fences (with language hints),
+      blockquote, ordered and unordered lists (nested), links, images,
+      horizontal rules, tables.
+- [ ] Typography pass — prose width, heading hierarchy, line-height,
+      font stack. Must *feel* like Google Docs / Notion.
+- [ ] Round-trip fidelity: parse `.md` → editor model → serialize
+      back to `.md`; byte-equality-preserving (or documented minimal
+      normalization) for files the editor wrote itself.
+- [ ] Save on ⌘S and on autosave tick. Write via the Stage 10
+      `duo-file://` protocol handler where possible.
+- [ ] Keyboard shortcuts: ⌘1..6 for H1–H6, ⌘B/I/U/K standard set,
+      ⌘L for list, ⌘⇧K for code, ⌘Z/⌘⇧Z undo/redo, ⌘/ comment
+      toggle.
+- [ ] Paste-from-web: HTML clipboard → markdown via a sanitizer.
+- [ ] Drag-and-drop image: copy the file into a sibling `assets/`
+      folder and insert `![alt](assets/…)`.
+
+### 11b — Agent-visible change surface (GitHub issue #5)
+
+- [ ] File-watcher bound to the open file. When the agent writes to
+      the file on disk, the editor detects the change and enters a
+      "changes-from-disk" state.
+- [ ] Visual diff within the editor: new/removed/modified ranges
+      highlighted inline (green/red gutters, strike-through for
+      removals, underline for insertions).
+- [ ] Scroll-to-change: auto-scroll to the top of the first agent-made
+      change on arrival. Debounced so rapid-fire writes don't jerk the
+      viewport.
+- [ ] "Changes from Claude" strip at the top of the editor with a
+      count and prev/next navigation.
+- [ ] Decision: does the agent's write land *immediately* in the
+      editor model, or is it buffered until the user clicks accept?
+      See Stage 11d for the pending-suggestion path.
+
+### 11c — Save state and overwrite safety (GitHub issue #7)
+
+- [ ] Unsaved-work indicator (conventional dot on the tab, `⌘S`
+      still saves).
+- [ ] Warn-on-close with unsaved edits.
+- [ ] Detect disk-change-while-editing: if the agent (or another app)
+      rewrites the file while the user has an unsaved buffer, show a
+      conflict dialog — keep mine / take theirs / merge — and never
+      silently clobber either side.
+- [ ] Warn-before-overwrite for the agent-write path: if the agent is
+      about to write to a file the user is actively editing, surface
+      a one-shot confirmation the user can accept/decline from inside
+      the editor chrome, not in the terminal.
+- [ ] Autosave throttle — don't write so often that external tools
+      (git, LLM file-watchers) see a fluttering file.
+
+### 11d — Track changes / suggest mode (GitHub issue #6)
+
+- [ ] Model extension: every text range gets a provenance
+      (`user | agent | accepted`). Agent writes land as *suggestions*
+      rather than immediate edits when suggest-mode is on.
+- [ ] Suggestion cards: each agent suggestion shows as a pending
+      block with accept / reject / modify controls. Matches Google
+      Docs' suggestion mode in feel.
+- [ ] Bulk accept / reject all.
+- [ ] Suggestion authorship attribution — "Claude suggested this
+      paragraph at 14:32" — visible on hover.
+- [ ] Decision: default on or off? Probably per-file or per-session;
+      resolve at kickoff.
+
+### 11e — Selection and conversation primitives (VISION collaboration)
+
+- [ ] Selection-as-context: a `duo selection` CLI command that
+      returns the user's current editor selection plus the
+      surrounding heading context, so the agent can respond to "fix
+      this" without copy-paste.
+- [ ] Comments pinned to paragraphs: user can ask the agent a
+      question about a specific paragraph; the thread stays anchored
+      to that block across edits (like Docs).
+- [ ] Anchor agent replies back to paragraphs: when the agent says
+      "this section should…", it can include a paragraph handle the
+      editor uses to highlight or scroll to.
+- [ ] Shared undo history: the user's ⌘Z can undo agent edits; a
+      future `duo undo` could undo the user's (deliberately deferred
+      until the interaction model is clearer).
+
+**Deliberately deferred / not-in-MVP:**
+- Real-time multi-cursor (the agent doesn't "type live" — it
+  writes-then-reveals).
+- Rich inline media (tables-with-formulas, embedded charts) — plain
+  markdown tables are v1.
+- Export to docx/pdf — markdown is the canonical format; convert at
+  the seams.
+
+**GitHub issues absorbed:**
+- #5 → Stage 11b
+- #6 → Stage 11d
+- #7 → Stage 11c
+
+---
+
+## Stage 12 — Unified skill + connector surface `⬜ Supersedes Stage 4`
+
+**Goal:** one in-app surface for everything a user configures *about*
+their agent — skills available now, skills they could install, MCP
+connectors configured (Slack, Jira, Notion, Google, GitHub), and the
+starter pack. Per [VISION.md § Skill discovery, install, and editing]
+and [§ Connector / MCP setup wizard](docs/VISION.md#connector--mcp-setup-wizard).
+
+**Scope (draft, will sharpen at kickoff):**
+- [ ] Skill list: merged view of `~/.claude/skills/`, project
+      `.claude/skills/`, and repo-bundled `skill/` — with provenance
+      per row, toggle on/off, and "what does this do" preview.
+      Uses the Stage 4 scanner as its data source.
+- [ ] Skill detail pane: preview SKILL.md, list the commands /
+      subagents it exposes, show usage examples.
+- [ ] Skill editing / creation from template (simple schema-backed
+      form + "edit the underlying .md" escape hatch).
+- [ ] MCP connector wizard: curated set (Slack, Jira, Google, Notion,
+      GitHub). Walks the user through OAuth; writes `mcp.json`
+      behind the scenes.
+- [ ] Starter pack: opt-in on first launch, installs a curated
+      bundle of PM-shaped skills (PRD drafting, competitive scan,
+      interview synthesis, etc.).
+
+---
+
+## Stage 13 — Interaction polish `⬜ After Stage 11`
+
+**Goal:** a cluster of small UX wins that matter once the flagship pair
+is up. Pulls from the unscheduled backlog the user raised earlier.
+
+- [ ] **Browser tab numbers in the UI.** Render the 1-based `duo
+      tabs` id on each tab chip so a user can naturally say "read tab
+      1, write the summary into tab 2". Requires no plumbing change
+      — the IDs are already in the `BrowserTab` state.
+- [ ] **Terminal selection / clipboard refinements.** Click to move
+      cursor (when the foreground process isn't in mouse-tracking
+      mode), `⌘A` copies the current command composer line, `⌘⇧A`
+      copies the full scrollback. Respect TUI foreground apps that
+      take over mouse events.
+- [ ] **`duo reload`** — a pair for `duo navigate` that doesn't
+      require a URL, reloads the active tab in place. Low effort,
+      high ergonomic payoff for the Stage 8 iteration flow.
+- [ ] **`duo wait --timeout` / CLI socket timeout race.** Make the
+      CLI's socket timeout `max(explicit + buffer, default)` so
+      `duo wait --timeout 15000` stops hitting the 10s socket cap.
 
 ---
 
 ## Backlog — unscheduled
 
-> Raised by the owner in session; no commitment on stage mapping yet.
+> Raised but not promoted into a stage. Revisit when the flagship pair
+> (Stages 9–11) is shipping.
 
-### Reader mode for the terminal (non-SWE friendly typography)
-
-**Problem:** the default xterm.js theme is tuned for engineers (dense,
-monospaced, 13px). A PM-first audience wants more-generous line height,
-larger type, softer contrast — but Claude Code's TUI uses box-drawing,
-inline ANSI, and fixed-column assumptions that break if we change the
-font stack or character metrics naively.
-
-- [ ] Opt-in "Reader" theme toggle (⌘⌥R?) that adjusts line-height,
-      letter-spacing, font size, and contrast — but keeps a monospaced
-      font and stable cell grid so Claude Code's TUI still renders.
-- [ ] Verify against: Claude Code prompt rendering, progress spinners,
-      diff output, box-drawing borders, interactive confirmation UIs.
-- [ ] Surface the toggle both in a menu and as a per-tab setting (some
-      users may want a Reader tab for skim-reading agent output and a
-      Dev tab for hands-on editing).
-
-### Markdown editor as a working pane mode
-
-**Problem:** we currently have a polymorphic working pane
-(browser / file viewer / markdown editor per §7 of the brief) but only
-the browser is implemented. A markdown editor aimed at PMs wants more
-than a raw textarea.
-
-- [ ] First-class markdown editor pane with live decorations (headings,
-      emphasis, code, lists) — not a preview split, but real inline
-      formatting in the editing surface.
-- [ ] Typography care: prose-width column, real heading hierarchy,
-      comfortable line-height. Not terminal-monospaced.
-- [ ] Lightweight UI: inline buttons for bold / italic / heading levels /
-      lists / blockquote / link; no heavyweight toolbar chrome.
-- [ ] Keyboard shortcuts for heading levels (⌘1..⌘6 → H1..H6, scoped
-      to the editor pane), standard mac bindings for bold/italic/link.
-- [ ] Stage 7 overlap: the markdown editor is one of the per-type viewer
-      components in the file-viewer registry. Design the keybindings
-      and pane-mode plumbing so it lands cleanly alongside Stage 7 rather
-      than as a one-off.
-
-### Browser tab numbers surfaced in the UI
-
-**Problem:** the browser tab strip shows titles but not the numeric IDs
-that `duo tab <n>` uses. Geoff wants to be able to tell Claude
-"read tab 1, write a summary in tab 2" and have the agent reach for
-`duo tab 1 && duo ax`, then `duo tab 2 && duo focus …` without
-guessing.
-
-- [ ] Show the 1-based tab ID in the browser tab strip (small chip, e.g.
-      `1 · Google Docs`).
-- [ ] Teach the skill / subagent that user references to "tab N" map to
-      `duo tab N` and `duo tabs` for discovery.
-- [ ] Consider a global `⌘⌥<n>` shortcut that switches the browser's
-      active tab to N (distinct from `⌘<n>` which already jumps
-      terminal tabs).
-
-### Terminal selection / clipboard improvements
-
-**Problem:** xterm.js default selection is not the best fit for the
-"agent-conversation" usage pattern. Today selecting a block of Claude
-Code output and `⌘C` copies that visible block, but the common needs
-are subtly different.
-
-- [ ] **Click to move cursor** in the terminal (when the underlying
-      process doesn't claim mouse events, let a plain click place the
-      cursor at that column — bash `readline` / zsh `zle` semantics).
-- [ ] **⌘A copies the terminal command composer** — just the current
-      unsubmitted input line, not the full scrollback.
-- [ ] **⌘⇧A copies the full scrollback** (what today's ⌘A approximates
-      but inconsistently).
-- [ ] Validate against: Claude Code's TUI (which may intercept mouse
-      events for its own selection model — don't fight it), `vim`,
-      `less`, and `fzf` (which all use mouse events). The correct
-      precedence is: if the foreground process is in app-cursor /
-      mouse-tracking mode, defer to it; only apply Duo's own mouse
-      semantics when the shell is at a prompt.
+_No items parked here at the moment — previous backlog bullets (reader
+mode, markdown editor, browser tab numbers, terminal selection) have
+been promoted into Stages 9, 11, and 13._
 
 ---
 
