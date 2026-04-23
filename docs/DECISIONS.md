@@ -150,3 +150,74 @@ when a tab becomes visible to handle deferred layout.
 **Status:** Confirmed  
 **Decision:** The app is named "Duo". The CLI is `duo`. The skill installs to
 `~/.claude/skills/duo/`. No further confirmation needed.
+
+---
+
+## Open ADRs (pending decision)
+
+### Skill scoping — global install vs. Duo-session-only
+
+**Status:** 🟡 Open / Undecided  
+**Raised:** 2026-04-23  
+**Needed before:** Stage 5 ships (skill install step)
+
+**Question:** Should the `duo` skill be installed globally to
+`~/.claude/skills/duo/` (current plan per brief §6), or scoped so it only
+appears inside Claude Code sessions that Duo itself spawned?
+
+**Why it matters:**
+- The skill teaches Claude how to call `duo <command>` to drive Duo's
+  embedded browser. It's meaningless outside Duo.
+- We want to add stronger anti-improvisation guidance ("don't reach for
+  `osascript` / Playwright / system-Chrome CDP when `duo` is available") —
+  that guidance is irrelevant, and potentially confusing, in non-Duo
+  sessions (Terminal.app, VS Code terminals, CI, etc.).
+- A global install pollutes every Claude session on the machine with
+  Duo-specific context.
+
+**Options under consideration:**
+
+1. **Keep global install at `~/.claude/skills/duo/`** (current plan)
+   - Pro: Zero extra plumbing; `duo --version` failing is the implicit
+     "not in Duo" signal.
+   - Con: Pollutes all sessions; can't safely add Duo-specific guardrails
+     without them leaking elsewhere.
+
+2. **Per-session via shell init + `claude --plugin-dir` wrapper**
+   - `PtyManager.create` spawns zsh with a Duo-owned `ZDOTDIR` pointing
+     at a generated `.zshrc` that (a) sources the user's real `~/.zshrc`
+     and (b) defines a `claude()` function forwarding `--plugin-dir
+     <duo-bundled-skill-dir>` into every invocation. Bash gets equivalent
+     treatment via `--rcfile` / `BASH_ENV`.
+   - Pro: Cleanly scoped to Duo PTYs; invisible outside Duo;
+     CWD-independent; doesn't touch `~/.claude/`.
+   - Con: Skill becomes a plugin (namespaced as `/duo:<name>`); one more
+     layer of shell init that can break; users who invoke `/usr/local/bin/claude`
+     directly bypass the wrapper.
+
+3. **Per-session via `claude --add-dir <duo-bundled-skill-parent>`**
+   - Same shell-init wrapper, but uses `--add-dir` so Claude
+     auto-discovers `.claude/skills/duo/` inside the bundled path without
+     plugin namespacing.
+   - Pro: Same scoping win as option 2, without the `/duo:` prefix on
+     every skill name.
+   - Con: `--add-dir` also grants filesystem access to the bundled path
+     (fine — it's ours). Same shell-init fragility as option 2.
+
+4. **Project-level `.claude/skills/duo/` only**
+   - Symlink the skill into the PTY's launch CWD.
+   - Pro: No shell-init hop.
+   - Con: Evaporates when the user `cd`s away from launch CWD;
+     unreliable as the *only* mechanism.
+
+**Interference with user's existing skills:**
+- Options 2 / 3 / 4 are purely additive — `~/.claude/skills/` keeps
+  loading normally.
+- Plugin namespacing (option 2) means no name collisions.
+- The `ZDOTDIR` hop *must* source the user's real `.zshrc` or it will
+  nuke their aliases / PATH / prompt.
+
+**Related change if we pick 2/3/4:** Drop the global install step from
+Stage 5's first-launch flow — skill no longer lives under `~/.claude/`.
+
+**Decision owner:** Geoff.
