@@ -200,6 +200,7 @@ to the agent running in the active terminal tab.
 - [ ] Version pinning: skill asserts `duo --version` is in a compatible range
 - [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. Stage 6.
 - [ ] **Open ADR: skill scoping** — global `~/.claude/skills/duo/` vs. Duo-session-only (`docs/DECISIONS.md` → Open ADRs). Changes the first-launch install step if we pick per-session.
+- [ ] **Skill docs: Claude Code sandbox troubleshooting section** — add a block to `skill/SKILL.md` (and the mirror guidance in `agents/duo-browser.md`) that names the sandbox failure mode (every `duo` command silently fails because Unix sockets are blocked by default), tells the agent to run `duo doctor` on the first failure, and documents the minimum `.claude/settings.json` allowlist for teams that prefer the Unix-socket fast path. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*. Cheap; can land before Stages 9–11.
 
 ---
 
@@ -219,6 +220,25 @@ to the agent running in the active terminal tab.
 - [ ] `electron-updater` — auto-update from GitHub Releases or private S3
 - [ ] Session restore on relaunch (terminal CWDs, browser URL, split position)
 - [ ] Security: launch-time auth token on the Unix socket (before Trailblazers)
+- [ ] **Sandbox-safe install path for `duo install`.** Today the
+      install logic tries `/usr/local/bin/duo` then falls back to
+      `~/.local/bin/duo` — both write outside the Claude Code
+      sandbox's permitted cwd. Prefer `~/.claude/bin/duo` (inside
+      the sandbox-writable `~/.claude/` tree), fall back to
+      `~/.local/bin/duo`, and only touch `/usr/local/bin/duo` on
+      explicit opt-in. Print the required `export PATH=…` fragment
+      after install. See `docs/DECISIONS.md` → Open ADRs →
+      *Sandbox-tolerant transport and install paths for the `duo`
+      CLI*.
+- [ ] **Bundled Claude Code settings fragment.** Ship a
+      copy-pasteable `.claude/settings.json` allowlist in the
+      skill (socket path read-allowed + `allowUnixSockets: true`)
+      for teams that want to keep Duo on the Unix-socket fast path
+      rather than the TCP fallback. Optional for users because the
+      fallback heals sandboxed runs transparently; valuable as
+      documentation for sandbox-conscious reviewers. See
+      `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
+      transport and install paths for the `duo` CLI*.
 - [ ] Theming pass: refine Warp × Linear aesthetic
 - [ ] Notifications for agent-driven browser navigation
 - [ ] README + install guide for Trailblazers cohort
@@ -723,6 +743,27 @@ is up. Pulls from the unscheduled backlog the user raised earlier.
 - [ ] **`duo wait --timeout` / CLI socket timeout race.** Make the
       CLI's socket timeout `max(explicit + buffer, default)` so
       `duo wait --timeout 15000` stops hitting the 10s socket cap.
+- [ ] **TCP fallback alongside the Unix socket.** Claude Code's
+      macOS sandbox blocks Unix-domain-socket outbound connections
+      by default but permits localhost TCP, so today every `duo`
+      command silently fails inside a sandboxed Claude Code
+      session. Add a second `server.listen(0, '127.0.0.1')` in
+      `electron/socket-server.ts`, publish the port + a per-install
+      auth token to `~/Library/Application Support/duo/duo.port`,
+      and teach `cli/duo.ts` to fall back to TCP on
+      `EPERM`/`ECONNREFUSED`/timeout. Mirrors the
+      `dudgeon/chrome-cdp-skill` fix for the same class of problem.
+      See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
+      transport and install paths for the `duo` CLI*.
+- [ ] **`duo doctor` diagnostic.** New CLI verb that reports
+      socket-reachable / TCP-fallback-reachable / install path
+      writable / `~/.claude/skills/duo/` synced / version match.
+      Prints a clear "Claude Code sandbox detected — falling back
+      to TCP" line when appropriate. Paired with a skill
+      instruction to run `duo doctor` on the first failed command
+      so the sandbox failure mode is named, not inferred. See
+      `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
+      transport and install paths for the `duo` CLI*.
 
 ---
 
@@ -759,3 +800,4 @@ been promoted into Stages 9, 11, and 13._
 | Distribution timeline (personal → Trailblazers) | Stage 6 |
 | Socket auth approach for Trailblazers | Stage 6 |
 | Skill scoping: global `~/.claude/skills/duo/` vs. Duo-session-only (see `docs/DECISIONS.md` → Open ADRs) | Stage 5 |
+| Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 13 (transport), 14 (install + settings) |
