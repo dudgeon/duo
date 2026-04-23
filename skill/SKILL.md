@@ -1,6 +1,6 @@
 ---
 name: duo
-description: Interact with the live browser running inside the Duo desktop app — navigate, read page content (including Google Docs and other canvas-rendered apps via the accessibility tree), click, fill, type, press keys, take screenshots, and diagnose failures via captured console logs. Use whenever the user asks you to work with whatever is currently open in the Duo browser pane, or to drive Google Docs / Sheets / Slides / Figma / Notion in a live session.
+description: Interact with the Duo desktop app's workspace surfaces — (1) the live embedded browser (navigate, read page content including Google Docs via the accessibility tree, click, fill, type, screenshot, diagnose via captured console logs), (2) the file navigator (move the tree, list directory contents, reveal a path to the user), and (3) the Viewer/Editor column (open local files in a new tab — markdown preview, images, pdfs). Use whenever the user asks you to work with whatever is open in Duo's browser pane, open a local file they're editing, navigate their project, or drive Google Docs / Sheets / Slides / Figma / Notion in a live session.
 ---
 
 # duo — driving the live browser from a Duo terminal
