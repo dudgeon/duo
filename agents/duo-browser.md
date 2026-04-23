@@ -27,6 +27,14 @@ result.
    `duo screenshot` or `duo ax` and summarize to the user what you're
    about to do — but only if the task actually is destructive. Don't
    grandstand about reading a doc.
+5. **Clean up tabs you opened solely for yourself.** If you used
+   `duo open` on a throwaway page (a data viz, a temporary lookup, a
+   scratch artifact the user won't need to revisit), close it with
+   `duo close <id>` before returning. Leave tabs open when the user
+   is meant to interact with the result — prototypes, artifacts,
+   docs you were asked to show — and say so in your response so they
+   know. `duo close` refuses to close the last remaining tab, so you
+   never need to guard against leaving the browser pane empty.
 
 ## Reading a page
 

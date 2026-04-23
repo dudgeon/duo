@@ -198,6 +198,12 @@ async function main() {
         out(await send("tab", { n }));
         break;
       }
+      case "close": {
+        const n = parseInt(rest[0] ?? "", 10);
+        if (isNaN(n)) die("Usage: duo close <n>  (where <n> is a tab id from `duo tabs`)");
+        out(await send("close", { n }));
+        break;
+      }
       case "wait": {
         const selector = rest[0] ?? die("Usage: duo wait <selector> [--timeout ms]");
         const timeoutIdx = rest.indexOf("--timeout");
@@ -278,6 +284,7 @@ COMMANDS
                                   Dump buffered console messages (NDJSON)
   tabs                            List open browser tabs (JSON)
   tab <n>                         Switch to browser tab N
+  close <n>                       Close browser tab N (cannot close the last)
   wait <selector> [--timeout ms]  Wait for element to appear
   install                         Symlink duo to /usr/local/bin/duo
 

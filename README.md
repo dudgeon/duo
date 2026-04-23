@@ -150,7 +150,7 @@ against the live browser.
 | `duo eval <js>` | Run JS in the page, return result |
 | `duo screenshot [--out <path>] [--selector <css>]` | PNG capture |
 | `duo console [--since <ms>] [--level ...] [--limit N]` | Buffered console events (NDJSON) |
-| `duo tabs` / `duo tab <n>` | List / switch browser tabs |
+| `duo tabs` / `duo tab <n>` / `duo close <n>` | List, switch, or close browser tabs (can't close the last one) |
 | `duo wait <selector> [--timeout <ms>]` | Block until element appears |
 | `duo install` | Symlink CLI into PATH |
 

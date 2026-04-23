@@ -59,7 +59,7 @@ to launch it before retrying.
 | `duo eval <js>` | Execute JS, return its value | JSON |
 | `duo screenshot [--out <path>] [--selector <css>]` | PNG (base64 or file path) | path or base64 |
 | `duo console [--since <ms>] [--level log,warn,error,...] [--limit N]` | Buffered console events | NDJSON |
-| `duo tabs` / `duo tab <n>` | List / switch browser tabs | JSON |
+| `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs | JSON |
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
 
 ## Patterns

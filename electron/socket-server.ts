@@ -170,6 +170,12 @@ export class SocketServer {
           result = await this.browser.switchTab(n)
           break
         }
+        case 'close': {
+          const n = args['n'] as number
+          if (typeof n !== 'number' || isNaN(n)) throw new Error('close requires a numeric n arg')
+          result = await this.browser.closeTab(n)
+          break
+        }
         case 'wait': {
           const selector = args['selector'] as string
           const timeout = args['timeout'] as number | undefined

@@ -39,6 +39,7 @@ export type DuoCommandName =
   | 'console'
   | 'tabs'
   | 'tab'
+  | 'close'
   | 'wait'
 
 // ── Console capture ──────────────────────────────────────────────────────────
