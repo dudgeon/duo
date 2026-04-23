@@ -63,95 +63,134 @@ to launch it before retrying.
 
 ## Patterns
 
-### Read a Google Doc (the canonical canvas-app read)
+### Read a Google Doc — the fast path (`export?format=md`)
 
-Google Docs renders the document body to a `<canvas>` element. The visible
-text lives in the accessibility tree, not the DOM. **There is exactly one
-right way to read a Docs page:**
+Google Docs serves a same-origin export endpoint that Claude can hit via
+`fetch()` from inside the authenticated page. The session cookies carry
+the auth, and Google hands back a clean Markdown rendering of the **entire
+document** — headings, bold, italic, links, lists, horizontal rules — not
+just the part currently on screen.
 
 ```bash
-duo navigate "https://docs.google.com/document/d/DOC_ID/edit"   # skip if already there
-duo wait '[role="document"]' --timeout 9000
-duo ax --selector '[role="document"]'
+# Get the doc content as Markdown (full doc, with formatting):
+duo eval "(async () => {
+  const m = location.pathname.match(/\\/document\\/d\\/([^/]+)/);
+  if (!m) return 'not on a Doc page';
+  const r = await fetch('/document/d/' + m[1] + '/export?format=md');
+  return await r.text();
+})()"
 ```
+
+That's the canonical read of a Google Doc. Save it to a file with
+`duo eval ... > /tmp/doc.md` and work from there — you get H1-H6,
+`**bold**`, `*italic*`, `[text](url)`, `---`, and list items exactly as
+Docs renders them.
+
+**Other export formats** available at the same endpoint (swap `format=`):
+`html` (full HTML+CSS), `txt` (plain text), `rtf`, `docx` (binary ZIP),
+`epub` (binary). Prefer `md` unless you specifically need one of the
+others — it's the cleanest structured surface.
+
+### Read a Google Doc — no-network / offline fallbacks
+
+If the `/export` fetch fails (the user is signed out, the doc isn't
+shared to them, or they're in an offline-mode tab), these in-page
+alternatives exist:
+
+- **`_docs_annotate_getAnnotatedText('')`** is a Docs global that resolves
+  to an object with `.getText()`, `.getAnnotations()`, `.getSelection()`.
+  `getText()` returns the full plaintext of the doc including
+  not-currently-rendered sections (ETX `\u0003` at doc start; FS `\u001c`
+  between sections; `\n` between paragraphs; various other control chars
+  for inline objects). `getAnnotations()` returns link URLs and
+  horizontal-rule ranges but **not** text styles (bold/italic/headings).
+
+  ```bash
+  duo eval "(async () => {
+    const r = await _docs_annotate_getAnnotatedText('');
+    return { text: r.getText(), links: r.getAnnotations().link || [] };
+  })()"
+  ```
+
+- **`duo ax --selector '[role="document"]'`** — if present, the AX tree
+  renders the currently-visible portion of the canvas into structured
+  Markdown. It's viewport-limited (Docs virtualizes content), so it's
+  only useful when the Doc is short or you've scrolled the part you care
+  about into view. New docs with Google's AI starter overlay don't expose
+  `[role="document"]` at all; the `/export` path works on those too.
 
 **On any `docs.google.com/*/edit` URL, these are traps — do not use them:**
 
 - `duo text` / `duo text --selector ".kix-appview-canvas"` — canvas has no
-  innerText; returns chrome (menus, toolbars) or empty.
-- `duo dom` — Google's initial HTML includes a `<noscript>` block that says
+  innerText; returns chrome or empty.
+- `duo dom` (and anything that extracts visible text from the raw HTML) —
+  Google's initial HTML includes a `<noscript>` block that says
   "JavaScript isn't enabled in your browser, so this file can't be opened."
-  Agents that extract visible text from `dom` read that string and wrongly
-  conclude JS is broken. It isn't — the Electron browser has JS enabled;
-  you're just looking at the wrong layer. Use `ax`.
-- `https://docs.google.com/document/d/ID/export?format=txt` — this URL
-  serves a download (Content-Disposition: attachment), so `duo navigate`
-  hits `ERR_FAILED`. It is not a fallback — there is no fallback.
+  Naive text extractors read that and wrongly conclude JS is broken. It
+  isn't — you're reading the wrong layer. Use `/export?format=md`.
+- **Navigating** to `/document/d/ID/export?format=txt` (i.e. `duo navigate
+  https://docs...export?format=txt`) — that URL serves a download
+  (Content-Disposition: attachment), so in-page navigation hits
+  `ERR_FAILED`. The right call is `fetch()` from *inside* the doc page
+  (shown above), not a `duo navigate` away.
 - `duo eval` that tries to scrape text from `.kix-paragraphrenderer` or
-  similar class names — those are canvas scaffolding with no text nodes.
+  similar class names — canvas scaffolding with no text nodes.
 
-**If `duo ax --selector '[role="document"]'` returns empty or the selector
-wait times out:**
+### Edit a Google Doc (what works today)
 
-1. Check `duo url` — you may have been bounced to an account picker or
-   "requesting access" page. The user needs to resolve that in the browser
-   pane; you cannot.
-2. Re-run the `wait` with a longer timeout (up to 20s) — large docs can be
-   slow to mount the accessibility tree.
-3. Grab `duo screenshot --out /tmp/duo-debug.png` and look; if the doc is
-   visually present but `ax` is empty, the tree is still populating —
-   sleep 2s and retry.
+**What works reliably:**
 
-**Long docs need scrolling.** Google Docs virtualizes the canvas: only the
-portion near the current scroll position gets rendered into the
-accessibility tree. For a full read of a long doc, scroll to the bottom
-(forcing render), scroll back to the top, then read:
+- **Plain-text insertion** via `duo type "…"`. This routes through CDP's
+  `Input.insertText`, which Docs accepts directly. Include `\n` inside
+  the string to create paragraph breaks — you do NOT need `duo key
+  Enter`:
 
-```bash
-duo eval "window.scrollTo(0, document.body.scrollHeight)"
-duo eval "window.scrollTo(0, 0)"
-duo ax --selector '[role="document"]'
-```
+  ```bash
+  duo type $'First paragraph.\nSecond paragraph.\nThird paragraph.'
+  ```
 
-Or chunk the read by scrolling incrementally and concatenating:
+- **Cursor placement** via `_docs_annotate_getAnnotatedText('')` —
+  `await r.getSelection()` to read, `r.setSelection(...)` to move.
+  (Prefer this over arrow-key navigation — see below.)
 
-```bash
-duo eval "window.scrollTo(0, 0)"
-duo ax --selector '[role="document"]' > /tmp/doc-top.md
+**What does NOT work today (known limitation):**
 
-duo eval "window.scrollBy(0, window.innerHeight * 5)"
-duo ax --selector '[role="document"]' > /tmp/doc-mid.md
-# ... repeat until scrollY stops changing
-```
+The synthesized-key path (`duo key <name>` and `duo key <letter>
+--modifiers cmd,...`) doesn't reliably reach the Docs keyboard
+listener. Docs routes all keyboard input through a hidden
+`.docs-texteventtarget-iframe`; CDP's `Input.dispatchKeyEvent` delivers
+to the main frame's focused element, and `duo focus` can't cross the
+iframe boundary to give the hidden target true keyboard focus. As a
+result, on a Docs page these commands are silently no-ops:
 
-The same rules apply to Google Sheets, Slides, Figma, and other
-canvas-rendered apps: `ax` is the only read path, and scrolling expands
-coverage on long surfaces.
+- `duo key Enter / Backspace / ArrowLeft / Home / End` — navigation
+- `duo key b --modifiers cmd` / `i` / `u` — bold, italic, underline
+- `duo key z --modifiers cmd` — undo
+- `duo key a --modifiers cmd` — select all
+- `duo key 1 --modifiers cmd,alt` — heading 1 (and other heading
+  shortcuts)
 
-### Edit a Google Doc (casual text edits)
+`document.execCommand('bold')` also does nothing — Docs uses its own
+Kix selection model, not the DOM Selection API.
 
-For appending, replacing a selection, or quick edits, synthesize input:
+**Practical consequence:** if the user asks you to bold, italicize,
+apply a heading style, or otherwise format a Doc, you can't do it via
+`duo` today. Say so plainly and either:
 
-```bash
-duo focus '[role="document"]'
-duo key End                          # cursor to end of line
-duo type "New content to append."
-```
+1. **Defer to the user.** Type the plain text via `duo type`, then ask
+   the user to apply the formatting by hand — they have the Doc open
+   in the pane, so it's quick.
+2. **Escalate to the Docs REST API.** `documents.googleapis.com/v1/
+   documents/{id}:batchUpdate` supports structured inserts and style
+   runs. Requires OAuth with `https://www.googleapis.com/auth/documents`;
+   the Duo app will grow a consent flow for this in a later stage. If
+   that flow is available in the current session, prefer it for any
+   non-trivial edit (tables, heading restructures, formatted blocks).
+   If not, fall back to option 1 rather than grinding through
+   workarounds.
 
-Useful keys for structural edits:
-
-- `duo key Enter` — new paragraph
-- `duo key Tab` — list indent
-- `duo key Backspace`
-- `duo key ArrowDown --modifiers shift` — extend selection down
-- `duo key b --modifiers cmd` — bold the current selection
-
-Always verify with a follow-up `duo ax --selector '[role="document"]'` so the
-user's doc actually reflects what you intended.
-
-**For structural edits** (inserting a table, restructuring headings), prefer
-the Google Docs REST API path when available (documented separately); raw
-keystrokes are fragile for complex changes.
+Always verify with a follow-up read (the `/export?format=md` fetch) so
+the user's doc actually reflects what you intended.
 
 ### Read an ordinary DOM page
 

@@ -1,72 +1,98 @@
 # Example: Edit a Google Doc
 
-**Scenario:** The user says "add a bullet to the risks section of the doc
-open in my browser saying 'X'" or "append this paragraph to the PRD".
+**Scenario:** the user says "add a bullet to the risks section saying
+'X'", "append this paragraph to the PRD", or "make that heading bold".
 
-## Why keystrokes, not DOM
+## What works — plain-text insertion via `duo type`
 
-You cannot set the text of a Google Doc by writing to the DOM — the visible
-document is a `<canvas>`, and the real input target is a hidden
-`contenteditable` element that Docs manages internally. The only way to
-feed input into it is to synthesize keyboard events at the page level. The
-`duo focus` + `duo type` + `duo key` primitives do exactly that.
+`duo type "…"` routes through CDP's `Input.insertText`, which Docs
+accepts directly at the cursor. This is the only Docs write primitive
+that works reliably today.
 
-## The pattern
+Paragraph breaks: embed `\n` in the typed string — you do NOT need
+`duo key Enter` (it's one of the things that doesn't route; see
+below).
 
 ```bash
-# 1. Focus the doc body (required — text is routed via a hidden input proxy)
-duo focus '[role="document"]'
-
-# 2. Position the cursor
-duo key End                 # end of line
-# or: duo key Home / ArrowDown --modifiers shift (select down), etc.
-
-# 3. Type
-duo type "New content goes here."
-duo key Enter               # new paragraph (optional)
-
-# 4. Verify
-duo ax --selector '[role="document"]' | tail -20
+# Bash: use $'…' so \n is interpreted as a newline
+duo type $'First new paragraph.\nSecond new paragraph.'
 ```
 
-The final `duo ax` is not optional — it is how you confirm the text actually
-landed in the doc. Focus can be lost between commands, and you want to catch
-that before the user does.
+Verify with a follow-up read:
 
-## Useful keys inside Docs
+```bash
+duo eval "(async () => {
+  const m = location.pathname.match(/\\/document\\/d\\/([^/]+)/);
+  const r = await fetch('/document/d/' + m[1] + '/export?format=md');
+  return (await r.text()).slice(-400);
+})()"
+```
 
-- `Enter` / `Return` — new paragraph
-- `Tab` — list indent (in a list)
-- `Shift+Tab` — list outdent (use `--modifiers shift`)
-- `Backspace`, `Delete`
-- `Home`, `End`, `PageUp`, `PageDown`
-- `ArrowUp/Down/Left/Right` — plain movement, or `--modifiers shift` to extend selection
-- `b` / `i` / `u` with `--modifiers cmd` — bold / italic / underline
-- `z` with `--modifiers cmd` — undo (useful to back out of a bad edit while
-  testing)
+## What doesn't work — keyboard shortcuts and named keys
 
-## If the edit goes somewhere unexpected
+The synthesized-key path (`duo key <name>` and modifier shortcuts)
+doesn't reliably reach the Docs keyboard listener. Docs routes all
+keyboard input through a hidden `.docs-texteventtarget-iframe`; CDP's
+`Input.dispatchKeyEvent` delivers to the main frame's focused element,
+which isn't the iframe. On a Google Doc, these commands are silently
+no-ops today:
 
-Focus is the most common failure mode. Docs has several focusable surfaces:
-the comments sidebar, the title input, the headers area, etc. If `duo type`
-appears to do nothing or edits the wrong part of the doc:
+- `duo key Enter / Backspace / ArrowLeft / Home / End` (navigation)
+- `duo key b --modifiers cmd` / `i` / `u` (bold, italic, underline)
+- `duo key z --modifiers cmd` (undo)
+- `duo key a --modifiers cmd` (select all)
+- Heading shortcuts (`Cmd+Alt+1..6`)
 
-1. Re-issue `duo focus '[role="document"]'` immediately before typing.
-2. If that doesn't help, click the doc body first:
-   `duo click '[role="document"]'` then retry focus + type.
-3. Confirm with `duo ax --selector '[role="document"]' | tail` so you can
-   see where the text actually landed.
+`document.execCommand('bold')` also has no effect — Docs uses its own
+Kix selection model rather than the DOM Selection API.
 
-## When NOT to use keystrokes
+## Cursor positioning without arrow keys
 
-Raw keystroke synthesis is fragile for structural edits:
+Since arrow keys don't route, use the Docs model's own selection API:
 
-- Inserting a table
-- Rewriting a whole heading block
-- Moving content across sections
-- Bulk replace across a long doc
+```bash
+duo eval "(async () => {
+  const r = await _docs_annotate_getAnnotatedText('');
+  const len = r.getText().length;
+  r.setSelection([{ start: len, end: len }]);  // move to end
+  return 'ok';
+})()"
+```
 
-For those, prefer the Google Docs REST API path (`batchUpdate`) — the app
-has a documented escape hatch, ask the user to grant consent if needed. If
-the API route isn't available in this session, say so explicitly rather
-than attempting a long keystroke sequence that's likely to go wrong.
+Then `duo type "…"` inserts at that position. The selection-range
+coordinates are UTF-16 offsets into the string returned by
+`getText()`.
+
+## How to handle "make X bold / H1 / a link" requests
+
+You can't apply styling via `duo` today. Choose one:
+
+1. **Defer to the user.** Type the raw text with `duo type`, then tell
+   the user: "I've added the paragraph; select the heading line and
+   press `⌘⌥1` for H1 style, or `⌘B` for bold." They have the doc open
+   in the pane, so formatting is seconds of their time.
+
+2. **Escalate to the Docs REST API.** The `documents.batchUpdate`
+   endpoint supports structured inserts and style runs. Requires OAuth
+   with `https://www.googleapis.com/auth/documents`. The Duo app will
+   grow a consent flow for this in a later stage (see §17.4 of the
+   brief). If it's available in the current session, prefer it for any
+   styled edit. If not, fall back to option 1.
+
+Do NOT grind through dozens of failed keyboard shortcuts hoping one
+will take — they won't. Surface the limitation and let the user
+choose.
+
+## Focus recovery
+
+If `duo type` stops landing text in the right place, the user has
+probably clicked somewhere else (comments sidebar, title bar, a
+different tab). Re-focus the doc:
+
+```bash
+duo click '.docs-texteventtarget-iframe'
+# or:
+duo eval "document.querySelector('.docs-texteventtarget-iframe').focus()"
+```
+
+Then retry `duo type`.

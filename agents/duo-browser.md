@@ -39,31 +39,55 @@ on:
 - Everything else (Wikipedia, GitHub, regular web apps) → DOM-rendered →
   `duo text` is fine, use `--selector` to narrow where possible.
 
-### Canvas pages (Google Docs and friends)
+### Google Docs — read via the export endpoint (fast path)
+
+Google Docs serves a same-origin export endpoint that's reachable with
+`fetch()` from inside the authenticated page. It returns the **full
+document** as clean Markdown (headings, bold, italic, links, lists,
+horizontal rules) — not viewport-limited like the accessibility tree.
+This is the right read for any Docs task.
 
 ```bash
-duo wait '[role="document"]' --timeout 9000
-duo ax --selector '[role="document"]'
+duo eval "(async () => {
+  const m = location.pathname.match(/\\/document\\/d\\/([^/]+)/);
+  if (!m) return 'not on a Doc page';
+  const r = await fetch('/document/d/' + m[1] + '/export?format=md');
+  return await r.text();
+})()"
 ```
 
-For long docs, scroll before reading — Docs virtualizes the canvas and
-the accessibility tree only contains what's near the current scroll
-position:
+Other formats at the same endpoint: `html`, `txt`, `rtf`, `docx`.
+Default to `md` unless a specific task requires one of the others.
 
-```bash
-duo eval "window.scrollTo(0, document.body.scrollHeight)"
-duo eval "window.scrollTo(0, 0)"
-duo ax --selector '[role="document"]'
-```
+### Google Docs — fallback reads
 
-**Never** use `duo dom` on a Docs page — the raw HTML contains a
-`<noscript>` fallback that says "JavaScript isn't enabled in your
-browser…". Naive text extraction from `dom` surfaces that string and
-makes you think JS is broken. It isn't. Use `ax`.
+- **`_docs_annotate_getAnnotatedText('')`** is a Docs global that
+  resolves to an object with `.getText()` (full doc plaintext, not
+  viewport-limited), `.getAnnotations()` (link URLs + horizontal-rule
+  ranges), `.getSelection()` / `.setSelection()` (cursor). Use when the
+  `/export` fetch fails.
 
-**Never** navigate to `https://docs.google.com/document/d/ID/export?format=txt`
-as a fallback — it serves a download and `duo navigate` fails with
-`ERR_FAILED`. There is no fallback; `ax` is the answer.
+- **`duo ax --selector '[role="document"]'`** — captures the
+  currently-rendered canvas portion only. For long docs, scroll first:
+
+  ```bash
+  duo eval "window.scrollTo(0, document.body.scrollHeight)"
+  duo eval "window.scrollTo(0, 0)"
+  duo ax --selector '[role="document"]'
+  ```
+
+### Google Docs — read traps (never use)
+
+- **`duo dom` + text extractor**: the raw HTML contains a `<noscript>`
+  fallback ("JavaScript isn't enabled in your browser…"). Naive text
+  extraction surfaces that string and looks like a real error. It
+  isn't — you're reading the wrong layer. Use `/export?format=md`.
+- **`duo navigate` to `/export?format=…`**: that URL serves a download
+  (Content-Disposition: attachment), so in-page navigation fails with
+  `ERR_FAILED`. The right call is `fetch()` from **inside** the doc
+  page (shown above), not `duo navigate`.
+- **`duo text` on `.kix-appview-canvas` or class-name scraping of
+  `.kix-paragraphrenderer`**: canvas elements have no innerText.
 
 ### DOM pages
 
@@ -75,24 +99,62 @@ duo text
 
 ## Writing to a page
 
-### Canvas (Docs)
+### Google Docs — write primitives (what works today)
+
+Only plain-text insertion works via `duo` on a Google Doc right now:
 
 ```bash
-duo focus '[role="document"]'
-duo key End                       # position cursor
-duo type "New text here."
-duo key Enter                     # new paragraph
-duo ax --selector '[role="document"]' | tail -10    # verify
+# Multiline text in one call (embed \n — don't use `duo key Enter`)
+duo type $'First paragraph.\nSecond paragraph.'
 ```
 
-Focus is lost easily between commands. If `duo type` appears to do
-nothing, re-issue `duo focus` immediately before retrying.
+To position the cursor, don't use arrow keys (they don't route to
+Docs — see below). Use the Docs model's own selection API:
 
-Structural edits (inserting a table, rewriting headings, moving
-content across sections) are fragile with synthesized keystrokes.
-If the user asks for something structural, say so and suggest they
-do it themselves or grant API access — don't grind through fifty
-keystrokes hoping to get lucky.
+```bash
+duo eval "(async () => {
+  const r = await _docs_annotate_getAnnotatedText('');
+  const len = r.getText().length;
+  r.setSelection([{ start: len, end: len }]);  // move to end
+})()"
+```
+
+Verify via a follow-up `/export?format=md` read.
+
+### Google Docs — what DOESN'T work (known limitation)
+
+The CDP keyboard path (`duo key <name>` and modifier shortcuts)
+doesn't reach Docs' keyboard listener. Docs listens on a hidden
+`.docs-texteventtarget-iframe`; CDP dispatches to the main frame, and
+`duo focus` can't cross the iframe boundary. On a Google Doc these
+are silent no-ops:
+
+- `duo key Enter / Backspace / Arrow* / Home / End` (navigation)
+- `duo key b --modifiers cmd` / `i` / `u` (bold, italic, underline)
+- `duo key z --modifiers cmd` (undo)
+- `duo key a --modifiers cmd` (select all)
+- `Cmd+Alt+1..6` heading shortcuts
+
+`document.execCommand('bold')` also has no effect — Docs uses its own
+Kix selection model rather than DOM selection.
+
+**For any styling task (bold, italic, heading level, color, list
+formatting, insert table, etc.):**
+
+1. **Prefer: defer to the user.** Insert the raw text with `duo type`,
+   then tell them in one sentence: "I've added the paragraph; please
+   select that line and press ⌘⌥1 for H1" (or whatever). The user has
+   the doc open — this is seconds of their time and respects their
+   judgment.
+
+2. **If available: Docs REST API `batchUpdate`.** Requires OAuth with
+   `https://www.googleapis.com/auth/documents`. The Duo app will grow
+   a consent flow for this in a later stage. Use it for structural
+   work (tables, heading restructures) if the consent has been
+   granted in this session; otherwise fall back to option 1.
+
+Do NOT grind through dozens of failed `duo key` calls hoping one
+works. Surface the limitation and let the user decide how to proceed.
 
 ### Forms, buttons
 

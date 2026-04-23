@@ -1,98 +1,98 @@
 # Example: Read a Google Doc
 
-**Scenario:** The user says "summarize the doc open in my browser" or "what
-does the PRD say about X?" and the Duo browser has a Google Doc open.
+**Scenario:** the user says "summarize the doc open in my browser" or
+"what does the PRD say about X?" and the Duo browser has a Google Doc
+open.
 
-## The traps
+## The fast path — `export?format=md`
 
-**Don't do any of these** on a Google Doc:
+Google Docs exposes a same-origin export endpoint that Claude can hit
+via `fetch()` from inside the authenticated page. The session cookies
+carry the auth, and Google returns a clean Markdown rendering of the
+**entire document** — headings, bold, italic, links, lists, horizontal
+rules.
 
 ```bash
-# 1) Canvas trap — empty or chrome-only output, no error
-duo text --selector ".kix-appview-canvas"
-
-# 2) noscript trap — extracting text from the raw HTML surfaces Google's
-#    noscript fallback ("JavaScript isn't enabled in your browser…").
-#    This is misleading: JS IS enabled in the Electron browser. You are
-#    reading the wrong layer, not diagnosing a broken page.
-duo dom | <any text extractor>
-
-# 3) Export URL trap — this URL serves a download, so the in-page
-#    navigation hits ERR_FAILED. There is no fallback export path.
-duo navigate "https://docs.google.com/document/d/ID/export?format=txt"
-
-# 4) Class-name scraping — .kix-paragraphrenderer and friends are canvas
-#    scaffolding. They render visually but have no text nodes.
-duo eval "document.querySelectorAll('.kix-paragraphrenderer')"
+duo eval "(async () => {
+  const m = location.pathname.match(/\\/document\\/d\\/([^/]+)/);
+  if (!m) return 'not on a Doc page';
+  const r = await fetch('/document/d/' + m[1] + '/export?format=md');
+  return await r.text();
+})()"
 ```
 
-Google Docs (and Sheets, Slides, Figma, and newer Notion editors) render the
-document body to an HTML `<canvas>`. Canvas elements have no text children,
-so DOM-based text extraction returns chrome (menus, toolbars) with none of
-the actual document content — or worse, Google's `<noscript>` fallback. The
-only reliable read path is the accessibility tree.
+Pipe the output to a file if it's long: `... > /tmp/doc.md`.
 
-## The right way
+Other formats at the same endpoint: `html` (CSS classes preserved),
+`txt` (plain), `rtf`, `docx` (binary). Prefer `md` — it's the cleanest
+structured surface for reasoning.
+
+## Fallback — the Docs internal annotator
+
+If the `/export` fetch fails (auth expired, offline mode, sharing
+issue), a built-in Docs global exposes the doc's model without a
+network call:
 
 ```bash
-# 1. Navigate if not already there (or skip if duo url already points at the doc)
-duo navigate "https://docs.google.com/document/d/DOC_ID/edit"
+duo eval "(async () => {
+  const r = await _docs_annotate_getAnnotatedText('');
+  return { text: r.getText(), links: r.getAnnotations().link || [] };
+})()"
+```
 
-# 2. Wait for the doc body to mount
-duo wait '[role="document"]' --timeout 10000
+`.getText()` returns the full plaintext including not-currently-
+rendered sections. Control characters to know: `\u0003` at doc start,
+`\u001c` between sections, `\n` between paragraphs.
 
-# 3. Read via the accessibility tree
+`.getAnnotations()` returns `link` (URLs with ranges) and
+`horizontalRule` positions — **not** text styles (bold, italic,
+headings). For styled structure, prefer the `/export?format=md` path.
+
+## Weaker fallback — `duo ax`
+
+```bash
 duo ax --selector '[role="document"]'
 ```
 
-`duo ax` pulls the CDP accessibility tree and renders it to Markdown:
-headings become `# …`, list items become `- …`, links become `[text](#)`,
-and paragraphs come through as plain text. The output reflects the live
-visible document in screen order.
-
-## Long docs — scroll to expand coverage
-
-Google Docs virtualizes the canvas: only the portion near the current
-scroll position gets rendered into the accessibility tree. If a doc is
-longer than a few pages, `duo ax` on a freshly-loaded doc will only
-capture the top. Scroll the whole thing before reading:
+This only captures what's currently rendered into the accessibility
+tree — Docs virtualizes the canvas, so large docs only return the
+viewport. Useful when the other two paths don't work and the portion
+you need is on screen. For long docs, scroll the whole thing first:
 
 ```bash
-# Pass 1: force render by scrolling through the doc
 duo eval "window.scrollTo(0, document.body.scrollHeight)"
 duo eval "window.scrollTo(0, 0)"
-
-# Pass 2: now read
 duo ax --selector '[role="document"]'
 ```
 
-For very large docs, chunk the read:
+## The traps — do not use these on Google Docs
 
 ```bash
-duo eval "window.scrollTo(0, 0)"
-for i in 0 1 2 3 4; do
-  duo ax --selector '[role="document"]' >> /tmp/doc.md
-  duo eval "window.scrollBy(0, window.innerHeight * 5)"
-  sleep 0.3
-done
-# dedupe overlapping paragraphs afterward
-```
+# 1) Canvas trap — canvas has no innerText; you get chrome or empty
+duo text --selector ".kix-appview-canvas"
 
-Other narrowing options:
+# 2) noscript trap — the raw HTML includes a <noscript> fallback
+#    ("JavaScript isn't enabled in your browser…"). Extracting visible
+#    text from `duo dom` surfaces that string and makes you think JS is
+#    broken. It isn't. You're reading the wrong layer.
+duo dom | <any text extractor>
 
-```bash
-# Narrow to a labelled landmark
-duo ax --selector '[role="region"][aria-label="Risks"]'
+# 3) Navigate-to-export trap — the /export URLs serve downloads
+#    (Content-Disposition: attachment). In-page navigation fails with
+#    ERR_FAILED. You want `fetch()` from *inside* the doc page, not a
+#    `duo navigate` away.
+duo navigate "https://docs.google.com/document/d/ID/export?format=txt"
 
-# Or fetch as JSON and process programmatically
-duo ax --format json | jq '.children[] | select(.role == "heading")'
+# 4) Class-name scraping — .kix-paragraphrenderer and friends are
+#    canvas scaffolding. They render visually but have no text nodes.
+duo eval "document.querySelectorAll('.kix-paragraphrenderer')"
 ```
 
 ## If the doc doesn't load
 
-- `duo ax` returns an account-picker tree: the user's SSO session is stale.
+- Export fetch returns a sign-in page: the user's session is stale.
   Ask them to log in via the browser pane.
-- `duo wait '[role="document"]'` times out: the page may be stuck on a
-  "requesting access" screen. Use `duo screenshot` to see what's on screen.
-- Doc loads but `ax` is empty: the user is probably in a preview/embed view,
-  not the editor. Navigate to the `/edit` URL.
+- `duo url` shows a redirect to `accounts.google.com`: same deal.
+- Doc loads but the `/export` 404s: the doc might be private and not
+  shared with the signed-in user. Verify with `duo url` that you're on
+  the right doc.
