@@ -15,6 +15,7 @@ interface FilesPaneProps {
   state: NavigatorState
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
+  onOpenTerminalHere: (folderPath: string) => void
   revealChip: string | null
   onDismissRevealChip: () => void
 }
@@ -26,6 +27,7 @@ export function FilesPane({
   state,
   actions,
   onOpenFile,
+  onOpenTerminalHere,
   revealChip,
   onDismissRevealChip
 }: FilesPaneProps) {
@@ -64,6 +66,7 @@ export function FilesPane({
             state={state}
             actions={actions}
             onOpenFile={onOpenFile}
+            onOpenTerminalHere={onOpenTerminalHere}
           />
         </div>
       )}

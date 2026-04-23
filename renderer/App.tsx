@@ -62,6 +62,16 @@ export function App() {
     setActiveTabId(tab.id)
   }, [pendingCwd])
 
+  // "Open terminal here" from the navigator's right-click menu (§ D11).
+  // Explicit CWD bypasses the pending-CWD rule so the user gets exactly
+  // the folder they right-clicked, even if a file is selected elsewhere.
+  const openTerminalHere = useCallback((folderPath: string) => {
+    const tab = makeTab(folderPath)
+    setTabs(prev => [...prev, tab])
+    setActiveTabId(tab.id)
+    setFocusedColumn('terminal')
+  }, [])
+
   const closeTab = useCallback((id: string) => {
     setTabs(prev => {
       if (prev.length === 1) return prev
@@ -255,6 +265,7 @@ export function App() {
             state={nav.state}
             actions={nav.actions}
             onOpenFile={onOpenFile}
+            onOpenTerminalHere={openTerminalHere}
             revealChip={revealChip}
             onDismissRevealChip={() => setRevealChip(null)}
           />

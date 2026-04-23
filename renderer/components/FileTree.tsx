@@ -5,18 +5,32 @@
 // listings via `useNavigator.ensureListing` (called through the hook).
 // Files open via the passed-in `onOpenFile` callback (routed to
 // WorkingPane in App.tsx).
+//
+// Phase 7: right-click context menu (§ D11) — Open terminal here /
+// Reveal in Finder / Copy path / Open with default app / Open in Duo
+// editor. The menu is driven by the `onContextMenu` callback so App
+// can dispatch to terminal creation for "Open terminal here".
 
+import { useState } from 'react'
 import type { DirEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 interface FileTreeProps {
   state: NavigatorState
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
+  /** "Open terminal here" — spawns a new terminal tab with this folder
+   *  as its launch CWD. */
+  onOpenTerminalHere: (folderPath: string) => void
 }
 
-export function FileTree({ state, actions, onOpenFile }: FileTreeProps) {
+export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere }: FileTreeProps) {
   const rootEntries = state.listings.get(state.cwd)
+  // Shared context-menu state — only one menu open at a time across the whole
+  // tree. `target` carries the entry the user right-clicked.
+  const [menu, setMenu] = useState<{ x: number; y: number; target: DirEntry } | null>(null)
+
   return (
     <div className="flex-1 overflow-auto scrollbar-none py-1">
       <TreeNodes
@@ -25,9 +39,71 @@ export function FileTree({ state, actions, onOpenFile }: FileTreeProps) {
         state={state}
         actions={actions}
         onOpenFile={onOpenFile}
+        onContextMenu={(e, entry) => {
+          e.preventDefault()
+          setMenu({ x: e.clientX, y: e.clientY, target: entry })
+        }}
       />
+      {menu && (
+        <ContextMenu
+          position={{ x: menu.x, y: menu.y }}
+          items={buildMenuItems(menu.target, {
+            onOpenTerminalHere,
+            onOpenFile,
+            onRevealInFinder: (p) => window.electron.files.revealInFinder(p),
+            onCopyPath: async (p) => {
+              try { await navigator.clipboard.writeText(p) } catch { /* permission denied */ }
+            },
+            onOpenWithDefault: (p) => window.electron.files.openExternal(p)
+          })}
+          onClose={() => setMenu(null)}
+        />
+      )}
     </div>
   )
+}
+
+// Menu item factory — keeps the permutations (folder vs file) in one place
+// so the rules map directly onto PRD § D11.
+function buildMenuItems(
+  entry: DirEntry,
+  handlers: {
+    onOpenTerminalHere: (path: string) => void
+    onOpenFile: (entry: DirEntry) => void
+    onRevealInFinder: (path: string) => void | Promise<void>
+    onCopyPath: (path: string) => void | Promise<void>
+    onOpenWithDefault: (path: string) => void | Promise<void>
+  }
+): ContextMenuItem[] {
+  const isFolder = entry.kind === 'directory'
+  const items: ContextMenuItem[] = []
+
+  if (isFolder) {
+    items.push({
+      label: 'Open terminal here',
+      onClick: () => handlers.onOpenTerminalHere(entry.path)
+    })
+  } else {
+    items.push({
+      label: 'Open in Duo editor',
+      onClick: () => handlers.onOpenFile(entry)
+    })
+  }
+  items.push({
+    label: 'Reveal in Finder',
+    onClick: () => { void handlers.onRevealInFinder(entry.path) }
+  })
+  items.push({
+    label: 'Copy path',
+    onClick: () => { void handlers.onCopyPath(entry.path) }
+  })
+  items.push({
+    label: 'Open with default app',
+    separatorBefore: true,
+    onClick: () => { void handlers.onOpenWithDefault(entry.path) }
+  })
+
+  return items
 }
 
 interface TreeNodesProps {
@@ -36,9 +112,10 @@ interface TreeNodesProps {
   state: NavigatorState
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
+  onContextMenu: (e: React.MouseEvent, entry: DirEntry) => void
 }
 
-function TreeNodes({ entries, depth, state, actions, onOpenFile }: TreeNodesProps) {
+function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }
@@ -56,6 +133,7 @@ function TreeNodes({ entries, depth, state, actions, onOpenFile }: TreeNodesProp
           state={state}
           actions={actions}
           onOpenFile={onOpenFile}
+          onContextMenu={onContextMenu}
         />
       ))}
     </>
@@ -68,9 +146,10 @@ interface TreeNodeProps {
   state: NavigatorState
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
+  onContextMenu: (e: React.MouseEvent, entry: DirEntry) => void
 }
 
-function TreeNode({ entry, depth, state, actions, onOpenFile }: TreeNodeProps) {
+function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
   const isSelected = state.selected?.path === entry.path
@@ -89,6 +168,7 @@ function TreeNode({ entry, depth, state, actions, onOpenFile }: TreeNodeProps) {
     <>
       <button
         onClick={click}
+        onContextMenu={(e) => onContextMenu(e, entry)}
         className={[
           'w-full flex items-center gap-1.5 px-2 py-0.5 text-[12px] text-left leading-tight rounded transition-colors',
           isSelected
@@ -110,6 +190,7 @@ function TreeNode({ entry, depth, state, actions, onOpenFile }: TreeNodeProps) {
           state={state}
           actions={actions}
           onOpenFile={onOpenFile}
+          onContextMenu={onContextMenu}
         />
       )}
     </>
