@@ -15,7 +15,7 @@ import * as path from 'path'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserManager } from './browser-manager'
 import type { DuoRequest, DuoResponse } from '../shared/types'
-import { SOCKET_PATH } from '../shared/constants'
+import { SOCKET_PATH } from './constants'
 
 export class SocketServer {
   private server: net.Server | null = null

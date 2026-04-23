@@ -50,6 +50,7 @@ export function AddressBar({ url, onNavigate, isLoading = false }: AddressBarPro
         className="w-full h-6 px-3 rounded bg-surface-0 border border-border text-zinc-200 text-xs outline-none focus:border-accent/50 transition-colors"
         spellCheck={false}
         autoComplete="off"
+        data-duo-addressbar
       />
       {isLoading && (
         <div className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 border border-accent border-t-transparent rounded-full animate-spin" />

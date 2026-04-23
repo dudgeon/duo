@@ -10,7 +10,7 @@
 import { WebContentsView, session } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
-import { BROWSER_SESSION_PARTITION } from '../shared/constants'
+import { BROWSER_SESSION_PARTITION } from './constants'
 import type { CdpBridge } from './cdp-bridge'
 
 type StateCallback = (state: BrowserState) => void
@@ -44,9 +44,7 @@ export class BrowserManager {
       webPreferences: {
         session: ses,
         contextIsolation: true,
-        nodeIntegration: false,
-        // Allow Google Docs and other apps that use popups to stay in-view
-        nativeWindowOpen: false
+        nodeIntegration: false
       }
     })
 

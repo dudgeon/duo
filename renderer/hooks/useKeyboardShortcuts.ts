@@ -21,6 +21,17 @@ export function useKeyboardShortcuts({ newTab, closeTab, tabs, activeTabId, setA
         return
       }
 
+      // ⌘L — focus the address bar (Chrome parity)
+      if (meta && e.key === 'l') {
+        const el = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+        if (el) {
+          e.preventDefault()
+          el.focus()
+          el.select()
+        }
+        return
+      }
+
       // ⌘W — close active tab
       if (meta && e.key === 'w') {
         e.preventDefault()

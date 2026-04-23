@@ -1,6 +1,6 @@
 import * as pty from 'node-pty'
 import type { WebContents } from 'electron'
-import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS } from '../shared/constants'
+import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS } from './constants'
 import { IPC } from '../shared/types'
 
 interface Session {

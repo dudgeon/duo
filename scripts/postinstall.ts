@@ -7,7 +7,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { execSync } from 'child_process'
 import { app } from 'electron'
-import { SKILL_INSTALL_DIR } from '../shared/constants'
+import { SKILL_INSTALL_DIR } from '../electron/constants'
 
 export function runPostinstall(resourcesPath: string): void {
   installSkill(resourcesPath)

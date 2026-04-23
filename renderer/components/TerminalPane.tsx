@@ -84,10 +84,22 @@ function TerminalInstance({ tab, isActive, onTitleChange }: InstanceProps) {
     term.loadAddon(fit)
     term.loadAddon(new WebLinksAddon())
     term.open(host)
-    fit.fit()
 
+    // Set refs before attempting the first fit so resize/visibility effects
+    // still work even if fit throws (e.g. zero-size container on initial mount).
     termRef.current = term
     fitRef.current = fit
+
+    const safeFit = () => {
+      const { width, height } = host.getBoundingClientRect()
+      if (width <= 0 || height <= 0) return false
+      try { fit.fit() } catch (err) { console.warn('[duo] xterm fit failed', err) }
+      return true
+    }
+
+    // Defer the first fit so the host has measured dimensions. Retry on the
+    // next frame if layout isn't ready yet.
+    if (!safeFit()) requestAnimationFrame(safeFit)
 
     // Wire PTY → terminal output
     const offData = window.electron.pty.onData(tab.id, (data) => term.write(data))
