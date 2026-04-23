@@ -11,6 +11,19 @@ browser", "click the Sign-in button", "add a bullet to the risks section",
 etc., **reach for `duo`** — it is the only tool that can read and write the
 live authenticated web surface the user is looking at.
 
+## Prefer delegating to the `duo-browser` subagent
+
+Browser interactions tend to fan out into several CLI round-trips (url,
+title, wait, ax, verify). Running them inline bloats the parent
+conversation with CLI noise the user doesn't need to see. Unless the
+request is a genuine one-liner (e.g. "what URL is open?"), **delegate to
+the `duo-browser` subagent** with a high-level goal ("summarize the doc
+open in my browser", "add a bullet saying X to the risks section") and
+let it return only the outcome.
+
+Use this skill's direct CLI reference when the subagent isn't available,
+or when you're doing a single simple call.
+
 ## When NOT to use `duo`
 
 - Public web page with no auth — use `WebFetch`.
@@ -52,18 +65,68 @@ to launch it before retrying.
 
 ### Read a Google Doc (the canonical canvas-app read)
 
-Google Docs renders the document body to a `<canvas>` element. **`duo text`
-returns almost nothing** on a Docs page — the visible text lives in the
-accessibility tree, not the DOM. Always use `duo ax`:
+Google Docs renders the document body to a `<canvas>` element. The visible
+text lives in the accessibility tree, not the DOM. **There is exactly one
+right way to read a Docs page:**
 
 ```bash
-duo navigate "https://docs.google.com/document/d/DOC_ID/edit"
-duo wait '[role="document"]' --timeout 10000
+duo navigate "https://docs.google.com/document/d/DOC_ID/edit"   # skip if already there
+duo wait '[role="document"]' --timeout 9000
 duo ax --selector '[role="document"]'
 ```
 
-The same pattern applies to Google Sheets, Slides, Figma, and any other app
-that renders to canvas and exposes content via ARIA.
+**On any `docs.google.com/*/edit` URL, these are traps — do not use them:**
+
+- `duo text` / `duo text --selector ".kix-appview-canvas"` — canvas has no
+  innerText; returns chrome (menus, toolbars) or empty.
+- `duo dom` — Google's initial HTML includes a `<noscript>` block that says
+  "JavaScript isn't enabled in your browser, so this file can't be opened."
+  Agents that extract visible text from `dom` read that string and wrongly
+  conclude JS is broken. It isn't — the Electron browser has JS enabled;
+  you're just looking at the wrong layer. Use `ax`.
+- `https://docs.google.com/document/d/ID/export?format=txt` — this URL
+  serves a download (Content-Disposition: attachment), so `duo navigate`
+  hits `ERR_FAILED`. It is not a fallback — there is no fallback.
+- `duo eval` that tries to scrape text from `.kix-paragraphrenderer` or
+  similar class names — those are canvas scaffolding with no text nodes.
+
+**If `duo ax --selector '[role="document"]'` returns empty or the selector
+wait times out:**
+
+1. Check `duo url` — you may have been bounced to an account picker or
+   "requesting access" page. The user needs to resolve that in the browser
+   pane; you cannot.
+2. Re-run the `wait` with a longer timeout (up to 20s) — large docs can be
+   slow to mount the accessibility tree.
+3. Grab `duo screenshot --out /tmp/duo-debug.png` and look; if the doc is
+   visually present but `ax` is empty, the tree is still populating —
+   sleep 2s and retry.
+
+**Long docs need scrolling.** Google Docs virtualizes the canvas: only the
+portion near the current scroll position gets rendered into the
+accessibility tree. For a full read of a long doc, scroll to the bottom
+(forcing render), scroll back to the top, then read:
+
+```bash
+duo eval "window.scrollTo(0, document.body.scrollHeight)"
+duo eval "window.scrollTo(0, 0)"
+duo ax --selector '[role="document"]'
+```
+
+Or chunk the read by scrolling incrementally and concatenating:
+
+```bash
+duo eval "window.scrollTo(0, 0)"
+duo ax --selector '[role="document"]' > /tmp/doc-top.md
+
+duo eval "window.scrollBy(0, window.innerHeight * 5)"
+duo ax --selector '[role="document"]' > /tmp/doc-mid.md
+# ... repeat until scrollY stops changing
+```
+
+The same rules apply to Google Sheets, Slides, Figma, and other
+canvas-rendered apps: `ax` is the only read path, and scrolling expands
+coverage on long surfaces.
 
 ### Edit a Google Doc (casual text edits)
 
