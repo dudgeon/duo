@@ -153,6 +153,76 @@ when a tab becomes visible to handle deferred layout.
 
 ---
 
+### Layout model + working-pane model — resolved by owner
+
+**Status:** Confirmed 2026-04-23  
+**Supersedes:** the "Layout model" and "Working pane model" rows in
+`duo-brief.md §7` (both previously marked OPEN — OWNER ACTION), and the
+ten-option mockup at `docs/ux/layout-options.html`, which is now
+historical.
+
+**Decision — three-column layout:**
+
+```
+┌────┐┌─────────────────┐┌─────────────────┐
+│    ││                 ││ Viewer/Editor   │
+│Files││    Terminal    ││ (polymorphic:   │
+│    ││                 ││  browser / .md  │
+│    ││                 ││  editor / file  │
+│    ││                 ││  preview)       │
+│    ││                 ││                 │
+│    │└─────────────────┘│                 │
+│    │┌─────────────────┐│                 │
+│    ││  Agent tools    ││                 │
+│    ││  (collapsible,  ││                 │
+│    ││   Stage 12)     ││                 │
+└────┘└─────────────────┘└─────────────────┘
+```
+
+- **Files** (left, full-height, narrow) — file browser / context
+  drawer. Stage 10.
+- **Middle column** — stacked vertically:
+  - **Terminal** (top, primary) — PTY session(s) where the agent lives.
+  - **Agent tools** (bottom, collapsible, optional) — unified skill +
+    connector surface. Stage 12. Collapsed state gives the terminal
+    the full middle column.
+- **Viewer/Editor** (right, full-height, wide) — single polymorphic
+  surface. Shows one thing at a time:
+    - Browser (current behavior, with its own in-mode tab strip).
+    - Markdown editor for `.md` files (Stage 11).
+    - File preview for non-`.md` types (images, PDF, CSV — Stage 10
+      per-type registry).
+
+**Working-pane model — resolved sub-decisions:**
+
+- **Single slot, not tabbed** for v1 (keeps the old Stage 7
+  commitment: component API stable so a later tabbed wrapper can
+  multiplex without rewriting callers).
+- **Shared across terminal tabs**, not per-tab. The viewer/editor is
+  one surface the user looks at; switching terminals does not change
+  what's on the right.
+- **Markdown editor scope: local `.md` files only.** Google Docs
+  stays in the browser mode of the viewer (via the verified
+  `/export?format=md` read and the `duo` write primitives). The
+  Stage 11 editor does not edit live Docs.
+
+**Implementation implications:**
+
+- Today's layout — terminal-left, browser-right, no Files column — is
+  a waypoint. The reshape happens as part of Stage 10 (which adds the
+  Files column) and Stage 11 (which adds the .md editor mode to the
+  Viewer/Editor column).
+- The current `BrowserPane` becomes the "browser mode" of the
+  Viewer/Editor polymorphic shell — one of several modes. Browser
+  tabs stay; they're in-mode chrome.
+- The terminal moves from the left column to the middle column at
+  reshape time. The xterm.js / node-pty plumbing is unaffected.
+- Agent tools panel (middle-bottom) is deferred to Stage 12 but the
+  layout shell must reserve space for it (or cleanly collapse when
+  absent).
+
+---
+
 ## Open ADRs (pending decision)
 
 ### Skill scoping — global install vs. Duo-session-only

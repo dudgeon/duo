@@ -37,6 +37,36 @@ Their work items are absorbed into Stages 10, 11, and 12. The original
 sections below are preserved for history and for the architectural
 guardrails they captured.
 
+### Layout commitment (owner, 2026-04-23)
+
+The app layout is locked to a three-column shape:
+
+```
+┌────┐┌─────────────────┐┌─────────────────┐
+│    ││                 ││ Viewer/Editor   │
+│Files││    Terminal    ││ (polymorphic)   │
+│    ││                 ││                 │
+│    │└─────────────────┘│                 │
+│    │┌─────────────────┐│                 │
+│    ││  Agent tools    ││                 │
+│    ││  (collapsible)  ││                 │
+└────┘└─────────────────┘└─────────────────┘
+```
+
+See [docs/DECISIONS.md § Layout model + working-pane model](docs/DECISIONS.md)
+for the full ADR. Mapping to stages:
+
+- **Files column** → Stage 10.
+- **Terminal** → middle-top, relocated from left during the Stage 10
+  reshape.
+- **Agent tools** → middle-bottom, collapsible, Stage 12.
+- **Viewer/Editor** → right. One polymorphic surface, single slot.
+  Browser mode is shipped (becomes one of N modes); markdown editor
+  mode is Stage 11; per-type file preview mode is Stage 10.
+
+Today's layout (terminal-left, browser-right, no Files column) is a
+waypoint. The reshape lands with Stage 10.
+
 ---
 
 ## Stage 1 — Core Shell `✅ Done — verified end-to-end`
@@ -376,6 +406,11 @@ tab just like any other browser pane.
 
 ## Stage 9 — Prose-first terminal (reader mode) `⬜ Next — flagship half #1`
 
+**Layout placement:** middle column, top region (the terminal part of
+the locked three-column layout in [DECISIONS.md § Layout model](docs/DECISIONS.md)).
+Stage 9 is typography + chrome only; the column relocation itself
+happens as part of Stage 10.
+
 **Goal:** turn the terminal into a reading surface for long, prose-heavy
 agent conversations — without breaking Claude Code's TUI rendering. Per
 [VISION.md § The flagship bet](docs/VISION.md#the-flagship-bet--the-reading-and-writing-pair).
@@ -428,6 +463,12 @@ bullet is now this stage.
 ---
 
 ## Stage 10 — File browser / context drawer `⬜ Prereq for Stage 11`
+
+**Layout placement:** leftmost column, full-height, narrow. Per the
+owner's locked layout (see [DECISIONS.md § Layout model](docs/DECISIONS.md)).
+This stage also owns the layout reshape: relocating the terminal from
+the left to the middle column and reorganizing the existing browser
+pane as the "browser mode" of the right-column Viewer/Editor shell.
 
 **Goal:** a sidebar surface that shows files around the current working
 directory plus a pinned home scope, lets the user drag any file into the
@@ -485,6 +526,13 @@ type. Per [VISION.md § Visual file browser / context drawer](docs/VISION.md#vis
 ---
 
 ## Stage 11 — Collaborative markdown editor (human↔agent) `⬜ Flagship half #2`
+
+**Layout placement:** one of the modes of the right-column
+Viewer/Editor shell (single-slot, shared across terminal tabs; browser
+is another mode). The editor replaces the browser view in the right
+column when a `.md` file is opened. Scope is local `.md` files only —
+Google Docs stays in browser mode via the verified `/export?format=md`
+read path. See [DECISIONS.md § Layout model](docs/DECISIONS.md).
 
 **Goal:** build a rich editing surface for local `.md` files that
 **feels like Google Docs** on the human side and is **a first-class
@@ -625,6 +673,11 @@ the experience of working together inside it is the point.
 ---
 
 ## Stage 12 — Unified skill + connector surface `⬜ Supersedes Stage 4`
+
+**Layout placement:** middle column, below the terminal, collapsible.
+Per [DECISIONS.md § Layout model](docs/DECISIONS.md). When collapsed,
+the terminal takes the full middle column. Default state (expanded vs
+collapsed) is an open decision at Stage 12 kickoff.
 
 **Goal:** one in-app surface for everything a user configures *about*
 their agent — skills available now, skills they could install, MCP
