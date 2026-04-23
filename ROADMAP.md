@@ -113,6 +113,7 @@ to the agent running in the active terminal tab.
 
 - [ ] Version pinning: skill asserts `duo --version` is in compatible range
 - [ ] Postinstall verified: skill copied to `~/.claude/skills/duo/` on first launch
+- [ ] **Resolve open ADR: skill scoping — global install vs. Duo-session-only** (see `docs/DECISIONS.md` → "Open ADRs"). Changes the first-launch install step if we pick per-session scoping.
 
 ---
 
@@ -240,3 +241,4 @@ deeper, shallower, or sideways without affecting any existing tab.
 | Apple Developer ID cert | Stage 6 |
 | Distribution timeline (personal → Trailblazers) | Stage 6 |
 | Socket auth approach for Trailblazers | Stage 6 |
+| Skill scoping: global `~/.claude/skills/duo/` vs. Duo-session-only (see `docs/DECISIONS.md` → Open ADRs) | Stage 5 |
