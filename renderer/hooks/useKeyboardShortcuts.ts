@@ -68,8 +68,16 @@ export function useKeyboardShortcuts({
         return
       }
 
+      // ⌘⇧1–⌘⇧9 — jump to working-pane (right-column) tab N (Stage 10 § D30)
+      if (meta && e.shiftKey && key >= '1' && key <= '9') {
+        e.preventDefault()
+        const n = parseInt(key, 10)
+        void window.electron.browser.switchTab(n)
+        return
+      }
+
       // ⌘1–⌘9 — jump to terminal tab N
-      if (meta && key >= '1' && key <= '9') {
+      if (meta && !e.shiftKey && key >= '1' && key <= '9') {
         e.preventDefault()
         const idx = parseInt(key, 10) - 1
         if (idx < tabs.length) setActiveTabId(tabs[idx].id)

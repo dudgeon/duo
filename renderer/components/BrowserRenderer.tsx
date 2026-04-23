@@ -1,18 +1,23 @@
-// Stage 2: Address bar and nav chrome are live. The content area below is an
-// invisible anchor — the Electron main process overlays a WebContentsView on
-// top of it by reading its pixel bounds via the browser:bounds IPC channel.
+// Stage 10 Phase 3 — the browser-type renderer used by the WorkingPane.
+//
+// Hoisted out of the old BrowserPane: it's the address bar + nav chrome +
+// WebContentsView content anchor. The tab strip used to live one level up
+// (BrowserPane → BrowserTabStrip); it now lives in WorkingTabStrip, one more
+// level up, so this component only cares about the currently-visible browser
+// tab's chrome.
+//
+// The bounds ResizeObserver is still how the main process positions
+// `WebContentsView` over the in-renderer anchor div — no change to the IPC
+// surface compared to pre-hoist.
 
 import { useRef, useEffect } from 'react'
 import { AddressBar } from './AddressBar'
-import { BrowserTabStrip } from './BrowserTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 
-export function BrowserPane() {
-  const { state, tabs, navigate, addTab, switchTab, closeTab } = useBrowserState()
+export function BrowserRenderer() {
+  const { state, navigate } = useBrowserState()
   const contentRef = useRef<HTMLDivElement>(null)
 
-  // Keep the WebContentsView positioned over this div as the split moves or
-  // window resizes. ResizeObserver fires on both resize and initial mount.
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
@@ -30,7 +35,6 @@ export function BrowserPane() {
     send()
     const ro = new ResizeObserver(send)
     ro.observe(el)
-    // Also watch window resize (split drag doesn't always trigger ResizeObserver)
     window.addEventListener('resize', send)
     return () => {
       ro.disconnect()
@@ -39,15 +43,7 @@ export function BrowserPane() {
   }, [])
 
   return (
-    <div className="flex flex-col w-full h-full bg-surface-1 border-l border-border">
-      {/* Browser tab strip */}
-      <BrowserTabStrip
-        tabs={tabs}
-        onSelect={(id) => { switchTab(id) }}
-        onNew={() => { addTab() }}
-        onClose={(id) => { closeTab(id) }}
-      />
-
+    <div className="flex flex-col w-full h-full bg-surface-1">
       {/* Address bar / nav chrome */}
       <div className="flex items-center h-10 px-3 gap-2 border-b border-border shrink-0">
         <div className="flex items-center gap-1">
@@ -94,7 +90,8 @@ export function BrowserPane() {
         />
       </div>
 
-      {/* The WebContentsView is overlaid on top of this div by the main process. */}
+      {/* WebContentsView anchor. Main process positions a real WebContents
+          view over this rectangle. */}
       <div ref={contentRef} className="flex-1" />
     </div>
   )

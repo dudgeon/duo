@@ -64,6 +64,30 @@ export interface BrowserTab {
   isActive: boolean
 }
 
+// ── Working-pane tabs (Stage 10 § D25/D26) ───────────────────────────────────
+// The right column is a polymorphic tabbed surface that holds mixed types.
+// Browser tabs are real WebContentsView-backed; editor / preview tabs are
+// rendered in-renderer. Tab IDs are continuous 1..N across types so `duo tab
+// <n>` / `duo close <n>` stay simple.
+
+export type WorkingTabType =
+  | 'browser'
+  | 'markdown-preview'   // Stage 10 v1 read-only .md (Stage 11 replaces with editor)
+  | 'image'
+  | 'pdf'
+  | 'unknown'
+
+export interface WorkingTab {
+  id: number
+  type: WorkingTabType
+  title: string
+  isActive: boolean
+  // Type-specific. Populated when relevant for the tab's type.
+  url?: string           // 'browser'
+  path?: string          // non-browser file tabs
+  mime?: string          // non-browser file tabs
+}
+
 export interface BrowserState {
   url: string
   title: string

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
-import { BrowserPane } from './components/BrowserPane'
+import { WorkingPane } from './components/WorkingPane'
 import { FilesPane } from './components/FilesPane'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import type { TabSession } from '@shared/types'
@@ -197,9 +197,9 @@ export function App() {
             onMouseDown={onDividerMouseDown}
           />
 
-          {/* Working pane (right) — Phase 3 hoists the tab strip into a
-              polymorphic WorkingPane shell; Phase 2 just wraps today's
-              BrowserPane in the focus boundary. */}
+          {/* Working pane (right) — polymorphic shell with unified tab strip.
+              Browser is the only tab type in Phase 3; editor / preview arrive
+              in Phase 5. */}
           <div
             className={[
               'flex-1 overflow-hidden border-l transition-colors',
@@ -208,7 +208,7 @@ export function App() {
             onMouseDown={() => setFocusedColumn('working')}
             aria-label="Working pane"
           >
-            <BrowserPane />
+            <WorkingPane />
           </div>
         </div>
       </div>
