@@ -525,13 +525,11 @@ bullet is now this stage.
 
 ---
 
-## Stage 10 — File browser / context drawer `⬜ Prereq for Stage 11`
+## Stage 10 — File browser / context drawer `🔄 In progress — spec locked`
 
-> [docs/research/file-navigator-v1.md](docs/research/file-navigator-v1.md)
-> grounds the v1 spec — it maps the current PTY launch-CWD plumbing,
-> names the data model for `navigatorCwd` / pending CWD, enumerates
-> the UX flows, and captures open decisions (follow-mode default,
-> hidden files, search, file watchers, …).
+> **PRD:** [docs/prd/stage-10-file-navigator.md](docs/prd/stage-10-file-navigator.md).
+> All v1 decisions (D1–D32) are captured there with a phased build plan.
+> Supporting research: [docs/research/file-navigator-v1.md](docs/research/file-navigator-v1.md).
 
 **Layout placement:** leftmost column, full-height, narrow. Per the
 owner's locked layout (see [DECISIONS.md § Layout model](docs/DECISIONS.md)).
