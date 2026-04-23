@@ -114,6 +114,44 @@ async function main() {
         out(await send("text", selector ? { selector } : {}));
         break;
       }
+      case "ax": {
+        const selectorIdx = rest.indexOf("--selector");
+        const formatIdx = rest.indexOf("--format");
+        const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : void 0;
+        const format = formatIdx !== -1 ? rest[formatIdx + 1] : "md";
+        if (format !== "md" && format !== "json") die("--format must be md or json");
+        out(await send("ax", { selector, format }));
+        break;
+      }
+      case "focus": {
+        const selector = rest[0] ?? die("Usage: duo focus <selector>");
+        out(await send("focus", { selector }));
+        break;
+      }
+      case "type": {
+        if (rest.length === 0) die("Usage: duo type <text>");
+        const text = rest.join(" ");
+        out(await send("type", { text }));
+        break;
+      }
+      case "key": {
+        const key = rest[0] ?? die("Usage: duo key <keyname> [--modifiers cmd,shift,...]");
+        const modIdx = rest.indexOf("--modifiers");
+        const modifiers = modIdx !== -1 ? (rest[modIdx + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean) : [];
+        out(await send("key", { key, modifiers }));
+        break;
+      }
+      case "console": {
+        const sinceIdx = rest.indexOf("--since");
+        const levelIdx = rest.indexOf("--level");
+        const limitIdx = rest.indexOf("--limit");
+        const since = sinceIdx !== -1 ? parseInt(rest[sinceIdx + 1], 10) : void 0;
+        const level = levelIdx !== -1 ? rest[levelIdx + 1].split(",").map((s) => s.trim()).filter(Boolean) : void 0;
+        const limit = limitIdx !== -1 ? parseInt(rest[limitIdx + 1], 10) : void 0;
+        const entries = await send("console", { since, level, limit });
+        for (const e of entries) process.stdout.write(JSON.stringify(e) + "\n");
+        break;
+      }
       case "click": {
         const selector = rest[0] ?? die("Usage: duo click <selector>");
         out(await send("click", { selector }));
@@ -203,10 +241,20 @@ COMMANDS
   title                           Print current page title
   dom                             Print full page HTML
   text [--selector <css>]         Print visible text (or matched element text)
+  ax [--selector <css>] [--format md|json]
+                                  Accessibility tree (required for Google Docs
+                                  and other canvas-rendered apps)
   click <selector>                Click element by CSS selector
   fill <selector> <value>         Fill an input
+  focus <selector>                Move focus to the matching element
+  type <text>                     Synthesize text input into the focused element
+  key <keyname> [--modifiers cmd,shift,...]
+                                  Dispatch a named key (Enter, ArrowDown,
+                                  Backspace, etc.) with optional modifiers
   eval <js>                       Execute JS and return result
   screenshot [--out <path>] [--selector <css>]   Take a screenshot
+  console [--since <ts>] [--level log,warn,...] [--limit N]
+                                  Dump buffered console messages (NDJSON)
   tabs                            List open browser tabs (JSON)
   tab <n>                         Switch to browser tab N
   wait <selector> [--timeout ms]  Wait for element to appear

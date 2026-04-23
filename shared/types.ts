@@ -27,13 +27,31 @@ export type DuoCommandName =
   | 'title'
   | 'dom'
   | 'text'
+  | 'ax'
   | 'click'
   | 'fill'
+  | 'focus'
+  | 'type'
+  | 'key'
   | 'eval'
   | 'screenshot'
+  | 'console'
   | 'tabs'
   | 'tab'
   | 'wait'
+
+// ── Console capture ──────────────────────────────────────────────────────────
+
+export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug' | 'verbose'
+
+export interface ConsoleEntry {
+  ts: number            // Date.now() at capture
+  level: ConsoleLevel
+  source: 'console' | 'log-entry'
+  text: string          // human-readable rendering of args
+  url?: string
+  lineNumber?: number
+}
 
 // ── Browser tab state ────────────────────────────────────────────────────────
 

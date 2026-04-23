@@ -14,7 +14,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserManager } from './browser-manager'
-import type { DuoRequest, DuoResponse } from '../shared/types'
+import type { DuoRequest, DuoResponse, ConsoleLevel } from '../shared/types'
 import { SOCKET_PATH } from './constants'
 
 export class SocketServer {
@@ -95,6 +95,39 @@ export class SocketServer {
         case 'text': {
           const selector = args['selector'] as string | undefined
           result = await this.cdp.getText(selector)
+          break
+        }
+        case 'ax': {
+          const selector = args['selector'] as string | undefined
+          const format = (args['format'] as string | undefined) ?? 'md'
+          const tree = await this.cdp.getAxTree(selector)
+          result = format === 'json' ? tree : this.cdp.axToMarkdown(tree)
+          break
+        }
+        case 'focus': {
+          const selector = args['selector'] as string
+          if (!selector) throw new Error('focus requires a selector arg')
+          result = await this.cdp.focus(selector)
+          break
+        }
+        case 'type': {
+          const text = args['text'] as string
+          if (typeof text !== 'string') throw new Error('type requires a text arg')
+          result = await this.cdp.insertText(text)
+          break
+        }
+        case 'key': {
+          const name = args['key'] as string
+          if (!name) throw new Error('key requires a key name arg')
+          const modifiers = (args['modifiers'] as string[] | undefined) ?? []
+          result = await this.cdp.dispatchKey(name, modifiers)
+          break
+        }
+        case 'console': {
+          const since = args['since'] as number | undefined
+          const level = args['level'] as ConsoleLevel[] | undefined
+          const limit = args['limit'] as number | undefined
+          result = this.cdp.getConsole({ since, level, limit })
           break
         }
         case 'click': {
