@@ -8,6 +8,8 @@ interface Options {
   tabs: TabSession[]
   activeTabId: string
   setActiveTabId: (id: string) => void
+  // Stage 10 § D5 — ⌘B collapses/expands the Files column.
+  toggleFilesColumn?: () => void
 }
 
 export function useKeyboardShortcuts({
@@ -16,7 +18,8 @@ export function useKeyboardShortcuts({
   closeTab,
   tabs,
   activeTabId,
-  setActiveTabId
+  setActiveTabId,
+  toggleFilesColumn
 }: Options) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -48,7 +51,17 @@ export function useKeyboardShortcuts({
         return
       }
 
-      // ⌘W — close active terminal tab
+      // ⌘B — toggle the Files column (Stage 10 § D5)
+      if (meta && !e.shiftKey && key === 'b') {
+        if (toggleFilesColumn) {
+          e.preventDefault()
+          toggleFilesColumn()
+        }
+        return
+      }
+
+      // ⌘W — close active tab. Focus-aware routing lives in the handler passed
+      // from App.tsx (Stage 10 § D29).
       if (meta && key === 'w') {
         e.preventDefault()
         closeTab()
@@ -84,5 +97,5 @@ export function useKeyboardShortcuts({
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId])
+  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn])
 }

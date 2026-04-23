@@ -10,12 +10,12 @@ interface TabBarProps {
 
 export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose }: TabBarProps) {
   return (
-    <div className="flex items-center h-10 bg-surface-1 border-b border-border shrink-0 titlebar-drag">
-      {/* Traffic-light spacer */}
-      <div className="w-20 shrink-0" />
-
+    // The traffic-light spacer + window drag region moved up to the App-level
+    // top chrome row (Stage 10 Phase 2). The terminal tab bar lives inside the
+    // middle column now — no window-edge spacing required.
+    <div className="flex items-center h-10 bg-surface-1 border-b border-border shrink-0 px-2">
       {/* Tabs */}
-      <div className="flex items-center flex-1 overflow-x-auto scrollbar-none gap-px titlebar-nodrag">
+      <div className="flex items-center flex-1 overflow-x-auto scrollbar-none gap-px">
         {tabs.map(tab => (
           <Tab
             key={tab.id}
@@ -33,7 +33,7 @@ export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose }: TabBarPr
       {/* New tab button */}
       <button
         onClick={onNew}
-        className="titlebar-nodrag shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-surface-3 transition-colors"
+        className="shrink-0 w-8 h-8 mr-2 flex items-center justify-center rounded text-zinc-500 hover:text-zinc-200 hover:bg-surface-3 transition-colors"
         title="New terminal tab (⌘⇧T)"
       >
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
