@@ -78,7 +78,11 @@ export type WorkingTabType =
   | 'unknown'
 
 export interface WorkingTab {
-  id: number
+  // Renderer-side id. For browser tabs this is `"b:<numericId>"`; for file
+  // tabs it's `"f:<uuid>"`. The strip uses the string verbatim as the React
+  // key and the event-dispatch id. The CLI / main-process surface still uses
+  // numeric BrowserTab ids — mapping happens inside WorkingPane.
+  id: string
   type: WorkingTabType
   title: string
   isActive: boolean

@@ -9,9 +9,9 @@ import type { WorkingTab, WorkingTabType } from '@shared/types'
 
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
-  onSelect: (id: number) => void
+  onSelect: (id: string) => void
   onNew: () => void
-  onClose: (id: number) => void
+  onClose: (id: string) => void
 }
 
 export function WorkingTabStrip({ tabs, onSelect, onNew, onClose }: WorkingTabStripProps) {

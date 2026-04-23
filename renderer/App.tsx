@@ -2,6 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
+import type { FileTab, ActiveWorking } from './components/WorkingPane'
+import { classifyFile } from './components/fileClassifier'
 import { FilesPane } from './components/FilesPane'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
@@ -38,6 +40,11 @@ export function App() {
   const lastAutoCollapseState = useRef(false)
 
   const [focusedColumn, setFocusedColumn] = useState<FocusedColumn>('terminal')
+
+  // Stage 10 Phase 5 — working-pane file tabs live in App-level state so
+  // the navigator can push into them from FilesPane.onOpenFile.
+  const [fileTabs, setFileTabs] = useState<FileTab[]>([])
+  const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
 
   const activeTab = tabs.find(t => t.id === activeTabId)
 
@@ -78,16 +85,44 @@ export function App() {
 
   // ── File-open from the navigator ───────────────────────────────────────────
 
-  const onOpenFile = useCallback(async (entry: DirEntry) => {
-    // Phase 4 MVP: route only through the browser's `open` command, which
-    // creates a new WorkingPane tab. Phase 5 adds per-type renderers so
-    // `.md` opens as preview in-renderer, etc. For now we just load the
-    // file:// URL in a browser tab — it renders fine for images and PDFs,
-    // a plain text dump for text, and a "can't display" for unknowns. Not
-    // the final experience but proves the path.
-    await window.electron.browser.addTab(`file://${encodeURI(entry.path)}`)
+  // Open (or switch to) a file tab in the WorkingPane. § D13 — same-path
+  // identity: if a tab already exists for this path, activate it instead of
+  // creating a duplicate.
+  const openFile = useCallback((path: string, title: string) => {
+    setFileTabs(prev => {
+      const existing = prev.find(t => t.path === path)
+      if (existing) {
+        setActiveWorking({ kind: 'file', id: existing.id })
+        return prev
+      }
+      const { type, mime } = classifyFile(path)
+      const id = crypto.randomUUID()
+      setActiveWorking({ kind: 'file', id })
+      return [...prev, { id, type, path, title, mime }]
+    })
     setFocusedColumn('working')
   }, [])
+
+  const onOpenFile = useCallback((entry: DirEntry) => {
+    openFile(entry.path, entry.name)
+  }, [openFile])
+
+  const closeFileTab = useCallback((id: string) => {
+    setFileTabs(prev => {
+      const next = prev.filter(t => t.id !== id)
+      // If we closed the active file tab, fall back to the browser tab set.
+      if (activeWorking.kind === 'file' && activeWorking.id === id) {
+        setActiveWorking({ kind: 'browser' })
+      }
+      return next
+    })
+  }, [activeWorking])
+
+  // Called by MarkdownPreview when the user clicks an internal .md link.
+  const onOpenMarkdown = useCallback((path: string) => {
+    const name = path.slice(path.lastIndexOf('/') + 1) || path
+    openFile(path, name)
+  }, [openFile])
 
   // ── Split-pane resize (middle/right) ───────────────────────────────────────
 
@@ -139,11 +174,16 @@ export function App() {
     newBrowserTab: () => { window.electron.browser.addTab() },
     closeTab: () => {
       if (focusedColumn === 'working') {
-        void (async () => {
-          const btabs = await window.electron.browser.getTabs()
-          const active = btabs.find(t => t.isActive)
-          if (active) await window.electron.browser.closeTab(active.id)
-        })()
+        // § D29 — close whichever working-pane tab is currently active.
+        if (activeWorking.kind === 'file') {
+          closeFileTab(activeWorking.id)
+        } else {
+          void (async () => {
+            const btabs = await window.electron.browser.getTabs()
+            const active = btabs.find(t => t.isActive)
+            if (active) await window.electron.browser.closeTab(active.id)
+          })()
+        }
       } else {
         closeTab(activeTabId)
       }
@@ -222,7 +262,13 @@ export function App() {
             onMouseDown={() => setFocusedColumn('working')}
             aria-label="Working pane"
           >
-            <WorkingPane />
+            <WorkingPane
+              fileTabs={fileTabs}
+              activeWorking={activeWorking}
+              setActiveWorking={setActiveWorking}
+              closeFileTab={closeFileTab}
+              onOpenMarkdown={onOpenMarkdown}
+            />
           </div>
         </div>
       </div>

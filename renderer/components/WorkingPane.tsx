@@ -1,46 +1,151 @@
-// Stage 10 Phase 3 — the right-column WorkingPane shell.
+// Stage 10 Phase 5 — polymorphic WorkingPane shell.
 //
-// Owns the unified tab strip. A tab's `type` picks which renderer mounts for
-// the content area:
-//   - browser         → BrowserRenderer (WebContentsView, existing)
-//   - markdown-preview → Phase 5 (TBD)
-//   - image / pdf / unknown → Phase 5 (TBD)
-//
-// In Phase 3 only browser tabs exist, so the renderer dispatch currently has
-// one real branch. Subsequent phases add the others. This keeps the shell
-// shape committed so later work slots in cleanly.
+// Merges browser tabs (owned by main-process BrowserManager via the
+// `browser:*` IPC) with file tabs (owned by the renderer state that App.tsx
+// passes down) into a single unified tab strip. A single active-tab state
+// controls which renderer mounts below the strip.
 
 import { BrowserRenderer } from './BrowserRenderer'
+import { MarkdownPreview } from './MarkdownPreview'
+import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
-import type { WorkingTab } from '@shared/types'
+import type { WorkingTab, WorkingTabType } from '@shared/types'
 
-export function WorkingPane() {
-  const { tabs: browserTabs, addTab, switchTab, closeTab } = useBrowserState()
+export interface FileTab {
+  id: string
+  type: Exclude<WorkingTabType, 'browser'>
+  path: string
+  title: string
+  mime: string
+}
 
-  // Adapt BrowserTab[] → WorkingTab[] for the shared strip. When Phase 4/5
-  // introduce non-browser tabs, the merge happens here (concat + sort by id).
-  const workingTabs: WorkingTab[] = browserTabs.map(bt => ({
-    id: bt.id,
-    type: 'browser',
-    title: bt.title,
-    isActive: bt.isActive,
-    url: bt.url
-  }))
+export type ActiveWorking =
+  | { kind: 'browser' }
+  | { kind: 'file'; id: string }
 
-  const active = workingTabs.find(t => t.isActive)
+interface WorkingPaneProps {
+  fileTabs: FileTab[]
+  activeWorking: ActiveWorking
+  setActiveWorking: (a: ActiveWorking) => void
+  closeFileTab: (id: string) => void
+  onOpenMarkdown: (path: string) => void
+}
+
+export function WorkingPane({
+  fileTabs,
+  activeWorking,
+  setActiveWorking,
+  closeFileTab,
+  onOpenMarkdown
+}: WorkingPaneProps) {
+  const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
+
+  // Merge for the strip. Stable order: file tabs first (in insertion order),
+  // then browser tabs by their id. The strip serializes both into the shared
+  // `WorkingTab` shape. IDs in the merged view: file tabs carry their
+  // string uuid; browser tabs' numeric ids get prefixed with "b:" so the
+  // two namespaces can't collide inside the strip.
+  const mergedTabs: WorkingTab[] = [
+    ...fileTabs.map(ft => ({
+      id: stringifyFileId(ft.id),
+      type: ft.type,
+      title: ft.title,
+      path: ft.path,
+      mime: ft.mime,
+      isActive: activeWorking.kind === 'file' && activeWorking.id === ft.id
+    })),
+    ...browserTabs.map(bt => ({
+      id: stringifyBrowserId(bt.id),
+      type: 'browser' as const,
+      title: bt.title,
+      url: bt.url,
+      // Browser's own active flag survives at the main-process level, but
+      // when a file tab is active in the strip, no browser tab should show
+      // as active.
+      isActive: activeWorking.kind === 'browser' && bt.isActive
+    }))
+  ]
+
+  const handleSelect = (id: string) => {
+    const parsed = parseId(id)
+    if (parsed.kind === 'file') {
+      setActiveWorking({ kind: 'file', id: parsed.id })
+    } else {
+      setActiveWorking({ kind: 'browser' })
+      void switchTab(parsed.id)
+    }
+  }
+
+  const handleClose = (id: string) => {
+    const parsed = parseId(id)
+    if (parsed.kind === 'file') {
+      closeFileTab(parsed.id)
+    } else {
+      void closeBrowserTab(parsed.id)
+    }
+  }
+
+  const handleNew = () => {
+    // New-tab button defaults to a browser tab (matches Stage 8's
+    // `duo open` semantics and preserves current muscle memory).
+    setActiveWorking({ kind: 'browser' })
+    void addTab()
+  }
+
+  // Renderer dispatch.
+  let activeRenderer: React.ReactNode = null
+  if (activeWorking.kind === 'browser') {
+    activeRenderer = <BrowserRenderer />
+  } else {
+    const tab = fileTabs.find(ft => ft.id === activeWorking.id)
+    if (!tab) {
+      // Stale active id — fall back to browser.
+      activeRenderer = <BrowserRenderer />
+    } else if (tab.type === 'markdown-preview') {
+      activeRenderer = (
+        <MarkdownPreview
+          path={tab.path}
+          onOpenMarkdown={onOpenMarkdown}
+        />
+      )
+    } else if (tab.type === 'image') {
+      activeRenderer = <ImagePreview tab={asWorkingTab(tab)} />
+    } else if (tab.type === 'pdf') {
+      activeRenderer = <PdfPreview tab={asWorkingTab(tab)} />
+    } else {
+      activeRenderer = <UnknownFilePreview tab={asWorkingTab(tab)} />
+    }
+  }
 
   return (
     <div className="flex flex-col w-full h-full bg-surface-1">
       <WorkingTabStrip
-        tabs={workingTabs}
-        onSelect={(id) => { switchTab(id) }}
-        onNew={() => { addTab() }}
-        onClose={(id) => { closeTab(id) }}
+        tabs={mergedTabs}
+        onSelect={handleSelect}
+        onNew={handleNew}
+        onClose={handleClose}
       />
-      {/* Per-type renderer dispatch. Browser is the only real branch in
-          Phase 3; Phase 5 adds the rest. */}
-      {active?.type === 'browser' && <BrowserRenderer />}
+      {activeRenderer}
     </div>
   )
+}
+
+function asWorkingTab(ft: FileTab): WorkingTab {
+  return {
+    id: stringifyFileId(ft.id),
+    type: ft.type,
+    title: ft.title,
+    isActive: true,
+    path: ft.path,
+    mime: ft.mime
+  }
+}
+
+function stringifyFileId(id: string): string { return 'f:' + id }
+function stringifyBrowserId(id: number): string { return 'b:' + id }
+function parseId(id: string): { kind: 'file'; id: string } | { kind: 'browser'; id: number } {
+  if (id.startsWith('f:')) return { kind: 'file', id: id.slice(2) }
+  if (id.startsWith('b:')) return { kind: 'browser', id: parseInt(id.slice(2), 10) }
+  throw new Error(`Invalid tab id: ${id}`)
 }

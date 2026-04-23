@@ -1,14 +1,7 @@
-// Stage 10 Phase 3 — the browser-type renderer used by the WorkingPane.
-//
-// Hoisted out of the old BrowserPane: it's the address bar + nav chrome +
-// WebContentsView content anchor. The tab strip used to live one level up
-// (BrowserPane → BrowserTabStrip); it now lives in WorkingTabStrip, one more
-// level up, so this component only cares about the currently-visible browser
-// tab's chrome.
-//
-// The bounds ResizeObserver is still how the main process positions
-// `WebContentsView` over the in-renderer anchor div — no change to the IPC
-// surface compared to pre-hoist.
+// Stage 10 Phase 5 — browser-type renderer for the WorkingPane.
+// On unmount (e.g. when a file tab becomes active and replaces this view),
+// collapse the WebContentsView to 1×1 so the browser doesn't remain visible
+// over whatever took its place.
 
 import { useRef, useEffect } from 'react'
 import { AddressBar } from './AddressBar'
@@ -39,12 +32,14 @@ export function BrowserRenderer() {
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', send)
+      // Hide the WebContentsView when this renderer unmounts (file tab took
+      // over). 1×1 keeps the view alive (SSO, audio, etc.) but invisible.
+      window.electron.browser.setBounds({ x: 0, y: 0, width: 1, height: 1 })
     }
   }, [])
 
   return (
     <div className="flex flex-col w-full h-full bg-surface-1">
-      {/* Address bar / nav chrome */}
       <div className="flex items-center h-10 px-3 gap-2 border-b border-border shrink-0">
         <div className="flex items-center gap-1">
           <NavButton
@@ -90,8 +85,6 @@ export function BrowserRenderer() {
         />
       </div>
 
-      {/* WebContentsView anchor. Main process positions a real WebContents
-          view over this rectangle. */}
       <div ref={contentRef} className="flex-1" />
     </div>
   )
