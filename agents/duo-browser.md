@@ -223,6 +223,37 @@ If a selector silently fails, confirm it actually exists first:
 duo eval "!!document.querySelector('YOUR_SELECTOR')"
 ```
 
+### When every `duo` call fails — suspect the Claude Code sandbox
+
+Claude Code runs each Bash tool call inside a macOS Seatbelt sandbox
+whose default policy blocks Unix-domain-socket outbound connections.
+Duo's CLI talks to the Electron app over a Unix socket at
+`~/Library/Application Support/duo/duo.sock`, so under the default
+policy every `duo` command fails the same way — even though the Duo
+app is running. Tell-tale shapes:
+
+- `Socket error: connect EPERM …`
+- `Socket error: connect ECONNREFUSED …`
+- Hang ending in `Timeout waiting for response to "<cmd>"`
+
+**First move:** run `duo doctor` and surface the result. When the
+sandbox is the cause it prints
+`Claude Code sandbox detected (Unix socket blocked) — falling back
+to TCP`; once that line is in the output, proceed normally.
+
+**If `duo doctor` isn't recognized,** stop — do not retry. Return
+one sentence to the parent: the Claude Code sandbox is blocking the
+Unix socket; the user can either add
+`{ "permissions": { "allowUnixSockets": true, "allow":
+["Read(~/Library/Application Support/duo/**)"] } }` to
+`.claude/settings.json` and restart the session, or wait for the
+TCP fallback shipped in Stage 13. The skill's
+"Troubleshooting: Claude Code sandbox" section has the full
+diagnostic and rationale if they ask.
+
+Do not grind through retries — under the sandbox the failure is a
+policy denial, not a transient error.
+
 ## Returning results to the parent
 
 - **Read tasks** → return the extracted content or a summary of it.

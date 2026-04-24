@@ -207,7 +207,7 @@ to the agent running in the active terminal tab.
 - [ ] Version pinning: skill asserts `duo --version` is in a compatible range
 - [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. Stage 6.
 - [ ] **Open ADR: skill scoping** — global `~/.claude/skills/duo/` vs. Duo-session-only (`docs/DECISIONS.md` → Open ADRs). Changes the first-launch install step if we pick per-session.
-- [ ] **Skill docs: Claude Code sandbox troubleshooting section** — add a block to `skill/SKILL.md` (and the mirror guidance in `agents/duo-browser.md`) that names the sandbox failure mode (every `duo` command silently fails because Unix sockets are blocked by default), tells the agent to run `duo doctor` on the first failure, and documents the minimum `.claude/settings.json` allowlist for teams that prefer the Unix-socket fast path. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*. Cheap; can land before Stages 9–11.
+- [x] **Skill docs: Claude Code sandbox troubleshooting section** — `skill/SKILL.md` now carries a "Troubleshooting: Claude Code sandbox" block (failure signatures, `duo doctor` as first move, the recommended `allowUnixSockets: true` + socket-read allowlist, `dangerouslyDisableSandbox` called out as last resort). `agents/duo-browser.md` mirrors the short version in its "Diagnosing failures" section. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*.
 
 ---
 
