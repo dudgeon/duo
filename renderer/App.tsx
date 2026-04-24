@@ -295,6 +295,32 @@ export function App() {
     })
   }, [tabs])
 
+  // ⌘` — cycle focus between the terminal column and the working pane.
+  // Files column is a toggle with ⌘B and intentionally not in this cycle.
+  // Also moves actual DOM focus: clicks move it naturally, but the
+  // keybinding has to drive it explicitly or keystrokes stay in the
+  // previously-focused element.
+  const togglePaneFocus = useCallback(() => {
+    setFocusedColumn(prev => {
+      const next = prev === 'working' ? 'terminal' : 'working'
+      // Run the focus move after state commits so the pane is ready.
+      queueMicrotask(() => {
+        if (next === 'terminal') {
+          const textarea = document.querySelector<HTMLTextAreaElement>(
+            '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
+          )
+          textarea?.focus()
+        } else if (activeWorking.kind === 'browser') {
+          window.electron.browser.focusActive()
+        } else {
+          // File tab — focus its scrollable region so keyboard scroll works.
+          document.querySelector<HTMLElement>('[data-duo-workingpane]')?.focus()
+        }
+      })
+      return next
+    })
+  }, [activeWorking])
+
   // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
   // bump value, updates the "remember last choice" default (so new tabs
   // inherit the user's preferred size), and persists both.
@@ -385,32 +411,19 @@ export function App() {
     // active tab. Browser-focus forwarding intentionally skips these so
     // ⌘+/- keeps its native page-zoom behavior inside a browser tab.
     adjustTerminalFontBump: adjustFontBump,
-    // ⌘` — cycle focus between the terminal column and the working pane.
-    // Files column is a toggle with ⌘B and intentionally not in this cycle.
-    // Also moves actual DOM focus: clicks move it naturally, but the
-    // keybinding has to drive it explicitly or keystrokes stay in the
-    // previously-focused element.
-    togglePaneFocus: () => {
-      setFocusedColumn(prev => {
-        const next = prev === 'working' ? 'terminal' : 'working'
-        // Run the focus move after state commits so the pane is ready.
-        queueMicrotask(() => {
-          if (next === 'terminal') {
-            const textarea = document.querySelector<HTMLTextAreaElement>(
-              '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
-            )
-            textarea?.focus()
-          } else if (activeWorking.kind === 'browser') {
-            window.electron.browser.focusActive()
-          } else {
-            // File tab — focus its scrollable region so keyboard scroll works.
-            document.querySelector<HTMLElement>('[data-duo-workingpane]')?.focus()
-          }
-        })
-        return next
-      })
-    }
+    // ⌘` — fallback for platforms where the key isn't intercepted by
+    // a menu accelerator. On macOS the system shortcut intercepts ⌘`
+    // before this handler sees it; see `onPaneToggleFocus` below.
+    togglePaneFocus
   })
+
+  // ⌘` menu-accelerator path. The app menu registers the same
+  // accelerator at the Electron level so it beats macOS's built-in
+  // "cycle windows of the same app" shortcut — which swallows the
+  // keydown before the renderer can see it.
+  useEffect(() => {
+    return window.electron.keyboard?.onPaneToggleFocus?.(togglePaneFocus)
+  }, [togglePaneFocus])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 

@@ -260,17 +260,34 @@ export class BrowserManager {
   private wireKeyForwarding(view: WebContentsView): void {
     view.webContents.on('before-input-event', (event, input) => {
       if (input.type !== 'keyDown') return
-      if (!input.meta) return
       const key = input.key.toLowerCase()
+
+      // ⌃Tab / ⌃⇧Tab cycle browser tabs. Handled in the renderer, but
+      // Chromium would consume the Tab key inside the page otherwise.
+      if (input.control && key === 'tab') {
+        event.preventDefault()
+        this.window.webContents.send(IPC.BROWSER_KEY_FORWARD, {
+          key: input.key,
+          shift: input.shift,
+          meta: input.meta,
+          alt: input.alt,
+          ctrl: input.control
+        })
+        return
+      }
+
+      if (!input.meta) return
       const isDuoShortcut =
         key === 't' ||
         key === 'l' ||
         key === 'w' ||
         key === 'b' ||
-        key === '`' ||
         key === '[' ||
         key === ']' ||
         (key >= '1' && key <= '9')
+      // NOTE: ⌘` is intentionally NOT in this list. It's handled by the
+      // app-menu accelerator (which beats macOS's system shortcut) and
+      // dispatched via IPC.PANE_TOGGLE_FOCUS.
       if (!isDuoShortcut) return
       event.preventDefault()
       this.window.webContents.send(IPC.BROWSER_KEY_FORWARD, {

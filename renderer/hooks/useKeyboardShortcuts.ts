@@ -31,7 +31,7 @@ export function useKeyboardShortcuts({
     // Dispatch via a single `process(e)` function so both native window
     // keydowns and shortcuts forwarded from the browser WebContentsView
     // can reuse the same routing logic.
-    const process = (e: { metaKey: boolean; shiftKey: boolean; key: string; preventDefault: () => void }) => {
+    const process = (e: { metaKey: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; key: string; preventDefault: () => void }) => {
       const meta = e.metaKey
       const key = e.key.toLowerCase()
 
@@ -145,6 +145,20 @@ export function useKeyboardShortcuts({
         setActiveTabId(next.id)
         return
       }
+
+      // ⌃Tab / ⌃⇧Tab — cycle working-pane (browser) tabs (Chrome parity).
+      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Tab') {
+        e.preventDefault()
+        void (async () => {
+          const btabs = await window.electron.browser.getTabs()
+          if (btabs.length === 0) return
+          const activeIdx = btabs.findIndex(t => t.isActive)
+          const delta = e.shiftKey ? -1 : 1
+          const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
+          await window.electron.browser.switchTab(btabs[nextIdx].id)
+        })()
+        return
+      }
     }
 
     const windowHandler = (e: KeyboardEvent) => process(e)
@@ -157,6 +171,8 @@ export function useKeyboardShortcuts({
       process({
         metaKey: e.meta,
         shiftKey: e.shift,
+        ctrlKey: e.ctrl,
+        altKey: e.alt,
         key: e.key,
         preventDefault: () => { /* already prevented in main */ }
       })

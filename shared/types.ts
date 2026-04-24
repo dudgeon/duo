@@ -208,7 +208,11 @@ export const IPC = {
   // Cmd-shortcuts pressed while the browser WebContentsView has focus.
   // Forwarded so the renderer can process them identically to native
   // window-focus keydowns (the WebContentsView swallows them otherwise).
-  BROWSER_KEY_FORWARD: 'browser:key-forward'
+  BROWSER_KEY_FORWARD: 'browser:key-forward',
+
+  // ⌘` — fired by the app-menu accelerator so it beats macOS's built-in
+  // "cycle windows" system shortcut.
+  PANE_TOGGLE_FOCUS: 'pane:toggle-focus'
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -279,6 +283,9 @@ export interface ElectronKeyboardAPI {
   /** Fires when the browser WebContentsView intercepts a Duo shortcut
    *  and forwards it back to the renderer for handling. */
   onBrowserKey: (cb: (e: ForwardedKeyEvent) => void) => () => void
+  /** Fires when the View → Toggle pane focus menu accelerator
+   *  (⌘`) is triggered. */
+  onPaneToggleFocus: (cb: () => void) => () => void
 }
 
 export interface ForwardedKeyEvent {

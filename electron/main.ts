@@ -300,6 +300,18 @@ function installAppMenu(): void {
             mainWindow?.webContents.send(IPC.COZY_TOGGLE)
           }
         },
+        {
+          // Menu accelerator, not just a keyboard shortcut: macOS
+          // intercepts ⌘` at the system level (its built-in "cycle
+          // windows of the same app"). Registering it here routes the
+          // key through Electron's menu system first, so the system
+          // shortcut never sees it.
+          label: 'Toggle pane focus',
+          accelerator: 'CmdOrCtrl+`',
+          click: () => {
+            mainWindow?.webContents.send(IPC.PANE_TOGGLE_FOCUS)
+          }
+        },
         { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
