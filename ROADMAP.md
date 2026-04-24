@@ -431,8 +431,13 @@ tab just like any other browser pane.
 
 ---
 
-## Stage 9 — Cozy-mode terminal (typography v1) `⬜ Next — flagship half #1`
+## Stage 9 — Cozy-mode terminal (typography v1) `✅ Shipped 2026-04-22 (preview)`
 
+> **PRD:** [docs/prd/stage-9-cozy-mode.md](docs/prd/stage-9-cozy-mode.md).
+> All C1–C17 decisions and the validation checklist live there. Ships
+> behind a `(preview)` label on the menu item while the TUI shake-out
+> window runs.
+>
 > **Naming:** The terminal's flagship feature is "cozy mode" — per
 > owner, because it's both **reading** (long agent prose) and (in a
 > later wave) **writing** (composition decorations).
@@ -496,14 +501,15 @@ Claude Code's TUI rendering. Per
 
 **Work items:**
 
-- [ ] Per-tab cozy state in renderer; menu item wired via Electron's
-      app menu (View → Cozy mode).
-- [ ] `TerminalPane` applies the cozy theme, font size, line height,
-      padding, and max-width when the per-tab flag is on.
-- [ ] Validation against the [research note §6 checklist](docs/research/terminal-cozy-mode.md):
-      Claude Code box-drawing, spinners, diff output, fullscreen mode,
-      mouse events, stream-in-progress toggle, cozy ↔ default round
-      trip.
+- [x] Per-tab cozy state in renderer; menu item wired via Electron's
+      app menu (View → Cozy mode (preview) — current tab).
+- [x] `TerminalPane` applies the cozy font size, line height,
+      padding, and reader-width cap when the per-tab flag is on.
+- [x] localStorage persistence: per-tab map + last-choice default
+      (PRD § C4–C6).
+- [ ] Run the full [PRD § 4 validation checklist](docs/prd/stage-9-cozy-mode.md)
+      in real usage (preview window) and close out any adjustments
+      before flipping the `(preview)` label off.
 
 **Follow-up stages (not Stage 9):**
 

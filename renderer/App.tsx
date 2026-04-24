@@ -14,6 +14,25 @@ import type { TabSession, DirEntry } from '@shared/types'
 // the threshold is re-crossed (hysteresis prevents jitter).
 const AUTO_COLLAPSE_WIDTH = 1100
 
+// Stage 9: cozy-mode persistence keys. Per-tab map survives within a
+// session but tab UUIDs don't span relaunches; the last-choice flag is the
+// durable piece (new tabs inherit it per PRD § C4).
+const COZY_BY_TAB_KEY = 'duo.cozy.v1.byTab'
+const COZY_LAST_KEY = 'duo.cozy.v1.lastChoice'
+
+function loadCozyByTab(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(COZY_BY_TAB_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch { return {} }
+}
+
+function loadCozyLast(): boolean {
+  try { return localStorage.getItem(COZY_LAST_KEY) === '1' } catch { return false }
+}
+
 type FocusedColumn = 'files' | 'terminal' | 'working'
 
 function makeTab(cwd: string): TabSession {
@@ -50,7 +69,13 @@ export function App() {
   // navigator via `duo reveal`. Cleared after ~4s or by user dismiss.
   const [revealChip, setRevealChip] = useState<string | null>(null)
 
+  // Stage 9 — per-tab cozy mode. `cozyByTab` is keyed by tab UUID;
+  // `cozyDefault` seeds new tabs with the last-toggled value.
+  const [cozyByTab, setCozyByTab] = useState<Record<string, boolean>>(loadCozyByTab)
+  const [cozyDefault, setCozyDefault] = useState<boolean>(loadCozyLast)
+
   const activeTab = tabs.find(t => t.id === activeTabId)
+  const activeCozy = activeTab ? (cozyByTab[activeTab.id] ?? cozyDefault) : false
 
   // ── Tab actions ────────────────────────────────────────────────────────────
 
@@ -172,6 +197,49 @@ export function App() {
       openFile(p, name)
     })
   }, [openFile])
+
+  // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
+
+  // Listen for View → Cozy mode menu clicks. Flip the active tab's cozy
+  // state, update the "remember last choice" default, persist, and push
+  // the new value back so the menu checkmark tracks it.
+  useEffect(() => {
+    return window.electron.cozy.onToggle(() => {
+      if (!activeTab) return
+      const current = cozyByTab[activeTab.id] ?? cozyDefault
+      const next = !current
+      setCozyByTab(prev => {
+        const updated = { ...prev, [activeTab.id]: next }
+        try { localStorage.setItem(COZY_BY_TAB_KEY, JSON.stringify(updated)) } catch { /* quota */ }
+        return updated
+      })
+      setCozyDefault(next)
+      try { localStorage.setItem(COZY_LAST_KEY, next ? '1' : '0') } catch { /* quota */ }
+      window.electron.cozy.pushState(next)
+    })
+  }, [activeTab, cozyByTab, cozyDefault])
+
+  // Keep the menu checkmark aligned with the active tab whenever it changes.
+  useEffect(() => {
+    window.electron.cozy.pushState(activeCozy)
+  }, [activeCozy])
+
+  // Drop stale cozy entries when tabs close so the persisted map can't
+  // grow unbounded across sessions (C5).
+  useEffect(() => {
+    const liveIds = new Set(tabs.map(t => t.id))
+    setCozyByTab(prev => {
+      const pruned: Record<string, boolean> = {}
+      let changed = false
+      for (const [id, val] of Object.entries(prev)) {
+        if (liveIds.has(id)) pruned[id] = val
+        else changed = true
+      }
+      if (!changed) return prev
+      try { localStorage.setItem(COZY_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
+      return pruned
+    })
+  }, [tabs])
 
   // ── Split-pane resize (middle/right) ───────────────────────────────────────
 
@@ -300,6 +368,8 @@ export function App() {
                 tabs={tabs}
                 activeTabId={activeTabId}
                 onTitleChange={updateTabTitle}
+                cozyByTab={cozyByTab}
+                cozyDefault={cozyDefault}
               />
             </div>
           </div>

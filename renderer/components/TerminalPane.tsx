@@ -7,13 +7,27 @@ import type { TabSession } from '@shared/types'
 // scrollback defined here; shared/constants.ts uses Node.js os/path and can't be imported in renderer
 const SCROLLBACK = 10_000
 
+// Stage 9 typography values. Default vs cozy — see docs/prd/stage-9-cozy-mode.md § C7.
+const DEFAULT_FONT_SIZE = 13
+const DEFAULT_LINE_HEIGHT = 1.4
+const COZY_FONT_SIZE = 15
+const COZY_LINE_HEIGHT = 1.55
+// Reader-width cap (cols) applied only when cozy is on.
+const COZY_MAX_COLS = 92
+
 interface TerminalPaneProps {
   tabs: TabSession[]
   activeTabId: string
   onTitleChange: (id: string, title: string) => void
+  /** Per-tab cozy state keyed by tab UUID. Tabs not present inherit
+   *  `cozyDefault`. */
+  cozyByTab: Record<string, boolean>
+  cozyDefault: boolean
 }
 
-export function TerminalPane({ tabs, activeTabId, onTitleChange }: TerminalPaneProps) {
+export function TerminalPane({
+  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault
+}: TerminalPaneProps) {
   return (
     <div className="relative w-full h-full bg-surface-0">
       {tabs.map(tab => (
@@ -22,6 +36,7 @@ export function TerminalPane({ tabs, activeTabId, onTitleChange }: TerminalPaneP
           tab={tab}
           isActive={tab.id === activeTabId}
           onTitleChange={onTitleChange}
+          cozy={cozyByTab[tab.id] ?? cozyDefault}
         />
       ))}
     </div>
@@ -36,13 +51,17 @@ interface InstanceProps {
   tab: TabSession
   isActive: boolean
   onTitleChange: (id: string, title: string) => void
+  cozy: boolean
 }
 
-function TerminalInstance({ tab, isActive, onTitleChange }: InstanceProps) {
+function TerminalInstance({ tab, isActive, onTitleChange, cozy }: InstanceProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<Array<() => void>>([])
+  // Track the cozy state we last applied so the effect below can tell a
+  // toggle from an initial mount and avoid redundant fits.
+  const appliedCozyRef = useRef<boolean | null>(null)
 
   // ── Mount terminal ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -73,8 +92,8 @@ function TerminalInstance({ tab, isActive, onTitleChange }: InstanceProps) {
         brightWhite: '#f4f4f5'
       },
       fontFamily: 'JetBrains Mono, Cascadia Code, Fira Code, ui-monospace, monospace',
-      fontSize: 13,
-      lineHeight: 1.4,
+      fontSize: DEFAULT_FONT_SIZE,
+      lineHeight: DEFAULT_LINE_HEIGHT,
       cursorBlink: true,
       scrollback: SCROLLBACK,
       allowProposedApi: true
@@ -129,6 +148,44 @@ function TerminalInstance({ tab, isActive, onTitleChange }: InstanceProps) {
     }
   }, [tab.id, tab.cwd, onTitleChange])
 
+  // ── Cozy-mode application (Stage 9) ────────────────────────────────────────
+  // When `cozy` changes (including initial render), push new typography
+  // into xterm, toggle the host class for padding/max-width, measure the
+  // cell width once xterm has re-rendered, then refit + resize the PTY.
+  useEffect(() => {
+    const host = hostRef.current
+    const term = termRef.current
+    const fit = fitRef.current
+    if (!host || !term || !fit) return
+    if (appliedCozyRef.current === cozy) return
+    appliedCozyRef.current = cozy
+
+    term.options.fontSize = cozy ? COZY_FONT_SIZE : DEFAULT_FONT_SIZE
+    term.options.lineHeight = cozy ? COZY_LINE_HEIGHT : DEFAULT_LINE_HEIGHT
+
+    host.classList.toggle('cozy', cozy)
+
+    // Two rAFs: the first lets xterm re-render at the new font; the second
+    // lets the DOM pick up the class change and measure cleanly before the
+    // reader-width cap is computed.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!termRef.current || !fitRef.current) return
+      if (cozy) {
+        const cellPx = measureCellWidth(host)
+        if (cellPx > 0) {
+          host.style.setProperty('--cozy-max-px', `${Math.round(cellPx * COZY_MAX_COLS)}px`)
+        } else {
+          host.style.removeProperty('--cozy-max-px')
+        }
+      } else {
+        host.style.removeProperty('--cozy-max-px')
+      }
+      try { fitRef.current.fit() } catch (err) { console.warn('[duo] cozy fit failed', err) }
+      const { cols, rows } = termRef.current
+      window.electron.pty.resize(tab.id, cols, rows)
+    }))
+  }, [cozy, tab.id])
+
   // ── Fit on visibility change ───────────────────────────────────────────────
   useEffect(() => {
     if (!isActive || !fitRef.current || !termRef.current) return
@@ -164,4 +221,26 @@ function TerminalInstance({ tab, isActive, onTitleChange }: InstanceProps) {
       style={{ display: isActive ? 'block' : 'none' }}
     />
   )
+}
+
+// Measure the rendered monospace cell width so the reader-width cap tracks
+// the actual cozy font size. We read xterm's own measured geometry off the
+// first ".xterm-rows" row; falling back to a getBoundingClientRect() of a
+// single glyph if that shape isn't available in this xterm version.
+function measureCellWidth(host: HTMLElement): number {
+  const row = host.querySelector<HTMLElement>('.xterm-rows > div')
+  if (row) {
+    const rect = row.getBoundingClientRect()
+    const children = row.children.length
+    if (rect.width > 0 && children > 0) return rect.width / children
+  }
+  // Fallback: synth-measure a single glyph in the host's computed font.
+  const sample = document.createElement('span')
+  sample.textContent = 'M'
+  sample.style.cssText =
+    'position:absolute;visibility:hidden;white-space:pre;font-family:inherit;font-size:inherit;'
+  host.appendChild(sample)
+  const px = sample.getBoundingClientRect().width
+  host.removeChild(sample)
+  return px
 }

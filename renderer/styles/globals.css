@@ -33,6 +33,18 @@
     @apply rounded-none;
   }
 
+  /* Stage 9 — Cozy mode. Reader-width clamp + generous pane padding.
+     --cozy-max-px is written from JS (TerminalInstance) once xterm.js has
+     measured its cell width so the cap tracks the cozy font size. */
+  .xterm-host.cozy {
+    padding: 20px 24px;
+  }
+  .xterm-host.cozy .xterm {
+    max-width: var(--cozy-max-px, 92ch);
+    margin-inline: auto;
+    padding: 0;
+  }
+
   /* Resize divider */
   .split-divider {
     @apply w-px bg-border cursor-col-resize shrink-0 transition-colors duration-100;

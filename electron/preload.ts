@@ -129,6 +129,18 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.NAV_VIEW, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_VIEW, handler)
     }
+  },
+
+  cozy: {
+    onToggle: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.COZY_TOGGLE, handler)
+      return () => ipcRenderer.removeListener(IPC.COZY_TOGGLE, handler)
+    },
+
+    pushState: (cozy: boolean) => {
+      ipcRenderer.send(IPC.COZY_STATE_PUSH, cozy)
+    }
   }
 }
 

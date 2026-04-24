@@ -198,7 +198,11 @@ export const IPC = {
   // Stage 10 Phase 6 — navigator state + agent-facing commands
   NAV_STATE_PUSH: 'nav:state-push',      // renderer → main (cache state for CLI)
   NAV_VIEW: 'nav:view',                  // main → renderer (open a file in WorkingPane)
-  NAV_REVEAL: 'nav:reveal'               // main → renderer (move navigator + chip)
+  NAV_REVEAL: 'nav:reveal',              // main → renderer (move navigator + chip)
+
+  // Stage 9 — cozy mode
+  COZY_TOGGLE: 'cozy:toggle',            // main → renderer (menu clicked)
+  COZY_STATE_PUSH: 'cozy:state-push'     // renderer → main (update menu checkmark)
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -263,12 +267,20 @@ export interface ElectronNavAPI {
   onView: (cb: (path: string) => void) => () => void
 }
 
+export interface ElectronCozyAPI {
+  /** Subscribe to View → Cozy mode menu clicks. */
+  onToggle: (cb: () => void) => () => void
+  /** Push the active tab's cozy state so the menu checkmark tracks it. */
+  pushState: (cozy: boolean) => void
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
   browser: ElectronBrowserAPI
   files: ElectronFilesAPI
   nav: ElectronNavAPI
+  cozy: ElectronCozyAPI
 }
 
 declare global {

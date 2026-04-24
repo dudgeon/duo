@@ -1,4 +1,5 @@
-import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, nativeTheme } from 'electron'
+import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { PtyManager } from './pty-manager'
 import { BrowserManager } from './browser-manager'
@@ -30,6 +31,12 @@ const ptyManager = new PtyManager()
 const filesService = new FilesService()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
+
+// Stage 9 — the menu's Cozy mode checkmark tracks the active tab.
+// The renderer is the source of truth; main caches the last pushed value
+// so the menu rebuild logic can read it synchronously.
+let cozyActiveTab = false
+let cozyMenuItemId: string | null = null
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -90,6 +97,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   setupIPC()
+  installAppMenu()
   createWindow()
 
   app.on('activate', () => {
@@ -207,6 +215,91 @@ function setupIPC(): void {
   ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
     navState = snapshot
   })
+
+  // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
+  // Renderer pushes the active tab's cozy state so the View-menu checkmark
+  // stays in sync as the user switches tabs or toggles.
+
+  ipcMain.on(IPC.COZY_STATE_PUSH, (_event, cozy: boolean) => {
+    cozyActiveTab = cozy
+    const menu = Menu.getApplicationMenu()
+    if (!menu || !cozyMenuItemId) return
+    const item = menu.getMenuItemById(cozyMenuItemId)
+    if (item) item.checked = cozy
+  })
+}
+
+// ── App menu ────────────────────────────────────────────────────────────────
+// Minimal menu template — only the View submenu carries product-specific
+// items today (cozy toggle). Everything else follows Electron defaults so
+// macOS shortcuts like Cmd+Q / Cmd+H / Cmd+M still work.
+
+function installAppMenu(): void {
+  const isMac = process.platform === 'darwin'
+  cozyMenuItemId = 'cozy-toggle'
+
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [{
+          label: app.name,
+          submenu: [
+            { role: 'about' as const },
+            { type: 'separator' as const },
+            { role: 'services' as const },
+            { type: 'separator' as const },
+            { role: 'hide' as const },
+            { role: 'hideOthers' as const },
+            { role: 'unhide' as const },
+            { type: 'separator' as const },
+            { role: 'quit' as const }
+          ]
+        }]
+      : []),
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          id: cozyMenuItemId,
+          label: 'Cozy mode (preview) — current tab',
+          type: 'checkbox',
+          checked: cozyActiveTab,
+          click: () => {
+            // Renderer flips authoritative state, then echoes back via
+            // COZY_STATE_PUSH so the checkmark tracks the truth.
+            mainWindow?.webContents.send(IPC.COZY_TOGGLE)
+          }
+        },
+        { type: 'separator' },
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'close' }
+      ]
+    }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
 }
 
 // Helpers exposed to SocketServer via `NavBridge` (passed below).
