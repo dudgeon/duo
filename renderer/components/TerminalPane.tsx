@@ -23,10 +23,14 @@ interface TerminalPaneProps {
    *  `cozyDefault`. */
   cozyByTab: Record<string, boolean>
   cozyDefault: boolean
+  /** Per-tab signed font-size bump from ⌘+/-/0. Added on top of the
+   *  cozy/default base fontSize. */
+  fontBumpByTab: Record<string, number>
+  fontBumpDefault: number
 }
 
 export function TerminalPane({
-  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault
+  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault
 }: TerminalPaneProps) {
   return (
     <div className="relative w-full h-full bg-surface-0">
@@ -37,6 +41,7 @@ export function TerminalPane({
           isActive={tab.id === activeTabId}
           onTitleChange={onTitleChange}
           cozy={cozyByTab[tab.id] ?? cozyDefault}
+          fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
         />
       ))}
     </div>
@@ -52,16 +57,19 @@ interface InstanceProps {
   isActive: boolean
   onTitleChange: (id: string, title: string) => void
   cozy: boolean
+  fontBump: number
 }
 
-function TerminalInstance({ tab, isActive, onTitleChange, cozy }: InstanceProps) {
+function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump }: InstanceProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<Array<() => void>>([])
-  // Track the cozy state we last applied so the effect below can tell a
-  // toggle from an initial mount and avoid redundant fits.
-  const appliedCozyRef = useRef<boolean | null>(null)
+  // Track the typography state we last applied so the effect below can
+  // tell a cozy/font-bump change from an initial mount and avoid
+  // redundant fits. `applied` holds "cozy:bump" so either changing
+  // triggers a re-apply.
+  const appliedTypoRef = useRef<string | null>(null)
 
   // ── Mount terminal ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -148,19 +156,21 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy }: InstanceProps)
     }
   }, [tab.id, tab.cwd, onTitleChange])
 
-  // ── Cozy-mode application (Stage 9) ────────────────────────────────────────
-  // When `cozy` changes (including initial render), push new typography
-  // into xterm, toggle the host class for padding/max-width, measure the
-  // cell width once xterm has re-rendered, then refit + resize the PTY.
+  // ── Typography application (cozy + ⌘+/- font bump) ─────────────────────────
+  // When `cozy` or `fontBump` changes, push new typography into xterm,
+  // toggle the host class for padding/max-width, measure the cell width
+  // once xterm has re-rendered, then refit + resize the PTY.
   useEffect(() => {
     const host = hostRef.current
     const term = termRef.current
     const fit = fitRef.current
     if (!host || !term || !fit) return
-    if (appliedCozyRef.current === cozy) return
-    appliedCozyRef.current = cozy
+    const key = `${cozy ? 1 : 0}:${fontBump}`
+    if (appliedTypoRef.current === key) return
+    appliedTypoRef.current = key
 
-    term.options.fontSize = cozy ? COZY_FONT_SIZE : DEFAULT_FONT_SIZE
+    const baseSize = cozy ? COZY_FONT_SIZE : DEFAULT_FONT_SIZE
+    term.options.fontSize = Math.max(8, baseSize + fontBump)
     term.options.lineHeight = cozy ? COZY_LINE_HEIGHT : DEFAULT_LINE_HEIGHT
 
     host.classList.toggle('cozy', cozy)
@@ -180,11 +190,11 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy }: InstanceProps)
       } else {
         host.style.removeProperty('--cozy-max-px')
       }
-      try { fitRef.current.fit() } catch (err) { console.warn('[duo] cozy fit failed', err) }
+      try { fitRef.current.fit() } catch (err) { console.warn('[duo] typography fit failed', err) }
       const { cols, rows } = termRef.current
       window.electron.pty.resize(tab.id, cols, rows)
     }))
-  }, [cozy, tab.id])
+  }, [cozy, fontBump, tab.id])
 
   // ── Fit on visibility change ───────────────────────────────────────────────
   useEffect(() => {

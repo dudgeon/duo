@@ -20,6 +20,14 @@ const AUTO_COLLAPSE_WIDTH = 1100
 const COZY_BY_TAB_KEY = 'duo.cozy.v1.byTab'
 const COZY_LAST_KEY = 'duo.cozy.v1.lastChoice'
 
+// Per-tab terminal font-size bump (⌘+/-/0). Signed integer, added on top
+// of the cozy/default base fontSize in TerminalPane. Same new-tab-inherits
+// pattern as cozy so new tabs pick up the last-used bump.
+const FONT_BUMP_BY_TAB_KEY = 'duo.fontBump.v1.byTab'
+const FONT_BUMP_LAST_KEY = 'duo.fontBump.v1.lastChoice'
+const FONT_BUMP_MIN = -4
+const FONT_BUMP_MAX = 10
+
 function loadCozyByTab(): Record<string, boolean> {
   try {
     const raw = localStorage.getItem(COZY_BY_TAB_KEY)
@@ -31,6 +39,23 @@ function loadCozyByTab(): Record<string, boolean> {
 
 function loadCozyLast(): boolean {
   try { return localStorage.getItem(COZY_LAST_KEY) === '1' } catch { return false }
+}
+
+function loadFontBumpByTab(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(FONT_BUMP_BY_TAB_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return typeof parsed === 'object' && parsed !== null ? parsed : {}
+  } catch { return {} }
+}
+
+function loadFontBumpLast(): number {
+  try {
+    const n = parseInt(localStorage.getItem(FONT_BUMP_LAST_KEY) || '0', 10)
+    if (isNaN(n)) return 0
+    return Math.max(FONT_BUMP_MIN, Math.min(FONT_BUMP_MAX, n))
+  } catch { return 0 }
 }
 
 type FocusedColumn = 'files' | 'terminal' | 'working'
@@ -73,6 +98,10 @@ export function App() {
   // `cozyDefault` seeds new tabs with the last-toggled value.
   const [cozyByTab, setCozyByTab] = useState<Record<string, boolean>>(loadCozyByTab)
   const [cozyDefault, setCozyDefault] = useState<boolean>(loadCozyLast)
+
+  // Per-tab terminal font-size bump from ⌘+/-/0.
+  const [fontBumpByTab, setFontBumpByTab] = useState<Record<string, number>>(loadFontBumpByTab)
+  const [fontBumpDefault, setFontBumpDefault] = useState<number>(loadFontBumpLast)
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeCozy = activeTab ? (cozyByTab[activeTab.id] ?? cozyDefault) : false
@@ -238,8 +267,8 @@ export function App() {
     window.electron.cozy?.pushState(activeCozy)
   }, [activeCozy])
 
-  // Drop stale cozy entries when tabs close so the persisted map can't
-  // grow unbounded across sessions (C5).
+  // Drop stale cozy + font-bump entries when tabs close so the persisted
+  // maps can't grow unbounded across sessions.
   useEffect(() => {
     const liveIds = new Set(tabs.map(t => t.id))
     setCozyByTab(prev => {
@@ -253,7 +282,36 @@ export function App() {
       try { localStorage.setItem(COZY_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
       return pruned
     })
+    setFontBumpByTab(prev => {
+      const pruned: Record<string, number> = {}
+      let changed = false
+      for (const [id, val] of Object.entries(prev)) {
+        if (liveIds.has(id)) pruned[id] = val
+        else changed = true
+      }
+      if (!changed) return prev
+      try { localStorage.setItem(FONT_BUMP_BY_TAB_KEY, JSON.stringify(pruned)) } catch { /* quota */ }
+      return pruned
+    })
   }, [tabs])
+
+  // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
+  // bump value, updates the "remember last choice" default (so new tabs
+  // inherit the user's preferred size), and persists both.
+  const adjustFontBump = useCallback((delta: number | 'reset') => {
+    if (!activeTab) return
+    const current = fontBumpByTab[activeTab.id] ?? fontBumpDefault
+    const next = delta === 'reset'
+      ? 0
+      : Math.max(FONT_BUMP_MIN, Math.min(FONT_BUMP_MAX, current + delta))
+    setFontBumpByTab(prev => {
+      const updated = { ...prev, [activeTab.id]: next }
+      try { localStorage.setItem(FONT_BUMP_BY_TAB_KEY, JSON.stringify(updated)) } catch { /* quota */ }
+      return updated
+    })
+    setFontBumpDefault(next)
+    try { localStorage.setItem(FONT_BUMP_LAST_KEY, String(next)) } catch { /* quota */ }
+  }, [activeTab, fontBumpByTab, fontBumpDefault])
 
   // ── Split-pane resize (middle/right) ───────────────────────────────────────
 
@@ -323,6 +381,10 @@ export function App() {
     activeTabId,
     setActiveTabId,
     toggleFilesColumn: () => setFilesCollapsed(prev => !prev),
+    // ⌘+ / ⌘- / ⌘0 — bump / shrink / reset terminal font size for the
+    // active tab. Browser-focus forwarding intentionally skips these so
+    // ⌘+/- keeps its native page-zoom behavior inside a browser tab.
+    adjustTerminalFontBump: adjustFontBump,
     // ⌘` — cycle focus between the terminal column and the working pane.
     // Files column is a toggle with ⌘B and intentionally not in this cycle.
     // Also moves actual DOM focus: clicks move it naturally, but the
@@ -409,6 +471,8 @@ export function App() {
                 onTitleChange={updateTabTitle}
                 cozyByTab={cozyByTab}
                 cozyDefault={cozyDefault}
+                fontBumpByTab={fontBumpByTab}
+                fontBumpDefault={fontBumpDefault}
               />
             </div>
           </div>

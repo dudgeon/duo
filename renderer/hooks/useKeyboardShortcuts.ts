@@ -12,6 +12,8 @@ interface Options {
   toggleFilesColumn?: () => void
   // ⌘` — toggle focus between terminal and working pane.
   togglePaneFocus?: () => void
+  // ⌘+ / ⌘- / ⌘0 — adjust the active terminal tab's font bump.
+  adjustTerminalFontBump?: (delta: number | 'reset') => void
 }
 
 export function useKeyboardShortcuts({
@@ -22,7 +24,8 @@ export function useKeyboardShortcuts({
   activeTabId,
   setActiveTabId,
   toggleFilesColumn,
-  togglePaneFocus
+  togglePaneFocus,
+  adjustTerminalFontBump
 }: Options) {
   useEffect(() => {
     // Dispatch via a single `process(e)` function so both native window
@@ -71,6 +74,32 @@ export function useKeyboardShortcuts({
         if (togglePaneFocus) {
           e.preventDefault()
           togglePaneFocus()
+        }
+        return
+      }
+
+      // ⌘= / ⌘+ / ⌘- / ⌘0 — terminal font-size bump. These match Chromium's
+      // default zoom accelerators; preventDefault keeps them from colliding
+      // with the main-window zoom lock (which would no-op anyway). Browser
+      // WebContentsViews get their own copy of these keys and still zoom.
+      if (meta && !e.shiftKey && (key === '=' || e.key === '=' || e.key === '+')) {
+        if (adjustTerminalFontBump) {
+          e.preventDefault()
+          adjustTerminalFontBump(1)
+        }
+        return
+      }
+      if (meta && !e.shiftKey && (key === '-' || e.key === '-')) {
+        if (adjustTerminalFontBump) {
+          e.preventDefault()
+          adjustTerminalFontBump(-1)
+        }
+        return
+      }
+      if (meta && !e.shiftKey && (key === '0' || e.key === '0')) {
+        if (adjustTerminalFontBump) {
+          e.preventDefault()
+          adjustTerminalFontBump('reset')
         }
         return
       }
