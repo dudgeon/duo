@@ -87,11 +87,14 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
      — HMR only covers the renderer. Either kill and restart the dev
      server, or ask the user to Cmd+Q and restart.
    - Use computer-use (`request_access` for Electron, then `screenshot`)
-     to **actually see the window**. Exercise the changed feature, then
-     sample unrelated surfaces (breadcrumb click, file tree, terminal
-     input, tab switch) to catch regressions.
-   - Include in the end-of-task summary a one-line "saw in the live app:
-     …" note. If I can't write that line, the task isn't done.
+     to **actually see the window**. Then walk
+     [`docs/dev/smoke-checklist.md`](docs/dev/smoke-checklist.md) — it
+     covers the boot path, terminal, files pane breadcrumb nav, working
+     pane, keyboard shortcuts from *both* terminal and browser focus,
+     cozy mode, and the agent CLI bridge.
+   - Include in the end-of-task summary the "saw in the live app" block
+     from the checklist's reporting template. If I can't fill it in, the
+     task isn't done.
    - If the change set is wide enough that spot-checks won't cover it,
      propose a dedicated regression spike to the user **before** calling
      the stage complete.
