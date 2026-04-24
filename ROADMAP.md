@@ -29,6 +29,8 @@ deliver the north-star experience. Re-sequenced:
 | **11** | **Collaborative markdown editor — human↔agent** | ⬜ **flagship half #2** |
 | 12 | Unified skill + connector management surface | ⬜ (supersedes old Stage 4) |
 | 13 | Tab numbers in UI + terminal selection polish | ⬜ |
+| **15** | **Human↔agent interaction primitives** (events, notify, tab identity, pre-typed cmd, zap, file→composer) | ⬜ (issues #9, #11, #13, #15, #18, #19) |
+| 16 | Multi-window support | ⬜ **backlog** (issue #16) |
 | 14 | Polish + distribution (code signing, installer, theming) | ⬜ (was Stage 6 — held until flagship ships) |
 
 Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator +
@@ -720,10 +722,13 @@ the experience of working together inside it is the point.
 
 ### 11e — Selection and conversation primitives (VISION collaboration)
 
-- [ ] Selection-as-context: a `duo selection` CLI command that
-      returns the user's current editor selection plus the
-      surrounding heading context, so the agent can respond to "fix
-      this" without copy-paste.
+*Issue #10 — resolved shape.* `duo selection` returns three
+fields: the selected text, the surrounding paragraph, and the
+nearest heading path (e.g. `Risks > Market`). Agent gets enough
+context to respond to "fix this" without loading the whole doc.
+
+- [ ] Selection-as-context: `duo selection` CLI. Output:
+      `{ path, text, paragraph, heading_trail }`.
 - [ ] Comments pinned to paragraphs: user can ask the agent a
       question about a specific paragraph; the thread stays anchored
       to that block across edits (like Docs).
@@ -746,6 +751,7 @@ the experience of working together inside it is the point.
 - #5 → Stage 11b
 - #6 → Stage 11d
 - #7 → Stage 11c
+- #10 → Stage 11e
 
 ---
 
@@ -824,6 +830,154 @@ is up. Pulls from the unscheduled backlog the user raised earlier.
       so the sandbox failure mode is named, not inferred. See
       `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
       transport and install paths for the `duo` CLI*.
+- [x] **Window drag region fix (issue #17, shipped).** Before the
+      fix the top chrome row's drag surface was shrunk to the
+      traffic-light sliver by its children; now the entire 40px top
+      strip drags the window.
+- [ ] **PTY-side sandbox operations audit (issue #12).** The merged
+      ADR in `docs/DECISIONS.md` covers transport + install paths,
+      but the question "which operations inside a Claude-Code-
+      sandboxed PTY fail that wouldn't fail in a raw Terminal.app
+      session?" is still open. Empirically walk the most common
+      shell primitives (git clone, npm install, file I/O across
+      `$HOME`, network calls, cross-app `open`, symlinks, etc.) and
+      log which the sandbox blocks. Report as a `docs/research/`
+      note; feed back into the skill so agents can steer away from
+      known-blocked operations without trying them first.
+
+---
+
+## Stage 15 — Human↔agent interaction primitives `⬜ After Stage 11`
+
+**Goal:** the little seams between agent and user that VISION needs
+but Stage 10 / 11 don't deliver. Grouped as a single stage because
+they share a rhythm — small CLI verbs + small UI affordances — and
+can ship incrementally.
+
+Cross-references GitHub issues #11, #13, #15, #18, #19.
+
+### 15a — Agent-watchable events (`duo events`)
+
+*Issue #19.* V1 is a pull model (owner: "okay as v1, we'll want
+push later").
+
+- [ ] New CLI: `duo events [--since <cursor>] [--follow] [--source
+      browser|editor|all] [--kinds click,submit,selection,…]`.
+      Returns NDJSON of user-interaction events since the cursor;
+      `--follow` streams until killed.
+- [ ] Event shape: `{ ts, source, kind, details }`. For browser,
+      leverages CDP `Page.*` hooks (click, navigated, form-submit).
+      For editor, hooks selection-change + save events from the
+      Stage 11 model.
+- [ ] Ring buffer per source (size ~200) so a late-arriving agent
+      can still catch up.
+- [ ] Skill pattern: "agent driving an interactive lesson polls
+      `duo events --since <cursor>` between prompts."
+
+**V2 (later):** push model — Duo writes agent-bound markers into
+the PTY; Claude Code's input layer agrees on a protocol. Not ruled
+out; not needed for v1.
+
+### 15b — Notifications (`duo notify`)
+
+*Issue #15.* Scope resolved: **macOS system notifications only**
+(owner pick).
+
+- [ ] New CLI: `duo notify [--tab <n>] [--title <text>] <body>`.
+      Fires an Electron `Notification`. Title defaults to the tab
+      name if `--tab` is provided; body defaults to the last agent
+      question the tab emitted.
+- [ ] Click-through focuses Duo + the named tab.
+- [ ] Skill pattern: "agent hits a decision point it needs the user
+      for → `duo notify --tab <n> \"Reviewing your PRD — need
+      direction\"`."
+- [ ] Name fallback rules: explicit `duo tab name` → Claude session
+      name (if we can extract it) → shell's own `\\033]0;…\\007`
+      OSC 0 title → "Terminal".
+
+### 15c — Tab identity (`duo tab name` + subtitle)
+
+*Issue #18.* Scope resolved: **agent-set, user-overridable** (owner
+pick).
+
+- [ ] New CLI: `duo tab name <text> [--tab <n>]`. Writes to
+      renderer-side tab metadata.
+- [ ] Render: small subtitle under the tab's primary title (e.g.
+      main title "~/duo", subtitle "reviewing PRD §2"). Subtitle
+      truncates aggressively.
+- [ ] User override: click the subtitle to edit inline; user edit
+      wins over future agent writes until cleared.
+- [ ] `duo tab state [--tab <n>]` returns the current metadata so
+      the agent can read back what it (or the user) set.
+
+### 15d — Send command to terminal (`duo tab --cmd`)
+
+*Issue #13.* Scope resolved: **new tab + pre-typed command, user
+hits Enter** (owner pick).
+
+- [ ] Extend `duo tab` / introduce `duo send-cmd`. Two surfaces:
+    - `duo tab --cmd "<cmd>"` → creates new terminal tab, writes
+      command onto the composer WITHOUT Enter, focuses the tab.
+    - `duo send-cmd <n> "<cmd>"` → writes command into tab `n`'s
+      composer, no Enter.
+- [ ] Pre-typed, not executed. User reads, optionally edits, then
+      presses Enter. Matches "honest consent" — the agent can
+      prepare work without running anything on its own.
+- [ ] Skill pattern: "agent wants to hand the user a temp script →
+      `duo tab --cmd \"node /tmp/duo-script-xyz.js\"`."
+
+### 15e — Browser-element "zap" (`duo zap` + right-click)
+
+*Issue #11.* Scope resolved: **`{selector, text, role}` packet**
+(owner pick).
+
+- [ ] Right-click any element in Duo's browser pane → context menu
+      item "Zap to terminal composer."
+- [ ] On zap: Duo resolves the element to `{selector, text, role}`
+      and injects `duo-zap: { "selector": "...", "text": "...",
+      "role": "..." }` (pretty-printed JSON) into the active
+      terminal composer.
+- [ ] `duo zap <selector>` CLI companion for agent-driven zaps
+      (agent identifies the element, pipes the same packet into its
+      own scratch).
+- [ ] Keeps the user in the consent loop — no automatic send; they
+      see the packet and hit Enter to pass it to Claude Code.
+
+### 15f — File path → terminal composer
+
+*Issue #9.* Scope resolved: **drag + right-click, both** (owner
+pick).
+
+- [ ] Drag a file / folder row from the navigator onto the active
+      terminal column → path injected into the composer as `'path' `
+      (quoted + trailing space). Works as long as the foreground
+      shell process accepts keyboard input.
+- [ ] Right-click menu in the navigator gains "Send path to active
+      terminal." Uses the same injection path.
+- [ ] Both affordances complement Stage 10 § D11 menu items (which
+      already has "Open terminal here" for folders).
+
+---
+
+## Stage 16 — Multi-window `⬜ Backlog — after Stage 11`
+
+*Issue #16.* Scope resolved: **backlog for later** (owner pick).
+
+Independent windows, each containing the full Duo workspace (Files
++ Terminal + WorkingPane). Windows don't share state in v1 —
+simplest model. Deferred until after the flagship editor ships;
+touches session-restore, window-level menu routing, and
+cross-window focus logic.
+
+- [ ] New-window menu item (`File → New Window`, `⌘N`).
+- [ ] Per-window `BrowserWindow` with its own PtyManager,
+      BrowserManager, CdpBridge, SocketServer. Most state already
+      scopes to a window naturally.
+- [ ] Socket path scheme — one socket per window? or one shared
+      socket with window ids? Resolve at stage kickoff.
+- [ ] `duo` CLI: how does it address windows? Options at kickoff:
+      `duo --window <n>` / env var / "most recent active window" as
+      default.
 
 ---
 
