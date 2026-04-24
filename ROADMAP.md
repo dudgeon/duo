@@ -832,9 +832,38 @@ is up. Pulls from the unscheduled backlog the user raised earlier.
 > Raised but not promoted into a stage. Revisit when the flagship pair
 > (Stages 9–11) is shipping.
 
-_No items parked here at the moment — previous backlog bullets (reader
-mode, markdown editor, browser tab numbers, terminal selection) have
-been promoted into Stages 9, 11, and 13._
+### File / directory search in the navigator
+
+**Problem:** the file navigator is tree-only today. For large projects,
+"find me the PRD" means clicking down through folders. PMs expect
+Cmd-P / Spotlight-style quick open.
+
+- [ ] **`⌘P`** opens a search overlay (input + scrollable result list)
+      inside the Files column. Typeahead-matches file and folder names
+      against the user's current navigator subtree.
+- [ ] Ranking: exact filename match first, then prefix, then substring;
+      recently-opened files float to the top (hooks into the working-pane
+      tab history).
+- [ ] **Arrow keys + Enter** to pick; Enter on a file opens it (same
+      path as single-click), Enter on a folder navigates the tree there.
+- [ ] **Scope** is "anywhere under the navigator's current `cwd`" by
+      default; a toggle widens to `$HOME` or all-drive. Respect the
+      dotfile rule (except `.claude/`); respect `.gitignore` when
+      available (optional v1).
+- [ ] **Indexing**: lazy — walk the tree on first Cmd-P open per `cwd`,
+      cache in memory, invalidate via the Phase 1 file watcher when
+      `.gitignore` says so or when the user changes `cwd`. Target is
+      "cheap for a 50k-file repo"; if bigger, page through the results
+      instead of building a full index.
+- [ ] **`duo search <query>`** CLI command so the agent can use the same
+      surface programmatically (returns ranked JSON).
+- [ ] **"Open Duo at this file"** — nice-to-have for quick-open: after
+      opening the result in the Viewer/Editor, move the navigator to
+      reveal it in the tree.
+
+Ties to the Phase 1 file watcher (already in place) and the
+`files.list` IPC. Biggest design call: do we ship a full fuzzy-match
+algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 
 ---
 
