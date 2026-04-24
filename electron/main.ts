@@ -86,6 +86,21 @@ function createWindow(): void {
     if (browserManager) await browserManager.attachCdp()
   })
 
+  // Lock the main renderer at zoom factor 1 so the WebContentsView bounds
+  // we get from getBoundingClientRect (CSS pixels, zoom-affected) match
+  // the window coordinate system Electron uses for setBounds. Without this,
+  // Cmd+/- zooms the UI and the browser view drifts relative to its DOM
+  // anchor — the "black bar on the left of the working pane" bug. Also
+  // persists across relaunches so any lingering zoom from a previous run
+  // gets cleared.
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.setZoomFactor(1)
+    mainWindow?.webContents.setVisualZoomLevelLimits(1, 1)
+  })
+  mainWindow.webContents.on('zoom-changed', () => {
+    mainWindow?.webContents.setZoomFactor(1)
+  })
+
   mainWindow.on('closed', () => {
     socketServer?.stop()
     browserManager?.dispose()
