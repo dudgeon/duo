@@ -203,7 +203,13 @@ export function App() {
   // Listen for View → Cozy mode menu clicks. Flip the active tab's cozy
   // state, update the "remember last choice" default, persist, and push
   // the new value back so the menu checkmark tracks it.
+  //
+  // Guard the electron.cozy API: in dev, preload only loads once per window
+  // creation. A stale preload (from before Stage 9) has no `cozy` surface,
+  // so the effect would throw and crash the component tree. Silently
+  // no-oping here means cozy is just inert until Electron is restarted.
   useEffect(() => {
+    if (!window.electron.cozy) return
     return window.electron.cozy.onToggle(() => {
       if (!activeTab) return
       const current = cozyByTab[activeTab.id] ?? cozyDefault
@@ -215,13 +221,13 @@ export function App() {
       })
       setCozyDefault(next)
       try { localStorage.setItem(COZY_LAST_KEY, next ? '1' : '0') } catch { /* quota */ }
-      window.electron.cozy.pushState(next)
+      window.electron.cozy?.pushState(next)
     })
   }, [activeTab, cozyByTab, cozyDefault])
 
   // Keep the menu checkmark aligned with the active tab whenever it changes.
   useEffect(() => {
-    window.electron.cozy.pushState(activeCozy)
+    window.electron.cozy?.pushState(activeCozy)
   }, [activeCozy])
 
   // Drop stale cozy entries when tabs close so the persisted map can't
