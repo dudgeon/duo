@@ -10,6 +10,7 @@
 import { WebContentsView, session } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
+import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from './constants'
 import type { CdpBridge } from './cdp-bridge'
 
@@ -70,6 +71,7 @@ export class BrowserManager {
     view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
 
     this.wireEvents(view)
+    this.wireKeyForwarding(view)
 
     // Always load a URL — even about:blank. Without it, the WebContents stays
     // in an uninitialized state where getURL() returns '' and CDP attach fails,
@@ -195,6 +197,13 @@ export class BrowserManager {
     return this.activeView().webContents.getTitle() || ''
   }
 
+  // ── Focus ──────────────────────────────────────────────────────────────────
+  // Move keyboard focus to the active browser view. Used by ⌘` pane-cycling.
+
+  focusActive(): void {
+    this.activeView().webContents.focus()
+  }
+
   // ── Bounds ─────────────────────────────────────────────────────────────────
 
   setBounds(bounds: BrowserBounds): void {
@@ -241,6 +250,37 @@ export class BrowserManager {
     wc.on('page-title-updated', emit)
     wc.on('did-start-loading', emit)
     wc.on('did-stop-loading', emit)
+  }
+
+  // When the browser WebContentsView has focus, keystrokes like Cmd+T
+  // and Cmd+L never reach the renderer's window — Chromium consumes
+  // them. Intercept the Duo-owned Cmd shortcuts here, block the browser
+  // from acting on them, and forward the event back to the renderer
+  // where useKeyboardShortcuts already handles them.
+  private wireKeyForwarding(view: WebContentsView): void {
+    view.webContents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') return
+      if (!input.meta) return
+      const key = input.key.toLowerCase()
+      const isDuoShortcut =
+        key === 't' ||
+        key === 'l' ||
+        key === 'w' ||
+        key === 'b' ||
+        key === '`' ||
+        key === '[' ||
+        key === ']' ||
+        (key >= '1' && key <= '9')
+      if (!isDuoShortcut) return
+      event.preventDefault()
+      this.window.webContents.send(IPC.BROWSER_KEY_FORWARD, {
+        key: input.key,
+        shift: input.shift,
+        meta: input.meta,
+        alt: input.alt,
+        ctrl: input.control
+      })
+    })
   }
 
   getState(): BrowserState {

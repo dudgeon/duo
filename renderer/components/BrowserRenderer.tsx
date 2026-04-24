@@ -85,7 +85,9 @@ export function BrowserRenderer() {
         />
       </div>
 
-      <div ref={contentRef} className="flex-1" />
+      <div className="flex-1 relative min-w-0">
+        <div ref={contentRef} className="absolute inset-0" />
+      </div>
     </div>
   )
 }

@@ -177,6 +177,7 @@ export const IPC = {
   BROWSER_ADD_TAB: 'browser:add-tab',
   BROWSER_SWITCH_TAB: 'browser:switch-tab',
   BROWSER_CLOSE_TAB: 'browser:close-tab',
+  BROWSER_FOCUS_ACTIVE: 'browser:focus-active',
 
   // Main → renderer
   BROWSER_STATE: 'browser:state',
@@ -202,7 +203,12 @@ export const IPC = {
 
   // Stage 9 — cozy mode
   COZY_TOGGLE: 'cozy:toggle',            // main → renderer (menu clicked)
-  COZY_STATE_PUSH: 'cozy:state-push'     // renderer → main (update menu checkmark)
+  COZY_STATE_PUSH: 'cozy:state-push',    // renderer → main (update menu checkmark)
+
+  // Cmd-shortcuts pressed while the browser WebContentsView has focus.
+  // Forwarded so the renderer can process them identically to native
+  // window-focus keydowns (the WebContentsView swallows them otherwise).
+  BROWSER_KEY_FORWARD: 'browser:key-forward'
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -234,6 +240,8 @@ export interface ElectronBrowserAPI {
   addTab: (url?: string) => Promise<{ ok: boolean; id: number; url: string; title: string }>
   switchTab: (id: number) => Promise<{ ok: boolean; error?: string }>
   closeTab: (id: number) => Promise<{ ok: boolean; error?: string }>
+  /** Move keyboard focus to the active browser view. */
+  focusActive: () => void
   onStateChange: (cb: (state: BrowserState) => void) => () => void
   onTabsChange: (cb: (tabs: BrowserTab[]) => void) => () => void
 }
@@ -267,6 +275,20 @@ export interface ElectronNavAPI {
   onView: (cb: (path: string) => void) => () => void
 }
 
+export interface ElectronKeyboardAPI {
+  /** Fires when the browser WebContentsView intercepts a Duo shortcut
+   *  and forwards it back to the renderer for handling. */
+  onBrowserKey: (cb: (e: ForwardedKeyEvent) => void) => () => void
+}
+
+export interface ForwardedKeyEvent {
+  key: string
+  shift: boolean
+  meta: boolean
+  alt: boolean
+  ctrl: boolean
+}
+
 export interface ElectronCozyAPI {
   /** Subscribe to View → Cozy mode menu clicks. */
   onToggle: (cb: () => void) => () => void
@@ -281,6 +303,7 @@ export interface ElectronAPI {
   files: ElectronFilesAPI
   nav: ElectronNavAPI
   cozy: ElectronCozyAPI
+  keyboard: ElectronKeyboardAPI
 }
 
 declare global {

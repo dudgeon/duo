@@ -5,6 +5,7 @@ import type {
   ElectronAPI,
   FileChangeEvent,
   FileWatchPush,
+  ForwardedKeyEvent,
   NavStateSnapshot
 } from '../shared/types'
 
@@ -70,6 +71,9 @@ const api: ElectronAPI = {
 
     closeTab: (id) =>
       ipcRenderer.invoke(IPC.BROWSER_CLOSE_TAB, { id }),
+
+    focusActive: () =>
+      ipcRenderer.send(IPC.BROWSER_FOCUS_ACTIVE),
 
     onStateChange: (cb) => {
       const handler = (_: IpcRendererEvent, state: Parameters<typeof cb>[0]) => cb(state)
@@ -140,6 +144,14 @@ const api: ElectronAPI = {
 
     pushState: (cozy: boolean) => {
       ipcRenderer.send(IPC.COZY_STATE_PUSH, cozy)
+    }
+  },
+
+  keyboard: {
+    onBrowserKey: (cb) => {
+      const handler = (_: IpcRendererEvent, e: ForwardedKeyEvent) => cb(e)
+      ipcRenderer.on(IPC.BROWSER_KEY_FORWARD, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_KEY_FORWARD, handler)
     }
   }
 }

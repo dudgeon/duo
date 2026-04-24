@@ -75,7 +75,32 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 6. **Stage order matters.** Do not try to implement Stage 3 before Stage 2 is working. The socket server is useless without a real browser.
 
-7. **After editing `skill/` or `agents/`, sync to `~/.claude/`.** The repo
+7. **NEVER claim UI work is done without previewing it yourself.** Build
+   passing and types clean are not sufficient evidence that a UI change
+   works. Before saying "shipped" / "done" on anything that touches the
+   renderer, main process, preload, CSS, or menus:
+
+   - Confirm `npm run dev` is running. The dev-server log is tailable at
+     `/private/tmp/claude-501/…/tasks/<hash>.output` (look for the
+     process spawning `electron-vite dev`).
+   - **If `preload.ts` or `electron/main.ts` changed, relaunch Electron**
+     — HMR only covers the renderer. Either kill and restart the dev
+     server, or ask the user to Cmd+Q and restart.
+   - Use computer-use (`request_access` for Electron, then `screenshot`)
+     to **actually see the window**. Exercise the changed feature, then
+     sample unrelated surfaces (breadcrumb click, file tree, terminal
+     input, tab switch) to catch regressions.
+   - Include in the end-of-task summary a one-line "saw in the live app:
+     …" note. If I can't write that line, the task isn't done.
+   - If the change set is wide enough that spot-checks won't cover it,
+     propose a dedicated regression spike to the user **before** calling
+     the stage complete.
+
+   The user lost time on Stage 9 because I shipped code that typechecked
+   but crashed the renderer at mount time. That is exactly what a
+   two-minute preview pass would have caught.
+
+8. **After editing `skill/` or `agents/`, sync to `~/.claude/`.** The repo
    tracks the canonical source, but Claude Code running on this machine
    reads from `~/.claude/skills/duo/` and `~/.claude/agents/duo-browser.md`.
    These are plain-file **copies**, not symlinks — edits in the repo do

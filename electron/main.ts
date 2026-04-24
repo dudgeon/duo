@@ -178,6 +178,10 @@ function setupIPC(): void {
     return browserManager.closeTab(id)
   })
 
+  ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, () => {
+    browserManager?.focusActive()
+  })
+
   // ── Files (Stage 10) ──────────────────────────────────────────────────────
 
   ipcMain.handle(IPC.FILES_LIST, (_event, { path: p }: { path: string }) => {

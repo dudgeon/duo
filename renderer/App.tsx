@@ -113,14 +113,22 @@ export function App() {
     setTabs(prev => prev.map(t => t.id === id ? { ...t, title } : t))
   }, [])
 
-  // Stage 10 § D1: follow-mode — unless the navigator is pinned, moving
-  // between terminal tabs updates the navigator's cwd to that tab's launch
+  // Stage 10 § D1: follow-mode — unless the navigator is pinned, switching
+  // between terminal tabs moves the navigator's cwd to that tab's launch
   // CWD. This is the "context drawer" behavior.
+  //
+  // The trigger is a *tab switch*, not any nav-state change. Earlier
+  // versions re-ran on every render, which reverted any breadcrumb /
+  // tree click back to the active tab's launch CWD. The ref guards against
+  // that: we only follow when activeTabId differs from the last tab we
+  // followed.
+  const lastFollowedTabIdRef = useRef<string | null>(null)
   useEffect(() => {
     if (nav.state.pinned || !activeTab) return
-    if (nav.state.cwd === activeTab.cwd) return
-    nav.setCwd(activeTab.cwd)
-  }, [activeTab, nav])
+    if (lastFollowedTabIdRef.current === activeTabId) return
+    lastFollowedTabIdRef.current = activeTabId
+    if (nav.state.cwd !== activeTab.cwd) nav.setCwd(activeTab.cwd)
+  }, [activeTabId, activeTab, nav])
 
   // Stage 10 Phase 6: push navigator-state snapshots to the main process
   // so `duo nav state` can read the current value without a renderer RPC.
@@ -314,7 +322,32 @@ export function App() {
     tabs,
     activeTabId,
     setActiveTabId,
-    toggleFilesColumn: () => setFilesCollapsed(prev => !prev)
+    toggleFilesColumn: () => setFilesCollapsed(prev => !prev),
+    // ⌘` — cycle focus between the terminal column and the working pane.
+    // Files column is a toggle with ⌘B and intentionally not in this cycle.
+    // Also moves actual DOM focus: clicks move it naturally, but the
+    // keybinding has to drive it explicitly or keystrokes stay in the
+    // previously-focused element.
+    togglePaneFocus: () => {
+      setFocusedColumn(prev => {
+        const next = prev === 'working' ? 'terminal' : 'working'
+        // Run the focus move after state commits so the pane is ready.
+        queueMicrotask(() => {
+          if (next === 'terminal') {
+            const textarea = document.querySelector<HTMLTextAreaElement>(
+              '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
+            )
+            textarea?.focus()
+          } else if (activeWorking.kind === 'browser') {
+            window.electron.browser.focusActive()
+          } else {
+            // File tab — focus its scrollable region so keyboard scroll works.
+            document.querySelector<HTMLElement>('[data-duo-workingpane]')?.focus()
+          }
+        })
+        return next
+      })
+    }
   })
 
   // ── Render ─────────────────────────────────────────────────────────────────

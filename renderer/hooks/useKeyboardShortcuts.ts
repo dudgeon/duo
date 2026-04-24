@@ -10,6 +10,8 @@ interface Options {
   setActiveTabId: (id: string) => void
   // Stage 10 § D5 — ⌘B collapses/expands the Files column.
   toggleFilesColumn?: () => void
+  // ⌘` — toggle focus between terminal and working pane.
+  togglePaneFocus?: () => void
 }
 
 export function useKeyboardShortcuts({
@@ -19,11 +21,15 @@ export function useKeyboardShortcuts({
   tabs,
   activeTabId,
   setActiveTabId,
-  toggleFilesColumn
+  toggleFilesColumn,
+  togglePaneFocus
 }: Options) {
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const meta = e.metaKey // ⌘ on macOS
+    // Dispatch via a single `process(e)` function so both native window
+    // keydowns and shortcuts forwarded from the browser WebContentsView
+    // can reuse the same routing logic.
+    const process = (e: { metaKey: boolean; shiftKey: boolean; key: string; preventDefault: () => void }) => {
+      const meta = e.metaKey
       const key = e.key.toLowerCase()
 
       // ⌘T — new browser tab (Chrome parity)
@@ -56,6 +62,15 @@ export function useKeyboardShortcuts({
         if (toggleFilesColumn) {
           e.preventDefault()
           toggleFilesColumn()
+        }
+        return
+      }
+
+      // ⌘` — cycle focus between terminal and working pane
+      if (meta && !e.shiftKey && (key === '`' || e.key === '`')) {
+        if (togglePaneFocus) {
+          e.preventDefault()
+          togglePaneFocus()
         }
         return
       }
@@ -103,7 +118,24 @@ export function useKeyboardShortcuts({
       }
     }
 
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn])
+    const windowHandler = (e: KeyboardEvent) => process(e)
+    window.addEventListener('keydown', windowHandler)
+
+    // When the browser WebContentsView has focus, Chromium swallows
+    // keystrokes before the window listener can see them. BrowserManager
+    // intercepts the Duo shortcuts and forwards them here.
+    const unsubscribeBrowserKey = window.electron.keyboard?.onBrowserKey((e) => {
+      process({
+        metaKey: e.meta,
+        shiftKey: e.shift,
+        key: e.key,
+        preventDefault: () => { /* already prevented in main */ }
+      })
+    })
+
+    return () => {
+      window.removeEventListener('keydown', windowHandler)
+      unsubscribeBrowserKey?.()
+    }
+  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn, togglePaneFocus])
 }
