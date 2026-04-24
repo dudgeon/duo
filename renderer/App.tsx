@@ -247,10 +247,13 @@ export function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-surface-0">
-      <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center">
-        <div className="w-20 shrink-0" />
-        <div className="flex-1" />
-      </div>
+      {/* Top chrome row. Empty by design so the entire 40px strip is a
+          window-drag region. Don't nest child divs here \u2014
+          `-webkit-app-region: drag` does not pierce opaque children, so any
+          child shrinks the usable drag surface (issue #17). macOS traffic
+          lights are positioned over this row by `trafficLightPosition`
+          without a DOM spacer. */}
+      <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag" />
 
       <div className="flex flex-1 overflow-hidden">
         <div
