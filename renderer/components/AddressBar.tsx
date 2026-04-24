@@ -28,7 +28,7 @@ export function AddressBar({ url, onNavigate, isLoading = false }: AddressBarPro
   }
 
   return (
-    <div className="flex-1 relative">
+    <div className="flex-1 relative min-w-0">
       <input
         ref={inputRef}
         type="text"

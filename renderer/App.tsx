@@ -362,9 +362,9 @@ export function App() {
           without a DOM spacer. */}
       <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag" />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         <div
-          className="h-full shrink-0"
+          className="h-full shrink-0 min-w-0"
           onMouseDown={() => setFocusedColumn('files')}
           aria-label="Files column"
         >
@@ -383,11 +383,11 @@ export function App() {
 
         <div
           ref={splitContainerRef}
-          className="flex flex-1 overflow-hidden"
+          className="flex flex-1 overflow-hidden min-w-0"
         >
           <div
             className={[
-              'flex flex-col h-full border-r transition-colors',
+              'flex flex-col h-full border-r transition-colors min-w-0 overflow-hidden',
               focusedColumn === 'terminal' ? 'border-accent/60' : 'border-border'
             ].join(' ')}
             style={{ width: `${splitPct}%` }}
@@ -420,7 +420,7 @@ export function App() {
 
           <div
             className={[
-              'flex-1 overflow-hidden border-l transition-colors',
+              'flex-1 overflow-hidden border-l transition-colors min-w-0',
               focusedColumn === 'working' ? 'border-accent/60' : 'border-transparent'
             ].join(' ')}
             onMouseDown={() => setFocusedColumn('working')}
