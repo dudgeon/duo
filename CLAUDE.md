@@ -64,6 +64,47 @@ Flagship half #2 — sub-stage 11a of the markdown editor — shipped
   actual build order, not chronology of planning. See
   [ROADMAP.md § Number history](ROADMAP.md). Commit messages from
   before the renumber use old numbers; the map translates them.
+- **Stage 12 Phase 1 shipped** (commit `585d4ee`) — Atelier token
+  swap, light-as-default, serif voice. Atelier rendering live
+  (cream paper + ochre cursor verified in screenshot).
+- **Stage 12 Phase 2 shipped** (commit `5cbaa36`) — files-pane
+  width 240→208, explicit chevron-collapse button, layout depth
+  (terminal column on paper-deep, working pane on paper).
+- **⌘T tried pane-aware then reverted** (commits `c239375` →
+  `2b68d40`) — owner preferred Chrome-parity (⌘T = browser).
+- **⌘N configurability decision recorded** — Stage 17 H6.1 + Stage
+  11 D33a cross-ref. Future setting `duo.newFileShortcut: 'md' |
+  'html'` so PMs whose primary artifact is HTML reports don't have
+  to learn ⌘⇧N.
+
+## ⚠️ Pick up here next session (2026-04-26 EOD breadcrumb)
+
+**Three open bugs + a process item; tackle BEFORE more keyboard work.**
+Then finish Stage 12 Phase 3 (tab-strip rhyme + cozy mode visual).
+
+**Suggested order:**
+1. **PROCESS-001** first — flesh out `docs/dev/smoke-checklist.md § 5`
+   into an explicit shortcut × focus-surface × theme matrix. Cheap
+   (~30 min). Walking it would have caught BUG-002, BUG-003, BUG-004.
+2. **BUG-004** (⌘` breaks keyboard routing) — highest user impact.
+   `togglePaneFocus` updates React state but doesn't move OS-level
+   focus. Fix sketch in `tasks.md`.
+3. **BUG-002** (⌘T from browser focus doesn't focus address bar) —
+   regression introduced by Stage 12. Race between BrowserManager
+   `webContents.focus()` and the renderer's queueMicrotask
+   address-bar focus. Fix sketch in `tasks.md`.
+4. **BUG-003** (pane focus indicator too subtle) — Atelier reduced
+   contrast made `border-accent/60` disappear. Three fix candidates
+   in `tasks.md`; pick at kickoff.
+5. **Stage 12 Phase 3** — tab-strip rhyme (TabBar.tsx + WorkingPane
+   strip refactor; mock spec at line ~285 of
+   `docs/design/atelier/project/duo-components.jsx`) + cozy-mode
+   visual completion (xterm theme variant for cozy + light).
+
+After Phase 3 wraps, Stage 12 is done. Next big bet remains
+**Stage 15 (Send → Duo)** per ROADMAP build order. Owner pre-work
+(Apple Developer ID cert) can run in parallel — see ROADMAP §
+Owner pre-work.
 
 **Previous session (2026-04-25):**
 - Stage 9 cozy mode graduated — daily-driver validation passed; menu

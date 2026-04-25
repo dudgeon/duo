@@ -148,19 +148,21 @@
       <p style="margin: 8px 0 4px; color: var(--ink-mute); font-size: 12.5px;">When all five are done, hand the agent: cert name as it appears in Keychain, Team ID, API key file path + key ID + issuer ID. Stage 21 picks up from there. Existing dev cert is <strong>expired</strong> per Team C's audit (2026-04-26).</p>
     </details>
 
-    <details class="recent">
-      <summary>Recent shipments — 2026-04-26</summary>
+    <details class="recent" open>
+      <summary>Recent shipments — 2026-04-26 (Stage 12 in flight)</summary>
       <ul>
+        <li><code>e9eb14b</code> — docs: log 3 open bugs + keyboard-regression-coverage gap (BUG-002/003/004 + PROCESS-001)</li>
+        <li><code>2b68d40</code> — revert: ⌘T pane-aware → Chrome parity preferred + ⌘N file-type configurability decision (Stage 17 H6.1)</li>
+        <li><code>5cbaa36</code> — feat(stage-12): Phase 2 — files-pane 240→208 + chevron collapse + layout depth</li>
+        <li><code>585d4ee</code> — feat(stage-12): Phase 1 — Atelier token swap + light default + serif voice</li>
+        <li><code>afb0ac1</code> — docs: tighten cross-linking between ROADMAP / PRDs / CLI-COVERAGE / DECISIONS / roadmap.html</li>
+        <li><code>c57871a</code> — docs: layered renumber — stage numbers now reflect actual build order</li>
         <li><code>20b4701</code> — fix(dist): bundle <code>agents/</code> in extraResources for Stage 18 installer (Team C)</li>
         <li><code>640ec0e</code> — feat(env): Stage 19 Phase 19a env signals (was tagged "Stage 18 Phase 18a" pre-renumber)</li>
-        <li><code>fefe866</code> — docs: Stage 18 (Duo detection) + Stage 19 (HTML canvas) PRDs imported; 20 open issues triaged</li>
         <li><code>3976039</code> — fix(keyboard): BUG-001 — pane-aware <code>⌃Tab</code> cycling (3-part fix)</li>
-        <li><code>9bf533d</code> — docs: old Stage 14 split into 18 (cert-free installer) + 21 (cert-gated polish)</li>
-        <li><code>16988ed</code> — docs: Atelier visual-redesign bundle imported; Stage 12 created</li>
-        <li><code>2726774</code> — feat(cli): P0 observability verbs — <code>doc read</code>, browser <code>selection</code>, <code>errors</code>, <code>network</code></li>
-        <li>Closed issues: #10, #17, #20, #21, #26 (5 already-shipped, swept by Team A)</li>
+        <li>Closed issues: #10, #17, #20, #21, #26 (swept by Team A)</li>
       </ul>
-      <p style="font-size: 12px; color: var(--ink-mute); margin: 10px 0 0;">Older commits use pre-renumber stage labels (Stage 17 = Atelier, Stage 18 = Duo detection, Stage 19 = HTML canvas, etc.). See ROADMAP.md § Number history for the full map.</p>
+      <p style="font-size: 12px; color: var(--ink-mute); margin: 10px 0 0;"><strong>⚠️ 3 open bugs + 1 process item</strong> (BUG-002, 003, 004, PROCESS-001) — see <code>tasks.md</code>. Tackle <strong>BEFORE</strong> more keyboard work (Stage 19c, Stage 20 pane-aware shortcuts) to stop shipping the same class of regression. Older commits use pre-renumber stage labels — see ROADMAP.md § Number history.</p>
     </details>
 
     <h2 class="phase-heading" id="phase-foundation">Foundation — shipped + in progress</h2>
@@ -256,10 +258,15 @@
     <h2 class="phase-heading" id="phase-l0">Layer 0 — Visual foundation (next)</h2>
     <p class="phase-tagline">A single ship moment that supplies tokens to every L1+ stage. Building features against the old palette = re-skinning later.</p>
 
-    <article class="stage next" id="s12" data-id="s12">
-      <h3><span class="num-badge">Stage 12</span> Visual redesign — Atelier <span class="next-badge">L0 next</span></h3>
-      <div class="status-line">⬜ Design locked at <code>docs/design/atelier/</code> · was Stage 17</div>
+    <article class="stage inprog" id="s12" data-id="s12">
+      <h3><span class="num-badge">Stage 12</span> Visual redesign — Atelier <span class="glyph inprog"></span></h3>
+      <div class="status-line">🔄 Phase 1 + 2 shipped 2026-04-26 (commits <code>585d4ee</code>, <code>5cbaa36</code>) · Phase 3 next</div>
       <p class="blurb">System-wide token swap: cream paper + ochre accent + serif voice; light-as-hero. Layout depth between terminal and working pane; unified tab-strip vocabulary; files-pane width 208 + collapse-to-rail. Cozy-mode visual completion (Stage 9 follow-up) rides along.</p>
+      <ul class="subitems">
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 1</strong> — Atelier tokens (CSS variables) + light-as-default + serif voice + xterm color theme + ochre cursor</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 2</strong> — files-pane 240→208 + chevron-collapse button (44px rail) + layout depth (terminal column on paper-deep, working pane on paper)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Phase 3 (next)</strong> — tab-strip rhyme (unify TabBar.tsx + WorkingPane's strip per Atelier mock) + cozy-mode visual completion (xterm paper-canvas theme variant when cozy is on AND light)</span></li>
+      </ul>
       <p class="blurb"><strong>Per-feature visuals fold into host stages:</strong> just-added highlight → Stage 13 · track changes → Stage 14 · Send → Duo pill → Stage 15 · cozy-mode visual → Stage 9 follow-up.</p>
       <div class="comment"><label>Comment</label><textarea data-key="s12" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
@@ -410,10 +417,11 @@
       <h2>Status</h2>
       <div class="stats">
         <div class="stat"><div class="num">8</div><div class="label">Done</div></div>
-        <div class="stat"><div class="num">3</div><div class="label">In progress</div></div>
-        <div class="stat"><div class="num">10</div><div class="label">Pending</div></div>
+        <div class="stat"><div class="num">4</div><div class="label">In progress</div></div>
+        <div class="stat"><div class="num">9</div><div class="label">Pending</div></div>
         <div class="stat"><div class="num">15</div><div class="label">Open issues</div></div>
       </div>
+      <p style="font-size: 11px; color: var(--ink-mute); margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--paper-edge);"><strong style="color: var(--accent-ink);">⚠️ 3 bugs + 1 process item</strong> open in <code style="font-size: 10px;">tasks.md</code>. Address before more keyboard work.</p>
     </div>
 
     <div class="side-panel">
