@@ -220,6 +220,53 @@ async function main(): Promise<void> {
         out(await send('view', { path: resolved }))
         break
       }
+      case 'edit': {
+        const target = rest[0] ?? die('Usage: duo edit <path>')
+        const resolved = resolveFilePath(target)
+        out(await send('edit', { path: resolved }))
+        break
+      }
+      case 'selection': {
+        const sel = await send('selection') as unknown
+        if (sel === null || sel === undefined) {
+          out('null')
+        } else {
+          out(sel)
+        }
+        break
+      }
+      case 'theme': {
+        // `duo theme`          \u2192 print current state (JSON)
+        // `duo theme <mode>`   \u2192 override (system|light|dark) and print new state
+        const mode = rest[0]
+        if (mode === undefined) {
+          out(await send('theme'))
+        } else {
+          if (mode !== 'system' && mode !== 'light' && mode !== 'dark') {
+            die('Usage: duo theme [system|light|dark]')
+          }
+          out(await send('theme', { mode }))
+        }
+        break
+      }
+      case 'doc': {
+        // `duo doc <subcmd>` for editor doc operations. v1: `write`.
+        const sub = rest[0]
+        if (sub !== 'write') die('Usage: duo doc write [--replace-selection|--replace-all] [--text "..." | < stdin]')
+        const subRest = rest.slice(1)
+        const replaceAll = subRest.includes('--replace-all')
+        const replaceSelection = subRest.includes('--replace-selection') || !replaceAll
+        const textIdx = subRest.indexOf('--text')
+        let text: string
+        if (textIdx !== -1) {
+          text = subRest.slice(textIdx + 1).join(' ')
+        } else {
+          text = await readStdin()
+        }
+        const mode = replaceAll ? 'replace-all' : 'replace-selection'
+        out(await send('doc-write', { text, mode }))
+        break
+      }
       case 'reveal': {
         const target = rest[0] ?? die('Usage: duo reveal <path>')
         const resolved = resolveFilePath(target)
@@ -258,6 +305,22 @@ async function main(): Promise<void> {
   } catch (err) {
     die(err instanceof Error ? err.message : String(err))
   }
+}
+
+// Read all stdin into a string. Used by `duo doc write` so agents can pipe
+// content via shell heredocs / process substitution.
+function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (process.stdin.isTTY) {
+      // No pipe — return empty rather than blocking forever on a terminal.
+      resolve('')
+      return
+    }
+    const chunks: Buffer[] = []
+    process.stdin.on('data', (c) => chunks.push(Buffer.from(c)))
+    process.stdin.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    process.stdin.on('error', reject)
+  })
 }
 
 // Resolves a filesystem path arg to an absolute path (no `file://` prefix),
@@ -358,6 +421,24 @@ COMMANDS
                                   type inferred from extension). Distinct
                                   from \`open\` (which opens a URL/HTML in
                                   a browser tab).
+  edit <path>                     Open a markdown file in the rich editor
+                                  (Stage 11). For .md files this gives the
+                                  Google-Docs-style editing surface; for
+                                  other types behaves like \`view\`.
+  selection                       Print the active editor's selection as
+                                  JSON: { path, text, paragraph,
+                                  heading_trail }. \`null\` if no editor
+                                  tab is active.
+  doc write [--replace-selection|--replace-all] [--text "..."]
+                                  Apply text to the active editor. Without
+                                  --text, reads from stdin. Default mode:
+                                  --replace-selection (replaces the user's
+                                  current selection, or inserts at caret
+                                  if collapsed). --replace-all swaps the
+                                  whole document body.
+  theme [system|light|dark]       Print the current theme (mode +
+                                  effective), or set it if a mode is
+                                  provided. Persists across relaunches.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.

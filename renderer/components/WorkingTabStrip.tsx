@@ -66,6 +66,13 @@ function WorkingTabItem({ tab, onSelect, onClose, canClose }: ItemProps) {
     >
       <TypeIcon type={tab.type} />
       <span className="truncate leading-none">{label}</span>
+      {tab.dirty && (
+        <span
+          aria-label="Unsaved changes"
+          title="Unsaved changes"
+          className="w-1.5 h-1.5 rounded-full bg-accent shrink-0"
+        />
+      )}
       {canClose && (
         <span
           onClick={onClose}
@@ -102,6 +109,14 @@ function TypeIcon({ type }: { type: WorkingTabType }) {
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
           <circle cx="5" cy="5" r="3.7" stroke="currentColor" strokeWidth="1" />
           <path d="M1.3 5h7.4M5 1.3C6.2 2.6 6.8 4.2 6.8 5S6.2 7.4 5 8.7C3.8 7.4 3.2 5.8 3.2 5S3.8 2.6 5 1.3Z" stroke="currentColor" strokeWidth="0.8" />
+        </svg>
+      )
+    case 'editor':
+      return (
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
+          <path d="M1.5 1.5h5l2 2v5h-7v-7Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+          <path d="M6.5 1.5v2h2" stroke="currentColor" strokeWidth="1" />
+          <path d="M3 5h3M3 6.5h3M3 8h2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
         </svg>
       )
     case 'markdown-preview':

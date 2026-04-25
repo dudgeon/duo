@@ -4,6 +4,7 @@ import type { TabSession } from '@shared/types'
 interface Options {
   newTerminalTab: () => void
   newBrowserTab: () => void
+  newMarkdownFile?: () => void
   closeTab: () => void
   tabs: TabSession[]
   activeTabId: string
@@ -19,6 +20,7 @@ interface Options {
 export function useKeyboardShortcuts({
   newTerminalTab,
   newBrowserTab,
+  newMarkdownFile,
   closeTab,
   tabs,
   activeTabId,
@@ -42,6 +44,15 @@ export function useKeyboardShortcuts({
         return
       }
 
+      // ⌘N — new markdown file (Stage 11 § D33a)
+      if (meta && !e.shiftKey && key === 'n') {
+        if (newMarkdownFile) {
+          e.preventDefault()
+          newMarkdownFile()
+        }
+        return
+      }
+
       // ⌘⇧T — new terminal tab
       if (meta && e.shiftKey && key === 't') {
         e.preventDefault()
@@ -60,9 +71,17 @@ export function useKeyboardShortcuts({
         return
       }
 
-      // ⌘B — toggle the Files column (Stage 10 § D5)
+      // ⌘B — toggle the Files column (Stage 10 § D5). Skip if focus is in
+      // a contenteditable (the markdown editor), where ⌘B means "bold" and
+      // the user does not expect the files column to move. The collapsed
+      // rail is click-to-expand as a universal escape hatch.
       if (meta && !e.shiftKey && key === 'b') {
-        if (toggleFilesColumn) {
+        const active = document.activeElement as HTMLElement | null
+        const inEditable = !!active && (
+          active.isContentEditable ||
+          active.closest('[contenteditable="true"]') !== null
+        )
+        if (toggleFilesColumn && !inEditable) {
           e.preventDefault()
           toggleFilesColumn()
         }

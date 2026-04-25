@@ -10,7 +10,10 @@ export function classifyFile(path: string): {
   const ext = path.includes('.') ? path.slice(path.lastIndexOf('.') + 1).toLowerCase() : ''
   switch (ext) {
     case 'md': case 'markdown':
-      return { type: 'markdown-preview', mime: 'text/markdown' }
+      // Stage 11: markdown gets the rich editor by default. The read-only
+      // preview renderer (`markdown-preview`) is retained as a fallback but
+      // no longer the default entry point.
+      return { type: 'editor', mime: 'text/markdown' }
     case 'png':
       return { type: 'image', mime: 'image/png' }
     case 'jpg': case 'jpeg':

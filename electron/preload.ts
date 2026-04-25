@@ -6,7 +6,12 @@ import type {
   FileChangeEvent,
   FileWatchPush,
   ForwardedKeyEvent,
-  NavStateSnapshot
+  NavStateSnapshot,
+  EditorSelectionSnapshot,
+  DocWriteRequest,
+  DocWriteResult,
+  ThemeMode,
+  ThemeStateSnapshot
 } from '../shared/types'
 
 const api: ElectronAPI = {
@@ -93,6 +98,8 @@ const api: ElectronAPI = {
 
     read: (p) => ipcRenderer.invoke(IPC.FILES_READ, { path: p }),
 
+    write: (p, bytes) => ipcRenderer.invoke(IPC.FILES_WRITE, { path: p, bytes }),
+
     openExternal: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_EXTERNAL, { path: p }),
 
     revealInFinder: (p) => ipcRenderer.invoke(IPC.FILES_REVEAL_IN_FINDER, { path: p }),
@@ -132,6 +139,28 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, path: string) => cb(path)
       ipcRenderer.on(IPC.NAV_VIEW, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_VIEW, handler)
+    },
+
+    onEdit: (cb) => {
+      const handler = (_: IpcRendererEvent, path: string) => cb(path)
+      ipcRenderer.on(IPC.NAV_EDIT, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_EDIT, handler)
+    }
+  },
+
+  editor: {
+    pushSelection: (snapshot: EditorSelectionSnapshot | null) => {
+      ipcRenderer.send(IPC.EDITOR_SELECTION_PUSH, snapshot)
+    },
+
+    onDocWrite: (cb) => {
+      const handler = (_: IpcRendererEvent, req: DocWriteRequest) => cb(req)
+      ipcRenderer.on(IPC.EDITOR_DOC_WRITE, handler)
+      return () => ipcRenderer.removeListener(IPC.EDITOR_DOC_WRITE, handler)
+    },
+
+    replyDocWrite: (result: DocWriteResult) => {
+      ipcRenderer.send(IPC.EDITOR_DOC_WRITE_RESULT, result)
     }
   },
 
@@ -144,6 +173,18 @@ const api: ElectronAPI = {
 
     pushState: (cozy: boolean) => {
       ipcRenderer.send(IPC.COZY_STATE_PUSH, cozy)
+    }
+  },
+
+  theme: {
+    pushState: (snapshot: ThemeStateSnapshot) => {
+      ipcRenderer.send(IPC.THEME_STATE_PUSH, snapshot)
+    },
+
+    onSet: (cb) => {
+      const handler = (_: IpcRendererEvent, mode: ThemeMode) => cb(mode)
+      ipcRenderer.on(IPC.THEME_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.THEME_SET, handler)
     }
   },
 

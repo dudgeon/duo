@@ -279,6 +279,7 @@ export class BrowserManager {
       if (!input.meta) return
       const isDuoShortcut =
         key === 't' ||
+        key === 'n' ||
         key === 'l' ||
         key === 'w' ||
         key === 'b' ||

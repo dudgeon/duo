@@ -11,7 +11,12 @@ import type {
   BrowserBounds,
   BrowserState,
   BrowserTab,
-  NavStateSnapshot
+  NavStateSnapshot,
+  EditorSelectionSnapshot,
+  DocWriteRequest,
+  DocWriteResult,
+  ThemeMode,
+  ThemeStateSnapshot
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -23,6 +28,17 @@ let navState: NavStateSnapshot = {
   expanded: [],
   pinned: false
 }
+
+// Stage 11 \u00a7 D29a — most recent selection snapshot from the active editor.
+// `null` means no editor tab is active or no doc is loaded.
+let editorSelection: EditorSelectionSnapshot | null = null
+
+// Pending doc-write requests awaiting a renderer reply.
+const docWritePending = new Map<string, (res: DocWriteResult) => void>()
+
+// Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
+// Drives `duo theme` reads. Renderer is the source of truth.
+let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
 
 nativeTheme.themeSource = 'dark'
 
@@ -71,7 +87,12 @@ function createWindow(): void {
   socketServer = new SocketServer(cdpBridge, browserManager, filesService, {
     getState: getNavState,
     reveal: sendReveal,
-    view: sendView
+    view: sendView,
+    edit: sendEdit,
+    getSelection: getEditorSelection,
+    docWrite: dispatchDocWrite,
+    getTheme: getThemeState,
+    setTheme: setThemeMode
   })
   socketServer.start()
 
@@ -207,6 +228,10 @@ function setupIPC(): void {
     return filesService.read(p)
   })
 
+  ipcMain.handle(IPC.FILES_WRITE, (_event, { path: p, bytes }: { path: string; bytes: Uint8Array }) => {
+    return filesService.write(p, bytes)
+  })
+
   ipcMain.handle(IPC.FILES_OPEN_EXTERNAL, (_event, { path: p }: { path: string }) => {
     return filesService.openExternal(p)
   })
@@ -233,6 +258,25 @@ function setupIPC(): void {
 
   ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
     navState = snapshot
+  })
+
+  // Stage 11 — selection snapshot push from the active editor.
+  ipcMain.on(IPC.EDITOR_SELECTION_PUSH, (_event, snapshot: EditorSelectionSnapshot | null) => {
+    editorSelection = snapshot
+  })
+
+  // Stage 11 — renderer's reply to a doc-write request.
+  ipcMain.on(IPC.EDITOR_DOC_WRITE_RESULT, (_event, result: DocWriteResult) => {
+    const resolver = docWritePending.get(result.reqId)
+    if (resolver) {
+      docWritePending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // Stage 11 \u00a7 D33d \u2014 theme state push from the renderer.
+  ipcMain.on(IPC.THEME_STATE_PUSH, (_event, snapshot: ThemeStateSnapshot) => {
+    themeState = snapshot
   })
 
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
@@ -291,7 +335,7 @@ function installAppMenu(): void {
       submenu: [
         {
           id: cozyMenuItemId,
-          label: 'Cozy mode (preview) — current tab',
+          label: 'Cozy mode — current tab',
           type: 'checkbox',
           checked: cozyActiveTab,
           click: () => {
@@ -353,4 +397,54 @@ export function sendView(path: string): { ok: boolean; error?: string } {
   }
   mainWindow.webContents.send(IPC.NAV_VIEW, path)
   return { ok: true }
+}
+
+export function sendEdit(path: string): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.NAV_EDIT, path)
+  return { ok: true }
+}
+
+export function getEditorSelection(): EditorSelectionSnapshot | null {
+  return editorSelection
+}
+
+/**
+ * Stage 11 \u2014 dispatch a doc-write request to the renderer's active editor
+ * and wait for the reply. Times out at 5s to avoid CLI hangs if the
+ * renderer is busy.
+ */
+export function getThemeState(): ThemeStateSnapshot {
+  return themeState
+}
+
+export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
+  if (mode !== 'system' && mode !== 'light' && mode !== 'dark') {
+    return { ok: false, error: `Invalid theme mode: ${mode}. Expected system|light|dark.` }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.THEME_SET, mode)
+  return { ok: true }
+}
+
+export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<DocWriteResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `dw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<DocWriteResult>((resolve) => {
+    const timer = setTimeout(() => {
+      docWritePending.delete(reqId)
+      resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
+    }, 5000)
+    docWritePending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.EDITOR_DOC_WRITE, { ...req, reqId })
+  })
 }

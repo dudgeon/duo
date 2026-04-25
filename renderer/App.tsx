@@ -5,8 +5,10 @@ import { WorkingPane } from './components/WorkingPane'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane } from './components/FilesPane'
+import { ThemeToggle } from './components/ThemeToggle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
+import { useTheme } from './hooks/useTheme'
 import type { TabSession, DirEntry } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
@@ -72,6 +74,7 @@ export function App() {
   const home = window.electron.env.HOME || '~'
   const nav = useNavigator(home)
   const pendingCwd = computePendingCwd(nav.state)
+  const theme = useTheme()
 
   const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home)])
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id)
@@ -205,6 +208,55 @@ export function App() {
     })
   }, [activeWorking])
 
+  // Stage 11 — editor tabs push their dirty state up so the strip can show
+  // the unsaved dot. No-op if the tab is already at the requested state.
+  const onTabDirtyChange = useCallback((id: string, dirty: boolean) => {
+    setFileTabs(prev => {
+      const tab = prev.find(t => t.id === id)
+      if (!tab || (tab.dirty ?? false) === dirty) return prev
+      return prev.map(t => t.id === id ? { ...t, dirty } : t)
+    })
+  }, [])
+
+  // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
+  // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge
+  // collisions with already-open tabs. (Disk collisions are surfaced when
+  // the user commits a name that already exists.)
+  const newMarkdownFile = useCallback(() => {
+    const dir = nav.state.cwd
+    const taken = new Set(fileTabs.map(t => t.path))
+    let candidate = `${dir}/untitled.md`
+    let n = 2
+    while (taken.has(candidate)) {
+      candidate = `${dir}/untitled-${n}.md`
+      n++
+    }
+    const id = crypto.randomUUID()
+    const title = candidate.slice(candidate.lastIndexOf('/') + 1)
+    setFileTabs(prev => [
+      ...prev,
+      { id, type: 'editor', path: candidate, title, mime: 'text/markdown', isNew: true }
+    ])
+    setActiveWorking({ kind: 'file', id })
+    setFocusedColumn('working')
+  }, [nav.state.cwd, fileTabs])
+
+  // Finalize a new-file tab: write an empty file at the resolved path,
+  // then update tab metadata so subsequent autosaves write through.
+  const onCommitNewFile = useCallback(async (id: string, resolvedPath: string, title: string) => {
+    try {
+      await window.electron.files.write(resolvedPath, new Uint8Array())
+    } catch (err) {
+      console.error('[Duo] failed to create new file:', err)
+      return
+    }
+    setFileTabs(prev => prev.map(t =>
+      t.id === id
+        ? { ...t, path: resolvedPath, title, isNew: false }
+        : t
+    ))
+  }, [])
+
   // Called by MarkdownPreview when the user clicks an internal .md link.
   const onOpenMarkdown = useCallback((path: string) => {
     const name = path.slice(path.lastIndexOf('/') + 1) || path
@@ -230,6 +282,16 @@ export function App() {
   // Stage 10 Phase 6: `duo view <path>` from the CLI. Open as a file tab.
   useEffect(() => {
     return window.electron.nav.onView((p) => {
+      const name = p.slice(p.lastIndexOf('/') + 1) || p
+      openFile(p, name)
+    })
+  }, [openFile])
+
+  // Stage 11: `duo edit <path>` from the CLI. Same dispatch as view — the
+  // classifier routes `.md` to the editor tab type; other types open in
+  // their usual preview.
+  useEffect(() => {
+    return window.electron.nav.onEdit((p) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
       openFile(p, name)
     })
@@ -386,7 +448,26 @@ export function App() {
 
   useKeyboardShortcuts({
     newTerminalTab: newTab,
-    newBrowserTab: () => { window.electron.browser.addTab() },
+    newBrowserTab: () => {
+      // Stage 11 \u00a7 D33e \u2014 \u2318T must foreground a new browser tab even when
+      // the active WorkingPane tab is an editor (or any non-browser type).
+      // Three steps in order:
+      //   1) flip the WorkingPane's active slot to `browser` so the editor
+      //      tab releases the renderer surface
+      //   2) add the tab (BrowserManager activates it on creation)
+      //   3) focus the address bar after a microtask so the user can type
+      //      a URL immediately
+      setActiveWorking({ kind: 'browser' })
+      setFocusedColumn('working')
+      void window.electron.browser.addTab().then(() => {
+        queueMicrotask(() => {
+          const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+          addr?.focus()
+          addr?.select()
+        })
+      })
+    },
+    newMarkdownFile,
     closeTab: () => {
       if (focusedColumn === 'working') {
         // § D29 — close whichever working-pane tab is currently active.
@@ -429,13 +510,13 @@ export function App() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-surface-0">
-      {/* Top chrome row. Empty by design so the entire 40px strip is a
-          window-drag region. Don't nest child divs here \u2014
-          `-webkit-app-region: drag` does not pierce opaque children, so any
-          child shrinks the usable drag surface (issue #17). macOS traffic
-          lights are positioned over this row by `trafficLightPosition`
-          without a DOM spacer. */}
-      <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag" />
+      {/* Top chrome row. Window drag surface; small no-drag controls on the
+          right (theme toggle) escape the drag via .titlebar-nodrag. macOS
+          traffic lights are positioned over this row by
+          `trafficLightPosition` without a DOM spacer. */}
+      <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center justify-end pr-2 gap-1">
+        <ThemeToggle mode={theme.mode} onCycle={theme.cycleMode} />
+      </div>
 
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div
@@ -453,6 +534,7 @@ export function App() {
             onOpenTerminalHere={openTerminalHere}
             revealChip={revealChip}
             onDismissRevealChip={() => setRevealChip(null)}
+            onToggleCollapsed={() => setFilesCollapsed(prev => !prev)}
           />
         </div>
 
@@ -486,6 +568,7 @@ export function App() {
                 cozyDefault={cozyDefault}
                 fontBumpByTab={fontBumpByTab}
                 fontBumpDefault={fontBumpDefault}
+                themeEffective={theme.effective}
               />
             </div>
           </div>
@@ -509,6 +592,8 @@ export function App() {
               setActiveWorking={setActiveWorking}
               closeFileTab={closeFileTab}
               onOpenMarkdown={onOpenMarkdown}
+              onTabDirtyChange={onTabDirtyChange}
+              onCommitNewFile={onCommitNewFile}
             />
           </div>
         </div>

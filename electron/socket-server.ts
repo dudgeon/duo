@@ -19,7 +19,12 @@ import type {
   DuoRequest,
   DuoResponse,
   ConsoleLevel,
-  NavStateSnapshot
+  NavStateSnapshot,
+  EditorSelectionSnapshot,
+  DocWriteRequest,
+  DocWriteResult,
+  ThemeMode,
+  ThemeStateSnapshot
 } from '../shared/types'
 import { SOCKET_PATH } from './constants'
 
@@ -30,6 +35,16 @@ export interface NavBridge {
   reveal: (path: string) => { ok: boolean; error?: string }
   /** Ask the renderer to open `path` as a file tab in the WorkingPane. */
   view: (path: string) => { ok: boolean; error?: string }
+  /** Stage 11 — open `path` in the rich markdown editor tab. */
+  edit: (path: string) => { ok: boolean; error?: string }
+  /** Stage 11 § D29a — return the active editor's selection snapshot. */
+  getSelection: () => EditorSelectionSnapshot | null
+  /** Stage 11 § D27 — apply a doc-write to the active editor. */
+  docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
+  /** Stage 11 § D33d — current theme state (renderer \u2192 main cache). */
+  getTheme: () => ThemeStateSnapshot
+  /** Stage 11 § D33d — CLI-driven theme override. */
+  setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
 }
 
 export class SocketServer {
@@ -205,6 +220,47 @@ export class SocketServer {
           const p = args['path'] as string
           if (!p) throw new Error('view requires a path arg')
           result = this.nav.view(p)
+          break
+        }
+        case 'edit': {
+          const p = args['path'] as string
+          if (!p) throw new Error('edit requires a path arg')
+          result = this.nav.edit(p)
+          break
+        }
+        case 'selection': {
+          // Returns null if no editor tab is active. Empty selection \u2192
+          // text === '' but paragraph + heading_trail still surface caret context.
+          result = this.nav.getSelection()
+          break
+        }
+        case 'doc-write': {
+          const text = args['text'] as string
+          const mode = (args['mode'] as string | undefined) ?? 'replace-selection'
+          if (typeof text !== 'string') throw new Error('doc-write requires a text arg')
+          if (mode !== 'replace-selection' && mode !== 'replace-all') {
+            throw new Error('doc-write mode must be replace-selection or replace-all')
+          }
+          const path = args['path'] as string | undefined
+          result = await this.nav.docWrite({ text, mode, path })
+          break
+        }
+        case 'theme': {
+          const mode = args['mode'] as string | undefined
+          if (mode === undefined) {
+            // Read-only: return cached state.
+            result = this.nav.getTheme()
+          } else {
+            if (mode !== 'system' && mode !== 'light' && mode !== 'dark') {
+              throw new Error('theme mode must be system|light|dark')
+            }
+            const setResult = this.nav.setTheme(mode as ThemeMode)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'theme set failed')
+            // Return the new state the renderer will land on. The cache
+            // updates asynchronously via THEME_STATE_PUSH but mode is the
+            // reliable signal to report back.
+            result = { ...this.nav.getTheme(), mode }
+          }
           break
         }
         case 'reveal': {

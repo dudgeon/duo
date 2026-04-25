@@ -7,6 +7,7 @@
 
 import { BrowserRenderer } from './BrowserRenderer'
 import { MarkdownPreview } from './MarkdownPreview'
+import { MarkdownEditor } from './editor/MarkdownEditor'
 import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
@@ -18,6 +19,12 @@ export interface FileTab {
   path: string
   title: string
   mime: string
+  /** Stage 11 — unsaved-edits flag for `editor` tabs. */
+  dirty?: boolean
+  /** Stage 11 § D33a — newly-created file that hasn't been named/written
+   *  to disk yet. The editor renders a "Name this document" interstitial
+   *  before the prose canvas while this is true. */
+  isNew?: boolean
 }
 
 export type ActiveWorking =
@@ -30,6 +37,12 @@ interface WorkingPaneProps {
   setActiveWorking: (a: ActiveWorking) => void
   closeFileTab: (id: string) => void
   onOpenMarkdown: (path: string) => void
+  /** Stage 11 — let the editor push its dirty state up so the tab chip can
+   *  show the unsaved dot. */
+  onTabDirtyChange: (id: string, dirty: boolean) => void
+  /** Stage 11 § D33a — finalize a new-file tab: write empty file at
+   *  resolved path, drop `isNew`, update title. */
+  onCommitNewFile: (id: string, path: string, title: string) => Promise<void>
 }
 
 export function WorkingPane({
@@ -37,7 +50,9 @@ export function WorkingPane({
   activeWorking,
   setActiveWorking,
   closeFileTab,
-  onOpenMarkdown
+  onOpenMarkdown,
+  onTabDirtyChange,
+  onCommitNewFile
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -50,9 +65,10 @@ export function WorkingPane({
     ...fileTabs.map(ft => ({
       id: stringifyFileId(ft.id),
       type: ft.type,
-      title: ft.title,
+      title: ft.isNew ? `${ft.title} \u00b7 unsaved` : ft.title,
       path: ft.path,
       mime: ft.mime,
+      dirty: ft.dirty || ft.isNew,
       isActive: activeWorking.kind === 'file' && activeWorking.id === ft.id
     })),
     ...browserTabs.map(bt => ({
@@ -102,6 +118,17 @@ export function WorkingPane({
     if (!tab) {
       // Stale active id — fall back to browser.
       activeRenderer = <BrowserRenderer />
+    } else if (tab.type === 'editor') {
+      activeRenderer = (
+        <MarkdownEditor
+          key={tab.id}
+          path={tab.path}
+          isNew={tab.isNew}
+          onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
+          onCommitNewFile={(p, t) => onCommitNewFile(tab.id, p, t)}
+          onCancelNew={() => closeFileTab(tab.id)}
+        />
+      )
     } else if (tab.type === 'markdown-preview') {
       activeRenderer = (
         <MarkdownPreview

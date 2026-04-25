@@ -1,3 +1,5 @@
+import typography from '@tailwindcss/typography'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -6,6 +8,16 @@ export default {
   theme: {
     extend: {
       fontFamily: {
+        // Stage 11 editor: body defaults to a serif-ish system stack for
+        // the Google-Docs feel. Monospace stays on the terminal.
+        sans: [
+          '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif',
+          'Inter', 'Segoe UI', 'Helvetica Neue', 'sans-serif'
+        ],
+        serif: [
+          'ui-serif', 'Charter', 'iowan-old-style', 'Iowan Old Style',
+          'Georgia', 'Times New Roman', 'serif'
+        ],
         mono: ['JetBrains Mono', 'Cascadia Code', 'Fira Code', 'ui-monospace', 'monospace']
       },
       colors: {
@@ -28,5 +40,5 @@ export default {
       }
     }
   },
-  plugins: []
+  plugins: [typography]
 }

@@ -15,7 +15,7 @@ import * as path from 'path'
 import { shell } from 'electron'
 import type { WebContents } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
-import type { DirEntry, FileReadResult, FileChangeEvent } from '../shared/types'
+import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent } from '../shared/types'
 
 // Prevent accidentally shipping 50MB of log file over IPC. Renderer should
 // use `openExternal` for payloads this big.
@@ -109,6 +109,25 @@ export class FilesService {
       size: st.size,
       mtimeMs: st.mtimeMs
     }
+  }
+
+  /**
+   * Atomic write: write to `<path>.duo.tmp` then rename. Creates parent
+   * dirs as needed. Callers already have the absolute path from either the
+   * open-file identity or the `duo edit` CLI resolution.
+   */
+  async write(absPath: string, bytes: Uint8Array): Promise<FileWriteResult> {
+    if (bytes.byteLength > MAX_READ_BYTES) {
+      throw new Error(
+        `File too large to write in-app (${bytes.byteLength} bytes; limit ${MAX_READ_BYTES}).`
+      )
+    }
+    await fs.mkdir(path.dirname(absPath), { recursive: true })
+    const tmp = absPath + '.duo.tmp'
+    await fs.writeFile(tmp, bytes)
+    await fs.rename(tmp, absPath)
+    const st = await fs.stat(absPath)
+    return { ok: true, size: st.size, mtimeMs: st.mtimeMs }
   }
 
   async openExternal(absPath: string): Promise<void> {

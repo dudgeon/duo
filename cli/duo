@@ -210,6 +210,50 @@ async function main() {
         out(await send("view", { path: resolved }));
         break;
       }
+      case "edit": {
+        const target = rest[0] ?? die("Usage: duo edit <path>");
+        const resolved = resolveFilePath(target);
+        out(await send("edit", { path: resolved }));
+        break;
+      }
+      case "selection": {
+        const sel = await send("selection");
+        if (sel === null || sel === void 0) {
+          out("null");
+        } else {
+          out(sel);
+        }
+        break;
+      }
+      case "theme": {
+        const mode = rest[0];
+        if (mode === void 0) {
+          out(await send("theme"));
+        } else {
+          if (mode !== "system" && mode !== "light" && mode !== "dark") {
+            die("Usage: duo theme [system|light|dark]");
+          }
+          out(await send("theme", { mode }));
+        }
+        break;
+      }
+      case "doc": {
+        const sub = rest[0];
+        if (sub !== "write") die('Usage: duo doc write [--replace-selection|--replace-all] [--text "..." | < stdin]');
+        const subRest = rest.slice(1);
+        const replaceAll = subRest.includes("--replace-all");
+        const replaceSelection = subRest.includes("--replace-selection") || !replaceAll;
+        const textIdx = subRest.indexOf("--text");
+        let text;
+        if (textIdx !== -1) {
+          text = subRest.slice(textIdx + 1).join(" ");
+        } else {
+          text = await readStdin();
+        }
+        const mode = replaceAll ? "replace-all" : "replace-selection";
+        out(await send("doc-write", { text, mode }));
+        break;
+      }
       case "reveal": {
         const target = rest[0] ?? die("Usage: duo reveal <path>");
         const resolved = resolveFilePath(target);
@@ -247,6 +291,18 @@ Run duo --help for usage`);
   } catch (err) {
     die(err instanceof Error ? err.message : String(err));
   }
+}
+function readStdin() {
+  return new Promise((resolve2, reject) => {
+    if (process.stdin.isTTY) {
+      resolve2("");
+      return;
+    }
+    const chunks = [];
+    process.stdin.on("data", (c) => chunks.push(Buffer.from(c)));
+    process.stdin.on("end", () => resolve2(Buffer.concat(chunks).toString("utf8")));
+    process.stdin.on("error", reject);
+  });
 }
 function resolveFilePath(input) {
   if (input.startsWith("~/") || input === "~") {
@@ -324,6 +380,24 @@ COMMANDS
                                   type inferred from extension). Distinct
                                   from \`open\` (which opens a URL/HTML in
                                   a browser tab).
+  edit <path>                     Open a markdown file in the rich editor
+                                  (Stage 11). For .md files this gives the
+                                  Google-Docs-style editing surface; for
+                                  other types behaves like \`view\`.
+  selection                       Print the active editor's selection as
+                                  JSON: { path, text, paragraph,
+                                  heading_trail }. \`null\` if no editor
+                                  tab is active.
+  doc write [--replace-selection|--replace-all] [--text "..."]
+                                  Apply text to the active editor. Without
+                                  --text, reads from stdin. Default mode:
+                                  --replace-selection (replaces the user's
+                                  current selection, or inserts at caret
+                                  if collapsed). --replace-all swaps the
+                                  whole document body.
+  theme [system|light|dark]       Print the current theme (mode +
+                                  effective), or set it if a mode is
+                                  provided. Persists across relaunches.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.

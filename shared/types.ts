@@ -46,6 +46,12 @@ export type DuoCommandName =
   | 'reveal'
   | 'ls'
   | 'nav-state'
+  // Stage 11 Phase A — markdown editor
+  | 'edit'
+  | 'selection'
+  | 'doc-write'
+  // Stage 11 § D33d — theme
+  | 'theme'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -77,7 +83,8 @@ export interface BrowserTab {
 
 export type WorkingTabType =
   | 'browser'
-  | 'markdown-preview'   // Stage 10 v1 read-only .md (Stage 11 replaces with editor)
+  | 'editor'             // Stage 11 — rich-text markdown editor
+  | 'markdown-preview'   // Stage 10 v1 read-only .md (kept as a fallback)
   | 'image'
   | 'pdf'
   | 'unknown'
@@ -95,6 +102,7 @@ export interface WorkingTab {
   url?: string           // 'browser'
   path?: string          // non-browser file tabs
   mime?: string          // non-browser file tabs
+  dirty?: boolean        // 'editor' — unsaved changes in buffer
 }
 
 export interface BrowserState {
@@ -156,6 +164,50 @@ export interface NavStateSnapshot {
   pinned: boolean
 }
 
+// Stage 11 § D29a — Renderer pushes the active editor's selection state so
+// `duo selection` can return it without a renderer round-trip. `null` when
+// no editor tab is active.
+export interface EditorSelectionSnapshot {
+  path: string
+  /** Selected text (collapsed selection \u2192 ''). */
+  text: string
+  /** The full text of the paragraph (or block) the caret/selection sits
+   *  inside. Helps the agent understand the local context. */
+  paragraph: string
+  /** Ancestor heading chain, outermost first. e.g. ['Risks', 'Market']. */
+  heading_trail: string[]
+  /** ProseMirror doc positions for the selection range. Used by
+   *  `doc-write --replace-selection`. */
+  start: number
+  end: number
+}
+
+// Stage 11 § D27 / D29 — main \u2192 renderer requests for editor mutation.
+export type DocWriteMode = 'replace-selection' | 'replace-all'
+
+export interface DocWriteRequest {
+  reqId: string                         // matches the renderer reply
+  path?: string                         // optional; main routes to active editor when omitted
+  mode: DocWriteMode
+  text: string
+}
+
+export interface DocWriteResult {
+  reqId: string
+  ok: boolean
+  error?: string
+}
+
+// Stage 11 § D33d — theme state mirrored between renderer (owner) and main
+// (cache) so `duo theme` can read without a renderer RPC, and set by
+// dispatching a THEME_SET back down.
+export type ThemeMode = 'system' | 'light' | 'dark'
+
+export interface ThemeStateSnapshot {
+  mode: ThemeMode
+  effective: 'light' | 'dark'
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -189,6 +241,7 @@ export const IPC = {
   // Stage 10 — file navigator + previewers
   FILES_LIST: 'files:list',
   FILES_READ: 'files:read',
+  FILES_WRITE: 'files:write',            // Stage 11 — editor-driven save
   FILES_OPEN_EXTERNAL: 'files:open-external',
   FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
   FILES_WATCH_START: 'files:watch-start',
@@ -199,7 +252,17 @@ export const IPC = {
   // Stage 10 Phase 6 — navigator state + agent-facing commands
   NAV_STATE_PUSH: 'nav:state-push',      // renderer → main (cache state for CLI)
   NAV_VIEW: 'nav:view',                  // main → renderer (open a file in WorkingPane)
+  NAV_EDIT: 'nav:edit',                  // main → renderer (open .md in editor tab)
   NAV_REVEAL: 'nav:reveal',              // main → renderer (move navigator + chip)
+
+  // Stage 11 — editor selection snapshot + agent doc-write requests
+  EDITOR_SELECTION_PUSH: 'editor:selection-push', // renderer → main (cache for `duo selection`)
+  EDITOR_DOC_WRITE: 'editor:doc-write',           // main → renderer (apply mutation)
+  EDITOR_DOC_WRITE_RESULT: 'editor:doc-write-result', // renderer → main (reply)
+
+  // Stage 11 § D33d — theme state + agent override
+  THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
+  THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
 
   // Stage 9 — cozy mode
   COZY_TOGGLE: 'cozy:toggle',            // main → renderer (menu clicked)
@@ -250,9 +313,18 @@ export interface ElectronBrowserAPI {
   onTabsChange: (cb: (tabs: BrowserTab[]) => void) => () => void
 }
 
+export interface FileWriteResult {
+  ok: true
+  size: number
+  mtimeMs: number
+}
+
 export interface ElectronFilesAPI {
   list: (path: string) => Promise<DirEntry[]>
   read: (path: string) => Promise<FileReadResult>
+  /** Stage 11 — write a file atomically (tmp + rename). Creates parent dirs
+   *  if needed. Caller sends raw bytes. */
+  write: (path: string, bytes: Uint8Array) => Promise<FileWriteResult>
   openExternal: (path: string) => Promise<void>
   revealInFinder: (path: string) => Promise<void>
   /**
@@ -277,6 +349,19 @@ export interface ElectronNavAPI {
   onReveal: (cb: (path: string) => void) => () => void
   /** Subscribe to `duo view <path>` commands coming in from the CLI. */
   onView: (cb: (path: string) => void) => () => void
+  /** Subscribe to `duo edit <path>` commands coming in from the CLI. */
+  onEdit: (cb: (path: string) => void) => () => void
+}
+
+export interface ElectronEditorAPI {
+  /** Push the active editor's selection snapshot into the main-process
+   *  cache so `duo selection` can return it without a renderer RPC. */
+  pushSelection: (snapshot: EditorSelectionSnapshot | null) => void
+  /** Subscribe to `duo doc write` requests from the CLI. The renderer
+   *  applies the mutation and replies via `replyDocWrite`. */
+  onDocWrite: (cb: (req: DocWriteRequest) => void) => () => void
+  /** Reply to a doc-write request (success or error). */
+  replyDocWrite: (result: DocWriteResult) => void
 }
 
 export interface ElectronKeyboardAPI {
@@ -303,13 +388,23 @@ export interface ElectronCozyAPI {
   pushState: (cozy: boolean) => void
 }
 
+export interface ElectronThemeAPI {
+  /** Renderer pushes the current theme state so `duo theme` can return
+   *  it without a renderer round-trip. */
+  pushState: (snapshot: ThemeStateSnapshot) => void
+  /** Subscribe to `duo theme <mode>` commands from the CLI. */
+  onSet: (cb: (mode: ThemeMode) => void) => () => void
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
   browser: ElectronBrowserAPI
   files: ElectronFilesAPI
   nav: ElectronNavAPI
+  editor: ElectronEditorAPI
   cozy: ElectronCozyAPI
+  theme: ElectronThemeAPI
   keyboard: ElectronKeyboardAPI
 }
 

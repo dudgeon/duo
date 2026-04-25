@@ -18,6 +18,9 @@ interface FilesPaneProps {
   onOpenTerminalHere: (folderPath: string) => void
   revealChip: string | null
   onDismissRevealChip: () => void
+  /** Flip collapsed state. Needed as a click-to-expand affordance so users
+   *  stuck with \u2318B swallowed by an editor tab (bold) always have an escape. */
+  onToggleCollapsed: () => void
 }
 
 export function FilesPane({
@@ -29,7 +32,8 @@ export function FilesPane({
   onOpenFile,
   onOpenTerminalHere,
   revealChip,
-  onDismissRevealChip
+  onDismissRevealChip,
+  onToggleCollapsed
 }: FilesPaneProps) {
   return (
     <div
@@ -41,7 +45,7 @@ export function FilesPane({
       aria-label="Files"
     >
       {collapsed ? (
-        <CollapsedRail />
+        <CollapsedRail onExpand={onToggleCollapsed} />
       ) : (
         <div className="flex flex-col h-full min-w-0">
           {/* Header: breadcrumb + pin toggle */}
@@ -74,9 +78,14 @@ export function FilesPane({
   )
 }
 
-function CollapsedRail() {
+function CollapsedRail({ onExpand }: { onExpand: () => void }) {
   return (
-    <div className="h-full flex flex-col items-center pt-3 gap-2 text-zinc-500">
+    <button
+      onClick={onExpand}
+      title="Show files (\u2318B)"
+      aria-label="Show files column"
+      className="h-full w-full flex flex-col items-center pt-3 gap-2 text-zinc-500 hover:text-zinc-200 hover:bg-surface-2 transition-colors cursor-pointer"
+    >
       <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path
           d="M3 4.5A1.5 1.5 0 0 1 4.5 3h4l1.5 1.5h5.5A1.5 1.5 0 0 1 17 6v9.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 15.5v-11Z"
@@ -85,7 +94,7 @@ function CollapsedRail() {
           strokeLinejoin="round"
         />
       </svg>
-    </div>
+    </button>
   )
 }
 

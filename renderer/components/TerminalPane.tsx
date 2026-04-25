@@ -15,6 +15,55 @@ const COZY_LINE_HEIGHT = 1.55
 // Reader-width cap (cols) applied only when cozy is on.
 const COZY_MAX_COLS = 92
 
+// Stage 11 § D33d — xterm.js draws on a canvas, so CSS overrides from the
+// `.light` body class don't reach it. We swap theme objects based on the
+// effective theme whenever it changes.
+const DARK_THEME = {
+  background: '#080808',
+  foreground: '#e4e4e7',
+  cursor: '#7c6af7',
+  cursorAccent: '#080808',
+  black: '#18181b',
+  red: '#f87171',
+  green: '#4ade80',
+  yellow: '#fbbf24',
+  blue: '#60a5fa',
+  magenta: '#c084fc',
+  cyan: '#22d3ee',
+  white: '#d4d4d8',
+  brightBlack: '#3f3f46',
+  brightRed: '#fca5a5',
+  brightGreen: '#86efac',
+  brightYellow: '#fde68a',
+  brightBlue: '#93c5fd',
+  brightMagenta: '#d8b4fe',
+  brightCyan: '#67e8f9',
+  brightWhite: '#f4f4f5'
+} as const
+
+const LIGHT_THEME = {
+  background: '#fafafa',
+  foreground: '#18181b',
+  cursor: '#7c6af7',
+  cursorAccent: '#fafafa',
+  black: '#27272a',
+  red: '#dc2626',
+  green: '#16a34a',
+  yellow: '#ca8a04',
+  blue: '#2563eb',
+  magenta: '#9333ea',
+  cyan: '#0891b2',
+  white: '#71717a',
+  brightBlack: '#52525b',
+  brightRed: '#ef4444',
+  brightGreen: '#22c55e',
+  brightYellow: '#eab308',
+  brightBlue: '#3b82f6',
+  brightMagenta: '#a855f7',
+  brightCyan: '#06b6d4',
+  brightWhite: '#18181b'
+} as const
+
 interface TerminalPaneProps {
   tabs: TabSession[]
   activeTabId: string
@@ -27,10 +76,12 @@ interface TerminalPaneProps {
    *  cozy/default base fontSize. */
   fontBumpByTab: Record<string, number>
   fontBumpDefault: number
+  /** Stage 11 — resolved `light` | `dark` for the active app theme. */
+  themeEffective: 'light' | 'dark'
 }
 
 export function TerminalPane({
-  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault
+  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective
 }: TerminalPaneProps) {
   return (
     <div className="relative w-full h-full bg-surface-0">
@@ -42,6 +93,7 @@ export function TerminalPane({
           onTitleChange={onTitleChange}
           cozy={cozyByTab[tab.id] ?? cozyDefault}
           fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
+          themeEffective={themeEffective}
         />
       ))}
     </div>
@@ -58,9 +110,10 @@ interface InstanceProps {
   onTitleChange: (id: string, title: string) => void
   cozy: boolean
   fontBump: number
+  themeEffective: 'light' | 'dark'
 }
 
-function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump }: InstanceProps) {
+function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeEffective }: InstanceProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -77,28 +130,7 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump }: Inst
     if (!host || termRef.current) return
 
     const term = new Terminal({
-      theme: {
-        background: '#080808',
-        foreground: '#e4e4e7',
-        cursor: '#7c6af7',
-        cursorAccent: '#080808',
-        black: '#18181b',
-        red: '#f87171',
-        green: '#4ade80',
-        yellow: '#fbbf24',
-        blue: '#60a5fa',
-        magenta: '#c084fc',
-        cyan: '#22d3ee',
-        white: '#d4d4d8',
-        brightBlack: '#3f3f46',
-        brightRed: '#fca5a5',
-        brightGreen: '#86efac',
-        brightYellow: '#fde68a',
-        brightBlue: '#93c5fd',
-        brightMagenta: '#d8b4fe',
-        brightCyan: '#67e8f9',
-        brightWhite: '#f4f4f5'
-      },
+      theme: { ...(themeEffective === 'light' ? LIGHT_THEME : DARK_THEME) },
       fontFamily: 'JetBrains Mono, Cascadia Code, Fira Code, ui-monospace, monospace',
       fontSize: DEFAULT_FONT_SIZE,
       lineHeight: DEFAULT_LINE_HEIGHT,
@@ -223,6 +255,16 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump }: Inst
     ro.observe(host)
     return () => ro.disconnect()
   }, [isActive, tab.id])
+
+  // ── Live theme swap ────────────────────────────────────────────────────────
+  // xterm.js paints on its own canvas/WebGL layer \u2014 CSS overrides don't
+  // reach it. When the app theme flips (via the toggle or `duo theme`),
+  // swap the xterm theme object so the terminal matches.
+  useEffect(() => {
+    const term = termRef.current
+    if (!term) return
+    term.options.theme = { ...(themeEffective === 'light' ? LIGHT_THEME : DARK_THEME) }
+  }, [themeEffective])
 
   return (
     <div
