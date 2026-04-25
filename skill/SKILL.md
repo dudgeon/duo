@@ -45,6 +45,23 @@ call failing the same way — jump to
 [Troubleshooting: Claude Code sandbox](#troubleshooting-claude-code-sandbox)
 below. Do not retry blindly.
 
+## Detecting "I'm in Duo"
+
+Every PTY Duo spawns sets four environment variables, so you can tell
+without heuristics whether you're running inside a Duo terminal:
+
+- `DUO_SESSION=1` — presence is the signal.
+- `DUO_SOCKET=<path>` — the live socket the `duo` CLI talks to.
+- `DUO_VERSION=<x.y.z>` — Duo app version.
+- `TERM_PROGRAM=Duo` — alongside the usual `Apple_Terminal`/`iTerm.app`
+  values.
+
+Quick check: `[ -n "$DUO_SESSION" ] && echo "in Duo" || echo "not in Duo"`.
+If `DUO_SESSION` is unset, you're in a plain shell — `duo` commands will
+fail with `Cannot connect: Duo app is not running` (the socket path
+isn't being exported). Ask the user to launch Duo, or fall back to
+non-`duo` tools (`Read`, `Bash`, `WebFetch`).
+
 ## Command reference
 
 | Command | Purpose | Output |

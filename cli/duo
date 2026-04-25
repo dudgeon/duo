@@ -29,7 +29,7 @@ var path = __toESM(require("path"));
 var fs = __toESM(require("fs"));
 var import_crypto = require("crypto");
 var VERSION = "0.1.0";
-var SOCKET_PATH = path.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
+var SOCKET_PATH = process.env.DUO_SOCKET ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
 var TIMEOUT_MS = 1e4;
 async function send(cmd, args = {}) {
   if (!fs.existsSync(SOCKET_PATH)) {

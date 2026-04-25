@@ -72,6 +72,31 @@ for the authoritative usage text.
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 
+### Env signals (Stage 18 Phase 18a)
+
+Every PTY Duo spawns is tagged with four environment variables, so any
+process running inside a Duo terminal — `claude`, the user's shell
+prompt, the `duo` CLI itself — can detect "I'm in Duo" without
+heuristics. Set in `electron/pty-manager.ts` (D1–D3 in
+[stage-18 PRD](prd/stage-18-duo-detection.md)).
+
+| Variable | Value | Notes |
+|---|---|---|
+| `DUO_SESSION` | `1` | Boolean-ish marker; presence is the signal. |
+| `DUO_SOCKET` | absolute path to `duo.sock` | The CLI prefers this over its hard-coded fallback path (D4), so future install-path changes or a TCP fallback flow through one knob. |
+| `DUO_VERSION` | `app.getVersion()` (e.g. `0.1.0`) | Lets the agent reason about feature availability per Duo build. |
+| `TERM_PROGRAM` | `Duo` | Mixed-case to match `Apple_Terminal` / `iTerm.app` / `vscode`. Tools that already key off `TERM_PROGRAM` (Powerlevel10k, oh-my-zsh, Starship) get a clean signal alongside the agent. |
+
+**Smoke check.** Inside a Duo terminal: `env | grep ^DUO_` returns the
+three `DUO_*` vars; `env | grep ^TERM_PROGRAM` returns `TERM_PROGRAM=Duo`.
+Outside Duo (a regular Terminal.app / iTerm2 shell), the `DUO_*` vars
+are absent and `TERM_PROGRAM` is whatever the parent terminal sets.
+
+**Used by.** `cli/duo.ts` (D4 — DUO_SOCKET fallback). Stage 18 Phase
+18b's SessionStart hook + PATH shim gate on `DUO_SESSION` (D11/D13).
+Stage 13's `duo doctor` (D5 — distinguishes "running outside Duo"
+from "running inside Duo but transport failing").
+
 ---
 
 ## 2. Gap catalogue — CLI verbs still missing

@@ -15,7 +15,13 @@ import { randomUUID } from 'crypto'
 import type { DuoRequest, DuoResponse } from '../shared/types'
 
 const VERSION = '0.1.0'
-const SOCKET_PATH = path.join(os.homedir(), 'Library', 'Application Support', 'duo', 'duo.sock')
+// Stage 18 Phase 18a (D4) — when running inside a Duo PTY, the
+// DUO_SOCKET env var is exported by PtyManager and points at the live
+// socket. Prefer it over the hard-coded path so that future install-
+// path changes (or a TCP fallback) flow through one knob.
+const SOCKET_PATH =
+  process.env.DUO_SOCKET ??
+  path.join(os.homedir(), 'Library', 'Application Support', 'duo', 'duo.sock')
 const TIMEOUT_MS = 10_000
 
 // ── Socket transport ─────────────────────────────────────────────────────────

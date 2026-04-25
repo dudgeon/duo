@@ -1,6 +1,6 @@
 import * as pty from 'node-pty'
-import type { WebContents } from 'electron'
-import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS } from './constants'
+import { app, type WebContents } from 'electron'
+import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH } from './constants'
 import { IPC } from '../shared/types'
 
 interface Session {
@@ -19,12 +19,22 @@ export class PtyManager {
   create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD): void {
     if (this.sessions.has(id)) return
 
+    // Stage 18 Phase 18a — env signals (D1–D3).
+    // Every PTY Duo spawns is tagged so child processes (Claude Code,
+    // shell prompts, the `duo` CLI) can detect "I'm in Duo" without
+    // heuristics. See docs/prd/stage-18-duo-detection.md § Layer 1.
     const ptyProcess = pty.spawn(shell, [], {
       name: 'xterm-256color',
       cols: TERMINAL_DEFAULTS.cols,
       rows: TERMINAL_DEFAULTS.rows,
       cwd,
-      env: { ...(process.env as Record<string, string>) }
+      env: {
+        ...(process.env as Record<string, string>),
+        DUO_SESSION: '1',
+        DUO_SOCKET: SOCKET_PATH,
+        DUO_VERSION: app.getVersion(),
+        TERM_PROGRAM: 'Duo'
+      }
     })
 
     ptyProcess.onData((data) => {
