@@ -144,6 +144,19 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     term.loadAddon(new WebLinksAddon())
     term.open(host)
 
+    // BUG-001 fix (part 2/2) — let ⌃Tab / ⌃⇧Tab bubble up to the window
+    // keydown listener so `useKeyboardShortcuts` can route them through
+    // its pane-aware handler. By default xterm.js eats Ctrl+Tab as
+    // valid terminal input; Duo overloads it for tab cycling, so we
+    // return false to skip xterm's handling. The renderer's `useEffect`
+    // window listener then sees the keydown and runs the branch in
+    // useKeyboardShortcuts.ts. Without this, xterm consumes the keystroke
+    // before it can bubble.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Tab') return false
+      return true
+    })
+
     // Set refs before attempting the first fit so resize/visibility effects
     // still work even if fit throws (e.g. zero-size container on initial mount).
     termRef.current = term

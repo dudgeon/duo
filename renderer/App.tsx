@@ -495,7 +495,10 @@ export function App() {
     // ⌘` — fallback for platforms where the key isn't intercepted by
     // a menu accelerator. On macOS the system shortcut intercepts ⌘`
     // before this handler sees it; see `onPaneToggleFocus` below.
-    togglePaneFocus
+    togglePaneFocus,
+    // BUG-001 fix — pane-aware ⌃Tab routing. Without this, ⌃Tab from
+    // terminal focus cycles browser tabs instead of terminal tabs.
+    activePaneFocus: focusedColumn
   })
 
   // ⌘` menu-accelerator path. The app menu registers the same

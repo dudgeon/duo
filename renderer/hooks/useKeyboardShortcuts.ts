@@ -15,6 +15,11 @@ interface Options {
   togglePaneFocus?: () => void
   // ⌘+ / ⌘- / ⌘0 — adjust the active terminal tab's font bump.
   adjustTerminalFontBump?: (delta: number | 'reset') => void
+  // BUG-001 fix — which column has user focus. Routes ⌃Tab to terminal
+  // tabs when the terminal is focused, browser tabs otherwise. Without
+  // this, ⌃Tab from terminal focus cycles browser tabs (Chromium-default
+  // behaviour leaks across panes).
+  activePaneFocus?: 'files' | 'terminal' | 'working'
 }
 
 export function useKeyboardShortcuts({
@@ -27,15 +32,26 @@ export function useKeyboardShortcuts({
   setActiveTabId,
   toggleFilesColumn,
   togglePaneFocus,
-  adjustTerminalFontBump
+  adjustTerminalFontBump,
+  activePaneFocus
 }: Options) {
   useEffect(() => {
     // Dispatch via a single `process(e)` function so both native window
     // keydowns and shortcuts forwarded from the browser WebContentsView
-    // can reuse the same routing logic.
-    const process = (e: { metaKey: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; key: string; preventDefault: () => void }) => {
+    // can reuse the same routing logic. `paneOverride` is set when a
+    // keystroke arrived from `onBrowserKey` — in that case we KNOW the
+    // browser WebContentsView has keyboard focus regardless of what the
+    // renderer's `focusedColumn` state says. Without this, clicks into
+    // the browser content (which the WebContentsView swallows before
+    // the wrapper's onMouseDown fires) leave `focusedColumn` stuck on
+    // its last value, mis-routing ⌃Tab.
+    const process = (
+      e: { metaKey: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; key: string; preventDefault: () => void },
+      paneOverride?: 'files' | 'terminal' | 'working'
+    ) => {
       const meta = e.metaKey
       const key = e.key.toLowerCase()
+      const pane = paneOverride ?? activePaneFocus
 
       // ⌘T — new browser tab (Chrome parity)
       if (meta && !e.shiftKey && key === 't') {
@@ -165,17 +181,26 @@ export function useKeyboardShortcuts({
         return
       }
 
-      // ⌃Tab / ⌃⇧Tab — cycle working-pane (browser) tabs (Chrome parity).
+      // ⌃Tab / ⌃⇧Tab — pane-aware tab cycling. When the terminal column
+      // has focus, cycle terminal tabs (BUG-001 fix; matches ⌘⇧] / ⌘⇧[).
+      // Otherwise (working pane, files pane, or unknown) cycle browser
+      // tabs to preserve Chrome-parity for the most common case.
       if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Tab') {
         e.preventDefault()
-        void (async () => {
-          const btabs = await window.electron.browser.getTabs()
-          if (btabs.length === 0) return
-          const activeIdx = btabs.findIndex(t => t.isActive)
-          const delta = e.shiftKey ? -1 : 1
-          const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
-          await window.electron.browser.switchTab(btabs[nextIdx].id)
-        })()
+        const delta = e.shiftKey ? -1 : 1
+        if (pane === 'terminal' && tabs.length > 0) {
+          const idx = tabs.findIndex(t => t.id === activeTabId)
+          const next = tabs[(idx + delta + tabs.length) % tabs.length]
+          setActiveTabId(next.id)
+        } else {
+          void (async () => {
+            const btabs = await window.electron.browser.getTabs()
+            if (btabs.length === 0) return
+            const activeIdx = btabs.findIndex(t => t.isActive)
+            const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
+            await window.electron.browser.switchTab(btabs[nextIdx].id)
+          })()
+        }
         return
       }
     }
@@ -185,7 +210,11 @@ export function useKeyboardShortcuts({
 
     // When the browser WebContentsView has focus, Chromium swallows
     // keystrokes before the window listener can see them. BrowserManager
-    // intercepts the Duo shortcuts and forwards them here.
+    // intercepts the Duo shortcuts and forwards them here. We pass
+    // 'working' as paneOverride because the browser pane having keyboard
+    // focus is the proximate cause of the forward — the renderer's
+    // cached focusedColumn may be stale (WebContentsView clicks don't
+    // bubble to the wrapper's onMouseDown).
     const unsubscribeBrowserKey = window.electron.keyboard?.onBrowserKey((e) => {
       process({
         metaKey: e.meta,
@@ -194,12 +223,12 @@ export function useKeyboardShortcuts({
         altKey: e.alt,
         key: e.key,
         preventDefault: () => { /* already prevented in main */ }
-      })
+      }, 'working')
     })
 
     return () => {
       window.removeEventListener('keydown', windowHandler)
       unsubscribeBrowserKey?.()
     }
-  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn, togglePaneFocus])
+  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn, togglePaneFocus, activePaneFocus])
 }
