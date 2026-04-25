@@ -138,10 +138,12 @@ Remaining `Browser observability` items in [docs/CLI-COVERAGE.md](docs/CLI-COVER
 in if a concrete agent task wants them.
 
 **Lower-priority follow-ups** (Stage 12 unified skill/connector surface,
-Stage 13 polish + `duo doctor` + TCP fallback, Stage 15a–f primitives,
-Stage 14a first-launch self-install, Stage 14b distribution polish,
-**Stage 17 visual redesign — Atelier**) all wait until at least one of
-the above lands. **Notes:**
+Stage 13 polish + `duo doctor` + TCP fallback + pane-aware shortcut
+polish, Stage 15a–f primitives, Stage 14a first-launch self-install,
+Stage 14b distribution polish + session restore + browser history,
+**Stage 17 visual redesign — Atelier**, **Stage 18 Duo detection**,
+**Stage 19 HTML canvas**) all wait until at least one of the above
+lands. **Notes:**
 - 2026-04-26: the old combined Stage 14 was split — 14a (first-launch
   installer, no cert needed) is shippable independently of 14b (code
   sign + notarize + auto-update). Pull 14a forward whenever the
@@ -165,6 +167,22 @@ the above lands. **Notes:**
   paper-depth differentiation, unified tab strip, files-pane width
   208 + collapse-to-rail) that should land *after* the flagship pair
   so it polishes a whole product rather than a half one.
+- 2026-04-26: **Stage 18 (Duo detection) + Stage 19 (HTML canvas)
+  added; PRDs drafted.** Stage 19 was originally drafted as Stage 13
+  but renumbered same-day to avoid collision with the existing Stage
+  13 (interaction polish + `duo doctor`). Both held until the
+  flagship pair (15g.1 + 11c) ships in functional form. Phase 18a
+  (env signals — `DUO_SESSION` + `TERM_PROGRAM=Duo`) is a tiny
+  standalone PR that unblocks `duo doctor` for Stage 13 — pull
+  forward whenever convenient. PRDs:
+  [stage-18-duo-detection.md](docs/prd/stage-18-duo-detection.md) ·
+  [stage-19-html-canvas.md](docs/prd/stage-19-html-canvas.md).
+- 2026-04-26: **Open-issue triage swept** — see [ROADMAP § Open
+  issue → stage mapping](ROADMAP.md). Of 20 open issues, **5 are
+  already shipped and queued for closing** (#10, #17, #20, #21,
+  #26), most of the rest map cleanly to existing stages, and three
+  small UX issues (#22, #23 → Stage 13 follow-up; #27 → Stage 14b
+  follow-up) graduated from "issue" to "roadmap bullet."
 
 **Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-26:
 no open bugs. (BUG-001 — `⌃Tab` pane-aware cycling — fixed

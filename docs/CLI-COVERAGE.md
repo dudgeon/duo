@@ -7,7 +7,8 @@
 > See [CLAUDE.md § Working style rule 4](../CLAUDE.md) for the enforced
 > rule and the six-file plumbing checklist every new verb must hit.
 >
-> **Last updated: 2026-04-26.**
+> **Last updated: 2026-04-26** (Stage 18 rename: `duo term new` →
+> `duo new-tab` with `--kind shell|claude`).
 
 ---
 
@@ -90,15 +91,18 @@ place the agent lives*, this is the largest parity gap.
 
 | Verb | UI parallel | Shape |
 |---|---|---|
-| `duo term new [--cwd <path>] [--cmd <cmd>]` | `⌘⇧T`, TabBar `+` button | Returns `{id, cwd, title}`. `--cmd` pre-types (no Enter) — matches Stage 15d `duo tab --cmd` intent. |
-| `duo term tabs` | Visible strip | Returns `[{id, title, cwd, active, cozy}]` |
+| `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd <cmd>]` | `⌘T`/`⌘⇧T`, split-button `+` (claude) / `>` (shell) | Returns `{id, kind, cwd, title}`. **Renamed from `duo term new` per [Stage 18 D27](prd/stage-18-duo-detection.md).** `--kind` defaults to the user's most-recent UI choice (`localStorage['duo.lastNewTabKind']`, default `'claude'`). `--cmd` pre-types (no Enter) — overlaps intentionally with Stage 15d `duo tab --cmd`; lock semantics at 15d kickoff. |
+| `duo term tabs` | Visible strip | Returns `[{id, title, cwd, kind, active, cozy}]` (Stage 18 adds `kind`) |
 | `duo term tab <id>` | `⌘1-9`, tab click | Activates the tab |
 | `duo term close <id>` | `⌘W` in terminal focus, × on chip | Refuses the last |
 | `duo term write <id> <data>` | User typing | Synthesize input (separate from `--cmd` which is pre-type + no Enter) |
 
 **Note:** current `duo tab <n>` and `duo close <n>` address browser tabs.
 The terminal parallel needs its own namespace to avoid the number-space
-collision.
+collision. The new-tab verb is in the bare `duo new-tab` namespace
+(not `duo term`) per Stage 18 — agent-readable shape `{id, kind, cwd,
+title}` + tab-strip primary affordance ("`+` = claude") justify
+top-level placement.
 
 ### Pane focus — P0
 
@@ -210,7 +214,7 @@ future Claude instance doesn't "fix" them:
   history. Agent-driven edits land as discrete `duo doc write` calls —
   the agent's "undo" is its own tool-call log.
 - **Right-click context menus.** The actions inside them *do* need CLI
-  counterparts (e.g. "Open terminal here" → `duo term new --cwd`),
+  counterparts (e.g. "Open terminal here" → `duo new-tab --shell --cwd`),
   but the menu itself is a UI affordance, not a shared action.
 
 ---

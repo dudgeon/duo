@@ -34,6 +34,8 @@ deliver the north-star experience. Re-sequenced:
 | **14a** | **First-launch self-install** (double-click → app prompts, copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; ad-hoc-signed local build) | ⬜ (split from old Stage 6 on 2026-04-26 — **no cert needed**, can ship before 14b) |
 | 14b | Distribution polish (Apple Developer ID code signing, notarization, electron-updater, icon, DMG background, README install guide) | ⬜ (gated on cert from Geoff) |
 | **17** | **Visual redesign — Atelier** (system-wide token swap to cream + ochre + serif; light is the hero; layout depth + tab-strip rhyme; files-pane width 208 + collapse-to-rail) | ⬜ (raised 2026-04-26; design locked at [docs/design/atelier/](docs/design/atelier/); held until flagship pair ships) |
+| **18** | **Duo detection & default-to-claude tabs** (env signals → passive priming → split + button so `⌘T` from terminal focus opens a primed claude session by default; `>` half opens a vanilla shell; `duo new-tab` CLI parity) | ⬜ (PRD `stage-18-duo-detection.md`, drafted 2026-04-26; three independently shippable phases) |
+| **19** | **HTML canvas** (new WorkingPane tab type — `.html` files render + edit in place via contentEditable; ULID-based stable IDs; Atelier just-added highlight; `duo html *` CLI namespace; `<file>.duo.json` sidecar for comments + recent-edits log) | ⬜ (PRD `stage-19-html-canvas.md`, drafted 2026-04-25, renumbered 2026-04-26 from Stage 13 to avoid collision; depends on Stage 11c + 15g + 17) |
 
 Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator +
 viewer — thin read-only version) are **superseded** by this sequence.
@@ -75,6 +77,47 @@ for the full ADR. Mapping to stages:
 
 Today's layout (terminal-left, browser-right, no Files column) is a
 waypoint. The reshape lands with Stage 10.
+
+---
+
+## Open issue → stage mapping (as of 2026-04-26)
+
+> Pulled `gh issue list --state open` 2026-04-26. Most issues map to
+> existing roadmap items; some are already shipped and just need
+> closing. **Re-scrutinize before kicking off any host stage** — the
+> issues are mostly one-line titles and the spec lives in the stage
+> PRD, not the issue body.
+>
+> When a stage ships, close the mapped issues with a one-line
+> reference to the commit / PR. The "Status" column reflects the
+> issue's *roadmap disposition*, not the issue's GitHub status.
+
+| Issue | Title (paraphrased) | Roadmap disposition |
+|---|---|---|
+| #5 | Highlight + scroll-to-top when Claude pushes md updates | **Stage 11c** — visual covered by Atelier mock; scroll-to-top is a small additional behaviour to spec at 11c kickoff. |
+| #6 | Track-changes mode for md editor | **Stage 11d** — fully covered (PRD + Atelier Suggesting / Accepted modes). |
+| #7 | Save-state deep dive: warnings on unsaved / overwrite | **Stage 11b** (external-write reconciliation) + **11c** (warn-before-overwrite for dirty buffers). PRD § 6 already names both. |
+| #9 | Move file path to terminal composer (right-click / drag) | **Stage 15f** (file → composer). |
+| #10 | Agent should see selected text + surrounding context | ✅ **Shipped 2026-04-26.** `duo selection` (Stage 11 D29a, shipped 11a) extended to browser pane same day. **Close.** |
+| #11 | Zap element from browser to terminal composer | **Stage 15e** (`duo zap`). |
+| #12 | Sandbox terminal-operation exploration | **Stage 13** (`duo doctor` + transport polish + ADR work). |
+| #13 | Claude sends temp script to fresh terminal tab for user invocation | **Stage 15d** (`duo tab --cmd`) and **Stage 18 D27** (`duo new-tab --cmd`) — overlap intentional; lock semantics at 15d kickoff. |
+| #15 | Terminal-tab attention notifications (system-level + session name in body) | **Stage 15b** (`duo notify`) + **Stage 15c** (`duo tab name <text>`). |
+| #16 | Multi-window support | **Stage 16** (already on roadmap). |
+| #17 | Click-and-drag target too small | ✅ **Already fixed** (per owner, 2026-04-26). **Close.** |
+| #18 | Goal/task flag in tab header (human ↔ agent reminder) | **Stage 15c** — folded in (per owner, 2026-04-26). `duo tab name 'goal: ship 14a'` covers it. |
+| #19 | Mechanism for Claude to "watch" browser / editor (temporary event stream) | **Stage 15a** (`duo events --follow`). |
+| #20 | `⌃Tab` should cycle tabs in active pane | ✅ **Shipped 2026-04-26** (commit `3976039`, BUG-001 fix). **Close.** |
+| #21 | `⌘N` opens new file in right pane with focus on filename setter | ✅ **Shipped** in Stage 11a (D33a — `⌘N` new-file flow with filename interstitial). **Close.** |
+| #22 | `⌘[` in file-explorer focus moves up one level | **Stage 13 follow-up** — pane-aware shortcut polish, sibling to BUG-001 territory. Add to Stage 13 bullet list. |
+| #23 | `⌘+` / `⌘-` should change browser content size when right pane has focus | **Stage 13 follow-up** — pane-aware shortcut polish. Today these only bump terminal font when terminal has focus; needs a 'working' branch that proxies to `webContents.setZoomLevel()`. |
+| #24 | Persist app state on reload (browser tabs, files, terminal CWDs, file-browser location) | **Stage 14b** ("Session restore on relaunch" already in the bullet list). |
+| #26 | On `⌘T`, focus browser address bar so user can type URL | ✅ **Shipped** in Stage 11 (D33e — `⌘T` foregrounds new browser tab + focuses address bar via queueMicrotask). **Close.** |
+| #27 | Persist browser history for URL autocomplete | **Stage 14b** (small follow-up bullet — added below). |
+
+**Issues to close on next sweep (5):** #10, #17, #20, #21, #26 — all
+already shipped. Suggested closing comment: link to the commit / stage
+above and reference this mapping.
 
 ---
 
@@ -297,7 +340,8 @@ download link, with no gatekeeper warnings, and gets auto-updates.
 - [ ] Code signing — Apple Developer ID (**needs cert from Geoff**)
 - [ ] Notarization — `notarytool` via electron-builder
 - [ ] `electron-updater` — auto-update from GitHub Releases or private S3
-- [ ] Session restore on relaunch (terminal CWDs, browser URL, split position)
+- [ ] Session restore on relaunch (terminal CWDs, browser URL, split position) — **subsumes [issue #24](https://github.com/dudgeon/duo/issues/24)** (persist app state on reload). Expand the scope beyond what's listed: also persist file-browser cwd + expanded folders, open editor tabs (with dirty state warning on relaunch), pinned/follow-mode, and per-tab cozy state.
+- [ ] **Browser history persistence for URL autocomplete ([issue #27](https://github.com/dudgeon/duo/issues/27)).** The `persist:duo-browser` partition retains cookies + localStorage; history is in-memory only. Wire Electron's `WebContents.session` history APIs (or a small chokidar-flavored sidecar) so `⌘L` typeahead suggests previously-visited URLs across sessions. Sibling concern to session restore — same partition, similar lifecycle.
 - [ ] Security: launch-time auth token on the Unix socket (before Trailblazers)
 - [ ] Theming pass: refine Warp × Linear aesthetic
 - [ ] Notifications for agent-driven browser navigation
@@ -975,6 +1019,24 @@ is up. Pulls from the unscheduled backlog the user raised earlier.
       note; feed back into the skill so agents can steer away from
       known-blocked operations without trying them first.
 
+**Pane-aware shortcut polish — added 2026-04-26 from triage:**
+sibling concerns to the BUG-001 fix (commit `3976039`). All three
+need a pane focus signal in `useKeyboardShortcuts.ts`; the plumbing
+already exists from BUG-001's `activePaneFocus` and `paneOverride`
+work, so each branch is small.
+
+- [ ] **Issue #22 — `⌘[` in file-explorer focus moves up one level.**
+      `cd ..` for the navigator. Branch on `activePaneFocus === 'files'`
+      in `useKeyboardShortcuts.ts`; navigator already exposes a
+      `cdParent()` action via context.
+- [ ] **Issue #23 — `⌘+` / `⌘-` pane-aware zoom.** Today these only
+      bump terminal font when terminal has focus. When `focusedColumn
+      === 'working'` and the active tab is `'browser'`, proxy to the
+      WebContentsView's `webContents.setZoomLevel(level + delta)` so
+      the browser content scales (Chrome parity). Editor / file-
+      preview tabs: defer (probably no-op for v1; revisit if real
+      friction).
+
 ---
 
 ## Stage 15 — Human↔agent interaction primitives `⬜ After Stage 11`
@@ -1252,6 +1314,181 @@ each choice and is worth a skim before starting any of them.
   pass after the features land is one round-trip; a visual pass
   before them means re-doing the visual when the features ship in
   different shapes than the mock predicted.
+
+---
+
+## Stage 18 — Duo detection & default-to-claude tabs `⬜ Spec drafted 2026-04-26`
+
+> **PRD:** [docs/prd/stage-18-duo-detection.md](prd/stage-18-duo-detection.md).
+> Three layers (env signals → passive priming → default-to-claude tabs)
+> in three independently shippable phases. Touches `~/.claude/settings.json`,
+> so the install path lines up with **Stage 14a's first-launch installer**
+> — when 14a lands, fold the hook + shim install into its consent sheet.
+> Layer 1 (env signals) is a tiny standalone PR that unblocks `duo doctor`
+> for **Stage 13** independently.
+
+**Why it matters:** today there's no signal to Claude Code that it's
+running inside Duo, and `⌘T` from terminal focus opens a browser tab
+(per Stage 11 D33e — superseded for terminal focus only by D18 here).
+A primed agent + a one-click "new claude session" makes Duo's
+agent-native premise immediate from the first keystroke instead of
+something the user has to remember.
+
+**Exit criteria:** PM hits `⌘T` in a fresh Duo session, is talking
+to a primed Claude in under three seconds, and the agent's first
+response on a "summarize this doc" prompt uses `duo ax` or `duo doc
+read` without being told to. `⌘⇧T` and the `>` half of the split
+button still produce a bare shell.
+
+### Phase 18a — Env signals (S, ~½ day)
+- [ ] PtyManager exports `DUO_SESSION=1`, `DUO_SOCKET`, `DUO_VERSION`,
+      `TERM_PROGRAM=Duo` (PRD D1–D3).
+- [ ] `cli/duo.ts` skips socket discovery when `DUO_SOCKET` is set (D4).
+- [ ] `duo doctor` reports `DUO_SESSION` (D5; cross-link to Stage 13).
+- **Exit:** any process spawned inside Duo can detect "I'm in Duo"
+  without heuristics.
+
+### Phase 18b — Passive priming (M, ~2 days)
+- [ ] Bundle `skill/priming.md` (D8) and copy to
+      `~/Library/Application Support/duo/priming.md` on `duo install`.
+- [ ] PATH shim at `~/Library/Application Support/duo/bin/claude`
+      (D12, D13) — resolved real-claude inlined at install (D14).
+- [ ] SessionStart hook merge into `~/.claude/settings.json` with the
+      duo-tagged marker (D9, D10), gated on consent (D16).
+- [ ] `duo install --uninstall-hook` (D15).
+- **Exit:** a fresh Claude Code session inside Duo autonomously
+  prefers `duo` verbs without the user mentioning anything. Verified
+  via `/status` (or equivalent) showing the priming paragraph in
+  the system prompt.
+
+> **Cross-PR note:** Phase 18b's install paths overlap with **Stage
+> 14a's first-launch installer**. When both PRs land, the hook + shim
+> install should fold into the 14a consent sheet (PRD D16). Until
+> then, 18b's install runs through `duo install` with its own
+> one-time prompt.
+
+### Phase 18c — Default-to-claude tabs (M, ~2–3 days)
+- [ ] Split-button affordance in `TabBar.tsx` — `+` = new claude
+      session (primary), `>` = vanilla shell (D17).
+- [ ] `⌘T` from terminal focus = new claude tab (D18 — supersedes
+      Stage 11 D33e for terminal focus only).
+- [ ] Spawn flow per D21–D23 (PtyManager spawns the user shell, then
+      writes `claude\n`; fallback banner when claude not on PATH).
+- [ ] `TabSession.kind: 'shell' | 'claude'` plumbed through shared
+      types + preload + main + socket bridge.
+- [ ] `duo new-tab [--shell|--claude] [--cwd] [--cmd]` CLI verb
+      (D27). Replaces the listed `duo term new` in CLI-COVERAGE.
+- [ ] Persisted last-kind for agent-driven calls (D28).
+- [ ] [docs/dev/smoke-checklist.md § 5 keyboard matrix](docs/dev/smoke-checklist.md)
+      updated — `⌘T` from terminal focus = claude tab; verify across
+      all four focus surfaces.
+- **Exit:** PM clicks `+` and is talking to a primed Claude in under
+  two seconds; the `>` half still gives them a vanilla shell.
+
+**Cross-stage interactions** (also documented in PRD § 6):
+- **Stage 13** — `duo doctor` reads `DUO_SESSION` to distinguish
+  "outside Duo" from "transport failing inside Duo".
+- **Stage 14a** — install consent absorbs the hook + shim work.
+- **Stage 15d** — `duo new-tab --cmd` and `duo tab --cmd` overlap
+  intentionally; lock semantics at 15d kickoff.
+- **Stage 17** — split-button visual not in the Atelier mock yet;
+  recommendation: ship 18c first, let 17 polish.
+
+---
+
+## Stage 19 — HTML canvas `⬜ Spec drafted 2026-04-25; renumbered 2026-04-26`
+
+> **PRD:** [docs/prd/stage-19-html-canvas.md](prd/stage-19-html-canvas.md).
+> Originally drafted as Stage 13; renumbered on 2026-04-26 to avoid
+> collision with the existing Stage 13 (interaction polish). Five
+> phases (~12–14 PRs) sequenced so 19a unlocks real usage and every
+> later phase adds capability cleanly.
+>
+> **Sibling tab type to Stage 11** (markdown editor). Reuses the
+> Atelier just-added highlight, the comment rail, the persistent-
+> selection pattern, and the discriminated-union selection shape from
+> Stage 15g. Held until the flagship pair (15g.1 + 11c) ships in
+> functional form so the reuse stories are concrete.
+
+**Why it matters:** Markdown is fine for prose; HTML is what an
+agent reaches for when it wants tables that fit, side-by-side layouts,
+callouts with iconography, embedded forms, or interactive checklists.
+Today Duo can `duo open` agent-generated HTML in a browser tab, but
+the human can't *edit* it — and the round-trip "Claude writes HTML →
+PM tweaks two sentences and a typo" loop falls apart at the first
+edit. This stage closes that loop.
+
+**Exit criteria:** PM opens an `.html` file Claude generated, edits
+two paragraphs and a table cell, leaves a comment on a third element,
+and saves — and the file opens cleanly in any browser. Send → Duo on
+the canvas surface lands the same payload shape as it does from the
+markdown editor or a browser tab — one primitive, three modalities.
+
+### Phase 19a — Render + edit primitive (~3–4 PRs)
+- [ ] WorkingPane registers `html-canvas` tab type; `.html` click
+      opens it (replaces today's "open with default app" for `.html`).
+- [ ] `duo html new` + `duo edit <path.html>` alias.
+- [ ] Iframe-srcdoc host with contentEditable on body; render-on-write.
+- [ ] Top toolbar (PRD H28: inline marks + link picker).
+- [ ] Save: autosave + `⌘S` + dirty dot (H33).
+- [ ] Skill stub (H16) — README only, no snippets yet.
+- **Exit:** PM opens an `.html`, edits prose, saves; the file is
+  clean HTML another tool can read.
+
+### Phase 19b — Stable IDs + sidecar foundation (~2 PRs)
+- [ ] ULID minting + auto-injection of `data-duo-id` (H12, H13).
+- [ ] First-open prompt for ID injection (H14).
+- [ ] `<file>.duo.json` sidecar reader / writer; `version: 1`
+      schema (H22).
+- [ ] `duo html query / get / set / replace / append / remove / attr`
+      end-to-end.
+- [ ] `data-duo-component` recognition (no UI yet).
+- **Exit:** Claude edits a specific element by `data-duo-id`; the
+  change persists; the sidecar tracks the edit.
+
+### Phase 19c — Agent overlay + selection (~2 PRs)
+- [ ] **Atelier just-added highlight** for agent edits (H20). Reuses
+      the Stage 11c spec — same yellow `mark` token + 6s fade.
+- [ ] `recentEdits` log + repaint-at-open within freshness window.
+- [ ] `duo selection` for canvas (H25 — extends the Stage 15g
+      discriminated union with `kind: 'html-canvas'`).
+- [ ] Persistent blurred selection (H26).
+- [ ] Send → Duo pill on canvas surface (H27 — natively works once
+      H25 supplies the payload).
+- [ ] Warn-before-overwrite banner (H36).
+- **Exit:** PM selects on the canvas, hits the pill, terminal gets
+  the quoted block; agent writes back, the change paints yellow.
+
+### Phase 19d — Comments + lock convention (~3 PRs)
+- [ ] `duo html comment`; comment rail re-used from Stage 11d (H23).
+- [ ] Range resolution against `data-duo-id` + textPath (H21).
+- [ ] Resolve / reply / accept UX (re-use Stage 11d D19).
+- [ ] `data-duo-lock="structure"` rendering + ⌥-click override (H19).
+- [ ] Skill snippet bundle (H17 boilerplate, H18 ten core components).
+- **Exit:** PM leaves a comment on a callout; Claude reads it via
+  `duo html changes` and acts.
+
+### Phase 19e — Polish + scripts + source view (~2 PRs)
+- [ ] Script opt-in dialog (H8) + sidecar persistence (H22).
+- [ ] Source view toggle with CodeMirror 6 (H32).
+- [ ] Find & replace (`⌘F` / `⌘⌥F`) — re-use Stage 11 component.
+- [ ] External-write reconciliation (H35) — re-use Stage 11b's
+      three-pane diff.
+- [ ] Slash menu (H29). Floating selection bubble (H30).
+- **Exit:** the canvas feels native enough that an HTML report from
+  Claude is the natural artifact, not the markdown.
+
+**Cross-stage interactions** (also documented in PRD § 8):
+- **Stage 11c** — supplies the just-added highlight visual; 19c
+  reuses identically.
+- **Stage 11d** — comment rail (D20), accept-all banner. 19d reuses
+  the components.
+- **Stage 15g** — supplies the discriminated-union selection shape
+  + Send → Duo pill machinery. 19c is mostly wiring the canvas
+  surface into the existing dispatcher.
+- **Stage 17** — Atelier tokens supply the visual language. The
+  canvas inherits the same paper-tone surface + ochre accent +
+  yellow `mark` highlight as the markdown editor.
 
 ---
 
