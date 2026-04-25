@@ -185,12 +185,31 @@ tab-name, tab-cmd, zap, file→composer). Pull in when convenient.
   #20, #21, #26); 11 mapped to existing stages; #22/#23/#27
   promoted to roadmap bullets in Stage 20 + 21.
 
-**Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-26:
-no open bugs. (BUG-001 — `⌃Tab` pane-aware cycling — fixed
-2026-04-26 in commit `3976039`. The fix needed three parts, not
-one as the original trace expected; see `tasks.md` for the full
-write-up so the next reader doesn't re-discover the
-xterm-key-eating and WebContentsView-mousedown gotchas.)
+**Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-26
+(during Stage 12 verification): **3 open bugs + 1 process item.**
+- **BUG-002** — `⌘T` from browser focus doesn't focus address bar
+  (regression). Race between WebContentsView `webContents.focus()`
+  in BrowserManager and the renderer's queueMicrotask address-bar
+  focus call.
+- **BUG-003** — Pane focus indicator too subtle. Atelier's reduced
+  contrast made the existing `border-accent/60` rule hard to spot.
+- **BUG-004** — `⌘`` pane-toggle breaks subsequent keyboard
+  routing. `togglePaneFocus` updates React state but doesn't move
+  OS-level focus to xterm / browser / editor.
+- **PROCESS-001** — Keyboard regression coverage gap. Four
+  keyboard regressions in a week (BUG-001, 002, 004, plus
+  ⌘T-pane-aware churn). Need at minimum a fleshed-out keyboard
+  matrix in `docs/dev/smoke-checklist.md § 5`; consider Playwright
+  + Electron automation later.
+- **BUG-001** (closed 2026-04-26 in commit `3976039`) — `⌃Tab`
+  pane-aware cycling. Three-part fix; full write-up in `tasks.md`
+  so the next reader doesn't re-discover the xterm-key-eating and
+  WebContentsView-mousedown gotchas.
+
+**Tackle the open bugs after the current Stage 12 round wraps.**
+PROCESS-001 should be addressed BEFORE the next round of keyboard
+work (Stage 19c, Stage 20 pane-aware shortcuts) so we stop
+shipping regressions.
 
 ---
 
