@@ -243,76 +243,81 @@ historical.
 
 ---
 
-## Open ADRs (pending decision)
+### Reserved frontmatter namespace: `duo.*`
 
-### Skill scoping — global install vs. Duo-session-only
+**Status:** 🟢 Locked (2026-04-24, owner)
+**Context:** Stage 11 markdown editor persists document-level editor
+state inside the `.md` file's YAML frontmatter rather than in a sidecar.
+First concrete use: `duo.trackChanges: true|false` (PRD D18).
 
-**Status:** 🟡 Open / Undecided  
-**Raised:** 2026-04-23  
-**Needed before:** Stage 5 ships (skill install step)
+**Decision:** The `duo.*` key namespace inside frontmatter is reserved
+for Duo. Third-party tools must not write into it; Duo must not touch
+any other key. Current reservations:
 
-**Question:** Should the `duo` skill be installed globally to
-`~/.claude/skills/duo/` (current plan per brief §6), or scoped so it only
-appears inside Claude Code sessions that Duo itself spawned?
+- `duo.trackChanges: boolean` — per-document track-changes toggle
+  (Stage 11 PRD D18). When `true`, edits become CriticMarkup
+  (`{++ins++}` / `{--del--}` / `{~~old~>new~~}`) until accepted.
 
-**Why it matters:**
-- The skill teaches Claude how to call `duo <command>` to drive Duo's
-  embedded browser. It's meaningless outside Duo.
-- We want to add stronger anti-improvisation guidance ("don't reach for
-  `osascript` / Playwright / system-Chrome CDP when `duo` is available") —
-  that guidance is irrelevant, and potentially confusing, in non-Duo
-  sessions (Terminal.app, VS Code terminals, CI, etc.).
-- A global install pollutes every Claude session on the machine with
-  Duo-specific context.
+Future reservations land in this list with a PRD reference and a
+short rationale. Keep the namespace shallow (`duo.foo`, not
+`duo.editor.foo`) unless there's a real grouping need.
 
-**Options under consideration:**
-
-1. **Keep global install at `~/.claude/skills/duo/`** (current plan)
-   - Pro: Zero extra plumbing; `duo --version` failing is the implicit
-     "not in Duo" signal.
-   - Con: Pollutes all sessions; can't safely add Duo-specific guardrails
-     without them leaking elsewhere.
-
-2. **Per-session via shell init + `claude --plugin-dir` wrapper**
-   - `PtyManager.create` spawns zsh with a Duo-owned `ZDOTDIR` pointing
-     at a generated `.zshrc` that (a) sources the user's real `~/.zshrc`
-     and (b) defines a `claude()` function forwarding `--plugin-dir
-     <duo-bundled-skill-dir>` into every invocation. Bash gets equivalent
-     treatment via `--rcfile` / `BASH_ENV`.
-   - Pro: Cleanly scoped to Duo PTYs; invisible outside Duo;
-     CWD-independent; doesn't touch `~/.claude/`.
-   - Con: Skill becomes a plugin (namespaced as `/duo:<name>`); one more
-     layer of shell init that can break; users who invoke `/usr/local/bin/claude`
-     directly bypass the wrapper.
-
-3. **Per-session via `claude --add-dir <duo-bundled-skill-parent>`**
-   - Same shell-init wrapper, but uses `--add-dir` so Claude
-     auto-discovers `.claude/skills/duo/` inside the bundled path without
-     plugin namespacing.
-   - Pro: Same scoping win as option 2, without the `/duo:` prefix on
-     every skill name.
-   - Con: `--add-dir` also grants filesystem access to the bundled path
-     (fine — it's ours). Same shell-init fragility as option 2.
-
-4. **Project-level `.claude/skills/duo/` only**
-   - Symlink the skill into the PTY's launch CWD.
-   - Pro: No shell-init hop.
-   - Con: Evaporates when the user `cd`s away from launch CWD;
-     unreliable as the *only* mechanism.
-
-**Interference with user's existing skills:**
-- Options 2 / 3 / 4 are purely additive — `~/.claude/skills/` keeps
-  loading normally.
-- Plugin namespacing (option 2) means no name collisions.
-- The `ZDOTDIR` hop *must* source the user's real `.zshrc` or it will
-  nuke their aliases / PATH / prompt.
-
-**Related change if we pick 2/3/4:** Drop the global install step from
-Stage 5's first-launch flow — skill no longer lives under `~/.claude/`.
-
-**Decision owner:** Geoff.
+**Why frontmatter, not a sidecar:** single-file portability — `mv
+foo.md elsewhere/` keeps the doc state intact; GitHub diffs show the
+toggle change inline with the content; no `.duo.json` orphans to
+garbage-collect.
 
 ---
+
+### Skill scoping: global install at `~/.claude/skills/duo/`
+
+**Status:** 🟢 Locked (2026-04-25, owner)
+**Raised:** 2026-04-23 (originally as an Open ADR)
+**Resolves:** Stage 5 skill install step.
+
+**Decision:** The `duo` skill is installed **globally** at
+`~/.claude/skills/duo/` — the status quo. The skill is visible in
+every Claude Code session on the machine, not just sessions Duo
+itself spawned.
+
+**Why this option won:**
+
+- **Simplest mental model.** `duo --version` failing is the implicit
+  "not in Duo" signal; the skill itself describes the abort path
+  (the "When NOT to use `duo`" section). Claude already short-circuits
+  cleanly when the bridge is unreachable.
+- **Zero extra plumbing.** Per-session scoping required a Duo-owned
+  `ZDOTDIR` / `--plugin-dir` shell-init hop, which adds fragility for
+  a problem that hasn't materialized in practice — the skill's
+  guidance is read-only and well-isolated from non-Duo workflows.
+- **Reversible.** If the skill grows aggressive anti-improvisation
+  guardrails that *do* leak into non-Duo sessions, we can revisit and
+  ship one of the per-session options (which remain documented below
+  for future reference).
+
+**Alternatives kept on the books for future reference:**
+
+1. *Per-session via shell init + `claude --plugin-dir` wrapper.*
+   PtyManager spawns zsh with a Duo-owned `ZDOTDIR` that defines a
+   `claude()` function forwarding `--plugin-dir <duo-bundled-skill-dir>`.
+   Cleanest scoping, but adds shell-init fragility and namespaces the
+   skill as `/duo:<name>`.
+2. *Per-session via `claude --add-dir <duo-bundled-skill-parent>`.*
+   Same shell-init wrapper, no plugin prefix.
+3. *Project-level `.claude/skills/duo/` only.* Symlink into the PTY's
+   launch CWD. Evaporates on `cd`, so unreliable as a sole mechanism.
+
+**Operational impact:**
+
+- Stage 5's first-launch installer (`npm run sync:claude` for dev;
+  bundled `fs.copyFile` for end users) continues to copy
+  `skill/SKILL.md` + `agents/duo-browser.md` into `~/.claude/`.
+- No change to `cli/duo install` — the CLI continues to symlink to
+  `~/.local/bin/duo` or `/usr/local/bin/duo`.
+
+---
+
+## Open ADRs (pending decision)
 
 ### Sandbox-tolerant transport and install paths for the `duo` CLI
 

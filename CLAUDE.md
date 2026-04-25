@@ -16,25 +16,51 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 ---
 
-## Current state (as of 2026-04-22)
+## Current state (as of 2026-04-24)
 
-**Stages 1–3 shipped and verified end-to-end. Stage 5 skill + subagent shipped and verified.**
+**Foundation shipped. Flagship half #1 (cozy-mode terminal) shipped
+2026-04-22. Flagship half #2 — sub-stage 11a of the markdown editor —
+shipped 2026-04-24; 11b–e next.**
 
-**What's done:**
+**Foundation (shipped + verified):**
 - Electron main process, preload, PTY manager
-- Renderer: split layout, terminal tab bar, xterm.js terminals, keyboard shortcuts (`⌘T` browser tab, `⌘⇧T` terminal tab, `⌘L` address bar, `⌘W`, `⌘1-9`, `⌘⇧[`/`]`)
-- Browser pane with its own **tab strip** (add/switch/close, numeric IDs via `duo tab <n>`)
-- SSO persistence across relaunches (Google Docs stays logged in)
-- `CdpBridge` full set: navigate, url, title, dom, text, **ax** (accessibility tree — the canvas-app read path), click, fill, **focus**, **type**, **key**, eval, screenshot, **console** (ring buffer + filters), tabs, tab, wait
-- CLI: `cli/duo` esbuild binary + `duo install` symlinks to `~/.local/bin/duo` or `/usr/local/bin/duo`
-- Skill: `skill/SKILL.md` with YAML frontmatter so Claude Code auto-discovers it; prescriptive Docs rules (no `duo dom`, no `/export?format=txt`, only `duo ax`); scroll-to-expand technique for long docs
-- **Subagent:** `agents/duo-browser.md` — Bash-only driver, preferred entry point for multi-step browser work (keeps parent context clean)
-- End-to-end verification: fresh Claude Code in Duo terminal → auto-discovers skill → drives browser → returns accurate summary (A.5.1 + A.5.3 covered)
+- Three-column layout (Files / Terminal / WorkingPane) with one unified
+  tab strip across browser + editor + preview tab types
+- Terminal tabs (xterm.js + node-pty) with cozy mode typography
+- Browser pane (`WebContentsView`, SSO via `persist:duo-browser`, tab
+  strip, shortcut forwarding for the allowlisted `⌘<letter>` set)
+- File navigator (Stage 10) — shared tree, breadcrumb, pending-CWD for
+  new terminal tabs, follow-mode
+- Theme toggle — System / Light / Dark; follows macOS appearance in
+  System mode; xterm terminal theme swapped in lock-step (so the
+  terminal isn't white-on-black in light mode)
+- `duo` CLI over a Unix socket at
+  `~/Library/Application Support/duo/duo.sock` (mode 0700). Full
+  inventory + gap roadmap in [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).
+- Markdown editor (Stage 11a): TipTap/ProseMirror, tiptap-markdown
+  round-trip with frontmatter preservation, table contextual toolbar,
+  syntax-highlighted code, `⌘N` new-file flow with filename
+  interstitial + focus-to-prose on commit, persistent selection
+  overlay across focus changes, `⌘S` + autosave, dirty dot
+- Bundled `duo` Claude Code skill + `duo-browser` subagent
 
-**What's next (see `ROADMAP.md`):**
-- First-launch installer that copies `skill/` + `agents/` into `~/.claude/` automatically (currently manual)
-- Stage 4 — wire SkillsPanel into the layout (scanner already exists)
-- Backlog items raised by owner: reader-mode typography, markdown editor pane, browser tab numbers in UI, terminal selection improvements, file navigator (Stage 7)
+**CLI verbs shipped (see [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md) for
+the authoritative inventory):** navigate · open · url · title · dom ·
+text · ax · click · fill · focus · type · key · eval · screenshot ·
+console · tabs · tab · close · wait · view · reveal · ls · nav-state ·
+edit · selection · doc write · theme · install
+
+**What's next (see `ROADMAP.md` + `docs/CLI-COVERAGE.md`):**
+- Stage 11b–e — CriticMarkup track-changes + comments + outline +
+  find/replace; external-write reconciliation.
+- **Stage 10 Phase 6 completion** — already well along, just closing
+  out the remaining items.
+- **P0 CLI gaps** — terminal tab management (`duo term new/close/
+  tab/list`), pane focus (`duo pane focus`), in-buffer doc read
+  (`duo doc read`). All catalogued in `docs/CLI-COVERAGE.md`.
+- Stage 12 — unified skill + connector management surface.
+- Stage 13 — `duo doctor`, TCP transport fallback, interaction polish.
+- Stage 15 — human↔agent interaction primitives.
 
 ---
 
@@ -44,18 +70,28 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 |---|---|
 | `README.md` | Elevator pitch, quick start, CLI reference, architecture diagram |
 | `docs/VISION.md` | Product north star — persona, principles, flagship bet. Read before making product/UX decisions. |
+| `docs/CLI-COVERAGE.md` | Authoritative CLI verb inventory + priority-tagged gap roadmap. Touched on every new feature. |
+| `docs/prd/` | Per-stage PRDs (9, 10, 11) with D-numbered decisions + rationale |
+| `docs/dev/smoke-checklist.md` | Test matrix walked before calling any UI change done |
 | `duo-brief.md` | Original engineering brief (Stages 1–5). Architecture + Google Docs path are authoritative; product framing is superseded by `docs/VISION.md`. |
 | `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog |
-| `docs/DECISIONS.md` | Locked architectural decisions with rationale (+ open ADR on skill scoping) |
-| `docs/FIRST-RUN.md` | Thorough setup + smoke-test procedure |
+| `docs/DECISIONS.md` | Locked architectural decisions with rationale (+ open ADR on sandbox-tolerant transport) |
+| `docs/FIRST-RUN.md` | Thorough setup procedure |
 | `docs/RESEARCH.md` | Technical research notes that informed decisions |
-| `shared/types.ts` | Shared types + IPC channel names |
+| `shared/types.ts` | Shared types + IPC channel names + `DuoCommandName` |
 | `electron/constants.ts` | Node-only paths (socket, session partition, skill install dir) |
-| `electron/main.ts` | Electron main process entry |
+| `electron/main.ts` | Electron main process entry; theme, nav, editor-doc-write bridges |
 | `electron/cdp-bridge.ts` | CDP command executor (ax tree renderer, console ring buffer, key/focus/type) |
-| `electron/browser-manager.ts` | WebContentsView tabs + SSO partition |
+| `electron/browser-manager.ts` | WebContentsView tabs + SSO partition + **shortcut forwarding allowlist** |
+| `electron/files-service.ts` | Disk I/O: list, read, write (atomic tmp+rename), chokidar watch |
 | `electron/pty-manager.ts` | node-pty session pool |
-| `renderer/App.tsx` | Root React component, split layout |
+| `electron/socket-server.ts` | Unix socket → CLI verb dispatch (single switch; touch for every new verb) |
+| `cli/duo.ts` | CLI source — rebuilt with `npm run build:cli`; tracked binary at `cli/duo` |
+| `renderer/App.tsx` | Root React component, three-column layout, theme + focus routing |
+| `renderer/components/editor/MarkdownEditor.tsx` | Stage 11 rich editor (TipTap + tiptap-markdown + custom extensions) |
+| `renderer/components/editor/EditorToolbar.tsx` | Top toolbar + contextual table controls (PRD D5, D12a) |
+| `renderer/components/editor/extensions/` | `TableShortcuts`, `PersistentSelection` |
+| `renderer/hooks/useTheme.ts` | Theme mode state + push to main + CLI-override listener |
 | `skill/SKILL.md` | Claude Code skill (auto-discovered via YAML frontmatter) |
 | `agents/duo-browser.md` | Subagent for multi-step browser work |
 
@@ -67,15 +103,29 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 2. **Do not re-debate the stack.** Electron, xterm.js, WebContentsView, Unix socket CLI — all locked. See `docs/DECISIONS.md`.
 
-3. **The CLI is the spec.** Every time a new CLI command is added, update `cli/duo.ts`, `skill/SKILL.md`, and the command reference in `duo-brief.md §9`.
+3. **The CLI is the spec.** Every time a new CLI command is added, update `cli/duo.ts`, `skill/SKILL.md`, and **[docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)** (the authoritative inventory + gap roadmap). `duo-brief.md §9` holds the original Stage-1–3 draft for historical context but is no longer updated with new verbs.
 
-4. **The skill is a first-class deliverable.** Ship both the app and `skill/SKILL.md`, or neither. The skill is how Claude Code discovers the tool.
+4. **CLI parity with UI — every user-facing feature ships a `duo` counterpart.** If the human can do it with a click, a menu, a keystroke, or a UI toggle, the agent must be able to do the same thing from the CLI. This is load-bearing for the whole product: Duo's premise is human↔agent pair work on shared surfaces, and a UI-only feature silently breaks that premise. Concrete patterns:
+    - UI toggle → `duo <thing>` reads state, `duo <thing> <value>` sets it (example: `duo theme`, `duo theme system|light|dark`).
+    - Menu action → `duo <verb>` runs the same action.
+    - In-app shortcut that changes state → `duo <verb>` does the same without the keystroke.
+    - Deliberately UI-only features (e.g. drag-to-reorder) must be called out in the PRD as explicit asymmetries.
 
-5. **If blocked on an open question in `duo-brief.md §7`, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming.
+    Plumbing checklist for a new CLI verb — every one of these must be touched:
+    1. `shared/types.ts` — add the command name to `DuoCommandName`, plus any new IPC channel / state-snapshot shape
+    2. `electron/preload.ts` — expose a minimal renderer API (push / subscribe)
+    3. `electron/main.ts` — ipcMain handler for state push; dispatch helper for main→renderer pushes; bridge-exposed getter/setter
+    4. `electron/socket-server.ts` — new case in the command switch; extend `NavBridge` if it needs renderer state or a renderer dispatch
+    5. `cli/duo.ts` — the verb itself + `printHelp()` update
+    6. `skill/SKILL.md` — so the agent discovers it (plus `npm run sync:claude`)
 
-6. **Stage order matters.** Do not try to implement Stage 3 before Stage 2 is working. The socket server is useless without a real browser.
+5. **The skill is a first-class deliverable.** Ship both the app and `skill/SKILL.md`, or neither. The skill is how Claude Code discovers the tool.
 
-7. **NEVER claim UI work is done without previewing it yourself.** Build
+6. **If blocked on an open question in `duo-brief.md §7`, state the assumption and proceed.** Do not stall waiting for clarification on layout, aesthetics, or naming.
+
+7. **Stage order matters.** Do not try to implement Stage 3 before Stage 2 is working. The socket server is useless without a real browser.
+
+8. **NEVER claim UI work is done without previewing it yourself.** Build
    passing and types clean are not sufficient evidence that a UI change
    works. Before saying "shipped" / "done" on anything that touches the
    renderer, main process, preload, CSS, or menus:
@@ -103,7 +153,7 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
    but crashed the renderer at mount time. That is exactly what a
    two-minute preview pass would have caught.
 
-8. **After editing `skill/` or `agents/`, sync to `~/.claude/`.** The repo
+9. **After editing `skill/` or `agents/`, sync to `~/.claude/`.** The repo
    tracks the canonical source, but Claude Code running on this machine
    reads from `~/.claude/skills/duo/` and `~/.claude/agents/duo-browser.md`.
    These are plain-file **copies**, not symlinks — edits in the repo do

@@ -152,7 +152,17 @@ The following were not directly answered by the owner; reasonable assumptions we
 
 The CLI is the agent’s API surface. It must be stable, predictable, and output in formats Claude Code can parse naturally.
 
-### Command reference (draft)
+> **Authoritative inventory lives in [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).**
+> The table below is the Stage-1–3 draft and is preserved as
+> historical context. Commands shipped in later stages
+> (`duo open`, `duo close`, `duo view`, `duo reveal`, `duo ls`,
+> `duo nav state`, `duo edit`, `duo selection`, `duo doc write`,
+> `duo theme`, `duo install`) are not listed here but are the same
+> specification shape — JSON-over-Unix-socket, line-delimited, see the
+> Protocol section below. The CLI-COVERAGE doc also holds the
+> priority-tagged roadmap of verbs still to add.
+
+### Command reference (Stages 1–3 draft — superseded by CLI-COVERAGE.md)
 
 |Command                                                |Description                                                                            |Output                      |
 |-------------------------------------------------------|---------------------------------------------------------------------------------------|----------------------------|

@@ -62,8 +62,8 @@ Jobs this stage does NOT do:
 | # | Area | Decision |
 |---|---|---|
 | C1 | **Scope** | One toggle per terminal tab. Not a global app mode. |
-| C2 | **Trigger surface** | Electron app menu: **View → "Cozy mode (preview) — current tab"**. Checkmark reflects the current tab's state. No keybinding in v1 (research note § 6). |
-| C3 | **Preview gating** | The menu item ships with the `(preview)` label as the gating signal. No separate "enable cozy mode" meta-toggle. The label warns users to expect TUI rough edges during the shake-out window. If a hard-blocking bug emerges, the label makes it easy to rename, hide, or remove. |
+| C2 | **Trigger surface** | Electron app menu: **View → "Cozy mode — current tab"**. Checkmark reflects the current tab's state. No keybinding in v1 (research note § 6). |
+| C3 | **Preview gating (graduated 2026-04-25)** | The menu item originally shipped with a `(preview)` suffix as the gating signal during a TUI shake-out window. Validated via daily driving 2026-04-22 \u2192 2026-04-25 with no TUI regressions; the suffix was dropped on 2026-04-25. If a hard-blocking bug emerges, the rollback plan (C17) still applies. |
 | C4 | **New-tab default** | **Remember last choice.** The very first tab defaults to OFF. Each time the user toggles any tab, that becomes the default for subsequent new tabs. Persisted. |
 | C5 | **Per-tab persistence** | Per-tab cozy state is stored in `localStorage` under `duo.cozy.v1.byTab` (keyed by tab UUID). Since tab UUIDs do not survive an app relaunch, this is effectively a within-session cache plus the "last choice" default in C4. |
 | C6 | **Last-choice persistence** | Last-choice default is stored in `localStorage` under `duo.cozy.v1.lastChoice` (boolean). Updated on every toggle. Survives relaunches. |
@@ -123,7 +123,7 @@ checklist can be exercised as a single unit.
 **Electron main (`electron/main.ts`)**
 - Build an app menu with a View submenu containing the cozy toggle
   item. The item is a checkbox that starts unchecked; its label
-  reads `"Cozy mode (preview) — current tab"`.
+  reads `"Cozy mode — current tab"`.
 - On click, send an IPC message (new channel `COZY_TOGGLE`) to the
   focused renderer. The renderer owns authoritative state and
   echoes back the new checked value via `COZY_STATE` so the menu
@@ -175,7 +175,7 @@ checklist can be exercised as a single unit.
 |---|---|
 | xterm.js canvas renderer mis-aligns at the new line height on some fonts. | Validate Claude Code box-drawing first; if any row is ragged, fall back to `lineHeight: 1.5` (conservative) and record the finding. |
 | PTY resize storms when the user rapidly toggles cozy. | `FitAddon.fit()` is idempotent; the debounce already present in `ResizeObserver` paths covers the window case. Single toggles are one `fit()` each — no debounce needed. |
-| Users enable cozy, hit a TUI glitch we don't catch, and assume Duo is broken. | The `(preview)` label warns them. The rollback plan (C17) is a one-line hide. |
+| Users enable cozy, hit a TUI glitch we don't catch, and assume Duo is broken. | Mitigated during shake-out window with the `(preview)` label (graduated 2026-04-25). The rollback plan (C17) remains a one-line hide for any future regression. |
 | Stage 11 (markdown editor) wants its own typography levers and diverges from cozy. | Keep cozy scoped to terminal surface only. Stage 11 lives in the working pane and has its own font stack decisions. No shared CSS between them. |
 | Per-tab `localStorage` map grows without bound as tabs come and go. | Write-through key on tab close removes stale entries. Even unbounded, the map is bytes per entry. |
 

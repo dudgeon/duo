@@ -1,6 +1,6 @@
 ---
 name: duo
-description: Interact with the Duo desktop app's workspace surfaces — (1) the live embedded browser (navigate, read page content including Google Docs via the accessibility tree, click, fill, type, screenshot, diagnose via captured console logs), (2) the file navigator (move the tree, list directory contents, reveal a path to the user), and (3) the Viewer/Editor column (open local files in a new tab — markdown preview, images, pdfs). Use whenever the user asks you to work with whatever is open in Duo's browser pane, open a local file they're editing, navigate their project, or drive Google Docs / Sheets / Slides / Figma / Notion in a live session.
+description: Interact with the Duo desktop app's workspace surfaces — (1) the live embedded browser (navigate, read page content including Google Docs via the accessibility tree, click, fill, type, screenshot, diagnose via captured console logs), (2) the file navigator (move the tree, list directory contents, reveal a path to the user), (3) the Viewer/Editor column (open local files in a new tab — markdown rich editor, images, pdfs), and (4) the rich markdown editor (read/write the live buffer including the user's selection, set app theme). Use whenever the user asks you to work with whatever is open in Duo's browser pane, read or rewrite a markdown document the user is editing, reference or transform the text they've selected ("summarize the selected paragraph", "shorten this section"), open a local file they're editing, navigate their project, or drive Google Docs / Sheets / Slides / Figma / Notion in a live session.
 ---
 
 # duo — driving the live browser from a Duo terminal
@@ -66,12 +66,84 @@ below. Do not retry blindly.
 | `duo console [--since <ms>] [--level log,warn,error,...] [--limit N]` | Buffered console events | NDJSON |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs | JSON |
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
-| `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rendered preview, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
+| `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rich markdown editor, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
+| `duo edit <path>` | Open a `.md` in the rich markdown editor (Google-Docs-feel, TipTap/ProseMirror). Returns `{ok}`. Behaves like `view` for non-`.md` files. | JSON: `{ok}` |
 | `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
 | `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
 | `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |
+| `duo selection` | Active markdown editor's cursor/selection snapshot. **Use when the user says "this", "the selected paragraph", "this section", "here".** | JSON: `{path, text, paragraph, heading_trail, start, end}` or `null` |
+| `duo doc write --replace-selection` | Swap the user's current editor selection with new text (reads stdin or `--text "…"`). For collapsed selection, inserts at caret. Plain text in v1 — use `--replace-all` if you need markdown formatting. | JSON: `{ok}` |
+| `duo doc write --replace-all` | Replace the entire document body with new markdown (frontmatter preserved). Use for "rewrite this doc" / "restructure this section" tasks. | JSON: `{ok}` |
+| `duo theme [system\|light\|dark]` | Read the current theme (no arg → JSON `{mode, effective}`) or set it. Usually only changed on explicit user request. | JSON |
 
 ## Patterns
+
+### Transform the user's selected text in the markdown editor
+
+This is the canonical "summarize this / shorten this / rewrite this"
+flow when the user has a `.md` file open in Duo's rich editor.
+
+1. Call `duo selection`. If it returns `null`, there's no editor tab
+   active — tell the user to open the file with `duo edit <path>` or
+   click into the editor first.
+2. If `text` is empty, the selection is collapsed at the caret — in
+   that case ask the user to select the thing they mean, unless the
+   request is clearly about the surrounding `paragraph` or the whole
+   section described by `heading_trail`.
+3. Do the transform in-process (think, don't tool-call unnecessarily),
+   then:
+
+```bash
+# Replace the user's selection with the transformed text.
+echo "the new text" | duo doc write --replace-selection
+```
+
+The selection overlay stays visible even while the terminal has focus
+(PRD D29c), so the user can see exactly what range you're operating on.
+
+**Future Stage 15g (not yet shipped):** when the user clicks a
+"Send → Duo" button next to a selection (or hits the keyboard
+shortcut), the selection is injected into your terminal as a quoted
+block plus a one-line provenance ("from /path/to/foo.md · Risks > Market"),
+ready for you to read alongside the user's typed verb. The injection
+format is itself runtime-configurable via `duo selection-format`:
+
+- `duo selection-format` — print the current format (default `a`).
+- `duo selection-format c` — switch to opaque tokens like
+  `<<duo-sel-abc123>>` for the rest of the session. Useful when
+  you're going to do many transforms in a row and the quoted blocks
+  would clutter your context.
+- `duo selection-format a` — switch back to the human-readable
+  default.
+
+Format `c` requires you to call `duo selection` to read what the
+token refers to. Format `a` (default) gives you the text inline plus
+a `duo selection` round-trip available if you want richer context
+(line range, heading trail).
+
+### Rewrite an entire markdown document
+
+When the user says "restructure this PRD" or "convert this outline into
+prose", use `replace-all` so you can emit markdown (headings, lists,
+tables). The editor's frontmatter is preserved automatically.
+
+```bash
+cat <<'EOF' | duo doc write --replace-all
+# Rewritten doc
+
+Your new content here, with **bold**, `code`, lists, tables…
+EOF
+```
+
+### Open a markdown file for the user to read or edit
+
+```bash
+duo edit ~/projects/foo/prd.md
+```
+
+Opens in the rich editor with a centered prose column, toolbar, and
+auto-discovered frontmatter. Internal links to other `.md` files are
+followed as new editor tabs.
 
 ### Read a Google Doc — the fast path (`export?format=md`)
 

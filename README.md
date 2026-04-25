@@ -1,17 +1,25 @@
 # Duo
 
-A macOS workspace for working **alongside an agent**. Duo pairs a terminal
-tuned for long human↔agent conversation with an embedded Chromium browser,
-a local CLI bridge, and (soon) a file browser and markdown editor — all in
-one signed app. Today the supported agent is
+A macOS workspace where a human and an agent pair on the same surfaces —
+terminal, browser, file tree, markdown editor — through a **CLI that
+exposes every user-facing feature**. One `duo` command = one shared
+action. The agent sees what you see and does what you can do.
+
+Today the supported agent is
 [Claude Code](https://www.anthropic.com/claude-code); the architecture is
 BYO-harness.
 
-![status: foundation shipped, flagship reading/writing pair next](https://img.shields.io/badge/status-foundation_shipped-brightgreen)
+![status: flagship reading/writing pair in progress](https://img.shields.io/badge/status-flagship_in_progress-brightgreen)
 
+> **Why it's CLI-first.** If an agent can only watch but not act, you
+> haven't built a pair — you've built a spectator. Every UI toggle,
+> menu, and keystroke in Duo also has a `duo <verb>` counterpart. See
+> [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md) for the full inventory
+> plus the gap roadmap.
+>
 > **Product north star lives in [docs/VISION.md](docs/VISION.md)** —
 > persona, principles, and the flagship "readable terminal + docs-style
-> markdown editor" bet. Read that for the *why*. This README is the *how*.
+> markdown editor" bet. Read that for the *why*.
 
 ---
 
@@ -34,33 +42,36 @@ aspirational capability set.
 
 ## What it is today
 
-At this point in the roadmap, Duo is a terminal + browser + agent-bridge
-in one native macOS app. The PM-facing surfaces (readable prose terminal,
-docs-style markdown editor, file browser, visual skill/connector management)
-are the next bets — see [ROADMAP.md](ROADMAP.md) and
-[docs/VISION.md](docs/VISION.md).
-
-A recurring pain point for the primary persona is that they want the agent
-to work with what's **on their screen** — a PRD in Google Docs, a live
-dashboard, a generated HTML prototype — and every bridge is awkward. Copy /
-paste, external MCP servers, browser-automation tools that break on Google
-SSO. Duo collapses the terminal, the browser, and the agent-bridge into one
-signed macOS app that installs by dragging to `/Applications`. Authenticated
-Google Docs read/edit is the flagship success test for this foundation
-layer.
+The recurring pain point for the primary persona: they want the agent to
+work with what's **on their screen** — a PRD in Google Docs, a live
+dashboard, a generated HTML prototype — and every bridge is awkward.
+Copy/paste, external MCP servers, browser-automation tools that break on
+Google SSO. Duo collapses the terminal, the browser, the file tree, the
+markdown editor, and the agent-bridge into one signed macOS app that
+installs by dragging to `/Applications`. Authenticated Google Docs
+read/edit is the flagship success test for this foundation layer.
 
 What's shipped today:
 
-- **Terminal tabs** (xterm.js + node-pty) side-by-side with a real
-  **Chromium browser pane** (Electron `WebContentsView`), in one window.
-- **Google SSO persists** across app restarts — sign into Docs once and it
-  stays signed in.
-- A `duo` **CLI** on your PATH that any terminal process can call. Under the
-  hood it talks to the running app over a Unix socket
-  (`~/Library/Application Support/duo/duo.sock`, mode 0700).
+- **Three-column workspace:** files on the left, terminal in the middle,
+  a **polymorphic Viewer/Editor column** on the right with one unified
+  tab strip for browser tabs, markdown-editor tabs, and file previews.
+- **Terminal tabs** (xterm.js + node-pty) with reader typography
+  ("cozy mode", Stage 9).
+- **Real Chromium browser pane** (Electron `WebContentsView`) with
+  **persistent Google SSO** — sign in once, stay signed in across relaunches.
+- **Rich markdown editor** (Stage 11a): Google-Docs-like typography,
+  TipTap/ProseMirror under the hood, GFM + task lists + tables + syntax-
+  highlighted code. YAML frontmatter preserved. Autosave + `⌘S`.
+  CriticMarkup-based comments and track-changes land in 11b–d.
+- **Light / dark / system theme** with macOS appearance follow.
+- A `duo` **CLI** on your PATH. Any terminal process — including
+  Claude Code running inside a Duo tab — can call it. Under the hood
+  it's a Unix socket at `~/Library/Application Support/duo/duo.sock`
+  (mode 0700). See [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).
 - Bundled **`duo` Claude Code skill** + **`duo-browser` subagent** so a
   fresh Claude Code session launched inside a Duo terminal
-  auto-discovers them and can drive the browser without priming.
+  auto-discovers them and can drive the browser + editor without priming.
 - **First-class support for canvas-rendered apps** (Google Docs, Sheets,
   Slides, Figma) via the accessibility tree — not DOM scraping, which
   silently returns empty on these surfaces.
@@ -131,31 +142,63 @@ browser for you.
 
 ## The `duo` CLI
 
-The CLI is the agent's API surface. Everything below runs in milliseconds
-against the live browser.
+The CLI is the agent's API surface. Every interaction below runs in
+milliseconds against the live app — the same app the human is using.
+This table is the headline set; the exhaustive, priority-tagged
+inventory + gap roadmap lives in
+[docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).
+
+**Browser — drive the page the human is looking at**
 
 | Command | What it does |
 |---|---|
 | `duo navigate <url>` | Navigate the **active** browser tab |
-| `duo open <path-or-url>` | Open a local file or URL in a **new** tab, activate it (use for showing agent-generated artifacts) |
-| `duo url` / `duo title` | Current URL / page title |
-| `duo text [--selector <css>]` | Visible text (DOM `innerText`) |
-| `duo ax [--selector <css>] [--format md\|json]` | **Accessibility tree** — required for canvas apps |
-| `duo dom` | Full page HTML |
-| `duo click <selector>` | Click an element |
-| `duo fill <selector> <value>` | Set an input value |
-| `duo focus <selector>` | Focus an element |
-| `duo type <text>` | Synthesize text input into the focused element |
-| `duo key <name> [--modifiers cmd,shift,alt,ctrl]` | Dispatch a named key (Enter, ArrowDown, Backspace, or any single letter) |
-| `duo eval <js>` | Run JS in the page, return result |
-| `duo screenshot [--out <path>] [--selector <css>]` | PNG capture |
-| `duo console [--since <ms>] [--level ...] [--limit N]` | Buffered console events (NDJSON) |
-| `duo tabs` / `duo tab <n>` / `duo close <n>` | List, switch, or close browser tabs (can't close the last one) |
-| `duo view <path>` | Open a local file in the Viewer/Editor column (markdown preview / image / pdf / "Open with default app"). Distinct from `duo open` (browser/URL). |
-| `duo reveal <path>` | Move the file navigator to `<path>` with a dismissible chip. |
-| `duo ls [path]` / `duo nav state` | Inspect directory contents / navigator state (JSON). |
-| `duo wait <selector> [--timeout <ms>]` | Block until element appears |
-| `duo install` | Symlink CLI into PATH |
+| `duo open <path-or-url>` | Open a local file or URL in a **new** browser tab (for agent-generated HTML artifacts) |
+| `duo url` / `duo title` | Current URL / title |
+| `duo ax [--selector] [--format md\|json]` | **Accessibility tree** — the canvas-app read path (Docs / Sheets / Slides / Figma) |
+| `duo text [--selector]` · `duo dom` · `duo eval <js>` | Plain text / HTML / JS eval |
+| `duo click` · `duo fill` · `duo focus` · `duo type` · `duo key` | Interaction primitives |
+| `duo screenshot [--out] [--selector]` | PNG |
+| `duo console [--since] [--level] [--limit]` | Buffered console (NDJSON) |
+| `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs |
+| `duo wait <selector> [--timeout]` | Block until visible |
+
+**Files + navigator** (Stage 10)
+
+| Command | What it does |
+|---|---|
+| `duo view <path>` | Open a file in the Viewer/Editor column (image / pdf / unknown) |
+| `duo reveal <path>` | Move the file navigator to `<path>`, flash a chip |
+| `duo ls [path]` | Directory listing (JSON) |
+| `duo nav state` | Navigator snapshot: cwd, selection, expanded, pinned |
+
+**Markdown editor** (Stage 11)
+
+| Command | What it does |
+|---|---|
+| `duo edit <path>` | Open a `.md` in the rich editor |
+| `duo selection` | Active editor's selection: `{path, text, paragraph, heading_trail, start, end}` |
+| `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor; `--replace-all` accepts markdown |
+
+**Appearance**
+
+| Command | What it does |
+|---|---|
+| `duo theme [system\|light\|dark]` | Read or set theme mode |
+
+**Meta**
+
+| Command | What it does |
+|---|---|
+| `duo install` | Symlink CLI to `/usr/local/bin/duo` or `~/.local/bin/duo` |
+| `duo --version` / `duo --help` | Self-explanatory |
+
+> **Gap list.** Terminal tab management (`duo term new / close / tab`),
+> pane focus (`duo pane focus`), in-buffer doc read (`duo doc read`),
+> cozy-mode toggle, files-column toggle, and more are on the
+> [CLI-COVERAGE roadmap](docs/CLI-COVERAGE.md) with priorities. If you
+> find yourself wanting a verb, open an issue — keeping the inventory
+> comprehensive is the point of the project.
 
 See [skill/SKILL.md](skill/SKILL.md) for the prescriptive agent-facing rules
 (especially for Google Docs — `duo dom` and `/export?format=txt` are traps
@@ -214,18 +257,30 @@ Locked architectural decisions and rationale: [docs/DECISIONS.md](docs/DECISIONS
 ```
 duo/
 ├── electron/              # main process
-│   ├── main.ts            # window, IPC, lifecycle
+│   ├── main.ts            # window, IPC, lifecycle, nav/theme/editor bridges
 │   ├── preload.ts         # renderer ↔ main bridge
 │   ├── pty-manager.ts     # node-pty pool
-│   ├── browser-manager.ts # WebContentsView tabs
+│   ├── browser-manager.ts # WebContentsView tabs + shortcut forwarding
 │   ├── cdp-bridge.ts      # CDP command executor
-│   ├── socket-server.ts   # Unix socket → CDP bridge
+│   ├── socket-server.ts   # Unix socket → all CLI verbs
+│   ├── files-service.ts   # disk I/O (read, write, list, watch)
 │   ├── skills-scanner.ts  # Stage 4 — CWD scan (not yet wired)
 │   └── constants.ts       # Node-only paths/constants
 ├── renderer/              # React UI
-│   ├── App.tsx
-│   ├── components/        # TabBar, TerminalPane, BrowserPane, ...
-│   └── hooks/
+│   ├── App.tsx            # three-column layout + theme + focus routing
+│   ├── components/
+│   │   ├── TabBar.tsx · TerminalPane.tsx
+│   │   ├── FilesPane.tsx · FileTree.tsx · Breadcrumb.tsx
+│   │   ├── WorkingPane.tsx · WorkingTabStrip.tsx
+│   │   ├── BrowserRenderer.tsx · AddressBar.tsx
+│   │   ├── MarkdownPreview.tsx · FileRenderers.tsx
+│   │   ├── ThemeToggle.tsx
+│   │   └── editor/         # Stage 11 markdown editor
+│   │       ├── MarkdownEditor.tsx · EditorToolbar.tsx
+│   │       ├── markdown-io.ts       # frontmatter split / encoding
+│   │       └── extensions/          # TipTap extensions (TableShortcuts,
+│   │                                #   PersistentSelection, …)
+│   └── hooks/             # useNavigator, useBrowserState, useTheme, …
 ├── cli/
 │   ├── duo.ts             # CLI source
 │   ├── duo                # pre-built esbuild bundle (tracked in git)
@@ -238,15 +293,23 @@ duo/
 ├── shared/
 │   └── types.ts           # cross-process types + IPC channel names
 ├── docs/
+│   ├── VISION.md          # product north star
 │   ├── DECISIONS.md       # locked architectural choices
+│   ├── CLI-COVERAGE.md    # shipped verbs + gap roadmap (CLI parity)
 │   ├── FIRST-RUN.md       # macOS setup + smoke-test procedures
 │   ├── RESEARCH.md        # notes that informed decisions
-│   ├── research/
-│   │   └── vscode-1.110-integrated-browser.md
+│   ├── prd/               # per-stage PRDs
+│   │   ├── stage-9-cozy-mode.md
+│   │   ├── stage-10-file-navigator.md
+│   │   └── stage-11-markdown-editor.md
+│   ├── research/          # raw tech-choice notes
+│   ├── dev/
+│   │   └── smoke-checklist.md   # test-before-shipping matrix
 │   └── ux/
-│       └── layout-options.html
-├── duo-brief.md           # full vision brief
-└── ROADMAP.md             # stage-by-stage status + backlog
+├── duo-brief.md           # original brief (Stages 1–5; product framing
+│                          #   superseded by docs/VISION.md)
+├── ROADMAP.md             # stage-by-stage status + backlog
+└── CLAUDE.md              # guidance for AI working on the project
 ```
 
 ---
@@ -255,22 +318,32 @@ duo/
 
 Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
 
-**Shipped (foundation):**
+**Shipped (foundation + flagship half #1):**
 - ✅ **Stage 1** — Core shell (Electron + React + xterm.js + node-pty, tabs, keybindings)
 - ✅ **Stage 2** — Browser pane (WebContentsView, SSO persistence, tab strip, address bar)
 - ✅ **Stage 3** — `duo` CLI bridge (socket server, CDP primitives, rich Google Docs read via `/export?format=md`)
 - ✅ **Stage 5** — Skill + `duo-browser` subagent (end-to-end verified in a fresh Claude Code session)
-- ✅ **Stage 8** — `duo open` for agent-generated HTML in a new tab (`duo close` for cleanup)
+- ✅ **Stage 8** — `duo open` for agent-generated HTML artifacts (+ `duo close` for cleanup)
+- ✅ **Stage 9** — Cozy-mode terminal (reader typography, TUI-safe, preview)
+- 🔄 **Stage 10** — File navigator + WorkingPane reshape (spec locked, in progress)
 
-**Next — the flagship reading/writing pair** (per [VISION.md](docs/VISION.md)):
-- ⬜ **Stage 9** — Prose-first terminal (reader typography, TUI-safe)
-- ⬜ **Stage 10** — File browser / context drawer (prereq for the editor)
-- ⬜ **Stage 11** — Collaborative markdown editor (human↔agent, live formatting, track changes, overwrite safety — covers open issues [#5](https://github.com/dudgeon/duo/issues/5), [#6](https://github.com/dudgeon/duo/issues/6), [#7](https://github.com/dudgeon/duo/issues/7))
+**In progress — flagship half #2:**
+- 🔄 **Stage 11** — Collaborative markdown editor. **Sub-stage 11a shipped
+  2026-04-24:** TipTap editor, GFM tables, task lists, syntax-highlighted
+  code blocks, `⌘N` new-file flow, `⌘S` + autosave, table contextual
+  toolbar, persistent selection across focus changes, theme toggle
+  (System/Light/Dark), `duo edit` / `duo selection` / `duo doc write` /
+  `duo theme` CLI verbs. 11b–e (CriticMarkup track-changes, agent-write
+  highlight, comments, outline, find/replace) next. Covers open issues
+  [#5](https://github.com/dudgeon/duo/issues/5),
+  [#6](https://github.com/dudgeon/duo/issues/6),
+  [#7](https://github.com/dudgeon/duo/issues/7).
 
 **After the flagship:**
 - ⬜ **Stage 12** — Unified skill + connector management surface (supersedes Stage 4)
-- ⬜ **Stage 13** — Interaction polish (tab numbers in UI, terminal selection refinements, `duo reload`)
-- ⬜ **Stage 14 / old Stage 6** — Polish + distribution (code signing, installer, auto-update, theming — held until the flagship lands)
+- ⬜ **Stage 13** — Interaction polish (`duo doctor`, TCP transport fallback, terminal selection refinements, `duo reload`, tab numbers in UI)
+- ⬜ **Stage 15** — Human↔agent interaction primitives (`duo events`, `duo notify`, `duo tab name`, `duo zap`, file→composer)
+- ⬜ **Stage 14 / old Stage 6** — Polish + distribution (code signing, installer, auto-update, theming refinement — held until the flagship pair lands)
 
 ---
 
@@ -278,17 +351,26 @@ Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
 
 - **[docs/VISION.md](docs/VISION.md)** — product north star: persona, jobs
   to be done, principles, flagship bet. Start here for *why* Duo exists.
+- **[docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)** — exhaustive CLI
+  inventory + priority-tagged gap roadmap. Updated as verbs ship.
 - **[ROADMAP.md](ROADMAP.md)** — current status, per stage, plus the
   unscheduled backlog.
 - **[docs/DECISIONS.md](docs/DECISIONS.md)** — locked architectural
-  choices and the rationale, plus the open ADR on skill scoping.
+  choices and rationale, plus the open ADR on transport / sandbox.
+- **[docs/prd/](docs/prd/)** — per-stage PRDs (Stages 9, 10, 11). Each
+  captures D-numbered decisions with rationale.
+- **[docs/dev/smoke-checklist.md](docs/dev/smoke-checklist.md)** — the
+  test matrix every Claude instance walks before calling UI work done.
 - **[docs/FIRST-RUN.md](docs/FIRST-RUN.md)** — step-by-step setup and
   smoke-test procedure.
 - **[docs/RESEARCH.md](docs/RESEARCH.md)** — Electron, CDP, node-pty,
-  and xterm notes that shaped the build.
+  xterm notes that shaped the build.
 - **[skill/SKILL.md](skill/SKILL.md)** — the Claude Code skill installed
   alongside the app. Readable as-is for humans, too.
-- **[duo-brief.md](duo-brief.md)** — the original engineering brief for
+- **[CLAUDE.md](CLAUDE.md)** — rules for future Claude instances working
+  on the project. Rule #4 is CLI parity — the project's load-bearing
+  design principle.
+- **[duo-brief.md](duo-brief.md)** — original engineering brief for
   Stages 1–5. Product framing is superseded by `docs/VISION.md`; the
   technical detail (especially the Google Docs read/write path in §17)
   remains the authoritative reference.

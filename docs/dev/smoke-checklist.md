@@ -70,19 +70,39 @@
 
 ## 5. Keyboard shortcuts (catches: browser-focus forwarding, chord typos)
 
-Exercise each with focus on **both** the terminal AND the browser
-WebContentsView. Browser-focus forwarding was the Cmd+T / Cmd+L
-regression — if Chromium eats the key, these all break silently.
+**Hard rule:** every Duo `⌘<letter>` shortcut MUST be exercised from
+**all four focus surfaces** the user can be on:
 
-- [ ] `⌘T` → new browser tab, from either focus.
-- [ ] `⌘⇧T` → new terminal tab, from either focus.
-- [ ] `⌘L` → focuses address bar (text selected), from either focus.
-- [ ] `⌘W` → closes the active tab in the focused column.
-- [ ] `⌘\`` → cycles focus between terminal column and working pane.
-      After the keypress, typing goes into the newly-focused side
-      (don't just trust the state — press a character and confirm).
-- [ ] `⌘1` / `⌘2` → jumps to terminal tab N.
-- [ ] `⌘⇧1` / `⌘⇧2` → jumps to working-pane tab N.
+1. **Terminal** (xterm.js textarea)
+2. **Browser** (WebContentsView — Chromium eats keys unless
+   `BrowserManager.wireKeyForwarding` allowlists them)
+3. **Editor** (TipTap contenteditable — TipTap binds some keys
+   itself: `⌘B`/`⌘I`/`⌘U`/`⌘E`/`⌘K`/`⌘Z` are claimed)
+4. **Files** (tree pane, no editable element but still focusable)
+
+Browser-focus forwarding was the original Cmd+T / Cmd+L regression
+class. The Cmd+N regression in Stage 11 was the same bug — `n` was
+missing from the allowlist, so `⌘N` worked from terminal/editor/
+files but silently no-op'd from the browser. **Don't skip a focus
+surface just because the shortcut "obviously" works from one.**
+
+For each row below, fire the shortcut from each surface in order
+(T = terminal, B = browser, E = editor, F = files) and tick all
+four. If any fail, the allowlist in `electron/browser-manager.ts`
+or the `inEditable` guard in `useKeyboardShortcuts.ts` is wrong.
+
+| Shortcut | T | B | E | F | Expected |
+|---|---|---|---|---|---|
+| `⌘T` | ☐ | ☐ | ☐ | ☐ | New foreground browser tab, address bar focused, ready for URL |
+| `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | New terminal tab |
+| `⌘N` | ☐ | ☐ | ☐ | ☐ | New `editor` tab in WorkingPane, filename input focused |
+| `⌘L` | ☐ | ☐ | ☐ | ☐ | Address bar focused + selected |
+| `⌘W` | ☐ | ☐ | ☐ | ☐ | Closes active tab in focused column |
+| `⌘B` | ☐ | ☐ | n/a | ☐ | Toggles Files column. **Skipped in editor on purpose** (TipTap claims `⌘B` for bold). Verify the rail click still expands when collapsed. |
+| `⌘\`` | ☐ | ☐ | ☐ | ☐ | Cycles focus between terminal and working pane |
+| `⌘1`/`⌘2` | ☐ | ☐ | ☐ | ☐ | Jumps to terminal tab N |
+| `⌘⇧1`/`⌘⇧2` | ☐ | ☐ | ☐ | ☐ | Jumps to working-pane tab N |
+| `⌘+`/`⌘-`/`⌘0` | ☐ | n/a | n/a | ☐ | Adjust terminal font bump (browser/editor own zoom) |
 
 ## 6. Cozy mode (catches: xterm option plumbing, TUI-safety)
 
@@ -105,9 +125,40 @@ Run from a terminal **inside** Duo:
 - [ ] `duo open https://example.com` navigates the active browser tab.
 - [ ] `duo view <some .md path>` opens it as a file tab in the
       working pane.
+- [ ] `duo edit <some .md path>` opens it in the rich editor (Stage 11).
+- [ ] `duo selection` with cursor in the editor returns
+      `{path, text, paragraph, heading_trail, start, end}`.
+- [ ] `echo "x" | duo doc write --replace-selection` inserts at caret.
+- [ ] `duo doc write --replace-all --text "..."` swaps body, frontmatter
+      preserved.
 - [ ] `duo nav state` returns JSON with `cwd`, `selected`, `pinned`.
 - [ ] `duo reveal <path>` jumps the files pane and surfaces the
       "Claude moved to …" chip at the top of the navigator.
+
+## 8. Markdown editor (Stage 11 — catches: TipTap wiring, save loop, focus handoff)
+
+Run only when the change touches `renderer/components/editor/`,
+`electron/files-service.ts`, or any wiring through preload / shared types
+related to editor flows.
+
+- [ ] Open a `.md` (click in files pane or `duo edit <path>`). Editor
+      mounts, prose typography renders (headings + lists + tables look
+      Google-Docs-ish, not raw markdown).
+- [ ] Type into the prose. Toolbar status flips "Saved" → "Unsaved",
+      then back to "Saved" after the autosave debounce (~800ms).
+- [ ] `⌘S` flushes immediately (status flips to "Saved" without waiting).
+- [ ] `cat <path>` outside Duo confirms the edit landed on disk.
+- [ ] `⌘N` from each focus surface (T/B/E/F) creates a new editor tab
+      with the "New document" filename bar focused.
+- [ ] Type a name + Enter: empty file is created, focus moves to prose,
+      typing happens in the prose immediately (D33f).
+- [ ] Cursor in a table cell shows the contextual table toolbar (insert
+      row above/below, etc.). `⌥⇧↑/↓/←/→` insert rows/cols by keyboard.
+- [ ] Select text in the editor; click into the terminal. Selection
+      remains painted as a tinted overlay (`.duo-blurred-selection`).
+- [ ] Theme toggle (icon in top-right of chrome row) cycles
+      System → Light → Dark; light palette applies.
+- [ ] Files column collapsed: clicking the rail icon expands it.
 
 ## 8. SSO persistence (catches: partition wiring)
 
@@ -127,11 +178,12 @@ Paste this into the end-of-task summary, filling in each line:
 Saw in the live app:
 - Boot: pass
 - Terminal: pass
-- Files pane: pass (breadcrumb click navigated)
+- Files pane: pass (breadcrumb click navigated, rail click expands)
 - Working pane: pass (browser loaded)
-- Shortcuts: pass (⌘T / ⌘L from browser focus)
+- Shortcuts: pass (⌘T / ⌘N / ⌘L from all four focus surfaces: T/B/E/F)
 - Cozy mode: not exercised (no terminal changes in this PR)
-- Agent bridge: not exercised (no CLI changes)
+- Agent bridge: pass (duo selection + doc write round-trip)
+- Markdown editor: pass (autosave, ⌘N filename commit hands focus to prose)
 ```
 
 Skip unambiguous sections only when the changeset obviously can't touch

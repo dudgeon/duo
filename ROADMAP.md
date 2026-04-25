@@ -24,12 +24,12 @@ deliver the north-star experience. Re-sequenced:
 | 3 | `duo` CLI bridge + CDP primitives | ✅ done |
 | 5 | Skill + subagent authoring | ✅ done |
 | 8 | Agent-generated HTML via `duo open` | ✅ done |
-| **9** | **Cozy-mode terminal (typography v1)** | ⬜ **next — flagship half #1** |
-| **10** | **File browser / context drawer** | ⬜ **prereq for the editor** |
-| **11** | **Collaborative markdown editor — human↔agent** | ⬜ **flagship half #2** |
+| **9** | **Cozy-mode terminal (typography v1)** | ✅ **shipped 2026-04-22; graduated 2026-04-25** |
+| **10** | **File browser / context drawer** | 🔄 **in progress — spec locked** |
+| **11** | **Collaborative markdown editor — human↔agent** | 🔄 **11a shipped 2026-04-24; 11b–e next** |
 | 12 | Unified skill + connector management surface | ⬜ (supersedes old Stage 4) |
-| 13 | Tab numbers in UI + terminal selection polish | ⬜ |
-| **15** | **Human↔agent interaction primitives** (events, notify, tab identity, pre-typed cmd, zap, file→composer) | ⬜ (issues #9, #11, #13, #15, #18, #19) |
+| 13 | Tab numbers in UI + terminal selection polish + `duo doctor` + TCP transport | ⬜ |
+| **15** | **Human↔agent interaction primitives** (events, notify, tab identity, pre-typed cmd, zap, file→composer, **Send→Duo**) | ⬜ (issues #9, #11, #13, #15, #18, #19; 15g raised 2026-04-25) |
 | 16 | Multi-window support | ⬜ **backlog** (issue #16) |
 | 14 | Polish + distribution (code signing, installer, theming) | ⬜ (was Stage 6 — held until flagship ships) |
 
@@ -206,7 +206,7 @@ to the agent running in the active terminal tab.
 
 - [ ] Version pinning: skill asserts `duo --version` is in a compatible range
 - [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. Stage 6.
-- [ ] **Open ADR: skill scoping** — global `~/.claude/skills/duo/` vs. Duo-session-only (`docs/DECISIONS.md` → Open ADRs). Changes the first-launch install step if we pick per-session.
+- [x] **Skill scoping** — locked 2026-04-25: global `~/.claude/skills/duo/`. See [docs/DECISIONS.md § Skill scoping](docs/DECISIONS.md). The per-session alternatives (shell-init `--plugin-dir`, `--add-dir`, project-level symlink) remain documented for future reference if the skill ever needs Duo-specific guardrails that shouldn't leak to other Claude sessions.
 - [x] **Skill docs: Claude Code sandbox troubleshooting section** — `skill/SKILL.md` now carries a "Troubleshooting: Claude Code sandbox" block (failure signatures, `duo doctor` as first move, the recommended `allowUnixSockets: true` + socket-read allowlist, `dangerouslyDisableSandbox` called out as last resort). `agents/duo-browser.md` mirrors the short version in its "Diagnosing failures" section. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*.
 
 ---
@@ -431,12 +431,13 @@ tab just like any other browser pane.
 
 ---
 
-## Stage 9 — Cozy-mode terminal (typography v1) `✅ Shipped 2026-04-22 (preview)`
+## Stage 9 — Cozy-mode terminal (typography v1) `✅ Shipped 2026-04-22; graduated 2026-04-25`
 
 > **PRD:** [docs/prd/stage-9-cozy-mode.md](docs/prd/stage-9-cozy-mode.md).
-> All C1–C17 decisions and the validation checklist live there. Ships
-> behind a `(preview)` label on the menu item while the TUI shake-out
-> window runs.
+> All C1–C17 decisions and the validation checklist live there. Originally
+> shipped behind a `(preview)` label on the menu item while the TUI
+> shake-out window ran; validated via daily driving 2026-04-22 \u2192
+> 2026-04-25 with no TUI regressions. Label dropped 2026-04-25.
 >
 > **Naming:** The terminal's flagship feature is "cozy mode" — per
 > owner, because it's both **reading** (long agent prose) and (in a
@@ -502,14 +503,14 @@ Claude Code's TUI rendering. Per
 **Work items:**
 
 - [x] Per-tab cozy state in renderer; menu item wired via Electron's
-      app menu (View → Cozy mode (preview) — current tab).
+      app menu (View → Cozy mode — current tab).
 - [x] `TerminalPane` applies the cozy font size, line height,
       padding, and reader-width cap when the per-tab flag is on.
 - [x] localStorage persistence: per-tab map + last-choice default
       (PRD § C4–C6).
-- [ ] Run the full [PRD § 4 validation checklist](docs/prd/stage-9-cozy-mode.md)
-      in real usage (preview window) and close out any adjustments
-      before flipping the `(preview)` label off.
+- [x] Validated via daily driving 2026-04-22 → 2026-04-25 (no TUI
+      regressions in actual long-form Claude Code use); `(preview)`
+      label dropped from the menu item, PRD, and this roadmap.
 
 **Follow-up stages (not Stage 9):**
 
@@ -606,7 +607,32 @@ type. Per [VISION.md § Visual file browser / context drawer](docs/VISION.md#vis
 
 ---
 
-## Stage 11 — Collaborative markdown editor (human↔agent) `⬜ Flagship half #2`
+## Stage 11 — Collaborative markdown editor (human↔agent) `🔄 11a shipped 2026-04-24; 11b–e next`
+
+> **PRD:** [docs/prd/stage-11-markdown-editor.md](docs/prd/stage-11-markdown-editor.md).
+> All v1 decisions (D1–D34 plus D12a table controls, D29a–c selection
+> API + persistence, D33a–f new-file + theme + shortcut guarantees)
+> are captured there with a 5-sub-stage build plan. The sub-stage
+> sketch below is kept for dependency context; the PRD is authoritative
+> for scope + decisions.
+>
+> **11a shipped (2026-04-24):**
+> TipTap/ProseMirror editor, tiptap-markdown serializer with frontmatter
+> preservation, core marks + nodes (H1–H6, B/I/U/S, inline code,
+> blockquote, lists, task lists, horizontal rule, links, images),
+> GFM tables with contextual row/col toolbar, syntax-highlighted
+> fenced code blocks via lowlight, atomic autosave + `⌘S` + dirty dot,
+> `⌘N` new-file flow with filename interstitial that hands focus to
+> the prose on commit, persistent selection overlay across focus
+> changes, theme toggle (System/Light/Dark) with macOS appearance
+> follow, xterm terminal theme swap. CLI: `duo edit`, `duo selection`,
+> `duo doc write` (replace-selection / replace-all), `duo theme`.
+>
+> **11b–e pending:**
+> 11b external-write reconciliation (chokidar + three-pane diff),
+> 11c full agent-write transient highlight + warn-before-overwrite,
+> 11d CriticMarkup track-changes + comment rail, 11e outline sidebar
+> + find & replace.
 
 **Layout placement:** a new tab type (`editor`) inside the right-column
 Viewer/Editor shell. The shell has one unified tab strip across all
@@ -963,6 +989,28 @@ pick).
 - [ ] Both affordances complement Stage 10 § D11 menu items (which
       already has "Open terminal here" for folders).
 
+### 15g — "Send → Duo" cross-modality selection primitive
+
+*Raised by owner 2026-04-25.* Floating button next to any selection
+in any WorkingPane tab type (browser, editor, future preview) —
+clicking sends the selection into the active terminal's input line
+with no Enter pressed, so the user can complete the prompt
+("rewrite this paragraph", "summarize this", "find similar issues").
+
+User-facing complement to the agent-facing `duo selection` and
+`duo zap` verbs; same payload shape, opposite direction.
+
+- [ ] Editor button via TipTap BubbleMenu + `duo send` CLI (15g.1).
+- [ ] Browser selection observer + page-side script + same button
+      anchored over `WebContentsView` (15g.2). Unifies `duo selection`
+      across editor + browser surfaces (also resolves the P0 gap in
+      [docs/CLI-COVERAGE.md § Browser observability](../docs/CLI-COVERAGE.md)).
+- [ ] Polish: length cap, image/table flattening, `⌘D` shortcut, skill
+      update so agents understand the injected format (15g.3).
+
+**PRD:** [docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md).
+Open question at kickoff: payload format (G10 — three options).
+
 ---
 
 ## Stage 16 — Multi-window `⬜ Backlog — after Stage 11`
@@ -1048,5 +1096,4 @@ algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 | Apple Developer ID cert | Stage 6 |
 | Distribution timeline (personal → Trailblazers) | Stage 6 |
 | Socket auth approach for Trailblazers | Stage 6 |
-| Skill scoping: global `~/.claude/skills/duo/` vs. Duo-session-only (see `docs/DECISIONS.md` → Open ADRs) | Stage 5 |
 | Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 13 (transport), 14 (install + settings) |
