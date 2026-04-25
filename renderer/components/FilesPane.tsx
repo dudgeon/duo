@@ -41,14 +41,17 @@ export function FilesPane({
         'flex flex-col h-full bg-surface-1 border-r transition-[width] duration-150',
         focused ? 'border-accent/60' : 'border-border'
       ].join(' ')}
-      style={{ width: collapsed ? '48px' : '240px', flexShrink: 0 }}
+      style={{ width: collapsed ? '44px' : '208px', flexShrink: 0 }}
       aria-label="Files"
     >
       {collapsed ? (
         <CollapsedRail onExpand={onToggleCollapsed} />
       ) : (
         <div className="flex flex-col h-full min-w-0">
-          {/* Header: breadcrumb + pin toggle */}
+          {/* Header: breadcrumb + pin toggle + collapse button.
+              Stage 12 — Atelier annotation: explicit chevron-collapse
+              button next to the pin so the user has a visible affordance
+              (in addition to ⌘B). Click the rail to expand again. */}
           <div className="flex items-center border-b border-border shrink-0">
             <div className="flex-1 min-w-0">
               <Breadcrumb
@@ -58,6 +61,7 @@ export function FilesPane({
               />
             </div>
             <PinButton pinned={state.pinned} onClick={actions.togglePinned} />
+            <CollapseButton onClick={onToggleCollapsed} />
           </div>
 
           {/* Reveal chip — Stage 10 § D16 */}
@@ -128,7 +132,7 @@ function PinButton({ pinned, onClick }: { pinned: boolean; onClick: () => void }
       onClick={onClick}
       title={pinned ? 'Unpin (navigator follows the active terminal tab)' : 'Pin (freeze navigator regardless of terminal tab)'}
       className={[
-        'shrink-0 w-7 h-7 mr-1 flex items-center justify-center rounded transition-colors',
+        'shrink-0 w-7 h-7 flex items-center justify-center rounded transition-colors',
         pinned ? 'text-accent hover:bg-surface-3' : 'text-zinc-600 hover:text-zinc-300 hover:bg-surface-3'
       ].join(' ')}
     >
@@ -140,6 +144,26 @@ function PinButton({ pinned, onClick }: { pinned: boolean; onClick: () => void }
           strokeLinejoin="round"
           strokeLinecap="round"
         />
+      </svg>
+    </button>
+  )
+}
+
+// Stage 12 — collapse the Files column to a 44px rail. Pairs with
+// CollapsedRail (which is the click-to-expand affordance). Atelier
+// annotation showed a chevron-into-rail glyph next to the pin button.
+function CollapseButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Collapse files column (⌘B)"
+      aria-label="Collapse files column"
+      className="shrink-0 w-7 h-7 mr-1 flex items-center justify-center rounded transition-colors text-zinc-600 hover:text-zinc-300 hover:bg-surface-3"
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        {/* Chevron pointing left into a vertical rail */}
+        <path d="M7 3l-3 3 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M2.5 2v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       </svg>
     </button>
   )

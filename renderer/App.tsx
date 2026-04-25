@@ -547,7 +547,10 @@ export function App() {
         >
           <div
             className={[
-              'flex flex-col h-full border-r transition-colors min-w-0 overflow-hidden',
+              // Stage 12 — Atelier layout depth: terminal column sits on
+              // `paper-deep`, working pane on `paper`. The 1px right
+              // border (paper-rule) is the seam between them.
+              'flex flex-col h-full bg-surface-1 border-r transition-colors min-w-0 overflow-hidden',
               focusedColumn === 'terminal' ? 'border-accent/60' : 'border-border'
             ].join(' ')}
             style={{ width: `${splitPct}%` }}
