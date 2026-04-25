@@ -103,6 +103,15 @@ is roughly the same scope (1–2 sessions of focused work):
    transient highlight.** First sub-stage of the editor's "agent edits
    the same file" story. Bigger; needs a real chokidar wiring + 3-pane
    diff UI. PRD § 6 has the spec.
+4. **Stage 14a — first-launch self-install (no cert needed).** Raised
+   2026-04-26 by Geoff: today's "clone + npm run dev" path is not
+   viable for the Trailblazers persona. 14a closes the gap so a
+   double-clicked `.app` performs `~/.claude/skills/duo/` +
+   `~/.claude/agents/` + `~/.claude/bin/duo` install on first
+   launch, behind a one-time consent sheet. Cert-gated polish
+   (sign + notarize + auto-update) stays in **Stage 14b**. Validate
+   `npm run dist` end-to-end as the first step. Spec in
+   [ROADMAP.md § Stage 14a](ROADMAP.md).
 
 **P0 CLI gaps shipped 2026-04-26 — moved out of next-sprint queue.**
 Remaining `Browser observability` items in [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)
@@ -111,7 +120,13 @@ in if a concrete agent task wants them.
 
 **Lower-priority follow-ups** (Stage 12 unified skill/connector surface,
 Stage 13 polish + `duo doctor` + TCP fallback, Stage 15a–f primitives,
-Stage 14 distribution) all wait until at least one of the above lands.
+Stage 14a first-launch self-install, Stage 14b distribution polish)
+all wait until at least one of the above lands. **Note:** on
+2026-04-26 the old combined Stage 14 was split — 14a (first-launch
+installer, no cert needed) is shippable independently of 14b (code
+sign + notarize + auto-update). Pull 14a forward whenever the
+"Trailblazer can't double-click" friction outranks the next agent
+surface in priority.
 
 **Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-25:
 BUG-001 — `⌃Tab` from terminal focus cycles browser tabs instead of
@@ -230,8 +245,8 @@ forward.
    manual edit.
 
    End users don't run this script — they get the skill + agent from the
-   Stage 6 first-launch installer (which does its own `fs.copyFile` from
-   the app bundle into `~/.claude/`). `sync:claude` is a dev-only
+   **Stage 14a** first-launch installer (which does its own `fs.copyFile`
+   from the app bundle into `~/.claude/`). `sync:claude` is a dev-only
    convenience.
 
 ---
@@ -315,12 +330,12 @@ Claude Code.
 | Skills panel layout | Collapsible sidebar — third column right of browser pane (scanner implemented; UI not yet wired) |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes: project + home |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
-| Distribution / cert | No cert yet — personal use only; get cert before Stage 6 |
+| Distribution / cert | No cert yet — personal use only; get cert before Stage 14b (Stage 14a does not need one) |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Apple Developer ID cert | Before Stage 6 |
-| Distribution timeline (personal → Trailblazers) | Before Stage 6 |
-| Socket auth approach for Trailblazers | Before Stage 6 |
+| Apple Developer ID cert | Before Stage 14b |
+| Distribution timeline (personal → Trailblazers) | Before Stage 14b |
+| Socket auth approach for Trailblazers | Before Stage 14b |

@@ -323,9 +323,11 @@ itself spawned.
 
 **Status:** 🟡 Open / Proposed
 **Raised:** 2026-04-23
-**Needed before:** Stage 14 (distribution). Skill-docs portion is cheap
-and can land before the flagship pair; transport + install changes land
-with polish.
+**Needed before:** Stage 14a (first-launch self-install) for the
+install-path + settings fragment work; Stage 14b (distribution polish)
+for any cert-gated pieces. Skill-docs portion is cheap and can land
+before the flagship pair; transport + install changes land with the
+14a / 14b sequence (split 2026-04-26 — see ROADMAP.md).
 
 **Problem statement.** Claude Code runs each Bash tool invocation inside
 a macOS Seatbelt-based sandbox. Enterprise deployments (e.g. Capital
@@ -455,7 +457,11 @@ clarifies and supersedes that framing.
   immediately.
 - **Stage 13 (interaction polish, ⬜)** picks up the TCP fallback
   and `duo doctor` work items.
-- **Stage 14 (polish & distribution, ⬜)** picks up the install-path
-  cleanup and the bundled settings fragment.
+- **Stage 14a (first-launch self-install, ⬜)** picks up the
+  install-path cleanup and the bundled settings fragment. Split
+  out of the old combined Stage 14 on 2026-04-26 because both items
+  are cert-independent.
+- **Stage 14b (distribution polish, ⬜)** picks up the cert-gated
+  pieces (code sign, notarize, electron-updater) downstream of 14a.
 
 **Decision owner:** Geoff.

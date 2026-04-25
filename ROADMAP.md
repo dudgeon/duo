@@ -31,7 +31,8 @@ deliver the north-star experience. Re-sequenced:
 | 13 | Tab numbers in UI + terminal selection polish + `duo doctor` + TCP transport | ⬜ |
 | **15** | **Human↔agent interaction primitives** (events, notify, tab identity, pre-typed cmd, zap, file→composer, **Send→Duo**) | ⬜ (issues #9, #11, #13, #15, #18, #19; 15g raised 2026-04-25) |
 | 16 | Multi-window support | ⬜ **backlog** (issue #16) |
-| 14 | Polish + distribution (code signing, installer, theming) | ⬜ (was Stage 6 — held until flagship ships) |
+| **14a** | **First-launch self-install** (double-click → app prompts, copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; ad-hoc-signed local build) | ⬜ (split from old Stage 6 on 2026-04-26 — **no cert needed**, can ship before 14b) |
+| 14b | Distribution polish (Apple Developer ID code signing, notarization, electron-updater, icon, DMG background, README install guide) | ⬜ (gated on cert from Geoff) |
 
 Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator +
 viewer — thin read-only version) are **superseded** by this sequence.
@@ -150,7 +151,7 @@ waypoint. The reshape lands with Stage 10.
 ### Known limitations
 - [ ] **Google Docs keyboard path is broken.** `duo key <named>` (Enter, Arrow*, Backspace, Home, End) and all modifier shortcuts (`Cmd+B/I/U/Z/A`, `Cmd+Alt+1..6`) are silent no-ops on a Docs page. Root cause: Docs listens on a hidden `.docs-texteventtarget-iframe`; CDP `Input.dispatchKeyEvent` delivers to the main frame's focused element, and `duo focus` (which uses `el.focus()` in page JS) can't cross the iframe boundary. `Input.insertText` (i.e. `duo type`) works because it bypasses the keyboard pipeline. Fix requires attaching CDP to the iframe's frame target or routing via a different input API. Until fixed, the skill tells the agent: insert plain text via `duo type`, and defer styling to the user or the Docs REST API. See commit d3d5e0e for the empirical report.
 - [ ] **No Docs REST API escalation path yet.** Structural edits (tables, heading changes, styled blocks) should use `documents.googleapis.com/v1/documents/{id}:batchUpdate` with the `documents` OAuth scope. The Duo app should grow a one-time consent flow so the token can be bootstrapped from the signed-in Electron session (brief §17.4). Until then, agents must defer styling to the user.
-- [ ] First-launch install dialog (Electron prompt before installing CLI + skill) — currently installs via `./cli/duo install` + `npm run sync:claude`. Stage 6.
+- [ ] First-launch install dialog (Electron prompt before installing CLI + skill) — currently installs via `./cli/duo install` + `npm run sync:claude`. **Stage 14a** (split out of old Stage 6 on 2026-04-26 so it can ship before the cert lands).
 - [ ] `duo wait --timeout N` races with the CLI's 10s socket timeout for N ≥ 10000. Fix: make the CLI socket timeout `max(N + buffer, default)`.
 
 > **DOM size note:** `duo dom` on long pages is still large. `duo ax --format json` is usually the better structured option; for text-only views, narrow with `--selector`. A `--max-chars` or `--save-to` flag remains a nice-to-have but isn't blocking.
@@ -205,28 +206,63 @@ to the agent running in the active terminal tab.
 - [x] A.5.3 verified (error recovery): when `[role="document"]` selector misses, the agent falls back to full `duo ax` without human intervention
 
 - [ ] Version pinning: skill asserts `duo --version` is in a compatible range
-- [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. Stage 6.
+- [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. **Stage 14a** (no cert required; split from old Stage 6 on 2026-04-26).
 - [x] **Skill scoping** — locked 2026-04-25: global `~/.claude/skills/duo/`. See [docs/DECISIONS.md § Skill scoping](docs/DECISIONS.md). The per-session alternatives (shell-init `--plugin-dir`, `--add-dir`, project-level symlink) remain documented for future reference if the skill ever needs Duo-specific guardrails that shouldn't leak to other Claude sessions.
 - [x] **Skill docs: Claude Code sandbox troubleshooting section** — `skill/SKILL.md` now carries a "Troubleshooting: Claude Code sandbox" block (failure signatures, `duo doctor` as first move, the recommended `allowUnixSockets: true` + socket-read allowlist, `dangerouslyDisableSandbox` called out as last resort). `agents/duo-browser.md` mirrors the short version in its "Diagnosing failures" section. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*.
 
 ---
 
-## Stage 6 — Polish & Distribution `⬜ Held — after the flagship pair`
+## Stage 14 — Polish & Distribution `⬜ Held — split into 14a + 14b on 2026-04-26`
 
-> **Held.** Originally scheduled next; re-sequenced per VISION.md to land
-> **after** Stages 9 + 10 + 11 (the flagship reading/writing pair). We
-> don't want a polished DMG of a half-product. Re-numbered to **Stage 14**
-> in the build order above; the bullets below remain the definition of
-> done for that stage.
+> **Originally Stage 6**, re-sequenced per VISION.md to land **after**
+> Stages 9 + 10 + 11 (the flagship reading/writing pair). On
+> 2026-04-26, split into two halves so the user-facing first-launch UX
+> doesn't stay blocked on the Apple Developer ID cert it doesn't
+> actually need:
+>
+> - **Stage 14a — First-launch self-install (no cert).** The
+>   double-click-and-go behaviour. Can ship against an ad-hoc-signed
+>   local build today.
+> - **Stage 14b — Distribution polish (cert-gated).** Code signing,
+>   notarization, electron-updater, icon, DMG background, install
+>   guide. Held on the cert.
+>
+> Both halves were a single `⬜ Held` Stage 6/14 prior to the split.
+> The bullet list below is partitioned but otherwise unchanged.
 
-**Exit criteria:** A PM in the Trailblazers cohort can install and use without terminal setup.
+### Stage 14a — First-launch self-install `⬜ Not started — no cert needed`
 
-- [ ] App icon (`build/icon.icns`) + branded DMG background
-- [ ] Code signing — Apple Developer ID (**needs cert from Geoff**)
-- [ ] Notarization — `notarytool` via electron-builder
-- [ ] `electron-updater` — auto-update from GitHub Releases or private S3
-- [ ] Session restore on relaunch (terminal CWDs, browser URL, split position)
-- [ ] Security: launch-time auth token on the Unix socket (before Trailblazers)
+**Why pulled forward:** the gap between "developer runs `npm run dev`"
+and "Trailblazer double-clicks an `.app`" is doing too much work in
+the user's hands. None of these items require code signing — they
+just need an Electron entry point that detects first launch and
+performs side-effect installs into `~/.claude/` and PATH.
+
+**Exit criteria:** Geoff hands a Trailblazer the unsigned/ad-hoc-signed
+`.app`, they double-click it (using the macOS "right-click → Open"
+gatekeeper bypass once), and from that point on every `duo` command
+in their Claude Code session works without any terminal setup.
+
+- [ ] **Validate `npm run dist` end-to-end.** Confirm the produced
+      `.app` (and DMG) launches when moved out of the build dir,
+      that the bundled `cli/duo` binary is reachable via
+      `process.resourcesPath`, and that `skill/` + `agents/` are
+      packaged as resources rather than left behind at `node_modules/`.
+- [ ] **First-launch detection.** On Electron `app.whenReady()`,
+      check whether `~/.claude/skills/duo/SKILL.md` already exists
+      and matches the bundled version's `name`/`description`
+      frontmatter. If absent or mismatched, show a one-time consent
+      sheet ("Duo wants to install its Claude Code skill, subagent,
+      and CLI helper. This adds three files to ~/.claude/ and one
+      symlink to ~/.claude/bin/. [Install] [Skip]").
+- [ ] **First-launch install action.** On consent, copy
+      `app.getAppPath()/skill/SKILL.md` → `~/.claude/skills/duo/SKILL.md`,
+      copy `app.getAppPath()/skill/examples/*` → `.../examples/`,
+      copy `agents/duo-browser.md` → `~/.claude/agents/duo-browser.md`,
+      and symlink `app.getAppPath()/cli/duo` → `~/.claude/bin/duo`
+      (creating `~/.claude/bin` if needed). Write a `~/.claude/duo/
+      installed-version.json` so we can detect "skill out of date,
+      app updated" later.
 - [ ] **Sandbox-safe install path for `duo install`.** Today the
       install logic tries `/usr/local/bin/duo` then falls back to
       `~/.local/bin/duo` — both write outside the Claude Code
@@ -237,6 +273,10 @@ to the agent running in the active terminal tab.
       after install. See `docs/DECISIONS.md` → Open ADRs →
       *Sandbox-tolerant transport and install paths for the `duo`
       CLI*.
+- [ ] **Re-install / update flow.** When the bundled skill version
+      is newer than `installed-version.json`, prompt before
+      overwriting (so a user who hand-edited their skill doesn't
+      lose changes silently).
 - [ ] **Bundled Claude Code settings fragment.** Ship a
       copy-pasteable `.claude/settings.json` allowlist in the
       skill (socket path read-allowed + `allowUnixSockets: true`)
@@ -246,6 +286,18 @@ to the agent running in the active terminal tab.
       documentation for sandbox-conscious reviewers. See
       `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
       transport and install paths for the `duo` CLI*.
+
+### Stage 14b — Distribution polish `⬜ Held — gated on Apple Developer ID cert`
+
+**Exit criteria:** A PM in the Trailblazers cohort installs from a
+download link, with no gatekeeper warnings, and gets auto-updates.
+
+- [ ] App icon (`build/icon.icns`) + branded DMG background
+- [ ] Code signing — Apple Developer ID (**needs cert from Geoff**)
+- [ ] Notarization — `notarytool` via electron-builder
+- [ ] `electron-updater` — auto-update from GitHub Releases or private S3
+- [ ] Session restore on relaunch (terminal CWDs, browser URL, split position)
+- [ ] Security: launch-time auth token on the Unix socket (before Trailblazers)
 - [ ] Theming pass: refine Warp × Linear aesthetic
 - [ ] Notifications for agent-driven browser navigation
 - [ ] README + install guide for Trailblazers cohort
@@ -1117,13 +1169,14 @@ algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 | Skills panel layout | **Collapsible sidebar** | Third column right of browser pane |
 | Skills CWD source | **PTY launch CWD** | No shell hooks; capture at `pty:create` time; two scopes: project + home |
 | First-launch install | **Electron permission dialog** | Prompt before installing CLI + skill |
-| Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; get cert before Stage 6 |
+| Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; get cert before Stage 14b |
+| Stage 14 split (2026-04-26) | **14a: first-launch self-install (no cert), 14b: distribution polish (cert-gated)** | Decouples user-facing first-launch UX from cert procurement so 14a can ship to Trailblazers ahead of 14b |
 
 ## Open Questions
 
 | Question | Needed Before |
 |---|---|
-| Apple Developer ID cert | Stage 6 |
-| Distribution timeline (personal → Trailblazers) | Stage 6 |
-| Socket auth approach for Trailblazers | Stage 6 |
-| Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 13 (transport), 14 (install + settings) |
+| Apple Developer ID cert | Stage 14b |
+| Distribution timeline (personal → Trailblazers) | Stage 14b |
+| Socket auth approach for Trailblazers | Stage 14b |
+| Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 13 (transport), 14a (install path + settings fragment) |
