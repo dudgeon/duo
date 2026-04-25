@@ -53,10 +53,21 @@ export function useKeyboardShortcuts({
       const key = e.key.toLowerCase()
       const pane = paneOverride ?? activePaneFocus
 
-      // ⌘T — new browser tab (Chrome parity)
+      // ⌘T — pane-aware new tab. From terminal focus → new terminal
+      // tab (matches the natural "new tab in this column" expectation).
+      // From everywhere else → new browser tab (Chrome parity, same as
+      // the original Stage 11 D33e behaviour). ⌘⇧T below stays the
+      // explicit "new terminal tab" shortcut for compatibility.
+      // (Stage 19c will eventually take this further by defaulting
+      // terminal-focus ⌘T to launching a primed claude session
+      // directly; for now we keep it as a vanilla shell tab.)
       if (meta && !e.shiftKey && key === 't') {
         e.preventDefault()
-        newBrowserTab()
+        if (pane === 'terminal') {
+          newTerminalTab()
+        } else {
+          newBrowserTab()
+        }
         return
       }
 
