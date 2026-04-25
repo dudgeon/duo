@@ -41,6 +41,25 @@ Flagship half #2 — sub-stage 11a of the markdown editor — shipped
   the attach sequence; `networkInFlight` is cleared on tab switch so
   prior-tab requests don't sit forever as pending.
 
+**Same-day follow-ups (2026-04-26):**
+- Stage 14 split into 14a (first-launch self-install — no cert
+  needed) + 14b (cert-gated distribution polish) so the
+  user-facing first-launch UX isn't blocked on cert procurement.
+- Atelier visual-redesign bundle imported to
+  [docs/design/atelier/](docs/design/atelier/); **Stage 17**
+  created for the system-wide visual pass; per-feature visuals
+  fold into Stages 9 (cozy completion), 11c (just-added
+  highlight — yellow + 6s fade overrides "blue fade"
+  placeholder), 11d (Suggesting / Accepted track changes), and
+  15g.1 (Send → Duo pill).
+- BUG-001 fixed (commit `3976039`) — pane-aware ⌃Tab cycling.
+  Took three parts (not the one the original trace expected):
+  pane-aware routing in the keyboard hook, xterm
+  `attachCustomKeyEventHandler` so the keystroke isn't eaten as
+  PTY input, and a `paneOverride` for the browser-forwarded-key
+  path because WebContentsView clicks don't bubble to the
+  working-column wrapper. See `tasks.md` for the full trace.
+
 **Previous session (2026-04-25):**
 - Stage 9 cozy mode graduated — daily-driver validation passed; menu
   label, PRD, ROADMAP all updated.
@@ -147,10 +166,12 @@ the above lands. **Notes:**
   208 + collapse-to-rail) that should land *after* the flagship pair
   so it polishes a whole product rather than a half one.
 
-**Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-25:
-BUG-001 — `⌃Tab` from terminal focus cycles browser tabs instead of
-terminal tabs. Workaround for users: `⌘⇧]` cycles terminal tabs
-forward.
+**Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-26:
+no open bugs. (BUG-001 — `⌃Tab` pane-aware cycling — fixed
+2026-04-26 in commit `3976039`. The fix needed three parts, not
+one as the original trace expected; see `tasks.md` for the full
+write-up so the next reader doesn't re-discover the
+xterm-key-eating and WebContentsView-mousedown gotchas.)
 
 ---
 
