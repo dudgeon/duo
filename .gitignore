@@ -30,3 +30,9 @@ coverage/
 
 # cli/duo is intentionally tracked — pre-built binary so Geoff can install
 # without a build step. Regenerate with: npm run build:cli
+
+# Claude Code workspace state — ignore per-user settings + worktrees,
+# but track the shared `launch.json` (preview server config for the
+# roadmap HTML, etc.)
+.claude/*
+!.claude/launch.json

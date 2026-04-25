@@ -204,7 +204,8 @@ xterm-key-eating and WebContentsView-mousedown gotchas.)
 | `docs/design/atelier/` | Visual-redesign source bundle (Atelier direction). Tokens, mock components, and the interactive prototype that drives Stage 17 + per-feature visuals (cozy mode, just-added highlight, track changes, Send → Duo pill). Read [its README](docs/design/atelier/README.md) before any UI-touching work. |
 | `docs/dev/smoke-checklist.md` | Test matrix walked before calling any UI change done |
 | `duo-brief.md` | Original engineering brief (Stages 1–5). Architecture + Google Docs path are authoritative; product framing is superseded by `docs/VISION.md`. |
-| `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog |
+| `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog. **Authoritative.** |
+| `docs/roadmap.html` | Visual single-page snapshot of `ROADMAP.md` with per-stage comment boxes (Atelier-styled, Geoff's own surface for inline notes via localStorage). **Keep in sync** with every `ROADMAP.md` update — at minimum: update the snapshot date in `<header>`, the main commit SHA, the Recent shipments list, the Status sidebar counts, and any stage-card status / sub-items / cross-refs that changed. Same `<details class="stage done">` collapsing pattern for fully-done stages (no pending sub-items); leave in-progress / pending stages always-expanded. |
 | `docs/DECISIONS.md` | Locked architectural decisions with rationale (+ open ADR on sandbox-tolerant transport) |
 | `docs/FIRST-RUN.md` | Thorough setup procedure |
 | `docs/RESEARCH.md` | Technical research notes that informed decisions |

@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Duo Roadmap</title>
+<style>
+  /* Atelier palette (from docs/design/atelier/project/tokens.jsx) */
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-edge: #E5DCC1;
+    --paper-rule: #D4C8A6;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --ink-ghost: #B8AB8E;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --mark: #F8E59C;
+    --done: #5C7A4F;
+    --inprogress: #C66A2E;
+    --pending: #B8AB8E;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.55; }
+
+  /* Two-column layout: main content + sticky sidebar */
+  .layout { max-width: 1180px; margin: 0 auto; padding: 48px 36px 120px; display: grid; grid-template-columns: 1fr 240px; gap: 40px; align-items: start; }
+  .main { min-width: 0; }
+  .sidebar { position: sticky; top: 48px; max-height: calc(100vh - 96px); overflow-y: auto; padding-right: 4px; }
+
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; gap: 24px; padding: 32px 20px 80px; }
+    .sidebar { position: static; max-height: none; }
+  }
+
+  /* Header */
+  header { border-bottom: 1px solid var(--paper-rule); padding-bottom: 22px; margin-bottom: 32px; }
+  header h1 { font-family: var(--serif); font-weight: 500; font-size: 36px; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--ink); }
+  header .sub { color: var(--ink-mute); font-size: 13px; }
+  header .sub code { font-family: var(--mono); font-size: 12px; }
+
+  /* Glyphs (status indicators) */
+  .glyph { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: middle; flex-shrink: 0; }
+  .glyph.done     { background: var(--done); }
+  .glyph.inprog   { background: var(--paper); border: 2px solid var(--inprogress); }
+  .glyph.pending  { background: var(--paper); border: 1.5px solid var(--ink-ghost); }
+  .glyph.shipped  { background: var(--accent); }
+
+  /* Phase headings */
+  .phase-heading { font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--accent-ink); margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--paper-edge); }
+  .phase-heading:first-of-type { margin-top: 0; }
+
+  /* Stage cards */
+  .stage { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 8px; padding: 20px 24px 6px; margin-bottom: 16px; box-shadow: 0 1px 0 rgba(0,0,0,0.02); }
+  .stage.done { border-left: 4px solid var(--done); padding-left: 20px; }
+  .stage.inprog { border-left: 4px solid var(--inprogress); padding-left: 20px; }
+  .stage.pending { border-left: 4px solid var(--ink-ghost); padding-left: 20px; }
+  .stage h3 { font-family: var(--serif); font-size: 18px; font-weight: 500; margin: 0 0 4px; color: var(--ink); display: flex; align-items: center; gap: 10px; }
+
+  /* Collapsible done stages — render as a one-line summary by default */
+  details.stage { padding: 0; }
+  details.stage > summary { padding: 14px 20px; cursor: pointer; list-style: none; border-radius: 6px; transition: background-color 0.12s; position: relative; }
+  details.stage > summary::-webkit-details-marker { display: none; }
+  details.stage > summary::after { content: '▾'; position: absolute; right: 18px; top: 50%; transform: translateY(-50%); color: var(--ink-ghost); font-size: 11px; transition: transform 0.18s; }
+  details.stage[open] > summary::after { transform: translateY(-50%) rotate(180deg); }
+  details.stage > summary:hover { background: var(--paper-edge); }
+  details.stage > summary h3 { margin: 0 0 2px; font-size: 16px; }
+  details.stage > summary .status-line { font-size: 12px; color: var(--ink-mute); margin: 0; }
+  details.stage > .stage-body { padding: 4px 24px 8px; border-top: 1px solid var(--paper-edge); margin-top: 0; }
+  details.stage > .stage-body .blurb:first-child { margin-top: 14px; }
+
+  .stage h3 .num-badge { font-family: var(--mono); font-size: 10.5px; background: var(--paper); border: 1px solid var(--paper-rule); padding: 2px 7px; border-radius: 12px; color: var(--ink-soft); font-weight: 600; }
+  .stage .status-line { font-size: 12px; color: var(--ink-mute); margin: 0 0 12px; }
+  .stage .blurb { font-size: 14px; color: var(--ink-soft); margin: 0 0 12px; }
+  .stage .blurb code { background: var(--paper); padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+
+  .subitems { list-style: none; padding: 0; margin: 6px 0 12px; font-size: 13px; }
+  .subitems li { display: grid; grid-template-columns: 22px 1fr; align-items: start; gap: 8px; padding: 4px 0; color: var(--ink-soft); }
+  .subitems li.done    { color: var(--ink-mute); }
+  .subitems li.done .label { text-decoration: line-through; text-decoration-color: var(--ink-ghost); }
+  .subitems li code { background: var(--paper); padding: 0 4px; border-radius: 2px; font-size: 11.5px; color: var(--ink); }
+
+  /* Comment box */
+  .comment { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--paper-edge); }
+  .comment label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-mute); margin-bottom: 6px; }
+  .comment textarea { width: 100%; min-height: 42px; resize: vertical; padding: 9px 11px; border: 1px solid var(--paper-rule); border-radius: 5px; background: var(--paper); font-family: var(--serif); font-size: 14px; line-height: 1.5; color: var(--ink); transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s; }
+  .comment textarea::placeholder { color: var(--ink-ghost); font-style: italic; font-family: var(--sans); font-size: 13px; }
+  .comment textarea:focus { outline: none; border-color: var(--accent); background: #FFF; box-shadow: 0 0 0 3px rgba(198,106,46,0.12); }
+  .comment textarea.has-content { border-color: var(--accent-soft); background: #FFFBEF; }
+  .comment .saved-hint { font-size: 11px; color: var(--ink-ghost); margin-top: 4px; min-height: 14px; transition: opacity 0.3s; opacity: 0; }
+  .comment .saved-hint.visible { opacity: 1; color: var(--done); }
+
+  /* Recent shipments collapsible */
+  details.recent { margin-bottom: 28px; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 8px; padding: 14px 22px; font-size: 13px; }
+  details.recent summary { cursor: pointer; font-family: var(--serif); font-size: 16px; color: var(--accent-ink); font-weight: 500; }
+  details.recent ul { margin: 14px 0 4px; padding-left: 22px; color: var(--ink-soft); }
+  details.recent code { background: var(--paper); padding: 1px 6px; border-radius: 3px; font-size: 11.5px; }
+
+  /* Sidebar panels */
+  .side-panel { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 8px; padding: 16px 18px; margin-bottom: 14px; }
+  .side-panel h2 { font-family: var(--serif); font-size: 13px; font-weight: 500; color: var(--accent-ink); margin: 0 0 10px; text-transform: uppercase; letter-spacing: 0.06em; padding-bottom: 6px; border-bottom: 1px solid var(--paper-edge); }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+  .stats .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stats .num { font-family: var(--serif); font-size: 22px; font-weight: 500; color: var(--ink); line-height: 1; }
+  .stats .label { color: var(--ink-mute); font-size: 11px; }
+
+  .legend-list { list-style: none; padding: 0; margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+  .legend-list li { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+
+  .controls-panel { display: flex; flex-direction: column; gap: 8px; }
+  .controls-panel .count-row { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--ink-mute); padding-bottom: 8px; border-bottom: 1px dashed var(--paper-edge); margin-bottom: 4px; }
+  .controls-panel .count { font-family: var(--mono); font-weight: 600; color: var(--ink); font-size: 18px; }
+  .controls-panel button { background: var(--paper); border: 1px solid var(--paper-rule); color: var(--accent-ink); font-size: 12.5px; cursor: pointer; padding: 8px 12px; border-radius: 5px; font-family: inherit; text-align: left; transition: background-color 0.15s, border-color 0.15s; }
+  .controls-panel button:hover { background: var(--accent-soft); border-color: var(--accent); }
+  .controls-panel button.danger { color: var(--ink-mute); }
+  .controls-panel button.danger:hover { background: #F4E0D6; color: #8B3A1A; }
+
+  .nav-list { list-style: none; padding: 0; margin: 0; font-size: 12.5px; }
+  .nav-list li { padding: 0; }
+  .nav-list a { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; color: var(--ink-soft); text-decoration: none; gap: 8px; }
+  .nav-list a:hover { color: var(--accent-ink); }
+  .nav-list a .badge { font-family: var(--mono); font-size: 10px; background: var(--paper); border: 1px solid var(--paper-rule); padding: 1px 5px; border-radius: 8px; color: var(--ink-mute); }
+
+  footer { text-align: center; color: var(--ink-ghost); font-size: 12px; margin-top: 40px; }
+  footer code { color: var(--ink-mute); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <main class="main">
+    <header>
+      <h1>Duo Roadmap</h1>
+      <div class="sub">Snapshot 2026-04-26 · main @ <code>20b4701</code> · comments save locally to your browser</div>
+    </header>
+
+    <details class="recent" open>
+      <summary>Recent shipments — 2026-04-26</summary>
+      <ul>
+        <li><code>20b4701</code> — fix(dist): bundle <code>agents/</code> in extraResources for Stage 14a installer (Team C)</li>
+        <li><code>640ec0e</code> — feat(env): Stage 18 Phase 18a env signals (<code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code>) (Team B)</li>
+        <li><code>fefe866</code> — docs: Stage 18 (Duo detection) + Stage 19 (HTML canvas) PRDs imported; 20 open issues triaged</li>
+        <li><code>a6c9e70</code> — docs: BUG-001 marked fixed; same-day follow-ups consolidated</li>
+        <li><code>3976039</code> — fix(keyboard): BUG-001 — pane-aware <code>⌃Tab</code> cycling (3-part fix)</li>
+        <li><code>9bf533d</code> — docs: Stage 14 split into 14a (cert-free first-launch installer) + 14b (cert-gated polish)</li>
+        <li><code>16988ed</code> — docs: Atelier visual-redesign bundle imported; Stage 17 created; per-feature visuals fold into hosts</li>
+        <li><code>2726774</code> — feat(cli): P0 observability verbs — <code>doc read</code>, browser <code>selection</code>, <code>errors</code>, <code>network</code></li>
+        <li>Closed issues: #10, #17, #20, #21, #26 (5 already-shipped, swept by Team A)</li>
+      </ul>
+    </details>
+
+    <h2 class="phase-heading" id="phase-foundation">Foundation — shipped</h2>
+
+    <details class="stage done" id="s1" data-id="s1">
+      <summary>
+        <h3><span class="num-badge">Stage 1</span> Core shell <span class="glyph done"></span></h3>
+        <div class="status-line">✅ Done · terminal tabs, layout, IPC, PTY pool</div>
+      </summary>
+      <div class="stage-body">
+        <p class="blurb">Electron + xterm.js + node-pty. Multi-tab terminals, IPC plumbing, contextBridge surface.</p>
+        <div class="comment"><label>Comment</label><textarea data-key="s1" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+      </div>
+    </details>
+
+    <details class="stage done" id="s2" data-id="s2">
+      <summary>
+        <h3><span class="num-badge">Stage 2</span> Browser pane + SSO <span class="glyph done"></span></h3>
+        <div class="status-line">✅ Done · WebContentsView, persistent session, tab strip, shortcut forwarding</div>
+      </summary>
+      <div class="stage-body">
+        <p class="blurb">Embedded Chromium tabs with shared SSO via <code>persist:duo-browser</code> partition.</p>
+        <div class="comment"><label>Comment</label><textarea data-key="s2" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+      </div>
+    </details>
+
+    <details class="stage done" id="s3" data-id="s3">
+      <summary>
+        <h3><span class="num-badge">Stage 3</span> <code>duo</code> CLI bridge + CDP primitives <span class="glyph done"></span></h3>
+        <div class="status-line">✅ Done · Unix-socket protocol, CDP-driven verbs (navigate, text, ax, click, fill, focus, type, key, eval, screenshot, console, errors, network)</div>
+      </summary>
+      <div class="stage-body">
+        <p class="blurb">Plus the P0 observability set (errors / network / browser-selection / doc-read) shipped 2026-04-26.</p>
+        <div class="comment"><label>Comment</label><textarea data-key="s3" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+      </div>
+    </details>
+
+    <details class="stage done" id="s5" data-id="s5">
+      <summary>
+        <h3><span class="num-badge">Stage 5</span> Skill + subagent authoring <span class="glyph done"></span></h3>
+        <div class="status-line">✅ Done · global install at <code>~/.claude/skills/duo/</code>; <code>duo-browser</code> subagent</div>
+      </summary>
+      <div class="stage-body">
+        <p class="blurb">Skill teaches Claude Code the <code>duo</code> CLI; subagent absorbs multi-step browser orchestration.</p>
+        <div class="comment"><label>Comment</label><textarea data-key="s5" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+      </div>
+    </details>
+
+    <details class="stage done" id="s8" data-id="s8">
+      <summary>
+        <h3><span class="num-badge">Stage 8</span> Agent-generated HTML via <code>duo open</code> <span class="glyph done"></span></h3>
+        <div class="status-line">✅ Done · path resolution, new-tab activation, iterate-in-place via <code>duo navigate</code></div>
+      </summary>
+      <div class="stage-body">
+        <div class="comment"><label>Comment</label><textarea data-key="s8" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+      </div>
+    </details>
+
+    <h2 class="phase-heading" id="phase-flagship">Flagship pair — in progress</h2>
+
+    <article class="stage done" id="s9" data-id="s9">
+      <h3><span class="num-badge">Stage 9</span> Cozy-mode terminal (typography v1) <span class="glyph done"></span></h3>
+      <div class="status-line">✅ Shipped 2026-04-22 · graduated (label dropped) 2026-04-25</div>
+      <p class="blurb">Per-tab toggle. Typography pass + reader-width cap on the terminal pane.</p>
+      <ul class="subitems">
+        <li class="done"><span class="glyph done"></span><span class="label">Per-tab cozy toggle, larger fontSize / lineHeight, generous padding, 92ch cap (typography only)</span></li>
+        <li><span class="glyph pending"></span><span class="label">Cozy mode <em>visual</em> completion — paper canvas, serif-flavored mono, full Atelier surface (folded into Stage 17 or its own follow-up)</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s9" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage inprog" id="s10" data-id="s10">
+      <h3><span class="num-badge">Stage 10</span> File browser / context drawer <span class="glyph inprog"></span></h3>
+      <div class="status-line">🔄 In progress · spec locked in PRD; navigator + breadcrumb + reveal-chip + <code>duo view/edit/reveal/ls/nav-state</code> shipped</div>
+      <p class="blurb">Three-column reshape, shared file tree, follow-mode, pending-CWD for new terminal tabs. Working pane registers polymorphic tab types.</p>
+      <div class="comment"><label>Comment</label><textarea data-key="s10" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage inprog" id="s11" data-id="s11">
+      <h3><span class="num-badge">Stage 11</span> Collaborative markdown editor <span class="glyph inprog"></span></h3>
+      <div class="status-line">🔄 In progress · 11a shipped 2026-04-24 (with tail items pending); 11b–e next</div>
+      <p class="blurb">TipTap/ProseMirror editor as a Working-pane tab type; tiptap-markdown round-trip; frontmatter preserved; persistent selection.</p>
+      <ul class="subitems">
+        <li class="done"><span class="glyph done"></span><span class="label"><strong>11a</strong> — core editor: TipTap, marks, tables, code, ⌘N, ⌘S, autosave, dirty dot, persistent selection, <code>duo selection</code> + <code>duo doc write/read</code></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>11a tail</strong> — frontmatter properties panel, drag-drop images, slash menu, floating bubble</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>11b</strong> — chokidar external-write reconciliation + 3-pane diff + warn-before-close · <em>maps to issue #7</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>11c</strong> — <code>duo doc comment</code>; transient just-changed highlight (yellow + 6s fade per Atelier mock); warn-before-overwrite · <em>maps to issues #5, #7</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>11d</strong> — CriticMarkup track-changes + comments; Suggesting / Accepted modes per Atelier mock · <em>maps to issue #6</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>11e</strong> — outline / TOC, find &amp; replace, polish</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s11" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <h2 class="phase-heading" id="phase-polish">Polish &amp; primitives</h2>
+
+    <article class="stage pending" id="s12" data-id="s12">
+      <h3><span class="num-badge">Stage 12</span> Unified skill + connector surface <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Not started · supersedes the original Stage 4 skills panel</div>
+      <p class="blurb">Collapsible right-side surface: skill discovery, connectors, agent-tool inventory.</p>
+      <div class="comment"><label>Comment</label><textarea data-key="s12" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s13" data-id="s13">
+      <h3><span class="num-badge">Stage 13</span> Interaction polish <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Not started · grab-bag of small UX wins for after the flagship pair</div>
+      <ul class="subitems">
+        <li><span class="glyph pending"></span><span class="label">Tab numbers in the unified Viewer/Editor strip ("read tab 1, write to tab 2")</span></li>
+        <li><span class="glyph pending"></span><span class="label">Terminal selection / clipboard refinements</span></li>
+        <li><span class="glyph pending"></span><span class="label"><code>duo reload</code> verb (pair for <code>duo navigate</code> with no URL)</span></li>
+        <li><span class="glyph pending"></span><span class="label">CLI socket-timeout race fix for <code>duo wait --timeout</code></span></li>
+        <li><span class="glyph pending"></span><span class="label">TCP fallback alongside Unix socket (sandbox-tolerant transport)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><code>duo doctor</code> diagnostic — uses <code>DUO_SESSION</code> from Phase 18a</span></li>
+        <li class="done"><span class="glyph done"></span><span class="label">Window drag region fix · <em>issue #17, shipped</em></span></li>
+        <li><span class="glyph pending"></span><span class="label">PTY-side sandbox operations audit · <em>issue #12</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><code>⌘[</code> in file-explorer focus moves up one level · <em>issue #22</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><code>⌘+</code> / <code>⌘-</code> pane-aware: browser focus → <code>setZoomLevel</code> · <em>issue #23</em></span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s13" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s14a" data-id="s14a">
+      <h3><span class="num-badge">Stage 14a</span> First-launch self-install <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Spec locked · no cert needed · <code>npm run dist</code> validated 2026-04-26 (commit <code>20b4701</code>)</div>
+      <p class="blurb">Double-click → app prompts → copies <code>skill/</code> + <code>agents/</code> into <code>~/.claude/</code> and symlinks <code>cli/duo</code> to <code>~/.claude/bin/duo</code>. Build artifact verified launchable; bundled resources present at expected paths.</p>
+      <ul class="subitems">
+        <li class="done"><span class="glyph done"></span><span class="label">Validate <code>npm run dist</code> end-to-end (Team C; one gap fixed inline: <code>agents/</code> added to <code>extraResources</code>)</span></li>
+        <li><span class="glyph pending"></span><span class="label">First-launch detection + consent sheet</span></li>
+        <li><span class="glyph pending"></span><span class="label">Install action (<code>fs.copyFile</code> from app bundle to <code>~/.claude/</code>)</span></li>
+        <li><span class="glyph pending"></span><span class="label">Sandbox-safe <code>duo install</code> path (<code>~/.claude/bin/duo</code>)</span></li>
+        <li><span class="glyph pending"></span><span class="label">Re-install / update flow (version tracker)</span></li>
+        <li><span class="glyph pending"></span><span class="label">Bundled <code>.claude/settings.json</code> allowlist fragment</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s14a" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s14b" data-id="s14b">
+      <h3><span class="num-badge">Stage 14b</span> Distribution polish <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Held · gated on Apple Developer ID cert (existing cert is expired per Team C)</div>
+      <ul class="subitems">
+        <li><span class="glyph pending"></span><span class="label">App icon (<code>build/icon.icns</code>) + DMG background</span></li>
+        <li><span class="glyph pending"></span><span class="label">Code signing (Apple Developer ID — needs cert)</span></li>
+        <li><span class="glyph pending"></span><span class="label">Notarization (<code>notarytool</code> via electron-builder)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><code>electron-updater</code> auto-update</span></li>
+        <li><span class="glyph pending"></span><span class="label">Session restore on relaunch · <em>issue #24</em></span></li>
+        <li><span class="glyph pending"></span><span class="label">Browser history persistence for URL autocomplete · <em>issue #27</em></span></li>
+        <li><span class="glyph pending"></span><span class="label">Launch-time auth token on Unix socket</span></li>
+        <li><span class="glyph pending"></span><span class="label">Theming pass + notifications + README install guide</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s14b" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s15" data-id="s15">
+      <h3><span class="num-badge">Stage 15</span> Human↔agent interaction primitives <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Not started · 7 sub-items; <strong>15g.1 (Send → Duo)</strong> is the highest-leverage next bet</div>
+      <ul class="subitems">
+        <li><span class="glyph pending"></span><span class="label"><strong>15a</strong> — agent-watchable events (<code>duo events --follow</code>) · <em>issue #19</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15b</strong> — <code>duo notify</code> macOS notifications · <em>issue #15</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15c</strong> — <code>duo tab name &lt;text&gt;</code> + subtitle · <em>issues #15, #18 (folded in)</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15d</strong> — <code>duo tab --cmd</code> pre-typed command · <em>issue #13</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15e</strong> — <code>duo zap &lt;selector&gt;</code> browser → terminal · <em>issue #11</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15f</strong> — file → composer (right-click / drag) · <em>issue #9</em></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15g.1</strong> — <strong>Send → Duo</strong> floating pill + <code>duo send</code> + <code>duo selection-format</code> ⭐ <em>flagship next bet</em></span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s15" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s16" data-id="s16">
+      <h3><span class="num-badge">Stage 16</span> Multi-window <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Backlog · after the flagship pair · <em>issue #16</em></div>
+      <p class="blurb">Independent windows, each containing the full Duo workspace. Windows don't share state in v1.</p>
+      <div class="comment"><label>Comment</label><textarea data-key="s16" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s17" data-id="s17">
+      <h3><span class="num-badge">Stage 17</span> Visual redesign — Atelier <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Held · design locked at <code>docs/design/atelier/</code></div>
+      <p class="blurb">System-wide token swap: cream paper + ochre accent + serif voice; light-as-hero. Layout depth between terminal and working pane; unified tab-strip rhyme; files-pane width 208 + collapse-to-rail.</p>
+      <p class="blurb"><strong>Per-feature visuals fold into host stages:</strong> just-added highlight → 11c · track changes → 11d · Send → Duo pill → 15g.1 · cozy-mode visual → Stage 9 follow-up.</p>
+      <div class="comment"><label>Comment</label><textarea data-key="s17" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage inprog" id="s18" data-id="s18">
+      <h3><span class="num-badge">Stage 18</span> Duo detection &amp; default-to-claude tabs <span class="glyph inprog"></span></h3>
+      <div class="status-line">🔄 18a shipped 2026-04-26; 18b + 18c next</div>
+      <ul class="subitems">
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>18a</strong> — env signals: <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code> (commit <code>640ec0e</code>)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>18b</strong> — passive priming: SessionStart hook + PATH shim + <code>priming.md</code> (folds into Stage 14a installer when both land)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>18c</strong> — split-button TabBar; <code>⌘T</code> from terminal focus opens claude; <code>duo new-tab</code> CLI</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s18" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s19" data-id="s19">
+      <h3><span class="num-badge">Stage 19</span> HTML canvas <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Spec locked · sibling tab type to Stage 11 · depends on 11c + 15g + 17</div>
+      <p class="blurb">New WorkingPane tab type — <code>.html</code> files render + edit in place via <code>contentEditable</code>; ULID-based stable IDs (<code>data-duo-id</code>); Atelier just-added highlight; <code>duo html *</code> CLI namespace; <code>&lt;file&gt;.duo.json</code> sidecar for comments + recent-edits log.</p>
+      <ul class="subitems">
+        <li><span class="glyph pending"></span><span class="label"><strong>19a</strong> — render + edit primitive (iframe-srcdoc + contentEditable + toolbar + autosave)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>19b</strong> — stable IDs + sidecar foundation; <code>duo html query/get/set/replace/append/remove/attr</code></span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>19c</strong> — agent overlay (just-added highlight); <code>duo selection</code> for canvas; Send → Duo pill</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>19d</strong> — comments rail + lock convention; skill snippet bundle</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>19e</strong> — script opt-in dialog; source-view (CodeMirror); find &amp; replace</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="s19" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <footer>
+      Comments save automatically to your browser's localStorage (key prefix: <code>duo-roadmap-comment-</code>).<br>
+      Source: <code>docs/roadmap.html</code> · authoritative spec lives in <code>ROADMAP.md</code>.
+    </footer>
+  </main>
+
+  <aside class="sidebar">
+    <div class="side-panel">
+      <h2>Status</h2>
+      <div class="stats">
+        <div class="stat"><div class="num">8</div><div class="label">Done</div></div>
+        <div class="stat"><div class="num">2</div><div class="label">In progress</div></div>
+        <div class="stat"><div class="num">9</div><div class="label">Pending</div></div>
+        <div class="stat"><div class="num">15</div><div class="label">Open issues</div></div>
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <h2>Legend</h2>
+      <ul class="legend-list">
+        <li><span class="glyph done"></span> Done</li>
+        <li><span class="glyph inprog"></span> In progress</li>
+        <li><span class="glyph pending"></span> Not started</li>
+        <li><span class="glyph shipped"></span> Shipped this session</li>
+      </ul>
+    </div>
+
+    <div class="side-panel">
+      <h2>Comments</h2>
+      <div class="controls-panel">
+        <div class="count-row"><span class="count" id="comment-count">0</span><span>saved</span></div>
+        <button id="export-btn" title="Download all comments as JSON">↓ Export to JSON</button>
+        <button id="clear-btn" class="danger" title="Clear all comments (cannot undo)">✕ Clear all</button>
+      </div>
+    </div>
+
+    <div class="side-panel">
+      <h2>Jump to</h2>
+      <ul class="nav-list">
+        <li><a href="#phase-foundation">Foundation <span class="badge">5 ✓</span></a></li>
+        <li><a href="#phase-flagship">Flagship pair <span class="badge">3</span></a></li>
+        <li><a href="#phase-polish">Polish &amp; primitives <span class="badge">9</span></a></li>
+        <li><a href="#s15"><strong>→ Stage 15g.1 (next bet)</strong></a></li>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<script>
+(function() {
+  const PREFIX = 'duo-roadmap-comment-';
+  const textareas = document.querySelectorAll('textarea[data-key]');
+  const countEl = document.getElementById('comment-count');
+
+  function refreshCount() {
+    let n = 0;
+    textareas.forEach(t => { if (t.value.trim()) n++; });
+    countEl.textContent = n;
+  }
+
+  textareas.forEach(t => {
+    const key = PREFIX + t.dataset.key;
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      t.value = stored;
+      t.classList.add('has-content');
+    }
+    let saveTimer = null;
+    const hint = t.parentElement.querySelector('.saved-hint');
+    t.addEventListener('input', () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        if (t.value.trim()) {
+          localStorage.setItem(key, t.value);
+          t.classList.add('has-content');
+        } else {
+          localStorage.removeItem(key);
+          t.classList.remove('has-content');
+        }
+        hint.textContent = 'saved · ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        hint.classList.add('visible');
+        clearTimeout(t._hintTimer);
+        t._hintTimer = setTimeout(() => hint.classList.remove('visible'), 1800);
+        refreshCount();
+      }, 400);
+    });
+  });
+
+  document.getElementById('export-btn').addEventListener('click', () => {
+    const out = {};
+    textareas.forEach(t => {
+      const v = t.value.trim();
+      if (v) {
+        const stage = t.closest('.stage');
+        const title = stage ? stage.querySelector('h3').textContent.trim().replace(/\s+/g, ' ') : t.dataset.key;
+        out[t.dataset.key] = { title, comment: v };
+      }
+    });
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'duo-roadmap-comments-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById('clear-btn').addEventListener('click', () => {
+    if (!confirm('Clear all roadmap comments? This cannot be undone.')) return;
+    textareas.forEach(t => {
+      localStorage.removeItem(PREFIX + t.dataset.key);
+      t.value = '';
+      t.classList.remove('has-content');
+    });
+    refreshCount();
+  });
+
+  refreshCount();
+})();
+</script>
+</body>
+</html>
