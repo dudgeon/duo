@@ -8,6 +8,21 @@
 > the new numbers. See [§ Number history](#number-history-2026-04-26-renumber)
 > for the old ↔ new map; commit messages and historical PRDs may
 > still reference old numbers.
+>
+> **Interactive view:** [`docs/roadmap.html`](roadmap.html) is the
+> Atelier-styled visual snapshot — same structure as this file,
+> with per-stage comment boxes (localStorage-backed) for inline
+> notes. Open via Claude desktop preview at
+> `http://localhost:8765/roadmap.html` (`npm` server config in
+> `.claude/launch.json`). Keep both in sync — the markdown is
+> authoritative, the HTML is the surface Geoff actually reads.
+>
+> **Cross-references:**
+> [VISION.md](docs/VISION.md) (north star) ·
+> [DECISIONS.md](docs/DECISIONS.md) (architecture) ·
+> [CLI-COVERAGE.md](docs/CLI-COVERAGE.md) (CLI verb inventory) ·
+> [docs/design/atelier/](docs/design/atelier/) (visual design bundle) ·
+> [docs/prd/](docs/prd/) (per-stage PRDs).
 
 ---
 

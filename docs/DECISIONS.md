@@ -2,6 +2,11 @@
 
 > All decisions in §6 of the brief are LOCKED. This document adds rationale,
 > implementation notes, and records any decisions made during build.
+>
+> **Where this fits:** stage-level sequencing lives in
+> [ROADMAP.md](../ROADMAP.md). This file is the *architectural-decision*
+> truth — choices that bind across stages. Each stage's PRD in
+> [docs/prd/](prd/) cross-references the relevant ADRs.
 
 ---
 

@@ -7,6 +7,11 @@
 > See [CLAUDE.md § Working style rule 4](../CLAUDE.md) for the enforced
 > rule and the six-file plumbing checklist every new verb must hit.
 >
+> **Where this fits:** stage-level sequencing lives in
+> [ROADMAP.md](../ROADMAP.md). This file is the *verb-level* truth —
+> what's shipped, what's a gap, and what stage will close each gap.
+> Cross-refs to specific PRDs in [docs/prd/](prd/).
+>
 > **Last updated: 2026-04-26** (Stage 19 rename: `duo term new` →
 > `duo new-tab` with `--kind shell|claude`).
 
