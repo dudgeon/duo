@@ -1,6 +1,7 @@
 # Stage 15g PRD — "Send → Duo" cross-modality selection primitive
 
-> **Status:** spec drafted 2026-04-25. Not started.
+> **Status:** spec drafted 2026-04-25. Visual spec added 2026-04-26
+> (Atelier mock). Not started.
 > **Slot in roadmap:** new sub-item under Stage 15 (human↔agent
 > interaction primitives), peer to 15a–15f.
 > **References:**
@@ -13,6 +14,18 @@
 > - Stage 15e (`duo zap`) — agent-driven cousin: agent picks an element,
 >   pipes a packet to the active terminal. Stage 15g is the
 >   user-driven version of the same loop.
+> - **[docs/design/atelier/](../design/atelier/)** — visual spec for
+>   the floating pill, the click-to-fire animation, and the terminal
+>   payload-injection treatment. The 16-second demo loop in
+>   [Duo Prototype.html](../design/atelier/project/Duo%20Prototype.html)
+>   shows the full flow at t=2.0s–4.5s
+>   (selection glow → pill appears → pill click drops + fades →
+>   terminal swaps to Claude tab and the quoted payload appears with
+>   provenance line, cursor blinking with no Enter pressed). The
+>   `SendToDuoPill` component in
+>   [duo-components.jsx](../design/atelier/project/duo-components.jsx)
+>   is the geometric reference. Read [the bundle README](../design/atelier/README.md)
+>   before implementing the UI.
 
 ---
 

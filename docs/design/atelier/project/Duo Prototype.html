@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Duo — Interactive Prototype</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1a1611; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; overflow: hidden; }
+  #stage { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 22px; box-sizing: border-box; }
+  #stage > .frame { width: 100%; height: 100%; max-width: 1480px; max-height: 940px; }
+  @keyframes duo-agent-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @keyframes duo-agent-flash { 0% { box-shadow: 0 0 0 6px rgba(198,106,46,.45); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @keyframes duo-blink { 50% { opacity: 0; } }
+  .duo-cursor { display: inline-block; width: .55em; height: 1.05em; background: currentColor; vertical-align: text-bottom; animation: duo-blink 1.1s steps(1) infinite; }
+  /* Duo "just added" highlight — yellow fades down to a soft tint, then to nothing
+     across 6 seconds. Drives off a key change so we can re-trigger on demand. */
+  @keyframes duo-just-added {
+    0%   { background-color: var(--duo-just-added-strong, #f8e59c); box-shadow: 0 0 0 1px rgba(0,0,0,.04); }
+    20%  { background-color: var(--duo-just-added-strong, #f8e59c); }
+    100% { background-color: transparent; box-shadow: 0 0 0 0 transparent; }
+  }
+  .duo-just-added { animation: duo-just-added 6s ease-out forwards; padding: 0 2px; border-radius: 2px; }
+  /* Cross-fade in for newly inserted *blocks* (not just text) */
+  @keyframes duo-block-in {
+    0%   { opacity: 0; transform: translateY(-2px); }
+    100% { opacity: 1; transform: none; }
+  }
+  .duo-block-in { animation: duo-block-in .45s ease-out both; }
+  @keyframes duo-pill-in { from { opacity: 0; transform: translateY(4px) scale(.92); } to { opacity: 1; transform: none; } }
+  @keyframes duo-pty-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+  .duo-pty-in { animation: duo-pty-in .35s ease-out both; }
+  .duo-tab-close:hover { background: rgba(0,0,0,.08); opacity: 1 !important; }
+  /* radial vignette behind the app */
+  #bg {
+    position: fixed; inset: 0; z-index: -1;
+    background:
+      radial-gradient(ellipse at center, #2a221a 0%, #15110c 70%, #0c0905 100%);
+  }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="bg"></div>
+<div id="stage"><div class="frame" id="root"></div></div>
+<script type="text/babel" src="tokens.jsx"></script>
+<script type="text/babel" src="duo-components.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="prototype-app.jsx"></script>
+</body>
+</html>

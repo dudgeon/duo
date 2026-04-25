@@ -120,13 +120,32 @@ in if a concrete agent task wants them.
 
 **Lower-priority follow-ups** (Stage 12 unified skill/connector surface,
 Stage 13 polish + `duo doctor` + TCP fallback, Stage 15a–f primitives,
-Stage 14a first-launch self-install, Stage 14b distribution polish)
-all wait until at least one of the above lands. **Note:** on
-2026-04-26 the old combined Stage 14 was split — 14a (first-launch
-installer, no cert needed) is shippable independently of 14b (code
-sign + notarize + auto-update). Pull 14a forward whenever the
-"Trailblazer can't double-click" friction outranks the next agent
-surface in priority.
+Stage 14a first-launch self-install, Stage 14b distribution polish,
+**Stage 17 visual redesign — Atelier**) all wait until at least one of
+the above lands. **Notes:**
+- 2026-04-26: the old combined Stage 14 was split — 14a (first-launch
+  installer, no cert needed) is shippable independently of 14b (code
+  sign + notarize + auto-update). Pull 14a forward whenever the
+  "Trailblazer can't double-click" friction outranks the next agent
+  surface in priority.
+- 2026-04-26: **Stage 17 visual redesign added; design locked** at
+  [docs/design/atelier/](docs/design/atelier/). Atelier (cream paper +
+  ochre accent + serif voice; light is hero, dark is follower) is
+  the chosen direction; Stationery and Field Notebook are documented
+  alternatives in `tokens.jsx`. Per-feature visuals **fold into
+  their host stages**:
+  - just-added highlight → **Stage 11c** (PRD § 6 already named the
+    behaviour; mock supplies the visual — yellow `mark` + 6s fade,
+    overriding the original "blue fade" placeholder)
+  - track changes (Suggesting / Accepted) → **Stage 11d**
+  - Send → Duo pill → **Stage 15g.1**
+  - cozy-mode visual completion → **Stage 9 follow-up** (Geoff's
+    confession: cozy-mode toggle works but doesn't *feel* cozy)
+  Stage 17 itself is the system-wide token + layout pass (cream
+  surfaces, ochre accent, light as default, terminal/working pane
+  paper-depth differentiation, unified tab strip, files-pane width
+  208 + collapse-to-rail) that should land *after* the flagship pair
+  so it polishes a whole product rather than a half one.
 
 **Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-25:
 BUG-001 — `⌃Tab` from terminal focus cycles browser tabs instead of
@@ -143,6 +162,7 @@ forward.
 | `docs/VISION.md` | Product north star — persona, principles, flagship bet. Read before making product/UX decisions. |
 | `docs/CLI-COVERAGE.md` | Authoritative CLI verb inventory + priority-tagged gap roadmap. Touched on every new feature. |
 | `docs/prd/` | Per-stage PRDs (9, 10, 11) with D-numbered decisions + rationale |
+| `docs/design/atelier/` | Visual-redesign source bundle (Atelier direction). Tokens, mock components, and the interactive prototype that drives Stage 17 + per-feature visuals (cozy mode, just-added highlight, track changes, Send → Duo pill). Read [its README](docs/design/atelier/README.md) before any UI-touching work. |
 | `docs/dev/smoke-checklist.md` | Test matrix walked before calling any UI change done |
 | `duo-brief.md` | Original engineering brief (Stages 1–5). Architecture + Google Docs path are authoritative; product framing is superseded by `docs/VISION.md`. |
 | `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog |

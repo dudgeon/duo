@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>Duo — Design Canvas</title>
+<style>
+  body { margin: 0; background: #f0eee9; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; }
+  @keyframes duo-agent-pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  @keyframes duo-agent-flash { 0% { box-shadow: 0 0 0 6px var(--agent-flash, rgba(198,106,46,.3)); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  .duo-cursor { display: inline-block; width: .55em; height: 1.05em; background: currentColor; vertical-align: text-bottom; animation: duo-blink 1.1s steps(1) infinite; }
+  @keyframes duo-blink { 50% { opacity: 0; } }
+  .duo-tab-close:hover { background: rgba(0,0,0,.08); opacity: 1 !important; }
+</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="tokens.jsx"></script>
+<script type="text/babel" src="duo-components.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+
+function Page() {
+  return (
+    <DesignCanvas>
+      {/* ──────────────── DIRECTION OVERVIEWS ──────────────── */}
+      <DCSection id="d1-overview" title="Direction 1 · Stationery"
+        subtitle="Safe evolution. Cream paper, ink, single warm terracotta accent. Quietly professional — recognisably Duo, but warmer and less bland.">
+        <DCArtboard id="d1-light-frame" label="Whole app · Light · Default" width={1200} height={760}>
+          <DuoApp dir="stationery" mode="light" themeLabel="Light"
+            activeTermTab="t1" activeWorkingTab="w1" splitPct={48}
+            agentDot={true} />
+        </DCArtboard>
+        <DCArtboard id="d1-dark-frame" label="Whole app · Dark" width={1200} height={760}>
+          <DuoApp dir="stationery" mode="dark" themeLabel="Dark"
+            activeTermTab="t1" activeWorkingTab="w1" splitPct={48} />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="d2-overview" title="Direction 2 · Atelier"
+        subtitle="Confident redesign — recommended hero. Same warm paper but a serif typographic voice in headings and active tabs, ochre accent, layered papers that solve the “terminal vs working pane too subtle” complaint.">
+        <DCArtboard id="d2-light-frame" label="Whole app · Light · Default" width={1200} height={760}>
+          <DuoApp dir="atelier" mode="light" themeLabel="Light"
+            activeTermTab="t1" activeWorkingTab="w1" splitPct={48}
+            agentDot={true} agentSelectionGlow={true}
+            revealedPath="docs/prd/stage-11-markdown-editor.md" />
+        </DCArtboard>
+        <DCArtboard id="d2-dark-frame" label="Whole app · Dark" width={1200} height={760}>
+          <DuoApp dir="atelier" mode="dark" themeLabel="Dark"
+            activeTermTab="t1" activeWorkingTab="w1" splitPct={48} />
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="d3-overview" title="Direction 3 · Field Notebook"
+        subtitle="Bold rethink. The terminal pane is graph-paper (light) or charcoal leather (dark); the working pane is manuscript. Two distinctly textured surfaces — you never confuse them. Sepia accent, serif chrome.">
+        <DCArtboard id="d3-light-frame" label="Whole app · Light · Default" width={1200} height={760}>
+          <DuoApp dir="fieldnotebook" mode="light" themeLabel="Light"
+            activeTermTab="t1" activeWorkingTab="w1" splitPct={48} />
+        </DCArtboard>
+        <DCArtboard id="d3-dark-frame" label="Whole app · Dark" width={1200} height={760}>
+          <DuoApp dir="fieldnotebook" mode="dark" themeLabel="Dark"
+            activeTermTab="t1" activeWorkingTab="w1" splitPct={48} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ──────────────── COMPARE: TERMINAL DEFAULT vs COZY ──────────────── */}
+      <DCSection id="cozy" title="Cozy mode — fleshed out"
+        subtitle="Today the toggle does little. Here, cozy turns the terminal into a paper canvas with serif-flavored monospace at 14px, 1.6 line-height, capped at 92ch, centered — a reading column for long Claude conversations. Tap the badge to leave cozy.">
+        <DCArtboard id="cozy-default" label="Atelier · Default terminal" width={680} height={520}>
+          <SoloPane dir="atelier" mode="light">
+            <TabStrip dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              kind="terminal" tabs={SAMPLE_TERM_TABS} activeId="t1" dense={false} />
+            <TerminalPane dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              cozy={false} lines={SAMPLE_TERM_LINES} />
+          </SoloPane>
+        </DCArtboard>
+        <DCArtboard id="cozy-on" label="Atelier · Cozy mode (long Claude session)" width={680} height={520}>
+          <SoloPane dir="atelier" mode="light">
+            <TabStrip dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              kind="terminal" tabs={SAMPLE_TERM_TABS} activeId="t1" dense={false} />
+            <TerminalPane dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              cozy={true} lines={SAMPLE_TERM_LINES} />
+          </SoloPane>
+        </DCArtboard>
+        <DCArtboard id="cozy-on-dark" label="Atelier · Cozy mode · Dark" width={680} height={520}>
+          <SoloPane dir="atelier" mode="dark">
+            <TabStrip dir="atelier" mode="dark" t={DUO_TOKENS.atelier.dark} voice={DUO_VOICE.atelier}
+              kind="terminal" tabs={SAMPLE_TERM_TABS} activeId="t1" dense={false} />
+            <TerminalPane dir="atelier" mode="dark" t={DUO_TOKENS.atelier.dark} voice={DUO_VOICE.atelier}
+              cozy={true} lines={SAMPLE_TERM_LINES} />
+          </SoloPane>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ──────────────── FILES PANE DETAIL ──────────────── */}
+      <DCSection id="files" title="Files pane — detail"
+        subtitle="Breadcrumb with ~ shortcut, pin to freeze follow-mode, reveal-chip when Claude moves the navigator (now an animated whisper, not a banner), tree with folder-first sort, collapsed rail with vertical FILES label.">
+        <DCArtboard id="files-default" label="Atelier · Default" width={300} height={620}>
+          <SoloPane dir="atelier" mode="light"><FilesPane dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+            tree={SAMPLE_TREE} cwd="~/projects/conversational-servicing" /></SoloPane>
+        </DCArtboard>
+        <DCArtboard id="files-revealed" label="Atelier · Claude just revealed a file" width={300} height={620}>
+          <SoloPane dir="atelier" mode="light"><FilesPane dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+            tree={[
+              { kind: 'folder', name: 'docs', open: true, children: [
+                { kind: 'folder', name: 'prd', open: true, children: [
+                  { kind: 'file', name: 'stage-11-markdown.md', selected: true, selectedBy: 'claude' },
+                ]},
+                { kind: 'file', name: 'VISION.md' },
+              ]},
+              { kind: 'folder', name: 'electron', children: [] },
+            ]}
+            cwd="~/projects/conversational-servicing/docs/prd"
+            revealedPath="docs/prd/stage-11-markdown.md"
+            agentJustRevealed={true} /></SoloPane>
+        </DCArtboard>
+        <DCArtboard id="files-pinned" label="Atelier · Pinned" width={300} height={620}>
+          <SoloPane dir="atelier" mode="light"><FilesPane dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+            tree={SAMPLE_TREE} cwd="~/projects/conversational-servicing"
+            pinned={true} /></SoloPane>
+        </DCArtboard>
+        <DCArtboard id="files-collapsed" label="Atelier · Collapsed rail" width={80} height={620}>
+          <SoloPane dir="atelier" mode="light"><FilesPane dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+            tree={SAMPLE_TREE} cwd="~/projects" collapsed={true} /></SoloPane>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ──────────────── EDITOR DETAIL + AGENT MOMENT ──────────────── */}
+      <DCSection id="editor-agent" title="The agent moment — selection glow"
+        subtitle="The user highlights a paragraph in the editor; Claude reads it via `duo selection`. The highlight transitions from yellow marker to a softly-glowing ochre — visible but not loud. The titlebar gets a small pulsing dot. No modal, no banner.">
+        <DCArtboard id="agent-1-pre" label="Before · plain selection" width={760} height={620}>
+          <SoloPane dir="atelier" mode="light">
+            <TabStrip dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              kind="working" tabs={SAMPLE_WORKING_TABS} activeId="w1" />
+            <WorkingMarkdownEditor dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              doc={SAMPLE_DOC} agentSelectionGlow={false} />
+          </SoloPane>
+        </DCArtboard>
+        <DCArtboard id="agent-2-glow" label="During · Claude is reading" width={760} height={620}>
+          <SoloPane dir="atelier" mode="light">
+            <TabStrip dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              kind="working" tabs={SAMPLE_WORKING_TABS} activeId="w1" />
+            <WorkingMarkdownEditor dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              doc={SAMPLE_DOC} agentSelectionGlow={true} />
+          </SoloPane>
+        </DCArtboard>
+      </DCSection>
+
+      {/* ──────────────── TAB STRIP RHYME ──────────────── */}
+      <DCSection id="tabs" title="Tab strips — rhyming families"
+        subtitle="One of your must-loses: terminal tabs and working pane tabs were too dissimilar. Same chip shape and accent line; differentiated by leading icon (terminal glyph vs file/web glyph) and the underlying paper warmth (deeper paper for terminal, lighter for working).">
+        <DCArtboard id="tabs-pair" label="The two strips, stacked" width={780} height={120}>
+          <SoloPane dir="atelier" mode="light">
+            <TabStrip dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              kind="terminal" tabs={SAMPLE_TERM_TABS} activeId="t1" />
+            <TabStrip dir="atelier" mode="light" t={DUO_TOKENS.atelier.light} voice={DUO_VOICE.atelier}
+              kind="working" tabs={SAMPLE_WORKING_TABS} activeId="w1" />
+          </SoloPane>
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+}
+
+// Tiny wrapper so a single sub-component looks framed inside an artboard.
+function SoloPane({ dir, mode, children }) {
+  const t = DUO_TOKENS[dir][mode];
+  return (
+    <div style={{
+      width: '100%', height: '100%', display: 'flex', flexDirection: 'column',
+      background: t.paper, color: t.ink, overflow: 'hidden', borderRadius: 8,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Page />);
+</script>
+</body>
+</html>

@@ -1,12 +1,22 @@
 # Stage 11 PRD — Collaborative markdown editor (human↔agent)
 
-> **Status:** spec drafted 2026-04-24. Not started.
+> **Status:** spec drafted 2026-04-24. 11a shipped 2026-04-24. Visual
+> spec for 11c (just-added highlight) and 11d (track changes) added
+> 2026-04-26 from the Atelier mock.
 > **Supersedes:** the ROADMAP "Stage 11" outline — see the roadmap for
 > sub-stage sequencing; decisions here are authoritative.
 > **References:**
 > - [docs/VISION.md § The flagship bet — the reading and writing pair](../VISION.md)
 > - [docs/DECISIONS.md § Layout model + working-pane model](../DECISIONS.md)
 > - [docs/prd/stage-10-file-navigator.md](stage-10-file-navigator.md) — WorkingPane shell, `duo-file://`, per-type registry
+> - **[docs/design/atelier/](../design/atelier/)** — visual specs for
+>   11c (just-added highlight) and 11d (Suggesting / Accepted track-
+>   changes modes). The 16-second demo loop in
+>   [Duo Prototype.html](../design/atelier/project/Duo%20Prototype.html)
+>   shows both, and the Tweaks panel toggles between them. The
+>   editor's serif body voice + page width come from Atelier too;
+>   read [the bundle README](../design/atelier/README.md) before
+>   touching the editor surface.
 > - [CriticMarkup spec](http://criticmarkup.com/spec.php) — `{++ins++}`, `{--del--}`, `{~~old~>new~~}`, `{==hl==}`, `{>>comment<<}`
 > - [CommonMark](https://spec.commonmark.org/) + [GFM](https://github.github.com/gfm/)
 
@@ -219,11 +229,24 @@ Five sub-stages — each ends in something demonstrable.
 - **Exit:** agent writes to the file via disk → editor reloads or prompts; user never loses work.
 
 ### 11c — Agent API + transient highlight (~3 PRs)
-- [ ] `duo doc read / write / comment / selection` socket commands (D26–D29a).
+- [ ] `duo doc read / write / comment / selection` socket commands (D26–D29a). **Note 2026-04-26:** `read` / `write` / `selection` already shipped; only `comment` remains for this sub-stage.
 - [ ] Transient "just-changed" highlight + margin chip (D28).
 - [ ] Warn-before-overwrite banner for dirty buffers (D24).
 - [ ] Skill doc update: new `skill/examples/edit-markdown-file.md`.
 - **Exit:** `duo doc write --stdin < ./revised-section.md` lands in the open editor with a blue fade; the user sees what changed.
+
+> **Visual spec (added 2026-04-26):** the transient highlight uses
+> Atelier's `mark` token (yellow) with a 6-second fade, not the
+> "blue fade" placeholder above. The exact treatment is in
+> [docs/design/atelier/](../design/atelier/) — `@keyframes
+> duo-just-added` in [Duo Prototype.html](../design/atelier/project/Duo%20Prototype.html)
+> and the `justAdded` mark / block class in
+> [duo-components.jsx](../design/atelier/project/duo-components.jsx).
+> The prototype's 16-second demo loop fires the highlight at ~8s
+> (one new sentence appended to a paragraph + one new paragraph
+> below). When implementing, replace "blue fade" with the Atelier
+> spec; the mock also handles the cross-fade-in for newly inserted
+> *blocks*, not just inline text.
 
 ### 11d — CriticMarkup track-changes + comments (~3–4 PRs)
 - [ ] CriticMarkup parser + serializer extension for TipTap.
@@ -233,6 +256,18 @@ Five sub-stages — each ends in something demonstrable.
 - [ ] Accept / reject / resolve inline + navigator (D19).
 - [ ] `duo doc comment` end-to-end (D29).
 - **Exit:** track-changes-on + agent writes = CriticMarkup review flow that works like Google Docs suggestions.
+
+> **Visual spec (added 2026-04-26):** the Atelier mock
+> ([docs/design/atelier/](../design/atelier/)) realizes the
+> "Suggesting" mode end-to-end: green-underlined insertions,
+> red-strikethrough deletions, and a top-of-editor banner
+> ("3 changes from Claude · Accept all / Reject all"). Three modes
+> are demonstrated — **Live** (no marks), **Suggesting**
+> (insertions + deletions both visible), **Accepted** (deletions
+> disappear, insertions stay). The mock toggles between modes via
+> the Tweaks panel; in the real editor, this maps to D18's track-
+> changes toggle. See `insertion` / `deletion` mark renderings in
+> [duo-components.jsx](../design/atelier/project/duo-components.jsx).
 
 ### 11e — Outline, find, polish (~2 PRs)
 - [ ] Outline / TOC sidebar with jump + reorder (D30).

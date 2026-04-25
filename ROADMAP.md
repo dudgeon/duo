@@ -33,6 +33,7 @@ deliver the north-star experience. Re-sequenced:
 | 16 | Multi-window support | ⬜ **backlog** (issue #16) |
 | **14a** | **First-launch self-install** (double-click → app prompts, copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; ad-hoc-signed local build) | ⬜ (split from old Stage 6 on 2026-04-26 — **no cert needed**, can ship before 14b) |
 | 14b | Distribution polish (Apple Developer ID code signing, notarization, electron-updater, icon, DMG background, README install guide) | ⬜ (gated on cert from Geoff) |
+| **17** | **Visual redesign — Atelier** (system-wide token swap to cream + ochre + serif; light is the hero; layout depth + tab-strip rhyme; files-pane width 208 + collapse-to-rail) | ⬜ (raised 2026-04-26; design locked at [docs/design/atelier/](docs/design/atelier/); held until flagship pair ships) |
 
 Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator +
 viewer — thin read-only version) are **superseded** by this sequence.
@@ -581,6 +582,28 @@ Claude Code's TUI rendering. Per
 - [ ] Minimum: reader theme and default theme are both dark,
       professional, and discernibly different.
 
+**Follow-up — cozy mode visual completion (raised 2026-04-26):**
+Geoff confirmed in the [Atelier design chat](design/atelier/chats/chat1.md)
+that the current cozy-mode toggle works mechanically but doesn't yet
+*feel* cozy — the typography pass landed, but the surface, color, and
+voice didn't change visibly. Atelier (Stage 17) supplies the missing
+visual layer:
+
+- [ ] Swap cozy-mode terminal background to `--duo-termCozyBg` (cream
+      paper in light, warm dark-paper in dark) and foreground to
+      `--duo-termCozyFg`, using the [Atelier tokens](design/atelier/project/tokens.jsx).
+- [ ] Cap reader-mode column at **92ch** with paper-tone surrounding
+      gutter (the prototype shows the full treatment).
+- [ ] Optional: "serif-flavored mono" pass — the prototype demonstrates
+      a typeface that reads warmer for prose without breaking TUI
+      glyph alignment. Confirm with a TUI regression sweep before
+      enabling by default.
+
+These follow-ups can ride along with **Stage 17** (one visual ship) or
+land independently if cozy-mode polish becomes urgent before the
+flagship pair ships. They do **not** change cozy-mode's behaviour —
+only its appearance.
+
 **Pulls in from old backlog:** the "Reader mode for the terminal"
 bullet is now this stage.
 
@@ -1114,6 +1137,121 @@ cross-window focus logic.
 - [ ] `duo` CLI: how does it address windows? Options at kickoff:
       `duo --window <n>` / env var / "most recent active window" as
       default.
+
+---
+
+## Stage 17 — Visual redesign (Atelier) `⬜ Held — design locked, after the flagship pair`
+
+> **Design source:** [docs/design/atelier/](design/atelier/).
+> [README](design/atelier/README.md) is the index; [chats/chat1.md](design/atelier/chats/chat1.md)
+> is the source of intent; the prototype HTML and JSX live in
+> [project/](design/atelier/project/).
+>
+> **Raised 2026-04-26.** Geoff's brief: "warmer and more approachable
+> without dumbing it down" for the PM persona. The current dark
+> Warp×Linear aesthetic is the wrong voice for that audience. The
+> design pass produced three directions (Stationery / Atelier / Field
+> Notebook); **Atelier is the chosen hero** — confident redesign,
+> cream paper + ochre accent, serif chrome accents, serif editor body,
+> light-as-hero with dark as a warm follower.
+
+**Held until the flagship pair (15g.1 + 11b) ships in functional form.**
+Same logic that put Stage 14b after Stages 9/10/11: don't polish a
+half-product. The mock has already done the design work for the
+in-flight stages, so per-feature visuals fold into their host stages
+and ship as part of those features (see "Per-feature visuals fold in"
+below). What remains for Stage 17 itself is the **system-wide visual
+pass** — token swap, layout depth, tab-strip rhyme, file-pane shape.
+
+**Exit criteria:** A returning user opens Duo and immediately reads
+"writing desk" rather than "professional terminal tool" — without
+losing any feature parity. Light is the default theme; dark is
+preserved and equally polished. The three "must-lose" items from the
+brief are gone:
+
+- bland → cream + ochre + serif voice
+- terminal pane vs working pane too subtle → paper-depth differentiation + accent rule
+- terminal tabs vs working-pane tabs visually dissimilar → unified tab-strip vocabulary
+
+### Scope — system-wide visual pass
+
+- [ ] **Token swap.** Replace today's `useTheme.ts` palette
+      (`#080808` + purple `#7c6af7`) with the Atelier tokens from
+      [tokens.jsx](design/atelier/project/tokens.jsx) (`paper`,
+      `paperDeep`, `paperEdge`, `paperRule`, `ink`, `inkSoft`,
+      `inkMute`, `inkGhost`, `accent`, `accentSoft`, `accentInk`,
+      `mark`, plus terminal `termBg`/`termFg`/`termCozyBg`/`termCozyFg`).
+      Both light and dark variants ship.
+- [ ] **Light is the new default.** Per the brief's "light is the
+      hero, dark is a respectful follower." Today's default is dark;
+      flip the default and confirm the dark variant still reads as
+      a deliberate choice rather than a fallback.
+- [ ] **Type voice.** Wire `DUO_VOICE.atelier` — sans for chrome
+      labels, serif (`"New York"` / `ui-serif`) for chrome accents
+      (titles, breadcrumb root, headings) and editor body. JetBrains
+      Mono / SF Mono unchanged for terminal.
+- [ ] **Layout depth — terminal vs working pane.** Today they share
+      the same surface color. Move the working pane to `--duo-paper`
+      and the terminal pane to `--duo-paperDeep`, with a 1px rule of
+      `--duo-paperRule` between them. The mock's `WorkingPane` and
+      `TerminalPane` components show the contrast.
+- [ ] **Tab-strip rhyme.** Today the terminal tab strip and the
+      working-pane tab strip use different chip shapes. Unify to one
+      shape language (the prototype uses a soft-cornered chip with
+      paper-edge background and an ink-soft underline for the active
+      tab) so the eye reads them as one family across columns.
+- [ ] **Files pane — width 208 + collapse-to-rail.** Narrow the
+      Files column from ~248 to 208px (the user annotation drawing
+      in [uploads/](design/atelier/project/uploads/) shows the
+      target). Add an explicit chevron-with-rail icon next to the
+      pin button that fully collapses the pane to a 44px rail; click
+      the rail anywhere to expand again. Keep follow-mode + reveal
+      chip + breadcrumb behaviour intact (these are "must keep").
+- [ ] **Whisper-level agent presence.** Wire the subtle pulses the
+      mock demonstrates: titlebar dot when Claude is active; soft
+      glow on a selection when Claude reads it (the same `mark`
+      token + a `box-shadow` keyframe). The just-added highlight
+      and Send → Duo pill are owned by their host stages (see
+      below) so they don't repeat here.
+
+### Per-feature visuals — fold into host stages (don't wait for Stage 17)
+
+These are visual specs the mock supplies for in-flight features.
+Implementing each one is the host stage's responsibility; Stage 17
+just inherits them when the system-wide pass lands.
+
+| Visual | Host stage | Where in the mock |
+|---|---|---|
+| Cozy mode terminal — paper canvas, serif mono, 92ch column | [Stage 9 follow-up](#stage-9--cozy-mode-terminal-typography-v1--shipped-2026-04-22-graduated-2026-04-25) | `tokens.jsx` `termCozyBg` / `termCozyFg`; `duo-components.jsx` cozy branch |
+| Just-added highlight (yellow flash, 6s fade) on agent-written text | [Stage 11c](docs/prd/stage-11-markdown-editor.md) § 6 | `Duo Prototype.html` `@keyframes duo-just-added`; `duo-components.jsx` `justAdded` mark. (PRD 11c said "blue fade" — overwritten by Atelier's yellow `mark` token + 6s curve.) |
+| Track changes (Suggesting / Accepted / Live) — green insertions, red strikethrough, accept-all banner | [Stage 11d](docs/prd/stage-11-markdown-editor.md) § 6 | `duo-components.jsx` `insertion` / `deletion` marks + Suggesting banner. The mock realizes D18's track-changes toggle end-to-end. |
+| Send → Duo floating pill — purple chip with `⌘D` chord, click-to-fire animation | [Stage 15g.1](docs/prd/stage-15g-send-to-duo.md) | `duo-components.jsx` `SendToDuoPill`; `Duo Prototype.html` `@keyframes duo-pill-in` |
+
+When picking up one of these host stages, the implementer reads the
+relevant mock file as the visual spec rather than re-deriving from
+Geoff. The chats/chat1.md transcript captures the rationale behind
+each choice and is worth a skim before starting any of them.
+
+### Sequencing notes
+
+- **Token swap is mostly mechanical** if `useTheme.ts` is the
+  single source. Audit that first; any hard-coded `#080808` /
+  `#7c6af7` outside that file gets fixed before the swap to avoid
+  surprise dark patches.
+- **Light theme regressions** — today the dark theme is the daily
+  driver. Flipping the default to light may surface contrast bugs in
+  components that were only ever used in dark. Walk
+  [docs/dev/smoke-checklist.md](docs/dev/smoke-checklist.md) twice:
+  once in light, once in dark.
+- **Stationery and Field Notebook directions are documented but not
+  built.** They live in `tokens.jsx` so a later A/B (or a per-user
+  preference) is cheap to add. Don't ship them in v1 — Atelier is
+  the hero.
+- **Don't pull this forward of the flagship pair.** The mock proves
+  the design works for both shipped and planned features. A visual
+  pass after the features land is one round-trip; a visual pass
+  before them means re-doing the visual when the features ship in
+  different shapes than the mock predicted.
 
 ---
 
