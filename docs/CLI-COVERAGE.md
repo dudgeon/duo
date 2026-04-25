@@ -7,7 +7,7 @@
 > See [CLAUDE.md § Working style rule 4](../CLAUDE.md) for the enforced
 > rule and the six-file plumbing checklist every new verb must hit.
 >
-> **Last updated: 2026-04-25.**
+> **Last updated: 2026-04-26.**
 
 ---
 
@@ -34,6 +34,8 @@ for the authoritative usage text.
 | `duo eval <js>` | Run JS, return result |
 | `duo screenshot [--out] [--selector]` | PNG |
 | `duo console [--since] [--level] [--limit]` | Buffered console events (NDJSON) |
+| `duo errors [--since] [--limit]` | Uncaught browser exceptions (NDJSON) — distinct ring buffer fed by `Runtime.exceptionThrown` |
+| `duo network [--since] [--filter <regex>] [--limit]` | HTTP request lifecycle (NDJSON) — stitched from `Network.requestWillBeSent`/`responseReceived`/`loadingFinished`/`loadingFailed` |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs |
 | `duo wait <selector> [--timeout]` | Block until element appears |
 
@@ -51,7 +53,8 @@ for the authoritative usage text.
 | Verb | What it does |
 |---|---|
 | `duo edit <path>` | Open a `.md` in the rich editor |
-| `duo selection` | Active editor selection: `{path, text, paragraph, heading_trail, start, end}` |
+| `duo selection [--pane auto\|editor\|browser]` | Active surface's selection. `auto` (default) prefers a non-empty browser highlight, falling back to the editor's cached selection. Returns the unified `DuoSelection` shape (`kind: 'editor' \| 'browser'`). |
+| `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. |
 | `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor |
 
 ### Appearance
@@ -111,7 +114,6 @@ but they're not shipped yet.
 
 | Verb | UI parallel | Priority |
 |---|---|---|
-| `duo doc read [path]` | Visible prose | **P0** — agents need to read the *live buffer* (including unsaved edits), not just disk |
 | `duo doc save [path]` | `⌘S` | P1 |
 | `duo doc close [path]` | Close tab | P1 |
 | `duo doc comment --anchor <sel> [--body \|stdin]` | Comment toolbar button | P1 — unblocks "leave me a note on this paragraph" agent loops |
@@ -156,28 +158,26 @@ but they're not shipped yet.
 
 ### Browser observability — agent visibility into the page surface
 
-Today the bridge attaches CDP and enables `Page`, `Runtime`, `Log`,
-`DOM`, and `Accessibility`. That covers content read (`duo dom`,
+The bridge attaches CDP and enables `Page`, `Runtime`, `Log`, `DOM`,
+`Accessibility`, and `Network`. That covers content read (`duo dom`,
 `duo text`, `duo ax`), interaction (`duo click`/`fill`/`focus`/
-`type`/`key`), and the console ring buffer (`duo console`). It does
-**not** cover several DevTools surfaces an agent often needs to
-diagnose or act on the live page.
+`type`/`key`), the console ring buffer (`duo console`), uncaught
+exceptions (`duo errors`), and HTTP request lifecycle (`duo network`).
+The remaining DevTools surfaces below aren't covered yet.
 
 | Verb | UI parallel | Priority | Note |
 |---|---|---|---|
-| `duo selection` (extend to browser) | Mouse-drag highlight in the browser pane | **P0** | Today `duo selection` is editor-only. The browser surface needs the same primitive: returns `{kind: "browser", url, text, surrounding, selector_path?}`. For canvas apps (Google Docs etc.), use `_docs_annotate_getAnnotatedText('').getSelection()` rather than `window.getSelection()`. Unified return shape so agents call one verb regardless of which pane is focused. |
-| `duo errors [--since] [--limit]` | DevTools "Issues" / red console errors | **P0** | Subscribe to `Runtime.exceptionThrown` (separate from `console`). Today uncaught exceptions silently miss the ring buffer because we only listen on `Runtime.consoleAPICalled` + `Log.entryAdded`. Stack traces + script URL + line/col. |
-| `duo network [--since] [--filter <regex>] [--bodies]` | DevTools Network panel | **P0** | Enable `Network.*` and ring-buffer the request lifecycle: `requestWillBeSent`, `responseReceived`, `loadingFinished`/`loadingFailed`, plus optional response bodies (size-capped). Most-asked surface for "why did the API call fail". |
+| `duo network --bodies` | DevTools Network → Response tab | P1 | The lifecycle ring is shipped; response-body capture (size-capped, fetched lazily via `Network.getResponseBody`) is the natural extension when agents need to inspect API payloads. |
 | `duo storage <get\|list> [--cookies\|--local\|--session\|--idb]` | DevTools Application panel | P1 | Cookies / localStorage / sessionStorage / IndexedDB read. `localStorage` reachable via `duo eval` today; cookies + IDB are not. |
 | `duo styles <selector>` | DevTools Elements → Computed | P1 | Returns computed-style key/values for the matched element. Useful when agents are styling generated HTML artifacts and need to verify output. |
 | `duo perf [--start\|--stop\|--frames]` | DevTools Performance panel | P2 | Trace recording. Heavy; ship behind an explicit start/stop pair. |
 | `duo dom mutation [--selector] [--follow]` | DevTools Elements live tree | P2 | Stream DOM mutations under a subtree via `MutationObserver` injected by `Runtime.evaluate`. |
 
 **Unified-selection design note** — the browser-selection extension of
-`duo selection` is the **same** primitive used by the **Stage 15g
+`duo selection` (shipped) is the **same** primitive the **Stage 15g
 "Send → Duo" cross-modality button**
-([docs/prd/stage-15g-send-to-duo.md](prd/stage-15g-send-to-duo.md)).
-Both rely on the same shape:
+([docs/prd/stage-15g-send-to-duo.md](prd/stage-15g-send-to-duo.md))
+will reuse. Both share this shape:
 
 ```ts
 type DuoSelection =

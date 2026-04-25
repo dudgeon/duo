@@ -4,13 +4,27 @@
 import * as fs from 'fs'
 import * as path from 'path'
 import type { WebContents, Debugger } from 'electron'
-import type { ConsoleEntry, ConsoleLevel } from '../shared/types'
+import type {
+  ConsoleEntry,
+  ConsoleLevel,
+  BrowserErrorEntry,
+  NetworkEntry,
+  BrowserSelectionSnapshot
+} from '../shared/types'
 
 const CONSOLE_RING_SIZE = 500
+const ERRORS_RING_SIZE = 200
+const NETWORK_RING_SIZE = 300
 
 export class CdpBridge {
   private wc: WebContents | null = null
   private consoleRing: ConsoleEntry[] = []
+  private errorsRing: BrowserErrorEntry[] = []
+  private networkRing: NetworkEntry[] = []
+  // Lifecycle staging for in-flight requests, keyed by CDP requestId.
+  // Drained into networkRing on loadingFinished/loadingFailed, or dropped
+  // on tab switch (see attach()).
+  private networkInFlight = new Map<string, NetworkEntry>()
   private consoleListenerBound = false
 
   async attach(webContents: WebContents): Promise<void> {
@@ -31,6 +45,12 @@ export class CdpBridge {
     })
     this.consoleListenerBound = true
 
+    // Tab-switching re-attaches against a new WebContents; drop in-flight
+    // network entries from the prior tab so they don't sit forever as
+    // pending. The completed ring is preserved across tabs intentionally
+    // so the agent's history survives navigation.
+    this.networkInFlight.clear()
+
     await webContents.debugger.sendCommand('Page.enable')
     await webContents.debugger.sendCommand('Runtime.enable')
     await webContents.debugger.sendCommand('Log.enable')
@@ -38,6 +58,8 @@ export class CdpBridge {
     // scoped AX subtree queries.
     await webContents.debugger.sendCommand('DOM.enable')
     await webContents.debugger.sendCommand('Accessibility.enable')
+    // Network domain — drives `duo network`.
+    await webContents.debugger.sendCommand('Network.enable')
   }
 
   detach(): void {
@@ -46,6 +68,7 @@ export class CdpBridge {
     }
     this.wc = null
     this.consoleListenerBound = false
+    this.networkInFlight.clear()
   }
 
   // ── Read primitives ────────────────────────────────────────────────────────
@@ -249,6 +272,99 @@ export class CdpBridge {
     return entries
   }
 
+  // ── Errors capture (Runtime.exceptionThrown) ───────────────────────────────
+
+  getErrors(opts: { since?: number; limit?: number } = {}): BrowserErrorEntry[] {
+    let entries = this.errorsRing
+    if (opts.since !== undefined) entries = entries.filter(e => e.ts >= opts.since!)
+    if (opts.limit !== undefined) entries = entries.slice(-opts.limit)
+    return entries
+  }
+
+  // ── Network capture ────────────────────────────────────────────────────────
+  // Returns completed entries by default. In-flight entries are surfaced as
+  // a separate flag-free copy (no endTs) so the agent can see them too.
+
+  getNetwork(opts: { since?: number; filter?: RegExp; limit?: number } = {}): NetworkEntry[] {
+    let entries: NetworkEntry[] = [
+      ...this.networkRing,
+      ...Array.from(this.networkInFlight.values())
+    ]
+    if (opts.since !== undefined) entries = entries.filter(e => e.startTs >= opts.since!)
+    if (opts.filter) entries = entries.filter(e => opts.filter!.test(e.url))
+    // Stable order: by start time so the agent can read the lifecycle
+    // top-to-bottom even when in-flight + completed are mixed.
+    entries.sort((a, b) => a.startTs - b.startTs)
+    if (opts.limit !== undefined) entries = entries.slice(-opts.limit)
+    return entries
+  }
+
+  // ── Browser selection (Stage 15g unified shape) ────────────────────────────
+  // Returns null when there is no non-collapsed selection in the active tab.
+  // Canvas apps (Google Docs / Slides / Sheets) don't expose a real DOM
+  // selection — agents needing those should keep using `duo ax` and the
+  // app-specific Kix selection APIs documented in the skill.
+
+  async getBrowserSelection(): Promise<BrowserSelectionSnapshot | null> {
+    const expression = `(function(){
+      try {
+        const sel = window.getSelection && window.getSelection();
+        if (!sel || sel.rangeCount === 0) return null;
+        const text = sel.toString();
+        if (!text || text.length === 0) return null;
+        const range = sel.getRangeAt(0);
+        let focus = sel.focusNode || range.commonAncestorContainer;
+        if (focus && focus.nodeType === 3) focus = focus.parentNode;
+        let block = focus;
+        while (block && block !== document.body && block.nodeType === 1) {
+          const cs = window.getComputedStyle(block);
+          if (cs.display === 'block' || cs.display === 'list-item' ||
+              cs.display === 'flex' || cs.display === 'grid' ||
+              cs.display === 'table' || cs.display === 'table-cell') break;
+          block = block.parentNode;
+        }
+        let surrounding = '';
+        if (block && block.innerText) {
+          surrounding = String(block.innerText).slice(0, 1000);
+        }
+        function selectorFor(el) {
+          if (!el || el.nodeType !== 1) return '';
+          const parts = [];
+          let cur = el;
+          while (cur && cur.nodeType === 1 && cur !== document.body) {
+            let s = cur.tagName.toLowerCase();
+            if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
+              s += '#' + cur.id;
+              parts.unshift(s);
+              break;
+            }
+            const parent = cur.parentNode;
+            if (parent && parent.children) {
+              const idx = Array.from(parent.children).indexOf(cur) + 1;
+              if (idx > 0) s += ':nth-child(' + idx + ')';
+            }
+            parts.unshift(s);
+            cur = cur.parentNode;
+          }
+          return parts.join(' > ');
+        }
+        return {
+          url: location.href,
+          text: text,
+          surrounding: surrounding,
+          selector_path: selectorFor(focus)
+        };
+      } catch (e) { return null; }
+    })()`
+    const result = await this.dbg().sendCommand('Runtime.evaluate', {
+      expression,
+      returnByValue: true
+    })
+    const v = result.result.value as Omit<BrowserSelectionSnapshot, 'kind'> | null
+    if (!v) return null
+    return { kind: 'browser', ...v }
+  }
+
   private handleCdpEvent(method: string, params: unknown): void {
     if (method === 'Runtime.consoleAPICalled') {
       const p = params as CdpConsoleApiParams
@@ -270,6 +386,58 @@ export class CdpBridge {
         url: p.entry.url,
         lineNumber: p.entry.lineNumber
       })
+    } else if (method === 'Runtime.exceptionThrown') {
+      const p = params as CdpExceptionThrownParams
+      const ed = p.exceptionDetails
+      const top = ed.stackTrace?.callFrames?.[0]
+      this.pushError({
+        ts: Date.now(),
+        text: ed.exception?.description ?? ed.text ?? 'Unknown exception',
+        url: top?.url ?? ed.url,
+        lineNumber: top?.lineNumber ?? ed.lineNumber,
+        columnNumber: top?.columnNumber ?? ed.columnNumber,
+        stack: ed.stackTrace ? formatStackTrace(ed.stackTrace) : undefined
+      })
+    } else if (method === 'Network.requestWillBeSent') {
+      const p = params as CdpRequestWillBeSentParams
+      // Ignore navigation redirect chains' synthetic re-emissions: when
+      // CDP fires a redirect, requestWillBeSent comes again with the same
+      // requestId. Replace the stored entry so the most recent URL wins.
+      this.networkInFlight.set(p.requestId, {
+        requestId: p.requestId,
+        url: p.request.url,
+        method: p.request.method,
+        resourceType: p.type,
+        startTs: Date.now()
+      })
+    } else if (method === 'Network.responseReceived') {
+      const p = params as CdpResponseReceivedParams
+      const entry = this.networkInFlight.get(p.requestId)
+      if (entry) {
+        entry.status = p.response.status
+        entry.statusText = p.response.statusText
+        entry.mimeType = p.response.mimeType
+        if (!entry.resourceType) entry.resourceType = p.type
+      }
+    } else if (method === 'Network.loadingFinished') {
+      const p = params as CdpLoadingFinishedParams
+      const entry = this.networkInFlight.get(p.requestId)
+      if (entry) {
+        entry.endTs = Date.now()
+        entry.encodedDataLength = p.encodedDataLength
+        this.networkInFlight.delete(p.requestId)
+        this.pushNetwork(entry)
+      }
+    } else if (method === 'Network.loadingFailed') {
+      const p = params as CdpLoadingFailedParams
+      const entry = this.networkInFlight.get(p.requestId)
+      if (entry) {
+        entry.endTs = Date.now()
+        entry.failed = true
+        entry.errorText = p.errorText
+        this.networkInFlight.delete(p.requestId)
+        this.pushNetwork(entry)
+      }
     }
   }
 
@@ -277,6 +445,20 @@ export class CdpBridge {
     this.consoleRing.push(entry)
     if (this.consoleRing.length > CONSOLE_RING_SIZE) {
       this.consoleRing.splice(0, this.consoleRing.length - CONSOLE_RING_SIZE)
+    }
+  }
+
+  private pushError(entry: BrowserErrorEntry): void {
+    this.errorsRing.push(entry)
+    if (this.errorsRing.length > ERRORS_RING_SIZE) {
+      this.errorsRing.splice(0, this.errorsRing.length - ERRORS_RING_SIZE)
+    }
+  }
+
+  private pushNetwork(entry: NetworkEntry): void {
+    this.networkRing.push(entry)
+    if (this.networkRing.length > NETWORK_RING_SIZE) {
+      this.networkRing.splice(0, this.networkRing.length - NETWORK_RING_SIZE)
     }
   }
 
@@ -534,6 +716,61 @@ function renderConsoleArgs(args: CdpConsoleApiParams['args']): string {
     }
     return a.description ?? ''
   }).join(' ')
+}
+
+// ── Errors / network CDP shapes ──────────────────────────────────────────────
+
+interface CdpStackTrace {
+  callFrames: Array<{
+    functionName?: string
+    url: string
+    lineNumber: number
+    columnNumber: number
+  }>
+}
+
+interface CdpExceptionThrownParams {
+  exceptionDetails: {
+    text?: string
+    url?: string
+    lineNumber?: number
+    columnNumber?: number
+    stackTrace?: CdpStackTrace
+    exception?: { description?: string }
+  }
+}
+
+interface CdpRequestWillBeSentParams {
+  requestId: string
+  request: { url: string; method: string }
+  type?: string
+}
+
+interface CdpResponseReceivedParams {
+  requestId: string
+  response: {
+    status: number
+    statusText: string
+    mimeType: string
+  }
+  type?: string
+}
+
+interface CdpLoadingFinishedParams {
+  requestId: string
+  encodedDataLength: number
+}
+
+interface CdpLoadingFailedParams {
+  requestId: string
+  errorText: string
+  canceled?: boolean
+}
+
+function formatStackTrace(st: CdpStackTrace): string {
+  return st.callFrames
+    .map(f => `  at ${f.functionName || '<anonymous>'} (${f.url}:${f.lineNumber + 1}:${f.columnNumber + 1})`)
+    .join('\n')
 }
 
 function sleep(ms: number): Promise<void> {

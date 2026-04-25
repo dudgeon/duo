@@ -15,6 +15,8 @@ import type {
   EditorSelectionSnapshot,
   DocWriteRequest,
   DocWriteResult,
+  DocReadRequest,
+  DocReadResult,
   ThemeMode,
   ThemeStateSnapshot
 } from '../shared/types'
@@ -35,6 +37,9 @@ let editorSelection: EditorSelectionSnapshot | null = null
 
 // Pending doc-write requests awaiting a renderer reply.
 const docWritePending = new Map<string, (res: DocWriteResult) => void>()
+
+// Pending doc-read requests awaiting a renderer reply.
+const docReadPending = new Map<string, (res: DocReadResult) => void>()
 
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
@@ -91,6 +96,7 @@ function createWindow(): void {
     edit: sendEdit,
     getSelection: getEditorSelection,
     docWrite: dispatchDocWrite,
+    docRead: dispatchDocRead,
     getTheme: getThemeState,
     setTheme: setThemeMode
   })
@@ -274,6 +280,15 @@ function setupIPC(): void {
     }
   })
 
+  // Renderer's reply to a doc-read request (live editor buffer).
+  ipcMain.on(IPC.EDITOR_DOC_READ_RESULT, (_event, result: DocReadResult) => {
+    const resolver = docReadPending.get(result.reqId)
+    if (resolver) {
+      docReadPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
   // Stage 11 \u00a7 D33d \u2014 theme state push from the renderer.
   ipcMain.on(IPC.THEME_STATE_PUSH, (_event, snapshot: ThemeStateSnapshot) => {
     themeState = snapshot
@@ -446,5 +461,23 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
       resolve(res)
     })
     mainWindow!.webContents.send(IPC.EDITOR_DOC_WRITE, { ...req, reqId })
+  })
+}
+
+export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<DocReadResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `dr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<DocReadResult>((resolve) => {
+    const timer = setTimeout(() => {
+      docReadPending.delete(reqId)
+      resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
+    }, 5000)
+    docReadPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.EDITOR_DOC_READ, { ...req, reqId })
   })
 }

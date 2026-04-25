@@ -295,6 +295,39 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     }
   }, [editor, path, isNew])
 
+  // ── Serve doc-read requests with the live buffer ────────────────────────
+  useEffect(() => {
+    if (!editor || isNew) return
+    return window.electron.editor?.onDocRead((req) => {
+      if (req.path && req.path !== path) {
+        window.electron.editor.replyDocRead({
+          reqId: req.reqId,
+          ok: false,
+          error: `Active editor is at ${path}, not ${req.path}`
+        })
+        return
+      }
+      try {
+        const body = editor.storage.markdown.getMarkdown() as string
+        const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
+        const isDirty = body !== lastSavedBodyRef.current
+        window.electron.editor.replyDocRead({
+          reqId: req.reqId,
+          ok: true,
+          path,
+          text: full,
+          dirty: isDirty
+        })
+      } catch (err) {
+        window.electron.editor.replyDocRead({
+          reqId: req.reqId,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [editor, path, isNew])
+
   // ── Apply doc-write requests from the agent ─────────────────────────────
   useEffect(() => {
     if (!editor || isNew) return

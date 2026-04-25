@@ -64,6 +64,8 @@ below. Do not retry blindly.
 | `duo eval <js>` | Execute JS, return its value | JSON |
 | `duo screenshot [--out <path>] [--selector <css>]` | PNG (base64 or file path) | path or base64 |
 | `duo console [--since <ms>] [--level log,warn,error,...] [--limit N]` | Buffered console events | NDJSON |
+| `duo errors [--since <ms>] [--limit N]` | **Uncaught exceptions** (separate ring buffer from `console`; populated by `Runtime.exceptionThrown`). Use this when a click/eval looks fine in `console` but the page actually threw. | NDJSON |
+| `duo network [--since <ms>] [--filter <regex>] [--limit N]` | HTTP request lifecycle (URL, method, status, mime, encoded length, error text). `--filter` is a regex against the URL. | NDJSON |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs | JSON |
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
 | `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rich markdown editor, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
@@ -71,7 +73,8 @@ below. Do not retry blindly.
 | `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
 | `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
 | `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |
-| `duo selection` | Active markdown editor's cursor/selection snapshot. **Use when the user says "this", "the selected paragraph", "this section", "here".** | JSON: `{path, text, paragraph, heading_trail, start, end}` or `null` |
+| `duo selection [--pane auto\|editor\|browser]` | Active surface's selection. **Use when the user says "this", "the selected paragraph", "this section", "here".** Default `auto`: prefers a non-empty browser highlight; falls back to the editor's cached selection (still useful when collapsed — caret context). Returns `{kind: 'editor', path, text, paragraph, heading_trail, start, end}` or `{kind: 'browser', url, text, surrounding, selector_path}`, or `null`. | JSON |
+| `duo doc read [path]` | Print the active editor's **live buffer** (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. The body goes to stdout; the path + dirty flag go to stderr (so you can pipe the body straight into a file). | text |
 | `duo doc write --replace-selection` | Swap the user's current editor selection with new text (reads stdin or `--text "…"`). For collapsed selection, inserts at caret. Plain text in v1 — use `--replace-all` if you need markdown formatting. | JSON: `{ok}` |
 | `duo doc write --replace-all` | Replace the entire document body with new markdown (frontmatter preserved). Use for "rewrite this doc" / "restructure this section" tasks. | JSON: `{ok}` |
 | `duo theme [system\|light\|dark]` | Read the current theme (no arg → JSON `{mode, effective}`) or set it. Usually only changed on explicit user request. | JSON |
@@ -393,16 +396,34 @@ paths — path resolution happens client-side.
 
 ### Diagnose a failing interaction with the page
 
-If a `duo click` or `duo eval` doesn't produce the expected result, the page
-probably logged a warning or error. Grab a timestamp *before* the action and
-pull console output after:
+If a `duo click` or `duo eval` doesn't produce the expected result, the
+page probably logged a warning, threw an uncaught exception, or
+returned a non-2xx from an API. Three ring buffers cover those:
+`console` (logs + warnings), `errors` (uncaught exceptions, populated
+by `Runtime.exceptionThrown`), and `network` (HTTP request lifecycle).
+Grab a timestamp before the action so you can scope each one:
 
 ```bash
 TS=$(date +%s000)
 duo click "button.flaky"
 sleep 1
 duo console --since $TS --level warn,error
+duo errors  --since $TS              # uncaught exceptions never reach `console`
+duo network --since $TS --filter '/api/'   # XHR/fetch responses + failures
 ```
+
+Common failure modes and which buffer to check first:
+- "Looks like nothing happened" → `errors` (a thrown exception aborts a
+  click handler before any `console.error` runs).
+- "Spinner forever, no UI update" → `network --filter '/api/'` for 4xx/5xx
+  or `failed: true` entries.
+- "Page logged something I want to see" → `console`.
+
+Each `network` entry includes `{url, method, status, statusText, mimeType,
+encodedDataLength, failed, errorText, startTs, endTs}`. Use the regex
+`--filter` to scope to one origin / route — the ring buffer is bounded
+(~300 entries), so a noisy SPA can otherwise crowd out the request you
+care about.
 
 ## Error recovery
 

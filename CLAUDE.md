@@ -16,14 +16,32 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 ---
 
-## Current state (as of 2026-04-25)
+## Current state (as of 2026-04-26)
 
 **Foundation shipped. Flagship half #1 (cozy-mode terminal) shipped
 2026-04-22, graduated 2026-04-25 (`(preview)` label dropped).
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-25):**
+**Latest session (2026-04-26) — P0 CLI gaps shipped:**
+- `duo doc read [path]` — live editor buffer (frontmatter + body,
+  including unsaved edits). Body to stdout, `# <path> (unsaved
+  changes)` header to stderr so it pipes cleanly.
+- `duo selection [--pane auto|editor|browser]` — extended to a unified
+  `DuoSelection` shape. `auto` (default) prefers a non-empty browser
+  highlight, falls back to the editor cache. Browser shape carries
+  `{kind, url, text, surrounding, selector_path}`.
+- `duo errors [--since] [--limit]` — separate ring (200 entries) fed
+  by `Runtime.exceptionThrown`. Catches the uncaught exceptions that
+  `duo console` silently misses.
+- `duo network [--since] [--filter <regex>] [--limit]` — request
+  lifecycle stitched from `Network.requestWillBeSent` →
+  `responseReceived` → `loadingFinished`/`loadingFailed`. Ring size
+  300; in-flight entries surfaced too. CDP `Network.enable` added to
+  the attach sequence; `networkInFlight` is cleared on tab switch so
+  prior-tab requests don't sit forever as pending.
+
+**Previous session (2026-04-25):**
 - Stage 9 cozy mode graduated — daily-driver validation passed; menu
   label, PRD, ROADMAP all updated.
 - Stage 15g PRD ([docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md))
@@ -62,8 +80,9 @@ Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 **CLI verbs shipped (see [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md) for
 the authoritative inventory):** navigate · open · url · title · dom ·
 text · ax · click · fill · focus · type · key · eval · screenshot ·
-console · tabs · tab · close · wait · view · reveal · ls · nav-state ·
-edit · selection · doc write · theme · install
+console · errors · network · tabs · tab · close · wait · view ·
+reveal · ls · nav-state · edit · selection · doc read · doc write ·
+theme · install
 
 **What's next (see `ROADMAP.md` + `docs/CLI-COVERAGE.md`):**
 
@@ -84,10 +103,11 @@ is roughly the same scope (1–2 sessions of focused work):
    transient highlight.** First sub-stage of the editor's "agent edits
    the same file" story. Bigger; needs a real chokidar wiring + 3-pane
    diff UI. PRD § 6 has the spec.
-4. **P0 CLI gaps** — `duo doc read` (live buffer, not disk), browser
-   `duo selection`, `duo network`, `duo errors`. Pure agent-API
-   expansion; no UI work. Useful before more user-facing surfaces
-   ship. See [docs/CLI-COVERAGE.md § Browser observability](docs/CLI-COVERAGE.md).
+
+**P0 CLI gaps shipped 2026-04-26 — moved out of next-sprint queue.**
+Remaining `Browser observability` items in [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)
+(`duo network --bodies`, `duo storage`, `duo styles`) are P1/P2 — pull
+in if a concrete agent task wants them.
 
 **Lower-priority follow-ups** (Stage 12 unified skill/connector surface,
 Stage 13 polish + `duo doctor` + TCP fallback, Stage 15a–f primitives,

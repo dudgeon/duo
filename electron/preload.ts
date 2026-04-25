@@ -10,6 +10,8 @@ import type {
   EditorSelectionSnapshot,
   DocWriteRequest,
   DocWriteResult,
+  DocReadRequest,
+  DocReadResult,
   ThemeMode,
   ThemeStateSnapshot
 } from '../shared/types'
@@ -161,6 +163,16 @@ const api: ElectronAPI = {
 
     replyDocWrite: (result: DocWriteResult) => {
       ipcRenderer.send(IPC.EDITOR_DOC_WRITE_RESULT, result)
+    },
+
+    onDocRead: (cb) => {
+      const handler = (_: IpcRendererEvent, req: DocReadRequest) => cb(req)
+      ipcRenderer.on(IPC.EDITOR_DOC_READ, handler)
+      return () => ipcRenderer.removeListener(IPC.EDITOR_DOC_READ, handler)
+    },
+
+    replyDocRead: (result: DocReadResult) => {
+      ipcRenderer.send(IPC.EDITOR_DOC_READ_RESULT, result)
     }
   },
 

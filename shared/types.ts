@@ -37,6 +37,9 @@ export type DuoCommandName =
   | 'eval'
   | 'screenshot'
   | 'console'
+  // Browser observability — Runtime.exceptionThrown + Network.* ring buffers
+  | 'errors'
+  | 'network'
   | 'tabs'
   | 'tab'
   | 'close'
@@ -50,6 +53,7 @@ export type DuoCommandName =
   | 'edit'
   | 'selection'
   | 'doc-write'
+  | 'doc-read'
   // Stage 11 § D33d — theme
   | 'theme'
 
@@ -64,6 +68,39 @@ export interface ConsoleEntry {
   text: string          // human-readable rendering of args
   url?: string
   lineNumber?: number
+}
+
+// ── Browser exception capture (Runtime.exceptionThrown) ─────────────────────
+// Uncaught JS exceptions never reach `Runtime.consoleAPICalled` or
+// `Log.entryAdded`, so the console ring buffer misses them. `duo errors`
+// returns this dedicated ring instead.
+
+export interface BrowserErrorEntry {
+  ts: number            // Date.now() at capture
+  text: string          // exceptionDetails.text or exception.description
+  url?: string          // script URL the exception originated from
+  lineNumber?: number   // 0-based per CDP
+  columnNumber?: number // 0-based per CDP
+  stack?: string        // formatted multi-line stack trace
+}
+
+// ── Network capture (Network.*) ─────────────────────────────────────────────
+// One entry per request, stitched from requestWillBeSent → responseReceived
+// → loadingFinished/loadingFailed.
+
+export interface NetworkEntry {
+  requestId: string
+  url: string
+  method: string
+  resourceType?: string         // 'XHR' | 'Fetch' | 'Document' | 'Stylesheet' | …
+  startTs: number               // Date.now() at requestWillBeSent
+  endTs?: number                // Date.now() at finished/failed
+  status?: number
+  statusText?: string
+  mimeType?: string
+  encodedDataLength?: number    // bytes over the wire (response)
+  failed?: boolean
+  errorText?: string            // populated when failed === true
 }
 
 // ── Browser tab state ────────────────────────────────────────────────────────
@@ -198,6 +235,44 @@ export interface DocWriteResult {
   error?: string
 }
 
+// `duo doc read` — request/reply pair. Renderer returns the live editor
+// buffer (including unsaved edits) so the agent sees what the user sees,
+// not the on-disk version.
+export interface DocReadRequest {
+  reqId: string
+  path?: string                         // optional; routes to active editor when omitted
+}
+
+export interface DocReadResult {
+  reqId: string
+  ok: boolean
+  /** The full document text (frontmatter + body, joined as it would be
+   *  written to disk). Present when ok. */
+  text?: string
+  /** The path of the editor that responded (active editor when request
+   *  omitted path). */
+  path?: string
+  /** True when the buffer has unsaved changes. */
+  dirty?: boolean
+  error?: string
+}
+
+// ── Browser selection (Stage 15g unified shape) ──────────────────────────────
+// `duo selection` returns the active surface's selection. The shape is a
+// discriminated union so the agent can branch on `kind`.
+
+export interface BrowserSelectionSnapshot {
+  kind: 'browser'
+  url: string
+  text: string                          // selected text (empty if collapsed)
+  surrounding?: string                  // up to ~1k chars of the enclosing block
+  selector_path?: string                // best-effort CSS path to the focus node
+}
+
+export type EditorSelectionTagged = EditorSelectionSnapshot & { kind: 'editor' }
+
+export type DuoSelection = EditorSelectionTagged | BrowserSelectionSnapshot | null
+
 // Stage 11 § D33d — theme state mirrored between renderer (owner) and main
 // (cache) so `duo theme` can read without a renderer RPC, and set by
 // dispatching a THEME_SET back down.
@@ -259,6 +334,8 @@ export const IPC = {
   EDITOR_SELECTION_PUSH: 'editor:selection-push', // renderer → main (cache for `duo selection`)
   EDITOR_DOC_WRITE: 'editor:doc-write',           // main → renderer (apply mutation)
   EDITOR_DOC_WRITE_RESULT: 'editor:doc-write-result', // renderer → main (reply)
+  EDITOR_DOC_READ: 'editor:doc-read',             // main → renderer (request live buffer)
+  EDITOR_DOC_READ_RESULT: 'editor:doc-read-result',   // renderer → main (reply)
 
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
@@ -362,6 +439,11 @@ export interface ElectronEditorAPI {
   onDocWrite: (cb: (req: DocWriteRequest) => void) => () => void
   /** Reply to a doc-write request (success or error). */
   replyDocWrite: (result: DocWriteResult) => void
+  /** Subscribe to `duo doc read` requests from the CLI. The renderer
+   *  serializes the live buffer and replies via `replyDocRead`. */
+  onDocRead: (cb: (req: DocReadRequest) => void) => () => void
+  /** Reply to a doc-read request with the live buffer. */
+  replyDocRead: (result: DocReadResult) => void
 }
 
 export interface ElectronKeyboardAPI {

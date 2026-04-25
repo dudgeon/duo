@@ -23,6 +23,9 @@ import type {
   EditorSelectionSnapshot,
   DocWriteRequest,
   DocWriteResult,
+  DocReadRequest,
+  DocReadResult,
+  DuoSelection,
   ThemeMode,
   ThemeStateSnapshot
 } from '../shared/types'
@@ -41,6 +44,8 @@ export interface NavBridge {
   getSelection: () => EditorSelectionSnapshot | null
   /** Stage 11 § D27 — apply a doc-write to the active editor. */
   docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
+  /** Read the live editor buffer (active or specified path). */
+  docRead: (req: Omit<DocReadRequest, 'reqId'>) => Promise<DocReadResult>
   /** Stage 11 § D33d — current theme state (renderer \u2192 main cache). */
   getTheme: () => ThemeStateSnapshot
   /** Stage 11 § D33d — CLI-driven theme override. */
@@ -168,6 +173,24 @@ export class SocketServer {
           result = this.cdp.getConsole({ since, level, limit })
           break
         }
+        case 'errors': {
+          const since = args['since'] as number | undefined
+          const limit = args['limit'] as number | undefined
+          result = this.cdp.getErrors({ since, limit })
+          break
+        }
+        case 'network': {
+          const since = args['since'] as number | undefined
+          const limit = args['limit'] as number | undefined
+          const filterStr = args['filter'] as string | undefined
+          let filter: RegExp | undefined
+          if (filterStr) {
+            try { filter = new RegExp(filterStr) }
+            catch (e) { throw new Error(`Invalid filter regex: ${(e as Error).message}`) }
+          }
+          result = this.cdp.getNetwork({ since, filter, limit })
+          break
+        }
         case 'click': {
           const selector = args['selector'] as string
           if (!selector) throw new Error('click requires a selector arg')
@@ -229,9 +252,30 @@ export class SocketServer {
           break
         }
         case 'selection': {
-          // Returns null if no editor tab is active. Empty selection \u2192
-          // text === '' but paragraph + heading_trail still surface caret context.
-          result = this.nav.getSelection()
+          // Stage 15g unified shape: try the requested pane (or auto-pick
+          // browser when it has a non-empty highlight, falling back to the
+          // editor's cached selection — which is informative even when
+          // collapsed).
+          const pane = (args['pane'] as string | undefined) ?? 'auto'
+          if (pane !== 'auto' && pane !== 'editor' && pane !== 'browser') {
+            throw new Error('selection pane must be auto|editor|browser')
+          }
+          let resolved: DuoSelection = null
+          if (pane === 'editor') {
+            const ed = this.nav.getSelection()
+            resolved = ed ? { kind: 'editor', ...ed } : null
+          } else if (pane === 'browser') {
+            resolved = await this.cdp.getBrowserSelection().catch(() => null)
+          } else {
+            const browser = await this.cdp.getBrowserSelection().catch(() => null)
+            if (browser && browser.text) {
+              resolved = browser
+            } else {
+              const ed = this.nav.getSelection()
+              resolved = ed ? { kind: 'editor', ...ed } : null
+            }
+          }
+          result = resolved
           break
         }
         case 'doc-write': {
@@ -243,6 +287,11 @@ export class SocketServer {
           }
           const path = args['path'] as string | undefined
           result = await this.nav.docWrite({ text, mode, path })
+          break
+        }
+        case 'doc-read': {
+          const path = args['path'] as string | undefined
+          result = await this.nav.docRead({ path })
           break
         }
         case 'theme': {

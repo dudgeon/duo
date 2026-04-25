@@ -158,6 +158,26 @@ async function main() {
         for (const e of entries) process.stdout.write(JSON.stringify(e) + "\n");
         break;
       }
+      case "errors": {
+        const sinceIdx = rest.indexOf("--since");
+        const limitIdx = rest.indexOf("--limit");
+        const since = sinceIdx !== -1 ? parseInt(rest[sinceIdx + 1], 10) : void 0;
+        const limit = limitIdx !== -1 ? parseInt(rest[limitIdx + 1], 10) : void 0;
+        const entries = await send("errors", { since, limit });
+        for (const e of entries) process.stdout.write(JSON.stringify(e) + "\n");
+        break;
+      }
+      case "network": {
+        const sinceIdx = rest.indexOf("--since");
+        const limitIdx = rest.indexOf("--limit");
+        const filterIdx = rest.indexOf("--filter");
+        const since = sinceIdx !== -1 ? parseInt(rest[sinceIdx + 1], 10) : void 0;
+        const limit = limitIdx !== -1 ? parseInt(rest[limitIdx + 1], 10) : void 0;
+        const filter = filterIdx !== -1 ? rest[filterIdx + 1] : void 0;
+        const entries = await send("network", { since, limit, filter });
+        for (const e of entries) process.stdout.write(JSON.stringify(e) + "\n");
+        break;
+      }
       case "click": {
         const selector = rest[0] ?? die("Usage: duo click <selector>");
         out(await send("click", { selector }));
@@ -217,7 +237,12 @@ async function main() {
         break;
       }
       case "selection": {
-        const sel = await send("selection");
+        const paneIdx = rest.indexOf("--pane");
+        const pane = paneIdx !== -1 ? rest[paneIdx + 1] : "auto";
+        if (pane !== "auto" && pane !== "editor" && pane !== "browser") {
+          die("Usage: duo selection [--pane auto|editor|browser]");
+        }
+        const sel = await send("selection", { pane });
         if (sel === null || sel === void 0) {
           out("null");
         } else {
@@ -239,19 +264,32 @@ async function main() {
       }
       case "doc": {
         const sub = rest[0];
-        if (sub !== "write") die('Usage: duo doc write [--replace-selection|--replace-all] [--text "..." | < stdin]');
         const subRest = rest.slice(1);
-        const replaceAll = subRest.includes("--replace-all");
-        const replaceSelection = subRest.includes("--replace-selection") || !replaceAll;
-        const textIdx = subRest.indexOf("--text");
-        let text;
-        if (textIdx !== -1) {
-          text = subRest.slice(textIdx + 1).join(" ");
+        if (sub === "write") {
+          const replaceAll = subRest.includes("--replace-all");
+          const textIdx = subRest.indexOf("--text");
+          let text;
+          if (textIdx !== -1) {
+            text = subRest.slice(textIdx + 1).join(" ");
+          } else {
+            text = await readStdin();
+          }
+          const mode = replaceAll ? "replace-all" : "replace-selection";
+          out(await send("doc-write", { text, mode }));
+        } else if (sub === "read") {
+          const target = subRest[0];
+          const resolved = target ? resolveFilePath(target) : void 0;
+          const res = await send("doc-read", resolved ? { path: resolved } : {});
+          if (!res.ok) die(res.error ?? "doc read failed");
+          if (res.path !== void 0) {
+            process.stderr.write(`# ${res.path}${res.dirty ? " (unsaved changes)" : ""}
+`);
+          }
+          process.stdout.write(res.text ?? "");
+          if (res.text && !res.text.endsWith("\n")) process.stdout.write("\n");
         } else {
-          text = await readStdin();
+          die("Usage: duo doc <write|read> [...]");
         }
-        const mode = replaceAll ? "replace-all" : "replace-selection";
-        out(await send("doc-write", { text, mode }));
         break;
       }
       case "reveal": {
@@ -371,6 +409,14 @@ COMMANDS
   screenshot [--out <path>] [--selector <css>]   Take a screenshot
   console [--since <ts>] [--level log,warn,...] [--limit N]
                                   Dump buffered console messages (NDJSON)
+  errors [--since <ts>] [--limit N]
+                                  Uncaught browser exceptions (NDJSON,
+                                  separate from \`console\` \u2014 populated
+                                  by Runtime.exceptionThrown)
+  network [--since <ts>] [--filter <regex>] [--limit N]
+                                  HTTP requests stitched from Network.*
+                                  events (NDJSON). \`--filter\` matches
+                                  against URL.
   tabs                            List open browser tabs (JSON)
   tab <n>                         Switch to browser tab N
   close <n>                       Close browser tab N (cannot close the last)
@@ -384,10 +430,24 @@ COMMANDS
                                   (Stage 11). For .md files this gives the
                                   Google-Docs-style editing surface; for
                                   other types behaves like \`view\`.
-  selection                       Print the active editor's selection as
-                                  JSON: { path, text, paragraph,
-                                  heading_trail }. \`null\` if no editor
-                                  tab is active.
+  selection [--pane auto|editor|browser]
+                                  Print the active surface's selection as
+                                  JSON. Default --pane auto prefers a
+                                  non-empty browser highlight, falling
+                                  back to the editor's cached selection
+                                  (which is informative even when
+                                  collapsed \u2014 it carries the caret's
+                                  paragraph + heading trail). Returns
+                                  \`null\` when nothing is active.
+                                  - editor: { kind: 'editor', path, text,
+                                    paragraph, heading_trail, start, end }
+                                  - browser: { kind: 'browser', url, text,
+                                    surrounding, selector_path }
+  doc read [path]                 Print the active editor's live buffer
+                                  (frontmatter + body, including unsaved
+                                  edits). Path arg pins the read to a
+                                  specific file; omit to target whatever
+                                  editor is active.
   doc write [--replace-selection|--replace-all] [--text "..."]
                                   Apply text to the active editor. Without
                                   --text, reads from stdin. Default mode:
