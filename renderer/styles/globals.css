@@ -2,57 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────
+   Stage 12 — Atelier visual foundation
+   Tokens from docs/design/atelier/project/tokens.jsx (`atelier` direction).
+   The palette is centralised here as CSS custom properties so the
+   tailwind palette + the xterm theme + every component can pull from
+   one source. Light is hero, dark is a warm follower.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* Light variant (the new design baseline) */
+:root, html.light {
+  --duo-paper: #FBF8EE;
+  --duo-paper-deep: #F0E9D6;
+  --duo-paper-edge: #E5DCC1;
+  --duo-paper-rule: #D4C8A6;
+  --duo-ink: #1A1410;
+  --duo-ink-soft: #3D352A;
+  --duo-ink-mute: #7B6F58;
+  --duo-ink-ghost: #B8AB8E;
+  --duo-accent: #C66A2E;          /* warm ochre/amber */
+  --duo-accent-soft: #F2D9B8;
+  --duo-accent-ink: #7A3E1A;
+  --duo-mark: #F8E59C;            /* selection / just-added highlight */
+  --duo-term-bg: #1A1410;         /* default terminal stays inky even in light mode */
+  --duo-term-fg: #F0E9D6;
+  --duo-term-cozy-bg: #FBF8EE;    /* cozy mode flips to paper canvas */
+  --duo-term-cozy-fg: #1A1410;
+}
+
+/* Dark variant — warm dark, not the cool gray of the previous Warp×Linear theme */
+html.dark {
+  --duo-paper: #1A1611;
+  --duo-paper-deep: #13100C;
+  --duo-paper-edge: #26201A;
+  --duo-paper-rule: #352D23;
+  --duo-ink: #F0E9D6;
+  --duo-ink-soft: #C8BD9E;
+  --duo-ink-mute: #8A7E66;
+  --duo-ink-ghost: #5A5142;
+  --duo-accent: #E08F4A;
+  --duo-accent-soft: #3F2A18;
+  --duo-accent-ink: #F2D2A8;
+  --duo-mark: #3F3318;
+  --duo-term-bg: #0C0A07;
+  --duo-term-fg: #E9DEC2;
+  --duo-term-cozy-bg: #1A1611;
+  --duo-term-cozy-fg: #F0E9D6;
+}
+
 @layer base {
   html, body, #root {
-    @apply h-full w-full overflow-hidden bg-surface-0 text-zinc-100;
+    @apply h-full w-full overflow-hidden;
+    background: var(--duo-paper);
+    color: var(--duo-ink);
     font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Stage 11 § D33d — minimal light-mode palette. Pragmatic (not yet a
-     polished light theme — Stage 14 refinement). The light class is
-     applied to <html> when the user picks Light mode (or when System
-     mode resolves to light). */
-  html.light, html.light body, html.light #root { background: #fafafa; color: #18181b; }
-  html.light .bg-surface-0 { background-color: #fafafa !important; }
-  html.light .bg-surface-1 { background-color: #f4f4f5 !important; }
-  html.light .bg-surface-2 { background-color: #e4e4e7 !important; }
-  html.light .bg-surface-3 { background-color: #d4d4d8 !important; }
-  html.light .border-border { border-color: #d4d4d8 !important; }
-  html.light .border-border\/60 { border-color: rgba(212, 212, 216, 0.6) !important; }
-  html.light .text-zinc-100 { color: #18181b !important; }
-  html.light .text-zinc-200 { color: #27272a !important; }
-  html.light .text-zinc-300 { color: #3f3f46 !important; }
-  html.light .text-zinc-400 { color: #52525b !important; }
-  html.light .text-zinc-500 { color: #71717a !important; }
-  html.light .text-zinc-600 { color: #a1a1aa !important; }
-  html.light .duo-editor-prose { color: #18181b; }
-  html.light .duo-editor-prose :where(h1, h2, h3, h4, h5, h6) { color: #09090b; }
-  html.light .duo-editor-prose code {
-    background: #e4e4e7;
-    color: #18181b;
-  }
-  html.light .duo-editor-prose pre {
-    background: #f4f4f5;
-    border-color: #d4d4d8;
-  }
-  html.light .duo-editor-prose blockquote {
-    color: #3f3f46;
-    border-left-color: var(--accent, #7c6af7);
-  }
-  html.light .duo-editor-prose th, html.light .duo-editor-prose td { border-color: #d4d4d8; }
-  html.light .duo-editor-prose th { background: #f4f4f5; }
-  html.light .duo-editor-prose hr { border-color: #d4d4d8; }
-  html.light .titlebar-drag { background: #f4f4f5; }
-  html.light .xterm-host { background: #fafafa; }
+  /* Backwards-compat overrides: existing components reference Tailwind's
+     built-in `text-zinc-*` and the tailwind-mapped `bg-surface-*` /
+     `border-border` classes. The latter are remapped to Atelier vars in
+     tailwind.config.mjs, but `text-zinc-*` is built-in so we override
+     here to flow through the Atelier ink scale instead of Tailwind's
+     cool-grey defaults. */
+  .text-zinc-100, .text-zinc-200 { color: var(--duo-ink) !important; }
+  .text-zinc-300                 { color: var(--duo-ink-soft) !important; }
+  .text-zinc-400                 { color: var(--duo-ink-mute) !important; }
+  .text-zinc-500, .text-zinc-600 { color: var(--duo-ink-ghost) !important; }
 
-  /* macOS traffic-light region — reserved by hiddenInset title bar */
+  /* Editor prose: chrome (titles, breadcrumbs, headings) takes the
+     serif accent; body stays sans for legibility — per DUO_VOICE.atelier
+     in docs/design/atelier/project/tokens.jsx. */
+  .duo-editor-prose {
+    color: var(--duo-ink);
+    font-family: theme('fontFamily.serif');
+  }
+  .duo-editor-prose :where(h1, h2, h3, h4, h5, h6) {
+    font-family: theme('fontFamily.serif');
+    color: var(--duo-ink);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  .duo-editor-prose code {
+    background: var(--duo-paper-deep);
+    color: var(--duo-ink);
+  }
+  .duo-editor-prose pre {
+    background: var(--duo-paper-deep);
+    border-color: var(--duo-paper-rule);
+  }
+  .duo-editor-prose blockquote {
+    color: var(--duo-ink-soft);
+    border-left-color: var(--duo-accent);
+  }
+  .duo-editor-prose th, .duo-editor-prose td { border-color: var(--duo-paper-rule); }
+  .duo-editor-prose th { background: var(--duo-paper-deep); }
+  .duo-editor-prose hr { border-color: var(--duo-paper-rule); }
+
+  /* Titlebar drag region */
   .titlebar-drag {
     -webkit-app-region: drag;
+    background: var(--duo-paper-deep);
   }
   .titlebar-nodrag {
     -webkit-app-region: no-drag;
   }
+
+  /* xterm host — picks up the term-bg via JS theme on the xterm instance,
+     but we set a bg here too so the wrapping element doesn't flash the
+     wrong color before xterm renders. */
+  .xterm-host { background: var(--duo-term-bg); }
+  .xterm-host.cozy { background: var(--duo-term-cozy-bg); }
 }
 
 @layer components {
@@ -92,73 +152,78 @@
   }
 
   /* Stage 11 — rich markdown editor prose surface. Tailwind's typography
-     plugin gives us a solid baseline via `prose prose-invert`; we override
-     a few things so the look matches the Google-Docs feel we're after. */
+     plugin gives us a solid baseline via `prose`; we override a few things
+     so the look matches the Atelier writing-desk voice — serif body,
+     serif chrome accents, paper-tone surfaces. Stage 12. */
   .duo-editor-prose {
-    @apply prose prose-invert prose-zinc max-w-none text-zinc-100;
+    @apply prose max-w-none;
+    color: var(--duo-ink);
     font-family: theme('fontFamily.serif');
     font-size: 16px;
     line-height: 1.7;
   }
   .duo-editor-prose :where(h1, h2, h3, h4, h5, h6) {
-    font-family: theme('fontFamily.sans');
-    color: #f4f4f5;
+    font-family: theme('fontFamily.serif');
+    color: var(--duo-ink);
+    font-weight: 500;
+    letter-spacing: -0.01em;
   }
   .duo-editor-prose h1 { font-size: 2rem; margin-top: 1.2em; margin-bottom: 0.5em; }
   .duo-editor-prose h2 { font-size: 1.5rem; margin-top: 1.2em; margin-bottom: 0.5em; }
   .duo-editor-prose h3 { font-size: 1.25rem; margin-top: 1.1em; margin-bottom: 0.5em; }
   .duo-editor-prose p { margin-top: 0.6em; margin-bottom: 0.6em; }
-  .duo-editor-prose a.duo-link { color: #a39bfa; text-decoration: underline; }
+  .duo-editor-prose a.duo-link { color: var(--duo-accent-ink); text-decoration: underline; text-decoration-color: var(--duo-accent-soft); }
   .duo-editor-prose code {
-    background: #1e1e1e;
+    background: var(--duo-paper-deep);
+    color: var(--duo-ink);
     padding: 1px 5px;
     border-radius: 4px;
     font-size: 0.9em;
+    font-family: theme('fontFamily.mono');
   }
   .duo-editor-prose pre {
-    background: #0f0f0f;
-    border: 1px solid #2a2a2a;
+    background: var(--duo-paper-deep);
+    border: 1px solid var(--duo-paper-rule);
     border-radius: 6px;
     padding: 12px 14px;
   }
   .duo-editor-prose blockquote {
-    border-left: 3px solid #5a4db5;
-    color: #c4c4c8;
+    border-left: 3px solid var(--duo-accent);
+    color: var(--duo-ink-soft);
     font-style: normal;
   }
   .duo-editor-prose ul[data-type="taskList"] { list-style: none; padding-left: 0; }
   .duo-editor-prose ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: baseline; }
   .duo-editor-prose ul[data-type="taskList"] li > label { flex: 0 0 auto; cursor: pointer; }
   .duo-editor-prose ul[data-type="taskList"] li > div { flex: 1 1 auto; }
-  .duo-editor-prose ul[data-type="taskList"] input[type="checkbox"] { margin-top: 2px; accent-color: #7c6af7; }
+  .duo-editor-prose ul[data-type="taskList"] input[type="checkbox"] { margin-top: 2px; accent-color: var(--duo-accent); }
   .duo-editor-prose table {
     border-collapse: collapse;
     width: 100%;
     margin-block: 1em;
   }
   .duo-editor-prose th, .duo-editor-prose td {
-    border: 1px solid #2a2a2a;
+    border: 1px solid var(--duo-paper-rule);
     padding: 6px 10px;
     min-width: 60px;
     vertical-align: top;
   }
-  .duo-editor-prose th { background: #161616; font-weight: 600; }
-  .duo-editor-prose hr { border-color: #2a2a2a; }
+  .duo-editor-prose th { background: var(--duo-paper-deep); font-weight: 600; }
+  .duo-editor-prose hr { border-color: var(--duo-paper-rule); }
   .duo-editor-prose .is-editor-empty:first-child::before {
     content: attr(data-placeholder);
-    color: #52525b;
+    color: var(--duo-ink-ghost);
     float: left;
     height: 0;
     pointer-events: none;
   }
 
   /* Stage 11 selection persistence — painted by the PersistentSelection
-     PM plugin only while the editor is blurred. The 30% opacity means it
-     reads as a "ghost selection" that is clearly not the live caret. */
+     PM plugin only while the editor is blurred. Uses Atelier mark token
+     so the ghost selection lives in the same color family as just-added
+     highlight (Stage 13). */
   .duo-blurred-selection {
-    background-color: rgba(124, 106, 247, 0.28);
-  }
-  html.light .duo-blurred-selection {
-    background-color: rgba(124, 106, 247, 0.22);
+    background-color: var(--duo-mark);
+    opacity: 0.55;
   }
 }

@@ -8,35 +8,56 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // Stage 11 editor: body defaults to a serif-ish system stack for
-        // the Google-Docs feel. Monospace stays on the terminal.
+        // Stage 12 — Atelier voice (DUO_VOICE.atelier in the Atelier
+        // bundle): sans for chrome labels, serif for chrome accents +
+        // editor body, mono for terminal.
         sans: [
-          '-apple-system', 'BlinkMacSystemFont', 'ui-sans-serif',
-          'Inter', 'Segoe UI', 'Helvetica Neue', 'sans-serif'
+          '-apple-system', 'BlinkMacSystemFont', 'SF Pro Text',
+          'ui-sans-serif', 'Inter', 'Segoe UI', 'Helvetica Neue', 'sans-serif'
         ],
         serif: [
-          'ui-serif', 'Charter', 'iowan-old-style', 'Iowan Old Style',
-          'Georgia', 'Times New Roman', 'serif'
+          'ui-serif', '"New York"', 'Charter', 'iowan-old-style',
+          '"Iowan Old Style"', 'Georgia', 'Times New Roman', 'serif'
+        ],
+        // Display: serif (chrome accents — titles, breadcrumb root, headings)
+        display: [
+          '"New York"', 'ui-serif', 'Charter', 'iowan-old-style',
+          '"Iowan Old Style"', 'Georgia', 'serif'
         ],
         mono: ['JetBrains Mono', 'Cascadia Code', 'Fira Code', 'ui-monospace', 'monospace']
       },
       colors: {
-        // Warp × Linear inspired palette
+        // Stage 12 — Atelier palette via CSS variables (defined in
+        // renderer/styles/globals.css). The names are kept compatible
+        // with the previous Warp×Linear surface.0–3 / accent / border
+        // scale so existing components (`bg-surface-0`, `border-border`,
+        // etc.) continue to work — they just resolve to Atelier values.
         surface: {
-          0: '#080808',
-          1: '#0f0f0f',
-          2: '#161616',
-          3: '#1e1e1e'
+          0: 'var(--duo-paper)',        // primary surface — the page
+          1: 'var(--duo-paper-deep)',   // chrome, panes
+          2: 'var(--duo-paper-edge)',   // tab strip, subtle dividers
+          3: 'var(--duo-paper-rule)'    // hairlines
         },
         border: {
-          DEFAULT: '#2a2a2a',
-          subtle: '#1e1e1e',
-          strong: '#3a3a3a'
+          DEFAULT: 'var(--duo-paper-rule)',
+          subtle: 'var(--duo-paper-edge)',
+          strong: 'var(--duo-ink-ghost)'
         },
         accent: {
-          DEFAULT: '#7c6af7',
-          dim: '#5a4db5'
-        }
+          DEFAULT: 'var(--duo-accent)',
+          soft: 'var(--duo-accent-soft)',
+          ink: 'var(--duo-accent-ink)',
+          // Backwards-compat alias — components still reference accent.dim
+          dim: 'var(--duo-accent-soft)'
+        },
+        // New Atelier-specific scale (use these for new components)
+        ink: {
+          DEFAULT: 'var(--duo-ink)',
+          soft: 'var(--duo-ink-soft)',
+          mute: 'var(--duo-ink-mute)',
+          ghost: 'var(--duo-ink-ghost)'
+        },
+        mark: 'var(--duo-mark)'
       }
     }
   },

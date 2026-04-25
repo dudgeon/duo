@@ -15,53 +15,56 @@ const COZY_LINE_HEIGHT = 1.55
 // Reader-width cap (cols) applied only when cozy is on.
 const COZY_MAX_COLS = 92
 
-// Stage 11 § D33d — xterm.js draws on a canvas, so CSS overrides from the
-// `.light` body class don't reach it. We swap theme objects based on the
-// effective theme whenever it changes.
+// Stage 11 § D33d / Stage 12 — xterm.js draws on a canvas, so CSS
+// overrides from the `.light` / `.dark` body class don't reach it. We
+// swap theme objects based on the effective theme whenever it changes.
+// Background + foreground use the Atelier paper/ink/term tokens; ANSI
+// colors are tuned for warm-paper compatibility (less neon than the
+// previous Warp×Linear palette).
 const DARK_THEME = {
-  background: '#080808',
-  foreground: '#e4e4e7',
-  cursor: '#7c6af7',
-  cursorAccent: '#080808',
-  black: '#18181b',
-  red: '#f87171',
-  green: '#4ade80',
-  yellow: '#fbbf24',
-  blue: '#60a5fa',
-  magenta: '#c084fc',
-  cyan: '#22d3ee',
-  white: '#d4d4d8',
-  brightBlack: '#3f3f46',
-  brightRed: '#fca5a5',
-  brightGreen: '#86efac',
-  brightYellow: '#fde68a',
-  brightBlue: '#93c5fd',
-  brightMagenta: '#d8b4fe',
-  brightCyan: '#67e8f9',
-  brightWhite: '#f4f4f5'
+  background: '#0C0A07',     // --duo-term-bg (dark)
+  foreground: '#E9DEC2',     // --duo-term-fg (dark)
+  cursor: '#E08F4A',         // --duo-accent (dark) — warm amber cursor
+  cursorAccent: '#0C0A07',
+  black: '#26201A',          // --duo-paper-edge (dark)
+  red: '#E07A6B',            // muted terracotta
+  green: '#9CB872',          // sage
+  yellow: '#E5B765',         // soft amber
+  blue: '#7CA7C9',           // dusty blue
+  magenta: '#C28FB0',        // rosewood
+  cyan: '#82B8B0',           // moss-cyan
+  white: '#C8BD9E',          // --duo-ink-soft (dark)
+  brightBlack: '#5A5142',    // --duo-ink-ghost (dark)
+  brightRed: '#EF8E7F',
+  brightGreen: '#B0CC85',
+  brightYellow: '#F2C97D',
+  brightBlue: '#9BBED9',
+  brightMagenta: '#D6A6C2',
+  brightCyan: '#9DCFC4',
+  brightWhite: '#F0E9D6'     // --duo-ink (dark)
 } as const
 
 const LIGHT_THEME = {
-  background: '#fafafa',
-  foreground: '#18181b',
-  cursor: '#7c6af7',
-  cursorAccent: '#fafafa',
-  black: '#27272a',
-  red: '#dc2626',
-  green: '#16a34a',
-  yellow: '#ca8a04',
-  blue: '#2563eb',
-  magenta: '#9333ea',
-  cyan: '#0891b2',
-  white: '#71717a',
-  brightBlack: '#52525b',
-  brightRed: '#ef4444',
-  brightGreen: '#22c55e',
-  brightYellow: '#eab308',
-  brightBlue: '#3b82f6',
-  brightMagenta: '#a855f7',
-  brightCyan: '#06b6d4',
-  brightWhite: '#18181b'
+  background: '#1A1410',     // --duo-term-bg (light) — terminal stays inky on the paper page
+  foreground: '#F0E9D6',     // --duo-term-fg (light)
+  cursor: '#C66A2E',         // --duo-accent (light) — ochre cursor
+  cursorAccent: '#1A1410',
+  black: '#26201A',
+  red: '#D9694F',            // brick red on dark surface
+  green: '#86A65D',
+  yellow: '#D4A24A',
+  blue: '#6F95B5',
+  magenta: '#B581A3',
+  cyan: '#74A89F',
+  white: '#C8BD9E',
+  brightBlack: '#7B6F58',    // --duo-ink-mute (light)
+  brightRed: '#E9836B',
+  brightGreen: '#9DBA73',
+  brightYellow: '#E5B765',
+  brightBlue: '#8DAEC8',
+  brightMagenta: '#C997B5',
+  brightCyan: '#88BBB1',
+  brightWhite: '#FBF8EE'     // --duo-paper (light)
 } as const
 
 interface TerminalPaneProps {

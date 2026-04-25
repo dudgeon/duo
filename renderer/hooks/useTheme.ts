@@ -1,11 +1,12 @@
-// Stage 11 § D33d — theme toggle.
+// Stage 11 § D33d — theme toggle. Refreshed in Stage 12 (Atelier).
 //
-// Three modes: 'system' (default, follows macOS appearance), 'light', 'dark'.
-// The hook owns the state, the localStorage persistence, and the
-// `<html class="light"|"dark">` write-out. The renderer also pushes state
-// to main so `duo theme` can read/write without an IPC round-trip.
-// v1 light palette is the minimal override set in globals.css; full
-// refinement is Stage 14.
+// Three modes: 'system' (follows macOS appearance), 'light', 'dark'.
+// **Default for fresh installs is 'light'** — Atelier's "light is hero,
+// dark is a respectful follower" framing. Existing users keep their
+// saved preference. The hook owns the state, the localStorage
+// persistence, and the `<html class="light"|"dark">` write-out. The
+// renderer also pushes state to main so `duo theme` can read/write
+// without an IPC round-trip.
 
 import { useCallback, useEffect, useState } from 'react'
 import type { ThemeMode } from '@shared/types'
@@ -19,7 +20,9 @@ function loadMode(): ThemeMode {
     const v = localStorage.getItem(STORAGE_KEY)
     if (v === 'light' || v === 'dark' || v === 'system') return v
   } catch { /* localStorage may be sandboxed */ }
-  return 'system'
+  // Stage 12 — fresh installs default to light (the Atelier hero).
+  // Was 'system' before; existing users with a saved preference keep it.
+  return 'light'
 }
 
 function getSystemDark(): boolean {

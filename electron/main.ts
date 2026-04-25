@@ -45,7 +45,11 @@ const docReadPending = new Map<string, (res: DocReadResult) => void>()
 // Drives `duo theme` reads. Renderer is the source of truth.
 let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
 
-nativeTheme.themeSource = 'dark'
+// Stage 12 — Atelier "light is hero". Was 'dark'; flipped so macOS
+// chrome (menu, dialogs) matches the new design baseline. The
+// renderer's useTheme hook independently honours user preference for
+// the in-app surfaces; this only governs Electron's native chrome.
+nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
@@ -65,7 +69,9 @@ function createWindow(): void {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#080808',
+    // Stage 12 — Atelier paper. Pre-CSS-load flash color matches the
+     // new light hero so first-paint doesn't flash dark.
+     backgroundColor: '#FBF8EE',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
