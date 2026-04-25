@@ -16,11 +16,26 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 
 ---
 
-## Current state (as of 2026-04-24)
+## Current state (as of 2026-04-25)
 
 **Foundation shipped. Flagship half #1 (cozy-mode terminal) shipped
-2026-04-22. Flagship half #2 — sub-stage 11a of the markdown editor —
-shipped 2026-04-24; 11b–e next.**
+2026-04-22, graduated 2026-04-25 (`(preview)` label dropped).
+Flagship half #2 — sub-stage 11a of the markdown editor — shipped
+2026-04-24; 11a tail (3 items) and 11b–e next.**
+
+**Latest session (2026-04-25):**
+- Stage 9 cozy mode graduated — daily-driver validation passed; menu
+  label, PRD, ROADMAP all updated.
+- Stage 15g PRD ([docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md))
+  refined — G10 payload format locked to **A** (quote + provenance);
+  G19 added making the format runtime-configurable via the new P1
+  CLI verb `duo selection-format [a|b|c]` so agents can opt into
+  format C (opaque tokens) for compact multi-step sessions.
+- Open ADR "Skill scoping" resolved — locked to global
+  `~/.claude/skills/duo/`. Per-session alternatives kept on the
+  books in DECISIONS.md for future reference.
+- Two thematic commits pushed (`feat(editor+theme)` + `docs`),
+  rebased over upstream skill-sandbox-troubleshooting commit.
 
 **Foundation (shipped + verified):**
 - Electron main process, preload, PTY manager
@@ -51,16 +66,37 @@ console · tabs · tab · close · wait · view · reveal · ls · nav-state ·
 edit · selection · doc write · theme · install
 
 **What's next (see `ROADMAP.md` + `docs/CLI-COVERAGE.md`):**
-- Stage 11b–e — CriticMarkup track-changes + comments + outline +
-  find/replace; external-write reconciliation.
-- **Stage 10 Phase 6 completion** — already well along, just closing
-  out the remaining items.
-- **P0 CLI gaps** — terminal tab management (`duo term new/close/
-  tab/list`), pane focus (`duo pane focus`), in-buffer doc read
-  (`duo doc read`). All catalogued in `docs/CLI-COVERAGE.md`.
-- Stage 12 — unified skill + connector management surface.
-- Stage 13 — `duo doctor`, TCP transport fallback, interaction polish.
-- Stage 15 — human↔agent interaction primitives.
+
+⚠️ **Owner has not yet picked the next sprint focus.** The first thing
+to do in a fresh session is ask Geoff which of these to tackle. Each
+is roughly the same scope (1–2 sessions of focused work):
+
+1. **Stage 15g.1 — Send → Duo button + `duo send` + `duo selection-format`.**
+   Editor-side BubbleMenu + the two new CLI verbs. Builds directly on
+   what 11a shipped. PRD is fully spec'd
+   ([docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md));
+   G10 locked, no decision gate before kickoff. **Highest-leverage
+   unlock for the human↔agent pair primitive.**
+2. **Stage 11a tail — frontmatter properties panel + drag-drop images
+   + slash menu / floating bubble.** Closes the editor's UX gaps.
+   Smaller PRs each. No new agent capabilities.
+3. **Stage 11b — external-write reconciliation + agent-write
+   transient highlight.** First sub-stage of the editor's "agent edits
+   the same file" story. Bigger; needs a real chokidar wiring + 3-pane
+   diff UI. PRD § 6 has the spec.
+4. **P0 CLI gaps** — `duo doc read` (live buffer, not disk), browser
+   `duo selection`, `duo network`, `duo errors`. Pure agent-API
+   expansion; no UI work. Useful before more user-facing surfaces
+   ship. See [docs/CLI-COVERAGE.md § Browser observability](docs/CLI-COVERAGE.md).
+
+**Lower-priority follow-ups** (Stage 12 unified skill/connector surface,
+Stage 13 polish + `duo doctor` + TCP fallback, Stage 15a–f primitives,
+Stage 14 distribution) all wait until at least one of the above lands.
+
+**Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-25:
+BUG-001 — `⌃Tab` from terminal focus cycles browser tabs instead of
+terminal tabs. Workaround for users: `⌘⇧]` cycles terminal tabs
+forward.
 
 ---
 
@@ -109,6 +145,7 @@ edit · selection · doc write · theme · install
     - UI toggle → `duo <thing>` reads state, `duo <thing> <value>` sets it (example: `duo theme`, `duo theme system|light|dark`).
     - Menu action → `duo <verb>` runs the same action.
     - In-app shortcut that changes state → `duo <verb>` does the same without the keystroke.
+    - **Agent-tunable runtime settings** (no UI surface, agent-only): same `duo <thing> [value]` shape, persisted in localStorage. The agent calls it at the start of a session to pick the mode that suits its workflow (example: `duo selection-format [a|b|c]` for Stage 15g's Send → Duo payload format). When you build one of these, check if there's a *user* parallel; if there isn't yet, document the asymmetry in the PRD so a later UI surface can be added without breaking the CLI shape.
     - Deliberately UI-only features (e.g. drag-to-reorder) must be called out in the PRD as explicit asymmetries.
 
     Plumbing checklist for a new CLI verb — every one of these must be touched:

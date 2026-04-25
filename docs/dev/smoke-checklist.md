@@ -106,7 +106,7 @@ or the `inEditable` guard in `useKeyboardShortcuts.ts` is wrong.
 
 ## 6. Cozy mode (catches: xterm option plumbing, TUI-safety)
 
-- [ ] View → "Cozy mode (preview) — current tab" toggles on. Typography
+- [ ] View → "Cozy mode — current tab" toggles on. Typography
       shifts: font size grows (13→15), line height loosens, outer-pane
       padding appears. Reader-width cap centers text on wide windows.
 - [ ] Claude Code TUI (if running in the terminal) re-layouts without

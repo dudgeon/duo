@@ -605,6 +605,23 @@ type. Per [VISION.md § Visual file browser / context drawer](docs/VISION.md#vis
 - [ ] `skill/SKILL.md` updated with navigator/viewer patterns +
       drag-to-conversation affordance.
 
+**Stage 10 follow-ups (raised 2026-04-25):**
+- [ ] **Persist tree expand/collapse state across relaunches.** The
+      navigator's `NavStateSnapshot` already carries `expanded:
+      string[]`; today it's in-memory. Persist to localStorage (or
+      Electron `userData`) and rehydrate on app boot so the user's
+      tree shape survives a quit/relaunch. Also covers per-tab
+      memory if the navigator ever goes per-tab. Keys live alongside
+      the existing nav-state push channel.
+- [ ] **Highlight files that are open in WorkingPane tabs.** Any file
+      tab in `fileTabs` (App.tsx) should render a visible accent on
+      its corresponding navigator row — same affordance as VS Code's
+      "open editors" subtle highlight. Bonus: a small dot or chip
+      indicating dirty state for `.md` editor tabs (already tracked
+      via `tab.dirty`). Plumbing: navigator subscribes to a derived
+      `openPaths: Set<string>` from `fileTabs`; the tree row component
+      checks membership at render time.
+
 ---
 
 ## Stage 11 — Collaborative markdown editor (human↔agent) `🔄 11a shipped 2026-04-24; 11b–e next`
@@ -627,6 +644,12 @@ type. Per [VISION.md § Visual file browser / context drawer](docs/VISION.md#vis
 > changes, theme toggle (System/Light/Dark) with macOS appearance
 > follow, xterm terminal theme swap. CLI: `duo edit`, `duo selection`,
 > `duo doc write` (replace-selection / replace-all), `duo theme`.
+>
+> **11a tail (3 items pending — call this 11a.1):**
+> Frontmatter properties panel (D15, D16) — YAML preserved on disk
+> but invisible in the UI today. Paste + drag-drop images (D9, D13,
+> D32) with sibling `<stem>_assets/` folder per PRD. Slash menu
+> (D7) + floating selection bubble (D5). Each is a small, focused PR.
 >
 > **11b–e pending:**
 > 11b external-write reconciliation (chokidar + three-pane diff),
@@ -1000,7 +1023,8 @@ with no Enter pressed, so the user can complete the prompt
 User-facing complement to the agent-facing `duo selection` and
 `duo zap` verbs; same payload shape, opposite direction.
 
-- [ ] Editor button via TipTap BubbleMenu + `duo send` CLI (15g.1).
+- [ ] Editor button via TipTap BubbleMenu + `duo send` CLI +
+      `duo selection-format [a|b|c]` CLI (15g.1).
 - [ ] Browser selection observer + page-side script + same button
       anchored over `WebContentsView` (15g.2). Unifies `duo selection`
       across editor + browser surfaces (also resolves the P0 gap in
@@ -1009,7 +1033,13 @@ User-facing complement to the agent-facing `duo selection` and
       update so agents understand the injected format (15g.3).
 
 **PRD:** [docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md).
-Open question at kickoff: payload format (G10 — three options).
+**No decision gate before kickoff** — G10 payload format locked to
+**A** (quote + provenance) on 2026-04-25, with B and C kept on the
+books and switchable at runtime via the new `duo selection-format`
+verb (G19). Smaller open questions at kickoff: G5 (`⌘D` keyboard
+shortcut conflict with browser bookmark muscle memory) and G7
+(consent UX for the floating button — match Notion/Docs convention,
+no first-run tooltip).
 
 ---
 

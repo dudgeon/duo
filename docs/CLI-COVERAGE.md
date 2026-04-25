@@ -7,7 +7,7 @@
 > See [CLAUDE.md § Working style rule 4](../CLAUDE.md) for the enforced
 > rule and the six-file plumbing checklist every new verb must hit.
 >
-> **Last updated: 2026-04-24.**
+> **Last updated: 2026-04-25.**
 
 ---
 

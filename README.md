@@ -342,7 +342,7 @@ Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
 **After the flagship:**
 - ⬜ **Stage 12** — Unified skill + connector management surface (supersedes Stage 4)
 - ⬜ **Stage 13** — Interaction polish (`duo doctor`, TCP transport fallback, terminal selection refinements, `duo reload`, tab numbers in UI)
-- ⬜ **Stage 15** — Human↔agent interaction primitives (`duo events`, `duo notify`, `duo tab name`, `duo zap`, file→composer)
+- ⬜ **Stage 15** — Human↔agent interaction primitives (`duo events`, `duo notify`, `duo tab name`, `duo zap`, file→composer, **15g "Send → Duo" cross-modality button raised 2026-04-25**)
 - ⬜ **Stage 14 / old Stage 6** — Polish + distribution (code signing, installer, auto-update, theming refinement — held until the flagship pair lands)
 
 ---
