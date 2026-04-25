@@ -22,6 +22,11 @@ extraResources:
     to: cli/
     filter:
       - "**/*"
+  # agents/ is copied to app bundle so first-launch installer can copy duo-browser.md to ~/.claude/agents/
+  - from: agents/
+    to: agents/
+    filter:
+      - "**/*"
 
 mac:
   category: public.app-category.developer-tools
