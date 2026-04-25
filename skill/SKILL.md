@@ -121,7 +121,7 @@ echo "the new text" | duo doc write --replace-selection
 The selection overlay stays visible even while the terminal has focus
 (PRD D29c), so the user can see exactly what range you're operating on.
 
-**Future Stage 15g (not yet shipped):** when the user clicks a
+**Future Stage 15 (not yet shipped):** when the user clicks a
 "Send → Duo" button next to a selection (or hits the keyboard
 shortcut), the selection is injected into your terminal as a quoted
 block plus a one-line provenance ("from /path/to/foo.md · Risks > Market"),
@@ -514,7 +514,7 @@ The user then restarts their Claude Code session for the new policy
 to take effect. Caveat: the Claude Code docs warn that
 `allowUnixSockets` "can inadvertently grant access to powerful system
 services" (e.g. the Docker socket). Teams with a stricter posture
-should wait for the Stage 13 TCP fallback rather than widen the
+should wait for the Stage 20 TCP fallback rather than widen the
 socket allowlist.
 
 ### Fix 2 (last resort): per-call sandbox escape

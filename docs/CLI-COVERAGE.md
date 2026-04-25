@@ -7,7 +7,7 @@
 > See [CLAUDE.md § Working style rule 4](../CLAUDE.md) for the enforced
 > rule and the six-file plumbing checklist every new verb must hit.
 >
-> **Last updated: 2026-04-26** (Stage 18 rename: `duo term new` →
+> **Last updated: 2026-04-26** (Stage 19 rename: `duo term new` →
 > `duo new-tab` with `--kind shell|claude`).
 
 ---
@@ -72,13 +72,13 @@ for the authoritative usage text.
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 
-### Env signals (Stage 18 Phase 18a)
+### Env signals (Stage 19 Phase 19a, shipped 2026-04-26)
 
 Every PTY Duo spawns is tagged with four environment variables, so any
 process running inside a Duo terminal — `claude`, the user's shell
 prompt, the `duo` CLI itself — can detect "I'm in Duo" without
 heuristics. Set in `electron/pty-manager.ts` (D1–D3 in
-[stage-18 PRD](prd/stage-18-duo-detection.md)).
+[stage-19 PRD](prd/stage-19-duo-detection.md)).
 
 | Variable | Value | Notes |
 |---|---|---|
@@ -92,9 +92,9 @@ three `DUO_*` vars; `env | grep ^TERM_PROGRAM` returns `TERM_PROGRAM=Duo`.
 Outside Duo (a regular Terminal.app / iTerm2 shell), the `DUO_*` vars
 are absent and `TERM_PROGRAM` is whatever the parent terminal sets.
 
-**Used by.** `cli/duo.ts` (D4 — DUO_SOCKET fallback). Stage 18 Phase
+**Used by.** `cli/duo.ts` (D4 — DUO_SOCKET fallback). Stage 19 Phase
 18b's SessionStart hook + PATH shim gate on `DUO_SESSION` (D11/D13).
-Stage 13's `duo doctor` (D5 — distinguishes "running outside Duo"
+Stage 20's `duo doctor` (D5 — distinguishes "running outside Duo"
 from "running inside Duo but transport failing").
 
 ---
@@ -116,8 +116,8 @@ place the agent lives*, this is the largest parity gap.
 
 | Verb | UI parallel | Shape |
 |---|---|---|
-| `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd <cmd>]` | `⌘T`/`⌘⇧T`, split-button `+` (claude) / `>` (shell) | Returns `{id, kind, cwd, title}`. **Renamed from `duo term new` per [Stage 18 D27](prd/stage-18-duo-detection.md).** `--kind` defaults to the user's most-recent UI choice (`localStorage['duo.lastNewTabKind']`, default `'claude'`). `--cmd` pre-types (no Enter) — overlaps intentionally with Stage 15d `duo tab --cmd`; lock semantics at 15d kickoff. |
-| `duo term tabs` | Visible strip | Returns `[{id, title, cwd, kind, active, cozy}]` (Stage 18 adds `kind`) |
+| `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd <cmd>]` | `⌘T`/`⌘⇧T`, split-button `+` (claude) / `>` (shell) | Returns `{id, kind, cwd, title}`. **Renamed from `duo term new` per [Stage 19 D27](prd/stage-19-duo-detection.md).** `--kind` defaults to the user's most-recent UI choice (`localStorage['duo.lastNewTabKind']`, default `'claude'`). `--cmd` pre-types (no Enter) — overlaps intentionally with Backlog `duo tab (was 15d) --cmd`; lock semantics at 15d kickoff. |
+| `duo term tabs` | Visible strip | Returns `[{id, title, cwd, kind, active, cozy}]` (Stage 19 adds `kind`) |
 | `duo term tab <id>` | `⌘1-9`, tab click | Activates the tab |
 | `duo term close <id>` | `⌘W` in terminal focus, × on chip | Refuses the last |
 | `duo term write <id> <data>` | User typing | Synthesize input (separate from `--cmd` which is pre-type + no Enter) |
@@ -125,7 +125,7 @@ place the agent lives*, this is the largest parity gap.
 **Note:** current `duo tab <n>` and `duo close <n>` address browser tabs.
 The terminal parallel needs its own namespace to avoid the number-space
 collision. The new-tab verb is in the bare `duo new-tab` namespace
-(not `duo term`) per Stage 18 — agent-readable shape `{id, kind, cwd,
+(not `duo term`) per Stage 19 — agent-readable shape `{id, kind, cwd,
 title}` + tab-strip primary affordance ("`+` = claude") justify
 top-level placement.
 
@@ -180,10 +180,10 @@ but they're not shipped yet.
 | `duo events --follow` | P1 (Stage 15a) | Pull/NDJSON stream of user interactions; already on the roadmap. |
 | `duo notify [--tab] <body>` | P1 (Stage 15b) | macOS notification; already on the roadmap. |
 | `duo tab name <text> [--tab]` | P1 (Stage 15c) | Already on the roadmap. |
-| `duo doctor` | P1 (Stage 13) | Transport / sandbox diagnostic; already on the roadmap. |
-| `duo zap <selector>` | P1 (Stage 15e) | Browser element → terminal composer; already on the roadmap. Subsumed by Stage 15g (`duo send`) for the *user-driven* path; `duo zap` remains for the *agent-driven* path. |
-| `duo send [--text \|stdin]` | P1 (Stage 15g.1) | Pipe a formatted payload into the active terminal as if the user clicked the "Send → Duo" button. Useful for agents that want to plant context for the user. |
-| `duo selection-format [a\|b\|c]` | P1 (Stage 15g.1) | Read or set the runtime selection-injection format used by the Send → Duo button. `a` = quote + provenance (default); `b` = literal text only; `c` = opaque token (skill-taught expansion). Per Stage 15g § G19. Agents can call this at the start of a multi-step session to opt into the format that fits their workflow best. |
+| `duo doctor` | P1 (Stage 20) | Transport / sandbox diagnostic; already on the roadmap. |
+| `duo zap <selector>` | Backlog (was 15e) | Browser element → terminal composer; already on the roadmap. Subsumed by Stage 15 (`duo send`) for the *user-driven* path; `duo zap` remains for the *agent-driven* path. |
+| `duo send [--text \|stdin]` | Stage 15.1 | Pipe a formatted payload into the active terminal as if the user clicked the "Send → Duo" button. Useful for agents that want to plant context for the user. |
+| `duo selection-format [a\|b\|c]` | Stage 15.1 | Read or set the runtime selection-injection format used by the Send → Duo button. `a` = quote + provenance (default); `b` = literal text only; `c` = opaque token (skill-taught expansion). Per Stage 15 § G19. Agents can call this at the start of a multi-step session to opt into the format that fits their workflow best. |
 
 ### Browser observability — agent visibility into the page surface
 
@@ -203,9 +203,9 @@ The remaining DevTools surfaces below aren't covered yet.
 | `duo dom mutation [--selector] [--follow]` | DevTools Elements live tree | P2 | Stream DOM mutations under a subtree via `MutationObserver` injected by `Runtime.evaluate`. |
 
 **Unified-selection design note** — the browser-selection extension of
-`duo selection` (shipped) is the **same** primitive the **Stage 15g
+`duo selection` (shipped) is the **same** primitive the **Stage 15
 "Send → Duo" cross-modality button**
-([docs/prd/stage-15g-send-to-duo.md](prd/stage-15g-send-to-duo.md))
+([docs/prd/stage-15-send-to-duo.md](prd/stage-15-send-to-duo.md))
 will reuse. Both share this shape:
 
 ```ts
@@ -218,7 +218,7 @@ type DuoSelection =
 
 `duo selection` is the agent-facing read; the floating "Send → Duo"
 button is the user-facing write of the same payload into the active
-terminal. The injection format (G10/G19 in Stage 15g) is itself
+terminal. The injection format (G10/G19 in Stage 15) is itself
 agent-tunable via `duo selection-format` — agents can pick `a`
 (quote + provenance, default), `b` (literal text), or `c` (opaque
 token) depending on what fits the session.

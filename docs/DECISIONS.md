@@ -175,7 +175,7 @@ historical.
 │    │┌─────────────────┐│                 │
 │    ││  Agent tools    ││                 │
 │    ││  (collapsible,  ││                 │
-│    ││   Stage 12)     ││                 │
+│    ││   Backlog)      ││                 │
 └────┘└─────────────────┘└─────────────────┘
 ```
 
@@ -184,7 +184,7 @@ historical.
 - **Middle column** — stacked vertically:
   - **Terminal** (top, primary) — PTY session(s) where the agent lives.
   - **Agent tools** (bottom, collapsible, optional) — unified skill +
-    connector surface. Stage 12. Collapsed state gives the terminal
+    connector surface. Backlog (was old Stage 12, deprioritized in 2026-04-26 renumber). Collapsed state gives the terminal
     the full middle column.
 - **Viewer/Editor** (right, full-height, wide) — tabbed polymorphic
   surface with **one unified tab strip** across every modality. Each
@@ -237,7 +237,7 @@ historical.
   (or inference from extension) chooses the renderer.
 - The terminal moves from the left column to the middle column at
   reshape time. The xterm.js / node-pty plumbing is unaffected.
-- Agent tools panel (middle-bottom) is deferred to Stage 12 but the
+- Agent tools panel (middle-bottom) is deferred to Backlog (was old Stage 12) but the
   layout shell must reserve space for it (or cleanly collapse when
   absent).
 
@@ -323,11 +323,11 @@ itself spawned.
 
 **Status:** 🟡 Open / Proposed
 **Raised:** 2026-04-23
-**Needed before:** Stage 14a (first-launch self-install) for the
-install-path + settings fragment work; Stage 14b (distribution polish)
+**Needed before:** Stage 18 (first-launch self-install) for the
+install-path + settings fragment work; Stage 21 (distribution polish)
 for any cert-gated pieces. Skill-docs portion is cheap and can land
 before the flagship pair; transport + install changes land with the
-14a / 14b sequence (split 2026-04-26 — see ROADMAP.md).
+ Stage 18 / Stage 21 sequence (split 2026-04-26 — see ROADMAP.md).
 
 **Problem statement.** Claude Code runs each Bash tool invocation inside
 a macOS Seatbelt-based sandbox. Enterprise deployments (e.g. Capital
@@ -455,13 +455,13 @@ clarifies and supersedes that framing.
   new doc item: "Troubleshooting → Claude Code sandbox" section in
   `skill/SKILL.md` + `agents/duo-browser.md`. Cheap, can land
   immediately.
-- **Stage 13 (interaction polish, ⬜)** picks up the TCP fallback
+- **Stage 20 (interaction polish, ⬜)** picks up the TCP fallback
   and `duo doctor` work items.
-- **Stage 14a (first-launch self-install, ⬜)** picks up the
+- **Stage 18 (first-launch self-install, ⬜)** picks up the
   install-path cleanup and the bundled settings fragment. Split
   out of the old combined Stage 14 on 2026-04-26 because both items
   are cert-independent.
-- **Stage 14b (distribution polish, ⬜)** picks up the cert-gated
-  pieces (code sign, notarize, electron-updater) downstream of 14a.
+- **Stage 21 (distribution polish, ⬜)** picks up the cert-gated
+  pieces (code sign, notarize, electron-updater) downstream of Stage 18.
 
 **Decision owner:** Geoff.

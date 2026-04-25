@@ -1,9 +1,14 @@
-# Stage 15g PRD — "Send → Duo" cross-modality selection primitive
+# Stage 15 PRD — "Send → Duo" cross-modality selection primitive
 
-> **Status:** spec drafted 2026-04-25. Visual spec added 2026-04-26
-> (Atelier mock). Not started.
-> **Slot in roadmap:** new sub-item under Stage 15 (human↔agent
-> interaction primitives), peer to 15a–15f.
+> **Status:** spec drafted 2026-04-25 (originally as Stage 15g).
+> Visual spec added 2026-04-26 (Atelier mock). Renumbered 2026-04-26
+> to top-level Stage 15 — promoted from sub-item under the original
+> Stage 15 grab-bag because it's the L1 priority unlock; the rest of
+> the original 15a–f primitives moved to backlog. Not started.
+> **Slot in roadmap:** Stage 15, in Layer 1 (editor maturation).
+> Depends on Stage 12 (Atelier visual foundation — supplies the pill
+> chrome). The other primitives originally clustered as 15a–f are
+> backlog; ship them when convenient.
 > **References:**
 > - [docs/VISION.md](../VISION.md) — collaboration as the flagship bet
 > - [docs/CLI-COVERAGE.md § Browser observability](../CLI-COVERAGE.md) —
@@ -12,7 +17,7 @@
 >   editor selection persistence (already shipped); the visual half of
 >   this primitive on the editor side
 > - Stage 15e (`duo zap`) — agent-driven cousin: agent picks an element,
->   pipes a packet to the active terminal. Stage 15g is the
+>   pipes a packet to the active terminal. Stage 15 is the
 >   user-driven version of the same loop.
 > - **[docs/design/atelier/](../design/atelier/)** — visual spec for
 >   the floating pill, the click-to-fire animation, and the terminal
@@ -51,7 +56,7 @@ for in the brief is a two-axis grid:
 | **Browser** | `duo selection` (P0 gap, see CLI-COVERAGE) | Send → Duo button (this stage) |
 | **Preview** | future | future |
 
-Stage 15g lands the bottom row across modalities **and** consolidates
+Stage 15 lands the bottom row across modalities **and** consolidates
 the top row into one verb shape.
 
 ---
@@ -74,12 +79,12 @@ Jobs:
 
 Today the PM has to: copy → switch focus → paste into terminal → type
 their verb → the agent has to *guess* what file/url/heading the text
-came from. Stage 15g compresses that to: select → click → type verb →
+came from. Stage 15 compresses that to: select → click → type verb →
 Enter.
 
 Job this stage does **not** do:
 - Replace the agent-driven `duo zap` (which is the *agent-picks-the-element*
-  flow). 15g is *user-picks-the-selection*. Both ship.
+  flow). Stage 15 is *user-picks-the-selection*. Both ship.
 - Multi-selection (selecting two ranges, sending both as one message).
   Defer to a follow-up.
 
@@ -191,7 +196,7 @@ else builds on existing infrastructure.
 
 Three sub-stages, each shippable.
 
-### 15g.1 — Editor button (small) + `duo send` + `duo selection-format` CLI
+### 15.1 — Editor button (small) + `duo send` + `duo selection-format` CLI
 - [ ] BubbleMenu-style floating button on TipTap selection (existing
       machinery, single-extension addition).
 - [ ] Format-resolution helper that reads the current
@@ -252,7 +257,7 @@ Three sub-stages, each shippable.
   said "placeholder" so we'll iterate at kickoff.
 - **Open question — payload format (G10).** Three options listed; A
   is the recommendation but B and C are real alternatives. Decide at
-  kickoff before building 15g.1.
+  kickoff before building 15.1.
 - **Open question — ⌘D conflict.** Some web apps bind ⌘D to bookmark.
   Our `BrowserManager.wireKeyForwarding` allowlist would intercept it
   before the page sees it. Verify no existing user muscle memory

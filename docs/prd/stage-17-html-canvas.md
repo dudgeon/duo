@@ -1,22 +1,25 @@
-# Stage 19 PRD — HTML canvas (rendered + editable, agent-collaborative)
+# Stage 17 PRD — HTML canvas (rendered + editable, agent-collaborative)
 
-> **Status:** spec drafted 2026-04-25. Renumbered 2026-04-26 from
-> Stage 13 → Stage 19 to avoid collision with the existing Stage 13
-> (interaction polish + `duo doctor` + TCP transport — pre-dates this
-> PRD; references throughout the codebase). Originated from a design
-> conversation captured in `docs/conversations/html-canvas-kickoff.md`
-> — three of four scoping questions answered (editing surface, file
-> scope, script policy); stable-ID strategy and downstream conventions
-> proposed here as owner-to-confirm defaults.
-> **Slot in roadmap:** new Stage 19. Sibling tab type to Stage 11
-> (markdown editor) inside the WorkingPane. Sequenced after the
-> flagship pair: depends on Stage 11c (just-added highlight, supplies
-> the Atelier visual reused in H20), Stage 15g (Send → Duo, supplies
-> the discriminated-union selection shape reused in H25–H27), and
-> Stage 17 (Atelier tokens — supplies the visual language reused in
-> H20, H23, H26). Stage 11d (CriticMarkup track-changes) is a
-> nice-to-have but not a prerequisite — H39 defers HTML diff to a
-> follow-up.
+> **Status:** spec drafted 2026-04-25. Renumbered twice on 2026-04-26:
+> first from draft Stage 13 → Stage 19 to avoid colliding with the
+> existing Stage 13 (interaction polish), then to **Stage 17** as
+> part of the layered build-order rationalization. See ROADMAP.md
+> § Number history for the full old↔new map.
+> Originated from a design conversation captured in
+> `docs/conversations/html-canvas-kickoff.md` — three of four scoping
+> questions answered (editing surface, file scope, script policy);
+> stable-ID strategy and downstream conventions proposed here as
+> owner-to-confirm defaults.
+> **Slot in roadmap:** Stage 17, in Layer 2 (new surfaces). Sibling
+> tab type to Stage 11 (markdown editor) inside the WorkingPane.
+> Sequenced after the Layer 1 editor maturation: depends on **Stage
+> 13** (just-added highlight, supplies the Atelier visual reused in
+> H20), **Stage 15** (Send → Duo, supplies the discriminated-union
+> selection shape reused in H25–H27), and **Stage 12** (Atelier
+> tokens — supplies the visual language reused in H20, H23, H26).
+> **Stage 14** (CriticMarkup track-changes for the markdown editor)
+> is a nice-to-have but not a prerequisite — H39 explicitly defers
+> HTML diff to a v2 follow-up.
 > **References:**
 > - [docs/VISION.md](../VISION.md) — collaboration as the flagship bet
 > - [docs/prd/stage-10-file-navigator.md](stage-10-file-navigator.md) —
@@ -25,7 +28,7 @@
 >   sister surface; this PRD borrows Stage 11's selection persistence
 >   (D29c), Atelier "just-added" highlight (D28), comment rail (D20),
 >   and `duo selection` discriminated-union shape
-> - [docs/prd/stage-15g-send-to-duo.md](stage-15g-send-to-duo.md) —
+> - [docs/prd/stage-15-send-to-duo.md](stage-15-send-to-duo.md) —
 >   the cross-modality selection primitive this surface participates in
 > - **[docs/design/atelier/](../design/atelier/)** — same palette and
 >   motion grammar as the markdown editor; the canvas is a Duo-native
@@ -136,9 +139,9 @@ a default is proposed for that here.)
 | H23 **P** | **Comment UX** | Re-uses Stage 11 D20's comment rail component — right-side rail, threaded entries, numbered anchor icon in the body, accept / resolve / reply, "✨ Claude" badge for agent comments. Same Atelier styling as the markdown editor. |
 | H24 **P** | **`duo html comment`** | CLI parallel to Stage 11 D29: `--anchor <id>` (preferred) / `--selector <css>` (resolved server-side to nearest element with `data-duo-id`) / `--text "…"` (substring match), `--body <text>`. |
 | **Selection** | | |
-| H25 **P** | **`duo selection` for canvas tabs** | Returns the discriminated-union shape from Stage 15g G6: `{kind:"html-canvas", path, text, html, anchorId, anchorPath, range, surrounding}`. `text` is the selected substring; `html` is the selected outerHTML for non-collapsed selections; `anchorId` is the nearest ancestor with a `data-duo-id`; `anchorPath` is the trail of ancestor data-duo-ids (outermost first). Collapsed selections return caret position only. |
+| H25 **P** | **`duo selection` for canvas tabs** | Returns the discriminated-union shape from Stage 15 G6: `{kind:"html-canvas", path, text, html, anchorId, anchorPath, range, surrounding}`. `text` is the selected substring; `html` is the selected outerHTML for non-collapsed selections; `anchorId` is the nearest ancestor with a `data-duo-id`; `anchorPath` is the trail of ancestor data-duo-ids (outermost first). Collapsed selections return caret position only. |
 | H26 **P** | **Persistent visible selection across blur** | Inherits Stage 11 D29c — when the user selects in the canvas and clicks into the terminal, the selection stays painted as a tinted overlay while the canvas is blurred. Implementation: same focus / blur decoration pattern, applied to the iframe body. |
-| H27 **P** | **Send → Duo pill** | Stage 15g's floating pill works on the canvas surface natively, since H25 provides the payload. No additional work beyond wiring the canvas's selection observer into the existing dispatcher. |
+| H27 **P** | **Send → Duo pill** | Stage 15's floating pill works on the canvas surface natively, since H25 provides the payload. No additional work beyond wiring the canvas's selection observer into the existing dispatcher. |
 | **Editing UX** | | |
 | H28 **P** | **Top toolbar** | Floating top bar with: bold / italic / underline / strike / inline code (operates on selection inside contentEditable; we write our own selection-aware mark applicator rather than lean on `document.execCommand`), link picker (`⌘K`), insert component (snippet menu — H18), insert comment (`⌘⇧C`), view-source toggle, find & replace (`⌘F` / `⌘⌥F`), and a "lock / unlock element" button when a locked element is selected. |
 | H29 **P** | **Slash menu** | `/` at line start in a contentEditable text node opens a snippet picker: H18 components plus headings, lists, blockquote, code block, table, hr. Filter-as-you-type. Same UX as Stage 11 D7. |
@@ -268,7 +271,7 @@ opens a file in the appropriate canvas based on extension — for
   IPC for downstream consumers (recentEdits writer, dirty signal).
 - **Selection observer.** A renderer-side hook subscribes to
   `selectionchange` inside the iframe and pushes the H25 payload up
-  to main via `WORKING_SELECTION_PUSH` (the same channel Stage 15g
+  to main via `WORKING_SELECTION_PUSH` (the same channel Stage 15
   uses). This is what lights up `duo selection` and the Send → Duo
   pill for canvas tabs.
 - **File I/O.** Reads via Stage 10's `duo-file://` handler (bytes,
@@ -291,7 +294,7 @@ opens a file in the appropriate canvas based on extension — for
 
 Five sub-stages.
 
-### 19a — Render + edit primitive (~3–4 PRs)
+### 17a — Render + edit primitive (~3–4 PRs)
 - [ ] WorkingPane registers `html-canvas` tab type; `.html` click opens it (replaces today's "open with default app" for `.html`).
 - [ ] `duo html new` + `duo edit <path.html>` (alias under the existing `duo edit` if extension is `.html`).
 - [ ] Iframe-srcdoc host with contentEditable on body; render-on-write.
@@ -300,7 +303,7 @@ Five sub-stages.
 - [ ] Skill stub (H16) — README only, no snippets yet.
 - **Exit:** PM opens an `.html`, edits prose, saves; the file is clean HTML another tool can read.
 
-### 19b — Stable IDs + sidecar foundation (~2 PRs)
+### 17b — Stable IDs + sidecar foundation (~2 PRs)
 - [ ] ULID minting + auto-injection (H12, H13).
 - [ ] First-open prompt for ID injection (H14).
 - [ ] Sidecar reader / writer; `version: 1` schema (H22).
@@ -308,7 +311,7 @@ Five sub-stages.
 - [ ] `data-duo-component` recognition (no UI yet).
 - **Exit:** Claude edits a specific element by `data-duo-id`; the change persists; the sidecar tracks the edit.
 
-### 19c — Agent overlay + selection (~2 PRs)
+### 17c — Agent overlay + selection (~2 PRs)
 - [ ] Atelier just-added highlight (H20) for agent edits.
 - [ ] `recentEdits` log + repaint-at-open within freshness window.
 - [ ] `duo selection` for canvas (H25).
@@ -317,7 +320,7 @@ Five sub-stages.
 - [ ] Warn-before-overwrite banner (H36).
 - **Exit:** PM selects on the canvas, hits the pill, terminal gets the quoted block; agent writes back, the change paints yellow.
 
-### 19d — Comments + lock convention (~3 PRs)
+### 17d — Comments + lock convention (~3 PRs)
 - [ ] `duo html comment`; comment rail re-used from Stage 11 (H23).
 - [ ] Range resolution against `data-duo-id` + textPath (H21).
 - [ ] Resolve / reply / accept UX (re-use Stage 11 D19).
@@ -325,7 +328,7 @@ Five sub-stages.
 - [ ] Skill snippet bundle (H17 boilerplate, H18 ten core components).
 - **Exit:** PM leaves a comment on a callout; Claude reads it via `duo html changes` (or a `duo html comments` flag) and acts.
 
-### 19e — Polish + scripts + source view (~2 PRs)
+### 17e — Polish + scripts + source view (~2 PRs)
 - [ ] Script opt-in dialog (H8) + sidecar persistence (H22).
 - [ ] Source view toggle with CodeMirror 6 (H32).
 - [ ] Find & replace (`⌘F` / `⌘⌥F`) — re-use Stage 11 component if feasible.
@@ -334,7 +337,7 @@ Five sub-stages.
 - [ ] Floating selection bubble (H30).
 - **Exit:** the canvas feels native enough that an HTML report from Claude is the natural artifact, not the markdown.
 
-Total: ~12–14 PRs. Sequenced so 19a unlocks real usage and every later stage adds capability cleanly.
+Total: ~12–14 PRs. Sequenced so 17a unlocks real usage and every later stage adds capability cleanly.
 
 ---
 
@@ -344,12 +347,12 @@ Total: ~12–14 PRs. Sequenced so 19a unlocks real usage and every later stage a
 - **Arbitrary HTML + ID injection.** Some files (legacy templates, server-rendered pages) carry IDs we'd collide with or class patterns we don't want to mutate. The H14 prompt is the v1 escape valve; if it's annoying, add a per-directory toggle into the navigator's right-click menu.
 - **Iframe sandbox vs script execution model.** Same-process srcdoc gives synchronous DOM access but no real isolation; if a malicious file ran scripts it could reach the parent renderer. Mitigation: H8's script opt-in is the gate. Long-term, move to `WebContentsView` for script-allowed files (true OS-level isolation, async DOM bridge via CDP) — defer until we see threats.
 - **Sidecar file management.** Two files per canvas means: copy / rename in Finder loses the sidecar; git PRs need both. Mitigation: when the user copies / renames the `.html` *inside Duo* (right-click → rename, or `duo mv`), the sidecar follows. External moves are accepted as data loss. Document explicitly.
-- **`document.execCommand` is deprecated.** H28 deliberately rejects it; we write our own selection-aware mark applicator on day one. Capture as a non-negotiable in 19a.
-- **Open question — should `data-duo-id` survive in production HTML?** The user might publish the `.html` to a website. The IDs are harmless (plain data attributes) but visually noisy in source. Possible: a `duo html export` command that strips Duo-specific attributes. Decide at 19e.
-- **Open question — Tailwind CDN vs inline styles.** H17 boilerplate proposes Tailwind via CDN behind script-opt-in. Alternative: ship a Duo-bundled minimal CSS that approximates Tailwind's most-used utilities — no CDN, no script gate. Decide at 19d kickoff before snippets harden.
-- **Open question — markdown blocks inside HTML.** A `<div data-duo-md>…</div>` block that renders as live markdown inside the canvas would be a nice cross-stage feature, riffing on the progressive-disclosure pattern. Defer to a Stage 19f or beyond.
-- **Open question — Duo-authored scripts in this session.** Claude generating a one-page interactive checklist with inline `<script>` is a real use case. The H8 prompt is fine for "agent gave me a sketchy file," but for "Claude just wrote this in *this* session" prompting feels like over-friction. Consider a "trust files Duo created in this session by default" rule. Decide at 19e.
-- **Open question — embedded comments in the file vs sidecar only.** H21/H22 puts comments entirely in the sidecar so the `.html` stays pristine. Alternative: also emit `<!-- duo:cmt id="…" -->` HTML comments inline so a sidecar-less copy still preserves anchor positions. Adds noise to the file but increases robustness. Decide at 19d.
+- **`document.execCommand` is deprecated.** H28 deliberately rejects it; we write our own selection-aware mark applicator on day one. Capture as a non-negotiable in 17a.
+- **Open question — should `data-duo-id` survive in production HTML?** The user might publish the `.html` to a website. The IDs are harmless (plain data attributes) but visually noisy in source. Possible: a `duo html export` command that strips Duo-specific attributes. Decide at 17e.
+- **Open question — Tailwind CDN vs inline styles.** H17 boilerplate proposes Tailwind via CDN behind script-opt-in. Alternative: ship a Duo-bundled minimal CSS that approximates Tailwind's most-used utilities — no CDN, no script gate. Decide at 17d kickoff before snippets harden.
+- **Open question — markdown blocks inside HTML.** A `<div data-duo-md>…</div>` block that renders as live markdown inside the canvas would be a nice cross-stage feature, riffing on the progressive-disclosure pattern. Defer to a Stage 17f or beyond.
+- **Open question — Duo-authored scripts in this session.** Claude generating a one-page interactive checklist with inline `<script>` is a real use case. The H8 prompt is fine for "agent gave me a sketchy file," but for "Claude just wrote this in *this* session" prompting feels like over-friction. Consider a "trust files Duo created in this session by default" rule. Decide at 17e.
+- **Open question — embedded comments in the file vs sidecar only.** H21/H22 puts comments entirely in the sidecar so the `.html` stays pristine. Alternative: also emit `<!-- duo:cmt id="…" -->` HTML comments inline so a sidecar-less copy still preserves anchor positions. Adds noise to the file but increases robustness. Decide at 17d.
 
 ---
 

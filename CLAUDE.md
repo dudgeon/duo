@@ -41,29 +41,34 @@ Flagship half #2 — sub-stage 11a of the markdown editor — shipped
   the attach sequence; `networkInFlight` is cleared on tab switch so
   prior-tab requests don't sit forever as pending.
 
-**Same-day follow-ups (2026-04-26):**
-- Stage 14 split into 14a (first-launch self-install — no cert
-  needed) + 14b (cert-gated distribution polish) so the
-  user-facing first-launch UX isn't blocked on cert procurement.
+**Same-day follow-ups (2026-04-26) — all stage refs use NEW numbers per the same-day renumber, see ROADMAP § Number history for old↔new map:**
+- Old Stage 14 split into **Stage 18** (first-launch self-install
+  — no cert needed) + **Stage 21** (cert-gated distribution polish)
+  so the user-facing first-launch UX isn't blocked on cert
+  procurement.
 - Atelier visual-redesign bundle imported to
-  [docs/design/atelier/](docs/design/atelier/); **Stage 17**
-  created for the system-wide visual pass; per-feature visuals
-  fold into Stages 9 (cozy completion), 11c (just-added
-  highlight — yellow + 6s fade overrides "blue fade"
-  placeholder), 11d (Suggesting / Accepted track changes), and
-  15g.1 (Send → Duo pill).
+  [docs/design/atelier/](docs/design/atelier/); **Stage 12**
+  (Atelier) created and pulled to the front as the L0 visual
+  foundation that every L1+ stage inherits. Per-feature visuals
+  fold into hosts: **Stage 9 follow-up** (cozy completion),
+  **Stage 13** (just-added highlight — yellow + 6s fade overrides
+  "blue fade" placeholder), **Stage 14** (Suggesting / Accepted
+  track changes), **Stage 15** (Send → Duo pill).
 - BUG-001 fixed (commit `3976039`) — pane-aware ⌃Tab cycling.
-  Took three parts (not the one the original trace expected):
-  pane-aware routing in the keyboard hook, xterm
+  Three-part fix: pane-aware routing in the keyboard hook, xterm
   `attachCustomKeyEventHandler` so the keystroke isn't eaten as
   PTY input, and a `paneOverride` for the browser-forwarded-key
   path because WebContentsView clicks don't bubble to the
   working-column wrapper. See `tasks.md` for the full trace.
+- **Layered build-order renumber** — stage numbers now reflect
+  actual build order, not chronology of planning. See
+  [ROADMAP.md § Number history](ROADMAP.md). Commit messages from
+  before the renumber use old numbers; the map translates them.
 
 **Previous session (2026-04-25):**
 - Stage 9 cozy mode graduated — daily-driver validation passed; menu
   label, PRD, ROADMAP all updated.
-- Stage 15g PRD ([docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md))
+- Stage 15 PRD ([docs/prd/stage-15-send-to-duo.md](docs/prd/stage-15-send-to-duo.md))
   refined — G10 payload format locked to **A** (quote + provenance);
   G19 added making the format runtime-configurable via the new P1
   CLI verb `duo selection-format [a|b|c]` so agents can opt into
@@ -105,84 +110,80 @@ theme · install
 
 **What's next (see `ROADMAP.md` + `docs/CLI-COVERAGE.md`):**
 
-⚠️ **Owner has not yet picked the next sprint focus.** The first thing
-to do in a fresh session is ask Geoff which of these to tackle. Each
-is roughly the same scope (1–2 sessions of focused work):
+**Build order is layered.** See [ROADMAP.md § Layered build order](ROADMAP.md)
+for the full graph. The actual next thing depends on which layer is
+the binding constraint:
 
-1. **Stage 15g.1 — Send → Duo button + `duo send` + `duo selection-format`.**
-   Editor-side BubbleMenu + the two new CLI verbs. Builds directly on
-   what 11a shipped. PRD is fully spec'd
-   ([docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md));
-   G10 locked, no decision gate before kickoff. **Highest-leverage
-   unlock for the human↔agent pair primitive.**
-2. **Stage 11a tail — frontmatter properties panel + drag-drop images
-   + slash menu / floating bubble.** Closes the editor's UX gaps.
-   Smaller PRs each. No new agent capabilities.
-3. **Stage 11b — external-write reconciliation + agent-write
-   transient highlight.** First sub-stage of the editor's "agent edits
-   the same file" story. Bigger; needs a real chokidar wiring + 3-pane
-   diff UI. PRD § 6 has the spec.
-4. **Stage 14a — first-launch self-install (no cert needed).** Raised
-   2026-04-26 by Geoff: today's "clone + npm run dev" path is not
-   viable for the Trailblazers persona. 14a closes the gap so a
-   double-clicked `.app` performs `~/.claude/skills/duo/` +
-   `~/.claude/agents/` + `~/.claude/bin/duo` install on first
-   launch, behind a one-time consent sheet. Cert-gated polish
-   (sign + notarize + auto-update) stays in **Stage 14b**. Validate
-   `npm run dist` end-to-end as the first step. Spec in
-   [ROADMAP.md § Stage 14a](ROADMAP.md).
+1. **Stage 12 — Visual redesign (Atelier).** ⭐ *Layer 0 foundation —
+   recommended next.* System-wide token swap + light-as-hero + layout
+   depth + tab-strip rhyme + files-pane width 208. Every L1+ stage
+   (13, 14, 15, 17, 19c) inherits its tokens; building those first
+   means re-skinning later. Design locked at
+   [docs/design/atelier/](docs/design/atelier/); Stage 9 cozy-visual
+   completion folds in.
+2. **Stage 15 — Send → Duo (cross-modality selection primitive).** L1
+   priority unlock. PRD locked at
+   [docs/prd/stage-15-send-to-duo.md](docs/prd/stage-15-send-to-duo.md);
+   G10 payload format locked. Visual chrome from Stage 12 — start
+   either way, but the pill ships its final color when 12 lands.
+3. **Stage 13 — Editor: just-added highlight + warn-before-overwrite.**
+   L1, smaller. Atelier mock supplies the visual (yellow `mark` + 6s
+   fade — overrides PRD's old "blue fade" placeholder).
+4. **Stage 18 — First-launch self-install.** L3 (parallel track —
+   independent of L0–L2). No cert needed. `npm run dist` validated
+   2026-04-26 (commit `20b4701`); next is the consent sheet + the
+   actual `fs.copyFile` install action. Bring this forward whenever
+   the "Trailblazer can't double-click" friction outranks the next
+   feature.
+5. **Stage 19 Phase 19b — Passive priming.** L3, follows from 19a
+   (env signals, shipped 2026-04-26 in commit `640ec0e`). SessionStart
+   hook + PATH shim + `priming.md`. Folds into Stage 18's consent
+   sheet when both land.
 
-**P0 CLI gaps shipped 2026-04-26 — moved out of next-sprint queue.**
+**Owner pre-work runs in parallel:** ROADMAP.md § Owner pre-work has
+the cert-procurement checklist. Apple Developer ID enrollment lead
+time is 1–2 business days minimum — kicking it off shaves real weeks
+off Stage 21.
+
+**P0 CLI gaps shipped 2026-04-26 — done.**
 Remaining `Browser observability` items in [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)
 (`duo network --bodies`, `duo storage`, `duo styles`) are P1/P2 — pull
 in if a concrete agent task wants them.
 
-**Lower-priority follow-ups** (Stage 12 unified skill/connector surface,
-Stage 13 polish + `duo doctor` + TCP fallback + pane-aware shortcut
-polish, Stage 15a–f primitives, Stage 14a first-launch self-install,
-Stage 14b distribution polish + session restore + browser history,
-**Stage 17 visual redesign — Atelier**, **Stage 18 Duo detection**,
-**Stage 19 HTML canvas**) all wait until at least one of the above
-lands. **Notes:**
-- 2026-04-26: the old combined Stage 14 was split — 14a (first-launch
-  installer, no cert needed) is shippable independently of 14b (code
-  sign + notarize + auto-update). Pull 14a forward whenever the
-  "Trailblazer can't double-click" friction outranks the next agent
-  surface in priority.
-- 2026-04-26: **Stage 17 visual redesign added; design locked** at
-  [docs/design/atelier/](docs/design/atelier/). Atelier (cream paper +
-  ochre accent + serif voice; light is hero, dark is follower) is
-  the chosen direction; Stationery and Field Notebook are documented
-  alternatives in `tokens.jsx`. Per-feature visuals **fold into
-  their host stages**:
-  - just-added highlight → **Stage 11c** (PRD § 6 already named the
-    behaviour; mock supplies the visual — yellow `mark` + 6s fade,
-    overriding the original "blue fade" placeholder)
-  - track changes (Suggesting / Accepted) → **Stage 11d**
-  - Send → Duo pill → **Stage 15g.1**
-  - cozy-mode visual completion → **Stage 9 follow-up** (Geoff's
-    confession: cozy-mode toggle works but doesn't *feel* cozy)
-  Stage 17 itself is the system-wide token + layout pass (cream
-  surfaces, ochre accent, light as default, terminal/working pane
-  paper-depth differentiation, unified tab strip, files-pane width
-  208 + collapse-to-rail) that should land *after* the flagship pair
-  so it polishes a whole product rather than a half one.
-- 2026-04-26: **Stage 18 (Duo detection) + Stage 19 (HTML canvas)
-  added; PRDs drafted.** Stage 19 was originally drafted as Stage 13
-  but renumbered same-day to avoid collision with the existing Stage
-  13 (interaction polish + `duo doctor`). Both held until the
-  flagship pair (15g.1 + 11c) ships in functional form. Phase 18a
-  (env signals — `DUO_SESSION` + `TERM_PROGRAM=Duo`) is a tiny
-  standalone PR that unblocks `duo doctor` for Stage 13 — pull
-  forward whenever convenient. PRDs:
-  [stage-18-duo-detection.md](docs/prd/stage-18-duo-detection.md) ·
-  [stage-19-html-canvas.md](docs/prd/stage-19-html-canvas.md).
-- 2026-04-26: **Open-issue triage swept** — see [ROADMAP § Open
-  issue → stage mapping](ROADMAP.md). Of 20 open issues, **5 are
-  already shipped and queued for closing** (#10, #17, #20, #21,
-  #26), most of the rest map cleanly to existing stages, and three
-  small UX issues (#22, #23 → Stage 13 follow-up; #27 → Stage 14b
-  follow-up) graduated from "issue" to "roadmap bullet."
+**Backlog** (no fixed order): 11a tail items (frontmatter panel,
+drag-drop images, slash menu), Stage 11e (outline + find), skill +
+connector surface (was old Stage 12), multi-window (was old Stage
+16), 15-family primitives that didn't get promoted (events, notify,
+tab-name, tab-cmd, zap, file→composer). Pull in when convenient.
+
+**Notes on the 2026-04-26 renumber:**
+- The renumber moved every unshipped stage to a number that reflects
+  build order. Old commit messages still use old numbers — see
+  [ROADMAP.md § Number history](ROADMAP.md) for the translation map.
+- **Stage 12 (Atelier) reframed:** previously held "until after the
+  flagship pair" as if it were polish. It's not — it's a Layer 0
+  *foundation* every Layer 1+ stage inherits. Building features
+  first means re-skinning later. Reframed as the recommended L0
+  next ship; per-feature visuals (just-added highlight → 13, track
+  changes → 14, Send → Duo pill → 15, cozy completion → 9
+  follow-up) fold into their host stages but the system-wide
+  token swap belongs to Stage 12.
+- **Old Stage 14 split → new Stages 18 + 21.** Stage 18 (first-
+  launch self-install, no cert) is independently shippable;
+  Stage 21 (cert-gated distribution polish) waits on cert
+  procurement (see § Owner pre-work in ROADMAP.md).
+- **Old Stage 11 split → top-level stages.** 11b → 16
+  (reconciliation), 11c → 13 (just-added highlight), 11d → 14
+  (track changes), 11e → Backlog (outline + find), 11a tail →
+  Backlog. Stage 11 itself remains as 11a (core editor — shipped).
+- **Stages 18a/b/c (Duo detection) → 19a/b/c.** Phase 19a env
+  signals shipped 2026-04-26 in commit `640ec0e` (commit message
+  uses old "18a" label). 19b folds into Stage 18 consent sheet;
+  19c needs Stage 12 split-button visual.
+- **Issue triage swept** — see [ROADMAP § Open issue → stage
+  mapping](ROADMAP.md). 5 already shipped and closed (#10, #17,
+  #20, #21, #26); 11 mapped to existing stages; #22/#23/#27
+  promoted to roadmap bullets in Stage 20 + 21.
 
 **Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-26:
 no open bugs. (BUG-001 — `⌃Tab` pane-aware cycling — fixed
@@ -240,7 +241,7 @@ xterm-key-eating and WebContentsView-mousedown gotchas.)
     - UI toggle → `duo <thing>` reads state, `duo <thing> <value>` sets it (example: `duo theme`, `duo theme system|light|dark`).
     - Menu action → `duo <verb>` runs the same action.
     - In-app shortcut that changes state → `duo <verb>` does the same without the keystroke.
-    - **Agent-tunable runtime settings** (no UI surface, agent-only): same `duo <thing> [value]` shape, persisted in localStorage. The agent calls it at the start of a session to pick the mode that suits its workflow (example: `duo selection-format [a|b|c]` for Stage 15g's Send → Duo payload format). When you build one of these, check if there's a *user* parallel; if there isn't yet, document the asymmetry in the PRD so a later UI surface can be added without breaking the CLI shape.
+    - **Agent-tunable runtime settings** (no UI surface, agent-only): same `duo <thing> [value]` shape, persisted in localStorage. The agent calls it at the start of a session to pick the mode that suits its workflow (example: `duo selection-format [a|b|c]` for Stage 15's Send → Duo payload format). When you build one of these, check if there's a *user* parallel; if there isn't yet, document the asymmetry in the PRD so a later UI surface can be added without breaking the CLI shape.
     - Deliberately UI-only features (e.g. drag-to-reorder) must be called out in the PRD as explicit asymmetries.
 
     Plumbing checklist for a new CLI verb — every one of these must be touched:
@@ -305,7 +306,7 @@ xterm-key-eating and WebContentsView-mousedown gotchas.)
    manual edit.
 
    End users don't run this script — they get the skill + agent from the
-   **Stage 14a** first-launch installer (which does its own `fs.copyFile`
+   **Stage 18** first-launch installer (which does its own `fs.copyFile`
    from the app bundle into `~/.claude/`). `sync:claude` is a dev-only
    convenience.
 
@@ -390,12 +391,12 @@ Claude Code.
 | Skills panel layout | Collapsible sidebar — third column right of browser pane (scanner implemented; UI not yet wired) |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes: project + home |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
-| Distribution / cert | No cert yet — personal use only; get cert before Stage 14b (Stage 14a does not need one) |
+| Distribution / cert | No cert yet — personal use only; get cert before Stage 21 (Stage 18 does not need one) |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Apple Developer ID cert | Before Stage 14b |
-| Distribution timeline (personal → Trailblazers) | Before Stage 14b |
-| Socket auth approach for Trailblazers | Before Stage 14b |
+| Apple Developer ID cert | Before Stage 21 |
+| Distribution timeline (personal → Trailblazers) | Before Stage 21 |
+| Socket auth approach for Trailblazers | Before Stage 21 |

@@ -1,11 +1,13 @@
 # Atelier — visual redesign bundle
 
 > Source-of-truth for Duo's planned visual aesthetic ("Atelier"). Imported from
-> a Claude Design handoff bundle on 2026-04-26. Drives **Stage 17** (system-wide
-> visual pass) and the visual specs for Stages 9 cozy-mode follow-up, 11b
-> (just-added highlight + track changes), and 15g.1 (Send → Duo pill).
+> a Claude Design handoff bundle on 2026-04-26. Drives **Stage 12** (system-wide
+> visual pass) and supplies the visual specs for the Stage 9 cozy-mode
+> follow-up, **Stage 13** (just-added highlight), **Stage 14**
+> (track-changes Suggesting / Accepted modes), and **Stage 15** (Send
+> → Duo pill).
 >
-> See ROADMAP.md § Stage 17 for sequencing + scope.
+> See ROADMAP.md § Stage 12 for sequencing + scope.
 
 ---
 
@@ -51,19 +53,19 @@ The chat transcript (`chats/chat1.md`) is the source of intent. Highlights:
 - **Agent presence** — whisper-level. Selection glow when Claude reads;
   titlebar dot when active; just-added highlight (yellow flash, 6s fade)
   when Claude writes; reveal chip stays.
-- **Editor** — just-added highlight (Stage 11b), Suggesting / Accepted
-  modes for track changes (Stage 11b extension), Send → Duo floating
-  pill (Stage 15g.1).
+- **Editor** — just-added highlight (Stage 13), Suggesting / Accepted
+  modes for track changes (Stage 14), Send → Duo floating
+  pill (Stage 15).
 
 ## Where each piece lands in the roadmap
 
 | Mock element | Stage | Notes |
 |---|---|---|
-| Token swap (cream + ochre + serif), light-as-hero, layout depth, tab-strip rhyme, files-pane width 208, collapse-to-rail button | **Stage 17** | System-wide visual pass; sequenced after the flagship pair. |
-| Cozy mode visual completion (paper canvas, serif mono, 92ch) | **Stage 9 follow-up** | Uses Atelier `termCozy*` tokens; can ride along with Stage 17. |
-| Just-added highlight (`duo-just-added` keyframe, 6s fade) | **Stage 11c** | PRD § 6 already names the behaviour ("transient just-changed highlight + margin chip"); mock supplies the visual — yellow `mark` token + 6s curve, **overriding the PRD's "blue fade" placeholder**. |
-| Track changes / Suggesting mode (green insertions, red strikethrough, accept-all banner) | **Stage 11d** | Realizes D18's track-changes toggle end-to-end — Live / Suggesting / Accepted modes all demonstrated in the prototype's Tweaks panel. |
-| Send → Duo floating pill | **Stage 15g.1** | Extends the [15g PRD](../../prd/stage-15g-send-to-duo.md) with pill geometry, ⌘D chord, and click-to-fire animation. |
+| Token swap (cream + ochre + serif), light-as-hero, layout depth, tab-strip rhyme, files-pane width 208, collapse-to-rail button | **Stage 12** | System-wide visual pass; L0 foundation for L1+. |
+| Cozy mode visual completion (paper canvas, serif mono, 92ch) | **Stage 9 follow-up** | Uses Atelier `termCozy*` tokens; folds into Stage 12. |
+| Just-added highlight (`duo-just-added` keyframe, 6s fade) | **Stage 13** (was 11c) | PRD § 6 already names the behaviour ("transient just-changed highlight + margin chip"); mock supplies the visual — yellow `mark` token + 6s curve, **overriding the PRD's "blue fade" placeholder**. |
+| Track changes / Suggesting mode (green insertions, red strikethrough, accept-all banner) | **Stage 14** (was 11d) | Realizes D18's track-changes toggle end-to-end — Live / Suggesting / Accepted modes all demonstrated in the prototype's Tweaks panel. |
+| Send → Duo floating pill | **Stage 15** (was 15g.1) | Extends the [Stage 15 PRD](../../prd/stage-15-send-to-duo.md) with pill geometry, ⌘D chord, and click-to-fire animation. |
 
 ## How to use this when implementing a host stage
 
@@ -81,7 +83,11 @@ The chat transcript (`chats/chat1.md`) is the source of intent. Highlights:
 
 ## Status
 
-- 2026-04-26 — bundle imported; Stage 17 created in ROADMAP.md;
-  cross-references added to host stages.
-- ⬜ Implementation: not started; held until the flagship pair (15g.1 +
-  11b) ships in functional form against the current dark theme.
+- 2026-04-26 — bundle imported; Stage 12 (Atelier visual) created in
+  ROADMAP.md (was briefly Stage 17 same morning); cross-references
+  added to host stages.
+- ⬜ Implementation: not started; **recommended as the L0 next ship**
+  per the layered build-order rationalization same day. Stage 12 is
+  a foundation, not polish — every L1+ stage (13/14/15/17/19c)
+  inherits its tokens, so building those first means re-skinning
+  later.

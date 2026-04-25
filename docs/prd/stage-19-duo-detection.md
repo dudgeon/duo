@@ -1,9 +1,18 @@
-# Stage 18 PRD — Duo detection & default-to-claude tabs
+# Stage 19 PRD — Duo detection & default-to-claude tabs
 
-> **Status:** spec drafted 2026-04-26. Not started.
-> **Slot in roadmap:** new Stage 18, after the flagship pair (15g.1 +
-> 11b–c) ships. Cross-links into Stage 5 (skill priming), Stage 13
-> (`duo doctor`), and Stage 14a (first-launch installer).
+> **Status:** spec drafted 2026-04-26 (originally as Stage 18).
+> Renumbered 2026-04-26 to Stage 19 as part of the layered build-
+> order rationalization (the old Stage 18 number now belongs to the
+> first-launch installer, since installer ships first per the
+> dependency graph). **Phase 19a (env signals) shipped 2026-04-26
+> in commit `640ec0e`** (originally tagged "Stage 18 Phase 18a" in
+> the commit message — see ROADMAP.md § Number history).
+> **Slot in roadmap:** Stage 19, in Layer 3 (distribution-readiness).
+> Phase 19b (passive priming) folds into **Stage 18 (first-launch
+> installer)** when both ship — they share the consent sheet. Phase
+> 19c (default-claude tabs) needs **Stage 12 (Atelier visual)** for
+> the split-button chrome. Cross-links into Stage 5 (skill priming
+> source), Stage 20 (`duo doctor` consumes the env signals).
 > **References:**
 > - [docs/VISION.md](../VISION.md) — "agent-native by default"
 >   (principle 1) and "smooth over, don't replace" (principle 3)
@@ -17,10 +26,6 @@
 > - [docs/DECISIONS.md → Open ADRs → Sandbox-tolerant transport](../DECISIONS.md)
 >   — `~/Library/Application Support/duo/bin` install path lines up
 >   with the sandbox-safe direction the ADR proposes
-> - **Stage 14a (parallel work, 2026-04-26):** a separate agent is
->   editing roadmap item 14 to expand the first-launch installer.
->   This PRD's hook + shim install paths must be folded into 14a
->   when the two PRs land. See § 7 cross-references.
 
 ---
 
@@ -86,9 +91,9 @@ Jobs this stage does:
 - "Let me still get a plain shell when I want one."
 
 Jobs this stage does NOT do:
-- Replace `duo doctor` for transport-level diagnosis (Stage 13).
-- Re-frame what skills are or how they install (Stage 5 / 14a).
-- Re-style the tab strip (Stage 17).
+- Replace `duo doctor` for transport-level diagnosis (Stage 20).
+- Re-frame what skills are or how they install (Stage 5 / Stage 18).
+- Re-style the tab strip (Stage 12).
 
 ---
 
@@ -106,7 +111,7 @@ proceed on; flip at kickoff if wrong.
 | D2 | **Surface** | `PtyManager.spawn` (electron/pty-manager.ts:22-28) merges these into the child env. One commit, no IPC changes, no shared-types changes. |
 | D3 | **TERM_PROGRAM literal** | Set to `"Duo"` (mixed-case to match `Apple_Terminal`, `iTerm.app`, `vscode`). Tools that already key off `TERM_PROGRAM` (Powerlevel10k, oh-my-zsh, Starship) get a clean signal alongside the agent. |
 | D4 | **Side effects on `cli/duo.ts`** | When `DUO_SESSION` is present, `cli/duo.ts` skips socket discovery and reads `DUO_SOCKET` directly. Nice-to-have, not load-bearing — the existing discovery still works. |
-| D5 | **Side effects on `duo doctor`** | `duo doctor` (Stage 13) reads the same env vars and reports "✓ DUO_SESSION present" / "⚠ not in a Duo PTY (env vars missing — are you running this from outside the app?)" so the sandbox + non-Duo failure modes are distinguishable. |
+| D5 | **Side effects on `duo doctor`** | `duo doctor` (Stage 20) reads the same env vars and reports "✓ DUO_SESSION present" / "⚠ not in a Duo PTY (env vars missing — are you running this from outside the app?)" so the sandbox + non-Duo failure modes are distinguishable. |
 
 ### Layer 2 — passive priming
 
@@ -122,7 +127,7 @@ proceed on; flip at kickoff if wrong.
 | D13 | **PATH-shim content** | One-line shell script: `[ -z "$DUO_SESSION" ] && exec <real-claude> "$@"; exec <real-claude> --append-system-prompt-file ~/Library/Application\ Support/duo/priming.md "$@"`. Self-deactivates when copy-pasted into a non-Duo PATH. |
 | D14 | **Resolution of `<real-claude>`** | At install time we resolve and inline the absolute path (`which claude` from a clean shell). Re-resolved on `duo install` re-runs. If `claude` is not on PATH at install time, the shim still ships but logs "Claude Code not detected — install it and re-run `duo install`" via stderr; the env vars + Layer 3 fallback still work. |
 | D15 | **Uninstall path** | `duo install --uninstall-hook` removes the duo-tagged block from `~/.claude/settings.json` and deletes the shim directory. Also documented in `duo install --help`. |
-| D16? | **Hook install consent** | Folded into Stage 14a's first-launch consent sheet (the parallel agent's edits are landing there). Until 14a ships, hook install runs on `duo install` with a printed "this will write to ~/.claude/settings.json" banner the user must Y/N. |
+| D16? | **Hook install consent** | Folded into Stage 18's first-launch consent sheet (the parallel agent's edits are landing there). Until Stage 18 ships, hook install runs on `duo install` with a printed "this will write to ~/.claude/settings.json" banner the user must Y/N. |
 
 ### Layer 3 — default-to-claude tabs
 
@@ -239,7 +244,7 @@ interface TabSession {
 
 The `kind` is captured at spawn time and used for D26 title
 formatting and for whether `duo new-tab --kind` round-trips
-correctly through `duo term tabs` (Stage 13).
+correctly through `duo term tabs` (Stage 20).
 
 ### Layer 3 — CLI plumbing
 
@@ -266,13 +271,13 @@ Three phases. Each is independently shippable, but Layers 1 and 2
 should land before Layer 3 ships so that "default to claude" lands
 into a primed agent.
 
-### Phase 18a — Env signals (S, ~½ day)
+### Phase 19a — Env signals (S, ~½ day)
 
 - [ ] PtyManager exports the four env vars (D1–D3).
 - [ ] `cli/duo.ts` skips socket discovery when `DUO_SOCKET` is
       present (D4).
 - [ ] `duo doctor` reads + reports `DUO_SESSION` (D5; cross-link to
-      Stage 13).
+      Stage 20).
 - [ ] Smoke test: `env | grep ^DUO_` inside a Duo terminal returns
       the four vars; same command outside Duo returns nothing.
 - [ ] [docs/CLI-COVERAGE.md](../CLI-COVERAGE.md) updated — the
@@ -280,7 +285,7 @@ into a primed agent.
 - **Exit:** `cli/duo.ts` and any other process spawned inside Duo
   can detect "I'm in Duo" without heuristics.
 
-### Phase 18b — Passive priming (M, ~2 days)
+### Phase 19b — Passive priming (M, ~2 days)
 
 - [ ] Bundle `skill/priming.md` (D8) and copy to
       `~/Library/Application Support/duo/priming.md` on `duo install`.
@@ -301,13 +306,13 @@ into a primed agent.
   terminal autonomously prefers `duo` verbs without the user
   saying anything.
 
-> **Cross-PR note:** Phase 18b's install paths overlap with **Stage
-> 14a's first-launch installer** (the parallel agent's work, in
+> **Cross-PR note:** Phase 19b's install paths overlap with **Stage
+> Stage 18's first-launch installer** (the parallel agent's work, in
 > flight 2026-04-26). When both PRs land, the hook + shim install
-> should fold into the 14a consent sheet (D16). Until then, 18b's
+> should fold into the Stage 18 consent sheet (D16). Until then, 19b's
 > install runs through `duo install` with its own one-time prompt.
 
-### Phase 18c — Default-to-claude tabs (M, ~2–3 days)
+### Phase 19c — Default-to-claude tabs (M, ~2–3 days)
 
 - [ ] Split-button affordance in `TabBar.tsx` (D17, D26).
 - [ ] `newTerminalTab(kind)` takes a kind; spawn flow per D21–D23.
@@ -329,9 +334,9 @@ into a primed agent.
 - **Exit:** PM clicks `+` and is talking to a primed Claude in
   under two seconds; the `>` half still gives them a vanilla shell.
 
-**Total scope:** ~5 days of focused work. Land Phase 18a as a
-standalone tiny PR (it unblocks `duo doctor` for Stage 13
-independently); 18b + 18c can be one PR or two.
+**Total scope:** ~5 days of focused work. Land Phase 19a as a
+standalone tiny PR (it unblocks `duo doctor` for Stage 20
+independently); 19b + 19c can be one PR or two.
 
 ---
 
@@ -345,7 +350,7 @@ priming is a one-paragraph nudge that says "the skill applies here,
 prefer it." The two are deliberately separate so the skill can
 evolve without re-installing hooks.
 
-### Stage 13 — Interaction polish
+### Stage 20 — Interaction polish
 
 `duo doctor` (P1 in [docs/CLI-COVERAGE.md](../CLI-COVERAGE.md))
 reads `DUO_SESSION` per D5 to distinguish "running outside Duo"
@@ -353,9 +358,9 @@ from "running inside Duo but transport failing." The skill's
 "sandbox failure" guidance becomes precise: `duo doctor` first,
 then the [transport ADR](../DECISIONS.md) escalation tree.
 
-### Stage 14a — First-launch self-install (parallel work)
+### Stage 18 — First-launch self-install 
 
-The parallel agent expanding Stage 14a is the natural place to
+The parallel agent expanding Stage 18 (first-launch self-install) is the natural place to
 fold:
 - the priming-text install (`fs.copyFile` from app bundle to
   `~/Library/Application Support/duo/priming.md`),
@@ -365,7 +370,7 @@ fold:
   Claude Code SessionStart hook to ~/.claude/settings.json. [Show
   diff] [Install] [Skip]").
 
-Until 14a lands, Phase 18b uses `duo install` as its own forcing
+Until Stage 18 lands, Phase 19b uses `duo install` as its own forcing
 function with a smaller, scriptier prompt.
 
 ### Stage 15 — Interaction primitives
@@ -377,12 +382,12 @@ Stage 15d (`duo tab --cmd "<cmd>"`) and this stage's `duo new-tab
 back to Stage 15d's "pre-typed, user hits Enter" behavior. Lock
 this at 15d kickoff if Stage 15 ships first.
 
-### Stage 17 — Visual redesign (Atelier)
+### Stage 12 — Visual redesign (Atelier)
 
 The split button is a new affordance the Atelier mock doesn't yet
-cover. Two options at Stage 17 kickoff: (a) update the mock to
+cover. Two options at Stage 12 kickoff: (a) update the mock to
 show the split button in the prototype's TabBar component before
-17 ships, or (b) ship 18c first with a workmanlike split-button
+17 ships, or (b) ship 19c first with a workmanlike split-button
 treatment, and let 17 polish it. Either is fine; recommendation is
 (b) — getting the behavior right matters more than the visual,
 and Atelier's tab-strip work will absorb whatever lands.
@@ -412,7 +417,7 @@ and Atelier's tab-strip work will absorb whatever lands.
   (b) switch to direct `spawn('claude')` and accept the rc-file
   tradeoff (D21 alternative). Not blocking.
 - **Open — priming paragraph wording.** D8 is a draft. Iterate
-  during 18b. Things to test: does the agent's first response
+  during 19b. Things to test: does the agent's first response
   cite `duo` correctly? Does the agent over-rotate (calling
   `duo` when a plain `cat` would have been fine)?
 - **Open — what about CLAUDE.md instances in the user's project

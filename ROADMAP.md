@@ -2,46 +2,155 @@
 
 > Status legend: ✅ done · 🔄 in progress · ⬜ not started
 >
-> Stage numbers are a chronological record of when work was planned, not a
-> priority order. For the actual build order going forward, read
-> **[Build order](#build-order-resequenced-per-visionmd) below**.
+> **Stage numbers reflect the actual build order** (renumbered
+> 2026-04-26). The previous ordering — chronological-of-planning —
+> obscured dependencies. Per-stage sections below are sequenced by
+> the new numbers. See [§ Number history](#number-history-2026-04-26-renumber)
+> for the old ↔ new map; commit messages and historical PRDs may
+> still reference old numbers.
 
 ---
 
-## Build order (re-sequenced per [VISION.md](docs/VISION.md))
+## Owner pre-work (action items — start now to unblock Stage 21)
 
-[VISION.md](docs/VISION.md) names "the reading and writing pair" — a
-prose-first terminal + a docs-style markdown editor — as the flagship
-bet. Everything else is supporting cast. With that framing, the original
-stage order was wrong: polish + distribution (Stage 6) and a thin file
-viewer (Stage 7) were scheduled before the two surfaces that actually
-deliver the north-star experience. Re-sequenced:
+Stage 21 (distribution polish) is gated on Apple Developer ID cert
+procurement, which has multi-day lead times. Geoff can do this work
+in parallel with everything else; nothing in the codebase blocks it.
 
-| # | Stage | Ship state |
+- [ ] **Enroll in the Apple Developer Program** ($99/year individual
+      or $299/year organization). Identity verification typically
+      takes 1–2 business days; organization enrollment can take a
+      week. Start date matters more than completion date — kicking
+      this off today shaves real weeks off Stage 21.
+      → [developer.apple.com/programs](https://developer.apple.com/programs/)
+- [ ] **Register the bundle ID** in App Store Connect (e.g.
+      `com.geoffreydudgeon.duo` or org-prefixed). Required before
+      cert generation.
+- [ ] **Generate "Developer ID Application" certificate** in Keychain
+      Access via the Apple Developer portal. Signs the `.app`.
+- [ ] **Generate an App Store Connect API key** (preferred over
+      app-specific password) for `notarytool`. One key serves
+      notarization for all future builds.
+- [ ] **Capture the Team ID** (visible in the Developer portal) —
+      Stage 21 wires it into `electron-builder.yml`.
+
+When all five are done, hand the agent: cert name as it appears in
+Keychain (e.g. `Developer ID Application: Geoffrey Dudgeon (TEAMID)`),
+Team ID, API key file path + key ID + issuer ID. Stage 21 picks up
+from there.
+
+The existing dev cert (used for local `npm run dist` validation
+2026-04-26) is **expired** per Team C's audit — distribution-grade
+signing was always going to need a fresh cert chain anyway.
+
+---
+
+## Layered build order (the actual sequence)
+
+The dependency graph is layered, not linear. Each layer can ship in
+parallel where work items don't overlap; later layers depend on
+earlier ones for tokens, primitives, or surfaces. Backlog items have
+no fixed slot — pull them in when convenient.
+
+```
+Layer 0 — Visual foundation (single ship moment)
+   12  Atelier visual + Stage 9 cozy-visual completion (rides along)
+
+Layer 1 — Editor maturation (built against Layer 0 tokens)
+   13  Editor: just-added highlight + warn-before-overwrite
+   14  Editor: track changes (Suggesting / Accepted)
+   15  Send → Duo (cross-modality selection primitive)
+   16  Editor: external-write reconciliation (parallel — independent of 12)
+
+Layer 2 — New surfaces (built against Layer 1)
+   17  HTML canvas (reuses 13 highlight + 15 selection + 12 visual)
+
+Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
+   18  First-launch self-install (no cert needed)
+   19  Duo detection: priming + default-claude tabs (folds into 18 consent)
+   20  Interaction polish: duo doctor + TCP fallback + pane-aware shortcuts
+
+Layer 4 — Distribution finalization (gated on cert + L3 stable)
+   21  Distribution polish (cert + notarize + auto-update + session restore)
+
+Backlog (no fixed order — pull in when convenient)
+   • 11a tail (frontmatter panel, drag-drop images, slash menu)
+   • Editor outline + find (was 11e)
+   • Skill + connector surface (was old Stage 12)
+   • Multi-window (was old Stage 16)
+   • Smaller 15-family primitives (notify, events, tab-name, tab-cmd, zap, file→composer)
+```
+
+| # | Stage | Ship state | Layer |
+|---|---|---|---|
+| 1 | Core shell (terminal, tabs, layout) | ✅ done | foundation |
+| 2 | Browser pane + SSO | ✅ done | foundation |
+| 3 | `duo` CLI bridge + CDP primitives | ✅ done | foundation |
+| 5 | Skill + subagent authoring | ✅ done | foundation |
+| 8 | Agent-generated HTML via `duo open` | ✅ done | foundation |
+| 9 | Cozy-mode terminal (typography v1) | ✅ shipped 2026-04-22 · visual completion folds into 12 | foundation |
+| 10 | File browser / context drawer | 🔄 in progress (spec locked) | foundation |
+| 11 | Collaborative markdown editor — core (11a) | ✅ 11a shipped 2026-04-24; tail items in backlog; 11b/c/d/e promoted to top-level Stages 16/13/14/Backlog | foundation |
+| **12** | **Visual redesign — Atelier** (system-wide token swap, light-as-hero, layout depth, tab-strip rhyme, files-pane width 208 + collapse-to-rail) | ⬜ design locked at [docs/design/atelier/](docs/design/atelier/) | **L0** |
+| **13** | **Editor: just-added highlight + warn-before-overwrite** (yellow `mark` + 6s fade per Atelier mock; cross-refs issues #5, #7) | ⬜ visual spec from 12 | **L1** |
+| **14** | **Editor: track changes (CriticMarkup / Suggesting / Accepted)** (cross-refs issue #6) | ⬜ visual spec from 12 | **L1** |
+| **15** | **Send → Duo** (floating pill + `duo send` + `duo selection-format` CLI; was Stage 15) | ⬜ PRD locked, visual from 12 | **L1** |
+| **16** | **Editor: external-write reconciliation** (chokidar + 3-pane diff + warn-before-close; was 11b; cross-refs issue #7) | ⬜ independent of 12 — can ship anytime | **L1 parallel** |
+| **17** | **HTML canvas** (was Stage 19; new WorkingPane tab type for `.html`) | ⬜ depends on 13 + 15 + 12 | **L2** |
+| **18** | **First-launch self-install** (was 14a; double-click → app prompts → copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; **no cert needed**) | ⬜ `npm run dist` validated 2026-04-26 (commit `20b4701`) | **L3** |
+| **19** | **Duo detection & default-to-claude tabs** (was Stage 18; env signals + passive priming + split-button TabBar + `duo new-tab` CLI) | 🔄 Phase 19a (env signals) shipped 2026-04-26 in commit `640ec0e` (originally tagged "18a"); 19b folds into 18 consent; 19c needs 12 | **L3** |
+| **20** | **Interaction polish + `duo doctor` + TCP fallback + pane-aware shortcuts** (was Stage 13; cross-refs issues #12, #22, #23) | ⬜ unblocked by 19's `DUO_SESSION` for `duo doctor` | **L3 parallel** |
+| **21** | **Distribution polish** (was 14b; code sign + notarize + auto-update + session restore + browser history; cross-refs issues #24, #27) | ⬜ **gated on Apple Developer ID cert** — see § Owner pre-work above | **L4** |
+
+**Backlog** (no fixed order — Stage numbers don't apply; pull in when convenient or tied to a specific feature):
+
+| Item | Notes |
+|---|---|
+| Stage 11 tail items | Frontmatter properties panel, drag-drop images, slash menu, floating selection bubble (D5/D7/D15/D16 in stage-11 PRD) |
+| Editor outline + find | Was 11e — outline / TOC sidebar, find & replace, spellcheck |
+| Skill + connector surface | Was old Stage 12 — collapsible right-side panel for skill discovery + connector inventory |
+| Multi-window | Was old Stage 16 — independent windows per workspace ([issue #16](https://github.com/dudgeon/duo/issues/16)) |
+| 15-family primitives still pending | `duo events --follow` (issue #19), `duo notify` (issue #15), `duo tab name` (issues #15, #18), `duo tab --cmd` (issue #13), `duo zap` (issue #11), file → composer (issue #9) |
+| File / directory search in navigator | `⌘P` quick-open against the user's current navigator subtree |
+
+Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator
+viewer — thin read-only version) and 6 (polish — split into 18 + 21)
+are **superseded** by this sequence. Their work items are absorbed
+into Stages 10, 11, 12, 18, 21 (see § Number history).
+
+---
+
+## Number history (2026-04-26 renumber)
+
+The renumber on 2026-04-26 made stage numbers reflect actual build
+order. Old numbers stay valid in commit messages and historical
+documentation; this map lets a reader translate.
+
+| Old | New | Stage |
 |---|---|---|
-| 1 | Core shell (terminal, tabs, layout) | ✅ done |
-| 2 | Browser pane + SSO | ✅ done |
-| 3 | `duo` CLI bridge + CDP primitives | ✅ done |
-| 5 | Skill + subagent authoring | ✅ done |
-| 8 | Agent-generated HTML via `duo open` | ✅ done |
-| **9** | **Cozy-mode terminal (typography v1)** | ✅ **shipped 2026-04-22; graduated 2026-04-25** |
-| **10** | **File browser / context drawer** | 🔄 **in progress — spec locked** |
-| **11** | **Collaborative markdown editor — human↔agent** | 🔄 **11a shipped 2026-04-24; 11b–e next** |
-| 12 | Unified skill + connector management surface | ⬜ (supersedes old Stage 4) |
-| 13 | Tab numbers in UI + terminal selection polish + `duo doctor` + TCP transport | ⬜ |
-| **15** | **Human↔agent interaction primitives** (events, notify, tab identity, pre-typed cmd, zap, file→composer, **Send→Duo**) | ⬜ (issues #9, #11, #13, #15, #18, #19; 15g raised 2026-04-25) |
-| 16 | Multi-window support | ⬜ **backlog** (issue #16) |
-| **14a** | **First-launch self-install** (double-click → app prompts, copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; ad-hoc-signed local build) | ⬜ (split from old Stage 6 on 2026-04-26 — **no cert needed**, can ship before 14b) |
-| 14b | Distribution polish (Apple Developer ID code signing, notarization, electron-updater, icon, DMG background, README install guide) | ⬜ (gated on cert from Geoff) |
-| **17** | **Visual redesign — Atelier** (system-wide token swap to cream + ochre + serif; light is the hero; layout depth + tab-strip rhyme; files-pane width 208 + collapse-to-rail) | ⬜ (raised 2026-04-26; design locked at [docs/design/atelier/](docs/design/atelier/); held until flagship pair ships) |
-| **18** | **Duo detection & default-to-claude tabs** (env signals → passive priming → split + button so `⌘T` from terminal focus opens a primed claude session by default; `>` half opens a vanilla shell; `duo new-tab` CLI parity) | ⬜ (PRD `stage-18-duo-detection.md`, drafted 2026-04-26; three independently shippable phases) |
-| **19** | **HTML canvas** (new WorkingPane tab type — `.html` files render + edit in place via contentEditable; ULID-based stable IDs; Atelier just-added highlight; `duo html *` CLI namespace; `<file>.duo.json` sidecar for comments + recent-edits log) | ⬜ (PRD `stage-19-html-canvas.md`, drafted 2026-04-25, renumbered 2026-04-26 from Stage 13 to avoid collision; depends on Stage 11c + 15g + 17) |
+| 6 | split → 18 + 21 | Original "Polish & Distribution" — split 2026-04-26 into installer (now 18) + cert-gated polish (now 21) |
+| 11b | 16 | External-write reconciliation (chokidar + 3-pane diff) |
+| 11c | 13 | Just-added highlight + warn-before-overwrite |
+| 11d | 14 | CriticMarkup track-changes + comments |
+| 11e | Backlog | Outline + find + polish |
+| 11a tail | Backlog | Frontmatter panel, drag-drop, slash menu |
+| 12 | Backlog | Skill + connector surface |
+| 13 | 20 | Interaction polish + `duo doctor` + TCP fallback |
+| 14a | 18 | First-launch self-install (no cert) |
+| 14b | 21 | Distribution polish (cert-gated) |
+| 15g (or 15g.1) | 15 | Send → Duo (promoted from sub-item to top-level) |
+| 15a–f | Backlog | Smaller 15-family primitives (notify, events, etc.) |
+| 16 | Backlog | Multi-window |
+| 17 | 12 | Atelier visual redesign (moved to front — it's a foundation) |
+| 18 (and 18a/b/c) | 19 (and 19a/b/c) | Duo detection & default-claude tabs (Phase 19a env signals shipped 2026-04-26) |
+| 19 | 17 | HTML canvas (briefly held Stage 19 between 2026-04-26 morning rename and afternoon renumber — see PRD) |
 
-Stages 4 (skills panel — CWD-scan narrow scope) and 7 (file navigator +
-viewer — thin read-only version) are **superseded** by this sequence.
-Their work items are absorbed into Stages 10, 11, and 12. The original
-sections below are preserved for history and for the architectural
-guardrails they captured.
+PRD file renames done in the same commit:
+- `docs/prd/stage-15g-send-to-duo.md` → `docs/prd/stage-15-send-to-duo.md`
+- `docs/prd/stage-18-duo-detection.md` → `docs/prd/stage-19-duo-detection.md`
+- `docs/prd/stage-19-html-canvas.md` → `docs/prd/stage-17-html-canvas.md`
+
+---
 
 ### Layout commitment (owner, 2026-04-23)
 
@@ -65,7 +174,8 @@ for the full ADR. Mapping to stages:
 - **Files column** → Stage 10.
 - **Terminal** → middle-top, relocated from left during the Stage 10
   reshape.
-- **Agent tools** → middle-bottom, collapsible, Stage 12.
+- **Agent tools** → middle-bottom, collapsible, **Backlog** (was old
+  Stage 12, now in Backlog).
 - **Viewer/Editor** → right. Tabbed polymorphic surface with **one
   unified tab strip across all modalities**. A tab can be a browser
   page, a markdown editor, an HTML/code source editor, or a file
@@ -73,7 +183,7 @@ for the full ADR. Mapping to stages:
   under different types (edit the source in tab 3, render it in
   browser tab 4). `duo tabs` returns the mixed list; tab IDs are
   continuous regardless of type. Browser tabs are shipped; editor
-  and preview tab types land in Stages 10–11.
+  shipped; HTML canvas tab type lands in Stage 17.
 
 Today's layout (terminal-left, browser-right, no Files column) is a
 waypoint. The reshape lands with Stage 10.
@@ -92,28 +202,28 @@ waypoint. The reshape lands with Stage 10.
 > reference to the commit / PR. The "Status" column reflects the
 > issue's *roadmap disposition*, not the issue's GitHub status.
 
-| Issue | Title (paraphrased) | Roadmap disposition |
+| Issue | Title (paraphrased) | Roadmap disposition (new numbers) |
 |---|---|---|
-| #5 | Highlight + scroll-to-top when Claude pushes md updates | **Stage 11c** — visual covered by Atelier mock; scroll-to-top is a small additional behaviour to spec at 11c kickoff. |
-| #6 | Track-changes mode for md editor | **Stage 11d** — fully covered (PRD + Atelier Suggesting / Accepted modes). |
-| #7 | Save-state deep dive: warnings on unsaved / overwrite | **Stage 11b** (external-write reconciliation) + **11c** (warn-before-overwrite for dirty buffers). PRD § 6 already names both. |
-| #9 | Move file path to terminal composer (right-click / drag) | **Stage 15f** (file → composer). |
-| #10 | Agent should see selected text + surrounding context | ✅ **Shipped 2026-04-26.** `duo selection` (Stage 11 D29a, shipped 11a) extended to browser pane same day. **Close.** |
-| #11 | Zap element from browser to terminal composer | **Stage 15e** (`duo zap`). |
-| #12 | Sandbox terminal-operation exploration | **Stage 13** (`duo doctor` + transport polish + ADR work). |
-| #13 | Claude sends temp script to fresh terminal tab for user invocation | **Stage 15d** (`duo tab --cmd`) and **Stage 18 D27** (`duo new-tab --cmd`) — overlap intentional; lock semantics at 15d kickoff. |
-| #15 | Terminal-tab attention notifications (system-level + session name in body) | **Stage 15b** (`duo notify`) + **Stage 15c** (`duo tab name <text>`). |
-| #16 | Multi-window support | **Stage 16** (already on roadmap). |
-| #17 | Click-and-drag target too small | ✅ **Already fixed** (per owner, 2026-04-26). **Close.** |
-| #18 | Goal/task flag in tab header (human ↔ agent reminder) | **Stage 15c** — folded in (per owner, 2026-04-26). `duo tab name 'goal: ship 14a'` covers it. |
-| #19 | Mechanism for Claude to "watch" browser / editor (temporary event stream) | **Stage 15a** (`duo events --follow`). |
-| #20 | `⌃Tab` should cycle tabs in active pane | ✅ **Shipped 2026-04-26** (commit `3976039`, BUG-001 fix). **Close.** |
-| #21 | `⌘N` opens new file in right pane with focus on filename setter | ✅ **Shipped** in Stage 11a (D33a — `⌘N` new-file flow with filename interstitial). **Close.** |
-| #22 | `⌘[` in file-explorer focus moves up one level | **Stage 13 follow-up** — pane-aware shortcut polish, sibling to BUG-001 territory. Add to Stage 13 bullet list. |
-| #23 | `⌘+` / `⌘-` should change browser content size when right pane has focus | **Stage 13 follow-up** — pane-aware shortcut polish. Today these only bump terminal font when terminal has focus; needs a 'working' branch that proxies to `webContents.setZoomLevel()`. |
-| #24 | Persist app state on reload (browser tabs, files, terminal CWDs, file-browser location) | **Stage 14b** ("Session restore on relaunch" already in the bullet list). |
-| #26 | On `⌘T`, focus browser address bar so user can type URL | ✅ **Shipped** in Stage 11 (D33e — `⌘T` foregrounds new browser tab + focuses address bar via queueMicrotask). **Close.** |
-| #27 | Persist browser history for URL autocomplete | **Stage 14b** (small follow-up bullet — added below). |
+| #5 | Highlight + scroll-to-top when Claude pushes md updates | **Stage 13** — visual covered by Atelier mock; scroll-to-top is a small additional behaviour to spec at kickoff. |
+| #6 | Track-changes mode for md editor | **Stage 14** — fully covered (PRD + Atelier Suggesting / Accepted modes). |
+| #7 | Save-state deep dive: warnings on unsaved / overwrite | **Stage 16** (external-write reconciliation) + **Stage 13** (warn-before-overwrite for dirty buffers). |
+| #9 | Move file path to terminal composer (right-click / drag) | **Backlog** (file → composer; was 15f). |
+| #10 | Agent should see selected text + surrounding context | ✅ **Shipped 2026-04-26.** `duo selection` (Stage 11 D29a) extended to browser pane same day. **Closed.** |
+| #11 | Zap element from browser to terminal composer | **Backlog** (`duo zap`; was 15e). |
+| #12 | Sandbox terminal-operation exploration | **Stage 20** (`duo doctor` + transport polish + ADR work; was Stage 13). |
+| #13 | Claude sends temp script to fresh terminal tab for user invocation | **Backlog** (was 15d `duo tab --cmd`); also overlaps with **Stage 19 D27** (`duo new-tab --cmd`) — lock semantics when either kicks off. |
+| #15 | Terminal-tab attention notifications (system-level + session name in body) | **Backlog** (`duo notify` + `duo tab name`; was 15b + 15c). |
+| #16 | Multi-window support | **Backlog** (was Stage 16). |
+| #17 | Click-and-drag target too small | ✅ **Already fixed.** **Closed.** |
+| #18 | Goal/task flag in tab header (human ↔ agent reminder) | **Backlog** (folded into `duo tab name`; was 15c). |
+| #19 | Mechanism for Claude to "watch" browser / editor (temporary event stream) | **Backlog** (`duo events --follow`; was 15a). |
+| #20 | `⌃Tab` should cycle tabs in active pane | ✅ **Shipped 2026-04-26** (commit `3976039`, BUG-001 fix). **Closed.** |
+| #21 | `⌘N` opens new file in right pane with focus on filename setter | ✅ **Shipped** in Stage 11a (D33a). **Closed.** |
+| #22 | `⌘[` in file-explorer focus moves up one level | **Stage 20** — pane-aware shortcut polish, sibling to BUG-001 territory. |
+| #23 | `⌘+` / `⌘-` should change browser content size when right pane has focus | **Stage 20** — pane-aware shortcut polish. Today these only bump terminal font when terminal has focus; needs a 'working' branch that proxies to `webContents.setZoomLevel()`. |
+| #24 | Persist app state on reload (browser tabs, files, terminal CWDs, file-browser location) | **Stage 21** (Session restore on relaunch — was 14b). |
+| #26 | On `⌘T`, focus browser address bar so user can type URL | ✅ **Shipped** in Stage 11 (D33e). **Closed.** |
+| #27 | Persist browser history for URL autocomplete | **Stage 21** (small follow-up bullet — added below). |
 
 **Issues to close on next sweep (5):** #10, #17, #20, #21, #26 — all
 already shipped. Suggested closing comment: link to the commit / stage
@@ -195,7 +305,7 @@ above and reference this mapping.
 ### Known limitations
 - [ ] **Google Docs keyboard path is broken.** `duo key <named>` (Enter, Arrow*, Backspace, Home, End) and all modifier shortcuts (`Cmd+B/I/U/Z/A`, `Cmd+Alt+1..6`) are silent no-ops on a Docs page. Root cause: Docs listens on a hidden `.docs-texteventtarget-iframe`; CDP `Input.dispatchKeyEvent` delivers to the main frame's focused element, and `duo focus` (which uses `el.focus()` in page JS) can't cross the iframe boundary. `Input.insertText` (i.e. `duo type`) works because it bypasses the keyboard pipeline. Fix requires attaching CDP to the iframe's frame target or routing via a different input API. Until fixed, the skill tells the agent: insert plain text via `duo type`, and defer styling to the user or the Docs REST API. See commit d3d5e0e for the empirical report.
 - [ ] **No Docs REST API escalation path yet.** Structural edits (tables, heading changes, styled blocks) should use `documents.googleapis.com/v1/documents/{id}:batchUpdate` with the `documents` OAuth scope. The Duo app should grow a one-time consent flow so the token can be bootstrapped from the signed-in Electron session (brief §17.4). Until then, agents must defer styling to the user.
-- [ ] First-launch install dialog (Electron prompt before installing CLI + skill) — currently installs via `./cli/duo install` + `npm run sync:claude`. **Stage 14a** (split out of old Stage 6 on 2026-04-26 so it can ship before the cert lands).
+- [ ] First-launch install dialog (Electron prompt before installing CLI + skill) — currently installs via `./cli/duo install` + `npm run sync:claude`. **Stage 18** (split out of old Stage 6 on 2026-04-26 so it can ship before the cert lands).
 - [ ] `duo wait --timeout N` races with the CLI's 10s socket timeout for N ≥ 10000. Fix: make the CLI socket timeout `max(N + buffer, default)`.
 
 > **DOM size note:** `duo dom` on long pages is still large. `duo ax --format json` is usually the better structured option; for text-only views, narrow with `--selector`. A `--max-chars` or `--save-to` flag remains a nice-to-have but isn't blocking.
@@ -250,13 +360,13 @@ to the agent running in the active terminal tab.
 - [x] A.5.3 verified (error recovery): when `[role="document"]` selector misses, the agent falls back to full `duo ax` without human intervention
 
 - [ ] Version pinning: skill asserts `duo --version` is in a compatible range
-- [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. **Stage 14a** (no cert required; split from old Stage 6 on 2026-04-26).
+- [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. **Stage 18** (no cert required; split from old Stage 6 on 2026-04-26).
 - [x] **Skill scoping** — locked 2026-04-25: global `~/.claude/skills/duo/`. See [docs/DECISIONS.md § Skill scoping](docs/DECISIONS.md). The per-session alternatives (shell-init `--plugin-dir`, `--add-dir`, project-level symlink) remain documented for future reference if the skill ever needs Duo-specific guardrails that shouldn't leak to other Claude sessions.
 - [x] **Skill docs: Claude Code sandbox troubleshooting section** — `skill/SKILL.md` now carries a "Troubleshooting: Claude Code sandbox" block (failure signatures, `duo doctor` as first move, the recommended `allowUnixSockets: true` + socket-read allowlist, `dangerouslyDisableSandbox` called out as last resort). `agents/duo-browser.md` mirrors the short version in its "Diagnosing failures" section. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*.
 
 ---
 
-## Stage 14 — Polish & Distribution `⬜ Held — split into 14a + 14b on 2026-04-26`
+## Stage 18 — First-launch self-install & Stage 21 — Distribution polish (split from old Stage 14)
 
 > **Originally Stage 6**, re-sequenced per VISION.md to land **after**
 > Stages 9 + 10 + 11 (the flagship reading/writing pair). On
@@ -264,17 +374,17 @@ to the agent running in the active terminal tab.
 > doesn't stay blocked on the Apple Developer ID cert it doesn't
 > actually need:
 >
-> - **Stage 14a — First-launch self-install (no cert).** The
+> - **Stage 18 — First-launch self-install (no cert).** The
 >   double-click-and-go behaviour. Can ship against an ad-hoc-signed
 >   local build today.
-> - **Stage 14b — Distribution polish (cert-gated).** Code signing,
+> - **Stage 21 — Distribution polish (cert-gated).** Code signing,
 >   notarization, electron-updater, icon, DMG background, install
 >   guide. Held on the cert.
 >
 > Both halves were a single `⬜ Held` Stage 6/14 prior to the split.
 > The bullet list below is partitioned but otherwise unchanged.
 
-### Stage 14a — First-launch self-install `⬜ Not started — no cert needed`
+### Stage 18 — First-launch self-install (was Stage 14a) `⬜ Not started — no cert needed`
 
 **Why pulled forward:** the gap between "developer runs `npm run dev`"
 and "Trailblazer double-clicks an `.app`" is doing too much work in
@@ -287,11 +397,7 @@ performs side-effect installs into `~/.claude/` and PATH.
 gatekeeper bypass once), and from that point on every `duo` command
 in their Claude Code session works without any terminal setup.
 
-- [ ] **Validate `npm run dist` end-to-end.** Confirm the produced
-      `.app` (and DMG) launches when moved out of the build dir,
-      that the bundled `cli/duo` binary is reachable via
-      `process.resourcesPath`, and that `skill/` + `agents/` are
-      packaged as resources rather than left behind at `node_modules/`.
+- [x] **Validate `npm run dist` end-to-end** (Team C, 2026-04-26 — commit `20b4701`). Confirmed the arm64 `.app` launches when moved out of the build dir; bundled `cli/duo`, `skill/SKILL.md`, and `agents/duo-browser.md` all present at `Contents/Resources/<dir>/`. One gap fixed inline: `agents/` was missing from `extraResources` in `electron-builder.yml`. Notes: existing dev cert is expired (handled by Stage 21 cert work); `cli/duo` ships as a `#!/usr/bin/env node` script rather than a self-contained binary — verify Node-on-PATH is acceptable when designing the install-time path resolution.
 - [ ] **First-launch detection.** On Electron `app.whenReady()`,
       check whether `~/.claude/skills/duo/SKILL.md` already exists
       and matches the bundled version's `name`/`description`
@@ -331,7 +437,7 @@ in their Claude Code session works without any terminal setup.
       `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
       transport and install paths for the `duo` CLI*.
 
-### Stage 14b — Distribution polish `⬜ Held — gated on Apple Developer ID cert`
+### Stage 21 — Distribution polish (was Stage 14b — gated on cert) `⬜ Held — gated on Apple Developer ID cert`
 
 **Exit criteria:** A PM in the Trailblazers cohort installs from a
 download link, with no gatekeeper warnings, and gets auto-updates.
@@ -343,7 +449,7 @@ download link, with no gatekeeper warnings, and gets auto-updates.
 - [ ] Session restore on relaunch (terminal CWDs, browser URL, split position) — **subsumes [issue #24](https://github.com/dudgeon/duo/issues/24)** (persist app state on reload). Expand the scope beyond what's listed: also persist file-browser cwd + expanded folders, open editor tabs (with dirty state warning on relaunch), pinned/follow-mode, and per-tab cozy state.
 - [ ] **Browser history persistence for URL autocomplete ([issue #27](https://github.com/dudgeon/duo/issues/27)).** The `persist:duo-browser` partition retains cookies + localStorage; history is in-memory only. Wire Electron's `WebContents.session` history APIs (or a small chokidar-flavored sidecar) so `⌘L` typeahead suggests previously-visited URLs across sessions. Sibling concern to session restore — same partition, similar lifecycle.
 - [ ] Security: launch-time auth token on the Unix socket (before Trailblazers)
-- [ ] Theming pass: refine Warp × Linear aesthetic
+- [ ] **Light/dark theme refinements** — after Stage 12 (Atelier visual) ships, walk both themes against the Trailblazer-distribution checklist (every stage card visited, every modal opened, every cozy toggle exercised). Remaining work here is "polish what 12 left rough", not "design the theme".
 - [ ] Notifications for agent-driven browser navigation
 - [ ] README + install guide for Trailblazers cohort
 
@@ -630,7 +736,7 @@ Claude Code's TUI rendering. Per
 Geoff confirmed in the [Atelier design chat](design/atelier/chats/chat1.md)
 that the current cozy-mode toggle works mechanically but doesn't yet
 *feel* cozy — the typography pass landed, but the surface, color, and
-voice didn't change visibly. Atelier (Stage 17) supplies the missing
+voice didn't change visibly. Atelier (Stage 12) supplies the missing
 visual layer:
 
 - [ ] Swap cozy-mode terminal background to `--duo-termCozyBg` (cream
@@ -643,7 +749,7 @@ visual layer:
       glyph alignment. Confirm with a TUI regression sweep before
       enabling by default.
 
-These follow-ups can ride along with **Stage 17** (one visual ship) or
+These follow-ups can ride along with **Stage 12** (one visual ship) or
 land independently if cozy-mode polish becomes urgent before the
 flagship pair ships. They do **not** change cozy-mode's behaviour —
 only its appearance.
@@ -862,7 +968,7 @@ the experience of working together inside it is the point.
       count and prev/next navigation.
 - [ ] Decision: does the agent's write land *immediately* in the
       editor model, or is it buffered until the user clicks accept?
-      See Stage 11d for the pending-suggestion path.
+      See Stage 14 for the pending-suggestion path.
 
 ### 11c — Save state and overwrite safety (GitHub issue #7)
 
@@ -922,14 +1028,14 @@ context to respond to "fix this" without loading the whole doc.
   the seams.
 
 **GitHub issues absorbed:**
-- #5 → Stage 11b
-- #6 → Stage 11d
-- #7 → Stage 11c
-- #10 → Stage 11e
+- #5 → Stage 16
+- #6 → Stage 14
+- #7 → Stage 13
+- #10 → Backlog (was 11e)
 
 ---
 
-## Stage 12 — Unified skill + connector surface `⬜ Supersedes Stage 4`
+## Backlog — Unified skill + connector surface (was Stage 12)
 
 **Layout placement:** middle column, below the terminal, collapsible.
 Per [DECISIONS.md § Layout model](docs/DECISIONS.md). When collapsed,
@@ -960,7 +1066,7 @@ and [§ Connector / MCP setup wizard](docs/VISION.md#connector--mcp-setup-wizard
 
 ---
 
-## Stage 13 — Interaction polish `⬜ After Stage 11`
+## Stage 20 — Interaction polish + `duo doctor` + TCP + pane-aware shortcuts `⬜ After Stage 11`
 
 **Goal:** a cluster of small UX wins that matter once the flagship pair
 is up. Pulls from the unscheduled backlog the user raised earlier.
@@ -1039,16 +1145,58 @@ work, so each branch is small.
 
 ---
 
-## Stage 15 — Human↔agent interaction primitives `⬜ After Stage 11`
+## Stage 15 — Send → Duo (cross-modality selection primitive) `⬜ PRD locked, depends on Stage 12`
 
-**Goal:** the little seams between agent and user that VISION needs
-but Stage 10 / 11 don't deliver. Grouped as a single stage because
-they share a rhythm — small CLI verbs + small UI affordances — and
-can ship incrementally.
+> **PRD:** [docs/prd/stage-15-send-to-duo.md](prd/stage-15-send-to-duo.md).
+> Originally drafted as Stage 15g (sub-item under the "Stage 15
+> Human↔agent primitives" grab-bag). Promoted to top-level Stage 15
+> in the 2026-04-26 layered-build renumber because it's the L1
+> priority unlock; the rest of the original 15a–f primitives moved
+> to Backlog (see below).
 
-Cross-references GitHub issues #11, #13, #15, #18, #19.
+Floating button next to any selection in any WorkingPane tab type
+(browser, editor, future preview). One click sends the selection
+into the active terminal's input line with no Enter pressed, so the
+user can complete the prompt ("rewrite this paragraph", "summarize
+this", "find similar issues").
 
-### 15a — Agent-watchable events (`duo events`)
+User-facing complement to the agent-facing `duo selection` and
+`duo zap` verbs; same payload shape, opposite direction. Visual
+chrome from Atelier mock (Stage 12).
+
+### Phase 15.1 — Editor button + `duo send` + `duo selection-format`
+- [ ] Editor button via TipTap BubbleMenu (existing machinery).
+- [ ] `duo send [--text|stdin]` CLI verb — writes formatted payload
+      into active terminal as if button fired (for agents).
+- [ ] `duo selection-format [a|b|c]` CLI — runtime-tunable injection
+      format (default `a` = quote + provenance per G10).
+- [ ] No new IPC surface beyond `pty.write` + a tiny selection-format
+      push/set channel pair.
+- **Exit:** PM selects in a `.md`, clicks the pill, terminal gets the
+  formatted payload.
+
+### Phase 15.2 — Browser surface + unified selection
+- [ ] Browser selection observer + page-side script.
+- [ ] Same pill component anchored over `WebContentsView`.
+- [ ] Unifies `duo selection` across editor + browser surfaces.
+
+### Phase 15.3 — Polish
+- [ ] Length cap, image/table flattening, `⌘D` shortcut.
+- [ ] Skill update so agents understand the injected format.
+
+Full spec including all 19 G-decisions in the PRD.
+
+---
+
+## Backlog — 15-family primitives (was Stages 15a–15f)
+
+> Promoted out of "Stage 15 (interaction primitives)" during the
+> 2026-04-26 renumber because each is small enough to ship
+> independently when convenient, and the original "everything ships
+> together" framing was wrong. Cross-references GitHub issues #9,
+> #11, #13, #15, #18, #19.
+
+### 15-family — Agent-watchable events (`duo events`)
 
 *Issue #19.* V1 is a pull model (owner: "okay as v1, we'll want
 push later").
@@ -1070,7 +1218,7 @@ push later").
 the PTY; Claude Code's input layer agrees on a protocol. Not ruled
 out; not needed for v1.
 
-### 15b — Notifications (`duo notify`)
+### Backlog 15b — Notifications (`duo notify`)
 
 *Issue #15.* Scope resolved: **macOS system notifications only**
 (owner pick).
@@ -1087,7 +1235,7 @@ out; not needed for v1.
       name (if we can extract it) → shell's own `\\033]0;…\\007`
       OSC 0 title → "Terminal".
 
-### 15c — Tab identity (`duo tab name` + subtitle)
+### Backlog 15c — Tab identity (`duo tab name` + subtitle)
 
 *Issue #18.* Scope resolved: **agent-set, user-overridable** (owner
 pick).
@@ -1102,7 +1250,7 @@ pick).
 - [ ] `duo tab state [--tab <n>]` returns the current metadata so
       the agent can read back what it (or the user) set.
 
-### 15d — Send command to terminal (`duo tab --cmd`)
+### Backlog 15d — Send command to terminal (`duo tab --cmd`)
 
 *Issue #13.* Scope resolved: **new tab + pre-typed command, user
 hits Enter** (owner pick).
@@ -1118,7 +1266,7 @@ hits Enter** (owner pick).
 - [ ] Skill pattern: "agent wants to hand the user a temp script →
       `duo tab --cmd \"node /tmp/duo-script-xyz.js\"`."
 
-### 15e — Browser-element "zap" (`duo zap` + right-click)
+### Backlog 15e — Browser-element "zap" (`duo zap` + right-click)
 
 *Issue #11.* Scope resolved: **`{selector, text, role}` packet**
 (owner pick).
@@ -1135,7 +1283,7 @@ hits Enter** (owner pick).
 - [ ] Keeps the user in the consent loop — no automatic send; they
       see the packet and hit Enter to pass it to Claude Code.
 
-### 15f — File path → terminal composer
+### Backlog 15f — File path → terminal composer
 
 *Issue #9.* Scope resolved: **drag + right-click, both** (owner
 pick).
@@ -1149,38 +1297,12 @@ pick).
 - [ ] Both affordances complement Stage 10 § D11 menu items (which
       already has "Open terminal here" for folders).
 
-### 15g — "Send → Duo" cross-modality selection primitive
-
-*Raised by owner 2026-04-25.* Floating button next to any selection
-in any WorkingPane tab type (browser, editor, future preview) —
-clicking sends the selection into the active terminal's input line
-with no Enter pressed, so the user can complete the prompt
-("rewrite this paragraph", "summarize this", "find similar issues").
-
-User-facing complement to the agent-facing `duo selection` and
-`duo zap` verbs; same payload shape, opposite direction.
-
-- [ ] Editor button via TipTap BubbleMenu + `duo send` CLI +
-      `duo selection-format [a|b|c]` CLI (15g.1).
-- [ ] Browser selection observer + page-side script + same button
-      anchored over `WebContentsView` (15g.2). Unifies `duo selection`
-      across editor + browser surfaces (also resolves the P0 gap in
-      [docs/CLI-COVERAGE.md § Browser observability](../docs/CLI-COVERAGE.md)).
-- [ ] Polish: length cap, image/table flattening, `⌘D` shortcut, skill
-      update so agents understand the injected format (15g.3).
-
-**PRD:** [docs/prd/stage-15g-send-to-duo.md](docs/prd/stage-15g-send-to-duo.md).
-**No decision gate before kickoff** — G10 payload format locked to
-**A** (quote + provenance) on 2026-04-25, with B and C kept on the
-books and switchable at runtime via the new `duo selection-format`
-verb (G19). Smaller open questions at kickoff: G5 (`⌘D` keyboard
-shortcut conflict with browser bookmark muscle memory) and G7
-(consent UX for the floating button — match Notion/Docs convention,
-no first-run tooltip).
+<!-- old "### 15g" sub-section removed 2026-04-26: promoted to top-level
+     Stage 15 above. See § Stage 15 — Send → Duo for current spec. -->
 
 ---
 
-## Stage 16 — Multi-window `⬜ Backlog — after Stage 11`
+## Backlog — Multi-window support (was Stage 16, issue #16)
 
 *Issue #16.* Scope resolved: **backlog for later** (owner pick).
 
@@ -1202,7 +1324,7 @@ cross-window focus logic.
 
 ---
 
-## Stage 17 — Visual redesign (Atelier) `⬜ Held — design locked, after the flagship pair`
+## Stage 12 — Visual redesign (Atelier) `⬜ Held — design locked, after the flagship pair`
 
 > **Design source:** [docs/design/atelier/](design/atelier/).
 > [README](design/atelier/README.md) is the index; [chats/chat1.md](design/atelier/chats/chat1.md)
@@ -1218,11 +1340,11 @@ cross-window focus logic.
 > light-as-hero with dark as a warm follower.
 
 **Held until the flagship pair (15g.1 + 11b) ships in functional form.**
-Same logic that put Stage 14b after Stages 9/10/11: don't polish a
+Same logic that put Stage 21 after Stages 9/10/11: don't polish a
 half-product. The mock has already done the design work for the
 in-flight stages, so per-feature visuals fold into their host stages
 and ship as part of those features (see "Per-feature visuals fold in"
-below). What remains for Stage 17 itself is the **system-wide visual
+below). What remains for Stage 12 itself is the **system-wide visual
 pass** — token swap, layout depth, tab-strip rhyme, file-pane shape.
 
 **Exit criteria:** A returning user opens Duo and immediately reads
@@ -1276,18 +1398,18 @@ brief are gone:
       and Send → Duo pill are owned by their host stages (see
       below) so they don't repeat here.
 
-### Per-feature visuals — fold into host stages (don't wait for Stage 17)
+### Per-feature visuals — fold into host stages (don't wait for Stage 12)
 
 These are visual specs the mock supplies for in-flight features.
-Implementing each one is the host stage's responsibility; Stage 17
+Implementing each one is the host stage's responsibility; Stage 12
 just inherits them when the system-wide pass lands.
 
 | Visual | Host stage | Where in the mock |
 |---|---|---|
 | Cozy mode terminal — paper canvas, serif mono, 92ch column | [Stage 9 follow-up](#stage-9--cozy-mode-terminal-typography-v1--shipped-2026-04-22-graduated-2026-04-25) | `tokens.jsx` `termCozyBg` / `termCozyFg`; `duo-components.jsx` cozy branch |
-| Just-added highlight (yellow flash, 6s fade) on agent-written text | [Stage 11c](docs/prd/stage-11-markdown-editor.md) § 6 | `Duo Prototype.html` `@keyframes duo-just-added`; `duo-components.jsx` `justAdded` mark. (PRD 11c said "blue fade" — overwritten by Atelier's yellow `mark` token + 6s curve.) |
-| Track changes (Suggesting / Accepted / Live) — green insertions, red strikethrough, accept-all banner | [Stage 11d](docs/prd/stage-11-markdown-editor.md) § 6 | `duo-components.jsx` `insertion` / `deletion` marks + Suggesting banner. The mock realizes D18's track-changes toggle end-to-end. |
-| Send → Duo floating pill — purple chip with `⌘D` chord, click-to-fire animation | [Stage 15g.1](docs/prd/stage-15g-send-to-duo.md) | `duo-components.jsx` `SendToDuoPill`; `Duo Prototype.html` `@keyframes duo-pill-in` |
+| Just-added highlight (yellow flash, 6s fade) on agent-written text | [Stage 13](docs/prd/stage-11-markdown-editor.md) § 6 | `Duo Prototype.html` `@keyframes duo-just-added`; `duo-components.jsx` `justAdded` mark. (PRD 11c said "blue fade" — overwritten by Atelier's yellow `mark` token + 6s curve.) |
+| Track changes (Suggesting / Accepted / Live) — green insertions, red strikethrough, accept-all banner | [Stage 14](docs/prd/stage-11-markdown-editor.md) § 6 | `duo-components.jsx` `insertion` / `deletion` marks + Suggesting banner. The mock realizes D18's track-changes toggle end-to-end. |
+| Send → Duo floating pill — purple chip with `⌘D` chord, click-to-fire animation | [Stage 15.1](docs/prd/stage-15g-send-to-duo.md) | `duo-components.jsx` `SendToDuoPill`; `Duo Prototype.html` `@keyframes duo-pill-in` |
 
 When picking up one of these host stages, the implementer reads the
 relevant mock file as the visual spec rather than re-deriving from
@@ -1317,15 +1439,17 @@ each choice and is worth a skim before starting any of them.
 
 ---
 
-## Stage 18 — Duo detection & default-to-claude tabs `⬜ Spec drafted 2026-04-26`
+## Stage 19 — Duo detection (was Stage 18) & default-to-claude tabs `⬜ Spec drafted 2026-04-26`
 
-> **PRD:** [docs/prd/stage-18-duo-detection.md](prd/stage-18-duo-detection.md).
+> **PRD:** [docs/prd/stage-19-duo-detection.md](prd/stage-19-duo-detection.md).
 > Three layers (env signals → passive priming → default-to-claude tabs)
 > in three independently shippable phases. Touches `~/.claude/settings.json`,
-> so the install path lines up with **Stage 14a's first-launch installer**
-> — when 14a lands, fold the hook + shim install into its consent sheet.
+> so the install path lines up with **Stage 18's first-launch installer**
+> — when Stage 18 lands, fold the hook + shim install into its consent sheet.
 > Layer 1 (env signals) is a tiny standalone PR that unblocks `duo doctor`
-> for **Stage 13** independently.
+> for **Stage 20** independently. **Phase 19a (env signals) shipped
+> 2026-04-26 in commit `640ec0e`** (the commit message uses the old
+> "Stage 18 Phase 18a" labels — see § Number history).
 
 **Why it matters:** today there's no signal to Claude Code that it's
 running inside Duo, and `⌘T` from terminal focus opens a browser tab
@@ -1340,15 +1464,15 @@ response on a "summarize this doc" prompt uses `duo ax` or `duo doc
 read` without being told to. `⌘⇧T` and the `>` half of the split
 button still produce a bare shell.
 
-### Phase 18a — Env signals (S, ~½ day)
+### Phase 19a — Env signals (S, ~½ day)
 - [ ] PtyManager exports `DUO_SESSION=1`, `DUO_SOCKET`, `DUO_VERSION`,
       `TERM_PROGRAM=Duo` (PRD D1–D3).
 - [ ] `cli/duo.ts` skips socket discovery when `DUO_SOCKET` is set (D4).
-- [ ] `duo doctor` reports `DUO_SESSION` (D5; cross-link to Stage 13).
+- [ ] `duo doctor` reports `DUO_SESSION` (D5; cross-link to Stage 20).
 - **Exit:** any process spawned inside Duo can detect "I'm in Duo"
   without heuristics.
 
-### Phase 18b — Passive priming (M, ~2 days)
+### Phase 19b — Passive priming (M, ~2 days)
 - [ ] Bundle `skill/priming.md` (D8) and copy to
       `~/Library/Application Support/duo/priming.md` on `duo install`.
 - [ ] PATH shim at `~/Library/Application Support/duo/bin/claude`
@@ -1361,13 +1485,13 @@ button still produce a bare shell.
   via `/status` (or equivalent) showing the priming paragraph in
   the system prompt.
 
-> **Cross-PR note:** Phase 18b's install paths overlap with **Stage
-> 14a's first-launch installer**. When both PRs land, the hook + shim
-> install should fold into the 14a consent sheet (PRD D16). Until
+> **Cross-PR note:** Phase 19b's install paths overlap with **Stage
+> Stage 18's first-launch installer**. When both PRs land, the hook + shim
+> install should fold into the Stage 18 consent sheet (PRD D16). Until
 > then, 18b's install runs through `duo install` with its own
 > one-time prompt.
 
-### Phase 18c — Default-to-claude tabs (M, ~2–3 days)
+### Phase 19c — Default-to-claude tabs (M, ~2–3 days)
 - [ ] Split-button affordance in `TabBar.tsx` — `+` = new claude
       session (primary), `>` = vanilla shell (D17).
 - [ ] `⌘T` from terminal focus = new claude tab (D18 — supersedes
@@ -1386,29 +1510,31 @@ button still produce a bare shell.
   two seconds; the `>` half still gives them a vanilla shell.
 
 **Cross-stage interactions** (also documented in PRD § 6):
-- **Stage 13** — `duo doctor` reads `DUO_SESSION` to distinguish
+- **Stage 20** — `duo doctor` reads `DUO_SESSION` to distinguish
   "outside Duo" from "transport failing inside Duo".
-- **Stage 14a** — install consent absorbs the hook + shim work.
-- **Stage 15d** — `duo new-tab --cmd` and `duo tab --cmd` overlap
+- **Stage 18** — install consent absorbs the hook + shim work.
+- **Backlog (was 15d)** — `duo new-tab --cmd` and `duo tab --cmd` overlap
   intentionally; lock semantics at 15d kickoff.
-- **Stage 17** — split-button visual not in the Atelier mock yet;
+- **Stage 12** — split-button visual not in the Atelier mock yet;
   recommendation: ship 18c first, let 17 polish.
 
 ---
 
-## Stage 19 — HTML canvas `⬜ Spec drafted 2026-04-25; renumbered 2026-04-26`
+## Stage 17 — HTML canvas (was Stage 19, briefly Stage 13) `⬜ Spec drafted 2026-04-25; renumbered 2026-04-26 (twice)`
 
-> **PRD:** [docs/prd/stage-19-html-canvas.md](prd/stage-19-html-canvas.md).
-> Originally drafted as Stage 13; renumbered on 2026-04-26 to avoid
-> collision with the existing Stage 13 (interaction polish). Five
-> phases (~12–14 PRs) sequenced so 19a unlocks real usage and every
-> later phase adds capability cleanly.
+> **PRD:** [docs/prd/stage-17-html-canvas.md](prd/stage-17-html-canvas.md).
+> Renumbered twice on 2026-04-26: from draft Stage 13 → Stage 19
+> (avoiding collision with the existing transport-polish stage),
+> then to **Stage 17** in the layered build-order rationalization.
+> See § Number history. Five phases (~12–14 PRs) sequenced so 17a
+> unlocks real usage and every later phase adds capability cleanly.
 >
 > **Sibling tab type to Stage 11** (markdown editor). Reuses the
-> Atelier just-added highlight, the comment rail, the persistent-
-> selection pattern, and the discriminated-union selection shape from
-> Stage 15g. Held until the flagship pair (15g.1 + 11c) ships in
-> functional form so the reuse stories are concrete.
+> Atelier just-added highlight (Stage 13), the comment rail (Stage
+> 14 — though HTML diff itself is deferred), the persistent-selection
+> pattern, and the discriminated-union selection shape from Stage 15.
+> Held until Layer 1 (Stages 13 + 14 + 15) ships in functional form
+> so the reuse stories are concrete.
 
 **Why it matters:** Markdown is fine for prose; HTML is what an
 agent reaches for when it wants tables that fit, side-by-side layouts,
@@ -1424,7 +1550,7 @@ and saves — and the file opens cleanly in any browser. Send → Duo on
 the canvas surface lands the same payload shape as it does from the
 markdown editor or a browser tab — one primitive, three modalities.
 
-### Phase 19a — Render + edit primitive (~3–4 PRs)
+### Phase 17a — Render + edit primitive (~3–4 PRs)
 - [ ] WorkingPane registers `html-canvas` tab type; `.html` click
       opens it (replaces today's "open with default app" for `.html`).
 - [ ] `duo html new` + `duo edit <path.html>` alias.
@@ -1435,7 +1561,7 @@ markdown editor or a browser tab — one primitive, three modalities.
 - **Exit:** PM opens an `.html`, edits prose, saves; the file is
   clean HTML another tool can read.
 
-### Phase 19b — Stable IDs + sidecar foundation (~2 PRs)
+### Phase 17b — Stable IDs + sidecar foundation (~2 PRs)
 - [ ] ULID minting + auto-injection of `data-duo-id` (H12, H13).
 - [ ] First-open prompt for ID injection (H14).
 - [ ] `<file>.duo.json` sidecar reader / writer; `version: 1`
@@ -1446,11 +1572,11 @@ markdown editor or a browser tab — one primitive, three modalities.
 - **Exit:** Claude edits a specific element by `data-duo-id`; the
   change persists; the sidecar tracks the edit.
 
-### Phase 19c — Agent overlay + selection (~2 PRs)
+### Phase 17c — Agent overlay + selection (~2 PRs)
 - [ ] **Atelier just-added highlight** for agent edits (H20). Reuses
-      the Stage 11c spec — same yellow `mark` token + 6s fade.
+      the Stage 13 spec — same yellow `mark` token + 6s fade.
 - [ ] `recentEdits` log + repaint-at-open within freshness window.
-- [ ] `duo selection` for canvas (H25 — extends the Stage 15g
+- [ ] `duo selection` for canvas (H25 — extends the Stage 15
       discriminated union with `kind: 'html-canvas'`).
 - [ ] Persistent blurred selection (H26).
 - [ ] Send → Duo pill on canvas surface (H27 — natively works once
@@ -1459,34 +1585,34 @@ markdown editor or a browser tab — one primitive, three modalities.
 - **Exit:** PM selects on the canvas, hits the pill, terminal gets
   the quoted block; agent writes back, the change paints yellow.
 
-### Phase 19d — Comments + lock convention (~3 PRs)
-- [ ] `duo html comment`; comment rail re-used from Stage 11d (H23).
+### Phase 17d — Comments + lock convention (~3 PRs)
+- [ ] `duo html comment`; comment rail re-used from Stage 14 (H23).
 - [ ] Range resolution against `data-duo-id` + textPath (H21).
-- [ ] Resolve / reply / accept UX (re-use Stage 11d D19).
+- [ ] Resolve / reply / accept UX (re-use Stage 14 D19).
 - [ ] `data-duo-lock="structure"` rendering + ⌥-click override (H19).
 - [ ] Skill snippet bundle (H17 boilerplate, H18 ten core components).
 - **Exit:** PM leaves a comment on a callout; Claude reads it via
   `duo html changes` and acts.
 
-### Phase 19e — Polish + scripts + source view (~2 PRs)
+### Phase 17e — Polish + scripts + source view (~2 PRs)
 - [ ] Script opt-in dialog (H8) + sidecar persistence (H22).
 - [ ] Source view toggle with CodeMirror 6 (H32).
 - [ ] Find & replace (`⌘F` / `⌘⌥F`) — re-use Stage 11 component.
-- [ ] External-write reconciliation (H35) — re-use Stage 11b's
+- [ ] External-write reconciliation (H35) — re-use Stage 16's
       three-pane diff.
 - [ ] Slash menu (H29). Floating selection bubble (H30).
 - **Exit:** the canvas feels native enough that an HTML report from
   Claude is the natural artifact, not the markdown.
 
 **Cross-stage interactions** (also documented in PRD § 8):
-- **Stage 11c** — supplies the just-added highlight visual; 19c
+- **Stage 13** — supplies the just-added highlight visual; 19c
   reuses identically.
-- **Stage 11d** — comment rail (D20), accept-all banner. 19d reuses
+- **Stage 14** — comment rail (D20), accept-all banner. 17d reuses
   the components.
-- **Stage 15g** — supplies the discriminated-union selection shape
-  + Send → Duo pill machinery. 19c is mostly wiring the canvas
+- **Stage 15** — supplies the discriminated-union selection shape
+  + Send → Duo pill machinery. 17c is mostly wiring the canvas
   surface into the existing dispatcher.
-- **Stage 17** — Atelier tokens supply the visual language. The
+- **Stage 12** — Atelier tokens supply the visual language. The
   canvas inherits the same paper-tone surface + ochre accent +
   yellow `mark` highlight as the markdown editor.
 
@@ -1544,14 +1670,15 @@ algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 | Skills panel layout | **Collapsible sidebar** | Third column right of browser pane |
 | Skills CWD source | **PTY launch CWD** | No shell hooks; capture at `pty:create` time; two scopes: project + home |
 | First-launch install | **Electron permission dialog** | Prompt before installing CLI + skill |
-| Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; get cert before Stage 14b |
-| Stage 14 split (2026-04-26) | **14a: first-launch self-install (no cert), 14b: distribution polish (cert-gated)** | Decouples user-facing first-launch UX from cert procurement so 14a can ship to Trailblazers ahead of 14b |
+| Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; cert procurement (see § Owner pre-work) is the longest lead time before Stage 21 can start |
+| Stage 14 split (2026-04-26) | **Old Stage 14 → new Stages 18 + 21** | Decouples user-facing first-launch UX (Stage 18 — no cert) from cert procurement (Stage 21 — gated). Stage 18 ships to Trailblazers ahead of 21 |
+| 2026-04-26 layered renumber | **Stage numbers reflect actual build order, not chronology of planning** | See § Number history. Stage 12 (Atelier) is now first because every L1+ stage inherits its tokens. Old commit refs may use old numbers — the map translates them. |
 
 ## Open Questions
 
 | Question | Needed Before |
 |---|---|
-| Apple Developer ID cert | Stage 14b |
-| Distribution timeline (personal → Trailblazers) | Stage 14b |
-| Socket auth approach for Trailblazers | Stage 14b |
-| Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 13 (transport), 14a (install path + settings fragment) |
+| Apple Developer ID cert | Stage 21 |
+| Distribution timeline (personal → Trailblazers) | Stage 21 |
+| Socket auth approach for Trailblazers | Stage 21 |
+| Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 20 (transport), 18 (install path + settings fragment) |

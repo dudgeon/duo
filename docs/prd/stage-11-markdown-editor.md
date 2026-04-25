@@ -3,8 +3,22 @@
 > **Status:** spec drafted 2026-04-24. 11a shipped 2026-04-24. Visual
 > spec for 11c (just-added highlight) and 11d (track changes) added
 > 2026-04-26 from the Atelier mock.
+> **Sub-stages promoted (2026-04-26):** the original 11b/c/d/e
+> sub-stages were promoted to top-level stages during the layered
+> build-order rationalization, since they're independent ships with
+> different priorities and dependencies:
+> - **11b** (external-write reconciliation) → **Stage 16**
+> - **11c** (just-added highlight + warn-before-overwrite) → **Stage 13**
+> - **11d** (CriticMarkup track-changes + comments) → **Stage 14**
+> - **11e** (outline + find + polish) → **Backlog**
+> - 11a tail items (frontmatter panel, drag-drop, slash menu) → Backlog
+>
+> Decision sections (D1–D33) below remain authoritative. § 6 still
+> describes the work using the original 11a–e labels — read each
+> sub-section as the spec for its new top-level Stage.
 > **Supersedes:** the ROADMAP "Stage 11" outline — see the roadmap for
-> sub-stage sequencing; decisions here are authoritative.
+> top-level stage sequencing; decisions here are authoritative for
+> the editor surface specifically.
 > **References:**
 > - [docs/VISION.md § The flagship bet — the reading and writing pair](../VISION.md)
 > - [docs/DECISIONS.md § Layout model + working-pane model](../DECISIONS.md)
@@ -88,7 +102,7 @@ Jobs this stage does NOT do:
 | D1 | **Editor core** | **TipTap** on top of ProseMirror. ProseMirror schema is rigid but gives us: tables (`@tiptap/extension-table`), node-accurate undo, and a mature plugin ecosystem for comments and suggestions. We accept the tradeoffs: markdown is not the in-memory model, so we own the serializer; tables beyond GFM round-trip lossily (see D12). |
 | D2 | **No decoration-toggling model** | We do NOT render raw markdown syntax (`#`, `**`, `|`) inline with styled decorations that flip between "styled" and "exposed" modes. All structural markdown converts to real editor nodes. Typing `**bold** ` collapses to a bold mark; the asterisks vanish. This is the single biggest UX differentiator from Obsidian-style editors. |
 | **Canvas + typography** | | |
-| D3 | **Canvas shape** | Centered column, max-width ~720px (widen toggle to ~960px for table-heavy docs). Generous side padding. Neutral serif-ish default body; sans-serif headings. User-configurable theming deferred to Stage 14. |
+| D3 | **Canvas shape** | Centered column, max-width ~720px (widen toggle to ~960px for table-heavy docs). Generous side padding. Neutral serif-ish default body; sans-serif headings. User-configurable theming deferred to Stage 12 (Atelier visual). |
 | D4 | **Tab placement** | `editor` tab type in the unified WorkingPane tab strip (see [DECISIONS.md § Layout](../DECISIONS.md)). Browser, editor, and preview tabs coexist in one strip. Same file can appear as both an editor tab and a rendered-preview tab. |
 | **Toolbar + input** | | |
 | D5 | **Toolbar layout** | Fixed top bar + contextual floating bubble. Top bar: heading-level picker, B / I / U / S, inline code, link, bullet list, numbered list, task list, blockquote, code block, horizontal rule, insert table, insert comment, track-changes toggle, find & replace. Floating bubble appears on selection with the same inline marks + "comment on this" + "convert to…" group. Table-row/column controls appear contextually when the cursor is in a table cell. |
@@ -135,7 +149,7 @@ Jobs this stage does NOT do:
 | D33b | **Filename-first interstitial** | Before the editor canvas, the new tab renders a prominent inline "Name this document" bar (large text input + "Create" button). The input is auto-focused and pre-populated with the suggested filename minus extension. Escape closes the tab and discards the buffer; Enter or clicking Create commits the name, creates an empty file on disk, and **moves focus to the editor prose** so the user can begin typing without an extra click. `.md` is appended if the user didn't type an extension. |
 | D33c | **Tab dirty while unnamed** | Unnamed new-file tabs do not write to disk until named. They show a dashed pen icon in the tab strip so users can distinguish them from saved files. Closing an unnamed tab silently discards (matches Google Docs "untitled" behavior). |
 | **Appearance** | | |
-| D33d | **Theme toggle (system / light / dark)** | App-level setting (not editor-specific, but implemented alongside Stage 11 because the editor's canvas is the most theme-sensitive surface). Three modes: **System** (follow macOS `nativeTheme`), **Light**, **Dark**. Default: **System**. Exposed as a View → Appearance submenu + a small icon button in the top chrome row. Persisted in localStorage (`duo.theme`). v1 light theme palette is pragmatic (zinc-50/100/200 surfaces, zinc-900 text, accent unchanged) — enough to be usable, refinement in Stage 14 polish. |
+| D33d | **Theme toggle (system / light / dark)** | App-level setting (not editor-specific, but implemented alongside Stage 11 because the editor's canvas is the most theme-sensitive surface). Three modes: **System** (follow macOS `nativeTheme`), **Light**, **Dark**. Default: **System**. Exposed as a View → Appearance submenu + a small icon button in the top chrome row. Persisted in localStorage (`duo.theme`). v1 light theme palette is pragmatic (zinc-50/100/200 surfaces, zinc-900 text, accent unchanged) — enough to be usable, refinement in Stage 12 (Atelier visual). |
 | **Cross-cutting shortcut behavior (caused by editor focus)** | | |
 | D33e | **`⌘T` always activates a new foreground browser tab** | When focus is in an editor tab (or anywhere else), `⌘T` must: (1) flip the WorkingPane's `activeWorking` to `browser`, (2) create a new browser tab, (3) move keyboard focus to the address bar so the user can immediately type a URL. Regression caught when the new tab opened *behind* the active editor tab and never received focus. |
 | D33e2 | **Duo shortcuts must reach the renderer regardless of focus surface** | Chromium's `WebContentsView` swallows keydowns before our renderer hears them. `BrowserManager.wireKeyForwarding` keeps an explicit allowlist of Duo shortcut keys (`t`, `n`, `l`, `w`, `b`, `[`, `]`, `1-9`) that get `preventDefault`-ed and forwarded to the renderer via `IPC.BROWSER_KEY_FORWARD`. Any new app-level `⌘<letter>` shortcut must be added to that list, otherwise it silently no-ops when focus is on a browser tab. Editor tabs are renderer-side React, so they don't need the forwarder \u2014 only the browser surface does. |
