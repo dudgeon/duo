@@ -25,6 +25,13 @@ import {
   setChoiceForDir,
   dirOf
 } from './idInjector'
+import {
+  readSidecar,
+  writeSidecar,
+  emptySidecar,
+  withRecentEdit,
+  type SidecarV1
+} from './sidecar'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
 
 interface Props {
@@ -60,6 +67,14 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
   // the user to accept / decline. PRD H14.
   const [injectionPrompt, setInjectionPrompt] = useState<{ candidateCount: number } | null>(null)
 
+  // 17b Phase B — in-memory sidecar. Loaded on canvas mount; mutated
+  // by the canvas (recentEdits append on injection, future agent
+  // edits, comments) and persisted alongside the .html on save.
+  // Refs (not state) because we don't render off this — autosave reads
+  // the latest value at flush time. PRD H22.
+  const sidecarRef = useRef<SidecarV1>(emptySidecar())
+  const sidecarDirtyRef = useRef(false)
+
   const getDoc = useCallback(() => canvasRef.current?.getDocument() ?? null, [])
 
   // Build EditorActions once — it's a thin closure over `getDoc`, so it
@@ -77,6 +92,14 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
     // DOM mutations from injection land on the iframe's MutationObserver
     // → onChange → handleChange → dirty + autosave. No manual fire needed.
     if (rememberForDir) setChoiceForDir(dirOf(path), 'always')
+    // 17b Phase B — record the injection in the sidecar so the recent-
+    // edits log captures it; flushed on next save by save().
+    sidecarRef.current = withRecentEdit(sidecarRef.current, {
+      ts: new Date().toISOString(),
+      author: 'user',
+      kind: 'inject-ids'
+    })
+    sidecarDirtyRef.current = true
     setInjectionPrompt(null)
   }, [getDoc, path])
   const handleDeclineInjection = useCallback((rememberForDir: boolean) => {
@@ -85,11 +108,19 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
   }, [path])
 
   // Load the file on mount + path change. Same lifecycle as MarkdownEditor.
+  // 17b Phase B — sidecar lives alongside; absence is fine (defaults).
   useEffect(() => {
     let cancelled = false
     setError(null)
     setInitialHtml(null)
     setDirty(false)
+    sidecarRef.current = emptySidecar()
+    sidecarDirtyRef.current = false
+
+    void readSidecar(path).then((sc) => {
+      if (cancelled) return
+      if (sc) sidecarRef.current = sc
+    })
 
     window.electron.files.read(path).then(
       (res) => {
@@ -112,12 +143,24 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
     if (saving) return
     const html = handle.serialize()
     if (!html) return
-    if (html === lastSavedRef.current && !dirty) return
+    const htmlChanged = html !== lastSavedRef.current
+    if (!htmlChanged && !dirty && !sidecarDirtyRef.current) return
 
     setSaving(true)
     try {
-      await window.electron.files.write(path, encodeUtf8(html))
-      lastSavedRef.current = html
+      // .html first; if it succeeds, persist the sidecar. Order matters
+      // because the sidecar is meaningless without the canvas file.
+      if (htmlChanged) {
+        await window.electron.files.write(path, encodeUtf8(html))
+        lastSavedRef.current = html
+      }
+      // Sidecar (17b Phase B) — write alongside whenever it has pending
+      // changes (recentEdits append, future agent edits, etc.). The
+      // sidecar is small + atomic; cost is one extra fs.write.
+      if (sidecarDirtyRef.current) {
+        await writeSidecar(path, sidecarRef.current)
+        sidecarDirtyRef.current = false
+      }
       setDirty(false)
       onDirtyChange?.(false)
     } catch (err) {
