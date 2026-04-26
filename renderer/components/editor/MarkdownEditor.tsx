@@ -93,6 +93,16 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // Track previous isNew so we can detect the new-file commit transition
   // (true \u2192 false) and hand keyboard focus to the prose, per D33f.
   const wasNewRef = useRef<boolean>(!!isNew)
+  // D33f regression guard \u2014 when the new-file commit fires, the load
+  // effect re-runs (path changed from placeholder to resolved): it sets
+  // loaded=false, reads the empty file, calls setContent(''), then
+  // setLoaded(true). A queueMicrotask focus call from the D33f effect
+  // races that load \u2014 by the time the microtask runs, the prose may be
+  // mid-reset and the focus call no-ops or lands at position 0 only to
+  // be wiped by the subsequent setContent. Fix: arm a "needs focus"
+  // flag here when isNew flips false; consume it inside the load
+  // effect's success path AFTER setContent + setLoaded(true) have run.
+  const pendingProseFocusRef = useRef<boolean>(false)
 
   const extensions = useMemo(
     () => [
@@ -154,6 +164,19 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     setLoaded(false)
     setDirty(false)
 
+    // D33f — if the user just committed a new-file's name, hand focus to
+    // the prose AFTER setContent + setLoaded(true) have run. requestAnimationFrame
+    // (not queueMicrotask) gives React a tick to commit the post-load
+    // render so the prose's contenteditable is fully reachable.
+    const consumePendingFocus = () => {
+      if (!pendingProseFocusRef.current) return
+      pendingProseFocusRef.current = false
+      requestAnimationFrame(() => {
+        if (cancelled) return
+        editor.commands.focus('end')
+      })
+    }
+
     // New-file mode: don't try to read disk, the file doesn't exist yet.
     // Editor stays empty until the user commits a filename.
     if (isNew) {
@@ -162,6 +185,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       lastSavedBodyRef.current = ''
       editor.commands.setContent('', false)
       setLoaded(true)
+      // No-op for the initial mount where we just entered new-file mode.
+      // Consumed only on the post-commit re-run when isNew is finally false.
+      consumePendingFocus()
       return () => { cancelled = true }
     }
 
@@ -183,6 +209,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // state the instant the user types a single character.
         lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
         setLoaded(true)
+        consumePendingFocus()
       },
       (err) => {
         if (cancelled) return
@@ -257,19 +284,19 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     onDirtyChange?.(dirty)
   }, [dirty, onDirtyChange])
 
-  // D33f \u2014 when a new-file tab transitions from naming to edit mode, hand
-  // keyboard focus to the prose so the user can type immediately. Guarded
-  // on `loaded` so we don't focus before the (empty) initial setContent.
+  // D33f \u2014 when a new-file tab transitions from naming to edit mode, arm
+  // a pending-focus flag. The actual `editor.commands.focus()` call lives
+  // in the load effect's success path (below) so it runs AFTER the
+  // resolved-path read + setContent + setLoaded(true) have all settled.
+  // Doing it inline with `queueMicrotask` here races the load effect's
+  // setContent('', false) on the same render tick \u2014 the prior bug.
   useEffect(() => {
-    if (!editor) return
     const wasNew = wasNewRef.current
     wasNewRef.current = !!isNew
-    if (wasNew && !isNew && loaded) {
-      // queueMicrotask so the parent's setState (path/title update) commits
-      // and the prose is fully reachable before we move focus.
-      queueMicrotask(() => editor.commands.focus('end'))
+    if (wasNew && !isNew) {
+      pendingProseFocusRef.current = true
     }
-  }, [editor, isNew, loaded])
+  }, [isNew])
 
   // Flush pending autosave on unmount.
   useEffect(() => {
@@ -559,7 +586,32 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           {error}
         </div>
       )}
-      <div className="flex-1 overflow-auto">
+      {/*
+        Clicking anywhere in the scrollable area below the toolbar should
+        focus the prose so the user can type immediately, not just the
+        narrow centered content column. Without this, gray-margin clicks
+        are no-ops and the user has to aim at the prose itself or the
+        toolbar (which steals focus). We only act when the click target
+        is the scroll-host or the centered column itself — not when it's
+        inside the prose (it already handles that natively) or any
+        interactive descendant. mousedown (not click) so the focus
+        lands before the browser's default selection-collapsing
+        behavior.
+      */}
+      <div
+        className="flex-1 overflow-auto"
+        onMouseDown={(e) => {
+          if (!editor) return
+          const target = e.target as HTMLElement
+          // Click landed on the prose or one of its descendants — let
+          // ProseMirror handle it natively (cursor placement, selection).
+          if (target.closest('.ProseMirror')) return
+          // Anything else inside the scroll-host (gray margins, inside
+          // the centered column but outside the prose) → focus prose.
+          e.preventDefault()
+          editor.commands.focus()
+        }}
+      >
         <div className="mx-auto max-w-[760px] px-10 py-10">
           <EditorContent editor={editor} />
         </div>

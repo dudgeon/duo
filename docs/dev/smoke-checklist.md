@@ -316,12 +316,53 @@ related to editor flows.
 - [ ] `cat <path>` outside Duo confirms the edit landed on disk.
 - [ ] `⌘N` from each focus surface (T/B/E/F) creates a new editor tab
       with the "New document" filename bar focused.
-- [ ] Type a name + Enter: empty file is created, focus moves to prose,
-      typing happens in the prose immediately (D33f).
+- [ ] **D33f regression — known recurring bug; walk literally.**
+      `⌘N` → type `regression-d33f-{ts}` → press Enter → IMMEDIATELY
+      type `hello world` (no mouse, no other keys). Expected: the
+      string `hello world` appears in the prose body verbatim. Failure
+      shape this catches: the focus call from the post-commit effect
+      races the load effect's `setContent('', false)` and the
+      keystrokes either land in `<body>` (no-op) or get swallowed.
+      First seen during Stage 11 (D33f); regressed during Stage
+      13/15.1; fixed again post-Stage-15.2 by deferring the focus
+      call to the load effect's success path via `pendingProseFocusRef`.
+      Don't trust the smoke alone — when PROCESS-001 Phase 2 lands,
+      this gets a Playwright assertion.
+- [ ] **Editor click-target — click anywhere in the pane should focus
+      prose.** Open an existing `.md`. Click into the gray margin (the
+      area around the centered prose column, but below the toolbar) —
+      click should land on the editor area but NOT on the prose
+      itself. Expected: the prose receives focus and the next
+      keystroke types into it. Failure shape: clicks on the gray
+      margin are no-ops; user has to aim at the prose itself, which
+      makes the click-target feel small.
 - [ ] Cursor in a table cell shows the contextual table toolbar (insert
       row above/below, etc.). `⌥⇧↑/↓/←/→` insert rows/cols by keyboard.
 - [ ] Select text in the editor; click into the terminal. Selection
       remains painted as a tinted overlay (`.duo-blurred-selection`).
+- [ ] **Send → Duo from editor (Stage 15.1).** Select a sentence in
+      the editor. A small purple "Send → Duo ↗" pill appears anchored
+      ~6px above the selection. Click it. Expected: payload appears at
+      the active terminal's prompt (default format A: `> "selection"\n>
+      (~/path · heading_trail)`); **focus moves to the terminal**
+      (next keystroke types in the terminal, not the editor); pill
+      disappears. No Enter is pressed — the user controls the prompt.
+- [ ] **`duo selection-format` round-trip.** From a terminal: `duo
+      selection-format` → `{format: 'a'}`. `duo selection-format b` →
+      switches; re-select-and-click the pill → terminal gets literal
+      text only (no quotes, no provenance). `duo selection-format a`
+      → restores. `duo selection-format c` → opaque token like
+      `<<duo-sel-abc123>>`.
+- [ ] **`duo send` from the terminal.** Run `echo "marker" | duo
+      send`. Expected: `marker` appears at the active terminal's
+      prompt input line; no Enter pressed.
+- [ ] **Send → Duo from browser pane (Stage 15.2 — KNOWN
+      VISUAL GAP).** Select text on a browser-pane page. The data
+      plane is correct (`duo selection --pane browser` returns the
+      selection) but the pill is **not visibly rendered** because the
+      WebContentsView is OS-level above the renderer DOM. Tracked as
+      BUG-006; do not flag this as a regression of Stage 15.2 unless
+      the data plane is also broken.
 - [ ] Theme toggle (icon in top-right of chrome row) cycles
       System → Light → Dark; light palette applies.
 - [ ] Files column collapsed: clicking the rail icon expands it.

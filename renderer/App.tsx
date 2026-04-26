@@ -652,12 +652,22 @@ export function App() {
               // into the active terminal's PTY. PRD G11: no Enter
               // appended — the user confirms by pressing Enter
               // themselves. Focus moves to the active terminal so the
-              // user can append a verb without having to click first.
+              // user can immediately type their verb without an extra
+              // click. We need both the React-side `focusedColumn`
+              // flip (drives the focus-ring CSS) AND OS-level focus on
+              // the xterm helper-textarea so PTY keystrokes route in —
+              // mirrors togglePaneFocus's terminal branch.
               onSendToDuo={
                 activeTabId
                   ? (payload) => {
                       void window.electron.pty.write(activeTabId, payload)
                       setFocusedColumn('terminal')
+                      queueMicrotask(() => {
+                        const textarea = document.querySelector<HTMLTextAreaElement>(
+                          '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
+                        )
+                        textarea?.focus()
+                      })
                     }
                   : null
               }
