@@ -23,9 +23,12 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26 night) — Stage 17a (HTML canvas
-render + edit primitive) shipped on top of Stages 5 v2 + 13 + 15.1
-+ 15.2 from earlier the same day.** New `html-canvas` tab type;
+**Latest session (2026-04-26) — Stage 17 deep stack: 17a (canvas
+primitive) + 17a polish & parity 1-7 (shared toolbar refactor +
+markdown shortcuts on typing) + 17a.5 D (smart-blank overlay) + 17b
+A-D (ID injection + sidecar + 7 agent CLI verbs + pretty-printer)
+all shipped + committed in 7 thematic commits. Earlier same day:
+Stages 5 v2 + 13 + 15.1 + 15.2 + owner-walk fixes + skill refactor.** New `html-canvas` tab type;
 `renderer/components/HtmlCanvas/{CanvasTab,RenderedCanvas,CanvasToolbar,inlineMarks,htmlBoilerplate}.tsx`;
 `shared/html-boilerplate.ts` shared between renderer + main; new
 `duo html new <path.html>` CLI verb (writes H17 boilerplate
@@ -139,24 +142,163 @@ move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
   'html'` so PMs whose primary artifact is HTML reports don't have
   to learn ⌘⇧N.
 
-## ⚠️ Pick up here next session (2026-04-26 night breadcrumb)
+## ⚠️ Pick up here next session (2026-04-26 — pre-compaction breadcrumb)
 
-**Where we are: Stage 5 v2 ✓ + Stage 13 ✓ + Stage 15.1 ✓ + Stage
-15.2 ✓ + Stage 17a ✓ + owner-walk fixes ✓ + skill refactor ✓.**
-Layer 0 (Stage 12) functionally complete except whisper-level agent
-presence (deferred). Layer 2 has its first ship: the HTML canvas
-render + edit primitive is live. **Recommended next: Stage 17b**
-(stable IDs + sidecar + agent write surface — `duo html
-query/get/set/replace/append/attr` end-to-end). 17b unblocks the
-agent's ability to edit specific elements by `data-duo-id`, which
-is the gating dependency for 17c (just-added highlight + Send →
-Duo on the canvas) and 17d (comments). Pretty-printer (H34) folds
-into 17b too. Alternatives if a different bottleneck is felt:
-**Stage 14** (track changes), **Stage 15.3** (Send → Duo polish),
-**Stage 18** (first-launch installer — independently shippable).
-Smoke walks for the multi-stage backlog (5 v2 + 13 + 15 + 17a)
-still pending end-to-end on the same machine — owner deferred to
-"after this batch."
+**Where we are.** Stage 17 has shipped a deep stack in one push
+across many turns:
+- **17a** (canvas primitive — render + edit) — commit `631d2b7`
+- **17a polish & parity items 1-7** (shared `EditorActions` toolbar
+  + markdown shortcuts on typing + canvas blockOps + tableOps +
+  placeholder foundation) — same commit
+- **17a.5 design exploration** (5 directions, F committed inline,
+  D shipped) — commits `257f9a2` (docs), `e10e6af` (D code+visual
+  smoke owed)
+- **17b A-D** (ID injection + first-open prompt + sidecar + 7
+  agent CLI verbs end-to-end + pretty-printer with runtime-chrome
+  strip) — commits `717ea99` (A), `e73d4bd` (B), `9d41eed` (C),
+  `6f8ed0d` (D)
+
+Earlier same-day work (already committed): Stage 5 v2 + 13 + 15.1
++ 15.2 + owner-walk fixes + skill refactor.
+
+**Recommended next: Stage 17c.** All deps in place: 17a primitives,
+17b ID injection (so the agent overlay can target by `data-duo-id`),
+Stage 13 yellow-fade primitive (reuse). 17c scope per PRD: just-
+added highlight on agent edits, recentEdits log + repaint-at-open
+within freshness window, `duo selection` for canvas (extends Stage
+15 union with `kind: 'html-canvas'`), persistent blurred selection,
+Send → Duo pill on canvas surface, warn-before-overwrite banner.
+~3-4 PRDs of work.
+
+**Alternatives if a different bottleneck is felt:**
+- **Run the V1–V15 verification list** filed in
+  `docs/roadmap.html#s17a-polish` § In-depth verification owed.
+  V2 (MD toolbar regression after the EditorActions refactor) and
+  V14 (full agent CLI sweep) are the highest-risk; V11/V12 verify
+  the smart-blank overlay visually (probe at ship-time was
+  inconclusive).
+- Stage 14 (track changes — defers cleanly).
+- Stage 15.3 (Send → Duo polish — defers cleanly).
+- Stage 18 (first-launch installer — independent of L0–L2).
+- 17a.5 directions A/E (templates) — still open design questions;
+  owner needs to pick before code work starts.
+
+### Stage 17b (just shipped — code-side, smoke-verified)
+
+PRD: [docs/prd/stage-17-html-canvas.md](docs/prd/stage-17-html-canvas.md).
+Polish/parity card: [docs/roadmap.html#s17a-polish](docs/roadmap.html).
+
+**Phase A — ULID + ID injection (PRD H12–H14):**
+- `renderer/components/HtmlCanvas/ulid.ts` — 30-LOC Crockford
+  base32 generator. 26 chars: 10-char timestamp + 16-char random.
+- `idInjector.ts` — TreeWalker body walk; skips text nodes / `<br>`
+  / `<hr>` / `data-duo-id="opt-out"`; existing duo-ids preserved;
+  `id="…"` never touched. Per-directory choice persistence in
+  localStorage (`duo.html.autoInjectIds.byDir`).
+- `IdInjectionBanner.tsx` — first-open prompt with candidate count
+  + "don't ask again for this folder" checkbox.
+
+**Phase B — sidecar (PRD H22):**
+- `sidecar.ts` — typed schema (`SidecarV1`, `SidecarComment`,
+  `SidecarRecentEdit`); `version: 1`; `withRecentEdit` caps at 50.
+  Read returns `null` on missing/malformed; write atomic via
+  files-service.
+- CanvasTab reads sidecar on mount; persists alongside `.html` on
+  save when sidecar is dirty. Accept-injection appends an
+  `inject-ids` recentEdit entry.
+
+**Phase C — agent CLI ops (PRD H37, H38):**
+- New `'html-op'` DuoCommandName. Single discriminated request shape
+  (`HtmlOpRequest`) routes through one socket command; renderer's
+  CanvasTab subscribes via `IPC.CANVAS_HTML_OP`, executes via
+  `htmlOps.executeHtmlOp`, replies via `IPC.CANVAS_HTML_OP_RESULT`.
+  30s timeout (DOM ops are sub-ms; timeout window only matters when
+  no canvas is active).
+- All seven verbs: `query / get / set / replace / append / remove /
+  attr`. Targeting via `--id <duo-id>` or `--selector <css>`.
+  Doc-rooted resolution (so `body` is addressable for append).
+- Successful WRITE ops append a `recentEdits` entry with
+  `author: 'claude'`, kind matching the op, and the affected
+  element's `data-duo-id` when present.
+- Smoke verified all seven verbs end-to-end against a fresh canvas.
+
+**Phase D — pretty-printer (PRD H34):**
+- `serialize.ts` — 2-space indent, stable attr order
+  (id, class, data-duo-id, then alphabetical); inline-only block
+  elements → single line; void elements self-close; raw-text
+  elements (pre/code/style/textarea/script) preserved verbatim;
+  HTML5 doctype emitted lowercase to match authoring convention.
+- Runtime-chrome strip via `data-duo-canvas-runtime` sentinel.
+  Tagged on body's runtime attrs (contenteditable, spellcheck),
+  the body-outline runtime `<style>`, and the placeholder overlay.
+  Saved files contain none of this — verified via `cat` after save.
+- New `RenderedCanvas.onReady(doc)` callback fires after iframe
+  srcdoc parsing completes. CanvasTab uses it to wire iframe-side
+  hooks instead of an `[initialHtml]` effect — wiring against an
+  empty pre-parse body would have the parser wipe injections.
+  `wired` flag in RenderedCanvas makes wire() idempotent so the
+  synchronous fallback + the load-event listener can both call it
+  without double-firing onReady.
+- CanvasTab re-baselines `lastSavedRef` against the pretty-printed
+  live DOM after iframe load so canvases don't open dirty against
+  the canonical serialized form.
+
+### 17a polish & parity items 1-7 (shipped earlier same day)
+
+Recap (full detail in card `docs/roadmap.html#s17a-polish`):
+- **Item 2:** `+` tab-strip → file interstitial; ⌥-click → browser
+  tab with address-bar focus.
+- **Item 3:** literal `EditorToolbar` reuse via `EditorActions`
+  interface (presentational toolbar + `tiptapEditorActions.ts` for
+  MD + `canvasEditorActions.ts` for canvas). PRD H28's divergent
+  slash-menu approach kept as additive (17e), not a replacement.
+- **Item 4:** canvas `blockOps.ts` (execCommand-backed where it
+  makes sense; task lists / blockquote / code blocks hand-rolled).
+- **Item 5:** native execCommand undo/redo (no custom snapshot
+  stack — PRD §8 was scoped to marks, not blocks).
+- **Item 6:** canvas `tableOps.ts` (hand-rolled add/del row+col,
+  toggle header, delete table, can-X queries).
+- **Item 1:** `markdownShortcuts.ts` — typing-time `# / ## / - /
+  1. / > / **bold** / _italic_ / --- / \`\`\`` conversions; skips
+  inside `<code>/<pre>/<a>` literal contexts.
+- **Item 7:** `placeholder.ts` smart-blank overlay foundation
+  (upgraded by 17a.5 D below).
+- `CanvasToolbar.tsx` deleted (no longer needed).
+
+### 17a.5 Direction D (just shipped — visual smoke owed)
+
+`placeholder.ts` upgraded to a four-door card overlay:
+- **[type]** Markdown shortcuts work as you type (active door)
+- **[soon]** Component blocks via `/` (slash menu ships in 17e)
+- **[soon]** Start from a template (gallery ships in 17a.5
+  follow-up; owner needs to commit to direction A/E first)
+- **[soon]** Ask the agent to draft this (UI ships in 17f; today
+  via `duo html new` + `duo html replace` from a Duo terminal)
+
+Dismisses on first user keystroke OR programmatic real-content
+mutation. Marked `data-duo-canvas-runtime` so it never leaks to
+disk (verified via `cat` post-save). Visual probe at ship-time
+was inconclusive (`duo html query '#duo-canvas-placeholder'`
+returned 0 hits) but predates the wire-idempotency fix in
+RenderedCanvas — V11/V12 in the verification list capture this.
+
+### Important known limitations / follow-ups
+
+- **V1–V15 verification owed.** A future session should walk
+  `docs/roadmap.html#s17a-polish § In-depth verification owed`.
+- **17a.5 directions A/E (templates) still open.** Owner needs to
+  decide before any code work on a template gallery / registry.
+- **BUG-006 (canvas Send → Duo pill occlusion)** doesn't apply on
+  the canvas surface (canvas is renderer DOM, not WebContentsView)
+  — Stage 17c will reuse the existing primitive cleanly.
+- **Pretty-printer "preserve untouched markup" caveat (PRD H34).**
+  We re-format the whole tree on every save. First-save diffs
+  against a hand-authored .html include whitespace + attr-order
+  changes; second save and onward produce stable diffs. Documented
+  in `serialize.ts` header.
+- **A separate agent is working Stage 19** per the user's note.
+  Stage 19's consent sheet folds into Stage 18, so don't pull
+  Stage 18 without checking with the other agent's status.
 
 ### Stage 17a (just shipped — code-side)
 
@@ -777,6 +919,14 @@ late-day: **0 open bugs · 1 deferred process item.**
        Haiku 4.5 and is the canonical Duo-CLI driver; verbs absent from
        the cheat-sheet are effectively invisible to it. PRD:
        `docs/prd/stage-5-v2-duo-subagent.md`.
+
+    Plumbing checklist for a new **canvas op** (Stage 17b adds `duo html *`):
+    1. `shared/types.ts` — extend the `HtmlOpRequest` discriminated union with the new op shape; add to `HtmlOpResult` if it returns a new shape.
+    2. `renderer/components/HtmlCanvas/htmlOps.ts` — add a case in `executeHtmlOp` + a `runX` function that mutates the iframe's contentDocument. Use `resolveTarget` / `resolveAppendTarget` for `--id` / `--selector` resolution.
+    3. `cli/duo.ts` — add the subcommand parser inside `case 'html'` (after the existing seven). Reuse the `flagValue` helper.
+    4. **No main-process changes needed for new ops** — the routing is generic via the `'html-op'` socket command. Only when adding a non-`html-op` verb (e.g. `duo html allow-scripts` for 17e — toggles a sidecar field, not a DOM op) do you add a new case in `electron/socket-server.ts`.
+    5. `skill/SKILL.md` + `agents/duo.md` cheat-sheet entries (mandatory).
+    6. CanvasTab automatically appends a `recentEdits` entry for any op that's not `query` / `get` (i.e. ops that mutate). If your new op should NOT generate an edit log entry, add it to the read-only list in CanvasTab's reply handler.
 
     Plumbing checklist for a new **WorkingPane tab type** (e.g. Stage 17a's `html-canvas`):
     1. `shared/types.ts` — add the value to `WorkingTabType`. Audit any
