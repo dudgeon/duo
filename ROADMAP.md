@@ -632,21 +632,77 @@ in their Claude Code session works without any terminal setup.
       `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
       transport and install paths for the `duo` CLI*.
 
-### Stage 21 — Distribution polish (was Stage 14b — gated on cert) `⬜ Held — gated on Apple Developer ID cert`
+### Stage 21 — Distribution polish (was Stage 14b — cert-side ✅) `🟢 Cert side READY 2026-04-25/26 — mechanical work remaining`
 
 **Exit criteria:** A PM in the Trailblazers cohort installs from a
 download link, with no gatekeeper warnings, and gets auto-updates.
 
-- [ ] App icon (`build/icon.icns`) + branded DMG background
-- [ ] Code signing — Apple Developer ID (**needs cert from Geoff**)
-- [ ] Notarization — `notarytool` via electron-builder
-- [ ] `electron-updater` — auto-update from GitHub Releases or private S3
-- [ ] Session restore on relaunch (terminal CWDs, browser URL, split position) — **subsumes [issue #24](https://github.com/dudgeon/duo/issues/24)** (persist app state on reload). Expand the scope beyond what's listed: also persist file-browser cwd + expanded folders, open editor tabs (with dirty state warning on relaunch), pinned/follow-mode, and per-tab cozy state.
-- [ ] **Browser history persistence for URL autocomplete ([issue #27](https://github.com/dudgeon/duo/issues/27)).** The `persist:duo-browser` partition retains cookies + localStorage; history is in-memory only. Wire Electron's `WebContents.session` history APIs (or a small chokidar-flavored sidecar) so `⌘L` typeahead suggests previously-visited URLs across sessions. Sibling concern to session restore — same partition, similar lifecycle.
-- [ ] Security: launch-time auth token on the Unix socket (before Trailblazers)
+#### 21a — Sign + notarize the DMG (the mechanical core)
+
+Reference doc: `docs/dev/cert-procurement.md`. Cert pre-work is
+complete; remaining work is the build-side wiring + validation pass.
+~half-day if notarytool is clean.
+
+1. **Wire env vars from `~/Documents/duo-private/.env` into the build.**
+   The handoff packet (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
+   `APPLE_API_ISSUER`, `APPLE_TEAM_ID`) is already there. `npm run dist`
+   needs them sourced — either `source ~/Documents/duo-private/.env`
+   ahead of the build or grow a small `scripts/dist.sh`. Don't commit
+   the .env contents anywhere.
+2. **Uncomment the cert blocks in `electron-builder.yml`.** Set
+   `mac.identity` to `"$CSC_NAME"` (or whatever electron-builder's
+   interpolation syntax wants); set `mac.notarize` to the API-key
+   form (`teamId`, `appleApiKey`, `appleApiKeyId`, `appleApiIssuer`);
+   flip `dmg.sign: false` → `true`.
+3. **Run `npm run dist`.** Watch for codesign + notarytool stages
+   in the log. notarytool can take 5–30 minutes; that's the long
+   pole.
+4. **Validate the signed DMG.** `spctl -a -t open --context
+   context:primary-signature dist/duo-*.dmg` should report
+   `accepted`. `codesign --verify --deep --strict --verbose=2
+   dist/mac/duo.app` silent on success. `stapler validate
+   dist/duo-*.dmg` should confirm the ticket is attached.
+5. **Manual cold install.** Move the DMG to a clean macOS user
+   account (or a fresh VM). Mount it. Drag to /Applications.
+   Launch — Gatekeeper should NOT prompt. If it does, the
+   notarisation didn't staple; circle back to step 4.
+
+*Risk:* notarytool's failure modes are opaque. Most common: a `.app`
+resource that isn't signed (custom binary in `extraResources`, an
+unsigned dylib). The fix is always "sign that resource too" —
+electron-builder usually handles it, but custom `asarUnpack` entries
+can slip through.
+
+#### 21b — Branding + polish
+
+- [ ] App icon (`build/icon.icns`) + branded DMG background image
 - [ ] **Light/dark theme refinements** — after Stage 12 (Atelier visual) ships, walk both themes against the Trailblazer-distribution checklist (every stage card visited, every modal opened, every cozy toggle exercised). Remaining work here is "polish what 12 left rough", not "design the theme".
-- [ ] Notifications for agent-driven browser navigation
-- [ ] README + install guide for Trailblazers cohort
+
+#### 21c — Auto-update + session continuity
+
+- [ ] `electron-updater` integration. Publish path: GitHub Releases (the repo is already there); update channel is implicit per release tag. Background-download with explicit user-prompt before swap (matches macOS-native expectations — no surprise restarts).
+- [ ] Session restore on relaunch — **subsumes [issue #24](https://github.com/dudgeon/duo/issues/24)** (persist app state on reload). Persist tab state (browser tabs + their URLs; file tabs + their paths; terminal CWDs + kind); restore on next launch. Expand beyond #24's scope: also persist file-browser cwd + expanded folders, open editor tabs (with dirty state warning on relaunch), pinned/follow-mode, and per-tab cozy state. Need to define crash vs. clean-quit recovery semantics (probably both — the user's expectation is "open back where I was").
+- [ ] **Browser history persistence for URL autocomplete ([issue #27](https://github.com/dudgeon/duo/issues/27)).** The `persist:duo-browser` partition retains cookies + localStorage; history is in-memory only. Wire Electron's `WebContents.session` history APIs (or a small chokidar-flavored sidecar) so `⌘L` typeahead suggests previously-visited URLs across sessions. Sibling concern to session restore — same partition, similar lifecycle.
+
+#### 21d — Trust + access for Trailblazers
+
+- [ ] Launch-time auth token on the Unix socket. Today: `~/Library/Application Support/duo/duo.sock` with mode 0700 — fine for single-user dev. For Trailblazers cohort distribution, add a token: app generates a per-launch random token, writes it to a file in the same dir with mode 0600; the CLI reads + sends it on first connection; bad token = drop the connection. Defends against another local user with read access.
+- [ ] Notifications for agent-driven browser navigation. When the agent calls `duo open <url>` or `duo navigate` while the Duo window is in the background, fire a macOS notification ("Claude opened example.com") so the user sees what their CLI just did. *Not* for foreground actions — the user is watching.
+- [ ] README + install guide for the Trailblazers cohort. Discoverability for new users; bundles the cert-procurement note for self-builders.
+
+#### Sequencing
+
+21a (sign + notarize) is independent of everything else and ships
+first because it unblocks the whole stage. 21b/c/d each ship as
+separate small PRs against the signed build; auto-update (21c first
+item) and session restore (21c second) are the highest-leverage
+Trailblazer ergonomics, but neither blocks the other.
+
+#### Optional cert-pre-work follow-ups (not blocking 21a)
+
+Still ☐ in `docs/dev/cert-procurement.md`: cleanup of `.cer` +
+`.certSigningRequest` files; `.p12` export to 1Password (disaster
+recovery if this Mac dies); `.p8` 1Password backup confirmation.
 
 ---
 
@@ -1421,7 +1477,7 @@ declines from the editor instead of from the terminal.
 
 ---
 
-## Stage 14 — Editor: track changes (Suggesting / Accepted) `⬜ Visual layer ships canvas-ready; MD data binding ships now; canvas binding deferred to Stage 17 v2`
+## Stage 14 — Editor: track changes + comment rail (markdown binding) `⬜ Shorter than original framing — 17d-A shipped <CommentRail> primitive + UX; Stage 14 inherits the rail and adds CriticMarkup parsing + 2 new TipTap marks + 2 new visual primitives + 3 new CLI verbs`
 
 > **Was 11d.** Promoted to top-level Stage 14 in the 2026-04-26
 > renumber. Cross-refs GitHub issue
@@ -1432,64 +1488,117 @@ declines from the editor instead of from the terminal.
 >
 > **Editor-agnostic primitive contract** (locked
 > [2026-04-26](docs/DECISIONS.md#editor-agnostic-primitives-shared-visual-chrome-surface-bound-data-bindings)):
-> ships four reusable visuals under `primitives/`:
-> `<TrackChangesProvider>`, `<TrackedRangeMark>`,
-> `<AcceptAllBanner>`, `<CommentRail>`. MD-specific code (CriticMarkup
-> parsing, PM marks for the tracked ranges) lives in
-> `extensions/TrackChanges.ts`. Stage 17 H39 explicitly defers HTML
-> diff to v2 — but the visual chrome is canvas-ready from this stage,
-> so Stage 17 v2 is "wire a different binding into existing
-> components" rather than "rebuild the comment rail."
+> visual layer lives under `primitives/`. **`<CommentRail>` already
+> shipped** in 17d-A (2026-04-26) with the canvas binding; Stage 14
+> writes the markdown binding for the same primitive. Track-changes
+> additions (`<TrackedRangeMark>`, `<AcceptAllBanner>`) ship into
+> `primitives/` so Stage 17 v2 reuses them when H39 lifts the HTML
+> diff deferral.
+>
+> **The shape after 17d-A.** Pre-17d-A, Stage 14 had to design + build
+> the rail + range styling + accept-all UX + the parser + the marks.
+> Now it inherits the rail, the new-comment composer, the
+> resolve/reopen UX, and the styling tokens. The work narrows to
+> *parsing CriticMarkup* + *two new TipTap marks* + *two new visual
+> primitives* + *three new CLI verbs*. ~4–5 PRDs total.
 
-Three modes for the editor: **Live** (default — direct edits land
-immediately), **Suggesting** (agent edits land as proposed insertions
-+ deletions), **Accepted** (apply all pending suggestions in one
-sweep). The agent's CLI controls the mode (`duo doc mode <live|
-suggesting>`); the human accepts/rejects from the editor.
+### 14a — CommentRail binding (the easy half) `~1–2 PRDs`
 
-### Visual layer (lands now, canvas-ready)
+- [ ] CriticMarkup `{>>[author · ts] body<<}` parser. Tied into
+      tiptap-markdown's preprocessing pipeline so round-trip stays
+      lossless. Standalone module in
+      `renderer/components/editor/markdown-criticmarkup.ts` so
+      14b's track-changes parser can extend it.
+- [ ] `extensions/Comment.ts` — TipTap mark that wraps the matched
+      range. The mark carries `author`, `ts`, `body` attributes
+      (parsed from the prefix); on save, the serializer reconstructs
+      `{>>[author · ts] body<<}` from the mark + range.
+- [ ] PM `Decoration.inline` for the in-prose anchor badge —
+      markdown's analog of the canvas's `commentAnchors.ts`. Same
+      visual treatment (numbered chip, `--accent` background) as
+      the canvas badges so the experience reads continuously between
+      surfaces.
+- [ ] Adapter: parsed comment marks → `CommentThread[]` records
+      fed into the existing `<CommentRail>` primitive. Reply /
+      resolve / reopen flow through the same primitive callbacks;
+      the binding's adapter writes them back as edits to the
+      CriticMarkup span (reply = adjacent `{>>...<<}`; resolve =
+      mark deletion → strip the span).
+- [ ] Round-trip tests — fixture docs cover: standalone span, span
+      inside list item, span across list items, span inside table
+      cell, escaped braces in code (\`{>>...<<}\` should NOT parse).
 
-- [ ] `<TrackedRangeMark>` — Atelier-styled green/red decoration
-      with author badge, accept/reject buttons in a margin chip.
-      Pure React.
-- [ ] `<AcceptAllBanner>` — top-of-editor banner: "Claude has 3
-      pending suggestions. [Accept all] [Review one by one]
-      [Reject all]." Pure React.
-- [ ] `<CommentRail>` — right-side rail with threaded entries,
-      anchor icon, accept/resolve/reply, "✨ Claude" badge for
-      agent comments. Per Stage 17 H23, this is the same component
-      the canvas will use.
-- [ ] `<TrackChangesProvider>` — context provider that holds the
-      tracked-changes state and exposes accept/reject handlers. The
-      data shape is editor-agnostic (`{ id, kind: 'insert' | 'delete',
-      author, ts, range }` where `range` is opaque from the visual
-      layer's perspective).
+### 14b — Track changes (the harder half) `~2 PRDs`
 
-### MD data binding (lands now)
-
-- [ ] `extensions/TrackChanges.ts` — TipTap extension. Parses
-      CriticMarkup on doc load, renders tracked ranges as PM marks
-      with the visual-layer's attribute schema. On accept, removes
-      the mark and the rejection text. On reject, removes the mark
+- [ ] CriticMarkup parser extension: insertion `{++…++}`, deletion
+      `{--…--}`, substitution `{~~old~>new~~}`, highlight `{==…==}`
+      all parse to TipTap marks. Extends 14a's parser module so
+      both sets share the brace-disambiguation logic.
+- [ ] `<TrackedRangeMark>` visual primitive in
+      `renderer/components/editor/primitives/`. Range-styled wash
+      with `mode` prop: `insertion | deletion | substitution |
+      highlight`. Per-mark hover affordance for accept / reject
+      buttons in a margin chip. **Shape MUST be canvas-ready by
+      construction** per the editor-agnostic contract — no TipTap
+      imports.
+- [ ] `<AcceptAllBanner>` visual primitive. Top-of-editor banner:
+      "Claude has N pending suggestions. [Accept all] [Review one
+      by one] [Reject all]." Same pattern as `<WriteWarningBanner>`.
+- [ ] PM marks for each CriticMarkup variant; on accept, removes
+      the mark and the rejected text; on reject, removes the mark
       and any inserted text.
-- [ ] `duo doc mode <live|suggesting>` CLI — runtime switch.
-- [ ] `duo doc comment` CLI — adds a comment anchored to a range.
-      MD storage: CriticMarkup `{>> comment <<}` syntax, parsed
-      into `<CommentRail>` entries.
-- **Exit:** Claude in suggesting mode writes "I'd change X to Y";
-  the human sees green/red diffs in the prose + rail entry, accepts
-  or rejects.
 
-### Stage 17 reuse story (Stage 17 v2, after H39 lifts the deferral)
+> Stage 11 D28's Atelier "just-added" already shipped (Stage 13a)
+> so the highlight color logic is already in tokens; this stage
+> just hooks the new marks.
 
-- HTML's natural data binding is `<ins>`/`<del>` tags (HTML-native!)
-  or `data-duo-track-*` attributes for finer-grained control. Stage
-  17 v2 writes a canvas-side `bindings/TrackChanges.ts` that emits
-  the same record shape `<TrackChangesProvider>` already accepts.
-  Visual components don't change.
-- Comment rail (H23) uses the same `<CommentRail>` component shipping
-  here. Stage 17 H21 + H22 spec the canvas-side anchor model
-  (`data-duo-id` + range) which feeds the same component schema.
+### 14c — Suggesting / Accepted toolbar mode (D18) `~1 PRD`
+
+- [ ] Top-bar toggle (`⌘/`) flips the editor into "Suggesting" —
+      every edit becomes a CriticMarkup span instead of a direct
+      mutation. "Accepted" view (default) hides the markup chrome
+      and renders only the resolved doc.
+- [ ] Per-mark hover affordance for accept/reject; bulk accept/
+      reject all from the banner.
+- [ ] Persists per-document in frontmatter properties
+      (`duo.trackChanges: 'on'|'off'`) so a session pickup
+      remembers state.
+
+### 14d — Agent CLI surface `~0.5 PRDs`
+
+- [ ] `duo doc comment --anchor <selector> --body "…"` writes a
+      CriticMarkup comment span at the resolved anchor. Anchor
+      forms: `--anchor heading:"Risks"`, `line:42`, `text:"exact
+      match"`, `range:start-end`. Mirrors the existing
+      `duo html comment` CLI shape from 17d-A.
+- [ ] `duo doc comments [--filter all|open|resolved]` mirrors
+      `duo html comments`.
+- [ ] `duo doc track [--mode on|off]` reads / sets the per-doc
+      track-changes mode.
+- [ ] Plumbing checklist (CLAUDE.md §4): shared types, preload,
+      main, socket-server, cli/duo, skill/SKILL.md,
+      `agents/duo.md` cheat-sheet.
+
+### Risks
+
+- **CriticMarkup parsing inside nested constructs** (list items,
+  table cells, code blocks) is famously fiddly. tiptap-markdown's
+  preprocessing pipeline is the right place to intercept — but it'll
+  need a unified-style remark plugin (or hand-rolled regex) per
+  construct. Build a regression set against fixture docs early.
+- **Round-trip whitespace.** If a span gets re-serialized with
+  different whitespace, the diff churns; lock the formatter early.
+- **Stage 17 v2 reuse story still on the books.** Same primitives
+  ship into `primitives/`; canvas binding for track-changes will
+  use `<ins>` / `<del>` HTML-native or `data-duo-track-*`
+  attributes when H39 lifts the deferral.
+
+**Exit (whole stage):** Claude in suggesting mode writes "I'd
+change X to Y" via `duo doc write --replace-selection` (or
+equivalent); the human sees green/red diffs in the prose + rail
+entry, accepts or rejects from the chrome. Comment threads round-
+trip through CriticMarkup — open the file in a third-party
+markdown editor, the comments are still there as `{>>…<<}` spans.
 
 ---
 
@@ -2077,14 +2186,156 @@ markdown editor or a browser tab — one primitive, three modalities.
 - **Exit:** PM selects on the canvas, hits the pill, terminal gets
   the quoted block; agent writes back, the change paints yellow.
 
-### Phase 17d — Comments + lock convention (~3 PRs)
-- [ ] `duo html comment`; comment rail re-used from Stage 14 (H23).
-- [ ] Range resolution against `data-duo-id` + textPath (H21).
-- [ ] Resolve / reply / accept UX (re-use Stage 14 D19).
-- [ ] `data-duo-lock="structure"` rendering + ⌥-click override (H19).
-- [ ] Skill snippet bundle (H17 boilerplate, H18 ten core components).
-- **Exit:** PM leaves a comment on a callout; Claude reads it via
-  `duo html changes` and acts.
+### Phase 17d — Comments + lock convention (~3 PRs, split into 17d-A/B/C)
+
+#### 17d-A — Comments rail + canvas binding ✅ shipped 2026-04-26
+
+- [x] `<CommentRail>` editor-agnostic primitive in
+      `renderer/components/editor/primitives/CommentRail.tsx` —
+      visual layer only, props are surface-shaped (CommentThread
+      record). Same primitive will serve the markdown editor's
+      Stage 14 binding when CriticMarkup ships.
+- [x] Canvas binding: thread grouping by `data-duo-id` with
+      document-order sort, anchor badges painted in body via
+      `commentAnchors.ts` (runtime DOM with
+      `data-duo-canvas-runtime` sentinel — never persisted), full
+      reply / resolve / reopen UX.
+- [x] New-comment flow: "💬 Comment" button pairs with the Send →
+      Duo pill on selection; clicking opens a composer popover;
+      submitting persists + dismisses.
+- [x] CLI: `duo html comment --id|--selector|--text --body "…"`
+      (anchor resolution → nearest `data-duo-id` ancestor); `duo
+      html comments [--filter all|open|resolved]` (sorted thread
+      list).
+- [x] New IPC channels: `CANVAS_HTML_COMMENT[_RESULT]`,
+      `CANVAS_HTML_COMMENTS_LIST[_RESULT]`. `SidecarV1` extended
+      with additive `resolvedThreads?: Record<anchorId, {ts, by}>`.
+- [x] V23–V27 verification owed (visual smoke for a future session).
+
+#### 17d-B — Lock convention `~1 PR`
+
+The intent: when Duo (or Claude) authors HTML using the H17
+boilerplate + H18 component snippets, structurally important
+elements get an opt-in `data-duo-lock="structure"` attribute. The
+lock is a *convention* the editor honours — text content stays
+editable; tag/attributes/child structure are protected from
+accidental human edits.
+
+- [ ] **Hover affordance.** Hovering an element with
+      `data-duo-lock="structure"` paints a subtle dashed outline
+      (Atelier `--paper-rule` token) + tooltip ("Structural element
+      — text editable; layout locked"). Implementation: single
+      delegated `mouseover` listener on the iframe body; the
+      runtime DOM (outline + tooltip) carries
+      `data-duo-canvas-runtime` so the serializer scrubs it.
+- [ ] **Edit guard (load-bearing).** The canvas's MutationObserver
+      gets a pre-write check that walks the mutation target's
+      ancestor chain; if any ancestor carries
+      `data-duo-lock="structure"` AND the mutation type is
+      structural (added/removed children that aren't text nodes,
+      or attribute changes other than `class`/`style`), the
+      mutation is reverted. Text-node mutations always pass through.
+      Edge case: agent-driven `duo html set/replace/append` against
+      a locked element should ALSO be guarded — surface a clear
+      error. The CLI's existing html-op handler in `htmlOps.ts`
+      grows the same ancestor walk.
+- [ ] **⌥-click override.** Holding ⌥ while clicking a locked
+      element enters "edit lock" mode for the duration of that
+      selection — the dashed outline goes solid (visual
+      confirmation), the edit guard pauses for that subtree until
+      selection moves elsewhere. Implementation: per-element
+      `data-duo-lock-overridden` sentinel that the edit guard
+      checks alongside `data-duo-lock`. The override is ephemeral;
+      the serializer never persists it.
+- [ ] **Optional: toolbar affordance.** When the user's selection
+      is inside a locked element, the toolbar grows a "🔒 Unlock
+      element" button (or "🔓 Lock element" for unlocked). Click
+      toggles the attribute. Defers cleanly — the ⌥-click override
+      + the agent's CLI cover most cases.
+
+> **Open question — where do locks come from?** The H17 boilerplate
+> (`shared/html-boilerplate.ts`) currently emits a flat `<body>`
+> with an `<h1>` + empty `<p>` — no `<header>`/`<main>`/`<footer>`
+> wrappers, no locks. 17d-B's value lights up only when the snippet
+> bundle (17d-C) starts emitting locks on snippet outers, AND the
+> H17 boilerplate grows the semantic body wrappers. **Recommended
+> sequencing: 17d-C first** (or alongside) so locks have something
+> to lock; ship 17d-B as the editor-side honour-the-convention
+> layer once the convention exists.
+
+> **Out of scope for 17d-B.** A "locks panel" sidebar listing all
+> locked elements; bulk lock/unlock UI; per-attribute lock
+> granularity (`data-duo-lock="tag-only"` etc.); locks that survive
+> across snippet replacement. All defer cleanly.
+
+#### 17d-C — Skill snippet bundle `~1 PR (mostly skill prose)`
+
+Today the skill stub at `skill/examples/html-canvas-authoring.md`
+is a README — it tells Claude that the canvas exists. It doesn't
+yet teach Claude *what to write*. 17d-C ships the snippet bundle
+so the agent has a Duo-shaped vocabulary it can reach for;
+structurally consistent output makes 17d-B's lock convention
+meaningful and 17a's CSS-only Atelier styling actually match what
+the agent emits.
+
+- [ ] **H17 boilerplate v2 — the semantic body.** Replace the
+      current `<h1>` + empty `<p>` in `shared/html-boilerplate.ts`
+      with a body that grows scaffolding:
+      `<header data-duo-lock="structure">` + `<main>` +
+      `<footer data-duo-lock="structure">`, all pre-marked with
+      `data-duo-id`s. A small `<style>` block in `<head>` ships
+      sane resets + a body width cap (~720px to match Stage 11 D3)
+      + Atelier-flavoured token defaults. Tailwind CDN behind
+      script-opt-in (H8) — defer until 17e ships the opt-in dialog;
+      v1 ships inline-styled.
+- [ ] **H18 component snippets — ten core shapes.** Each snippet
+      is a self-contained block of HTML + inline styles that drops
+      in via `duo html append --parent <id> --html "…"`. Each
+      carries an outer `data-duo-component="<name>"` tag; all
+      editable children get pre-applied `data-duo-id`s. The ten:
+      callout (info/warning/success), comparison table, card grid
+      (2-column), definition list, code block + copy button, status
+      badge row, stat tile, image with caption, embedded checklist,
+      footnote.
+- [ ] **Skill prose (load-bearing).** Teaches the agent: when to
+      reach for which snippet (the user said "compare X and Y" →
+      comparison table; "what's our progress?" → stat tile + status
+      badge row); how to nest snippets vs. add them as siblings;
+      the `data-duo-component` convention so it can later read its
+      own work back; the lock convention so it doesn't try to
+      mutate locked scaffolding. The Stage 5 v2 agent
+      (`agents/duo.md`) gets a parallel cheat-sheet entry pointing
+      at the skill file. Pattern 6 ("draft a status report") +
+      Pattern 7 ("transform a checklist") get added to the agent's
+      Patterns section.
+- [ ] **Skill installation.** `skill/examples/html-canvas-authoring.md`
+      grows from README to full doc; `npm run sync:claude` already
+      copies the file. Stage 18's installer covers the end-user
+      delivery path. No CLI verb changes.
+
+> **Open question — Tailwind vs. inline styles.** H17's original
+> spec proposed Tailwind via CDN (gated behind H8 script opt-in).
+> Tailwind gives Claude a familiar vocabulary; inline styles avoid
+> the network dependency + the script-gate friction. **Recommend
+> inline styles for v1** with a clear "alternative styling"
+> appendix in the skill — keeps 17d-C decoupled from 17e's
+> script-opt-in dialog, and makes the snippets renderable in any
+> browser without runtime CSS. If owner-led writing later wants
+> Tailwind, it ships as 17d-C.5 (a small alternate snippet set)
+> once the script opt-in is in place.
+
+> **Out of scope for 17d-C.** User-defined templates / custom
+> snippet libraries (that's 17a.5 direction E — open). The UI for
+> inserting a snippet from inside the canvas via the toolbar's
+> "Insert component" button (PRD H31) — that ships in 17e's slash
+> menu / floating bubble work. Multi-page layouts. Print
+> stylesheets.
+
+**Exit (whole 17d):** PM leaves a comment on a callout; Claude
+reads it via `duo html comments` and acts via `duo html comment`
+or `duo html replace`. Boilerplate now mounts with locked
+scaffolding so accidental layout edits are guarded; agent's
+snippet vocabulary lets it produce structurally consistent reports.
 
 ### Phase 17e — Polish + scripts + source view (~2 PRs)
 - [ ] Script opt-in dialog (H8) + sidecar persistence (H22).
