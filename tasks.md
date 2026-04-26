@@ -432,37 +432,61 @@ Option (b) is the quickest path; option (a) is the right path. Class of issue: P
 
 ---
 
-### FOLLOWUP-005: Stage 21 codesign blocker — system clock skew breaks timestamped signing
+### FOLLOWUP-005: Stage 21 codesign blocker — extended attributes pollute the build, codesign rejects
 
-**Status:** 🆕 Filed
+**Status:** 🆕 Filed (diagnosis revised after retest)
 **Priority:** Stage 21 blocker (low priority until Stage 21 starts)
 **Filed:** 2026-04-26 (during v0.2.0 `npm run dist`)
 
-`npm run dist` discovered `CSC_NAME` from `~/Documents/duo-private/.env`, electron-builder auto-detected the Developer ID Application cert, and attempted to sign. `codesign` failed with:
+When `CSC_NAME` is in env (from `~/Documents/duo-private/.env`), electron-builder auto-discovers the Developer ID Application cert and attempts to sign. Two distinct failures observed:
 
+**Run 1:**
 ```
-timestamps differ by 401 seconds — check your system clock
+.../Electron Framework.framework/.../af.lproj/locale.pak: timestamps differ by 401 seconds — check your system clock
 ```
 
-The issue: macOS `codesign` with `--timestamp` calls Apple's timestamp server. The server returns a signed timestamp; `codesign` then validates that this timestamp is reasonably close to the local file modification time. A clock skew of ~7 minutes (401 seconds) tripped the validation.
+**Run 2:**
+```
+.../Duo Helper (GPU).app/Contents/MacOS/Duo Helper (GPU): replacing existing signature
+.../Duo Helper (GPU): resource fork, Finder information, or similar detritus not allowed
+```
 
-**Root cause (untraced but obvious candidates):**
+**Initial diagnosis (Run 1) was wrong.** I attributed Run 1 to system clock skew. After verification, the local clock + timezone (EDT) are correct, and a one-shot `codesign --sign ... --timestamp` test against a throwaway file SUCCEEDED with a valid Apple TSA timestamp. So clock isn't the issue.
 
-- macOS `System Settings → General → Date & Time → "Set time and date automatically"` is off, OR
-- NTP can't reach `time.apple.com` (firewall, network, etc.)
+**Actual root cause (Run 2 is the canonical error):** the bundle contains files with macOS extended attributes (`com.apple.provenance`, `com.apple.quarantine`, possibly `com.apple.FinderInfo`) that `codesign --options runtime` (hardened runtime) rejects. Confirmed by `ls -la@` on the failing file — the `@` indicates xattrs present.
 
-**Fix:**
+Likely contributors: macOS Sequoia (15.x) more aggressively tags copied files with `com.apple.provenance`; `npm install`-extracted Electron prebuilt comes with some xattrs already; the repeat `npm run dist` run replaces existing signatures without first stripping xattrs, which compounds.
+
+Run 1's "timestamps differ" error was probably codesign's first-pass complaint on a different xattr-polluted file — the message is misleading but the root cause is the same family.
+
+**Fix (suggested):**
+
+Add a pre-codesign sweep to electron-builder's hooks, OR have `npm run dist` precede with:
 
 ```bash
-# Either toggle "Set automatically" in System Settings, or one-shot:
-sudo sntp -sS time.apple.com
+xattr -cr dist/    # clear all xattrs recursively from the build tree
+```
+
+Or better, add an `afterPack` hook in `electron-builder.yml` to do this automatically:
+
+```yaml
+afterPack: build/strip-xattrs.js   # runs before sign
+```
+
+with `build/strip-xattrs.js`:
+
+```js
+const { execSync } = require('child_process')
+exports.default = async ({ appOutDir }) => {
+  execSync(`xattr -cr "${appOutDir}"`, { stdio: 'inherit' })
+}
 ```
 
 **Current workaround for v0.2.0:** `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist` — produces unsigned DMG (which is what v0.2.0 wants anyway, since Stage 21 hasn't shipped). v0.2.0 cut completed this way; the DMGs at `dist/Duo-0.2.0-arm64.dmg` + `dist/Duo-0.2.0.dmg` are unsigned (Gatekeeper warns).
 
-**For Stage 21:** must resolve before signing + notarization can work. Add a `npm run dist` precondition check (verify `sntp -q time.apple.com` shows < 60s offset; fail fast with a clear error).
+**For Stage 21:** the xattr sweep MUST land alongside flipping `mac.identity` in `electron-builder.yml`. Otherwise the same error returns.
 
-**Cross-ref:** `electron-builder.yml` has `mac.identity` commented out per Stage 21 plan — the cert was wired in via `$CSC_NAME` env var auto-discovery. When Stage 21 ships, both the YAML wiring AND a healthy system clock are needed.
+**Cross-ref:** `electron-builder.yml` has `mac.identity` commented out per Stage 21 plan — when Stage 21 ships, both the YAML wiring AND the xattr sweep (`afterPack` hook) are needed.
 
 ---
 
