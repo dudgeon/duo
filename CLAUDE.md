@@ -23,11 +23,13 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26) — Stage 17c shipped (canvas just-added
-wash + duo selection canvas + persistent blurred selection + Send →
-Duo pill on canvas + warn-before-overwrite banner). 17a + 17a polish +
-17a.5 D + 17b + 17c + 19c merge + Stage 21 cert pre-work all done in
-this session.** New canvas-side primitives:
+**Latest session (2026-04-26) — Stage 17d-A shipped (shared
+`<CommentRail>` primitive + canvas binding + new-comment flow + `duo
+html comment` / `comments` CLI verbs). The same primitive will serve
+the markdown editor's Stage 11d binding when CriticMarkup ships —
+visual layer is editor-agnostic, only the data binding differs. 17a +
+17a polish + 17a.5 D + 17b + 17c + 17d-A + 19c merge + Stage 21 cert
+pre-work all done in this session.** New canvas-side primitives:
 `renderer/components/HtmlCanvas/{justAddedCanvas,blurredSelection,canvasSelection}.ts`;
 serializer scrubs `duo-just-added` from saved class lists; new IPC
 channel `CANVAS_SELECTION_PUSH` + `getCanvasSelection` on NavBridge;
@@ -221,17 +223,27 @@ optional follow-ups (.cer/.csr cleanup, .p12 1Password export,
 .p8 1Password backup confirmation) still ☐ in tracker but none
 blocking.
 
-**Recommended next.** Two strong candidates:
+**Recommended next.** Three strong candidates:
 
-1. **Stage 17d** (comments rail + lock convention; pulls in skill
-   snippet bundle). Reuses Stage 11 D20's comment-rail component
-   from the markdown editor; adds `<file>.duo.json § comments[]`
-   anchored by `data-duo-id` (already populated in 17b sidecar);
-   adds `data-duo-lock="structure"` rendering + ⌥-click override
-   (PRD H19); ships the H17 boilerplate + H18 ten-snippet bundle in
-   the skill so Claude can recognize Duo-shape components. ~3 PRDs.
+1. **Stage 14** (markdown editor's `<CommentRail>` binding via
+   CriticMarkup). The 17d-A shipment landed the editor-agnostic
+   `<CommentRail>` primitive specifically shaped to also serve the
+   markdown editor — see `primitives/CommentRail.tsx` headers + the
+   primitives README. Stage 14 work is the parsing layer
+   (`{>>[author · ts] body<<}` round-trip), TipTap mark for the
+   in-document anchor decoration, and a `useMemo` adapter from
+   parsed comment marks → `CommentThread[]` records. The visual
+   layer + the rail UX are already done. ~2–3 PRDs.
 
-2. **Stage 21** (signed + notarized DMG). Cert pre-work is done;
+2. **Stage 17d-B** (lock convention) and/or **17d-C** (skill snippet
+   bundle). Both small. 17d-B: `data-duo-lock="structure"` rendering
+   (subtle dashed outline on hover; tooltip "Structural element —
+   text editable; layout locked") + ⌥-click override (PRD H19).
+   17d-C: ship the H17 boilerplate + H18 ten-snippet bundle in
+   `skill/examples/html-canvas-authoring.md` so Claude recognizes
+   Duo-shape components when authoring.
+
+3. **Stage 21** (signed + notarized DMG). Cert pre-work is done;
    remaining work is mechanical: uncomment `mac.identity` +
    `mac.notarize` in `electron-builder.yml` (referencing the env
    vars from `~/Documents/duo-private/.env`); flip
