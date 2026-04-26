@@ -17,6 +17,7 @@
 // bridge, which we don't need yet.
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
+import { serializeDocument } from './serialize'
 
 interface Props {
   /** Initial HTML the iframe should render. Set on mount; the iframe
@@ -55,12 +56,9 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
     const serialize = useCallback((): string => {
       const doc = getDocument()
       if (!doc || !doc.documentElement) return ''
-      // Match the canonical doctype shipped by the boilerplate; doctype
-      // doesn't survive contentDocument.documentElement.outerHTML.
-      const dt = doc.doctype
-        ? `<!DOCTYPE ${doc.doctype.name}${doc.doctype.publicId ? ` PUBLIC "${doc.doctype.publicId}"` : ''}${doc.doctype.systemId ? ` "${doc.doctype.systemId}"` : ''}>`
-        : '<!doctype html>'
-      return `${dt}\n${doc.documentElement.outerHTML}\n`
+      // Stage 17b Phase D — pretty-printed serialization with stable
+      // attribute order. See serialize.ts for the formatting contract.
+      return serializeDocument(doc)
     }, [getDocument])
 
     useImperativeHandle(ref, () => ({ getDocument, serialize }), [getDocument, serialize])
@@ -81,11 +79,26 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         if (!doc || !doc.body) return
 
         // contentEditable on body. PRD H1 — the canvas IS the page.
+        // We mark these as runtime-only via a sentinel attribute so the
+        // pretty-printer can strip them from the on-disk serialization.
+        // Saving raw <body contenteditable="true" spellcheck="true" …>
+        // would leak our editing chrome into a file the user might open
+        // in any browser.
         doc.body.setAttribute('contenteditable', 'true')
         doc.body.setAttribute('spellcheck', 'true')
-        // Visual focus indicator on the body itself is suppressed; the
-        // selection is the affordance.
-        ;(doc.body.style as CSSStyleDeclaration).outline = 'none'
+        doc.body.setAttribute('data-duo-canvas-runtime', '1')
+
+        // Visual focus indicator suppressed via a runtime <style> tag
+        // (also marked data-duo-canvas-runtime so the serializer skips
+        // it), instead of body.style.outline directly — that would
+        // mutate any user-authored style="…" on body and leak into the
+        // saved file.
+        if (!doc.head?.querySelector('style[data-duo-canvas-runtime]')) {
+          const style = doc.createElement('style')
+          style.setAttribute('data-duo-canvas-runtime', '1')
+          style.textContent = 'body { outline: none; }'
+          doc.head?.appendChild(style)
+        }
 
         observer = new MutationObserver(() => {
           if (!cancelled) onChange()

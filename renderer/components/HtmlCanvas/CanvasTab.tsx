@@ -224,6 +224,16 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
     const cleanShortcuts = installMarkdownShortcuts(doc)
     const cleanPlaceholder = installPlaceholder(doc)
 
+    // 17b Phase D — re-baseline lastSavedRef against the pretty-printed
+    // serialized form of the live DOM. Without this, every canvas opens
+    // "dirty" because the on-disk text (raw, possibly from a hand-
+    // authored file) doesn't match our canonical serializer output.
+    // Must happen BEFORE the ID-injection logic below — auto-inject
+    // mutates the DOM, and we want those mutations to register as a
+    // dirty state against the no-ID baseline so autosave persists them.
+    const initialSerialized = canvasRef.current?.serialize()
+    if (initialSerialized) lastSavedRef.current = initialSerialized
+
     // ── ID injection (PRD H12–H14). If the file already has duo-ids,
     // do nothing — they're stable across sessions. Otherwise consult
     // the per-directory choice; auto-act on it, or surface the prompt.

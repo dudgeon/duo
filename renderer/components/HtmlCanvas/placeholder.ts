@@ -22,6 +22,8 @@ export function installPlaceholder(doc: Document): () => void {
   if (!doc.getElementById(STYLE_ID)) {
     const style = doc.createElement('style')
     style.id = STYLE_ID
+    // Runtime-only marker so serialize.ts strips this <style> on save.
+    style.setAttribute('data-duo-canvas-runtime', '1')
     style.textContent = `
       #${PLACEHOLDER_ID} {
         position: fixed;
@@ -48,6 +50,8 @@ export function installPlaceholder(doc: Document): () => void {
       const overlay = doc.createElement('div')
       overlay.id = PLACEHOLDER_ID
       overlay.contentEditable = 'false'
+      // Runtime-only marker so serialize.ts strips this overlay on save.
+      overlay.setAttribute('data-duo-canvas-runtime', '1')
       overlay.textContent = PLACEHOLDER_TEXT
       doc.body.appendChild(overlay)
     } else if (!empty && existing) {
