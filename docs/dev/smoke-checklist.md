@@ -135,8 +135,9 @@ B = browser, E = editor, F = files). For each cell, verify ALL of:
 
 | # | Shortcut | T | B | E | F | Expected outcome |
 |---|---|---|---|---|---|---|
-| 1 | `⌘T` | ☐ | ☐ | ☐ | ☐ | New foreground browser tab AND address-bar input has DOM focus + URL is selected. **Type one letter immediately** — it should land in the address bar, not in the new tab's page or in the previously focused surface (BUG-002 regression check). |
-| 2 | `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | New terminal tab; PTY accepts typing immediately (xterm focused). |
+| 1a | `⌘T` from B/E/F | n/a | ☐ | ☐ | ☐ | New foreground browser tab AND address-bar input has DOM focus + URL is selected. **Type one letter immediately** — it should land in the address bar, not in the new tab's page or in the previously focused surface (BUG-002 regression check). |
+| 1b | `⌘T` from T (Stage 19c D18) | ☐ | n/a | n/a | n/a | New **claude tab** in the terminal column (NOT a browser tab). Title prefix `claude · <basename>`; PTY shows `claude` typed and the TUI taking over. If `claude` is not on PATH, a one-line install banner prints instead (D23). The split-button `+` does the same thing. |
+| 2 | `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | New **vanilla shell** terminal tab regardless of focus (Stage 19c D19); PTY accepts typing immediately (xterm focused). The split-button `>` half does the same thing. |
 | 3 | `⌘N` | ☐ | ☐ | ☐ | ☐ | New `editor` tab; filename input focused. Type a name → `Enter` → focus moves to prose, next keystroke lands in prose (D33f). |
 | 4 | `⌘L` | ☐ | ☐ | ☐ | ☐ | Address-bar input focused + URL selected; type replaces URL. |
 | 5 | `⌘W` | ☐ | ☐ | ☐ | ☐ | Closes active tab in the **focused column** (terminal column → terminal tab; working column → browser tab or editor tab depending on active slot). Last terminal tab + last browser tab can't close. |

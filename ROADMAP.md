@@ -1939,21 +1939,28 @@ button still produce a bare shell.
 > then, 18b's install runs through `duo install` with its own
 > one-time prompt.
 
-### Phase 19c — Default-to-claude tabs (M, ~2–3 days)
-- [ ] Split-button affordance in `TabBar.tsx` — `+` = new claude
+### Phase 19c — Default-to-claude tabs (M, ~2–3 days) `🟡 Code-side shipped 2026-04-26 — UI walk pending`
+- [x] Split-button affordance in `TabBar.tsx` — `+` = new claude
       session (primary), `>` = vanilla shell (D17).
-- [ ] `⌘T` from terminal focus = new claude tab (D18 — supersedes
+- [x] `⌘T` from terminal focus = new claude tab (D18 — supersedes
       Stage 11 D33e for terminal focus only).
-- [ ] Spawn flow per D21–D23 (PtyManager spawns the user shell, then
+- [x] Spawn flow per D21–D23 (PtyManager spawns the user shell, then
       writes `claude\n`; fallback banner when claude not on PATH).
-- [ ] `TabSession.kind: 'shell' | 'claude'` plumbed through shared
+- [x] `TabSession.kind: 'shell' | 'claude'` plumbed through shared
       types + preload + main + socket bridge.
-- [ ] `duo new-tab [--shell|--claude] [--cwd] [--cmd]` CLI verb
+- [x] `duo new-tab [--shell|--claude] [--cwd] [--cmd]` CLI verb
       (D27). Replaces the listed `duo term new` in CLI-COVERAGE.
-- [ ] Persisted last-kind for agent-driven calls (D28).
-- [ ] [docs/dev/smoke-checklist.md § 5 keyboard matrix](docs/dev/smoke-checklist.md)
-      updated — `⌘T` from terminal focus = claude tab; verify across
-      all four focus surfaces.
+- [x] Persisted last-kind for agent-driven calls (D28).
+- [x] [docs/dev/smoke-checklist.md § 5 keyboard matrix](docs/dev/smoke-checklist.md)
+      updated — row 1 split into 1a (⌘T from B/E/F = browser tab) and
+      1b (⌘T from T = claude tab). Row 2 (⌘⇧T) clarified as "vanilla
+      shell regardless of focus" per D19.
+- [ ] **UI walk pending** — typecheck clean + CLI rebuilt, but the live
+      walk (split-button visual; ⌘T from terminal focus; ⌘⇧T from any
+      focus; `claude · <basename>` title; install banner when claude
+      missing) still owes the same-machine pass per [CLAUDE.md rule 8](../../CLAUDE.md).
+      Owner deferred for now — depends on the dev server in the main
+      checkout, currently held by the parallel agent.
 - **Exit:** PM clicks `+` and is talking to a primed Claude in under
   two seconds; the `>` half still gives them a vanilla shell.
 
