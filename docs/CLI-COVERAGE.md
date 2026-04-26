@@ -118,13 +118,14 @@ Audited against the UI surface as of 2026-04-24. Priorities:
 
 ### Terminal — P0
 
-Today the agent can drive the browser and the editor, but cannot
-create, close, or switch terminal tabs. Since Duo terminals are *the
-place the agent lives*, this is the largest parity gap.
+Today the agent can create new terminal tabs (Stage 19c, shipped
+2026-04-26 — code-side; UI walk pending) but cannot yet close or switch
+existing ones. Since Duo terminals are *the place the agent lives*,
+the close/switch gaps remain the largest parity hole.
 
 | Verb | UI parallel | Shape |
 |---|---|---|
-| `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd <cmd>]` | `⌘T`/`⌘⇧T`, split-button `+` (claude) / `>` (shell) | Returns `{id, kind, cwd, title}`. **Renamed from `duo term new` per [Stage 19 D27](prd/stage-19-duo-detection.md).** `--kind` defaults to the user's most-recent UI choice (`localStorage['duo.lastNewTabKind']`, default `'claude'`). `--cmd` pre-types (no Enter) — overlaps intentionally with Backlog `duo tab (was 15d) --cmd`; lock semantics at 15d kickoff. |
+| ✅ `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd <cmd>]` | `⌘T`/`⌘⇧T`, split-button `+` (claude) / `>` (shell) | **Shipped 2026-04-26 (Stage 19c D27).** Returns `{id, kind, cwd, title}`. `--claude` (and the `+` button) auto-launches `claude` after the shell starts; `--shell` opens vanilla. No flag follows the user's most recent manual choice (`localStorage['duo.lastNewTabKind']`, default `'claude'`). `--cmd` pre-types (no Enter) — overlaps intentionally with Backlog `duo tab (was 15d) --cmd`; lock semantics at 15d kickoff. Renamed from `duo term new` per Stage 19 D27. |
 | `duo term tabs` | Visible strip | Returns `[{id, title, cwd, kind, active, cozy}]` (Stage 19 adds `kind`) |
 | `duo term tab <id>` | `⌘1-9`, tab click | Activates the tab |
 | `duo term close <id>` | `⌘W` in terminal focus, × on chip | Refuses the last |

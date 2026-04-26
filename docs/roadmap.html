@@ -474,11 +474,11 @@
 
     <article class="stage inprog" id="s19" data-id="s19">
       <h3><span class="num-badge">Stage 19</span> Duo detection &amp; default-to-claude tabs <span class="glyph inprog"></span></h3>
-      <div class="status-line">🔄 Was Stage 18 · 19a shipped 2026-04-26 in commit <code>640ec0e</code> · 19b/19c next</div>
+      <div class="status-line">🔄 Was Stage 18 · 19a shipped 2026-04-26 in commit <code>640ec0e</code> · 19c code-side shipped 2026-04-26 (UI walk pending) · 19b next</div>
       <ul class="subitems">
         <li class="done"><span class="glyph shipped"></span><span class="label"><strong>19a</strong> — env signals: <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code> (commit <code>640ec0e</code>; commit msg uses pre-renumber "18a" label)</span></li>
         <li><span class="glyph pending"></span><span class="label"><strong>19b</strong> — passive priming: SessionStart hook + PATH shim + <code>priming.md</code> (folds into Stage 18 installer when both land)</span></li>
-        <li><span class="glyph pending"></span><span class="label"><strong>19c</strong> — split-button TabBar; <code>⌘T</code> from terminal focus opens claude; <code>duo new-tab</code> CLI (needs Stage 12 split-button visual)</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>19c</strong> 🟡 <em>code-side shipped 2026-04-26</em> — split + button (<code>+</code> = claude, <code>&gt;</code> = shell), <code>⌘T</code> from terminal focus opens claude, <code>⌘⇧T</code> always vanilla shell, <code>TabSession.kind</code> + <code>claude · &lt;basename&gt;</code> title, install banner when claude missing (D23), <code>duo new-tab [--shell|--claude] [--cwd] [--cmd]</code>. <strong>UI walk pending</strong> — typecheck clean + CLI rebuilt; live walk depends on dev server in main checkout. Atelier polish pass deferred to Stage 12 per PRD § 6.</span></li>
       </ul>
       <div class="comment"><label>Comment</label><textarea data-key="s19" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>

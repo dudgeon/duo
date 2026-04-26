@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
+import { spawnSync } from 'child_process'
 import { PtyManager } from './pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
@@ -23,7 +24,9 @@ import type {
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
-  SelectionFormatStateSnapshot
+  SelectionFormatStateSnapshot,
+  NewTabRequest,
+  NewTabResult
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -63,6 +66,10 @@ let selectionFormatState: SelectionFormatStateSnapshot = { format: 'a' }
 // `null` means no terminal tabs exist (degenerate state — `duo send`
 // surfaces an error).
 let activeTerminalId: string | null = null
+
+// Stage 19c D27 — pending `duo new-tab` requests awaiting a renderer
+// reply. Shape mirrors docWritePending / docReadPending.
+const newTabPending = new Map<string, (res: NewTabResult) => void>()
 
 // Stage 12 — Atelier "light is hero". Was 'dark'; flipped so macOS
 // chrome (menu, dialogs) matches the new design baseline. The
@@ -129,7 +136,8 @@ function createWindow(): void {
     setSelectionFormat: setSelectionFormat,
     sendToActiveTerminal: sendToActiveTerminal,
     htmlNew: htmlNew,
-    htmlOp: dispatchHtmlOp
+    htmlOp: dispatchHtmlOp,
+    newTab: dispatchNewTab
   })
   socketServer.start()
 
@@ -342,6 +350,23 @@ function setupIPC(): void {
   // Stage 15 G17 \u2014 active terminal-tab id push from the renderer.
   ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (_event, id: string | null) => {
     activeTerminalId = id
+  })
+
+  // Stage 19c D23 \u2014 renderer asks "is `claude` on PATH?" before spawning a
+  // claude tab so it can choose between auto-typing `claude\n` and the
+  // install-banner fallback. Resolved synchronously per call (cheap;
+  // `which` is fast) so the answer always reflects PATH at the moment of
+  // the spawn \u2014 covers the case where the user `brew install`s claude
+  // mid-session and then opens a tab.
+  ipcMain.handle('terminal:claude-on-path', () => isClaudeOnPath())
+
+  // Stage 19c D27 \u2014 renderer reply to a `duo new-tab` request.
+  ipcMain.on(IPC.NEW_TAB_RESULT, (_event, result: NewTabResult) => {
+    const resolver = newTabPending.get(result.reqId)
+    if (resolver) {
+      newTabPending.delete(result.reqId)
+      resolver(result)
+    }
   })
 
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
@@ -646,6 +671,45 @@ export async function htmlNew(absPath: string, title?: string): Promise<{ ok: bo
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+// Stage 19c D23 — sync `which claude` so the renderer can choose between
+// auto-typing `claude\n` and printing the install banner. Cheap enough
+// (~5ms) that we don't bother caching across calls; PATH can change
+// mid-session if the user `brew install`s claude or sources a new rc.
+function isClaudeOnPath(): boolean {
+  try {
+    const r = spawnSync('which', ['claude'], { encoding: 'utf8' })
+    return r.status === 0 && r.stdout.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
+// Stage 19c D27 — dispatch a `duo new-tab` request to the renderer and
+// wait for the reply. Mirrors dispatchDocWrite / dispatchDocRead.
+// Renderer owns tab state, so it's the source of truth for the new tab's
+// id/cwd/title; main just brokers the request and resolves on its reply.
+const NEW_TAB_TIMEOUT_MS = 5000
+
+export function dispatchNewTab(
+  req: Omit<NewTabRequest, 'reqId'>
+): Promise<NewTabResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `nt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<NewTabResult>((resolve) => {
+    const timer = setTimeout(() => {
+      newTabPending.delete(reqId)
+      resolve({ reqId, ok: false, error: `Renderer did not reply within ${NEW_TAB_TIMEOUT_MS / 1000}s` })
+    }, NEW_TAB_TIMEOUT_MS)
+    newTabPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.NEW_TAB_REQUEST, { ...req, reqId })
+  })
 }
 
 export async function openExternalUrl(url: string): Promise<{ ok: boolean; opened?: string; error?: string }> {

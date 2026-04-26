@@ -486,6 +486,35 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'new-tab': {
+        // Stage 19c D27 — open a new terminal tab.
+        //   duo new-tab                        → persisted last-kind, navigator pending CWD
+        //   duo new-tab --shell                → vanilla shell
+        //   duo new-tab --claude               → auto-launches `claude`
+        //   duo new-tab --cwd <path>           → explicit CWD (overrides navigator)
+        //   duo new-tab --cmd "<text>"         → pre-typed payload (no trailing newline)
+        // Returns {id, kind, cwd, title}.
+        const args: { kind?: 'shell' | 'claude'; cwd?: string; cmd?: string } = {}
+        if (rest.includes('--shell') && rest.includes('--claude')) {
+          die('Usage: duo new-tab [--shell|--claude] — pick at most one')
+        }
+        if (rest.includes('--shell')) args.kind = 'shell'
+        if (rest.includes('--claude')) args.kind = 'claude'
+        const cwdIdx = rest.indexOf('--cwd')
+        if (cwdIdx !== -1) {
+          const v = rest[cwdIdx + 1]
+          if (!v) die('Usage: duo new-tab --cwd <path>')
+          args.cwd = resolveFilePath(v)
+        }
+        const cmdIdx = rest.indexOf('--cmd')
+        if (cmdIdx !== -1) {
+          const v = rest[cmdIdx + 1]
+          if (v === undefined) die('Usage: duo new-tab --cmd "<text>"')
+          args.cmd = v
+        }
+        out(await send('new-tab', args as Record<string, unknown>))
+        break
+      }
       case 'install':
         runInstall()
         break
@@ -709,6 +738,19 @@ COMMANDS
   html attr --id <duo-id> [--set k=v ...] [--remove k ...]
                                   Modify attributes (--set / --remove
                                   can repeat).
+
+  new-tab [--shell|--claude] [--cwd <path>] [--cmd "<text>"]
+                                  Open a new terminal tab (Stage 19c).
+                                  --claude (the split-button + default)
+                                  auto-launches \`claude\` after the
+                                  shell starts; --shell opens a vanilla
+                                  shell. With no flag, follows the user's
+                                  most recent manual choice. --cwd
+                                  overrides the navigator's pending CWD;
+                                  --cmd writes a pre-typed payload (no
+                                  trailing newline) into the PTY after
+                                  spawn — wins over kind-default if both
+                                  apply. Returns {id, kind, cwd, title}.
 
   install                         Symlink duo to /usr/local/bin/duo
 

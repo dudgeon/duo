@@ -149,6 +149,7 @@ empty.
 | `duo theme [system\|light\|dark]` | Read or set theme |
 | `duo selection-format [a\|b\|c]` | Send → Duo payload format (Stage 15 G19): `a` quote+provenance (default), `b` literal, `c` opaque token. Set once at session start when a multi-step session benefits from compact tokens; otherwise leave at default. |
 | `duo send [--text "…"]` | Write a payload into the active terminal's PTY (Stage 15 G17). No Enter appended; user confirms. Use sparingly to plant context for the user — never to issue prompts on their behalf. |
+| `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd "<text>"]` | Open a new terminal tab (Stage 19c D27). `--claude` auto-launches `claude` after the shell starts (split-button `+` default); `--shell` opens vanilla. No flag follows the user's most recent manual choice. `--cwd` overrides navigator pending CWD; `--cmd` writes a pre-typed payload (no Enter) — wins over kind-default. Returns `{id, kind, cwd, title}`. Use for side-quests that need their own agent (`--claude --cwd <repo>`) or one-off shell commands (`--shell --cmd "npm test"`). |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

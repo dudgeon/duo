@@ -12,7 +12,7 @@ import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import type { TabSession, DirEntry } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -32,6 +32,31 @@ const FONT_BUMP_BY_TAB_KEY = 'duo.fontBump.v1.byTab'
 const FONT_BUMP_LAST_KEY = 'duo.fontBump.v1.lastChoice'
 const FONT_BUMP_MIN = -4
 const FONT_BUMP_MAX = 10
+
+// Stage 19c D28 — persisted last manual choice between shell and claude.
+// The split-button `+` always opens claude regardless (the primary
+// affordance is opinionated). This persisted value only governs `duo
+// new-tab` calls that arrive without a --kind flag, so an agent popping
+// tabs follows the user's most recent manual selection.
+const LAST_TAB_KIND_KEY = 'duo.lastNewTabKind'
+
+function loadLastTabKind(): TerminalTabKind {
+  try {
+    const v = localStorage.getItem(LAST_TAB_KIND_KEY)
+    return v === 'shell' || v === 'claude' ? v : 'claude'
+  } catch { return 'claude' }
+}
+
+function saveLastTabKind(kind: TerminalTabKind): void {
+  try { localStorage.setItem(LAST_TAB_KIND_KEY, kind) } catch { /* quota */ }
+}
+
+// Stage 19c D23 — banner the user sees on a `+ claude` click when
+// `claude` isn't on PATH. Single shell line; clears on the next prompt.
+// The URL is the canonical install doc — short enough not to wrap on
+// narrow terminals.
+const CLAUDE_MISSING_BANNER =
+  'echo "Install Claude Code to enable agent tabs: https://docs.claude.com/claude-code"\n'
 
 function loadCozyByTab(): Record<string, boolean> {
   try {
@@ -65,11 +90,22 @@ function loadFontBumpLast(): number {
 
 type FocusedColumn = 'files' | 'terminal' | 'working'
 
-function makeTab(cwd: string): TabSession {
+// Stage 19c D26 — title format. Claude tabs prefix `claude · ` so a
+// mixed strip of shell + claude tabs reads at a glance. Shell tabs use
+// today's title (xterm OSC sequences eventually overwrite both).
+function tabTitle(kind: TerminalTabKind, cwd: string, home: string): string {
+  const basename = cwd === home || cwd === '~'
+    ? '~'
+    : (cwd.slice(cwd.lastIndexOf('/') + 1) || cwd)
+  return kind === 'claude' ? `claude · ${basename}` : (basename || 'Terminal')
+}
+
+function makeTab(cwd: string, kind: TerminalTabKind, home: string): TabSession {
   return {
     id: crypto.randomUUID(),
-    title: 'Terminal',
-    cwd
+    title: tabTitle(kind, cwd, home),
+    cwd,
+    kind
   }
 }
 
@@ -85,8 +121,17 @@ export function App() {
   // reads return the persisted value rather than the default.
   useSelectionFormat()
 
-  const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home)])
+  // Stage 19c — first tab on app launch defaults to a vanilla shell, not
+  // claude. Rationale: today the user lands in the same place they always
+  // have; the new opinionated default surfaces via the split-button `+`
+  // (and ⌘T from terminal focus) — affordances they will discover. A
+  // disruptive change to the boot tab would be a worse first impression
+  // than what 19c is trying to fix. The PRD's "PM hits ⌘T and is talking
+  // to a primed Claude in three seconds" criterion measures the
+  // user-initiated path, not boot.
+  const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home, 'shell', home)])
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id)
+  const [lastTabKind, setLastTabKind] = useState<TerminalTabKind>(loadLastTabKind)
 
   const [splitPct, setSplitPct] = useState(55)
   const splitContainerRef = useRef<HTMLDivElement>(null)
@@ -128,23 +173,62 @@ export function App() {
 
   // ── Tab actions ────────────────────────────────────────────────────────────
 
-  // Stage 10 § D9: new terminal tabs launch in `pendingCwd`, which is the
-  // navigator's current folder (or the selected file's parent).
-  const newTab = useCallback(() => {
-    const tab = makeTab(pendingCwd)
+  // Stage 19c D21–D23 — after PtyManager spawns the user's shell, write
+  // the post-spawn payload (claude\n, the install banner, or whatever the
+  // CLI's --cmd specified) into the same PTY. Done here, not in main,
+  // because PTY data writes route through the renderer's preload pty API
+  // — same path the user's keystrokes take, so the payload appears in
+  // the terminal exactly as if the user typed it.
+  //
+  // Small queueMicrotask wait so PtyManager.create has actually attached
+  // the data callbacks; otherwise the very first write can race the
+  // terminal mount and get clipped.
+  const dispatchPostSpawnWrite = useCallback(async (id: string, kind: TerminalTabKind, cmd?: string) => {
+    let payload: string | null = null
+    if (cmd && cmd.length > 0) {
+      // D21 alternative path: explicit --cmd from the CLI wins over
+      // the kind-based default. No trailing newline — parity with
+      // `duo send` (the user / agent confirms).
+      payload = cmd
+    } else if (kind === 'claude') {
+      // D23 — only auto-launch if claude is reachable; otherwise print
+      // the install banner so the user knows why their tab opened bare.
+      const onPath = await window.electron.terminal.claudeOnPath()
+      payload = onPath ? 'claude\n' : CLAUDE_MISSING_BANNER
+    }
+    if (payload === null) return
+    queueMicrotask(() => {
+      void window.electron.pty.write(id, payload!)
+    })
+  }, [])
+
+  // Stage 10 § D9 + Stage 19c — new terminal tabs launch in `pendingCwd`
+  // (navigator's current folder or the selected file's parent). `kind`
+  // controls whether the tab auto-launches claude after the shell starts
+  // (D17 / D21). The split-button `+` always passes 'claude'; `>` passes
+  // 'shell'. The persisted last-kind only governs `duo new-tab` calls
+  // without --kind — see addTabFromCli below.
+  const newTab = useCallback((kind: TerminalTabKind) => {
+    const tab = makeTab(pendingCwd, kind, home)
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
-  }, [pendingCwd])
+    void dispatchPostSpawnWrite(tab.id, kind)
+    return tab
+  }, [pendingCwd, home, dispatchPostSpawnWrite])
 
   // "Open terminal here" from the navigator's right-click menu (§ D11).
   // Explicit CWD bypasses the pending-CWD rule so the user gets exactly
-  // the folder they right-clicked, even if a file is selected elsewhere.
+  // the folder they right-clicked. Stage 19c: today this still opens a
+  // vanilla shell (the right-click menu's "open terminal here" wording
+  // promises a shell, not an agent). The Navigator polish bundle has a
+  // separate item for a "claude here" hover-action; that lives there,
+  // not in this menu item.
   const openTerminalHere = useCallback((folderPath: string) => {
-    const tab = makeTab(folderPath)
+    const tab = makeTab(folderPath, 'shell', home)
     setTabs(prev => [...prev, tab])
     setActiveTabId(tab.id)
     setFocusedColumn('terminal')
-  }, [])
+  }, [home])
 
   const closeTab = useCallback((id: string) => {
     setTabs(prev => {
@@ -327,6 +411,38 @@ export function App() {
     })
   }, [openFile])
 
+  // Stage 19c D27 — `duo new-tab` from the CLI. The renderer is the
+  // authoritative tab state, so we add the tab here and reply with
+  // {id, kind, cwd, title} for the socket to return. Defaults: kind →
+  // persisted last-kind (D28); cwd → navigator pending CWD (D25); cmd →
+  // none (kind-default spawn flow runs).
+  useEffect(() => {
+    return window.electron.terminal.onNewTabRequest((req) => {
+      const reply = (result: NewTabResult) => window.electron.terminal.replyNewTab(result)
+      try {
+        const kind = req.kind ?? lastTabKind
+        const cwd = req.cwd && req.cwd.length > 0 ? req.cwd : pendingCwd
+        const tab = makeTab(cwd, kind, home)
+        setTabs(prev => [...prev, tab])
+        setActiveTabId(tab.id)
+        if (req.kind !== undefined) {
+          // Explicit --kind flag → also bump persisted last-kind so
+          // subsequent flagless calls follow the agent's recent choice.
+          setLastTabKind(kind)
+          saveLastTabKind(kind)
+        }
+        void dispatchPostSpawnWrite(tab.id, kind, req.cmd)
+        reply({ reqId: req.reqId, ok: true, id: tab.id, kind, cwd, title: tab.title })
+      } catch (err) {
+        reply({
+          reqId: req.reqId,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [pendingCwd, lastTabKind, home, dispatchPostSpawnWrite])
+
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
 
   // Listen for View → Cozy mode menu clicks. Flip the active tab's cozy
@@ -496,7 +612,21 @@ export function App() {
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
   useKeyboardShortcuts({
-    newTerminalTab: newTab,
+    // Stage 19c D18 — `⌘T` from terminal focus opens a *claude* tab
+    // (the new opinionated default). The hook handles the focus-aware
+    // routing — from non-terminal focus, ⌘T still goes to a new
+    // browser tab (D20, today's behavior). ⌘⇧T anywhere opens a
+    // vanilla shell (D19, today's behavior, now explicitly typed).
+    newClaudeTab: () => {
+      newTab('claude')
+      setLastTabKind('claude')
+      saveLastTabKind('claude')
+    },
+    newShellTab: () => {
+      newTab('shell')
+      setLastTabKind('shell')
+      saveLastTabKind('shell')
+    },
     newBrowserTab: () => {
       // Stage 11 \u00a7 D33e \u2014 \u2318T must foreground a new browser tab even when
       // the active WorkingPane tab is an editor (or any non-browser type).
@@ -617,7 +747,20 @@ export function App() {
               tabs={tabs}
               activeTabId={activeTabId}
               onSelect={setActiveTabId}
-              onNew={newTab}
+              // Stage 19c D17 — split button. `+` = claude (primary,
+              // opinionated); `>` = shell. Both update the persisted
+              // last-kind so `duo new-tab` without --kind follows the
+              // user's most recent manual selection (D28).
+              onNewClaude={() => {
+                newTab('claude')
+                setLastTabKind('claude')
+                saveLastTabKind('claude')
+              }}
+              onNewShell={() => {
+                newTab('shell')
+                setLastTabKind('shell')
+                saveLastTabKind('shell')
+              }}
               onClose={closeTab}
               pendingCwd={pendingCwd}
               focused={focusedColumn === 'terminal'}

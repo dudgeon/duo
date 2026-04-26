@@ -2,7 +2,14 @@ import { useEffect } from 'react'
 import type { TabSession } from '@shared/types'
 
 interface Options {
-  newTerminalTab: () => void
+  // Stage 19c D17–D19. Two new-terminal callbacks:
+  //   newClaudeTab — auto-launches `claude` after the shell starts
+  //   newShellTab  — vanilla shell, today's behavior
+  // ⌘T from terminal focus triggers newClaudeTab (D18); ⌘⇧T anywhere
+  // triggers newShellTab (D19); ⌘T from non-terminal focus opens a new
+  // browser tab (D20, today's behavior).
+  newClaudeTab: () => void
+  newShellTab: () => void
   newBrowserTab: () => void
   newMarkdownFile?: () => void
   closeTab: () => void
@@ -23,7 +30,8 @@ interface Options {
 }
 
 export function useKeyboardShortcuts({
-  newTerminalTab,
+  newClaudeTab,
+  newShellTab,
   newBrowserTab,
   newMarkdownFile,
   closeTab,
@@ -53,16 +61,23 @@ export function useKeyboardShortcuts({
       const key = e.key.toLowerCase()
       const pane = paneOverride ?? activePaneFocus
 
-      // ⌘T — new browser tab (Chrome parity, regardless of focus).
-      // ⌘⇧T below is the explicit "new terminal tab" shortcut.
-      // (Briefly tried pane-aware routing here on 2026-04-26 in
-      // commit c239375 but the owner preferred the Chrome-parity
-      // shape — the original Stage 11 D33e decision held up. Stage
-      // 19c will eventually layer in default-to-claude semantics on
-      // top of this for terminal tabs.)
+      // ⌘T — focus-aware (Stage 19c D18, D20, supersedes D33e for
+      // terminal focus). From terminal focus: open a new claude tab
+      // (auto-launches `claude` after the shell starts; the new
+      // opinionated default). From any other focus (browser, editor,
+      // files): open a new browser tab — Chrome-parity, today's
+      // behavior.
+      //
+      // The trail of attempts here is recorded in commit history:
+      // c239375 (pane-aware → reverted as 2b68d40 because owner
+      // preferred Chrome-parity at the time). Stage 19c brings back a
+      // narrower form of pane-awareness — specifically default-to-
+      // claude semantics for terminal focus only. ⌘⇧T below remains
+      // an explicit shell tab regardless of focus.
       if (meta && !e.shiftKey && key === 't') {
         e.preventDefault()
-        newBrowserTab()
+        if (pane === 'terminal') newClaudeTab()
+        else newBrowserTab()
         return
       }
 
@@ -75,10 +90,11 @@ export function useKeyboardShortcuts({
         return
       }
 
-      // ⌘⇧T — new terminal tab
+      // ⌘⇧T — new vanilla shell tab (Stage 19c D19 — today's behavior,
+      // explicitly typed now that ⌘T can mean "new claude tab").
       if (meta && e.shiftKey && key === 't') {
         e.preventDefault()
-        newTerminalTab()
+        newShellTab()
         return
       }
 
@@ -236,5 +252,5 @@ export function useKeyboardShortcuts({
       window.removeEventListener('keydown', windowHandler)
       unsubscribeBrowserKey?.()
     }
-  }, [newTerminalTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn, togglePaneFocus, activePaneFocus])
+  }, [newClaudeTab, newShellTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn, togglePaneFocus, activePaneFocus])
 }
