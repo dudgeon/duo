@@ -432,61 +432,87 @@ Option (b) is the quickest path; option (a) is the right path. Class of issue: P
 
 ---
 
-### FOLLOWUP-005: Stage 21 codesign blocker — extended attributes pollute the build, codesign rejects
+### FOLLOWUP-005: First codesign on a new machine waits on a keychain permission dialog (and reports misleading errors if missed)
 
-**Status:** 🆕 Filed (diagnosis revised after retest)
-**Priority:** Stage 21 blocker (low priority until Stage 21 starts)
+**Status:** ✅ Resolved 2026-04-26 (root cause owner-identified — not a bug, a macOS UX gotcha)
+**Priority:** Stage 21 nice-to-document; not a blocker
 **Filed:** 2026-04-26 (during v0.2.0 `npm run dist`)
 
-When `CSC_NAME` is in env (from `~/Documents/duo-private/.env`), electron-builder auto-discovers the Developer ID Application cert and attempts to sign. Two distinct failures observed:
+When `CSC_NAME` is in env (from `~/Documents/duo-private/.env`), electron-builder auto-discovers the Developer ID Application cert and attempts to sign. The first time codesign accesses the cert's private key in the keychain on a given Mac, macOS pops up a system dialog asking the user to confirm — "codesign wants to use the key in your keychain. Allow / Always Allow / Deny." If the user doesn't click within macOS's internal timeout, codesign fails with one of two misleading errors:
 
-**Run 1:**
+**Run 1 manifested as:**
 ```
 .../Electron Framework.framework/.../af.lproj/locale.pak: timestamps differ by 401 seconds — check your system clock
 ```
 
-**Run 2:**
+**Run 2 (after the partial sign attempt corrupted the build tree) manifested as:**
 ```
-.../Duo Helper (GPU).app/Contents/MacOS/Duo Helper (GPU): replacing existing signature
 .../Duo Helper (GPU): resource fork, Finder information, or similar detritus not allowed
 ```
 
-**Initial diagnosis (Run 1) was wrong.** I attributed Run 1 to system clock skew. After verification, the local clock + timezone (EDT) are correct, and a one-shot `codesign --sign ... --timestamp` test against a throwaway file SUCCEEDED with a valid Apple TSA timestamp. So clock isn't the issue.
+**Both were the same root cause.** Owner identified it: the keychain permission dialog had been waiting in the background for several minutes. Once "Always Allow" was clicked, the cert access is cached for that Mac and subsequent codesign invocations work normally without prompting.
 
-**Actual root cause (Run 2 is the canonical error):** the bundle contains files with macOS extended attributes (`com.apple.provenance`, `com.apple.quarantine`, possibly `com.apple.FinderInfo`) that `codesign --options runtime` (hardened runtime) rejects. Confirmed by `ls -la@` on the failing file — the `@` indicates xattrs present.
+**Two earlier diagnoses were wrong:** I first guessed system clock skew (verified Apr 26 EDT correct); then guessed extended attributes (the `com.apple.provenance` xattrs were real but a downstream symptom — `codesign` would have stripped or tolerated them once it could actually access the key). Both error messages from `codesign` are misleading on this path; the keychain-dialog failure mode produces almost-random downstream errors depending on which file codesign was on when access timed out.
 
-Likely contributors: macOS Sequoia (15.x) more aggressively tags copied files with `com.apple.provenance`; `npm install`-extracted Electron prebuilt comes with some xattrs already; the repeat `npm run dist` run replaces existing signatures without first stripping xattrs, which compounds.
+**For Stage 21:** no code change needed. Document in the cut-version skill: when `npm run dist` is run on a Mac where the Developer ID cert's private key has never been accessed by `codesign`, watch for the macOS keychain permission dialog and click "Always Allow." After that one-time grant, the build runs unattended.
 
-Run 1's "timestamps differ" error was probably codesign's first-pass complaint on a different xattr-polluted file — the message is misleading but the root cause is the same family.
+**Workaround used during v0.2.0:** `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist` — produces unsigned DMGs (which is what v0.2.0 wanted anyway since Stage 21 hadn't shipped). v0.2.0's `dist/Duo-0.2.0-arm64.dmg` + `dist/Duo-0.2.0.dmg` are unsigned by design, not by accident.
 
-**Fix (suggested):**
+---
 
-Add a pre-codesign sweep to electron-builder's hooks, OR have `npm run dist` precede with:
+### BUG-011: Install banner success state never renders (disappears silently on click)
 
-```bash
-xattr -cr dist/    # clear all xattrs recursively from the build tree
+**Status:** ✅ Fix shipped 2026-04-26 (one-line deletion, see Fix below)
+**Priority:** Medium (install actually completes; user gets no feedback)
+**Filed:** 2026-04-26 (during v0.2.0 owner verification)
+
+**Repro:**
+
+1. Fresh `~/.claude/duo/installed.json` absent (or version mismatch).
+2. Launch Duo (`npm run dev` or the v0.2.0 DMG).
+3. Welcome banner appears at top with [Install] button.
+4. Click [Install].
+
+**Expected:** Banner shows "Installing…" briefly, then "Installed. Skill + subagent + help files in `~/.claude/`; `duo` CLI ready on your PATH" (or the PATH-missing variant) for ~3s, then auto-dismisses.
+
+**Actual:** Banner shows "Installing…" briefly, then disappears immediately with no success message. The install itself succeeds — `~/.claude/duo/installed.json` is written, `~/.local/bin/duo` is in place, etc. — only the user-feedback step is broken.
+
+**Root cause:**
+
+`renderer/components/FirstLaunchBanner.tsx` has a render-gate ordering bug. When `setStatus({installed: true, needsUpdate: false, ...})` fires on success, the very next render evaluates:
+
+```ts
+if (!status) return null
+if (status.installed && !status.needsUpdate) return null   // ← fires immediately
+if (dismissed) return null
+if (phase === 'idle' && status.installed && !status.needsUpdate) return null
 ```
 
-Or better, add an `afterPack` hook in `electron-builder.yml` to do this automatically:
+The second `if` returns null before the success state can render. The 3s auto-dismiss timer is irrelevant — the component already unmounted. The fourth `if` would have been the correct gate (only hide-on-installed when phase is idle, not success/error/running) but it never fires because the second `if` short-circuits first.
 
-```yaml
-afterPack: build/strip-xattrs.js   # runs before sign
+**Fix shipped (one line — delete):**
+
+```diff
+  if (!status) return null
+- if (status.installed && !status.needsUpdate) return null
+  if (dismissed) return null
+  if (phase === 'idle' && status.installed && !status.needsUpdate) return null
 ```
 
-with `build/strip-xattrs.js`:
+The remaining checks correctly let the success/error states render through phase transitions while still hiding the banner once installed + idle on future launches.
 
-```js
-const { execSync } = require('child_process')
-exports.default = async ({ appOutDir }) => {
-  execSync(`xattr -cr "${appOutDir}"`, { stdio: 'inherit' })
-}
-```
+**Verification owed after fix:**
 
-**Current workaround for v0.2.0:** `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist` — produces unsigned DMG (which is what v0.2.0 wants anyway, since Stage 21 hasn't shipped). v0.2.0 cut completed this way; the DMGs at `dist/Duo-0.2.0-arm64.dmg` + `dist/Duo-0.2.0.dmg` are unsigned (Gatekeeper warns).
+- Click [Install] on a fresh `~/.claude/duo/installed.json`-absent state → banner shows "Installed." with appropriate cli-on-PATH variant for ~3s before auto-dismiss.
+- Click [Install] when `~/.local/bin` is NOT on `$PATH` → banner stays open with the `export PATH=...` snippet + [Got it] button (the `stable=false` branch in `handleInstall`).
+- Re-launch Duo with `installed.json` present + version match → banner does NOT appear (the fourth `if` correctly fires).
+- Edit `installed.json` to set version to "0.0.9" → relaunch → banner appears with "Update available" copy.
 
-**For Stage 21:** the xattr sweep MUST land alongside flipping `mac.identity` in `electron-builder.yml`. Otherwise the same error returns.
+**Class of issue:** state-machine render gate ordering. The fix is a deletion; no new logic. Should land alongside an actual eyes-on V-walk of the install banner (deferred from v0.1.0/v0.2.0 smoke passes — exactly the kind of bug that would have caught this).
 
-**Cross-ref:** `electron-builder.yml` has `mac.identity` commented out per Stage 21 plan — when Stage 21 ships, both the YAML wiring AND the xattr sweep (`afterPack` hook) are needed.
+**Affected files:**
+
+- `renderer/components/FirstLaunchBanner.tsx`
 
 ---
 

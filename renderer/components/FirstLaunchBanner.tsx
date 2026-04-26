@@ -41,7 +41,13 @@ export function FirstLaunchBanner() {
   //    the success effect below, which transitions phase to a final
   //    'idle' after a delay)
   if (!status) return null
-  if (status.installed && !status.needsUpdate) return null
+  // BUG-011 fix — the redundant `if (status.installed && !status.needsUpdate)
+  // return null` that lived here short-circuited BEFORE the success state
+  // could render: setStatus on install completion immediately marked the
+  // banner as "installed" and unmounted the component, so the user never
+  // saw the "Installed." confirmation. The fourth check below is the
+  // correct gate — only hide on installed when phase is idle (i.e. we're
+  // not in the middle of showing success / error / running feedback).
   if (dismissed) return null
   if (phase === 'idle' && status.installed && !status.needsUpdate) return null
 

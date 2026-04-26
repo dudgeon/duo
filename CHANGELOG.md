@@ -19,7 +19,9 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-_Nothing accumulated yet — the next entry will collect items shipped after v0.2.0._
+### Fixed
+
+- BUG-011: install banner now correctly shows the "Installed." success state for ~3s before auto-dismissing (or stays open with the PATH-fix snippet if `~/.local/bin` isn't on `$PATH`). A redundant render-gate at the top of `FirstLaunchBanner` was unmounting the component the instant `setStatus({installed: true, ...})` fired, so users only saw "Installing…" then a silent disappearance. The install itself worked — only feedback was missing. One-line deletion. (`renderer/components/FirstLaunchBanner.tsx`)
 
 ## [0.2.0] — 2026-04-26
 
