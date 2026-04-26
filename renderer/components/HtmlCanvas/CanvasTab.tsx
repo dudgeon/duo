@@ -217,11 +217,26 @@ function findElementByText(doc: Document, needle: string): Element | null {
   return null
 }
 
+// Honors `<meta name="duo-editable" content="false">` in the HTML head.
+// When present, the canvas mounts read-only: no contentEditable, no
+// toolbar, no comment composer, no agent-write banner. Used for system
+// reference HTMLs (FAQ, What Duo Does) so they can be opened from the
+// file navigator without accidentally editing the source. Cheap regex
+// scan against the file head — full HTML parsing is overkill for a
+// single meta tag.
+function parseReadOnlyFromHtml(html: string | null): boolean {
+  if (!html) return false
+  const m = html.match(/<meta\s+[^>]*name\s*=\s*["']duo-editable["'][^>]*content\s*=\s*["']false["']/i)
+  return !!m
+}
+
 export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const readOnly = useMemo(() => parseReadOnlyFromHtml(initialHtml), [initialHtml])
 
   const canvasRef = useRef<RenderedCanvasHandle | null>(null)
   // The serialized HTML as it was on disk after the last successful read
@@ -435,8 +450,11 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
     const onSelChange = () => bumpVersion()
     doc.addEventListener('selectionchange', onSelChange)
 
-    const cleanShortcuts = installMarkdownShortcuts(doc)
-    const cleanPlaceholder = installPlaceholder(doc)
+    // Markdown shortcuts + placeholder are editing-only. Skip in
+    // read-only mode so a system reference HTML (FAQ etc.) doesn't
+    // wire keyboard mutations or render the empty-state placeholder.
+    const cleanShortcuts = readOnly ? () => {} : installMarkdownShortcuts(doc)
+    const cleanPlaceholder = readOnly ? () => {} : installPlaceholder(doc)
 
     // 17c — install the just-added keyframe + class into the iframe
     // stylesheet. Must happen before any markJustAdded call (the
@@ -475,7 +493,11 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
     // ── ID injection (PRD H12–H14). If the file already has duo-ids,
     // do nothing — they're stable across sessions. Otherwise consult
     // the per-directory choice; auto-act on it, or surface the prompt.
-    const existingIds = countDuoIds(doc)
+    // Skipped entirely in read-only mode: anchors are an editing
+    // affordance (comments, agent ops) and have no purpose in files
+    // the user can't modify. Mutating a read-only file's DOM would
+    // also dirty the buffer, which the user can't save.
+    const existingIds = readOnly ? 1 : countDuoIds(doc)  // sentinel non-zero skips the injection branch
     if (existingIds === 0) {
       const dir = dirOf(path)
       const choice = getChoiceForDir(dir)
@@ -524,7 +546,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
       setNewCommentAt(null)
       lastCanvasSelectionRef.current = null
     }
-  }, [path, bumpVersion])
+  }, [path, bumpVersion, readOnly])
 
   // Tear down iframe-side wiring on unmount (CanvasTab is unmounted via
   // the React `key={tab.id}` on path change in WorkingPane).
@@ -910,14 +932,20 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
       tabIndex={0}
       className="flex-1 flex flex-col bg-surface-0 min-h-0 focus:outline-none"
     >
-      <EditorToolbar
-        actions={editorActions}
-        selectionVersion={selectionVersion}
-        onSave={() => void save()}
-        dirty={dirty}
-        saving={saving}
-      />
-      {pendingHtmlOp && (
+      {/* Read-only mode (`<meta name="duo-editable" content="false">`)
+          hides the entire editing chrome. Toolbar, ID-injection
+          banner, and write-warning banner are all editing affordances
+          that have no purpose on a system reference HTML. */}
+      {!readOnly && (
+        <EditorToolbar
+          actions={editorActions}
+          selectionVersion={selectionVersion}
+          onSave={() => void save()}
+          dirty={dirty}
+          saving={saving}
+        />
+      )}
+      {!readOnly && pendingHtmlOp && (
         <WriteWarningBanner
           action={describeHtmlOp(pendingHtmlOp)}
           preview={previewHtmlOp(pendingHtmlOp)}
@@ -925,7 +953,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
           onDecline={handlePendingDecline}
         />
       )}
-      {injectionPrompt && (
+      {!readOnly && injectionPrompt && (
         <IdInjectionBanner
           dir={dirOf(path)}
           candidateCount={injectionPrompt.candidateCount}
@@ -946,6 +974,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
             onChange={handleChange}
             onShortcut={handleShortcut}
             onReady={handleReady}
+            readOnly={readOnly}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">
@@ -955,8 +984,10 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
         {/* Stage 17d — comment rail. Renders to the right of the canvas
             iframe. Hidden when the file has no `data-duo-id`s yet
             (commenting requires anchors), AND the empty-state hint is
-            most useful AFTER the user has accepted ID injection. */}
-        {initialHtml !== null && (
+            most useful AFTER the user has accepted ID injection.
+            Also hidden in read-only mode — comments are an editing
+            affordance, no purpose on a system reference HTML. */}
+        {initialHtml !== null && !readOnly && (
           <CommentRail
             threads={railThreads}
             activeThreadId={activeThreadId}
@@ -973,8 +1004,12 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
           pills are portaled to body via the same primitive. */}
       {onSendToDuo && pillRect && !newCommentAt && (
         <>
+          {/* Send → Duo stays available even in read-only mode — quoting
+              FROM a reference HTML to the active terminal is a useful
+              motion. Comment button is suppressed: comments need
+              anchors which need editing. */}
           <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
-          {lastCanvasSelectionRef.current?.anchorId && (
+          {!readOnly && lastCanvasSelectionRef.current?.anchorId && (
             <CommentButton rect={pillRect} onClick={handleStartNewComment} />
           )}
         </>

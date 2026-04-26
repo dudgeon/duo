@@ -39,6 +39,12 @@ interface Props {
    *  setting up against an empty / pre-parse body causes the parser
    *  to wipe whatever we mounted. */
   onReady?: (doc: Document) => void
+  /** When true, the canvas mounts read-only: no contentEditable, no
+   *  MutationObserver (no dirty-state plumbing), no shortcut keydown
+   *  handler. Used to honor `<meta name="duo-editable" content="false">`
+   *  on system reference HTMLs (FAQ, What Duo Does, etc.) so they can
+   *  be displayed without accidental human edits. */
+  readOnly?: boolean
 }
 
 export interface RenderedCanvasHandle {
@@ -56,7 +62,7 @@ export interface RenderedCanvasHandle {
 }
 
 export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
-  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady }, ref) {
+  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady, readOnly = false }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
     const getDocument = useCallback((): Document | null => {
@@ -94,52 +100,54 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         if (!doc || !doc.body) return
         wired = true
 
-        // contentEditable on body. PRD H1 — the canvas IS the page.
-        // We mark these as runtime-only via a sentinel attribute so the
-        // pretty-printer can strip them from the on-disk serialization.
-        // Saving raw <body contenteditable="true" spellcheck="true" …>
-        // would leak our editing chrome into a file the user might open
-        // in any browser.
-        doc.body.setAttribute('contenteditable', 'true')
-        doc.body.setAttribute('spellcheck', 'true')
-        doc.body.setAttribute('data-duo-canvas-runtime', '1')
+        if (!readOnly) {
+          // contentEditable on body. PRD H1 — the canvas IS the page.
+          // We mark these as runtime-only via a sentinel attribute so the
+          // pretty-printer can strip them from the on-disk serialization.
+          // Saving raw <body contenteditable="true" spellcheck="true" …>
+          // would leak our editing chrome into a file the user might open
+          // in any browser.
+          doc.body.setAttribute('contenteditable', 'true')
+          doc.body.setAttribute('spellcheck', 'true')
+          doc.body.setAttribute('data-duo-canvas-runtime', '1')
 
-        // Visual focus indicator suppressed via a runtime <style> tag
-        // (also marked data-duo-canvas-runtime so the serializer skips
-        // it), instead of body.style.outline directly — that would
-        // mutate any user-authored style="…" on body and leak into the
-        // saved file.
-        if (!doc.head?.querySelector('style[data-duo-canvas-runtime]')) {
-          const style = doc.createElement('style')
-          style.setAttribute('data-duo-canvas-runtime', '1')
-          style.textContent = 'body { outline: none; }'
-          doc.head?.appendChild(style)
-        }
-
-        observer = new MutationObserver(() => {
-          if (!cancelled) onChange()
-        })
-        observer.observe(doc, {
-          subtree: true,
-          childList: true,
-          characterData: true,
-          attributes: true
-        })
-
-        keyHandler = (e: KeyboardEvent) => {
-          // Forward to parent first; parent decides whether to consume.
-          if (onShortcut(e)) {
-            e.preventDefault()
-            e.stopPropagation()
+          // Visual focus indicator suppressed via a runtime <style> tag
+          // (also marked data-duo-canvas-runtime so the serializer skips
+          // it), instead of body.style.outline directly — that would
+          // mutate any user-authored style="…" on body and leak into the
+          // saved file.
+          if (!doc.head?.querySelector('style[data-duo-canvas-runtime]')) {
+            const style = doc.createElement('style')
+            style.setAttribute('data-duo-canvas-runtime', '1')
+            style.textContent = 'body { outline: none; }'
+            doc.head?.appendChild(style)
           }
-        }
-        doc.addEventListener('keydown', keyHandler, true)
 
-        // Fire onReady AFTER the body is populated and our editing
-        // chrome is in place. CanvasTab mounts iframe-side hooks
-        // (selectionchange, markdown shortcuts, placeholder overlay,
-        // ID-injection probe) here — earlier mounting risks the
-        // srcdoc parser wiping our injections.
+          observer = new MutationObserver(() => {
+            if (!cancelled) onChange()
+          })
+          observer.observe(doc, {
+            subtree: true,
+            childList: true,
+            characterData: true,
+            attributes: true
+          })
+
+          keyHandler = (e: KeyboardEvent) => {
+            // Forward to parent first; parent decides whether to consume.
+            if (onShortcut(e)) {
+              e.preventDefault()
+              e.stopPropagation()
+            }
+          }
+          doc.addEventListener('keydown', keyHandler, true)
+        }
+
+        // Fire onReady AFTER the body is populated. CanvasTab mounts
+        // iframe-side hooks (selectionchange, markdown shortcuts,
+        // placeholder overlay, ID-injection probe) here — earlier
+        // mounting risks the srcdoc parser wiping our injections.
+        // CanvasTab's own readOnly check gates which hooks it installs.
         try { onReady?.(doc) } catch (e) { console.error('[RenderedCanvas] onReady threw:', e) }
       }
 
@@ -158,7 +166,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         if (doc && keyHandler) doc.removeEventListener('keydown', keyHandler, true)
         iframe.removeEventListener('load', wire)
       }
-    }, [onChange, onShortcut, onReady])
+    }, [onChange, onShortcut, onReady, readOnly])
 
     return (
       <iframe
