@@ -12,6 +12,7 @@
 //   - item 7: placeholder text on fresh + empty pages
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { EditorToolbar } from '../editor/EditorToolbar'
 import { RenderedCanvas, type RenderedCanvasHandle } from './RenderedCanvas'
 import { buildCanvasEditorActions } from './canvasEditorActions'
@@ -32,16 +33,33 @@ import {
   writeSidecar,
   emptySidecar,
   withRecentEdit,
-  type SidecarV1
+  withComment,
+  withResolvedThread,
+  withReopenedThread,
+  type SidecarV1,
+  type SidecarComment
 } from './sidecar'
 import { executeHtmlOp } from './htmlOps'
 import { installJustAddedStyles, markJustAdded, REPAINT_FRESHNESS_MS } from './justAddedCanvas'
 import { installBlurredSelection } from './blurredSelection'
 import { installCanvasSelection, computeCanvasSnapshot } from './canvasSelection'
+import {
+  paintAnchors,
+  clearAnchors,
+  buildThreads,
+  scrollToAnchor,
+  type BuiltThread
+} from './commentAnchors'
+import { CommentRail, type CommentThread } from '../editor/primitives/CommentRail'
 import { formatCanvasSendPayload } from '../editor/sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
-import type { HtmlCanvasSelectionSnapshot, HtmlOpRequest } from '@shared/types'
+import type {
+  HtmlCanvasSelectionSnapshot,
+  HtmlOpRequest,
+  HtmlCommentRequest,
+  HtmlCommentResult
+} from '@shared/types'
 
 interface Props {
   path: string
@@ -119,6 +137,86 @@ function cssEscape(s: string): string {
   return s.replace(/(["\\])/g, '\\$1')
 }
 
+/**
+ * 17d — resolve an agent-side `duo html comment` request to a concrete
+ * anchor. Three addressing options per PRD H24:
+ *   1. `--id <duo-id>`           → exact data-duo-id lookup
+ *   2. `--selector <css>`        → resolve to nearest data-duo-id ancestor
+ *   3. `--text "<substring>"`    → first text node containing substring,
+ *                                  walked up to nearest data-duo-id ancestor
+ *
+ * Returns the anchor id + the new comment id (so the renderer can
+ * persist the entry) or an error result. The actual comment append
+ * happens in the caller (which also persists the sidecar via
+ * `persistSidecarMutation`).
+ */
+function handleAgentComment(doc: Document, req: HtmlCommentRequest): HtmlCommentResult {
+  let anchor: Element | null = null
+  if (req.id) {
+    anchor = doc.querySelector(`[data-duo-id="${cssEscape(req.id)}"]`)
+    if (!anchor) {
+      return { reqId: req.reqId, ok: false, error: `No element with data-duo-id="${req.id}"` }
+    }
+  } else if (req.selector) {
+    const target = doc.querySelector(req.selector)
+    if (!target) {
+      return { reqId: req.reqId, ok: false, error: `No element matching selector "${req.selector}"` }
+    }
+    anchor = nearestDuoIdAncestor(target)
+    if (!anchor) {
+      return { reqId: req.reqId, ok: false, error: `Element matching "${req.selector}" has no data-duo-id ancestor — accept ID injection first` }
+    }
+  } else if (req.text) {
+    const found = findElementByText(doc, req.text)
+    if (!found) {
+      return { reqId: req.reqId, ok: false, error: `No text matching "${req.text}" found in document` }
+    }
+    anchor = nearestDuoIdAncestor(found)
+    if (!anchor) {
+      return { reqId: req.reqId, ok: false, error: 'Matched text has no data-duo-id ancestor — accept ID injection first' }
+    }
+  } else {
+    return {
+      reqId: req.reqId,
+      ok: false,
+      error: 'comment requires --id <duo-id>, --selector <css>, or --text "<substring>"'
+    }
+  }
+
+  if (!req.body || !req.body.trim()) {
+    return { reqId: req.reqId, ok: false, error: 'comment requires a non-empty --body' }
+  }
+
+  const anchorId = anchor.getAttribute('data-duo-id')
+  if (!anchorId) {
+    return { reqId: req.reqId, ok: false, error: 'Anchor has no data-duo-id (unexpected)' }
+  }
+
+  const commentId = `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return { reqId: req.reqId, ok: true, commentId, anchorId }
+}
+
+function nearestDuoIdAncestor(node: Element | null): Element | null {
+  let cur: Element | null = node
+  while (cur) {
+    if (cur.hasAttribute('data-duo-id')) return cur
+    cur = cur.parentElement
+  }
+  return null
+}
+
+function findElementByText(doc: Document, needle: string): Element | null {
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+  let node = walker.nextNode()
+  while (node) {
+    if ((node.textContent ?? '').includes(needle)) {
+      return node.parentElement
+    }
+    node = walker.nextNode()
+  }
+  return null
+}
+
 export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
@@ -167,6 +265,22 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
   pendingHtmlOpRef.current = pendingHtmlOp
   const dirtyRef = useRef(false)
   dirtyRef.current = dirty
+
+  // 17d — comment threads computed from the live sidecar. State (not
+  // ref) because the rail re-renders on every change. `threadsTick` is
+  // a small counter we bump whenever we mutate the sidecar; the
+  // rebuild effect reads sidecarRef + this tick.
+  const [threadsTick, setThreadsTick] = useState(0)
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  // 17d — new-comment composer state. When non-null, a textarea
+  // floats over the canvas anchored to the cached selection. The
+  // anchor is the current `lastCanvasSelectionRef`'s anchorId.
+  const [newCommentAt, setNewCommentAt] = useState<{
+    anchorId: string
+    anchorPath?: string[]
+    excerpt: string
+    rect: PillAnchorRect
+  } | null>(null)
 
   const getDoc = useCallback(() => canvasRef.current?.getDocument() ?? null, [])
 
@@ -403,8 +517,11 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
       cleanPlaceholder()
       blurred.dispose()
       sel.dispose()
+      clearAnchors(doc)
       setInjectionPrompt(null)
       setPillRect(null)
+      setActiveThreadId(null)
+      setNewCommentAt(null)
       lastCanvasSelectionRef.current = null
     }
   }, [path, bumpVersion])
@@ -550,6 +667,222 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
     setPillRect(null)
   }, [onSendToDuo, selectionFormat])
 
+  // 17d — comment threads. Recomputed on every threadsTick bump (when
+  // sidecar mutates) and on every selection-rebuild — the second case
+  // catches the rare "anchor moved in DOM" scenario without us having
+  // to thread MutationObserver into the rail explicitly.
+  const builtThreads = useMemo<BuiltThread[]>(() => {
+    const doc = getDoc()
+    if (!doc) return []
+    return buildThreads(doc, sidecarRef.current)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadsTick, getDoc])
+
+  // 17d — paint / repaint anchor badges in the body. Runs on every
+  // threads change + active-thread change. Idempotent — paintAnchors
+  // reconciles the existing badges with the expected list.
+  useEffect(() => {
+    const doc = getDoc()
+    if (!doc) return
+    paintAnchors({
+      doc,
+      badges: builtThreads.map((t, i) => ({
+        threadId: t.threadId,
+        number: i + 1,
+        resolved: t.resolved
+      })),
+      activeThreadId,
+      onClick: (threadId) => setActiveThreadId(threadId)
+    })
+  }, [builtThreads, activeThreadId, getDoc])
+
+  // 17d — adapt BuiltThread → CommentThread for the primitive.
+  const railThreads = useMemo<CommentThread[]>(() => {
+    return builtThreads.map((t, i) => ({
+      id: t.threadId,
+      number: i + 1,
+      excerpt: t.excerpt,
+      resolved: t.resolved,
+      entries: t.entries.map((e) => ({
+        id: e.id,
+        author: e.author,
+        ts: e.ts,
+        body: e.body
+      }))
+    }))
+  }, [builtThreads])
+
+  // 17d — sidecar mutators marked dirty + ticked so the rail rebuilds.
+  const persistSidecarMutation = useCallback((next: SidecarV1) => {
+    sidecarRef.current = next
+    sidecarDirtyRef.current = true
+    setThreadsTick(v => v + 1)
+    // Trigger autosave path so the sidecar lands without waiting for
+    // the next iframe mutation.
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null
+      void saveRef.current()
+    }, AUTOSAVE_DEBOUNCE_MS)
+  }, [])
+
+  // 17d — handlers for the rail.
+  const handleJumpToThread = useCallback((threadId: string) => {
+    setActiveThreadId(threadId)
+    const doc = getDoc()
+    if (doc) scrollToAnchor(doc, threadId)
+  }, [getDoc])
+
+  const handleReplyToThread = useCallback((threadId: string, body: string) => {
+    const trimmed = body.trim()
+    if (!trimmed) return
+    const entry: SidecarComment = {
+      id: `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      anchorId: threadId,
+      author: 'user',
+      ts: new Date().toISOString(),
+      body: trimmed
+    }
+    persistSidecarMutation(withComment(sidecarRef.current, entry))
+  }, [persistSidecarMutation])
+
+  const handleResolveThread = useCallback((threadId: string) => {
+    persistSidecarMutation(withResolvedThread(sidecarRef.current, threadId, 'user'))
+  }, [persistSidecarMutation])
+
+  const handleReopenThread = useCallback((threadId: string) => {
+    persistSidecarMutation(withReopenedThread(sidecarRef.current, threadId))
+  }, [persistSidecarMutation])
+
+  // 17d — "💬 Comment" button in the SendToDuoPill cluster. The button
+  // sits next to the Send → Duo pill when the user has a non-collapsed
+  // selection inside an anchored element. Clicking opens the
+  // composer; submitting calls handleNewComment.
+  const handleStartNewComment = useCallback(() => {
+    const snap = lastCanvasSelectionRef.current
+    if (!snap || !snap.anchorId) return
+    const rect = pillRect
+    if (!rect) return
+    const excerpt = (snap.text || snap.surrounding || '').slice(0, 60)
+    setNewCommentAt({
+      anchorId: snap.anchorId,
+      anchorPath: snap.anchorPath,
+      excerpt,
+      rect
+    })
+    // Hide the pill while the composer is open.
+    setPillRect(null)
+  }, [pillRect])
+
+  const handleSubmitNewComment = useCallback((body: string) => {
+    const at = newCommentAt
+    if (!at) return
+    const trimmed = body.trim()
+    if (!trimmed) { setNewCommentAt(null); return }
+    const entry: SidecarComment = {
+      id: `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      anchorId: at.anchorId,
+      author: 'user',
+      ts: new Date().toISOString(),
+      body: trimmed
+    }
+    persistSidecarMutation(withComment(sidecarRef.current, entry))
+    setActiveThreadId(at.anchorId)
+    setNewCommentAt(null)
+  }, [newCommentAt, persistSidecarMutation])
+
+  const handleCancelNewComment = useCallback(() => {
+    setNewCommentAt(null)
+  }, [])
+
+  // 17d — agent-driven `duo html comment` requests. The renderer is the
+  // only place that knows the live sidecar + the anchor resolution
+  // rules (selector → nearest data-duo-id ancestor). Mirrors the
+  // html-op subscription pattern from 17b/c.
+  useEffect(() => {
+    if (initialHtml === null) return
+    return window.electron.canvas?.onHtmlComment((req) => {
+      if (req.path && req.path !== path) {
+        window.electron.canvas.replyHtmlComment({
+          reqId: req.reqId,
+          ok: false,
+          error: `Active canvas is at ${path}, not ${req.path}`
+        })
+        return
+      }
+      const doc = getDoc()
+      if (!doc) {
+        window.electron.canvas.replyHtmlComment({
+          reqId: req.reqId,
+          ok: false,
+          error: 'Canvas iframe not ready'
+        })
+        return
+      }
+      const result = handleAgentComment(doc, req)
+      if (result.ok && result.commentId && result.anchorId) {
+        const entry: SidecarComment = {
+          id: result.commentId,
+          anchorId: result.anchorId,
+          author: 'claude',
+          ts: new Date().toISOString(),
+          body: req.body
+        }
+        persistSidecarMutation(withComment(sidecarRef.current, entry))
+      }
+      window.electron.canvas.replyHtmlComment(result)
+    })
+  }, [initialHtml, path, getDoc, persistSidecarMutation])
+
+  // 17d — agent-driven `duo html comments` reads. Returns the threads
+  // post-doc-order sort, with optional filter. Renderer is the only
+  // authoritative source — main has no copy of the sidecar.
+  useEffect(() => {
+    if (initialHtml === null) return
+    return window.electron.canvas?.onHtmlCommentsList((req) => {
+      if (req.path && req.path !== path) {
+        window.electron.canvas.replyHtmlCommentsList({
+          reqId: req.reqId,
+          ok: false,
+          error: `Active canvas is at ${path}, not ${req.path}`
+        })
+        return
+      }
+      const doc = getDoc()
+      if (!doc) {
+        window.electron.canvas.replyHtmlCommentsList({
+          reqId: req.reqId,
+          ok: false,
+          error: 'Canvas iframe not ready'
+        })
+        return
+      }
+      const all = buildThreads(doc, sidecarRef.current)
+      const filtered = (req.filter === 'open')
+        ? all.filter(t => !t.resolved)
+        : (req.filter === 'resolved')
+        ? all.filter(t => t.resolved)
+        : all
+      const threads = filtered.map((t, i) => ({
+        id: t.threadId,
+        number: i + 1,
+        excerpt: t.excerpt,
+        resolved: t.resolved,
+        entries: t.entries.map(e => ({
+          id: e.id,
+          author: e.author,
+          ts: e.ts,
+          body: e.body
+        }))
+      }))
+      window.electron.canvas.replyHtmlCommentsList({
+        reqId: req.reqId,
+        ok: true,
+        threads
+      })
+    })
+  }, [initialHtml, path, getDoc])
+
   // Bridge: ⌘S pressed in the renderer (e.g. user clicked the toolbar
   // first, focus is in the toolbar's iframe boundary, so the iframe-side
   // keydown listener doesn't fire) should still save when the canvas is
@@ -619,12 +952,195 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
             Loading…
           </div>
         )}
+        {/* Stage 17d — comment rail. Renders to the right of the canvas
+            iframe. Hidden when the file has no `data-duo-id`s yet
+            (commenting requires anchors), AND the empty-state hint is
+            most useful AFTER the user has accepted ID injection. */}
+        {initialHtml !== null && (
+          <CommentRail
+            threads={railThreads}
+            activeThreadId={activeThreadId}
+            onJumpTo={handleJumpToThread}
+            onReply={handleReplyToThread}
+            onResolve={handleResolveThread}
+            onReopen={handleReopenThread}
+          />
+        )}
       </div>
-      {/* Stage 17c — floating Send → Duo pill, portaled to body. */}
-      {onSendToDuo && (
-        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+      {/* Stage 17c — floating Send → Duo pill + Stage 17d comment
+          button. The "💬 Comment" button only shows when the user's
+          selection has an anchor (live `data-duo-id` ancestor). Both
+          pills are portaled to body via the same primitive. */}
+      {onSendToDuo && pillRect && !newCommentAt && (
+        <>
+          <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+          {lastCanvasSelectionRef.current?.anchorId && (
+            <CommentButton rect={pillRect} onClick={handleStartNewComment} />
+          )}
+        </>
+      )}
+      {/* Stage 17d — new-comment composer (modal popover). Anchored to
+          the selection rect captured when the user clicked Comment. */}
+      {newCommentAt && (
+        <NewCommentComposer
+          anchorRect={newCommentAt.rect}
+          excerpt={newCommentAt.excerpt}
+          onSubmit={handleSubmitNewComment}
+          onCancel={handleCancelNewComment}
+        />
       )}
     </div>
+  )
+}
+
+/**
+ * 17d — small "💬" icon button rendered to the LEFT of the Send → Duo
+ * pill (same anchor rect, offset by the pill's width). Same portal
+ * pattern as SendToDuoPill so it lives outside the canvas tree.
+ */
+function CommentButton({ rect, onClick }: { rect: PillAnchorRect; onClick: () => void }) {
+  // Offset 100px left of the pill's right edge so the two affordances
+  // sit side by side. The Send → Duo pill is ~96px wide; we offset
+  // a bit more so they don't visually crash. If the resulting left
+  // would clip viewport, clamp.
+  const PILL_WIDTH_ESTIMATE = 96
+  const GAP = 6
+  const PILL_OFFSET_PX = 6
+  const placeAbove = rect.top - 24 - PILL_OFFSET_PX >= 8
+  const top = placeAbove ? rect.top - 24 - PILL_OFFSET_PX : rect.bottom + PILL_OFFSET_PX
+  const rawLeft = rect.right - PILL_WIDTH_ESTIMATE - GAP - 28
+  const left = Math.max(8, rawLeft)
+  return createPortal(
+    <button
+      type="button"
+      className="duo-send-pill"
+      style={{
+        position: 'fixed',
+        top: `${top}px`,
+        left: `${left}px`,
+        // Slimmer than the Send → Duo pill so the visual hierarchy
+        // reads "Send → Duo first, Comment second" — comments are an
+        // adjacent action, not the primary one.
+        padding: '4px 8px',
+        background: 'var(--duo-paper)',
+        color: 'var(--duo-accent-ink)',
+        boxShadow: '0 1px 2px rgba(20, 14, 8, 0.18)',
+        fontSize: 11
+      }}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        onClick()
+      }}
+      aria-label="Add comment"
+    >
+      💬 Comment
+    </button>,
+    document.body
+  )
+}
+
+/**
+ * 17d — new-comment composer. Floats above the user's selection; the
+ * user types a comment + clicks Comment / Cancel. ⌘+Enter submits;
+ * Escape cancels. On submit, the parent appends to sidecar.comments
+ * and dismisses.
+ */
+function NewCommentComposer({
+  anchorRect,
+  excerpt,
+  onSubmit,
+  onCancel
+}: {
+  anchorRect: PillAnchorRect
+  excerpt: string
+  onSubmit: (body: string) => void
+  onCancel: () => void
+}) {
+  const [body, setBody] = useState('')
+  const taRef = useRef<HTMLTextAreaElement | null>(null)
+  useEffect(() => { taRef.current?.focus() }, [])
+
+  // Position below the selection so the user can still see what
+  // they're commenting on.
+  const top = anchorRect.bottom + 8
+  const left = Math.max(8, Math.min(anchorRect.right - 320, window.innerWidth - 340))
+
+  return createPortal(
+    <div
+      className="duo-comment-composer"
+      style={{
+        position: 'fixed',
+        top: `${top}px`,
+        left: `${left}px`,
+        width: 320,
+        background: 'var(--duo-paper)',
+        border: '1px solid var(--duo-paper-edge)',
+        borderRadius: 6,
+        boxShadow: '0 4px 16px rgba(20, 14, 8, 0.18)',
+        padding: 10,
+        zIndex: 60
+      }}
+    >
+      {excerpt && (
+        <div style={{
+          fontSize: 11,
+          color: 'var(--duo-ink-mute)',
+          marginBottom: 6,
+          fontStyle: 'italic',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }}>
+          “{excerpt}”
+        </div>
+      )}
+      <textarea
+        ref={taRef}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="Add a comment…"
+        style={{
+          width: '100%',
+          minHeight: 64,
+          background: 'var(--duo-paper)',
+          border: '1px solid var(--duo-paper-edge)',
+          borderRadius: 4,
+          padding: '6px 8px',
+          fontFamily: 'inherit',
+          fontSize: 12,
+          color: 'var(--duo-ink)',
+          resize: 'vertical'
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault()
+            onSubmit(body)
+          } else if (e.key === 'Escape') {
+            e.preventDefault()
+            onCancel()
+          }
+        }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+        <button
+          type="button"
+          className="duo-comment-thread__action-link"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="duo-comment-thread__btn-primary"
+          onClick={() => onSubmit(body)}
+          disabled={body.trim().length === 0}
+        >
+          Comment
+        </button>
+      </div>
+    </div>,
+    document.body
   )
 }
 

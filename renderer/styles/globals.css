@@ -421,4 +421,260 @@ html.dark {
     from { opacity: 0; transform: translateY(2px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Stage 17d / 11d — `<CommentRail>` (editor-agnostic primitive).
+     Right-side rail of threaded comments. Both the markdown editor
+     (Stage 11d binding via CriticMarkup) and the HTML canvas (Stage
+     17d binding via sidecar JSON) mount the same rail; only the data
+     binding differs. Atelier surface — paper-deep panel against
+     paper-edge separator. */
+  .duo-comment-rail {
+    width: 280px;
+    max-width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--duo-paper-edge);
+    background: var(--duo-paper-deep);
+    color: var(--duo-ink);
+    font-family: theme('fontFamily.sans');
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .duo-comment-rail__header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--duo-paper-edge);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--duo-ink-mute);
+    flex-shrink: 0;
+  }
+  .duo-comment-rail__threads {
+    flex: 1;
+    padding: 8px 8px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .duo-comment-rail__empty {
+    color: var(--duo-ink-mute);
+    padding: 24px 14px;
+    text-align: center;
+    font-size: 12px;
+  }
+  .duo-comment-thread {
+    background: var(--duo-paper);
+    border: 1px solid var(--duo-paper-edge);
+    border-radius: 6px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 100ms ease-out, box-shadow 100ms ease-out;
+  }
+  .duo-comment-thread--active {
+    border-color: var(--duo-accent);
+    box-shadow: 0 0 0 1px var(--duo-accent);
+  }
+  .duo-comment-thread--resolved {
+    background: transparent;
+    border-style: dashed;
+    color: var(--duo-ink-mute);
+  }
+  .duo-comment-thread__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    width: 100%;
+  }
+  .duo-comment-thread__header:hover .duo-comment-thread__excerpt {
+    color: var(--duo-accent-ink);
+  }
+  .duo-comment-thread__number {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--duo-accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .duo-comment-thread--resolved .duo-comment-thread__number {
+    background: var(--duo-paper-rule);
+    color: var(--duo-ink-mute);
+  }
+  .duo-comment-thread__excerpt {
+    flex: 1;
+    font-size: 11px;
+    color: var(--duo-ink-mute);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: color 100ms ease-out;
+  }
+  .duo-comment-thread__entries {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .duo-comment-entry {
+    padding: 4px 0;
+  }
+  .duo-comment-entry + .duo-comment-entry {
+    border-top: 1px dashed var(--duo-paper-edge);
+    padding-top: 8px;
+  }
+  .duo-comment-entry__meta {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--duo-ink-mute);
+    margin-bottom: 2px;
+  }
+  .duo-comment-entry__author {
+    font-weight: 600;
+    color: var(--duo-ink);
+  }
+  .duo-comment-entry__author--agent {
+    color: var(--duo-accent-ink);
+  }
+  .duo-comment-entry__ts {
+    font-variant-numeric: tabular-nums;
+  }
+  .duo-comment-entry__body {
+    color: var(--duo-ink);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .duo-comment-thread__resolved-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--duo-ink-mute);
+  }
+  .duo-comment-thread__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .duo-comment-thread__action-link {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    font-size: 11px;
+    color: var(--duo-ink-mute);
+    cursor: pointer;
+    border-radius: 3px;
+    font-family: inherit;
+  }
+  .duo-comment-thread__action-link:hover {
+    color: var(--duo-accent-ink);
+    background: var(--duo-paper-edge);
+  }
+  .duo-comment-thread__btn-primary {
+    background: var(--duo-accent);
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .duo-comment-thread__btn-primary:hover {
+    background: var(--duo-accent-ink);
+  }
+  .duo-comment-thread__btn-primary:disabled {
+    background: var(--duo-paper-rule);
+    cursor: not-allowed;
+  }
+  .duo-comment-thread__reply-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
+  }
+  .duo-comment-thread__reply-input {
+    width: 100%;
+    min-height: 60px;
+    resize: vertical;
+    background: var(--duo-paper);
+    border: 1px solid var(--duo-paper-edge);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--duo-ink);
+  }
+  .duo-comment-thread__reply-input:focus {
+    outline: none;
+    border-color: var(--duo-accent);
+  }
+  .duo-comment-thread__reply-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  /* Numbered anchor badge painted in the canvas body next to each
+     anchored element. Uses --duo-canvas-runtime sentinel so the
+     serializer strips it from saved HTML — the badges are render-time
+     UX, never on disk. The canvas binding (commentAnchors.ts) appends
+     these next to anchor elements; click → the rail's onJumpTo is
+     invoked. Atelier styling matches the rail's thread-number circle. */
+  .duo-comment-anchor {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--duo-accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: var(--duo-font-sans, system-ui, sans-serif);
+    line-height: 1;
+    cursor: pointer;
+    margin-left: 4px;
+    vertical-align: super;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+  }
+  .duo-comment-anchor:hover {
+    transform: translateY(-0.5px);
+    box-shadow: 0 1px 4px rgba(20, 14, 8, 0.16);
+  }
+  .duo-comment-anchor--active {
+    box-shadow: 0 0 0 2px var(--duo-accent-soft);
+  }
+  .duo-comment-anchor--resolved {
+    background: var(--duo-paper-rule);
+    color: var(--duo-ink-mute);
+  }
 }

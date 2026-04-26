@@ -131,6 +131,8 @@ declare friction sites once and stop fighting them.
 | `duo html append --parent <duo-id> --html "…"` | Append a child to the matched parent. | JSON `{id}` of the new child |
 | `duo html remove --id <duo-id>` | Delete an element. | JSON `{id}` of the deleted element |
 | `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Modify attributes. `--set`/`--remove` repeat. | JSON `{id}` |
+| `duo html comment --id <duo-id> --body "…"` (or `--selector <css>` / `--text "<substring>"`) | **Stage 17d** — add a comment thread anchored to a `data-duo-id` element. Anchor resolves to the nearest `data-duo-id` ancestor when targeted via selector/text. Comments live in `<file>.duo.json § comments[]`; the `.html` is never modified. Body via flag or stdin. | JSON `{ok, commentId, anchorId}` |
+| `duo html comments [--filter all\|open\|resolved]` | List comment threads on the active canvas, sorted in document order. Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. | JSON array |
 | `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
 | `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
 | `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |

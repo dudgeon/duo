@@ -14,6 +14,10 @@ import type {
   DocReadResult,
   HtmlOpRequest,
   HtmlOpResult,
+  HtmlCommentRequest,
+  HtmlCommentResult,
+  HtmlCommentsListRequest,
+  HtmlCommentsListResult,
   HtmlCanvasSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
@@ -202,6 +206,26 @@ const api: ElectronAPI = {
 
     pushSelection: (snapshot: HtmlCanvasSelectionSnapshot | null) => {
       ipcRenderer.send(IPC.CANVAS_SELECTION_PUSH, snapshot)
+    },
+
+    onHtmlComment: (cb) => {
+      const handler = (_: IpcRendererEvent, req: HtmlCommentRequest) => cb(req)
+      ipcRenderer.on(IPC.CANVAS_HTML_COMMENT, handler)
+      return () => ipcRenderer.removeListener(IPC.CANVAS_HTML_COMMENT, handler)
+    },
+
+    replyHtmlComment: (result: HtmlCommentResult) => {
+      ipcRenderer.send(IPC.CANVAS_HTML_COMMENT_RESULT, result)
+    },
+
+    onHtmlCommentsList: (cb) => {
+      const handler = (_: IpcRendererEvent, req: HtmlCommentsListRequest) => cb(req)
+      ipcRenderer.on(IPC.CANVAS_HTML_COMMENTS_LIST, handler)
+      return () => ipcRenderer.removeListener(IPC.CANVAS_HTML_COMMENTS_LIST, handler)
+    },
+
+    replyHtmlCommentsList: (result: HtmlCommentsListResult) => {
+      ipcRenderer.send(IPC.CANVAS_HTML_COMMENTS_LIST_RESULT, result)
     }
   },
 

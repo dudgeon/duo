@@ -35,15 +35,24 @@ abstraction here ripples into every surface.
   fade applied to agent-written ranges.
 - **`<WriteWarningBanner>`** (Stage 13b) — the banner shown when the
   agent attempts to write while the human has unsaved edits.
+- **`<SendToDuoPill>`** (Stage 15.1) — floating affordance next to a
+  user selection that pipes the formatted payload into the active
+  terminal. Used by the markdown editor (Stage 15.1), the browser
+  pane (Stage 15.2), and the HTML canvas (Stage 17c).
+- **`<CommentRail>`** (Stage 17d) — right-side rail of threaded
+  comments anchored to ranges. Visual layer only; data binding is
+  surface-specific. Canvas binding ships in Stage 17d (sidecar JSON
+  storage, DOM-painted anchor badges); markdown binding ships in
+  Stage 11d / 14 (CriticMarkup `{>>...<<}` parsing, TipTap mark for
+  anchors). Same primitive serves both.
 
 ## What's coming
 
 - **Stage 14** — `<TrackChangesProvider>`, `<TrackedRangeMark>`,
-  `<AcceptAllBanner>`, `<CommentRail>`.
-- **Stage 15** — `<SendToDuoPill>`.
-- **Stage 17** — uses everything above, contributes nothing
-  primitive-side; canvas-specific code lives under
-  `renderer/components/canvas/` (future).
+  `<AcceptAllBanner>`, plus the markdown binding for `<CommentRail>`.
+- **Stage 17d** — first canvas binding for `<CommentRail>` (sidecar-
+  backed). Lock-region rendering (`data-duo-lock="structure"`) and
+  the H18 snippet bundle land alongside.
 
 ## Bindings (not here)
 

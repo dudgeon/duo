@@ -64,6 +64,21 @@ for the authoritative usage text.
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. |
 | `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor |
 
+### HTML canvas (Stage 17)
+
+| Verb | What it does |
+|---|---|
+| `duo html new <path.html> [--title "…"]` | Create a new `.html` from boilerplate and open it in the canvas (Stage 17a). |
+| `duo html query <css-selector>` | List elements matching selector inside the active canvas (Stage 17b). Returns `[{id, tag, text, classes}]`. |
+| `duo html get --id <duo-id> \| --selector <css>` | outerHTML + textContent of a single element (Stage 17b). |
+| `duo html set --id <duo-id> --content "…"` | Replace innerHTML (Stage 17b). |
+| `duo html replace --id <duo-id> --html "…"` | Replace outerHTML (Stage 17b). |
+| `duo html append --parent <duo-id> --html "…"` | Append a child to the matched parent (Stage 17b). |
+| `duo html remove --id <duo-id>` | Delete the matched element (Stage 17b). |
+| `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Modify attributes (Stage 17b). |
+| `duo html comment --id <duo-id> --body "…"` | Add a comment anchored to the matched element's nearest `data-duo-id` ancestor (Stage 17d). Stored in `<file>.duo.json § comments[]`; the `.html` is never modified. Anchor via `--id`, `--selector <css>`, or `--text "<substring>"`. Body via flag or stdin. Returns `{ok, commentId, anchorId}`. |
+| `duo html comments [--filter all\|open\|resolved]` | List comment threads on the active canvas, sorted in document order (Stage 17d). Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. |
+
 ### Appearance
 
 | Verb | What it does |

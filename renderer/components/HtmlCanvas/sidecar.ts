@@ -20,7 +20,20 @@ export interface SidecarV1 {
   scripts?: { allowed: 'always' | 'once' | 'never' }
   comments?: SidecarComment[]
   recentEdits?: SidecarRecentEdit[]
+  /** Stage 17d — map from `anchorId` (= thread id, since one thread
+   *  per anchor) to a resolution record. Threads not present in this
+   *  map are open. Storing thread state here (rather than on each
+   *  `SidecarComment` entry) keeps the entry shape per-message and
+   *  avoids ambiguity about which entry's flag wins. Additive on the
+   *  v1 schema — readers without this field treat all threads as
+   *  open. */
+  resolvedThreads?: Record<string, ResolvedThreadRecord>
   properties?: Record<string, unknown>
+}
+
+export interface ResolvedThreadRecord {
+  ts: string                              // ISO 8601
+  by: string                              // 'user' / 'claude' / display name
 }
 
 export interface SidecarComment {
@@ -93,6 +106,34 @@ export function withRecentEdit(sidecar: SidecarV1, edit: SidecarRecentEdit): Sid
   const existing = sidecar.recentEdits ?? []
   const next = [edit, ...existing].slice(0, RECENT_EDITS_CAP)
   return { ...sidecar, recentEdits: next }
+}
+
+/** Append a comment entry. Returns the next sidecar. Caller mints
+ *  the comment id (typically `cmt_<short-ulid>`). Pure — no IO. */
+export function withComment(sidecar: SidecarV1, comment: SidecarComment): SidecarV1 {
+  const existing = sidecar.comments ?? []
+  return { ...sidecar, comments: [...existing, comment] }
+}
+
+/** Mark a thread (= an anchorId) resolved. Pure — no IO. */
+export function withResolvedThread(
+  sidecar: SidecarV1,
+  anchorId: string,
+  by: string
+): SidecarV1 {
+  const existing = sidecar.resolvedThreads ?? {}
+  return {
+    ...sidecar,
+    resolvedThreads: { ...existing, [anchorId]: { ts: new Date().toISOString(), by } }
+  }
+}
+
+/** Reopen a previously-resolved thread. Pure — no IO. */
+export function withReopenedThread(sidecar: SidecarV1, anchorId: string): SidecarV1 {
+  if (!sidecar.resolvedThreads || !(anchorId in sidecar.resolvedThreads)) return sidecar
+  const next = { ...sidecar.resolvedThreads }
+  delete next[anchorId]
+  return { ...sidecar, resolvedThreads: next }
 }
 
 // ── Validation ─────────────────────────────────────────────────────────────

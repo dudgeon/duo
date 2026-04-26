@@ -21,6 +21,10 @@ import type {
   DocReadResult,
   HtmlOpRequest,
   HtmlOpResult,
+  HtmlCommentRequest,
+  HtmlCommentResult,
+  HtmlCommentsListRequest,
+  HtmlCommentsListResult,
   HtmlCanvasSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
@@ -57,6 +61,11 @@ const docReadPending = new Map<string, (res: DocReadResult) => void>()
 
 // Stage 17b Phase C — pending `duo html *` ops awaiting a renderer reply.
 const htmlOpPending = new Map<string, (res: HtmlOpResult) => void>()
+
+// Stage 17d — pending `duo html comment` / `duo html comments` requests
+// awaiting a renderer reply. Same Map-pairing pattern as htmlOpPending.
+const htmlCommentPending = new Map<string, (res: HtmlCommentResult) => void>()
+const htmlCommentsListPending = new Map<string, (res: HtmlCommentsListResult) => void>()
 
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
@@ -144,6 +153,8 @@ function createWindow(): void {
     sendToActiveTerminal: sendToActiveTerminal,
     htmlNew: htmlNew,
     htmlOp: dispatchHtmlOp,
+    htmlComment: dispatchHtmlComment,
+    htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab
   })
   socketServer.start()
@@ -345,6 +356,22 @@ function setupIPC(): void {
     const resolver = htmlOpPending.get(result.reqId)
     if (resolver) {
       htmlOpPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // Stage 17d — renderer's reply to a `duo html comment` / `duo html comments`.
+  ipcMain.on(IPC.CANVAS_HTML_COMMENT_RESULT, (_event, result: HtmlCommentResult) => {
+    const resolver = htmlCommentPending.get(result.reqId)
+    if (resolver) {
+      htmlCommentPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+  ipcMain.on(IPC.CANVAS_HTML_COMMENTS_LIST_RESULT, (_event, result: HtmlCommentsListResult) => {
+    const resolver = htmlCommentsListPending.get(result.reqId)
+    if (resolver) {
+      htmlCommentsListPending.delete(result.reqId)
       resolver(result)
     }
   })
@@ -638,6 +665,45 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
       resolve(res)
     })
     mainWindow!.webContents.send(IPC.CANVAS_HTML_OP, { ...req, reqId })
+  })
+}
+
+// Stage 17d — `duo html comment` / `duo html comments`. Same 30s timeout
+// as html-op (DOM ops are fast; the timeout window only matters when no
+// canvas is active to subscribe).
+export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Promise<HtmlCommentResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `hc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<HtmlCommentResult>((resolve) => {
+    const timer = setTimeout(() => {
+      htmlCommentPending.delete(reqId)
+      resolve({ reqId, ok: false, error: `Renderer did not reply within ${HTML_OP_TIMEOUT_MS / 1000}s (no active canvas?)` })
+    }, HTML_OP_TIMEOUT_MS)
+    htmlCommentPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.CANVAS_HTML_COMMENT, { ...req, reqId })
+  })
+}
+
+export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'reqId'>): Promise<HtmlCommentsListResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `hcl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<HtmlCommentsListResult>((resolve) => {
+    const timer = setTimeout(() => {
+      htmlCommentsListPending.delete(reqId)
+      resolve({ reqId, ok: false, error: `Renderer did not reply within ${HTML_OP_TIMEOUT_MS / 1000}s (no active canvas?)` })
+    }, HTML_OP_TIMEOUT_MS)
+    htmlCommentsListPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.CANVAS_HTML_COMMENTS_LIST, { ...req, reqId })
   })
 }
 

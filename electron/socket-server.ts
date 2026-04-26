@@ -29,6 +29,10 @@ import type {
   DuoSelection,
   HtmlOpRequest,
   HtmlOpResult,
+  HtmlCommentRequest,
+  HtmlCommentResult,
+  HtmlCommentsListRequest,
+  HtmlCommentsListResult,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -79,6 +83,12 @@ export interface NavBridge {
    *  canvas. Single discriminated request shape; renderer's CanvasTab
    *  applies it via htmlOps.executeHtmlOp and replies. */
   htmlOp: (req: Omit<HtmlOpRequest, 'reqId'>) => Promise<HtmlOpResult>
+  /** Stage 17d — dispatch a `duo html comment` write. Anchor resolution
+   *  happens in the renderer (which knows the live DOM). */
+  htmlComment: (req: Omit<HtmlCommentRequest, 'reqId'>) => Promise<HtmlCommentResult>
+  /** Stage 17d — dispatch a `duo html comments` read. Returns the
+   *  thread list as the renderer sees it post-doc-order sort. */
+  htmlCommentsList: (req: Omit<HtmlCommentsListRequest, 'reqId'>) => Promise<HtmlCommentsListResult>
   /** Stage 19c D27 — open a new terminal tab via the renderer's
    *  authoritative tab state. kind/cwd/cmd are all optional — the
    *  renderer picks defaults (D28 persisted last-kind, navigator
@@ -409,6 +419,37 @@ export class SocketServer {
           const reply = await this.nav.htmlOp(args as Omit<HtmlOpRequest, 'reqId'>)
           if (!reply.ok) throw new Error(reply.error ?? 'html-op failed')
           result = reply.result
+          break
+        }
+        case 'html-comment': {
+          // Stage 17d — `duo html comment`. Anchor resolution + sidecar
+          // append happens in the renderer (which knows the live DOM).
+          const body = args['body'] as string | undefined
+          if (!body) throw new Error('html-comment requires --body')
+          const id = args['id'] as string | undefined
+          const selector = args['selector'] as string | undefined
+          const text = args['text'] as string | undefined
+          if (!id && !selector && !text) {
+            throw new Error('html-comment requires --id <duo-id>, --selector <css>, or --text "<substring>"')
+          }
+          const path = args['path'] as string | undefined
+          const reply = await this.nav.htmlComment({ id, selector, text, body, path })
+          if (!reply.ok) throw new Error(reply.error ?? 'html-comment failed')
+          result = { ok: true, commentId: reply.commentId, anchorId: reply.anchorId }
+          break
+        }
+        case 'html-comments': {
+          // Stage 17d — `duo html comments`. Read-only listing. The
+          // filter is one of all|open|resolved (default 'all').
+          const filterRaw = args['filter'] as string | undefined
+          const filter = (filterRaw ?? 'all') as 'all' | 'open' | 'resolved'
+          if (filter !== 'all' && filter !== 'open' && filter !== 'resolved') {
+            throw new Error("html-comments filter must be 'all', 'open', or 'resolved'")
+          }
+          const path = args['path'] as string | undefined
+          const reply = await this.nav.htmlCommentsList({ path, filter })
+          if (!reply.ok) throw new Error(reply.error ?? 'html-comments failed')
+          result = reply.threads ?? []
           break
         }
         case 'reveal': {

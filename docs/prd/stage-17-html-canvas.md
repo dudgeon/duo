@@ -331,12 +331,39 @@ Five sub-stages.
 - **Exit:** PM selects on the canvas, hits the pill, terminal gets the quoted block; agent writes back, the change paints yellow.
 
 ### 17d — Comments + lock convention (~3 PRs)
-- [ ] `duo html comment`; comment rail re-used from Stage 11 (H23).
-- [ ] Range resolution against `data-duo-id` + textPath (H21).
-- [ ] Resolve / reply / accept UX (re-use Stage 11 D19).
-- [ ] `data-duo-lock="structure"` rendering + ⌥-click override (H19).
-- [ ] Skill snippet bundle (H17 boilerplate, H18 ten core components).
-- **Exit:** PM leaves a comment on a callout; Claude reads it via `duo html changes` (or a `duo html comments` flag) and acts.
+- [x] **17d-A — comment rail + canvas binding (shipped 2026-04-26).**
+      `<CommentRail>` editor-agnostic primitive in
+      `renderer/components/editor/primitives/CommentRail.tsx` — visual
+      layer only, props are surface-shaped (CommentThread record, not
+      TipTap state). Same primitive will serve the markdown editor's
+      Stage 11d binding when CriticMarkup ships. Canvas-side binding:
+      sidecar comments (`<file>.duo.json § comments[]`), thread
+      grouping by `anchorId` with document-order sort, anchor badges
+      painted in body via `commentAnchors.ts` (runtime DOM with
+      `data-duo-canvas-runtime` sentinel — never persisted), full
+      reply/resolve/reopen UX. New-comment flow: "💬 Comment" button
+      pairs with the Send → Duo pill on selection; clicking opens a
+      composer popover; submitting persists + dismisses. CLI verbs:
+      `duo html comment --id|--selector|--text --body "…"` (anchor
+      resolution → nearest `data-duo-id` ancestor); `duo html comments
+      [--filter all|open|resolved]` (sorted thread list). New IPC
+      channels: `CANVAS_HTML_COMMENT[_RESULT]`,
+      `CANVAS_HTML_COMMENTS_LIST[_RESULT]`. `SidecarV1` extended with
+      additive `resolvedThreads?: Record<anchorId, {ts, by}>` —
+      thread state stored at the sidecar root (not per-entry) for
+      schema clarity.
+- [ ] **17d-B — lock convention.** `data-duo-lock="structure"`
+      rendering + ⌥-click override (H19). Defers cleanly — comments
+      ship without it.
+- [ ] **17d-C — skill snippet bundle.** H17 boilerplate + H18 ten
+      core components in `skill/examples/html-canvas-authoring.md`.
+      Defers cleanly — comments rail shipped first because it's the
+      load-bearing collab feature; snippets are about agent
+      authoring conventions.
+- **Exit (17d-A):** PM selects text in the canvas, clicks 💬 Comment,
+  types a question, sees the thread land in the rail with a numbered
+  badge in the body. Claude reads via `duo html comments` and replies
+  via `duo html comment --id <anchor> --body "…"`. ✓
 
 ### 17e — Polish + scripts + source view (~2 PRs)
 - [ ] Script opt-in dialog (H8) + sidecar persistence (H22).

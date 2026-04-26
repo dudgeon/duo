@@ -481,8 +481,32 @@ async function main(): Promise<void> {
           const ops = collectAttrs()
           if (!ops.set && !ops.remove) die('duo html attr: at least one --set k=v or --remove k required')
           out(await send('html-op', { op: 'attr', id, selector, ...ops }))
+        } else if (sub === 'comment') {
+          // Stage 17d — `duo html comment`. Anchor via --id, --selector,
+          // or --text; --body is required (or via stdin).
+          const id = flagValue('--id')
+          const selector = flagValue('--selector')
+          const text = flagValue('--text')
+          if (!id && !selector && !text) {
+            die('Usage: duo html comment --id <duo-id> | --selector <css> | --text "<substring>" --body "…"')
+          }
+          let body = flagValue('--body')
+          if (body === undefined) body = await readStdin()
+          if (!body || body.trim() === '') {
+            die('duo html comment: --body required (use --body "…" or pipe via stdin)')
+          }
+          out(await send('html-comment', { id, selector, text, body }))
+        } else if (sub === 'comments') {
+          // Stage 17d — `duo html comments` lists threads on the active
+          // canvas. Optional --filter all|open|resolved (default 'all').
+          const filterRaw = flagValue('--filter')
+          const filter = filterRaw ?? 'all'
+          if (filter !== 'all' && filter !== 'open' && filter !== 'resolved') {
+            die("duo html comments: --filter must be 'all', 'open', or 'resolved'")
+          }
+          out(await send('html-comments', { filter }))
         } else {
-          die('Usage: duo html <new|query|get|set|replace|append|remove|attr> [...]')
+          die('Usage: duo html <new|query|get|set|replace|append|remove|attr|comment|comments> [...]')
         }
         break
       }
@@ -742,6 +766,21 @@ COMMANDS
   html attr --id <duo-id> [--set k=v ...] [--remove k ...]
                                   Modify attributes (--set / --remove
                                   can repeat).
+
+  Stage 17d — comments. Stored in <file>.duo.json § comments[]; never
+  modify the .html itself.
+
+  html comment --id <duo-id> --body "…"
+       --selector <css>           Add a comment anchored to the matched
+       --text "<substring>"       element (or its nearest data-duo-id
+                                  ancestor). --body via flag or stdin.
+                                  Returns {ok, commentId, anchorId}.
+  html comments [--filter all|open|resolved]
+                                  List comment threads on the active
+                                  canvas, sorted in document order.
+                                  Each thread: {id, number, excerpt,
+                                  resolved, entries: [{id, author, ts,
+                                  body}]}.
 
   new-tab [--shell|--claude] [--cwd <path>] [--cmd "<text>"]
                                   Open a new terminal tab (Stage 19c).

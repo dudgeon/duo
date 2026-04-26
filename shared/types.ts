@@ -88,6 +88,12 @@ export type DuoCommandName =
   // dispatches via htmlOps.ts and replies; main.ts manages the
   // request/reply pairing the same way as `EDITOR_DOC_WRITE`.
   | 'html-op'
+  // Stage 17d — `duo html comment` writes a sidecar comment anchored
+  // to a `data-duo-id` (resolved from --id / --selector / --text);
+  // `duo html comments` reads the thread list. Mutates the sidecar
+  // JSON, not the .html. Renderer is the only authoritative source.
+  | 'html-comment'
+  | 'html-comments'
   // Stage 19c D27 — open a new terminal tab from the agent.
   // `--shell` = vanilla shell; `--claude` = auto-launches claude.
   // No flag = persisted last-kind (D28; defaults to 'claude').
@@ -312,6 +318,71 @@ export interface HtmlGetResult {
   text: string                 // full textContent
 }
 
+// ── Stage 17d — `duo html comment` op surface ──────────────────────────────
+// Separate from HtmlOpRequest because comments mutate the SIDECAR, not the
+// HTML document. Renderer's CanvasTab subscribes to a dedicated channel so
+// the html-op subscription stays focused on DOM manipulation. PRD H24.
+
+export interface HtmlCommentRequest {
+  reqId: string
+  /** Anchor selector — exactly one must be present. PRD H24:
+   *   - id: exact data-duo-id lookup (preferred)
+   *   - selector: CSS selector → nearest data-duo-id ancestor
+   *   - text: substring match → nearest data-duo-id ancestor */
+  id?: string
+  selector?: string
+  text?: string
+  body: string                          // comment body (plain text v1)
+  path?: string                         // optional canvas path; routes errors when active doesn't match
+}
+
+export interface HtmlCommentResult {
+  reqId: string
+  ok: boolean
+  /** Mint id for the new comment entry (renderer adds it to the
+   *  sidecar so the op is reported back as "the agent commented as
+   *  `cmt_…`"). Present when ok. */
+  commentId?: string
+  /** The resolved anchor's `data-duo-id`. Present when ok. */
+  anchorId?: string
+  error?: string
+}
+
+/** `duo html comments` returns this shape. Read-only listing of the
+ *  active canvas's comments — agent uses it to inspect what the user
+ *  has flagged before responding. */
+export interface HtmlCommentsListRequest {
+  reqId: string
+  path?: string
+  /** Filter: 'all' (default) | 'open' | 'resolved'. */
+  filter?: 'all' | 'open' | 'resolved'
+}
+
+export interface HtmlCommentsListResult {
+  reqId: string
+  ok: boolean
+  threads?: HtmlCommentThread[]
+  error?: string
+}
+
+export interface HtmlCommentThread {
+  /** Thread id = anchor's data-duo-id. */
+  id: string
+  /** 1-indexed position in document order. */
+  number: number
+  /** Anchor element's textContent, truncated. */
+  excerpt: string
+  resolved: boolean
+  entries: HtmlCommentEntry[]
+}
+
+export interface HtmlCommentEntry {
+  id: string
+  author: string                        // 'user' | 'claude' | display name
+  ts: string                            // ISO 8601
+  body: string
+}
+
 // `duo doc read` — request/reply pair. Renderer returns the live editor
 // buffer (including unsaved edits) so the agent sees what the user sees,
 // not the on-disk version.
@@ -507,6 +578,14 @@ export const IPC = {
   // --pane canvas` can read without a renderer round-trip.
   CANVAS_SELECTION_PUSH: 'canvas:selection-push', // renderer → main (cache)
 
+  // Stage 17d — `duo html comment` (write) + `duo html comments` (read).
+  // Comments live in the sidecar JSON; renderer is the only authoritative
+  // source. Mirror the html-op channel pair pattern.
+  CANVAS_HTML_COMMENT: 'canvas:html-comment',                 // main → renderer
+  CANVAS_HTML_COMMENT_RESULT: 'canvas:html-comment-result',   // renderer → main
+  CANVAS_HTML_COMMENTS_LIST: 'canvas:html-comments-list',     // main → renderer
+  CANVAS_HTML_COMMENTS_LIST_RESULT: 'canvas:html-comments-list-result', // renderer → main
+
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
@@ -641,6 +720,13 @@ export interface ElectronCanvasAPI {
    *  `duo selection --pane canvas` can return it without a renderer
    *  round-trip. `null` clears the cache (collapse, blur, unmount). */
   pushSelection: (snapshot: HtmlCanvasSelectionSnapshot | null) => void
+  /** Stage 17d — agent comment write. Renderer resolves the anchor,
+   *  appends to the sidecar, and replies. */
+  onHtmlComment: (cb: (req: HtmlCommentRequest) => void) => () => void
+  replyHtmlComment: (result: HtmlCommentResult) => void
+  /** Stage 17d — agent comments read. Returns the sorted thread list. */
+  onHtmlCommentsList: (cb: (req: HtmlCommentsListRequest) => void) => () => void
+  replyHtmlCommentsList: (result: HtmlCommentsListResult) => void
 }
 
 export interface ElectronKeyboardAPI {
