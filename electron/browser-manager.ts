@@ -42,6 +42,16 @@ export class BrowserManager {
     this.cdp = cdp
     this.onStateChange = onStateChange
     this.onTabsChange = onTabsChange
+
+    // Stage 15.2 — forward live browser-selection pushes from the
+    // page-side observer to the renderer over IPC. Subscribed once at
+    // construction; CDP reattach (on tab switch) reuses the same
+    // listener via the bridge's internal cache reset.
+    this.cdp.onBrowserSelection((push) => {
+      if (this.window.isDestroyed()) return
+      this.window.webContents.send(IPC.BROWSER_SELECTION, push)
+    })
+
     this.addTab()  // open the first tab
   }
 

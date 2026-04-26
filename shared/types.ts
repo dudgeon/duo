@@ -293,6 +293,27 @@ export interface BrowserSelectionSnapshot {
   selector_path?: string                // best-effort CSS path to the focus node
 }
 
+// Stage 15.2 — page-coordinate rect of the user's current browser
+// selection, pushed live by the page-side observer alongside the
+// snapshot. Renderer translates page coords → screen coords (using the
+// WebContentsView's bounds) for the floating pill. Separate from
+// BrowserSelectionSnapshot because rect is a UI concern, not part of
+// the agent's `duo selection` contract.
+export interface BrowserSelectionRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+// Stage 15.2 — main → renderer push when the page-side observer emits
+// a new selection state. `null` snapshot + `null` rect means the
+// selection collapsed or focus moved off the page.
+export interface BrowserSelectionPush {
+  snapshot: BrowserSelectionSnapshot | null
+  rect: BrowserSelectionRect | null
+}
+
 /** Markdown editor (Stage 11) selection — TipTap/ProseMirror-backed. */
 export type MarkdownSelectionSnapshot = EditorSelectionSnapshot & { kind: 'editor' }
 
@@ -384,6 +405,8 @@ export const IPC = {
   // Main → renderer
   BROWSER_STATE: 'browser:state',
   BROWSER_TABS: 'browser:tabs',
+  // Stage 15.2 — live selection push from the page-side observer
+  BROWSER_SELECTION: 'browser:selection',
 
   SKILLS_SCAN: 'skills:scan',
   SKILLS_RESULT: 'skills:result',
@@ -470,6 +493,8 @@ export interface ElectronBrowserAPI {
   focusActive: () => void
   onStateChange: (cb: (state: BrowserState) => void) => () => void
   onTabsChange: (cb: (tabs: BrowserTab[]) => void) => () => void
+  /** Stage 15.2 — live selection push from the page-side observer. */
+  onSelection: (cb: (push: BrowserSelectionPush) => void) => () => void
 }
 
 export interface FileWriteResult {

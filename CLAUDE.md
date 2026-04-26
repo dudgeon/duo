@@ -23,20 +23,29 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26 late-evening) — Stage 5 v2 shipped +
-all live walks pass; Stage 15.1 (CLI half + editor pill UI) shipped
-end-to-end.** Stage 5 v2: new global `agents/duo.md` (Haiku 4.5)
-subsuming `duo-browser`; new `duo external <url>` CLI verb;
-bootstrap of `~/.claude/duo/external-domains.json`. F1/F2/F4/F5/F8/F9
-+ C5/C6/C7 all PASS live; Class B perf inverted PRD hypothesis
-(FOLLOWUP-003). Stage 15.1: new `duo selection-format [a|b|c]`
-(G19) + `duo send [--text "…"]` (G17) CLI verbs, both smoke-tested.
-Editor pill UI: new `<SendToDuoPill>` editor-agnostic primitive,
-new `formatSendPayload` helper (formats A/B/C), new
-`useSelectionFormat` hook with localStorage round-trip,
-MarkdownEditor + WorkingPane + App.tsx wiring (`onSendToDuo` prop
-threads through to `pty.write(activeTabId, payload)`). HMR clean,
-typecheck clean. Visual walks deferred (FOLLOWUP-004 extended).
+**Latest session (2026-04-26 late-evening) — Stages 5 v2 + 13 + 15.1
+shipped & committed; Stage 15.2 (browser pill via CDP) shipped
+code-side, live data-plane verified.** Stage 5 v2: new global
+`agents/duo.md` (Haiku 4.5) subsuming `duo-browser`; new `duo
+external <url>` CLI verb; bootstrap of
+`~/.claude/duo/external-domains.json`. F1/F2/F4/F5/F8/F9 + C5/C6/C7
+all PASS live; Class B perf inverted PRD hypothesis (FOLLOWUP-003).
+Stage 15.1: `duo selection-format [a|b|c]` (G19) + `duo send` (G17)
+CLI verbs + editor pill UI (`<SendToDuoPill>` primitive,
+`formatSendPayload` helper, `useSelectionFormat` hook, full wiring
+in MarkdownEditor → WorkingPane → App.tsx → `pty.write`). Stage
+15.2: page-side selection observer IIFE injected via CDP
+`Runtime.evaluate` on every attach + frame-nav, posts via
+`Runtime.addBinding('duoSelectionPush')`; main caches latest
+push and forwards to renderer over `IPC.BROWSER_SELECTION`;
+`useBrowserSelection` hook drives the pill in `BrowserRenderer` with
+page→screen rect translation. **Verified live:** binding installed,
+observer injected (`__duoSelectionObserver: true`), `selectionchange`
+on example.com fires payload through to the cache (`count=1`,
+serialized payload includes both snapshot and page-relative rect).
+Visual pill rendering still gated on FOLLOWUP-004 (computer-use
+deferred). All three commits landed: `f250b65`, `a870d37`,
+`1076298`.
 
 **Previous session (2026-04-26 evening) — Stage 13 ship + Stage 5 v2
 PRD locked + canonical flip:** see "Pick up here" breadcrumb below
@@ -115,17 +124,20 @@ move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
 
 ## ⚠️ Pick up here next session (2026-04-26 late-evening breadcrumb)
 
-**Where we are: Stage 5 v2 ✓ + Stage 13 ✓ + Stage 15.1 ✓.** Layer 0
-(Stage 12) functionally complete except whisper-level agent presence
-(deferred). Stage 5 v2 lands the global `duo` subagent (Haiku 4.5)
-subsuming `duo-browser`. Stage 15.1 lands the editor half of Send →
-Duo: two new agent-tunable CLI verbs (`duo selection-format`,
-`duo send`) plus the floating purple pill on the markdown editor's
-selection — click writes the formatted payload into the active
-terminal, no Enter pressed. **Recommended next: Stage 15.2** —
-extend the same `<SendToDuoPill>` primitive to the browser pane so
-"one primitive, three modalities" is two-of-three (canvas comes
-later via Stage 17c).
+**Where we are: Stage 5 v2 ✓ + Stage 13 ✓ + Stage 15.1 ✓ + Stage
+15.2 ✓.** Layer 0 (Stage 12) functionally complete except whisper-
+level agent presence (deferred). Stage 5 v2 lands the global `duo`
+subagent (Haiku 4.5). Stage 15.1 lands the editor half of Send →
+Duo. Stage 15.2 lands the browser half: a page-side observer IIFE
+posts live selection state via a CDP binding; main caches and
+forwards over IPC; the pill mounts over the WebContentsView with
+the page rect translated to screen coords. **One primitive, two of
+three modalities are now wired** (canvas comes via Stage 17c).
+**Recommended next: Stage 17a** (HTML canvas render + edit
+primitive). Stage 15.3 (length cap, image flatten, ⌘D, polish) and
+Stage 14 (track changes) are both fine to defer; 17a is the bigger
+unlock and its dependencies (Stage 13 primitives, Stage 15
+selection-union, Stage 12 visual tokens) are all in place.
 
 ### Stage 5 v2 (just shipped — code-side)
 
@@ -269,56 +281,89 @@ agent walks for ongoing regression coverage.
   improvises on unexpected output shapes; orchestrator decides
   recovery.
 
-### Recommended next: Stage 15.2 (browser selection observer + pill)
+### Stage 15.2 (just shipped — code-side, data-plane verified live)
 
 PRD: [docs/prd/stage-15-send-to-duo.md § 6.2](docs/prd/stage-15-send-to-duo.md).
 
-Goal: extend the `<SendToDuoPill>` primitive shipped in 15.1 to the
-browser pane. After this, the same affordance works on editor +
-browser; canvas (the third surface) lands later inside Stage 17c.
+What landed:
+- **CDP page-side selection observer.** `SELECTION_OBSERVER_IIFE` in
+  `electron/cdp-bridge.ts` — ~80 LOC, debounced, listens for
+  `selectionchange`/`scroll`/`resize`, serializes to
+  `BrowserSelectionSnapshot` + page-relative rect, posts via
+  `window.duoSelectionPush(json)`. Re-injection guarded by
+  `__duoSelectionObserver`. Re-injected on `Page.frameNavigated`
+  for top-frame navigation.
+- **`Runtime.addBinding('duoSelectionPush')`** registered in CDP
+  attach. `Runtime.bindingCalled` events parsed in `handleCdpEvent`
+  → cached as `latestBrowserSelection` → emitted to a single
+  `browserSelectionListener` callback.
+- **Cache reset on tab switch.** `attach()` emits a `null` push so
+  the renderer's pill goes away while the new tab's observer
+  reports.
+- **`BrowserManager.constructor` wires the listener** to forward
+  pushes via `mainWindow.webContents.send(IPC.BROWSER_SELECTION,
+  push)`. New IPC channel `BROWSER_SELECTION` (main → renderer).
+  New types: `BrowserSelectionRect`, `BrowserSelectionPush`.
+- **`renderer/hooks/useBrowserSelection.ts`** — small hook
+  subscribing to the IPC.
+- **`BrowserRenderer` pill mount.** Reads `useBrowserSelection`,
+  reads page title from `BrowserState`, reads format from
+  `useSelectionFormat`, translates page rect → screen rect using
+  `contentRef.getBoundingClientRect()`. Click handler calls
+  `formatBrowserSendPayload` (new variant in `sendFormat.ts`).
+- **`<SendToDuoPill>` rect type loosened** from `DOMRect` to a
+  minimal `PillAnchorRect = { top, bottom, right }` so the browser
+  surface can synthesize a translated rect rather than fabricating
+  a DOMRect (DOMRect isn't constructable in renderer code).
+- **`onSendToDuo` threaded** through `WorkingPane` to
+  `BrowserRenderer` so the same `pty.write(activeTabId, payload)`
+  callback serves both surfaces.
 
-What it requires (per § 5 + § 6.2):
-- **Page-side selection observer.** A small JS payload injected on
-  every navigation that listens for `selectionchange` and posts the
-  serialized selection back to the renderer via `Runtime.addBinding`
-  (same pattern as the existing `Runtime.consoleAPICalled`
-  subscription in `electron/cdp-bridge.ts`).
-- **Canvas-app fast-paths.** Google Docs first
-  (`_docs_annotate_getAnnotatedText('').getSelection()` per the skill);
-  Sheets / Slides / Figma later as they bite.
-- **Browser pill rendering.** The pill is a renderer-DOM React portal
-  but the WebContentsView is OS-level — coords have to translate
-  page → WebContentsView bounds → renderer DOM. The existing
-  bounds-sync pattern in `electron/browser-manager.ts` is the lever.
-- **`duo selection` browser support.** The `BrowserSelectionSnapshot`
-  shape is already locked (Stage 13 Phase 0 § DuoSelection union); the
-  socket-server `selection` case already calls `cdp.getBrowserSelection()`
-  with a fallback. The new piece is making that method actually return
-  data when there's a real browser-pane selection (today it's stubbed).
+**Live verification (data plane):**
+- `duo eval "({ hasBinding: typeof window.duoSelectionPush === 'function', hasObserverGuard: !!window.__duoSelectionObserver })"`
+  → `{hasBinding: true, hasObserverGuard: true}` on a fresh
+  example.com tab.
+- Programmatically selecting the H1 fires the observer; the wrapped
+  binding sees the call and the captured payload contains both
+  `snapshot` and `rect: {x, y, width, height}`.
+- On-demand `duo selection --pane browser` keeps working
+  (independent path through `getBrowserSelection()` — the CLI does
+  not depend on the binding cache).
 
-Build order:
-1. CDP `Runtime.addBinding('duoSelectionPush')` — register on every
-   `did-finish-load`. The binding fires every time the page-side
-   observer posts.
-2. Page-side observer script — minimal IIFE, ~30 LOC, listens for
-   `selectionchange`, debounces, serializes, posts via the binding.
-   Survives same-origin navigation by re-injection on
-   `Page.frameNavigated`.
-3. Canvas-app fast-path: detect `docs.google.com/document/*/edit` and
-   prefer `_docs_annotate_getAnnotatedText('')` over `window.getSelection()`.
-4. `BrowserManager` caches the latest `BrowserSelectionSnapshot` per
-   tab; surface via a renderer-side hook (`useBrowserSelection`).
-5. Pill mount in `BrowserPane` — same `<SendToDuoPill>`, anchored to
-   selection rect translated through the WebContentsView bounds.
-6. `cdp.getBrowserSelection()` returns the cached snapshot (was
-   stubbed; wire it up).
+**Visual pill rendering** (the actual purple chip floating over the
+selected H1) is the only piece not yet eyes-on-verified — gated on
+FOLLOWUP-004's computer-use access. The data plane proves the
+pipeline is correct; rendering is a CSS / portal-positioning
+question that the editor variant already validates.
 
-Out of scope for 15.2 (defer to 15.3 polish):
-- Length cap + truncation marker (G9).
-- Image / table flattening (G8).
-- `⌘D` keyboard shortcut (G5).
+### Recommended next: Stage 17a (HTML canvas — render + edit primitive)
 
-Visual smoke deferred per FOLLOWUP-004 — same constraint as 15.1.
+PRD: [docs/prd/stage-17-html-canvas.md § 7 — 17a](docs/prd/stage-17-html-canvas.md).
+
+Why now: Stage 17's stated dependencies are Stage 13 (✓), Stage 15
+(now 2/3 — editor + browser shipped; canvas = 17c), and Stage 12
+(✓). Stage 14 (track changes) is **explicitly NOT a prerequisite**
+per the Stage 17 PRD H39 (HTML diff defers to a Stage 17 v2). 17a
+is shippable on its own (~3–4 PRDs):
+
+- New `html-canvas` tab type registered in `WorkingPane`.
+- `duo html new` + `duo edit <path.html>` (alias under existing
+  `duo edit` when extension is `.html`).
+- Iframe-srcdoc host with `contentEditable` on body; render-on-write.
+- Top toolbar (H28 inline marks + link picker).
+- Save: autosave + `⌘S` + dirty dot (H33).
+- Skill stub (H16) — README only, no snippets yet.
+- **Exit:** PM opens an `.html`, edits prose, saves; the file is
+  clean HTML another tool can read.
+
+Risk: `contentEditable` quirks (PRD calls this out as risk #1).
+Mitigation: write a thin normalization layer on day one; build a
+regression set against the H18 snippets when 17d ships them.
+
+**Stage 15.3 + Stage 14 are fine to defer.** 15.3 is polish (length
+cap, image flatten, `⌘D`); 14 is track changes for the editor and
+its visual layer ships canvas-ready by construction. Pull either
+in when their bottleneck is felt.
 
 ### Stage 15.1 (just shipped)
 

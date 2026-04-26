@@ -1,4 +1,4 @@
-// Stage 15.1 — Send → Duo payload formatter.
+// Stage 15 — Send → Duo payload formatter.
 //
 // Three runtime-configurable formats per PRD G10 / G19:
 //
@@ -12,12 +12,15 @@
 // The PTY write is plain text; we don't append Enter (G11 — user
 // confirms by pressing Enter themselves).
 //
-// `kind: 'browser'` and `kind: 'html-canvas'` selections will use the
-// same shapes; this v1 module handles the editor variant. The
-// browser-side observer ships in Stage 15.2 with its own provenance
-// formatter.
+// Stage 15.1 ships the `kind: 'editor'` formatter; Stage 15.2 adds the
+// `kind: 'browser'` formatter. `kind: 'html-canvas'` selections will
+// use the same shape when Stage 17c lands; defer until then.
 
-import type { MarkdownSelectionSnapshot, SelectionFormat } from '@shared/types'
+import type {
+  MarkdownSelectionSnapshot,
+  BrowserSelectionSnapshot,
+  SelectionFormat
+} from '@shared/types'
 
 /**
  * Pretty-print a path: prefer `~/...` when inside the user's HOME so
@@ -88,6 +91,62 @@ export function formatSendPayload(
   switch (format) {
     case 'a': return formatA(snapshot)
     case 'b': return formatB(snapshot)
+    case 'c': return formatC()
+  }
+}
+
+// ── Browser variant ────────────────────────────────────────────────────────
+
+/**
+ * Optional context the host carries alongside a browser selection so the
+ * provenance line can name the page. Title isn't on the selection
+ * snapshot itself (it's a page property, not a selection property), so
+ * the renderer pulls it from `BrowserState` and passes it in.
+ */
+export interface BrowserFormatContext {
+  pageTitle?: string
+}
+
+/**
+ * Build the provenance segment for a browser selection — URL plus
+ * (optional) page title. Example: `https://example.com/article — "Article title"`.
+ * The em-dash + quoted title is dropped when the title isn't known
+ * (a freshly-loaded tab whose title hasn't propagated yet, or a
+ * file:// URL with no <title>).
+ */
+function browserProvenance(
+  snapshot: BrowserSelectionSnapshot,
+  ctx?: BrowserFormatContext
+): string {
+  const title = ctx?.pageTitle?.trim()
+  if (title) return `${snapshot.url} — "${title}"`
+  return snapshot.url
+}
+
+function formatBrowserA(
+  snapshot: BrowserSelectionSnapshot,
+  ctx?: BrowserFormatContext
+): string {
+  const text = snapshot.text
+  const quoted = text
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n')
+  return `${quoted}\n> (${browserProvenance(snapshot, ctx)})\n`
+}
+
+function formatBrowserB(snapshot: BrowserSelectionSnapshot): string {
+  return snapshot.text + ' '
+}
+
+export function formatBrowserSendPayload(
+  snapshot: BrowserSelectionSnapshot,
+  format: SelectionFormat,
+  ctx?: BrowserFormatContext
+): string {
+  switch (format) {
+    case 'a': return formatBrowserA(snapshot, ctx)
+    case 'b': return formatBrowserB(snapshot)
     case 'c': return formatC()
   }
 }

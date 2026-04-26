@@ -122,12 +122,12 @@ export function WorkingPane({
   // Renderer dispatch.
   let activeRenderer: React.ReactNode = null
   if (activeWorking.kind === 'browser') {
-    activeRenderer = <BrowserRenderer />
+    activeRenderer = <BrowserRenderer onSendToDuo={onSendToDuo} />
   } else {
     const tab = fileTabs.find(ft => ft.id === activeWorking.id)
     if (!tab) {
       // Stale active id — fall back to browser.
-      activeRenderer = <BrowserRenderer />
+      activeRenderer = <BrowserRenderer onSendToDuo={onSendToDuo} />
     } else if (tab.type === 'editor') {
       activeRenderer = (
         <MarkdownEditor

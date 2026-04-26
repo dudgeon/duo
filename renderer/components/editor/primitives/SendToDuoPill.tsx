@@ -14,10 +14,26 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+/**
+ * Minimum geometry the pill needs to anchor itself: viewport-relative
+ * top/bottom/right of the selection's bounding box. `DOMRect` is
+ * structurally compatible (the editor passes one verbatim from
+ * `Selection.getRangeAt(0).getBoundingClientRect()`); the browser
+ * surface (Stage 15.2) constructs one by translating the page-side
+ * rect through the WebContentsView's screen bounds, since DOMRect
+ * isn't constructable in renderer code that hasn't run inside a real
+ * page.
+ */
+export interface PillAnchorRect {
+  top: number
+  bottom: number
+  right: number
+}
+
 export interface SendToDuoPillProps {
   /** Bounding rect of the user's current selection in viewport
    *  coordinates. `null` hides the pill. */
-  rect: DOMRect | null
+  rect: PillAnchorRect | null
   /** Click handler — host formats the payload and writes it to the
    *  active terminal's PTY. */
   onClick: () => void
@@ -36,7 +52,7 @@ interface ComputedPos {
   placement: 'above' | 'below'
 }
 
-function computePosition(rect: DOMRect, pillSize: { width: number; height: number }): ComputedPos {
+function computePosition(rect: PillAnchorRect, pillSize: { width: number; height: number }): ComputedPos {
   const placeAbove = rect.top - pillSize.height - PILL_OFFSET_PX >= VIEWPORT_PAD_PX
   const top = placeAbove
     ? rect.top - pillSize.height - PILL_OFFSET_PX

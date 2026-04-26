@@ -87,13 +87,14 @@ Agent ergonomics (✅ shipped 2026-04-26 late-evening)
 Layer 1 — Editor maturation (built against Layer 0 tokens)
    13  Editor: just-added highlight + warn-before-overwrite          ✓ shipped
    15.1 Send → Duo (editor pill + CLI verbs)                          ✓ shipped
-   15.2 Send → Duo (browser pane pill + CDP selection observer)       ← next
+   15.2 Send → Duo (browser pane pill + CDP selection observer)       ✓ shipped
    15.3 Send → Duo (length cap, image flatten, ⌘D, polish)
    14  Editor: track changes (Suggesting / Accepted)
    16  Editor: external-write reconciliation (parallel — independent of 12)
 
 Layer 2 — New surfaces (built against Layer 1)
-   17  HTML canvas (reuses 13 highlight + 15 selection + 12 visual)
+   17a HTML canvas — render + edit primitive                          ← next
+   17b–e HTML canvas — IDs/sidecar, agent overlay, comments, polish
 
 Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
    18  First-launch self-install (no cert needed)
@@ -125,7 +126,7 @@ Backlog (no fixed order — pull in when convenient)
 | **12** | **Visual redesign — Atelier** (system-wide token swap, light-as-hero, layout depth, tab-strip rhyme, files-pane width 208 + collapse-to-rail) | 🟡 Phases 1–3 shipped 2026-04-26; whisper-level agent presence still pending | **L0** |
 | **13** | **Editor: just-added highlight + warn-before-overwrite** (yellow `mark` + 6s fade per Atelier mock; cross-refs issues #5, #7) | ✅ shipped 2026-04-26 evening — Phase 0 selection-union refactor + 13a (highlight) + 13b (banner) all in `primitives/`; `--duo-mark` token bumped for contrast against cream paper | **L1** |
 | **14** | **Editor: track changes (CriticMarkup / Suggesting / Accepted)** (cross-refs issue #6) | ⬜ ships visual layer as editor-agnostic primitives (`<TrackedRangeMark>` `<AcceptAllBanner>` `<CommentRail>`); MD data binding lives in TipTap extension; HTML canvas binding deferred to 17 v2 | **L1** |
-| **15** | **Send → Duo** (floating pill + `duo send` + `duo selection-format` CLI) | 🟡 **15.1 ✓** shipped 2026-04-26 late-evening (editor pill + CLI verbs end-to-end). **15.2 ← next** — browser pane pill + CDP page-side selection observer (~1–2 days). 15.3 = polish (length cap, image flatten, ⌘D). PRD: [docs/prd/stage-15-send-to-duo.md](docs/prd/stage-15-send-to-duo.md). | **L1** |
+| **15** | **Send → Duo** (floating pill + `duo send` + `duo selection-format` CLI) | 🟡 **15.1 ✓ + 15.2 ✓** shipped 2026-04-26 late-evening. 15.1 = editor pill + CLI verbs. 15.2 = browser pane pill via CDP-backed page-side observer (data plane verified live: binding registered, observer injected, payload captured). 15.3 = polish (length cap, image flatten, ⌘D) — defer until felt. PRD: [docs/prd/stage-15-send-to-duo.md](docs/prd/stage-15-send-to-duo.md). | **L1** |
 | **16** | **Editor: external-write reconciliation** (chokidar + 3-pane diff + warn-before-close; was 11b; cross-refs issue #7) | ⬜ independent of 12 — can ship anytime | **L1 parallel** |
 | **17** | **HTML canvas** (was Stage 19; new WorkingPane tab type for `.html`) | ⬜ depends on 13 + 15 + 12 | **L2** |
 | **18** | **First-launch self-install** (was 14a; double-click → app prompts → copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; **no cert needed**) | ⬜ `npm run dist` validated 2026-04-26 (commit `20b4701`) | **L3** |
@@ -1481,7 +1482,7 @@ suggesting>`); the human accepts/rejects from the editor.
 
 ---
 
-## Stage 15 — Send → Duo (cross-modality selection primitive) `🟡 15.1 ✓ shipped 2026-04-26 late-evening · 15.2 ← next · 15.3 polish to follow`
+## Stage 15 — Send → Duo (cross-modality selection primitive) `🟡 15.1 ✓ + 15.2 ✓ shipped 2026-04-26 late-evening · 15.3 polish (defer) · canvas surface lands inside Stage 17c`
 
 ### What shipped in 15.1 (2026-04-26 late-evening)
 
@@ -1505,34 +1506,70 @@ UI half (typecheck clean, HMR clean, visual walk deferred to FOLLOWUP-004):
 - WorkingPane + App.tsx: `onSendToDuo` callback writes to the active
   terminal's PTY and moves focus to the terminal column.
 
-### 15.2 — browser pane pill (← next)
+### What shipped in 15.2 (2026-04-26 late-evening)
 
-Per PRD § 6.2 + § 5. Goal: extend the same `<SendToDuoPill>` primitive
-to the browser pane so the affordance works on editor + browser
-(canvas is the third surface, lands inside Stage 17c).
+Same `<SendToDuoPill>` primitive, second surface (browser pane).
+Data plane verified live; visual verification deferred to
+FOLLOWUP-004.
 
-Build order:
-1. CDP `Runtime.addBinding('duoSelectionPush')` registered on every
-   `did-finish-load` (mirror of the existing `Runtime.consoleAPICalled`
-   subscription in `electron/cdp-bridge.ts`).
-2. Page-side observer script (~30 LOC IIFE) — listens for
-   `selectionchange`, debounces, serializes to
-   `BrowserSelectionSnapshot`, posts via the binding. Re-injected on
-   `Page.frameNavigated` for same-origin navigation.
-3. Canvas-app fast-path: `docs.google.com/document/*/edit` →
-   `_docs_annotate_getAnnotatedText('').getSelection()` instead of
-   `window.getSelection()`. Sheets / Slides / Figma later as friction
-   surfaces.
-4. `BrowserManager` caches latest `BrowserSelectionSnapshot` per tab;
-   exposes a renderer-side hook (`useBrowserSelection`).
-5. Pill mount in `BrowserPane` — same `<SendToDuoPill>`, anchored to
-   selection rect translated through the WebContentsView bounds (use
-   the existing bounds-sync pattern in `electron/browser-manager.ts`).
-6. `cdp.getBrowserSelection()` returns the cached snapshot (was
-   stubbed in Stage 13 Phase 0; wire it up).
+- **`SELECTION_OBSERVER_IIFE`** in `electron/cdp-bridge.ts` —
+  module-scope JS payload (~80 LOC) injected via `Runtime.evaluate`
+  on every CDP attach + on every `Page.frameNavigated` for the top
+  frame. Listens for `selectionchange`/`scroll`/`resize`, debounces
+  (60 ms), serializes the selection to `BrowserSelectionSnapshot` +
+  page-relative rect, posts via `window.duoSelectionPush(json)`.
+  Re-injection guarded by `__duoSelectionObserver`.
+- **`Runtime.addBinding('duoSelectionPush')`** registered in CDP
+  attach. `Runtime.bindingCalled` events parsed in `handleCdpEvent`
+  → cached as `latestBrowserSelection` → emitted to a single
+  `browserSelectionListener` callback.
+- **Cache reset on tab switch + frame nav.** `attach()` and the
+  top-frame branch of `Page.frameNavigated` both emit `null` so the
+  renderer's pill goes away while the new tab/page's observer
+  reports.
+- **`BrowserManager.constructor` wires the listener** to forward
+  pushes via `mainWindow.webContents.send(IPC.BROWSER_SELECTION,
+  push)`. New IPC channel `BROWSER_SELECTION` (main → renderer).
+  New types: `BrowserSelectionRect`, `BrowserSelectionPush`. New
+  preload bridge `browser.onSelection`.
+- **`renderer/hooks/useBrowserSelection.ts`** subscribes to the
+  IPC and surfaces the live state.
+- **`BrowserRenderer` pill mount.** Reads
+  `useBrowserSelection`, reads page title from `BrowserState`,
+  reads format from `useSelectionFormat`, translates page rect →
+  screen rect by adding the contentRef's `getBoundingClientRect()`
+  to the page-relative coordinates. Click handler calls a new
+  `formatBrowserSendPayload` variant in `sendFormat.ts` (provenance
+  line is `URL — "page title"` per PRD G10).
+- **`<SendToDuoPill>` rect type loosened** from `DOMRect` to a
+  minimal `PillAnchorRect = { top, bottom, right }` — DOMRect isn't
+  constructable in renderer code that hasn't run inside a real
+  page, so the browser surface synthesizes the structural shape.
+  Editor side passes a real DOMRect (structurally compatible).
+- **`onSendToDuo` threaded** through `WorkingPane` to
+  `BrowserRenderer`, so the same `pty.write(activeTabId, payload)`
+  callback serves both surfaces.
 
-Out of scope (defer to 15.3): length cap (G9), image/table flattening
-(G8), `⌘D` keyboard shortcut (G5).
+**Live verification (data plane):** `duo eval "({ hasBinding: typeof
+window.duoSelectionPush === 'function', hasObserverGuard:
+!!window.__duoSelectionObserver })"` returns `{true, true}` on a
+fresh example.com tab. Programmatically selecting the H1 fires the
+observer; a wrapper around `duoSelectionPush` confirmed the binding
+receives the payload (snapshot + rect both populated).
+
+**Visual verification deferred** (FOLLOWUP-004): seeing the actual
+purple chip floating over a real selection in the browser pane
+requires computer-use access. The data plane proves the pipeline
+is correct.
+
+**Out of scope (deferred to 15.3 polish):**
+- Length cap + truncation marker (G9 — 16 KB).
+- Image / table flattening (G8).
+- `⌘D` keyboard shortcut (G5).
+- Canvas-app fast-paths (Google Docs / Sheets / Slides / Figma) —
+  v1 uses generic `window.getSelection()` everywhere; canvas apps
+  return null which is fine. Add app-specific accessors when a
+  user task hits the gap.
 
 ---
 

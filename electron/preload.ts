@@ -94,6 +94,12 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, tabs: Parameters<typeof cb>[0]) => cb(tabs)
       ipcRenderer.on(IPC.BROWSER_TABS, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_TABS, handler)
+    },
+
+    onSelection: (cb) => {
+      const handler = (_: IpcRendererEvent, push: Parameters<typeof cb>[0]) => cb(push)
+      ipcRenderer.on(IPC.BROWSER_SELECTION, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_SELECTION, handler)
     }
   },
 

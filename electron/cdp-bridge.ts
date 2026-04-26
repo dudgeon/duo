@@ -9,12 +9,107 @@ import type {
   ConsoleLevel,
   BrowserErrorEntry,
   NetworkEntry,
-  BrowserSelectionSnapshot
+  BrowserSelectionSnapshot,
+  BrowserSelectionPush
 } from '../shared/types'
 
 const CONSOLE_RING_SIZE = 500
 const ERRORS_RING_SIZE = 200
 const NETWORK_RING_SIZE = 300
+
+// Stage 15.2 — page-side observer that emits live selection state via
+// `Runtime.addBinding('duoSelectionPush')`. Listens to selectionchange
+// + scroll + resize so the pill repositions as the page moves. Has its
+// own re-injection guard (`__duoSelectionObserver`) so re-running the
+// IIFE on a navigated-away-then-back page is a no-op.
+//
+// Schema of the JSON payload posted to the binding:
+//   null  → selection collapsed / cleared
+//   { snapshot: BrowserSelectionSnapshot, rect: BrowserSelectionRect }
+//
+// Coordinates in `rect` are page-viewport-relative (matches
+// `range.getBoundingClientRect()`). The renderer translates them to
+// screen space using the WebContentsView's bounds.
+const SELECTION_OBSERVER_IIFE = `(function () {
+  if (window.__duoSelectionObserver) return;
+  window.__duoSelectionObserver = true;
+  var lastText = '';
+  var timer = null;
+  function emit() {
+    timer = null;
+    var sel = window.getSelection && window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+      if (lastText !== '') {
+        lastText = '';
+        try { window.duoSelectionPush(JSON.stringify(null)); } catch (e) {}
+      }
+      return;
+    }
+    var text = String(sel.toString());
+    if (!text) {
+      if (lastText !== '') {
+        lastText = '';
+        try { window.duoSelectionPush(JSON.stringify(null)); } catch (e) {}
+      }
+      return;
+    }
+    var range = sel.getRangeAt(0);
+    var r = range.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return;
+    var focus = sel.focusNode || range.commonAncestorContainer;
+    if (focus && focus.nodeType === 3) focus = focus.parentNode;
+    var block = focus;
+    while (block && block !== document.body && block.nodeType === 1) {
+      var cs = window.getComputedStyle(block);
+      if (cs.display === 'block' || cs.display === 'list-item' ||
+          cs.display === 'flex' || cs.display === 'grid' ||
+          cs.display === 'table' || cs.display === 'table-cell') break;
+      block = block.parentNode;
+    }
+    var surrounding = '';
+    if (block && block.innerText) surrounding = String(block.innerText).slice(0, 1000);
+    function selectorFor(el) {
+      if (!el || el.nodeType !== 1) return '';
+      var parts = [];
+      var cur = el;
+      while (cur && cur.nodeType === 1 && cur !== document.body) {
+        var s = cur.tagName.toLowerCase();
+        if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
+          s += '#' + cur.id;
+          parts.unshift(s);
+          break;
+        }
+        var parent = cur.parentNode;
+        if (parent && parent.children) {
+          var idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
+          if (idx > 0) s += ':nth-child(' + idx + ')';
+        }
+        parts.unshift(s);
+        cur = cur.parentNode;
+      }
+      return parts.join(' > ');
+    }
+    lastText = text;
+    try {
+      window.duoSelectionPush(JSON.stringify({
+        snapshot: {
+          url: location.href,
+          text: text,
+          surrounding: surrounding,
+          selector_path: selectorFor(focus)
+        },
+        rect: { x: r.x, y: r.y, width: r.width, height: r.height }
+      }));
+    } catch (e) {}
+  }
+  function schedule() {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(emit, 60);
+  }
+  document.addEventListener('selectionchange', schedule, true);
+  window.addEventListener('scroll', schedule, true);
+  window.addEventListener('resize', schedule);
+})();`
 
 export class CdpBridge {
   private wc: WebContents | null = null
@@ -26,6 +121,49 @@ export class CdpBridge {
   // on tab switch (see attach()).
   private networkInFlight = new Map<string, NetworkEntry>()
   private consoleListenerBound = false
+
+  // Stage 15.2 — latest live selection state from the page-side
+  // observer, plus a single subscriber callback (BrowserManager forwards
+  // to the renderer via IPC). Reset on tab switch so the renderer
+  // doesn't show a stale pill.
+  private latestBrowserSelection: BrowserSelectionPush = { snapshot: null, rect: null }
+  private browserSelectionListener: ((push: BrowserSelectionPush) => void) | null = null
+
+  /** Stage 15.2 — register a single subscriber for live browser-
+   *  selection pushes. BrowserManager calls this once on construction
+   *  to forward pushes to the renderer over IPC. */
+  onBrowserSelection(cb: (push: BrowserSelectionPush) => void): void {
+    this.browserSelectionListener = cb
+  }
+
+  /** Stage 15.2 — emit the current selection state to whoever is
+   *  listening. Cheap; called from the binding handler and from
+   *  injectSelectionObserver after a page nav (to clear the pill). */
+  private emitBrowserSelection(push: BrowserSelectionPush): void {
+    this.latestBrowserSelection = push
+    this.browserSelectionListener?.(push)
+  }
+
+  /** Stage 15.2 — inject (or re-inject) the page-side observer IIFE
+   *  into the active page's main world. Idempotent thanks to the
+   *  IIFE's `__duoSelectionObserver` guard. */
+  private async injectSelectionObserver(): Promise<void> {
+    try {
+      await this.dbg().sendCommand('Runtime.evaluate', {
+        expression: SELECTION_OBSERVER_IIFE,
+        // Synchronous — the IIFE is fast and we don't need its return
+        // value; awaiting just guarantees the observer is bound before
+        // a downstream selectionchange fires.
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch (err) {
+      // Soft-fail: the observer is a UX nicety, not a correctness
+      // primitive. `duo selection` (request-response) keeps working
+      // either way. Log + move on.
+      console.warn('[CdpBridge] selection observer inject failed:', (err as Error).message)
+    }
+  }
 
   async attach(webContents: WebContents): Promise<void> {
     if (this.wc && this.wc !== webContents) {
@@ -60,6 +198,26 @@ export class CdpBridge {
     await webContents.debugger.sendCommand('Accessibility.enable')
     // Network domain — drives `duo network`.
     await webContents.debugger.sendCommand('Network.enable')
+    // Stage 15.2 — register the selection-observer binding. The page-
+    // side IIFE calls `window.duoSelectionPush(json)` on selection
+    // change; that surfaces here as a `Runtime.bindingCalled` event
+    // (handled below). Re-registering on every attach is harmless.
+    try {
+      await webContents.debugger.sendCommand('Runtime.addBinding', {
+        name: 'duoSelectionPush'
+      })
+    } catch (err) {
+      // Older Chromium versions named this differently in pathological
+      // cases; we tolerate failure here so console / network / etc.
+      // still work even when the binding can't be installed.
+      console.warn('[CdpBridge] Runtime.addBinding(duoSelectionPush) failed:', (err as Error).message)
+    }
+    // Tab switch resets the pill — the new tab's selection state is
+    // unknown until its observer reports.
+    this.emitBrowserSelection({ snapshot: null, rect: null })
+    // Inject the observer for the current document. Page.frameNavigated
+    // re-injects on subsequent navigations.
+    await this.injectSelectionObserver()
   }
 
   detach(): void {
@@ -437,6 +595,46 @@ export class CdpBridge {
         entry.errorText = p.errorText
         this.networkInFlight.delete(p.requestId)
         this.pushNetwork(entry)
+      }
+    } else if (method === 'Runtime.bindingCalled') {
+      // Stage 15.2 — page-side observer posting a selection snapshot.
+      const p = params as { name?: string; payload?: string }
+      if (p.name === 'duoSelectionPush') {
+        let parsed: BrowserSelectionPush | null = null
+        try {
+          const body = JSON.parse(p.payload ?? 'null') as
+            | null
+            | {
+                snapshot: Omit<BrowserSelectionSnapshot, 'kind'>
+                rect: { x: number; y: number; width: number; height: number }
+              }
+          if (body === null) {
+            parsed = { snapshot: null, rect: null }
+          } else {
+            parsed = {
+              snapshot: { kind: 'browser', ...body.snapshot },
+              rect: body.rect
+            }
+          }
+        } catch {
+          // Bad payload from the page — drop it silently rather than
+          // poisoning the cache.
+          return
+        }
+        if (parsed) this.emitBrowserSelection(parsed)
+      }
+    } else if (method === 'Page.frameNavigated') {
+      // Stage 15.2 — re-inject the observer on top-frame navigation.
+      // Subframe nav doesn't carry our observer (we don't read selection
+      // out of iframes today). Clearing the cache here also hides the
+      // pill while the new page loads.
+      const p = params as { frame?: { id: string; parentId?: string } }
+      if (p.frame && !p.frame.parentId) {
+        this.emitBrowserSelection({ snapshot: null, rect: null })
+        // Fire-and-forget: the observer is non-critical UX glue; the
+        // injection happens asynchronously after the navigation event
+        // returns control to the event loop.
+        void this.injectSelectionObserver()
       }
     }
   }
