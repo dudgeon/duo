@@ -29,7 +29,10 @@ import type {
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
-  SelectionFormatStateSnapshot
+  SelectionFormatStateSnapshot,
+  NewTabRequest,
+  NewTabResult,
+  TerminalTabKind
 } from '../shared/types'
 import { SOCKET_PATH } from './constants'
 
@@ -63,6 +66,11 @@ export interface NavBridge {
    *  No Enter appended; user confirms. Surfaces an error when no
    *  terminal is active. */
   sendToActiveTerminal: (text: string) => { ok: boolean; written?: number; terminalId?: string; error?: string }
+  /** Stage 19c D27 — open a new terminal tab via the renderer's
+   *  authoritative tab state. kind/cwd/cmd are all optional — the
+   *  renderer picks defaults (D28 persisted last-kind, navigator
+   *  pending CWD, no pre-typed command). */
+  newTab: (req: Omit<NewTabRequest, 'reqId'>) => Promise<NewTabResult>
 }
 
 export class SocketServer {
@@ -365,6 +373,31 @@ export class SocketServer {
         }
         case 'nav-state': {
           result = this.nav.getState()
+          break
+        }
+        case 'new-tab': {
+          // Stage 19c D27 — open a new terminal tab. All args optional;
+          // renderer fills in defaults (last-kind, navigator pending CWD).
+          // Validate kind early so a typo'd flag fails fast at the socket
+          // boundary rather than getting silently ignored downstream.
+          const kindRaw = args['kind'] as string | undefined
+          if (kindRaw !== undefined && kindRaw !== 'shell' && kindRaw !== 'claude') {
+            throw new Error(`new-tab kind must be 'shell' or 'claude' (got '${kindRaw}')`)
+          }
+          const cwd = args['cwd'] as string | undefined
+          const cmd = args['cmd'] as string | undefined
+          const ntResult = await this.nav.newTab({
+            kind: kindRaw as TerminalTabKind | undefined,
+            cwd,
+            cmd
+          })
+          if (!ntResult.ok) throw new Error(ntResult.error ?? 'new-tab failed')
+          result = {
+            id: ntResult.id,
+            kind: ntResult.kind,
+            cwd: ntResult.cwd,
+            title: ntResult.title
+          }
           break
         }
         default:

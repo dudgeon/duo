@@ -1,9 +1,16 @@
 // ── Tab / terminal session ───────────────────────────────────────────────────
 
+// Stage 19c — `kind` distinguishes a vanilla shell from a tab that
+// auto-launches `claude` after the shell starts. See PRD D17, D21, D26.
+// 'shell' is today's behavior; 'claude' types `claude\n` into the PTY
+// after spawn (or prints a fallback banner if `claude` is not on PATH).
+export type TerminalTabKind = 'shell' | 'claude'
+
 export interface TabSession {
   id: string
   title: string
   cwd: string
+  kind: TerminalTabKind
 }
 
 // ── Duo socket protocol ──────────────────────────────────────────────────────
@@ -70,6 +77,11 @@ export type DuoCommandName =
   // about this"). Renderer caches the active terminal id; main does
   // the ptyManager.write.
   | 'send'
+  // Stage 19c D27 — open a new terminal tab from the agent.
+  // `--shell` = vanilla shell; `--claude` = auto-launches claude.
+  // No flag = persisted last-kind (D28; defaults to 'claude').
+  // Optional --cwd / --cmd; returns {id, kind, cwd, title}.
+  | 'new-tab'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -457,7 +469,13 @@ export const IPC = {
 
   // ⌘` — fired by the app-menu accelerator so it beats macOS's built-in
   // "cycle windows" system shortcut.
-  PANE_TOGGLE_FOCUS: 'pane:toggle-focus'
+  PANE_TOGGLE_FOCUS: 'pane:toggle-focus',
+
+  // Stage 19c D27 — `duo new-tab` from the CLI. Main forwards the
+  // request (kind/cwd/cmd) to the renderer; renderer adds the tab and
+  // ships the result back so the socket can return {id, kind, cwd, title}.
+  NEW_TAB_REQUEST: 'terminal:new-tab-request',
+  NEW_TAB_RESULT: 'terminal:new-tab-result'
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -598,6 +616,41 @@ export interface ElectronTerminalAPI {
    *  terminal tabs exist) so `duo send` knows where to write the
    *  payload. */
   pushActiveId: (id: string | null) => void
+  /** Stage 19c D23 — `true` if `claude` was found on PATH at app boot
+   *  (or last refresh). Used to decide between auto-typing `claude\n`
+   *  and printing the install banner when a `kind: 'claude'` tab spawns. */
+  claudeOnPath: () => Promise<boolean>
+  /** Stage 19c D27 — subscribe to `duo new-tab` requests from the CLI.
+   *  Renderer adds the tab and replies via `replyNewTab`. */
+  onNewTabRequest: (cb: (req: NewTabRequest) => void) => () => void
+  /** Reply to a new-tab request with the resolved tab metadata. */
+  replyNewTab: (result: NewTabResult) => void
+}
+
+// Stage 19c D27 — `duo new-tab` request shape (CLI → main → renderer).
+export interface NewTabRequest {
+  /** Correlation id; renderer echoes it back in NewTabResult so the
+   *  socket-side promise resolves to the right request. */
+  reqId: string
+  /** undefined → use the persisted last choice (D28). */
+  kind?: TerminalTabKind
+  /** undefined → renderer's pending CWD (the navigator's current folder). */
+  cwd?: string
+  /** Optional pre-typed command — written into the PTY after spawn but
+   *  WITHOUT a trailing newline (parity with Stage 15 `duo send`).
+   *  Mutually exclusive with kind='claude' auto-launch in v1: if both
+   *  apply, --cmd wins (the user's explicit string is more specific). */
+  cmd?: string
+}
+
+export interface NewTabResult {
+  reqId: string
+  ok: boolean
+  id?: string
+  kind?: TerminalTabKind
+  cwd?: string
+  title?: string
+  error?: string
 }
 
 export interface ElectronAPI {

@@ -15,7 +15,9 @@ import type {
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
-  SelectionFormatStateSnapshot
+  SelectionFormatStateSnapshot,
+  NewTabRequest,
+  NewTabResult
 } from '../shared/types'
 
 const api: ElectronAPI = {
@@ -223,6 +225,18 @@ const api: ElectronAPI = {
   terminal: {
     pushActiveId: (id: string | null) => {
       ipcRenderer.send(IPC.TERMINAL_ACTIVE_PUSH, id)
+    },
+
+    claudeOnPath: () => ipcRenderer.invoke('terminal:claude-on-path'),
+
+    onNewTabRequest: (cb) => {
+      const handler = (_: IpcRendererEvent, req: NewTabRequest) => cb(req)
+      ipcRenderer.on(IPC.NEW_TAB_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.NEW_TAB_REQUEST, handler)
+    },
+
+    replyNewTab: (result: NewTabResult) => {
+      ipcRenderer.send(IPC.NEW_TAB_RESULT, result)
     }
   },
 

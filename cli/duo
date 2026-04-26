@@ -351,6 +351,28 @@ async function main() {
         out(await send("send", { text }));
         break;
       }
+      case "new-tab": {
+        const args = {};
+        if (rest.includes("--shell") && rest.includes("--claude")) {
+          die("Usage: duo new-tab [--shell|--claude] \u2014 pick at most one");
+        }
+        if (rest.includes("--shell")) args.kind = "shell";
+        if (rest.includes("--claude")) args.kind = "claude";
+        const cwdIdx = rest.indexOf("--cwd");
+        if (cwdIdx !== -1) {
+          const v = rest[cwdIdx + 1];
+          if (!v) die("Usage: duo new-tab --cwd <path>");
+          args.cwd = resolveFilePath(v);
+        }
+        const cmdIdx = rest.indexOf("--cmd");
+        if (cmdIdx !== -1) {
+          const v = rest[cmdIdx + 1];
+          if (v === void 0) die('Usage: duo new-tab --cmd "<text>"');
+          args.cmd = v;
+        }
+        out(await send("new-tab", args));
+        break;
+      }
       case "install":
         runInstall();
         break;
@@ -520,6 +542,19 @@ COMMANDS
                                   (sites that don't render well in Duo's
                                   embedded WebContentsView). http(s) and
                                   mailto schemes only.
+
+  new-tab [--shell|--claude] [--cwd <path>] [--cmd "<text>"]
+                                  Open a new terminal tab (Stage 19c).
+                                  --claude (the split-button + default)
+                                  auto-launches \`claude\` after the
+                                  shell starts; --shell opens a vanilla
+                                  shell. With no flag, follows the user's
+                                  most recent manual choice. --cwd
+                                  overrides the navigator's pending CWD;
+                                  --cmd writes a pre-typed payload (no
+                                  trailing newline) into the PTY after
+                                  spawn \u2014 wins over kind-default if both
+                                  apply. Returns {id, kind, cwd, title}.
 
   install                         Symlink duo to /usr/local/bin/duo
 

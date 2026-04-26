@@ -4,7 +4,12 @@ interface TabBarProps {
   tabs: TabSession[]
   activeTabId: string
   onSelect: (id: string) => void
-  onNew: () => void
+  // Stage 19c D17 — split-button affordance. `+` (left, primary) opens a
+  // new claude session; `>` (right, secondary) opens a vanilla shell.
+  // The opinionated default lives on the bigger click target so the
+  // existing "click the +" muscle memory inherits the new behavior.
+  onNewClaude: () => void
+  onNewShell: () => void
   onClose: (id: string) => void
   /** Shown in the `+` button tooltip so the user can check where the next
    *  terminal will launch (Stage 10 § D10). */
@@ -17,17 +22,33 @@ interface TabBarProps {
 
 // Stage 12 Phase 3 — tab-strip rhyme.
 //
-// The terminal and working tab strips now share the same chip language so
+// The terminal and working tab strips share the same chip language so
 // the user reads them as a single family. Differentiator: strip background
 // (terminal sits on paper-edge, working on paper-deep — see
 // WorkingTabStrip.tsx). Both share rounded-top chips, accent top-stripe
 // for active, and serif-italic for the active label (Atelier voice).
 //
+// Stage 19c D17 — the `+` button is now a split control: a wider claude
+// half on the left, a narrow `>` shell half on the right. Visually
+// separated by a 1px paper-rule so it reads as two affordances; the
+// default click target stays where users expect (`+`), but the new
+// behavior is "open claude" — the bet being that the agent-native
+// premise becomes immediate from the first keystroke.
+//
 // Mock reference: docs/design/atelier/project/duo-components.jsx ~L286.
-export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose, pendingCwd, focused = false }: TabBarProps) {
-  const newTabTip = pendingCwd
-    ? `New terminal tab (⌘⇧T) — launches in ${pendingCwd}`
-    : 'New terminal tab (⌘⇧T)'
+export function TabBar({
+  tabs,
+  activeTabId,
+  onSelect,
+  onNewClaude,
+  onNewShell,
+  onClose,
+  pendingCwd,
+  focused = false
+}: TabBarProps) {
+  const cwdSuffix = pendingCwd ? ` in ${pendingCwd}` : ''
+  const claudeTip = `New Claude session (⌘T from terminal focus)${cwdSuffix}`
+  const shellTip = `New shell tab (⌘⇧T)${cwdSuffix}`
   return (
     <div
       className={[
@@ -53,16 +74,33 @@ export function TabBar({ tabs, activeTabId, onSelect, onNew, onClose, pendingCwd
         ))}
       </div>
 
-      {/* New tab button — sits on the strip baseline like the chips. */}
-      <button
-        onClick={onNew}
-        className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
-        title={newTabTip}
-      >
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-          <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      </button>
+      {/* Split button: + claude (primary) | > shell (secondary). Both
+          halves sit on the strip baseline like the chips. The 1px
+          divider is paper-rule so it reads as the same material as
+          the chip outlines. */}
+      <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
+        <button
+          onClick={onNewClaude}
+          className="w-7 h-6 flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
+          title={claudeTip}
+          aria-label={claudeTip}
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+        <span aria-hidden="true" className="w-px h-3 bg-paper-rule" />
+        <button
+          onClick={onNewShell}
+          className="w-5 h-6 flex items-center justify-center text-ink-ghost hover:text-ink hover:bg-surface-3 transition-colors"
+          title={shellTip}
+          aria-label={shellTip}
+        >
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+            <path d="M2.5 2.5l3 2.5-3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
     </div>
   )
 }
@@ -98,7 +136,7 @@ function Tab({ tab, isActive, onSelect, onClose, canClose }: TabProps) {
         />
       )}
 
-      <TerminalIcon active={isActive} />
+      <TabIcon kind={tab.kind} active={isActive} />
 
       <span className="truncate leading-none not-italic">{tab.title}</span>
 
@@ -125,8 +163,17 @@ function Tab({ tab, isActive, onSelect, onClose, canClose }: TabProps) {
   )
 }
 
-// 10×10 terminal glyph — matches the working strip's per-type icon set so
-// the two surfaces look like siblings.
+// Stage 19c D26 — per-kind glyph so a mixed strip of shell + claude
+// tabs reads at a glance. The shell glyph keeps the original 10×10
+// terminal mark; the claude glyph is a small filled spark — visually
+// distinct but quiet, since the title prefix `claude · ` already does
+// the heavy lifting.
+function TabIcon({ kind, active }: { kind: TabSession['kind']; active: boolean }) {
+  return kind === 'claude'
+    ? <ClaudeIcon active={active} />
+    : <TerminalIcon active={active} />
+}
+
 function TerminalIcon({ active }: { active: boolean }) {
   return (
     <svg
@@ -139,6 +186,28 @@ function TerminalIcon({ active }: { active: boolean }) {
     >
       <path d="M1.3 1.3h7.4v7.4H1.3V1.3Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
       <path d="M2.8 4l1.4 1-1.4 1M5 7h2.2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function ClaudeIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      aria-hidden="true"
+      className={active ? 'text-accent' : 'text-ink-ghost'}
+    >
+      <path
+        d="M5 1l1.1 2.9L9 5 6.1 6.1 5 9 3.9 6.1 1 5 3.9 3.9 5 1Z"
+        stroke="currentColor"
+        strokeWidth="0.9"
+        strokeLinejoin="round"
+        fill="currentColor"
+        fillOpacity="0.18"
+      />
     </svg>
   )
 }
