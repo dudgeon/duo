@@ -18,6 +18,110 @@
 
 ---
 
+## 2026-04-26 evening (later) — v0.2.0 cut: FTUX foundation
+
+The chapter that started after v0.1.0 closed. Eleven commits since
+the inaugural cut, including two whole stages (24 + 18) and two
+full-class bug squashes (008 + 009). Cut as v0.2.0 with the bar
+recalibrated halfway through ("not every three commits — wait for
+a chapter to end").
+
+**What landed:**
+
+- **Stage 18 — First-launch self-install (whole stage).** Phase 1
+  shipped early in this run: welcome banner copies skill + subagent
+  + help-files into `~/.claude/`, bootstraps external-domains.json,
+  writes provenance. Phase 2 then closed the loop: `cli/duo` →
+  `~/.local/bin/duo`, with PATH check + shell-rc snippet when the
+  dir isn't on $PATH. Decision was `~/.local/bin` over
+  `/usr/local/bin` — no sudo needed; sandbox-friendly; the
+  one-liner-to-add-to-zshrc trade-off felt acceptable for v1.
+- **Stage 24 — Pin WorkingPane tabs.** Right-click → Pin/Unpin · pin
+  glyph · sort to leftmost · ⌘W gated by confirm modal. Storage at
+  `~/.claude/duo/pins.json`. Pin survives Duo restarts (verified
+  during the smoke pass — the FAQ tab pinned in one Duo session
+  showed up pinned after a clean restart). Foundation for Stage 18b
+  PACK.json pre-pins and Stage 21c session restore.
+- **BUG-008 squash.** xterm allowlist swept the whole Duo-global
+  meta-shortcut family in one pass (⌘T/⌘⇧T/⌘N/⌘W/⌘L/⌘B/⌘\`/⌘0–9/
+  ⌘+/=/-). Same edit included a spec flip: ⌘T everywhere now opens
+  a browser tab (Chrome parity); ⌘⇧T opens a Claude tab from
+  anywhere; vanilla shell only via the `>` button on the strip.
+  Stage 19c's pane-aware ⌘T was reverted in favor of a universal
+  mental model.
+- **BUG-009 fix.** `waitForPtyReady` helper replaces `queueMicrotask`
+  for new-tab post-spawn writes. Resolves on the shell's first PTY
+  data event + 30ms paint settle. Functional fix is real; cosmetic
+  residual filed as BUG-010 (a literal `claude` still echoes above
+  the prompt because the helper resolves on pre-PS1 bytes; suggested
+  follow-up is a prompt-shape regex instead).
+- **FAQ direction completion.** about:blank → faq.html as the
+  default browser landing. Two new declarative metas:
+  `<meta name="duo-open-in" content="browser">` routes HTML files
+  to a browser tab via file:// URL; `<meta name="duo-editable"
+  content="false">` mounts the canvas read-only when present. Both
+  used by the bundled help/ HTMLs.
+- **Cut-version machinery refinement.** Skill recalibrated mid-
+  conversation when the first v0.2.0 proposal was rejected ("not a
+  release yet — keep building"). Added a "calibration note" to the
+  skill: "a meaningful chapter has ended" is the bar, not "three
+  coherent commits." Memory feedback entry updated to match. Then
+  later in the same run: added Step 4.5 (`npm run dist`) to the
+  skill so future cuts produce a DMG; clarified that file edits
+  target the repo's `help/` directory NOT the installed
+  `~/.claude/duo/help/` copies; documented the dev-mode banner
+  oddity.
+- **README + skill tidy + docs/dev/smoke-checklist-v0.2.0.html.**
+  README's "Install the duo CLI and skill" section was rewritten
+  for the post-Stage-18 reality (one click in the welcome banner,
+  not manual copy/symlink commands). Added a "Build a distributable
+  .app/.dmg" section. Owner-side smoke checklist filed for the
+  V2–V27 walk that's still owed (Bucket 2 in that doc).
+
+**Smoke verification during the cut session** (from a live
+`npm run dev` build): 8 PASS + 2 PARTIAL across ten items. Default
+landing, Stage 18 banner, FAQ live-search, ⌘T spec flip + xterm
+allowlist (multiple), pin context menu + glyph + sort, ⌘W confirm
+modal, duo-open-in routing, ⌘N new-file from terminal focus, ⌘B
+file-column toggle from terminal focus — all PASS. The two PARTIAL
+were ⌘⇧T claude-tab launch and `+` button claude-tab launch (both
+launch claude successfully but show the BUG-010 cosmetic echo).
+
+**Process notes:**
+
+- **Cut-version skill cycle.** First proposal rejected after 3
+  commits with "this is not a release yet — keep building." Skill
+  recalibrated mid-conversation (raised the bar to "chapter ends").
+  Eight more commits later, including two whole stages, the cut
+  was approved as proposed. The litmus test mechanic worked — the
+  draft notes felt different at the substantive moment.
+- **Stage 18 Phase 2 path decision** stated and proceeded
+  (`~/.local/bin/duo` over `/usr/local/bin/duo`); the trade-off
+  documented inline. Owner did not push back.
+- **`npm run dist` gap discovery.** The cut-version skill's earlier
+  draft didn't include DMG production. Surfaced and fixed during
+  the cut itself (Step 4.5 added). Now every cut produces a
+  shippable artifact, not just a tag.
+- **Dev launch fragility** observed and noted: when `npm run dev`'s
+  parent process exits, Electron stays alive in default-app mode. A
+  stray `open Electron` brings up the splash, not Duo. Filed as a
+  small dev-script improvement (~10 LOC; backlog).
+
+**Owed for v0.3.0:**
+
+1. **BUG-010 fix** — replace `waitForPtyReady`'s "first data" with
+   a prompt-shape regex.
+2. **V2–V27 verification walk** — inherited from v0.1.0; the
+   canvas/editor surface verification still owed in eyes-on form.
+3. **Stage 18b** (distro skill packs / `extra-skills/` /
+   `PACK.json`).
+4. **Stage 23** (canvas actions Claude↔HTML).
+5. **Stage 25** (post-redirect chrome banner — small).
+6. **Stage 19d** (mid-tab launch-claude banner — small).
+7. **Stage 21** (sign + notarize the DMG; cert pre-work done).
+
+---
+
 ## 2026-04-26 evening — v0.1.0 cut + version-management machinery
 
 **The inaugural Duo release was cut**, blessing

@@ -94,7 +94,7 @@ broader cohort, prototype speed in the MVP.
 | Node ≥ 18 | `node --version` |
 | npm ≥ 9 | `npm --version` |
 
-### Install and run
+### Install and run (dev)
 
 ```bash
 git clone https://github.com/dudgeon/duo.git
@@ -105,24 +105,49 @@ npm run dev        # launches the Electron app
 
 ### Install the `duo` CLI and skill
 
+**One click.** When Duo first launches you'll see a welcome banner at the
+top of the window:
+
+> **Welcome to Duo.** Install the skill + subagent + help files into
+> `~/.claude/` and the `duo` CLI to `~/.local/bin`. Your existing files
+> won't be touched. **[Install]** [Skip for now]
+
+Click **Install**. This copies the skill / subagent / help files into
+`~/.claude/`, copies `cli/duo` to `~/.local/bin/duo`, and writes a
+provenance file at `~/.claude/duo/installed.json`. Idempotent — re-running
+on an upgrade overwrites everything and re-stamps the version.
+
+If `~/.local/bin` isn't on your `$PATH` (default on macOS zsh is no), the
+banner will stay visible with a one-liner to add to your shell rc:
+
 ```bash
-# Symlink the CLI into ~/.local/bin (or /usr/local/bin if writable):
-./cli/duo install
-
-# Install the skill + subagent so fresh Claude Code sessions discover them:
-mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents
-cp skill/SKILL.md            ~/.claude/skills/duo/SKILL.md
-cp skill/examples/*.md       ~/.claude/skills/duo/examples/
-cp skill/references/*.md     ~/.claude/skills/duo/references/
-cp agents/duo.md             ~/.claude/agents/duo.md
-rm -f                        ~/.claude/agents/duo-browser.md   # remove old name
-
-# Verify:
-duo --version                # 0.1.0
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-> **Auto-install on first launch** is a Stage 6 polish item — today you run
-> the commands above once.
+Verify:
+
+```bash
+duo help                     # lists every verb (any terminal, after PATH update)
+```
+
+> **Note for devs.** The same banner appears in `npm run dev` because the
+> install service runs the same code path regardless of `app.isPackaged`.
+> Click Install once on a fresh dev machine and you won't see it again
+> until the version bumps.
+
+### Build a distributable .app / .dmg
+
+When you want a real binary to send to a tester (or to use yourself
+without `npm run dev`):
+
+```bash
+npm run dist        # produces dist/Duo-X.Y.Z-arm64.dmg
+                    # (also a universal/x64 DMG)
+```
+
+The DMG is unsigned today — Gatekeeper will warn on first launch. Stage
+21 adds code signing + notarization. The cert pre-work is done; only the
+electron-builder wiring is owed.
 
 ### Try it
 
@@ -320,34 +345,19 @@ duo/
 
 ## Status
 
-Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
+Full stage-by-stage tracking lives in **[ROADMAP.md](ROADMAP.md)** /
+[docs/roadmap.html](docs/roadmap.html). Versioned releases are tracked
+in **[CHANGELOG.md](CHANGELOG.md)** with prose context in
+**[docs/RELEASES.md](docs/RELEASES.md)**.
 
-**Shipped (foundation + flagship half #1):**
-- ✅ **Stage 1** — Core shell (Electron + React + xterm.js + node-pty, tabs, keybindings)
-- ✅ **Stage 2** — Browser pane (WebContentsView, SSO persistence, tab strip, address bar)
-- ✅ **Stage 3** — `duo` CLI bridge (socket server, CDP primitives, rich Google Docs read via `/export?format=md`)
-- ✅ **Stage 5** — Skill + `duo` subagent (Haiku 4.5; end-to-end verified in a fresh Claude Code session). Stage 5 v2 (2026-04-26) broadened the subagent's scope from browser-only to the full CLI surface and dropped the orchestrator's per-task token cost.
-- ✅ **Stage 8** — `duo open` for agent-generated HTML artifacts (+ `duo close` for cleanup)
-- ✅ **Stage 9** — Cozy-mode terminal (reader typography, TUI-safe, preview)
-- 🔄 **Stage 10** — File navigator + WorkingPane reshape (spec locked, in progress)
+Most recent release: see the top of [CHANGELOG.md](CHANGELOG.md). At
+v0.2.0+ the headlines worth pulling forward in this README are:
 
-**In progress — flagship half #2:**
-- 🔄 **Stage 11** — Collaborative markdown editor. **Sub-stage 11a shipped
-  2026-04-24:** TipTap editor, GFM tables, task lists, syntax-highlighted
-  code blocks, `⌘N` new-file flow, `⌘S` + autosave, table contextual
-  toolbar, persistent selection across focus changes, theme toggle
-  (System/Light/Dark), `duo edit` / `duo selection` / `duo doc write` /
-  `duo theme` CLI verbs. 11b–e (CriticMarkup track-changes, agent-write
-  highlight, comments, outline, find/replace) next. Covers open issues
-  [#5](https://github.com/dudgeon/duo/issues/5),
-  [#6](https://github.com/dudgeon/duo/issues/6),
-  [#7](https://github.com/dudgeon/duo/issues/7).
-
-**After the flagship:**
-- ⬜ **Stage 12** — Unified skill + connector management surface (supersedes Stage 4)
-- ⬜ **Stage 13** — Interaction polish (`duo doctor`, TCP transport fallback, terminal selection refinements, `duo reload`, tab numbers in UI)
-- ⬜ **Stage 15** — Human↔agent interaction primitives (`duo events`, `duo notify`, `duo tab name`, `duo zap`, file→composer, **15g "Send → Duo" cross-modality button raised 2026-04-25**)
-- ⬜ **Stage 14 / old Stage 6** — Polish + distribution (code signing, installer, auto-update, theming refinement — held until the flagship pair lands)
+- **Foundation shipped** — Stages 1–3, 5 (+ 5 v2), 8, 9 (cozy mode).
+- **Editor surfaces shipped** — Stage 11 (markdown editor), Stage 17 (HTML canvas with comments rail), Stage 12 (Atelier visual identity).
+- **Agent ergonomics shipped** — `duo` CLI + skill + Haiku 4.5 subagent (Stage 5/5 v2), Send → Duo selection pill (Stage 15.1/15.2).
+- **First-launch + workspace polish shipped** — Stage 18 (welcome banner installs skill / subagent / CLI binary into `~/.claude/`), Stage 24 (pin WorkingPane tabs).
+- **Coming next** — Stage 18b (distro skill packs), Stage 23 (canvas actions Claude↔HTML loop), Stage 21 (sign + notarize the DMG).
 
 ---
 

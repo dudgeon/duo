@@ -101,6 +101,19 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.2.0 release ftux foundation install banner pin tabs faq">
+  <h3>v0.2.0 — FTUX foundation <span class="date">2026-04-26</span></h3>
+  <p>The first release a fresh user can install in one click. Welcome banner installs the skill, subagent, help files, and the <code>duo</code> CLI binary in one click. New default browser landing is this FAQ instead of <code>about:blank</code>. WorkingPane tabs are pinnable. Two keyboard-routing bugs fixed (<code>⌘T</code>, <code>+ → claude</code>).</p>
+  <ul>
+    <li><strong>One-click install (Stage 18).</strong> Welcome banner copies <code>skill/</code> + <code>agents/duo.md</code> + <code>help/*.html</code> into <code>~/.claude/</code> and <code>cli/duo</code> into <code>~/.local/bin/duo</code>. If <code>~/.local/bin</code> isn't on your <code>$PATH</code>, the banner shows the one-liner to add to your shell rc.</li>
+    <li><strong>Pin tabs (Stage 24).</strong> Right-click any working-pane tab → "Pin tab." Pinned tabs render with a pin glyph, sort to leftmost, and gate <code>⌘W</code> behind a confirm modal. Pin survives Duo restarts.</li>
+    <li><strong>FAQ + What Duo Does as the default landing.</strong> New browser tabs land on <code>help/faq.html</code> instead of <code>about:blank</code>. Two new <code>&lt;meta&gt;</code> conventions on HTML files: <code>duo-open-in</code> routes to the browser pane vs the canvas, <code>duo-editable=false</code> mounts read-only.</li>
+    <li><strong>Keyboard fixes.</strong> <code>⌘T</code> from terminal focus now opens a new browser tab (Chrome parity); <code>⌘⇧T</code> opens a Claude tab. Whole family of "xterm eats this Duo shortcut" bugs swept in one pass.</li>
+    <li><strong>Bug fix.</strong> The <code>+</code> button on the terminal strip now reliably auto-launches Claude (was racing the shell startup).</li>
+  </ul>
+  <p style="margin-top: 10px;"><strong>Known issues at this version:</strong> A bare <code>claude</code> still echoes above the prompt in new claude tabs (cosmetic; claude DOES launch — see <code>tasks.md § BUG-010</code>). The DMG is unsigned (Gatekeeper warns on first launch); Stage 21 closes that.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.1.0 release initial inaugural foundation">
   <h3>v0.1.0 — the foundation <span class="date">2026-04-26</span></h3>
   <p>The first labelled version of Duo. Everything that's shipped to date is now versioned and trackable. From here forward, each release adds an entry to this section.</p>
@@ -230,10 +243,27 @@
   </div>
 </details>
 
-<details class="qa" data-keys="about blank default landing tab faq">
-  <summary>Why does Duo open with "about:blank" in the right pane?</summary>
+<details class="qa" data-keys="install banner welcome first launch skill agent">
+  <summary>What does the welcome banner install?</summary>
   <div class="body">
-    <p>v0.1.0 still uses the browser-default landing for new tabs. v0.2.0 replaces it with this FAQ as the first-launch landing — a real "what is this and how do I use it" surface instead of a blank page.</p>
+    <p>One click copies four things into your home directory:</p>
+    <ul style="margin: 6px 0 8px 20px; padding-left: 0;">
+      <li><code>~/.claude/skills/duo/</code> — the Duo skill (so any Claude Code session in any directory discovers Duo's CLI).</li>
+      <li><code>~/.claude/agents/duo.md</code> — the Duo subagent (Haiku 4.5; specialized for mechanical Duo work).</li>
+      <li><code>~/.claude/duo/help/</code> — local copies of <a href="faq.html" style="color: var(--accent-ink);">FAQ</a> + <a href="what-duo-does.html" style="color: var(--accent-ink);">What Duo does</a> (so you can customize them; the bundle copies still serve as fallback).</li>
+      <li><code>~/.local/bin/duo</code> — the <code>duo</code> CLI binary.</li>
+    </ul>
+    <p>Plus a provenance file at <code>~/.claude/duo/installed.json</code> with the version + timestamp. Idempotent — re-running on an upgrade overwrites everything and re-stamps the version. <code>~/.claude/duo/external-domains.json</code> is bootstrapped if absent and never clobbered (it can hold your own customizations).</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="path zshrc shell rc duo cli not found">
+  <summary>The banner says my <code>$PATH</code> is missing <code>~/.local/bin</code> — what do I do?</summary>
+  <div class="body">
+    <p>Add this line to your <code>~/.zshrc</code> (or <code>~/.bashrc</code> if you use bash):</p>
+    <pre style="background: var(--paper-deep); padding: 8px 12px; border-radius: 4px; font-family: var(--mono); font-size: 12px;">export PATH="$HOME/.local/bin:$PATH"</pre>
+    <p>Then open a fresh terminal (or run <code>source ~/.zshrc</code> in an existing one). <code>duo help</code> should now work.</p>
+    <p>You don't need this for Duo's UI to work — only for invoking <code>duo</code> from arbitrary terminals (including Claude Code sessions running outside Duo).</p>
   </div>
 </details>
 

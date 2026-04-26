@@ -131,15 +131,47 @@ npm run sync:claude               # copies skill + agent into ~/.claude/
 # walk is the user's call).
 ```
 
-Update files in this order:
+Update files **in source — NOT the installed copies in `~/.claude/`**.
+The Stage 18 installer copies these to the user's `~/.claude/duo/help/`
+on first launch / upgrade. Editing the installed copies directly
+would mean your next `npm run dist` doesn't include the changes.
+Order:
 
 1. `package.json` — version field (if bumping).
 2. `CHANGELOG.md` — move `[Unreleased]` content into a new `[X.Y.Z] — YYYY-MM-DD` section. Add the date. Update the link refs at the bottom. Reset `[Unreleased]` to empty.
 3. `docs/RELEASES.md` — prepend the new prose entry above prior entries (most-recent-first). Clear the `Pending — not yet cut` stash if any of it folded into this cut.
-4. `~/.claude/duo/help/faq.html` — add a "What's new in vX.Y.Z" entry to the FAQ's "What's new" section. Plain-English, 2–4 lines per major item.
-5. `~/.claude/duo/help/what-duo-does.html` — for any newly-added capability, insert a numbered entry in the relevant category (Editor / Browser / Canvas / Files / Terminal / Capture-Send / Sessions / etc.). Use plain-English voice with the CLI invocation listed alongside as the "how." Logical ordering, NOT chronological.
+4. `help/faq.html` (in repo, NOT the `~/.claude/duo/help/` copy) — add a "What's new in vX.Y.Z" entry to the FAQ's "What's new" section. Plain-English, 2–4 lines per major item.
+5. `help/what-duo-does.html` (in repo, NOT the `~/.claude/duo/help/` copy) — for any newly-added capability, insert a numbered entry in the relevant category (Editor / Browser / Canvas / Files / Terminal / Capture-Send / Sessions / etc.). Use plain-English voice with the CLI invocation listed alongside as the "how." Logical ordering, NOT chronological.
 6. `docs/roadmap.html` (and `ROADMAP.md` for parity) — flip stage statuses for anything that landed in this cut. Update the sidebar status counts.
 7. `docs/dev/session-log.md` — add a one-paragraph entry referencing the cut, the version, and what landed.
+
+### Step 4.5 — Build the distributable DMG
+
+```bash
+npm run dist                      # produces dist/Duo-X.Y.Z-arm64.dmg
+                                  # (and the universal/x64 DMG)
+```
+
+Output sanity check:
+
+```bash
+ls -lh dist/Duo-*.dmg             # confirm a DMG with the new version
+                                  # in its filename exists
+```
+
+Do NOT `git add dist/` — `dist/` is gitignored. The DMG is a build
+artifact tracked outside the repo (manual distribution today; Stage 21
+adds notarization + Stage 21+ should add a GitHub Releases publish).
+A future cut shouldn't be considered "done" until at least the local
+DMG exists — that's what proves the build pipeline still works.
+
+**Dev-mode banner oddity to flag in the user-facing notes:** because
+the install service runs the same code path regardless of
+`app.isPackaged`, the welcome banner appears in `npm run dev` too.
+Devs see it on every fresh dev launch unless they click Install once
+or copy a stub `installed.json`. Not user-visible (end users only
+ever see the banner once per machine), but worth noting in any
+"how do I dev on Duo" doc.
 
 ### Step 5 — Verification before commit
 
@@ -152,6 +184,10 @@ git diff --stat                   # one-line review of scope
 If anything unexpected appears in `git status` (untracked files,
 unrelated diffs), STOP and surface to the user. Don't commit
 through unexpected state.
+
+`dist/` should appear as untracked but is `.gitignore`d — that's
+expected. The DMG produced by Step 4.5 lives there and gets
+distributed manually (or via Stage 21's eventual upload step).
 
 ### Step 6 — Commit + tag
 

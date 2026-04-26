@@ -21,20 +21,62 @@
 
 ## Pending — not yet cut
 
-### Toward v0.2.0 (proposed 2026-04-26 evening, deferred — bar not met)
+_Empty. The deferred v0.2.0 draft folded into the v0.2.0 cut below
+once Stage 24 + Stage 18 (Phase 1 + 2) + the BUG-008 squash brought
+the chapter to a close._
 
-Three commits since v0.1.0, all user-visible, interlocking around the
-FAQ landing direction:
+---
 
-- `d692a39` — New browser tabs default to bundled `help/faq.html` instead of `about:blank`. `help/**/*` shipped in the asar bundle.
-- `c1b662f` — BUG-009 fixed: `+ → claude` newline race. `waitForPtyReady` helper waits for the shell's first PTY data event (PS1 emitted) plus 30ms paint settle. Covers `duo new-tab --kind claude` and `duo new-tab --cmd "..."` too.
-- `19c6dec` — Canvas honors `<meta name="duo-editable" content="false">`. Read-only mode disables contentEditable, toolbar, comment composer, ID-injection probe, write-warning banner. Send → Duo selection stays available. Used by `help/faq.html` and `help/what-duo-does.html`.
+## v0.2.0 — 2026-04-26
 
-**Owner deferred:** "this is not a release yet — keep building." The
-bar is higher than three coherent ships; cut waits for a more
-meaningful completion moment (e.g. FTUX trio landing, or an explicit
-ready-to-ship signal). Notes accumulate forward into the next
-proposal.
+The FTUX foundation. v0.1.0 was the inaugural inventory snapshot;
+v0.2.0 is the first release where a Trailblazer could actually pick
+up Duo and use it without a developer hand-holding them through
+manual filesystem setup.
+
+### Why v0.2.0 lands here
+
+The proposal-and-defer cycle on this version is itself instructive.
+A v0.2.0 cut was first proposed after three coherent post-v0.1.0
+commits (faq.html landing, BUG-009 fix, duo-editable honoring) and
+the owner deferred with "this is not a release yet — keep building."
+That recalibrated the cut-version skill's bar (the project's not
+ready to cut every three commits — needs "a chapter has ended").
+Stage 24 (pin tabs) + the BUG-008 squash + Stage 18 Phase 2 (CLI
+binary on PATH) closed that chapter — the FTUX foundation is now a
+single coherent surface a new user can land on.
+
+### Key design decisions baked in
+
+- **`~/.local/bin/duo` for the CLI install path** (Stage 18 Phase 2). No sudo required, conventional XDG-style location, sandbox-friendly. Trade-off: macOS zsh doesn't have it on PATH by default, so the install banner surfaces a one-liner (`export PATH="$HOME/.local/bin:$PATH"`) when we detect the gap. Avoided `/usr/local/bin/duo` to keep the install surface non-privileged.
+- **`⌘T` flipped from pane-aware to universal browser-tab** (BUG-008 resolution). Stage 19c had specced `⌘T` from terminal focus → claude tab, on the theory that a non-technical PM in a shell would discover Claude faster. The owner's call: universal mental-model wins, discovery affordance lives on the `+` button instead. `⌘⇧T` becomes the keyboard chord for Claude tabs.
+- **Two declarative routing metas (`duo-open-in`, `duo-editable`)** instead of an in-app config / file-naming convention. A reference HTML carries its own routing intent, no central registry. The file-open dispatcher does a 4KB head-read pre-flight to honor `duo-open-in`; the canvas mounts read with `contentEditable` off when `duo-editable=false`. Both extensible to user-authored docs (e.g. an in-team SOP marked `duo-editable=false` so accidental edits don't happen).
+- **`waitForPtyReady` helper** (BUG-009 fix) replaces `queueMicrotask`. Resolves on the new tab's first PTY data event (= shell emitted SOMETHING, plausibly PS1) plus a 30ms paint settle. The cosmetic residual (BUG-010, filed) is that the shell can emit something BEFORE PS1 — e.g. terminal-init escape codes — tripping the helper early. Functional fix is real; visual polish owed.
+- **Pin storage at `~/.claude/duo/pins.json`** with file-tabs identified by absolute path and browser-tabs by URL. Atomic tmp+rename writes. Foundation for Stage 18b's `PACK.json § pins` distro pre-pins (next stage) and Stage 21c's session-restore highest-priority entries.
+
+### What v0.2.0 is and isn't
+
+**Is:** the first release where a fresh `Duo.app` install gets a
+Trailblazer to a working state in one click. Welcome banner
+installs the skill / subagent / help-files into `~/.claude/` and the
+`duo` CLI binary into `~/.local/bin/`. Default browser landing is the
+FAQ instead of about:blank. Pin support means a reference HTML can
+stay leftmost across sessions.
+
+**Isn't:** distribution-ready. The DMG is unsigned (Stage 21
+deferred); there's no GitHub Releases publish step (manual hand-off
+only); no auto-update channel; no distro-supplied skill packs (Stage
+18b deferred). The V2–V27 canvas verification walk inherited from
+v0.1.0 still owed in eyes-on form.
+
+### What's queued next (v0.3.0 candidate scope)
+
+- **Stage 18b** — distro skill packs (`extra-skills/` + `PACK.json` + per-conflict consent UI). Cap One AIP starter pack is the worked example.
+- **Stage 23** — canvas actions (`data-duo-action` Claude↔HTML loop). Pairs with 18b for the FTUX welcome page.
+- **Stage 25** — post-redirect chrome banner (small, ~80 LOC).
+- **Stage 19d** — mid-tab launch-claude banner (small, for shell-tab discovery).
+- **BUG-010** — replace `waitForPtyReady`'s "first data" trigger with a prompt-shape regex.
+- **V2–V27 verification walk** — still owed from v0.1.0; Stage 18 + 24 + BUG-008/009 walked PASS in v0.2.0 smoke.
 
 ---
 

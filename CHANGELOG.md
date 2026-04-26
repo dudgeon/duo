@@ -19,6 +19,17 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+_Nothing accumulated yet — the next entry will collect items shipped after v0.2.0._
+
+## [0.2.0] — 2026-04-26
+
+The FTUX foundation. First-launch self-install lands the skill / subagent
+/ help-files / `duo` CLI binary into the user's `~/.claude/` and
+`~/.local/bin/` in one click. The browser-pane default landing flips
+from `about:blank` to a real FAQ. WorkingPane tabs are pinnable. Two
+keyboard-routing bugs (BUG-008, BUG-009) and one cosmetic residual
+(BUG-010, filed for follow-up) tracked.
+
 ### Changed
 
 - New browser tabs now land on the bundled `help/faq.html` (FAQ + What's New + Getting started + Troubleshooting) instead of `about:blank`. Fallback to `about:blank` if the file resolution fails. (`electron/browser-manager.ts`)
@@ -36,6 +47,13 @@ notarized distribution (Stage 21).
 
 - BUG-009: `+` (claude) button on the terminal tab strip now reliably auto-launches Claude. The previous `queueMicrotask`-only deferral raced the shell's startup; the new `waitForPtyReady` helper waits for the shell to emit its PS1 (first PTY data event) plus a 30ms paint settle before writing. Same fix covers `duo new-tab --kind claude` and `duo new-tab --cmd "..."`. (`renderer/App.tsx`)
 - BUG-008: xterm.js no longer eats Duo-global keyboard shortcuts from terminal focus. The `attachCustomKeyEventHandler` allowlist in `TerminalPane.tsx` now lets `⌘T`, `⌘⇧T`, `⌘N`, `⌘W`, `⌘L`, `⌘B`, `⌘\``, `⌘0–9` (with/without shift), and `⌘+/=/-` bubble to the renderer's window-level handler. Class-of-issue sweep — kills the whole "next Duo-global shortcut won't reach its handler from terminal focus" family of bugs. (`renderer/components/TerminalPane.tsx`)
+
+### Known issues at v0.2.0
+
+- BUG-010: BUG-009 fixed the functional regression (claude DOES launch), but a literal `claude` still echoes on a bare line above the shell prompt — `waitForPtyReady` resolves on the shell's first PTY data event, which can be a pre-PS1 byte. Cosmetic; non-blocking. Suggested fix in `tasks.md` is a prompt-shape regex.
+- V2–V27 verification walk inherited from the v0.1.0 cut still owed in eyes-on form. Recent ships (Stage 18, Stage 24, BUG-008, faq landing, duo-open-in / duo-editable metas) walked PASS during the v0.2.0 smoke pass; the canvas / editor V-walk is the remainder.
+- Stage 18 banner appears in `npm run dev` too (the install service runs the same code path regardless of `app.isPackaged`). Only relevant to devs; end users hit it once per install.
+- DMG is unsigned — Gatekeeper warns on first launch. Stage 21 (signing + notarization) closes this; cert pre-work done.
 
 ## [0.1.0] — 2026-04-26
 
@@ -139,5 +157,6 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dudgeon/duo/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dudgeon/duo/releases/tag/v0.1.0

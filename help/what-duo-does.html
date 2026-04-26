@@ -453,8 +453,29 @@
   </div>
 </article>
 
+<h2 class="cat">Workspace setup</h2>
+<p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
+
+<article class="item" data-keys="pin tab pinned right click context menu unpin">
+  <div class="num">38</div>
+  <div>
+    <h3>Pin a working-pane tab so it stays put</h3>
+    <p class="why">Right-click any tab in the right pane (browser, markdown editor, HTML canvas, image, PDF, preview) → Pin. Pinned tabs render with a pin glyph, sort to leftmost in the strip, and gate <code>⌘W</code> behind a confirm modal so you don't dismiss them by reflex. Pin survives Duo restarts (stored at <code>~/.claude/duo/pins.json</code>; matched by URL for browser tabs, by absolute path for file tabs).</p>
+    <p class="how"><strong>UI</strong>Right-click a tab → Pin tab / Unpin tab. <code>⌘W</code> on a pinned tab opens a confirm modal.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="install banner first launch welcome skill agent path setup">
+  <div class="num">39</div>
+  <div>
+    <h3>Install the skill + subagent + CLI in one click</h3>
+    <p class="why">On first launch (and after upgrades), a welcome banner appears at the top of Duo. Click <strong>Install</strong> — it copies the skill to <code>~/.claude/skills/duo/</code>, the subagent to <code>~/.claude/agents/duo.md</code>, the help files to <code>~/.claude/duo/help/</code>, and the <code>duo</code> CLI binary to <code>~/.local/bin/duo</code>. Bootstraps <code>~/.claude/duo/external-domains.json</code> if absent (never clobbered) and writes <code>installed.json</code> with the version. If <code>~/.local/bin</code> isn't on your <code>$PATH</code>, the banner shows a one-liner to add to your shell rc.</p>
+    <p class="how"><strong>UI</strong>Click [Install] in the welcome banner.</p>
+  </div>
+</article>
+
 <footer>
-  <p>This is Duo v0.1.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p>This is Duo v0.2.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

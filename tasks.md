@@ -432,6 +432,40 @@ Option (b) is the quickest path; option (a) is the right path. Class of issue: P
 
 ---
 
+### FOLLOWUP-005: Stage 21 codesign blocker — system clock skew breaks timestamped signing
+
+**Status:** 🆕 Filed
+**Priority:** Stage 21 blocker (low priority until Stage 21 starts)
+**Filed:** 2026-04-26 (during v0.2.0 `npm run dist`)
+
+`npm run dist` discovered `CSC_NAME` from `~/Documents/duo-private/.env`, electron-builder auto-detected the Developer ID Application cert, and attempted to sign. `codesign` failed with:
+
+```
+timestamps differ by 401 seconds — check your system clock
+```
+
+The issue: macOS `codesign` with `--timestamp` calls Apple's timestamp server. The server returns a signed timestamp; `codesign` then validates that this timestamp is reasonably close to the local file modification time. A clock skew of ~7 minutes (401 seconds) tripped the validation.
+
+**Root cause (untraced but obvious candidates):**
+
+- macOS `System Settings → General → Date & Time → "Set time and date automatically"` is off, OR
+- NTP can't reach `time.apple.com` (firewall, network, etc.)
+
+**Fix:**
+
+```bash
+# Either toggle "Set automatically" in System Settings, or one-shot:
+sudo sntp -sS time.apple.com
+```
+
+**Current workaround for v0.2.0:** `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist` — produces unsigned DMG (which is what v0.2.0 wants anyway, since Stage 21 hasn't shipped). v0.2.0 cut completed this way; the DMGs at `dist/Duo-0.2.0-arm64.dmg` + `dist/Duo-0.2.0.dmg` are unsigned (Gatekeeper warns).
+
+**For Stage 21:** must resolve before signing + notarization can work. Add a `npm run dist` precondition check (verify `sntp -q time.apple.com` shows < 60s offset; fail fast with a clear error).
+
+**Cross-ref:** `electron-builder.yml` has `mac.identity` commented out per Stage 21 plan — the cert was wired in via `$CSC_NAME` env var auto-discovery. When Stage 21 ships, both the YAML wiring AND a healthy system clock are needed.
+
+---
+
 ### BUG-010: BUG-009 residual — literal `claude` echoes above the shell prompt
 
 **Status:** 🆕 Filed
