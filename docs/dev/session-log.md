@@ -18,6 +18,88 @@
 
 ---
 
+## 2026-04-26 night — Intent conversation → roadmap depth pass
+
+After Stage 17d-A shipped (shared `<CommentRail>` primitive + canvas
+binding + new-comment flow), Geoff paused dev to talk through six
+ideas before pulling in the next ship. Each was expanded via
+`AskUserQuestion` drilldowns until the design space was understood,
+then feathered into the roadmap as a new stage card or sub-stage.
+
+**The six resolutions:**
+
+1. **Stage 22 — Navigator dual-pane overhaul (context pedagogy).**
+   The navigator's primary job becomes teaching non-technical PMs
+   that the agent reads from BOTH user-level (`~/.claude/`) and
+   project-level (`./CLAUDE.md`) context. Two panes: top "Your Claude
+   settings" (curated CLAUDE.md + skills/ + agents/, toggle-to-show-
+   all), bottom "This project" (CWD-pinned, with project Claude
+   context surfaced at top). Drops Stage 10 D11 three-column-deeper
+   for inline collapsing folders. Plain-English labels.
+2. **Stage 19d — Mid-tab launch-claude banner.** Closes the gap that
+   19c (split-`+` button) leaves for non-technical PMs sitting in
+   shell tabs. Detect `TabSession.kind === 'shell'` → render small
+   banner: "Looking for Claude? Click here to start an AI session in
+   this tab." Click handler: `pty.write(activeTabId, 'claude\n')`.
+   Per-tab dismiss + global settings toggle.
+3. **Stage 18b — Distro skill-pack support.** Convention folder
+   `extra-skills/` (gitignored; build picks up if present); required
+   `PACK.json` manifest; per-conflict UI in the consent sheet (skip
+   all / overwrite all / decide each); provenance manifest at
+   `~/.claude/duo/installed-packs.json`. v1 scope: skills + agents.
+   Cap One distro workflow: clone duo + drop `extra-skills/` + `npm
+   run dist`.
+4. **Stage 23 — Canvas actions (Claude ↔ HTML loop).** Convention-
+   based `data-duo-action` attribute on canvas HTML buttons; canvas
+   runtime delegates clicks to a dispatcher; **no page scripts
+   needed**. v1 vocabulary: `claude:spawn`, `terminal:send` (with
+   optional `\n` via new `duo send --enter` flag), `browser:open`.
+   Trust model: path-restricted to `~/.claude/duo/`. Demo lives in
+   the AIP distro's quick-docs as the FTUX welcome page. Bidirectional
+   loop achievable today — no Claude Code hooks needed.
+5. **Stage 24 — Pin WorkingPane tabs.** Reframed from "quick-docs
+   menu" to "pin tabs" — far simpler, same use cases (FTUX welcome,
+   personal task list pinned, team wiki always-on). Right-click →
+   Pin/Unpin; pinned tabs leftmost with pin icon; ⌘W triggers
+   confirm modal. Storage: `~/.claude/duo/pins.json`. Distro pre-pins
+   via Stage 18b's `PACK.json § pins` (merged on first install only;
+   respects user removal). Pinned tabs anchor Stage 21c session
+   restore.
+6. **Stage 25 — Post-redirect chrome banner.** After `shell.openExternal`
+   fires from `duo external`, Duo flashes auto-dismissing banner above
+   WorkingPane with optional per-domain `reason` text. Schema for
+   `external-domains.json` gets backward-compatible extension:
+   strings still work; objects `{host, reason?}` opt-in. Contact-link
+   mechanism deferred per Geoff. Small ship (~80 LOC).
+
+**Cross-stage architecture insight:** the FTUX-coordinated trio
+(Stage 23 + 24 + 18 + 18b) ships as a tight set so first-launch
+users see a pinned, action-driven welcome page. This is the
+highest-leverage Trailblazer surface and the recommended next ship
+sequence.
+
+**Process notes from the conversation:**
+- Plan mode used effectively — captured all six idea seeds verbatim
+  before drilling, then resolved each in order with consistent
+  ask-to-expand → AUQ-drilldown → resolution-summary pattern.
+- The "common componentry" theme from Stage 17d-A's `<CommentRail>`
+  primitive recurred throughout — Stage 14 (MD binding) shorter
+  because the rail is shipped; Stage 19d's `<LaunchClaudeBanner>`
+  follows the `<WriteWarningBanner>` pattern; Stage 25's banner
+  reuses the same primitive shape with auto-dismiss.
+- The pedagogy theme (visibility for non-technical PMs) drove
+  Idea 1 (navigator dual-pane), Idea 2 (mid-tab banner), and
+  Idea 6 (post-redirect banner) toward consistent solution shapes:
+  small visual surfaces with plain-English labels.
+
+**Deliverables this turn:** roadmap.html + ROADMAP.md updated with
+the six new/modified stage cards; layered build order ASCII diagram
+extended; sidebar status counts updated; `docs/dev/intent-pause.md`
+deleted (one-shot file; conversation has resolved). PRDs deferred to
+implementation time per project convention.
+
+---
+
 ## Current state (as of 2026-04-26)
 
 **Foundation shipped. Flagship half #1 (cozy-mode terminal) shipped

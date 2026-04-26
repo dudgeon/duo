@@ -97,19 +97,25 @@ Layer 2 — New surfaces (built against Layer 1)
    17b   HTML canvas — IDs / sidecar / agent CLI ops / pretty-printer ✓ shipped
    17c   HTML canvas — agent overlay + Send → Duo pill + warn-overwrite ✓ shipped (V16-V22 verification owed)
    17d-A HTML canvas — shared <CommentRail> primitive + canvas binding + new-comment flow + duo html comment / comments verbs  ✓ shipped (V23-V27 verification owed)
-   17d-B HTML canvas — lock convention                                   ← next
+   17d-B HTML canvas — lock convention
    17d-C HTML canvas — skill snippet bundle (H17 + H18 ten components)
    17e   HTML canvas — script opt-in + source view + find/replace + reconciliation
+   22    Navigator dual-pane overhaul (context pedagogy)               ← new 2026-04-26 night
+   23    Canvas actions — Claude ↔ HTML loop (data-duo-action)         ← new — FTUX trio leg
 
 Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
-   18  First-launch self-install (no cert needed)
-   19a Env signals (DUO_SESSION etc.)                                  ✓ shipped
-   19c Default-to-claude tabs + split-button + duo new-tab            ✓ shipped + merged
-   19b Passive priming (SessionStart hook + PATH shim)                 ← folds into 18
-   20  Interaction polish: duo doctor + TCP fallback + pane-aware shortcuts
+   18    First-launch self-install (no cert needed)                    ← FTUX trio leg
+   18b   Distro skill packs (extra-skills/ + PACK.json + per-conflict UI) ← new — FTUX trio
+   19a   Env signals (DUO_SESSION etc.)                                ✓ shipped
+   19c   Default-to-claude tabs + split-button + duo new-tab           ✓ shipped + merged
+   19b   Passive priming (SessionStart hook + PATH shim)               ← folds into 18
+   19d   Mid-tab launch-claude banner                                  ← new 2026-04-26 night
+   20    Interaction polish: duo doctor + TCP fallback + pane-aware shortcuts
+   24    Pin WorkingPane tabs                                          ← new — FTUX trio leg
 
 Layer 4 — Distribution finalization (cert pre-work ✓; L3 to stabilize)
-   21  Distribution polish — electron-builder wiring + sign + notarize ← cert ready
+   21    Distribution polish — electron-builder wiring + sign + notarize ← cert ready
+   25    Post-redirect chrome banner                                   ← new 2026-04-26 night
 
 Backlog (no fixed order — pull in when convenient)
    • 11a tail (frontmatter panel, drag-drop images, slash menu)
@@ -140,6 +146,12 @@ Backlog (no fixed order — pull in when convenient)
 | **19** | **Duo detection & default-to-claude tabs** (was Stage 18; env signals + passive priming + split-button TabBar + `duo new-tab` CLI) | 🟡 **19a + 19c shipped + merged to main 2026-04-26.** 19a (env signals: `DUO_SESSION`, `DUO_SOCKET`, `DUO_VERSION`, `TERM_PROGRAM=Duo`) in commit `640ec0e`. 19c (split-`+` button on terminal strip — `+` opens claude, `>` opens shell; ⌘T from terminal focus opens claude; ⌘⇧T always vanilla shell; `TabSession.kind` + `claude · <basename>` title; install banner when claude missing; `duo new-tab [--shell|--claude] [--cwd] [--cmd]` CLI verb) shipped on worktree branch `worktree-stage-19c-default-claude-tabs` (commits `79a1753`/`a5054a0`/`efc6462`) and merged to main 2026-04-26 (merge commit `cbadc5f`). Merge resolved 6 conflict files by composing both 17b's canvas additions and 19c's new-tab additions in `shared/types.ts`, `main.ts`, `socket-server.ts`, `cli/duo.ts`, `cli/duo` (binary), `App.tsx`. Typecheck clean post-merge; CLI rebuilt; skill synced. UI walk on the merged build owed. 19b (passive priming: SessionStart hook + PATH shim) next; folds into Stage 18 consent. | **L3** |
 | **20** | **Interaction polish + `duo doctor` + TCP fallback + pane-aware shortcuts** (was Stage 13; cross-refs issues #12, #22, #23) | ⬜ unblocked by 19's `DUO_SESSION` for `duo doctor` | **L3 parallel** |
 | **21** | **Distribution polish** (was 14b; code sign + notarize + auto-update + session restore + browser history; cross-refs issues #24, #27) | 🟢 **Cert pre-work complete 2026-04-25/26** (see § Owner pre-work above). Stage 21 is unblocked from a credential standpoint; remaining work is mechanical electron-builder wiring + sign + notarize validation. | **L4** |
+| **22** | **Navigator dual-pane overhaul (context pedagogy)** | ⬜ Filed 2026-04-26 night (intent conversation). Reorgs the file navigator into two panes — top "Your Claude settings" (curated `~/.claude/CLAUDE.md` + `skills/` + `agents/`; toggle to show all), bottom "This project" (CWD-pinned, with project Claude context grouped at top). Drops the three-column-deeper view (Stage 10 D11) for inline collapsing folders. Primary intent: teach non-technical PMs that the agent reads from BOTH user-level and project-level context buckets. Plain-English labels (avoid literal `~/.claude/`). File ops symmetry across both panes (rename/delete/reveal-in-Finder) comes from the existing Navigator polish backlog bundle, not Stage 22 itself. Card: [`docs/roadmap.html#s22`](docs/roadmap.html). | **L2** |
+| **23** | **Canvas actions — Claude ↔ HTML loop** | ⬜ Filed 2026-04-26 night (intent conversation). Convention-based `data-duo-action` attribute on canvas HTML buttons. v1 vocabulary: `claude:spawn` (new tab pre-typed), `terminal:send` (writes to active PTY, optional `\n`), `browser:open` (URL via `duo open`/`duo external`). Trust model: path-restricted to `~/.claude/duo/` + user-marked-trusted folders. Bidirectional Claude ↔ HTML (quiz, lesson, dashboard) via Layer 1 + new `duo send --enter` flag. Demo + worked examples in skill bundle + Cap One AIP distro live demo (Stage 18b). **Ships ahead of Stage 21**, alongside Stage 18 + 24 (FTUX-coordinated trio). Card: [`docs/roadmap.html#s23`](docs/roadmap.html). | **L2** |
+| **24** | **Pin WorkingPane tabs** | ⬜ Filed 2026-04-26 night (intent conversation; reframed from "quick-docs menu"). Right-click → Pin/Unpin; pinned tabs render with pin icon, leftmost; ⌘W on a pinned tab triggers a confirm modal. Storage: `~/.claude/duo/pins.json` per user (survives reinstalls/updates). Distro-supplied default pins via Stage 18b's `PACK.json § pins` array (merged on first install only; respects user removal). Pinned tabs are highest-priority entries in Stage 21c session restore. Pin scope: WorkingPane only (any tab type — canvas, editor, browser, preview). Terminal pinning deferred. Card: [`docs/roadmap.html#s24`](docs/roadmap.html). | **L3 (FTUX trio)** |
+| **25** | **Post-redirect chrome banner** | ⬜ Filed 2026-04-26 night (intent conversation). After `shell.openExternal` fires from `duo external`, Duo flashes a small auto-dismissing banner above the WorkingPane: "Sent `<host>` to your default browser. ⌘Tab to find it." Optional per-domain `reason` text appended from `external-domains.json`. Schema gets backward-compatible extension: string entries still work; object entries `{host, reason?}` opt-in to per-domain messaging. Distro support (Stage 18b cross-ref). Contact-link mechanism (mailto, slack) deferred. Small ship (~80 LOC). Card: [`docs/roadmap.html#s25`](docs/roadmap.html). | **L4** |
+
+> **Note on sub-stages added 2026-04-26 night.** Stage 18 grows **18b** (distro skill packs — convention folder `extra-skills/` + `PACK.json` manifest + per-conflict consent UI + provenance manifest at `~/.claude/duo/installed-packs.json`). Stage 19 grows **19d** (mid-tab launch-claude banner — renders above shell xterms; `pty.write(activeTabId, 'claude\n')` on click; per-tab dismiss + global settings toggle). Both detailed in their respective stage cards.
 
 **Backlog** (no fixed order — Stage numbers don't apply; pull in when convenient or tied to a specific feature):
 

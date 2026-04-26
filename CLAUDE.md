@@ -35,9 +35,11 @@ Owner: Geoff (Capital One, AI in Product program).
   this if you need to know what happened in prior sessions; do NOT
   re-paste it into CLAUDE.md.
 - **`docs/dev/intent-pause.md`** *(optional, present only when an
-  intent conversation is pending)* — open intent threads the user
-  paused dev to talk through. Read before responding to the next
-  turn if it exists.
+  intent conversation is pending — currently absent; the most
+  recent intent pause resolved 2026-04-26 night and was rolled
+  into roadmap stages 22–25 + 18b + 19d)* — open intent threads
+  the user paused dev to talk through. Read before responding to
+  the next turn if it exists.
 - **`docs/design/atelier/`** — visual source-of-truth. Read its
   README before any UI-touching work.
 - **`docs/VISION.md`** — product north star.

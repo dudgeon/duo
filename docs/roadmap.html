@@ -150,7 +150,7 @@
     </details>
 
     <details class="recent" open>
-      <summary>Recent shipments — 2026-04-26 (Stage 17d-A ✅ comment rail primitive + canvas binding + new-comment flow + duo html comment / comments verbs · Stage 17c ✅ canvas just-added wash + duo selection canvas + persistent blurred selection + Send → Duo pill on canvas + warn-before-overwrite banner · Stage 19c ✅ split-button + duo new-tab merged to main · Stage 17b ✅ ID injection + sidecar + agent CLI ops + pretty-printer · 17a polish/parity 1-7 ✅ · 17a ✅ canvas primitive · 17a.5 D ✅ overlay · Stage 21 cert pre-work ✅ · Stage 15.2/15.1/5v2/13 ✅)</summary>
+      <summary>Recent shipments — 2026-04-26 (intent conversation 2026-04-26 night → roadmap depth pass: Stage 22 navigator dual-pane / Stage 23 canvas actions / Stage 24 pin tabs / Stage 25 post-redirect banner / 18b distro skill packs / 19d mid-tab launch-claude banner all filed · Stage 17d-A ✅ comment rail primitive + canvas binding + new-comment flow + duo html comment / comments verbs · Stage 17c ✅ canvas just-added wash + duo selection canvas + persistent blurred selection + Send → Duo pill on canvas + warn-before-overwrite banner · Stage 19c ✅ split-button + duo new-tab merged to main · Stage 17b ✅ ID injection + sidecar + agent CLI ops + pretty-printer · 17a polish/parity 1-7 ✅ · 17a ✅ canvas primitive · 17a.5 D ✅ overlay · Stage 21 cert pre-work ✅ · Stage 15.2/15.1/5v2/13 ✅)</summary>
       <ul>
         <li><strong>Stage 19c — default-to-claude tabs + split-button + <code>duo new-tab</code> ✅ shipped + merged 2026-04-26.</strong> Worktree-side commits <code>79a1753</code> / <code>a5054a0</code> / <code>efc6462</code> built the user-facing half: split <code>+</code> button on the terminal tab strip (<code>+</code> = new claude tab, <code>&gt;</code> = vanilla shell); <code>TabSession.kind</code> field; <code>⌘T</code> from terminal focus opens claude (was browser); <code>⌘⇧T</code> always vanilla shell (D19); <code>claude · &lt;basename&gt;</code> title format; install-banner fallback when claude isn't on PATH (D23, sync <code>which claude</code> per spawn so PATH changes mid-session take effect on next tab); persisted last-kind in localStorage (D28); <code>duo new-tab [--shell|--claude] [--cwd] [--cmd]</code> CLI verb routed via <code>NEW_TAB_REQUEST/RESULT</code> (mirrors docWrite). <strong>Merge into main (commit <code>cbadc5f</code>)</strong> resolved 6 conflict files — all "BOTH branches added to the same union/list" patterns (canvas + new-tab share no semantic overlap, just touched the same plumbing). Composed both stages' additions in <code>shared/types.ts</code> (DuoCommandName + Tab types), <code>main.ts</code> (NavBridge + dispatch fns), <code>socket-server.ts</code> (NavBridge interface), <code>cli/duo.ts</code> (subcommand cases + help), <code>cli/duo</code> (binary rebuilt), <code>App.tsx</code> (imports). Typecheck clean post-merge; CLI binary rebuilt; skill synced (19c had intentionally deferred sync until merge to avoid skill/app desync). UI walk on the merged build owed.</li>
         <li><strong>Stage 21 cert pre-work ✅ complete 2026-04-25/26.</strong> All five required artifacts in place: Apple Developer Program (individual, <code>dudgeon@gmail.com</code>) · bundle ID <code>com.geoffdudgeon.duo</code> · Developer ID Application certificate paired with private key in macOS login keychain (<code>security find-identity</code> returns one valid identity: <code>Developer ID Application: Geoffrey Dudgeon (R39EF29X3Y)</code>) · App Store Connect API key <code>AuthKey_T8VVN9GF4M.p8</code> at <code>~/Documents/duo-private/</code> with perms 600 · Team ID <code>R39EF29X3Y</code>. Handoff packet (<code>CSC_NAME</code>, <code>APPLE_API_KEY</code>, <code>APPLE_API_KEY_ID</code>, <code>APPLE_API_ISSUER</code>, <code>APPLE_TEAM_ID</code>) in <code>~/Documents/duo-private/.env</code>. <strong>Stage 21 is unblocked from a credential standpoint</strong> — remaining work is mechanical: uncomment <code>mac.identity</code> + <code>mac.notarize</code> in <code>electron-builder.yml</code>, flip <code>dmg.sign: false</code> → <code>true</code>, run <code>npm run dist</code>, validate with <code>spctl -a -t open --context context:primary-signature</code> + <code>stapler validate</code>. Three optional follow-ups still open in <code>docs/dev/cert-procurement.md</code> (cleanup of <code>.cer</code> + <code>.certSigningRequest</code>; <code>.p12</code> 1Password export for disaster recovery; <code>.p8</code> 1Password backup confirmation) — none blocking.</li>
@@ -543,31 +543,110 @@
       <div class="comment"><label>Comment</label><textarea data-key="s17d-C" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
+    <article class="stage pending" id="s22" data-id="s22">
+      <h3><span class="num-badge">Stage 22</span> Navigator dual-pane overhaul (context pedagogy) <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · supersedes Stage 10 D11 three-column-deeper view · navigator becomes a teaching surface</div>
+      <p class="blurb"><strong>The intent.</strong> The navigator's PRIMARY job becomes <em>teaching non-technical PMs that the agent reads from two layers of context (user + project)</em>. Visual separation is the pedagogy. Today's three-column-deeper navigator hides what's mounted under <code>~/.claude/</code>; non-technical PMs lose track of which buckets the agent reads from. The dual-pane reorg surfaces both buckets explicitly.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>
+      <ol class="subitems" style="list-style: decimal inside; padding-left: 8px;">
+        <li><span class="label"><strong>Top pane — "Your Claude settings"</strong> (plain-English label; avoid the literal <code>~/.claude/</code> path). Default view: curated three (<code>CLAUDE.md</code>, <code>skills/</code>, <code>agents/</code>). Toggle to "show all of <code>~/.claude/</code>" for power users who want mcp/, hooks/, plans/, projects/, bin/, etc. Collapsible header so the pane can be hidden when not in use. Same click-to-open interaction as the lower pane: clicks open files in the WorkingPane (editor for <code>.md</code>, canvas for <code>.html</code>, etc.).</span></li>
+        <li><span class="label"><strong>Bottom pane — "This project"</strong>. Pinned to the current CWD; doesn't follow agent-driven moves away from the project root. Pinning IS pedagogy: "this is YOUR project, separate from your settings." Top-of-pane group surfaces project Claude context (<code>./CLAUDE.md</code>, <code>./.claude/</code>, <code>./tasks.md</code>) when present — same visual treatment as the top pane's curated-three. Below that group: the normal project-file tree.</span></li>
+        <li><span class="label"><strong>Drop the three-column-deeper view (Stage 10 D11).</strong> Both panes use inline collapsing folders. Removes the breadcrumb-sliding pattern that confused non-technical users; collapsing folders matches familiar Finder / VS Code behavior.</span></li>
+        <li><span class="label"><strong>File-ops symmetry.</strong> Eventually rename / delete / reveal-in-Finder context menu, shared across both panes. <em>Not in Stage 22 scope</em> — comes from the existing <a href="#backlog-nav-polish">Navigator polish &amp; ergonomics pass</a> backlog bundle. Stage 22 is the visual reorg; the polish bundle is the interaction layer.</span></li>
+      </ol>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Cross-stage interactions.</strong></p>
+      <ul class="subitems">
+        <li><span class="label"><strong>Stage 18b (distro packs):</strong> top-pane shows the curated three but ALSO flags distro-installed skills with a "Provided by AIP" subtle badge (read from <code>~/.claude/duo/installed-packs.json</code>).</span></li>
+        <li><span class="label"><strong>Stage 24 (pin tabs):</strong> pinned tabs could optionally surface in the top-pane as a "Pinned" sub-list (deferred — polish iteration).</span></li>
+        <li><span class="label"><strong>Stage 10 (file navigator):</strong> remains the foundational stage; D11 (three-column deeper) is superseded; "follow-mode" semantics get re-examined under pin-to-CWD.</span></li>
+      </ul>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Out of scope for Stage 22.</strong> Right-click context menu (file ops bundle); breadcrumb editor (the "Go to" path input from the polish bundle); search-in-tree (<code>⌘P</code> quick-open); per-folder pinning beyond the user-level / project-level split. All defer.</p>
+
+      <div class="comment"><label>Comment</label><textarea data-key="s22" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s23" data-id="s23">
+      <h3><span class="num-badge">Stage 23</span> Canvas actions — Claude ↔ HTML loop <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · ships ahead of Stage 21 · enables the FTUX-coordinated trio (23 + 24 + 18) · convention-based, no page scripts needed</div>
+      <p class="blurb"><strong>The intent.</strong> Users author HTML documents that play roles like training aids and personal dashboards (e.g. a "Check my Slack for anything urgent" button on a personal home page). With one click on a button, the canvas fires an event that triggers a Claude Code action — opening a new claude tab pre-typed with a prompt, sending text to an active claude session, or opening a URL. The richer end of the spectrum: Claude administering a quiz in the canvas, user clicking multiple-choice buttons, Claude reading the response and resuming the lesson. <strong>Bidirectional Claude ↔ HTML conversation.</strong></p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>The architecture insight: no Claude Code hooks needed.</strong> Two layers, both achievable today:</p>
+      <ol class="subitems" style="list-style: decimal inside; padding-left: 8px;">
+        <li><span class="label"><strong>Layer 1 — Convention-based one-way actions (no page scripts).</strong> The canvas iframe is sandboxed without <code>allow-scripts</code> (PRD H4/H8). But the canvas runtime (distinct from page scripts) already injects listeners — same pattern as <code>commentAnchors.ts</code>. Convention: <code>&lt;button data-duo-action="claude:run" data-duo-prompt="check slack for anything urgent"&gt;Check my Slack&lt;/button&gt;</code>. Canvas runtime delegates clicks on <code>[data-duo-action]</code> to a dispatcher keyed on the action name. <strong>No page scripts. No Stage 17e dependency.</strong></span></li>
+        <li><span class="label"><strong>Layer 2 — Bidirectional via <code>duo send --enter</code>.</strong> Today <code>duo send</code> writes to active terminal's PTY without Enter (G11). New <code>--enter</code> flag (~10 LOC) appends <code>\n</code>. With it, button clicks pipe responses directly into claude's stdin as user prompts → claude reads → renders next content via <code>duo html set / replace / append</code> (already shipped 17b). Full quiz / lesson / dashboard loop.</span></li>
+      </ol>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>
+      <ol class="subitems" style="list-style: decimal inside; padding-left: 8px;">
+        <li><span class="label"><strong>23a — Convention runtime + 3 actions (~200 LOC).</strong> Canvas-runtime delegated listener; trust check; dispatcher to three handlers:
+          <ul style="margin-top: 4px; padding-left: 20px;">
+            <li><code>claude:spawn</code> — opens a new claude tab with <code>data-duo-prompt</code> pre-typed (reuses Stage 19c <code>dispatchNewTab({ kind: 'claude', cmd })</code>).</li>
+            <li><code>terminal:send</code> — writes <code>data-duo-text</code> to the active terminal's PTY. Optional <code>data-duo-enter="true"</code> appends <code>\n</code> (the <code>duo send --enter</code> semantics from 23b).</li>
+            <li><code>browser:open</code> — routes <code>data-duo-url</code> through Stage 8's <code>duo open</code> (in-app browser pane) or Stage 5 v2's <code>duo external</code> (system browser, per <code>external-domains.json</code>).</li>
+          </ul>
+        </span></li>
+        <li><span class="label"><strong>23b — <code>duo send --enter</code> flag (~10 LOC).</strong> CLI parser change + <code>pty.write</code> appends <code>\n</code>. Plumbing checklist (CLAUDE.md §4) for the new flag.</span></li>
+        <li><span class="label"><strong>23c — Worked examples + demo (load-bearing for adoption).</strong> The convention is unfamiliar enough that documentation alone isn't enough — users need to see it work. Two-part shipment: (a) bundled reference HTML in <code>skill/examples/canvas-actions/</code> (quiz template, lesson-with-next-button, personal dashboard, "check my slack" button); (b) live demo page in the Cap One AIP distro (Stage 18b) at <code>extra-skills/quick-docs/welcome.html</code>, auto-trusted per the path-restricted trust model and accessible via Stage 24's pin mechanism. AIP first-launch experience includes a working "click here to start the onboarding agent" button. Tutorial doc lives in <code>docs/prd/stage-23-canvas-actions.md</code>.</span></li>
+      </ol>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Trust model: path-restricted.</strong> Files under <code>~/.claude/duo/</code> (Stage 18b distro destination + future quick-docs home) auto-trust. Other folders: buttons render with a ringed warning state; clicking shows a one-time "Trust this folder?" prompt with [Allow once] [Always allow this folder] [Never]. Cap One distro pages just work; arbitrary <code>.html</code> from somewhere else doesn't fire silently.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Cross-stage interactions.</strong></p>
+      <ul class="subitems">
+        <li><span class="label"><strong>Stage 17b (✅ shipped):</strong> <code>duo html *</code> ops are the "Claude writes back" half of the loop.</span></li>
+        <li><span class="label"><strong>Stage 19c (✅ shipped):</strong> <code>dispatchNewTab</code> is the <code>claude:spawn</code> backend.</span></li>
+        <li><span class="label"><strong>Stage 24 (pin tabs) + Stage 18 (installer):</strong> the FTUX welcome canvas is pinned + ships via the installer + uses Stage 23's actions. Coordinated trio.</span></li>
+      </ul>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Future expansions (deferred, not blocking v1).</strong> Bigger action vocabulary (<code>duo edit</code>, <code>duo reveal</code>, <code>duo selection-format</code>); form submission convention (<code>&lt;form data-duo-action="..."&gt;</code> for multi-field input); page-script opt-in via Stage 17e for richer in-page logic (state, animations) — orthogonal to actions, but the action convention works either way.</p>
+
+      <div class="comment"><label>Comment</label><textarea data-key="s23" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
     <h2 class="phase-heading" id="phase-l3">Layer 3 — Distribution-readiness (parallel track)</h2>
     <p class="phase-tagline">Independent of L0–L2. Stage 19a already shipped. 19b folds into Stage 18's consent sheet.</p>
 
     <article class="stage pending" id="s18" data-id="s18">
-      <h3><span class="num-badge">Stage 18</span> First-launch self-install <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ Was 14a · no cert needed · <code>npm run dist</code> validated 2026-04-26 (commit <code>20b4701</code>)</div>
-      <p class="blurb">Double-click → app prompts → copies <code>skill/</code> + <code>agents/</code> into <code>~/.claude/</code> and symlinks <code>cli/duo</code> to <code>~/.claude/bin/duo</code>. Build artifact verified launchable; bundled resources present at expected paths.</p>
+      <h3><span class="num-badge">Stage 18</span> First-launch self-install + distro skill packs <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Was 14a · no cert needed · <code>npm run dist</code> validated 2026-04-26 (commit <code>20b4701</code>) · 18b skill-pack support added 2026-04-26 night (intent conversation)</div>
+      <p class="blurb">Double-click → app prompts → copies <code>skill/</code> + <code>agents/</code> into <code>~/.claude/</code> and symlinks <code>cli/duo</code> to <code>~/.claude/bin/duo</code>. Build artifact verified launchable; bundled resources present at expected paths. <strong>18b extends the installer to support distro-supplied skill packs</strong> (e.g. Cap One AIP starter pack) bundled at build time via a convention folder.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>18a — Vanilla first-launch installer.</strong></p>
       <ul class="subitems">
         <li class="done"><span class="glyph done"></span><span class="label">Validate <code>npm run dist</code> end-to-end (Team C; one gap fixed inline: <code>agents/</code> added to <code>extraResources</code>)</span></li>
-        <li><span class="glyph pending"></span><span class="label">First-launch detection + consent sheet (absorbs Stage 19b's hook + shim install when both ship)</span></li>
+        <li><span class="glyph pending"></span><span class="label">First-launch detection + consent sheet (absorbs Stage 19b's hook + shim install when both ship; absorbs 18b's per-conflict UI when 18b ships)</span></li>
         <li><span class="glyph pending"></span><span class="label">Install action (<code>fs.copyFile</code> from app bundle to <code>~/.claude/</code>)</span></li>
         <li><span class="glyph pending"></span><span class="label">Sandbox-safe <code>duo install</code> path (<code>~/.claude/bin/duo</code>)</span></li>
         <li><span class="glyph pending"></span><span class="label">Re-install / update flow (version tracker)</span></li>
         <li><span class="glyph pending"></span><span class="label">Bundled <code>.claude/settings.json</code> allowlist fragment</span></li>
       </ul>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>18b — Distro skill-pack support.</strong> A simple build-time bake-in for organizations that want to distribute a Duo build with extra skills + agents pre-loaded into the user's <code>~/.claude/</code>. The motivating use case: Cap One PMs onboard to claude code via a starter pack of skills that configure connectors to internal environments — they shouldn't have to install those skills manually after launching Duo.</p>
+      <ul class="subitems">
+        <li><span class="glyph pending"></span><span class="label"><strong>Convention folder</strong> — <code>extra-skills/</code> in repo root, gitignored. Build picks it up if present; vanilla Duo source has no folder there → standard <code>.dmg</code> ships unchanged. Cap One workflow: clone duo → drop their <code>extra-skills/</code> folder in → <code>npm run dist</code> → bundled <code>.dmg</code> includes the pack.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Pack manifest</strong> — required <code>extra-skills/PACK.json</code> declaring pack name (<code>"aip-pm-starter"</code>), version, optional display name (<code>"AIP — Capital One"</code>), and explicit file list. Build-time validation: missing manifest = build fails with clear error; files in folder not declared in manifest = warning.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Pack scope (v1)</strong> — skills (<code>extra-skills/skills/&lt;name&gt;/</code> → <code>~/.claude/skills/&lt;name&gt;/</code>) + agents (<code>extra-skills/agents/&lt;name&gt;.md</code> → <code>~/.claude/agents/&lt;name&gt;.md</code>). Optional <code>extra-skills/quick-docs/</code> for files like the AIP welcome page (Stage 23 demo destination — copies to <code>~/.claude/duo/quick-docs/</code>). NOT v1: CLAUDE.md fragments, external-domains.json entries (defer).</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Conflict policy: ask per-conflict on first install.</strong> Installer compares pack file list against existing <code>~/.claude/skills/</code> + <code>~/.claude/agents/</code>. If any collide, the consent sheet lists them with radio choices: [Skip all collisions] [Overwrite all] [Decide each]. Per-collision UI for the third option. Pre-existing user content is never silently clobbered.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Provenance manifest at <code>~/.claude/duo/installed-packs.json</code></strong> — installer writes <code>{packs: [{name, version, files: [...]}]}</code>. Enables future tooling: <code>duo packs list</code> CLI verb, "Provided by AIP" badge in Stage 22's dual-pane navigator, refresh-on-update logic when Stage 21c lands. v1 has no UI — just the data plane.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Update lifecycle (deferred to v2)</strong> — when Duo auto-updates (Stage 21c), do bundled skills refresh? Skip on first ship; tackle when 21c lands and there's a real update path.</span></li>
+      </ul>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Cross-stage interactions.</strong> 18b's <code>extra-skills/quick-docs/</code> + <code>PACK.json</code>'s optional <code>pins</code> array → ships with Stage 24 (pinned tabs on first launch). 18b's pack files become Stage 22 nav-pane "Provided by …" entries. 18b's optional pre-populated <code>external-domains.json</code> entries (deferred) become Stage 25 banner reasons.</p>
+
       <div class="comment"><label>Comment</label><textarea data-key="s18" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
     <article class="stage inprog" id="s19" data-id="s19">
       <h3><span class="num-badge">Stage 19</span> Duo detection &amp; default-to-claude tabs <span class="glyph inprog"></span></h3>
-      <div class="status-line">🟡 Was Stage 18 · 19a + 19c shipped + merged to main 2026-04-26 (commits <code>640ec0e</code>, <code>a5054a0</code>, <code>efc6462</code>; merge <code>cbadc5f</code>) · 19b next · UI walk owed for 19c</div>
+      <div class="status-line">🟡 Was Stage 18 · 19a + 19c shipped + merged to main 2026-04-26 (commits <code>640ec0e</code>, <code>a5054a0</code>, <code>efc6462</code>; merge <code>cbadc5f</code>) · 19b next · 19d added 2026-04-26 night (intent conversation) · UI walk owed for 19c</div>
       <ul class="subitems">
         <li class="done"><span class="glyph shipped"></span><span class="label"><strong>19a</strong> — env signals: <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code> (commit <code>640ec0e</code>; commit msg uses pre-renumber "18a" label)</span></li>
         <li><span class="glyph pending"></span><span class="label"><strong>19b</strong> — passive priming: SessionStart hook + PATH shim + <code>priming.md</code> (folds into Stage 18 installer when both land)</span></li>
         <li class="done"><span class="glyph shipped"></span><span class="label"><strong>19c</strong> ✅ <em>code-side shipped 2026-04-26 in worktree, merged to main same day</em> — split + button (<code>+</code> = claude, <code>&gt;</code> = shell), <code>⌘T</code> from terminal focus opens claude, <code>⌘⇧T</code> always vanilla shell, <code>TabSession.kind</code> + <code>claude · &lt;basename&gt;</code> title, install banner when claude missing (D23), <code>duo new-tab [--shell|--claude] [--cwd] [--cmd]</code>. Merge resolved 6 conflict files (composing both stages' additions to <code>shared/types.ts</code>, <code>main.ts</code>, <code>socket-server.ts</code>, <code>cli/duo.ts</code>, <code>cli/duo</code>, <code>App.tsx</code>) — typecheck clean post-merge; CLI binary rebuilt; skill synced. <strong>UI walk owed</strong> on a fresh Electron restart of the merged build. Atelier polish pass deferred to Stage 12 per PRD § 6.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>19d</strong> — Mid-tab launch-claude banner (~150 LOC). Renders above the xterm in shell tabs only (detected via <code>TabSession.kind === 'shell'</code>). Copy: "Looking for Claude? Click here to start an AI session in this tab" (plain English per Stage 22's labeling convention). Click handler: <code>pty.write(activeTabId, 'claude\n')</code> — reuses the existing PTY + its <code>DUO_SESSION</code> env. Per-tab dismiss button (✕) sticky for that tab only; settings toggle "Show 'Launch Claude' hint on shell tabs" gives power users a global mute (default on). New <code>&lt;LaunchClaudeBanner&gt;</code> primitive (same shape as <code>&lt;WriteWarningBanner&gt;</code>); renderer-only; no new CLI verb. Closes the gap that 19c left for non-technical PMs sitting in shell tabs (last-kind persistence, <code>⌘⇧T</code> chosen, Stage 21c-restored shell). Pedagogy theme — same as Stage 22.</span></li>
       </ul>
       <div class="comment"><label>Comment</label><textarea data-key="s19" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
@@ -586,6 +665,50 @@
         <li><span class="glyph pending"></span><span class="label"><code>⌘+/-</code> pane-aware: browser focus → <code>setZoomLevel</code> · <em>issue #23</em></span></li>
       </ul>
       <div class="comment"><label>Comment</label><textarea data-key="s20" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s24" data-id="s24">
+      <h3><span class="num-badge">Stage 24</span> Pin WorkingPane tabs <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · reframed from "quick-docs menu" — pin-tabs is the simpler implementation · ships in the FTUX-coordinated trio (23 + 24 + 18)</div>
+      <p class="blurb"><strong>The intent.</strong> Make certain WorkingPane tabs persistent and harder to close. Use cases: a pinned FTUX guidance HTML file that ships with Duo (powerful when combined with Stage 23 actions); a personal task list the user keeps pinned; team-wiki browser tab pinned for quick access. The original "menu" framing of this idea is reframed: instead of a separate top-bar menu listing quick-docs, just pin the tabs the user wants always-available — same outcome, simpler implementation.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>
+      <ol class="subitems" style="list-style: decimal inside; padding-left: 8px;">
+        <li><span class="label"><strong>Pin scope: WorkingPane tab strip only, any tab type.</strong> Browser tabs, canvas (<code>html-canvas</code>), markdown editor (<code>editor</code>), preview tabs (image, pdf, markdown-preview) — all pinnable. Terminal tabs (middle column, separate strip) are NOT pinnable in v1.</span></li>
+        <li><span class="label"><strong>Pin UX:</strong>
+          <ul style="margin-top: 4px; padding-left: 20px;">
+            <li>Right-click → "Pin tab" / "Unpin tab" context menu on the tab.</li>
+            <li>Pinned tabs render with a pin icon, leftmost in the tab strip (visual hierarchy).</li>
+            <li><code>⌘W</code> on a pinned tab triggers a small confirmation modal: "This tab is pinned. [Unpin and close] [Cancel]." Right-click → Unpin always works without confirmation.</li>
+          </ul>
+        </span></li>
+        <li><span class="label"><strong>Storage: <code>~/.claude/duo/pins.json</code></strong> — per-user, survives Duo reinstalls + updates. Schema:
+          <pre style="font-size: 11px; padding: 8px; margin-top: 4px; background: var(--paper-deep); border-radius: 4px;">{
+  "pins": [
+    { "type": "html-canvas", "path": "/Users/.../welcome.html",
+      "source": "distro:aip-pm-starter" },
+    { "type": "browser", "url": "https://wiki.capitalone.com",
+      "source": "user" },
+    { "type": "editor", "path": "/Users/.../tasks.md",
+      "source": "user" }
+  ]
+}</pre>
+        </span></li>
+        <li><span class="label"><strong>Distro-supplied default pins</strong> — Stage 18b distro pack format grows an optional <code>pins</code> array in <code>PACK.json</code>. Installer merges these into <code>~/.claude/duo/pins.json</code> on <strong>first install only</strong> (NOT on Duo update — respects user removal). Cap One distro can pre-pin the AIP welcome page so it appears on first launch.</span></li>
+        <li><span class="label"><strong>Restart persistence</strong> — pinned tabs are the highest-priority entries in Stage 21c session restore. Pinned ALWAYS restores; unpinned tabs restore best-effort.</span></li>
+      </ol>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Cross-stage interactions.</strong></p>
+      <ul class="subitems">
+        <li><span class="label"><strong>Stage 23 (canvas actions):</strong> the FTUX pinned welcome page uses <code>data-duo-action</code> buttons. Pin + canvas-actions = the full onboarding loop.</span></li>
+        <li><span class="label"><strong>Stage 18 + 18b:</strong> default pins ship with the installer / distro pack; first-launch experience includes pinned content out of the box.</span></li>
+        <li><span class="label"><strong>Stage 21c:</strong> pinned tabs anchor the session-restore behavior.</span></li>
+        <li><span class="label"><strong>Stage 22 (navigator dual-pane):</strong> pinned tabs could optionally surface in the top-pane as a "Pinned" sub-list. Defer to a polish iteration.</span></li>
+      </ul>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Future (deferred, NOT v1).</strong> Top-bar menu (Help → Quick Docs) for occasionally-referenced content the user doesn't want as a permanent tab. Pinned terminal tabs (persistent shell sessions across restart) — different restore semantics; defer until felt.</p>
+
+      <div class="comment"><label>Comment</label><textarea data-key="s24" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
     <h2 class="phase-heading" id="phase-l4">Layer 4 — Distribution finalization</h2>
@@ -631,6 +754,38 @@
       <p class="blurb" style="margin-top: 12px;"><strong>Optional cert-pre-work follow-ups</strong> still ☐ in <code>docs/dev/cert-procurement.md</code> (none blocking 21a): cleanup of <code>.cer</code> + <code>.certSigningRequest</code> files; <code>.p12</code> export to 1Password (disaster recovery if this Mac dies); <code>.p8</code> 1Password backup confirmation.</p>
 
       <div class="comment"><label>Comment</label><textarea data-key="s21" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s25" data-id="s25">
+      <h3><span class="num-badge">Stage 25</span> Post-redirect chrome banner <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · small ship (~80 LOC) · independent of most stages · combines well with Stage 18b distro per-domain reasons</div>
+      <p class="blurb"><strong>The intent.</strong> Today, <code>duo external &lt;url&gt;</code> (Stage 5 v2) routes hostnames in <code>~/.claude/duo/external-domains.json</code> to the system default browser via <code>shell.openExternal</code>. A non-technical PM clicks a link in Duo, suddenly lands in Safari, doesn't know why or how to get back. The chrome is for context + user empathy.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>
+      <ol class="subitems" style="list-style: decimal inside; padding-left: 8px;">
+        <li><span class="label"><strong>Surface: post-redirect banner only.</strong> No pre-prompt modal (would add friction; non-technical PMs don't read pre-confirmation dialogs anyway). After <code>shell.openExternal</code> fires, Duo flashes a small banner above the WorkingPane.</span></li>
+        <li><span class="label"><strong>Banner content:</strong> default copy "Sent <code>&lt;host&gt;</code> to your default browser. <code>⌘Tab</code> to find it." Optional per-domain <code>reason</code> text appended from <code>external-domains.json</code> ("This wiki uses internal SSO that Duo's embedded browser can't currently handle.").</span></li>
+        <li><span class="label"><strong>Auto-dismiss after ~5 seconds.</strong> User can ✕ dismiss earlier. No blocking interaction.</span></li>
+        <li><span class="label"><strong>Schema for <code>external-domains.json</code> — backward-compatible extension.</strong>
+          <pre style="font-size: 11px; padding: 8px; margin-top: 4px; background: var(--paper-deep); border-radius: 4px;">{
+  "domains": [
+    "claude.ai",
+    "chatgpt.com",
+    {
+      "host": "wiki.capitalone.com",
+      "reason": "Internal SSO not supported in Duo's embedded browser."
+    }
+  ]
+}</pre>
+          String entries (current format) keep working; object entries opt-in to per-domain <code>reason</code> text. Contact-link mechanism (<code>mailto:</code>, slack channel, etc.) deferred — v1 just shows the reason as banner text; future iteration can add a clickable contact action when felt.</span></li>
+        <li><span class="label"><strong>Distro support (Stage 18b cross-ref):</strong> Stage 18b's <code>extra-skills/PACK.json</code> can ship domain entries that get merged into the user's <code>external-domains.json</code> — Cap One distro pre-populates entries for internal hosts with friendly reason text.</span></li>
+      </ol>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Implementation notes.</strong> New banner primitive (similar to <code>&lt;WriteWarningBanner&gt;</code> but auto-dismissing); schema migration in <code>external-domains.json</code> reader; hook into the <code>shell.openExternal</code> call site in <code>electron/main.ts</code> (currently in <code>openExternalUrl</code>).</p>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Cross-stage interactions.</strong> Stage 5 v2 (already shipped — <code>duo external</code> fires <code>shell.openExternal</code>; the new chrome layer wraps that). Stage 18b (distros pre-populate per-domain reasons). Stage 22 (navigator) — neither blocks the other; complementary pedagogy.</p>
+
+      <div class="comment"><label>Comment</label><textarea data-key="s25" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
     <h2 class="phase-heading" id="phase-backlog">Backlog (no fixed order)</h2>
@@ -712,10 +867,10 @@
       <div class="stats">
         <div class="stat"><div class="num">10</div><div class="label">Done</div></div>
         <div class="stat"><div class="num">4</div><div class="label">In progress</div></div>
-        <div class="stat"><div class="num">11</div><div class="label">Pending</div></div>
+        <div class="stat"><div class="num">15</div><div class="label">Pending</div></div>
         <div class="stat"><div class="num">15</div><div class="label">Open issues</div></div>
       </div>
-      <p style="font-size: 11px; color: var(--ink-mute); margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--paper-edge);"><strong style="color: var(--accent-ink);">→ Next: Stage 17d-B</strong> (lock convention) <em>or</em> <strong>17d-C</strong> (skill snippet bundle) <em>or</em> <strong>Stage 14</strong> (markdown editor's CommentRail binding via CriticMarkup — the primitive shipped in 17d-A is ready for it) <em>or</em> <strong>Stage 21</strong> (sign + notarize, mechanical now that cert pre-work is done). Also pull Stage 15.3 (Send → Duo polish) / 18 (installer) / 19b (priming) / 17a–17d polish-and-parity verification walks (V1–V27) / 19c UI walk / 17a.5 templates if a different bottleneck is felt.</p>
+      <p style="font-size: 11px; color: var(--ink-mute); margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--paper-edge);"><strong style="color: var(--accent-ink);">→ FTUX-coordinated trio is the highest-leverage next ship:</strong> <strong>Stage 23</strong> (canvas actions — Claude ↔ HTML loop) + <strong>Stage 24</strong> (pin tabs) + <strong>Stage 18 + 18b</strong> (installer + distro skill packs) ship as a tight set so first-launch users see a pinned, action-driven welcome page. Sequencing-flexible alternatives: <strong>Stage 14</strong> (MD CommentRail binding via CriticMarkup — the primitive is ready); <strong>Stage 22</strong> (navigator dual-pane — context pedagogy); <strong>17d-B/C</strong> (lock convention + skill snippet bundle); <strong>19d</strong> (mid-tab launch-claude banner); <strong>Stage 25</strong> (post-redirect banner); <strong>Stage 21</strong> (mechanical sign + notarize). 17a–17d polish-and-parity verification walks (V1–V27) / 19c UI walk owe whenever there's an app-running session.</p>
       <p style="font-size: 11px; color: var(--ink-mute); margin: 8px 0 0;"><strong style="color: var(--accent-ink);">0 bugs · 1 deferred process · 2 follow-ups</strong> in <code style="font-size: 10px;">tasks.md</code>. PROCESS-001 Phase 2 waits for Stage 18; FOLLOWUP-002 (agent guard hardening) + FOLLOWUP-003 (re-measure perf with cumulative-context methodology) low priority.</p>
       <p style="font-size: 11px; color: var(--ink-mute); margin: 8px 0 0;"><strong style="color: var(--accent-ink);">Editor-agnostic primitive contract locked</strong> — Stage 14/15/17 ship visuals into <code style="font-size: 10px;">primitives/</code>; bindings stay in <code style="font-size: 10px;">extensions/</code>.</p>
     </div>
@@ -747,9 +902,9 @@
         <li><a href="#phase-l0">Layer 0 — Visual <span class="badge">3 ✓</span></a></li>
         <li><a href="#phase-agent" class="next-link">→ Agent ergonomics (next)</a></li>
         <li><a href="#phase-l1">Layer 1 — Editor <span class="badge">1 ✓ · 3</span></a></li>
-        <li><a href="#phase-l2">Layer 2 — HTML canvas</a></li>
-        <li><a href="#phase-l3">Layer 3 — Distribution <span class="badge">3</span></a></li>
-        <li><a href="#phase-l4">Layer 4 — Distribution polish</a></li>
+        <li><a href="#phase-l2">Layer 2 — HTML canvas + Navigator</a></li>
+        <li><a href="#phase-l3">Layer 3 — Distribution-readiness <span class="badge">5</span></a></li>
+        <li><a href="#phase-l4">Layer 4 — Distribution polish <span class="badge">2</span></a></li>
         <li><a href="#phase-backlog">Backlog</a></li>
       </ul>
     </div>
