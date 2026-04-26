@@ -27,37 +27,35 @@
 
 ---
 
-## Owner pre-work (action items — start now to unblock Stage 21)
+## Owner pre-work (cert procurement) — ✅ complete 2026-04-25/26
 
-Stage 21 (distribution polish) is gated on Apple Developer ID cert
-procurement, which has multi-day lead times. Geoff can do this work
-in parallel with everything else; nothing in the codebase blocks it.
+All five required artifacts for Stage 21 (signed + notarized DMG
+distribution) are in place. Tracker: `docs/dev/cert-procurement.md`.
 
-- [ ] **Enroll in the Apple Developer Program** ($99/year individual
-      or $299/year organization). Identity verification typically
-      takes 1–2 business days; organization enrollment can take a
-      week. Start date matters more than completion date — kicking
-      this off today shaves real weeks off Stage 21.
-      → [developer.apple.com/programs](https://developer.apple.com/programs/)
-- [ ] **Register the bundle ID** in App Store Connect (e.g.
-      `com.geoffreydudgeon.duo` or org-prefixed). Required before
-      cert generation.
-- [ ] **Generate "Developer ID Application" certificate** in Keychain
-      Access via the Apple Developer portal. Signs the `.app`.
-- [ ] **Generate an App Store Connect API key** (preferred over
-      app-specific password) for `notarytool`. One key serves
-      notarization for all future builds.
-- [ ] **Capture the Team ID** (visible in the Developer portal) —
-      Stage 21 wires it into `electron-builder.yml`.
+- [x] **Apple Developer Program** — individual, `dudgeon@gmail.com` (2026-04-25)
+- [x] **Bundle ID** `com.geoffdudgeon.duo` registered (2026-04-25)
+- [x] **Developer ID Application certificate** — paired with private key in
+      macOS login keychain. Verified via `security find-identity -p
+      codesigning -v` returning one valid identity:
+      `Developer ID Application: Geoffrey Dudgeon (R39EF29X3Y)`.
+- [x] **App Store Connect API key** — `AuthKey_T8VVN9GF4M.p8` at
+      `~/Documents/duo-private/` with perms 600.
+- [x] **Team ID** — `R39EF29X3Y` (embedded in cert CN).
 
-When all five are done, hand the agent: cert name as it appears in
-Keychain (e.g. `Developer ID Application: Geoffrey Dudgeon (TEAMID)`),
-Team ID, API key file path + key ID + issuer ID. Stage 21 picks up
-from there.
+Handoff packet (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
+`APPLE_API_ISSUER`, `APPLE_TEAM_ID`) is in
+`~/Documents/duo-private/.env` (gitignored, perms 600).
 
-The existing dev cert (used for local `npm run dist` validation
-2026-04-26) is **expired** per Team C's audit — distribution-grade
-signing was always going to need a fresh cert chain anyway.
+**Stage 21 is unblocked from a credential standpoint.** Remaining
+work is mechanical: uncomment `mac.identity` + `mac.notarize` in
+`electron-builder.yml`, flip `dmg.sign: false` → `true`, run `npm run
+dist`, validate with `spctl -a -t open --context
+context:primary-signature` + `stapler validate`.
+
+Three optional follow-ups still open in the tracker (none blocking):
+cleanup of `.cer` + `.certSigningRequest` from `~/Documents/duo-private/`;
+`.p12` 1Password export for disaster recovery if this Mac dies; `.p8`
+1Password backup confirmation.
 
 ---
 
@@ -103,11 +101,13 @@ Layer 2 — New surfaces (built against Layer 1)
 
 Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
    18  First-launch self-install (no cert needed)
-   19  Duo detection: priming + default-claude tabs (folds into 18 consent)
+   19a Env signals (DUO_SESSION etc.)                                  ✓ shipped
+   19c Default-to-claude tabs + split-button + duo new-tab            ✓ shipped + merged
+   19b Passive priming (SessionStart hook + PATH shim)                 ← folds into 18
    20  Interaction polish: duo doctor + TCP fallback + pane-aware shortcuts
 
-Layer 4 — Distribution finalization (gated on cert + L3 stable)
-   21  Distribution polish (cert + notarize + auto-update + session restore)
+Layer 4 — Distribution finalization (cert pre-work ✓; L3 to stabilize)
+   21  Distribution polish — electron-builder wiring + sign + notarize ← cert ready
 
 Backlog (no fixed order — pull in when convenient)
    • 11a tail (frontmatter panel, drag-drop images, slash menu)
@@ -135,9 +135,9 @@ Backlog (no fixed order — pull in when convenient)
 | **16** | **Editor: external-write reconciliation** (chokidar + 3-pane diff + warn-before-close; was 11b; cross-refs issue #7) | ⬜ independent of 12 — can ship anytime | **L1 parallel** |
 | **17** | **HTML canvas** (was Stage 19; new WorkingPane tab type for `.html`) | 🟡 **17a + 17a polish + 17b + 17a.5 D shipped 2026-04-26.** **17a** (render + edit primitive): `html-canvas` tab type, iframe-srcdoc + contentEditable + MutationObserver autosave, own selection-aware mark applicator, `duo html new` + `duo edit/view <path.html>` routes; ⌘N H6.1 dissolved into extension-based dispatch. **17a polish & parity items 1-7**: markdown shortcuts on typing (direction F), `+` tab-strip → file interstitial, literal toolbar component reuse (`EditorActions` interface; both surfaces wire their own impls), canvas blockOps + tableOps + placeholder. **17a.5 design exploration**: five directions filed; F (markdown shortcuts) committed; D (smart-blank overlay) shipped (visual smoke owed). **17b** (Phases A–D): ULID injection + first-open prompt with per-directory choice persistence (PRD H12–H14), `<file>.duo.json` sidecar with `version: 1` + `recentEdits` capped at 50 (H22), all seven `duo html *` agent verbs end-to-end via single `html-op` socket cmd + new `IPC.CANVAS_HTML_OP[_RESULT]` channels (H37, H38), pretty-printed serializer with stable attr order + runtime-chrome strip (H34). 15-item verification punch list (V1–V15) filed in the polish & parity card for a future smoke session — V2 (MD toolbar regression) and V14 (full agent CLI sweep) are the highest-risk. Cards: [`docs/roadmap.html#s17`](docs/roadmap.html), [`#s17a-polish`](docs/roadmap.html), [`#s17a5-design`](docs/roadmap.html). PRD: [docs/prd/stage-17-html-canvas.md](docs/prd/stage-17-html-canvas.md). **Next: 17c** (just-added highlight + Send → Duo pill on canvas). | **L2** |
 | **18** | **First-launch self-install** (was 14a; double-click → app prompts → copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; **no cert needed**) | ⬜ `npm run dist` validated 2026-04-26 (commit `20b4701`) | **L3** |
-| **19** | **Duo detection & default-to-claude tabs** (was Stage 18; env signals + passive priming + split-button TabBar + `duo new-tab` CLI) | 🔄 Phase 19a (env signals) shipped 2026-04-26 in commit `640ec0e` (originally tagged "18a"); 19b folds into 18 consent; 19c needs 12 | **L3** |
+| **19** | **Duo detection & default-to-claude tabs** (was Stage 18; env signals + passive priming + split-button TabBar + `duo new-tab` CLI) | 🟡 **19a + 19c shipped + merged to main 2026-04-26.** 19a (env signals: `DUO_SESSION`, `DUO_SOCKET`, `DUO_VERSION`, `TERM_PROGRAM=Duo`) in commit `640ec0e`. 19c (split-`+` button on terminal strip — `+` opens claude, `>` opens shell; ⌘T from terminal focus opens claude; ⌘⇧T always vanilla shell; `TabSession.kind` + `claude · <basename>` title; install banner when claude missing; `duo new-tab [--shell|--claude] [--cwd] [--cmd]` CLI verb) shipped on worktree branch `worktree-stage-19c-default-claude-tabs` (commits `79a1753`/`a5054a0`/`efc6462`) and merged to main 2026-04-26 (merge commit `cbadc5f`). Merge resolved 6 conflict files by composing both 17b's canvas additions and 19c's new-tab additions in `shared/types.ts`, `main.ts`, `socket-server.ts`, `cli/duo.ts`, `cli/duo` (binary), `App.tsx`. Typecheck clean post-merge; CLI rebuilt; skill synced. UI walk on the merged build owed. 19b (passive priming: SessionStart hook + PATH shim) next; folds into Stage 18 consent. | **L3** |
 | **20** | **Interaction polish + `duo doctor` + TCP fallback + pane-aware shortcuts** (was Stage 13; cross-refs issues #12, #22, #23) | ⬜ unblocked by 19's `DUO_SESSION` for `duo doctor` | **L3 parallel** |
-| **21** | **Distribution polish** (was 14b; code sign + notarize + auto-update + session restore + browser history; cross-refs issues #24, #27) | ⬜ **gated on Apple Developer ID cert** — see § Owner pre-work above | **L4** |
+| **21** | **Distribution polish** (was 14b; code sign + notarize + auto-update + session restore + browser history; cross-refs issues #24, #27) | 🟢 **Cert pre-work complete 2026-04-25/26** (see § Owner pre-work above). Stage 21 is unblocked from a credential standpoint; remaining work is mechanical electron-builder wiring + sign + notarize validation. | **L4** |
 
 **Backlog** (no fixed order — Stage numbers don't apply; pull in when convenient or tied to a specific feature):
 

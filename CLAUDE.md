@@ -23,12 +23,16 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26) — Stage 17 deep stack: 17a (canvas
-primitive) + 17a polish & parity 1-7 (shared toolbar refactor +
-markdown shortcuts on typing) + 17a.5 D (smart-blank overlay) + 17b
-A-D (ID injection + sidecar + 7 agent CLI verbs + pretty-printer)
-all shipped + committed in 7 thematic commits. Earlier same day:
-Stages 5 v2 + 13 + 15.1 + 15.2 + owner-walk fixes + skill refactor.** New `html-canvas` tab type;
+**Latest session (2026-04-26) — Stage 17 deep stack + Stage 19c
+merge + Stage 21 cert pre-work all done. **17a + 17a polish (1-7) +
+17a.5 D + 17b A-D** shipped + committed (7 thematic commits). **19c
+merged in from worktree** (split-`+` button + `duo new-tab` + claude
+default), 6 conflict files resolved by composing both stages.
+**Stage 21 cert pre-work ✅ complete** — all five artifacts verified
+on disk + in keychain (`security find-identity` returns one valid
+identity; `.p8` at `~/Documents/duo-private/`; Team ID `R39EF29X3Y`,
+Key ID `T8VVN9GF4M`). Earlier same day: Stages 5 v2 + 13 + 15.1 +
+15.2 + owner-walk fixes + skill refactor.** New `html-canvas` tab type;
 `renderer/components/HtmlCanvas/{CanvasTab,RenderedCanvas,CanvasToolbar,inlineMarks,htmlBoilerplate}.tsx`;
 `shared/html-boilerplate.ts` shared between renderer + main; new
 `duo html new <path.html>` CLI verb (writes H17 boilerplate
@@ -144,44 +148,88 @@ move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
 
 ## ⚠️ Pick up here next session (2026-04-26 — pre-compaction breadcrumb)
 
-**Where we are.** Stage 17 has shipped a deep stack in one push
-across many turns:
-- **17a** (canvas primitive — render + edit) — commit `631d2b7`
-- **17a polish & parity items 1-7** (shared `EditorActions` toolbar
-  + markdown shortcuts on typing + canvas blockOps + tableOps +
+**Where we are.** Massive 2026-04-26 — Stage 17 deep stack landed +
+Stage 19c merged in from a parallel worktree + Stage 21 cert
+pre-work confirmed complete. Commit chain on `main`:
+
+- **17a** (canvas primitive) — `631d2b7`
+- **17a polish & parity 1-7** (shared `EditorActions` toolbar +
+  markdown shortcuts on typing + canvas blockOps + tableOps +
   placeholder foundation) — same commit
 - **17a.5 design exploration** (5 directions, F committed inline,
-  D shipped) — commits `257f9a2` (docs), `e10e6af` (D code+visual
-  smoke owed)
+  D shipped) — `257f9a2` (docs), `e10e6af` (D code; visual smoke owed)
 - **17b A-D** (ID injection + first-open prompt + sidecar + 7
-  agent CLI verbs end-to-end + pretty-printer with runtime-chrome
-  strip) — commits `717ea99` (A), `e73d4bd` (B), `9d41eed` (C),
-  `6f8ed0d` (D)
+  agent CLI verbs + pretty-printer with runtime-chrome strip) —
+  `717ea99` (A), `e73d4bd` (B), `9d41eed` (C), `6f8ed0d` (D)
+- **Doc consolidation** — `557d689` (V1-V15 verification list)
+- **Stage 19c merge** — pulled in from worktree
+  `worktree-stage-19c-default-claude-tabs` (branch commits
+  `79a1753`/`a5054a0`/`efc6462`) → merge commit `cbadc5f`. 6
+  conflict files resolved by composing both 17b's canvas additions
+  and 19c's new-tab additions in `shared/types.ts`, `main.ts`,
+  `socket-server.ts`, `cli/duo.ts`, `cli/duo`, `App.tsx`. UI walk
+  on the merged build owed.
+- **Cert tracker update** — `7413a54` flips Step 3 + Step 4 to ✅
+  in `docs/dev/cert-procurement.md`.
 
 Earlier same-day work (already committed): Stage 5 v2 + 13 + 15.1
 + 15.2 + owner-walk fixes + skill refactor.
 
-**Recommended next: Stage 17c.** All deps in place: 17a primitives,
-17b ID injection (so the agent overlay can target by `data-duo-id`),
-Stage 13 yellow-fade primitive (reuse). 17c scope per PRD: just-
-added highlight on agent edits, recentEdits log + repaint-at-open
-within freshness window, `duo selection` for canvas (extends Stage
-15 union with `kind: 'html-canvas'`), persistent blurred selection,
-Send → Duo pill on canvas surface, warn-before-overwrite banner.
-~3-4 PRDs of work.
+**Stage 21 cert pre-work complete.** All five required artifacts
+verified on disk + in macOS login keychain:
+- Apple Developer Program (individual, dudgeon@gmail.com)
+- Bundle ID `com.geoffdudgeon.duo`
+- Developer ID Application cert paired with private key —
+  `security find-identity -p codesigning -v` returns one valid
+  identity: `Developer ID Application: Geoffrey Dudgeon (R39EF29X3Y)`
+- App Store Connect API key `~/Documents/duo-private/AuthKey_T8VVN9GF4M.p8`
+  (perms 600)
+- Team ID `R39EF29X3Y` (visible in cert CN)
+
+Handoff packet (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
+`APPLE_API_ISSUER`, `APPLE_TEAM_ID`) is in
+`~/Documents/duo-private/.env` (gitignored, perms 600). Three
+optional follow-ups (.cer/.csr cleanup, .p12 1Password export,
+.p8 1Password backup confirmation) still ☐ in tracker but none
+blocking.
+
+**Recommended next.** Two strong candidates:
+
+1. **Stage 17c** (canvas just-added highlight + Send → Duo pill on
+   canvas + warn-before-overwrite banner). All deps in place: 17a
+   primitives, 17b ID injection (so the agent overlay can target by
+   `data-duo-id`), Stage 13 yellow-fade primitive (reuse). 17c scope
+   per PRD: just-added highlight on agent edits, recentEdits log +
+   repaint-at-open within freshness window, `duo selection` for
+   canvas (extends Stage 15 union with `kind: 'html-canvas'`),
+   persistent blurred selection, Send → Duo pill on canvas surface,
+   warn-before-overwrite banner. ~3-4 PRDs of work.
+
+2. **Stage 21** (signed + notarized DMG). Cert pre-work is done;
+   remaining work is mechanical: uncomment `mac.identity` +
+   `mac.notarize` in `electron-builder.yml` (referencing the env
+   vars from `~/Documents/duo-private/.env`); flip
+   `dmg.sign: false` → `true`; run `npm run dist`; validate with
+   `spctl -a -t open --context context:primary-signature` +
+   `stapler validate`. Could be a quick win — half-day if nothing
+   misbehaves on the notarytool round-trip.
 
 **Alternatives if a different bottleneck is felt:**
 - **Run the V1–V15 verification list** filed in
   `docs/roadmap.html#s17a-polish` § In-depth verification owed.
   V2 (MD toolbar regression after the EditorActions refactor) and
   V14 (full agent CLI sweep) are the highest-risk; V11/V12 verify
-  the smart-blank overlay visually (probe at ship-time was
-  inconclusive).
-- Stage 14 (track changes — defers cleanly).
-- Stage 15.3 (Send → Duo polish — defers cleanly).
-- Stage 18 (first-launch installer — independent of L0–L2).
-- 17a.5 directions A/E (templates) — still open design questions;
-  owner needs to pick before code work starts.
+  the smart-blank overlay visually.
+- **UI walk for 19c** on the merged build (split-button, ⌘T from
+  terminal focus → claude, install banner when claude missing,
+  `duo new-tab` round-trip).
+- **Stage 19b** (passive priming — SessionStart hook + PATH shim;
+  folds into Stage 18 installer).
+- **Stage 18** (first-launch installer — independent of L0–L2).
+- **Stage 14** (track changes — defers cleanly).
+- **Stage 15.3** (Send → Duo polish — defers cleanly).
+- **17a.5 directions A/E** (templates) — still open design
+  questions; owner needs to pick before code work starts.
 
 ### Stage 17b (just shipped — code-side, smoke-verified)
 
