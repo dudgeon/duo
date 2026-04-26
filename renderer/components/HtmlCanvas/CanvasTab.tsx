@@ -18,6 +18,8 @@ import { buildCanvasEditorActions } from './canvasEditorActions'
 import { installMarkdownShortcuts } from './markdownShortcuts'
 import { installPlaceholder } from './placeholder'
 import { IdInjectionBanner } from './IdInjectionBanner'
+import { SendToDuoPill, type PillAnchorRect } from '../editor/primitives/SendToDuoPill'
+import { WriteWarningBanner } from '../editor/primitives/WriteWarningBanner'
 import {
   countDuoIds,
   injectIds,
@@ -33,17 +35,91 @@ import {
   type SidecarV1
 } from './sidecar'
 import { executeHtmlOp } from './htmlOps'
+import { installJustAddedStyles, markJustAdded, REPAINT_FRESHNESS_MS } from './justAddedCanvas'
+import { installBlurredSelection } from './blurredSelection'
+import { installCanvasSelection, computeCanvasSnapshot } from './canvasSelection'
+import { formatCanvasSendPayload } from '../editor/sendFormat'
+import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
+import type { HtmlCanvasSelectionSnapshot, HtmlOpRequest } from '@shared/types'
 
 interface Props {
   path: string
   /** Propagate dirty state up so the tab strip can show the unsaved dot. */
   onDirtyChange?: (dirty: boolean) => void
+  /** Stage 17c — host-supplied callback fired when the user clicks the
+   *  Send → Duo pill. Same shape as MarkdownEditor's onSendToDuo: the
+   *  payload is already formatted (per the user's `duo selection-format`
+   *  preference), and the host writes it to the active terminal's PTY.
+   *  `null` props the pill from rendering at all. */
+  onSendToDuo?: ((payload: string) => void) | null
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
 
-export function CanvasTab({ path, onDirtyChange }: Props) {
+/**
+ * 17c — translate a selection rect from iframe-content coordinates to
+ * the parent renderer's viewport coordinates so the SendToDuoPill
+ * primitive (which positions itself with `position: fixed`) lands on
+ * the user's actual selection rather than at (0,0) inside the
+ * iframe's own viewport. Returns null when either side is unavailable.
+ */
+function translateToPillRect(
+  handle: RenderedCanvasHandle | null,
+  iframeRect: DOMRect | null
+): PillAnchorRect | null {
+  if (!iframeRect) return null
+  const el = handle?.getIframeElement?.()
+  if (!el) return null
+  const host = el.getBoundingClientRect()
+  return {
+    top: host.top + iframeRect.top,
+    bottom: host.top + iframeRect.bottom,
+    right: host.left + iframeRect.right
+  }
+}
+
+/**
+ * 17c — paint the just-added wash on elements Claude wrote to while the
+ * canvas was closed (or the renderer was unmounted), but only for the
+ * recent past. Reads `recentEdits` from the in-memory sidecar; only
+ * entries (a) authored by 'claude' (b) carrying an `anchorId` (c)
+ * within the freshness window get repainted.
+ *
+ * Idempotent: each anchorId is only painted once per repaint pass even
+ * if the sidecar carries multiple recent entries against the same id
+ * (e.g. two replaces in quick succession). The 6s animation runs from
+ * paint time, not edit time — re-opening a file 5s after the edit gives
+ * 6s of paint, not 1s. Slight over-emphasis on the recently-closed
+ * case is the right tradeoff for "didn't notice the change before
+ * closing the tab" recovery.
+ */
+function repaintRecentClaudeEdits(doc: Document, sidecar: SidecarV1): void {
+  const edits = sidecar.recentEdits ?? []
+  if (edits.length === 0) return
+  const now = Date.now()
+  const seen = new Set<string>()
+  for (const e of edits) {
+    if (e.author !== 'claude') continue
+    if (!e.anchorId) continue
+    if (seen.has(e.anchorId)) continue
+    const ts = Date.parse(e.ts)
+    if (Number.isNaN(ts) || now - ts > REPAINT_FRESHNESS_MS) continue
+    const el = doc.querySelector(`[data-duo-id="${cssEscape(e.anchorId)}"]`)
+    if (!el) continue
+    markJustAdded(el)
+    seen.add(e.anchorId)
+  }
+}
+
+/** Tiny CSS attribute-value escape for `data-duo-id` lookups. The id is
+ *  Crockford base32 (alphanumeric only) — defense in depth in case a
+ *  raw user-supplied id slips through. */
+function cssEscape(s: string): string {
+  return s.replace(/(["\\])/g, '\\$1')
+}
+
+export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -75,6 +151,22 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
   // the latest value at flush time. PRD H22.
   const sidecarRef = useRef<SidecarV1>(emptySidecar())
   const sidecarDirtyRef = useRef(false)
+
+  // 17c — pill state, latest selection snapshot, format preference.
+  // Mirrors MarkdownEditor's pillRect / lastSelectionRef pattern.
+  const [pillRect, setPillRect] = useState<PillAnchorRect | null>(null)
+  const lastCanvasSelectionRef = useRef<HtmlCanvasSelectionSnapshot | null>(null)
+  const { format: selectionFormat } = useSelectionFormat()
+
+  // 17c — pending agent write awaiting the user's accept/decline. While
+  // a banner is up, further html-op WRITE requests get rejected with a
+  // clear error so the queue stays at depth 1. PRD H36 (Stage 11 D24
+  // parity — same UX as the markdown editor's WriteWarningBanner).
+  const [pendingHtmlOp, setPendingHtmlOp] = useState<HtmlOpRequest | null>(null)
+  const pendingHtmlOpRef = useRef<HtmlOpRequest | null>(null)
+  pendingHtmlOpRef.current = pendingHtmlOp
+  const dirtyRef = useRef(false)
+  dirtyRef.current = dirty
 
   const getDoc = useCallback(() => canvasRef.current?.getDocument() ?? null, [])
 
@@ -213,11 +305,13 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
   // on `initialHtml`) was racy: the parser would wipe our placeholder
   // + listeners when it replaced body with the parsed content.
   //
-  //   - selectionchange   → bump toolbar reactivity
+  //   - selectionchange   → bump toolbar reactivity (also drives pill)
   //   - markdown shortcuts (item 1)
   //   - placeholder overlay (item 7 / 17a.5 D)
   //   - first-open ID-injection prompt / auto-inject (PRD H14, 17b A)
   //   - re-baseline lastSavedRef against pretty-printed live DOM (17b D)
+  //   - 17c: just-added keyframe + blurred-selection styles + selection
+  //     observer + recentEdits repaint within freshness window
   const wireCleanupRef = useRef<(() => void) | null>(null)
   const handleReady = useCallback((doc: Document) => {
     // Defensive — if a previous wiring is still in place (path change
@@ -229,6 +323,30 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
 
     const cleanShortcuts = installMarkdownShortcuts(doc)
     const cleanPlaceholder = installPlaceholder(doc)
+
+    // 17c — install the just-added keyframe + class into the iframe
+    // stylesheet. Must happen before any markJustAdded call (the
+    // recentEdits repaint pass below or the html-op handler later).
+    installJustAddedStyles(doc)
+
+    // 17c (PRD H26) — keep the user's selection painted while the
+    // iframe loses focus. CSS Custom Highlight Registry (Chromium 105+)
+    // means no DOM mutation, so the dirty path doesn't fire on
+    // focus/blur.
+    const blurred = installBlurredSelection({ doc })
+
+    // 17c (PRD H25) — selection observer pushes snapshots to main
+    // (caches `duo selection --pane canvas`) AND drives the pill rect
+    // (translated to viewport coords below).
+    const sel = installCanvasSelection({
+      doc,
+      path,
+      onPush: (snap) => {
+        lastCanvasSelectionRef.current = snap
+        window.electron.canvas?.pushSelection(snap)
+      },
+      onRect: (iframeRect) => setPillRect(translateToPillRect(canvasRef.current, iframeRect))
+    })
 
     // 17b Phase D — re-baseline lastSavedRef against the pretty-printed
     // serialized form of the live DOM. Without this, every canvas opens
@@ -271,11 +389,23 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
       }
     }
 
+    // 17c (PRD H20 second sentence) — repaint just-added on agent edits
+    // that landed while this canvas was closed, but only within the
+    // freshness window. Older entries fall off — the wash is meant to
+    // signal recency, not "Claude touched this once". `inject-ids` and
+    // user-authored edits are skipped (we only highlight CLAUDE writes
+    // to specific anchors).
+    repaintRecentClaudeEdits(doc, sidecarRef.current)
+
     wireCleanupRef.current = () => {
       doc.removeEventListener('selectionchange', onSelChange)
       cleanShortcuts()
       cleanPlaceholder()
+      blurred.dispose()
+      sel.dispose()
       setInjectionPrompt(null)
+      setPillRect(null)
+      lastCanvasSelectionRef.current = null
     }
   }, [path, bumpVersion])
 
@@ -312,13 +442,56 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
     }
   }, [save, editorActions])
 
+  // 17b Phase C / 17c — apply a single html-op against the live document.
+  // Extracted so both the immediate path (clean buffer) and the post-
+  // accept path (dirty buffer + accepted) call the same code. On
+  // success: paints just-added on the affected element (write ops
+  // only), appends a recentEdits entry, and replies via IPC.
+  const applyHtmlOp = useCallback((req: HtmlOpRequest) => {
+    const doc = getDoc()
+    if (!doc) {
+      window.electron.canvas.replyHtmlOp({
+        reqId: req.reqId,
+        ok: false,
+        error: 'Canvas iframe not ready'
+      })
+      return
+    }
+    const result = executeHtmlOp(doc, req)
+    if (result.ok && req.op !== 'query' && req.op !== 'get') {
+      const anchorId = (result.result as { id?: string | null } | undefined)?.id ?? undefined
+      // 17c — paint the affected element with the just-added wash so
+      // the user can see what Claude changed. Skip 'remove' (the
+      // element is gone) and skip when no anchor (the affected node
+      // doesn't carry a duo-id, so we can't reach back to it).
+      if (req.op !== 'remove' && anchorId) {
+        const el = doc.querySelector(`[data-duo-id="${cssEscape(anchorId)}"]`)
+        markJustAdded(el)
+      }
+      sidecarRef.current = withRecentEdit(sidecarRef.current, {
+        ts: new Date().toISOString(),
+        author: 'claude',
+        anchorId: anchorId ?? undefined,
+        kind: req.op
+      })
+      sidecarDirtyRef.current = true
+    }
+    window.electron.canvas.replyHtmlOp(result)
+  }, [getDoc])
+
+  const applyHtmlOpRef = useRef(applyHtmlOp)
+  applyHtmlOpRef.current = applyHtmlOp
+
   // 17b Phase C — subscribe to `duo html *` ops dispatched from main.
   // Active canvas tab is the only subscriber; an op dispatched while no
   // canvas is open ends up timing out in main (no subscriber → no reply).
   // If the request carries a `path` and it doesn't match this tab, we
   // surface a clear error so the agent can address the right tab.
-  // recentEdits get an entry on every WRITE op (set/replace/append/
-  // remove/attr) so the sidecar log captures agent activity.
+  //
+  // 17c (PRD H36) — write ops get gated through the WriteWarningBanner
+  // when the buffer is dirty so the user accepts/declines from the
+  // canvas chrome instead of finding their unsaved edits clobbered.
+  // Read ops (query, get) bypass the gate — they don't mutate state.
   useEffect(() => {
     if (initialHtml === null) return
     return window.electron.canvas?.onHtmlOp((req) => {
@@ -330,30 +503,52 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
         })
         return
       }
-      const doc = getDoc()
-      if (!doc) {
-        window.electron.canvas.replyHtmlOp({
-          reqId: req.reqId,
-          ok: false,
-          error: 'Canvas iframe not ready'
-        })
+      const isWrite = req.op !== 'query' && req.op !== 'get'
+      if (isWrite && dirtyRef.current) {
+        if (pendingHtmlOpRef.current) {
+          window.electron.canvas.replyHtmlOp({
+            reqId: req.reqId,
+            ok: false,
+            error: 'Another write is awaiting the user\'s decision.'
+          })
+          return
+        }
+        setPendingHtmlOp(req)
         return
       }
-      const result = executeHtmlOp(doc, req)
-      // Append a recentEdits entry for write ops on success.
-      if (result.ok && req.op !== 'query' && req.op !== 'get') {
-        const anchorId = (result.result as { id?: string | null } | undefined)?.id ?? undefined
-        sidecarRef.current = withRecentEdit(sidecarRef.current, {
-          ts: new Date().toISOString(),
-          author: 'claude',
-          anchorId: anchorId ?? undefined,
-          kind: req.op
-        })
-        sidecarDirtyRef.current = true
-      }
-      window.electron.canvas.replyHtmlOp(result)
+      applyHtmlOpRef.current(req)
     })
-  }, [initialHtml, path, getDoc])
+  }, [initialHtml, path])
+
+  const handlePendingAccept = useCallback(() => {
+    const req = pendingHtmlOpRef.current
+    if (!req) return
+    setPendingHtmlOp(null)
+    applyHtmlOpRef.current(req)
+  }, [])
+
+  const handlePendingDecline = useCallback(() => {
+    const req = pendingHtmlOpRef.current
+    if (!req) return
+    setPendingHtmlOp(null)
+    window.electron.canvas.replyHtmlOp({
+      reqId: req.reqId,
+      ok: false,
+      error: 'User declined the agent\'s write request.'
+    })
+  }, [])
+
+  // 17c — Send → Duo pill click. Format the cached snapshot via the
+  // user's current selection-format preference, then hand it to the
+  // host (which writes to the active terminal's PTY).
+  const handleSendToDuoClick = useCallback(() => {
+    if (!onSendToDuo) return
+    const snap = lastCanvasSelectionRef.current
+    if (!snap) return
+    const payload = formatCanvasSendPayload(snap, selectionFormat)
+    onSendToDuo(payload)
+    setPillRect(null)
+  }, [onSendToDuo, selectionFormat])
 
   // Bridge: ⌘S pressed in the renderer (e.g. user clicked the toolbar
   // first, focus is in the toolbar's iframe boundary, so the iframe-side
@@ -389,6 +584,14 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
         dirty={dirty}
         saving={saving}
       />
+      {pendingHtmlOp && (
+        <WriteWarningBanner
+          action={describeHtmlOp(pendingHtmlOp)}
+          preview={previewHtmlOp(pendingHtmlOp)}
+          onAccept={handlePendingAccept}
+          onDecline={handlePendingDecline}
+        />
+      )}
       {injectionPrompt && (
         <IdInjectionBanner
           dir={dirOf(path)}
@@ -417,6 +620,54 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
           </div>
         )}
       </div>
+      {/* Stage 17c — floating Send → Duo pill, portaled to body. */}
+      {onSendToDuo && (
+        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+      )}
     </div>
   )
+}
+
+/** Human-readable banner copy for an html-op the user is about to accept
+ *  or decline. Keeps the banner specific to what Claude is asking to do
+ *  (replace this <p>, not "edit a file"). */
+function describeHtmlOp(req: HtmlOpRequest): string {
+  switch (req.op) {
+    case 'set':     return `Replace contents of ${targetLabel(req.id, req.selector)}`
+    case 'replace': return `Replace ${targetLabel(req.id, req.selector)}`
+    case 'append':  return `Append child to ${targetLabel(req.parentId, req.parentSelector)}`
+    case 'remove':  return `Remove ${targetLabel(req.id, req.selector)}`
+    case 'attr':    return `Update attributes on ${targetLabel(req.id, req.selector)}`
+    case 'query':
+    case 'get':     return 'Read the document'
+    default: {
+      const _exhaustive: never = req
+      return 'Modify the document' + (_exhaustive ? '' : '')
+    }
+  }
+}
+
+function targetLabel(id?: string, selector?: string): string {
+  if (id) return `#${id}`
+  if (selector) return `\`${selector}\``
+  return 'an element'
+}
+
+/** Truncated preview text shown in the banner. Pulls the html payload
+ *  for write ops that carry one; falls back to the JSON of attribute
+ *  changes for `attr`. */
+function previewHtmlOp(req: HtmlOpRequest): string | undefined {
+  if ('html' in req && typeof req.html === 'string') {
+    return clip(req.html, 140)
+  }
+  if (req.op === 'attr') {
+    const set = req.set ? Object.entries(req.set).map(([k, v]) => `${k}="${v}"`).join(' ') : ''
+    const remove = req.remove?.map(k => `-${k}`).join(' ') ?? ''
+    return clip([set, remove].filter(Boolean).join(' '), 140)
+  }
+  return undefined
+}
+
+function clip(s: string, n: number): string {
+  return s.length <= n ? s : s.slice(0, n) + '…'
 }

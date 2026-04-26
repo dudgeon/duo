@@ -502,6 +502,11 @@ export const IPC = {
   CANVAS_HTML_OP: 'canvas:html-op',               // main → renderer (apply / read)
   CANVAS_HTML_OP_RESULT: 'canvas:html-op-result', // renderer → main (reply)
 
+  // Stage 17c — canvas selection snapshot push from the renderer. Mirrors
+  // `EDITOR_SELECTION_PUSH` for the html-canvas surface so `duo selection
+  // --pane canvas` can read without a renderer round-trip.
+  CANVAS_SELECTION_PUSH: 'canvas:selection-push', // renderer → main (cache)
+
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
@@ -632,6 +637,10 @@ export interface ElectronEditorAPI {
 export interface ElectronCanvasAPI {
   onHtmlOp: (cb: (req: HtmlOpRequest) => void) => () => void
   replyHtmlOp: (result: HtmlOpResult) => void
+  /** Stage 17c — push the active canvas tab's selection snapshot so
+   *  `duo selection --pane canvas` can return it without a renderer
+   *  round-trip. `null` clears the cache (collapse, blur, unmount). */
+  pushSelection: (snapshot: HtmlCanvasSelectionSnapshot | null) => void
 }
 
 export interface ElectronKeyboardAPI {

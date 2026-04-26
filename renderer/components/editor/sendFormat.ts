@@ -19,6 +19,7 @@
 import type {
   MarkdownSelectionSnapshot,
   BrowserSelectionSnapshot,
+  HtmlCanvasSelectionSnapshot,
   SelectionFormat
 } from '@shared/types'
 
@@ -147,6 +148,46 @@ export function formatBrowserSendPayload(
   switch (format) {
     case 'a': return formatBrowserA(snapshot, ctx)
     case 'b': return formatBrowserB(snapshot)
+    case 'c': return formatC()
+  }
+}
+
+// ── HTML canvas variant (Stage 17c) ───────────────────────────────────────
+
+/**
+ * Build the provenance segment for a canvas selection — file path plus
+ * (optional) anchor id trail. Example:
+ * `~/projects/foo/q2-status.html · 01HXYZ001 > 01HXYZ005`. The trail is
+ * far less human-readable than the markdown editor's heading trail —
+ * but for the agent it's the canonical addressing primitive (matches
+ * `--id` flags in `duo html *`).
+ */
+function canvasProvenance(snapshot: HtmlCanvasSelectionSnapshot): string {
+  const path = shortenPath(snapshot.path)
+  if (!snapshot.anchorPath || snapshot.anchorPath.length === 0) return path
+  return `${path} · ${snapshot.anchorPath.join(' > ')}`
+}
+
+function formatCanvasA(snapshot: HtmlCanvasSelectionSnapshot): string {
+  const text = snapshot.text || snapshot.surrounding || ''
+  const quoted = text
+    .split('\n')
+    .map((line) => `> ${line}`)
+    .join('\n')
+  return `${quoted}\n> (${canvasProvenance(snapshot)})\n`
+}
+
+function formatCanvasB(snapshot: HtmlCanvasSelectionSnapshot): string {
+  return (snapshot.text || snapshot.surrounding || '') + ' '
+}
+
+export function formatCanvasSendPayload(
+  snapshot: HtmlCanvasSelectionSnapshot,
+  format: SelectionFormat
+): string {
+  switch (format) {
+    case 'a': return formatCanvasA(snapshot)
+    case 'b': return formatCanvasB(snapshot)
     case 'c': return formatC()
   }
 }

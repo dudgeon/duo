@@ -14,6 +14,7 @@ import type {
   DocReadResult,
   HtmlOpRequest,
   HtmlOpResult,
+  HtmlCanvasSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -197,6 +198,10 @@ const api: ElectronAPI = {
 
     replyHtmlOp: (result: HtmlOpResult) => {
       ipcRenderer.send(IPC.CANVAS_HTML_OP_RESULT, result)
+    },
+
+    pushSelection: (snapshot: HtmlCanvasSelectionSnapshot | null) => {
+      ipcRenderer.send(IPC.CANVAS_SELECTION_PUSH, snapshot)
     }
   },
 

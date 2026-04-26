@@ -48,6 +48,11 @@ export interface RenderedCanvasHandle {
   /** Serializes the current iframe DOM back to an HTML string (saved
    *  to disk as-is for 17a; pretty-printer lands in 17b/e). */
   serialize: () => string
+  /** Stage 17c — the iframe element itself, so the parent can
+   *  translate iframe-content-relative selection rects to viewport-
+   *  relative pill anchor rects. Returns null until the iframe is
+   *  attached. */
+  getIframeElement: () => HTMLIFrameElement | null
 }
 
 export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
@@ -68,7 +73,9 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
       return serializeDocument(doc)
     }, [getDocument])
 
-    useImperativeHandle(ref, () => ({ getDocument, serialize }), [getDocument, serialize])
+    const getIframeElement = useCallback((): HTMLIFrameElement | null => iframeRef.current, [])
+
+    useImperativeHandle(ref, () => ({ getDocument, serialize, getIframeElement }), [getDocument, serialize, getIframeElement])
 
     // Wire contentEditable + observers + key forwarding once per mount.
     // We do this in the iframe's `load` event because contentDocument

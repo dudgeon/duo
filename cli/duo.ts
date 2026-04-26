@@ -264,8 +264,8 @@ async function main(): Promise<void> {
       case 'selection': {
         const paneIdx = rest.indexOf('--pane')
         const pane = paneIdx !== -1 ? rest[paneIdx + 1] : 'auto'
-        if (pane !== 'auto' && pane !== 'editor' && pane !== 'browser') {
-          die('Usage: duo selection [--pane auto|editor|browser]')
+        if (pane !== 'auto' && pane !== 'editor' && pane !== 'browser' && pane !== 'canvas') {
+          die('Usage: duo selection [--pane auto|editor|browser|canvas]')
         }
         const sel = await send('selection', { pane }) as unknown
         if (sel === null || sel === undefined) {
@@ -653,10 +653,11 @@ COMMANDS
                                   (Stage 11). For .md files this gives the
                                   Google-Docs-style editing surface; for
                                   other types behaves like \`view\`.
-  selection [--pane auto|editor|browser]
+  selection [--pane auto|editor|browser|canvas]
                                   Print the active surface's selection as
                                   JSON. Default --pane auto prefers a
-                                  non-empty browser highlight, falling
+                                  non-empty browser highlight, then a
+                                  non-empty canvas selection, falling
                                   back to the editor's cached selection
                                   (which is informative even when
                                   collapsed — it carries the caret's
@@ -666,6 +667,9 @@ COMMANDS
                                     paragraph, heading_trail, start, end }
                                   - browser: { kind: 'browser', url, text,
                                     surrounding, selector_path }
+                                  - canvas: { kind: 'html-canvas', path,
+                                    text, html, anchorId, anchorPath,
+                                    range, surrounding }
   doc read [path]                 Print the active editor's live buffer
                                   (frontmatter + body, including unsaved
                                   edits). Path arg pins the read to a

@@ -162,15 +162,15 @@ export function WorkingPane({
         />
       )
     } else if (tab.type === 'html-canvas') {
-      // Stage 17a — rendered + editable .html. Send → Duo, comments,
-      // and CriticMarkup track-changes are 17c+/14 work; the prop is
-      // accepted for plumbing parity but not yet consumed inside the
-      // canvas.
+      // Stage 17a + 17c — rendered + editable .html with Send → Duo,
+      // just-added highlight on agent edits, and warn-before-overwrite
+      // banner. Comments + CriticMarkup track-changes land in 17d/14.
       activeRenderer = (
         <CanvasTab
           key={tab.id}
           path={tab.path}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
+          onSendToDuo={onSendToDuo}
         />
       )
     } else if (tab.type === 'markdown-preview') {

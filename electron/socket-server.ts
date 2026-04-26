@@ -21,6 +21,7 @@ import type {
   ConsoleLevel,
   NavStateSnapshot,
   EditorSelectionSnapshot,
+  HtmlCanvasSelectionSnapshot,
   DocWriteRequest,
   DocWriteResult,
   DocReadRequest,
@@ -49,6 +50,8 @@ export interface NavBridge {
   edit: (path: string) => { ok: boolean; error?: string }
   /** Stage 11 § D29a — return the active editor's selection snapshot. */
   getSelection: () => EditorSelectionSnapshot | null
+  /** Stage 17c — return the active canvas's selection snapshot. */
+  getCanvasSelection: () => HtmlCanvasSelectionSnapshot | null
   /** Stage 11 § D27 — apply a doc-write to the active editor. */
   docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
   /** Read the live editor buffer (active or specified path). */
@@ -283,13 +286,15 @@ export class SocketServer {
           break
         }
         case 'selection': {
-          // Stage 15g unified shape: try the requested pane (or auto-pick
-          // browser when it has a non-empty highlight, falling back to the
-          // editor's cached selection — which is informative even when
-          // collapsed).
+          // Stage 15g unified shape extended in Stage 17c: try the
+          // requested pane (or auto-pick by precedence: browser
+          // highlight > canvas selection > editor cached selection).
+          // The auto path matches user intuition — the most recent
+          // *visible* selection wins; editor falls through last
+          // because its cache is informative even when collapsed.
           const pane = (args['pane'] as string | undefined) ?? 'auto'
-          if (pane !== 'auto' && pane !== 'editor' && pane !== 'browser') {
-            throw new Error('selection pane must be auto|editor|browser')
+          if (pane !== 'auto' && pane !== 'editor' && pane !== 'browser' && pane !== 'canvas') {
+            throw new Error('selection pane must be auto|editor|browser|canvas')
           }
           let resolved: DuoSelection = null
           if (pane === 'editor') {
@@ -297,13 +302,20 @@ export class SocketServer {
             resolved = ed ? { kind: 'editor', ...ed } : null
           } else if (pane === 'browser') {
             resolved = await this.cdp.getBrowserSelection().catch(() => null)
+          } else if (pane === 'canvas') {
+            resolved = this.nav.getCanvasSelection()
           } else {
             const browser = await this.cdp.getBrowserSelection().catch(() => null)
             if (browser && browser.text) {
               resolved = browser
             } else {
-              const ed = this.nav.getSelection()
-              resolved = ed ? { kind: 'editor', ...ed } : null
+              const canvas = this.nav.getCanvasSelection()
+              if (canvas && canvas.text) {
+                resolved = canvas
+              } else {
+                const ed = this.nav.getSelection()
+                resolved = ed ? { kind: 'editor', ...ed } : null
+              }
             }
           }
           result = resolved

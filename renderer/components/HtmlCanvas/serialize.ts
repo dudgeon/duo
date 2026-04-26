@@ -58,6 +58,17 @@ const RUNTIME_ATTRS_TO_STRIP = new Set([
   'contenteditable', 'spellcheck', 'data-duo-canvas-runtime'
 ])
 
+// Stage 17c — runtime classes Duo's canvas binding paints on elements
+// for visual UX (just-added highlight on agent edits today; possibly
+// blur-selection markers later). These must NEVER persist to disk —
+// the className is stripped from `class=""` during serialization on
+// every element, regardless of the runtime sentinel, because the
+// just-added class lives on real user-authored elements (it's the
+// element the agent wrote into; no sentinel applies).
+const RUNTIME_CLASSES_TO_STRIP = new Set([
+  'duo-just-added'
+])
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 /** Serialize the full document — doctype + <html>…</html> + trailing newline. */
@@ -196,7 +207,26 @@ function attrString(el: Element): string {
   }
   names = names.slice().sort(compareAttrs)
   if (names.length === 0) return ''
-  return names.map(n => ` ${n}="${escapeAttr(el.getAttribute(n) ?? '')}"`).join('')
+  return names.map(n => {
+    const raw = el.getAttribute(n) ?? ''
+    // Stage 17c — strip runtime-only classes from class="" on every
+    // element. Keeps `duo-just-added` from leaking to disk if a save
+    // races the 6s fade. If the resulting class list is empty we drop
+    // the attribute entirely so the serialized output stays clean.
+    const value = n === 'class' ? scrubClassValue(raw) : raw
+    if (n === 'class' && value === '') return ''
+    return ` ${n}="${escapeAttr(value)}"`
+  }).join('')
+}
+
+function scrubClassValue(raw: string): string {
+  if (!raw) return ''
+  // class values are whitespace-separated; preserve original spacing
+  // semantics by collapsing to a single space-joined list.
+  const kept = raw
+    .split(/\s+/)
+    .filter(c => c.length > 0 && !RUNTIME_CLASSES_TO_STRIP.has(c))
+  return kept.join(' ')
 }
 
 function compareAttrs(a: string, b: string): number {

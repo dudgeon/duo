@@ -143,7 +143,7 @@ empty.
 | `duo html remove --id <duo-id>` / `--selector <css>` | Stage 17b — delete element |
 | `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Stage 17b — modify attributes |
 | `duo reveal <path>` | Move file navigator to path; flash chip |
-| `duo selection [--pane auto\|editor\|browser]` | Active surface's selection (use when goal references "this", "selected", "here") |
+| `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'html-canvas', path, text, html, anchorId, anchorPath, range, surrounding}` for the active HTML canvas tab. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
 | `duo doc write [--replace-selection\|--replace-all]` | Apply text to active editor (stdin or `--text`) |
 | `duo theme [system\|light\|dark]` | Read or set theme |

@@ -21,6 +21,7 @@ import type {
   DocReadResult,
   HtmlOpRequest,
   HtmlOpResult,
+  HtmlCanvasSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -42,6 +43,11 @@ let navState: NavStateSnapshot = {
 // Stage 11 \u00a7 D29a — most recent selection snapshot from the active editor.
 // `null` means no editor tab is active or no doc is loaded.
 let editorSelection: EditorSelectionSnapshot | null = null
+
+// Stage 17c — most recent selection snapshot from the active HTML canvas.
+// `null` means no canvas tab is active or no element is selected. Drives
+// `duo selection --pane canvas`.
+let canvasSelection: HtmlCanvasSelectionSnapshot | null = null
 
 // Pending doc-write requests awaiting a renderer reply.
 const docWritePending = new Map<string, (res: DocWriteResult) => void>()
@@ -127,6 +133,7 @@ function createWindow(): void {
     view: sendView,
     edit: sendEdit,
     getSelection: getEditorSelection,
+    getCanvasSelection: getCanvasSelection,
     docWrite: dispatchDocWrite,
     docRead: dispatchDocRead,
     getTheme: getThemeState,
@@ -308,6 +315,11 @@ function setupIPC(): void {
   // Stage 11 — selection snapshot push from the active editor.
   ipcMain.on(IPC.EDITOR_SELECTION_PUSH, (_event, snapshot: EditorSelectionSnapshot | null) => {
     editorSelection = snapshot
+  })
+
+  // Stage 17c — canvas selection snapshot push from the active canvas.
+  ipcMain.on(IPC.CANVAS_SELECTION_PUSH, (_event, snapshot: HtmlCanvasSelectionSnapshot | null) => {
+    canvasSelection = snapshot
   })
 
   // Stage 11 — renderer's reply to a doc-write request.
@@ -512,6 +524,12 @@ export function sendEdit(path: string): { ok: boolean; error?: string } {
 
 export function getEditorSelection(): EditorSelectionSnapshot | null {
   return editorSelection
+}
+
+// Stage 17c — drives `duo selection --pane canvas` and the auto-select
+// path's html-canvas branch.
+export function getCanvasSelection(): HtmlCanvasSelectionSnapshot | null {
+  return canvasSelection
 }
 
 /**
