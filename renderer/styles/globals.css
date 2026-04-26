@@ -23,7 +23,13 @@
   --duo-accent: #C66A2E;          /* warm ochre/amber */
   --duo-accent-soft: #F2D9B8;
   --duo-accent-ink: #7A3E1A;
-  --duo-mark: #F8E59C;            /* selection / just-added highlight */
+  /* Stage 13a — bumped from the Atelier prototype's `#F8E59C` to a more
+     saturated gold so the just-added wash + blurred-selection actually
+     read against the cream paper bg. The prototype's value is too close
+     to `--duo-paper` (#FBF8EE) to register as a "highlight" in the live
+     app — DOM inspection confirms the class + computed bg are correct,
+     it's just a contrast problem against this surface. */
+  --duo-mark: #F0CB6A;            /* selection / just-added highlight */
   --duo-term-bg: #1A1410;         /* default terminal stays inky even in light mode */
   --duo-term-fg: #F0E9D6;
   --duo-term-cozy-bg: #FBF8EE;    /* cozy mode flips to paper canvas */
@@ -225,5 +231,194 @@ html.dark {
   .duo-blurred-selection {
     background-color: var(--duo-mark);
     opacity: 0.55;
+  }
+
+  /* Stage 13a — `duo-just-added` highlight (editor-agnostic primitive).
+     Applied to ranges the agent just wrote so the human can see what
+     changed. Single source of truth: this keyframe + class. The
+     markdown editor binding is `extensions/JustAdded.ts` (TipTap
+     decoration); the Stage 17 HTML canvas binding will add the same
+     class via `classList.add('duo-just-added')` on the iframe DOM
+     (H20 — same animation, two bindings). See
+     `renderer/components/editor/primitives/README.md` for the
+     visual-layer / data-layer contract. */
+  @keyframes duo-just-added-fade {
+    /* Match the Atelier prototype's keyframe shape: hold the wash for
+       the first 20% (~1.2s of the 6s run), then fade smoothly to
+       transparent. The faint inner shadow at start gives the wash a
+       chip-like silhouette so it reads against the cream paper bg —
+       without it, `--duo-mark` (#F8E59C) is too close to `--duo-paper`
+       (#FBF8EE) to register at a glance. Source:
+       docs/design/atelier/project/Duo Prototype.html § @keyframes. */
+    0%   { background-color: var(--duo-mark); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04); }
+    20%  { background-color: var(--duo-mark); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04); }
+    100% { background-color: transparent;     box-shadow: 0 0 0 0 transparent; }
+  }
+  .duo-just-added {
+    /* `forwards` fill mode: hold the final transparent state when the
+       animation ends so the inline span leaves no residue.
+       `padding: 0 2px` extends the wash slightly beyond the text edges,
+       which (combined with the subtle inner shadow at the start frames)
+       gives the highlight a visible chip silhouette. */
+    animation: duo-just-added-fade 6s ease-out forwards;
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+  /* Reduced-motion respects the system preference: skip the animation
+     and just hold the wash briefly with the same chip silhouette so
+     the highlight is still discoverable. */
+  @media (prefers-reduced-motion: reduce) {
+    .duo-just-added {
+      animation: none;
+      background-color: var(--duo-mark);
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+      transition: background-color 800ms ease-out 5200ms, box-shadow 800ms ease-out 5200ms;
+    }
+    .duo-just-added.duo-just-added--settled {
+      background-color: transparent;
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+
+  /* Stage 13b — `<WriteWarningBanner>` (editor-agnostic primitive).
+     Shows when the agent attempts to write while the human has unsaved
+     edits. Both the markdown editor and the Stage 17 HTML canvas
+     render this same banner; styles live here so any host surface
+     can drop it in. See
+     `renderer/components/editor/primitives/WriteWarningBanner.tsx`. */
+  .duo-write-warning-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 14px;
+    background: var(--duo-accent-soft);
+    border-bottom: 1px solid var(--duo-accent);
+    color: var(--duo-ink);
+    font-family: theme('fontFamily.sans');
+    font-size: 13px;
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+  .duo-write-warning-banner__body {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+  .duo-write-warning-banner__sparkle {
+    font-size: 16px;
+    line-height: 1;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+  .duo-write-warning-banner__copy {
+    min-width: 0;
+  }
+  .duo-write-warning-banner__title {
+    color: var(--duo-ink);
+    font-weight: 500;
+  }
+  .duo-write-warning-banner__action {
+    color: var(--duo-ink-soft);
+    font-size: 12.5px;
+  }
+  .duo-write-warning-banner__preview {
+    color: var(--duo-ink-mute);
+    font-size: 12px;
+    font-family: theme('fontFamily.mono');
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .duo-write-warning-banner__actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .duo-write-warning-banner__btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .duo-write-warning-banner__btn--accept {
+    background: var(--duo-accent);
+    color: var(--duo-paper);
+    border-color: var(--duo-accent);
+  }
+  .duo-write-warning-banner__btn--accept:hover {
+    background: var(--duo-accent-ink);
+    border-color: var(--duo-accent-ink);
+  }
+  .duo-write-warning-banner__btn--decline {
+    background: transparent;
+    color: var(--duo-ink-soft);
+    border-color: var(--duo-paper-rule);
+  }
+  .duo-write-warning-banner__btn--decline:hover {
+    background: var(--duo-paper-deep);
+    color: var(--duo-ink);
+  }
+  .duo-write-warning-banner__btn:focus-visible {
+    outline: 2px solid var(--duo-accent);
+    outline-offset: 2px;
+  }
+
+  /* Stage 15.1 — Send → Duo pill (editor-agnostic primitive).
+     Floating affordance positioned next to a user selection. PRD G4:
+     small purple pill, 11–12px text, slight drop-shadow so it reads
+     above body content. Token-driven so light/dark themes inherit
+     automatically. */
+  .duo-send-pill {
+    z-index: 50;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 9px 4px 10px;
+    font-family: var(--duo-font-sans, system-ui, sans-serif);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: white;
+    background: var(--duo-accent, #7c6af7);
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(20, 14, 8, 0.18), 0 4px 12px rgba(124, 106, 247, 0.28);
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Subtle entrance — fade + lift in 120ms so the appearance
+       doesn't feel jarring as the user finishes their selection. */
+    animation: duo-send-pill-in 120ms ease-out;
+    transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+  }
+  .duo-send-pill:hover {
+    transform: translateY(-0.5px);
+    box-shadow: 0 1px 2px rgba(20, 14, 8, 0.22), 0 6px 16px rgba(124, 106, 247, 0.36);
+  }
+  .duo-send-pill:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(20, 14, 8, 0.16);
+  }
+  .duo-send-pill:focus-visible {
+    outline: 2px solid var(--duo-accent);
+    outline-offset: 3px;
+  }
+  .duo-send-pill__arrow {
+    font-size: 12px;
+    line-height: 1;
+    opacity: 0.92;
+  }
+  @keyframes duo-send-pill-in {
+    from { opacity: 0; transform: translateY(2px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 }

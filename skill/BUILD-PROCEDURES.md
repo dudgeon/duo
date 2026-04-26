@@ -141,16 +141,17 @@ duo --version    # → 0.1.0
 
 ## Sync skill + subagent to `~/.claude/` after edits
 
-The repo tracks the canonical source for the skill and the `duo-browser`
+The repo tracks the canonical source for the skill and the `duo`
 subagent, but the running Claude Code sessions on this machine read from:
 
 - `~/.claude/skills/duo/SKILL.md` + `~/.claude/skills/duo/examples/*.md`
-- `~/.claude/agents/duo-browser.md`
+- `~/.claude/agents/duo.md`
+- `~/.claude/duo/external-domains.json` (web-routing exception list, ships empty)
 
 These are **plain file copies**, not symlinks. Edits to `skill/SKILL.md`,
-`skill/examples/*.md`, or `agents/duo-browser.md` in the repo **do not
-propagate automatically** — your live Claude Code session keeps using the
-previous copy until you sync.
+`skill/examples/*.md`, or `agents/duo.md` in the repo **do not propagate
+automatically** — your live Claude Code session keeps using the previous
+copy until you sync.
 
 **Run this after any edit to `skill/` or `agents/`:**
 
@@ -159,13 +160,10 @@ npm run sync:claude
 # → Synced skill + subagent to ~/.claude/
 ```
 
-The script is:
-```bash
-mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents
-cp skill/SKILL.md           ~/.claude/skills/duo/SKILL.md
-cp skill/examples/*.md      ~/.claude/skills/duo/examples/
-cp agents/duo-browser.md    ~/.claude/agents/duo-browser.md
-```
+The script copies the skill + agent into place, removes the legacy
+`duo-browser.md` if present, and bootstraps the empty
+`external-domains.json` if it doesn't already exist (never overwrites a
+populated list).
 
 **Do not skip this step when testing a skill change.** A fresh Claude Code
 session picks up whatever is at `~/.claude/skills/duo/` at the moment it
@@ -220,7 +218,7 @@ duo tabs                                   # → [{id:1, url:..., isActive:true}
 | Change how CDP commands work | `electron/cdp-bridge.ts` | restart `npm run dev` |
 | Add a new IPC channel | `shared/types.ts` (IPC object), `electron/main.ts`, `electron/preload.ts`, `shared/types.ts` (ElectronAPI) | restart `npm run dev` |
 | Change terminal behaviour | `electron/pty-manager.ts`, `renderer/components/TerminalPane.tsx` | restart `npm run dev` if main-process |
-| Edit skill or subagent prose | `skill/SKILL.md`, `skill/examples/*.md`, `agents/duo-browser.md` | `npm run sync:claude` (required — see section above) |
+| Edit skill or subagent prose | `skill/SKILL.md`, `skill/examples/*.md`, `agents/duo.md` | `npm run sync:claude` (required — see section above) |
 
 ---
 

@@ -13,7 +13,9 @@ import type {
   DocReadRequest,
   DocReadResult,
   ThemeMode,
-  ThemeStateSnapshot
+  ThemeStateSnapshot,
+  SelectionFormat,
+  SelectionFormatStateSnapshot
 } from '../shared/types'
 
 const api: ElectronAPI = {
@@ -197,6 +199,24 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, mode: ThemeMode) => cb(mode)
       ipcRenderer.on(IPC.THEME_SET, handler)
       return () => ipcRenderer.removeListener(IPC.THEME_SET, handler)
+    }
+  },
+
+  selectionFormat: {
+    pushState: (snapshot: SelectionFormatStateSnapshot) => {
+      ipcRenderer.send(IPC.SELECTION_FORMAT_STATE_PUSH, snapshot)
+    },
+
+    onSet: (cb) => {
+      const handler = (_: IpcRendererEvent, format: SelectionFormat) => cb(format)
+      ipcRenderer.on(IPC.SELECTION_FORMAT_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.SELECTION_FORMAT_SET, handler)
+    }
+  },
+
+  terminal: {
+    pushActiveId: (id: string | null) => {
+      ipcRenderer.send(IPC.TERMINAL_ACTIVE_PUSH, id)
     }
   },
 

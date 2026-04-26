@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, nativeTheme } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { PtyManager } from './pty-manager'
@@ -18,7 +18,9 @@ import type {
   DocReadRequest,
   DocReadResult,
   ThemeMode,
-  ThemeStateSnapshot
+  ThemeStateSnapshot,
+  SelectionFormat,
+  SelectionFormatStateSnapshot
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -44,6 +46,17 @@ const docReadPending = new Map<string, (res: DocReadResult) => void>()
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
 let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
+
+// Stage 15 G19 — Send → Duo payload format. Renderer is the source of
+// truth (persisted in localStorage); main caches the latest snapshot
+// for `duo selection-format` reads. Default 'a' (quote + provenance).
+let selectionFormatState: SelectionFormatStateSnapshot = { format: 'a' }
+
+// Stage 15 G17 — most recent active terminal-tab id pushed by the
+// renderer. `duo send` writes payloads into this terminal's PTY.
+// `null` means no terminal tabs exist (degenerate state — `duo send`
+// surfaces an error).
+let activeTerminalId: string | null = null
 
 // Stage 12 — Atelier "light is hero". Was 'dark'; flipped so macOS
 // chrome (menu, dialogs) matches the new design baseline. The
@@ -104,7 +117,11 @@ function createWindow(): void {
     docWrite: dispatchDocWrite,
     docRead: dispatchDocRead,
     getTheme: getThemeState,
-    setTheme: setThemeMode
+    setTheme: setThemeMode,
+    openExternal: openExternalUrl,
+    getSelectionFormat: getSelectionFormatState,
+    setSelectionFormat: setSelectionFormat,
+    sendToActiveTerminal: sendToActiveTerminal
   })
   socketServer.start()
 
@@ -300,6 +317,16 @@ function setupIPC(): void {
     themeState = snapshot
   })
 
+  // Stage 15 G19 \u2014 Send \u2192 Duo payload format push from the renderer.
+  ipcMain.on(IPC.SELECTION_FORMAT_STATE_PUSH, (_event, snapshot: SelectionFormatStateSnapshot) => {
+    selectionFormatState = snapshot
+  })
+
+  // Stage 15 G17 \u2014 active terminal-tab id push from the renderer.
+  ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (_event, id: string | null) => {
+    activeTerminalId = id
+  })
+
   // ── Cozy mode (Stage 9) ────────────────────────────────────────────────────
   // Renderer pushes the active tab's cozy state so the View-menu checkmark
   // stays in sync as the user switches tabs or toggles.
@@ -371,9 +398,22 @@ function installAppMenu(): void {
           // windows of the same app"). Registering it here routes the
           // key through Electron's menu system first, so the system
           // shortcut never sees it.
+          //
+          // BUG-004 fix: pull OS-level keyboard focus back to the main
+          // renderer BEFORE asking it to cycle. If the user pressed ⌘`
+          // while the browser WebContentsView had focus, the renderer
+          // didn't own focus — so a renderer-side `xterm.focus()` would
+          // be a no-op (you can't give focus you don't have). Calling
+          // `mainWindow.webContents.focus()` first reclaims focus from
+          // the WebContentsView; the renderer's togglePaneFocus then
+          // hands it on to xterm or the editor as appropriate. (For the
+          // working→browser direction the renderer immediately calls
+          // `browser.focusActive()` which re-focuses the WebContentsView
+          // — that path is unaffected.)
           label: 'Toggle pane focus',
           accelerator: 'CmdOrCtrl+`',
           click: () => {
+            mainWindow?.webContents.focus()
             mainWindow?.webContents.send(IPC.PANE_TOGGLE_FOCUS)
           }
         },
@@ -452,6 +492,34 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
   return { ok: true }
 }
 
+// Stage 15 G19 — `duo selection-format` reads the cache; `duo
+// selection-format <a|b|c>` dispatches a SET to the renderer, which
+// persists to localStorage and pushes the new state back.
+export function getSelectionFormatState(): SelectionFormatStateSnapshot {
+  return selectionFormatState
+}
+
+export function setSelectionFormat(format: SelectionFormat): { ok: boolean; error?: string } {
+  if (format !== 'a' && format !== 'b' && format !== 'c') {
+    return { ok: false, error: `Invalid selection-format: ${format}. Expected a|b|c.` }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.SELECTION_FORMAT_SET, format)
+  return { ok: true }
+}
+
+// Stage 13b — doc-write timeout has to accommodate the human-in-the-loop
+// case: when the buffer is dirty, the renderer surfaces a
+// <WriteWarningBanner> and waits for the human to accept or decline. The
+// agent's CLI is blocked on this promise the whole time, so the timeout
+// has to be long enough to cover real reading + decision time. 5 minutes
+// is conservative — enough for a thoughtful read, short enough that a
+// genuinely abandoned write doesn't pin the agent forever. doc-read
+// stays on the original 5s budget (no human gate).
+const DOC_WRITE_TIMEOUT_MS = 5 * 60 * 1000
+
 export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<DocWriteResult> {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
@@ -460,8 +528,8 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
   return new Promise<DocWriteResult>((resolve) => {
     const timer = setTimeout(() => {
       docWritePending.delete(reqId)
-      resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
-    }, 5000)
+      resolve({ reqId, ok: false, error: `Renderer did not reply within ${DOC_WRITE_TIMEOUT_MS / 1000}s` })
+    }, DOC_WRITE_TIMEOUT_MS)
     docWritePending.set(reqId, (res) => {
       clearTimeout(timer)
       resolve(res)
@@ -486,4 +554,51 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
     })
     mainWindow!.webContents.send(IPC.EDITOR_DOC_READ, { ...req, reqId })
   })
+}
+
+// Stage 5 v2 A24 — open a URL in the system default browser. The duo
+// subagent reaches for this when a target hostname is on the user's
+// `~/.claude/duo/external-domains.json` list (sites that don't render
+// well in the embedded WebContentsView, or that the user wants to
+// keep cookied in their personal browser). We validate the URL parses
+// and only honour http/https/mailto schemes — refusing file:// and
+// other dangerous schemes that `shell.openExternal` would happily
+// route into native handlers.
+// Stage 15 G17 — `duo send <text>` writes a payload into the active
+// terminal's PTY. No Enter is appended (G11) — the user (or a chained
+// agent verb) confirms by hitting Enter themselves. If no terminal is
+// active (no tabs, or the last tab was just killed), surface an error
+// rather than silently dropping the write.
+export function sendToActiveTerminal(text: string): { ok: boolean; written?: number; terminalId?: string; error?: string } {
+  if (typeof text !== 'string') {
+    return { ok: false, error: 'send requires a string text payload' }
+  }
+  if (activeTerminalId === null) {
+    return { ok: false, error: 'No active terminal — open one and try again' }
+  }
+  try {
+    ptyManager.write(activeTerminalId, text)
+    return { ok: true, written: text.length, terminalId: activeTerminalId }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function openExternalUrl(url: string): Promise<{ ok: boolean; opened?: string; error?: string }> {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return { ok: false, error: `Not a valid URL: ${url}` }
+  }
+  const scheme = parsed.protocol.toLowerCase()
+  if (scheme !== 'http:' && scheme !== 'https:' && scheme !== 'mailto:') {
+    return { ok: false, error: `Refusing to open scheme "${scheme}" externally — only http/https/mailto allowed` }
+  }
+  try {
+    await shell.openExternal(url)
+    return { ok: true, opened: url }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }

@@ -38,8 +38,17 @@ export function FilesPane({
   return (
     <div
       className={[
+        // BUG-003 fix (rev 2): the inset-shadow ring approach was misleading
+        // — it appeared to encircle the focused pane but xterm canvas
+        // (Terminal) and WebContentsView (Working) painted over three of
+        // four sides, leaving only an ambiguous seam line. The new
+        // indicator lives in the chrome strip (renderer DOM, never
+        // occluded): the column's header tints to `accent-soft` when
+        // focused. Files pane's "header" is the breadcrumb row below.
+        // Seam border still flips to full-opacity accent as a secondary
+        // cue.
         'flex flex-col h-full bg-surface-1 border-r transition-[width] duration-150',
-        focused ? 'border-accent/60' : 'border-border'
+        focused ? 'border-accent' : 'border-border'
       ].join(' ')}
       style={{ width: collapsed ? '44px' : '208px', flexShrink: 0 }}
       aria-label="Files"
@@ -51,8 +60,16 @@ export function FilesPane({
           {/* Header: breadcrumb + pin toggle + collapse button.
               Stage 12 — Atelier annotation: explicit chevron-collapse
               button next to the pin so the user has a visible affordance
-              (in addition to ⌘B). Click the rail to expand again. */}
-          <div className="flex items-center border-b border-border shrink-0">
+              (in addition to ⌘B). Click the rail to expand again.
+              BUG-003 fix (rev 2): the header strip is the focus chrome
+              — tints to `accent-soft` when this column has keyboard focus
+              so the focused pane is unambiguous. */}
+          <div
+            className={[
+              'flex items-center border-b shrink-0 transition-colors',
+              focused ? 'bg-accent-soft border-accent' : 'border-border'
+            ].join(' ')}
+          >
             <div className="flex-1 min-w-0">
               <Breadcrumb
                 cwd={state.cwd}

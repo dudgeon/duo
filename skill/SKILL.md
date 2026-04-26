@@ -11,18 +11,34 @@ browser", "click the Sign-in button", "add a bullet to the risks section",
 etc., **reach for `duo`** — it is the only tool that can read and write the
 live authenticated web surface the user is looking at.
 
-## Prefer delegating to the `duo-browser` subagent
+## Prefer delegating to the `duo` subagent
 
-Browser interactions tend to fan out into several CLI round-trips (url,
-title, wait, ax, verify). Running them inline bloats the parent
-conversation with CLI noise the user doesn't need to see. Unless the
-request is a genuine one-liner (e.g. "what URL is open?"), **delegate to
-the `duo-browser` subagent** with a high-level goal ("summarize the doc
-open in my browser", "add a bullet saying X to the risks section") and
-let it return only the outcome.
+Duo workflows tend to fan out into several CLI round-trips (url, title,
+wait, ax, verify; or nav state, edit, doc read, doc write, verify). Running
+them inline in your context bloats this conversation with CLI noise the
+user doesn't need to see, and burns Sonnet/Opus turns on mechanical
+orchestration that Haiku can do. Unless the request is a genuine
+one-liner ("what URL is open?", "what's selected?"), **delegate to the
+`duo` subagent** with a high-level goal and the content (when relevant) —
+let it execute and return only the outcome.
 
-Use this skill's direct CLI reference when the subagent isn't available,
-or when you're doing a single simple call.
+The subagent is at `~/.claude/agents/duo.md` (Haiku 4.5). It covers the
+full `duo` CLI surface: browser, editor, file navigator, selection,
+theme. The orchestrator's job is to draft *what* to do (rewrite text,
+URL to extract from, files to scan); the agent applies it.
+
+**Only delegate if you're inside a Duo terminal.** Check first:
+
+```bash
+[ -n "$DUO_SESSION" ] && echo in_duo
+```
+
+If `DUO_SESSION` is unset, the agent will refuse cleanly anyway, but
+checking saves a delegation round-trip. Without `DUO_SESSION`, fall back
+to non-`duo` tools (`Read`, `Bash`, `WebFetch`) for this task.
+
+Use this skill's direct CLI reference when the agent isn't available, or
+when you're doing a single simple call.
 
 ## When NOT to use `duo`
 
@@ -62,12 +78,32 @@ fail with `Cannot connect: Duo app is not running` (the socket path
 isn't being exported). Ask the user to launch Duo, or fall back to
 non-`duo` tools (`Read`, `Bash`, `WebFetch`).
 
+## Web routing — Duo by default; configured exceptions go external
+
+Every web URL goes through Duo (`duo open` for a new tab,
+`duo navigate` for the active tab) unless its hostname is on a
+user-curated exception list at `~/.claude/duo/external-domains.json`.
+Hostnames on that list route to the macOS default browser via
+`duo external <url>`. The list ships empty; the user populates it with
+sites that don't render well in the embedded `WebContentsView` (Claude.ai,
+ChatGPT, banking sites, sites that block Electron UAs, anything they
+prefer to keep cookied in their hardened personal browser).
+
+Format: `{ "domains": ["claude.ai", "chatgpt.com", "*.banking-corp.com"] }`.
+Match on exact hostname or `*.suffix` glob. Empty / missing / malformed
+file = no exceptions = everything goes through Duo (the safe default).
+
+You generally don't read this file directly — the `duo` subagent owns
+the routing decision. The list exists so PMs running their own Duo can
+declare friction sites once and stop fighting them.
+
 ## Command reference
 
 | Command | Purpose | Output |
 |---|---|---|
 | `duo navigate <url>` | Navigate the **active tab** to URL | JSON: `{ok, url, title}` |
 | `duo open <path-or-url>` | Open a local file or URL in a **new** tab, activate it. Use for showing the user agent-generated artifacts. | JSON: `{ok, id, url, title}` |
+| `duo external <url>` | Open `<url>` in the **macOS default browser** (via Electron's `shell.openExternal`). Used for hostnames listed in `~/.claude/duo/external-domains.json` — sites that don't render well in Duo's embedded `WebContentsView` (Claude.ai, ChatGPT, banking, sites that block Electron UAs). NOT the default route — Duo handles everything not on the list. http(s) and mailto schemes only. | JSON: `{ok, opened}` |
 | `duo url` | Current URL | plain text |
 | `duo title` | Current page title | plain text |
 | `duo text [--selector <css>]` | Visible text (DOM `innerText`) | plain text |
@@ -95,6 +131,8 @@ non-`duo` tools (`Read`, `Bash`, `WebFetch`).
 | `duo doc write --replace-selection` | Swap the user's current editor selection with new text (reads stdin or `--text "…"`). For collapsed selection, inserts at caret. Plain text in v1 — use `--replace-all` if you need markdown formatting. | JSON: `{ok}` |
 | `duo doc write --replace-all` | Replace the entire document body with new markdown (frontmatter preserved). Use for "rewrite this doc" / "restructure this section" tasks. | JSON: `{ok}` |
 | `duo theme [system\|light\|dark]` | Read the current theme (no arg → JSON `{mode, effective}`) or set it. Usually only changed on explicit user request. | JSON |
+| `duo selection-format [a\|b\|c]` | Read or set the **Send → Duo** payload format (Stage 15 G19, agent-tunable runtime knob). `a` = quote + provenance (default, human-readable); `b` = literal text only (compact, agent calls `duo selection` for context); `c` = opaque token like `<<duo-sel-abc123>>` (most compact, requires expansion). No arg → JSON `{format}`; with arg → set + persist for the rest of the session. | JSON |
+| `duo send [--text "…"]` | Write a payload into the **active terminal's PTY** (no Enter appended — user confirms). Without `--text`, reads stdin. Stage 15 G17: the agent-facing inverse of the Send → Duo button. Use sparingly to plant context for the user (e.g. "you might want to ask me about this"). | JSON: `{ok, written, terminalId}` |
 
 ## Patterns
 

@@ -23,7 +23,43 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26) — P0 CLI gaps shipped:**
+**Latest session (2026-04-26 late-evening) — Stage 5 v2 shipped +
+all live walks pass; Stage 15.1 (CLI half + editor pill UI) shipped
+end-to-end.** Stage 5 v2: new global `agents/duo.md` (Haiku 4.5)
+subsuming `duo-browser`; new `duo external <url>` CLI verb;
+bootstrap of `~/.claude/duo/external-domains.json`. F1/F2/F4/F5/F8/F9
++ C5/C6/C7 all PASS live; Class B perf inverted PRD hypothesis
+(FOLLOWUP-003). Stage 15.1: new `duo selection-format [a|b|c]`
+(G19) + `duo send [--text "…"]` (G17) CLI verbs, both smoke-tested.
+Editor pill UI: new `<SendToDuoPill>` editor-agnostic primitive,
+new `formatSendPayload` helper (formats A/B/C), new
+`useSelectionFormat` hook with localStorage round-trip,
+MarkdownEditor + WorkingPane + App.tsx wiring (`onSendToDuo` prop
+threads through to `pty.write(activeTabId, payload)`). HMR clean,
+typecheck clean. Visual walks deferred (FOLLOWUP-004 extended).
+
+**Previous session (2026-04-26 evening) — Stage 13 ship + Stage 5 v2
+PRD locked + canonical flip:** see "Pick up here" breadcrumb below
+for the full write-up. Major items: **Stage 13 shipped end-to-end**
+(Phase 0 editor-agnostic refactor + Phase 13a just-added highlight
++ Phase 13b warn-before-overwrite banner; verified in live app);
+**Stage 5 v2 (Duo subagent) PRD locked** at
+[docs/prd/stage-5-v2-duo-subagent.md](docs/prd/stage-5-v2-duo-subagent.md)
+and line-jumped before Stage 15 — full PRD with 26 decisions
+covering identity, contract, session guard, web routing, install,
+validation; **canonical flip** of the roadmap (`docs/roadmap.html`
+is now canonical, `ROADMAP.md` is the synced markdown view); editor-
+agnostic primitive contract locked in
+[DECISIONS.md](docs/DECISIONS.md); BUG-003 v1→v2 history captured
+(inset-shadow ring → chrome-strip tint).
+
+**Earlier session (2026-04-26 late-day) — Stage 12 Phase 3 + bug
+sweep:** Five items shipped: PROCESS-001 Phase 1 (keyboard matrix
+in smoke-checklist § 5), BUG-002 (⌘T address-bar focus), BUG-003
+v2 (pane focus indicator on chrome strip), BUG-004 (⌘` OS-focus
+move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
+
+**Earlier session (2026-04-26) — P0 CLI gaps shipped:**
 - `duo doc read [path]` — live editor buffer (frontmatter + body,
   including unsaved edits). Body to stdout, `# <path> (unsaved
   changes)` header to stderr so it pipes cleanly.
@@ -77,34 +113,285 @@ Flagship half #2 — sub-stage 11a of the markdown editor — shipped
   'html'` so PMs whose primary artifact is HTML reports don't have
   to learn ⌘⇧N.
 
-## ⚠️ Pick up here next session (2026-04-26 EOD breadcrumb)
+## ⚠️ Pick up here next session (2026-04-26 late-evening breadcrumb)
 
-**Three open bugs + a process item; tackle BEFORE more keyboard work.**
-Then finish Stage 12 Phase 3 (tab-strip rhyme + cozy mode visual).
+**Where we are: Stage 5 v2 ✓ + Stage 13 ✓ + Stage 15.1 ✓.** Layer 0
+(Stage 12) functionally complete except whisper-level agent presence
+(deferred). Stage 5 v2 lands the global `duo` subagent (Haiku 4.5)
+subsuming `duo-browser`. Stage 15.1 lands the editor half of Send →
+Duo: two new agent-tunable CLI verbs (`duo selection-format`,
+`duo send`) plus the floating purple pill on the markdown editor's
+selection — click writes the formatted payload into the active
+terminal, no Enter pressed. **Recommended next: Stage 15.2** —
+extend the same `<SendToDuoPill>` primitive to the browser pane so
+"one primitive, three modalities" is two-of-three (canvas comes
+later via Stage 17c).
 
-**Suggested order:**
-1. **PROCESS-001** first — flesh out `docs/dev/smoke-checklist.md § 5`
-   into an explicit shortcut × focus-surface × theme matrix. Cheap
-   (~30 min). Walking it would have caught BUG-002, BUG-003, BUG-004.
-2. **BUG-004** (⌘` breaks keyboard routing) — highest user impact.
-   `togglePaneFocus` updates React state but doesn't move OS-level
-   focus. Fix sketch in `tasks.md`.
-3. **BUG-002** (⌘T from browser focus doesn't focus address bar) —
-   regression introduced by Stage 12. Race between BrowserManager
-   `webContents.focus()` and the renderer's queueMicrotask
-   address-bar focus. Fix sketch in `tasks.md`.
-4. **BUG-003** (pane focus indicator too subtle) — Atelier reduced
-   contrast made `border-accent/60` disappear. Three fix candidates
-   in `tasks.md`; pick at kickoff.
-5. **Stage 12 Phase 3** — tab-strip rhyme (TabBar.tsx + WorkingPane
-   strip refactor; mock spec at line ~285 of
-   `docs/design/atelier/project/duo-components.jsx`) + cozy-mode
-   visual completion (xterm theme variant for cozy + light).
+### Stage 5 v2 (just shipped — code-side)
 
-After Phase 3 wraps, Stage 12 is done. Next big bet remains
-**Stage 15 (Send → Duo)** per ROADMAP build order. Owner pre-work
-(Apple Developer ID cert) can run in parallel — see ROADMAP §
-Owner pre-work.
+PRD: [docs/prd/stage-5-v2-duo-subagent.md](docs/prd/stage-5-v2-duo-subagent.md).
+
+What landed:
+- New `duo external <url>` CLI verb (A24). Wraps `shell.openExternal`;
+  validates `http`/`https`/`mailto` schemes only — refuses `file://`
+  and other dangerous schemes. Wired through `shared/types.ts`,
+  `electron/socket-server.ts`, `electron/main.ts` (`openExternalUrl`),
+  `cli/duo.ts`. Binary rebuilt.
+- New global agent `agents/duo.md` (Haiku 4.5, ~254 LOC). **A20
+  session guard is literally the first instruction** — agent runs
+  `[ -n "$DUO_SESSION" ]` and refuses cleanly if unset. Full verb
+  cheat-sheet, 5 patterns (read-rewrite-write, browser extract,
+  multi-tab, file-tree, Send → Duo), failure protocol, A23–A25 web
+  routing rules.
+- `agents/duo-browser.md` deleted. `npm run sync:claude` actively
+  removes the old `~/.claude/agents/duo-browser.md` so dev installs
+  flip cleanly.
+- `~/.claude/duo/external-domains.json` bootstrapped to
+  `{"domains":[]}` by `sync:claude` (never overwrites populated).
+- `skill/SKILL.md` rewrote the "Prefer delegating" section (now
+  points at `duo`, with the `$DUO_SESSION` orchestrator-side check
+  per A21) and added a "Web routing" section documenting the
+  external-domains.json file.
+- `docs/dev/smoke-checklist.md` § 7a (new) — Pre-flight + functional
+  walks (F1, F2, F5, F8, F9) + recovery walks (C5/C6/C7 the
+  load-bearing guards) + post-walk cleanup.
+- README, FIRST-RUN, BUILD-PROCEDURES, CLAUDE.md plumbing checklist
+  all updated to point at `agents/duo.md` (the "*pending*" qualifier
+  on item 7 of the plumbing checklist is gone — agent file is now
+  load-bearing).
+
+**Live walks done in this session — Class A + Class C all PASS:**
+
+CLI smoke (orchestrator-driven, direct calls):
+- ✅ `duo external` end-to-end: success path opens macOS default
+  browser; scheme guard rejects `file://` / `javascript:` / malformed
+  URLs.
+- ✅ **F1 read-rewrite-write** (`/tmp/agent-fixture.md`): editor
+  mounted, `doc read` returned live buffer, `doc write --replace-all`
+  landed on disk inside the autosave window.
+- ✅ **F8 web routing (Duo path)**: empty `external-domains.json` →
+  `duo open https://example.com` opened tab in Duo's browser pane
+  (verified via `duo url` + `duo title` + `duo text --selector h1`).
+- ✅ **F9 web routing (listed external)**: seeded
+  `external-domains.json` with `example.com` → `duo external` opened
+  in Safari; `duo tabs` showed Duo's tab list unchanged.
+
+Agent walks (fresh `claude -p --agent duo` subprocesses, Haiku 4.5,
+total cost ~$0.40):
+- ✅ **C5 outside-Duo guard.** `env -u DUO_SESSION -u DUO_SOCKET claude
+  -p --agent duo "..."` → agent ran `[ -n "$DUO_SESSION" ] && echo
+  in_duo || echo not_in_duo`, saw `not_in_duo`, refused with the
+  EXACT one-line message from the prompt. **2 turns, zero `duo` verb
+  invocations, $0.006.** Permission-denial caveat noted below.
+- ✅ **C6 malformed list.** Truncated JSON (`{"domains":[`) in the
+  list file. Agent navigated via `duo open` (correct fallback); no
+  crash. 4 turns, $0.027.
+- ✅ **C7 listed-domain bypass.** Seeded list with `example.com`,
+  asked agent to navigate. Stream-json call log:
+  `duo external https://example.com/test-page` — NO `duo open`/`duo
+  navigate` for the listed host. Duo's tab list unchanged
+  before/after.
+- ✅ **F2 browser extract.** Agent navigated example.com, returned
+  H1 + correctly noted no list items present.
+- ✅ **F4 file-tree.** Agent scanned `/tmp/test-dir/{a,b,c}.md`,
+  correctly identified a + c as containing "risk" and b as not.
+- ✅ **F5 send→duo round-trip.** Agent inserted text at the editor's
+  caret position via `duo doc write --replace-selection`; file on
+  disk reflected the change.
+
+**C5 caveat — narrow Bash allowlist can mask the guard.** When the
+agent was given `--allowedTools "Bash(duo *) Bash(echo *)"` (narrow
+patterns that don't match the compound `[ … ] && echo … || echo …`
+guard command), the guard check was permission-denied, the agent
+proceeded to call `duo doc read`, and the refusal didn't fire. With
+permissive `--allowedTools "Bash"` the guard works correctly. This
+is a corner case for users who hand-write tight Bash allowlists; the
+agent's prompt could be hardened to refuse-on-check-denied. Filed in
+`tasks.md` as FOLLOWUP-002.
+
+**Class B perf — finding inverts the PRD hypothesis.** Synthetic F1
+on a fresh `claude -p --model sonnet`, comparing inline (Sonnet calls
+`duo` directly) vs subagent (Sonnet delegates via Task to the duo
+subagent):
+
+|  | inline (A) | subagent (B) |
+|---|---|---|
+| Total cost | $0.08 | $0.17 |
+| Wall-clock | 36s | 65s |
+| Sonnet tokens | 6 in / 398 out | 6 in / 348 out |
+| Haiku tokens | 1593 out | 2285 out |
+
+Both paths show tiny Sonnet usage because **Claude Code already
+routes mechanical tool work to Haiku regardless of `--model`**. The
+subagent path stacks a SECOND Haiku context (the agent's own) on top
+of Claude Code's fast-tier Haiku, doubling the Haiku-side cost.
+
+The PRD's "~85% orchestrator-token reduction" was framed against a
+mental model where the top-level Sonnet processes CLI dumps directly.
+That isn't how Claude Code actually distributes tokens across model
+tiers, so the synthetic measurement doesn't show the predicted win.
+
+**The agent's value is real but different from the PRD framing:**
+1. **Bounded context per task** — the subagent's window is
+   independent, so a long session with many duo tasks doesn't bloat
+   the main conversation's prefix cache.
+2. **Specialized prompt** — the agent knows the verbs, the routing
+   rule, the failure modes. The orchestrator doesn't need to be
+   primed with `~/.claude/skills/duo/SKILL.md` content for every
+   task.
+3. **Clear contract** — orchestrator drafts content, agent applies.
+   Failure modes are predictable.
+
+These are ergonomic / scale-with-session-length wins, not per-task
+dollar wins on a cold-cache synthetic. **A proper measurement would
+track cumulative orchestrator-context tokens across a multi-task
+session**, not single-task fresh-cache costs. Filed as FOLLOWUP-003.
+
+The smoke checklist (`docs/dev/smoke-checklist.md § 7a`) carries the
+agent walks for ongoing regression coverage.
+
+**Critical contracts** (see PRD A20–A26 for detail):
+- **Session guard (A20):** agent is global-installed, so every Claude
+  Code session on the user's machine sees it — including non-Duo
+  terminals. Without the `$DUO_SESSION` check, an outside-Duo
+  orchestrator would route Duo-flavored work to the agent and waste
+  turns hitting `Cannot connect: Duo app is not running`. Guard IS
+  the first action in the prompt. Stage 19a Phase 19a exports
+  `DUO_SESSION=1` per Duo PTY (`electron/pty-manager.ts:33`).
+- **Web routing (A23–A26):** every URL goes through Duo by default;
+  hostnames in `~/.claude/duo/external-domains.json` route to system
+  default browser via `duo external <url>`. List ships empty;
+  user-curated for sites that don't render well in `WebContentsView`
+  (claude.ai, chatgpt.com, banking sites, etc.).
+- **Content authority (A8):** orchestrator drafts content; agent
+  applies. Keeps Haiku in its lane; makes failures predictable.
+- **Failure mode (A10):** hard-fail-and-surface. Agent never
+  improvises on unexpected output shapes; orchestrator decides
+  recovery.
+
+### Recommended next: Stage 15.2 (browser selection observer + pill)
+
+PRD: [docs/prd/stage-15-send-to-duo.md § 6.2](docs/prd/stage-15-send-to-duo.md).
+
+Goal: extend the `<SendToDuoPill>` primitive shipped in 15.1 to the
+browser pane. After this, the same affordance works on editor +
+browser; canvas (the third surface) lands later inside Stage 17c.
+
+What it requires (per § 5 + § 6.2):
+- **Page-side selection observer.** A small JS payload injected on
+  every navigation that listens for `selectionchange` and posts the
+  serialized selection back to the renderer via `Runtime.addBinding`
+  (same pattern as the existing `Runtime.consoleAPICalled`
+  subscription in `electron/cdp-bridge.ts`).
+- **Canvas-app fast-paths.** Google Docs first
+  (`_docs_annotate_getAnnotatedText('').getSelection()` per the skill);
+  Sheets / Slides / Figma later as they bite.
+- **Browser pill rendering.** The pill is a renderer-DOM React portal
+  but the WebContentsView is OS-level — coords have to translate
+  page → WebContentsView bounds → renderer DOM. The existing
+  bounds-sync pattern in `electron/browser-manager.ts` is the lever.
+- **`duo selection` browser support.** The `BrowserSelectionSnapshot`
+  shape is already locked (Stage 13 Phase 0 § DuoSelection union); the
+  socket-server `selection` case already calls `cdp.getBrowserSelection()`
+  with a fallback. The new piece is making that method actually return
+  data when there's a real browser-pane selection (today it's stubbed).
+
+Build order:
+1. CDP `Runtime.addBinding('duoSelectionPush')` — register on every
+   `did-finish-load`. The binding fires every time the page-side
+   observer posts.
+2. Page-side observer script — minimal IIFE, ~30 LOC, listens for
+   `selectionchange`, debounces, serializes, posts via the binding.
+   Survives same-origin navigation by re-injection on
+   `Page.frameNavigated`.
+3. Canvas-app fast-path: detect `docs.google.com/document/*/edit` and
+   prefer `_docs_annotate_getAnnotatedText('')` over `window.getSelection()`.
+4. `BrowserManager` caches the latest `BrowserSelectionSnapshot` per
+   tab; surface via a renderer-side hook (`useBrowserSelection`).
+5. Pill mount in `BrowserPane` — same `<SendToDuoPill>`, anchored to
+   selection rect translated through the WebContentsView bounds.
+6. `cdp.getBrowserSelection()` returns the cached snapshot (was
+   stubbed; wire it up).
+
+Out of scope for 15.2 (defer to 15.3 polish):
+- Length cap + truncation marker (G9).
+- Image / table flattening (G8).
+- `⌘D` keyboard shortcut (G5).
+
+Visual smoke deferred per FOLLOWUP-004 — same constraint as 15.1.
+
+### Stage 15.1 (just shipped)
+
+PRD: [docs/prd/stage-15-send-to-duo.md § 6.1](docs/prd/stage-15-send-to-duo.md).
+
+CLI half (smoke-tested live):
+- `duo selection-format [a|b|c]` (G19) — agent-tunable runtime knob,
+  persisted in renderer localStorage. Default `a` (quote + provenance);
+  `b` = literal; `c` = opaque token. Mirrors `duo theme` plumbing
+  (renderer source of truth, main caches for CLI reads). New IPC:
+  `SELECTION_FORMAT_STATE_PUSH` / `SELECTION_FORMAT_SET`.
+- `duo send [--text "…"]` (G17) — writes payload into active terminal's
+  PTY. No Enter (G11). Renderer pushes active tab id via
+  `TERMINAL_ACTIVE_PUSH` so main knows where to write. Returns
+  `{ok, written, terminalId}`.
+
+UI half (HMR-applied, typecheck clean, visual walk deferred):
+- `renderer/components/editor/sendFormat.ts` — pure formatter for
+  modes a/b/c. Per-line `> ` prefix on multi-line selections; `~/`
+  shortening on paths inside `$HOME`.
+- `renderer/components/editor/primitives/SendToDuoPill.tsx` — visual
+  primitive (no editor imports per the Stage 13 contract). Portals to
+  `document.body`, anchors 6px above selection (falls back below when
+  no room), right-aligns and clamps to viewport. `onMouseDown` (not
+  click) so the editor doesn't blur first.
+- `renderer/hooks/useSelectionFormat.ts` — localStorage round-trip
+  + main pushState + CLI-driven `onSet` listener.
+- `MarkdownEditor.tsx`: tracks `pillRect` in the same effect that
+  pushes `EDITOR_SELECTION_PUSH`; hides on blur or collapsed
+  selection; repositions on scroll/resize. Click handler reads
+  `lastSelectionRef`, formats via `useSelectionFormat`, calls
+  `onSendToDuo` prop.
+- `WorkingPane.tsx` + `App.tsx`: `onSendToDuo` callback in App.tsx
+  calls `pty.write(activeTabId, payload)` then sets `focusedColumn =
+  'terminal'`. `null` propagates when no terminal exists, hiding the
+  pill entirely.
+- `globals.css` — `.duo-send-pill` style: small purple chip on
+  `--duo-accent`, 11px text, layered drop-shadow, hover lift, 120ms
+  fade-in keyframe.
+
+### Stage 13 (just shipped)
+
+Phase 0 + 13a + 13b end-to-end. The two visual primitives
+(`duo-just-added` keyframe, `<WriteWarningBanner>`) live under
+`renderer/components/editor/primitives/` with zero TipTap imports —
+contract enforced via the `primitives/README.md`. MD bindings live
+in `extensions/`. Stage 14 (track changes) and Stage 17 (HTML canvas)
+will reuse the same primitives directory; Stage 17 v2 just writes a
+canvas-side binding.
+
+Notable runtime fix: `--duo-mark` token bumped `#F8E59C` → `#F0CB6A`
+because the prototype's value was visually imperceptible against
+cream paper. DOM inspection confirmed the wash was painting; it was
+contrast, not wiring. Doc-write timeouts also bumped 5s → 5min on
+both renderer (`dispatchDocWrite`) and CLI (`PER_CMD_TIMEOUT_MS`)
+sides for the human-in-the-loop banner-decision window.
+
+### Owner pre-work (cert procurement)
+
+Can run in parallel — see ROADMAP § Owner pre-work. 1–2 business
+days enrollment lead time, longer for cert provisioning. Kick off now
+to shave weeks off Stage 21.
+
+### Open process work
+
+- **PROCESS-001 Phase 2** (Playwright + Electron automation) deferred
+  until Stage 18 lands. Phase 1 — the keyboard matrix in
+  `docs/dev/smoke-checklist.md § 5` — is now load-bearing; walk it on
+  every keyboard-touching change.
+- **FOLLOWUP-001** (in `tasks.md`): when Stage 5 v2 ships, drop the
+  "*pending*" qualifier on item 7 of the plumbing checklist in
+  CLAUDE.md so `agents/duo.md` becomes a required touch-point for
+  every new CLI verb.
 
 **Previous session (2026-04-25):**
 - Stage 9 cozy mode graduated — daily-driver validation passed; menu
@@ -140,14 +427,14 @@ Owner pre-work.
   syntax-highlighted code, `⌘N` new-file flow with filename
   interstitial + focus-to-prose on commit, persistent selection
   overlay across focus changes, `⌘S` + autosave, dirty dot
-- Bundled `duo` Claude Code skill + `duo-browser` subagent
+- Bundled `duo` Claude Code skill + `duo` subagent (Haiku 4.5; Stage 5 v2)
 
 **CLI verbs shipped (see [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md) for
 the authoritative inventory):** navigate · open · url · title · dom ·
 text · ax · click · fill · focus · type · key · eval · screenshot ·
 console · errors · network · tabs · tab · close · wait · view ·
 reveal · ls · nav-state · edit · selection · doc read · doc write ·
-theme · install
+theme · external · selection-format · send · install
 
 **What's next (see `ROADMAP.md` + `docs/CLI-COVERAGE.md`):**
 
@@ -227,30 +514,35 @@ tab-name, tab-cmd, zap, file→composer). Pull in when convenient.
   promoted to roadmap bullets in Stage 20 + 21.
 
 **Known issues live in [`tasks.md`](tasks.md).** As of 2026-04-26
-(during Stage 12 verification): **3 open bugs + 1 process item.**
-- **BUG-002** — `⌘T` from browser focus doesn't focus address bar
-  (regression). Race between WebContentsView `webContents.focus()`
-  in BrowserManager and the renderer's queueMicrotask address-bar
-  focus call.
-- **BUG-003** — Pane focus indicator too subtle. Atelier's reduced
-  contrast made the existing `border-accent/60` rule hard to spot.
-- **BUG-004** — `⌘`` pane-toggle breaks subsequent keyboard
-  routing. `togglePaneFocus` updates React state but doesn't move
-  OS-level focus to xterm / browser / editor.
-- **PROCESS-001** — Keyboard regression coverage gap. Four
-  keyboard regressions in a week (BUG-001, 002, 004, plus
-  ⌘T-pane-aware churn). Need at minimum a fleshed-out keyboard
-  matrix in `docs/dev/smoke-checklist.md § 5`; consider Playwright
-  + Electron automation later.
+late-day: **0 open bugs · 1 deferred process item.**
 - **BUG-001** (closed 2026-04-26 in commit `3976039`) — `⌃Tab`
   pane-aware cycling. Three-part fix; full write-up in `tasks.md`
   so the next reader doesn't re-discover the xterm-key-eating and
   WebContentsView-mousedown gotchas.
-
-**Tackle the open bugs after the current Stage 12 round wraps.**
-PROCESS-001 should be addressed BEFORE the next round of keyboard
-work (Stage 19c, Stage 20 pane-aware shortcuts) so we stop
-shipping regressions.
+- **BUG-002** (closed 2026-04-26) — `⌘T` from browser focus didn't
+  focus the address bar. Root cause: when WebContentsView has OS
+  focus, renderer-side `el.focus()` is a no-op. Fix:
+  `wireKeyForwarding` reclaims OS focus to the main renderer
+  before forwarding ⌘T/⌘N/⌘L.
+- **BUG-003** (closed 2026-04-26, revised same-day) — Pane focus
+  indicator too subtle. v1 (inset-shadow ring) was occluded by
+  xterm canvas / WebContentsView on Terminal + Working — only the
+  seam line was visible, which abuts the neighbour's seam line and
+  is therefore ambiguous about ownership. v2 moves the indicator
+  into the column's chrome strip (tab bar / breadcrumb header):
+  background tints to `accent-soft` when the column has focus.
+  Strip is renderer DOM and never occluded.
+- **BUG-004** (closed 2026-04-26) — `⌘`` pane-toggle didn't move
+  OS-level focus. Two-part fix: ⌘` menu accelerator now calls
+  `mainWindow.webContents.focus()` before sending the IPC; renderer
+  `togglePaneFocus` focuses the contenteditable for editor file
+  tabs (not the wrapper).
+- **PROCESS-001 Phase 1** (closed 2026-04-26) — keyboard matrix
+  in `docs/dev/smoke-checklist.md § 5` expanded into shortcut ×
+  focus-surface matrix + theme + pane-toggle contract. Walk it on
+  every keyboard-touching change.
+- **PROCESS-001 Phase 2** (deferred) — Playwright + Electron
+  automation. Pick up after Stage 18 lands.
 
 ---
 
@@ -265,8 +557,8 @@ shipping regressions.
 | `docs/design/atelier/` | Visual-redesign source bundle (Atelier direction). Tokens, mock components, and the interactive prototype that drives Stage 17 + per-feature visuals (cozy mode, just-added highlight, track changes, Send → Duo pill). Read [its README](docs/design/atelier/README.md) before any UI-touching work. |
 | `docs/dev/smoke-checklist.md` | Test matrix walked before calling any UI change done |
 | `duo-brief.md` | Original engineering brief (Stages 1–5). Architecture + Google Docs path are authoritative; product framing is superseded by `docs/VISION.md`. |
-| `ROADMAP.md` | Stage-by-stage status with completion indicators + unscheduled backlog. **Authoritative.** |
-| `docs/roadmap.html` | Visual single-page snapshot of `ROADMAP.md` with per-stage comment boxes (Atelier-styled, Geoff's own surface for inline notes via localStorage). **Keep in sync** with every `ROADMAP.md` update — at minimum: update the snapshot date in `<header>`, the main commit SHA, the Recent shipments list, the Status sidebar counts, and any stage-card status / sub-items / cross-refs that changed. Same `<details class="stage done">` collapsing pattern for fully-done stages (no pending sub-items); leave in-progress / pending stages always-expanded. |
+| `docs/roadmap.html` | **Canonical roadmap.** Atelier-styled single-page surface with the full layered build order, per-stage cards (status, sub-items, PRDs, cross-refs), per-stage comment boxes (localStorage-backed for Geoff's inline notes), and a sidebar with status counts + nav. Served at `http://localhost:8765/roadmap.html` via `.claude/launch.json`. **This is the file Geoff actually reads;** edit it as your primary surface for any roadmap change (snapshot date in `<header>`, Recent shipments list, sidebar counts, stage-card status / sub-items / cross-refs, Layer-band headings). Same `<details class="stage done">` collapsing pattern for fully-done stages (no pending sub-items); leave in-progress / pending stages always-expanded. |
+| `ROADMAP.md` | Synced markdown view of `docs/roadmap.html`. Useful for full-text grep, `git blame` history, and read access from agents that don't have HTML rendering (subagents reading the file via `cat`). **Not authoritative** — when the two diverge, the HTML wins. Keep in step with every `roadmap.html` update; the markdown's structure mostly mirrors the HTML's content but adds the layered-build-order ASCII diagram, the full table of stages, and the Number-history table for old↔new translations. Periodically reconcile by reading both side-by-side. |
 | `docs/DECISIONS.md` | Locked architectural decisions with rationale (+ open ADR on sandbox-tolerant transport) |
 | `docs/FIRST-RUN.md` | Thorough setup procedure |
 | `docs/RESEARCH.md` | Technical research notes that informed decisions |
@@ -285,7 +577,7 @@ shipping regressions.
 | `renderer/components/editor/extensions/` | `TableShortcuts`, `PersistentSelection` |
 | `renderer/hooks/useTheme.ts` | Theme mode state + push to main + CLI-override listener |
 | `skill/SKILL.md` | Claude Code skill (auto-discovered via YAML frontmatter) |
-| `agents/duo-browser.md` | Subagent for multi-step browser work |
+| `agents/duo.md` | Subagent (Haiku 4.5) — the canonical Duo-CLI driver; orchestrators delegate multi-step `duo` sequences here |
 
 ---
 
@@ -311,6 +603,11 @@ shipping regressions.
     4. `electron/socket-server.ts` — new case in the command switch; extend `NavBridge` if it needs renderer state or a renderer dispatch
     5. `cli/duo.ts` — the verb itself + `printHelp()` update
     6. `skill/SKILL.md` — so the agent discovers it (plus `npm run sync:claude`)
+    7. **`agents/duo.md`** — every new verb must update the agent's verb
+       cheat-sheet (under `## Verb cheat-sheet`). The agent runs on
+       Haiku 4.5 and is the canonical Duo-CLI driver; verbs absent from
+       the cheat-sheet are effectively invisible to it. PRD:
+       `docs/prd/stage-5-v2-duo-subagent.md`.
 
 5. **The skill is a first-class deliverable.** Ship both the app and `skill/SKILL.md`, or neither. The skill is how Claude Code discovers the tool.
 
@@ -348,10 +645,10 @@ shipping regressions.
 
 9. **After editing `skill/` or `agents/`, sync to `~/.claude/`.** The repo
    tracks the canonical source, but Claude Code running on this machine
-   reads from `~/.claude/skills/duo/` and `~/.claude/agents/duo-browser.md`.
+   reads from `~/.claude/skills/duo/` and `~/.claude/agents/duo.md`.
    These are plain-file **copies**, not symlinks — edits in the repo do
    not propagate automatically. After any change to `skill/SKILL.md`,
-   `skill/examples/*.md`, or `agents/duo-browser.md`, run:
+   `skill/examples/*.md`, or `agents/duo.md`, run:
 
    ```bash
    npm run sync:claude

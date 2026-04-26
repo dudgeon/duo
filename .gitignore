@@ -21,6 +21,16 @@ npm-debug.log*
 .env
 .env.local
 
+# Code-signing / notarization secrets — never commit
+# Belt-and-suspenders: these files should live outside the repo entirely
+# (~/.appstoreconnect/private_keys/*.p8 for the API key, Keychain for certs).
+# These globs catch accidental drops into the working tree.
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+build/notarize-api-key.json
+
 # Coverage
 coverage/
 

@@ -28,7 +28,12 @@ import type { Editor } from '@tiptap/react'
 import { EditorToolbar } from './EditorToolbar'
 import { TableShortcuts } from './extensions/TableShortcuts'
 import { PersistentSelection } from './extensions/PersistentSelection'
-import type { EditorSelectionSnapshot } from '@shared/types'
+import { JustAdded } from './extensions/JustAdded'
+import { WriteWarningBanner } from './primitives/WriteWarningBanner'
+import { SendToDuoPill } from './primitives/SendToDuoPill'
+import { formatSendPayload } from './sendFormat'
+import { useSelectionFormat } from '../../hooks/useSelectionFormat'
+import type { DocWriteRequest, EditorSelectionSnapshot } from '@shared/types'
 import {
   splitFrontmatter,
   joinFrontmatter,
@@ -51,6 +56,12 @@ interface Props {
   /** Called when the user cancels naming (Escape). Parent typically
    *  closes the tab. */
   onCancelNew?: () => void
+  /** Stage 15.1 — host-supplied callback fired when the user clicks the
+   *  Send → Duo pill. The payload is already formatted (per the user's
+   *  current `duo selection-format` preference); the host writes it to
+   *  the active terminal's PTY. `null` props the pill from rendering at
+   *  all (e.g. no terminal tabs are open). */
+  onSendToDuo?: ((payload: string) => void) | null
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
@@ -58,7 +69,7 @@ const AUTOSAVE_DEBOUNCE_MS = 800
 // Module-scope lowlight instance — cheap to construct, shared across tabs.
 const lowlight = createLowlight(common)
 
-export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew }: Props) {
+export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -107,6 +118,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       TableCell,
       TableShortcuts,
       PersistentSelection,
+      JustAdded,
       CodeBlockLowlight.configure({ lowlight }),
       Placeholder.configure({ placeholder: 'Start typing — markdown shortcuts work (`# `, `- `, `> `, `**bold**`)…' }),
       Markdown.configure({
@@ -271,11 +283,40 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [])
 
   // ── Selection push (for `duo selection`) ────────────────────────────────
+  // Also drives the Stage 15.1 Send → Duo pill: we cache the latest
+  // selection snapshot AND the selection's screen rect so the pill
+  // can mount portaled to document.body without re-reading editor
+  // state on every render.
+  const [pillRect, setPillRect] = useState<DOMRect | null>(null)
+  const lastSelectionRef = useRef<EditorSelectionSnapshot | null>(null)
+  const { format: selectionFormat } = useSelectionFormat()
+
   useEffect(() => {
     if (!editor || isNew) return
 
+    const computeRect = (): DOMRect | null => {
+      // Hide the pill when the editor doesn't have DOM focus —
+      // selection persists for `duo selection` reads (Stage 11 D29c)
+      // but the visible affordance shouldn't follow the user out of
+      // the editor.
+      if (!editor.isFocused) return null
+      const { from, to } = editor.state.selection
+      if (from === to) return null
+      // ProseMirror gives us the DOM range backing the selection.
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return null
+      const rect = sel.getRangeAt(0).getBoundingClientRect()
+      // Some collapsed-but-not-collapsed states (e.g. just after
+      // double-click selecting an empty span) report 0×0 rects.
+      if (rect.width === 0 && rect.height === 0) return null
+      return rect
+    }
+
     const pushSnapshot = () => {
-      window.electron.editor?.pushSelection(computeSelectionSnapshot(editor, path))
+      const snapshot = computeSelectionSnapshot(editor, path)
+      lastSelectionRef.current = snapshot
+      window.electron.editor?.pushSelection(snapshot)
+      setPillRect(computeRect())
     }
 
     pushSnapshot()
@@ -284,16 +325,41 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     editor.on('blur', pushSnapshot)
     editor.on('update', pushSnapshot)
 
+    // Also reposition the pill on scroll / resize — selection rect is
+    // viewport-relative.
+    const onLayout = () => setPillRect(computeRect())
+    window.addEventListener('scroll', onLayout, true)
+    window.addEventListener('resize', onLayout)
+
     return () => {
       editor.off('selectionUpdate', pushSnapshot)
       editor.off('focus', pushSnapshot)
       editor.off('blur', pushSnapshot)
       editor.off('update', pushSnapshot)
+      window.removeEventListener('scroll', onLayout, true)
+      window.removeEventListener('resize', onLayout)
       // Clear the cache when this editor unmounts so `duo selection`
       // can't return stale data after the user closed/switched the tab.
       window.electron.editor?.pushSelection(null)
+      setPillRect(null)
+      lastSelectionRef.current = null
     }
   }, [editor, path, isNew])
+
+  // Click handler — format the cached snapshot and hand it to the host.
+  // Tagged with the discriminant so future surfaces can branch on kind.
+  const handleSendToDuoClick = useCallback(() => {
+    if (!onSendToDuo) return
+    const snap = lastSelectionRef.current
+    if (!snap) return
+    const payload = formatSendPayload({ kind: 'editor', ...snap }, selectionFormat)
+    onSendToDuo(payload)
+    // Pill self-hides on click per PRD G1. The selection remains
+    // intact (Stage 11 D29c) so the user can re-select-and-send if
+    // they want; the pill reappears as soon as a new selectionUpdate
+    // fires.
+    setPillRect(null)
+  }, [onSendToDuo, selectionFormat])
 
   // ── Serve doc-read requests with the live buffer ────────────────────────
   useEffect(() => {
@@ -329,6 +395,60 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [editor, path, isNew])
 
   // ── Apply doc-write requests from the agent ─────────────────────────────
+  //
+  // Stage 13b — when the buffer is dirty, queue the request and render a
+  // <WriteWarningBanner> so the human accepts/declines from the editor
+  // chrome instead of the terminal. While the banner is up, the IPC reply
+  // is held; further writes from the agent are rejected with a "another
+  // write awaiting your decision" error so we don't queue a backlog.
+
+  /** Apply a doc-write request: parses content, paints just-added
+   *  highlight, resolves the IPC. Used both for the immediate path
+   *  (clean buffer) and the post-accept path (dirty buffer + accepted). */
+  const applyDocWrite = useCallback((req: DocWriteRequest) => {
+    if (!editor) return
+    try {
+      if (req.mode === 'replace-all') {
+        // Markdown text — tiptap-markdown reparses it into PM doc.
+        editor.commands.setContent(req.text, true)
+        // Stage 13a — paint the entire body as just-added so the human
+        // can see the agent's rewrite. PM positions: 0 → doc.content.size.
+        editor.commands.markJustAdded(0, editor.state.doc.content.size)
+      } else {
+        // replace-selection: plain-text replacement of the current
+        // selection (or insertion at caret if collapsed). Agents that
+        // need markdown formatting should use --replace-all for v1.
+        //
+        // Stage 13a — capture the selection start BEFORE the insert so
+        // we know where the just-added range begins. After insertContent,
+        // the caret sits at the end of the inserted content.
+        const { from: insertStart } = editor.state.selection
+        editor.chain().focus().insertContent(req.text).run()
+        const insertEnd = editor.state.selection.from
+        if (insertEnd > insertStart) {
+          editor.commands.markJustAdded(insertStart, insertEnd)
+        }
+      }
+      window.electron.editor.replyDocWrite({ reqId: req.reqId, ok: true })
+    } catch (err) {
+      window.electron.editor.replyDocWrite({
+        reqId: req.reqId,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err)
+      })
+    }
+  }, [editor])
+
+  const [pendingWrite, setPendingWrite] = useState<DocWriteRequest | null>(null)
+
+  // Refs let the IPC handler read latest dirty + pending state without
+  // re-subscribing on every keystroke (which would tear down listeners
+  // mid-edit and miss writes).
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  const pendingWriteRef = useRef<DocWriteRequest | null>(null)
+  pendingWriteRef.current = pendingWrite
+
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onDocWrite((req) => {
@@ -340,26 +460,42 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         })
         return
       }
-      try {
-        if (req.mode === 'replace-all') {
-          // Markdown text \u2014 tiptap-markdown reparses it into PM doc.
-          editor.commands.setContent(req.text, true)
-        } else {
-          // replace-selection: plain-text replacement of the current
-          // selection (or insertion at caret if collapsed). Agents that
-          // need markdown formatting should use --replace-all for v1.
-          editor.chain().focus().insertContent(req.text).run()
+
+      // Stage 13b — gate dirty-buffer writes behind the warning banner.
+      if (dirtyRef.current) {
+        if (pendingWriteRef.current) {
+          window.electron.editor.replyDocWrite({
+            reqId: req.reqId,
+            ok: false,
+            error: 'Another write is awaiting the user\'s decision.'
+          })
+          return
         }
-        window.electron.editor.replyDocWrite({ reqId: req.reqId, ok: true })
-      } catch (err) {
-        window.electron.editor.replyDocWrite({
-          reqId: req.reqId,
-          ok: false,
-          error: err instanceof Error ? err.message : String(err)
-        })
+        setPendingWrite(req)
+        return
       }
+
+      applyDocWrite(req)
     })
-  }, [editor, path, isNew])
+  }, [editor, path, isNew, applyDocWrite])
+
+  const handlePendingAccept = useCallback(() => {
+    const req = pendingWriteRef.current
+    if (!req) return
+    setPendingWrite(null)
+    applyDocWrite(req)
+  }, [applyDocWrite])
+
+  const handlePendingDecline = useCallback(() => {
+    const req = pendingWriteRef.current
+    if (!req) return
+    setPendingWrite(null)
+    window.electron.editor.replyDocWrite({
+      reqId: req.reqId,
+      ok: false,
+      error: 'User declined the agent\'s write request.'
+    })
+  }, [])
 
   // ── ⌘S ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -406,6 +542,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         />
       )}
       <EditorToolbar editor={editor} onSave={() => void save()} dirty={dirty} saving={saving} />
+      {pendingWrite && (
+        <WriteWarningBanner
+          action={
+            pendingWrite.mode === 'replace-all'
+              ? 'Replace the whole document'
+              : 'Insert at the current selection'
+          }
+          preview={pendingWrite.text.slice(0, 140) + (pendingWrite.text.length > 140 ? '…' : '')}
+          onAccept={handlePendingAccept}
+          onDecline={handlePendingDecline}
+        />
+      )}
       {error && (
         <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
           {error}
@@ -416,6 +564,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           <EditorContent editor={editor} />
         </div>
       </div>
+      {/* Stage 15.1 — floating Send → Duo pill, portaled to body. */}
+      {onSendToDuo && (
+        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+      )}
     </div>
   )
 }

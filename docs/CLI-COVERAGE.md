@@ -28,6 +28,7 @@ for the authoritative usage text.
 |---|---|
 | `duo navigate <url>` | Navigate the active browser tab |
 | `duo open <path-or-url>` | New browser tab with a file or URL; activates it (Stage 8) |
+| `duo external <url>` | Opens the URL in the macOS default browser via Electron `shell.openExternal`. Used by the `duo` subagent for hostnames listed in `~/.claude/duo/external-domains.json` — sites known not to render well in the embedded `WebContentsView` (Claude.ai, ChatGPT, banking sites, etc.). NOT used for general navigation; the default route is always Duo. http(s) and mailto schemes only. |
 | `duo url` / `duo title` | Current URL / title |
 | `duo text [--selector]` | Visible text via `innerText` |
 | `duo ax [--selector] [--format md\|json]` | Accessibility tree — required for canvas apps (Docs/Sheets/Slides/Figma) |
@@ -68,6 +69,8 @@ for the authoritative usage text.
 | Verb | What it does |
 |---|---|
 | `duo theme [system\|light\|dark]` | Read or set theme mode |
+| `duo selection-format [a\|b\|c]` | Read or set the Send → Duo payload format (Stage 15 G19, agent-tunable). a = quote + provenance (default), b = literal, c = opaque token. Persisted in renderer localStorage. |
+| `duo send [--text "…"]` | Write a payload into the active terminal's PTY (Stage 15 G17). No Enter appended — user confirms. Without `--text`, reads stdin. Returns `{ok, written, terminalId}`. |
 
 ### Meta
 

@@ -9,6 +9,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useTheme } from './hooks/useTheme'
+import { useSelectionFormat } from './hooks/useSelectionFormat'
 import type { TabSession, DirEntry } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
@@ -75,6 +76,12 @@ export function App() {
   const nav = useNavigator(home)
   const pendingCwd = computePendingCwd(nav.state)
   const theme = useTheme()
+  // Stage 15 G19 — sets up the localStorage round-trip for `duo
+  // selection-format`. The hook's return value isn't consumed yet
+  // (the editor pill that uses it lands in 15.1's UI half); calling
+  // it here is what bootstraps the renderer→main pushState so CLI
+  // reads return the persisted value rather than the default.
+  useSelectionFormat()
 
   const [tabs, setTabs] = useState<TabSession[]>(() => [makeTab(home)])
   const [activeTabId, setActiveTabId] = useState<string>(() => tabs[0].id)
@@ -108,6 +115,14 @@ export function App() {
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeCozy = activeTab ? (cozyByTab[activeTab.id] ?? cozyDefault) : false
+
+  // Stage 15 G17 — push the active terminal id to main so `duo send`
+  // can write into the right PTY. `null` covers the degenerate case
+  // where every terminal tab was closed (today the UI prevents this,
+  // but the IPC contract supports it for future surfaces).
+  useEffect(() => {
+    window.electron.terminal?.pushActiveId(activeTab ? activeTab.id : null)
+  }, [activeTab?.id])
 
   // ── Tab actions ────────────────────────────────────────────────────────────
 
@@ -359,13 +374,25 @@ export function App() {
 
   // ⌘` — cycle focus between the terminal column and the working pane.
   // Files column is a toggle with ⌘B and intentionally not in this cycle.
-  // Also moves actual DOM focus: clicks move it naturally, but the
-  // keybinding has to drive it explicitly or keystrokes stay in the
-  // previously-focused element.
+  //
+  // BUG-004 fix: this MUST move actual OS-level focus, not just flip the
+  // React `focusedColumn` state. The renderer-side focus calls below only
+  // work because the menu accelerator's main-process click handler has
+  // already called `mainWindow.webContents.focus()` to reclaim OS focus
+  // from any active WebContentsView (see electron/main.ts § installAppMenu).
+  //
+  // Per destination:
+  //   - terminal → focus the visible xterm helper textarea (so PTY
+  //     keystrokes route in)
+  //   - working+browser → focusActive() on the BrowserManager (returns
+  //     OS focus to the active WebContentsView's webContents)
+  //   - working+editor (or any non-browser file tab) → focus the
+  //     contenteditable prose, falling back to the wrapper. The wrapper
+  //     alone has tabIndex=0 but isn't a typing target — typing into
+  //     a focused tabIndex wrapper is a no-op for the editor.
   const togglePaneFocus = useCallback(() => {
     setFocusedColumn(prev => {
       const next = prev === 'working' ? 'terminal' : 'working'
-      // Run the focus move after state commits so the pane is ready.
       queueMicrotask(() => {
         if (next === 'terminal') {
           const textarea = document.querySelector<HTMLTextAreaElement>(
@@ -375,8 +402,15 @@ export function App() {
         } else if (activeWorking.kind === 'browser') {
           window.electron.browser.focusActive()
         } else {
-          // File tab — focus its scrollable region so keyboard scroll works.
-          document.querySelector<HTMLElement>('[data-duo-workingpane]')?.focus()
+          const wrapper = document.querySelector<HTMLElement>('[data-duo-workingpane]')
+          if (!wrapper) return
+          // Editor tab: prose is `.ProseMirror[contenteditable=true]`.
+          // Other file types (image / pdf / unknown preview) have no
+          // contenteditable; fall back to focusing the wrapper so arrow
+          // keys can scroll the pane.
+          const ce = wrapper.querySelector<HTMLElement>('[contenteditable="true"]')
+          if (ce) ce.focus()
+          else wrapper.focus()
         }
       })
       return next
@@ -550,8 +584,15 @@ export function App() {
               // Stage 12 — Atelier layout depth: terminal column sits on
               // `paper-deep`, working pane on `paper`. The 1px right
               // border (paper-rule) is the seam between them.
+              //
+              // BUG-003 fix (rev 2): primary focus indicator now lives in
+              // the tab strip (TabBar tints to accent-soft when
+              // focused={true}) — strip is renderer DOM and never
+              // occluded, unlike the column wrapper which xterm canvas
+              // paints over. Seam border still flips to full-opacity
+              // accent as a secondary cue.
               'flex flex-col h-full bg-surface-1 border-r transition-colors min-w-0 overflow-hidden',
-              focusedColumn === 'terminal' ? 'border-accent/60' : 'border-border'
+              focusedColumn === 'terminal' ? 'border-accent' : 'border-border'
             ].join(' ')}
             style={{ width: `${splitPct}%` }}
             onMouseDown={() => setFocusedColumn('terminal')}
@@ -564,6 +605,7 @@ export function App() {
               onNew={newTab}
               onClose={closeTab}
               pendingCwd={pendingCwd}
+              focused={focusedColumn === 'terminal'}
             />
             <div className="flex-1 overflow-hidden">
               <TerminalPane
@@ -586,8 +628,13 @@ export function App() {
 
           <div
             className={[
+              // BUG-003 fix (rev 2): see Terminal column. Inset shadow
+              // dropped — the WebContentsView occludes 3 of 4 sides, so
+              // the ring was misleading. Focus indicator is now inside
+              // WorkingTabStrip (renderer DOM, never covered by the
+              // WebContentsView).
               'flex-1 overflow-hidden border-l transition-colors min-w-0',
-              focusedColumn === 'working' ? 'border-accent/60' : 'border-transparent'
+              focusedColumn === 'working' ? 'border-accent' : 'border-transparent'
             ].join(' ')}
             onMouseDown={() => setFocusedColumn('working')}
             aria-label="Working pane"
@@ -600,6 +647,20 @@ export function App() {
               onOpenMarkdown={onOpenMarkdown}
               onTabDirtyChange={onTabDirtyChange}
               onCommitNewFile={onCommitNewFile}
+              focused={focusedColumn === 'working'}
+              // Stage 15.1 — Send → Duo pill: pipe the formatted payload
+              // into the active terminal's PTY. PRD G11: no Enter
+              // appended — the user confirms by pressing Enter
+              // themselves. Focus moves to the active terminal so the
+              // user can append a verb without having to click first.
+              onSendToDuo={
+                activeTabId
+                  ? (payload) => {
+                      void window.electron.pty.write(activeTabId, payload)
+                      setFocusedColumn('terminal')
+                    }
+                  : null
+              }
             />
           </div>
         </div>

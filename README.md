@@ -69,9 +69,11 @@ What's shipped today:
   Claude Code running inside a Duo tab — can call it. Under the hood
   it's a Unix socket at `~/Library/Application Support/duo/duo.sock`
   (mode 0700). See [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).
-- Bundled **`duo` Claude Code skill** + **`duo-browser` subagent** so a
-  fresh Claude Code session launched inside a Duo terminal
+- Bundled **`duo` Claude Code skill** + **`duo` subagent** (Haiku 4.5) so
+  a fresh Claude Code session launched inside a Duo terminal
   auto-discovers them and can drive the browser + editor without priming.
+  The subagent owns multi-step CLI orchestration so the parent
+  Sonnet/Opus session keeps a clean context.
 - **First-class support for canvas-rendered apps** (Google Docs, Sheets,
   Slides, Figma) via the accessibility tree — not DOM scraping, which
   silently returns empty on these surfaces.
@@ -111,7 +113,8 @@ npm run dev        # launches the Electron app
 mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents
 cp skill/SKILL.md            ~/.claude/skills/duo/SKILL.md
 cp skill/examples/*.md       ~/.claude/skills/duo/examples/
-cp agents/duo-browser.md     ~/.claude/agents/duo-browser.md
+cp agents/duo.md             ~/.claude/agents/duo.md
+rm -f                        ~/.claude/agents/duo-browser.md   # remove old name
 
 # Verify:
 duo --version                # 0.1.0
@@ -289,7 +292,7 @@ duo/
 │   ├── SKILL.md
 │   └── examples/
 ├── agents/                # bundled Claude Code subagent
-│   └── duo-browser.md
+│   └── duo.md
 ├── shared/
 │   └── types.ts           # cross-process types + IPC channel names
 ├── docs/
@@ -322,7 +325,7 @@ Full stage-by-stage tracking lives in [ROADMAP.md](ROADMAP.md). Headlines:
 - ✅ **Stage 1** — Core shell (Electron + React + xterm.js + node-pty, tabs, keybindings)
 - ✅ **Stage 2** — Browser pane (WebContentsView, SSO persistence, tab strip, address bar)
 - ✅ **Stage 3** — `duo` CLI bridge (socket server, CDP primitives, rich Google Docs read via `/export?format=md`)
-- ✅ **Stage 5** — Skill + `duo-browser` subagent (end-to-end verified in a fresh Claude Code session)
+- ✅ **Stage 5** — Skill + `duo` subagent (Haiku 4.5; end-to-end verified in a fresh Claude Code session). Stage 5 v2 (2026-04-26) broadened the subagent's scope from browser-only to the full CLI surface and dropped the orchestrator's per-task token cost.
 - ✅ **Stage 8** — `duo open` for agent-generated HTML artifacts (+ `duo close` for cleanup)
 - ✅ **Stage 9** — Cozy-mode terminal (reader typography, TUI-safe, preview)
 - 🔄 **Stage 10** — File navigator + WorkingPane reshape (spec locked, in progress)

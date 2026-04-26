@@ -131,8 +131,8 @@
   <main class="main">
     <header>
       <h1>Duo Roadmap</h1>
-      <div class="sub">Snapshot 2026-04-26 (post-renumber) · Stage numbers now reflect actual build order · comments save locally to your browser</div>
-      <div class="sub" style="margin-top: 8px;">Authoritative source: <a href="https://github.com/dudgeon/duo/blob/main/ROADMAP.md" style="color: var(--accent-ink);"><code>ROADMAP.md</code></a> · per-stage PRDs in <a href="https://github.com/dudgeon/duo/tree/main/docs/prd" style="color: var(--accent-ink);"><code>docs/prd/</code></a> · architecture decisions in <a href="https://github.com/dudgeon/duo/blob/main/docs/DECISIONS.md" style="color: var(--accent-ink);"><code>DECISIONS.md</code></a></div>
+      <div class="sub">Snapshot 2026-04-26 late-evening (Stage 15.1 shipped — editor pill + CLI verbs · Stage 5 v2 shipped — Class B finding inverted PRD · Stage 13 shipped · editor-agnostic primitive contract locked · Stage 12 Phases 1–3 shipped · BUG-002/003/004 + PROCESS-001 closed) · Stage numbers now reflect actual build order · comments save locally to your browser</div>
+      <div class="sub" style="margin-top: 8px;">This file is the canonical roadmap · synced markdown view: <a href="https://github.com/dudgeon/duo/blob/main/ROADMAP.md" style="color: var(--accent-ink);"><code>ROADMAP.md</code></a> · per-stage PRDs in <a href="https://github.com/dudgeon/duo/tree/main/docs/prd" style="color: var(--accent-ink);"><code>docs/prd/</code></a> · architecture decisions in <a href="https://github.com/dudgeon/duo/blob/main/docs/DECISIONS.md" style="color: var(--accent-ink);"><code>DECISIONS.md</code></a></div>
     </header>
 
     <details class="prework" open>
@@ -149,20 +149,26 @@
     </details>
 
     <details class="recent" open>
-      <summary>Recent shipments — 2026-04-26 (Stage 12 in flight)</summary>
+      <summary>Recent shipments — 2026-04-26 late-evening (Stage 15.1 ✅ · Stage 5 v2 ✅ live walks pass · Stage 13 done · editor-agnostic primitive contract locked)</summary>
       <ul>
-        <li><code>e9eb14b</code> — docs: log 3 open bugs + keyboard-regression-coverage gap (BUG-002/003/004 + PROCESS-001)</li>
-        <li><code>2b68d40</code> — revert: ⌘T pane-aware → Chrome parity preferred + ⌘N file-type configurability decision (Stage 17 H6.1)</li>
+        <li><strong>Stage 15.1 — Send → Duo (editor + CLI) ✅ shipped 2026-04-26 late-evening.</strong> CLI half: <code>duo selection-format [a|b|c]</code> (G19, agent-tunable runtime knob; persisted via renderer localStorage round-trip; mirrors <code>duo theme</code> plumbing) + <code>duo send [--text "…"]</code> (G17, writes payload into active terminal's PTY; no Enter — user confirms; returns <code>{ok, written, terminalId}</code>). UI half: <code>&lt;SendToDuoPill&gt;</code> editor-agnostic primitive (no TipTap imports, portals to <code>document.body</code>, anchors 6px above selection / falls back below / viewport-clamped) + <code>formatSendPayload</code> pure helper (per-line <code>&gt; </code> prefix on multi-line, <code>~/</code>-shortened paths) + <code>useSelectionFormat</code> hook + MarkdownEditor binding (selection-rect tracking inside the existing selection-update effect, hide on blur or collapsed selection, scroll/resize repositioning) + WorkingPane / App.tsx wiring (<code>onSendToDuo</code> threads through to <code>pty.write(activeTabId)</code> and moves focus to the terminal column). HMR + typecheck clean. Visual smoke deferred to FOLLOWUP-004.</li>
+        <li><strong>Stage 5 v2 — Duo subagent ✅ shipped 2026-04-26 late-evening.</strong> New global agent at <code>agents/duo.md</code> (254 LOC, <code>model: claude-haiku-4-5</code>) subsumes <code>duo-browser</code> with broader scope: full CLI surface, session guard, web routing rule, 5 patterns. New <code>duo external &lt;url&gt;</code> CLI verb wraps <code>shell.openExternal</code> (http/https/mailto only — refuses <code>file://</code>, <code>javascript:</code>). <code>~/.claude/duo/external-domains.json</code> bootstrapped empty by <code>sync:claude</code>; populated entries route via <code>duo external</code>, everything else stays in Duo. <strong>Live walks all pass</strong> (~$0.40 in API spend): F1/F2/F4/F5 functional + F8/F9 web routing + C5 outside-Duo refusal + C6 malformed list fallback + C7 listed-domain bypass enforcement. <strong>Class B perf surprise:</strong> synthetic Sonnet-orchestrator measurement showed subagent path is <em>~2× cost and ~2× wall-clock</em> vs inline — Claude Code already routes mechanical tool work to Haiku regardless of <code>--model</code>, so the subagent stacks a second Haiku context on top. The PRD's "~85% orchestrator-token reduction" was framed against a different cost model. The agent's value is real but qualitative (bounded per-task context, specialized prompt, predictable contract); a proper cumulative-context measurement is filed as FOLLOWUP-003. FOLLOWUP-002 captures a corner-case Bash-allowlist denial of the session guard. Smoke checklist § 7a covers ongoing regression coverage.</li>
+        <li><strong>Stage 13 — Editor: just-added highlight + warn-before-overwrite</strong> shipped end-to-end. Phase 0 refactor extended the <code>DuoSelection</code> union with <code>HtmlCanvasSelectionSnapshot</code> (locks the shape so Stage 15 ships canvas-ready) and stood up the <code>renderer/components/editor/primitives/</code> directory with a contract README. Phase 13a wired the <code>duo-just-added</code> keyframe + TipTap binding (<code>extensions/JustAdded.ts</code>) — the wash now reads as a clear golden chip after the <code>--duo-mark</code> token was bumped <code>#F8E59C</code> → <code>#F0CB6A</code> for proper contrast against the cream paper. Phase 13b shipped <code>&lt;WriteWarningBanner&gt;</code> as a standalone primitive; <code>MarkdownEditor</code> gates dirty-buffer writes through it. Verified end-to-end in the live app: highlight visible, banner gates, decline preserves user edits.</li>
+        <li><strong>Editor-agnostic primitive contract locked</strong> in <code>DECISIONS.md</code>. Visual layer (no TipTap/PM imports) lives under <code>primitives/</code>; surface-bound bindings stay in <code>extensions/</code> (MD) or future <code>bindings/</code> (canvas). Documents the v1 dead end (overlay rings) so future-me doesn't repeat it. Stage 14 + 15 + 17 are now structurally easier — Stage 14 ships its visual components straight into <code>primitives/</code> (canvas-ready by construction), Stage 15 imports the locked union, Stage 17 just adds a canvas-side binding.</li>
+        <li><strong>Doc-write timeouts</strong> bumped 5s → 5min on both renderer (<code>electron/main.ts § dispatchDocWrite</code>) and CLI (<code>cli/duo.ts § PER_CMD_TIMEOUT_MS</code>) sides — surfaced when the banner-decision wait exceeded the old 5s budget and returned a misleading "Renderer did not reply" instead of the user's actual decline. CLI binary rebuilt.</li>
+        <li><strong>Stage 12 Phase 3</strong> — tab-strip rhyme (TabBar + WorkingTabStrip share rounded-top chip + accent top-stripe + italic-serif active label) + cozy-mode visual completion (xterm theme variant flips to paper canvas in light, warm dark in dark). Working pane root flipped to <code>paper</code> (surface-0) so active tabs merge with content below.</li>
+        <li><strong>BUG-002 closed</strong> — ⌘T from browser focus now opens new tab AND focuses address bar. Fix in <code>browser-manager.ts § wireKeyForwarding</code> reclaims OS focus to main renderer before forwarding ⌘T/⌘N/⌘L.</li>
+        <li><strong>BUG-003 closed (rev 2)</strong> — pane focus indicator. v1's inset-shadow ring on the column wrapper was occluded by xterm canvas / WebContentsView; v2 paints the indicator on the chrome strip (tab bar / breadcrumb header) which is renderer DOM and never occluded. Decision recorded in <code>DECISIONS.md</code>.</li>
+        <li><strong>BUG-004 closed</strong> — ⌘` pane-toggle now moves OS-level focus, not just React state. ⌘` menu accelerator calls <code>mainWindow.webContents.focus()</code> before sending IPC; renderer focuses the contenteditable inside editor tabs.</li>
+        <li><strong>PROCESS-001 Phase 1 closed</strong> — keyboard matrix in <code>docs/dev/smoke-checklist.md § 5</code> expanded into shortcut × focus-surface matrix + theme dimension + verbatim BUG-004 reproduction sequence. Phase 2 (Playwright + Electron) deferred until Stage 18 lands.</li>
         <li><code>5cbaa36</code> — feat(stage-12): Phase 2 — files-pane 240→208 + chevron collapse + layout depth</li>
         <li><code>585d4ee</code> — feat(stage-12): Phase 1 — Atelier token swap + light default + serif voice</li>
-        <li><code>afb0ac1</code> — docs: tighten cross-linking between ROADMAP / PRDs / CLI-COVERAGE / DECISIONS / roadmap.html</li>
-        <li><code>c57871a</code> — docs: layered renumber — stage numbers now reflect actual build order</li>
+        <li><code>3976039</code> — fix(keyboard): BUG-001 — pane-aware <code>⌃Tab</code> cycling (3-part fix)</li>
         <li><code>20b4701</code> — fix(dist): bundle <code>agents/</code> in extraResources for Stage 18 installer (Team C)</li>
         <li><code>640ec0e</code> — feat(env): Stage 19 Phase 19a env signals (was tagged "Stage 18 Phase 18a" pre-renumber)</li>
-        <li><code>3976039</code> — fix(keyboard): BUG-001 — pane-aware <code>⌃Tab</code> cycling (3-part fix)</li>
         <li>Closed issues: #10, #17, #20, #21, #26 (swept by Team A)</li>
       </ul>
-      <p style="font-size: 12px; color: var(--ink-mute); margin: 10px 0 0;"><strong>⚠️ 3 open bugs + 1 process item</strong> (BUG-002, 003, 004, PROCESS-001) — see <code>tasks.md</code>. Tackle <strong>BEFORE</strong> more keyboard work (Stage 19c, Stage 20 pane-aware shortcuts) to stop shipping the same class of regression. Older commits use pre-renumber stage labels — see ROADMAP.md § Number history.</p>
+      <p style="font-size: 12px; color: var(--ink-mute); margin: 10px 0 0;"><strong>0 open bugs · 1 deferred process item.</strong> All keyboard regressions and the pane focus indicator are fixed. Stage 12 is functionally done; only "whisper-level agent presence" (titlebar dot, selection glow) remains under the L0 banner. Older commits use pre-renumber stage labels — see ROADMAP.md § Number history.</p>
     </details>
 
     <h2 class="phase-heading" id="phase-foundation">Foundation — shipped + in progress</h2>
@@ -224,11 +230,11 @@
 
     <article class="stage done" id="s9" data-id="s9">
       <h3><span class="num-badge">Stage 9</span> Cozy-mode terminal (typography v1) <span class="glyph done"></span></h3>
-      <div class="status-line">✅ Shipped 2026-04-22; visual completion folds into Stage 12</div>
-      <p class="blurb">Per-tab toggle. Typography pass + reader-width cap on the terminal pane.</p>
+      <div class="status-line">✅ Typography v1 shipped 2026-04-22; visual completion shipped 2026-04-26 (in Stage 12 Phase 3)</div>
+      <p class="blurb">Per-tab toggle. Typography pass + reader-width cap on the terminal pane. Visual completion (paper canvas xterm theme variant) shipped under Stage 12 Phase 3.</p>
       <ul class="subitems">
         <li class="done"><span class="glyph done"></span><span class="label">Per-tab cozy toggle, larger fontSize / lineHeight, generous padding, 92ch cap (typography only)</span></li>
-        <li><span class="glyph pending"></span><span class="label">Cozy mode <em>visual</em> completion — paper canvas, serif-flavored mono, full Atelier surface (folds into <strong>Stage 12</strong>)</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label">Cozy mode <em>visual</em> completion — paper canvas, ink fg, ANSI palette tuned for legibility on paper (folded into <strong>Stage 12 Phase 3</strong>)</span></li>
       </ul>
       <div class="comment"><label>Comment</label><textarea data-key="s9" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
@@ -255,48 +261,85 @@
       <div class="comment"><label>Comment</label><textarea data-key="s11" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <h2 class="phase-heading" id="phase-l0">Layer 0 — Visual foundation (next)</h2>
-    <p class="phase-tagline">A single ship moment that supplies tokens to every L1+ stage. Building features against the old palette = re-skinning later.</p>
+    <h2 class="phase-heading" id="phase-l0">Layer 0 — Visual foundation (Phases 1–3 done)</h2>
+    <p class="phase-tagline">Tokens, layout depth, tab-strip rhyme, cozy-mode visual all shipped — every L1+ stage now has its tokens to inherit. Whisper-level agent presence (titlebar dot, selection glow) is the only remaining L0 piece and can ride alongside any L1 ship.</p>
 
     <article class="stage inprog" id="s12" data-id="s12">
       <h3><span class="num-badge">Stage 12</span> Visual redesign — Atelier <span class="glyph inprog"></span></h3>
-      <div class="status-line">🔄 Phase 1 + 2 shipped 2026-04-26 (commits <code>585d4ee</code>, <code>5cbaa36</code>) · Phase 3 next</div>
+      <div class="status-line">🟡 Phases 1–3 shipped 2026-04-26 · whisper-level agent presence still pending</div>
       <p class="blurb">System-wide token swap: cream paper + ochre accent + serif voice; light-as-hero. Layout depth between terminal and working pane; unified tab-strip vocabulary; files-pane width 208 + collapse-to-rail. Cozy-mode visual completion (Stage 9 follow-up) rides along.</p>
       <ul class="subitems">
-        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 1</strong> — Atelier tokens (CSS variables) + light-as-default + serif voice + xterm color theme + ochre cursor</span></li>
-        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 2</strong> — files-pane 240→208 + chevron-collapse button (44px rail) + layout depth (terminal column on paper-deep, working pane on paper)</span></li>
-        <li><span class="glyph pending"></span><span class="label"><strong>Phase 3 (next)</strong> — tab-strip rhyme (unify TabBar.tsx + WorkingPane's strip per Atelier mock) + cozy-mode visual completion (xterm paper-canvas theme variant when cozy is on AND light)</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 1</strong> — Atelier tokens (CSS variables) + light-as-default + serif voice + xterm color theme + ochre cursor (commit <code>585d4ee</code>)</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 2</strong> — files-pane 240→208 + chevron-collapse button (44px rail) + layout depth (terminal column on paper-deep, working pane on paper) (commit <code>5cbaa36</code>)</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 3</strong> — tab-strip rhyme (rounded-top chips + accent top-stripe + italic-serif active label, terminal=paper-edge / working=paper-deep strip bg) + cozy-mode visual completion (xterm paper-canvas theme variant for cozy + light, warm dark for cozy + dark) + pane focus indicator on chrome strip (BUG-003 v2)</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Whisper-level agent presence</strong> — titlebar dot when Claude is active, soft selection glow when Claude reads (mark token + box-shadow keyframe). Just-added highlight + Send → Duo pill are owned by their host stages.</span></li>
       </ul>
-      <p class="blurb"><strong>Per-feature visuals fold into host stages:</strong> just-added highlight → Stage 13 · track changes → Stage 14 · Send → Duo pill → Stage 15 · cozy-mode visual → Stage 9 follow-up.</p>
+      <p class="blurb"><strong>Per-feature visuals fold into host stages:</strong> just-added highlight → Stage 13 · track changes → Stage 14 · Send → Duo pill → Stage 15 · cozy-mode visual → Stage 9 follow-up (now landed).</p>
       <div class="comment"><label>Comment</label><textarea data-key="s12" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <h2 class="phase-heading" id="phase-l1">Layer 1 — Editor maturation</h2>
-    <p class="phase-tagline">Built against Stage 12 tokens. Stage 16 is independent and can ship anytime.</p>
+    <h2 class="phase-heading" id="phase-agent">Agent ergonomics (shipped 2026-04-26 late-evening)</h2>
+    <p class="phase-tagline">Stage 5 v2 ✅ — new global <code>duo</code> subagent (Haiku 4.5) subsumes <code>duo-browser</code> with broader scope. All Class A + C live walks pass. Class B perf inverted the PRD's hypothesis: synthetic measurement showed subagent path costs more, not less, because Claude Code already routes mechanical work to Haiku — see the Stage 5 v2 card's callout for the analysis. The qualitative value (bounded per-task context, specialized prompt, predictable orchestrator/agent contract) is what justifies the architecture, not per-task dollar savings.</p>
 
-    <article class="stage pending" id="s13" data-id="s13">
-      <h3><span class="num-badge">Stage 13</span> Editor: just-added highlight + warn-before-overwrite <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ Was 11c · visual spec from Stage 12 (yellow <code>mark</code> + 6s fade)</div>
-      <p class="blurb">Transient highlight on agent-written text + warn-before-overwrite banner for dirty buffers. Cross-refs <a href="https://github.com/dudgeon/duo/issues/5">#5</a>, <a href="https://github.com/dudgeon/duo/issues/7">#7</a>.</p>
+    <details class="stage done" id="s5v2" data-id="s5v2">
+      <summary>
+        <h3><span class="num-badge">Stage 5 v2</span> Duo subagent (broader scope, smaller model) <span class="glyph done"></span></h3>
+        <div class="status-line">✅ Shipped 2026-04-26 late-evening · PRD <a href="https://github.com/dudgeon/duo/blob/main/docs/prd/stage-5-v2-duo-subagent.md">stage-5-v2-duo-subagent.md</a> · subsumes <code>duo-browser</code> · all Class A + C live walks pass (~$0.40 in API spend) · <strong>Class B perf inverted PRD hypothesis — see callout</strong></div>
+      </summary>
+      <p class="blurb">A single broader subagent <code>duo</code> running on Haiku 4.5 takes a high-level Duo goal from the orchestrator and drives the <code>duo</code> CLI to completion, returning a clean markdown summary. Subsumes <code>agents/duo-browser.md</code>. Orchestrator drafts content; subagent applies it.</p>
+      <ul class="subitems">
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Identity + model.</strong> <code>agents/duo.md</code> (254 LOC), <code>name: duo</code>, <code>model: claude-haiku-4-5</code>, <code>tools: Bash</code>. Frontmatter parses cleanly; verified live that the model alias resolves to <code>claude-haiku-4-5-20251001</code>.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Session guard (A20) — VERIFIED LIVE (C5).</strong> Fresh <code>claude -p --agent duo</code> with <code>DUO_SESSION</code> unset → agent ran <code>[ -n "$DUO_SESSION" ] && echo in_duo || echo not_in_duo</code>, saw <code>not_in_duo</code>, refused with the EXACT one-line message from the prompt. 2 turns, zero verb invocations, $0.006. Caveat in FOLLOWUP-002 below.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Verb cheat-sheet + 5 patterns.</strong> Full <code>duo</code> surface compacted from <code>SKILL.md</code>; F1 / F2 / F4 / F5 walks all PASS — agent navigated, extracted H1, scanned files for keywords, applied editor writes. Total ~$0.13.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Failure protocol.</strong> Hard-fail-and-surface. C6 (malformed <code>external-domains.json</code>) walked live → agent fell back to "no exceptions" without crashing.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Skill update.</strong> <code>SKILL.md</code> § "Prefer delegating to the <code>duo</code> subagent" + § "Web routing" added. Documents <code>~/.claude/duo/external-domains.json</code> for PMs running their own Duo. Old <code>duo-browser</code> references swept across README, FIRST-RUN, BUILD-PROCEDURES, CLAUDE.md.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Web routing (A23–A25) — VERIFIED LIVE (C7, F8, F9).</strong> C7: seeded <code>example.com</code>, agent's stream-json log shows <code>duo external https://example.com/test-page</code> ONLY — no <code>duo open</code>/<code>duo navigate</code> for the listed host. F8: empty list → Duo route. F9: listed → external. Duo's tab list unchanged across listed-host walks.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong><code>duo external &lt;url&gt;</code> CLI verb (A24).</strong> Wired through <code>shared/types.ts</code> + <code>electron/main.ts</code> (<code>openExternalUrl</code>) + <code>electron/socket-server.ts</code> + <code>cli/duo.ts</code>. Validates URL parses; refuses <code>file://</code>, <code>javascript:</code>, anything not in {http, https, mailto}. Binary rebuilt; help text updated; CLI-COVERAGE.md flipped from "Pending" → shipped.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>External-domains list bootstrap (A26).</strong> <code>npm run sync:claude</code> creates <code>~/.claude/duo/external-domains.json</code> with <code>{"domains":[]}</code> if missing; never overwrites populated. Stage 18 PRD will inherit this step when drafted.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Sync + bundle.</strong> <code>npm run sync:claude</code> copies <code>agents/duo.md</code> AND removes legacy <code>~/.claude/agents/duo-browser.md</code> from dev installs. <code>electron-builder.yml</code> already bundles <code>agents/</code> (commit <code>20b4701</code>) so the same flip will happen for end users via Stage 18's installer.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Validation walked live.</strong> Class A: F1, F2, F4, F5, F8, F9 all PASS. Class C: C5, C6, C7 (the load-bearing guards) all PASS. Class B: see callout — finding inverted the PRD hypothesis.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Smoke checklist update.</strong> New § 7a in <code>docs/dev/smoke-checklist.md</code> with pre-flight + 5 functional walks + 3 recovery walks + post-walk cleanup.</span></li>
+      </ul>
+      <p class="blurb" style="background: var(--paper-deep); border-left: 3px solid var(--accent-ink); padding: 10px 14px; margin: 14px 0;"><strong>⚠️ Class B perf — inverted finding.</strong> Synthetic F1 on a fresh <code>claude -p --model sonnet</code>, comparing inline (Sonnet → <code>Bash(duo *)</code>) vs subagent (Sonnet → <code>Task(duo)</code>): subagent path was <strong>~2× cost ($0.17 vs $0.08)</strong> and <strong>~2× wall-clock (65s vs 36s)</strong>. Cause: Claude Code already routes mechanical tool execution to Haiku regardless of <code>--model</code>, so the subagent stacks a SECOND Haiku context on top of the existing fast-tier Haiku — doubling the Haiku-side cost. The PRD's "~85% orchestrator-token reduction" was framed against a mental model where the top-level Sonnet processes CLI dumps directly; that isn't how Claude Code distributes tokens. <strong>The subagent's value is real but qualitative</strong> — bounded per-task context, specialized prompt, predictable contract — not the per-task dollar win on a cold-cache synthetic. Re-measurement with cumulative-context methodology filed as <strong>FOLLOWUP-003</strong> in <code>tasks.md</code>.</p>
+      <p class="blurb"><strong>FOLLOWUP-002 (low priority).</strong> When a user has a Bash allowlist tight enough to deny the guard's compound <code>[ … ] && echo …</code> command, the guard silently fails and the agent proceeds. Permissive Bash (the realistic default) works correctly. Fix: tighten the agent prompt to refuse-on-check-denied. Filed in <code>tasks.md</code>.</p>
+      <p class="blurb"><strong>Installation lifecycle.</strong> Dev: <code>npm run sync:claude</code> → <code>~/.claude/agents/duo.md</code> + bootstrap <code>external-domains.json</code> + remove legacy <code>duo-browser.md</code>. End-user first launch: Stage 18's installer copies the bundled file after the consent sheet. End-user app update: hash bundled vs installed; silent overwrite if unchanged, prompt-with-diff if user-modified.</p>
+      <div class="comment"><label>Comment</label><textarea data-key="s5v2" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </details>
+
+    <h2 class="phase-heading" id="phase-l1">Layer 1 — Editor maturation (1 of 4 shipped)</h2>
+    <p class="phase-tagline">Stage 13 ✓ + Stage 5 v2 ✓. Primitive contract locked, selection union extended, agent in place. <strong>Stage 15 (Send → Duo) is the recommended next ship</strong> — pill imports the locked union + ships into <code>primitives/</code>; the agent owns the CLI side via pattern 5 in <code>agents/duo.md</code>. Stage 16 is independent and can ship anytime; Stage 14 follows Stage 15.</p>
+
+    <article class="stage done" id="s13" data-id="s13">
+      <h3><span class="num-badge">Stage 13</span> Editor: just-added highlight + warn-before-overwrite <span class="glyph done"></span></h3>
+      <div class="status-line">✅ Shipped 2026-04-26 evening · was 11c · cross-refs <a href="https://github.com/dudgeon/duo/issues/5">#5</a>, <a href="https://github.com/dudgeon/duo/issues/7">#7</a> · locked the <a href="https://github.com/dudgeon/duo/blob/main/docs/DECISIONS.md#editor-agnostic-primitives-shared-visual-chrome-surface-bound-data-bindings">editor-agnostic primitive contract</a></div>
+      <p class="blurb">Transient highlight on agent-written text + warn-before-overwrite banner for dirty buffers. Both pieces shipped as <strong>editor-agnostic primitives</strong> under <code>renderer/components/editor/primitives/</code> so Stage 14 + 15 + 17 reuse them without refactor.</p>
+      <ul class="subitems">
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 0 — Editor-agnostic refactor.</strong> Extended <code>DuoSelection</code> union with <code>HtmlCanvasSelectionSnapshot</code> placeholder (Stage 17 H25 shape) so Stage 15 ships canvas-ready. Renamed <code>EditorSelectionTagged</code> → <code>MarkdownSelectionSnapshot</code> (back-compat alias kept). Created <code>primitives/</code> directory + contract README.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 13a — Just-added highlight.</strong> <code>duo-just-added</code> keyframe in <code>globals.css</code> + TipTap <code>extensions/JustAdded.ts</code> binding wired into the <code>duo doc write</code> reply path. <code>--duo-mark</code> bumped <code>#F8E59C</code> → <code>#F0CB6A</code> so the wash actually reads against the cream paper.</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Phase 13b — Warn-before-overwrite.</strong> <code>&lt;WriteWarningBanner&gt;</code> standalone React component in <code>primitives/</code>. <code>MarkdownEditor</code> gates dirty-buffer writes through it; subsequent agent writes while the banner is up get rejected with "Another write awaiting your decision."</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>Bonus — doc-write timeouts.</strong> Both renderer (<code>dispatchDocWrite</code>) and CLI (<code>PER_CMD_TIMEOUT_MS</code>) bumped 5s → 5min for the human-in-the-loop banner-decision window.</span></li>
+      </ul>
+      <p class="blurb"><strong>Stage 17 reuse:</strong> H20 (canvas just-added) shares the keyframe; H36 (canvas warn-before-overwrite) reuses the banner verbatim. The Phase 0 union is also already canvas-ready.</p>
       <div class="comment"><label>Comment</label><textarea data-key="s13" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
     <article class="stage pending" id="s14" data-id="s14">
       <h3><span class="num-badge">Stage 14</span> Editor: track changes (Suggesting / Accepted) <span class="glyph pending"></span></h3>
       <div class="status-line">⬜ Was 11d · CriticMarkup parser + Suggesting/Accepted modes per Atelier mock · cross-refs <a href="https://github.com/dudgeon/duo/issues/6">#6</a></div>
-      <p class="blurb">Green-underlined insertions, red-strikethrough deletions, accept-all banner. D18 track-changes toggle + comment rail (D20).</p>
+      <p class="blurb">Green-underlined insertions, red-strikethrough deletions, accept-all banner. D18 track-changes toggle + comment rail (D20). <strong>Visual layer ships canvas-ready</strong>: <code>&lt;TrackChangesProvider&gt;</code>, <code>&lt;TrackedRangeMark&gt;</code>, <code>&lt;AcceptAllBanner&gt;</code>, <code>&lt;CommentRail&gt;</code> all live under <code>primitives/</code>. MD data binding (CriticMarkup parser + PM marks) lives in <code>extensions/TrackChanges.ts</code>. HTML canvas data binding deferred to Stage 17 v2 — when it lands, it just imports the same visual components.</p>
       <div class="comment"><label>Comment</label><textarea data-key="s14" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage pending" id="s15" data-id="s15">
-      <h3><span class="num-badge">Stage 15</span> Send → Duo (cross-modality selection primitive) <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ Was Stage 15g · PRD locked · visual chrome from Stage 12</div>
-      <p class="blurb">Floating pill anchored to selection. One click writes the formatted payload into the active terminal's input line (no Enter pressed) so the user completes the prompt with their verb. Editor + browser surfaces.</p>
+    <article class="stage inprog" id="s15" data-id="s15">
+      <h3><span class="num-badge">Stage 15</span> Send → Duo (cross-modality selection primitive) <span class="glyph next"></span></h3>
+      <div class="status-line">🟡 <strong>15.1 ✓</strong> shipped 2026-04-26 late-evening (editor + CLI) · <strong>15.2 ← next</strong> (browser pane pill, ~1–2 days) · 15.3 polish to follow · PRD <a href="https://github.com/dudgeon/duo/blob/main/docs/prd/stage-15-send-to-duo.md">stage-15-send-to-duo.md</a></div>
+      <p class="blurb">Floating pill anchored to selection. One click writes the formatted payload into the active terminal's input line (no Enter pressed) so the user completes the prompt with their verb. Editor + browser + canvas surfaces. Ships <code>&lt;SendToDuoPill&gt;</code> as an <strong>editor-agnostic primitive</strong> — takes a <code>DuoSelection</code> and a position-computer prop; surface-specific code is the binding only.</p>
       <ul class="subitems">
-        <li><span class="glyph pending"></span><span class="label"><strong>15.1</strong> — editor button + <code>duo send</code> + <code>duo selection-format [a|b|c]</code></span></li>
-        <li><span class="glyph pending"></span><span class="label"><strong>15.2</strong> — browser surface + unified selection observer</span></li>
-        <li><span class="glyph pending"></span><span class="label"><strong>15.3</strong> — polish: length cap, image/table flattening, ⌘D shortcut, skill update</span></li>
+        <li class="done"><span class="glyph shipped"></span><span class="label"><strong>15.1 ✓</strong> shipped — CLI half: <code>duo selection-format [a|b|c]</code> (G19, agent-tunable runtime knob, persisted via renderer localStorage round-trip) + <code>duo send [--text "…"]</code> (G17, writes payload into active terminal's PTY, no Enter). UI half: <code>&lt;SendToDuoPill&gt;</code> visual primitive (no editor imports, portals to body, viewport-clamped) + <code>formatSendPayload</code> helper for modes a/b/c + <code>useSelectionFormat</code> hook + MarkdownEditor binding (selection-rect tracking, hide on blur/collapse, scroll/resize repositioning) + WorkingPane / App.tsx wiring (<code>onSendToDuo</code> threads through to <code>pty.write(activeTabId)</code>). HMR + typecheck clean. Visual smoke deferred to FOLLOWUP-004.</span></li>
+        <li><span class="glyph next"></span><span class="label"><strong>15.2 ← next</strong> — browser surface binding. CDP <code>Runtime.addBinding('duoSelectionPush')</code> on every <code>did-finish-load</code>, page-side observer (~30 LOC IIFE) listens for <code>selectionchange</code> and posts via the binding, re-injects on <code>Page.frameNavigated</code>. Canvas-app fast-path for <code>docs.google.com/document/*/edit</code> via <code>_docs_annotate_getAnnotatedText('').getSelection()</code>. <code>BrowserManager</code> caches latest <code>BrowserSelectionSnapshot</code> per tab; renderer hook (<code>useBrowserSelection</code>) drives the pill mount in <code>BrowserPane</code>, with selection rect translated through the WebContentsView bounds. Wires up the previously-stubbed <code>cdp.getBrowserSelection()</code>. ~1–2 days.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>15.3</strong> — polish: length cap (G9 — 16 KB then truncate), image/table flattening (G8), ⌘D shortcut (G5), skill update so agents understand the formats, smoke-checklist update.</span></li>
       </ul>
+      <p class="blurb"><strong>Stage 17 reuse:</strong> H27 says "natively works once H25 supplies the payload" — Phase 0 already did half the work by extending the <code>DuoSelection</code> union with the canvas placeholder. The pill primitive shipped in 15.1 is canvas-ready by construction; Stage 17c just adds the canvas-side selection binding.</p>
       <div class="comment"><label>Comment</label><textarea data-key="s15" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
@@ -408,7 +451,7 @@
 
     <footer>
       Comments save automatically to your browser's localStorage (key prefix: <code>duo-roadmap-comment-</code>).<br>
-      Source: <code>docs/roadmap.html</code> · authoritative spec lives in <code>ROADMAP.md</code>. Old commit refs translate via § Number history in ROADMAP.md.
+      Canonical roadmap: <code>docs/roadmap.html</code> (this file) · synced markdown view: <code>ROADMAP.md</code>. Old commit refs translate via § Number history in either file.
     </footer>
   </main>
 
@@ -416,12 +459,14 @@
     <div class="side-panel">
       <h2>Status</h2>
       <div class="stats">
-        <div class="stat"><div class="num">8</div><div class="label">Done</div></div>
+        <div class="stat"><div class="num">10</div><div class="label">Done</div></div>
         <div class="stat"><div class="num">4</div><div class="label">In progress</div></div>
-        <div class="stat"><div class="num">9</div><div class="label">Pending</div></div>
+        <div class="stat"><div class="num">8</div><div class="label">Pending</div></div>
         <div class="stat"><div class="num">15</div><div class="label">Open issues</div></div>
       </div>
-      <p style="font-size: 11px; color: var(--ink-mute); margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--paper-edge);"><strong style="color: var(--accent-ink);">⚠️ 3 bugs + 1 process item</strong> open in <code style="font-size: 10px;">tasks.md</code>. Address before more keyboard work.</p>
+      <p style="font-size: 11px; color: var(--ink-mute); margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--paper-edge);"><strong style="color: var(--accent-ink);">→ Next: Stage 15.2 (browser pane pill).</strong> Extends the <code style="font-size: 10px;">&lt;SendToDuoPill&gt;</code> from 15.1 to the browser via CDP page-side selection observer. ~1–2 days. Stage 15.3 polish to follow.</p>
+      <p style="font-size: 11px; color: var(--ink-mute); margin: 8px 0 0;"><strong style="color: var(--accent-ink);">0 bugs · 1 deferred process · 2 follow-ups</strong> in <code style="font-size: 10px;">tasks.md</code>. PROCESS-001 Phase 2 waits for Stage 18; FOLLOWUP-002 (agent guard hardening) + FOLLOWUP-003 (re-measure perf with cumulative-context methodology) low priority.</p>
+      <p style="font-size: 11px; color: var(--ink-mute); margin: 8px 0 0;"><strong style="color: var(--accent-ink);">Editor-agnostic primitive contract locked</strong> — Stage 14/15/17 ship visuals into <code style="font-size: 10px;">primitives/</code>; bindings stay in <code style="font-size: 10px;">extensions/</code>.</p>
     </div>
 
     <div class="side-panel">
@@ -448,8 +493,9 @@
       <h2>Jump to</h2>
       <ul class="nav-list">
         <li><a href="#phase-foundation">Foundation <span class="badge">8 ✓</span></a></li>
-        <li><a href="#phase-l0" class="next-link">→ Layer 0 (next)</a></li>
-        <li><a href="#phase-l1">Layer 1 — Editor <span class="badge">4</span></a></li>
+        <li><a href="#phase-l0">Layer 0 — Visual <span class="badge">3 ✓</span></a></li>
+        <li><a href="#phase-agent" class="next-link">→ Agent ergonomics (next)</a></li>
+        <li><a href="#phase-l1">Layer 1 — Editor <span class="badge">1 ✓ · 3</span></a></li>
         <li><a href="#phase-l2">Layer 2 — HTML canvas</a></li>
         <li><a href="#phase-l3">Layer 3 — Distribution <span class="badge">3</span></a></li>
         <li><a href="#phase-l4">Layer 4 — Distribution polish</a></li>

@@ -21,6 +21,13 @@ const COZY_MAX_COLS = 92
 // Background + foreground use the Atelier paper/ink/term tokens; ANSI
 // colors are tuned for warm-paper compatibility (less neon than the
 // previous Warp×Linear palette).
+//
+// Stage 12 Phase 3 — cozy mode now flips the entire xterm canvas to a
+// paper background ("cozy mode flips to paper canvas" per the Atelier
+// design intent in docs/design/atelier/project/tokens.jsx). Each theme
+// has a default (inky) variant and a cozy (paper) variant. The active
+// theme is picked by `pickTheme(themeEffective, cozy)` and re-applied
+// whenever either dimension changes.
 const DARK_THEME = {
   background: '#0C0A07',     // --duo-term-bg (dark)
   foreground: '#E9DEC2',     // --duo-term-fg (dark)
@@ -66,6 +73,59 @@ const LIGHT_THEME = {
   brightCyan: '#88BBB1',
   brightWhite: '#FBF8EE'     // --duo-paper (light)
 } as const
+
+// Cozy variants — paper canvas, ink foreground. The ANSI palette is
+// re-tuned for legibility on a light background (deeper, less neon).
+const COZY_LIGHT_THEME = {
+  background: '#FBF8EE',     // --duo-term-cozy-bg (light) — paper
+  foreground: '#1A1410',     // --duo-term-cozy-fg (light) — ink
+  cursor: '#C66A2E',         // --duo-accent (light)
+  cursorAccent: '#FBF8EE',
+  black: '#1A1410',
+  red: '#A33A1F',            // deeper brick — needs contrast on paper
+  green: '#5A7637',
+  yellow: '#9C7320',         // ochre on paper, not amber
+  blue: '#2F5F86',
+  magenta: '#7E4666',
+  cyan: '#3E726B',
+  white: '#3D352A',          // --duo-ink-soft (light)
+  brightBlack: '#7B6F58',    // --duo-ink-mute (light)
+  brightRed: '#C04F33',
+  brightGreen: '#6E8B45',
+  brightYellow: '#B58730',
+  brightBlue: '#447395',
+  brightMagenta: '#925978',
+  brightCyan: '#508780',
+  brightWhite: '#1A1410'
+} as const
+
+const COZY_DARK_THEME = {
+  background: '#1A1611',     // --duo-term-cozy-bg (dark) — soft warm dark
+  foreground: '#F0E9D6',     // --duo-term-cozy-fg (dark)
+  cursor: '#E08F4A',
+  cursorAccent: '#1A1611',
+  black: '#26201A',
+  red: '#E07A6B',
+  green: '#9CB872',
+  yellow: '#E5B765',
+  blue: '#7CA7C9',
+  magenta: '#C28FB0',
+  cyan: '#82B8B0',
+  white: '#C8BD9E',
+  brightBlack: '#5A5142',
+  brightRed: '#EF8E7F',
+  brightGreen: '#B0CC85',
+  brightYellow: '#F2C97D',
+  brightBlue: '#9BBED9',
+  brightMagenta: '#D6A6C2',
+  brightCyan: '#9DCFC4',
+  brightWhite: '#F0E9D6'
+} as const
+
+function pickTheme(effective: 'light' | 'dark', cozy: boolean) {
+  if (cozy) return effective === 'light' ? COZY_LIGHT_THEME : COZY_DARK_THEME
+  return effective === 'light' ? LIGHT_THEME : DARK_THEME
+}
 
 interface TerminalPaneProps {
   tabs: TabSession[]
@@ -133,7 +193,10 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     if (!host || termRef.current) return
 
     const term = new Terminal({
-      theme: { ...(themeEffective === 'light' ? LIGHT_THEME : DARK_THEME) },
+      // Stage 12 Phase 3 — cozy mode swaps the canvas to paper. Pick the
+      // initial theme using both dimensions; the swap effect below keeps
+      // it in sync as either changes.
+      theme: { ...pickTheme(themeEffective, cozy) },
       fontFamily: 'JetBrains Mono, Cascadia Code, Fira Code, ui-monospace, monospace',
       fontSize: DEFAULT_FONT_SIZE,
       lineHeight: DEFAULT_LINE_HEIGHT,
@@ -275,12 +338,12 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
   // ── Live theme swap ────────────────────────────────────────────────────────
   // xterm.js paints on its own canvas/WebGL layer \u2014 CSS overrides don't
   // reach it. When the app theme flips (via the toggle or `duo theme`),
-  // swap the xterm theme object so the terminal matches.
+  // swap whenever app theme OR cozy mode changes (Stage 12 Phase 3 — cozy flips to paper canvas in light, warm dark canvas in dark).
   useEffect(() => {
     const term = termRef.current
     if (!term) return
-    term.options.theme = { ...(themeEffective === 'light' ? LIGHT_THEME : DARK_THEME) }
-  }, [themeEffective])
+    term.options.theme = { ...pickTheme(themeEffective, cozy) }
+  }, [themeEffective, cozy])
 
   return (
     <div

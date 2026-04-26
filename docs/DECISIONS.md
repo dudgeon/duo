@@ -322,6 +322,186 @@ itself spawned.
 
 ---
 
+### Editor-agnostic primitives: shared visual chrome, surface-bound data bindings
+
+**Status:** 🟢 Locked (2026-04-26)
+**Raised:** 2026-04-26 (Stage 13/14/15 kickoff vs. Stage 17 reuse audit)
+**Resolves:** the question "where does shared editor functionality
+live so we don't refactor it twice when Stage 17 (HTML canvas) lands?"
+
+**Decision.** Editor features that ship with Stage 13 (just-added
+highlight + warn-before-overwrite), Stage 14 (track changes), and
+Stage 15 (Send → Duo) decompose into a **visual layer** and a **data
+layer**:
+
+- **Visual layer** — pure React components + CSS keyframes/tokens.
+  Examples: the `duo-just-added` keyframe, `<WriteWarningBanner>`,
+  `<CommentRail>`, `<AcceptAllBanner>`, `<TrackedRangeMark>`,
+  `<SendToDuoPill>`. These take typed change records / selection
+  shapes / handlers as props and know nothing about TipTap or
+  contentEditable iframes. They live under
+  `renderer/components/editor/primitives/` (new directory) and import
+  no editor-specific code. Both the markdown editor (Stage 11) and
+  the HTML canvas (Stage 17) consume them.
+
+- **Data layer** — surface-specific bindings that translate the
+  editor's native model into the records the visual layer expects.
+  For the markdown editor, this is TipTap extensions / ProseMirror
+  decorations (`renderer/components/editor/extensions/`). For the
+  HTML canvas (Stage 17), this is iframe-DOM observers + `<ins>`/
+  `<del>` tags and/or `data-duo-track-*` attributes
+  (`renderer/components/canvas/bindings/`, future).
+
+The split is the contract: a primitive belongs in `primitives/` only
+if it has zero editor-specific imports. If a "shared" component
+reaches into TipTap APIs, it's a binding masquerading as a primitive
+— refactor before shipping.
+
+**Why this option won.**
+
+- **Stage 17 is in scope, not hypothetical.** Its PRD already names
+  the Stage 11/13/14 primitives it expects to reuse (H20 just-added
+  highlight, H23 comment rail, H25 selection union, H27 Send → Duo
+  pill, H36 warn-before-overwrite). Building Stage 13/14/15 against
+  a "MD only" assumption guarantees a refactor pass when 17 lands.
+- **The data layers are intrinsically different.** TipTap operates on
+  a strict ProseMirror schema; the canvas operates on arbitrary HTML
+  via `MutationObserver` (Stage 17 H3). Trying to share the data
+  layer would force one of the surfaces into the wrong model. The
+  visual layer is what's genuinely common.
+- **Track-changes is the test case.** Stage 17 H39 defers HTML
+  track-changes to v2, so Stage 14 doesn't have to ship the canvas
+  binding immediately. But if the visual chrome is canvas-agnostic
+  from day one, Stage 17 v2 is "wire a binding into existing
+  components" rather than "rebuild the comment rail."
+
+**Implications for Stage 13 (the warm-up).**
+
+- Phase 0 (refactor first):
+  - Extend `DuoSelection` union in `shared/types.ts` with
+    `HtmlCanvasSelectionSnapshot` placeholder (Stage 17 H25 shape).
+    Locks the union shape NOW so Stage 15 ships canvas-ready instead
+    of forcing a shape change later.
+  - Rename `EditorSelectionTagged` → `MarkdownSelectionSnapshot` for
+    symmetry with the canvas snapshot type. IPC channel names
+    (`EDITOR_SELECTION_PUSH`) keep their names but the cache holds an
+    active `DuoSelection` (kind-discriminated).
+  - Document the active-doc-surface pattern in `main.ts` so future
+    stages don't bury MD assumptions in shared components again.
+
+- Phase 1 — `duo-just-added` keyframe in `globals.css` (single
+  source of truth) + TipTap decoration extension that adds the
+  class. Visual lives in CSS; binding lives in
+  `extensions/JustAdded.ts`.
+
+- Phase 2 — `<WriteWarningBanner>` standalone in
+  `primitives/`. Hooks into the renderer's external-write signal.
+
+**Implications for Stage 14 (track changes).**
+
+Ship four reusable visuals:
+`<TrackedRangeMark>`, `<AcceptAllBanner>`, `<CommentRail>`,
+`<TrackChangesProvider>` (state container). Markdown-specific code
+lives in `extensions/TrackChanges.ts`. HTML canvas v2 (Stage 17
+follow-up) writes its own binding using the same components.
+
+**Implications for Stage 15 (Send → Duo).**
+
+`<SendToDuoPill>` takes a `DuoSelection` (the locked union from
+Phase 0) and a position-computer function from the host surface.
+Editor surface, browser surface, and canvas surface (Stage 17 H27)
+all wire the same component.
+
+**Implications for Stage 17 (HTML canvas).**
+
+The H20/H23/H25/H27/H36 reuse stories are now concrete. Stage 17a
+(render + edit primitive) just imports the primitives directory;
+nothing under `extensions/` follows because TipTap isn't involved.
+
+**Operational impact.**
+
+- Code review: any PR that lands a "shared" editor component checks
+  for editor-specific imports. If it imports `@tiptap/*` or
+  `prosemirror-*`, it's a binding, not a primitive.
+- Future surface additions (e.g., a future spreadsheet canvas) follow
+  the same pattern: build a binding, reuse the primitives.
+
+---
+
+### Pane focus indicator: chrome-strip tint, not column-wrapper ring
+
+**Status:** 🟢 Locked (2026-04-26)
+**Raised:** 2026-04-26 (BUG-003 v1 ship)
+**Resolves:** [BUG-003](../tasks.md) and the general question "where
+in the column hierarchy do we paint pane-focus indicators?"
+
+**Decision.** When a column has keyboard focus, paint the indicator on
+its **chrome strip** — the tab bar (Terminal, Working) or the
+breadcrumb header (Files). The strip's background tints to
+`var(--duo-accent-soft)` and its bottom border flips to
+`var(--duo-accent)`. The column wrapper's seam border also flips to
+full-opacity accent as a secondary cue, but the strip tint is the
+authoritative signal.
+
+**Why this option won.** v1 of the BUG-003 fix tried a 2px inset
+shadow ring on the column wrapper. It looked right for Files (no
+opaque overlay child) and immediately failed for Terminal and Working:
+
+- **Terminal column.** xterm.js paints to a `<canvas>` with an opaque
+  background. Box-shadow `inset` is part of the wrapper's painting
+  pass, drawn before children — the canvas covers it on three sides.
+- **Working pane.** The browser pane uses a `WebContentsView` — a
+  separate `WebContents` layered above the BrowserWindow's renderer.
+  In Electron's compositor model, anything inside the WebContentsView's
+  bounds paints **above** any renderer DOM at any z-index. A
+  renderer-side `pointer-events: none` overlay div literally cannot
+  reach above it.
+
+What was left in v1 for those two columns was just the 1px wrapper
+border, which abuts the neighbour's wrapper border at the
+split-divider. Visually one ambiguous accent line that says "the
+seam between these two panes is highlighted" — it doesn't say which
+side owns the focus.
+
+The chrome strip avoids both occlusion modes: it's renderer DOM (no
+WebContentsView issue), it's above the xterm canvas vertically (no
+canvas occlusion), and each strip "belongs" unambiguously to one
+column with no shared edge.
+
+**Implementation.** A `focused?: boolean` prop on `TabBar`,
+`WorkingTabStrip`, and `WorkingPane`. `FilesPane` already received
+`focused`; its breadcrumb header gets the same tint. Driven from
+`focusedColumn` in `App.tsx`.
+
+**Alternatives considered and rejected.**
+
+1. *Shrink the WebContentsView bounds by 2px when focused, exposing
+   a paper-rule strip that the wrapper's inset shadow paints into.*
+   Causes the page to reflow on every focus change — visible flash on
+   pages that respond to viewport size (responsive layouts, video
+   players, IME composition windows). Not worth it for a focus cue.
+2. *Bump the wrapper's border from 1px to 2px on focus.* Causes a
+   1px layout shift in neighbouring columns on every focus change.
+3. *Outline (`outline: 2px solid` with `outline-offset: -2px`).*
+   Outlines paint outside the box and clip at the window edge in
+   ways that break visually for the rightmost column.
+4. *Pointer-events-none overlay div with `position: absolute` +
+   `inset: 0`.* Same WebContentsView occlusion problem as inset
+   shadow — overlay paints on the renderer compositor layer, below
+   the WebContentsView.
+
+**Operational impact.**
+
+- Future pane-aware UI: when adding new chrome strips (e.g. the
+  Stage 12 split-button visual for Stage 19c), pass `focused` through
+  and apply the same `accent-soft` tint to keep the indicator pattern
+  consistent.
+- Don't reach for inset-shadow / overlay rings on column wrappers
+  again — the WebContentsView occlusion isn't going away unless the
+  whole browser-rendering architecture changes.
+
+---
+
 ## Open ADRs (pending decision)
 
 ### Sandbox-tolerant transport and install paths for the `duo` CLI

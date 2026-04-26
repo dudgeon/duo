@@ -56,6 +56,20 @@ export type DuoCommandName =
   | 'doc-read'
   // Stage 11 § D33d — theme
   | 'theme'
+  // Stage 5 v2 (Duo subagent) A24 — open a URL in the system default
+  // browser via Electron's shell.openExternal. Used by the agent's web-
+  // routing rule for hostnames in ~/.claude/duo/external-domains.json.
+  | 'external'
+  // Stage 15 G19 — runtime-configurable Send → Duo payload format.
+  // 'a' = quote + provenance (default), 'b' = literal text only,
+  // 'c' = opaque token. Persisted in renderer localStorage.
+  | 'selection-format'
+  // Stage 15 G17 — write a payload into the active terminal's PTY (no
+  // Enter appended). The button's logical inverse: lets agents plant
+  // context in the user's terminal (e.g. "you might want to ask me
+  // about this"). Renderer caches the active terminal id; main does
+  // the ptyManager.write.
+  | 'send'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -257,9 +271,19 @@ export interface DocReadResult {
   error?: string
 }
 
-// ── Browser selection (Stage 15g unified shape) ──────────────────────────────
+// ── Surface selection union (Stage 15g unified shape) ───────────────────────
 // `duo selection` returns the active surface's selection. The shape is a
-// discriminated union so the agent can branch on `kind`.
+// discriminated union so the agent can branch on `kind`. Three surface
+// kinds today, with a fourth (`html-canvas`) reserved for Stage 17.
+//
+// Stage 13 Phase 0 lock (2026-04-26): the HTML canvas snapshot is
+// declared NOW as a placeholder so Stage 15 (Send → Duo) can ship
+// canvas-ready without a follow-up shape change. The Stage 17 PRD H25
+// is the source of truth for the field set; this declaration matches
+// it. Until Stage 17 lands, no producer pushes this kind — any consumer
+// that needs to fall back must handle the union exhaustively.
+//
+// See docs/DECISIONS.md "Editor-agnostic primitives" for the contract.
 
 export interface BrowserSelectionSnapshot {
   kind: 'browser'
@@ -269,9 +293,42 @@ export interface BrowserSelectionSnapshot {
   selector_path?: string                // best-effort CSS path to the focus node
 }
 
-export type EditorSelectionTagged = EditorSelectionSnapshot & { kind: 'editor' }
+/** Markdown editor (Stage 11) selection — TipTap/ProseMirror-backed. */
+export type MarkdownSelectionSnapshot = EditorSelectionSnapshot & { kind: 'editor' }
 
-export type DuoSelection = EditorSelectionTagged | BrowserSelectionSnapshot | null
+/** HTML canvas (Stage 17 H25) selection — iframe contentEditable + DOM
+ *  observer. Reserved 2026-04-26 in Stage 13 Phase 0 so the union shape
+ *  is locked before Stage 15 ships. No producer until Stage 17. */
+export interface HtmlCanvasSelectionSnapshot {
+  kind: 'html-canvas'
+  /** Absolute path of the .html file. */
+  path: string
+  /** Selected text (empty if collapsed). */
+  text: string
+  /** outerHTML of the selection for non-collapsed selections. */
+  html?: string
+  /** Nearest ancestor element with a `data-duo-id` attribute. */
+  anchorId?: string
+  /** Trail of ancestor data-duo-ids, outermost first. */
+  anchorPath?: string[]
+  /** Sub-element range within the anchor (for sentence-level selections). */
+  range?: { startOffset: number; endOffset: number; textPath: string }
+  /** Up to ~1k chars of the enclosing block for context. */
+  surrounding?: string
+}
+
+/**
+ * @deprecated Renamed to `MarkdownSelectionSnapshot` 2026-04-26 for symmetry
+ * with `BrowserSelectionSnapshot` and `HtmlCanvasSelectionSnapshot`. Existing
+ * call sites can keep using this alias until they're migrated.
+ */
+export type EditorSelectionTagged = MarkdownSelectionSnapshot
+
+export type DuoSelection =
+  | MarkdownSelectionSnapshot
+  | BrowserSelectionSnapshot
+  | HtmlCanvasSelectionSnapshot
+  | null
 
 // Stage 11 § D33d — theme state mirrored between renderer (owner) and main
 // (cache) so `duo theme` can read without a renderer RPC, and set by
@@ -281,6 +338,24 @@ export type ThemeMode = 'system' | 'light' | 'dark'
 export interface ThemeStateSnapshot {
   mode: ThemeMode
   effective: 'light' | 'dark'
+}
+
+// Stage 15 G19 — Send → Duo payload format. Renderer is the source of
+// truth (persisted in localStorage); main keeps a cache for `duo
+// selection-format` reads. Same shape as theme: pushState from renderer
+// + onSet from main (CLI-driven override).
+//
+// Modes:
+//   'a' — quote block + 1-line provenance (default; readable to humans
+//         glancing at the terminal even when no agent is present).
+//   'b' — literal selected text only (compact; agent has to call `duo
+//         selection` for context).
+//   'c' — opaque token like `<<duo-sel-abc123>>` (most compact;
+//         requires the agent to expand via `duo selection`).
+export type SelectionFormat = 'a' | 'b' | 'c'
+
+export interface SelectionFormatStateSnapshot {
+  format: SelectionFormat
 }
 
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
@@ -340,6 +415,13 @@ export const IPC = {
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
+
+  // Stage 15 G19 — Send → Duo payload format (agent-tunable runtime knob)
+  SELECTION_FORMAT_STATE_PUSH: 'selection-format:state-push',  // renderer → main
+  SELECTION_FORMAT_SET: 'selection-format:set',                // main → renderer
+
+  // Stage 15 G17 — active terminal id push so `duo send` knows where to write
+  TERMINAL_ACTIVE_PUSH: 'terminal:active-push',                // renderer → main
 
   // Stage 9 — cozy mode
   COZY_TOGGLE: 'cozy:toggle',            // main → renderer (menu clicked)
@@ -478,6 +560,21 @@ export interface ElectronThemeAPI {
   onSet: (cb: (mode: ThemeMode) => void) => () => void
 }
 
+export interface ElectronSelectionFormatAPI {
+  /** Renderer pushes the Send → Duo payload format so `duo
+   *  selection-format` reads without a renderer round-trip. */
+  pushState: (snapshot: SelectionFormatStateSnapshot) => void
+  /** Subscribe to `duo selection-format <a|b|c>` from the CLI. */
+  onSet: (cb: (format: SelectionFormat) => void) => () => void
+}
+
+export interface ElectronTerminalAPI {
+  /** Renderer pushes the active terminal-tab id (or null when no
+   *  terminal tabs exist) so `duo send` knows where to write the
+   *  payload. */
+  pushActiveId: (id: string | null) => void
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
@@ -487,6 +584,8 @@ export interface ElectronAPI {
   editor: ElectronEditorAPI
   cozy: ElectronCozyAPI
   theme: ElectronThemeAPI
+  selectionFormat: ElectronSelectionFormatAPI
+  terminal: ElectronTerminalAPI
   keyboard: ElectronKeyboardAPI
 }
 

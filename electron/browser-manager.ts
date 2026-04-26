@@ -291,6 +291,27 @@ export class BrowserManager {
       // dispatched via IPC.PANE_TOGGLE_FOCUS.
       if (!isDuoShortcut) return
       event.preventDefault()
+
+      // BUG-002 fix: ⌘T / ⌘N / ⌘L all move keyboard focus to a
+      // renderer-side element (address bar, filename input, address bar)
+      // immediately after the renderer-side handler runs. But while the
+      // browser WebContentsView has OS focus, the renderer doesn't —
+      // and `el.focus()` on a renderer DOM node is a no-op when the
+      // renderer doesn't own OS focus to give. Reclaim focus
+      // synchronously here, BEFORE the IPC send, so by the time the
+      // renderer's onBrowserKey handler runs the focus call lands.
+      //
+      // ⌃Tab and ⌘[, ⌘], ⌘1–9, ⌘⇧1–9, ⌘W, ⌘B intentionally skip this:
+      // they either keep focus on the browser (Chrome-parity tab
+      // cycling) or are pure state changes with no follow-up focus
+      // target. Reclaiming focus for ⌃Tab in particular would steal it
+      // away from the next-active browser tab, which the user expects
+      // to keep typing into.
+      const needsRendererFocus = key === 't' || key === 'n' || key === 'l'
+      if (needsRendererFocus) {
+        this.window.webContents.focus()
+      }
+
       this.window.webContents.send(IPC.BROWSER_KEY_FORWARD, {
         key: input.key,
         shift: input.shift,

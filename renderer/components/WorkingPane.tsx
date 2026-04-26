@@ -43,6 +43,14 @@ interface WorkingPaneProps {
   /** Stage 11 § D33a — finalize a new-file tab: write empty file at
    *  resolved path, drop `isNew`, update title. */
   onCommitNewFile: (id: string, path: string, title: string) => Promise<void>
+  /** BUG-003 fix — passed through to the tab strip so it can paint a
+   *  focused state. */
+  focused?: boolean
+  /** Stage 15.1 — host callback fired when the editor's Send → Duo
+   *  pill is clicked. Receives an already-formatted payload string;
+   *  the host writes it to the active terminal's PTY. `null` props
+   *  the pill from rendering at all. */
+  onSendToDuo?: ((payload: string) => void) | null
 }
 
 export function WorkingPane({
@@ -52,7 +60,9 @@ export function WorkingPane({
   closeFileTab,
   onOpenMarkdown,
   onTabDirtyChange,
-  onCommitNewFile
+  onCommitNewFile,
+  focused = false,
+  onSendToDuo
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -127,6 +137,7 @@ export function WorkingPane({
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onCommitNewFile={(p, t) => onCommitNewFile(tab.id, p, t)}
           onCancelNew={() => closeFileTab(tab.id)}
+          onSendToDuo={onSendToDuo}
         />
       )
     } else if (tab.type === 'markdown-preview') {
@@ -146,12 +157,17 @@ export function WorkingPane({
   }
 
   return (
-    <div className="flex flex-col w-full h-full bg-surface-1">
+    // Stage 12 Phase 3 — working pane sits on `paper` (surface-0) so the
+    // active tab in WorkingTabStrip (also paper) reads as continuous with
+    // the content below. Strip itself is paper-deep (surface-1) for
+    // contrast. See docs/design/atelier/project/duo-components.jsx ~L286.
+    <div className="flex flex-col w-full h-full bg-surface-0">
       <WorkingTabStrip
         tabs={mergedTabs}
         onSelect={handleSelect}
         onNew={handleNew}
         onClose={handleClose}
+        focused={focused}
       />
       {activeRenderer}
     </div>

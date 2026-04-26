@@ -27,7 +27,9 @@ import type {
   DocReadResult,
   DuoSelection,
   ThemeMode,
-  ThemeStateSnapshot
+  ThemeStateSnapshot,
+  SelectionFormat,
+  SelectionFormatStateSnapshot
 } from '../shared/types'
 import { SOCKET_PATH } from './constants'
 
@@ -50,6 +52,17 @@ export interface NavBridge {
   getTheme: () => ThemeStateSnapshot
   /** Stage 11 § D33d — CLI-driven theme override. */
   setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
+  /** Stage 5 v2 A24 — open a URL in the macOS default browser via
+   *  Electron's `shell.openExternal`. Used by the duo subagent for
+   *  hostnames listed in `~/.claude/duo/external-domains.json`. */
+  openExternal: (url: string) => Promise<{ ok: boolean; opened?: string; error?: string }>
+  /** Stage 15 G19 — Send → Duo payload format (agent-tunable). */
+  getSelectionFormat: () => SelectionFormatStateSnapshot
+  setSelectionFormat: (format: SelectionFormat) => { ok: boolean; error?: string }
+  /** Stage 15 G17 — write a payload into the active terminal's PTY.
+   *  No Enter appended; user confirms. Surfaces an error when no
+   *  terminal is active. */
+  sendToActiveTerminal: (text: string) => { ok: boolean; written?: number; terminalId?: string; error?: string }
 }
 
 export class SocketServer {
@@ -310,6 +323,33 @@ export class SocketServer {
             // reliable signal to report back.
             result = { ...this.nav.getTheme(), mode }
           }
+          break
+        }
+        case 'send': {
+          const text = args['text'] as string
+          if (typeof text !== 'string') throw new Error('send requires a text arg')
+          result = this.nav.sendToActiveTerminal(text)
+          break
+        }
+        case 'selection-format': {
+          const format = args['format'] as string | undefined
+          if (format === undefined) {
+            // Read-only.
+            result = this.nav.getSelectionFormat()
+          } else {
+            if (format !== 'a' && format !== 'b' && format !== 'c') {
+              throw new Error('selection-format must be a|b|c')
+            }
+            const setResult = this.nav.setSelectionFormat(format as SelectionFormat)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'selection-format set failed')
+            result = { format }
+          }
+          break
+        }
+        case 'external': {
+          const url = args['url'] as string
+          if (!url) throw new Error('external requires a url arg')
+          result = await this.nav.openExternal(url)
           break
         }
         case 'reveal': {

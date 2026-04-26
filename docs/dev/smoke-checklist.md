@@ -68,41 +68,134 @@
       the browser tab, round-trips cleanly — no stale canvas, no stuck
       browser view hiding the file tab.
 
-## 5. Keyboard shortcuts (catches: browser-focus forwarding, chord typos)
+## 5. Keyboard shortcuts (catches: browser-focus forwarding, chord typos, focus-routing regressions)
 
-**Hard rule:** every Duo `⌘<letter>` shortcut MUST be exercised from
-**all four focus surfaces** the user can be on:
+**Hard rule:** every Duo shortcut MUST be exercised from **all four
+focus surfaces** the user can be on:
 
-1. **Terminal** (xterm.js textarea)
+1. **Terminal** (xterm.js textarea — eats some keys via xterm's
+   default key handler unless `attachCustomKeyEventHandler` returns
+   false; see BUG-001 for the ⌃Tab gotcha)
 2. **Browser** (WebContentsView — Chromium eats keys unless
-   `BrowserManager.wireKeyForwarding` allowlists them)
+   `BrowserManager.wireKeyForwarding` allowlists them; clicks into
+   the page don't bubble to the column wrapper, so renderer's
+   `focusedColumn` can stay stuck on the previous value — see
+   BUG-001 fix part 3)
 3. **Editor** (TipTap contenteditable — TipTap binds some keys
    itself: `⌘B`/`⌘I`/`⌘U`/`⌘E`/`⌘K`/`⌘Z` are claimed)
 4. **Files** (tree pane, no editable element but still focusable)
 
-Browser-focus forwarding was the original Cmd+T / Cmd+L regression
-class. The Cmd+N regression in Stage 11 was the same bug — `n` was
-missing from the allowlist, so `⌘N` worked from terminal/editor/
-files but silently no-op'd from the browser. **Don't skip a focus
-surface just because the shortcut "obviously" works from one.**
+**Why we walk this every time:** since 2026-04-19, Duo has shipped
+four keyboard regressions because changes touched one surface and
+the matrix wasn't walked across the others (BUG-001 ⌃Tab cross-pane,
+BUG-002 ⌘T address-bar focus, BUG-004 ⌘` doesn't move OS focus,
+plus ⌘T-pane-aware churn). Each was caught days later by manual
+daily-driving. Walking this section on every keyboard-touching
+change (even "trivial" ones) catches them at PR time. See
+`tasks.md` PROCESS-001 for the full root-cause discussion.
 
-For each row below, fire the shortcut from each surface in order
-(T = terminal, B = browser, E = editor, F = files) and tick all
-four. If any fail, the allowlist in `electron/browser-manager.ts`
-or the `inEditable` guard in `useKeyboardShortcuts.ts` is wrong.
+**Three classes of failure to look for, not just "did the shortcut
+fire":**
 
-| Shortcut | T | B | E | F | Expected |
-|---|---|---|---|---|---|
-| `⌘T` | ☐ | ☐ | ☐ | ☐ | New foreground browser tab, address bar focused, ready for URL |
-| `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | New terminal tab |
-| `⌘N` | ☐ | ☐ | ☐ | ☐ | New `editor` tab in WorkingPane, filename input focused |
-| `⌘L` | ☐ | ☐ | ☐ | ☐ | Address bar focused + selected |
-| `⌘W` | ☐ | ☐ | ☐ | ☐ | Closes active tab in focused column |
-| `⌘B` | ☐ | ☐ | n/a | ☐ | Toggles Files column. **Skipped in editor on purpose** (TipTap claims `⌘B` for bold). Verify the rail click still expands when collapsed. |
-| `⌘\`` | ☐ | ☐ | ☐ | ☐ | Cycles focus between terminal and working pane |
-| `⌘1`/`⌘2` | ☐ | ☐ | ☐ | ☐ | Jumps to terminal tab N |
-| `⌘⇧1`/`⌘⇧2` | ☐ | ☐ | ☐ | ☐ | Jumps to working-pane tab N |
-| `⌘+`/`⌘-`/`⌘0` | ☐ | n/a | n/a | ☐ | Adjust terminal font bump (browser/editor own zoom) |
+a. **Did it fire at all?** (allowlist gaps, `inEditable` guards,
+   xterm/Chromium key-eating). Tick the surface column.
+b. **Did focus land on the right element?** (BUG-002 / BUG-004
+   class). Most shortcuts that change pane state should also move
+   keyboard focus to the destination — type a single character
+   immediately after to confirm.
+c. **Did the visual focus indicator update?** (BUG-003 class).
+   The accent border on the focused column must be perceptible in
+   both light and dark themes.
+
+### 5.1 Pre-flight
+
+- [ ] Identify which file(s) changed. If any of these touched, walk
+      the FULL matrix (every shortcut × every surface):
+      - `renderer/hooks/useKeyboardShortcuts.ts`
+      - `renderer/components/TerminalPane.tsx` (xterm key handler)
+      - `electron/browser-manager.ts` (`wireKeyForwarding` allowlist)
+      - `electron/main.ts` (menu accelerator registration)
+      - `renderer/App.tsx` (`togglePaneFocus`, `newBrowserTab`,
+        `newMarkdownFile`, focus-related callbacks)
+      - `electron/preload.ts` (`keyboard` surface)
+      Otherwise, walk only the rows touched + the rows for any
+      surface whose focus path changed.
+
+### 5.2 Shortcut × focus-surface matrix
+
+Fire each shortcut from every surface in order (T = terminal,
+B = browser, E = editor, F = files). For each cell, verify ALL of:
+
+- The **action fires** (new tab, focus moves, etc.)
+- **Focus lands on the right element** (test by typing one
+  character — does it go where expected? URL bar? Filename input?
+  PTY? Editor prose?)
+- **No collateral damage** to the other panes (focused column
+  border updates correctly; previously-focused element loses focus)
+
+| # | Shortcut | T | B | E | F | Expected outcome |
+|---|---|---|---|---|---|---|
+| 1 | `⌘T` | ☐ | ☐ | ☐ | ☐ | New foreground browser tab AND address-bar input has DOM focus + URL is selected. **Type one letter immediately** — it should land in the address bar, not in the new tab's page or in the previously focused surface (BUG-002 regression check). |
+| 2 | `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | New terminal tab; PTY accepts typing immediately (xterm focused). |
+| 3 | `⌘N` | ☐ | ☐ | ☐ | ☐ | New `editor` tab; filename input focused. Type a name → `Enter` → focus moves to prose, next keystroke lands in prose (D33f). |
+| 4 | `⌘L` | ☐ | ☐ | ☐ | ☐ | Address-bar input focused + URL selected; type replaces URL. |
+| 5 | `⌘W` | ☐ | ☐ | ☐ | ☐ | Closes active tab in the **focused column** (terminal column → terminal tab; working column → browser tab or editor tab depending on active slot). Last terminal tab + last browser tab can't close. |
+| 6 | `⌘B` | ☐ | ☐ | n/a | ☐ | Toggles Files column. **Skipped in editor on purpose** (TipTap claims `⌘B` for bold). When collapsed, rail-icon click still expands. |
+| 7 | `` ⌘` `` | ☐ | ☐ | ☐ | ☐ | Cycles focus between terminal and working pane. **OS-level focus must move too**: after the cycle, type a single character — it goes to xterm OR the browser/editor depending on direction (BUG-004 regression check). The focused-column accent border updates. macOS: registered as a menu accelerator so the system shortcut doesn't intercept it. |
+| 8 | `⌘1` / `⌘2` | ☐ | ☐ | ☐ | ☐ | Jumps to terminal tab N. |
+| 9 | `⌘⇧1` / `⌘⇧2` | ☐ | ☐ | ☐ | ☐ | Jumps to working-pane tab N (browser or file). |
+| 10 | `⌘+` / `⌘-` / `⌘0` | ☐ | n/a | n/a | ☐ | Adjust terminal font bump (browser/editor own native zoom). |
+| 11 | `⌃Tab` / `⌃⇧Tab` | ☐ | ☐ | ☐ | ☐ | **Pane-aware**: from terminal focus → cycles terminal tabs; from browser/editor/files focus → cycles browser tabs (BUG-001). xterm's `attachCustomKeyEventHandler` must let the event bubble; browser-key-forward path must pass `paneOverride='working'`. |
+| 12 | `⌘⇧[` / `⌘⇧]` | ☐ | ☐ | ☐ | ☐ | Previous / next terminal tab (always terminal-scope). |
+
+**If any cell fails, do NOT call the change done.** Trace through:
+1. Does `useKeyboardShortcuts.ts` see the keydown? (Add a `console.log`
+   at the top of `process()` to confirm.)
+2. If from browser: is the key in `wireKeyForwarding`'s allowlist in
+   `electron/browser-manager.ts`?
+3. If terminal eats it: does `term.attachCustomKeyEventHandler` in
+   `TerminalPane.tsx` return `false` for it?
+4. If editor eats it: is there a TipTap binding to override? Check
+   `renderer/components/editor/extensions/`.
+
+### 5.3 Theme dimension
+
+Run this sub-section in **both Light and Dark** themes (toggle via
+the theme button in the top-right). Most shortcut behavior is
+theme-agnostic, but visual feedback can regress unnoticed:
+
+- [ ] **Focused-column accent border** is clearly visible (BUG-003
+      regression check). Click into Files, then Terminal, then
+      Working — each transition should be unambiguous at a glance.
+      "Subtle" is not enough; if you have to squint, file a bug.
+- [ ] **xterm cursor color** matches the theme (Atelier ochre on
+      dark, ochre on light's inky terminal background).
+- [ ] **Address-bar focus ring** visible (`focus:border-accent/50`).
+- [ ] **Files column collapsed-rail icon** visible at rest and on
+      hover.
+
+### 5.4 Pane-toggle focus contract (BUG-004 specifically)
+
+Walk this sequence verbatim — it's the regression that was missed
+during Stage 12:
+
+1. Click into the browser pane. Type a letter into the URL bar to
+   confirm browser has keyboard focus.
+2. Press `` ⌘` `` to cycle to terminal. Without clicking, type
+   `echo hi` + Enter. **The PTY must receive the keystrokes.**
+3. Press `` ⌘` `` to cycle back to working. Without clicking, press
+   `↓` (or whatever scrolls the active page). **The browser must
+   scroll.**
+4. Open an editor tab (e.g., `⌘N` from any surface, commit a name).
+   With the editor tab visible: click into terminal, then `` ⌘` `` to
+   cycle into working. Type a letter — it should land in the editor
+   prose, not be lost.
+
+If any step fails to type/scroll without an intermediate click,
+`togglePaneFocus` in `renderer/App.tsx` is not moving DOM/Chromium
+focus correctly. The fix lives in the `queueMicrotask` block — it
+must call `xterm.focus()`, `window.electron.browser.focusActive()`,
+or the editor's `focus()` API depending on the destination.
 
 ## 6. Cozy mode (catches: xterm option plumbing, TUI-safety)
 
@@ -134,6 +227,79 @@ Run from a terminal **inside** Duo:
 - [ ] `duo nav state` returns JSON with `cwd`, `selected`, `pinned`.
 - [ ] `duo reveal <path>` jumps the files pane and surfaces the
       "Claude moved to …" chip at the top of the navigator.
+- [ ] `duo external https://example.com` opens example.com in the macOS
+      default browser (Safari/Chrome) — NOT Duo's embedded view. The
+      verb is for sites listed in `~/.claude/duo/external-domains.json`;
+      the agent owns routing decisions, but the verb itself should
+      always work.
+- [ ] `duo external file:///etc/passwd` is refused with a "Refusing to
+      open scheme" error — only http/https/mailto are allowed.
+
+## 7a. `duo` subagent (Stage 5 v2 — catches: agent install, session guard, web routing)
+
+Run only when the change touches `agents/duo.md`, `skill/SKILL.md`,
+`npm run sync:claude`, the `external-domains.json` install bootstrap,
+or anything in the orchestrator-side delegation contract. Requires a
+fresh Claude Code session inside a Duo terminal (so `DUO_SESSION` is
+set and the orchestrator picks up the latest `~/.claude/agents/duo.md`).
+
+**Pre-flight**
+
+- [ ] `npm run sync:claude` succeeded; `~/.claude/agents/duo.md` exists
+      and `~/.claude/agents/duo-browser.md` is gone.
+- [ ] `~/.claude/duo/external-domains.json` exists with `{"domains":[]}`
+      (or your curated list — whichever is current).
+
+**Functional walks** (Class A from PRD § 6 — pick at least F1 and F5
+each release; walk all 10 on changes to the agent prompt or web routing)
+
+- [ ] **F1 read-rewrite-write.** From a fresh CC session in a Duo terminal:
+      *"Open `/tmp/agent-fixture.md` (create if missing), read it, then
+      replace the second paragraph with: `Updated paragraph.`"* — agent
+      should return a one-paragraph summary; the file on disk reflects
+      the change; just-added highlight (yellow + 6s fade) visible in
+      the editor.
+- [ ] **F2 browser extract.** *"Navigate to https://example.com and
+      return the H1 plus the first three list items."* — agent returns
+      structured content; only one tab opened.
+- [ ] **F5 send→duo round-trip.** Select a paragraph in the editor.
+      *"Apply this rewrite to the user's editor selection: <text>.
+      Verify it landed."* — write applied, just-added highlight
+      visible, verify excerpt returned.
+- [ ] **F8 web routing — Duo path.** With empty external-domains list:
+      *"Navigate to https://example.com and read the H1."* — verify
+      tab opened in Duo (not Safari). Inspect the agent's call log:
+      `duo open` or `duo navigate`, NOT `duo external`.
+- [ ] **F9 web routing — listed external.** Seed
+      `~/.claude/duo/external-domains.json` with `{"domains":["example.com"]}`,
+      then *"Open https://example.com/any-page."* — agent uses
+      `duo external`; example.com loads in Safari/Chrome; Duo's tab
+      list unchanged.
+
+**Recovery walks** (Class C5/C6/C7 — load-bearing guards)
+
+- [ ] **C5 outside-Duo guard.** Open a non-Duo terminal (regular iTerm,
+      VS Code integrated terminal, or anywhere `echo $DUO_SESSION`
+      returns empty). Run a fresh `claude` session and ask it to do a
+      Duo-flavored task ("read /tmp/foo.md via duo"). Agent should
+      refuse cleanly with the one-line message naming `$DUO_SESSION`
+      as the cause. **Verify zero `Cannot connect: Duo app is not
+      running` errors in the agent's output** — those would mean the
+      guard didn't fire.
+- [ ] **C6 malformed list.** Drop a truncated/invalid JSON in
+      `~/.claude/duo/external-domains.json` (e.g. `{`). Repeat F8 — agent
+      should surface a one-line warning and fall back to "no exceptions"
+      (everything via Duo). Restore the empty list when done.
+- [ ] **C7 listed-domain bypass.** Seed the list with `example.com`.
+      Inspect the agent's call log on the next browser task on that
+      hostname: there must be NO `duo open https://example.com` or
+      `duo navigate https://example.com` — the routing decision belongs
+      to the agent's pattern, not the CLI.
+
+**Post-walk**
+
+- [ ] Restore `external-domains.json` to its prior state (empty by
+      default; or the user's curated list).
 
 ## 8. Markdown editor (Stage 11 — catches: TipTap wiring, save loop, focus handoff)
 

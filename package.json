@@ -10,7 +10,7 @@
     "postinstall": "electron-rebuild",
     "build:cli": "esbuild cli/duo.ts --bundle --platform=node --outfile=cli/duo && chmod +x cli/duo",
     "build:all": "npm run build && npm run build:cli",
-    "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp agents/duo-browser.md ~/.claude/agents/duo-browser.md && echo 'Synced skill + subagent to ~/.claude/'",
+    "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents ~/.claude/duo && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp agents/duo.md ~/.claude/agents/duo.md && rm -f ~/.claude/agents/duo-browser.md && [ -f ~/.claude/duo/external-domains.json ] || echo '{\"domains\":[]}' > ~/.claude/duo/external-domains.json && echo 'Synced skill + subagent (+ bootstrapped external-domains.json) to ~/.claude/'",
     "pack": "npm run build:all && electron-builder --dir",
     "dist": "npm run build:all && electron-builder",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",

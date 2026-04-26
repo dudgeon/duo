@@ -23,6 +23,15 @@ const SOCKET_PATH =
   process.env.DUO_SOCKET ??
   path.join(os.homedir(), 'Library', 'Application Support', 'duo', 'duo.sock')
 const TIMEOUT_MS = 10_000
+// Stage 13b — `doc write` can sit on the renderer for a long time when the
+// buffer is dirty: the editor surfaces a <WriteWarningBanner> and waits
+// for the human to accept or decline. The CLI must outlast that human-
+// in-the-loop window or the agent gets a misleading "Timeout" error
+// when the user is mid-decision. 5 minutes mirrors the renderer-side
+// `dispatchDocWrite` budget in electron/main.ts.
+const PER_CMD_TIMEOUT_MS: Record<string, number> = {
+  'doc-write': 5 * 60 * 1000
+}
 
 // ── Socket transport ─────────────────────────────────────────────────────────
 
@@ -37,7 +46,7 @@ async function send(cmd: string, args: Record<string, unknown> = {}): Promise<un
     let buf = ''
     let done = false
 
-    socket.setTimeout(TIMEOUT_MS)
+    socket.setTimeout(PER_CMD_TIMEOUT_MS[cmd] ?? TIMEOUT_MS)
 
     socket.on('connect', () => {
       const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args }
@@ -345,6 +354,40 @@ async function main(): Promise<void> {
         out(await send('wait', { selector, timeout }))
         break
       }
+      case 'external': {
+        const url = rest[0] ?? die('Usage: duo external <url>')
+        out(await send('external', { url }))
+        break
+      }
+      case 'selection-format': {
+        // `duo selection-format`           → print current state (JSON)
+        // `duo selection-format <a|b|c>`   → set + print new state
+        const format = rest[0]
+        if (format === undefined) {
+          out(await send('selection-format'))
+        } else {
+          if (format !== 'a' && format !== 'b' && format !== 'c') {
+            die('Usage: duo selection-format [a|b|c]')
+          }
+          out(await send('selection-format', { format }))
+        }
+        break
+      }
+      case 'send': {
+        // `duo send --text "…"`            → write the literal arg
+        // `cat foo | duo send`             → write stdin
+        // No Enter appended (Stage 15 G11 — user confirms).
+        const textIdx = rest.indexOf('--text')
+        let text: string
+        if (textIdx !== -1) {
+          text = rest.slice(textIdx + 1).join(' ')
+        } else {
+          text = await readStdin()
+        }
+        if (text === '') die('Usage: duo send --text "…"  |  echo … | duo send')
+        out(await send('send', { text }))
+        break
+      }
       case 'install':
         runInstall()
         break
@@ -518,6 +561,29 @@ COMMANDS
                                   to the navigator's current folder.
   nav state                       Print navigator state (cwd, selection,
                                   expanded folders, pinned flag).
+
+  send [--text "..."]             Write a payload into the active
+                                  terminal's PTY (no Enter appended —
+                                  user confirms). Without --text, reads
+                                  from stdin. Stage 15 G17: agent-
+                                  facing inverse of the Send → Duo
+                                  button. Use to plant context for
+                                  the user.
+
+  selection-format [a|b|c]        Read or set the Send → Duo payload
+                                  format (Stage 15 G19, agent-tunable
+                                  runtime knob). a = quote + provenance
+                                  (default), b = literal text only,
+                                  c = opaque token. No arg → print
+                                  current; with arg → set + persist.
+
+  external <url>                  Open <url> in the macOS default browser
+                                  (via Electron's shell.openExternal). Used
+                                  by the duo subagent for hostnames listed
+                                  in ~/.claude/duo/external-domains.json
+                                  (sites that don't render well in Duo's
+                                  embedded WebContentsView). http(s) and
+                                  mailto schemes only.
 
   install                         Symlink duo to /usr/local/bin/duo
 

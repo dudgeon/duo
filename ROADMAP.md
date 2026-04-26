@@ -2,20 +2,21 @@
 
 > Status legend: ✅ done · 🔄 in progress · ⬜ not started
 >
+> **⚠️ This is the synced markdown view. The canonical roadmap is
+> [`docs/roadmap.html`](roadmap.html)** (Atelier-styled, with a
+> sidebar and per-stage comment boxes). Open it via Claude desktop
+> preview at `http://localhost:8765/roadmap.html` (`.claude/launch.json`
+> `roadmap` config) or directly in a browser. When the two files
+> diverge, the HTML wins. This markdown is maintained alongside —
+> useful for `grep`, `git blame`, and agents reading via `cat`,
+> but it is not the source of truth.
+>
 > **Stage numbers reflect the actual build order** (renumbered
 > 2026-04-26). The previous ordering — chronological-of-planning —
 > obscured dependencies. Per-stage sections below are sequenced by
 > the new numbers. See [§ Number history](#number-history-2026-04-26-renumber)
 > for the old ↔ new map; commit messages and historical PRDs may
 > still reference old numbers.
->
-> **Interactive view:** [`docs/roadmap.html`](roadmap.html) is the
-> Atelier-styled visual snapshot — same structure as this file,
-> with per-stage comment boxes (localStorage-backed) for inline
-> notes. Open via Claude desktop preview at
-> `http://localhost:8765/roadmap.html` (`npm` server config in
-> `.claude/launch.json`). Keep both in sync — the markdown is
-> authoritative, the HTML is the surface Geoff actually reads.
 >
 > **Cross-references:**
 > [VISION.md](docs/VISION.md) (north star) ·
@@ -71,10 +72,24 @@ no fixed slot — pull them in when convenient.
 Layer 0 — Visual foundation (single ship moment)
    12  Atelier visual + Stage 9 cozy-visual completion (rides along)
 
+Agent ergonomics (✅ shipped 2026-04-26 late-evening)
+   5v2  Duo subagent — broader scope, smaller model (Haiku 4.5);
+        subsumes duo-browser. All Class A + C live walks pass.
+        Class B perf inverted PRD hypothesis — Claude Code routes
+        mechanical work to Haiku regardless, so subagent stacks a
+        second Haiku layer. Qualitative wins (bounded context,
+        specialized prompt) justify the architecture. New
+        `duo external <url>` verb + session guard + web routing
+        rule shipped. PRD: docs/prd/stage-5-v2-duo-subagent.md.
+        FOLLOWUP-002 (guard hardening) + FOLLOWUP-003 (cumulative-
+        context perf re-measurement) low-priority.
+
 Layer 1 — Editor maturation (built against Layer 0 tokens)
-   13  Editor: just-added highlight + warn-before-overwrite
+   13  Editor: just-added highlight + warn-before-overwrite          ✓ shipped
+   15.1 Send → Duo (editor pill + CLI verbs)                          ✓ shipped
+   15.2 Send → Duo (browser pane pill + CDP selection observer)       ← next
+   15.3 Send → Duo (length cap, image flatten, ⌘D, polish)
    14  Editor: track changes (Suggesting / Accepted)
-   15  Send → Duo (cross-modality selection primitive)
    16  Editor: external-write reconciliation (parallel — independent of 12)
 
 Layer 2 — New surfaces (built against Layer 1)
@@ -102,14 +117,15 @@ Backlog (no fixed order — pull in when convenient)
 | 2 | Browser pane + SSO | ✅ done | foundation |
 | 3 | `duo` CLI bridge + CDP primitives | ✅ done | foundation |
 | 5 | Skill + subagent authoring | ✅ done | foundation |
+| **5 v2** | **Duo subagent — broader scope, smaller model** (Haiku 4.5; subsumes `duo-browser`; new `duo external` verb + session guard + web routing) | ✅ **shipped 2026-04-26 late-evening** — Class A + C live walks pass; **Class B inverted PRD hypothesis** (subagent path costs ~2× more on synthetic — Claude Code already routes mechanical work to Haiku; qualitative wins remain real). PRD: [docs/prd/stage-5-v2-duo-subagent.md](docs/prd/stage-5-v2-duo-subagent.md) | **agent infra** |
 | 8 | Agent-generated HTML via `duo open` | ✅ done | foundation |
 | 9 | Cozy-mode terminal (typography v1) | ✅ shipped 2026-04-22 · visual completion folds into 12 | foundation |
 | 10 | File browser / context drawer | 🔄 in progress (spec locked) | foundation |
 | 11 | Collaborative markdown editor — core (11a) | ✅ 11a shipped 2026-04-24; tail items in backlog; 11b/c/d/e promoted to top-level Stages 16/13/14/Backlog | foundation |
-| **12** | **Visual redesign — Atelier** (system-wide token swap, light-as-hero, layout depth, tab-strip rhyme, files-pane width 208 + collapse-to-rail) | ⬜ design locked at [docs/design/atelier/](docs/design/atelier/) | **L0** |
-| **13** | **Editor: just-added highlight + warn-before-overwrite** (yellow `mark` + 6s fade per Atelier mock; cross-refs issues #5, #7) | ⬜ visual spec from 12 | **L1** |
-| **14** | **Editor: track changes (CriticMarkup / Suggesting / Accepted)** (cross-refs issue #6) | ⬜ visual spec from 12 | **L1** |
-| **15** | **Send → Duo** (floating pill + `duo send` + `duo selection-format` CLI; was Stage 15) | ⬜ PRD locked, visual from 12 | **L1** |
+| **12** | **Visual redesign — Atelier** (system-wide token swap, light-as-hero, layout depth, tab-strip rhyme, files-pane width 208 + collapse-to-rail) | 🟡 Phases 1–3 shipped 2026-04-26; whisper-level agent presence still pending | **L0** |
+| **13** | **Editor: just-added highlight + warn-before-overwrite** (yellow `mark` + 6s fade per Atelier mock; cross-refs issues #5, #7) | ✅ shipped 2026-04-26 evening — Phase 0 selection-union refactor + 13a (highlight) + 13b (banner) all in `primitives/`; `--duo-mark` token bumped for contrast against cream paper | **L1** |
+| **14** | **Editor: track changes (CriticMarkup / Suggesting / Accepted)** (cross-refs issue #6) | ⬜ ships visual layer as editor-agnostic primitives (`<TrackedRangeMark>` `<AcceptAllBanner>` `<CommentRail>`); MD data binding lives in TipTap extension; HTML canvas binding deferred to 17 v2 | **L1** |
+| **15** | **Send → Duo** (floating pill + `duo send` + `duo selection-format` CLI) | 🟡 **15.1 ✓** shipped 2026-04-26 late-evening (editor pill + CLI verbs end-to-end). **15.2 ← next** — browser pane pill + CDP page-side selection observer (~1–2 days). 15.3 = polish (length cap, image flatten, ⌘D). PRD: [docs/prd/stage-15-send-to-duo.md](docs/prd/stage-15-send-to-duo.md). | **L1** |
 | **16** | **Editor: external-write reconciliation** (chokidar + 3-pane diff + warn-before-close; was 11b; cross-refs issue #7) | ⬜ independent of 12 — can ship anytime | **L1 parallel** |
 | **17** | **HTML canvas** (was Stage 19; new WorkingPane tab type for `.html`) | ⬜ depends on 13 + 15 + 12 | **L2** |
 | **18** | **First-launch self-install** (was 14a; double-click → app prompts → copies skill/agent into `~/.claude/`, installs CLI to sandbox-safe PATH; **no cert needed**) | ⬜ `npm run dist` validated 2026-04-26 (commit `20b4701`) | **L3** |
@@ -378,6 +394,158 @@ to the agent running in the active terminal tab.
 - [ ] First-launch installer (copies `skill/` + `agents/` into `~/.claude/`) — currently manual. **Stage 18** (no cert required; split from old Stage 6 on 2026-04-26).
 - [x] **Skill scoping** — locked 2026-04-25: global `~/.claude/skills/duo/`. See [docs/DECISIONS.md § Skill scoping](docs/DECISIONS.md). The per-session alternatives (shell-init `--plugin-dir`, `--add-dir`, project-level symlink) remain documented for future reference if the skill ever needs Duo-specific guardrails that shouldn't leak to other Claude sessions.
 - [x] **Skill docs: Claude Code sandbox troubleshooting section** — `skill/SKILL.md` now carries a "Troubleshooting: Claude Code sandbox" block (failure signatures, `duo doctor` as first move, the recommended `allowUnixSockets: true` + socket-read allowlist, `dangerouslyDisableSandbox` called out as last resort). `agents/duo-browser.md` mirrors the short version in its "Diagnosing failures" section. See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant transport and install paths for the `duo` CLI*.
+
+---
+
+## Stage 5 v2 — Duo subagent (broader scope, smaller model) `✅ shipped 2026-04-26 late-evening`
+
+> **PRD:** [docs/prd/stage-5-v2-duo-subagent.md](docs/prd/stage-5-v2-duo-subagent.md).
+> **Shipped 2026-04-26 late-evening.** Code-side complete + all Class A
+> + C live walks pass (~$0.40 in API spend). **Class B perf surprise:
+> the synthetic measurement inverted the PRD's hypothesis** — see "Class B
+> finding" below.
+>
+> **Treated as a v2 of Stage 5**, not a new integer, because the
+> 2026-04-26 renumber was explicit about build-order semantics.
+
+**What it was meant to do.** Move mechanical CLI orchestration from the
+top-level Sonnet/Opus orchestrator down to a Haiku 4.5 subagent so the
+orchestrator stays in planning mode and the agent does the drive.
+
+**Class B finding (post-ship — inverts the PRD hypothesis).** Synthetic
+F1 on a fresh `claude -p --model sonnet`, comparing inline (`Sonnet →
+Bash(duo *)`) vs subagent (`Sonnet → Task(duo)`):
+
+| | inline (A) | subagent (B) |
+|---|---|---|
+| Total cost | $0.08 | $0.17 |
+| Wall-clock | 36s | 65s |
+| Sonnet tokens | 6 in / 398 out | 6 in / 348 out |
+| Haiku tokens | 1593 out | 2285 out |
+
+Cause: **Claude Code already routes mechanical tool execution to Haiku
+regardless of `--model`**. The subagent path stacks a SECOND Haiku
+context on top of the existing fast-tier Haiku, doubling the Haiku-side
+cost. The PRD's "~85% orchestrator-token reduction" was framed against a
+mental model where the top-level Sonnet processes CLI dumps directly;
+that isn't how Claude Code distributes tokens across model tiers.
+
+**The agent's value is real but qualitative.** Bounded per-task context
+(no main-conversation prefix-cache pollution), specialized prompt
+(verbs/routing/failure modes baked in), predictable orchestrator/agent
+contract. These scale with session length, not per-task dollar cost on
+a cold-cache synthetic. Proper re-measurement with cumulative-context
+methodology is filed as **FOLLOWUP-003** in `tasks.md`.
+
+### Shipped (all done 2026-04-26 late-evening)
+
+- [x] **Identity + model** — `agents/duo.md` (254 LOC) with
+      `name: duo`, `model: claude-haiku-4-5`, `tools: Bash`.
+      Subsumes and replaces `agents/duo-browser.md`. Verified live
+      that the model alias resolves to `claude-haiku-4-5-20251001`.
+- [x] **Session guard (A20)** — agent's first action checks
+      `$DUO_SESSION`. **C5 walked live:** fresh `claude -p` with
+      `DUO_SESSION` unset → agent ran the guard, saw `not_in_duo`,
+      refused with the EXACT one-line message from the prompt. 2
+      turns, zero verb invocations, $0.006. **Caveat in
+      FOLLOWUP-002:** when a user has a tight Bash allowlist that
+      denies the compound `[ … ] && echo … || echo …` command, the
+      guard silently fails. Permissive Bash (the realistic default)
+      works correctly.
+- [x] **Verb cheat-sheet** — full duo CLI surface, compacted from
+      `skill/SKILL.md`. Includes the new `duo external` verb.
+- [x] **Patterns** — 5 examples covering read-rewrite-write,
+      browser extract, multi-tab orchestration, file-tree
+      exploration, Send → Duo round-trip. F2/F4/F5 walked live.
+- [x] **Failure protocol** — hard-fail-and-surface. C6 walked
+      live: malformed `external-domains.json` → graceful fallback
+      to "no exceptions", no crash, agent navigated via Duo.
+- [x] **Skill update** — `skill/SKILL.md` § "Prefer delegating
+      to the `duo` subagent" + § "Web routing" added. README,
+      FIRST-RUN, BUILD-PROCEDURES, CLAUDE.md all updated to point
+      at `agents/duo.md`.
+- [x] **Web-routing pattern (A23–A25)** — agent's stream-json
+      call log on C7 shows the routing decision is correct:
+      seeded `example.com` → agent ran `duo external` (NOT `duo
+      open`); Duo's tab list unchanged before/after.
+- [x] **`duo external <url>` CLI verb (A24)** — wrapping
+      `shell.openExternal()`. Wired through `shared/types.ts`,
+      `electron/main.ts` (`openExternalUrl`),
+      `electron/socket-server.ts`, `cli/duo.ts`. Validates URL
+      parses; refuses `file://`, `javascript:`, anything outside
+      {http, https, mailto}. Binary rebuilt; `docs/CLI-COVERAGE.md`
+      updated.
+- [x] **External-domains list bootstrap (A26)** —
+      `npm run sync:claude` creates
+      `~/.claude/duo/external-domains.json` with `{"domains":[]}`
+      if missing; never overwrites populated. Stage 18 PRD will
+      inherit this step when drafted.
+- [x] **Sync script** — `npm run sync:claude` extended to copy
+      `agents/duo.md` AND remove legacy `~/.claude/agents/duo-browser.md`
+      from dev installs.
+- [x] **Bundle** — `electron-builder.yml` already covers `agents/`
+      (commit `20b4701`). The new file ships with the next `npm run dist`.
+- [x] **Validation: Class A fixtures** — F1, F2, F4, F5, F8, F9
+      all PASS. F3, F6, F7, F10 skipped (covered by adjacent
+      walks).
+- [x] **Validation: Class C recovery** — C5, C6, C7 (the load-
+      bearing guards) all PASS.
+- [-] **Validation: Class B perf** — measured; finding inverts
+      the PRD pass criteria. See callout above + FOLLOWUP-003.
+- [x] **Smoke checklist update** — new § 7a in
+      `docs/dev/smoke-checklist.md` with pre-flight + 5
+      functional walks + 3 recovery walks + post-walk cleanup.
+
+### Installation lifecycle
+
+End-to-end picture (full detail in PRD § 5):
+
+- **Dev** — edit `agents/duo.md`, `npm run sync:claude` to make it
+  visible in dev sessions, commit + ship.
+- **End-user, first launch** — Stage 18's installer copies the
+  bundled `agents/duo.md` into `~/.claude/agents/duo.md` after the
+  consent sheet. No new installer machinery required; it's one
+  more file in the existing flow.
+- **End-user, app update** — installer hashes the bundled vs
+  installed file. If unchanged from previous bundled, silent
+  overwrite; if user-modified, prompt with diff + accept/keep
+  options. Same shape Stage 18 needs for the skill itself.
+
+### Validation plan (full detail in PRD § 6)
+
+Three classes of validation, all manual for v1:
+
+| Class | What | Pass criteria |
+|---|---|---|
+| **A — Functional** | 10 fixtures in `agents/duo-tests.md` (F1–F7 core; F8–F10 web routing) | All return correct effects; just-added highlight + banner fire; web routing follows A23 (Duo by default, listed hostnames external) |
+| **B — Performance** | Orchestrator turn / token / wall-clock deltas on F1 + F5 | ≥60% token reduction, ≥30% wall-clock reduction vs inline baseline |
+| **C — Recovery** | Inject 7 failure modes: missing socket / malformed JSON / new-file modal / mid-navigation race / **outside-Duo invocation (no `$DUO_SESSION`)** / **malformed external-domains.json** / **listed domain accidentally routed via `duo open`** | Agent surfaces clean error, doesn't improvise. C5 specifically: agent refuses immediately via the session guard (A20), runs zero `duo` verbs. C6: graceful fallback to "everything via Duo" when the list parses badly. C7: agent's pattern enforces external routing before calling the verb (the CLI itself doesn't enforce it). |
+
+Class D is a regression check — replace the `duo-browser` test cases
+with equivalents through the new agent and verify identical
+behaviour.
+
+V2 (deferred): automated eval harness in `tests/duo-agent/` driving
+Claude Code via SDK + asserting outputs.
+
+### Risks
+
+- **Haiku error recovery.** Mitigation: hard-fail-to-surface protocol
+  (A10 in PRD); orchestrator can fall back to inline CLI.
+- **Prompt drift.** Adding a CLI verb means updating one more place.
+  Mitigation: extend the existing "new verb checklist" in CLAUDE.md
+  to include `agents/duo.md`.
+- **Hidden intermediate reasoning.** Some debugging benefits from
+  seeing the agent's per-verb log. Mitigation: opt-in `trace: true`
+  in the goal returns the call log (deferred to V2; A11 in PRD).
+
+### Open questions
+
+See PRD § 8 — four small Qs to verify before drafting the agent file:
+the exact Anthropic model alias, Claude Code's subagent
+`model:`-frontmatter support, whether subagent turns surface to the
+user in the Claude Code UI, and prompt size budget (full verb table
+vs compact-with-skill-link).
 
 ---
 
@@ -1160,7 +1328,215 @@ work, so each branch is small.
 
 ---
 
-## Stage 15 — Send → Duo (cross-modality selection primitive) `⬜ PRD locked, depends on Stage 12`
+## Stage 13 — Editor: just-added highlight + warn-before-overwrite `🔄 Next — Phase 0 refactor + 13a + 13b`
+
+> **Was 11c.** Promoted to top-level Stage 13 in the 2026-04-26
+> renumber. Cross-refs GitHub issues
+> [#5](https://github.com/dudgeon/duo/issues/5),
+> [#7](https://github.com/dudgeon/duo/issues/7). Visual spec lives
+> in [docs/design/atelier/](design/atelier/) — yellow `mark` token
+> + 6s fade overrides the original PRD's "blue fade" placeholder.
+>
+> **Editor-agnostic primitive contract** (locked
+> [2026-04-26](docs/DECISIONS.md#editor-agnostic-primitives-shared-visual-chrome-surface-bound-data-bindings)):
+> Stage 13 is the warm-up that proves out the visual-layer / data-layer
+> split before Stage 14 + Stage 15 + Stage 17 lean on it harder. The
+> two pieces produced here — `duo-just-added` keyframe and
+> `<WriteWarningBanner>` — both ship under
+> `renderer/components/editor/primitives/` with zero TipTap or
+> ProseMirror imports. Stage 17 H20 + H36 reuse them verbatim.
+
+When the agent writes to the editor (`duo doc write`), the affected
+range pulses yellow for ~6 seconds so the human can see what just
+changed. When the agent tries to write while the human has unsaved
+edits, a banner appears in the chrome and the human accepts /
+declines from the editor instead of from the terminal.
+
+### Phase 0 — Editor-agnostic refactor (~half day, lands first)
+
+- [ ] Extend `DuoSelection` union in `shared/types.ts` with
+      `HtmlCanvasSelectionSnapshot` placeholder (Stage 17 H25 shape:
+      `{kind:"html-canvas", path, text, html, anchorId, anchorPath,
+      range, surrounding}`). Locks the union shape NOW so Stage 15
+      ships canvas-ready.
+- [ ] Rename `EditorSelectionTagged` → `MarkdownSelectionSnapshot`
+      for symmetry with the canvas snapshot type (cosmetic, but
+      removes "editor = MD" implicit assumption).
+- [ ] Document the "active doc surface" pattern in `electron/main.ts`
+      so the selection cache is kind-discriminated rather than
+      MD-specific.
+- [ ] Create `renderer/components/editor/primitives/` directory + a
+      one-paragraph `README.md` that names the contract: "no
+      TipTap / ProseMirror imports here; if you reach for them,
+      it's a binding, not a primitive."
+
+### Phase 13a — Just-added highlight (~half day)
+
+- [ ] **Visual layer.** `duo-just-added` keyframe in `globals.css`
+      using the Atelier `mark` token; 6s linear fade. Single source
+      of truth.
+- [ ] **MD binding.** `extensions/JustAdded.ts` — TipTap decoration
+      plugin that adds the class to a range, removes after 6s. Wired
+      into the `duo doc write` reply path so agent edits land marked.
+- [ ] Skill update — agents understand the highlight is automatic;
+      no special opt-in.
+- **Exit:** PM watches a Claude write; the rewritten paragraph
+  pulses yellow then fades.
+
+### Phase 13b — Warn-before-overwrite (~half day)
+
+- [ ] **Visual layer.** `<WriteWarningBanner>` in `primitives/`.
+      Props: `pending: { text: string; mode: 'replace-selection' |
+      'replace-all' }`, `onAccept`, `onDecline`. Atelier-styled.
+      No editor imports.
+- [ ] **MD binding.** Editor catches incoming `duo doc write` while
+      the buffer is dirty + caret active; renders the banner from
+      `MarkdownEditor.tsx`; passes user's accept/decline back through
+      the IPC reply.
+- [ ] Test: agent writes while human is mid-edit → banner appears,
+      agent's IPC call doesn't resolve until the human chooses.
+- **Exit:** human controls when contested writes land, from the
+  surface they're already on.
+
+### Stage 17 reuse story
+
+- **H20** — canvas writes paint with the same `duo-just-added` class.
+  Only the binding is different (DOM `classList.add` instead of PM
+  decoration). Single CSS keyframe serves both.
+- **H36** — canvas reuses `<WriteWarningBanner>` verbatim from
+  `primitives/` with a canvas-side `mode: 'set' | 'replace' |
+  'append'` discriminator added in Stage 17 Phase 17c.
+
+---
+
+## Stage 14 — Editor: track changes (Suggesting / Accepted) `⬜ Visual layer ships canvas-ready; MD data binding ships now; canvas binding deferred to Stage 17 v2`
+
+> **Was 11d.** Promoted to top-level Stage 14 in the 2026-04-26
+> renumber. Cross-refs GitHub issue
+> [#6](https://github.com/dudgeon/duo/issues/6). Visual spec lives
+> in [docs/design/atelier/](design/atelier/) — green-underlined
+> insertions, red-strikethrough deletions, accept-all banner.
+> Realizes D18 track-changes toggle + D20 comment rail end-to-end.
+>
+> **Editor-agnostic primitive contract** (locked
+> [2026-04-26](docs/DECISIONS.md#editor-agnostic-primitives-shared-visual-chrome-surface-bound-data-bindings)):
+> ships four reusable visuals under `primitives/`:
+> `<TrackChangesProvider>`, `<TrackedRangeMark>`,
+> `<AcceptAllBanner>`, `<CommentRail>`. MD-specific code (CriticMarkup
+> parsing, PM marks for the tracked ranges) lives in
+> `extensions/TrackChanges.ts`. Stage 17 H39 explicitly defers HTML
+> diff to v2 — but the visual chrome is canvas-ready from this stage,
+> so Stage 17 v2 is "wire a different binding into existing
+> components" rather than "rebuild the comment rail."
+
+Three modes for the editor: **Live** (default — direct edits land
+immediately), **Suggesting** (agent edits land as proposed insertions
++ deletions), **Accepted** (apply all pending suggestions in one
+sweep). The agent's CLI controls the mode (`duo doc mode <live|
+suggesting>`); the human accepts/rejects from the editor.
+
+### Visual layer (lands now, canvas-ready)
+
+- [ ] `<TrackedRangeMark>` — Atelier-styled green/red decoration
+      with author badge, accept/reject buttons in a margin chip.
+      Pure React.
+- [ ] `<AcceptAllBanner>` — top-of-editor banner: "Claude has 3
+      pending suggestions. [Accept all] [Review one by one]
+      [Reject all]." Pure React.
+- [ ] `<CommentRail>` — right-side rail with threaded entries,
+      anchor icon, accept/resolve/reply, "✨ Claude" badge for
+      agent comments. Per Stage 17 H23, this is the same component
+      the canvas will use.
+- [ ] `<TrackChangesProvider>` — context provider that holds the
+      tracked-changes state and exposes accept/reject handlers. The
+      data shape is editor-agnostic (`{ id, kind: 'insert' | 'delete',
+      author, ts, range }` where `range` is opaque from the visual
+      layer's perspective).
+
+### MD data binding (lands now)
+
+- [ ] `extensions/TrackChanges.ts` — TipTap extension. Parses
+      CriticMarkup on doc load, renders tracked ranges as PM marks
+      with the visual-layer's attribute schema. On accept, removes
+      the mark and the rejection text. On reject, removes the mark
+      and any inserted text.
+- [ ] `duo doc mode <live|suggesting>` CLI — runtime switch.
+- [ ] `duo doc comment` CLI — adds a comment anchored to a range.
+      MD storage: CriticMarkup `{>> comment <<}` syntax, parsed
+      into `<CommentRail>` entries.
+- **Exit:** Claude in suggesting mode writes "I'd change X to Y";
+  the human sees green/red diffs in the prose + rail entry, accepts
+  or rejects.
+
+### Stage 17 reuse story (Stage 17 v2, after H39 lifts the deferral)
+
+- HTML's natural data binding is `<ins>`/`<del>` tags (HTML-native!)
+  or `data-duo-track-*` attributes for finer-grained control. Stage
+  17 v2 writes a canvas-side `bindings/TrackChanges.ts` that emits
+  the same record shape `<TrackChangesProvider>` already accepts.
+  Visual components don't change.
+- Comment rail (H23) uses the same `<CommentRail>` component shipping
+  here. Stage 17 H21 + H22 spec the canvas-side anchor model
+  (`data-duo-id` + range) which feeds the same component schema.
+
+---
+
+## Stage 15 — Send → Duo (cross-modality selection primitive) `🟡 15.1 ✓ shipped 2026-04-26 late-evening · 15.2 ← next · 15.3 polish to follow`
+
+### What shipped in 15.1 (2026-04-26 late-evening)
+
+CLI half (smoke-tested live):
+- `duo selection-format [a|b|c]` (G19) — agent-tunable runtime knob,
+  persisted in renderer localStorage. Default `a` (quote + provenance);
+  `b` literal; `c` opaque token.
+- `duo send [--text "…"]` (G17) — writes payload into active terminal's
+  PTY. No Enter (G11). Returns `{ok, written, terminalId}`.
+
+UI half (typecheck clean, HMR clean, visual walk deferred to FOLLOWUP-004):
+- `<SendToDuoPill>` editor-agnostic primitive (no TipTap imports).
+  Portals to `document.body`, anchors 6px above selection (falls back
+  below), right-aligns and viewport-clamps.
+- `formatSendPayload` pure helper for modes a/b/c. `~/` shortening on
+  paths inside `$HOME`; per-line `> ` prefix on multi-line selections.
+- `useSelectionFormat` hook — localStorage source of truth + main-cache
+  pushState + CLI-driven `onSet` listener.
+- MarkdownEditor binding: tracks `pillRect` in the selection-update
+  effect; hides on blur/collapse; repositions on scroll/resize.
+- WorkingPane + App.tsx: `onSendToDuo` callback writes to the active
+  terminal's PTY and moves focus to the terminal column.
+
+### 15.2 — browser pane pill (← next)
+
+Per PRD § 6.2 + § 5. Goal: extend the same `<SendToDuoPill>` primitive
+to the browser pane so the affordance works on editor + browser
+(canvas is the third surface, lands inside Stage 17c).
+
+Build order:
+1. CDP `Runtime.addBinding('duoSelectionPush')` registered on every
+   `did-finish-load` (mirror of the existing `Runtime.consoleAPICalled`
+   subscription in `electron/cdp-bridge.ts`).
+2. Page-side observer script (~30 LOC IIFE) — listens for
+   `selectionchange`, debounces, serializes to
+   `BrowserSelectionSnapshot`, posts via the binding. Re-injected on
+   `Page.frameNavigated` for same-origin navigation.
+3. Canvas-app fast-path: `docs.google.com/document/*/edit` →
+   `_docs_annotate_getAnnotatedText('').getSelection()` instead of
+   `window.getSelection()`. Sheets / Slides / Figma later as friction
+   surfaces.
+4. `BrowserManager` caches latest `BrowserSelectionSnapshot` per tab;
+   exposes a renderer-side hook (`useBrowserSelection`).
+5. Pill mount in `BrowserPane` — same `<SendToDuoPill>`, anchored to
+   selection rect translated through the WebContentsView bounds (use
+   the existing bounds-sync pattern in `electron/browser-manager.ts`).
+6. `cdp.getBrowserSelection()` returns the cached snapshot (was
+   stubbed in Stage 13 Phase 0; wire it up).
+
+Out of scope (defer to 15.3): length cap (G9), image/table flattening
+(G8), `⌘D` keyboard shortcut (G5).
+
+---
+
+### Stage 15 — original framing (kept for context)
 
 > **PRD:** [docs/prd/stage-15-send-to-duo.md](prd/stage-15-send-to-duo.md).
 > Originally drafted as Stage 15g (sub-item under the "Stage 15
@@ -1168,6 +1544,15 @@ work, so each branch is small.
 > in the 2026-04-26 layered-build renumber because it's the L1
 > priority unlock; the rest of the original 15a–f primitives moved
 > to Backlog (see below).
+>
+> **Editor-agnostic primitive contract** (locked
+> [2026-04-26](docs/DECISIONS.md#editor-agnostic-primitives-shared-visual-chrome-surface-bound-data-bindings)):
+> ships `<SendToDuoPill>` under `renderer/components/editor/primitives/`
+> with no editor-specific imports. Takes a `DuoSelection` and a
+> position-computer prop. Editor surface (15.1), browser surface
+> (15.2), and canvas surface (Stage 17 H27) all wire the same
+> component. Phase 0 of Stage 13 already extends `DuoSelection` with
+> the canvas placeholder so Stage 15 ships canvas-ready.
 
 Floating button next to any selection in any WorkingPane tab type
 (browser, editor, future preview). One click sends the selection
@@ -1180,7 +1565,11 @@ User-facing complement to the agent-facing `duo selection` and
 chrome from Atelier mock (Stage 12).
 
 ### Phase 15.1 — Editor button + `duo send` + `duo selection-format`
-- [ ] Editor button via TipTap BubbleMenu (existing machinery).
+- [ ] **Visual layer** — `<SendToDuoPill>` in `primitives/`. No
+      TipTap imports. Props: `selection: DuoSelection`, anchor rect
+      computer, `onClick`. Position absolutely; Atelier-styled.
+- [ ] **MD binding** — TipTap BubbleMenu wires the pill's anchor
+      computer to PM selection geometry; lives in editor extensions.
 - [ ] `duo send [--text|stdin]` CLI verb — writes formatted payload
       into active terminal as if button fired (for agents).
 - [ ] `duo selection-format [a|b|c]` CLI — runtime-tunable injection
@@ -1192,12 +1581,20 @@ chrome from Atelier mock (Stage 12).
 
 ### Phase 15.2 — Browser surface + unified selection
 - [ ] Browser selection observer + page-side script.
-- [ ] Same pill component anchored over `WebContentsView`.
-- [ ] Unifies `duo selection` across editor + browser surfaces.
+- [ ] Same `<SendToDuoPill>` component anchored over `WebContentsView`
+      via a host-side overlay layer.
+- [ ] Unifies `duo selection` across editor + browser surfaces (the
+      Phase 0 union shape from Stage 13 already covers this).
 
 ### Phase 15.3 — Polish
 - [ ] Length cap, image/table flattening, `⌘D` shortcut.
 - [ ] Skill update so agents understand the injected format.
+
+**Stage 17 reuse story.** The canvas surface gets the pill for free
+in Stage 17 Phase 17c — H27 spells out "natively works once H25
+supplies the payload." Concretely: H25 returns the canvas's
+`HtmlCanvasSelectionSnapshot` shape (already in the union), and the
+canvas's iframe-DOM observer wires into the same dispatcher.
 
 Full spec including all 19 G-decisions in the PRD.
 
@@ -1339,7 +1736,7 @@ cross-window focus logic.
 
 ---
 
-## Stage 12 — Visual redesign (Atelier) `⬜ Held — design locked, after the flagship pair`
+## Stage 12 — Visual redesign (Atelier) `🟡 Phases 1–3 shipped · whisper-level agent presence pending`
 
 > **Design source:** [docs/design/atelier/](design/atelier/).
 > [README](design/atelier/README.md) is the index; [chats/chat1.md](design/atelier/chats/chat1.md)
@@ -1374,44 +1771,41 @@ brief are gone:
 
 ### Scope — system-wide visual pass
 
-- [ ] **Token swap.** Replace today's `useTheme.ts` palette
-      (`#080808` + purple `#7c6af7`) with the Atelier tokens from
-      [tokens.jsx](design/atelier/project/tokens.jsx) (`paper`,
-      `paperDeep`, `paperEdge`, `paperRule`, `ink`, `inkSoft`,
-      `inkMute`, `inkGhost`, `accent`, `accentSoft`, `accentInk`,
-      `mark`, plus terminal `termBg`/`termFg`/`termCozyBg`/`termCozyFg`).
-      Both light and dark variants ship.
-- [ ] **Light is the new default.** Per the brief's "light is the
-      hero, dark is a respectful follower." Today's default is dark;
-      flip the default and confirm the dark variant still reads as
-      a deliberate choice rather than a fallback.
-- [ ] **Type voice.** Wire `DUO_VOICE.atelier` — sans for chrome
+- [x] **Token swap.** Atelier tokens from
+      [tokens.jsx](design/atelier/project/tokens.jsx) wired through
+      `globals.css` + `tailwind.config.mjs`. Light + dark variants
+      ship. *Phase 1 — commit `585d4ee`.*
+- [x] **Light is the new default.** Theme defaults to `system`,
+      which resolves to the macOS appearance. The Atelier light
+      palette is the hero; dark variant is a warm follower. *Phase 1.*
+- [x] **Type voice.** `DUO_VOICE.atelier` wired — sans for chrome
       labels, serif (`"New York"` / `ui-serif`) for chrome accents
-      (titles, breadcrumb root, headings) and editor body. JetBrains
-      Mono / SF Mono unchanged for terminal.
-- [ ] **Layout depth — terminal vs working pane.** Today they share
-      the same surface color. Move the working pane to `--duo-paper`
-      and the terminal pane to `--duo-paperDeep`, with a 1px rule of
-      `--duo-paperRule` between them. The mock's `WorkingPane` and
-      `TerminalPane` components show the contrast.
-- [ ] **Tab-strip rhyme.** Today the terminal tab strip and the
-      working-pane tab strip use different chip shapes. Unify to one
-      shape language (the prototype uses a soft-cornered chip with
-      paper-edge background and an ink-soft underline for the active
-      tab) so the eye reads them as one family across columns.
-- [ ] **Files pane — width 208 + collapse-to-rail.** Narrow the
-      Files column from ~248 to 208px (the user annotation drawing
-      in [uploads/](design/atelier/project/uploads/) shows the
-      target). Add an explicit chevron-with-rail icon next to the
-      pin button that fully collapses the pane to a 44px rail; click
-      the rail anywhere to expand again. Keep follow-mode + reveal
-      chip + breadcrumb behaviour intact (these are "must keep").
+      and editor body. Mono unchanged for terminal. Per-feature
+      finishes (italic-serif active tab label) shipped in Phase 3.
+- [x] **Layout depth — terminal vs working pane.** Terminal column
+      sits on `--duo-paper-deep`; working pane on `--duo-paper`
+      (Phase 3 flipped the WorkingPane root from surface-1 to
+      surface-0 so the active tab merges with content below).
+      *Phase 2 — commit `5cbaa36`; refined in Phase 3.*
+- [x] **Tab-strip rhyme.** Both strips share rounded-top chip
+      language with an accent top-stripe on the active tab and an
+      italic serif label. Differentiator: strip bg
+      (terminal=paper-edge, working=paper-deep). Type icon next to
+      label. *Phase 3 — 2026-04-26.*
+- [x] **Files pane — width 208 + collapse-to-rail.** Narrowed from
+      240→208; explicit chevron-collapse button next to the pin
+      button. *Phase 2 — commit `5cbaa36`.*
+- [x] **Cozy-mode visual completion.** xterm theme variant added
+      for cozy + light (paper canvas, ink fg) and cozy + dark
+      (warm dark). Theme swap effect now keys on both
+      `themeEffective` and `cozy`. *Phase 3 — 2026-04-26. (Folded
+      in from Stage 9 follow-up.)*
 - [ ] **Whisper-level agent presence.** Wire the subtle pulses the
       mock demonstrates: titlebar dot when Claude is active; soft
       glow on a selection when Claude reads it (the same `mark`
       token + a `box-shadow` keyframe). The just-added highlight
       and Send → Duo pill are owned by their host stages (see
-      below) so they don't repeat here.
+      below) so they don't repeat here. **Still pending.**
 
 ### Per-feature visuals — fold into host stages (don't wait for Stage 12)
 
@@ -1550,6 +1944,16 @@ button still produce a bare shell.
 > pattern, and the discriminated-union selection shape from Stage 15.
 > Held until Layer 1 (Stages 13 + 14 + 15) ships in functional form
 > so the reuse stories are concrete.
+>
+> **Editor-agnostic primitive contract** (locked
+> [2026-04-26](docs/DECISIONS.md#editor-agnostic-primitives-shared-visual-chrome-surface-bound-data-bindings)):
+> Stage 17 imports the visual primitives from
+> `renderer/components/editor/primitives/` and writes a canvas-side
+> binding under `renderer/components/canvas/bindings/`. Stage 13's
+> Phase 0 already extended `DuoSelection` with the
+> `HtmlCanvasSelectionSnapshot` placeholder, so Phase 17c (selection
+> + Send → Duo) is "wire the iframe-DOM observer into the existing
+> dispatcher" rather than "redesign the selection union."
 
 **Why it matters:** Markdown is fine for prose; HTML is what an
 agent reaches for when it wants tables that fit, side-by-side layouts,
@@ -1688,6 +2092,7 @@ algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 | Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; cert procurement (see § Owner pre-work) is the longest lead time before Stage 21 can start |
 | Stage 14 split (2026-04-26) | **Old Stage 14 → new Stages 18 + 21** | Decouples user-facing first-launch UX (Stage 18 — no cert) from cert procurement (Stage 21 — gated). Stage 18 ships to Trailblazers ahead of 21 |
 | 2026-04-26 layered renumber | **Stage numbers reflect actual build order, not chronology of planning** | See § Number history. Stage 12 (Atelier) is now first because every L1+ stage inherits its tokens. Old commit refs may use old numbers — the map translates them. |
+| 2026-04-26 pane focus indicator | **Tint the focused column's chrome strip (`accent-soft`), don't try to ring the column wrapper** | xterm canvas + WebContentsView occlude inset shadows on the wrapper. The strip is renderer DOM and never occluded. See [DECISIONS.md](docs/DECISIONS.md#pane-focus-indicator-chrome-strip-tint-not-column-wrapper-ring) for the v1→v2 history and rejected alternatives. |
 
 ## Open Questions
 

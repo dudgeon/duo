@@ -306,14 +306,19 @@ npm run typecheck
 ## Step 10 — Install skill + subagent for Claude Code
 
 So a fresh Claude Code session launched in a Duo terminal discovers the
-skill and the `duo-browser` subagent automatically:
+skill and the `duo` subagent automatically:
 
 ```bash
-mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents
+mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents ~/.claude/duo
 cp skill/SKILL.md            ~/.claude/skills/duo/SKILL.md
 cp skill/examples/*.md       ~/.claude/skills/duo/examples/
-cp agents/duo-browser.md     ~/.claude/agents/duo-browser.md
+cp agents/duo.md             ~/.claude/agents/duo.md
+rm -f                        ~/.claude/agents/duo-browser.md   # remove old name
+[ -f ~/.claude/duo/external-domains.json ] || \
+  echo '{"domains":[]}' > ~/.claude/duo/external-domains.json
 ```
+
+Or simply: `npm run sync:claude` (does all of the above).
 
 Then inside a Duo terminal tab:
 
