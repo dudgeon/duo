@@ -18,16 +18,27 @@ description: Cut a new Duo version — drafts release notes (litmus test), bumps
 
 **Strong triggers (propose):**
 
-1. A stage on the roadmap flips from 🔄 / ⬜ to ✅.
-2. A commit lands on a user-visible surface: `renderer/`, `electron/`, `cli/duo` (binary), `cli/duo.ts` (source), `skill/SKILL.md`, `agents/duo.md`, anything under `shared/` that affects IPC, or any new file under `~/.claude/duo/help/`.
-3. The user says "shipped", "done", "let's commit", "cutting it now", or similar closure language about something that touched the surfaces above.
-4. A bug from `tasks.md` that was open at the last cut transitions to ✅ Fixed.
+1. A *whole stage* on the roadmap flips from 🔄 / ⬜ to ✅ (not a partial / sub-stage).
+2. A coherent multi-commit feature surface lands and the user signals closure ("shipped," "done," "let's tag it").
+3. The FTUX trio (Stage 18 + 18b + 23 + 24) or another similarly-sized initiative completes.
+4. The user explicitly asks to cut.
+
+**Calibration note (added after the v0.2.0 draft was deferred 2026-04-26):**
+Three coherent commits in a row is NOT automatically a cut. The bar
+is closer to "a meaningful chapter has ended." If you find yourself
+proposing a cut every few commits, you're proposing too often. The
+draft accumulates in `RELEASES.md § Pending` between actual cuts —
+that's the safety net, but the goal is to propose less, not to lean
+on the safety net.
+
+**Weak triggers (consider, don't auto-propose):**
 
 **Weak triggers (consider, don't auto-propose):**
 
 - A doc-only commit (`docs/`, `README.md`, etc.) where the docs describe something that already shipped.
 - A refactor with no observable behavior change.
 - A test-only commit.
+- A bug fix without a coherent surface around it. (Fix accumulates in `[Unreleased]`; cut waits for a chapter to close.)
 
 When in doubt, the litmus test (Step 1 below) is the answer. Draft
 the notes; if the notes feel anemic, the version doesn't get cut.

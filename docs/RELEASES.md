@@ -21,8 +21,20 @@
 
 ## Pending — not yet cut
 
-_Empty. Next entry accumulates here when a cut is proposed and
-deferred._
+### Toward v0.2.0 (proposed 2026-04-26 evening, deferred — bar not met)
+
+Three commits since v0.1.0, all user-visible, interlocking around the
+FAQ landing direction:
+
+- `d692a39` — New browser tabs default to bundled `help/faq.html` instead of `about:blank`. `help/**/*` shipped in the asar bundle.
+- `c1b662f` — BUG-009 fixed: `+ → claude` newline race. `waitForPtyReady` helper waits for the shell's first PTY data event (PS1 emitted) plus 30ms paint settle. Covers `duo new-tab --kind claude` and `duo new-tab --cmd "..."` too.
+- `19c6dec` — Canvas honors `<meta name="duo-editable" content="false">`. Read-only mode disables contentEditable, toolbar, comment composer, ID-injection probe, write-warning banner. Send → Duo selection stays available. Used by `help/faq.html` and `help/what-duo-does.html`.
+
+**Owner deferred:** "this is not a release yet — keep building." The
+bar is higher than three coherent ships; cut waits for a more
+meaningful completion moment (e.g. FTUX trio landing, or an explicit
+ready-to-ship signal). Notes accumulate forward into the next
+proposal.
 
 ---
 
