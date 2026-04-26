@@ -19,7 +19,13 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-_Nothing accumulated yet — the v0.1.0 cut is the inaugural release._
+### Changed
+
+- New browser tabs now land on the bundled `help/faq.html` (FAQ + What's New + Getting started + Troubleshooting) instead of `about:blank`. Fallback to `about:blank` if the file resolution fails. (`electron/browser-manager.ts`)
+
+### Added
+
+- `help/**/*` is now included in the production app bundle (`electron-builder.yml § files`) so the FAQ + What Duo Does ship in the DMG.
 
 ## [0.1.0] — 2026-04-26
 

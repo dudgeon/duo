@@ -9,6 +9,7 @@ directories:
 files:
   - out/**/*
   - package.json
+  - help/**/*
   - "!node_modules/**/*"
 
 extraResources:

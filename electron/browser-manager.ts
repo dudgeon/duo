@@ -7,12 +7,26 @@
 // SSO persistence: every view uses the BROWSER_SESSION_PARTITION ('persist:duo-browser'),
 // so cookies / localStorage survive app restarts.
 
-import { WebContentsView, session } from 'electron'
+import { WebContentsView, app, session } from 'electron'
+import { join } from 'path'
+import { pathToFileURL } from 'url'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
 import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from './constants'
 import type { CdpBridge } from './cdp-bridge'
+
+// Default landing page for new browser tabs. Resolves to the bundled
+// help/faq.html via app.getAppPath() — works in dev (project root) and
+// prod (asar root, since electron-builder.yml ships help/**/* inside
+// the asar). Fallback is about:blank if the file resolution throws.
+function defaultLandingUrl(): string {
+  try {
+    return pathToFileURL(join(app.getAppPath(), 'help/faq.html')).href
+  } catch {
+    return 'about:blank'
+  }
+}
 
 type StateCallback = (state: BrowserState) => void
 type TabsCallback = (tabs: BrowserTab[]) => void
@@ -57,7 +71,7 @@ export class BrowserManager {
 
   // ── Tab management ─────────────────────────────────────────────────────────
 
-  addTab(url = 'about:blank'): TabEntry {
+  addTab(url = defaultLandingUrl()): TabEntry {
     const ses = session.fromPartition(BROWSER_SESSION_PARTITION)
     const view = new WebContentsView({
       webPreferences: {
@@ -92,7 +106,7 @@ export class BrowserManager {
     return entry
   }
 
-  async openTab(url = 'about:blank'): Promise<{ ok: true; id: number; url: string; title: string }> {
+  async openTab(url = defaultLandingUrl()): Promise<{ ok: true; id: number; url: string; title: string }> {
     const entry = this.addTab(url)
     await this.switchTab(entry.id)
     // Wait briefly for the loaded page to settle so we can return its real
