@@ -374,7 +374,7 @@ Extend the xterm `attachCustomKeyEventHandler` allowlist in `renderer/components
 
 ### BUG-009: `+` (claude) button on terminal tab strip — claude doesn't auto-launch
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-26 (commit pending v0.2.0; verification owed in next eyes-on session)
 **Priority:** Medium
 **Filed:** 2026-04-26 (during V-walk for v0.1.0 cut)
 
@@ -407,10 +407,16 @@ Option (b) is the quickest path; option (a) is the right path. Class of issue: P
 
 **Class of issue:** New-tab auto-launch reliability. Same family of risk affects `duo new-tab --cmd "..."` (Stage 19c CLI verb) — the CLI is likely racing the same way. Worth a single fix that covers both code paths.
 
-**Affected files (suspected):**
-- `electron/pty-manager.ts` (or wherever new-tab claude-launch is wired)
-- `renderer/components/TerminalPane.tsx` (if the write-on-first-render is renderer-side)
-- `cli/duo.ts` (`new-tab` verb) — if it shares the same readiness path
+**Fix shipped (2026-04-26, pending v0.2.0 cut):** Replaced `queueMicrotask`-only deferral with `waitForPtyReady(id)` in `renderer/App.tsx`. The helper subscribes to `pty.onData` for the new tab id and resolves on first data event (= shell has emitted PS1) plus a 30ms paint settle. 1-second hard fallback in case data never arrives. Subscribing is safe — `dispatchPostSpawnWrite` runs immediately after `newTab()` so the listener registers well before the shell's startup output (~50–200ms after spawn). Same fix path covers all post-spawn payloads (`claude\n`, install banner, CLI `--cmd`), so `duo new-tab --cmd "..."` is fixed in the same edit.
+
+**Affected files (actual):**
+- `renderer/App.tsx` — added `waitForPtyReady` helper (~25 LOC); `dispatchPostSpawnWrite` now awaits it before writing.
+
+**Verification still owed (next eyes-on session):**
+- Click `+` on the terminal tab strip → tab title is `claude · ~`, claude REPL launches, NO literal `claude` text rendered above the prompt, NO orphaned `claude` typed at the post-startup prompt.
+- `duo new-tab --kind claude` from a Duo terminal → same expected behavior.
+- `duo new-tab --cmd "ls -la"` from a Duo terminal → `ls -la` appears at the prompt (no trailing newline per D21), shell prompt is fully drawn first.
+- `duo new-tab --kind claude` when `claude` is missing from PATH → install banner renders cleanly at the prompt with no race artifacts.
 
 ---
 

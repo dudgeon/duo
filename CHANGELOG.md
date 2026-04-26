@@ -27,6 +27,10 @@ notarized distribution (Stage 21).
 
 - `help/**/*` is now included in the production app bundle (`electron-builder.yml § files`) so the FAQ + What Duo Does ship in the DMG.
 
+### Fixed
+
+- BUG-009: `+` (claude) button on the terminal tab strip now reliably auto-launches Claude. The previous `queueMicrotask`-only deferral raced the shell's startup; the new `waitForPtyReady` helper waits for the shell to emit its PS1 (first PTY data event) plus a 30ms paint settle before writing. Same fix covers `duo new-tab --kind claude` and `duo new-tab --cmd "..."`. (`renderer/App.tsx`)
+
 ## [0.1.0] — 2026-04-26
 
 The inaugural Duo release. Pre-distribution: this build runs from

@@ -58,6 +58,37 @@ function saveLastTabKind(kind: TerminalTabKind): void {
 const CLAUDE_MISSING_BANNER =
   'echo "Install Claude Code to enable agent tabs: https://docs.claude.com/claude-code"\n'
 
+// BUG-009 fix — wait for the shell's first PTY data (= PS1 has been
+// emitted) before writing the post-spawn payload. Without this, the
+// write races the shell's startup: the bytes can land before the shell
+// has read its rc files, causing the literal payload to render as raw
+// text outside the prompt and the trailing newline to no-op against an
+// empty prompt. Subscribing here is safe — dispatchPostSpawnWrite is
+// called immediately after newTab(), and the PTY's first data flows
+// after zsh's startup (~50–200ms), so the listener is registered well
+// before the data arrives. 30ms paint settle so the prompt fully
+// renders before we type. 1s hard fallback in case data never arrives
+// (would only happen if the shell failed to start; we proceed anyway
+// so the user isn't left wondering).
+function waitForPtyReady(id: string, timeoutMs: number = 1000): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      off()
+      setTimeout(resolve, 30)
+    }
+    const off = window.electron.pty.onData(id, finish)
+    setTimeout(() => {
+      if (done) return
+      done = true
+      off()
+      resolve()
+    }, timeoutMs)
+  })
+}
+
 function loadCozyByTab(): Record<string, boolean> {
   try {
     const raw = localStorage.getItem(COZY_BY_TAB_KEY)
@@ -180,9 +211,14 @@ export function App() {
   // — same path the user's keystrokes take, so the payload appears in
   // the terminal exactly as if the user typed it.
   //
-  // Small queueMicrotask wait so PtyManager.create has actually attached
-  // the data callbacks; otherwise the very first write can race the
-  // terminal mount and get clipped.
+  // BUG-009 fix — wait for the shell to have emitted its PS1 (first
+  // PTY data event) before writing. Earlier code used queueMicrotask
+  // alone, which deferred only one renderer event-loop tick — not
+  // enough for zsh to read rc files and print its prompt. Result was a
+  // visible race: literal payload text rendered above the prompt, and
+  // the trailing newline got swallowed against an empty pre-prompt
+  // state. waitForPtyReady (defined above) handles all post-spawn
+  // payloads — claude auto-launch, install banner, --cmd from CLI.
   const dispatchPostSpawnWrite = useCallback(async (id: string, kind: TerminalTabKind, cmd?: string) => {
     let payload: string | null = null
     if (cmd && cmd.length > 0) {
@@ -197,9 +233,8 @@ export function App() {
       payload = onPath ? 'claude\n' : CLAUDE_MISSING_BANNER
     }
     if (payload === null) return
-    queueMicrotask(() => {
-      void window.electron.pty.write(id, payload!)
-    })
+    await waitForPtyReady(id)
+    void window.electron.pty.write(id, payload)
   }, [])
 
   // Stage 10 § D9 + Stage 19c — new terminal tabs launch in `pendingCwd`
