@@ -23,16 +23,26 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26) — Stage 17 deep stack + Stage 19c
-merge + Stage 21 cert pre-work all done. **17a + 17a polish (1-7) +
-17a.5 D + 17b A-D** shipped + committed (7 thematic commits). **19c
-merged in from worktree** (split-`+` button + `duo new-tab` + claude
-default), 6 conflict files resolved by composing both stages.
+**Latest session (2026-04-26) — Stage 17c shipped (canvas just-added
+wash + duo selection canvas + persistent blurred selection + Send →
+Duo pill on canvas + warn-before-overwrite banner). 17a + 17a polish +
+17a.5 D + 17b + 17c + 19c merge + Stage 21 cert pre-work all done in
+this session.** New canvas-side primitives:
+`renderer/components/HtmlCanvas/{justAddedCanvas,blurredSelection,canvasSelection}.ts`;
+serializer scrubs `duo-just-added` from saved class lists; new IPC
+channel `CANVAS_SELECTION_PUSH` + `getCanvasSelection` on NavBridge;
+`socket-server.ts` selection switch extended (`--pane canvas` plus
+auto fallthrough chain browser → canvas → editor); CLI accepts
+`--pane canvas`; `formatCanvasSendPayload` for all three formats;
+`SendToDuoPill` translates iframe-content rect → viewport via
+`iframe.getBoundingClientRect()`. Earlier same day: 17a + 17a polish
+1-7 + 17a.5 D + 17b A-D + 19c merge + Stage 21 cert pre-work.
 **Stage 21 cert pre-work ✅ complete** — all five artifacts verified
 on disk + in keychain (`security find-identity` returns one valid
 identity; `.p8` at `~/Documents/duo-private/`; Team ID `R39EF29X3Y`,
 Key ID `T8VVN9GF4M`). Earlier same day: Stages 5 v2 + 13 + 15.1 +
-15.2 + owner-walk fixes + skill refactor.** New `html-canvas` tab type;
+15.2 + owner-walk fixes + skill refactor. Originally added
+`html-canvas` tab type;
 `renderer/components/HtmlCanvas/{CanvasTab,RenderedCanvas,CanvasToolbar,inlineMarks,htmlBoilerplate}.tsx`;
 `shared/html-boilerplate.ts` shared between renderer + main; new
 `duo html new <path.html>` CLI verb (writes H17 boilerplate
@@ -171,6 +181,24 @@ pre-work confirmed complete. Commit chain on `main`:
   on the merged build owed.
 - **Cert tracker update** — `7413a54` flips Step 3 + Step 4 to ✅
   in `docs/dev/cert-procurement.md`.
+- **17c** (agent overlay + selection — code-side complete; visual
+  smoke owed) — see § 17c below for the full inventory. Touches:
+  `renderer/components/HtmlCanvas/{justAddedCanvas,blurredSelection,canvasSelection}.ts`
+  (new), `serialize.ts` (scrub `duo-just-added` from `class=""`),
+  `CanvasTab.tsx` (banner gating + repaint at open + pill +
+  selection observer + new helpers wired into handleReady),
+  `RenderedCanvas.tsx` (expose `getIframeElement()` for rect
+  translation), `WorkingPane.tsx` (thread `onSendToDuo`),
+  `editor/sendFormat.ts` (canvas variant), `shared/types.ts`
+  (`CANVAS_SELECTION_PUSH` IPC + `pushSelection` on
+  `ElectronCanvasAPI`), `electron/main.ts` (canvas selection cache
+  + `getCanvasSelection`), `electron/preload.ts`
+  (`canvas.pushSelection`), `electron/socket-server.ts` (selection
+  switch extended to `--pane canvas` + auto fallthrough chain
+  browser → canvas → editor), `cli/duo.ts` (`--pane canvas`),
+  `agents/duo.md` + `skill/SKILL.md` + `docs/CLI-COVERAGE.md`
+  (cheat-sheet entries). Typecheck clean; CLI rebuilt; sync:claude
+  applied.
 
 Earlier same-day work (already committed): Stage 5 v2 + 13 + 15.1
 + 15.2 + owner-walk fixes + skill refactor.
@@ -195,15 +223,13 @@ blocking.
 
 **Recommended next.** Two strong candidates:
 
-1. **Stage 17c** (canvas just-added highlight + Send → Duo pill on
-   canvas + warn-before-overwrite banner). All deps in place: 17a
-   primitives, 17b ID injection (so the agent overlay can target by
-   `data-duo-id`), Stage 13 yellow-fade primitive (reuse). 17c scope
-   per PRD: just-added highlight on agent edits, recentEdits log +
-   repaint-at-open within freshness window, `duo selection` for
-   canvas (extends Stage 15 union with `kind: 'html-canvas'`),
-   persistent blurred selection, Send → Duo pill on canvas surface,
-   warn-before-overwrite banner. ~3-4 PRDs of work.
+1. **Stage 17d** (comments rail + lock convention; pulls in skill
+   snippet bundle). Reuses Stage 11 D20's comment-rail component
+   from the markdown editor; adds `<file>.duo.json § comments[]`
+   anchored by `data-duo-id` (already populated in 17b sidecar);
+   adds `data-duo-lock="structure"` rendering + ⌥-click override
+   (PRD H19); ships the H17 boilerplate + H18 ten-snippet bundle in
+   the skill so Claude can recognize Duo-shape components. ~3 PRDs.
 
 2. **Stage 21** (signed + notarized DMG). Cert pre-work is done;
    remaining work is mechanical: uncomment `mac.identity` +
@@ -215,11 +241,14 @@ blocking.
    misbehaves on the notarytool round-trip.
 
 **Alternatives if a different bottleneck is felt:**
-- **Run the V1–V15 verification list** filed in
+- **Run the V1–V22 verification list** filed in
   `docs/roadmap.html#s17a-polish` § In-depth verification owed.
-  V2 (MD toolbar regression after the EditorActions refactor) and
-  V14 (full agent CLI sweep) are the highest-risk; V11/V12 verify
-  the smart-blank overlay visually.
+  V2 (MD toolbar regression after the EditorActions refactor),
+  V14 (full agent CLI sweep), V20 (CSS Custom Highlight Registry),
+  V22 (warn-before-overwrite banner) are the highest-risk;
+  V11/V12 verify the smart-blank overlay visually; V16-V19/V21
+  cover the Stage 17c canvas-side wash + selection observer +
+  Send → Duo pill.
 - **UI walk for 19c** on the merged build (split-button, ⌘T from
   terminal focus → claude, install banner when claude missing,
   `duo new-tab` round-trip).
@@ -230,6 +259,97 @@ blocking.
 - **Stage 15.3** (Send → Duo polish — defers cleanly).
 - **17a.5 directions A/E** (templates) — still open design
   questions; owner needs to pick before code work starts.
+
+### Stage 17c (just shipped — code-side, visual smoke owed)
+
+PRD: [docs/prd/stage-17-html-canvas.md § 7 — 17c](docs/prd/stage-17-html-canvas.md).
+Verification list: V16–V22 in
+[docs/roadmap.html#s17a-polish](docs/roadmap.html).
+
+**What landed:**
+- `justAddedCanvas.ts` — canvas-side binding for the
+  `duo-just-added` keyframe. `installJustAddedStyles(doc)` injects
+  the keyframe + class into the iframe stylesheet (parent's
+  `globals.css` doesn't reach iframe documents). `markJustAdded(el)`
+  paints the class for `HIGHLIGHT_MS = 6000` then strips. Marked
+  with `data-duo-canvas-runtime` sentinel so the existing
+  serializer-strip pass keeps the runtime style out of saved HTML.
+- `serialize.ts § scrubClassValue` — strips `duo-just-added` from
+  every element's `class=""` during serialization. Defends against
+  the wash class racing the autosave: even if the 6s fade hasn't
+  completed by the time autosave fires, the serializer drops the
+  runtime class so the on-disk file stays canonical.
+- `blurredSelection.ts` — installs body-focus/blur listeners and
+  mirrors selection state into a CSS Custom Highlight named
+  `duo-blurred-selection`. Highlight Registry API (Chromium 105+)
+  paints presentation-only — no DOM mutation, so the dirty path
+  doesn't fire on focus toggles. Stylesheet for
+  `::highlight(duo-blurred-selection)` injected with the runtime
+  sentinel. Window-level focus/blur listeners catch the case where
+  the iframe loses focus to the parent renderer (clicking the
+  terminal) without firing a body blur.
+- `canvasSelection.ts` — `installCanvasSelection({doc, path,
+  onPush, onRect})`. Computes the H25 union shape:
+  `{kind:'html-canvas', path, text, html, anchorId, anchorPath,
+  range, surrounding}`. Anchor = nearest `data-duo-id` ancestor;
+  anchorPath = trail of ancestor duo-ids outermost-first; range =
+  `{startOffset, endOffset, textPath}` only for selections inside
+  a single text node within an anchored element; surrounding =
+  enclosing block's textContent up to 1000 chars; html =
+  `cloneContents()` outerHTML for non-collapsed selections.
+  `onRect` fires the bounding rect in iframe-content viewport
+  coordinates only when body has DOM focus (mirrors editor's
+  `editor.isFocused` gate); pill is hidden otherwise.
+- `RenderedCanvas.tsx` — added `getIframeElement()` to the
+  imperative handle so CanvasTab can translate iframe-content rect
+  → parent-renderer viewport rect by adding the iframe's own
+  `getBoundingClientRect()` top/left.
+- `CanvasTab.tsx` — `handleReady` now also installs
+  `installJustAddedStyles`, `installBlurredSelection`,
+  `installCanvasSelection`, and runs `repaintRecentClaudeEdits`
+  (reads sidecar's `recentEdits[]`, paints anchored elements
+  authored by 'claude' within the freshness window, idempotent
+  per anchorId per pass). New state: `pillRect`,
+  `lastCanvasSelectionRef`, `selectionFormat` (via existing
+  `useSelectionFormat`), `pendingHtmlOp` (for the warn-before-
+  overwrite gate). The html-op handler now (a) for read ops:
+  applies immediately; (b) for write ops + dirty buffer: queues
+  the request + surfaces `<WriteWarningBanner>`; (c) for write
+  ops + clean buffer: applies immediately. On successful write
+  ops the affected element (`result.id`) gets `markJustAdded`
+  (skipped for `remove` since the element is gone). Pending
+  banner concurrency: second write while a banner is up returns
+  `"Another write is awaiting the user's decision."`.
+- `editor/sendFormat.ts` — `formatCanvasSendPayload(snap, format)`
+  for all three formats. Format A's provenance line uses
+  `~/path · <anchorPath joined ' > '>` instead of the markdown
+  editor's heading trail (anchor IDs are the canonical addressing
+  primitive on canvas). Reuses `formatC()` (opaque token) verbatim.
+- `WorkingPane.tsx` — threads `onSendToDuo` to CanvasTab (was
+  accepted-but-unused before).
+- `shared/types.ts` — new `CANVAS_SELECTION_PUSH` IPC channel;
+  `pushSelection` added to `ElectronCanvasAPI`.
+- `electron/main.ts` — `canvasSelection` cache + ipcMain handler;
+  `getCanvasSelection()` exported and passed to NavBridge.
+- `electron/preload.ts` — `canvas.pushSelection(snapshot)` exposed.
+- `electron/socket-server.ts` — `NavBridge.getCanvasSelection`
+  added; selection switch accepts `--pane canvas` and the auto
+  branch falls through browser → canvas → editor (canvas inserts
+  between browser and editor).
+- `cli/duo.ts` — `--pane canvas` validation + help text update.
+  Binary rebuilt via `npm run build:cli` (29.4KB).
+- `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` —
+  cheat-sheet entries updated for the canvas branch + auto
+  fallthrough order. `npm run sync:claude` applied so Claude Code
+  picks up the new info on next skill / agent lookup.
+
+**Visual smoke owed.** The Duo app wasn't running during this
+session, so the V16–V22 walk is owed for a future session with the
+app open. Per CLAUDE.md `npm run dev` rules, we couldn't actually
+see the canvas paint or click the pill — the typecheck pass + CLI
+rebuild + sync:claude prove the wiring compiles + the CLI surface
+declares correctly, but the visual layer (just-added wash, pill
+position, banner copy) needs eyes-on confirmation.
 
 ### Stage 17b (just shipped — code-side, smoke-verified)
 
