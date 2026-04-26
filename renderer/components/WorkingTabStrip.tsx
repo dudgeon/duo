@@ -10,7 +10,10 @@ import type { WorkingTab, WorkingTabType } from '@shared/types'
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
   onSelect: (id: string) => void
-  onNew: () => void
+  /** Plain click → opens the new-file interstitial (parity with ⌘N).
+   *  ⌥-click → opens a new browser tab (parity with ⌘T, preserves the
+   *  pre-Stage-17 muscle memory). 17a polish item 2. */
+  onNew: (e: React.MouseEvent) => void
   onClose: (id: string) => void
   /** BUG-003 fix — tint the strip when the working pane has keyboard
    *  focus. The strip is renderer DOM, unaffected by WebContentsView
@@ -46,7 +49,7 @@ export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, focused = fals
       <button
         onClick={onNew}
         className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
-        title="New browser tab (⌘T)"
+        title="New file (⌘N) · ⌥-click for new browser tab (⌘T)"
       >
         <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
           <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>

@@ -10,6 +10,8 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
+import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
+import { encodeUtf8 } from './components/editor/markdown-io'
 import type { TabSession, DirEntry } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
@@ -256,18 +258,31 @@ export function App() {
     setFocusedColumn('working')
   }, [nav.state.cwd, fileTabs])
 
-  // Finalize a new-file tab: write an empty file at the resolved path,
+  // Finalize a new-file tab: write the seed bytes at the resolved path,
   // then update tab metadata so subsequent autosaves write through.
+  //
+  // Stage 17a — the audible from kickoff: ⌘N opens the new-file
+  // interstitial; the typed extension dictates which canvas mounts.
+  // .md (or no extension, defaulting to .md via the interstitial) keeps
+  // the markdown editor; .html / .htm swaps the tab to `html-canvas`
+  // and seeds the file with boilerplate so the iframe has something
+  // to render. Other extensions fall through to whatever classifyFile
+  // returns (image, pdf, unknown preview) — those surfaces already
+  // expect bytes on disk so an empty seed is fine.
   const onCommitNewFile = useCallback(async (id: string, resolvedPath: string, title: string) => {
+    const { type, mime } = classifyFile(resolvedPath)
+    const seed = type === 'html-canvas'
+      ? encodeUtf8(htmlBoilerplate(title.replace(/\.[^.]+$/, '')))
+      : new Uint8Array()
     try {
-      await window.electron.files.write(resolvedPath, new Uint8Array())
+      await window.electron.files.write(resolvedPath, seed)
     } catch (err) {
       console.error('[Duo] failed to create new file:', err)
       return
     }
     setFileTabs(prev => prev.map(t =>
       t.id === id
-        ? { ...t, path: resolvedPath, title, isNew: false }
+        ? { ...t, path: resolvedPath, title, type, mime, isNew: false }
         : t
     ))
   }, [])
@@ -647,6 +662,7 @@ export function App() {
               onOpenMarkdown={onOpenMarkdown}
               onTabDirtyChange={onTabDirtyChange}
               onCommitNewFile={onCommitNewFile}
+              onNewFile={newMarkdownFile}
               focused={focusedColumn === 'working'}
               // Stage 15.1 — Send → Duo pill: pipe the formatted payload
               // into the active terminal's PTY. PRD G11: no Enter

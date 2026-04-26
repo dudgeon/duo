@@ -1,209 +1,197 @@
-// Stage 11 — top formatting toolbar (PRD D5, top-bar half) + contextual
-// table controls (PRD D12a).
+// Stage 11 (initial) → Stage 17a polish item 3 (refactored) — shared
+// presentational toolbar for both the markdown editor and the HTML
+// canvas. The toolbar does not import TipTap or any DOM primitives;
+// it dispatches every action through an `EditorActions` interface
+// the host supplies. See `EditorActions.ts` for the contract.
 //
-// Top row: heading picker + inline marks + link + list kinds + block kinds
-// + table insert + undo/redo + save.
-// Contextual second row: row/column/table operations, shown only when the
-// cursor is inside a table. Keeps the primary toolbar stable; table work
-// gets its own dense strip.
+// Reactivity: the toolbar re-renders when `selectionVersion` changes.
+// Hosts bump that counter on every selectionUpdate / iframe
+// selectionchange so contextual state (active marks, current block,
+// inTable, can-X disabled flags) stays in sync.
 
-import { useEditorState } from '@tiptap/react'
-import type { Editor } from '@tiptap/react'
+import type { EditorActions } from './EditorActions'
 
 interface Props {
-  editor: Editor | null
+  actions: EditorActions
+  /** Bumped by the host on every selection / state change so the
+   *  toolbar re-renders and re-queries `actions.isActive(...)`. */
+  selectionVersion: number
   onSave: () => void
   dirty: boolean
   saving: boolean
 }
 
-export function EditorToolbar({ editor, onSave, dirty, saving }: Props) {
-  // Subscribe to selection-relevant state so active flags / context bar
-  // re-render as the caret moves. Without this the toolbar is static and
-  // the in-table indicator never flips.
-  const state = useEditorState({
-    editor,
-    selector: (ctx) => {
-      const ed = ctx.editor
-      if (!ed) return null
-      return {
-        inTable: ed.isActive('table'),
-        canAddColBefore: ed.can().addColumnBefore(),
-        canAddColAfter: ed.can().addColumnAfter(),
-        canDelCol: ed.can().deleteColumn(),
-        canAddRowBefore: ed.can().addRowBefore(),
-        canAddRowAfter: ed.can().addRowAfter(),
-        canDelRow: ed.can().deleteRow(),
-        canDelTable: ed.can().deleteTable(),
-        canToggleHeaderRow: ed.can().toggleHeaderRow()
-      }
-    }
-  })
+export function EditorToolbar({ actions, onSave, dirty, saving }: Props) {
+  // selectionVersion is consumed via the prop signature alone — the
+  // mere change of value triggers React to re-render this component,
+  // and the action queries below are called fresh on every render.
 
-  if (!editor) {
-    return <div className="h-10 border-b border-border shrink-0 bg-surface-1" />
-  }
-
-  const currentHeading = (() => {
-    for (let level = 1; level <= 6; level++) {
-      if (editor.isActive('heading', { level })) return `h${level}`
-    }
-    if (editor.isActive('paragraph')) return 'p'
-    return 'p'
-  })()
+  const currentBlock = actions.currentBlock()
+  const inTable = actions.inTable()
+  const tableOps = actions.tableOps
+  const extras = actions.extras
 
   const setBlock = (v: string) => {
-    if (v === 'p') {
-      editor.chain().focus().setParagraph().run()
-    } else {
-      const level = parseInt(v.slice(1), 10) as 1 | 2 | 3 | 4 | 5 | 6
-      editor.chain().focus().toggleHeading({ level }).run()
-    }
+    actions.setBlock(v as ReturnType<EditorActions['currentBlock']>)
   }
 
   const insertLink = () => {
-    const prev = editor.getAttributes('link')['href'] as string | undefined
+    const prev = actions.currentLinkHref()
     const url = window.prompt('Link URL', prev ?? 'https://')
     if (url === null) return
-    if (url.trim() === '') {
-      editor.chain().focus().unsetLink().run()
-    } else {
-      editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
-    }
-  }
-
-  const insertTable = () => {
-    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+    actions.setLink(url.trim() === '' ? null : url)
   }
 
   return (
     <div className="flex flex-col shrink-0 border-b border-border bg-surface-1">
-    <div className="flex items-center h-10 gap-1 px-2 text-zinc-300 text-sm overflow-x-auto">
-      <select
-        value={currentHeading}
-        onChange={(e) => setBlock(e.target.value)}
-        className="bg-surface-2 border border-border rounded px-2 py-1 text-xs focus:outline-none focus:border-accent/60"
-        title="Paragraph / Heading level"
-      >
-        <option value="p">Paragraph</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
-        <option value="h4">Heading 4</option>
-        <option value="h5">Heading 5</option>
-        <option value="h6">Heading 6</option>
-      </select>
-
-      <Sep />
-
-      <Btn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold (⌘B)">
-        <span className="font-bold">B</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic (⌘I)">
-        <span className="italic">I</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline (⌘U)">
-        <span className="underline">U</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="Strikethrough">
-        <span className="line-through">S</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Inline code (⌘E)">
-        <span className="font-mono text-xs">{'</>'}</span>
-      </Btn>
-
-      <Sep />
-
-      <Btn onClick={insertLink} active={editor.isActive('link')} title="Link (⌘K)">
-        <LinkIcon />
-      </Btn>
-
-      <Sep />
-
-      <Btn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title="Bullet list">
-        <span className="font-bold">•</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title="Numbered list">
-        <span className="text-xs">1.</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title="Task list">
-        <span className="text-xs">☐</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title="Blockquote">
-        <span className="text-xs">❝</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title="Code block">
-        <span className="font-mono text-xs">{'{}'}</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal rule">
-        <span className="text-xs">—</span>
-      </Btn>
-      <Btn onClick={insertTable} title="Insert table">
-        <TableIcon />
-      </Btn>
-
-      <Sep />
-
-      <Btn onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()} title="Undo (⌘Z)">
-        <span className="text-xs">↶</span>
-      </Btn>
-      <Btn onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()} title="Redo (⌘⇧Z)">
-        <span className="text-xs">↷</span>
-      </Btn>
-
-      <div className="ml-auto flex items-center gap-3 pr-1 text-xs text-zinc-500">
-        <span aria-live="polite">
-          {saving ? 'Saving…' : dirty ? 'Unsaved' : 'Saved'}
-        </span>
-        <button
-          onClick={onSave}
-          disabled={!dirty || saving}
-          className="px-2 py-1 rounded border border-border hover:border-accent/60 text-zinc-300 disabled:opacity-40 disabled:hover:border-border"
-          title="Save (⌘S)"
+      <div className="flex items-center h-10 gap-1 px-2 text-zinc-300 text-sm overflow-x-auto">
+        <select
+          value={currentBlock}
+          onChange={(e) => setBlock(e.target.value)}
+          className="bg-surface-2 border border-border rounded px-2 py-1 text-xs focus:outline-none focus:border-accent/60"
+          title="Paragraph / Heading level"
         >
-          Save
-        </button>
-      </div>
-    </div>
-    {state?.inTable && (
-      <div className="flex items-center h-9 gap-1 px-2 border-t border-border bg-surface-2 text-zinc-300 text-xs overflow-x-auto">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-2">Table</span>
-        <Btn small onClick={() => editor.chain().focus().addRowBefore().run()} disabled={!state.canAddRowBefore} title="Insert row above (⌥⇧↑)">
-          ↑＋
-        </Btn>
-        <Btn small onClick={() => editor.chain().focus().addRowAfter().run()} disabled={!state.canAddRowAfter} title="Insert row below (⌥⇧↓)">
-          ↓＋
-        </Btn>
-        <Btn small onClick={() => editor.chain().focus().deleteRow().run()} disabled={!state.canDelRow} title="Delete row">
-          ✕row
-        </Btn>
+          <option value="p">Paragraph</option>
+          <option value="h1">Heading 1</option>
+          <option value="h2">Heading 2</option>
+          <option value="h3">Heading 3</option>
+          <option value="h4">Heading 4</option>
+          <option value="h5">Heading 5</option>
+          <option value="h6">Heading 6</option>
+        </select>
+
         <Sep />
-        <Btn small onClick={() => editor.chain().focus().addColumnBefore().run()} disabled={!state.canAddColBefore} title="Insert column left (⌥⇧←)">
-          ←＋
+
+        <Btn onMouseDown={() => actions.toggleBold()} active={actions.isActive('bold')} title="Bold (⌘B)">
+          <span className="font-bold">B</span>
         </Btn>
-        <Btn small onClick={() => editor.chain().focus().addColumnAfter().run()} disabled={!state.canAddColAfter} title="Insert column right (⌥⇧→)">
-          →＋
+        <Btn onMouseDown={() => actions.toggleItalic()} active={actions.isActive('italic')} title="Italic (⌘I)">
+          <span className="italic">I</span>
         </Btn>
-        <Btn small onClick={() => editor.chain().focus().deleteColumn().run()} disabled={!state.canDelCol} title="Delete column">
-          ✕col
+        <Btn onMouseDown={() => actions.toggleUnderline()} active={actions.isActive('underline')} title="Underline (⌘U)">
+          <span className="underline">U</span>
         </Btn>
+        <Btn onMouseDown={() => actions.toggleStrike()} active={actions.isActive('strike')} title="Strikethrough">
+          <span className="line-through">S</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.toggleCode()} active={actions.isActive('code')} title="Inline code (⌘E)">
+          <span className="font-mono text-xs">{'</>'}</span>
+        </Btn>
+
         <Sep />
-        <Btn small onClick={() => editor.chain().focus().toggleHeaderRow().run()} disabled={!state.canToggleHeaderRow} title="Toggle header row">
-          Header
+
+        <Btn onMouseDown={insertLink} active={actions.isActive('link')} title="Link (⌘K)">
+          <LinkIcon />
         </Btn>
-        <Btn small onClick={() => editor.chain().focus().deleteTable().run()} disabled={!state.canDelTable} title="Delete table">
-          ✕table
+
+        <Sep />
+
+        <Btn onMouseDown={() => actions.toggleBulletList()} active={actions.isActive('bulletList')} title="Bullet list">
+          <span className="font-bold">•</span>
         </Btn>
+        <Btn onMouseDown={() => actions.toggleOrderedList()} active={actions.isActive('orderedList')} title="Numbered list">
+          <span className="text-xs">1.</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.toggleTaskList()} active={actions.isActive('taskList')} title="Task list">
+          <span className="text-xs">☐</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.toggleBlockquote()} active={actions.isActive('blockquote')} title="Blockquote">
+          <span className="text-xs">❝</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.toggleCodeBlock()} active={actions.isActive('codeBlock')} title="Code block">
+          <span className="font-mono text-xs">{'{}'}</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.insertHr()} title="Horizontal rule">
+          <span className="text-xs">—</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.insertTable()} title="Insert table">
+          <TableIcon />
+        </Btn>
+
+        <Sep />
+
+        <Btn onMouseDown={() => actions.undo()} disabled={!actions.canUndo()} title="Undo (⌘Z)">
+          <span className="text-xs">↶</span>
+        </Btn>
+        <Btn onMouseDown={() => actions.redo()} disabled={!actions.canRedo()} title="Redo (⌘⇧Z)">
+          <span className="text-xs">↷</span>
+        </Btn>
+
+        {extras && (extras.insertComponent || extras.toggleViewSource || extras.toggleLock) && (
+          <>
+            <Sep />
+            {extras.insertComponent && (
+              <Btn onMouseDown={extras.insertComponent} title="Insert component">
+                <span className="text-xs">＋▦</span>
+              </Btn>
+            )}
+            {extras.toggleViewSource && (
+              <Btn onMouseDown={extras.toggleViewSource} title="View source">
+                <span className="font-mono text-[10px]">{'<>'}</span>
+              </Btn>
+            )}
+            {extras.toggleLock && (
+              <Btn onMouseDown={extras.toggleLock} title="Lock / unlock element">
+                <span className="text-xs">🔒</span>
+              </Btn>
+            )}
+          </>
+        )}
+
+        <div className="ml-auto flex items-center gap-3 pr-1 text-xs text-zinc-500">
+          <span aria-live="polite">
+            {saving ? 'Saving…' : dirty ? 'Unsaved' : 'Saved'}
+          </span>
+          <button
+            onClick={onSave}
+            disabled={!dirty || saving}
+            className="px-2 py-1 rounded border border-border hover:border-accent/60 text-zinc-300 disabled:opacity-40 disabled:hover:border-border"
+            title="Save (⌘S)"
+          >
+            Save
+          </button>
+        </div>
       </div>
-    )}
+
+      {inTable && tableOps && (
+        <div className="flex items-center h-9 gap-1 px-2 border-t border-border bg-surface-2 text-zinc-300 text-xs overflow-x-auto">
+          <span className="text-[10px] uppercase tracking-wider text-zinc-500 mr-2">Table</span>
+          <Btn small onMouseDown={() => tableOps.addRowBefore()} disabled={!tableOps.canAddRowBefore()} title="Insert row above (⌥⇧↑)">
+            ↑＋
+          </Btn>
+          <Btn small onMouseDown={() => tableOps.addRowAfter()} disabled={!tableOps.canAddRowAfter()} title="Insert row below (⌥⇧↓)">
+            ↓＋
+          </Btn>
+          <Btn small onMouseDown={() => tableOps.deleteRow()} disabled={!tableOps.canDeleteRow()} title="Delete row">
+            ✕row
+          </Btn>
+          <Sep />
+          <Btn small onMouseDown={() => tableOps.addColumnBefore()} disabled={!tableOps.canAddColumnBefore()} title="Insert column left (⌥⇧←)">
+            ←＋
+          </Btn>
+          <Btn small onMouseDown={() => tableOps.addColumnAfter()} disabled={!tableOps.canAddColumnAfter()} title="Insert column right (⌥⇧→)">
+            →＋
+          </Btn>
+          <Btn small onMouseDown={() => tableOps.deleteColumn()} disabled={!tableOps.canDeleteColumn()} title="Delete column">
+            ✕col
+          </Btn>
+          <Sep />
+          <Btn small onMouseDown={() => tableOps.toggleHeaderRow()} disabled={!tableOps.canToggleHeaderRow()} title="Toggle header row">
+            Header
+          </Btn>
+          <Btn small onMouseDown={() => tableOps.deleteTable()} disabled={!tableOps.canDeleteTable()} title="Delete table">
+            ✕table
+          </Btn>
+        </div>
+      )}
     </div>
   )
 }
 
 function Btn({
-  onClick, active, disabled, title, children, small
+  onMouseDown, active, disabled, title, children, small
 }: {
-  onClick: () => void
+  onMouseDown: () => void
   active?: boolean
   disabled?: boolean
   title: string
@@ -212,7 +200,12 @@ function Btn({
 }) {
   return (
     <button
-      onClick={onClick}
+      // mousedown so we don't lose the editor / iframe selection to a
+      // focus shift before the action runs.
+      onMouseDown={(e) => {
+        e.preventDefault()
+        if (!disabled) onMouseDown()
+      }}
       disabled={disabled}
       title={title}
       className={[

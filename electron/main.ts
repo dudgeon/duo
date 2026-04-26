@@ -7,6 +7,7 @@ import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
 import { FilesService } from './files-service'
 import { IPC } from '../shared/types'
+import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
   BrowserBounds,
   BrowserState,
@@ -121,7 +122,8 @@ function createWindow(): void {
     openExternal: openExternalUrl,
     getSelectionFormat: getSelectionFormatState,
     setSelectionFormat: setSelectionFormat,
-    sendToActiveTerminal: sendToActiveTerminal
+    sendToActiveTerminal: sendToActiveTerminal,
+    htmlNew: htmlNew
   })
   socketServer.start()
 
@@ -579,6 +581,28 @@ export function sendToActiveTerminal(text: string): { ok: boolean; written?: num
   try {
     ptyManager.write(activeTerminalId, text)
     return { ok: true, written: text.length, terminalId: activeTerminalId }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+// Stage 17a — `duo html new <path>`. Writes the H17 boilerplate atomically
+// via FilesService, then dispatches NAV_EDIT to the renderer; the
+// renderer's classifier routes `.html` to the html-canvas tab type. Title
+// defaults to the file's basename without extension. Path validation
+// (must end in .html / .htm) happens in socket-server.
+export async function htmlNew(absPath: string, title?: string): Promise<{ ok: boolean; path?: string; error?: string }> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  try {
+    const base = absPath.slice(absPath.lastIndexOf('/') + 1).replace(/\.html?$/i, '')
+    const docTitle = title ?? base ?? 'Untitled'
+    const html = htmlBoilerplate(docTitle)
+    const bytes = new TextEncoder().encode(html)
+    await filesService.write(absPath, bytes)
+    mainWindow.webContents.send(IPC.NAV_EDIT, absPath)
+    return { ok: true, path: absPath }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }

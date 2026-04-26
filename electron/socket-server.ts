@@ -63,6 +63,10 @@ export interface NavBridge {
    *  No Enter appended; user confirms. Surfaces an error when no
    *  terminal is active. */
   sendToActiveTerminal: (text: string) => { ok: boolean; written?: number; terminalId?: string; error?: string }
+  /** Stage 17a — `duo html new <path>` writes the H17 boilerplate and
+   *  asks the renderer to open the canvas tab via NAV_EDIT (the
+   *  classifier routes .html → html-canvas). */
+  htmlNew: (path: string, title?: string) => Promise<{ ok: boolean; path?: string; error?: string }>
 }
 
 export class SocketServer {
@@ -350,6 +354,16 @@ export class SocketServer {
           const url = args['url'] as string
           if (!url) throw new Error('external requires a url arg')
           result = await this.nav.openExternal(url)
+          break
+        }
+        case 'html-new': {
+          const p = args['path'] as string
+          if (!p) throw new Error('html-new requires a path arg')
+          if (!/\.html?$/i.test(p)) {
+            throw new Error('html-new: path must end in .html or .htm')
+          }
+          const title = args['title'] as string | undefined
+          result = await this.nav.htmlNew(p, title)
           break
         }
         case 'reveal': {

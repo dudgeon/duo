@@ -351,6 +351,23 @@ async function main() {
         out(await send("send", { text }));
         break;
       }
+      case "html": {
+        const sub = rest[0];
+        const subRest = rest.slice(1);
+        if (sub === "new") {
+          const target = subRest[0] ?? die('Usage: duo html new <path.html> [--title "\u2026"]');
+          if (!/\.html?$/i.test(target)) {
+            die("duo html new: path must end in .html or .htm");
+          }
+          const titleIdx = subRest.indexOf("--title");
+          const title = titleIdx !== -1 ? subRest.slice(titleIdx + 1).join(" ") : void 0;
+          const resolved = resolveFilePath(target);
+          out(await send("html-new", title ? { path: resolved, title } : { path: resolved }));
+        } else {
+          die('Usage: duo html new <path.html> [--title "\u2026"]');
+        }
+        break;
+      }
       case "install":
         runInstall();
         break;
@@ -520,6 +537,16 @@ COMMANDS
                                   (sites that don't render well in Duo's
                                   embedded WebContentsView). http(s) and
                                   mailto schemes only.
+
+  html new <path.html> [--title "\u2026"]
+                                  Stage 17a \u2014 create a new .html file
+                                  from boilerplate and open it in the
+                                  HTML canvas. Other \`duo html *\` verbs
+                                  (query / get / set / replace / append
+                                  / remove / attr / comment) ship in
+                                  17b/c/e. \`duo edit foo.html\` /
+                                  \`duo view foo.html\` already route to
+                                  the canvas via the file classifier.
 
   install                         Symlink duo to /usr/local/bin/duo
 

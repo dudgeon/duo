@@ -388,6 +388,26 @@ async function main(): Promise<void> {
         out(await send('send', { text }))
         break
       }
+      case 'html': {
+        // Stage 17a — `duo html <subcmd>`. Only `new` ships in 17a;
+        // query/get/set/replace/append/remove/attr/comment/changes/
+        // allow-scripts land in 17b/c/e per the Stage 17 PRD § 7.
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        if (sub === 'new') {
+          const target = subRest[0] ?? die('Usage: duo html new <path.html> [--title "…"]')
+          if (!/\.html?$/i.test(target)) {
+            die('duo html new: path must end in .html or .htm')
+          }
+          const titleIdx = subRest.indexOf('--title')
+          const title = titleIdx !== -1 ? subRest.slice(titleIdx + 1).join(' ') : undefined
+          const resolved = resolveFilePath(target)
+          out(await send('html-new', title ? { path: resolved, title } : { path: resolved }))
+        } else {
+          die('Usage: duo html new <path.html> [--title "…"]')
+        }
+        break
+      }
       case 'install':
         runInstall()
         break
@@ -584,6 +604,16 @@ COMMANDS
                                   (sites that don't render well in Duo's
                                   embedded WebContentsView). http(s) and
                                   mailto schemes only.
+
+  html new <path.html> [--title "…"]
+                                  Stage 17a — create a new .html file
+                                  from boilerplate and open it in the
+                                  HTML canvas. Other \`duo html *\` verbs
+                                  (query / get / set / replace / append
+                                  / remove / attr / comment) ship in
+                                  17b/c/e. \`duo edit foo.html\` /
+                                  \`duo view foo.html\` already route to
+                                  the canvas via the file classifier.
 
   install                         Symlink duo to /usr/local/bin/duo
 

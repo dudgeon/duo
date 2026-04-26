@@ -26,6 +26,8 @@ import { Markdown } from 'tiptap-markdown'
 import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
+import { buildTiptapEditorActions } from './tiptapEditorActions'
+import type { EditorActions } from './EditorActions'
 import { TableShortcuts } from './extensions/TableShortcuts'
 import { PersistentSelection } from './extensions/PersistentSelection'
 import { JustAdded } from './extensions/JustAdded'
@@ -68,6 +70,22 @@ const AUTOSAVE_DEBOUNCE_MS = 800
 
 // Module-scope lowlight instance — cheap to construct, shared across tabs.
 const lowlight = createLowlight(common)
+
+// 17a polish item 3 — no-op EditorActions used while the TipTap editor
+// instance is being constructed (single render frame). Avoids
+// conditional-render plumbing in the toolbar; toolbar buttons are
+// effectively inert for the one frame before useEditor settles.
+const NULL_ACTIONS: EditorActions = {
+  toggleBold: () => {}, toggleItalic: () => {}, toggleUnderline: () => {},
+  toggleStrike: () => {}, toggleCode: () => {},
+  setBlock: () => {}, toggleBulletList: () => {}, toggleOrderedList: () => {},
+  toggleTaskList: () => {}, toggleBlockquote: () => {}, toggleCodeBlock: () => {},
+  insertHr: () => {}, insertTable: () => {},
+  setLink: () => {}, currentLinkHref: () => undefined,
+  undo: () => {}, redo: () => {}, canUndo: () => false, canRedo: () => false,
+  isActive: () => false, currentBlock: () => 'p',
+  inTable: () => false
+}
 
 export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo }: Props) {
   const [error, setError] = useState<string | null>(null)
@@ -156,6 +174,29 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // Content is set after the async file read lands.
     content: ''
   }, [path])
+
+  // 17a polish item 3 — adapt the TipTap editor to the surface-agnostic
+  // EditorActions interface the shared toolbar consumes. `toolbarVersion`
+  // is bumped on every selectionUpdate / update so the toolbar re-renders
+  // and re-reads `actions.isActive(...)` / `currentBlock()` etc. (replaces
+  // the previous TipTap-specific `useEditorState` subscription).
+  const editorActions: EditorActions = useMemo(
+    () => editor ? buildTiptapEditorActions(editor) : NULL_ACTIONS,
+    [editor]
+  )
+  const [toolbarVersion, setToolbarVersion] = useState(0)
+  useEffect(() => {
+    if (!editor) return
+    const bump = () => setToolbarVersion(v => v + 1)
+    editor.on('selectionUpdate', bump)
+    editor.on('update', bump)
+    editor.on('transaction', bump)
+    return () => {
+      editor.off('selectionUpdate', bump)
+      editor.off('update', bump)
+      editor.off('transaction', bump)
+    }
+  }, [editor])
 
   useEffect(() => {
     if (!editor) return
@@ -541,6 +582,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [save])
 
   // ── Render ───────────────────────────────────────────────────────────────
+  // Stage 17a — extension-based dispatch. The interstitial accepts any
+  // typed extension; classifyFile in App.tsx decides which canvas mounts
+  // (.md → MarkdownEditor, .html → CanvasTab, others → preview tabs).
+  // No-extension input still defaults to .md so muscle memory survives.
   const handleCommitName = useCallback((filename: string) => {
     const trimmed = filename.trim()
     if (!trimmed) return
@@ -568,7 +613,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           onCancel={() => onCancelNew?.()}
         />
       )}
-      <EditorToolbar editor={editor} onSave={() => void save()} dirty={dirty} saving={saving} />
+      <EditorToolbar
+        actions={editorActions}
+        selectionVersion={toolbarVersion}
+        onSave={() => void save()}
+        dirty={dirty}
+        saving={saving}
+      />
       {pendingWrite && (
         <WriteWarningBanner
           action={
@@ -687,6 +738,14 @@ function NewFileBar({
     el.select()
   }, [])
 
+  // Stage 17a — show the effective extension so the user knows whether
+  // they're getting the markdown editor or the HTML canvas. Typed
+  // extension wins; otherwise fall back to the auto-suffix default
+  // (.md). Mirrors handleCommitName's logic above.
+  const trimmed = name.trim()
+  const typedExt = trimmed.match(/\.([a-z0-9]+)$/i)?.[0]
+  const effectiveExt = typedExt ?? '.md'
+
   return (
     <div className="shrink-0 px-4 py-3 bg-surface-2 border-b border-border flex items-center gap-2">
       <span className="text-zinc-400 text-xs uppercase tracking-wider">New document</span>
@@ -704,10 +763,12 @@ function NewFileBar({
             onCancel()
           }
         }}
-        placeholder="my-document"
+        placeholder="my-document  ·  .md (default) or .html for canvas"
         className="flex-1 bg-surface-1 border border-border rounded px-3 py-1.5 text-zinc-100 text-sm focus:outline-none focus:border-accent"
       />
-      <span className="text-zinc-500 text-xs">.md</span>
+      <span className="text-zinc-500 text-xs tabular-nums" title={typedExt ? 'Using your typed extension' : 'No extension typed — defaulting to .md'}>
+        {effectiveExt}
+      </span>
       <button
         onClick={() => onCommit(name)}
         disabled={!name.trim()}

@@ -70,6 +70,10 @@ export type DuoCommandName =
   // about this"). Renderer caches the active terminal id; main does
   // the ptyManager.write.
   | 'send'
+  // Stage 17a (HTML canvas) — `duo html new <path>` creates a fresh
+  // .html file from boilerplate (PRD H17, minimal v1) and opens it in
+  // the canvas tab. Other `duo html *` verbs land in 17b/17c.
+  | 'html-new'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -135,6 +139,7 @@ export interface BrowserTab {
 export type WorkingTabType =
   | 'browser'
   | 'editor'             // Stage 11 — rich-text markdown editor
+  | 'html-canvas'        // Stage 17a — rendered + editable .html
   | 'markdown-preview'   // Stage 10 v1 read-only .md (kept as a fallback)
   | 'image'
   | 'pdf'

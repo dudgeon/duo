@@ -8,6 +8,7 @@
 import { BrowserRenderer } from './BrowserRenderer'
 import { MarkdownPreview } from './MarkdownPreview'
 import { MarkdownEditor } from './editor/MarkdownEditor'
+import { CanvasTab } from './HtmlCanvas/CanvasTab'
 import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
@@ -51,6 +52,11 @@ interface WorkingPaneProps {
    *  the host writes it to the active terminal's PTY. `null` props
    *  the pill from rendering at all. */
   onSendToDuo?: ((payload: string) => void) | null
+  /** 17a polish item 2 — host-supplied "open new-file interstitial"
+   *  callback (mirrors ⌘N in App.tsx). Plain click on the tab-strip
+   *  `+` button calls this; ⌥-click falls back to opening a new
+   *  browser tab (preserves the pre-Stage-17 muscle memory). */
+  onNewFile: () => void
 }
 
 export function WorkingPane({
@@ -62,7 +68,8 @@ export function WorkingPane({
   onTabDirtyChange,
   onCommitNewFile,
   focused = false,
-  onSendToDuo
+  onSendToDuo,
+  onNewFile
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -112,11 +119,25 @@ export function WorkingPane({
     }
   }
 
-  const handleNew = () => {
-    // New-tab button defaults to a browser tab (matches Stage 8's
-    // `duo open` semantics and preserves current muscle memory).
-    setActiveWorking({ kind: 'browser' })
-    void addTab()
+  // 17a polish item 2 — plain click on `+` opens the new-file
+  // interstitial (parity with ⌘N — covers the most common post-Stage-17
+  // intent: making a doc, not opening a website). ⌥-click preserves
+  // the pre-Stage-17 muscle memory of "+" → new browser tab. The
+  // browser-tab path also focuses the address bar after creation —
+  // mirrors App.tsx § newBrowserTab — so the tab isn't dead on arrival.
+  const handleNew = (e: React.MouseEvent) => {
+    if (e.altKey) {
+      setActiveWorking({ kind: 'browser' })
+      void addTab().then(() => {
+        queueMicrotask(() => {
+          const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+          addr?.focus()
+          addr?.select()
+        })
+      })
+      return
+    }
+    onNewFile()
   }
 
   // Renderer dispatch.
@@ -138,6 +159,18 @@ export function WorkingPane({
           onCommitNewFile={(p, t) => onCommitNewFile(tab.id, p, t)}
           onCancelNew={() => closeFileTab(tab.id)}
           onSendToDuo={onSendToDuo}
+        />
+      )
+    } else if (tab.type === 'html-canvas') {
+      // Stage 17a — rendered + editable .html. Send → Duo, comments,
+      // and CriticMarkup track-changes are 17c+/14 work; the prop is
+      // accepted for plumbing parity but not yet consumed inside the
+      // canvas.
+      activeRenderer = (
+        <CanvasTab
+          key={tab.id}
+          path={tab.path}
+          onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
         />
       )
     } else if (tab.type === 'markdown-preview') {

@@ -14,6 +14,11 @@ export function classifyFile(path: string): {
       // preview renderer (`markdown-preview`) is retained as a fallback but
       // no longer the default entry point.
       return { type: 'editor', mime: 'text/markdown' }
+    case 'html': case 'htm':
+      // Stage 17a — .html opens in the rendered canvas instead of the
+      // unknown-file preview. Routes the same way for `duo edit`, `duo
+      // view`, FileTree clicks, and the new-file commit's extension dispatch.
+      return { type: 'html-canvas', mime: 'text/html' }
     case 'png':
       return { type: 'image', mime: 'image/png' }
     case 'jpg': case 'jpeg':
