@@ -23,7 +23,20 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26 late-evening) — Stages 5 v2 + 13 +
+**Latest session (2026-04-26 night) — Stage 17a (HTML canvas
+render + edit primitive) shipped on top of Stages 5 v2 + 13 + 15.1
++ 15.2 from earlier the same day.** New `html-canvas` tab type;
+`renderer/components/HtmlCanvas/{CanvasTab,RenderedCanvas,CanvasToolbar,inlineMarks,htmlBoilerplate}.tsx`;
+`shared/html-boilerplate.ts` shared between renderer + main; new
+`duo html new <path.html>` CLI verb (writes H17 boilerplate
+atomically + dispatches NAV_EDIT); `.html`/`.htm` route through
+`fileClassifier`; `⌘N` extension-based dispatch dissolves PRD
+H6.1; selection-aware mark applicator without `execCommand` (PRD
+§8 non-negotiable). Skill stub at `skill/examples/html-canvas-authoring.md`.
+Live walk pending — owner deferred to "after this batch." Detail
+in the **Pick up here** section below.
+
+**Earlier same-day session (2026-04-26 late-evening) — Stages 5 v2 + 13 +
 15.1 + 15.2 shipped & committed; owner-walk follow-ups (focus on
 Send → Duo, ⌘N D33f regression, editor click-target) committed in
 `258ff6f`; SKILL.md slimmed by extracting verbose deep-dives into
@@ -126,30 +139,149 @@ move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
   'html'` so PMs whose primary artifact is HTML reports don't have
   to learn ⌘⇧N.
 
-## ⚠️ Pick up here next session (2026-04-26 late-evening breadcrumb)
+## ⚠️ Pick up here next session (2026-04-26 night breadcrumb)
 
 **Where we are: Stage 5 v2 ✓ + Stage 13 ✓ + Stage 15.1 ✓ + Stage
-15.2 ✓ + owner-walk fixes ✓ + skill refactor ✓.** Layer 0 (Stage
-12) functionally complete except whisper-level agent presence
-(deferred). Stage 5 v2 lands the global `duo` subagent (Haiku 4.5).
-Stage 15.1 lands the editor half of Send → Duo. Stage 15.2 lands
-the browser half: a page-side observer IIFE posts live selection
-state via a CDP binding; main caches and forwards over IPC; the
-pill mounts over the WebContentsView with the page rect translated
-to screen coords (data plane verified live; visual pill rendering
-gated on BUG-006 — WebContentsView occlusion). **Owner-walk
-follow-ups (`258ff6f`):** Send → Duo now actually focuses the
-terminal (was React-state-only); ⌘N → filename → Enter → prose
-focus regression fixed by deferring the focus call to the load
-effect's success path; editor pane click-target now covers gray
-margin too. **Skill refactor:** verbose Google Docs and sandbox-
-troubleshooting deep-dives extracted from `SKILL.md` into
-`skill/references/` so top-level skill stays scannable; sync:claude
-+ all docs updated. **Recommended next: Stage 17a** (HTML canvas
-render + edit primitive). Stage 15.3 polish + Stage 14 track
-changes both fine to defer; 17a is the bigger unlock and its
-dependencies (Stage 13 primitives, Stage 15 selection-union, Stage
-12 visual tokens) are all in place.
+15.2 ✓ + Stage 17a ✓ + owner-walk fixes ✓ + skill refactor ✓.**
+Layer 0 (Stage 12) functionally complete except whisper-level agent
+presence (deferred). Layer 2 has its first ship: the HTML canvas
+render + edit primitive is live. **Recommended next: Stage 17b**
+(stable IDs + sidecar + agent write surface — `duo html
+query/get/set/replace/append/attr` end-to-end). 17b unblocks the
+agent's ability to edit specific elements by `data-duo-id`, which
+is the gating dependency for 17c (just-added highlight + Send →
+Duo on the canvas) and 17d (comments). Pretty-printer (H34) folds
+into 17b too. Alternatives if a different bottleneck is felt:
+**Stage 14** (track changes), **Stage 15.3** (Send → Duo polish),
+**Stage 18** (first-launch installer — independently shippable).
+Smoke walks for the multi-stage backlog (5 v2 + 13 + 15 + 17a)
+still pending end-to-end on the same machine — owner deferred to
+"after this batch."
+
+### Stage 17a (just shipped — code-side)
+
+PRD: [docs/prd/stage-17-html-canvas.md § 7 — 17a](docs/prd/stage-17-html-canvas.md).
+
+What landed:
+- New `html-canvas` tab type registered in `WorkingPane.tsx`
+  (dispatch case mounts `<CanvasTab>`). `shared/types.ts` adds
+  `'html-canvas'` to `WorkingTabType` and `'html-new'` to
+  `DuoCommandName`.
+- New `renderer/components/HtmlCanvas/` package:
+  - `RenderedCanvas.tsx` — iframe-srcdoc host. `contentEditable`
+    on body + `MutationObserver` on the document. Sandbox attrs
+    `allow-same-origin allow-popups allow-forms` only — never
+    `allow-scripts` in 17a (PRD H4/H8). Exposes
+    `getDocument()` + `serialize()` via `useImperativeHandle`.
+    Re-injects on iframe `load` so HMR / re-mounts wire cleanly.
+  - `CanvasToolbar.tsx` — Stage 11 visual (top-anchored,
+    surface-1 strip, Save button on the right). Buttons:
+    bold/italic/underline/strike/inline-code + link picker.
+    `onMouseDown` (not click) on the buttons so the iframe
+    selection isn't blurred before the action runs.
+  - `CanvasTab.tsx` — owns load/save/dirty/autosave state.
+    Mirrors `MarkdownEditor.tsx` shape: read on path change,
+    diff against `lastSavedRef` for dirty, 800ms autosave
+    debounce, ⌘S window listener with host-contains check,
+    flush-on-unmount.
+  - `inlineMarks.ts` — own selection-aware mark applicator
+    (PRD §8 non-negotiable: no `document.execCommand`). Wraps
+    via `range.surroundContents`; falls back to
+    `extractContents → wrap → insertNode` when the range
+    crosses elements; ancestor-toggle to unwrap when the full
+    selection sits inside an existing tag.
+  - `htmlBoilerplate.ts` — re-exports `shared/html-boilerplate.ts`
+    so renderer call sites keep their existing import.
+- `shared/html-boilerplate.ts` — H17 minimal v1: `<!doctype>` +
+  `<html lang="en">` + `<head>` (charset, title) + `<body>` (h1
+  + empty p). Used by both the ⌘N+`.html` commit path
+  (renderer) and `duo html new` (main). Tailwind / semantic
+  scaffold / locked regions deferred to 17b/d/e per PRD.
+- `renderer/components/fileClassifier.ts` — `.html`/`.htm` →
+  `{ type: 'html-canvas', mime: 'text/html' }`. Routes
+  FileTree clicks + `duo edit/view <path.html>` automatically.
+- **⌘N audible (PRD H6.1 dissolved):** `App.tsx §
+  onCommitNewFile` now classifies the resolved path's
+  extension and updates the tab's `type`/`mime` along with
+  `path`/`title`/`isNew`. `.html` paths get a boilerplate
+  seed via `htmlBoilerplate` + `encodeUtf8`. The
+  `MarkdownEditor`'s `NewFileBar` shows a live suffix label
+  (typed extension or `.md` default) so the user sees which
+  surface their typed name will mount. `MarkdownEditor`'s
+  `handleCommitName` keeps the existing "default `.md` if no
+  ext typed" behavior — muscle memory unchanged.
+- New CLI verb: `duo html new <path.html> [--title "…"]`. CLI
+  side at `cli/duo.ts` validates the `.html`/`.htm` suffix and
+  sends `'html-new'` over the socket. `electron/socket-server.ts`
+  routes to `nav.htmlNew(path, title)`. `electron/main.ts §
+  htmlNew` writes the boilerplate atomically via
+  `filesService.write` and dispatches `IPC.NAV_EDIT` so the
+  classifier + canvas mount land naturally. `--title` defaults
+  to the basename without extension.
+- Skill stub at `skill/examples/html-canvas-authoring.md` (H16:
+  README only, no snippets yet — the snippet bundle is 17d
+  scope). `skill/SKILL.md` verb table updated to mention the
+  canvas + `duo html new`. `agents/duo.md` cheat-sheet entry
+  added.
+- ROADMAP / roadmap.html / Stage 17 PRD all updated. Roadmap
+  HTML stage card flipped to `inprog` with 17a struck through;
+  next-up tagline now points at 17b.
+
+**17a deferrals — explicit in PRD § 7 + ROADMAP § 17a:**
+- Pretty-printed save (H34) → 17b/e. Today: writes
+  `<!doctype html>\n` + `documentElement.outerHTML\n` as-is.
+  First-save diffs may show whitespace / attribute reordering
+  vs the source file.
+- Scripts (H8) → 17e. Inline `<script>` and event handlers
+  preserved on disk but inert in the canvas.
+- `data-duo-id` injection (H12–H15) → 17b. No agent write
+  surface yet — `duo html query/get/set/replace/append/attr`
+  ship in 17b.
+- Send → Duo pill on the canvas (H27) → 17c. The primitive
+  already supports the kind: 'html-canvas' branch via the
+  `DuoSelection` union (Stage 13 Phase 0); 17c just adds the
+  iframe-side selection observer.
+- External-write reconciliation (H35) → 17e. No chokidar hook
+  yet; external writes during an open buffer get overwritten
+  by next save.
+
+**Verification:** typecheck clean, CLI rebuilt, sync:claude
+applied. Live walk pending — owner deferred to "after this
+batch" (this turn's instruction). Smoke checklist § 7a (Duo
+subagent) + Stage 13 + Stage 15 walks all owe a same-machine
+end-to-end pass.
+
+### Recommended next: Stage 17b (stable IDs + sidecar + agent write surface)
+
+PRD: [docs/prd/stage-17-html-canvas.md § 7 — 17b](docs/prd/stage-17-html-canvas.md).
+
+Why now: 17a unblocks 17b — the canvas exists, so an agent
+can address elements once IDs are in place. 17b is the bigger
+unlock per the Stage 17 thesis ("the bottleneck is the
+human-edit story" — once Claude can edit specific elements by
+ID, the whole agent/human collab loop on HTML lights up).
+~2 PRs of work:
+
+- ULID minting + auto-injection of `data-duo-id` on every
+  editable body element on first open (H12, H13).
+- First-open prompt for ID injection (H14).
+- `<file>.duo.json` sidecar reader/writer; `version: 1`
+  schema (H22).
+- `duo html query / get / set / replace / append / remove /
+  attr` end-to-end (H37). Each operates by `data-duo-id` (or
+  CSS selector resolved server-side to the nearest
+  `data-duo-id` ancestor).
+- Pretty-printed serializer (H34) — pull this in here so
+  `duo html set` doesn't blow up the diff every time.
+- `data-duo-component` recognition (no UI yet — that's 17d).
+
+Risk: `data-duo-id` collisions with existing `id` attributes on
+legacy / generated HTML. PRD H12 calls `id` immutable +
+additive-only; the H14 prompt is the v1 escape valve.
+
+**Stage 17b is the right next ship**, but Stage 14 / 15.3 / 18
+are all reasonable alternatives if something else is the
+binding constraint when picking up.
 
 ### Stage 5 v2 (just shipped — code-side)
 
@@ -348,34 +480,12 @@ FOLLOWUP-004's computer-use access. The data plane proves the
 pipeline is correct; rendering is a CSS / portal-positioning
 question that the editor variant already validates.
 
-### Recommended next: Stage 17a (HTML canvas — render + edit primitive)
+### Stage 17a → 17b transition (full detail in the breadcrumb above)
 
-PRD: [docs/prd/stage-17-html-canvas.md § 7 — 17a](docs/prd/stage-17-html-canvas.md).
-
-Why now: Stage 17's stated dependencies are Stage 13 (✓), Stage 15
-(now 2/3 — editor + browser shipped; canvas = 17c), and Stage 12
-(✓). Stage 14 (track changes) is **explicitly NOT a prerequisite**
-per the Stage 17 PRD H39 (HTML diff defers to a Stage 17 v2). 17a
-is shippable on its own (~3–4 PRDs):
-
-- New `html-canvas` tab type registered in `WorkingPane`.
-- `duo html new` + `duo edit <path.html>` (alias under existing
-  `duo edit` when extension is `.html`).
-- Iframe-srcdoc host with `contentEditable` on body; render-on-write.
-- Top toolbar (H28 inline marks + link picker).
-- Save: autosave + `⌘S` + dirty dot (H33).
-- Skill stub (H16) — README only, no snippets yet.
-- **Exit:** PM opens an `.html`, edits prose, saves; the file is
-  clean HTML another tool can read.
-
-Risk: `contentEditable` quirks (PRD calls this out as risk #1).
-Mitigation: write a thin normalization layer on day one; build a
-regression set against the H18 snippets when 17d ships them.
-
-**Stage 15.3 + Stage 14 are fine to defer.** 15.3 is polish (length
-cap, image flatten, `⌘D`); 14 is track changes for the editor and
-its visual layer ships canvas-ready by construction. Pull either
-in when their bottleneck is felt.
+Stage 17a shipped 2026-04-26 night. The "what landed" + "deferrals"
++ "recommended next" detail lives in the breadcrumb section at the
+top of this file ("Pick up here next session"). Keeping it in one
+place avoids drift.
 
 ### Stage 15.1 (just shipped)
 
@@ -667,6 +777,30 @@ late-day: **0 open bugs · 1 deferred process item.**
        Haiku 4.5 and is the canonical Duo-CLI driver; verbs absent from
        the cheat-sheet are effectively invisible to it. PRD:
        `docs/prd/stage-5-v2-duo-subagent.md`.
+
+    Plumbing checklist for a new **WorkingPane tab type** (e.g. Stage 17a's `html-canvas`):
+    1. `shared/types.ts` — add the value to `WorkingTabType`. Audit any
+       discriminated unions that should branch on it (e.g. `DuoSelection`).
+    2. `renderer/components/fileClassifier.ts` — map the relevant
+       extensions to the new type + mime. This is what wires FileTree
+       click + `duo edit` + `duo view` automatically.
+    3. `renderer/components/<NewType>/` — host package (tab shell + any
+       inner components). Keep it sibling to `editor/` and `HtmlCanvas/`.
+    4. `renderer/components/WorkingPane.tsx` — add a dispatch branch
+       inside the renderer-pick conditional. Mount with
+       `key={tab.id}` so the tab fully re-mounts on path change.
+    5. `renderer/App.tsx § onCommitNewFile` — if `⌘N` should be able to
+       create files of this type, branch on `classifyFile(path).type`
+       and seed appropriate boilerplate. Update `MarkdownEditor`'s
+       `NewFileBar` if the suggestion / suffix UX needs adjustment.
+    6. CLI surface — if there's an agent-side "create from scratch"
+       verb (the analog of `duo html new`), follow the CLI plumbing
+       checklist above. Otherwise relying on `duo edit/view` +
+       classifyFile is enough.
+    7. Skill stub at `skill/examples/<type>-authoring.md` describing
+       what the agent can / can't do with the new surface.
+    8. PRD update — confirm the deferrals (anything not in v1) have a
+       sub-stage home so they don't drift into "TBD."
 
 5. **The skill is a first-class deliverable.** Ship both the app and `skill/SKILL.md`, or neither. The skill is how Claude Code discovers the tool.
 

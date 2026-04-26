@@ -132,8 +132,9 @@ empty.
 | `duo wait <selector> [--timeout ms]` | Block until element appears |
 | `duo nav state` | `{ cwd, selected, expanded, pinned }` |
 | `duo ls [path]` | List directory (defaults to nav cwd) |
-| `duo view <path>` | Open file in Viewer/Editor column (markdown / image / pdf) |
-| `duo edit <path>` | Open `.md` in rich editor |
+| `duo view <path>` | Open file in Viewer/Editor column (markdown / html-canvas / image / pdf) |
+| `duo edit <path>` | Open `.md` in rich editor; `.html` in HTML canvas (Stage 17a) |
+| `duo html new <path.html> [--title "…"]` | Stage 17a — create new HTML file from boilerplate + open in canvas |
 | `duo reveal <path>` | Move file navigator to path; flash chip |
 | `duo selection [--pane auto\|editor\|browser]` | Active surface's selection (use when goal references "this", "selected", "here") |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |

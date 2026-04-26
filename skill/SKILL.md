@@ -121,8 +121,9 @@ declare friction sites once and stop fighting them.
 | `duo network [--since <ms>] [--filter <regex>] [--limit N]` | HTTP request lifecycle (URL, method, status, mime, encoded length, error text). `--filter` is a regex against the URL. | NDJSON |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs | JSON |
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
-| `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rich markdown editor, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
-| `duo edit <path>` | Open a `.md` in the rich markdown editor (Google-Docs-feel, TipTap/ProseMirror). Returns `{ok}`. Behaves like `view` for non-`.md` files. | JSON: `{ok}` |
+| `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rich markdown editor, `.html` → HTML canvas, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
+| `duo edit <path>` | Open a `.md` in the rich markdown editor (Google-Docs-feel, TipTap/ProseMirror) or a `.html` in the **HTML canvas** (Stage 17a — rendered + editable iframe). Returns `{ok}`. Behaves like `view` for other types. | JSON: `{ok}` |
+| `duo html new <path.html> [--title "…"]` | **Stage 17a** — create a new `.html` from boilerplate and open it in the HTML canvas. Path must end in `.html`/`.htm`. Other `duo html *` verbs (query/get/set/replace/append/comment) ship in 17b/c — see `examples/html-canvas-authoring.md`. | JSON: `{ok, path}` |
 | `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
 | `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
 | `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |

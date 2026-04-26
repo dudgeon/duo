@@ -115,8 +115,8 @@ a default is proposed for that here.)
 | H4 **P** | **Iframe sandbox** | The rendered HTML lives in a same-process iframe (`srcdoc` for v1; Electron `WebContentsView` if we hit isolation needs). Same-process keeps the DOM bridge synchronous and cheap. Sandbox attributes: `allow-same-origin allow-popups allow-forms` always; `allow-scripts` only when scripts are allowed for this file (H8). |
 | **File scope** | | |
 | H5 **C** | **What opens** | Any local `.html` file. Graceful: malformed HTML, exotic doctypes, files without `<html>`/`<body>`, fragments — all open, all render best-effort, all are editable. The browser already does this; we lean on it. |
-| H6 **P** | **`duo html new`** | A CLI command creates a new `.html` from boilerplate (H17) at a specified path. Equivalent surface from inside Duo: `⌘⇧N` (sibling of Stage 11's `⌘N` for markdown). |
-| H6.1 **P** | **`⌘N` default file type — configurable (raised 2026-04-26)** | Today `⌘N` opens a new markdown file (Stage 11 D33a) and `⌘⇧N` opens a new HTML canvas (H6). Owner intent: at Stage 17 kickoff, surface a setting that lets the user swap which extension `⌘N` defaults to (md ↔ html), so PMs whose primary artifact is HTML reports don't have to learn the shifted shortcut. Proposed shape: `duo.newFileShortcut: 'md' \| 'html'` in localStorage, defaulting to `'md'`. CLI parity: `duo new-file [--md\|--html]` and a `View → New File Default…` menu. Decide concrete UX (toggle in app preferences vs CLI verb only) at kickoff. |
+| H6 **C** | **`duo html new`** | A CLI command creates a new `.html` from boilerplate (H17) at a specified path. Shipped in 17a: `duo html new <path.html> [--title "…"]`. |
+| H6.1 **C** | **`⌘N` extension-based dispatch (decided 2026-04-26 at 17a kickoff)** | The H6.1 question — should `⌘N` default to `.md` or `.html`? — is dissolved by the kickoff audible: `⌘N` opens **one** new-file interstitial; the user types a filename whose extension dictates which surface mounts on commit (`.md` → markdown editor, `.html` → HTML canvas, no extension → defaults to `.md`). One shortcut, no preference toggle to maintain, no muscle-memory split. The interstitial's suffix label updates live as the user types so they see whether their typed name will mount the editor or the canvas. The earlier proposal (`duo.newFileShortcut: 'md'\|'html'` setting + `View → New File Default…` menu) is **superseded** — no setting ships. The 17a-shipped change is in `renderer/components/editor/MarkdownEditor.tsx` (NewFileBar dynamic suffix) + `renderer/App.tsx` `onCommitNewFile` (extension-aware classifyFile + boilerplate seed when type === html-canvas). |
 | H7 **P** | **Tab identity** | Same as Stage 10 D13: identity is `(absolute path, type)`. Reopening the same file focuses the existing canvas tab. |
 | **Script + style policy** | | |
 | H8 **C** | **Scripts** | Full JavaScript execution, **opt-in per file**. The file's first open in Duo prompts: "This file contains script tags / inline event handlers. Allow them to run? [Allow once] [Always allow this file] [Never] [Open in source-only view]." Choice persists in `<file>.duo.json` under `scripts.allowed`. |
@@ -295,14 +295,23 @@ opens a file in the appropriate canvas based on extension — for
 
 Five sub-stages.
 
-### 17a — Render + edit primitive (~3–4 PRs)
-- [ ] WorkingPane registers `html-canvas` tab type; `.html` click opens it (replaces today's "open with default app" for `.html`).
-- [ ] `duo html new` + `duo edit <path.html>` (alias under the existing `duo edit` if extension is `.html`).
-- [ ] Iframe-srcdoc host with contentEditable on body; render-on-write.
-- [ ] Top toolbar (H28 inline marks + link picker).
-- [ ] Save: autosave + `⌘S` + dirty dot (H33).
-- [ ] Skill stub (H16) — README only, no snippets yet.
-- **Exit:** PM opens an `.html`, edits prose, saves; the file is clean HTML another tool can read.
+### 17a — Render + edit primitive (~3–4 PRs) **— shipped 2026-04-26**
+- [x] WorkingPane registers `html-canvas` tab type; `.html` click in FileTree opens it (replaces today's "open with default app" for `.html` via the file classifier).
+- [x] `duo html new <path.html> [--title "…"]` + `duo edit <path.html>` (alias via `classifyFile`) + `duo view <path.html>` (same dispatch).
+- [x] `⌘N` opens new-file interstitial; extension-based dispatch on commit (H6.1).
+- [x] Iframe-srcdoc host with contentEditable on body; MutationObserver drives autosave + dirty.
+- [x] Top toolbar (H28 inline marks + link picker — bold/italic/underline/strike/code + `⌘K`). Mirrors Stage 11's EditorToolbar visual.
+- [x] Selection-aware mark applicator without `document.execCommand` (PRD §8 non-negotiable). `inlineMarks.ts` — `surroundContents` with extract/wrap fallback, ancestor-toggle for unwrap.
+- [x] Save: autosave (~800ms) + `⌘S` + dirty dot (H33).
+- [x] Skill stub (H16) at `skill/examples/html-canvas-authoring.md` — README only, no snippets yet.
+- **Exit:** PM opens an `.html`, edits prose, saves; the file is clean HTML another tool can read. ✓
+
+**Explicit 17a deferrals (consumed in 17b/c/e):**
+- Pretty-printed save (H34) — 17a writes `<!doctype>` + `documentElement.outerHTML` as-is, so first-save may produce a noisy whitespace/attr-order diff vs the source file. Stable serializer ships in 17b/e.
+- Scripts (H8) — `<script>` tags + inline event handlers preserved on disk but inert (sandbox without `allow-scripts`). Per-file opt-in dialog ships in 17e.
+- `data-duo-id` injection (H12–H15) — agent-side `set` / `replace` by element id is 17b. Until then there's no programmatic write surface; users edit in the canvas, agents read via the markdown editor's `duo doc read` analog (canvas equivalent ships with 17b).
+- Send → Duo pill on the canvas (H27) — 17c, gated on the canvas-side selection observer (the markdown editor + browser pane already ship pills today).
+- External-write reconciliation (H35) — 17a has no chokidar hook; if the file changes externally while open, the next save overwrites. Reconciliation lands in 17e (re-uses Stage 11's three-pane diff).
 
 ### 17b — Stable IDs + sidecar foundation (~2 PRs)
 - [ ] ULID minting + auto-injection (H12, H13).
