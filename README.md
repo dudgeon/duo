@@ -135,19 +135,56 @@ duo help                     # lists every verb (any terminal, after PATH update
 > Click Install once on a fresh dev machine and you won't see it again
 > until the version bumps.
 
-### Build a distributable .app / .dmg
+### Build a custom DMG to share
 
-When you want a real binary to send to a tester (or to use yourself
-without `npm run dev`):
+When you want a real `.app` to drop into `/Applications` (or send to
+a tester) without running `npm run dev` every time:
 
 ```bash
-npm run dist        # produces dist/Duo-X.Y.Z-arm64.dmg
-                    # (also a universal/x64 DMG)
+# Default — UNSIGNED build (what v0.2.0 currently ships)
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
 ```
 
-The DMG is unsigned today — Gatekeeper will warn on first launch. Stage
-21 adds code signing + notarization. The cert pre-work is done; only the
-electron-builder wiring is owed.
+Output:
+
+```
+dist/
+├── Duo-X.Y.Z-arm64.dmg          # Apple Silicon
+└── Duo-X.Y.Z.dmg                # Universal/x64
+```
+
+Open the DMG, drag `Duo.app` to `/Applications`, double-click to launch.
+
+**About the env override.** `npm run dist` runs `electron-builder`,
+which auto-detects your Developer ID Application cert from the macOS
+keychain if `CSC_NAME` is in the environment (it might be, if you've
+done the Stage 21 cert pre-work). Without `CSC_IDENTITY_AUTO_DISCOVERY=false`,
+`electron-builder` would try to sign the build — but Stage 21's signing
+wiring isn't complete yet (the YAML's `mac.identity` is still
+commented out). The override forces an unsigned build, which is the
+intended v0.2.0 behavior.
+
+**Gatekeeper warning on first launch.** Unsigned `.app` files trigger
+macOS Gatekeeper:
+
+> "Duo" can't be opened because Apple cannot check it for malicious
+> software.
+
+Workaround: right-click → Open (not double-click), then click "Open"
+in the dialog. Once approved, double-click works thereafter. Stage 21
+(signed + notarized DMGs) closes this; cert pre-work is done.
+
+**Stage 21 / signed-build gotcha (when we get there).** The first
+time `codesign` accesses the cert's private key on a given Mac, macOS
+prompts:
+
+> "codesign wants to use the key in keychain. Allow / Always Allow / Deny."
+
+If the user doesn't click within macOS's internal timeout, codesign
+fails with misleading errors ("timestamps differ", "resource fork
+detritus", etc.). Click "Always Allow" — once granted, the cert
+access is cached and subsequent builds run unattended. Documented in
+`tasks.md § FOLLOWUP-005`.
 
 ### Try it
 

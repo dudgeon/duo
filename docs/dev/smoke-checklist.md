@@ -397,3 +397,50 @@ Saw in the live app:
 Skip unambiguous sections only when the changeset obviously can't touch
 them. If in doubt, run it — this takes five minutes and catches the
 expensive mistakes.
+
+---
+
+## Verifying transient UI states (computer-use limitations)
+
+A note for Claude instances driving Duo via the `computer-use` MCP.
+Discovered during the v0.2.0 BUG-011 verification: `screenshot` has
+substantial latency between the trigger and the captured frame —
+**typically 5–15 seconds end-to-end** when chained off other tool
+calls. Anything that auto-dismisses faster than ~5s won't reliably
+appear in a screenshot taken via `click → screenshot`, even if the
+state is visible to a human watching the screen in real time.
+
+**Examples of transient UI you might miss:** the install banner's 3s
+"Installed." success state, toast notifications, the Send → Duo pill
+on selection (which can dismiss when focus moves), the just-added
+wash on canvas edits (6s fade).
+
+**Pattern: temporarily extend timers in the source.** When you need
+to capture a transient state for a smoke test, edit the relevant
+`setTimeout(...)` in the source up to 60s, exercise the path, then
+revert the change before commit. Add a `// TEMP for <test name> —
+REVERT to <original>` comment so the rollback is obvious. HMR picks
+up the change immediately for renderer code.
+
+**Pattern: use indirect proof when direct visual capture fails.**
+File mtimes (`installed.json` written = install ran), dev server log
+lines (HMR fired = renderer reloaded), `tasks.md` edits that confirm
+the test artifact landed. The visual capture is only one of several
+signals.
+
+## Restarting Duo cleanly when the renderer state is stale
+
+`⌘R` from `mcp__computer-use__key` doesn't always reach the right
+window when focus has moved (clicks earlier in the session ended on
+a non-Duo surface, etc.). When the visible state has diverged from
+what you expect:
+
+1. Kill Electron: `pkill -f "node_modules/electron/dist/Electron.app"`.
+2. Verify the `npm run dev` parent is still alive: `pgrep -fl "electron-vite"`. If not, restart it: `npm run dev` in a background bash. Wait ~14s for boot.
+3. Bring Electron forward: `mcp__computer-use__open_application("Electron")`.
+4. Verify the renderer mounted: `screenshot`, look for the three-pane layout.
+
+Heavier than `⌘R` but resets all renderer state (including
+component-local `useState`) reliably. Note: `npm run dev`'s parent
+process exits when Electron exits, so killing Electron sometimes
+also kills the dev server — check + restart explicitly.

@@ -148,9 +148,23 @@ Order:
 ### Step 4.5 — Build the distributable DMG
 
 ```bash
-npm run dist                      # produces dist/Duo-X.Y.Z-arm64.dmg
+# v0.2.0+ default — UNSIGNED build (Stage 21 not yet shipped)
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
+                                  # produces dist/Duo-X.Y.Z-arm64.dmg
                                   # (and the universal/x64 DMG)
 ```
+
+Why the env override: when `CSC_NAME` is in the environment (from
+`~/Documents/duo-private/.env`), electron-builder auto-discovers the
+Developer ID Application cert and tries to sign — but Stage 21
+hasn't shipped, so signing isn't wired correctly. The override forces
+an unsigned build, which is the right behavior pre-Stage-21.
+
+Once Stage 21 lands, drop the override and the build will sign +
+notarize per the YAML wiring. The first signed build on a new Mac
+prompts a macOS keychain permission dialog ("codesign wants to use
+the key in keychain") — click "Always Allow" or the build hangs and
+eventually fails with misleading errors (FOLLOWUP-005 in tasks.md).
 
 Output sanity check:
 
@@ -172,6 +186,14 @@ Devs see it on every fresh dev launch unless they click Install once
 or copy a stub `installed.json`. Not user-visible (end users only
 ever see the banner once per machine), but worth noting in any
 "how do I dev on Duo" doc.
+
+**Smoke-verification note when running computer-use:** see
+`docs/dev/smoke-checklist.md § Verifying transient UI states`.
+Critical takeaway: the screenshot tool has 5–15s of latency past
+the trigger, so any UI state under ~5s won't be captured by a
+naive click-then-screenshot. Pattern: temporarily extend
+auto-dismiss timers in the source to 60s, walk the smoke, revert
+before commit.
 
 ### Step 5 — Verification before commit
 
