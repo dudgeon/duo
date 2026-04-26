@@ -162,10 +162,10 @@
   </div>
 </details>
 
-<details class="qa" data-keys="claude tab plus button split terminal">
+<details class="qa" data-keys="claude tab plus button split terminal cmd-t cmd-shift-t">
   <summary>What's the difference between <code>+</code> and <code>&gt;</code> on the terminal tab strip?</summary>
   <div class="body">
-    <p><code>+</code> opens a Claude Code session in a new tab (auto-launches <code>claude</code>). <code>&gt;</code> opens a vanilla shell. Keyboard equivalents: <code>⌘T</code> from terminal focus opens claude, <code>⌘⇧T</code> always opens a vanilla shell.</p>
+    <p><code>+</code> opens a Claude Code session in a new tab (auto-launches <code>claude</code>). <code>&gt;</code> opens a vanilla shell. Keyboard equivalents: <code>⌘T</code> always opens a new browser tab (Chrome parity), <code>⌘⇧T</code> opens a Claude tab from anywhere.</p>
   </div>
 </details>
 
@@ -215,10 +215,11 @@
   </div>
 </details>
 
-<details class="qa" data-keys="cmd t terminal focus shortcut not working">
-  <summary>Why doesn't <code>⌘T</code> work from a terminal sometimes?</summary>
+<details class="qa" data-keys="cmd t terminal focus shortcut keyboard">
+  <summary>Why doesn't <code>⌘T</code> open a Claude tab when I'm in a terminal?</summary>
   <div class="body">
-    <p>Known issue (<code>tasks.md § BUG-008</code>). xterm.js consumes <code>⌘T</code> as PTY input by default; without the explicit allowlist entry, it never reaches Duo's window-level handler. Workaround: click <code>+</code> on the terminal tab strip directly. Fix lands in v0.2.0.</p>
+    <p>It used to (Stage 19c spec) but no longer does (BUG-008 spec resolution, 2026-04-26). <code>⌘T</code> is now <strong>always</strong> a new browser tab regardless of focus — Chrome parity. To open a Claude tab from the keyboard, use <code>⌘⇧T</code>. To open one from the UI, click <code>+</code> on the terminal tab strip.</p>
+    <p>The xterm-eats-keystroke issue that caused BUG-008 was also fixed in the same ship: every Duo-global keyboard shortcut now reaches its handler from terminal focus.</p>
   </div>
 </details>
 

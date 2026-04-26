@@ -218,8 +218,48 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     // window listener then sees the keydown and runs the branch in
     // useKeyboardShortcuts.ts. Without this, xterm consumes the keystroke
     // before it can bubble.
+    // Bug fix family: xterm.js consumes most keystrokes as PTY input
+    // by default, including Duo's window-level shortcuts. Without
+    // this allowlist returning false, the keystroke never reaches
+    // the renderer-side keydown handler in useKeyboardShortcuts.ts.
+    //
+    // Filed instances: BUG-001 (⌃Tab — fixed in this same file
+    // earlier with the ⌃Tab branch below) and BUG-008 (⌘T → opens
+    // browser tab, spec resolved 2026-04-26). Rather than allowlist
+    // each new shortcut as bugs trickle in, sweep the entire Duo-
+    // global meta-shortcut set in one shot. This kills the whole
+    // class of "xterm eats this Duo shortcut" bug.
+    //
+    // Scope: any Duo-global shortcut that has a window-level
+    // keydown handler in useKeyboardShortcuts.ts. The list:
+    //   - ⌘T / ⌘⇧T (new browser / new claude tab)
+    //   - ⌘N (new markdown file)
+    //   - ⌘W (close active tab)
+    //   - ⌘L (focus address bar)
+    //   - ⌘B (toggle files column)
+    //   - ⌘`  (toggle pane focus)
+    //   - ⌘1–9 / ⌘⇧1–9 (terminal / working-pane tab jumps)
+    //   - ⌘+ / ⌘= / ⌘- / ⌘0 (terminal font-size bumps)
+    //   - ⌃Tab / ⌃⇧Tab (pane-aware tab cycling — BUG-001)
+    //
+    // Anything else (⌘C, ⌘V, plain typing, etc.) bubbles up to
+    // xterm normally.
     term.attachCustomKeyEventHandler((e) => {
+      // ⌃Tab / ⌃⇧Tab — BUG-001 (pre-existing).
       if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Tab') return false
+      // ⌘-shifted Duo-global shortcuts. We DON'T match e.metaKey
+      // alone because xterm has legitimate ⌘-bindings that should
+      // pass through (e.g. some users map ⌘-keys to terminal verbs).
+      // Be specific.
+      if (e.metaKey && !e.ctrlKey && !e.altKey) {
+        const k = e.key.toLowerCase()
+        // Single-char chords (no shift, or with shift only)
+        if (k === 't' || k === 'n' || k === 'w' || k === 'l' || k === 'b' || k === '`') return false
+        // Number row: 0–9, with or without shift
+        if (k >= '0' && k <= '9') return false
+        // Font-size bumps: ⌘+, ⌘=, ⌘-
+        if (k === '+' || k === '=' || k === '-') return false
+      }
       return true
     })
 

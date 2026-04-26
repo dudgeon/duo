@@ -61,23 +61,20 @@ export function useKeyboardShortcuts({
       const key = e.key.toLowerCase()
       const pane = paneOverride ?? activePaneFocus
 
-      // ⌘T — focus-aware (Stage 19c D18, D20, supersedes D33e for
-      // terminal focus). From terminal focus: open a new claude tab
-      // (auto-launches `claude` after the shell starts; the new
-      // opinionated default). From any other focus (browser, editor,
-      // files): open a new browser tab — Chrome-parity, today's
-      // behavior.
+      // ⌘T — always opens a new browser tab (Chrome parity).
       //
-      // The trail of attempts here is recorded in commit history:
-      // c239375 (pane-aware → reverted as 2b68d40 because owner
-      // preferred Chrome-parity at the time). Stage 19c brings back a
-      // narrower form of pane-awareness — specifically default-to-
-      // claude semantics for terminal focus only. ⌘⇧T below remains
-      // an explicit shell tab regardless of focus.
+      // Spec history: c239375 first made ⌘T pane-aware → reverted in
+      // 2b68d40 because owner preferred Chrome-parity at the time.
+      // Stage 19c brought back a narrower pane-aware form ("from
+      // terminal focus, open claude"). BUG-008 surfaced the
+      // resulting confusion and the conflict was resolved 2026-04-26
+      // in favor of Chrome-parity again — universal mental model
+      // wins over pane-aware discovery. Claude-tab spawning lives on
+      // ⌘⇧T (below) and on the split-button `+` on the terminal
+      // strip; vanilla shell only via the `>` button on the strip.
       if (meta && !e.shiftKey && key === 't') {
         e.preventDefault()
-        if (pane === 'terminal') newClaudeTab()
-        else newBrowserTab()
+        newBrowserTab()
         return
       }
 
@@ -90,11 +87,15 @@ export function useKeyboardShortcuts({
         return
       }
 
-      // ⌘⇧T — new vanilla shell tab (Stage 19c D19 — today's behavior,
-      // explicitly typed now that ⌘T can mean "new claude tab").
+      // ⌘⇧T — new claude tab (post-BUG-008 spec flip, replaces
+      // 19c's "vanilla shell" assignment). Vanilla shell now lives
+      // only on the `>` half of the split-button on the terminal
+      // strip; that's the discoverable affordance. ⌘⇧T being
+      // claude-focused makes it the "I want to start an agent
+      // session right now" power-user chord.
       if (meta && e.shiftKey && key === 't') {
         e.preventDefault()
-        newShellTab()
+        newClaudeTab()
         return
       }
 

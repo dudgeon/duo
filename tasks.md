@@ -349,7 +349,7 @@ Option (b) is closest to the design intent but adds CSS injection + event-routin
 
 ### BUG-008: ⌘T from terminal focus doesn't open a new browser tab
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-26 (commit pending v0.2.0)
 **Priority:** Medium
 **Filed:** 2026-04-26
 
@@ -366,9 +366,21 @@ Mirror of BUG-001 part 2. xterm.js consumes ⌘T as PTY input by default; withou
 **Suggested fix:**
 Extend the xterm `attachCustomKeyEventHandler` allowlist in `renderer/components/TerminalPane.tsx` to also let ⌘T (and ⌘N / ⌘L while in there — anything that's a Duo-global shortcut, not a terminal action) bubble to the window. Then verify the existing renderer-side ⌘T handler fires and that `wireKeyForwarding`'s pre-forward `webContents.focus()` from BUG-002 still gives the address bar OS focus when the source pane is the terminal (it should — the renderer owns OS focus when terminal has focus, so no reclaim is needed in this path).
 
-**Class of issue:** xterm-eats-shortcut regression (same family as BUG-001). Worth sweeping the full Duo-global shortcut set against the xterm key handler while in the file.
+**Class of issue:** xterm-eats-shortcut regression (same family as BUG-001). Sweep done 2026-04-26 — see Fix shipped below.
 
-**⚠️ Spec-conflict note (added during V-walk 2026-04-26 evening, separate Claude session):** This entry says "Expected: New browser tab opens." But Stage 19c (shipped 2026-04-26 + merged in `cbadc5f`) specifically pane-scoped `⌘T`: from terminal focus → opens a **claude** tab, from browser focus → opens a **browser** tab. See `docs/roadmap.html:648`. Either (a) the parallel filer didn't know about 19c and the "Expected" should read "opens a claude tab," or (b) Geoff has reconsidered 19c's pane-scoping and wants `⌘T` global → browser everywhere. Resolve before fixing — the underlying xterm-eats-keystroke issue is real either way; only the destination handler differs.
+**Spec resolution (2026-04-26 evening):** The conflict between BUG-008's "Expected" (browser tab) and Stage 19c's pane-aware spec (claude tab from terminal focus) was resolved in favor of **Chrome-parity ⌘T everywhere = new browser tab**. Stage 19c's pane-aware ⌘T was flipped. Claude-tab spawning moves to ⌘⇧T (replacing 19c's "vanilla shell tab" assignment); vanilla shell only via the `>` half of the split-button on the terminal strip. Rationale: universal browser-style mental model wins over pane-aware discovery — the discovery affordance lives on the strip's `+` button instead.
+
+**Fix shipped (2026-04-26 — commit pending v0.2.0):**
+
+1. **`renderer/hooks/useKeyboardShortcuts.ts`** — `⌘T` always → `newBrowserTab()` regardless of pane focus. `⌘⇧T` → `newClaudeTab()` (replaces vanilla shell).
+2. **`renderer/components/TerminalPane.tsx`** — extended the xterm `attachCustomKeyEventHandler` allowlist to bubble all Duo-global meta shortcuts (⌘T, ⌘⇧T, ⌘N, ⌘W, ⌘L, ⌘B, ⌘\`, ⌘0–9 with/without shift, ⌘+/=/-). Plus the existing ⌃Tab branch from BUG-001. Single sweep kills the whole family — the next Duo-global shortcut won't need its own bug filed.
+3. Updated docs: roadmap card for Stage 19c, help/what-duo-does.html entry for "Open a Claude tab," help/faq.html entry on the ⌘T conflict.
+
+**Verification still owed:**
+- ⌘T from terminal / browser / files / editor focus → new browser tab + address bar focused (BUG-002 unchanged).
+- ⌘⇧T from any focus → new claude tab.
+- Other Duo-global meta shortcuts from terminal focus (⌘N, ⌘W, ⌘L, ⌘B, ⌘1–9) reach their handlers without xterm intercepting.
+- xterm still receives non-Duo-global keystrokes (typing, ⌘C/V) normally.
 
 ---
 
