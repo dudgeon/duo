@@ -199,6 +199,18 @@ git add cli/duo
 
 Commit the binary alongside the source change.
 
+### 10. Propose a version cut after ship-moments — Geoff won't ask
+After a stage flips ✅ on the roadmap, after a substantial commit
+to a user-visible surface (`renderer/`, `electron/`, `cli/duo`,
+`skill/`, `agents/`, IPC contracts in `shared/`, anything under
+`~/.claude/duo/help/`), or when the user signals closure ("shipped",
+"done", "let's commit") on something user-facing — **propose a cut
+via the `cut-version` skill** (`.claude/skills/cut-version/`). The
+proposal starts with drafted release notes; if the notes don't feel
+substantive, the cut waits and the draft accumulates in
+`docs/RELEASES.md § Pending`. Geoff will not remember to ask.
+Trigger detection has to come from Claude.
+
 ---
 
 ## Claude Code sandbox — read before touching transport / install / CLI file I/O

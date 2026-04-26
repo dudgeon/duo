@@ -18,6 +18,111 @@
 
 ---
 
+## 2026-04-26 evening — v0.1.0 cut + version-management machinery
+
+**The inaugural Duo release was cut**, blessing
+`package.json`'s pre-existing `0.1.0` version label. Pre-distribution
+tag — runs from `npm run dev` or the unsigned DMG; first-launch
+self-install (Stage 18) lands in v0.2.0.
+
+**What this session built:**
+
+- **Version-management machinery** (the core ask: "I will not
+  remember to tell you to cut a new version, so you will need to
+  remember to do all of the steps"):
+  - `CHANGELOG.md` at repo root — Keep-a-Changelog format with
+    v0.1.0 drafted from the roadmap and `tasks.md`.
+  - `docs/RELEASES.md` — prose log + `Pending — not yet cut`
+    stash mechanism (rejected drafts accumulate here; rolled
+    forward into the next cut proposal).
+  - `.claude/skills/cut-version/SKILL.md` — the procedure as a
+    project-scoped skill so any Claude session in this directory
+    auto-discovers it. Strong/weak triggers + the litmus test
+    convention (Step 1 is *draft notes*; if they don't feel
+    substantive, the cut waits).
+  - `CLAUDE.md` § Working style item 10 — trigger rule pointing
+    at the skill.
+  - Memory feedback entry at
+    `~/.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_propose_version_cuts_proactively.md`
+    — primes future Claudes to detect ship moments.
+
+- **User-facing reference HTMLs** at `help/` (source of truth in
+  repo; will be installed to `~/.claude/duo/help/` via the Stage 18
+  installer):
+  - `help/what-duo-does.html` — 37 numbered capabilities across 8
+    categories, plain-English voice + CLI alongside, live keyword
+    filter, Atelier-styled (mirrored tokens from
+    `renderer/styles/globals.css`).
+  - `help/faq.html` — What's New section + Getting started + Using
+    Duo + For Claude/agent users + Troubleshooting; same Atelier
+    styling + live filter.
+  - Both files declare `<meta name="duo-open-in" content="browser">`
+    (route as browser tab, not canvas) and
+    `<meta name="duo-editable" content="false">` (read-only). The
+    meta-honoring code path in `fileClassifier.ts` + canvas init is
+    deferred to v0.2.0.
+
+- **Bug findings filed in `tasks.md`:**
+  - **BUG-009** (`+`-claude-tab newline race): clicking `+` on the
+    terminal tab strip writes `claude\n` before the shell prompt is
+    ready; first `claude` lands as raw text, the `\n` lands at an
+    empty prompt (no-op), then a second `claude` lands at the
+    prompt without a trailing newline. User has to manually press
+    Enter. Fix candidates: prompt-detector regex, post-spawn sleep,
+    or a readiness signal on the PTY.
+  - **Spec-conflict note appended to BUG-008** (filed by a parallel
+    Claude session during my V-walk): BUG-008 says ⌘T from terminal
+    focus *should* open a new browser tab, but Stage 19c shipped
+    that exact shortcut as opening a *claude* tab
+    (`docs/roadmap.html:648`). Either the parallel filer didn't
+    know about 19c or Geoff has reconsidered 19c's pane-scoping;
+    surfaced separately for resolution before fixing. Underlying
+    xterm-eats-keystroke issue is real either way.
+
+- **Verification sweep partial:** V1 PASS (browser-pane `+` plain
+  click → file-name interstitial). 19c.1 PASS (split-button `+`/`>`
+  visible). 19c.2 → BUG-009 (above). The remaining V2–V27 + full
+  19c walk is deferred to v0.2.0 because Geoff was actively using
+  Duo in a parallel claude session and my UI-driving clicks would
+  collide with his work.
+
+**Process notes from the conversation:**
+
+- The "litmus test" mechanic worked as designed first time out.
+  Drafting full release notes BEFORE bumping anything turned the
+  proposal into something concrete enough to evaluate; Geoff
+  approved with a single "a." If the notes had felt anemic, the
+  same artifact would have stashed under
+  `docs/RELEASES.md § Pending — not yet cut` and accumulated until
+  the next ship moment.
+- The about:blank → faq.html replacement was added to v0.2.0 scope
+  during the conversation when Geoff observed Duo loads with a
+  "blank, and not useful" landing tab.
+- The `<meta name="duo-editable" content="false">` convention also
+  came up mid-conversation — extends the existing routing-meta
+  pattern (`duo-open-in: browser`) for read-only system files. v1
+  scope: FAQ + What Duo Does + future help docs.
+- Skipped `npm run build:cli` for this cut because `cli/duo.ts` is
+  unchanged. Ran `sync:claude` as cheap insurance per the skill's
+  own guidance. Both rules baked into the cut-version skill.
+
+**Owed next session (v0.2.0 candidate scope):**
+
+1. Verification sweep completion (V2–V27 + 19c full UI walk) +
+   fixes for whatever it surfaces.
+2. FTUX-coordinated trio — Stages 18 (first-launch self-install) +
+   18b (distro skill packs) + 23 (canvas actions Claude↔HTML loop)
+   + 24 (pin WorkingPane tabs).
+3. Meta honoring (`duo-editable` + `duo-open-in`) in
+   `fileClassifier.ts` + canvas init + browser-tab path.
+4. Wire `faq.html` as default new-tab landing (replace about:blank).
+5. BUG-008 spec-conflict resolution + xterm-allowlist fix; BUG-009
+   PTY-ready race fix.
+6. Pinned-tab todos for FAQ + What Duo Does (ship as
+   distro-default pre-pins via Stage 18b's `PACK.json § pins`).
+
+---
+
 ## 2026-04-26 night — Intent conversation → roadmap depth pass
 
 After Stage 17d-A shipped (shared `<CommentRail>` primitive + canvas

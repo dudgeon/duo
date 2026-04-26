@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What Duo Does</title>
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<meta name="description" content="Plain-English reference of every substantial thing Duo can do. Each numbered item lists a use case and how to invoke it (UI, keyboard, or CLI verb).">
+<style>
+  /* Atelier palette — mirrored from renderer/styles/globals.css */
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-edge: #E5DCC1;
+    --paper-rule: #D4C8A6;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --ink-ghost: #B8AB8E;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --mark: #F8E59C;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1A1611;
+      --paper-deep: #13100C;
+      --paper-edge: #26201A;
+      --paper-rule: #352D23;
+      --ink: #F0E9D6;
+      --ink-soft: #C8BD9E;
+      --ink-mute: #8A7E66;
+      --ink-ghost: #5A5142;
+      --accent: #E08F4A;
+      --accent-soft: #3F2A18;
+      --accent-ink: #F2D2A8;
+      --mark: #3F3318;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.55; }
+
+  .layout { max-width: 920px; margin: 0 auto; padding: 48px 36px 120px; }
+
+  @media (max-width: 640px) {
+    .layout { padding: 28px 18px 80px; }
+  }
+
+  header { border-bottom: 1px solid var(--paper-rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header h1 { font-family: var(--serif); font-weight: 500; font-size: 32px; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--ink); }
+  header .sub { color: var(--ink-mute); font-size: 13px; max-width: 600px; line-height: 1.5; }
+
+  .search-row { position: sticky; top: 0; background: var(--paper); padding: 14px 0; margin: -14px 0 8px; z-index: 10; border-bottom: 1px solid var(--paper-edge); }
+  .search-row input { width: 100%; padding: 10px 12px; border: 1px solid var(--paper-rule); border-radius: 6px; background: var(--paper-deep); font-family: var(--sans); font-size: 14px; color: var(--ink); transition: border-color 0.15s, box-shadow 0.15s; }
+  .search-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,106,46,0.12); }
+  .search-row input::placeholder { color: var(--ink-ghost); font-style: italic; }
+  .match-hint { font-size: 11px; color: var(--ink-mute); margin-top: 4px; min-height: 14px; }
+
+  h2.cat { font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--accent-ink); margin: 36px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--paper-edge); }
+  h2.cat:first-of-type { margin-top: 8px; }
+  .cat-tagline { font-size: 12.5px; color: var(--ink-mute); font-style: italic; margin: 0 0 18px; }
+
+  article.item { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 10px; display: grid; grid-template-columns: 36px 1fr; gap: 14px; align-items: start; }
+  article.item .num { font-family: var(--mono); font-size: 12px; color: var(--ink-mute); padding: 1px 7px; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 12px; align-self: start; text-align: center; }
+  article.item h3 { font-family: var(--serif); font-size: 16px; font-weight: 500; margin: 0 0 4px; color: var(--ink); line-height: 1.35; }
+  article.item .why { font-size: 13px; color: var(--ink-soft); margin: 0 0 6px; }
+  article.item .how { font-size: 12.5px; color: var(--ink-mute); }
+  article.item .how code, article.item .why code { background: var(--paper); padding: 1px 5px; border-radius: 3px; font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+  article.item .how strong { color: var(--ink-soft); font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.04em; margin-right: 6px; }
+  article.item.hidden { display: none; }
+  article.item.match { background: #FFFBEF; border-color: var(--accent-soft); }
+
+  footer { margin-top: 60px; padding-top: 18px; border-top: 1px dashed var(--paper-edge); font-size: 12px; color: var(--ink-mute); }
+  footer a { color: var(--accent-ink); text-decoration: none; border-bottom: 1px dashed var(--paper-rule); }
+  footer a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<header>
+  <h1>What Duo does</h1>
+  <p class="sub">A plain-English reference of every substantial thing Duo can do, with a use case and the way to invoke it. Many items have both a UI path and a <code>duo</code> CLI command — the CLI is what you ask Claude to use when you want the agent to drive Duo for you. Numbered for quick reference: "see item 23."</p>
+</header>
+
+<div class="search-row">
+  <input id="q" type="text" placeholder="Filter by keyword — e.g. &quot;markdown&quot;, &quot;tab&quot;, &quot;duo html&quot;…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <div class="match-hint" id="match-hint"></div>
+</div>
+
+<h2 class="cat">Editing files</h2>
+<p class="cat-tagline">Markdown documents, HTML canvases, and the shared toolbar conventions.</p>
+
+<article class="item" data-keys="markdown md edit open file editor tiptap">
+  <div class="num">1</div>
+  <div>
+    <h3>Edit markdown files</h3>
+    <p class="why">Open any <code>.md</code> file as a rich editor in the working pane — formatting toolbar, markdown shortcuts on typing, autosave.</p>
+    <p class="how"><strong>UI</strong>Click the file in the navigator. <strong>CLI</strong><code>duo edit &lt;path.md&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="markdown shortcuts hash heading list bold italic typing">
+  <div class="num">2</div>
+  <div>
+    <h3>Markdown shortcuts on typing</h3>
+    <p class="why">Type <code># </code> to make a heading, <code>- </code> for a bullet, <code>**bold**</code> for bold, <code>1. </code> for a numbered list, <code>&gt; </code> for a quote, <code>---</code> for a divider, <code>```</code> for a code block. Works in both the markdown editor and the HTML canvas.</p>
+    <p class="how"><strong>UI</strong>Just type. The shortcut fires on the space or Enter that ends the trigger.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="toolbar heading list bold italic underline strikethrough link table code">
+  <div class="num">3</div>
+  <div>
+    <h3>Use the formatting toolbar</h3>
+    <p class="why">Heading picker, B/I/U/S, link picker, bullet / ordered / task lists, blockquote, code block, horizontal rule, table insert, undo/redo, save. Same toolbar in the markdown editor and the HTML canvas.</p>
+    <p class="how"><strong>UI</strong>Click a button at the top of the editor.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="table row column header cell edit">
+  <div class="num">4</div>
+  <div>
+    <h3>Edit tables in place</h3>
+    <p class="why">Insert a table with the table button. When the cursor is in a cell, a contextual second toolbar row appears: add row above/below, add column left/right, delete row, delete column, toggle header row, delete table.</p>
+    <p class="how"><strong>UI</strong>Click into a cell.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="html canvas render edit duo open">
+  <div class="num">5</div>
+  <div>
+    <h3>Edit an HTML file as a live canvas</h3>
+    <p class="why">Open any <code>.html</code> file as a rendered, editable canvas — what you see is what gets saved. Same toolbar as the markdown editor, plus markdown shortcuts on typing.</p>
+    <p class="how"><strong>UI</strong>Click the file in the navigator. <strong>CLI</strong><code>duo edit &lt;path.html&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="new file create blank">
+  <div class="num">6</div>
+  <div>
+    <h3>Create a new file</h3>
+    <p class="why">Make a new markdown file or HTML canvas from a filename interstitial — type the name, hit Enter, start typing.</p>
+    <p class="how"><strong>UI</strong>Click <code>+</code> on the working-pane tab strip. Type a filename ending in <code>.md</code> or <code>.html</code>. <strong>CLI</strong><code>duo html new &lt;path.html&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="comment thread reply resolve canvas html">
+  <div class="num">7</div>
+  <div>
+    <h3>Add comments to an HTML canvas</h3>
+    <p class="why">Select text inside an anchored element, click the 💬 Comment pill that appears beside Send → Duo, write a comment. Comments live in a sidecar (<code>&lt;file&gt;.html.duo.json</code>) — never mixed into the saved HTML. Reply, resolve, reopen all from the rail on the right.</p>
+    <p class="how"><strong>UI</strong>Select text → click 💬 Comment → write → ⌘+Enter. <strong>CLI</strong><code>duo html comment --id &lt;duo-id&gt; --body "…"</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="just-added highlight wash agent edit yellow fade">
+  <div class="num">8</div>
+  <div>
+    <h3>See what the agent just changed</h3>
+    <p class="why">When Claude pushes an edit (markdown editor or HTML canvas), the changed region paints yellow and fades to transparent over ~6 seconds. Reopening a file within the freshness window repaints recent edits — useful for catching up on background agent work.</p>
+    <p class="how"><strong>UI</strong>Watch the canvas after running an agent edit.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="overwrite save warn dirty agent">
+  <div class="num">9</div>
+  <div>
+    <h3>Get warned before an agent overwrites your unsaved edits</h3>
+    <p class="why">If you have unsaved changes and the agent tries to write the same file, a banner appears with a preview of the agent's intended write and Apply / Decline buttons. Decline returns an error to the agent saying you declined.</p>
+    <p class="how"><strong>UI</strong>Read the banner, choose Apply or Decline.</p>
+  </div>
+</article>
+
+<h2 class="cat">Browsing the web</h2>
+<p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
+
+<article class="item" data-keys="browser tab open url web new">
+  <div class="num">10</div>
+  <div>
+    <h3>Open a browser tab</h3>
+    <p class="why">A real Chromium tab inside Duo. Logged-in sessions persist between launches.</p>
+    <p class="how"><strong>UI</strong>⌥-click <code>+</code> on the working pane strip, or ⌘T while the browser pane has focus. <strong>CLI</strong><code>duo open &lt;url&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="address bar url focus type">
+  <div class="num">11</div>
+  <div>
+    <h3>Jump to the address bar</h3>
+    <p class="why">Type a URL or search term without reaching for the mouse.</p>
+    <p class="how"><strong>UI</strong>⌘L from anywhere in the working pane.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="navigation back forward reload browser">
+  <div class="num">12</div>
+  <div>
+    <h3>Navigate the browser</h3>
+    <p class="why">Back, forward, reload — useful when you're asking Claude to drive a multi-step web task.</p>
+    <p class="how"><strong>UI</strong>Browser pane controls. <strong>CLI</strong><code>duo back</code> · <code>duo forward</code> · <code>duo reload</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="external link default browser open shell">
+  <div class="num">13</div>
+  <div>
+    <h3>Open a link in your real browser</h3>
+    <p class="why">Off-host or work-restricted URLs (SSO, internal sites, bookmarks-only) belong in your default browser, not Duo's embedded Chromium. Duo will route them out automatically when the domain is on the external list.</p>
+    <p class="how"><strong>CLI</strong><code>duo external &lt;url&gt;</code> — or just paste a URL into a Duo terminal and let Claude decide.</p>
+  </div>
+</article>
+
+<h2 class="cat">Files & navigation</h2>
+<p class="cat-tagline">The left column is your workspace. The breadcrumb tells you where you are.</p>
+
+<article class="item" data-keys="file tree navigator browse home folder expand">
+  <div class="num">14</div>
+  <div>
+    <h3>Browse files</h3>
+    <p class="why">Tree rooted at home, expand-collapse, breadcrumb that takes you up the path.</p>
+    <p class="how"><strong>UI</strong>Click folders to expand. Click breadcrumb segments to re-root.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="file open click navigator working pane">
+  <div class="num">15</div>
+  <div>
+    <h3>Open a file by clicking it</h3>
+    <p class="why">Markdown files open as the rich editor, HTML files as the canvas, images and PDFs as previews. The right pane gets a new tab; same file in multiple tabs is fine.</p>
+    <p class="how"><strong>UI</strong>Click the file row.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="reveal file path navigator agent">
+  <div class="num">16</div>
+  <div>
+    <h3>Have Claude show you a file in the navigator</h3>
+    <p class="why">When the agent finds a relevant file, it can scroll the navigator to that path and select the file — useful when you've asked for "the config that controls X."</p>
+    <p class="how"><strong>CLI</strong><code>duo reveal &lt;path&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="collapse files rail toggle hide layout">
+  <div class="num">17</div>
+  <div>
+    <h3>Collapse the file column to a rail</h3>
+    <p class="why">More room for the terminal and the working pane when you don't need to navigate.</p>
+    <p class="how"><strong>UI</strong>⌘B.</p>
+  </div>
+</article>
+
+<h2 class="cat">Terminal & Claude</h2>
+<p class="cat-tagline">Multiple terminal tabs. Each one knows it's running inside Duo.</p>
+
+<article class="item" data-keys="terminal tab new shell open">
+  <div class="num">18</div>
+  <div>
+    <h3>Open a vanilla shell tab</h3>
+    <p class="why">A regular zsh / bash session, useful for scripts you don't want Claude in.</p>
+    <p class="how"><strong>UI</strong>Click <code>&gt;</code> on the terminal tab strip, or ⌘⇧T. <strong>CLI</strong><code>duo new-tab --shell</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="claude code terminal tab new agent">
+  <div class="num">19</div>
+  <div>
+    <h3>Open a Claude tab</h3>
+    <p class="why">A new terminal tab that auto-launches Claude Code (when <code>claude</code> is on your PATH). Title shows <code>claude · &lt;basename&gt;</code> until the REPL detects.</p>
+    <p class="how"><strong>UI</strong>Click <code>+</code> on the terminal tab strip, or ⌘T from terminal focus. <strong>CLI</strong><code>duo new-tab --claude</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="cycle terminal tabs ctrl tab keyboard">
+  <div class="num">20</div>
+  <div>
+    <h3>Cycle terminal tabs from the keyboard</h3>
+    <p class="why">Move between active conversations without reaching for the mouse.</p>
+    <p class="how"><strong>UI</strong>⌃Tab forward, ⌃⇧Tab back. Pane-aware: cycles browser tabs when the browser is focused.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="env duo session detect environment">
+  <div class="num">21</div>
+  <div>
+    <h3>Let Claude detect it's running inside Duo</h3>
+    <p class="why">Every terminal Duo spawns gets <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, and <code>TERM_PROGRAM=Duo</code> in its environment. Claude (or any tool) can branch on these to enable Duo-specific behavior.</p>
+    <p class="how"><strong>CLI</strong><code>echo $DUO_SESSION</code> from any Duo terminal.</p>
+  </div>
+</article>
+
+<h2 class="cat">Capture & send</h2>
+<p class="cat-tagline">Get a quote, an excerpt, or a selection from any pane into the conversation with Claude.</p>
+
+<article class="item" data-keys="send duo selection pill quote excerpt">
+  <div class="num">22</div>
+  <div>
+    <h3>Send a selection to your active terminal</h3>
+    <p class="why">Highlight text in the markdown editor, the browser pane, or the HTML canvas — a "Send → Duo" pill appears. Click it; the selection lands in your active terminal as quoted text with a path / URL trail so Claude knows where it came from.</p>
+    <p class="how"><strong>UI</strong>Select text → click the pill.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="selection format quote literal token agent">
+  <div class="num">23</div>
+  <div>
+    <h3>Choose how the agent receives your selection</h3>
+    <p class="why">Three formats: provenance + quote (default), literal text only, or an opaque token Claude can dereference. Agents preferring small payloads use the token form and look up the full text via <code>duo selection</code>.</p>
+    <p class="how"><strong>CLI</strong><code>duo selection-format a|b|c</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="selection get current text pane query agent">
+  <div class="num">24</div>
+  <div>
+    <h3>Have Claude read your current selection</h3>
+    <p class="why">Whatever's selected in any pane — markdown editor, browser, canvas — comes back as JSON: text, surrounding context, anchor (for canvas), URL or path. Used by the agent to answer "summarize what I'm looking at."</p>
+    <p class="how"><strong>CLI</strong><code>duo selection [--pane auto|editor|browser|canvas]</code></p>
+  </div>
+</article>
+
+<h2 class="cat">Agent ops on the canvas</h2>
+<p class="cat-tagline">The CLI that lets Claude read and write your live HTML files structurally.</p>
+
+<article class="item" data-keys="duo html query selector dom inspect">
+  <div class="num">25</div>
+  <div>
+    <h3>Query the canvas DOM</h3>
+    <p class="why">Ask Claude to find elements by CSS selector or by their stable <code>data-duo-id</code> — returns count, sample text, and structural info. Useful for "how many h2s are in this document?"</p>
+    <p class="how"><strong>CLI</strong><code>duo html query --selector "h2"</code> · <code>duo html get --id &lt;duo-id&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo html set replace text content edit agent">
+  <div class="num">26</div>
+  <div>
+    <h3>Have Claude rewrite a section</h3>
+    <p class="why">Replace the inner HTML of a specific element by stable ID. Yellow wash highlights the change; the warn-before-overwrite banner appears if you have unsaved edits.</p>
+    <p class="how"><strong>CLI</strong><code>duo html set --id &lt;duo-id&gt; --html "&lt;p&gt;new content&lt;/p&gt;"</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo html append add insert canvas agent">
+  <div class="num">27</div>
+  <div>
+    <h3>Have Claude append content</h3>
+    <p class="why">Add new HTML inside an existing element without replacing what's there.</p>
+    <p class="how"><strong>CLI</strong><code>duo html append --id &lt;duo-id&gt; --html "&lt;li&gt;new bullet&lt;/li&gt;"</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo html remove delete element">
+  <div class="num">28</div>
+  <div>
+    <h3>Have Claude remove an element</h3>
+    <p class="why">Delete an element by ID. No yellow wash because there's nothing to highlight.</p>
+    <p class="how"><strong>CLI</strong><code>duo html remove --id &lt;duo-id&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo html attr attribute set canvas">
+  <div class="num">29</div>
+  <div>
+    <h3>Have Claude change an attribute</h3>
+    <p class="why">Set or unset attributes on an element — a class, a data-*, an href.</p>
+    <p class="how"><strong>CLI</strong><code>duo html attr --id &lt;duo-id&gt; --name class --value "highlight"</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo html comments list anchor sidebar agent">
+  <div class="num">30</div>
+  <div>
+    <h3>Have Claude leave or list comments</h3>
+    <p class="why">Claude can leave a comment anchored to any element (resolved by ID, by selector, or by surrounding text). Or list every thread on the page, filtered by status.</p>
+    <p class="how"><strong>CLI</strong><code>duo html comment --id &lt;duo-id&gt; --body "…"</code> · <code>duo html comments [--filter open|resolved|all]</code></p>
+  </div>
+</article>
+
+<h2 class="cat">Subagent</h2>
+<p class="cat-tagline">A specialized Haiku-powered agent for mechanical Duo work, so Claude doesn't burn its working memory on plumbing.</p>
+
+<article class="item" data-keys="subagent duo haiku claude code skill agent">
+  <div class="num">31</div>
+  <div>
+    <h3>Hand off mechanical work to the Duo subagent</h3>
+    <p class="why">Tasks like "find the section in this page that mentions X" or "summarize what's selected in the browser" route to a smaller, faster Haiku-powered agent with a bounded context and a Duo-specific prompt. Triggered automatically by Claude Code when the task fits.</p>
+    <p class="how"><strong>UI</strong>None — happens transparently in your Claude Code conversations.</p>
+  </div>
+</article>
+
+<h2 class="cat">Look & feel</h2>
+<p class="cat-tagline">Atelier visual identity — paper-cream surfaces, warm ochre accents, light by default.</p>
+
+<article class="item" data-keys="theme system light dark mode appearance">
+  <div class="num">32</div>
+  <div>
+    <h3>Switch theme</h3>
+    <p class="why">System (follows OS), light, or dark. The theme button is top-right.</p>
+    <p class="how"><strong>UI</strong>Click "System" / "Light" / "Dark" in the title bar. <strong>CLI</strong><code>duo theme system|light|dark</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="cozy mode terminal paper canvas typography">
+  <div class="num">33</div>
+  <div>
+    <h3>Cozy terminal mode</h3>
+    <p class="why">Flips the terminal from dark inky background to paper canvas — quieter for long reading sessions in markdown-heavy work.</p>
+    <p class="how"><strong>UI</strong>Toggle in the terminal pane (per-tab).</p>
+  </div>
+</article>
+
+<h2 class="cat">For the agent</h2>
+<p class="cat-tagline">A few things Claude knows about Duo that humans rarely need to invoke directly.</p>
+
+<article class="item" data-keys="duo cli list verbs help command discovery">
+  <div class="num">34</div>
+  <div>
+    <h3>Discover every <code>duo</code> verb</h3>
+    <p class="why">Full command reference — useful if you're asking Claude "what can duo do that we haven't tried yet?"</p>
+    <p class="how"><strong>CLI</strong><code>duo help</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo tabs list tab number switch">
+  <div class="num">35</div>
+  <div>
+    <h3>Have Claude switch between tabs</h3>
+    <p class="why">Claude can list all tabs (mixed terminal / browser / file types) and switch the active one.</p>
+    <p class="how"><strong>CLI</strong><code>duo tabs</code> · <code>duo tab &lt;n&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo send text type terminal pty agent">
+  <div class="num">36</div>
+  <div>
+    <h3>Have Claude type into a terminal</h3>
+    <p class="why">The agent can write text into the active PTY — useful for Claude-spawning-Claude flows or for handing a command to the user to inspect before running.</p>
+    <p class="how"><strong>CLI</strong><code>duo send "&lt;text&gt;"</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo key shortcut keystroke send press">
+  <div class="num">37</div>
+  <div>
+    <h3>Have Claude press a key</h3>
+    <p class="why">Send a single keystroke (with optional modifiers) to the focused pane — useful for triggering shortcuts the agent doesn't have a verb for.</p>
+    <p class="how"><strong>CLI</strong><code>duo key &lt;name&gt; [--modifiers cmd,shift]</code></p>
+  </div>
+</article>
+
+<footer>
+  <p>This is Duo v0.1.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
+</footer>
+
+</div>
+
+<script>
+(function() {
+  const q = document.getElementById('q');
+  const hint = document.getElementById('match-hint');
+  const items = Array.from(document.querySelectorAll('article.item'));
+  const cats = Array.from(document.querySelectorAll('h2.cat, p.cat-tagline'));
+
+  function filter() {
+    const term = q.value.trim().toLowerCase();
+    if (!term) {
+      items.forEach(it => { it.classList.remove('hidden', 'match'); });
+      cats.forEach(c => c.style.display = '');
+      hint.textContent = '';
+      return;
+    }
+    let hits = 0;
+    items.forEach(it => {
+      const keys = (it.dataset.keys || '').toLowerCase();
+      const text = it.textContent.toLowerCase();
+      const match = keys.includes(term) || text.includes(term);
+      it.classList.toggle('hidden', !match);
+      it.classList.toggle('match', match);
+      if (match) hits++;
+    });
+    cats.forEach(c => {
+      let next = c.nextElementSibling;
+      let visible = false;
+      while (next && !(next.tagName === 'H2' && next.classList.contains('cat'))) {
+        if (next.tagName === 'ARTICLE' && !next.classList.contains('hidden')) { visible = true; break; }
+        next = next.nextElementSibling;
+      }
+      if (c.tagName === 'H2') c.style.display = visible ? '' : 'none';
+      if (c.tagName === 'P') {
+        const h2 = c.previousElementSibling;
+        c.style.display = (h2 && h2.style.display === 'none') ? 'none' : '';
+      }
+    });
+    hint.textContent = hits + (hits === 1 ? ' match' : ' matches') + ' for "' + q.value + '"';
+  }
+
+  q.addEventListener('input', filter);
+  q.addEventListener('keydown', e => { if (e.key === 'Escape') { q.value = ''; filter(); } });
+})();
+</script>
+
+</body>
+</html>

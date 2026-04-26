@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Duo — FAQ</title>
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<meta name="description" content="Common questions about Duo, plus a What's New section for each release.">
+<style>
+  /* Atelier palette — mirrored from renderer/styles/globals.css */
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-edge: #E5DCC1;
+    --paper-rule: #D4C8A6;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --ink-ghost: #B8AB8E;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --mark: #F8E59C;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1A1611;
+      --paper-deep: #13100C;
+      --paper-edge: #26201A;
+      --paper-rule: #352D23;
+      --ink: #F0E9D6;
+      --ink-soft: #C8BD9E;
+      --ink-mute: #8A7E66;
+      --ink-ghost: #5A5142;
+      --accent: #E08F4A;
+      --accent-soft: #3F2A18;
+      --accent-ink: #F2D2A8;
+      --mark: #3F3318;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.55; }
+
+  .layout { max-width: 820px; margin: 0 auto; padding: 48px 36px 120px; }
+  @media (max-width: 640px) { .layout { padding: 28px 18px 80px; } }
+
+  header { border-bottom: 1px solid var(--paper-rule); padding-bottom: 20px; margin-bottom: 28px; }
+  header h1 { font-family: var(--serif); font-weight: 500; font-size: 32px; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--ink); }
+  header .sub { color: var(--ink-mute); font-size: 13px; max-width: 600px; line-height: 1.5; }
+
+  .search-row { position: sticky; top: 0; background: var(--paper); padding: 14px 0; margin: -14px 0 8px; z-index: 10; border-bottom: 1px solid var(--paper-edge); }
+  .search-row input { width: 100%; padding: 10px 12px; border: 1px solid var(--paper-rule); border-radius: 6px; background: var(--paper-deep); font-family: var(--sans); font-size: 14px; color: var(--ink); transition: border-color 0.15s, box-shadow 0.15s; }
+  .search-row input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(198,106,46,0.12); }
+  .search-row input::placeholder { color: var(--ink-ghost); font-style: italic; }
+  .match-hint { font-size: 11px; color: var(--ink-mute); margin-top: 4px; min-height: 14px; }
+
+  h2.cat { font-family: var(--serif); font-size: 20px; font-weight: 500; color: var(--accent-ink); margin: 36px 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--paper-edge); }
+  h2.cat:first-of-type { margin-top: 8px; }
+
+  details.qa { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 0; margin-bottom: 10px; }
+  details.qa > summary { cursor: pointer; padding: 14px 18px; list-style: none; font-family: var(--serif); font-size: 16px; font-weight: 500; color: var(--ink); position: relative; padding-right: 40px; }
+  details.qa > summary::-webkit-details-marker { display: none; }
+  details.qa > summary::after { content: '+'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--ink-mute); font-size: 16px; transition: transform 0.18s; }
+  details.qa[open] > summary::after { transform: translateY(-50%) rotate(45deg); }
+  details.qa > summary:hover { color: var(--accent-ink); }
+  details.qa .body { padding: 0 18px 16px; font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+  details.qa .body p { margin: 6px 0 10px; }
+  details.qa .body code { background: var(--paper); padding: 1px 6px; border-radius: 3px; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  details.qa.hidden { display: none; }
+  details.qa.match { border-color: var(--accent-soft); background: #FFFBEF; }
+
+  article.whatsnew { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 16px 20px; margin-bottom: 12px; border-left: 3px solid var(--accent); }
+  article.whatsnew h3 { font-family: var(--serif); font-size: 16px; font-weight: 500; margin: 0 0 4px; color: var(--ink); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  article.whatsnew h3 .date { font-family: var(--mono); font-size: 11px; color: var(--ink-mute); padding: 1px 7px; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 12px; font-weight: 400; }
+  article.whatsnew p { font-size: 13px; color: var(--ink-soft); margin: 4px 0 8px; line-height: 1.6; }
+  article.whatsnew ul { font-size: 13px; color: var(--ink-soft); margin: 4px 0 0; padding-left: 20px; }
+  article.whatsnew li { margin-bottom: 4px; }
+  article.whatsnew code { background: var(--paper); padding: 1px 5px; border-radius: 3px; font-family: var(--mono); font-size: 11.5px; color: var(--ink); }
+
+  footer { margin-top: 60px; padding-top: 18px; border-top: 1px dashed var(--paper-edge); font-size: 12px; color: var(--ink-mute); }
+  footer a { color: var(--accent-ink); text-decoration: none; border-bottom: 1px dashed var(--paper-rule); }
+  footer a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<header>
+  <h1>Duo — FAQ</h1>
+  <p class="sub">Common questions, plus a "What's new" log of every release. Filter with the search above. Looking for a specific capability? See <a href="what-duo-does.html" style="color: var(--accent-ink);">What Duo does</a> for the full inventory.</p>
+</header>
+
+<div class="search-row">
+  <input id="q" type="text" placeholder="Search questions and release notes — e.g. &quot;keyboard&quot;, &quot;markdown&quot;, &quot;v0.1&quot;…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <div class="match-hint" id="match-hint"></div>
+</div>
+
+<h2 class="cat">What's new</h2>
+
+<article class="whatsnew" data-keys="v0.1.0 release initial inaugural foundation">
+  <h3>v0.1.0 — the foundation <span class="date">2026-04-26</span></h3>
+  <p>The first labelled version of Duo. Everything that's shipped to date is now versioned and trackable. From here forward, each release adds an entry to this section.</p>
+  <ul>
+    <li>Three-pane workspace: file navigator, terminal pane (with claude / shell split-button), polymorphic working pane (browser, markdown editor, HTML canvas).</li>
+    <li>Shared formatting toolbar across markdown editor and HTML canvas; markdown shortcuts on typing.</li>
+    <li>Full HTML canvas: edit live, comment threads in a sidecar, agent CLI ops (<code>duo html new/query/get/set/replace/append/remove/attr/comment/comments</code>).</li>
+    <li>Send → Duo: pill on text selection in any pane lands the quote in the active terminal.</li>
+    <li>Atelier visual identity: paper-cream surfaces, warm ochre accents, light by default, system / light / dark theme picker.</li>
+    <li>Duo subagent: Haiku-powered specialist for mechanical work, with bounded context and Duo-specific prompt.</li>
+  </ul>
+  <p style="margin-top: 10px;"><strong>Known issues at this version:</strong> <code>⌘T</code> from terminal focus is currently swallowed (<code>tasks.md § BUG-008</code>); the <code>+</code>-claude-tab button doesn't auto-launch claude on first try due to a write race (<code>BUG-009</code>); about:blank still loads as the default new-tab landing (this FAQ replaces it in v0.2.0).</p>
+</article>
+
+<h2 class="cat">Getting started</h2>
+
+<details class="qa" data-keys="install setup first run launch download">
+  <summary>How do I install Duo?</summary>
+  <div class="body">
+    <p>v0.1.0 is pre-distribution. To run it: clone the repo, <code>npm install</code>, then either <code>npm run dev</code> for the live build or <code>npm run dist</code> to produce an unsigned macOS DMG. First-launch self-install (auto-installing the <code>duo</code> CLI and the skill / subagent into <code>~/.claude/</code>) ships in v0.2.0.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="claude code path missing terminal not on">
+  <summary>The terminal says "claude not found" — how do I fix that?</summary>
+  <div class="body">
+    <p>Duo expects the <code>claude</code> binary on your <code>PATH</code> (Claude Code CLI). Install it via <code>npm install -g @anthropic-ai/claude-code</code> or whatever the current install instruction is for your environment. Duo re-checks <code>which claude</code> on every new tab spawn, so a fresh terminal will pick up the installed binary.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="cli duo command not found path install">
+  <summary>How do I run <code>duo</code> commands from Claude or my own scripts?</summary>
+  <div class="body">
+    <p>The <code>duo</code> binary lives at <code>cli/duo</code> in the repo. For dev use, either invoke it directly (<code>./cli/duo help</code>) or symlink it onto your <code>PATH</code> (<code>ln -s "$(pwd)/cli/duo" /usr/local/bin/duo</code>). The Stage 18 first-launch installer will do this automatically when distribution begins.</p>
+    <p>Note: <code>duo</code> talks to Duo's main process over a Unix socket. It only works when Duo is running.</p>
+  </div>
+</details>
+
+<h2 class="cat">Using Duo</h2>
+
+<details class="qa" data-keys="markdown md edit open file create new">
+  <summary>How do I open or create a markdown file?</summary>
+  <div class="body">
+    <p>Click any <code>.md</code> file in the file navigator (left column) to open it as the rich editor. To create a new one: click <code>+</code> on the working-pane tab strip, type a filename ending in <code>.md</code>, and hit Enter.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="html canvas edit live render save">
+  <summary>How does the HTML canvas work?</summary>
+  <div class="body">
+    <p>Open any <code>.html</code> file from the navigator and it renders as a live, editable canvas — what you see is what gets saved. The same toolbar as the markdown editor (heading picker, lists, tables, etc.) plus markdown shortcuts on typing. Comments live in a sidecar (<code>&lt;file&gt;.html.duo.json</code>) and never mix into the saved HTML. Claude can edit the canvas structurally via <code>duo html *</code> commands.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="send duo selection pill quote terminal">
+  <summary>What is the "Send → Duo" pill?</summary>
+  <div class="body">
+    <p>When you select text in the markdown editor, the browser pane, or the HTML canvas, a small "Send → Duo" pill appears beside the selection. Click it; the selection lands in your active terminal as a formatted quote with provenance (path / URL trail) so Claude knows where it came from. Three formats available via <code>duo selection-format a|b|c</code>.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="claude tab plus button split terminal">
+  <summary>What's the difference between <code>+</code> and <code>&gt;</code> on the terminal tab strip?</summary>
+  <div class="body">
+    <p><code>+</code> opens a Claude Code session in a new tab (auto-launches <code>claude</code>). <code>&gt;</code> opens a vanilla shell. Keyboard equivalents: <code>⌘T</code> from terminal focus opens claude, <code>⌘⇧T</code> always opens a vanilla shell.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="link external default browser open url out">
+  <summary>Why did clicking a link send me to my default browser?</summary>
+  <div class="body">
+    <p>Off-host URLs go to your default browser via <code>shell.openExternal</code> — the assumption being that work-restricted sites (SSO, internal pages, bookmarked tools) live on your real browser, not Duo's embedded Chromium. Domains on the external-domains list get this treatment automatically. Add or remove domains by editing <code>~/.claude/duo/external-domains.json</code>.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="theme dark light system color appearance">
+  <summary>How do I switch between light and dark themes?</summary>
+  <div class="body">
+    <p>The theme button is in the title bar (top-right). Click "System" / "Light" / "Dark" to cycle. From the CLI: <code>duo theme system|light|dark</code>.</p>
+  </div>
+</details>
+
+<h2 class="cat">For Claude / agent users</h2>
+
+<details class="qa" data-keys="agent ask claude what can duo do verbs help">
+  <summary>How do I ask Claude what Duo can do?</summary>
+  <div class="body">
+    <p>The <a href="what-duo-does.html" style="color: var(--accent-ink);">What Duo does</a> page lists every capability with a use case and the CLI invocation. From a Duo terminal, <code>duo help</code> dumps the full verb reference. Claude knows about both — just describe what you want and let it pick the right tool.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="subagent duo haiku specialized agent">
+  <summary>What is the Duo subagent?</summary>
+  <div class="body">
+    <p>A specialized Haiku-powered agent that handles mechanical Duo work (find this element, summarize the selection, route a quote to a terminal). Triggered automatically by Claude Code when the task fits — keeps Sonnet's working memory free for the actual problem you're solving.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="env duo session environment variable detect">
+  <summary>How does Claude know it's running inside Duo?</summary>
+  <div class="body">
+    <p>Every PTY Duo spawns gets <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, and <code>TERM_PROGRAM=Duo</code> in its environment. Tools branch on these. To check from a terminal: <code>echo $DUO_SESSION</code> — if it's non-empty, you're inside Duo.</p>
+  </div>
+</details>
+
+<h2 class="cat">Troubleshooting</h2>
+
+<details class="qa" data-keys="duo command silent fail sandbox claude code">
+  <summary>Why does <code>duo</code> silently fail in some Claude Code sessions?</summary>
+  <div class="body">
+    <p>Claude Code runs each Bash tool call inside a macOS Seatbelt sandbox that gates Unix-domain-socket connections. Duo's bridge is a Unix socket — so <code>duo</code> commands invoked from a sandboxed Claude Code session can hang or return <code>ECONNREFUSED</code>. Workaround: invoke <code>duo</code> from a Duo-spawned terminal directly (those PTYs aren't sandboxed). The sandbox-tolerant transport ADR (in <code>docs/DECISIONS.md</code>) tracks the long-term fix.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="cmd t terminal focus shortcut not working">
+  <summary>Why doesn't <code>⌘T</code> work from a terminal sometimes?</summary>
+  <div class="body">
+    <p>Known issue (<code>tasks.md § BUG-008</code>). xterm.js consumes <code>⌘T</code> as PTY input by default; without the explicit allowlist entry, it never reaches Duo's window-level handler. Workaround: click <code>+</code> on the terminal tab strip directly. Fix lands in v0.2.0.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="claude not launching plus tab race newline">
+  <summary>I clicked <code>+</code> for a Claude tab and the prompt is just showing "claude" without running.</summary>
+  <div class="body">
+    <p>Known issue (<code>tasks.md § BUG-009</code>). The auto-launch wiring writes <code>claude\n</code> too early — before the shell prompt is ready — so the newline gets dropped. Workaround: press Enter manually. Fix lands in v0.2.0.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="about blank default landing tab faq">
+  <summary>Why does Duo open with "about:blank" in the right pane?</summary>
+  <div class="body">
+    <p>v0.1.0 still uses the browser-default landing for new tabs. v0.2.0 replaces it with this FAQ as the first-launch landing — a real "what is this and how do I use it" surface instead of a blank page.</p>
+  </div>
+</details>
+
+<footer>
+  <p>This is Duo v0.1.0. Last updated 2026-04-26. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find a question that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
+</footer>
+
+</div>
+
+<script>
+(function() {
+  const q = document.getElementById('q');
+  const hint = document.getElementById('match-hint');
+  const items = Array.from(document.querySelectorAll('details.qa, article.whatsnew'));
+  const cats = Array.from(document.querySelectorAll('h2.cat'));
+
+  function filter() {
+    const term = q.value.trim().toLowerCase();
+    if (!term) {
+      items.forEach(it => { it.classList.remove('hidden', 'match'); });
+      cats.forEach(c => c.style.display = '');
+      hint.textContent = '';
+      return;
+    }
+    let hits = 0;
+    items.forEach(it => {
+      const keys = (it.dataset.keys || '').toLowerCase();
+      const text = it.textContent.toLowerCase();
+      const match = keys.includes(term) || text.includes(term);
+      it.classList.toggle('hidden', !match);
+      it.classList.toggle('match', match);
+      if (match) hits++;
+      if (it.tagName === 'DETAILS') it.open = match;
+    });
+    cats.forEach(c => {
+      let next = c.nextElementSibling;
+      let visible = false;
+      while (next && !(next.tagName === 'H2' && next.classList.contains('cat'))) {
+        if ((next.tagName === 'DETAILS' || next.tagName === 'ARTICLE') && !next.classList.contains('hidden')) { visible = true; break; }
+        next = next.nextElementSibling;
+      }
+      c.style.display = visible ? '' : 'none';
+    });
+    hint.textContent = hits + (hits === 1 ? ' match' : ' matches') + ' for "' + q.value + '"';
+  }
+
+  q.addEventListener('input', filter);
+  q.addEventListener('keydown', e => { if (e.key === 'Escape') { q.value = ''; filter(); } });
+})();
+</script>
+
+</body>
+</html>

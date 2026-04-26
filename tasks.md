@@ -347,6 +347,73 @@ Option (b) is closest to the design intent but adds CSS injection + event-routin
 
 ---
 
+### BUG-008: ⌘T from terminal focus doesn't open a new browser tab
+
+**Status:** 🆕 Filed
+**Priority:** Medium
+**Filed:** 2026-04-26
+
+**Repro:**
+1. Click into a terminal tab so focus is on the terminal.
+2. Press ⌘T.
+
+**Expected:** New browser tab opens and the address bar receives focus (same behaviour as ⌘T from browser focus, post BUG-002 fix). ⌘T is a global Duo shortcut, not pane-scoped — terminal focus shouldn't suppress it.
+**Actual:** Nothing happens — keystroke is swallowed (likely by xterm's PTY input path) and no browser tab opens.
+
+**Likely cause (untraced):**
+Mirror of BUG-001 part 2. xterm.js consumes ⌘T as PTY input by default; without an `attachCustomKeyEventHandler` branch returning `false` for ⌘T (and any other globally-routed app shortcuts), the keystroke never reaches the window-level `keydown` listener that would otherwise fire the new-tab handler. The BUG-001 fix added that handler for ⌃Tab / ⌃⇧Tab specifically — ⌘T was not in scope.
+
+**Suggested fix:**
+Extend the xterm `attachCustomKeyEventHandler` allowlist in `renderer/components/TerminalPane.tsx` to also let ⌘T (and ⌘N / ⌘L while in there — anything that's a Duo-global shortcut, not a terminal action) bubble to the window. Then verify the existing renderer-side ⌘T handler fires and that `wireKeyForwarding`'s pre-forward `webContents.focus()` from BUG-002 still gives the address bar OS focus when the source pane is the terminal (it should — the renderer owns OS focus when terminal has focus, so no reclaim is needed in this path).
+
+**Class of issue:** xterm-eats-shortcut regression (same family as BUG-001). Worth sweeping the full Duo-global shortcut set against the xterm key handler while in the file.
+
+**⚠️ Spec-conflict note (added during V-walk 2026-04-26 evening, separate Claude session):** This entry says "Expected: New browser tab opens." But Stage 19c (shipped 2026-04-26 + merged in `cbadc5f`) specifically pane-scoped `⌘T`: from terminal focus → opens a **claude** tab, from browser focus → opens a **browser** tab. See `docs/roadmap.html:648`. Either (a) the parallel filer didn't know about 19c and the "Expected" should read "opens a claude tab," or (b) Geoff has reconsidered 19c's pane-scoping and wants `⌘T` global → browser everywhere. Resolve before fixing — the underlying xterm-eats-keystroke issue is real either way; only the destination handler differs.
+
+---
+
+### BUG-009: `+` (claude) button on terminal tab strip — claude doesn't auto-launch
+
+**Status:** 🆕 Filed
+**Priority:** Medium
+**Filed:** 2026-04-26 (during V-walk for v0.1.0 cut)
+
+**Repro:**
+1. With Duo open and at least one terminal tab, click the `+` button on the terminal tab strip (the claude side of the split-button, not the `>` shell side).
+2. Observe the new tab.
+
+**Expected:** New tab opens with title `claude · ~` and the claude REPL is running (Claude Code splash visible, ready for input).
+**Actual:** New tab opens with the correct title, but the terminal ends in this state:
+
+```
+claude
+(base) geoffreydudgeon@mac ~ % claude
+```
+
+— literal `claude` rendered on line 1 BEFORE the shell prompt drew, then `claude` typed at the prompt on line 2 with NO trailing newline. Claude never launches. The user has to manually press Enter to fire the command.
+
+**Likely cause (untraced):**
+Race between `pty.write(activeTabId, 'claude\n')` and the PTY's shell-prompt render. The write fires before the shell prompt is ready, so the bytes land too early — the first `claude` lands as raw text (no prompt to receive it), then the `\n` lands at an empty prompt (no-op), then the prompt draws, then a second write of `claude` (without `\n`?) lands at the prompt and just sits there. Two-write timing or single-write-before-ready, hard to tell without instrumenting.
+
+**Verified once Enter pressed:** Claude Code v2.1.119 launches normally; `/remote-control is active` confirms PTY is wired. Tab title flips from `claude · ~` to `Claude Code` once the REPL detects (which is correct behavior).
+
+**Suggested fix:**
+Wait for the shell to be ready before writing `claude\n`. Options:
+- **(a)** Wait for the first prompt-shaped bytes to appear in the PTY output buffer before issuing the write. Tightest fix; needs a small "prompt detector" (regex on common shell prompts: `% `, `$ `, `# `, `> `).
+- **(b)** Sleep ~250-500ms after PTY spawn before writing. Crude but reliable; the user wouldn't notice the delay relative to claude's own boot time (~1.5s).
+- **(c)** Use `ptyManager.onReady(tabId, () => pty.write(...))` if there's an existing readiness signal; if not, add one.
+
+Option (b) is the quickest path; option (a) is the right path. Class of issue: PTY-write-too-early race.
+
+**Class of issue:** New-tab auto-launch reliability. Same family of risk affects `duo new-tab --cmd "..."` (Stage 19c CLI verb) — the CLI is likely racing the same way. Worth a single fix that covers both code paths.
+
+**Affected files (suspected):**
+- `electron/pty-manager.ts` (or wherever new-tab claude-launch is wired)
+- `renderer/components/TerminalPane.tsx` (if the write-on-first-render is renderer-side)
+- `cli/duo.ts` (`new-tab` verb) — if it shares the same readiness path
+
+---
+
 ## Follow-ups (open · process / docs)
 
 ### FOLLOWUP-001: Add `agents/duo.md` to the new-CLI-verb plumbing checklist (CLAUDE.md)
