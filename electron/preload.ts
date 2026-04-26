@@ -123,6 +123,8 @@ const api: ElectronAPI = {
 
     revealInFinder: (p) => ipcRenderer.invoke(IPC.FILES_REVEAL_IN_FINDER, { path: p }),
 
+    getHtmlMeta: (p) => ipcRenderer.invoke(IPC.FILES_GET_HTML_META, { path: p }),
+
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process

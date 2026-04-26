@@ -15,7 +15,7 @@ import * as path from 'path'
 import { shell } from 'electron'
 import type { WebContents } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
-import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent } from '../shared/types'
+import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent, HtmlFileMeta } from '../shared/types'
 
 // Prevent accidentally shipping 50MB of log file over IPC. Renderer should
 // use `openExternal` for payloads this big.
@@ -109,6 +109,38 @@ export class FilesService {
       size: st.size,
       mtimeMs: st.mtimeMs
     }
+  }
+
+  /**
+   * Read just the head of an HTML file (~4KB) and parse Duo's routing
+   * meta tags. Used by the renderer's file-open dispatcher to decide
+   * between browser-tab and canvas-tab routing for `.html` files
+   * without paying the cost of a full read for every click.
+   *
+   * Returns an empty object on read failure or when neither meta is
+   * present. Caller falls through to its default.
+   */
+  async getHtmlMeta(absPath: string): Promise<HtmlFileMeta> {
+    const HEAD_BYTES = 4096
+    let head: string
+    try {
+      const fh = await fs.open(absPath, 'r')
+      try {
+        const buf = Buffer.alloc(HEAD_BYTES)
+        const { bytesRead } = await fh.read(buf, 0, HEAD_BYTES, 0)
+        head = buf.subarray(0, bytesRead).toString('utf8')
+      } finally {
+        await fh.close()
+      }
+    } catch {
+      return {}
+    }
+    const meta: HtmlFileMeta = {}
+    const openIn = head.match(/<meta\s+[^>]*name\s*=\s*["']duo-open-in["'][^>]*content\s*=\s*["'](browser|canvas)["']/i)
+    if (openIn) meta.openIn = openIn[1].toLowerCase() as 'browser' | 'canvas'
+    const editable = head.match(/<meta\s+[^>]*name\s*=\s*["']duo-editable["'][^>]*content\s*=\s*["'](true|false)["']/i)
+    if (editable) meta.editable = editable[1].toLowerCase() === 'true'
+    return meta
   }
 
   /**

@@ -329,9 +329,35 @@ export function App() {
     setFocusedColumn('working')
   }, [])
 
-  const onOpenFile = useCallback((entry: DirEntry) => {
-    openFile(entry.path, entry.name)
+  // Smart file-open dispatcher: pre-flights HTML files for the
+  // `<meta name="duo-open-in" content="browser">` routing hint. When
+  // present, the file lands in a browser tab via `file://` URL instead
+  // of the canvas. Used by system reference HTMLs (FAQ, What Duo Does)
+  // and any user file that opts in. Non-HTML files skip the pre-flight
+  // entirely (cheap fast path). On read failure or no meta present,
+  // falls through to the canvas as before.
+  const openFileSmart = useCallback(async (path: string, title: string) => {
+    const lower = path.toLowerCase()
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+      try {
+        const meta = await window.electron.files.getHtmlMeta(path)
+        if (meta?.openIn === 'browser') {
+          const fileUrl = `file://${encodeURI(path)}`
+          await window.electron.browser.addTab(fileUrl)
+          setActiveWorking({ kind: 'browser' })
+          setFocusedColumn('working')
+          return
+        }
+      } catch {
+        // Fall through to canvas on any IPC / parse failure.
+      }
+    }
+    openFile(path, title)
   }, [openFile])
+
+  const onOpenFile = useCallback((entry: DirEntry) => {
+    void openFileSmart(entry.path, entry.name)
+  }, [openFileSmart])
 
   const closeFileTab = useCallback((id: string) => {
     setFileTabs(prev => {
@@ -406,11 +432,12 @@ export function App() {
     ))
   }, [])
 
-  // Called by MarkdownPreview when the user clicks an internal .md link.
+  // Called by MarkdownPreview when the user clicks an internal link.
+  // Routes through openFileSmart so duo-open-in:browser is honored.
   const onOpenMarkdown = useCallback((path: string) => {
     const name = path.slice(path.lastIndexOf('/') + 1) || path
-    openFile(path, name)
-  }, [openFile])
+    void openFileSmart(path, name)
+  }, [openFileSmart])
 
   // Stage 10 Phase 6: `duo reveal <path>` from the CLI. Move the navigator
   // to that path and surface a dismissible chip.
@@ -429,22 +456,24 @@ export function App() {
   }, [revealChip])
 
   // Stage 10 Phase 6: `duo view <path>` from the CLI. Open as a file tab.
+  // Routes through openFileSmart so duo-open-in:browser is honored
+  // when the agent runs `duo view ~/.claude/duo/help/faq.html` etc.
   useEffect(() => {
     return window.electron.nav.onView((p) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
-      openFile(p, name)
+      void openFileSmart(p, name)
     })
-  }, [openFile])
+  }, [openFileSmart])
 
   // Stage 11: `duo edit <path>` from the CLI. Same dispatch as view — the
   // classifier routes `.md` to the editor tab type; other types open in
-  // their usual preview.
+  // their usual preview. duo-open-in:browser still honored.
   useEffect(() => {
     return window.electron.nav.onEdit((p) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
-      openFile(p, name)
+      void openFileSmart(p, name)
     })
-  }, [openFile])
+  }, [openFileSmart])
 
   // Stage 19c D27 — `duo new-tab` from the CLI. The renderer is the
   // authoritative tab state, so we add the tab here and reply with

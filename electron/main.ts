@@ -303,6 +303,10 @@ function setupIPC(): void {
     filesService.revealInFinder(p)
   })
 
+  ipcMain.handle(IPC.FILES_GET_HTML_META, (_event, { path: p }: { path: string }) => {
+    return filesService.getHtmlMeta(p)
+  })
+
   ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths }: { id: string; paths: string[] }) => {
     filesService.startWatch(id, paths, event.sender, IPC.FILES_CHANGED)
   })

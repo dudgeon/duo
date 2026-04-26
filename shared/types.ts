@@ -551,6 +551,7 @@ export const IPC = {
   FILES_WRITE: 'files:write',            // Stage 11 — editor-driven save
   FILES_OPEN_EXTERNAL: 'files:open-external',
   FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
+  FILES_GET_HTML_META: 'files:get-html-meta',  // pre-flight for <meta duo-open-in> routing
   FILES_WATCH_START: 'files:watch-start',
   FILES_WATCH_UPDATE: 'files:watch-update',
   FILES_WATCH_STOP: 'files:watch-stop',
@@ -660,6 +661,19 @@ export interface FileWriteResult {
   mtimeMs: number
 }
 
+export interface HtmlFileMeta {
+  /** `<meta name="duo-open-in" content="...">` — declarative routing hint
+   *  for HTML files. `browser` opens the file in a browser tab (file://
+   *  URL); `canvas` opens in the editable HTML canvas. Undefined = no
+   *  preference, fall through to the classifier's default (canvas). */
+  openIn?: 'browser' | 'canvas'
+  /** `<meta name="duo-editable" content="false">` — when false, the
+   *  canvas mounts read-only (no contentEditable, toolbar, comment
+   *  composer, or ID-injection probe). Honored regardless of where the
+   *  file ends up routing to. */
+  editable?: boolean
+}
+
 export interface ElectronFilesAPI {
   list: (path: string) => Promise<DirEntry[]>
   read: (path: string) => Promise<FileReadResult>
@@ -668,6 +682,12 @@ export interface ElectronFilesAPI {
   write: (path: string, bytes: Uint8Array) => Promise<FileWriteResult>
   openExternal: (path: string) => Promise<void>
   revealInFinder: (path: string) => Promise<void>
+  /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
+   *  routing meta tags. Used by the file-open dispatcher to decide
+   *  whether an .html file mounts as a browser tab or a canvas tab.
+   *  Returns an empty object on read failure or when no meta tags
+   *  match — caller falls through to the classifier's default. */
+  getHtmlMeta: (path: string) => Promise<HtmlFileMeta>
   /**
    * Start a filesystem watcher on the given paths. Returns an `unwatch`
    * function. The callback fires on each add/change/remove event.
