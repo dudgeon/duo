@@ -18,8 +18,8 @@ work. Stage 21 picks up once all five artifacts below are collected.
 |---|---|---|---|
 | 1 | Apple Developer Program membership | ✅ done (2026-04-25, individual, `dudgeon@gmail.com`) | Apple ID account |
 | 2 | Registered bundle ID `com.geoffdudgeon.duo` | ✅ done (2026-04-25) | Apple Developer portal |
-| 3 | Developer ID Application certificate | ☐ pending | macOS Keychain (login) |
-| 4 | App Store Connect API key (.p8) | ☐ pending | `~/.appstoreconnect/private_keys/` + 1Password backup |
+| 3 | Developer ID Application certificate | ✅ done (2026-04-25, paired w/ private key, `security find-identity -p codesigning -v` returns one valid identity) | macOS login keychain |
+| 4 | App Store Connect API key (.p8) | ✅ done (2026-04-25, perms 600) | `~/Documents/duo-private/AuthKey_<KeyID>.p8` (Geoff's private staging dir) |
 | 5 | Team ID captured | ✅ done (2026-04-25, captured from dev portal header) | 1Password + this doc's handoff packet |
 
 Update the status column as you complete each step.
@@ -161,12 +161,15 @@ matched to your locally-stored private key).
    and try again.
 
 ### What to capture
-- ☐ Cert common name as it appears in Keychain (`Developer ID Application: …`)
-  → this becomes `CSC_NAME` in `.env`
-- ☐ Delete `developerID_application.cer` and `CertificateSigningRequest.certSigningRequest`
-  from disk (they're not secrets, but no reason to leave them around)
-- ☐ Optional: export cert + private key as a password-protected `.p12` and
-  store in 1Password. Lets you restore signing capability if this Mac dies.
+- ☑ Cert common name as it appears in Keychain → `CSC_NAME` value captured (in 1Password / `.env`)
+- ☑ Cert + private key pairing verified via `security find-identity -p codesigning -v`
+- ☐ *Optional:* delete `developerID_application.cer` and
+  `CertificateSigningRequest.certSigningRequest` from `~/Documents/duo-private/`
+  (not secrets, but tidy)
+- ☐ *Optional but strongly recommended:* export cert + private key as a
+  password-protected `.p12` and store in 1Password. Lets you restore signing
+  capability if this Mac dies. (Keychain Access → My Certificates → right-click
+  the cert → Export → format `.p12` → set a password → save outside the repo.)
 
 ---
 
@@ -213,13 +216,15 @@ on a "Duo notarization API key" item. Note the Key ID and Issuer ID on the
 same item.
 
 ### What to capture
-- ☐ **Key ID** (10 characters, shown in the ASC integrations table after
-  generation) → `APPLE_API_KEY_ID` in `.env`
-- ☐ **Issuer ID** (UUID, shown at the top of the API key page) →
-  `APPLE_API_ISSUER` in `.env`
-- ☐ **Path to .p8** (e.g. `~/.appstoreconnect/private_keys/AuthKey_ABC123.p8`)
-  → `APPLE_API_KEY` in `.env`
-- ☐ Confirmed .p8 backed up in 1Password
+- ☑ **Key ID** captured (10-char value in 1Password / `.env` — not committed)
+- ☑ **Issuer ID** captured (UUID in 1Password / `.env` — not committed)
+- ☑ **Path to .p8** = `~/Documents/duo-private/AuthKey_<KeyID>.p8` (perms 600)
+- ☐ Confirmed .p8 backed up in 1Password (recommended — Apple won't re-issue)
+
+> **Note on .p8 location.** notarytool's auto-detect path is
+> `~/.appstoreconnect/private_keys/`, but giving an explicit path via the
+> `APPLE_API_KEY` env var works equally well. Geoff is using
+> `~/Documents/duo-private/` to keep all Duo cert artifacts together.
 
 ---
 
@@ -257,8 +262,8 @@ chat or commit them anywhere.
 
 ```dotenv
 # Copy `.env.example` → `.env` and fill these in:
-CSC_NAME="Developer ID Application: <name> (<teamid>)"
-APPLE_API_KEY=/Users/geoffreydudgeon/.appstoreconnect/private_keys/AuthKey_<keyid>.p8
+CSC_NAME="Developer ID Application: Geoffrey Dudgeon (<teamid>)"
+APPLE_API_KEY=/Users/geoffreydudgeon/Documents/duo-private/AuthKey_<keyid>.p8
 APPLE_API_KEY_ID=<10-char Key ID>
 APPLE_API_ISSUER=<Issuer UUID>
 APPLE_TEAM_ID=<10-char Team ID>
