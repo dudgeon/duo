@@ -110,9 +110,10 @@ npm run dev        # launches the Electron app
 ./cli/duo install
 
 # Install the skill + subagent so fresh Claude Code sessions discover them:
-mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents
+mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents
 cp skill/SKILL.md            ~/.claude/skills/duo/SKILL.md
 cp skill/examples/*.md       ~/.claude/skills/duo/examples/
+cp skill/references/*.md     ~/.claude/skills/duo/references/
 cp agents/duo.md             ~/.claude/agents/duo.md
 rm -f                        ~/.claude/agents/duo-browser.md   # remove old name
 

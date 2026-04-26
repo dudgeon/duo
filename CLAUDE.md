@@ -23,9 +23,13 @@ Brief: `duo-brief.md` (read this first — it's comprehensive and locked)
 Flagship half #2 — sub-stage 11a of the markdown editor — shipped
 2026-04-24; 11a tail (3 items) and 11b–e next.**
 
-**Latest session (2026-04-26 late-evening) — Stages 5 v2 + 13 + 15.1
-shipped & committed; Stage 15.2 (browser pill via CDP) shipped
-code-side, live data-plane verified.** Stage 5 v2: new global
+**Latest session (2026-04-26 late-evening) — Stages 5 v2 + 13 +
+15.1 + 15.2 shipped & committed; owner-walk follow-ups (focus on
+Send → Duo, ⌘N D33f regression, editor click-target) committed in
+`258ff6f`; SKILL.md slimmed by extracting verbose deep-dives into
+`skill/references/` (`google-docs.md`, `sandbox-troubleshooting.md`)
+so the top-level skill stays scannable while details stay one
+fetch away.** Stage 5 v2: new global
 `agents/duo.md` (Haiku 4.5) subsuming `duo-browser`; new `duo
 external <url>` CLI verb; bootstrap of
 `~/.claude/duo/external-domains.json`. F1/F2/F4/F5/F8/F9 + C5/C6/C7
@@ -125,19 +129,27 @@ move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
 ## ⚠️ Pick up here next session (2026-04-26 late-evening breadcrumb)
 
 **Where we are: Stage 5 v2 ✓ + Stage 13 ✓ + Stage 15.1 ✓ + Stage
-15.2 ✓.** Layer 0 (Stage 12) functionally complete except whisper-
-level agent presence (deferred). Stage 5 v2 lands the global `duo`
-subagent (Haiku 4.5). Stage 15.1 lands the editor half of Send →
-Duo. Stage 15.2 lands the browser half: a page-side observer IIFE
-posts live selection state via a CDP binding; main caches and
-forwards over IPC; the pill mounts over the WebContentsView with
-the page rect translated to screen coords. **One primitive, two of
-three modalities are now wired** (canvas comes via Stage 17c).
-**Recommended next: Stage 17a** (HTML canvas render + edit
-primitive). Stage 15.3 (length cap, image flatten, ⌘D, polish) and
-Stage 14 (track changes) are both fine to defer; 17a is the bigger
-unlock and its dependencies (Stage 13 primitives, Stage 15
-selection-union, Stage 12 visual tokens) are all in place.
+15.2 ✓ + owner-walk fixes ✓ + skill refactor ✓.** Layer 0 (Stage
+12) functionally complete except whisper-level agent presence
+(deferred). Stage 5 v2 lands the global `duo` subagent (Haiku 4.5).
+Stage 15.1 lands the editor half of Send → Duo. Stage 15.2 lands
+the browser half: a page-side observer IIFE posts live selection
+state via a CDP binding; main caches and forwards over IPC; the
+pill mounts over the WebContentsView with the page rect translated
+to screen coords (data plane verified live; visual pill rendering
+gated on BUG-006 — WebContentsView occlusion). **Owner-walk
+follow-ups (`258ff6f`):** Send → Duo now actually focuses the
+terminal (was React-state-only); ⌘N → filename → Enter → prose
+focus regression fixed by deferring the focus call to the load
+effect's success path; editor pane click-target now covers gray
+margin too. **Skill refactor:** verbose Google Docs and sandbox-
+troubleshooting deep-dives extracted from `SKILL.md` into
+`skill/references/` so top-level skill stays scannable; sync:claude
++ all docs updated. **Recommended next: Stage 17a** (HTML canvas
+render + edit primitive). Stage 15.3 polish + Stage 14 track
+changes both fine to defer; 17a is the bigger unlock and its
+dependencies (Stage 13 primitives, Stage 15 selection-union, Stage
+12 visual tokens) are all in place.
 
 ### Stage 5 v2 (just shipped — code-side)
 
@@ -621,7 +633,9 @@ late-day: **0 open bugs · 1 deferred process item.**
 | `renderer/components/editor/EditorToolbar.tsx` | Top toolbar + contextual table controls (PRD D5, D12a) |
 | `renderer/components/editor/extensions/` | `TableShortcuts`, `PersistentSelection` |
 | `renderer/hooks/useTheme.ts` | Theme mode state + push to main + CLI-override listener |
-| `skill/SKILL.md` | Claude Code skill (auto-discovered via YAML frontmatter) |
+| `skill/SKILL.md` | Claude Code skill (auto-discovered via YAML frontmatter). Top-level prose stays slim — overview + commands + patterns. |
+| `skill/references/` | Topic-specific deep dives the skill links into when needed: `google-docs.md` (Docs read fast path + traps + Kix keyboard limitation), `sandbox-troubleshooting.md` (Claude Code sandbox failure shapes + `duo doctor` recipe). Synced to `~/.claude/skills/duo/references/` by `npm run sync:claude`. |
+| `skill/examples/` | Worked examples the skill pulls when illustrative; same sync path under `~/.claude/skills/duo/examples/`. |
 | `agents/duo.md` | Subagent (Haiku 4.5) — the canonical Duo-CLI driver; orchestrators delegate multi-step `duo` sequences here |
 
 ---
@@ -693,7 +707,8 @@ late-day: **0 open bugs · 1 deferred process item.**
    reads from `~/.claude/skills/duo/` and `~/.claude/agents/duo.md`.
    These are plain-file **copies**, not symlinks — edits in the repo do
    not propagate automatically. After any change to `skill/SKILL.md`,
-   `skill/examples/*.md`, or `agents/duo.md`, run:
+   `skill/examples/*.md`, `skill/references/*.md`, or `agents/duo.md`,
+   run:
 
    ```bash
    npm run sync:claude

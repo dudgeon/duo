@@ -142,10 +142,17 @@ empty.
 | `duo selection-format [a\|b\|c]` | Send → Duo payload format (Stage 15 G19): `a` quote+provenance (default), `b` literal, `c` opaque token. Set once at session start when a multi-step session benefits from compact tokens; otherwise leave at default. |
 | `duo send [--text "…"]` | Write a payload into the active terminal's PTY (Stage 15 G17). No Enter appended; user confirms. Use sparingly to plant context for the user — never to issue prompts on their behalf. |
 
-For deeper detail (Google Docs read traps, canvas-text traps, Docs `/export?format=md`
-fast path, Docs key-event limitations), the Duo skill at
-`~/.claude/skills/duo/SKILL.md` is the source of truth — fetch sections from it
-when needed rather than guessing.
+For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
+source of truth — fetch sections from it rather than guessing:
+- `SKILL.md` — top-level reference (overview + commands + patterns).
+- `references/google-docs.md` — Docs/Sheets/Slides read fast path
+  (`/export?format=md`), AX-tree fallback, the read traps, and the
+  Kix keyboard-iframe limitation that makes most `duo key` shortcuts
+  silent no-ops on Docs.
+- `references/sandbox-troubleshooting.md` — Claude Code sandbox
+  failure shapes (`connect EPERM`, `ECONNREFUSED`, hang →
+  `Timeout waiting for response`), `duo doctor` recipe, and the two
+  fixes (allowlist vs per-call escape).
 
 ## Patterns
 

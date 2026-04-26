@@ -309,9 +309,10 @@ So a fresh Claude Code session launched in a Duo terminal discovers the
 skill and the `duo` subagent automatically:
 
 ```bash
-mkdir -p ~/.claude/skills/duo/examples ~/.claude/agents ~/.claude/duo
+mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents ~/.claude/duo
 cp skill/SKILL.md            ~/.claude/skills/duo/SKILL.md
 cp skill/examples/*.md       ~/.claude/skills/duo/examples/
+cp skill/references/*.md     ~/.claude/skills/duo/references/
 cp agents/duo.md             ~/.claude/agents/duo.md
 rm -f                        ~/.claude/agents/duo-browser.md   # remove old name
 [ -f ~/.claude/duo/external-domains.json ] || \
