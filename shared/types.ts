@@ -573,6 +573,10 @@ export const IPC = {
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
   PINS_TOGGLE: 'pins:toggle',
+
+  // Stage 18 — first-launch self-install (skill + subagent + provenance).
+  INSTALL_STATUS: 'install:status',
+  INSTALL_RUN: 'install:run',
   FILES_WATCH_START: 'files:watch-start',
   FILES_WATCH_UPDATE: 'files:watch-update',
   FILES_WATCH_STOP: 'files:watch-stop',
@@ -861,6 +865,43 @@ export interface ElectronPinsAPI {
   toggle: (entry: PinEntry) => Promise<PinEntry[]>
 }
 
+// Stage 18 — first-launch self-install state. The "installed"
+// provenance lives at ~/.claude/duo/installed.json with a version +
+// timestamp; absence of that file means we've never set up this
+// user's ~/.claude/ for Duo. The skill + subagent + external-domains
+// scaffold are what get copied; the CLI-on-PATH step is deferred to
+// Stage 18 Phase 2 (sandbox-safe location decision pending).
+export interface InstallStatus {
+  installed: boolean
+  /** Version recorded in installed.json (Duo's package.json version
+   *  at the time of install). Undefined when never installed. */
+  version?: string
+  /** ISO timestamp from installed.json. */
+  installedAt?: string
+  /** True if a Duo version is installed but older than the running
+   *  build — surface an "Update?" affordance. */
+  needsUpdate?: boolean
+}
+
+export interface InstallResult {
+  ok: boolean
+  /** When ok=true, the new InstallStatus the renderer should show. */
+  status?: InstallStatus
+  /** When ok=false, a short user-readable explanation. */
+  error?: string
+}
+
+export interface ElectronInstallAPI {
+  /** Read installed.json to determine whether this user's ~/.claude/
+   *  has been bootstrapped for Duo. Cheap (single file stat). */
+  status: () => Promise<InstallStatus>
+  /** Run the install: copy skill + subagent into ~/.claude/, bootstrap
+   *  external-domains.json, write installed.json. Idempotent —
+   *  re-running on an already-installed system overwrites the skill
+   *  + subagent (useful for upgrades) and rewrites installed.json. */
+  run: () => Promise<InstallResult>
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
@@ -875,6 +916,7 @@ export interface ElectronAPI {
   terminal: ElectronTerminalAPI
   keyboard: ElectronKeyboardAPI
   pins: ElectronPinsAPI
+  install: ElectronInstallAPI
 }
 
 declare global {

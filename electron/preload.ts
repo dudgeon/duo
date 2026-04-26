@@ -302,6 +302,11 @@ const api: ElectronAPI = {
   pins: {
     list: () => ipcRenderer.invoke(IPC.PINS_LIST) as Promise<PinEntry[]>,
     toggle: (entry) => ipcRenderer.invoke(IPC.PINS_TOGGLE, entry) as Promise<PinEntry[]>
+  },
+
+  install: {
+    status: () => ipcRenderer.invoke(IPC.INSTALL_STATUS),
+    run: () => ipcRenderer.invoke(IPC.INSTALL_RUN)
   }
 }
 

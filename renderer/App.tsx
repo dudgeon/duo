@@ -3,6 +3,7 @@ import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { PinnedCloseConfirm } from './components/PinnedCloseConfirm'
+import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane } from './components/FilesPane'
@@ -797,6 +798,11 @@ export function App() {
       <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center justify-end pr-2 gap-1">
         <ThemeToggle mode={theme.mode} onCycle={theme.cycleMode} />
       </div>
+
+      {/* Stage 18 — first-launch self-install banner. Renders only
+          when ~/.claude/duo/installed.json is absent or the recorded
+          version is stale; auto-hides on success / dismissal. */}
+      <FirstLaunchBanner />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div

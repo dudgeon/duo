@@ -8,6 +8,7 @@ import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from './pins-service'
+import { InstallService } from './install-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -97,6 +98,7 @@ let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
 const filesService = new FilesService()
 const pinsService = new PinsService()
+const installService = new InstallService()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 
@@ -315,6 +317,14 @@ function setupIPC(): void {
   })
   ipcMain.handle(IPC.PINS_TOGGLE, (_event, entry: import('../shared/types').PinEntry) => {
     return pinsService.toggle(entry)
+  })
+
+  // Stage 18 — first-launch self-install.
+  ipcMain.handle(IPC.INSTALL_STATUS, () => {
+    return installService.status()
+  })
+  ipcMain.handle(IPC.INSTALL_RUN, () => {
+    return installService.run()
   })
 
   ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths }: { id: string; paths: string[] }) => {
