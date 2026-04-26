@@ -5,6 +5,7 @@
 // passes down) into a single unified tab strip. A single active-tab state
 // controls which renderer mounts below the strip.
 
+import { useCallback } from 'react'
 import { BrowserRenderer } from './BrowserRenderer'
 import { MarkdownPreview } from './MarkdownPreview'
 import { MarkdownEditor } from './editor/MarkdownEditor'
@@ -12,7 +13,7 @@ import { CanvasTab } from './HtmlCanvas/CanvasTab'
 import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
-import type { WorkingTab, WorkingTabType } from '@shared/types'
+import type { WorkingTab, WorkingTabType, PinEntry } from '@shared/types'
 
 export interface FileTab {
   id: string
@@ -57,6 +58,16 @@ interface WorkingPaneProps {
    *  `+` button calls this; ⌥-click falls back to opening a new
    *  browser tab (preserves the pre-Stage-17 muscle memory). */
   onNewFile: () => void
+  /** Stage 24 — current pin list, owned by App.tsx so the ⌘W
+   *  keyboard handler can gate close-of-pinned-tab on a confirm
+   *  modal at the App level. WorkingPane reads to mark which tabs
+   *  render with the pin glyph + sort to leftmost. */
+  pins: PinEntry[]
+  /** Stage 24 — toggle a pin entry. WorkingPane builds the entry
+   *  from the right-clicked tab's path/url/title and calls this;
+   *  App.tsx persists via the pins service and updates the pins
+   *  state. */
+  onTogglePin: (entry: PinEntry) => Promise<void>
 }
 
 export function WorkingPane({
@@ -69,16 +80,42 @@ export function WorkingPane({
   onCommitNewFile,
   focused = false,
   onSendToDuo,
-  onNewFile
+  onNewFile,
+  pins,
+  onTogglePin
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
+
+  // Stage 24 — pinned tabs. Pins state owned by App.tsx (so the
+  // ⌘W keyboard handler can also gate on pinned status); WorkingPane
+  // receives the read API + toggle action via props.
+  const isPinned = (kind: 'browser' | 'file', ref: string): boolean => {
+    return pins.some(p => p.kind === kind && p.ref === ref)
+  }
+
+  const handleTogglePin = useCallback((stripId: string) => {
+    const parsed = parseId(stripId)
+    let entry: PinEntry | null = null
+    if (parsed.kind === 'file') {
+      const ft = fileTabs.find(f => f.id === parsed.id)
+      if (!ft) return
+      entry = { kind: 'file', ref: ft.path, title: ft.title }
+    } else {
+      const bt = browserTabs.find(b => b.id === parsed.id)
+      if (!bt) return
+      const url = bt.url
+      if (!url || url === 'about:blank') return
+      entry = { kind: 'browser', ref: url, title: bt.title }
+    }
+    void onTogglePin(entry)
+  }, [fileTabs, browserTabs, onTogglePin])
 
   // Merge for the strip. Stable order: file tabs first (in insertion order),
   // then browser tabs by their id. The strip serializes both into the shared
   // `WorkingTab` shape. IDs in the merged view: file tabs carry their
   // string uuid; browser tabs' numeric ids get prefixed with "b:" so the
   // two namespaces can't collide inside the strip.
-  const mergedTabs: WorkingTab[] = [
+  const unsortedTabs: WorkingTab[] = [
     ...fileTabs.map(ft => ({
       id: stringifyFileId(ft.id),
       type: ft.type,
@@ -86,7 +123,8 @@ export function WorkingPane({
       path: ft.path,
       mime: ft.mime,
       dirty: ft.dirty || ft.isNew,
-      isActive: activeWorking.kind === 'file' && activeWorking.id === ft.id
+      isActive: activeWorking.kind === 'file' && activeWorking.id === ft.id,
+      pinned: !ft.isNew && isPinned('file', ft.path)
     })),
     ...browserTabs.map(bt => ({
       id: stringifyBrowserId(bt.id),
@@ -96,8 +134,17 @@ export function WorkingPane({
       // Browser's own active flag survives at the main-process level, but
       // when a file tab is active in the strip, no browser tab should show
       // as active.
-      isActive: activeWorking.kind === 'browser' && bt.isActive
+      isActive: activeWorking.kind === 'browser' && bt.isActive,
+      pinned: !!bt.url && bt.url !== 'about:blank' && isPinned('browser', bt.url)
     }))
+  ]
+
+  // Stage 24 — pinned tabs sort to leftmost. Stable order within each
+  // group preserves insertion order (file tabs first by file insertion,
+  // then browser tabs in id order — matches the existing layout).
+  const mergedTabs: WorkingTab[] = [
+    ...unsortedTabs.filter(t => t.pinned),
+    ...unsortedTabs.filter(t => !t.pinned)
   ]
 
   const handleSelect = (id: string) => {
@@ -200,6 +247,7 @@ export function WorkingPane({
         onSelect={handleSelect}
         onNew={handleNew}
         onClose={handleClose}
+        onTogglePin={handleTogglePin}
         focused={focused}
       />
       {activeRenderer}

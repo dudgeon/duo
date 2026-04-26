@@ -5,7 +5,10 @@
 // browser page, a markdown preview, and an image preview can sit side by
 // side without visual ambiguity (Stage 10 § D26).
 
+import { useState } from 'react'
 import type { WorkingTab, WorkingTabType } from '@shared/types'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { PinnedCloseConfirm } from './PinnedCloseConfirm'
 
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
@@ -15,6 +18,9 @@ interface WorkingTabStripProps {
    *  pre-Stage-17 muscle memory). 17a polish item 2. */
   onNew: (e: React.MouseEvent) => void
   onClose: (id: string) => void
+  /** Stage 24 — toggle the pinned state for a tab. Called from the
+   *  right-click context menu. */
+  onTogglePin?: (id: string) => void
   /** BUG-003 fix — tint the strip when the working pane has keyboard
    *  focus. The strip is renderer DOM, unaffected by WebContentsView
    *  occlusion (which kills any inset shadow on the column wrapper). */
@@ -25,7 +31,25 @@ interface WorkingTabStripProps {
 // TabBar (terminal). Differentiator: strip bg = paper-deep here vs
 // paper-edge for the terminal strip. Mock reference:
 // docs/design/atelier/project/duo-components.jsx ~L286.
-export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, focused = false }: WorkingTabStripProps) {
+export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, onTogglePin, focused = false }: WorkingTabStripProps) {
+  // Stage 24 — context menu state (which tab + position) and pinned-tab
+  // close-confirm modal state.
+  const [ctxMenu, setCtxMenu] = useState<{ tabId: string; pinned: boolean; x: number; y: number } | null>(null)
+  const [confirmClose, setConfirmClose] = useState<{ tabId: string; label: string } | null>(null)
+
+  const handleContextMenu = (e: React.MouseEvent, tab: WorkingTab) => {
+    e.preventDefault()
+    setCtxMenu({ tabId: tab.id, pinned: !!tab.pinned, x: e.clientX, y: e.clientY })
+  }
+
+  const handleClose = (tab: WorkingTab) => {
+    if (tab.pinned) {
+      setConfirmClose({ tabId: tab.id, label: tabLabel(tab) })
+      return
+    }
+    onClose(tab.id)
+  }
+
   return (
     <div
       className={[
@@ -40,8 +64,9 @@ export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, focused = fals
           onSelect={() => onSelect(tab.id)}
           onClose={(e) => {
             e.stopPropagation()
-            onClose(tab.id)
+            handleClose(tab)
           }}
+          onContextMenu={(e) => handleContextMenu(e, tab)}
           canClose={tabs.length > 1}
         />
       ))}
@@ -55,6 +80,33 @@ export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, focused = fals
           <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
       </button>
+
+      {ctxMenu && onTogglePin && (
+        <ContextMenu
+          position={{ x: ctxMenu.x, y: ctxMenu.y }}
+          items={[
+            {
+              label: ctxMenu.pinned ? 'Unpin tab' : 'Pin tab',
+              onClick: () => {
+                onTogglePin(ctxMenu.tabId)
+                setCtxMenu(null)
+              }
+            }
+          ] as ContextMenuItem[]}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+
+      {confirmClose && (
+        <PinnedCloseConfirm
+          label={confirmClose.label}
+          onConfirm={() => {
+            onClose(confirmClose.tabId)
+            setConfirmClose(null)
+          }}
+          onCancel={() => setConfirmClose(null)}
+        />
+      )}
     </div>
   )
 }
@@ -63,15 +115,17 @@ interface ItemProps {
   tab: WorkingTab
   onSelect: () => void
   onClose: (e: React.MouseEvent) => void
+  onContextMenu: (e: React.MouseEvent) => void
   canClose: boolean
 }
 
-function WorkingTabItem({ tab, onSelect, onClose, canClose }: ItemProps) {
+function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose }: ItemProps) {
   const label = tabLabel(tab)
   const tooltip = tab.path ?? tab.url ?? label
   return (
     <button
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       className={[
         'group relative flex items-center gap-1.5 px-2.5 h-7 max-w-[200px] rounded-t-lg shrink-0 transition-colors',
         tab.isActive
@@ -86,7 +140,7 @@ function WorkingTabItem({ tab, onSelect, onClose, canClose }: ItemProps) {
           className="absolute left-0 right-0 top-0 h-0.5 bg-accent rounded-t-lg"
         />
       )}
-      <TypeIcon type={tab.type} active={tab.isActive} />
+      {tab.pinned ? <PinIcon active={tab.isActive} /> : <TypeIcon type={tab.type} active={tab.isActive} />}
       <span className="truncate leading-none not-italic">{label}</span>
       {tab.dirty && (
         <span
@@ -121,6 +175,19 @@ function WorkingTabItem({ tab, onSelect, onClose, canClose }: ItemProps) {
 function tabLabel(tab: WorkingTab): string {
   if (tab.type === 'browser') return tab.title || tab.url || 'New tab'
   return tab.title
+}
+
+// Stage 24 — pin glyph replaces TypeIcon when a tab is pinned. Same
+// 10x10 grid as TypeIcon so the tab chip layout is unchanged.
+function PinIcon({ active }: { active: boolean }) {
+  const cls = active ? 'text-accent shrink-0' : 'text-ink-mute shrink-0'
+  return (
+    <span className={cls} title="Pinned">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" aria-hidden="true">
+        <path d="M5 0.5l1.5 2v2.5l1.5 1.5v0.5h-2.5v3l-0.5 0.5l-0.5-0.5v-3h-2.5v-0.5l1.5-1.5v-2.5z" />
+      </svg>
+    </span>
+  )
 }
 
 function TypeIcon({ type, active }: { type: WorkingTabType; active: boolean }) {

@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
+import { PinnedCloseConfirm } from './components/PinnedCloseConfirm'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane } from './components/FilesPane'
@@ -12,7 +13,7 @@ import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import type { TabSession, DirEntry, TerminalTabKind, NewTabResult } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -177,6 +178,28 @@ export function App() {
   // the navigator can push into them from FilesPane.onOpenFile.
   const [fileTabs, setFileTabs] = useState<FileTab[]>([])
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
+
+  // Stage 24 — pinned WorkingPane tabs. Owned at App level so the ⌘W
+  // keyboard handler can gate close-of-pinned-tab behind a confirm
+  // modal. Persisted via the pins service in main; loaded once on
+  // mount, refreshed after each toggle.
+  const [pins, setPins] = useState<PinEntry[]>([])
+  useEffect(() => {
+    let cancelled = false
+    void window.electron.pins.list().then(list => {
+      if (!cancelled) setPins(list)
+    })
+    return () => { cancelled = true }
+  }, [])
+  const togglePin = useCallback(async (entry: PinEntry) => {
+    const next = await window.electron.pins.toggle(entry)
+    setPins(next)
+  }, [])
+  // App-level pinned-close confirmation (used by the ⌘W keyboard path
+  // when the active working tab is pinned). Strip-side close-button
+  // path uses its own local state in WorkingTabStrip — both render
+  // the same modal component.
+  const [pendingClosePinned, setPendingClosePinned] = useState<{ kind: 'file'; id: string; label: string } | { kind: 'browser'; id: number; label: string } | null>(null)
 
   // Stage 10 Phase 6 § D16 — dismissible chip when the agent drives the
   // navigator via `duo reveal`. Cleared after ~4s or by user dismiss.
@@ -714,13 +737,24 @@ export function App() {
     closeTab: () => {
       if (focusedColumn === 'working') {
         // § D29 — close whichever working-pane tab is currently active.
+        // Stage 24 — gate pinned tabs behind a confirm modal.
         if (activeWorking.kind === 'file') {
+          const ft = fileTabs.find(f => f.id === activeWorking.id)
+          if (ft && pins.some(p => p.kind === 'file' && p.ref === ft.path)) {
+            setPendingClosePinned({ kind: 'file', id: ft.id, label: ft.title })
+            return
+          }
           closeFileTab(activeWorking.id)
         } else {
           void (async () => {
             const btabs = await window.electron.browser.getTabs()
             const active = btabs.find(t => t.isActive)
-            if (active) await window.electron.browser.closeTab(active.id)
+            if (!active) return
+            if (active.url && pins.some(p => p.kind === 'browser' && p.ref === active.url)) {
+              setPendingClosePinned({ kind: 'browser', id: active.id, label: active.title || active.url })
+              return
+            }
+            await window.electron.browser.closeTab(active.id)
           })()
         }
       } else {
@@ -894,10 +928,27 @@ export function App() {
                     }
                   : null
               }
+              pins={pins}
+              onTogglePin={togglePin}
             />
           </div>
         </div>
       </div>
+      {pendingClosePinned && (
+        <PinnedCloseConfirm
+          label={pendingClosePinned.label}
+          onConfirm={() => {
+            const target = pendingClosePinned
+            setPendingClosePinned(null)
+            if (target.kind === 'file') {
+              closeFileTab(target.id)
+            } else {
+              void window.electron.browser.closeTab(target.id)
+            }
+          }}
+          onCancel={() => setPendingClosePinned(null)}
+        />
+      )}
     </div>
   )
 }

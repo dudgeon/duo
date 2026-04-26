@@ -184,6 +184,23 @@ export interface WorkingTab {
   path?: string          // non-browser file tabs
   mime?: string          // non-browser file tabs
   dirty?: boolean        // 'editor' — unsaved changes in buffer
+  // Stage 24 — pinned tabs render with a pin icon, sort to leftmost,
+  // and gate ⌘W behind a confirm modal. Pin identity is stable across
+  // sessions (browser tabs by URL, file tabs by absolute path); the
+  // pinned flag is computed by WorkingPane against the persisted
+  // pins.json each render.
+  pinned?: boolean
+}
+
+// Stage 24 — persisted pin entry. Browser tabs identify by URL; file
+// tabs by absolute path. Title is captured for the distro pre-pin
+// case (Stage 18b's PACK.json § pins) so a freshly-installed Duo can
+// show the right label even before the file is opened.
+export interface PinEntry {
+  kind: 'browser' | 'file'
+  /** URL for `kind: 'browser'`, absolute path for `kind: 'file'`. */
+  ref: string
+  title?: string
 }
 
 export interface BrowserState {
@@ -552,6 +569,10 @@ export const IPC = {
   FILES_OPEN_EXTERNAL: 'files:open-external',
   FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
   FILES_GET_HTML_META: 'files:get-html-meta',  // pre-flight for <meta duo-open-in> routing
+
+  // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
+  PINS_LIST: 'pins:list',
+  PINS_TOGGLE: 'pins:toggle',
   FILES_WATCH_START: 'files:watch-start',
   FILES_WATCH_UPDATE: 'files:watch-update',
   FILES_WATCH_STOP: 'files:watch-stop',
@@ -831,6 +852,15 @@ export interface NewTabResult {
   error?: string
 }
 
+export interface ElectronPinsAPI {
+  /** Read the current pin list from ~/.claude/duo/pins.json. Returns
+   *  an empty list if the file doesn't exist (first launch). */
+  list: () => Promise<PinEntry[]>
+  /** Toggle a pin: add the entry if not present (matched by kind+ref),
+   *  remove it if present. Returns the resulting full list. */
+  toggle: (entry: PinEntry) => Promise<PinEntry[]>
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
@@ -844,6 +874,7 @@ export interface ElectronAPI {
   selectionFormat: ElectronSelectionFormatAPI
   terminal: ElectronTerminalAPI
   keyboard: ElectronKeyboardAPI
+  pins: ElectronPinsAPI
 }
 
 declare global {

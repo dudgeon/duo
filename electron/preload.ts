@@ -24,7 +24,8 @@ import type {
   SelectionFormat,
   SelectionFormatStateSnapshot,
   NewTabRequest,
-  NewTabResult
+  NewTabResult,
+  PinEntry
 } from '../shared/types'
 
 const api: ElectronAPI = {
@@ -296,6 +297,11 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.PANE_TOGGLE_FOCUS, handler)
       return () => ipcRenderer.removeListener(IPC.PANE_TOGGLE_FOCUS, handler)
     }
+  },
+
+  pins: {
+    list: () => ipcRenderer.invoke(IPC.PINS_LIST) as Promise<PinEntry[]>,
+    toggle: (entry) => ipcRenderer.invoke(IPC.PINS_TOGGLE, entry) as Promise<PinEntry[]>
   }
 }
 

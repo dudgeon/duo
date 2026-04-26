@@ -7,6 +7,7 @@ import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
 import { FilesService } from './files-service'
+import { PinsService } from './pins-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -95,6 +96,7 @@ nativeTheme.themeSource = 'light'
 let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
 const filesService = new FilesService()
+const pinsService = new PinsService()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 
@@ -305,6 +307,14 @@ function setupIPC(): void {
 
   ipcMain.handle(IPC.FILES_GET_HTML_META, (_event, { path: p }: { path: string }) => {
     return filesService.getHtmlMeta(p)
+  })
+
+  // Stage 24 — pinned WorkingPane tabs.
+  ipcMain.handle(IPC.PINS_LIST, () => {
+    return pinsService.list()
+  })
+  ipcMain.handle(IPC.PINS_TOGGLE, (_event, entry: import('../shared/types').PinEntry) => {
+    return pinsService.toggle(entry)
   })
 
   ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths }: { id: string; paths: string[] }) => {
