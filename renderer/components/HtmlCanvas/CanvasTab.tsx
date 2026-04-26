@@ -32,6 +32,7 @@ import {
   withRecentEdit,
   type SidecarV1
 } from './sidecar'
+import { executeHtmlOp } from './htmlOps'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
 
 interface Props {
@@ -290,6 +291,49 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
       default: return false
     }
   }, [save, editorActions])
+
+  // 17b Phase C — subscribe to `duo html *` ops dispatched from main.
+  // Active canvas tab is the only subscriber; an op dispatched while no
+  // canvas is open ends up timing out in main (no subscriber → no reply).
+  // If the request carries a `path` and it doesn't match this tab, we
+  // surface a clear error so the agent can address the right tab.
+  // recentEdits get an entry on every WRITE op (set/replace/append/
+  // remove/attr) so the sidecar log captures agent activity.
+  useEffect(() => {
+    if (initialHtml === null) return
+    return window.electron.canvas?.onHtmlOp((req) => {
+      if (req.path && req.path !== path) {
+        window.electron.canvas.replyHtmlOp({
+          reqId: req.reqId,
+          ok: false,
+          error: `Active canvas is at ${path}, not ${req.path}`
+        })
+        return
+      }
+      const doc = getDoc()
+      if (!doc) {
+        window.electron.canvas.replyHtmlOp({
+          reqId: req.reqId,
+          ok: false,
+          error: 'Canvas iframe not ready'
+        })
+        return
+      }
+      const result = executeHtmlOp(doc, req)
+      // Append a recentEdits entry for write ops on success.
+      if (result.ok && req.op !== 'query' && req.op !== 'get') {
+        const anchorId = (result.result as { id?: string | null } | undefined)?.id ?? undefined
+        sidecarRef.current = withRecentEdit(sidecarRef.current, {
+          ts: new Date().toISOString(),
+          author: 'claude',
+          anchorId: anchorId ?? undefined,
+          kind: req.op
+        })
+        sidecarDirtyRef.current = true
+      }
+      window.electron.canvas.replyHtmlOp(result)
+    })
+  }, [initialHtml, path, getDoc])
 
   // Bridge: ⌘S pressed in the renderer (e.g. user clicked the toolbar
   // first, focus is in the toolbar's iframe boundary, so the iframe-side

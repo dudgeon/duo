@@ -12,6 +12,8 @@ import type {
   DocWriteResult,
   DocReadRequest,
   DocReadResult,
+  HtmlOpRequest,
+  HtmlOpResult,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -181,6 +183,18 @@ const api: ElectronAPI = {
 
     replyDocRead: (result: DocReadResult) => {
       ipcRenderer.send(IPC.EDITOR_DOC_READ_RESULT, result)
+    }
+  },
+
+  canvas: {
+    onHtmlOp: (cb) => {
+      const handler = (_: IpcRendererEvent, req: HtmlOpRequest) => cb(req)
+      ipcRenderer.on(IPC.CANVAS_HTML_OP, handler)
+      return () => ipcRenderer.removeListener(IPC.CANVAS_HTML_OP, handler)
+    },
+
+    replyHtmlOp: (result: HtmlOpResult) => {
+      ipcRenderer.send(IPC.CANVAS_HTML_OP_RESULT, result)
     }
   },
 

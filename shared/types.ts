@@ -74,6 +74,13 @@ export type DuoCommandName =
   // .html file from boilerplate (PRD H17, minimal v1) and opens it in
   // the canvas tab. Other `duo html *` verbs land in 17b/17c.
   | 'html-new'
+  // Stage 17b Phase C — agent read/write verbs against the active
+  // canvas: `duo html query/get/set/replace/append/remove/attr`. All
+  // routed through a single `html-op` socket command with a
+  // discriminated request shape (HtmlOpRequest below). Renderer
+  // dispatches via htmlOps.ts and replies; main.ts manages the
+  // request/reply pairing the same way as `EDITOR_DOC_WRITE`.
+  | 'html-op'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -252,6 +259,45 @@ export interface DocWriteResult {
   reqId: string
   ok: boolean
   error?: string
+}
+
+// ── Stage 17b Phase C — `duo html *` op surface ────────────────────────────
+// Single discriminated request shape so the IPC channel + main-process
+// pairing logic stays simple. Renderer's CanvasTab dispatches each op
+// to `htmlOps.ts § executeHtmlOp(doc, req)` and replies via
+// `replyHtmlOp(result)`. PRD H37, H38.
+
+export type HtmlOpRequest =
+  | { reqId: string; op: 'query'; selector: string; path?: string }
+  | { reqId: string; op: 'get'; id?: string; selector?: string; path?: string }
+  | { reqId: string; op: 'set'; id?: string; selector?: string; html: string; path?: string }
+  | { reqId: string; op: 'replace'; id?: string; selector?: string; html: string; path?: string }
+  | { reqId: string; op: 'append'; parentId?: string; parentSelector?: string; html: string; path?: string }
+  | { reqId: string; op: 'remove'; id?: string; selector?: string; path?: string }
+  | { reqId: string; op: 'attr'; id?: string; selector?: string; set?: Record<string, string>; remove?: string[]; path?: string }
+
+export interface HtmlOpResult {
+  reqId: string
+  ok: boolean
+  result?: unknown            // op-specific shape
+  error?: string
+}
+
+/** `duo html query` returns this shape per match. `text` is truncated
+ *  to keep the JSON manageable; for full content use `duo html get`. */
+export interface HtmlQueryMatch {
+  id: string | null            // null when the element has no data-duo-id
+  tag: string                  // lowercased tag name
+  text: string                 // up to ~200 chars of textContent
+  classes: string[]
+}
+
+/** `duo html get` returns this shape. */
+export interface HtmlGetResult {
+  id: string | null
+  tag: string
+  html: string                 // outerHTML
+  text: string                 // full textContent
 }
 
 // `duo doc read` — request/reply pair. Renderer returns the live editor
@@ -440,6 +486,10 @@ export const IPC = {
   EDITOR_DOC_READ: 'editor:doc-read',             // main → renderer (request live buffer)
   EDITOR_DOC_READ_RESULT: 'editor:doc-read-result',   // renderer → main (reply)
 
+  // Stage 17b Phase C — agent ops against the active HTML canvas.
+  CANVAS_HTML_OP: 'canvas:html-op',               // main → renderer (apply / read)
+  CANVAS_HTML_OP_RESULT: 'canvas:html-op-result', // renderer → main (reply)
+
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
@@ -558,6 +608,14 @@ export interface ElectronEditorAPI {
   replyDocRead: (result: DocReadResult) => void
 }
 
+/** Stage 17b Phase C — agent ops against the active HTML canvas.
+ *  Only the active canvas tab subscribes; if no canvas is open the
+ *  CLI request times out (handled in main.ts via the request map). */
+export interface ElectronCanvasAPI {
+  onHtmlOp: (cb: (req: HtmlOpRequest) => void) => () => void
+  replyHtmlOp: (result: HtmlOpResult) => void
+}
+
 export interface ElectronKeyboardAPI {
   /** Fires when the browser WebContentsView intercepts a Duo shortcut
    *  and forwards it back to the renderer for handling. */
@@ -612,6 +670,7 @@ export interface ElectronAPI {
   files: ElectronFilesAPI
   nav: ElectronNavAPI
   editor: ElectronEditorAPI
+  canvas: ElectronCanvasAPI
   cozy: ElectronCozyAPI
   theme: ElectronThemeAPI
   selectionFormat: ElectronSelectionFormatAPI

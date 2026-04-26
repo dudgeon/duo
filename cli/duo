@@ -363,8 +363,80 @@ async function main() {
           const title = titleIdx !== -1 ? subRest.slice(titleIdx + 1).join(" ") : void 0;
           const resolved = resolveFilePath(target);
           out(await send("html-new", title ? { path: resolved, title } : { path: resolved }));
+          break;
+        }
+        const flagValue = (name) => {
+          const i = subRest.indexOf(name);
+          return i !== -1 ? subRest[i + 1] : void 0;
+        };
+        const collectAttrs = () => {
+          const set = {};
+          const remove = [];
+          for (let i = 0; i < subRest.length; i++) {
+            if (subRest[i] === "--set") {
+              const kv = subRest[i + 1] ?? "";
+              const eq = kv.indexOf("=");
+              if (eq === -1) die(`duo html attr: --set expects key=value (got "${kv}")`);
+              set[kv.slice(0, eq)] = kv.slice(eq + 1);
+              i++;
+            } else if (subRest[i] === "--remove") {
+              if (!subRest[i + 1]) die("duo html attr: --remove expects an attribute name");
+              remove.push(subRest[i + 1]);
+              i++;
+            }
+          }
+          const out2 = {};
+          if (Object.keys(set).length > 0) out2.set = set;
+          if (remove.length > 0) out2.remove = remove;
+          return out2;
+        };
+        if (sub === "query") {
+          const selector = subRest[0];
+          if (!selector) die("Usage: duo html query <css-selector>");
+          out(await send("html-op", { op: "query", selector }));
+        } else if (sub === "get") {
+          const id = flagValue("--id");
+          const selector = flagValue("--selector");
+          if (!id && !selector) die("Usage: duo html get --id <duo-id> | --selector <css>");
+          out(await send("html-op", { op: "get", id, selector }));
+        } else if (sub === "set") {
+          const id = flagValue("--id");
+          const selector = flagValue("--selector");
+          if (!id && !selector) die('Usage: duo html set --id <duo-id> --content "\u2026"');
+          let html = flagValue("--content") ?? flagValue("--html");
+          if (html === void 0) html = await readStdin();
+          if (html === "") die('duo html set: content required (use --content "\u2026" or pipe via stdin)');
+          out(await send("html-op", { op: "set", id, selector, html }));
+        } else if (sub === "replace") {
+          const id = flagValue("--id");
+          const selector = flagValue("--selector");
+          if (!id && !selector) die('Usage: duo html replace --id <duo-id> --html "\u2026"');
+          let html = flagValue("--html");
+          if (html === void 0) html = await readStdin();
+          if (html === "") die('duo html replace: html required (use --html "\u2026" or pipe via stdin)');
+          out(await send("html-op", { op: "replace", id, selector, html }));
+        } else if (sub === "append") {
+          const parentId = flagValue("--parent") ?? flagValue("--parent-id");
+          const parentSelector = flagValue("--parent-selector");
+          if (!parentId && !parentSelector) die('Usage: duo html append --parent <duo-id> --html "\u2026"');
+          let html = flagValue("--html");
+          if (html === void 0) html = await readStdin();
+          if (html === "") die('duo html append: html required (use --html "\u2026" or pipe via stdin)');
+          out(await send("html-op", { op: "append", parentId, parentSelector, html }));
+        } else if (sub === "remove") {
+          const id = flagValue("--id");
+          const selector = flagValue("--selector");
+          if (!id && !selector) die("Usage: duo html remove --id <duo-id> | --selector <css>");
+          out(await send("html-op", { op: "remove", id, selector }));
+        } else if (sub === "attr") {
+          const id = flagValue("--id");
+          const selector = flagValue("--selector");
+          if (!id && !selector) die("Usage: duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]");
+          const ops = collectAttrs();
+          if (!ops.set && !ops.remove) die("duo html attr: at least one --set k=v or --remove k required");
+          out(await send("html-op", { op: "attr", id, selector, ...ops }));
         } else {
-          die('Usage: duo html new <path.html> [--title "\u2026"]');
+          die("Usage: duo html <new|query|get|set|replace|append|remove|attr> [...]");
         }
         break;
       }
@@ -541,12 +613,29 @@ COMMANDS
   html new <path.html> [--title "\u2026"]
                                   Stage 17a \u2014 create a new .html file
                                   from boilerplate and open it in the
-                                  HTML canvas. Other \`duo html *\` verbs
-                                  (query / get / set / replace / append
-                                  / remove / attr / comment) ship in
-                                  17b/c/e. \`duo edit foo.html\` /
+                                  HTML canvas. \`duo edit foo.html\` /
                                   \`duo view foo.html\` already route to
                                   the canvas via the file classifier.
+
+  Stage 17b agent ops against the active canvas. Targeting: --id <duo-id>
+  (preferred) or --selector <css>. Write ops accept --html "\u2026" / --content
+  "\u2026" or read from stdin (heredoc-friendly).
+
+  html query <css-selector>       List elements matching selector. Returns
+                                  JSON array of {id, tag, text, classes}.
+  html get --id <duo-id>          Read outerHTML + textContent of a single
+       --selector <css>           element. Returns {id, tag, html, text}.
+  html set --id <duo-id> --content "..."
+                                  Replace innerHTML of the matched element.
+  html replace --id <duo-id> --html "..."
+                                  Replace outerHTML of the matched element.
+  html append --parent <duo-id> --html "..."
+       --parent-selector <css>    Append a child to the matched parent.
+  html remove --id <duo-id>       Delete the matched element.
+       --selector <css>
+  html attr --id <duo-id> [--set k=v ...] [--remove k ...]
+                                  Modify attributes (--set / --remove
+                                  can repeat).
 
   install                         Symlink duo to /usr/local/bin/duo
 

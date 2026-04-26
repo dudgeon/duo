@@ -18,6 +18,8 @@ import type {
   DocWriteResult,
   DocReadRequest,
   DocReadResult,
+  HtmlOpRequest,
+  HtmlOpResult,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -43,6 +45,9 @@ const docWritePending = new Map<string, (res: DocWriteResult) => void>()
 
 // Pending doc-read requests awaiting a renderer reply.
 const docReadPending = new Map<string, (res: DocReadResult) => void>()
+
+// Stage 17b Phase C — pending `duo html *` ops awaiting a renderer reply.
+const htmlOpPending = new Map<string, (res: HtmlOpResult) => void>()
 
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
@@ -123,7 +128,8 @@ function createWindow(): void {
     getSelectionFormat: getSelectionFormatState,
     setSelectionFormat: setSelectionFormat,
     sendToActiveTerminal: sendToActiveTerminal,
-    htmlNew: htmlNew
+    htmlNew: htmlNew,
+    htmlOp: dispatchHtmlOp
   })
   socketServer.start()
 
@@ -310,6 +316,15 @@ function setupIPC(): void {
     const resolver = docReadPending.get(result.reqId)
     if (resolver) {
       docReadPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // Stage 17b Phase C — renderer's reply to a `duo html *` op.
+  ipcMain.on(IPC.CANVAS_HTML_OP_RESULT, (_event, result: HtmlOpResult) => {
+    const resolver = htmlOpPending.get(result.reqId)
+    if (resolver) {
+      htmlOpPending.delete(result.reqId)
       resolver(result)
     }
   })
@@ -555,6 +570,31 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
       resolve(res)
     })
     mainWindow!.webContents.send(IPC.EDITOR_DOC_READ, { ...req, reqId })
+  })
+}
+
+// Stage 17b Phase C — dispatch a `duo html *` op to the active canvas
+// tab and await its reply. 30s timeout: ample for any single DOM op
+// (queries are sub-ms; writes are milliseconds at worst). If no canvas
+// is active, the renderer's CanvasTab subscription doesn't fire and
+// the timeout returns the error.
+const HTML_OP_TIMEOUT_MS = 30_000
+
+export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlOpResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `ho_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<HtmlOpResult>((resolve) => {
+    const timer = setTimeout(() => {
+      htmlOpPending.delete(reqId)
+      resolve({ reqId, ok: false, error: `Renderer did not reply within ${HTML_OP_TIMEOUT_MS / 1000}s (no active canvas?)` })
+    }, HTML_OP_TIMEOUT_MS)
+    htmlOpPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.CANVAS_HTML_OP, { ...req, reqId })
   })
 }
 

@@ -123,7 +123,14 @@ declare friction sites once and stop fighting them.
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
 | `duo view <path>` | Open a local file as a new tab in the Viewer/Editor (`.md` → rich markdown editor, `.html` → HTML canvas, image → inline, pdf → native viewer, else → "Open with default app" card). Distinct from `duo open` (browser/URL). | JSON: `{ok}` |
 | `duo edit <path>` | Open a `.md` in the rich markdown editor (Google-Docs-feel, TipTap/ProseMirror) or a `.html` in the **HTML canvas** (Stage 17a — rendered + editable iframe). Returns `{ok}`. Behaves like `view` for other types. | JSON: `{ok}` |
-| `duo html new <path.html> [--title "…"]` | **Stage 17a** — create a new `.html` from boilerplate and open it in the HTML canvas. Path must end in `.html`/`.htm`. Other `duo html *` verbs (query/get/set/replace/append/comment) ship in 17b/c — see `examples/html-canvas-authoring.md`. | JSON: `{ok, path}` |
+| `duo html new <path.html> [--title "…"]` | **Stage 17a** — create a new `.html` from boilerplate and open it in the HTML canvas. Path must end in `.html`/`.htm`. | JSON: `{ok, path}` |
+| `duo html query <css>` | **Stage 17b** — list elements matching the selector inside the active canvas. Returns `[{id, tag, text, classes}]` (text truncated to 200 chars; use `get` for full content). | JSON array |
+| `duo html get --id <duo-id>` (or `--selector <css>`) | Read `outerHTML` + `textContent` of one element. | JSON `{id, tag, html, text}` |
+| `duo html set --id <duo-id> --content "…"` | Replace `innerHTML`. Reads stdin if `--content` omitted. | JSON `{id}` |
+| `duo html replace --id <duo-id> --html "…"` | Replace `outerHTML`. | JSON `{id}` of the new element |
+| `duo html append --parent <duo-id> --html "…"` | Append a child to the matched parent. | JSON `{id}` of the new child |
+| `duo html remove --id <duo-id>` | Delete an element. | JSON `{id}` of the deleted element |
+| `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Modify attributes. `--set`/`--remove` repeat. | JSON `{id}` |
 | `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
 | `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
 | `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |

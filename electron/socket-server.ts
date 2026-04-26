@@ -26,6 +26,8 @@ import type {
   DocReadRequest,
   DocReadResult,
   DuoSelection,
+  HtmlOpRequest,
+  HtmlOpResult,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -67,6 +69,10 @@ export interface NavBridge {
    *  asks the renderer to open the canvas tab via NAV_EDIT (the
    *  classifier routes .html → html-canvas). */
   htmlNew: (path: string, title?: string) => Promise<{ ok: boolean; path?: string; error?: string }>
+  /** Stage 17b Phase C — dispatch a `duo html *` op to the active
+   *  canvas. Single discriminated request shape; renderer's CanvasTab
+   *  applies it via htmlOps.executeHtmlOp and replies. */
+  htmlOp: (req: Omit<HtmlOpRequest, 'reqId'>) => Promise<HtmlOpResult>
 }
 
 export class SocketServer {
@@ -364,6 +370,25 @@ export class SocketServer {
           }
           const title = args['title'] as string | undefined
           result = await this.nav.htmlNew(p, title)
+          break
+        }
+        case 'html-op': {
+          // Stage 17b Phase C — request shape comes through `args` as the
+          // discriminated HtmlOpRequest minus `reqId` (main mints that).
+          // We dispatch via NavBridge → main → renderer → CanvasTab.
+          const op = args['op'] as HtmlOpRequest['op'] | undefined
+          if (!op) throw new Error('html-op requires an `op` field')
+          const validOps: HtmlOpRequest['op'][] = [
+            'query', 'get', 'set', 'replace', 'append', 'remove', 'attr'
+          ]
+          if (!validOps.includes(op)) {
+            throw new Error(`html-op: unknown op "${op}"`)
+          }
+          // Pass-through: trust the CLI to have validated the op-specific
+          // fields. The renderer-side executor will surface field errors.
+          const reply = await this.nav.htmlOp(args as Omit<HtmlOpRequest, 'reqId'>)
+          if (!reply.ok) throw new Error(reply.error ?? 'html-op failed')
+          result = reply.result
           break
         }
         case 'reveal': {

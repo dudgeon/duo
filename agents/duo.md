@@ -135,6 +135,13 @@ empty.
 | `duo view <path>` | Open file in Viewer/Editor column (markdown / html-canvas / image / pdf) |
 | `duo edit <path>` | Open `.md` in rich editor; `.html` in HTML canvas (Stage 17a) |
 | `duo html new <path.html> [--title "…"]` | Stage 17a — create new HTML file from boilerplate + open in canvas |
+| `duo html query <css>` | Stage 17b — list elements in the active canvas (id, tag, text, classes) |
+| `duo html get --id <duo-id>` / `--selector <css>` | Stage 17b — read outerHTML + text of one element |
+| `duo html set --id <duo-id> --content "…"` | Stage 17b — replace innerHTML (or stdin) |
+| `duo html replace --id <duo-id> --html "…"` | Stage 17b — replace outerHTML (or stdin) |
+| `duo html append --parent <duo-id> --html "…"` | Stage 17b — append child to parent (or stdin) |
+| `duo html remove --id <duo-id>` / `--selector <css>` | Stage 17b — delete element |
+| `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Stage 17b — modify attributes |
 | `duo reveal <path>` | Move file navigator to path; flash chip |
 | `duo selection [--pane auto\|editor\|browser]` | Active surface's selection (use when goal references "this", "selected", "here") |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
