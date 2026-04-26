@@ -435,6 +435,30 @@ and Atelier's tab-strip work will absorb whatever lands.
   installs `claude` *after* Duo.** Mitigation: the shim logs a
   helpful message; `duo doctor` re-checks; `duo install` is idempotent
   and re-resolves on every run. Acceptable.
+- **Open — launch-state UX as defense-in-depth on top of the PATH shim.**
+  Filed 2026-04-26 by owner. Concern: a fresh terminal where the user
+  instinctively types `claude` (without flags) is a footgun if the
+  Phase 19b shim isn't on PATH for any reason — the user gets a
+  non-Duo-aware session and may not notice. The shim (D12, D13) is
+  designed to make that impossible (`~/Library/Application Support/duo/bin`
+  is prepended to every PTY's PATH), but PATH ordering is famously
+  fragile: a `.zshrc` that re-exports `PATH=/opt/homebrew/bin:$PATH`
+  after our prepend silently shadows us; an absolute-path invocation
+  (`/opt/homebrew/bin/claude`) bypasses the shim entirely; and Phase 19b
+  hasn't shipped yet, so the failure mode is live today. Two possible
+  defense-in-depth moves, neither blocking 19c:
+  1. **Launch-state interstitial.** First terminal tab on app launch
+     opens to a "Pick a folder for a new claude session | Launch claude
+     here {path}" picker instead of a bare shell. Makes the choice
+     explicit even if the shim fails or the user declines the hook.
+  2. **`duo doctor` shim-shadow check.** Have `duo doctor` (Stage 20)
+     verify that `which claude` resolves to the shim path inside a Duo
+     PTY, not the real binary. Fails loudly if the user's rc files have
+     undone our prepend.
+  **Recommend deferring the decision** until Phase 19b ships and we can
+  measure whether the shim-only approach holds up in real use. If it
+  does, this open question closes; if it doesn't, option 2 is the cheap
+  next move and option 1 is the bigger UX play. Tracking, not blocking.
 
 ---
 
