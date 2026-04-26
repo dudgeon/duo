@@ -17,6 +17,14 @@ import { RenderedCanvas, type RenderedCanvasHandle } from './RenderedCanvas'
 import { buildCanvasEditorActions } from './canvasEditorActions'
 import { installMarkdownShortcuts } from './markdownShortcuts'
 import { installPlaceholder } from './placeholder'
+import { IdInjectionBanner } from './IdInjectionBanner'
+import {
+  countDuoIds,
+  injectIds,
+  getChoiceForDir,
+  setChoiceForDir,
+  dirOf
+} from './idInjector'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
 
 interface Props {
@@ -47,11 +55,34 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
   const [selectionVersion, setSelectionVersion] = useState(0)
   const bumpVersion = useCallback(() => setSelectionVersion(v => v + 1), [])
 
+  // 17b Phase A — first-open ID-injection banner. `null` = no decision
+  // pending (banner hidden). `{ candidateCount }` = banner shown for
+  // the user to accept / decline. PRD H14.
+  const [injectionPrompt, setInjectionPrompt] = useState<{ candidateCount: number } | null>(null)
+
   const getDoc = useCallback(() => canvasRef.current?.getDocument() ?? null, [])
 
   // Build EditorActions once — it's a thin closure over `getDoc`, so it
   // never needs to rebuild. Toolbar reactivity is driven by selectionVersion.
   const editorActions = useMemo(() => buildCanvasEditorActions(getDoc), [getDoc])
+
+  // Banner handlers (17b Phase A). Injection on accept marks the
+  // buffer dirty so the IDs land on disk via the existing autosave
+  // pipeline. Either choice can be persisted for the directory via
+  // the banner's "don't ask again" checkbox.
+  const handleAcceptInjection = useCallback((rememberForDir: boolean) => {
+    const doc = getDoc()
+    if (!doc) { setInjectionPrompt(null); return }
+    injectIds(doc)
+    // DOM mutations from injection land on the iframe's MutationObserver
+    // → onChange → handleChange → dirty + autosave. No manual fire needed.
+    if (rememberForDir) setChoiceForDir(dirOf(path), 'always')
+    setInjectionPrompt(null)
+  }, [getDoc, path])
+  const handleDeclineInjection = useCallback((rememberForDir: boolean) => {
+    if (rememberForDir) setChoiceForDir(dirOf(path), 'never')
+    setInjectionPrompt(null)
+  }, [path])
 
   // Load the file on mount + path change. Same lifecycle as MarkdownEditor.
   useEffect(() => {
@@ -136,6 +167,7 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
   //   - selectionchange → bump toolbar reactivity
   //   - markdown shortcuts (item 1)
   //   - placeholder text (item 7)
+  //   - first-open ID-injection prompt / auto-inject (PRD H14, 17b A)
   // Re-run when initialHtml lands (signals the iframe is mounted with content).
   useEffect(() => {
     if (initialHtml === null) return
@@ -148,12 +180,49 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
     const cleanShortcuts = installMarkdownShortcuts(doc)
     const cleanPlaceholder = installPlaceholder(doc)
 
+    // ── ID injection (PRD H12–H14). If the file already has duo-ids,
+    // do nothing — they're stable across sessions. Otherwise consult
+    // the per-directory choice; auto-act on it, or surface the prompt.
+    const existingIds = countDuoIds(doc)
+    if (existingIds === 0) {
+      const dir = dirOf(path)
+      const choice = getChoiceForDir(dir)
+      if (choice === 'always') {
+        injectIds(doc)
+        // The DOM mutations land on the iframe's MutationObserver
+        // which fires onChange → handleChange → dirty + autosave.
+      } else if (choice === 'never') {
+        // Respect the user's earlier "no" — keep the file pristine.
+      } else {
+        // First time we've seen a file in this directory: count what we
+        // *would* inject, then surface the banner.
+        const probe = injectIds(doc)
+        // Undo the probe so the user sees a clean buffer until they
+        // accept. Easier than dry-running with a separate walker.
+        if (probe.injected > 0) {
+          doc.body.querySelectorAll('[data-duo-id]').forEach(el => {
+            // Only strip the ones we just injected. We can recognise
+            // them: a fresh injection on a previously-zero-ID document
+            // means EVERY data-duo-id was added by us.
+            el.removeAttribute('data-duo-id')
+          })
+        }
+        setInjectionPrompt({ candidateCount: probe.total })
+      }
+    }
+
     return () => {
       doc.removeEventListener('selectionchange', onSelChange)
       cleanShortcuts()
       cleanPlaceholder()
+      setInjectionPrompt(null)
     }
-  }, [initialHtml, getDoc, bumpVersion])
+    // handleChange is stable per render; including it would re-run this
+    // effect on every change-fire. The effect intentionally only re-runs
+    // on path / iframe-load changes (initialHtml) — same lifecycle as
+    // the original wiring above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialHtml, path, getDoc, bumpVersion])
 
   // Keyboard shortcut handler — fires from inside the iframe.
   // PRD H28 + polish item 3: marks (B/I/U/code) + link picker (⌘K) all
@@ -213,6 +282,14 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
         dirty={dirty}
         saving={saving}
       />
+      {injectionPrompt && (
+        <IdInjectionBanner
+          dir={dirOf(path)}
+          candidateCount={injectionPrompt.candidateCount}
+          onAccept={handleAcceptInjection}
+          onDecline={handleDeclineInjection}
+        />
+      )}
       {error && (
         <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
           {error}
