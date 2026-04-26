@@ -207,16 +207,22 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
     }
   }, [])
 
-  // Wire iframe-side hooks once the canvas has a live document:
-  //   - selectionchange → bump toolbar reactivity
+  // Wire iframe-side hooks via RenderedCanvas's `onReady` callback —
+  // fires AFTER the iframe has finished parsing srcdoc and the body is
+  // populated. Wiring at the previous earlier moment (an effect keyed
+  // on `initialHtml`) was racy: the parser would wipe our placeholder
+  // + listeners when it replaced body with the parsed content.
+  //
+  //   - selectionchange   → bump toolbar reactivity
   //   - markdown shortcuts (item 1)
-  //   - placeholder text (item 7)
+  //   - placeholder overlay (item 7 / 17a.5 D)
   //   - first-open ID-injection prompt / auto-inject (PRD H14, 17b A)
-  // Re-run when initialHtml lands (signals the iframe is mounted with content).
-  useEffect(() => {
-    if (initialHtml === null) return
-    const doc = getDoc()
-    if (!doc) return
+  //   - re-baseline lastSavedRef against pretty-printed live DOM (17b D)
+  const wireCleanupRef = useRef<(() => void) | null>(null)
+  const handleReady = useCallback((doc: Document) => {
+    // Defensive — if a previous wiring is still in place (path change
+    // mid-flight), tear it down before rebuilding.
+    wireCleanupRef.current?.()
 
     const onSelChange = () => bumpVersion()
     doc.addEventListener('selectionchange', onSelChange)
@@ -265,18 +271,22 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
       }
     }
 
-    return () => {
+    wireCleanupRef.current = () => {
       doc.removeEventListener('selectionchange', onSelChange)
       cleanShortcuts()
       cleanPlaceholder()
       setInjectionPrompt(null)
     }
-    // handleChange is stable per render; including it would re-run this
-    // effect on every change-fire. The effect intentionally only re-runs
-    // on path / iframe-load changes (initialHtml) — same lifecycle as
-    // the original wiring above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialHtml, path, getDoc, bumpVersion])
+  }, [path, bumpVersion])
+
+  // Tear down iframe-side wiring on unmount (CanvasTab is unmounted via
+  // the React `key={tab.id}` on path change in WorkingPane).
+  useEffect(() => {
+    return () => {
+      wireCleanupRef.current?.()
+      wireCleanupRef.current = null
+    }
+  }, [])
 
   // Keyboard shortcut handler — fires from inside the iframe.
   // PRD H28 + polish item 3: marks (B/I/U/code) + link picker (⌘K) all
@@ -399,6 +409,7 @@ export function CanvasTab({ path, onDirtyChange }: Props) {
             initialHtml={initialHtml}
             onChange={handleChange}
             onShortcut={handleShortcut}
+            onReady={handleReady}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">

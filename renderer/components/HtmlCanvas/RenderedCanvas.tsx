@@ -32,6 +32,13 @@ interface Props {
    *  apply marks / save / etc. The handler returns true if it consumed
    *  the event (preventDefault is applied inside the iframe). */
   onShortcut: (e: KeyboardEvent) => boolean
+  /** Fires once the iframe has finished parsing srcdoc and the body is
+   *  fully populated. CanvasTab uses this to wire iframe-side hooks
+   *  (selectionchange listener, markdown shortcuts, placeholder
+   *  overlay, ID-injection probe) after the body content is real —
+   *  setting up against an empty / pre-parse body causes the parser
+   *  to wipe whatever we mounted. */
+  onReady?: (doc: Document) => void
 }
 
 export interface RenderedCanvasHandle {
@@ -44,7 +51,7 @@ export interface RenderedCanvasHandle {
 }
 
 export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
-  function RenderedCanvas({ initialHtml, onChange, onShortcut }, ref) {
+  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null)
 
     const getDocument = useCallback((): Document | null => {
@@ -70,13 +77,15 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
       const iframe = iframeRef.current
       if (!iframe) return
       let cancelled = false
+      let wired = false
       let observer: MutationObserver | null = null
       let keyHandler: ((e: KeyboardEvent) => void) | null = null
 
       const wire = () => {
-        if (cancelled) return
+        if (cancelled || wired) return
         const doc = iframe.contentDocument
         if (!doc || !doc.body) return
+        wired = true
 
         // contentEditable on body. PRD H1 — the canvas IS the page.
         // We mark these as runtime-only via a sentinel attribute so the
@@ -118,6 +127,13 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           }
         }
         doc.addEventListener('keydown', keyHandler, true)
+
+        // Fire onReady AFTER the body is populated and our editing
+        // chrome is in place. CanvasTab mounts iframe-side hooks
+        // (selectionchange, markdown shortcuts, placeholder overlay,
+        // ID-injection probe) here — earlier mounting risks the
+        // srcdoc parser wiping our injections.
+        try { onReady?.(doc) } catch (e) { console.error('[RenderedCanvas] onReady threw:', e) }
       }
 
       // srcdoc + load timing: try immediately (handles HMR re-mounts
@@ -135,7 +151,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         if (doc && keyHandler) doc.removeEventListener('keydown', keyHandler, true)
         iframe.removeEventListener('load', wire)
       }
-    }, [onChange, onShortcut])
+    }, [onChange, onShortcut, onReady])
 
     return (
       <iframe
