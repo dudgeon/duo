@@ -126,7 +126,7 @@ declare friction sites once and stop fighting them.
 | `duo reveal <path>` | Move the file navigator to `<path>`. A dismissible chip ("Claude moved to …") tells the user why their tree jumped. | JSON: `{ok}` |
 | `duo ls [path]` | List a directory's contents. Defaults to the navigator's current folder. | JSON array of `{name, path, kind, size?, mtimeMs?}` |
 | `duo nav state` | Current navigator snapshot: `{cwd, selected, expanded, pinned}`. | JSON |
-| `duo selection [--pane auto\|editor\|browser]` | Active surface's selection. **Use when the user says "this", "the selected paragraph", "this section", "here".** Default `auto`: prefers a non-empty browser highlight; falls back to the editor's cached selection (still useful when collapsed — caret context). Returns `{kind: 'editor', path, text, paragraph, heading_trail, start, end}` or `{kind: 'browser', url, text, surrounding, selector_path}`, or `null`. Browser selection is also tracked **live** by a CDP-backed page-side observer (Stage 15.2) so the floating Send → Duo pill can anchor to the highlight in real time; `duo selection --pane browser` returns the most recent state on demand. | JSON |
+| `duo selection [--pane auto\|editor\|browser]` | Active surface's selection. **Use when the user says "this", "the selected paragraph", "this section", "here".** Default `auto`: prefers a non-empty browser highlight; falls back to the editor's cached selection (still useful when collapsed — caret context). Returns `{kind: 'editor', path, text, paragraph, heading_trail, start, end}` or `{kind: 'browser', url, text, surrounding, selector_path}`, or `null`. | JSON |
 | `duo doc read [path]` | Print the active editor's **live buffer** (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. The body goes to stdout; the path + dirty flag go to stderr (so you can pipe the body straight into a file). | text |
 | `duo doc write --replace-selection` | Swap the user's current editor selection with new text (reads stdin or `--text "…"`). For collapsed selection, inserts at caret. Plain text in v1 — use `--replace-all` if you need markdown formatting. | JSON: `{ok}` |
 | `duo doc write --replace-all` | Replace the entire document body with new markdown (frontmatter preserved). Use for "rewrite this doc" / "restructure this section" tasks. | JSON: `{ok}` |
@@ -203,16 +203,14 @@ Opens in the rich editor with a centered prose column, toolbar, and
 auto-discovered frontmatter. Internal links to other `.md` files are
 followed as new editor tabs.
 
-### Read a Google Doc — the fast path (`export?format=md`)
+### Read or edit a Google Doc
 
-Google Docs serves a same-origin export endpoint that Claude can hit via
-`fetch()` from inside the authenticated page. The session cookies carry
-the auth, and Google hands back a clean Markdown rendering of the **entire
-document** — headings, bold, italic, links, lists, horizontal rules — not
-just the part currently on screen.
+Google Docs renders into a `<canvas>`, so the usual extractors (`duo
+text`, `duo dom`) return chrome or empty. The canonical read is `duo
+eval` with the same-origin `/export?format=md` fetch — full doc with
+formatting:
 
 ```bash
-# Get the doc content as Markdown (full doc, with formatting):
 duo eval "(async () => {
   const m = location.pathname.match(/\\/document\\/d\\/([^/]+)/);
   if (!m) return 'not on a Doc page';
@@ -221,116 +219,18 @@ duo eval "(async () => {
 })()"
 ```
 
-That's the canonical read of a Google Doc. Save it to a file with
-`duo eval ... > /tmp/doc.md` and work from there — you get H1-H6,
-`**bold**`, `*italic*`, `[text](url)`, `---`, and list items exactly as
-Docs renders them.
+Editing is limited: plain-text insertion via `duo type` works (include
+`\n` for paragraph breaks; you do NOT need `duo key Enter`), but `duo
+key` chords for formatting (cmd+B, headings, undo, select-all) are
+silent no-ops because Docs routes keyboard input through a hidden
+iframe CDP can't reach. For format changes, defer to the user or
+escalate to the Docs REST API.
 
-**Other export formats** available at the same endpoint (swap `format=`):
-`html` (full HTML+CSS), `txt` (plain text), `rtf`, `docx` (binary ZIP),
-`epub` (binary). Prefer `md` unless you specifically need one of the
-others — it's the cleanest structured surface.
-
-### Read a Google Doc — no-network / offline fallbacks
-
-If the `/export` fetch fails (the user is signed out, the doc isn't
-shared to them, or they're in an offline-mode tab), these in-page
-alternatives exist:
-
-- **`_docs_annotate_getAnnotatedText('')`** is a Docs global that resolves
-  to an object with `.getText()`, `.getAnnotations()`, `.getSelection()`.
-  `getText()` returns the full plaintext of the doc including
-  not-currently-rendered sections (ETX `\u0003` at doc start; FS `\u001c`
-  between sections; `\n` between paragraphs; various other control chars
-  for inline objects). `getAnnotations()` returns link URLs and
-  horizontal-rule ranges but **not** text styles (bold/italic/headings).
-
-  ```bash
-  duo eval "(async () => {
-    const r = await _docs_annotate_getAnnotatedText('');
-    return { text: r.getText(), links: r.getAnnotations().link || [] };
-  })()"
-  ```
-
-- **`duo ax --selector '[role="document"]'`** — if present, the AX tree
-  renders the currently-visible portion of the canvas into structured
-  Markdown. It's viewport-limited (Docs virtualizes content), so it's
-  only useful when the Doc is short or you've scrolled the part you care
-  about into view. New docs with Google's AI starter overlay don't expose
-  `[role="document"]` at all; the `/export` path works on those too.
-
-**On any `docs.google.com/*/edit` URL, these are traps — do not use them:**
-
-- `duo text` / `duo text --selector ".kix-appview-canvas"` — canvas has no
-  innerText; returns chrome or empty.
-- `duo dom` (and anything that extracts visible text from the raw HTML) —
-  Google's initial HTML includes a `<noscript>` block that says
-  "JavaScript isn't enabled in your browser, so this file can't be opened."
-  Naive text extractors read that and wrongly conclude JS is broken. It
-  isn't — you're reading the wrong layer. Use `/export?format=md`.
-- **Navigating** to `/document/d/ID/export?format=txt` (i.e. `duo navigate
-  https://docs...export?format=txt`) — that URL serves a download
-  (Content-Disposition: attachment), so in-page navigation hits
-  `ERR_FAILED`. The right call is `fetch()` from *inside* the doc page
-  (shown above), not a `duo navigate` away.
-- `duo eval` that tries to scrape text from `.kix-paragraphrenderer` or
-  similar class names — canvas scaffolding with no text nodes.
-
-### Edit a Google Doc (what works today)
-
-**What works reliably:**
-
-- **Plain-text insertion** via `duo type "…"`. This routes through CDP's
-  `Input.insertText`, which Docs accepts directly. Include `\n` inside
-  the string to create paragraph breaks — you do NOT need `duo key
-  Enter`:
-
-  ```bash
-  duo type $'First paragraph.\nSecond paragraph.\nThird paragraph.'
-  ```
-
-- **Cursor placement** via `_docs_annotate_getAnnotatedText('')` —
-  `await r.getSelection()` to read, `r.setSelection(...)` to move.
-  (Prefer this over arrow-key navigation — see below.)
-
-**What does NOT work today (known limitation):**
-
-The synthesized-key path (`duo key <name>` and `duo key <letter>
---modifiers cmd,...`) doesn't reliably reach the Docs keyboard
-listener. Docs routes all keyboard input through a hidden
-`.docs-texteventtarget-iframe`; CDP's `Input.dispatchKeyEvent` delivers
-to the main frame's focused element, and `duo focus` can't cross the
-iframe boundary to give the hidden target true keyboard focus. As a
-result, on a Docs page these commands are silently no-ops:
-
-- `duo key Enter / Backspace / ArrowLeft / Home / End` — navigation
-- `duo key b --modifiers cmd` / `i` / `u` — bold, italic, underline
-- `duo key z --modifiers cmd` — undo
-- `duo key a --modifiers cmd` — select all
-- `duo key 1 --modifiers cmd,alt` — heading 1 (and other heading
-  shortcuts)
-
-`document.execCommand('bold')` also does nothing — Docs uses its own
-Kix selection model, not the DOM Selection API.
-
-**Practical consequence:** if the user asks you to bold, italicize,
-apply a heading style, or otherwise format a Doc, you can't do it via
-`duo` today. Say so plainly and either:
-
-1. **Defer to the user.** Type the plain text via `duo type`, then ask
-   the user to apply the formatting by hand — they have the Doc open
-   in the pane, so it's quick.
-2. **Escalate to the Docs REST API.** `documents.googleapis.com/v1/
-   documents/{id}:batchUpdate` supports structured inserts and style
-   runs. Requires OAuth with `https://www.googleapis.com/auth/documents`;
-   the Duo app will grow a consent flow for this in a later stage. If
-   that flow is available in the current session, prefer it for any
-   non-trivial edit (tables, heading restructures, formatted blocks).
-   If not, fall back to option 1 rather than grinding through
-   workarounds.
-
-Always verify with a follow-up read (the `/export?format=md` fetch) so
-the user's doc actually reflects what you intended.
+For the offline fallbacks (`_docs_annotate_getAnnotatedText`, AX tree
+on visible viewport), the full list of canvas traps to avoid (the
+`<noscript>` red herring, the `export?format=txt` download trap), and
+the keyboard-input limitation in detail, see
+[references/google-docs.md](references/google-docs.md).
 
 ### Read an ordinary DOM page
 
@@ -501,73 +401,17 @@ When a selector fails:
 
 ## Troubleshooting: Claude Code sandbox
 
-Claude Code runs each Bash tool call inside a macOS Seatbelt sandbox.
-The default policy **blocks Unix-domain-socket outbound connections**
-— and Duo's CLI talks to the Electron app over a Unix socket at
-`~/Library/Application Support/duo/duo.sock`. Result: inside a
-sandboxed Claude Code session, every `duo` command can fail the same
-way, even though the Duo app is running and the socket file exists.
+Claude Code's macOS Seatbelt sandbox blocks Unix-domain sockets by
+default, which is the channel `duo` uses. If `duo` calls fail with
+`Socket error: connect EPERM` / `ECONNREFUSED`, or hang ending in
+`Timeout waiting for response`, **run `duo doctor` first** — don't
+retry blindly. It reports socket reachability and TCP-fallback status,
+and prints a sandbox-detection line when that's the cause.
 
-**Failure shapes that point at the sandbox** (not at the app):
-
-- `Socket error: connect EPERM …` (the usual signature)
-- `Socket error: connect ECONNREFUSED …`
-- A hang that ends in `Timeout waiting for response to "<cmd>"`
-- `duo --version` works but everything else fails — *doesn't happen*
-  here; if `--version` works, so does the rest
-
-**First move on any sandbox-shaped failure:**
-
-```bash
-duo doctor
-```
-
-`duo doctor` reports socket reachability, the TCP-fallback status,
-install-path health, and whether `~/.claude/skills/duo/` is in sync.
-When the sandbox is the cause it prints a line like
-`Claude Code sandbox detected (Unix socket blocked) — falling back to
-TCP`; once that's in the output you can proceed normally.
-
-If `duo doctor` is not recognized on this machine, the fallback isn't
-shipped yet — stop, tell the user "every `duo` call is failing; I
-think the Claude Code sandbox is blocking the Unix socket", and offer
-the two fixes below. Do not retry in a loop.
-
-### Fix 1 (recommended): allow the Unix socket in project settings
-
-Add this to the project's `.claude/settings.json`:
-
-```json
-{
-  "permissions": {
-    "allowUnixSockets": true,
-    "allow": [
-      "Read(~/Library/Application Support/duo/**)"
-    ]
-  }
-}
-```
-
-The user then restarts their Claude Code session for the new policy
-to take effect. Caveat: the Claude Code docs warn that
-`allowUnixSockets` "can inadvertently grant access to powerful system
-services" (e.g. the Docker socket). Teams with a stricter posture
-should wait for the Stage 20 TCP fallback rather than widen the
-socket allowlist.
-
-### Fix 2 (last resort): per-call sandbox escape
-
-Some Claude Code builds expose a `dangerouslyDisableSandbox`
-parameter on the Bash tool. Managed enterprise installs disable it
-(`allowUnsandboxedCommands: false`), so do **not** rely on it — only
-mention it to the user if Fix 1 is blocked by policy.
-
-### Why not "just keep trying"
-
-Under the sandbox the failure is a policy denial, not a flaky
-connection. Retrying burns tokens, confuses the user, and masks the
-real cause. The rule: **on the first unrecognized `duo` error, run
-`duo doctor` and surface the result — don't guess.**
+For the failure shapes, the two fixes (`allowUnixSockets` in project
+settings, or per-call `dangerouslyDisableSandbox` as a last resort),
+and why retrying just burns tokens, see
+[references/sandbox-troubleshooting.md](references/sandbox-troubleshooting.md).
 
 ## The canvas-text trap (why `ax` exists)
 
