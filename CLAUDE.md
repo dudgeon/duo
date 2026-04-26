@@ -35,11 +35,15 @@ Owner: Geoff (Capital One, AI in Product program).
   this if you need to know what happened in prior sessions; do NOT
   re-paste it into CLAUDE.md.
 - **`docs/dev/intent-pause.md`** *(optional, present only when an
-  intent conversation is pending — currently absent; the most
-  recent intent pause resolved 2026-04-26 night and was rolled
-  into roadmap stages 22–25 + 18b + 19d)* — open intent threads
-  the user paused dev to talk through. Read before responding to
-  the next turn if it exists.
+  intent conversation is pending — currently absent)* — open
+  intent threads the user paused dev to talk through. Read before
+  responding to the next turn if it exists.
+- **`docs/dev/intent-conversations/`** — archived plan-mode
+  working artifacts from past intent pauses, after their
+  resolutions were feathered into the roadmap. NOT specs (specs
+  live in the roadmap cards); reach for these only when you need
+  the "why was this chosen?" context behind a stage's design.
+  See the directory's `README.md` for the lifecycle convention.
 - **`docs/design/atelier/`** — visual source-of-truth. Read its
   README before any UI-touching work.
 - **`docs/VISION.md`** — product north star.
