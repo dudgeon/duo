@@ -609,9 +609,9 @@
     <h2 class="phase-heading" id="phase-l3">Layer 3 — Distribution-readiness (parallel track)</h2>
     <p class="phase-tagline">Independent of L0–L2. Stage 19a already shipped. 19b folds into Stage 18's consent sheet.</p>
 
-    <article class="stage inprog" id="s18" data-id="s18">
-      <h3><span class="num-badge">Stage 18</span> First-launch self-install + distro skill packs <span class="glyph inprog"></span></h3>
-      <div class="status-line">🟡 <strong>Phase 1 shipped 2026-04-26</strong> — welcome banner installs skill + subagent + help-files + provenance into <code>~/.claude/</code>. <strong>Phase 2 owed:</strong> CLI binary install to sandbox-safe PATH location (decision pending: <code>~/.local/bin/duo</code> with shell-rc PATH check, or <code>/usr/local/bin/duo</code>). 18b skill-pack support still ⬜.</div>
+    <article class="stage done" id="s18" data-id="s18">
+      <h3><span class="num-badge">Stage 18</span> First-launch self-install + distro skill packs <span class="glyph done"></span></h3>
+      <div class="status-line">✅ <strong>Phases 1 + 2 shipped 2026-04-26</strong>. Phase 1: welcome banner installs skill + subagent + help-files + provenance into <code>~/.claude/</code>. Phase 2: <code>cli/duo</code> copied to <code>~/.local/bin/duo</code> (chmod 755), with PATH check and shell-rc snippet shown when the dir isn't on $PATH. 18b skill-pack support still ⬜ (next).</div>
       <p class="blurb">Double-click → app prompts → copies <code>skill/</code> + <code>agents/</code> into <code>~/.claude/</code> and symlinks <code>cli/duo</code> to <code>~/.claude/bin/duo</code>. Build artifact verified launchable; bundled resources present at expected paths. <strong>18b extends the installer to support distro-supplied skill packs</strong> (e.g. Cap One AIP starter pack) bundled at build time via a convention folder.</p>
 
       <p class="blurb" style="margin-top: 14px;"><strong>18a — Vanilla first-launch installer.</strong></p>

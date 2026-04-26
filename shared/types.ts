@@ -868,9 +868,9 @@ export interface ElectronPinsAPI {
 // Stage 18 — first-launch self-install state. The "installed"
 // provenance lives at ~/.claude/duo/installed.json with a version +
 // timestamp; absence of that file means we've never set up this
-// user's ~/.claude/ for Duo. The skill + subagent + external-domains
-// scaffold are what get copied; the CLI-on-PATH step is deferred to
-// Stage 18 Phase 2 (sandbox-safe location decision pending).
+// user's ~/.claude/ for Duo. Phase 1 copies skill + subagent + help
+// + external-domains scaffold. Phase 2 adds the `duo` CLI binary
+// install to ~/.local/bin/duo (no sudo needed; user-owned bin dir).
 export interface InstallStatus {
   installed: boolean
   /** Version recorded in installed.json (Duo's package.json version
@@ -881,6 +881,23 @@ export interface InstallStatus {
   /** True if a Duo version is installed but older than the running
    *  build — surface an "Update?" affordance. */
   needsUpdate?: boolean
+  /** Stage 18 Phase 2 — CLI binary install state. Tracked separately
+   *  from the skill/agent state because PATH can change without us
+   *  re-running install (user edits .zshrc), and because we want to
+   *  surface a tailored hint when the binary is installed but its
+   *  dir isn't on $PATH. */
+  cli?: CliInstallStatus
+}
+
+export interface CliInstallStatus {
+  /** True if the duo binary file exists at the install path. */
+  installed: boolean
+  /** Absolute path to the installed binary
+   *  (default: `<HOME>/.local/bin/duo`). */
+  path?: string
+  /** True if the binary's parent dir is in the user's $PATH at app
+   *  boot. False means the user needs to add it via shell-rc. */
+  onPath: boolean
 }
 
 export interface InstallResult {
