@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>v0.2.0 smoke checklist</title>
+<style>
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-edge: #E5DCC1;
+    --paper-rule: #D4C8A6;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --ink-ghost: #B8AB8E;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --done: #5C7A4F;
+    --warn: #B5862C;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, ui-monospace, monospace;
+  }
+  body { font-family: var(--sans); color: var(--ink); background: var(--paper); line-height: 1.55; max-width: 820px; margin: 0 auto; padding: 32px 28px 80px; }
+  h1 { font-family: var(--serif); font-weight: 500; font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h1 .ver { font-family: var(--mono); font-size: 14px; color: var(--ink-mute); padding: 2px 8px; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 12px; vertical-align: middle; margin-left: 8px; }
+  h2 { font-family: var(--serif); font-size: 19px; font-weight: 500; color: var(--accent-ink); margin: 32px 0 8px; padding-bottom: 6px; border-bottom: 1px solid var(--paper-edge); }
+  h3 { font-family: var(--serif); font-size: 15px; font-weight: 500; margin: 18px 0 6px; color: var(--ink); }
+  p { margin: 6px 0 12px; color: var(--ink-soft); font-size: 14px; }
+  p.lede { color: var(--ink-mute); font-size: 13px; max-width: 640px; margin-bottom: 20px; }
+  code { background: var(--paper-deep); padding: 1px 6px; border-radius: 3px; font-family: var(--mono); font-size: 12px; color: var(--ink); }
+  ul.checklist { list-style: none; padding: 0; margin: 4px 0 8px; }
+  ul.checklist li { padding: 7px 12px; margin: 4px 0; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-left: 3px solid var(--ink-ghost); border-radius: 4px; font-size: 13px; color: var(--ink-soft); display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; }
+  ul.checklist li.done { border-left-color: var(--done); }
+  ul.checklist li.partial { border-left-color: var(--warn); }
+  ul.checklist li.todo { border-left-color: var(--accent); background: #FFFBEF; }
+  ul.checklist li .badge { font-family: var(--mono); font-size: 10px; text-align: center; padding: 2px 0; border-radius: 10px; font-weight: 600; line-height: 1.4; }
+  ul.checklist li.done .badge { background: var(--done); color: white; }
+  ul.checklist li.partial .badge { background: var(--warn); color: white; }
+  ul.checklist li.todo .badge { background: var(--accent); color: white; }
+  ul.checklist li strong { color: var(--ink); font-weight: 600; }
+  ul.checklist li .why { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-mute); font-style: italic; }
+  blockquote { margin: 14px 0; padding: 10px 14px; background: var(--paper-deep); border-left: 3px solid var(--accent); border-radius: 0 4px 4px 0; font-size: 13px; color: var(--ink-soft); }
+  blockquote strong { color: var(--accent-ink); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--paper-edge); color: var(--ink-soft); }
+  th { font-family: var(--serif); font-weight: 500; color: var(--accent-ink); background: var(--paper-deep); border-bottom: 1px solid var(--paper-rule); }
+  td:first-child { font-family: var(--mono); font-size: 12px; color: var(--ink); width: 140px; white-space: nowrap; }
+</style>
+</head>
+<body>
+
+<h1>v0.2.0 smoke checklist <span class="ver">2026-04-26</span></h1>
+<p class="lede">Walked the live build. 10 smoke tests passed (8 full PASS, 2 PARTIAL). Below: what's <strong>done</strong>, what <strong>still needs your eyes</strong>, and the cosmetic findings worth noting before the v0.2.0 cut.</p>
+
+<h2>What I verified — done</h2>
+<p>Tested directly via computer-use against the running dev build. You don't need to redo these unless you're suspicious.</p>
+
+<ul class="checklist">
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 1.</strong> Stage 18 install banner renders at top of window with [Install] / [Skip for now] buttons. Atelier amber styling. <span class="why">Stage 18 Phase 1.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 1.</strong> Default new-tab landing is <code>help/faq.html</code> instead of about:blank. Tab title <em>Duo — FAQ</em>; address bar shows the file:// URL. <span class="why">commit d692a39.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 2.</strong> FAQ live-search filters in real time. Typed "claude" → "14 matches for 'claude'" appeared, sections filtered visibly. <span class="why">help/faq.html.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 3.</strong> ⌘T from terminal focus → new browser tab (lands on faq.html). xterm allowlist + spec flip + faq landing all confirmed in one motion. <span class="why">BUG-008 fix; commit 69401b2.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 6.</strong> Right-click on a tab → "Pin tab" context menu appears. Click it → pin glyph (↑) replaces the type icon next to the title. <span class="why">Stage 24; commit c1c4ea9.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 7.</strong> Clicking <code>help/what-duo-does.html</code> from the navigator opened it as a <strong>browser tab</strong> (not the canvas). duo-open-in meta honored. Bonus: pin sort works — pinned FAQ stayed leftmost when the new tab joined. <span class="why">commit 61d6012.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 8.</strong> ⌘W on a pinned tab triggered the confirm modal: <em>"Close pinned tab? Duo — FAQ is pinned. Close it anyway?"</em> Cancel auto-focused. <span class="why">Stage 24 ⌘W gate.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 9.</strong> ⌘N from terminal focus opened the new-file interstitial with NEW DOCUMENT prompt + .md extension + Create/Cancel + markdown editor toolbar visible. <span class="why">xterm allowlist; BUG-008 family.</span></span></li>
+  <li class="done"><span class="badge">PASS</span><span><strong>Smoke 10.</strong> ⌘B from terminal focus collapsed the file navigator to a rail. Re-pressed → re-expanded. <span class="why">xterm allowlist; BUG-008 family.</span></span></li>
+  <li class="partial"><span class="badge">PART</span><span><strong>Smoke 4.</strong> ⌘⇧T from terminal focus opened a <code>claude · ~</code> tab and Claude Code <em>did launch</em> (workspace trust prompt visible). New spec confirmed. <strong>Cosmetic residual:</strong> line 1 of the terminal still shows a bare <code>claude</code> echoed before the prompt drew. waitForPtyReady appears to fire on some pre-PS1 byte the shell emits. Worth filing as a follow-up; not a regression — claude does fully launch. <span class="why">BUG-009 partial; spec flip from BUG-008.</span></span></li>
+  <li class="partial"><span class="badge">PART</span><span><strong>Smoke 5.</strong> Same result as Smoke 4 from the <code>+</code> button on the terminal strip. Same cosmetic echo, same successful claude launch. <span class="why">Confirms BUG-009 fix path is shared by ⌘⇧T and the + button.</span></span></li>
+</ul>
+
+<h2>Owner action required — please walk these</h2>
+<p>Two buckets. Bucket 1 is Geoff-only because it requires real human judgment (typing into editors, looking at design polish, multi-step canvas workflows). Bucket 2 is the V2–V27 punch list left over from the v0.1.0 cut — eyes-on canvas verification.</p>
+
+<h3>Bucket 1 — fresh items from v0.2.0</h3>
+<ul class="checklist">
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 18 install banner click-through.</strong> Click <em>Install</em>. Verify: install completes (banner flips to "Installed" with checkmark), banner auto-dismisses after ~3s, <code>~/.claude/duo/installed.json</code> exists with version + timestamp, <code>~/.claude/skills/duo/SKILL.md</code> matches the bundled <code>skill/SKILL.md</code>, <code>~/.claude/agents/duo.md</code> updated, <code>~/.claude/duo/help/faq.html</code> + <code>what-duo-does.html</code> present, <code>~/.claude/duo/external-domains.json</code> NOT clobbered if it had content. <span class="why">Phase 2 (CLI binary on PATH) is intentionally deferred — banner says nothing about that gap yet.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 18 banner re-launch.</strong> Quit Duo, relaunch. Banner should NOT appear (installed.json present, version matches). <span class="why">Verifies the skip-on-installed path.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 18 banner upgrade path.</strong> Edit <code>~/.claude/duo/installed.json</code> to set <code>version</code> to "0.0.9" (anything that doesn't match current). Relaunch. Banner should appear with the "Duo update available" text + [Update] button instead of [Install]. <span class="why">Verifies needsUpdate detection.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 18 banner skip-for-now.</strong> Click [Skip for now] when banner is showing. Verify: banner disappears for the session, returns next launch. <span class="why">Per-session dismiss; intentionally not persistent (skill is too useful to let users hide forever).</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 24 unpin.</strong> Right-click a pinned tab → context menu shows "Unpin tab" (not "Pin tab"). Click it → pin glyph removes, type icon returns, sort moves the tab back to its insertion-order position. <span class="why">I tested Pin but not Unpin.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 24 confirm-modal accept.</strong> ⌘W on a pinned tab → confirm modal → click [Close tab] → tab actually closes. <span class="why">I tested the Cancel path but not the Confirm path.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 24 right-click on close-button confirm.</strong> Hover over a pinned tab → click the X close button (NOT ⌘W). Verify same confirm modal appears (this path uses WorkingTabStrip's local state, not App.tsx's). <span class="why">Two confirm code paths share the same primitive — verify both fire.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>Stage 24 file-tab pin.</strong> Open a markdown or HTML file from the navigator. Right-click its tab → Pin tab. Verify the pin glyph + leftmost sort still apply. Quit + relaunch Duo. Verify the pin SURVIVES (pins.json persists by absolute path for file tabs). <span class="why">Browser-tab pin survival is harder to test because URLs may change; file-tab pin is the cleaner persistence test.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>BUG-008 sweep — other Duo-global meta shortcuts from terminal focus.</strong> ⌘W (close active tab), ⌘L (focus address bar — needs browser tab active), ⌘1–9 (cycle terminal tabs), ⌘⇧1–9 (cycle working pane tabs), ⌘+/=/- (terminal font size), ⌘\` (toggle pane focus). All should reach their handlers without xterm intercepting. I tested ⌘T, ⌘⇧T, ⌘N, ⌘B; the rest are inferred from the same allowlist. <span class="why">Class-of-issue fix — confirm one of the un-tested ones at minimum.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>BUG-008 — non-shortcuts NOT eaten.</strong> From terminal focus, type some text. Verify it appears in the shell. Try ⌘C / ⌘V copy-paste in a terminal selection. <span class="why">Allowlist must NOT bubble normal typing or system clipboard chords — they should still reach the PTY.</span></span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>duo-editable canvas honoring.</strong> Force open the FAQ <em>as a canvas</em> (workaround: comment out the duo-open-in meta in <code>help/faq.html</code> temporarily, or open a different .html with <code>duo-editable=false</code> meta). Verify: no toolbar, no contentEditable, no comment composer, no ID-injection banner, no write-warning banner. Send → Duo selection should still work (try selecting text, see the pill). <span class="why">commit 19c6dec; harder to test with current help-files since both have duo-open-in=browser.</span></span></li>
+</ul>
+
+<h3>Bucket 2 — V-walk debt from v0.1.0 (canvas / editor surface)</h3>
+<p>27 items filed at the v0.1.0 cut. <strong>V1 PASS</strong> already confirmed (browser-pane <code>+</code> plain click → file interstitial; ⌥-click owed). Remaining V2–V27 below — these are the highest-risk items that need real eyes on:</p>
+
+<table>
+  <tr><th>Item</th><th>What to do</th></tr>
+  <tr><td>V2 ★</td><td><strong>Markdown editor toolbar regression.</strong> Open a .md file. Test every toolbar button after the EditorActions refactor: heading picker, B/I/U/S, link picker, bullet/ordered/task lists, blockquote, code block, hr, table insert, undo, redo, save. Highest-risk because EditorActions touched every button.</td></tr>
+  <tr><td>V3</td><td><strong>Canvas toolbar parity.</strong> Open <code>q2-status.html</code> (or any .html). Toolbar should have heading picker + lists + blockquote + code block + hr + table button (was just B/I/U/S/code/link before).</td></tr>
+  <tr><td>V4</td><td><strong>Heading picker on canvas.</strong> Click into a paragraph, change dropdown to "Heading 2" → paragraph rewraps as &lt;h2&gt;. Cat the file after autosave to confirm round-trip.</td></tr>
+  <tr><td>V5</td><td><strong>Markdown shortcuts on canvas.</strong> ⌘N → test.html → Enter. Type <code># Hello&lt;space&gt;</code> → &lt;h1&gt;. New line, <code>- foo&lt;space&gt;</code> → bullet list. <code>**bold**</code> → bold. <code>---&lt;Enter&gt;</code> → hr. ` ``` &lt;Enter&gt;` → code block. Confirm none fire inside &lt;code&gt; / &lt;pre&gt; / &lt;a&gt;.</td></tr>
+  <tr><td>V6</td><td><strong>Placeholder text.</strong> Fresh canvas should show "Type a heading: # Title · markdown shortcuts work …" centered. Disappears on first keystroke. Reappears if user deletes everything.</td></tr>
+  <tr><td>V7</td><td><strong>Table contextual strip.</strong> Insert table → click a cell → second toolbar row appears with row/col add/delete buttons. Edge cases: single-row → delete row disabled.</td></tr>
+  <tr><td>V8</td><td><strong>Undo/redo on canvas.</strong> Type → ⌘Z. Click Bold → ⌘Z. Apply heading via dropdown → ⌘Z. All reverse cleanly.</td></tr>
+  <tr><td>V9</td><td><strong>Save round-trip.</strong> Edit canvas → wait ~1s → cat the file → confirm change AND HTML still parses cleanly.</td></tr>
+  <tr><td>V10</td><td><strong>Edge: fragment HTML.</strong> Open a fragment.html (no doctype/html/body). Canvas renders. Type a markdown shortcut. Save → file is now valid HTML.</td></tr>
+  <tr><td>V11</td><td><strong>17a.5 D smart-blank overlay.</strong> Fresh canvas should show centered card with four "doors" (markdown shortcuts active; three "soon").</td></tr>
+  <tr><td>V12</td><td><strong>Overlay dismisses.</strong> First user keystroke OR programmatic <code>duo html append</code> dismisses overlay. Doesn't reappear. Doesn't leak to disk.</td></tr>
+  <tr><td>V13</td><td><strong>Stage 17b ID-injection banner.</strong> Open a canvas with no data-duo-ids. Banner appears with candidate count. Click "Yes" → injects + persists. "Don't ask again for this folder" persists in localStorage.</td></tr>
+  <tr><td>V14 ★</td><td><strong>Stage 17b agent CLI ops.</strong> Full sweep: <code>duo html new</code> → <code>query/get/set/replace/append/remove/attr</code>. Each returns expected JSON. Sidecar recentEdits captures every write op with <code>author='claude'</code>.</td></tr>
+  <tr><td>V15</td><td><strong>Pretty-printer round-trip.</strong> Open <code>q2-status.html</code> (hand-authored fixture). Make a small edit. Save. Diff = user's edit + pretty-printer normalization. Subsequent saves stable.</td></tr>
+  <tr><td>V16</td><td><strong>Stage 17c just-added wash.</strong> Run <code>duo html set --id … --html "&lt;p&gt;new&lt;/p&gt;"</code> from a Duo terminal. Element paints yellow, fades over 6s. cat the file → NO <code>class="duo-just-added"</code>.</td></tr>
+  <tr><td>V17</td><td><strong>Wash on other write ops.</strong> <code>replace</code> + <code>append</code> + <code>attr</code> all paint just-added. <code>remove</code> paints nothing. <code>query/get</code> never paint.</td></tr>
+  <tr><td>V18</td><td><strong>RecentEdits repaint at open.</strong> Run <code>duo html replace …</code>. Quickly close + reopen canvas within 6s. Element should still paint just-added on reopen. After 30s+ → no paint.</td></tr>
+  <tr><td>V19</td><td><strong><code>duo selection --pane canvas</code>.</strong> Select text inside a canvas paragraph. Run from terminal → JSON has <code>kind: 'html-canvas'</code>, path, text, html (outerHTML), anchorId, anchorPath, range, surrounding context.</td></tr>
+  <tr><td>V20 ★</td><td><strong>Persistent blurred selection.</strong> Select text in canvas → click into terminal. Selection should still paint with the Atelier mark color (CSS Custom Highlight Registry). Click back to canvas → native ::selection takes over. Doesn't dirty the buffer (cat after 2s shows no spurious save).</td></tr>
+  <tr><td>V21</td><td><strong>Send → Duo pill on canvas.</strong> Select text → purple pill appears anchored above selection. Click → payload lands in active terminal's PTY. Test all three formats via <code>duo selection-format a|b|c</code>.</td></tr>
+  <tr><td>V22 ★</td><td><strong>Warn-before-overwrite banner.</strong> Type into canvas (don't save; buffer dirty). From terminal: <code>duo html set --id … --html "..."</code>. Banner at top of canvas with action text + preview + Apply/Decline. Apply → write lands. Decline → write rejected. Concurrent write while banner up → "Another write is awaiting the user's decision." Read ops bypass.</td></tr>
+  <tr><td>V23</td><td><strong>Stage 17d new-comment flow.</strong> Select text inside an anchored element. Two pills appear (Send → Duo + 💬 Comment). Click 💬 Comment → composer popover with excerpt as italicised hint + textarea + Cancel/Comment. Type comment → ⌘+Enter (or Comment) → comment lands in rail with numbered badge in body.</td></tr>
+  <tr><td>V24</td><td><strong>Rail interactions.</strong> Click thread header → body scrolls to anchor, badge focus ring. Click body badge → rail card highlights + scrolls. Reply → input opens; ⌘+Enter submits; Escape cancels. Resolve → thread collapses; Reopen → returns. cat sidecar after each action confirms updates.</td></tr>
+  <tr><td>V25</td><td><strong><code>duo html comment</code> agent ops.</strong> All four targeting modes: <code>--id</code>, <code>--selector</code>, <code>--text</code>, body via stdin. Concurrent comment on clean buffer applies immediately (read-side; doesn't dirty canvas).</td></tr>
+  <tr><td>V26</td><td><strong><code>duo html comments</code> listing.</strong> Open canvas with multiple threads. Default → all threads sorted by document order. <code>--filter open</code> / <code>--filter resolved</code> work.</td></tr>
+  <tr><td>V27 ★</td><td><strong>Comment chrome NEVER persists.</strong> cat &lt;file&gt;.html after typing + adding comments + saving → NO <code>data-duo-comment-anchor</code>, NO <code>duo-comment-anchor</code> class. Comments live ONLY in <code>&lt;file&gt;.html.duo.json § comments[]</code>. Closing + reopening repaints badges from sidecar.</td></tr>
+</table>
+
+<p>★ = highest-risk per the original punch list (V2 = MD toolbar, V14 = agent CLI sweep, V20 = CSS Highlight Registry, V22 = warn-before-overwrite, V27 = no comment chrome leaks).</p>
+
+<p>Plus the 19c walk leftover from v0.1.0:</p>
+<ul class="checklist">
+  <li class="todo"><span class="badge">TODO</span><span><strong>19c install banner.</strong> Hide <code>claude</code> from PATH (e.g. rename it temporarily). Click <code>+</code> on terminal strip. Tab opens with the install banner inline (the echo line about installing Claude Code).</span></li>
+  <li class="todo"><span class="badge">TODO</span><span><strong>19c CLI verb.</strong> From a Duo terminal: <code>duo new-tab --kind claude</code>, <code>duo new-tab --kind shell</code>, <code>duo new-tab --cwd /tmp</code>, <code>duo new-tab --cmd "ls -la"</code>. Each spawns the right kind, in the right CWD, with the right post-spawn payload.</span></li>
+</ul>
+
+<h2>Cosmetic findings — worth filing</h2>
+<blockquote>
+  <strong>BUG-009 residual.</strong> The <code>waitForPtyReady</code> helper waits for the shell's first PTY data event before writing the post-spawn payload. But the shell may emit something <em>before</em> drawing PS1 (a color escape, a working-dir notice, etc.). When that happens, <code>claude\n</code> writes too early and the literal <code>claude</code> renders on a bare line above the prompt. End-to-end claude DOES launch (vs. the original bug where it didn't), but it's visually noisy. Candidate fix: prompt-detector regex (look for trailing <code>% </code>, <code>$ </code>, <code># </code>, <code>&gt; </code>) instead of "first data" trigger.
+</blockquote>
+
+<h2>Suggested ship decision</h2>
+<p>9 commits since v0.1.0 (Stage 24 ✅, Stage 18 Phase 1 🟡, BUG-008 ✅, BUG-009 mostly ✅, FAQ direction complete). Foundation feels solid. <strong>If Bucket 1 walks clean, cut v0.2.0.</strong> Bucket 2 (V2–V27) is older debt — fine to defer to v0.3.0 if Bucket 1 looks good and you don't want to delay the cut.</p>
+
+<p>If you want to cut now without walking Bucket 2, propose v0.2.0 explicitly noting "V2–V27 verification still owed" in the Known Issues section of the release notes (already drafted in <code>RELEASES.md § Pending</code>).</p>
+
+</body>
+</html>

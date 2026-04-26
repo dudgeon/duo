@@ -432,6 +432,49 @@ Option (b) is the quickest path; option (a) is the right path. Class of issue: P
 
 ---
 
+### BUG-010: BUG-009 residual — literal `claude` echoes above the shell prompt
+
+**Status:** 🆕 Filed
+**Priority:** Low (cosmetic — claude DOES launch end-to-end)
+**Filed:** 2026-04-26 (during v0.2.0 smoke-pass after BUG-009 fix landed)
+
+**Repro:**
+1. Click `+` on the terminal tab strip (or press ⌘⇧T from any focus).
+2. Watch the new tab as it spawns.
+
+**Expected:** Shell prompt draws cleanly; `claude\n` writes to the prompt; `claude` command runs; Claude Code splash + workspace prompt appears.
+**Actual:** All of the above happens (the Claude Code REPL DOES launch — BUG-009 is genuinely fixed), but a bare `claude` echoes on its own line ABOVE the shell's PS1 line. End state looks like:
+
+```
+claude
+(base) geoffreydudgeon@mac ~ % claude
+
+[Claude Code splash]
+```
+
+The first line is the cosmetic artifact. Pure visual noise; no functional impact.
+
+**Likely cause (untraced):**
+The BUG-009 fix's `waitForPtyReady` helper resolves on the FIRST `pty.onData` event for the new tab, plus a 30ms paint settle. But zsh (and other shells) often emit some output BEFORE PS1 is fully drawn — terminal-init escape codes, working-dir notice, or similar. If `waitForPtyReady` resolves on that pre-PS1 byte, the `claude\n` write fires before the shell's prompt is ready to receive command input. The bytes:
+- `claude` echoes locally on whatever line the terminal driver is currently on (which is pre-PS1, hence the bare line)
+- `\n` lands; depending on shell state, may or may not advance the line
+- Then PS1 finally draws on the next line
+- Then `claude` re-appears at the prompt (because zsh's input buffer captured it after PS1 drew)
+
+End result: claude command DOES execute (because it lands at the prompt with the trailing `\n`), but the visual is noisier than the intended "shell drew, command typed, command ran" flow.
+
+**Suggested fix:**
+Switch `waitForPtyReady` from "first data" trigger to a prompt-shape regex on the buffered output. Look for trailing `% `, `$ `, `# `, or `> ` (the common shell prompt terminators) before resolving. Reuses the same listener; just adds a regex check instead of unconditional resolve. Probably ~10 LOC change in `renderer/App.tsx`.
+
+Alternative: a deliberate post-PS1 sleep (e.g., 200ms). Crude but predictable. Less elegant.
+
+**Class of issue:** PTY-write timing; same family as BUG-009. The "first data" heuristic was a step up from the prior `queueMicrotask` race but doesn't fully model shell startup. A prompt-detector ends the family.
+
+**Affected files (suspected):**
+- `renderer/App.tsx` (`waitForPtyReady` helper)
+
+---
+
 ## Follow-ups (open · process / docs)
 
 ### FOLLOWUP-001: Add `agents/duo.md` to the new-CLI-verb plumbing checklist (CLAUDE.md)
