@@ -17,7 +17,7 @@ import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -231,6 +231,109 @@ export function App() {
   // path uses its own local state in WorkingTabStrip — both render
   // the same modal component.
   const [pendingClosePinned, setPendingClosePinned] = useState<{ kind: 'file'; id: string; label: string } | { kind: 'browser'; id: number; label: string } | null>(null)
+
+  // Stage 21c Phase 2 — session state restored across Duo relaunches
+  // (issue #24). Hydrate `tabs` / `fileTabs` / `activeTabId` /
+  // `activeWorking` from `~/.claude/duo/session-state.json` on mount;
+  // debounce-save on every state change post-hydration. Browser tabs
+  // are restored separately by main (BrowserManager.restoreFromSession
+  // after did-finish-load) — we just observe the latest list here for
+  // save purposes. Navigator path uses its own localStorage layer
+  // (`useNavigator`) and is not routed through session-state.json.
+  const [sessionHydrated, setSessionHydrated] = useState(false)
+  const sessionLoadStartedRef = useRef(false)
+  const [browserTabs, setBrowserTabs] = useState<BrowserTab[]>([])
+
+  // Subscribe to BrowserManager's tab broadcasts so `browserTabs`
+  // tracks main's view of the browser tab list. Used by the save
+  // effect below.
+  useEffect(() => {
+    return window.electron.browser.onTabsChange(setBrowserTabs)
+  }, [])
+
+  // One-shot session-state load on mount.
+  useEffect(() => {
+    if (sessionLoadStartedRef.current) return
+    sessionLoadStartedRef.current = true
+
+    void window.electron.sessionState.load().then(state => {
+      // Terminal tabs first — these drive most of the renderer's
+      // initial state. Empty list (first launch) → keep the default
+      // single shell tab the constructor seeded.
+      if (state.terminals.length > 0) {
+        const restored = state.terminals.map(t => makeTab(t.cwd, t.kind, home))
+        setTabs(restored)
+        const idx = state.activeTerminalIndex
+        if (Number.isInteger(idx) && idx >= 0 && idx < restored.length) {
+          setActiveTabId(restored[idx].id)
+        } else {
+          setActiveTabId(restored[0].id)
+        }
+      }
+
+      // File tabs — IDs are session-local; mint fresh, key off path.
+      const restoredFileTabs: FileTab[] = state.fileTabs.map(f => ({
+        id: crypto.randomUUID(),
+        type: f.type,
+        path: f.path,
+        title: f.path.split('/').pop() || f.path,
+        mime: f.mime
+      }))
+      if (restoredFileTabs.length > 0) {
+        setFileTabs(restoredFileTabs)
+      }
+
+      // Active working selection.
+      if (state.activeWorking && state.activeWorking.kind === 'file') {
+        const targetPath = state.activeWorking.path
+        const matching = restoredFileTabs.find(t => t.path === targetPath)
+        if (matching) {
+          setActiveWorking({ kind: 'file', id: matching.id })
+        }
+      }
+      // 'browser' is the default initial state, no-op.
+
+      setSessionHydrated(true)
+    }).catch(err => {
+      console.warn('[session-state] load failed (using defaults):', err)
+      setSessionHydrated(true)  // don't block the save loop on a load failure
+    })
+  }, [home])
+
+  // Debounced save on every change post-hydration. The 500ms in
+  // renderer + 250ms in main coalesces bursty edits into a single
+  // disk write.
+  const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!sessionHydrated) return
+    if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
+    sessionSaveTimerRef.current = setTimeout(() => {
+      const activeTerminalIndex = tabs.findIndex(t => t.id === activeTabId)
+      const activeBrowserIndex = browserTabs.findIndex(b => b.isActive)
+      const activeFileTab = activeWorking.kind === 'file'
+        ? fileTabs.find(f => f.id === activeWorking.id)
+        : undefined
+
+      const state: SessionState = {
+        version: 1,
+        savedAt: new Date().toISOString(),
+        appVersion: '0.4.1',
+        terminals: tabs.map(t => ({ cwd: t.cwd, kind: t.kind, title: t.title })),
+        activeTerminalIndex: activeTerminalIndex >= 0 ? activeTerminalIndex : -1,
+        browserTabs: browserTabs.map(b => ({ url: b.url, title: b.title })),
+        activeBrowserIndex: activeBrowserIndex >= 0 ? activeBrowserIndex : -1,
+        fileTabs: fileTabs.map(f => ({ path: f.path, type: f.type, mime: f.mime })),
+        activeWorking: activeWorking.kind === 'browser'
+          ? { kind: 'browser', index: activeBrowserIndex >= 0 ? activeBrowserIndex : 0 }
+          : (activeFileTab ? { kind: 'file', path: activeFileTab.path } : null),
+        navigatorPath: ''  // useNavigator owns this via localStorage (Stage 10 Phase 4)
+      }
+      void window.electron.sessionState.save(state)
+    }, 500)
+    return () => {
+      if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
+    }
+  }, [sessionHydrated, tabs, activeTabId, fileTabs, activeWorking, browserTabs])
 
   // Stage 10 Phase 6 § D16 — dismissible chip when the agent drives the
   // navigator via `duo reveal`. Cleared after ~4s or by user dismiss.

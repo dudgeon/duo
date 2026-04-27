@@ -193,6 +193,21 @@ function createWindow(): void {
   // Once the renderer reports its bounds, attach CDP to the active tab
   mainWindow.webContents.once('did-finish-load', async () => {
     if (browserManager) await browserManager.attachCdp()
+
+    // Stage 21c Phase 2 — restore browser tabs from persisted session.
+    // Done after did-finish-load so the renderer is mounted to receive
+    // the resulting BROWSER_TABS broadcast. Best-effort; failure
+    // doesn't block app startup.
+    if (browserManager) {
+      try {
+        const persisted = await sessionStateService.load()
+        if (persisted.browserTabs.length > 0) {
+          await browserManager.restoreFromSession(persisted.browserTabs, persisted.activeBrowserIndex)
+        }
+      } catch (err) {
+        console.warn('[main] browser-tab restore failed:', (err as Error)?.message ?? err)
+      }
+    }
   })
 
   // Lock the main renderer at zoom factor 1 so the WebContentsView bounds
