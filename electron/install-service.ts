@@ -57,6 +57,7 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
+import * as crypto from 'crypto'
 import { app } from 'electron'
 import type { InstallStatus, InstallResult, CliInstallStatus, PrimingInstallStatus } from '../shared/types'
 import { SHIM_DIR } from './constants'
@@ -98,7 +99,39 @@ interface InstalledFile {
    *  status check can find it. Recorded as the resolved absolute path
    *  rather than `~/...` so changes to $HOME don't break readback. */
   cliPath?: string
+  /** Stage 21e-iii — SHA-256 fingerprint of every Duo-shipped file
+   *  at the time the install service wrote it. On the next install
+   *  (e.g. version-bump upgrade), each file's disk SHA is compared
+   *  against this map: match → user didn't modify, safe to
+   *  overwrite; differ → user customized, skip + report as a
+   *  preserved-conflict.
+   *
+   *  Keys are relative paths under `~/.claude/` (e.g.
+   *  `skills/duo/SKILL.md`, `agents/duo.md`, `duo/help/faq.html`).
+   *  Bootstrap-only files (external-domains.json, priming.md,
+   *  pins.json) are NOT tracked — they're already protected by
+   *  "only write if absent" and any user edits there are by design.
+   *
+   *  Pre-21e-iii installs don't have this map; first upgrade after
+   *  21e-iii ships overwrites freely (treats absent map as
+   *  "trust the install") and starts tracking from there. */
+  files?: Record<string, string>
 }
+
+/** Result of a single file install attempt. */
+interface FileInstallResult {
+  /** Relative path under ~/.claude/ for use in installed.json's
+   *  `files` map. */
+  relPath: string
+  /** What happened. */
+  outcome: 'created' | 'overwritten' | 'preserved-conflict' | 'unchanged' | 'skipped-source-missing'
+  /** New SHA-256 if outcome is `created` / `overwritten` /
+   *  `unchanged`; previous SHA if `preserved-conflict` (so we keep
+   *  tracking it). Undefined for `skipped-source-missing`. */
+  sha?: string
+}
+
+const HOME_PREFIX_FOR_REL = path.join(HOME, '.claude') + path.sep
 
 export class InstallService {
   async status(): Promise<InstallStatus> {
@@ -180,31 +213,58 @@ export class InstallService {
       await fs.mkdir(AGENTS_DIR, { recursive: true })
       await fs.mkdir(HELP_DEST_DIR, { recursive: true })
 
+      // Stage 21e-iii — read previous SHAs from installed.json so we
+      // can detect user customizations on upgrade. Will be undefined
+      // for first-ever installs and for upgrades from pre-21e-iii
+      // versions (which didn't track files); both cases overwrite
+      // freely and start tracking from this run forward.
+      let prevShas: Record<string, string> | undefined
+      try {
+        const raw = await fs.readFile(INSTALLED_PATH, 'utf8')
+        const parsed = JSON.parse(raw) as Partial<InstalledFile>
+        prevShas = parsed.files
+      } catch { /* missing/corrupt — treat as first install */ }
+
+      const fileResults: FileInstallResult[] = []
+
       // skill/SKILL.md → ~/.claude/skills/duo/SKILL.md
-      await this.copyIfPresent(
+      fileResults.push(await this.safeOverwriteFile(
         path.join(sourceRoot, 'skill', 'SKILL.md'),
-        path.join(SKILLS_DUO_DIR, 'SKILL.md')
-      )
-      await this.copyDirContents(
+        path.join(SKILLS_DUO_DIR, 'SKILL.md'),
+        prevShas
+      ))
+      await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'skill', 'examples'),
-        path.join(SKILLS_DUO_DIR, 'examples')
+        path.join(SKILLS_DUO_DIR, 'examples'),
+        prevShas,
+        fileResults
       )
-      await this.copyDirContents(
+      await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'skill', 'references'),
-        path.join(SKILLS_DUO_DIR, 'references')
+        path.join(SKILLS_DUO_DIR, 'references'),
+        prevShas,
+        fileResults
       )
 
       // agents/duo.md → ~/.claude/agents/duo.md
-      await this.copyIfPresent(
+      fileResults.push(await this.safeOverwriteFile(
         path.join(sourceRoot, 'agents', 'duo.md'),
-        path.join(AGENTS_DIR, 'duo.md')
-      )
+        path.join(AGENTS_DIR, 'duo.md'),
+        prevShas
+      ))
 
       // help/*.html → ~/.claude/duo/help/*.html. User can customize the
       // installed copies; the bundle copies remain as a fallback.
-      await this.copyDirContents(
+      // Stage 21e-iii: customizations are now PRESERVED across
+      // upgrades (previously the install action overwrote them
+      // unconditionally on version-bump). Conflict surfaces as
+      // `preserved-conflict` outcome → reported in InstallResult
+      // for the banner UX.
+      await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'help'),
-        HELP_DEST_DIR
+        HELP_DEST_DIR,
+        prevShas,
+        fileResults
       )
 
       // external-domains.json — bootstrap only. Never clobber a user's
@@ -311,18 +371,35 @@ export class InstallService {
       // actually installed (hook merge could have hit a conflict).
       const priming = await this.primingStatus()
 
+      // Stage 21e-iii — assemble the new SHA map + conflict list from
+      // every safeOverwriteFile result. The new map becomes the
+      // baseline for next-install comparison. Files we skipped due
+      // to user customization carry forward their disk SHA (so next
+      // install detects FURTHER changes against the user's version,
+      // not the original Duo-shipped one).
+      const newFiles: Record<string, string> = {}
+      const preservedConflicts: string[] = []
+      for (const r of fileResults) {
+        if (r.sha) newFiles[r.relPath] = r.sha
+        if (r.outcome === 'preserved-conflict') preservedConflicts.push(r.relPath)
+      }
+
       // Provenance — last write wins. Updated on every successful run
       // so an upgrade flow re-stamps the version + timestamp. Records
       // the CLI install path so later checks know where to look.
+      // Stage 21e-iii adds the per-file SHA map for next-install
+      // conflict detection.
       const provenance: InstalledFile = {
         version: app.getVersion(),
         installedAt: new Date().toISOString(),
-        cliPath: cli.installed ? cli.path : undefined
+        cliPath: cli.installed ? cli.path : undefined,
+        files: newFiles
       }
       await fs.writeFile(INSTALLED_PATH, JSON.stringify(provenance, null, 2) + '\n')
 
       return {
         ok: true,
+        preservedConflicts: preservedConflicts.length > 0 ? preservedConflicts : undefined,
         status: {
           installed: true,
           version: provenance.version,
@@ -607,6 +684,133 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
   private resourcesRoot(): string | null {
     return process.resourcesPath || null
   }
+
+  // ── Stage 21e-iii — provenance-aware install helpers ────────────────────────
+
+  /** Compute SHA-256 of a file's contents. Returns hex digest. */
+  private async computeFileSha(absPath: string): Promise<string> {
+    const buf = await fs.readFile(absPath)
+    return crypto.createHash('sha256').update(buf).digest('hex')
+  }
+
+  /** Relativize an absolute path to its location under ~/.claude/.
+   *  Returns just the suffix (e.g. 'skills/duo/SKILL.md'). Used as
+   *  the key in installed.json's `files` map. */
+  private relPathUnderClaude(absPath: string): string {
+    if (!absPath.startsWith(HOME_PREFIX_FOR_REL)) {
+      // Defensive — should never happen for our managed paths.
+      // Fall back to absolute so the SHA tracking still works,
+      // just less neatly.
+      return absPath
+    }
+    return absPath.slice(HOME_PREFIX_FOR_REL.length)
+  }
+
+  /** Stage 21e-iii — write `dest` from `src`, but only if the user
+   *  hasn't customized `dest` since the last install. Returns the
+   *  outcome + new SHA for the file.
+   *
+   *  Conflict detection logic:
+   *  - dest doesn't exist → write, outcome 'created' (no conflict possible)
+   *  - dest exists, no prevSha (pre-21e-iii state, or first
+   *    install) → write, outcome 'overwritten' (we trust the
+   *    install; subsequent installs will track from here)
+   *  - dest exists, prevSha matches disk SHA → write, outcome
+   *    'overwritten' (user didn't touch the file since last
+   *    install)
+   *  - dest exists, prevSha differs from disk SHA → SKIP, outcome
+   *    'preserved-conflict' (user customized; their copy stays).
+   *    The recorded SHA becomes the user's modified version so
+   *    next install detects further changes against that baseline.
+   */
+  private async safeOverwriteFile(
+    src: string,
+    dest: string,
+    prevShas: Record<string, string> | undefined
+  ): Promise<FileInstallResult> {
+    const relPath = this.relPathUnderClaude(dest)
+
+    // Resolve src against resourcesRoot fallback (mirror copyIfPresent's logic).
+    let resolved = src
+    try {
+      await fs.access(resolved)
+    } catch {
+      const res = this.resourcesRoot()
+      if (!res) return { relPath, outcome: 'skipped-source-missing' }
+      resolved = path.join(res, path.basename(path.dirname(src)), path.basename(src))
+      try {
+        await fs.access(resolved)
+      } catch {
+        return { relPath, outcome: 'skipped-source-missing' }
+      }
+    }
+
+    // Check existing dest state.
+    let destExists = false
+    try {
+      await fs.access(dest)
+      destExists = true
+    } catch { /* dest absent */ }
+
+    if (destExists && prevShas) {
+      const prevSha = prevShas[relPath]
+      if (prevSha) {
+        const diskSha = await this.computeFileSha(dest)
+        if (diskSha !== prevSha) {
+          // User customized this file. Preserve their copy; record
+          // their SHA as the new baseline for next-install
+          // comparison.
+          return { relPath, outcome: 'preserved-conflict', sha: diskSha }
+        }
+      }
+    }
+
+    await fs.mkdir(path.dirname(dest), { recursive: true })
+    await fs.copyFile(resolved, dest)
+    const newSha = await this.computeFileSha(dest)
+    return {
+      relPath,
+      outcome: destExists ? 'overwritten' : 'created',
+      sha: newSha
+    }
+  }
+
+  /** Recursive directory variant. Walks `srcDir` and applies
+   *  `safeOverwriteFile` to each file; recurses into sub-dirs. */
+  private async safeOverwriteDirContents(
+    srcDir: string,
+    destDir: string,
+    prevShas: Record<string, string> | undefined,
+    results: FileInstallResult[]
+  ): Promise<void> {
+    let resolved = srcDir
+    try {
+      await fs.access(resolved)
+    } catch {
+      const res = this.resourcesRoot()
+      if (!res) return
+      resolved = path.join(res, path.basename(srcDir))
+      try {
+        await fs.access(resolved)
+      } catch {
+        return
+      }
+    }
+    await fs.mkdir(destDir, { recursive: true })
+    const entries = await fs.readdir(resolved, { withFileTypes: true })
+    for (const e of entries) {
+      const s = path.join(resolved, e.name)
+      const d = path.join(destDir, e.name)
+      if (e.isDirectory()) {
+        await this.safeOverwriteDirContents(s, d, prevShas, results)
+      } else if (e.isFile()) {
+        const result = await this.safeOverwriteFile(s, d, prevShas)
+        results.push(result)
+      }
+    }
+  }
+
+  // ── Legacy helpers (kept for the bootstrap-only paths) ──────────────────────
 
   // Copy a single file if the source exists. Silently skips when the
   // source is missing — lets the install succeed in dev environments
