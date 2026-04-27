@@ -12,6 +12,7 @@ import { PinsService } from './pins-service'
 import { InstallService } from './install-service'
 import { UpdateChecker } from './update-checker'
 import { initAutoUpdater } from './auto-updater'
+import { SessionStateService } from './session-state-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -118,6 +119,7 @@ const updateChecker = new UpdateChecker()
 // `maybeRefresh()` will then fire the network call in the background
 // when the renderer asks; subsequent calls return cached results.
 void updateChecker.loadCache()
+const sessionStateService = new SessionStateService()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 
@@ -233,9 +235,19 @@ app.whenReady().then(() => {
   })
 })
 
+// Stage 21c — flush any pending session-state write before quit so
+// the user's last state lands on disk even on force-quit / cmd-Q
+// during a debounce window.
+app.on('before-quit', () => {
+  void sessionStateService.flush()
+})
+
 app.on('window-all-closed', () => {
   ptyManager.dispose()
   void filesService.dispose()
+  // Best-effort final flush — `before-quit` already fired but the
+  // disk write may still be in flight.
+  void sessionStateService.flush()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -342,6 +354,14 @@ function setupIPC(): void {
   })
   ipcMain.handle(IPC.PINS_TOGGLE, (_event, entry: import('../shared/types').PinEntry) => {
     return pinsService.toggle(entry)
+  })
+
+  // Stage 21c Phase 2 — session state restored across relaunches.
+  ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
+    return sessionStateService.load()
+  })
+  ipcMain.handle(IPC.SESSION_STATE_SAVE, (_event, state: import('../shared/types').SessionState) => {
+    sessionStateService.save(state)
   })
 
   // Stage 18 — first-launch self-install.
