@@ -2,6 +2,22 @@ appId: com.geoffdudgeon.duo
 productName: Duo
 copyright: Copyright © 2026 Geoff
 
+# Stage 21c — auto-update via GitHub Releases.
+# Configuring `publish:` makes electron-builder emit a `latest-mac.yml`
+# file alongside each DMG. electron-updater fetches that file at
+# launch time to know what version is the latest published release
+# and (if newer) downloads + signature-verifies + installs the
+# matching DMG.
+#
+# We build with --publish never (or no flag, which defaults to never)
+# so artifacts stay local; the cut-version skill uploads them to the
+# GH Release alongside the existing DMGs via `gh release upload`.
+publish:
+  provider: github
+  owner: dudgeon
+  repo: duo
+  releaseType: release
+
 directories:
   buildResources: build
   output: dist

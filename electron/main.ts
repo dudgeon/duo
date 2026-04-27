@@ -11,6 +11,7 @@ import { FilesService } from './files-service'
 import { PinsService } from './pins-service'
 import { InstallService } from './install-service'
 import { UpdateChecker } from './update-checker'
+import { initAutoUpdater } from './auto-updater'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -220,6 +221,12 @@ app.whenReady().then(() => {
   setupIPC()
   installAppMenu()
   createWindow()
+
+  // Stage 21c — fire-and-forget auto-update check. No-ops in dev.
+  // Uses Electron's native dialogs for v1 ("Update available — Download?"
+  // and "Update downloaded — Restart to install?"); future phases can
+  // replace with a banner-integrated experience.
+  initAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

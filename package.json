@@ -2,6 +2,10 @@
   "name": "duo",
   "version": "0.4.1",
   "description": "macOS desktop app pairing Claude Code terminals with an embedded Chrome browser",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dudgeon/duo.git"
+  },
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -32,6 +36,7 @@
     "@tiptap/react": "^2.27.2",
     "@tiptap/starter-kit": "^2.27.2",
     "chokidar": "^3.6.0",
+    "electron-updater": "^6.8.3",
     "lowlight": "^3.3.0",
     "node-pty": "^1.0.0",
     "react-markdown": "^10.1.0",
