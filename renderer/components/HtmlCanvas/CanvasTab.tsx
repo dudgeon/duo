@@ -1101,17 +1101,27 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
  * pattern as SendToDuoPill so it lives outside the canvas tree.
  */
 function CommentButton({ rect, onClick }: { rect: PillAnchorRect; onClick: () => void }) {
-  // Offset 100px left of the pill's right edge so the two affordances
-  // sit side by side. The Send → Duo pill is ~96px wide; we offset
-  // a bit more so they don't visually crash. If the resulting left
-  // would clip viewport, clamp.
-  const PILL_WIDTH_ESTIMATE = 96
-  const GAP = 6
+  // BUG-024 fix — stack vertically with the SendToDuoPill instead of
+  // side-by-side. Pre-fix, both buttons tried to share the same anchor
+  // row above the selection; a narrow selection (single word) plus
+  // viewport-edge clamping made them overlap and one would occlude
+  // the other. Now: SendToDuoPill stays ABOVE the selection (its
+  // primary-action position); Comment button drops BELOW the
+  // selection so the two are vertically separated and both always
+  // visible. If there's no room below (selection near viewport
+  // bottom), stack above the SendToDuoPill instead.
+  const PILL_HEIGHT_ESTIMATE = 24
   const PILL_OFFSET_PX = 6
-  const placeAbove = rect.top - 24 - PILL_OFFSET_PX >= 8
-  const top = placeAbove ? rect.top - 24 - PILL_OFFSET_PX : rect.bottom + PILL_OFFSET_PX
-  const rawLeft = rect.right - PILL_WIDTH_ESTIMATE - GAP - 28
-  const left = Math.max(8, rawLeft)
+  const PILL_WIDTH_ESTIMATE = 96
+  // Try below first (the fresh real-estate); fall back to above-
+  // above-pill when the selection is at the viewport bottom.
+  const wouldOverflowBottom = rect.bottom + PILL_OFFSET_PX + PILL_HEIGHT_ESTIMATE + 8 > window.innerHeight
+  const top = wouldOverflowBottom
+    ? rect.top - (PILL_HEIGHT_ESTIMATE + PILL_OFFSET_PX) * 2 // above the SendToDuoPill
+    : rect.bottom + PILL_OFFSET_PX
+  // Right-align with the SendToDuoPill (same x-coordinate) so the
+  // two read as a stack rather than a scattered row.
+  const left = Math.max(8, rect.right - PILL_WIDTH_ESTIMATE)
   return createPortal(
     <button
       type="button"
