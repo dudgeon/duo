@@ -153,6 +153,13 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
             }
           }
           doc.addEventListener('keydown', keyHandler, true)
+
+          // BUG-022 fix — focus the body when the canvas opens so
+          // the first keystroke lands as content (matches the
+          // markdown editor's behavior — the user shouldn't have to
+          // click into the page before typing). Wrapped in try/catch
+          // because some sandboxed iframe states reject focus().
+          try { doc.body.focus() } catch { /* ignore */ }
         }
 
         // Fire onReady AFTER the body is populated. CanvasTab mounts

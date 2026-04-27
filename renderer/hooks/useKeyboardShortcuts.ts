@@ -15,7 +15,7 @@
 // xterm + WebContentsView consult the same matcher and yield when a
 // match is positive.
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { TabSession } from '@shared/types'
 import {
   matchGlobalShortcut,
@@ -44,6 +44,20 @@ interface Options {
 }
 
 export function useKeyboardShortcuts(opts: Options) {
+  // BUG-021 fix — tab cycle handlers (⌃Tab / ⌃⇧Tab) need to see the
+  // CURRENT tabs at keystroke time, not whatever was captured by the
+  // useEffect closure. After Stage 21c Phase 2 (session restore on
+  // relaunch) replaces `opts.tabs` with the rehydrated list, there's
+  // a window where the old useEffect closure can still be live (the
+  // re-run is scheduled but not yet executed). Pulling tabs +
+  // activeTabId through refs eliminates the stale-closure path
+  // entirely — the dispatch reads `tabsRef.current` at the moment
+  // the keystroke fires.
+  const tabsRef = useRef<TabSession[]>(opts.tabs)
+  const activeTabIdRef = useRef<string>(opts.activeTabId)
+  tabsRef.current = opts.tabs
+  activeTabIdRef.current = opts.activeTabId
+
   useEffect(() => {
     // Build a single dispatcher that App.tsx callbacks resolve through.
     // `paneOverride` is set when the keystroke arrived from the
@@ -95,39 +109,66 @@ export function useKeyboardShortcuts(opts: Options) {
         }
         case 'jumpTerminalTab': {
           if (typeof arg === 'number') {
+            // BUG-021 fix — read from ref (always latest) so post-
+            // session-restore tab IDs are visible.
+            const tabs = tabsRef.current
             const idx = arg - 1
-            if (idx >= 0 && idx < opts.tabs.length) {
-              opts.setActiveTabId(opts.tabs[idx].id)
+            if (idx >= 0 && idx < tabs.length) {
+              opts.setActiveTabId(tabs[idx].id)
             }
           }
           return
         }
         case 'prevTerminalTab': {
-          const idx = opts.tabs.findIndex(t => t.id === opts.activeTabId)
-          if (opts.tabs.length === 0) return
-          const prev = opts.tabs[(idx - 1 + opts.tabs.length) % opts.tabs.length]
+          const tabs = tabsRef.current
+          if (tabs.length === 0) return
+          const idx = tabs.findIndex(t => t.id === activeTabIdRef.current)
+          const prev = tabs[(idx - 1 + tabs.length) % tabs.length]
           opts.setActiveTabId(prev.id)
           return
         }
         case 'nextTerminalTab': {
-          const idx = opts.tabs.findIndex(t => t.id === opts.activeTabId)
-          if (opts.tabs.length === 0) return
-          const next = opts.tabs[(idx + 1) % opts.tabs.length]
+          const tabs = tabsRef.current
+          if (tabs.length === 0) return
+          const idx = tabs.findIndex(t => t.id === activeTabIdRef.current)
+          const next = tabs[(idx + 1) % tabs.length]
           opts.setActiveTabId(next.id)
           return
         }
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
           const delta = id === 'cycleTabsBackward' ? -1 : 1
-          if (pane === 'terminal' && opts.tabs.length > 0) {
-            const idx = opts.tabs.findIndex(t => t.id === opts.activeTabId)
-            const next = opts.tabs[(idx + delta + opts.tabs.length) % opts.tabs.length]
+          // BUG-021 fix — read tabs from ref so the cycle always
+          // sees post-session-restore state. The closure itself
+          // re-binds when opts.tabs changes (via deps) but the ref
+          // is belt+braces against any timing windows where the
+          // closure is stale.
+          const tabs = tabsRef.current
+          if (pane === 'terminal' && tabs.length > 0) {
+            const idx = tabs.findIndex(t => t.id === activeTabIdRef.current)
+            const next = tabs[(idx + delta + tabs.length) % tabs.length]
             opts.setActiveTabId(next.id)
           } else {
             void (async () => {
+              // Browser side: getTabs() is an IPC call, so it
+              // always returns BrowserManager's CURRENT state
+              // (no closure issue). But add a small fallback log
+              // when the cycle yields a no-op so user repros land
+              // a useful breadcrumb.
               const btabs = await window.electron.browser.getTabs()
-              if (btabs.length === 0) return
+              if (btabs.length === 0) {
+                console.warn('[shortcuts] cycleTabs: browser has zero tabs — nothing to cycle')
+                return
+              }
               const activeIdx = btabs.findIndex(t => t.isActive)
+              if (activeIdx < 0) {
+                // No active tab found — switch to the first one
+                // anyway so the cycle progresses rather than
+                // silently no-oping.
+                console.warn('[shortcuts] cycleTabs: no active browser tab found; defaulting to index 0')
+                await window.electron.browser.switchTab(btabs[0].id)
+                return
+              }
               const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
               await window.electron.browser.switchTab(btabs[nextIdx].id)
             })()

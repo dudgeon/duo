@@ -1089,6 +1089,50 @@ A collapsed pill / chip somewhere on the canvas chrome that says "5 resolved" (o
 
 ---
 
+### ENH-009: Expand default external-domains.json bootstrap list
+
+**Status:** 🆕 Filed (v0.4.2 punch addendum)
+**Priority:** Medium-High (every Trailblazer hits Slack / Gmail / Google Docs daily; the embedded browser breaks SSO on most of them)
+**Filed:** 2026-04-27
+
+**Today:**
+`electron/install-service.ts` (and the dev-only `sync:claude` script) bootstraps `~/.claude/duo/external-domains.json` with a single default: `["*.capitalone.com"]`. URLs matching it route to the system default browser; everything else stays in Duo's embedded `WebContentsView`.
+
+**Owner observation:** "the block list of urls that duo browser should not attempt to open and should bounce to chrome/system browser, eg `*.capitalone.com`, `*.slack.com`, `gmail.com`, `docs.google.com`, other Google apps"
+
+**Expected:**
+A more comprehensive default list covering common SaaS apps that fail in the embedded browser due to SSO + corporate-managed browser requirements:
+
+- `*.capitalone.com` (existing)
+- `*.slack.com` (Slack web — SSO conditional access)
+- `mail.google.com` (Gmail web — Google login + 2FA flows often broken in embedded)
+- `docs.google.com` (Google Docs)
+- `drive.google.com` (Google Drive)
+- `calendar.google.com` (Google Calendar)
+- `meet.google.com` (Google Meet — getUserMedia access patterns)
+- `chat.google.com` (Google Chat)
+- `accounts.google.com` (Google login flow, used by all Google apps)
+- `*.atlassian.net` (Jira / Confluence — common enterprise SSO)
+- `*.microsoftonline.com` (Microsoft 365 login — same SSO story as Atlassian)
+
+**Two-mile fix:**
+
+1. **Fresh-install defaults expand.** New install picks up the wider list. Lands cleanly in `electron/install-service.ts`'s bootstrap block + the `package.json sync:claude` dev script for parity. ~10 LOC.
+2. **Upgrade-additive merge** (optional, deferred):
+   - On version-bump install, read existing `external-domains.json`, parse `domains` array, add any MISSING bundled defaults (don't remove user entries, don't re-add entries the user explicitly deleted — would need a "dismissed-defaults" tracker for that, deferred).
+   - Without this, existing users who already have an `external-domains.json` won't get the new domains. Workaround: delete the file → next launch re-bootstraps with new list.
+   - Fold into Stage 21e-iii's provenance-aware install pattern (mile 2 belongs to v0.5.0 alongside the SHA tracking).
+
+**v0.4.3 scope (this patch):** mile 1 only — fresh-install defaults expand. Document the existing-user migration path in release notes ("delete `~/.claude/duo/external-domains.json` to pick up the new defaults, or edit by hand").
+
+**Affected files:**
+- `electron/install-service.ts` (bootstrap defaults)
+- `package.json` `sync:claude` script (dev-side parity)
+- `fork.config.default.json` on the stage-21e branch (so the Vite-injected runtime defaults match — fold in when 21e rebases on v0.4.3)
+- Release notes for v0.4.3 (existing-user migration note)
+
+---
+
 ### ENH-008: Tooltip on "Your Claude settings" navigator pane
 
 **Status:** 🆕 Filed (v0.4.2 punch)

@@ -74,14 +74,26 @@ export function htmlBoilerplate(title: string): string {
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
+  /* BUG-023 fix — body fills the viewport so clicks ANYWHERE in
+     the iframe land on contentEditable body (and the browser
+     places the cursor at the nearest text node). Pre-fix, body's
+     max-width centered the column with empty whitespace flanking
+     it; clicks in that whitespace landed on <html> and didn't
+     place a cursor. The content column lives in <main> below. */
+  html { background: var(--paper); }
   body {
     background: var(--paper);
     color: var(--ink);
     font-family: var(--sans);
     line-height: 1.6;
+    min-height: 100vh;
+    margin: 0;
+    padding: 0;
+  }
+  main {
     max-width: 720px;
-    margin: 48px auto;
-    padding: 0 24px 96px;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
   }
   h1, h2, h3 {
     font-family: var(--serif);
@@ -112,8 +124,10 @@ export function htmlBoilerplate(title: string): string {
 </style>
 </head>
 <body data-duo-id="${bodyId}">
+<main>
 <h1 data-duo-id="${h1Id}">${safe}</h1>
 <p data-duo-id="${pId}"></p>
+</main>
 </body>
 </html>
 `

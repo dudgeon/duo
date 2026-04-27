@@ -67,7 +67,17 @@ export function UserClaudePane({
           'flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-medium tracking-wide uppercase text-left leading-tight transition-colors',
           'text-ink-mute hover:text-accent-ink'
         ].join(' ')}
-        title={collapsed ? 'Expand Your Claude settings' : 'Collapse Your Claude settings'}
+        // ENH-008 — explain what the pane shows + where the files
+        // live for users who haven't grokked the dotfile convention.
+        // Tooltip is the lightest surface — `title` attribute gets
+        // browser-native tooltip behavior with no styling cost. A
+        // future polish could replace with a custom tooltip
+        // component, but title-attr is the right v1 footprint.
+        title={
+          collapsed
+            ? 'Expand Your Claude settings'
+            : 'Files at ~/.claude/ that apply to ALL of your Claude Code sessions, not just this project. Edit them to teach Claude your preferences globally.'
+        }
       >
         <Chevron open={!collapsed} />
         <span className="flex-1">Your Claude settings</span>

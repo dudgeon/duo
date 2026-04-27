@@ -186,10 +186,15 @@ export function WorkingPane({
     if (e.altKey) {
       setActiveWorking({ kind: 'browser' })
       void addTab().then(() => {
-        queueMicrotask(() => {
-          const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
-          addr?.focus()
-          addr?.select()
+        // BUG-019 fix — see App.tsx § newBrowserTab for rationale.
+        // Two RAFs push past React commit + paint so the address
+        // bar is mounted before focus() runs.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+            addr?.focus()
+            addr?.select()
+          })
         })
       })
       return
