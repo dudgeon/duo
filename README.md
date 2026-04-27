@@ -440,6 +440,13 @@ README are:
 
 - **[docs/VISION.md](docs/VISION.md)** — product north star: persona, jobs
   to be done, principles, flagship bet. Start here for *why* Duo exists.
+- **[docs/HOW-TO-FORK.md](docs/HOW-TO-FORK.md)** — five layered fork modes,
+  what works today (Layer 0 = use as-is, Layer 1 = per-user
+  customization), what's coming via Stage 21e (Layer 2 = drop-in org
+  pack, Layer 3 = build-time partial fork, Layer 4 = build-time full
+  fork), and what's hard-coded today vs. what becomes configurable.
+  Worth reading if you're an enterprise team considering an internal
+  Duo distro.
 - **[docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)** — exhaustive CLI
   inventory + priority-tagged gap roadmap. Updated as verbs ship.
 - **[ROADMAP.md](ROADMAP.md)** — current status, per stage, plus the
