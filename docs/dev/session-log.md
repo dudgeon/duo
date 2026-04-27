@@ -18,6 +18,94 @@
 
 ---
 
+## 2026-04-26 late (after v0.3.1) — v0.4.0 cut: context pedagogy
+
+Five-feature sprint, autonomous overnight. Owner went to bed asking
+two specific things: (a) is the navigator dual-pane overhaul (Stage
+22) tight enough to attempt without owner intervention, (b) is the
+existing "update available" flag mocked or real GH-querying. Both
+got affirmative answers and rolled into the cut.
+
+**Stage 22 (the headline).** Reorgs the file navigator into two
+panes vertically: top "Your Claude settings" with curated three at
+`~/.claude/` (CLAUDE.md, skills/, agents/) plus a "Show all" toggle
+for the rest, bottom "This project" gaining a "Project Claude
+context" group above the regular file tree. The pedagogy: visual
+separation teaches "the agent reads from BOTH user-level and
+project-level context buckets" without users learning dotfile
+conventions.
+
+Architecture: new `useUserClaudeNavigator` hook for the top pane
+(rooted at `~/.claude/`, no `cwd`, no follow-mode, no pin). Existing
+`useNavigator` stays for the bottom pane unchanged. Both feed the
+now-exported `<TreeNodes>` primitive in `FileTree.tsx` for the
+recursive tree rendering — adding a third pane in the future (e.g.,
+Stage 18b's "Provided by AIP" badge) is mechanical. The user-claude
+pane's curated root is *synthesized* (a hand-picked list of
+CLAUDE.md + skills/ + agents/ constructed from the live
+`~/.claude/` listing) rather than fetched separately, so the pane
+stays in sync with chokidar updates automatically. The "Show all"
+toggle just swaps between the curated root and
+`state.listings.get(state.cwd)` — same code path, different entries.
+
+`<ProjectClaudeContext>` checks the project's listing for
+`./CLAUDE.md`, `./.claude/`, `./tasks.md`, `./AGENTS.md` and renders
+only the ones that exist; if none exist, the entire group is hidden.
+File-ops symmetry (rename / delete / reveal-in-Finder shared across
+both panes) is explicitly deferred to the Navigator polish bundle —
+Stage 22 is the visual reorg, the polish bundle is the interaction
+layer.
+
+**GitHub Releases update checker.** Owner's diagnosis confirmed:
+today's "Duo update available" banner is the LOCAL re-install
+reminder (compares `installed.json`'s recorded version against
+`app.getVersion()`), not real upstream-availability. Built a real
+one as a sibling: new `UpdateChecker` in main fetches
+`api.github.com/repos/dudgeon/duo/releases/latest` once per launch
+(refreshed every 6h), caches at `~/.claude/duo/update-check.json`
+keyed by running version, exposes via `IPC.UPDATE_CHECK`. Renderer
+mounts `<UpdateAvailableBanner>` with per-upstream-version
+dismissal (skipping v0.4.0 stays quiet until v0.4.1).
+
+**Stage 25 — post-redirect chrome banner + `*.capitalone.com`
+default.** After `shell.openExternal` in `openExternalUrl` succeeds,
+main resolves the URL hostname against `~/.claude/duo/external-
+domains.json` (extended schema: entries can be `string` OR
+`{host, reason?}`) and pushes `IPC.EXTERNAL_REDIRECTED { host,
+reason? }`. Renderer mounts `<ExternalRedirectedBanner>` with
+most-recent-wins replacement (back-to-back redirects don't stack)
+and 6s auto-dismiss. Install bootstrap seeds the file with
+`*.capitalone.com` per owner request — Cap One Trailblazers'
+internal sites need the corporate-managed browser for SSO + internal
+CDN certs and don't render reliably in the embedded WebContentsView.
+
+**Edit menu Paste-and-Match-Style.** ENH-002 follow-up. The keyboard
+chord `⌘⇧V` was already wired editor-locally in v0.3.1; v0.4.0 adds
+the menu surface for discoverability. Click → `mainWindow.send(IPC.PASTE_PLAIN_REQUEST)`
+→ both editors subscribe → whichever has focus reacts. New
+`ElectronAppMenuAPI` in the preload surface to keep things tidy.
+
+**Stage 21 prep.** Owner went to bed asking whether I have everything
+to sign — yes, the cert artifacts are all in place per
+`docs/dev/cert-procurement.md`. But signing autonomously while they
+sleep risks the FOLLOWUP-005 keychain prompt blocking the build
+forever. Compromise: prep the env-driven flow tonight, defer the
+actual signed cut. New `scripts/dist-signed.sh` sources
+`~/Documents/duo-private/.env` and runs `npm run dist` (without the
+`CSC_IDENTITY_AUTO_DISCOVERY=false` override that today's unsigned
+flow uses); `scripts/validate-signed-dmg.sh` runs `codesign --verify
+--deep`, `spctl -a -t open --context context:primary-signature`,
+and `xcrun stapler validate`. The yml stays env-agnostic so today's
+unsigned cut still works without flag flips.
+
+**Filed but deferred:** Stage 19d (mid-tab launch-claude banner),
+BUG-006 (browser-pane Send→Duo pill behind WebContentsView — needs
+design decision), MISSING-001 (markdown comments → Stage 14a),
+Stage 18b (distro skill packs), Stage 21c (session restore from
+pins), the actual Stage 21 signed cut.
+
+---
+
 ## 2026-04-26 night (after v0.3.0) — v0.3.1 cut: cleanup sprint
 
 Eight items in one cut, all small enough to review individually:

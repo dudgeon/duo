@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
+import { promises as fsPromises } from 'fs'
 import { spawnSync } from 'child_process'
 import { PtyManager } from './pty-manager'
 import { BrowserManager } from './browser-manager'
@@ -9,6 +10,7 @@ import { SocketServer, ensureSocketDir } from './socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from './pins-service'
 import { InstallService } from './install-service'
+import { UpdateChecker } from './update-checker'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -33,7 +35,8 @@ import type {
   SelectionFormat,
   SelectionFormatStateSnapshot,
   NewTabRequest,
-  NewTabResult
+  NewTabResult,
+  ExternalRedirectedPush
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -108,6 +111,12 @@ const ptyManager = new PtyManager()
 const filesService = new FilesService()
 const pinsService = new PinsService()
 const installService = new InstallService()
+const updateChecker = new UpdateChecker()
+// Load the cached check at boot so the renderer's first IPC call
+// can return immediately even before a network refresh completes.
+// `maybeRefresh()` will then fire the network call in the background
+// when the renderer asks; subsequent calls return cached results.
+void updateChecker.loadCache()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 
@@ -336,6 +345,11 @@ function setupIPC(): void {
     return installService.run()
   })
 
+  // v0.4.0 — GitHub Releases update checker.
+  ipcMain.handle(IPC.UPDATE_CHECK, () => {
+    return updateChecker.maybeRefresh()
+  })
+
   ipcMain.handle(IPC.FILES_WATCH_START, (event, { id, paths }: { id: string; paths: string[] }) => {
     filesService.startWatch(id, paths, event.sender, IPC.FILES_CHANGED)
   })
@@ -503,6 +517,19 @@ function installAppMenu(): void {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
+        // ENH-002 / v0.4.0 — "Paste and Match Style" with macOS-
+        // standard ⌘⇧V. Both editors (markdown + HTML canvas)
+        // already handle ⌘⇧V via their own keydown handlers; this
+        // adds the menu surface for discoverability. Click sends a
+        // `paste-plain` IPC to the active editor, which performs
+        // the same plain-text insert.
+        {
+          label: 'Paste and Match Style',
+          accelerator: 'CmdOrCtrl+Shift+V',
+          click: () => {
+            mainWindow?.webContents.send(IPC.PASTE_PLAIN_REQUEST)
+          }
+        },
         { role: 'selectAll' }
       ]
     },
@@ -856,8 +883,56 @@ export async function openExternalUrl(url: string): Promise<{ ok: boolean; opene
   }
   try {
     await shell.openExternal(url)
+    // Stage 25 — push a post-redirect event so the renderer can
+    // surface a small "Sent <host> to your default browser" banner.
+    // The renderer auto-dismisses after a few seconds; the user
+    // doesn't have to interact with it.
+    if (mainWindow && !mainWindow.isDestroyed() && (scheme === 'http:' || scheme === 'https:')) {
+      const host = parsed.hostname
+      const reason = await lookupExternalDomainReason(host)
+      const push: ExternalRedirectedPush = { host, reason: reason || undefined }
+      mainWindow.webContents.send(IPC.EXTERNAL_REDIRECTED, push)
+    }
     return { ok: true, opened: url }
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+/**
+ * Stage 25 — look up a per-domain `reason` string in
+ * `~/.claude/duo/external-domains.json`'s extended schema. The
+ * historical schema is `{ domains: ["host.com", "*.suffix.com"] }`;
+ * the extended schema (backward-compatible) also accepts entries
+ * shaped like `{ host: "host.com", reason: "internal SSO" }`. We
+ * match exact hostname or `*.suffix` glob; first match wins. Returns
+ * empty string when no entry has a reason or no entry matches.
+ */
+async function lookupExternalDomainReason(host: string): Promise<string> {
+  const PATH_TO_FILE = `${process.env.HOME ?? ''}/.claude/duo/external-domains.json`
+  try {
+    const raw = await fsPromises.readFile(PATH_TO_FILE, 'utf8')
+    const parsed = JSON.parse(raw) as { domains?: Array<string | { host: string; reason?: string }> }
+    if (!Array.isArray(parsed.domains)) return ''
+    for (const entry of parsed.domains) {
+      const ent = typeof entry === 'string' ? { host: entry, reason: undefined } : entry
+      if (typeof ent.host !== 'string') continue
+      if (matchesDomain(host, ent.host)) {
+        return typeof ent.reason === 'string' ? ent.reason : ''
+      }
+    }
+    return ''
+  } catch {
+    return ''
+  }
+}
+
+function matchesDomain(host: string, pattern: string): boolean {
+  if (pattern === host) return true
+  if (pattern.startsWith('*.')) {
+    const suffix = pattern.slice(2) // drop leading '*.'
+    if (host === suffix) return true
+    if (host.endsWith(`.${suffix}`)) return true
+  }
+  return false
 }

@@ -4,12 +4,15 @@ import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { PinnedCloseConfirm } from './components/PinnedCloseConfirm'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
+import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
+import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane } from './components/FilesPane'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
+import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
 import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
@@ -168,6 +171,10 @@ function makeTab(cwd: string, kind: TerminalTabKind, home: string): TabSession {
 export function App() {
   const home = window.electron.env.HOME || '~'
   const nav = useNavigator(home)
+  // Stage 22 — separate navigator state for the top "Your Claude
+  // settings" pane (rooted at ~/.claude/). Lives at App level so its
+  // expanded set + show-all toggle persist across re-mounts.
+  const userClaudeNav = useUserClaudeNavigator(home)
   const pendingCwd = computePendingCwd(nav.state)
   const theme = useTheme()
   // Stage 15 G19 — sets up the localStorage round-trip for `duo
@@ -887,6 +894,17 @@ export function App() {
           version is stale; auto-hides on success / dismissal. */}
       <FirstLaunchBanner />
 
+      {/* v0.4.0 — GitHub Releases upgrade-available banner. Renders
+          only when api.github.com says a newer Duo tag is published
+          and the user hasn't dismissed THIS upstream version yet. */}
+      <UpdateAvailableBanner />
+
+      {/* Stage 25 (v0.4.0) — post-redirect chrome banner. Auto-
+          dismisses after ~6s; only renders briefly after `duo
+          external` (or another shell.openExternal call) routes a
+          URL to the system browser. */}
+      <ExternalRedirectedBanner />
+
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div
           className="h-full shrink-0 min-w-0"
@@ -899,6 +917,7 @@ export function App() {
             home={home}
             state={nav.state}
             actions={nav.actions}
+            userClaudeNav={userClaudeNav}
             onOpenFile={onOpenFile}
             onOpenTerminalHere={openTerminalHere}
             revealChip={revealChip}

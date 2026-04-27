@@ -25,7 +25,8 @@ import type {
   SelectionFormatStateSnapshot,
   NewTabRequest,
   NewTabResult,
-  PinEntry
+  PinEntry,
+  ExternalRedirectedPush
 } from '../shared/types'
 
 const api: ElectronAPI = {
@@ -307,6 +308,26 @@ const api: ElectronAPI = {
   install: {
     status: () => ipcRenderer.invoke(IPC.INSTALL_STATUS),
     run: () => ipcRenderer.invoke(IPC.INSTALL_RUN)
+  },
+
+  update: {
+    check: () => ipcRenderer.invoke(IPC.UPDATE_CHECK)
+  },
+
+  external: {
+    onRedirected: (cb) => {
+      const handler = (_: IpcRendererEvent, push: ExternalRedirectedPush) => cb(push)
+      ipcRenderer.on(IPC.EXTERNAL_REDIRECTED, handler)
+      return () => ipcRenderer.removeListener(IPC.EXTERNAL_REDIRECTED, handler)
+    }
+  },
+
+  appMenu: {
+    onPastePlainRequest: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.PASTE_PLAIN_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.PASTE_PLAIN_REQUEST, handler)
+    }
   }
 }
 

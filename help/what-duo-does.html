@@ -528,8 +528,53 @@
   </div>
 </article>
 
+<article class="item" data-keys="navigator dual-pane your claude settings project context user level pedagogy stage 22">
+  <div class="num">46</div>
+  <div>
+    <h3>See Claude's user-level + project-level context at a glance</h3>
+    <p class="why">The file navigator now splits into two panes vertically. The top pane "Your Claude settings" shows the curated three at <code>~/.claude/</code> — <code>CLAUDE.md</code>, <code>skills/</code>, <code>agents/</code> — with a "Show all" toggle for the rest of <code>~/.claude/</code>. The bottom pane is the project tree with a new "Project Claude context" group above the regular file list (<code>./CLAUDE.md</code>, <code>./.claude/</code>, <code>./tasks.md</code>, <code>./AGENTS.md</code> when they exist). Visual separation = the pedagogy: see that the agent reads from BOTH buckets without learning dotfile conventions. Click any file to open in the WorkingPane.</p>
+    <p class="how"><strong>UI</strong>Top pane: header "Your Claude settings" + tree. Click [Show all] / [Curated] to toggle.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="update banner github releases version available auto check upstream">
+  <div class="num">47</div>
+  <div>
+    <h3>Auto-detect when a new Duo version is available on GitHub</h3>
+    <p class="why">A small banner above the WorkingPane queries <code>api.github.com/repos/dudgeon/duo/releases/latest</code> at boot and surfaces "Duo vX.Y.Z is available" with a one-click link to the GitHub Releases page. Distinct from the local-install reminder (which fires when your installed.json drifts from the running app). Per-version dismissal: skipping v0.4.0's banner stays quiet until v0.4.1 ships. Network failures and rate limits silently skip the banner — no worse than today.</p>
+    <p class="how"><strong>UI</strong>Banner appears at top automatically when an upgrade is available. Click the link to open GitHub Releases in your default browser.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="post-redirect chrome banner external duo open default browser tab system stage 25">
+  <div class="num">48</div>
+  <div>
+    <h3>Visible "Sent &lt;host&gt; to your default browser" receipt</h3>
+    <p class="why">After <code>duo external &lt;url&gt;</code> routes a URL to your system browser (because the host is on <code>external-domains.json</code>), a small banner appears above the WorkingPane: "Sent <code>&lt;host&gt;</code> to your default browser. ⌘Tab to find it." Auto-dismisses after 6s. Solves the invisible-redirect problem: today the click goes somewhere off-screen and you might wonder if anything happened. Optional per-domain reason text from <code>external-domains.json</code>'s extended schema (entries can be a string OR <code>{host, reason?}</code>).</p>
+    <p class="how"><strong>UI</strong>Triggers automatically on every <code>duo external</code> call. Click ✕ to dismiss early.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="capitalone external default off-host system browser cap one corp">
+  <div class="num">49</div>
+  <div>
+    <h3>Cap One web surfaces auto-route to the system browser by default</h3>
+    <p class="why">Install bootstraps <code>~/.claude/duo/external-domains.json</code> with <code>*.capitalone.com</code> seeded — Cap One Trailblazers' internal sites (which need the corporate-managed browser for SSO + internal CDN certs) auto-route to the system browser without manual config. Existing customized files are never clobbered.</p>
+    <p class="how"><strong>UI</strong>No action required. Edit <code>~/.claude/duo/external-domains.json</code> to add more, remove the default, or add per-domain reason text.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="edit menu paste match style plain text discoverability">
+  <div class="num">50</div>
+  <div>
+    <h3>Edit menu "Paste and Match Style" with ⌘⇧V</h3>
+    <p class="why">macOS-standard menu item now lives in the Edit menu, accelerator <code>⌘⇧V</code>. Pastes the clipboard's plain-text representation only — no inline color, no class attributes, no foreign-stylesheet chrome. Both editors (markdown + canvas) handle it; whichever has keyboard focus reacts.</p>
+    <p class="how"><strong>UI</strong>Edit → Paste and Match Style. Or just press <code>⌘⇧V</code>.</p>
+  </div>
+</article>
+
 <footer>
-  <p>This is Duo v0.3.1. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.4.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

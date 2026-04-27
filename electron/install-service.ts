@@ -212,10 +212,22 @@ export class InstallService {
 
       // external-domains.json — bootstrap only. Never clobber a user's
       // existing list.
+      //
+      // v0.4.0 — seed `*.capitalone.com` by default. Owner request
+      // (Cap One AIP cohort): Trailblazers' Cap One web surfaces
+      // require the corporate-managed browser (SSO, internal CDN
+      // certs, conditional access) and don't render reliably in
+      // Duo's embedded WebContentsView. Sending those off-host
+      // automatically saves a "wait, this didn't work, let me copy
+      // the URL" round-trip. The user can edit the file freely;
+      // the bootstrap only fires once.
       try {
         await fs.access(EXTERNAL_DOMAINS_PATH)
       } catch {
-        await fs.writeFile(EXTERNAL_DOMAINS_PATH, JSON.stringify({ domains: [] }, null, 2) + '\n')
+        const defaults = {
+          domains: ['*.capitalone.com']
+        }
+        await fs.writeFile(EXTERNAL_DOMAINS_PATH, JSON.stringify(defaults, null, 2) + '\n')
       }
 
       // Stage 19b — priming.md bootstrap. Only write if absent so

@@ -600,6 +600,26 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     }
   }, [])
 
+  // ENH-002 / v0.4.0 — Edit menu "Paste and Match Style" handler.
+  // Mirrors the markdown editor's wiring: subscribe globally; only
+  // act when this canvas's iframe body owns keyboard focus. The
+  // editor-local ⌘⇧V chord (installed via canvasPaste.ts) is the
+  // primary entry point; this adds the menu-item path.
+  useEffect(() => {
+    return window.electron.appMenu.onPastePlainRequest(() => {
+      const doc = canvasRef.current?.getDocument()
+      if (!doc) return
+      // Active element check: body is the contentEditable host.
+      const isFocused = doc.activeElement === doc.body || doc.body.contains(doc.activeElement)
+      if (!isFocused) return
+      void navigator.clipboard.readText().then(text => {
+        if (text) doc.execCommand('insertText', false, text)
+      }).catch(err => {
+        console.warn('[duo-canvas-paste] readText failed:', err)
+      })
+    })
+  }, [])
+
   // Keyboard shortcut handler — fires from inside the iframe.
   // PRD H28 + polish item 3: marks (B/I/U/code) + link picker (⌘K) all
   // route through the shared EditorActions so the typing path and the

@@ -23,10 +23,16 @@ interface FileTreeProps {
   /** "Open terminal here" — spawns a new terminal tab with this folder
    *  as its launch CWD. */
   onOpenTerminalHere: (folderPath: string) => void
+  /** Stage 22 — override the default root entry source (which is
+   *  `state.listings.get(state.cwd)`). The user-claude pane uses
+   *  this to inject a curated root list (CLAUDE.md, skills/, agents/)
+   *  instead of the full `~/.claude/` listing. Children of expanded
+   *  folders still come from `state.listings`. */
+  rootEntriesOverride?: DirEntry[] | null
 }
 
-export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere }: FileTreeProps) {
-  const rootEntries = state.listings.get(state.cwd)
+export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, rootEntriesOverride }: FileTreeProps) {
+  const rootEntries = rootEntriesOverride !== undefined ? rootEntriesOverride : state.listings.get(state.cwd)
   // Shared context-menu state — only one menu open at a time across the whole
   // tree. `target` carries the entry the user right-clicked.
   const [menu, setMenu] = useState<{ x: number; y: number; target: DirEntry } | null>(null)
@@ -115,7 +121,7 @@ interface TreeNodesProps {
   onContextMenu: (e: React.MouseEvent, entry: DirEntry) => void
 }
 
-function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu }: TreeNodesProps) {
+export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }

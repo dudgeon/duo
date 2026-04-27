@@ -5,8 +5,11 @@
 
 import { Breadcrumb } from './Breadcrumb'
 import { FileTree } from './FileTree'
+import { UserClaudePane } from './UserClaudePane'
+import { ProjectClaudeContext } from './ProjectClaudeContext'
 import type { DirEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
+import type { UserClaudeNavigatorApi } from '../hooks/useUserClaudeNavigator'
 
 interface FilesPaneProps {
   collapsed: boolean
@@ -18,6 +21,10 @@ interface FilesPaneProps {
   onOpenTerminalHere: (folderPath: string) => void
   revealChip: string | null
   onDismissRevealChip: () => void
+  /** Stage 22 \u2014 independent state machine for the "Your Claude
+   *  settings" pane. Lives in App.tsx so its `expanded` set persists
+   *  across re-mounts of FilesPane. */
+  userClaudeNav: UserClaudeNavigatorApi
   /** Flip collapsed state. Needed as a click-to-expand affordance so users
    *  stuck with \u2318B swallowed by an editor tab (bold) always have an escape. */
   onToggleCollapsed: () => void
@@ -29,6 +36,7 @@ export function FilesPane({
   home,
   state,
   actions,
+  userClaudeNav,
   onOpenFile,
   onOpenTerminalHere,
   revealChip,
@@ -57,13 +65,22 @@ export function FilesPane({
         <CollapsedRail onExpand={onToggleCollapsed} />
       ) : (
         <div className="flex flex-col h-full min-w-0">
-          {/* Header: breadcrumb + pin toggle + collapse button.
-              Stage 12 — Atelier annotation: explicit chevron-collapse
-              button next to the pin so the user has a visible affordance
-              (in addition to ⌘B). Click the rail to expand again.
-              BUG-003 fix (rev 2): the header strip is the focus chrome
-              — tints to `accent-soft` when this column has keyboard focus
-              so the focused pane is unambiguous. */}
+          {/* Stage 22 — top pane "Your Claude settings". Renders the
+              user-level context (~/.claude/) above the project tree
+              so non-technical PMs see at a glance that the agent
+              reads from BOTH user-level and project-level context.
+              Collapsible; defaults expanded. */}
+          <UserClaudePane
+            nav={userClaudeNav}
+            onOpenFile={onOpenFile}
+            onOpenTerminalHere={onOpenTerminalHere}
+            focused={focused}
+          />
+
+          {/* Bottom pane — "This project". Existing breadcrumb +
+              tree, with a new "Project Claude context" group above
+              the tree that surfaces ./CLAUDE.md / ./.claude/ /
+              ./tasks.md / ./AGENTS.md when they exist. */}
           <div
             className={[
               'flex items-center border-b shrink-0 transition-colors',
@@ -86,7 +103,18 @@ export function FilesPane({
             <RevealChip path={revealChip} onDismiss={onDismissRevealChip} />
           )}
 
-          {/* Tree */}
+          {/* Stage 22 — project Claude context group: ./CLAUDE.md,
+              ./.claude/, ./tasks.md, ./AGENTS.md when they exist.
+              Hides when none exist so projects without Claude context
+              don't show an empty section header. */}
+          <ProjectClaudeContext
+            state={state}
+            actions={actions}
+            onOpenFile={onOpenFile}
+            onOpenTerminalHere={onOpenTerminalHere}
+          />
+
+          {/* Project tree */}
           <FileTree
             state={state}
             actions={actions}

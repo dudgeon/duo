@@ -131,7 +131,7 @@
   <main class="main">
     <header>
       <h1>Duo Roadmap</h1>
-      <div class="sub">Snapshot 2026-04-26 (post-v0.3.1) · v0.3.1 cleanup sprint shipped (BUG-005/007/015/016/017 + ENH-001/002/003/004) · v0.3.0 shipped Stage 19b passive priming + Stage 23 canvas actions + preventative kb-shortcut architecture · v0.2.0 shipped FTUX foundation · Stage numbers reflect actual build order · comments save locally to your browser</div>
+      <div class="sub">Snapshot 2026-04-26 (post-v0.4.0) · v0.4.0 context-pedagogy release shipped Stage 22 navigator dual-pane + GitHub Releases update checker + Stage 25 post-redirect banner + *.capitalone.com default + Edit-menu paste-plain + Stage 21 signing-script prep · v0.3.1 cleanup sprint · v0.3.0 Duo-aware Claude · v0.2.0 FTUX foundation · Stage numbers reflect actual build order · comments save locally to your browser</div>
       <div class="sub" style="margin-top: 8px;">This file is the canonical roadmap · synced markdown view: <a href="https://github.com/dudgeon/duo/blob/main/ROADMAP.md" style="color: var(--accent-ink);"><code>ROADMAP.md</code></a> · per-stage PRDs in <a href="https://github.com/dudgeon/duo/tree/main/docs/prd" style="color: var(--accent-ink);"><code>docs/prd/</code></a> · architecture decisions in <a href="https://github.com/dudgeon/duo/blob/main/docs/DECISIONS.md" style="color: var(--accent-ink);"><code>DECISIONS.md</code></a></div>
     </header>
 
@@ -150,6 +150,16 @@
     </details>
 
     <details class="recent" open>
+      <summary><strong>v0.4.0 cut 2026-04-26 (context pedagogy)</strong> · Stage 22 ✅ navigator dual-pane (top "Your Claude settings" + bottom "Project Claude context" group) · GitHub Releases auto-update banner ✅ · Stage 25 ✅ post-redirect chrome banner · <code>*.capitalone.com</code> defaulted in external-domains bootstrap · Edit-menu "Paste and Match Style" with ⌘⇧V ✅ · Stage 21 prep ✅ (dist-signed.sh + validate-signed-dmg.sh; signed cut deferred to a user-awake moment for the FOLLOWUP-005 keychain prompt)</summary>
+      <ul>
+        <li><strong>Stage 22 (the headline).</strong> Owner asked mid-build whether the spec was tight enough to attempt autonomously — yes, the intent doc had the visual + interaction model nailed down with explicit out-of-scope markers. New <code>useUserClaudeNavigator</code> hook for the top pane (rooted at <code>~/.claude/</code>, no <code>cwd</code>, no follow-mode, no pin); existing <code>useNavigator</code> stays for the bottom pane unchanged. Both feed the now-exported <code>&lt;TreeNodes&gt;</code> primitive in <code>FileTree.tsx</code>. New <code>&lt;UserClaudePane&gt;</code> with collapsible header + curated/show-all toggle; new <code>&lt;ProjectClaudeContext&gt;</code> group surfacing project-level Claude files. The user-claude pane's curated root is <em>synthesized</em> from the live root listing (so chokidar updates flow through automatically); show-all just swaps to <code>state.listings.get(state.cwd)</code>. Both panes share the same TreeNode rendering, so a future third pane (Stage 18b's "Provided by AIP" badge) is mechanical.</li>
+        <li><strong>GitHub Releases update checker.</strong> Owner's diagnosis confirmed: today's "Duo update available" banner is local-install drift detection (<code>installed.json</code> version vs <code>app.getVersion()</code>), not real upstream-availability. New <code>UpdateChecker</code> in main fetches <code>api.github.com/repos/dudgeon/duo/releases/latest</code> at boot (refreshed every 6h), caches at <code>~/.claude/duo/update-check.json</code>, exposes via <code>IPC.UPDATE_CHECK</code>. Renderer mounts <code>&lt;UpdateAvailableBanner&gt;</code> as a sibling to <code>&lt;FirstLaunchBanner&gt;</code> with per-upstream-version dismissal.</li>
+        <li><strong>Stage 25 + <code>*.capitalone.com</code> default.</strong> After <code>shell.openExternal</code> succeeds in <code>openExternalUrl</code>, main resolves the URL hostname against <code>~/.claude/duo/external-domains.json</code> (extended schema: entries can now be <code>string</code> OR <code>{host, reason?}</code>) and pushes <code>IPC.EXTERNAL_REDIRECTED</code>. Renderer mounts <code>&lt;ExternalRedirectedBanner&gt;</code> with most-recent-wins replacement and 6s auto-dismiss. Install bootstrap seeds the file with <code>*.capitalone.com</code> on first run.</li>
+        <li><strong>Stage 21 prep — env-driven signed cut.</strong> <code>scripts/dist-signed.sh</code> sources <code>~/Documents/duo-private/.env</code> and runs <code>npm run dist</code>; electron-builder picks up <code>CSC_NAME</code> + <code>APPLE_API_KEY</code>+ via env auto-discovery (no yml flips). <code>scripts/validate-signed-dmg.sh</code> mounts the DMG and runs <code>codesign --verify --deep</code> + <code>spctl -a -t open</code> + <code>xcrun stapler validate</code>. The yml stays env-agnostic so today's unsigned <code>CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist</code> still works. Signed cut deferred to a user-awake moment so the FOLLOWUP-005 keychain prompt can be answered if it appears.</li>
+      </ul>
+    </details>
+
+    <details class="recent">
       <summary><strong>v0.3.1 cut 2026-04-26 (cleanup sprint)</strong> · BUG-005 ✅ <code>duo key End</code> Mac translation · BUG-007 ✅ navigator filesystem watcher · BUG-015 ✅ empty comment rail gated · BUG-016 ✅ dark-mode pasted-bold contrast · BUG-017 ✅ theme system mode follows macOS · ENH-001 + ENH-004 ✅ default canvas boilerplate (IDs at write time + Atelier defaults) · ENH-002 ✅ paste as plain text (⌘⇧V) · ENH-003 ✅ default-pinned help tabs (FAQ + What Duo Does)</summary>
       <ul>
         <li>Eight items, all small, all paired thoughtfully where possible. ENH-001 + ENH-004 land together (both touch <code>shared/html-boilerplate.ts</code>); ENH-002 + BUG-016 land together (both touch the new <code>installCanvasPasteHandlers</code>); ENH-003 + the <code>defaultLandingUrl</code> change land together (URLs must match for pin identity to bind). Filed-but-deferred-to-v0.4.0+: MISSING-001 (markdown editor comments → Stage 14a), BUG-006 (browser-pane Send→Duo pill behind WebContentsView — needs design decision before code).</li>
@@ -557,9 +567,9 @@
       <div class="comment"><label>Comment</label><textarea data-key="s17d-C" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage pending" id="s22" data-id="s22">
-      <h3><span class="num-badge">Stage 22</span> Navigator dual-pane overhaul (context pedagogy) <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · supersedes Stage 10 D11 three-column-deeper view · navigator becomes a teaching surface</div>
+    <article class="stage done" id="s22" data-id="s22">
+      <h3><span class="num-badge">Stage 22</span> Navigator dual-pane overhaul (context pedagogy) <span class="glyph done"></span></h3>
+      <div class="status-line">✅ Shipped v0.4.0 · top "Your Claude settings" + bottom "Project Claude context" group · separate state machines, shared <code>&lt;TreeNodes&gt;</code> primitive · plain-English labels, no literal <code>~/.claude/</code> · file-ops symmetry deferred to Navigator polish bundle</div>
       <p class="blurb"><strong>The intent.</strong> The navigator's PRIMARY job becomes <em>teaching non-technical PMs that the agent reads from two layers of context (user + project)</em>. Visual separation is the pedagogy. Today's three-column-deeper navigator hides what's mounted under <code>~/.claude/</code>; non-technical PMs lose track of which buckets the agent reads from. The dual-pane reorg surfaces both buckets explicitly.</p>
 
       <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>
@@ -770,9 +780,9 @@
       <div class="comment"><label>Comment</label><textarea data-key="s21" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage pending" id="s25" data-id="s25">
-      <h3><span class="num-badge">Stage 25</span> Post-redirect chrome banner <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · small ship (~80 LOC) · independent of most stages · combines well with Stage 18b distro per-domain reasons</div>
+    <article class="stage done" id="s25" data-id="s25">
+      <h3><span class="num-badge">Stage 25</span> Post-redirect chrome banner <span class="glyph done"></span></h3>
+      <div class="status-line">✅ Shipped v0.4.0 · 6s auto-dismiss · most-recent-wins replacement · schema extension (entries can be <code>string</code> OR <code>{host, reason?}</code>, backward-compatible) · <code>*.capitalone.com</code> seeded in default external-domains list</div>
       <p class="blurb"><strong>The intent.</strong> Today, <code>duo external &lt;url&gt;</code> (Stage 5 v2) routes hostnames in <code>~/.claude/duo/external-domains.json</code> to the system default browser via <code>shell.openExternal</code>. A non-technical PM clicks a link in Duo, suddenly lands in Safari, doesn't know why or how to get back. The chrome is for context + user empathy.</p>
 
       <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>

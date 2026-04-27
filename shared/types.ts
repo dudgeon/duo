@@ -577,6 +577,27 @@ export const IPC = {
   // Stage 18 — first-launch self-install (skill + subagent + provenance).
   INSTALL_STATUS: 'install:status',
   INSTALL_RUN: 'install:run',
+
+  // v0.4.0 — GitHub Releases update checker. Renderer asks main for
+  // the latest cached upstream version + a refresh-if-stale hint.
+  // Main owns the network fetch + the disk cache to keep the
+  // anonymous GitHub API rate-limit (60 req/hr/IP) from being burned
+  // by HMR re-mounts.
+  UPDATE_CHECK: 'update:check',
+
+  // Stage 25 (v0.4.0) — main pushes a "post-redirect" event after
+  // `duo external` (or any other shell.openExternal call from the
+  // duo subagent) succeeds. The renderer mounts a small auto-
+  // dismissing banner ("Sent <host> to your default browser. ⌘Tab
+  // to find it.") so the user knows their click went somewhere.
+  EXTERNAL_REDIRECTED: 'external:redirected',
+
+  // ENH-002 / v0.4.0 — "Paste and Match Style" menu item fires this
+  // at the renderer; the active editor (markdown / canvas) performs
+  // a plain-text paste. The keyboard chord ⌘⇧V is also handled
+  // editor-locally without going through this channel; the IPC
+  // surface is purely for the menu accelerator.
+  PASTE_PLAIN_REQUEST: 'paste-plain:request',
   FILES_WATCH_START: 'files:watch-start',
   FILES_WATCH_UPDATE: 'files:watch-update',
   FILES_WATCH_STOP: 'files:watch-stop',
@@ -985,6 +1006,61 @@ export interface ElectronInstallAPI {
   run: () => Promise<InstallResult>
 }
 
+// Stage 25 (v0.4.0) — post-redirect chrome banner payload. Pushed
+// from main on `IPC.EXTERNAL_REDIRECTED` after a successful
+// `shell.openExternal` call. The renderer surfaces a small auto-
+// dismissing banner above the WorkingPane.
+export interface ExternalRedirectedPush {
+  /** The hostname the URL was redirected to. */
+  host: string
+  /** Optional per-domain reason text from external-domains.json's
+   *  extended-schema entries (`{host, reason?}` form). Surfaces in
+   *  the banner under the main message when present. */
+  reason?: string
+}
+
+// v0.4.0 — GitHub Releases update checker.
+export interface UpdateCheckResult {
+  /** Duo's running version (`app.getVersion()`). */
+  current: string
+  /** Latest tag on GitHub Releases (without leading `v`), or null
+   *  if the check hasn't completed / failed. */
+  latest: string | null
+  /** True when latest > current per semver-style comparison. */
+  updateAvailable: boolean
+  /** Browser URL of the release page. Null when unknown. */
+  releaseUrl: string | null
+  /** ISO timestamp of the last successful fetch. Null when the
+   *  cache is empty. */
+  lastChecked: string | null
+}
+
+export interface ElectronUpdateAPI {
+  /** Get the current cached update-availability snapshot. Refreshes
+   *  from GitHub if the cache is older than the check interval (6h)
+   *  or empty; returns immediately on the cached value otherwise. */
+  check: () => Promise<UpdateCheckResult>
+}
+
+// Stage 25 (v0.4.0) — post-redirect chrome banner subscription.
+export interface ElectronExternalAPI {
+  /** Subscribe to "external URL redirected" events fired after a
+   *  successful `shell.openExternal` from the duo subagent (or
+   *  anywhere else main calls into it). Returns an unsubscribe fn. */
+  onRedirected: (cb: (push: ExternalRedirectedPush) => void) => () => void
+}
+
+// v0.4.0 — app-menu accelerator pushes. Currently just the
+// "Paste and Match Style" item in the Edit menu (ENH-002 follow-up
+// — the keyboard chord ⌘⇧V is handled editor-locally; this is the
+// menu surface for discoverability).
+export interface ElectronAppMenuAPI {
+  /** Subscribe to "Paste and Match Style" menu invocations. The
+   *  editor with keyboard focus performs a plain-text paste; other
+   *  editors no-op. Returns an unsubscribe fn. */
+  onPastePlainRequest: (cb: () => void) => () => void
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
@@ -1000,6 +1076,9 @@ export interface ElectronAPI {
   keyboard: ElectronKeyboardAPI
   pins: ElectronPinsAPI
   install: ElectronInstallAPI
+  update: ElectronUpdateAPI
+  external: ElectronExternalAPI
+  appMenu: ElectronAppMenuAPI
 }
 
 declare global {

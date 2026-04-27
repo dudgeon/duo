@@ -232,6 +232,24 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     }
   }, [editor])
 
+  // ENH-002 / v0.4.0 — Edit menu "Paste and Match Style" handler.
+  // Editor-local ⌘⇧V already does this via handleKeyDown above; this
+  // adds the menu-item path so the keystroke isn't the only entry
+  // point. Only fire when this editor has keyboard focus (the
+  // canvas's listener does the same; whichever editor owns focus
+  // reacts).
+  useEffect(() => {
+    if (!editor) return
+    return window.electron.appMenu.onPastePlainRequest(() => {
+      if (!editor.isFocused) return
+      void navigator.clipboard.readText().then(text => {
+        if (text) editor.commands.insertContent(text)
+      }).catch(err => {
+        console.warn('[duo-editor-paste] readText failed:', err)
+      })
+    })
+  }, [editor])
+
   useEffect(() => {
     if (!editor) return
     let cancelled = false

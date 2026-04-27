@@ -21,8 +21,158 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.3.1 below picked up the bug + small-enhancement pile
-that surfaced during the v0.3.0 cut smoke walk._
+_Empty. v0.4.0 below absorbed the Stage 22 navigator overhaul +
+update-checker + Stage 25 chrome banner + Edit-menu paste-plain +
+Stage 21 signing prep._
+
+---
+
+## v0.4.0 — 2026-04-26
+
+The context-pedagogy release. Stage 22 lands first as the headline:
+the file navigator splits into two panes ("Your Claude settings"
+above, "This project" below) so non-technical PMs can SEE that the
+agent reads from both buckets without learning dotfile conventions.
+Four supporting features round out the cut: a GitHub Releases
+update-availability checker (real upstream-availability, not the
+local-install reminder), Stage 25's post-redirect chrome banner
+(with `*.capitalone.com` baked into the default external-domains
+list), the Edit menu surface for `⌘⇧V` paste-as-plain-text, and
+Stage 21 prep work (signing scripts, no actual signing tonight).
+
+### Why v0.4.0 lands here
+
+The owner asked, mid-build, whether Stage 22 was specified well
+enough to attempt — yes, the intent doc had the visual + interaction
+model nailed down, with explicit out-of-scope markers (file ops menu,
+breadcrumb editor, ⌘P quick-open, per-folder pinning all defer to
+the Navigator polish bundle). The build was bounded enough to fit
+alongside the smaller items in the v0.4.0 sprint without owner
+intervention overnight.
+
+The owner also asked, separately, whether the existing "Duo update
+available" banner was real GitHub-querying or a mock. Honest answer:
+it was neither — it's the local-install drift detector
+(installed.json version vs `app.getVersion()`), which fires after a
+fresh DMG is installed and asks the user to re-run the install
+banner so `~/.claude/` artifacts catch up. Real upstream-availability
+checking didn't exist. v0.4.0 ships it as a sibling banner with
+distinct behavior.
+
+### Key design decisions baked in
+
+- **Stage 22 dual-pane navigator: separate state machines, shared
+  rendering primitive.** The top pane uses a new
+  `useUserClaudeNavigator` hook (rooted at `~/.claude/`, no `cwd`,
+  no follow-mode, no pin — the user's settings tree never moves).
+  The bottom pane keeps the existing `useNavigator` unchanged
+  (project CWD, follow-mode, pin still toggleable). Both feed a
+  shared `<TreeNodes>` primitive in `FileTree.tsx` (now exported)
+  for recursive rendering, so adding a third pane in the future
+  (e.g., Stage 18b's "Provided by AIP" group) is mechanical. The
+  user-claude pane's curated root is *synthesized* (a hand-picked
+  list of `CLAUDE.md` + `skills/` + `agents/` constructed from the
+  live root listing) rather than fetched separately, so the pane
+  stays in sync with chokidar updates automatically. The "Show all"
+  toggle just swaps between the curated root and `state.listings.get(state.cwd)`
+  — same code path, different entries.
+
+- **Project Claude context group: render-conditional, no empty
+  state.** `<ProjectClaudeContext>` checks the existing `state.listings`
+  for `./CLAUDE.md`, `./.claude/`, `./tasks.md`, `./AGENTS.md` and
+  renders only the ones that exist; if none exist (a fresh repo,
+  the user's `~/Downloads`, etc.) the entire group is hidden so
+  the navigator doesn't pollute with an empty section header. The
+  `.claude` directory is treated as expandable inline so users can
+  see what's inside (project skills, settings.json) without losing
+  their place in the parent tree.
+
+- **GitHub update checker: main owns network, renderer reads cache.**
+  The fetch happens once per Duo launch (refreshed every 6h max),
+  cached on disk at `~/.claude/duo/update-check.json` keyed by the
+  running version (so a fresh upgrade invalidates stale cached
+  results). All renderer-visible state flows through `IPC.UPDATE_CHECK`
+  + `electron.update.check()` — the renderer never hits GitHub
+  directly. This avoids burning the anonymous-API rate limit (60
+  req/hr/IP) on HMR re-mounts and gives us a single place to add
+  smarter polling later. Per-upstream-version dismissal: dismissing
+  v0.4.0's banner is keyed by `latest`, so the banner returns when
+  v0.4.1 ships.
+
+- **Stage 25 banner: most-recent-wins, 6s auto-dismiss.** Two
+  redirects firing within 6s replace each other rather than
+  stacking; the user always sees the most recent. The schema
+  extension for `external-domains.json` is purely additive — entries
+  can be `string` ("host.com") or `{host, reason?}`. Old files keep
+  working; new files can opt into per-domain reason text that
+  surfaces in the banner ("— internal SSO required", etc.).
+
+- **`*.capitalone.com` default: bootstrap-only, not migrate.** The
+  install service writes the seeded list only when
+  `external-domains.json` doesn't exist. Existing files are never
+  modified — re-running install on a system that already has a
+  customized list keeps it intact. PMs upgrading from v0.3.x will
+  not see the default applied automatically; they can add
+  `*.capitalone.com` themselves or delete the file to trigger the
+  bootstrap.
+
+- **Edit menu Paste-and-Match-Style: dual entry points.** Both
+  editors (markdown + canvas) handle ⌘⇧V via their own keydown
+  handlers AND subscribe to the menu-driven IPC. Whichever editor
+  has keyboard focus reacts; the others no-op. The menu makes the
+  feature discoverable without requiring users to know the chord.
+
+- **Stage 21 prep: env-driven signing path, no yml flip.** The
+  signing flow was already env-var-driven (electron-builder reads
+  `CSC_NAME` etc. from process.env without yml changes); the gap
+  was just an ergonomic helper. `scripts/dist-signed.sh` sources
+  `~/Documents/duo-private/.env` and runs `npm run dist` (without
+  the `CSC_IDENTITY_AUTO_DISCOVERY=false` override that today's
+  unsigned cut uses); `scripts/validate-signed-dmg.sh` mounts the
+  DMG, runs `codesign --verify --deep`, `spctl -a -t open --context
+  context:primary-signature`, and `xcrun stapler validate`. The
+  yml stays env-agnostic so the unsigned flow today AND the signed
+  flow tomorrow both work without flag flips. Why no yml uncomment:
+  `${env.CSC_NAME}` substitution resolves empty when the env var is
+  unset, which causes electron-builder to error — that would break
+  every CI / unsigned-dev path.
+
+### What v0.4.0 is and isn't
+
+**Is:** the version where a non-technical PM looking at the file
+navigator can SEE the user-level + project-level context buckets at
+a glance, without scrolling, without learning that `~/.claude` is
+where Claude reads context from. The version where DMG releases
+self-announce on GitHub. The version where Cap One Trailblazers
+don't have to manually configure off-host routing for their
+internal sites. The version where "Sent X to your default browser"
+gives a visible receipt.
+
+**Isn't:** signed (Stage 21 still — script prep is in, the actual
+signed cut runs the next time the keychain prompt can be answered
+in real-time). Doesn't ship Stage 14a (markdown comments —
+MISSING-001 still queued). Doesn't ship Stage 18b distro skill
+packs (the "Provided by AIP" badge in the navigator is queued for
+that stage). Doesn't ship Stage 19d mid-tab launch-claude banner
+(deferred from this sprint per scope).
+
+### What's queued next (v0.5.0+ candidate scope)
+
+- **Stage 21 signed cut** — run `bash scripts/dist-signed.sh` while
+  awake; validate; cut as v0.5.0 (or v0.4.1 if just signing nothing
+  else changes).
+- **Stage 14a** — markdown CommentRail binding (closes MISSING-001).
+- **Stage 18b** — distro skill packs (`extra-skills/` + `PACK.json`
+  + per-conflict consent UI). Stage 22's "Provided by …" badge
+  becomes a Stage 18b feature.
+- **Stage 19d** — mid-tab launch-claude banner.
+- **Stage 21c** — session restore from pins.
+- **BUG-006** — browser-pane Send→Duo pill behind WebContentsView
+  (still pending design decision among three options).
+- **Navigator polish bundle** — right-click context menu shared
+  across both panes (rename / delete / reveal-in-Finder), breadcrumb
+  "Go to" path input, ⌘P quick-open. Builds on top of Stage 22's
+  visual reorg.
 
 ---
 
