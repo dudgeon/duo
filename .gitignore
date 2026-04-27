@@ -57,3 +57,5 @@ coverage/
 !.claude/launch.json
 !.claude/skills/
 !.claude/skills/**
+fork.config.json
+fork.config.local.json

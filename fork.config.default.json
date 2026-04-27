@@ -1,0 +1,16 @@
+{
+  "$comment": "Stage 21e — fork-friendly architecture. Upstream Duo's defaults. To fork, copy this file to fork.config.json (gitignored) and edit. See docs/HOW-TO-FORK.md for the layered fork modes that read from this file.",
+  "appId": "com.geoffdudgeon.duo",
+  "productName": "Duo",
+  "copyright": "Copyright © 2026 Geoff",
+  "publish": {
+    "provider": "github",
+    "owner": "dudgeon",
+    "repo": "duo"
+  },
+  "bootstrap": {
+    "$comment": "Defaults for ~/.claude/duo/external-domains.json (host patterns matched against the hostname of any URL the agent tries to navigate to; matches route via shell.openExternal instead of the embedded browser) and ~/.claude/duo/pins.json (which help-bundle files first-launch pins).",
+    "externalDomains": ["*.capitalone.com"],
+    "helpPinnedFiles": ["faq.html", "what-duo-does.html"]
+  }
+}

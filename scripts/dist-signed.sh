@@ -51,6 +51,14 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Stage 21e-i — load fork.config.{json,default.json} so the yml's
+# ${env.DUO_*} interpolations resolve. Forkers point upstream
+# elsewhere by editing fork.config.json (gitignored). Using eval
+# because `source <(...)` runs in a subshell on bash 3.2 (macOS
+# default) and exports don't propagate back.
+eval "$(node "$REPO_ROOT/scripts/load-fork-config.cjs" --shell-export)"
+echo "[duo] Fork identity:    $DUO_APP_ID ($DUO_PUBLISH_OWNER/$DUO_PUBLISH_REPO)"
+
 ENV_FILE="$HOME/Documents/duo-private/.env"
 if [ ! -f "$ENV_FILE" ]; then
   echo "ERROR: $ENV_FILE not found." >&2
@@ -104,7 +112,18 @@ echo
 echo "[duo] Running electron-builder with directories.output=$BUILD_DIR..."
 # DO NOT pass CSC_IDENTITY_AUTO_DISCOVERY=false here — we WANT
 # electron-builder to discover the identity from CSC_NAME / keychain.
-node_modules/.bin/electron-builder -c.directories.output="$BUILD_DIR"
+# Stage 21e-i — fork identity (appId, productName, publish.*) comes from
+# fork.config.json via the loader call at the top of this script. The
+# yml does NOT include these fields; CLI overrides bring them in.
+node_modules/.bin/electron-builder \
+  -c.appId="$DUO_APP_ID" \
+  -c.productName="$DUO_PRODUCT_NAME" \
+  -c.copyright="$DUO_COPYRIGHT" \
+  -c.publish.provider="$DUO_PUBLISH_PROVIDER" \
+  -c.publish.owner="$DUO_PUBLISH_OWNER" \
+  -c.publish.repo="$DUO_PUBLISH_REPO" \
+  -c.publish.releaseType=release \
+  -c.directories.output="$BUILD_DIR"
 
 echo
 echo "[duo] Copying DMGs from $BUILD_DIR to dist/..."
