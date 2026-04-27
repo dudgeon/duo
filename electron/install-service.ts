@@ -210,46 +210,34 @@ export class InstallService {
       // external-domains.json — bootstrap only. Never clobber a user's
       // existing list.
       //
-      // v0.4.0 — seed default off-host patterns. Cap One AIP cohort:
-      // Trailblazers' Cap One web surfaces require the corporate-managed
-      // browser for SSO + internal CDN certs + conditional access, and
-      // don't render reliably in Duo's embedded WebContentsView; auto-
-      // routing them saves a "wait, this didn't work, let me copy
-      // the URL" round-trip.
+      // v0.4.0 — seed default off-host patterns. Upstream Duo seeds the
+      // `*.capitalone.com` Cap One AIP entry plus (since ENH-009 in
+      // v0.4.3) the daily-driver SaaS apps that fail in embedded
+      // browsers due to SSO + conditional access: Slack, Gmail + full
+      // Google Workspace, Atlassian (Jira/Confluence), Microsoft 365.
+      // Routing those to the user's system browser sidesteps failure
+      // modes that the embedded WebContentsView can't handle.
       //
-      // ENH-009 (v0.4.3) — expand the seeded list to cover the daily-
-      // driver SaaS apps that Trailblazers (and most enterprise users)
-      // hit constantly: Slack, Gmail + Google Workspace, Atlassian
-      // (Jira/Confluence), Microsoft 365. All have SSO + conditional
-      // access patterns that fight embedded browsers; routing them to
-      // the user's system browser sidesteps those failure modes
-      // entirely.
+      // Stage 21e-ii — the actual default LIST is in fork.config.json
+      // (or fork.config.default.json fallback), Vite-injected as
+      // `__DUO_BOOTSTRAP_EXTERNAL_DOMAINS__`. So a fork distributing
+      // internally (e.g. JPMorgan Trailblazers-equivalent) can seed
+      // their own host patterns by editing fork.config.json before
+      // building. The default value matches v0.4.3's expanded list.
       //
       // Caveat for upgrades: bootstrap is "only-if-absent", so existing
       // users with a populated external-domains.json from a prior
       // version DON'T pick up the expanded list automatically. They can
-      // either edit the file by hand or `rm ~/.claude/duo/external-
-      // domains.json && relaunch` to re-bootstrap with the new list.
-      // Stage 21e-iii (v0.5.0) will add an additive-merge upgrade path.
+      // either edit the file by hand or `rm
+      // ~/.claude/duo/external-domains.json && relaunch` to re-
+      // bootstrap. Stage 21e-iii (v0.5.0) adds an additive-merge
+      // upgrade path so the runtime can detect "user has prior
+      // bootstrap, MERGE in any new defaults."
       try {
         await fs.access(EXTERNAL_DOMAINS_PATH)
       } catch {
         const defaults = {
-          domains: [
-            // Cap One AIP (existing default; v0.4.0)
-            '*.capitalone.com',
-            // ENH-009 (v0.4.3)
-            '*.slack.com',
-            'mail.google.com',
-            'docs.google.com',
-            'drive.google.com',
-            'calendar.google.com',
-            'meet.google.com',
-            'chat.google.com',
-            'accounts.google.com',
-            '*.atlassian.net',
-            '*.microsoftonline.com',
-          ]
+          domains: __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__
         }
         await fs.writeFile(EXTERNAL_DOMAINS_PATH, JSON.stringify(defaults, null, 2) + '\n')
       }
