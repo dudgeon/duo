@@ -147,26 +147,106 @@ Order:
 
 ### Step 4.5 — Build the distributable DMG
 
+Two paths. Pick by what's set up on the cutting machine.
+
+#### Signed + notarized (Stage 21 ✅, default once cert is present)
+
 ```bash
-# v0.2.0+ default — UNSIGNED build (Stage 21 not yet shipped)
+bash scripts/dist-signed.sh
+                                  # produces dist/Duo-X.Y.Z-arm64.dmg
+                                  # AND dist/Duo-X.Y.Z.dmg (x64)
+                                  # signed + notarized + stapled,
+                                  # validated end-to-end before exit
+```
+
+End-to-end ~5–8 min on M1 (most of it is the two Apple notarization
+round-trips, one per arch). The script:
+
+1. Sources cert + notarization env vars from
+   `~/Documents/duo-private/.env` (`CSC_NAME`, `APPLE_API_KEY`,
+   `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, `APPLE_TEAM_ID`).
+2. Strips the `Developer ID Application: ` prefix off `CSC_NAME` if
+   present (electron-builder rejects the keychain-canonical form).
+3. Builds to `$DUO_BUILD_OUTPUT` (default `$HOME/.cache/duo-build`)
+   instead of `dist/` — see "iCloud File Provider gotcha" below.
+4. Runs `electron-builder -c.directories.output=$DUO_BUILD_OUTPUT`,
+   which signs each binary with hardened-runtime + entitlements,
+   notarizes via `xcrun notarytool`, and staples the ticket.
+5. Copies signed DMGs back to `dist/` for the user.
+6. Runs `scripts/validate-signed-dmg.sh`: `codesign --verify --deep
+   --strict`, `spctl -a -t open --context primary-signature`,
+   `xcrun stapler validate`. **Exits non-zero if any check fails.**
+
+##### iCloud File Provider gotcha — why the script builds outside `dist/`
+
+If the repo lives under `~/Documents/` (the macOS default for users
+with iCloud Desktop & Documents sync), iCloud's file provider tags
+directories inside Electron's helper bundles
+(`Duo Helper (GPU).app`, `Duo Helper (Renderer).app`, etc.) with
+`com.apple.FinderInfo`, `com.apple.fileprovider.fpfs#P`, and
+`com.apple.fileprovider.dir#N` extended attributes within
+milliseconds of creation. `codesign` then rejects helpers with:
+
+```
+resource fork, Finder information, or similar detritus not allowed
+```
+
+`xattr -cr` and `ditto --noextattr` strip the attrs but iCloud
+re-applies them faster than the next `codesign` call can read the
+file. Empirical proof: the same fresh helper binary fails to
+codesign in `~/Documents/GitHub/duo/dist/` but succeeds when
+copied to `/tmp/`.
+
+**The script avoids this entirely** by directing electron-builder
+at a non-iCloud path (`$HOME/.cache/duo-build`) and copying DMGs
+back to `dist/` only after signing completes. Users who run the
+build from a non-iCloud-touched repo location won't hit this, but
+the redirect is harmless and makes the toolchain location-portable.
+
+`com.apple.provenance` (which Sequoia adds to nearly every file)
+is **NOT** the cause. It's harmless on its own; even files in
+`/tmp/` carry it. Don't waste a session chasing it.
+
+##### Failure modes
+
+- **Hangs at "signing"** — keychain prompt fired and was missed.
+  macOS pops "codesign wants to access key in keychain" the first
+  time after a system reboot. Click **Always Allow** (Terminal
+  may need to be foreground). FOLLOWUP-005 in tasks.md.
+- **`resource fork, Finder information, or similar detritus not allowed`**
+  — iCloud File Provider on the build path. The script's redirect
+  prevents this; if you bypassed it (e.g. set `DUO_BUILD_OUTPUT`
+  to a path inside `~/Documents/`), unset it and re-run.
+- **`notarytool` returns "Invalid"** — read the JSON response in
+  `/tmp/duo-stage21-signed.log`. Common causes: hardened runtime
+  missing (yml's `mac.hardenedRuntime: true` should be set —
+  confirm), entitlements file missing, helper unsigned (rare; an
+  electron-builder bug if it happens). Apple's response includes a
+  per-issue URL for the developer log.
+- **`security find-identity -v -p codesigning` returns 0 valid
+  identities** — cert expired or wrong keychain. Regenerate per
+  `docs/dev/cert-procurement.md`. Developer ID Application certs
+  are valid for ~5 years; check expiry.
+
+#### Unsigned (fallback for users without certs)
+
+```bash
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
                                   # produces dist/Duo-X.Y.Z-arm64.dmg
                                   # (and the universal/x64 DMG)
 ```
 
-Why the env override: when `CSC_NAME` is in the environment (from
-`~/Documents/duo-private/.env`), electron-builder auto-discovers the
-Developer ID Application cert and tries to sign — but Stage 21
-hasn't shipped, so signing isn't wired correctly. The override forces
-an unsigned build, which is the right behavior pre-Stage-21.
+Skips signing entirely. End users see the macOS "Apple cannot check
+this for malicious software" warning on first launch and need to
+right-click → Open. Useful for: cutting a build without internet
+access (no notarytool round-trip), contributors who don't have a
+Developer ID Application cert, or quick local-test cuts.
 
-Once Stage 21 lands, drop the override and the build will sign +
-notarize per the YAML wiring. The first signed build on a new Mac
-prompts a macOS keychain permission dialog ("codesign wants to use
-the key in keychain") — click "Always Allow" or the build hangs and
-eventually fails with misleading errors (FOLLOWUP-005 in tasks.md).
+The `CSC_IDENTITY_AUTO_DISCOVERY=false` override is required even
+when no cert is present — without it, electron-builder errors if
+the env var `CSC_NAME` happens to be set from a prior shell.
 
-Output sanity check:
+Output sanity check (either path):
 
 ```bash
 ls -lh dist/Duo-*.dmg             # confirm a DMG with the new version
@@ -174,10 +254,10 @@ ls -lh dist/Duo-*.dmg             # confirm a DMG with the new version
 ```
 
 Do NOT `git add dist/` — `dist/` is gitignored. The DMG is a build
-artifact tracked outside the repo (manual distribution today; Stage 21
-adds notarization + Stage 21+ should add a GitHub Releases publish).
-A future cut shouldn't be considered "done" until at least the local
-DMG exists — that's what proves the build pipeline still works.
+artifact tracked outside the repo. Step 6.5 below uploads it to
+GitHub Releases. A future cut shouldn't be considered "done" until
+at least the local DMG exists — that's what proves the build
+pipeline still works.
 
 **Dev-mode banner oddity to flag in the user-facing notes:** because
 the install service runs the same code path regardless of
@@ -273,10 +353,12 @@ gh release create vX.Y.Z \
 The `dist/Duo-X.Y.Z*.dmg` glob picks up both arm64 and x64 builds when
 electron-builder produces them. Both attach to the same release.
 
-**Stage 21 transition:** once code-signing + notarization land, this
-step still works unchanged — the DMG glob doesn't care whether the
-artifacts are signed. The release notes should call out `signed +
-notarized` so users know the Gatekeeper warning is gone.
+**Stage 21 ✅ — signed + notarized DMGs.** This step works unchanged
+for both signed and unsigned cuts; the DMG glob doesn't care which
+path Step 4.5 took. For signed cuts, mention `signed + notarized` in
+the release notes so users know the "Apple cannot check this for
+malicious software" warning is gone — first-launch is now a single
+double-click.
 
 **If `gh` isn't authenticated:** `gh auth status` first; `gh auth
 login` to fix. Don't paper over it; an unauthenticated release call

@@ -269,18 +269,95 @@ APPLE_API_ISSUER=<Issuer UUID>
 APPLE_TEAM_ID=<10-char Team ID>
 ```
 
-Then in `electron-builder.yml`:
-1. Uncomment the `mac.identity` and `mac.notarize` block.
-2. Flip `dmg.sign: false` → `dmg.sign: true`.
+The yml stays env-agnostic — `mac.identity` and `mac.notarize` remain
+commented and `dmg.sign: false` stays as-is. electron-builder
+auto-discovers the cert from `CSC_NAME` and the notarization flow from
+the `APPLE_*` env vars without any yml flips. Keeping it env-agnostic
+means today's unsigned `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist`
+flow keeps working unchanged.
 
-Verify with:
+Build the signed cut:
 
-    npm run dist
+    bash scripts/dist-signed.sh
 
-The DMG should be code-signed and notarized. Check with:
+The script handles env loading, the `CSC_NAME` prefix-strip gotcha, the
+iCloud File Provider workaround (see appendix), the
+sign + notarize + staple, and the validation pass. End-to-end ~5–8 min
+on M1.
 
-    spctl -a -t open --context context:primary-signature dist/Duo-*.dmg
-    stapler validate dist/Duo-*.dmg
+---
+
+## Appendix — macOS Sequoia compatibility notes
+
+Hard-won from the Stage 21 cut on 2026-04-27. Future operators: read
+this BEFORE re-discovering anything below.
+
+### `com.apple.provenance` is a red herring
+
+Sequoia 15.x adds `com.apple.provenance` to nearly every file as a
+system-protected extended attribute. It's harmless on its own —
+files in `/tmp/` carry it and codesign accepts them anyway. **The
+v0.4.0-cut session wasted hours blaming it.** Don't.
+
+### `~/Documents/` blocks codesign — the actual problem
+
+If the repo lives under `~/Documents/`, macOS's iCloud Desktop &
+Documents sync (or any iCloud File Provider integration) tags
+directories inside Electron's helper bundles
+(`Duo Helper (GPU).app`, etc.) with these xattrs within
+milliseconds:
+
+- `com.apple.FinderInfo`
+- `com.apple.fileprovider.fpfs#P`
+- `com.apple.fileprovider.dir#N`
+
+`codesign` then rejects helpers with:
+
+    resource fork, Finder information, or similar detritus not allowed
+
+`xattr -cr` and `ditto --noextattr` strip the attrs successfully but
+iCloud re-applies them faster than the next codesign call can read
+the file.
+
+**Fix.** Build outside `~/Documents/` entirely.
+`scripts/dist-signed.sh` already does this — sets
+`-c.directories.output=$HOME/.cache/duo-build` on the
+electron-builder invocation and copies the resulting DMGs back to
+`dist/` for the user. Empirical proof: the same fresh helper binary
+fails to codesign in `~/Documents/GitHub/duo/dist/` but succeeds
+when copied to `/tmp/`.
+
+### FOLLOWUP-005 keychain prompt
+
+First codesign call after a system reboot prompts:
+
+    codesign wants to access key in keychain
+    [Always Allow] [Deny]
+
+If Terminal isn't focused, the dialog sits behind the build process
+and the build hangs forever. Click **Always Allow**. Persists
+across builds in the same session. Recurs on next reboot. There's
+no programmatic way to pre-authorize without dropping the cert into
+a non-default keychain (which has its own rabbit holes).
+
+### Cert renewal
+
+Developer ID Application certs are valid for ~5 years. When this
+one expires:
+
+1. Apple Developer portal → Certificates → Generate a new one
+   (re-use the existing CSR or generate a new one).
+2. Download `.cer`, double-click to import into login keychain.
+3. `security find-identity -v -p codesigning` should show the new
+   identity alongside (or replacing) the old.
+4. If the cert common name changed (it shouldn't — Apple keeps the
+   same CN if account-holder name is unchanged), update `CSC_NAME`
+   in `.env`.
+5. Test with `bash scripts/dist-signed.sh` end-to-end.
+
+The `.p8` API key for notarization is separate and doesn't expire
+the same way — but Apple Developer accounts can have their API
+keys revoked through the portal. Keep the `.p8` backed up in 1Password.
 
 ---
 
