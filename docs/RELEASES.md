@@ -21,9 +21,89 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.4.2 below absorbed the Stage 21c Phase 1+2 work
-(electron-updater + session restore) plus the HOW-TO-FORK doc + Stage
-21e roadmap entries._
+_Empty. v0.4.3 below absorbed the v0.4.2 punch-list cluster (7 bugs +
+ENH-008 tooltip + ENH-009 expanded off-host defaults)._
+
+---
+
+## v0.4.3 — 2026-04-27
+
+The "v0.4.2 punch list" patch. Owner installed v0.4.2 (signed +
+notarized DMG via prebuilt download), walked the surfaces, came back
+with 7 bugs + 4 enhancements. This cut closes 7 bugs + 2
+enhancements; the other 3 enhancements defer to v0.5.0 alongside
+Stage 21e and Stage 21c Phase 3.
+
+### Why v0.4.3 lands here
+
+Bugs that surface on a real owner-side install want to ship FAST so
+the owner (and any cohort users who follow) gets the polish without
+waiting for the v0.5.0 cut window. Two of the seven are particularly
+high-leverage:
+
+- **BUG-021 — ⌃Tab cycle skips restored tabs.** Regression introduced
+  by Stage 21c Phase 2 (session restore on relaunch in v0.4.2). The
+  fix is small (use refs in `useKeyboardShortcuts` instead of relying
+  on closure freshness) but the bug undermines confidence in session
+  restore — "the tabs are there but I can't reach them with the
+  keyboard." Worth a patch.
+- **BUG-023 — HTML canvas click area too narrow.** Significant
+  authoring friction; fixed by restructuring the boilerplate (body
+  fills the viewport, content goes in `<main>` with the 720px width
+  cap). Clicks anywhere in the iframe now place a cursor.
+
+The rest are smaller papercuts that still benefit from shipping
+quickly together — bundling them into a single cut is cheaper than
+a per-fix patch sprint.
+
+### Three key design decisions
+
+- **Stack the Comment button BELOW the selection rather than combine
+  with Send→Duo.** Owner asked "combine buttons?" — the simpler v1 is
+  to keep them separate but vertically stacked so neither occludes
+  the other. Combining (a single split-pill or hover flyout) is
+  worth doing as polish but introduces new interaction modes that
+  warrant deliberate design. (`renderer/components/HtmlCanvas/CanvasTab.tsx § CommentButton`)
+- **`about:blank` as the new-tab default, not a custom "new tab" page.**
+  Browsers (Safari/Chrome) ship custom new-tab pages with
+  recently-visited / suggested URLs. Duo's not at the scale where
+  building one makes sense yet; `about:blank` + the address-bar
+  auto-focus is the right v1 footprint. Custom new-tab page is
+  filed as a future polish.
+- **Existing users don't get the ENH-009 expanded defaults
+  automatically.** The bootstrap is "only-if-absent" by design.
+  Migrating means trade-offs: an additive merge would re-add
+  user-deleted entries; a replace would clobber user customizations;
+  a "dismissed-defaults" tracker is over-engineered for v1. The
+  release notes document the manual workarounds; Stage 21e-iii
+  (v0.5.0) ships the proper additive-merge upgrade path.
+
+### What this is and isn't
+
+This is the "polish + expanded sane defaults" patch on top of v0.4.2.
+It is NOT the Stage 21e cut (fork-friendly architecture) — that
+lands as v0.5.0 once the implementation on `stage-21e-fork-friendly`
+finishes. v0.4.3 also doesn't touch Stage 21c Phase 3 (browser
+history persistence — issue #27); that's still ⬜.
+
+The auto-update path from v0.4.2 → v0.4.3 is the FIRST real-world
+test of the auto-update flow shipped in v0.4.2. If a v0.4.2 user has
+the auto-updater wired (which is everyone on signed v0.4.2+), they
+should get an in-app prompt within ~15-30 seconds of their next
+launch.
+
+### What ships next
+
+- **v0.5.0 — Stage 21e fork-friendly architecture.** Build-time fork
+  config + runtime config injection + provenance-aware install +
+  HOW-TO-FORK doc update. Implementation complete on
+  `stage-21e-fork-friendly` branch.
+- **Stage 21c Phase 3** — browser history persistence (issue #27).
+  Per-partition history capped at N entries surfacing in address-bar
+  autocomplete. Folds into v0.5.0 if there's room.
+- **The deferred ENH cluster** — copy button on code blocks (ENH-005),
+  right-pane new-browser-tab button (ENH-006), collapsed comment
+  rail with findable resolved (ENH-007). All v0.5.0 candidates.
 
 ---
 

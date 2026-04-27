@@ -18,6 +18,71 @@
 
 ---
 
+## 2026-04-27 mid-morning — v0.4.3 cut: owner punch-list patch
+
+Owner installed v0.4.2 prebuilt DMG (after enterprise approval came
+through — earlier "compile-from-source" path turned out unnecessary).
+Walked the surfaces, came back with 11 observations: 7 bugs + 4
+enhancements. Triaged into BUG-018..024 + ENH-005..008 in tasks.md.
+Owner picked option B (cut v0.4.3 patch first, then v0.5.0 with
+Stage 21e). Added ENH-009 mid-sprint (expand off-host default list:
+Slack, Gmail + Google Workspace, Atlassian, M365).
+
+**Three commits on the v0.4.3-punch-list branch:**
+
+`0563045 fix(v0.4.3): BUG-018+019+020+021 — browser tab + ⌃Tab cluster`
+- BUG-021: `useKeyboardShortcuts` reads tabs + activeTabId via refs
+  so the cycle always sees post-session-restore state. Eliminates
+  any stale-closure window between `setTabs(restoredArr)` and the
+  useEffect re-running. Browser-side cycle adds defensive logging
+  + a "no active tab" fallback.
+- BUG-018: `electron/browser-manager.ts` grows a `newTabUrl()`
+  separate from `defaultLandingUrl()`. Constructor's first-tab
+  default stays at FAQ; `openTab(url = newTabUrl())` (the IPC path
+  hit by ⌘T) defaults to `about:blank`.
+- BUG-019: `App.tsx § newBrowserTab` and `WorkingPane § handleNew`
+  swap `queueMicrotask` for two nested `requestAnimationFrame`. The
+  two-RAF dance pushes the focus call past React's commit + paint
+  cycle.
+- BUG-020: `BrowserManager.closeTab` no longer hard-fails on the
+  last tab. Opens a fresh `about:blank` first, switches to it, then
+  closes the original. Mirrors Notion's "close last tab → open
+  blank" pattern.
+
+`9a1d45b fix(v0.4.3): BUG-022+023+024 + ENH-009 — canvas + pill + off-host`
+- BUG-022: `RenderedCanvas` calls `doc.body.focus()` after wiring
+  contentEditable + the keystroke forwarder.
+- BUG-023: `shared/html-boilerplate.ts` restructures: body fills the
+  viewport (with `min-height: 100vh`), content lives in a `<main>`
+  child with the 720px width cap. Clicks anywhere in the iframe
+  now land on body (contentEditable) and the browser places the
+  cursor at the nearest text node.
+- BUG-024: `CanvasTab § CommentButton` repositions — Comment button
+  now stacks BELOW the selection (Send→Duo pill stays above). Falls
+  back to "stack above the SendToDuoPill" when selection is at
+  viewport bottom.
+- ENH-009: `electron/install-service.ts` seeds a wider default off-
+  host list — Slack, Gmail + full Google Workspace, Atlassian,
+  Microsoft 365 — alongside the existing `*.capitalone.com`.
+  Bootstrap is "only-if-absent" so existing users don't pick up the
+  list automatically; documented the migration in release notes.
+  `package.json sync:claude` mirrors the same default for dev parity.
+
+`2b5be32 feat(v0.4.3): ENH-008 — navigator tooltips`
+- "Your Claude settings" and "Project Claude context" headers each
+  get explanatory `title` attribute tooltips. Native browser
+  tooltip (no styling cost; accessible).
+
+**Deferred to v0.5.0:** ENH-005 (copy button on code blocks),
+ENH-006 (right-pane new-browser-tab button), ENH-007 (collapsed
+comment rail with findable resolved). Stage 21e implementation also
+v0.5.0 (i/ii/iii already on `stage-21e-fork-friendly` branch). The
+auto-update path from v0.4.2 → v0.4.3 is the FIRST real-world test
+of the auto-update flow shipped in v0.4.2 — owner's v0.4.2 install
+will get an in-app prompt within ~30s of launch.
+
+---
+
 ## 2026-04-27 morning — v0.4.2 cut: auto-update + session restore
 
 After the v0.4.1 cut + Stage 21 doc refresh, owner picked C (Stage

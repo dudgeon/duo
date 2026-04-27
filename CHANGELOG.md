@@ -19,6 +19,45 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.4.3] — 2026-04-27
+
+The "v0.4.2 punch list" patch. Owner installed v0.4.2, walked the
+surfaces, came back with 7 bugs + 4 enhancements; this cut bundles 7
+bug fixes + 2 enhancements (ENH-008 tooltip + ENH-009 expanded
+off-host defaults). The other 3 enhancements (copy-button on code
+blocks, right-pane new-browser-tab button, collapsed comment rail
+with findable resolved) defer to v0.5.0 — more substantive work that
+pairs better with Stage 21e + Stage 21c Phase 3.
+
+### Fixed
+
+- **BUG-018** — `⌘T` opens new browser tab landing on FAQ. Constructor's first-tab default stays at FAQ; the IPC `addTab` path now defaults to `about:blank` for fresh new tabs. (`electron/browser-manager.ts`)
+- **BUG-019** — `⌘T` new tab doesn't focus the address bar. Two nested `requestAnimationFrame` calls push the focus past React's commit + the browser's paint cycle, so the address-bar DOM node is mounted + visible when `focus()` runs. (`renderer/App.tsx`, `renderer/components/WorkingPane.tsx`)
+- **BUG-020** — first FAQ tab non-closeable. `BrowserManager.closeTab` no longer hard-fails on the last tab; opens a fresh `about:blank` first, switches to it, then closes the requested tab. Net: 1 tab remains, but it's a blank canvas. Mirrors Notion's "close last tab → open blank" pattern. (`electron/browser-manager.ts`)
+- **BUG-021** — `⌃Tab` cycle skips restored tabs (regression from Stage 21c Phase 2 session restore in v0.4.2). `useKeyboardShortcuts` now reads `tabs` and `activeTabId` through refs that always point at the latest opts state, eliminating any stale-closure window between `setTabs(restoredArr)` resolving and the useEffect re-running. Browser-side cycle adds a "no active tab" fallback (defaults to index 0 instead of silently no-oping) + diagnostic logging. (`renderer/hooks/useKeyboardShortcuts.ts`)
+- **BUG-022** — new HTML canvas doesn't focus the writing area on open. `RenderedCanvas` calls `doc.body.focus()` after wiring contentEditable, so the first keystroke lands as content. (`renderer/components/HtmlCanvas/RenderedCanvas.tsx`)
+- **BUG-023** — HTML canvas click area too narrow. Boilerplate restructure: body fills the viewport (with `min-height: 100vh`) and the content column lives in `<main>` with the 720px width cap. Pre-fix, body itself was the 720px column; clicks in the flanking whitespace landed on `<html>` and didn't place a cursor. Now clicks ANYWHERE in the iframe land on body and the browser places the cursor at the nearest text node. (`shared/html-boilerplate.ts`)
+- **BUG-024** — Comment button + Send→Duo pill occlude each other on canvas selection. Comment button now stacks BELOW the selection (Send→Duo stays above). Falls back to "stack above the SendToDuoPill" when the selection is at the viewport bottom. (`renderer/components/HtmlCanvas/CanvasTab.tsx`)
+
+### Added
+
+- **ENH-008** — explanatory tooltips on Stage 22 dual-pane navigator headers. "Your Claude settings" and "Project Claude context" each get a `title` attribute explaining what files the pane shows + where they live. Native browser tooltip (no styling cost; accessible). (`renderer/components/UserClaudePane.tsx`, `renderer/components/ProjectClaudeContext.tsx`)
+- **ENH-009** — expanded `external-domains.json` bootstrap defaults. Fresh installs now seed Slack, Gmail + full Google Workspace (mail / docs / drive / calendar / meet / chat / accounts), Atlassian (Jira/Confluence), Microsoft 365 — all the daily-driver SaaS apps that fail in embedded browsers due to SSO + conditional access. `*.capitalone.com` stays in the list (Cap One AIP cohort). Bootstrap is "only-if-absent" so existing users don't get the expanded list automatically — see "Migration" below. (`electron/install-service.ts`, `package.json sync:claude`)
+
+### Migration (existing users)
+
+Bootstrap of `external-domains.json` is "only-if-absent" — existing users with a populated file from a prior version don't pick up the expanded ENH-009 defaults automatically. Two options:
+- **Manual**: edit `~/.claude/duo/external-domains.json` and add the new entries.
+- **Re-bootstrap**: `rm ~/.claude/duo/external-domains.json && relaunch Duo` (next launch re-creates the file with the new defaults). Loses any custom entries you added; copy them out first if needed.
+
+Stage 21e-iii (v0.5.0) will add an additive-merge upgrade path so future expansions flow in automatically.
+
+### Known issues at v0.4.3
+
+- **BUG-020 follow-up**: did the FAQ pin from `pins.json` ENH-003 bootstrap show the pin glyph in v0.4.2? If not, that's a separate URL-string-mismatch bug between the bootstrap (manual `file://`) and `helpUrl`'s `pathToFileURL` form. Verify on the v0.4.3 install; file as a follow-up if the glyph still doesn't show.
+- **ENH-005 (copy button on code blocks), ENH-006 (right-pane new-browser-tab button), ENH-007 (collapsed comment rail)**: deferred to v0.5.0.
+- **Stage 21e (fork-friendly architecture)**: i/ii/iii implementation complete on the `stage-21e-fork-friendly` branch but NOT in this cut. v0.5.0 target.
+
 ## [0.4.2] — 2026-04-27
 
 The "auto-update + session restore" release. Closes [issue #24](https://github.com/dudgeon/duo/issues/24) (resume where you left off on Duo relaunch) and lays the auto-update foundation that makes future signed releases roll out to existing users without a manual re-download.

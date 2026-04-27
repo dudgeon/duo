@@ -101,6 +101,18 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.4.3 release patch punch list bugs polish ctrl tab session restore regression canvas click area off host slack google docs gmail atlassian microsoft 365 enterprise sso">
+  <h3>v0.4.3 — owner-side punch-list patch <span class="date">2026-04-27</span></h3>
+  <p>Seven bug fixes + two small enhancements after the owner walked v0.4.2 against a fresh install. Highest-leverage: <strong>⌃Tab cycle now reaches all tabs after session restore</strong> (BUG-021 regression from v0.4.2's session-restore work) and <strong>HTML canvas click area now spans the full iframe</strong> (BUG-023 — clicks in the page margins now place a cursor at the nearest text instead of falling through to <code>&lt;html&gt;</code>).</p>
+  <ul>
+    <li><strong>Browser tab cluster.</strong> ⌘T opens fresh <code>about:blank</code> instead of a duplicate FAQ; address bar gets focus so you can type immediately; the first FAQ tab is now closeable (closing the last tab opens a fresh blank, mirroring Notion). (BUG-018, BUG-019, BUG-020)</li>
+    <li><strong>HTML canvas polish.</strong> New canvases land with focus on the writing area; click anywhere in the iframe places a cursor; Comment button now stacks below the selection so it doesn't occlude the Send→Duo pill. (BUG-022, BUG-023, BUG-024)</li>
+    <li><strong>Off-host default list expanded (ENH-009).</strong> Fresh installs now route Slack, Gmail + full Google Workspace (mail/docs/drive/calendar/meet/chat/accounts), Atlassian (Jira/Confluence), and Microsoft 365 to your default browser by default — all the SSO + conditional-access apps that fail in embedded browsers. <code>*.capitalone.com</code> stays for the AIP cohort. <strong>Existing users:</strong> bootstrap only fires once, so your <code>~/.claude/duo/external-domains.json</code> doesn't auto-update — edit it by hand or delete + relaunch to pick up the expanded defaults. Stage 21e-iii (v0.5.0) will add an additive-merge upgrade path.</li>
+    <li><strong>Tooltips on navigator headers (ENH-008).</strong> "Your Claude settings" and "Project Claude context" each get a hover tooltip explaining what's there + where the files live (~/.claude/ for the global pane; the project repo for the project pane).</li>
+  </ul>
+  <p style="margin-top: 10px;"><strong>Deferred to v0.5.0:</strong> copy-button on code blocks (ENH-005), right-pane new-browser-tab button (ENH-006), collapsed-but-findable comment rail when all comments are resolved (ENH-007). v0.5.0 also bundles Stage 21e (fork-friendly architecture). The Stage 21c Phase 3 (browser history persistence — issue #27) and the rest of the Stage 20 polish cluster are still ⬜.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.4.2 release auto update electron updater session restore reload reopen tabs terminals browsers files how to fork stage 21c stage 21e">
   <h3>v0.4.2 — auto-update + session restore <span class="date">2026-04-27</span></h3>
   <p>Two long-standing papercuts close: (1) Duo now auto-updates over GitHub Releases — no more "see the banner, click the link, manually re-download the DMG, drag to /Applications." Background download, native macOS "Restart Duo to install update?" dialog when ready, defer-on-quit so the next clean cmd-Q applies the update if you missed the prompt. (2) Closing Duo and reopening it now resumes to the same terminals (with their CWDs), file tabs, and browser tabs you had open — closes <a href="https://github.com/dudgeon/duo/issues/24">issue #24</a>.</p>
