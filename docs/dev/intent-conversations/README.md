@@ -37,3 +37,4 @@ the failure mode to avoid.
 | Date | File | Topic |
 |---|---|---|
 | 2026-04-26 night | [`2026-04-26-six-ideas.md`](2026-04-26-six-ideas.md) | Six ideas after Stage 17d-A → Stages 22, 23, 24, 25, 18b, 19d |
+| 2026-04-27 dawn | [`2026-04-27-stage-21-signing.md`](2026-04-27-stage-21-signing.md) | Stage 21 signed-cut toolchain — root-caused to iCloud File Provider on `~/Documents/`; not provenance |

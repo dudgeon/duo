@@ -1,7 +1,38 @@
 # Intent pause — Stage 21 signed-cut toolchain
 
 **Filed:** 2026-04-27 (post-v0.4.0 cut, mid-sprint course-correct)
-**Status:** Plan complete; pre-execution. Post-compact agent: read this end-to-end before any tool call.
+**Status:** ✅ **Resolved 2026-04-27.** v0.4.1 GH release re-uploaded with signed + notarized DMGs. Toolchain landed on main as `4ffde29` (`feat(stage-21): signed-cut toolchain`) + `955f959` (`docs(stage-21): cut-version + cert-procurement`). Stage 21 pre-1.0 scope is shipped.
+
+## Resolution summary (added 2026-04-27 post-execution)
+
+The plan below was executed end-to-end. The actual root cause turned out to be **simpler and different** than the wip exploration commit suggested:
+
+- `com.apple.provenance` is a red herring. It's harmless on its own; even files in `/tmp/` carry it on Sequoia.
+- The real blocker is **iCloud File Provider** tagging directories inside Electron helper bundles (`Duo Helper (GPU).app`, etc.) with `com.apple.FinderInfo` / `com.apple.fileprovider.fpfs#P` / `com.apple.fileprovider.dir#N` xattrs whenever the build path lives under `~/Documents/` (the macOS default for users with iCloud Desktop & Documents sync). The afterPack ditto-strip from the wip commit was running successfully — iCloud just re-tagged the bundle directories milliseconds later, before codesign could read them.
+- **Empirical proof:** the same fresh helper binary fails to codesign in `~/Documents/GitHub/duo/dist/` but succeeds when copied to `/tmp/` or `~/code-test/`.
+
+**Fix that shipped:** redirect electron-builder's output to `$HOME/.cache/duo-build` via `-c.directories.output=$DUO_BUILD_OUTPUT`, then copy the resulting DMGs back to `dist/`. No electron-builder upgrade. No afterPack hook. No `@electron/osx-sign` rewrite. The Path A/B/C decision tree below was correct in shape but pointed at the wrong root cause; the actual win was a one-line CLI flag.
+
+**v24 → v26 risk research (asked up-front):** done before touching anything. v26 has known regressions (#8842, #9020, #9261, #9205) where `node-module-collector` breaks builds with `electron-rebuild` postinstall — exactly our setup. No documented Sequoia-specific provenance fix in the v26 changelog. Stayed on 24.13.3.
+
+**Phase mapping vs. what shipped:**
+
+| Plan phase | Shipped as |
+|---|---|
+| 1 — Make signing work on branch | `feat(stage-21)` commit `4ffde29` on `stage-21-signing-toolchain`, cherry-picked to `main`. iCloud-aware build path; cert env-driven, no yml flips. |
+| 2 — Regression-verify (12-item smoke matrix) | Validated structurally (`codesign --verify --deep`, `spctl --assess` with simulated quarantine bit, `xcrun stapler validate`). Full UI smoke walk deferred to owner-run verification on the actual installed DMG. |
+| 3 — Encode in skill | `docs(stage-21)` commit `955f959`. `cut-version` Step 4.5 grew a signed/unsigned branch with the iCloud gotcha documented; `cert-procurement.md` got a Sequoia compatibility appendix. |
+| 4 — Repeatability test | Single end-to-end run from clean `~/.cache/duo-build` produced signed v0.4.0 DMGs (smoke-test cut), then signed v0.4.1 DMGs (the actual release artifacts). No manual interventions. Toolchain is deterministic. |
+| 5 — Land on main + cut signed | Cherry-picked toolchain to main; v0.4.1 GH release assets swapped from unsigned (the parallel agent's cut) to signed via `gh release upload --clobber`. Tag `v0.4.1` already on origin pre-swap. Net: v0.4.1 ships signed without changing commit history. |
+
+**Where the canonical info lives now:**
+- `scripts/dist-signed.sh` — the actual signed-cut script with the iCloud workaround.
+- `.claude/skills/cut-version/SKILL.md` § Step 4.5 — when + how to invoke it.
+- `docs/dev/cert-procurement.md` § "Sequoia compatibility notes" appendix — the full failure-mode breakdown.
+
+The original plan body follows below for historical context. **Don't act on it** — the shipped state above supersedes everything.
+
+---
 
 ## Reframe (the whole reason for this pause)
 
