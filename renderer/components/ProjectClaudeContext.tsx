@@ -58,7 +58,13 @@ export function ProjectClaudeContext({
 
   return (
     <div className="border-b border-paper-edge mb-1 pb-1">
-      <div className="px-2 pt-1.5 pb-0.5 text-[10px] font-medium tracking-wide uppercase text-ink-mute">
+      <div
+        className="px-2 pt-1.5 pb-0.5 text-[10px] font-medium tracking-wide uppercase text-ink-mute"
+        // ENH-008 — symmetric tooltip with UserClaudePane's
+        // "Your Claude settings" header. Explains what THIS group
+        // shows + where the files live (in this project's repo).
+        title="Files in this project's repo that apply to Claude sessions started here. CLAUDE.md, .claude/, tasks.md, AGENTS.md — Duo surfaces them here when present."
+      >
         Project Claude context
       </div>
       <TreeNodes
