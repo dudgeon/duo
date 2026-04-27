@@ -1,13 +1,32 @@
+// Capture-phase, matcher-driven global keyboard shortcut hook.
+//
+// Replaces the prior bubble-phase listener that relied on each new
+// surface (xterm, iframe, TipTap, WebContentsView) wiring its own
+// escape mechanism. The chronic regression family that produced
+// (BUG-001, BUG-008, BUG-012/013/014) all came from new panes
+// shipping with the global shortcuts dead by default.
+//
+// Now: a single `document` capture-phase listener fires before any
+// focused element's bubble handlers. The matcher in
+// `keyboard/globalShortcuts.ts` owns the entire shortcut vocabulary;
+// this hook just dispatches matched IDs to App-supplied callbacks.
+// Iframe surfaces (canvas) install a forwarder that synthesizes a
+// keystroke at the parent so the same capture listener catches it.
+// xterm + WebContentsView consult the same matcher and yield when a
+// match is positive.
+
 import { useEffect } from 'react'
 import type { TabSession } from '@shared/types'
+import {
+  matchGlobalShortcut,
+  isInEditableSurface,
+  type ShortcutId
+} from '../keyboard/globalShortcuts'
 
 interface Options {
-  // Stage 19c D17–D19. Two new-terminal callbacks:
-  //   newClaudeTab — auto-launches `claude` after the shell starts
-  //   newShellTab  — vanilla shell, today's behavior
-  // ⌘T from terminal focus triggers newClaudeTab (D18); ⌘⇧T anywhere
-  // triggers newShellTab (D19); ⌘T from non-terminal focus opens a new
-  // browser tab (D20, today's behavior).
+  // Action callbacks. App.tsx owns the actual side effects (tab
+  // spawn, font bump, focus shift); this hook just decides which
+  // callback to fire for which matched shortcut.
   newClaudeTab: () => void
   newShellTab: () => void
   newBrowserTab: () => void
@@ -16,242 +35,157 @@ interface Options {
   tabs: TabSession[]
   activeTabId: string
   setActiveTabId: (id: string) => void
-  // Stage 10 § D5 — ⌘B collapses/expands the Files column.
   toggleFilesColumn?: () => void
-  // ⌘` — toggle focus between terminal and working pane.
   togglePaneFocus?: () => void
-  // ⌘+ / ⌘- / ⌘0 — adjust the active terminal tab's font bump.
   adjustTerminalFontBump?: (delta: number | 'reset') => void
-  // BUG-001 fix — which column has user focus. Routes ⌃Tab to terminal
-  // tabs when the terminal is focused, browser tabs otherwise. Without
-  // this, ⌃Tab from terminal focus cycles browser tabs (Chromium-default
-  // behaviour leaks across panes).
+  // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
+  // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
 }
 
-export function useKeyboardShortcuts({
-  newClaudeTab,
-  newShellTab,
-  newBrowserTab,
-  newMarkdownFile,
-  closeTab,
-  tabs,
-  activeTabId,
-  setActiveTabId,
-  toggleFilesColumn,
-  togglePaneFocus,
-  adjustTerminalFontBump,
-  activePaneFocus
-}: Options) {
+export function useKeyboardShortcuts(opts: Options) {
   useEffect(() => {
-    // Dispatch via a single `process(e)` function so both native window
-    // keydowns and shortcuts forwarded from the browser WebContentsView
-    // can reuse the same routing logic. `paneOverride` is set when a
-    // keystroke arrived from `onBrowserKey` — in that case we KNOW the
-    // browser WebContentsView has keyboard focus regardless of what the
-    // renderer's `focusedColumn` state says. Without this, clicks into
-    // the browser content (which the WebContentsView swallows before
-    // the wrapper's onMouseDown fires) leave `focusedColumn` stuck on
-    // its last value, mis-routing ⌃Tab.
-    const process = (
-      e: { metaKey: boolean; shiftKey: boolean; ctrlKey: boolean; altKey: boolean; key: string; preventDefault: () => void },
-      paneOverride?: 'files' | 'terminal' | 'working'
-    ) => {
-      const meta = e.metaKey
-      const key = e.key.toLowerCase()
-      const pane = paneOverride ?? activePaneFocus
-
-      // ⌘T — always opens a new browser tab (Chrome parity).
-      //
-      // Spec history: c239375 first made ⌘T pane-aware → reverted in
-      // 2b68d40 because owner preferred Chrome-parity at the time.
-      // Stage 19c brought back a narrower pane-aware form ("from
-      // terminal focus, open claude"). BUG-008 surfaced the
-      // resulting confusion and the conflict was resolved 2026-04-26
-      // in favor of Chrome-parity again — universal mental model
-      // wins over pane-aware discovery. Claude-tab spawning lives on
-      // ⌘⇧T (below) and on the split-button `+` on the terminal
-      // strip; vanilla shell only via the `>` button on the strip.
-      if (meta && !e.shiftKey && key === 't') {
-        e.preventDefault()
-        newBrowserTab()
-        return
-      }
-
-      // ⌘N — new markdown file (Stage 11 § D33a)
-      if (meta && !e.shiftKey && key === 'n') {
-        if (newMarkdownFile) {
-          e.preventDefault()
-          newMarkdownFile()
+    // Build a single dispatcher that App.tsx callbacks resolve through.
+    // `paneOverride` is set when the keystroke arrived from the
+    // browser-pane forwarder (Chromium swallows window keydowns when the
+    // WebContentsView has focus); the override carries the implied
+    // focus so ⌃Tab routes to browser tabs even when the renderer's
+    // cached `focusedColumn` is stale.
+    const dispatch = (id: ShortcutId, arg: number | undefined, paneOverride?: 'files' | 'terminal' | 'working') => {
+      const pane = paneOverride ?? opts.activePaneFocus
+      switch (id) {
+        case 'newBrowserTab':
+          opts.newBrowserTab()
+          return
+        case 'newClaudeTab':
+          opts.newClaudeTab()
+          return
+        case 'newMarkdownFile':
+          opts.newMarkdownFile?.()
+          return
+        case 'closeTab':
+          opts.closeTab()
+          return
+        case 'focusAddressBar': {
+          const el = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+          el?.focus()
+          el?.select()
+          return
         }
-        return
-      }
-
-      // ⌘⇧T — new claude tab (post-BUG-008 spec flip, replaces
-      // 19c's "vanilla shell" assignment). Vanilla shell now lives
-      // only on the `>` half of the split-button on the terminal
-      // strip; that's the discoverable affordance. ⌘⇧T being
-      // claude-focused makes it the "I want to start an agent
-      // session right now" power-user chord.
-      if (meta && e.shiftKey && key === 't') {
-        e.preventDefault()
-        newClaudeTab()
-        return
-      }
-
-      // ⌘L — focus the address bar (Chrome parity)
-      if (meta && key === 'l') {
-        const el = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
-        if (el) {
-          e.preventDefault()
-          el.focus()
-          el.select()
+        case 'toggleFilesColumn':
+          opts.toggleFilesColumn?.()
+          return
+        case 'togglePaneFocus':
+          opts.togglePaneFocus?.()
+          return
+        case 'fontBumpUp':
+          opts.adjustTerminalFontBump?.(1)
+          return
+        case 'fontBumpDown':
+          opts.adjustTerminalFontBump?.(-1)
+          return
+        case 'fontBumpReset':
+          opts.adjustTerminalFontBump?.('reset')
+          return
+        case 'jumpWorkingTab': {
+          if (typeof arg === 'number') {
+            void window.electron.browser.switchTab(arg)
+          }
+          return
         }
-        return
-      }
-
-      // ⌘B — toggle the Files column (Stage 10 § D5). Skip if focus is in
-      // a contenteditable (the markdown editor), where ⌘B means "bold" and
-      // the user does not expect the files column to move. The collapsed
-      // rail is click-to-expand as a universal escape hatch.
-      if (meta && !e.shiftKey && key === 'b') {
-        const active = document.activeElement as HTMLElement | null
-        const inEditable = !!active && (
-          active.isContentEditable ||
-          active.closest('[contenteditable="true"]') !== null
-        )
-        if (toggleFilesColumn && !inEditable) {
-          e.preventDefault()
-          toggleFilesColumn()
+        case 'jumpTerminalTab': {
+          if (typeof arg === 'number') {
+            const idx = arg - 1
+            if (idx >= 0 && idx < opts.tabs.length) {
+              opts.setActiveTabId(opts.tabs[idx].id)
+            }
+          }
+          return
         }
-        return
-      }
-
-      // ⌘` — cycle focus between terminal and working pane
-      if (meta && !e.shiftKey && (key === '`' || e.key === '`')) {
-        if (togglePaneFocus) {
-          e.preventDefault()
-          togglePaneFocus()
+        case 'prevTerminalTab': {
+          const idx = opts.tabs.findIndex(t => t.id === opts.activeTabId)
+          if (opts.tabs.length === 0) return
+          const prev = opts.tabs[(idx - 1 + opts.tabs.length) % opts.tabs.length]
+          opts.setActiveTabId(prev.id)
+          return
         }
-        return
-      }
-
-      // ⌘= / ⌘+ / ⌘- / ⌘0 — terminal font-size bump. These match Chromium's
-      // default zoom accelerators; preventDefault keeps them from colliding
-      // with the main-window zoom lock (which would no-op anyway). Browser
-      // WebContentsViews get their own copy of these keys and still zoom.
-      if (meta && !e.shiftKey && (key === '=' || e.key === '=' || e.key === '+')) {
-        if (adjustTerminalFontBump) {
-          e.preventDefault()
-          adjustTerminalFontBump(1)
+        case 'nextTerminalTab': {
+          const idx = opts.tabs.findIndex(t => t.id === opts.activeTabId)
+          if (opts.tabs.length === 0) return
+          const next = opts.tabs[(idx + 1) % opts.tabs.length]
+          opts.setActiveTabId(next.id)
+          return
         }
-        return
-      }
-      if (meta && !e.shiftKey && (key === '-' || e.key === '-')) {
-        if (adjustTerminalFontBump) {
-          e.preventDefault()
-          adjustTerminalFontBump(-1)
+        case 'cycleTabsForward':
+        case 'cycleTabsBackward': {
+          const delta = id === 'cycleTabsBackward' ? -1 : 1
+          if (pane === 'terminal' && opts.tabs.length > 0) {
+            const idx = opts.tabs.findIndex(t => t.id === opts.activeTabId)
+            const next = opts.tabs[(idx + delta + opts.tabs.length) % opts.tabs.length]
+            opts.setActiveTabId(next.id)
+          } else {
+            void (async () => {
+              const btabs = await window.electron.browser.getTabs()
+              if (btabs.length === 0) return
+              const activeIdx = btabs.findIndex(t => t.isActive)
+              const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
+              await window.electron.browser.switchTab(btabs[nextIdx].id)
+            })()
+          }
+          return
         }
-        return
-      }
-      if (meta && !e.shiftKey && (key === '0' || e.key === '0')) {
-        if (adjustTerminalFontBump) {
-          e.preventDefault()
-          adjustTerminalFontBump('reset')
-        }
-        return
-      }
-
-      // ⌘W — close active tab. Focus-aware routing lives in the handler passed
-      // from App.tsx (Stage 10 § D29).
-      if (meta && key === 'w') {
-        e.preventDefault()
-        closeTab()
-        return
-      }
-
-      // ⌘⇧1–⌘⇧9 — jump to working-pane (right-column) tab N (Stage 10 § D30)
-      if (meta && e.shiftKey && key >= '1' && key <= '9') {
-        e.preventDefault()
-        const n = parseInt(key, 10)
-        void window.electron.browser.switchTab(n)
-        return
-      }
-
-      // ⌘1–⌘9 — jump to terminal tab N
-      if (meta && !e.shiftKey && key >= '1' && key <= '9') {
-        e.preventDefault()
-        const idx = parseInt(key, 10) - 1
-        if (idx < tabs.length) setActiveTabId(tabs[idx].id)
-        return
-      }
-
-      // ⌘⇧[ — previous terminal tab
-      if (meta && e.shiftKey && e.key === '[') {
-        e.preventDefault()
-        const idx = tabs.findIndex(t => t.id === activeTabId)
-        const prev = tabs[(idx - 1 + tabs.length) % tabs.length]
-        setActiveTabId(prev.id)
-        return
-      }
-
-      // ⌘⇧] — next terminal tab
-      if (meta && e.shiftKey && e.key === ']') {
-        e.preventDefault()
-        const idx = tabs.findIndex(t => t.id === activeTabId)
-        const next = tabs[(idx + 1) % tabs.length]
-        setActiveTabId(next.id)
-        return
-      }
-
-      // ⌃Tab / ⌃⇧Tab — pane-aware tab cycling. When the terminal column
-      // has focus, cycle terminal tabs (BUG-001 fix; matches ⌘⇧] / ⌘⇧[).
-      // Otherwise (working pane, files pane, or unknown) cycle browser
-      // tabs to preserve Chrome-parity for the most common case.
-      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Tab') {
-        e.preventDefault()
-        const delta = e.shiftKey ? -1 : 1
-        if (pane === 'terminal' && tabs.length > 0) {
-          const idx = tabs.findIndex(t => t.id === activeTabId)
-          const next = tabs[(idx + delta + tabs.length) % tabs.length]
-          setActiveTabId(next.id)
-        } else {
-          void (async () => {
-            const btabs = await window.electron.browser.getTabs()
-            if (btabs.length === 0) return
-            const activeIdx = btabs.findIndex(t => t.isActive)
-            const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
-            await window.electron.browser.switchTab(btabs[nextIdx].id)
-          })()
-        }
-        return
       }
     }
 
-    const windowHandler = (e: KeyboardEvent) => process(e)
-    window.addEventListener('keydown', windowHandler)
+    // Capture-phase listener on `document` — fires BEFORE any focused
+    // surface's bubble-phase handlers. TipTap, app-level controls, and
+    // the canvas-iframe forwarder (which synthesizes events here) all
+    // route through this single point.
+    const documentHandler = (e: KeyboardEvent) => {
+      const ctx = { inEditableSurface: isInEditableSurface(document) }
+      const match = matchGlobalShortcut(e, ctx)
+      if (!match) return
+      e.preventDefault()
+      e.stopPropagation()
+      dispatch(match.id, match.arg)
+    }
+    document.addEventListener('keydown', documentHandler, true)
 
-    // When the browser WebContentsView has focus, Chromium swallows
-    // keystrokes before the window listener can see them. BrowserManager
-    // intercepts the Duo shortcuts and forwards them here. We pass
-    // 'working' as paneOverride because the browser pane having keyboard
-    // focus is the proximate cause of the forward — the renderer's
-    // cached focusedColumn may be stale (WebContentsView clicks don't
-    // bubble to the wrapper's onMouseDown).
-    const unsubscribeBrowserKey = window.electron.keyboard?.onBrowserKey((e) => {
-      process({
-        metaKey: e.meta,
-        shiftKey: e.shift,
-        ctrlKey: e.ctrl,
-        altKey: e.alt,
-        key: e.key,
-        preventDefault: () => { /* already prevented in main */ }
-      }, 'working')
+    // Browser pane forwarder. The WebContentsView swallows window
+    // keydowns before any renderer listener runs, so main-process
+    // intercepts them and forwards via IPC. We re-build a synthetic
+    // KeyboardEvent here so the matcher's contract stays the same.
+    // 'working' pane override because the browser pane having keyboard
+    // focus is the proximate cause of the forward.
+    const unsubscribeBrowserKey = window.electron.keyboard?.onBrowserKey((forward) => {
+      const synthetic = new KeyboardEvent('keydown', {
+        key: forward.key,
+        ctrlKey: forward.ctrl,
+        metaKey: forward.meta,
+        shiftKey: forward.shift,
+        altKey: forward.alt
+      })
+      const ctx = { inEditableSurface: false } // browser is not editable surface for our purposes
+      const match = matchGlobalShortcut(synthetic, ctx)
+      if (match) dispatch(match.id, match.arg, 'working')
     })
 
     return () => {
-      window.removeEventListener('keydown', windowHandler)
+      document.removeEventListener('keydown', documentHandler, true)
       unsubscribeBrowserKey?.()
     }
-  }, [newClaudeTab, newShellTab, newBrowserTab, closeTab, tabs, activeTabId, setActiveTabId, toggleFilesColumn, togglePaneFocus, activePaneFocus])
+  }, [
+    opts.newClaudeTab,
+    opts.newShellTab,
+    opts.newBrowserTab,
+    opts.newMarkdownFile,
+    opts.closeTab,
+    opts.tabs,
+    opts.activeTabId,
+    opts.setActiveTabId,
+    opts.toggleFilesColumn,
+    opts.togglePaneFocus,
+    opts.adjustTerminalFontBump,
+    opts.activePaneFocus
+  ])
 }

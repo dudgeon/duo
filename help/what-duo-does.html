@@ -469,13 +469,40 @@
   <div class="num">39</div>
   <div>
     <h3>Install the skill + subagent + CLI in one click</h3>
-    <p class="why">On first launch (and after upgrades), a welcome banner appears at the top of Duo. Click <strong>Install</strong> — it copies the skill to <code>~/.claude/skills/duo/</code>, the subagent to <code>~/.claude/agents/duo.md</code>, the help files to <code>~/.claude/duo/help/</code>, and the <code>duo</code> CLI binary to <code>~/.local/bin/duo</code>. Bootstraps <code>~/.claude/duo/external-domains.json</code> if absent (never clobbered) and writes <code>installed.json</code> with the version. If <code>~/.local/bin</code> isn't on your <code>$PATH</code>, the banner shows a one-liner to add to your shell rc.</p>
+    <p class="why">On first launch (and after upgrades), a welcome banner appears at the top of Duo. Click <strong>Install</strong> — it copies the skill to <code>~/.claude/skills/duo/</code>, the subagent to <code>~/.claude/agents/duo.md</code>, the help files to <code>~/.claude/duo/help/</code>, and the <code>duo</code> CLI binary to <code>~/.local/bin/duo</code>. Bootstraps <code>~/.claude/duo/external-domains.json</code> + <code>~/.claude/duo/priming.md</code> if absent (never clobbered) and writes <code>installed.json</code> with the version. v0.3.0 also installs a load-bearing <code>~/.claude/duo/bin/claude</code> shim and a <code>SessionStart</code> hook so claude sessions inside Duo arrive Duo-aware. If <code>~/.local/bin</code> isn't on your <code>$PATH</code>, the banner shows a one-liner to add to your shell rc.</p>
     <p class="how"><strong>UI</strong>Click [Install] in the welcome banner.</p>
   </div>
 </article>
 
+<article class="item" data-keys="claude priming context aware shim hook duo-session passive ambient">
+  <div class="num">40</div>
+  <div>
+    <h3>Claude sessions inside Duo arrive Duo-aware</h3>
+    <p class="why">Every <code>claude</code> session you launch from a Duo terminal starts with knowledge of the workspace it's running in — the <code>duo</code> CLI verbs available, the file tree, the embedded browser, the canvas, the active selection. The agent can prefer <code>duo view</code> over <code>cat</code>, <code>duo selection</code> over scrolling for context, etc. without you typing a primer. Implementation: a PATH shim at <code>~/.claude/duo/bin/claude</code> (installed at first launch) wraps the real binary with <code>--append-system-prompt "$(cat ~/.claude/duo/priming.md)"</code> when <code>$DUO_SESSION</code> is set; a <code>SessionStart</code> hook in <code>~/.claude/settings.json</code> backs it up. Edit <code>priming.md</code> to customize.</p>
+    <p class="how"><strong>UI</strong>Open a new Claude tab (<code>+</code> on the terminal strip or <code>⌘⇧T</code>). Priming is automatic.<br><strong>Customize</strong>Edit <code>~/.claude/duo/priming.md</code>; survives Duo upgrades.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="canvas action data-duo-action interactive html claude spawn terminal send browser open quiz lesson dashboard">
+  <div class="num">41</div>
+  <div>
+    <h3>Canvas pages can drive the workspace (data-duo-action)</h3>
+    <p class="why">Add <code>data-duo-action="claude:spawn"</code>, <code>"terminal:send"</code>, or <code>"browser:open"</code> to any clickable element in an HTML canvas; clicking it dispatches the action through Duo's renderer. <code>claude:spawn</code> opens a new Claude tab (optionally with <code>data-cwd</code> + <code>data-cmd</code>); <code>terminal:send</code> writes <code>data-text</code> into the active PTY (with optional <code>data-enter="true"</code> to submit on the user's behalf); <code>browser:open</code> navigates a new browser tab to <code>data-url</code>. Trust gate v1: actions fire only on canvases under <code>~/.claude/duo/</code>. Patterns: quiz with bidirectional Claude↔HTML loop, lesson runner with "next section" buttons, dashboard with starting-point links.</p>
+    <p class="how"><strong>Try it</strong>Open <code>~/.claude/duo/help/canvas-actions-demo.html</code> from the file tree.<br><strong>Author</strong>See <code>~/.claude/skills/duo/examples/canvas-actions.md</code>.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo send enter newline submit autocomplete agent return key">
+  <div class="num">42</div>
+  <div>
+    <h3>Submit a payload to the terminal on user's behalf with <code>--enter</code></h3>
+    <p class="why"><code>duo send --text "…"</code> writes payload at the active terminal's PTY but doesn't press Enter — the user confirms. <code>duo send --text "…" --enter</code> appends a newline so the command runs immediately. Pairs with the canvas <code>data-duo-action="terminal:send" data-enter="true"</code> attribute for the bidirectional Claude↔HTML loop pattern. Use sparingly to plant context for the user; never to issue prompts on their behalf.</p>
+    <p class="how"><strong>CLI</strong><code>duo send --text "duo --version" --enter</code></p>
+  </div>
+</article>
+
 <footer>
-  <p>This is Duo v0.2.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p>This is Duo v0.3.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

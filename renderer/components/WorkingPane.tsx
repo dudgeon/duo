@@ -68,6 +68,14 @@ interface WorkingPaneProps {
    *  App.tsx persists via the pins service and updates the pins
    *  state. */
   onTogglePin: (entry: PinEntry) => Promise<void>
+  /** Stage 23 — host-supplied dispatcher for canvas `data-duo-action`
+   *  clicks. App.tsx owns the active-tab id, the tab spawn, and the
+   *  browser routing logic, so dispatch lives there and CanvasTab
+   *  just calls back. */
+  onCanvasAction?: (action: import('@shared/types').CanvasAction) => Promise<{ ok: boolean; error?: string }>
+  /** Stage 23 — user $HOME for the canvas trust check (only canvas
+   *  files under ~/.claude/duo/ may dispatch actions in v1). */
+  homeDir?: string
 }
 
 export function WorkingPane({
@@ -82,7 +90,9 @@ export function WorkingPane({
   onSendToDuo,
   onNewFile,
   pins,
-  onTogglePin
+  onTogglePin,
+  onCanvasAction,
+  homeDir
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -218,6 +228,8 @@ export function WorkingPane({
           path={tab.path}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onSendToDuo={onSendToDuo}
+          onCanvasAction={onCanvasAction}
+          homeDir={homeDir}
         />
       )
     } else if (tab.type === 'markdown-preview') {

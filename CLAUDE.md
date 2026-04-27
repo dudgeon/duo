@@ -153,11 +153,36 @@ break Duo's pair-work premise. Patterns:
 5. `renderer/App.tsx § onCommitNewFile` — if `⌘N` should create
    files of this type, branch on `classifyFile(path).type` and seed
    appropriate boilerplate.
-6. CLI surface — if there's an agent-side "create from scratch"
+6. **Wire global-keystroke escape** for the new surface. Pick one of
+   the three patterns; do NOT roll your own:
+   - **In-document surface** (TipTap, contentEditable inside the
+     parent doc): the document capture-phase listener in
+     `useKeyboardShortcuts` already catches global shortcuts before
+     local handlers fire. If the surface uses ProseMirror /
+     CodeMirror, add a `handleKeyDown` that consults
+     `matchGlobalShortcut(e, ctx)` and returns `true` when matched
+     (mirrors `MarkdownEditor.tsx`).
+   - **Iframe surface** (anything mounting an iframe whose body
+     accepts keystrokes — canvas does this): import
+     `installGlobalShortcutForwarder` from
+     `renderer/keyboard/iframeForwarder.ts` and call it in the
+     iframe's `load` handler with the iframe's document and the
+     parent `window`. One line.
+   - **Native-bridged surface** (xterm-style or WebContentsView-
+     style — keystrokes never reach a JS document): consult
+     `matchGlobalShortcut` in the surface's existing escape hook
+     (`attachCustomKeyEventHandler` for xterm,
+     `before-input-event` IPC for WebContentsView). Yield to the
+     matcher; never duplicate the registry locally.
+   The single source of truth is
+   `renderer/keyboard/globalShortcuts.ts`. Adding a row there gives
+   every surface that follows one of the three patterns automatic
+   coverage. Skipping this step is the BUG-012/013/014 family.
+7. CLI surface — if there's an agent-side "create from scratch"
    verb (the analog of `duo html new`), follow the CLI plumbing
    checklist above.
-7. Skill stub at `skill/examples/<type>-authoring.md`.
-8. PRD update — confirm v1 deferrals have a sub-stage home.
+8. Skill stub at `skill/examples/<type>-authoring.md`.
+9. PRD update — confirm v1 deferrals have a sub-stage home.
 
 ### 5. The skill is a first-class deliverable
 Ship both the app and `skill/SKILL.md`, or neither.

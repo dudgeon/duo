@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { TabSession } from '@shared/types'
+import { matchGlobalShortcut } from '../keyboard/globalShortcuts'
 
 // scrollback defined here; shared/constants.ts uses Node.js os/path and can't be imported in renderer
 const SCROLLBACK = 10_000
@@ -244,22 +245,17 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     //
     // Anything else (⌘C, ⌘V, plain typing, etc.) bubbles up to
     // xterm normally.
+    // Preventative kb-shortcut architecture (replaces the previous
+    // hardcoded allowlist). Defer entirely to the shared matcher in
+    // `keyboard/globalShortcuts.ts` — if the matcher claims the
+    // keystroke as a global shortcut, return false so xterm yields
+    // and the keystroke bubbles to the document capture listener in
+    // `useKeyboardShortcuts`. New shortcuts in the registry get
+    // automatic terminal-pane coverage; old hardcoded list cannot
+    // drift.
     term.attachCustomKeyEventHandler((e) => {
-      // ⌃Tab / ⌃⇧Tab — BUG-001 (pre-existing).
-      if (e.ctrlKey && !e.metaKey && !e.altKey && e.key === 'Tab') return false
-      // ⌘-shifted Duo-global shortcuts. We DON'T match e.metaKey
-      // alone because xterm has legitimate ⌘-bindings that should
-      // pass through (e.g. some users map ⌘-keys to terminal verbs).
-      // Be specific.
-      if (e.metaKey && !e.ctrlKey && !e.altKey) {
-        const k = e.key.toLowerCase()
-        // Single-char chords (no shift, or with shift only)
-        if (k === 't' || k === 'n' || k === 'w' || k === 'l' || k === 'b' || k === '`') return false
-        // Number row: 0–9, with or without shift
-        if (k >= '0' && k <= '9') return false
-        // Font-size bumps: ⌘+, ⌘=, ⌘-
-        if (k === '+' || k === '=' || k === '-') return false
-      }
+      const match = matchGlobalShortcut(e, { inEditableSurface: false })
+      if (match) return false
       return true
     })
 

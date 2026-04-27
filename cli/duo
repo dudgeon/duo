@@ -340,14 +340,19 @@ async function main() {
         break;
       }
       case "send": {
-        const textIdx = rest.indexOf("--text");
+        const enterIdx = rest.indexOf("--enter");
+        const enter = enterIdx !== -1;
+        const argv2 = enter ? [...rest.slice(0, enterIdx), ...rest.slice(enterIdx + 1)] : rest;
+        const textIdx = argv2.indexOf("--text");
         let text;
         if (textIdx !== -1) {
-          text = rest.slice(textIdx + 1).join(" ");
+          text = argv2.slice(textIdx + 1).join(" ");
         } else {
           text = await readStdin();
         }
-        if (text === "") die('Usage: duo send --text "\u2026"  |  echo \u2026 | duo send');
+        if (text === "") die('Usage: duo send [--enter] --text "\u2026"  |  echo \u2026 | duo send [--enter]');
+        if (enter) text = `${text}
+`;
         out(await send("send", { text }));
         break;
       }
@@ -633,13 +638,14 @@ COMMANDS
   nav state                       Print navigator state (cwd, selection,
                                   expanded folders, pinned flag).
 
-  send [--text "..."]             Write a payload into the active
-                                  terminal's PTY (no Enter appended \u2014
-                                  user confirms). Without --text, reads
-                                  from stdin. Stage 15 G17: agent-
-                                  facing inverse of the Send \u2192 Duo
-                                  button. Use to plant context for
-                                  the user.
+  send [--text "..."] [--enter]   Write a payload into the active
+                                  terminal's PTY. No Enter appended
+                                  by default (user confirms); pass
+                                  --enter to submit on their behalf
+                                  (Stage 23b \u2014 pairs with canvas
+                                  data-duo-action="terminal:send"
+                                  data-enter="true"). Without --text,
+                                  reads from stdin.
 
   selection-format [a|b|c]        Read or set the Send \u2192 Duo payload
                                   format (Stage 15 G19, agent-tunable

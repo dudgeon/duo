@@ -78,6 +78,26 @@ fail with `Cannot connect: Duo app is not running` (the socket path
 isn't being exported). Ask the user to launch Duo, or fall back to
 non-`duo` tools (`Read`, `Bash`, `WebFetch`).
 
+**Passive priming (Stage 19b).** Two delivery mechanisms ship together:
+
+1. **PATH shim at `~/.claude/duo/bin/claude` (load-bearing).** Every
+   PTY Duo spawns prepends `~/.claude/duo/bin` to PATH, so any
+   `claude` invocation inside a Duo terminal hits this wrapper. The
+   wrapper `exec`s the real binary with
+   `--append-system-prompt "$(cat ~/.claude/duo/priming.md)"` when
+   `DUO_SESSION` is set, and is a transparent pass-through outside Duo.
+2. **`SessionStart` hook in `~/.claude/settings.json` (safety net).**
+   Tagged `_duo: "managed-v<version>"` for idempotent re-install;
+   `cat`s `priming.md` when `DUO_SESSION` is set. Belt-and-suspenders
+   on top of the shim — Claude Code session hooks aren't always
+   reliable (users disable them, certain CLI flags skip them, settings
+   files get reset), so the shim is the load-bearing path and the
+   hook is redundancy.
+
+Users can edit `priming.md` freely (it survives Duo upgrades), delete
+the duo-tagged hook entry from `settings.json`, or remove
+`~/.claude/duo/bin/claude` to opt out of either mechanism.
+
 ## Web routing — Duo by default; configured exceptions go external
 
 Every web URL goes through Duo (`duo open` for a new tab,
@@ -142,7 +162,7 @@ declare friction sites once and stop fighting them.
 | `duo doc write --replace-all` | Replace the entire document body with new markdown (frontmatter preserved). Use for "rewrite this doc" / "restructure this section" tasks. | JSON: `{ok}` |
 | `duo theme [system\|light\|dark]` | Read the current theme (no arg → JSON `{mode, effective}`) or set it. Usually only changed on explicit user request. | JSON |
 | `duo selection-format [a\|b\|c]` | Read or set the **Send → Duo** payload format (Stage 15 G19, agent-tunable runtime knob). `a` = quote + provenance (default, human-readable); `b` = literal text only (compact, agent calls `duo selection` for context); `c` = opaque token like `<<duo-sel-abc123>>` (most compact, requires expansion). No arg → JSON `{format}`; with arg → set + persist for the rest of the session. | JSON |
-| `duo send [--text "…"]` | Write a payload into the **active terminal's PTY** (no Enter appended — user confirms). Without `--text`, reads stdin. Stage 15 G17: the agent-facing inverse of the Send → Duo button. Use sparingly to plant context for the user (e.g. "you might want to ask me about this"). | JSON: `{ok, written, terminalId}` |
+| `duo send [--text "…"] [--enter]` | Write a payload into the **active terminal's PTY**. No Enter by default — user confirms. Pass `--enter` to submit on their behalf (Stage 23b — pairs with canvas `data-duo-action="terminal:send" data-enter="true"` buttons). Without `--text`, reads stdin. Stage 15 G17: agent-facing inverse of the Send → Duo button. Use sparingly to plant context — never to issue prompts on their behalf. | JSON: `{ok, written, terminalId}` |
 | `duo new-tab [--shell\|--claude] [--cwd <path>] [--cmd "<text>"]` | **Stage 19c D27** — open a new terminal tab. `--claude` (the split-button `+` default) auto-launches `claude` after the shell starts; `--shell` opens a vanilla shell. With no flag, follows the user's most recent manual choice (default `'claude'`). `--cwd` overrides the navigator's current folder; `--cmd` writes a pre-typed payload (no trailing newline) into the PTY after spawn — wins over the kind-default if both apply. Use when a side-quest needs a fresh agent (`--claude --cwd <repo>`) or a one-off shell command (`--shell --cmd "npm test"`). | JSON: `{id, kind, cwd, title}` |
 
 ## Patterns

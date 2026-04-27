@@ -59,13 +59,22 @@ export function FirstLaunchBanner() {
       setStatus(result.status)
       setPhase('success')
       // Auto-dismiss after ~3s ONLY when there's nothing more for the
-      // user to do. If the CLI binary landed but the user's PATH
-      // doesn't include ~/.local/bin, leave the banner up so they can
-      // copy the shell-rc snippet at their own pace — they'll dismiss
-      // when ready.
+      // user to do. We hold the banner open if:
+      //   - CLI installed but PATH missing — user needs to copy a
+      //     shell-rc snippet
+      //   - CLI couldn't install — user may want to retry / debug
+      //   - Stage 19b: a non-Duo SessionStart hook already exists, so
+      //     the user should know our hook will run alongside theirs
       const cli = result.status.cli
-      const stable = !cli || (cli.installed && cli.onPath) || !cli.installed
-      if (stable) {
+      const priming = result.status.priming
+      const cliStable = !cli || (cli.installed && cli.onPath) || !cli.installed
+      // Hold the banner if priming has a hook conflict (user should
+      // notice their other hooks will run alongside ours) OR if the
+      // shim couldn't install because Claude Code wasn't found on
+      // PATH (the load-bearing priming mechanism is missing — they
+      // should install Claude Code and re-run).
+      const primingStable = !priming?.hookConflict && (!priming || priming.shimInstalled)
+      if (cliStable && primingStable) {
         setTimeout(() => {
           setDismissed(true)
         }, 3000)
@@ -80,15 +89,19 @@ export function FirstLaunchBanner() {
   // PATH hint applies. The shell-rc block renders as a separate row
   // below the main banner line.
   const cli = status.cli
+  const priming = status.priming
   const showPathHint = phase === 'success' && cli?.installed && !cli.onPath
+  const showHookConflictNote = phase === 'success' && priming?.hookConflict
+  const showShimMissingNote = phase === 'success' && priming && !priming.shimInstalled
   const pathSnippet = 'export PATH="$HOME/.local/bin:$PATH"'
+  const expandRow = showPathHint || showHookConflictNote || showShimMissingNote
 
   return (
     <div
       role="status"
       className={[
         'shrink-0 border-b text-sm transition-colors bg-accent-soft border-accent text-accent-ink',
-        showPathHint ? 'flex flex-col gap-2 px-4 py-3' : 'flex items-center gap-3 px-4 py-2.5'
+        expandRow ? 'flex flex-col gap-2 px-4 py-3' : 'flex items-center gap-3 px-4 py-2.5'
       ].join(' ')}
     >
       <div className="flex items-center gap-3 w-full">
@@ -109,15 +122,15 @@ export function FirstLaunchBanner() {
           {phase === 'success' ? (
             cli?.installed && cli.onPath ? (
               <>
-                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>; <code className="font-mono text-[12px]">duo</code> CLI ready on your PATH.
+                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>; <code className="font-mono text-[12px]">duo</code> CLI ready on your PATH; priming shim + SessionStart hook installed for Duo-aware Claude sessions inside Duo.
               </>
             ) : cli?.installed ? (
               <>
-                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>; <code className="font-mono text-[12px]">duo</code> CLI at <code className="font-mono text-[12px]">~/.local/bin/duo</code>. Add this dir to your PATH to use the CLI from any terminal:
+                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>; priming shim + SessionStart hook installed for Duo-aware Claude sessions; <code className="font-mono text-[12px]">duo</code> CLI at <code className="font-mono text-[12px]">~/.local/bin/duo</code>. Add this dir to your PATH to use the CLI from any terminal:
               </>
             ) : (
               <>
-                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>. (CLI binary couldn't be copied — try again or symlink <code className="font-mono text-[12px]">cli/duo</code> manually.)
+                <strong>Installed.</strong> Skill + subagent + help files + SessionStart hook in <code className="font-mono text-[12px]">~/.claude/</code>. (CLI binary couldn't be copied — try again or symlink <code className="font-mono text-[12px]">cli/duo</code> manually.)
               </>
             )
           ) : phase === 'error' ? (
@@ -126,11 +139,11 @@ export function FirstLaunchBanner() {
             </>
           ) : status.needsUpdate ? (
             <>
-              <strong>Duo update available.</strong> Refresh the installed skill + subagent + help files + CLI in <code className="font-mono text-[12px]">~/.claude/</code> (currently at v{status.version}).
+              <strong>Duo update available.</strong> Refresh the installed skill + subagent + help files + CLI + SessionStart hook in <code className="font-mono text-[12px]">~/.claude/</code> (currently at v{status.version}).
             </>
           ) : (
             <>
-              <strong>Welcome to Duo.</strong> Install the skill + subagent + help files into <code className="font-mono text-[12px]">~/.claude/</code> and the <code className="font-mono text-[12px]">duo</code> CLI to <code className="font-mono text-[12px]">~/.local/bin</code>. Your existing files won't be touched.
+              <strong>Welcome to Duo.</strong> Install the skill, subagent, help files, and CLI into <code className="font-mono text-[12px]">~/.claude/</code> + <code className="font-mono text-[12px]">~/.local/bin/</code>, and install a priming shim + SessionStart hook so <code className="font-mono text-[12px]">claude</code> sessions inside Duo arrive Duo-aware. Your existing files won't be touched.
             </>
           )}
         </span>
@@ -154,7 +167,7 @@ export function FirstLaunchBanner() {
           </>
         )}
 
-        {showPathHint && (
+        {expandRow && (
           <button
             type="button"
             onClick={() => setDismissed(true)}
@@ -170,6 +183,18 @@ export function FirstLaunchBanner() {
           aria-label="Add to your shell rc file (e.g. ~/.zshrc)"
           className="text-[12px] font-mono bg-surface-0 border border-accent-soft rounded px-3 py-2 ml-7 text-ink select-all whitespace-pre-wrap break-all"
         >{pathSnippet}</pre>
+      )}
+
+      {showHookConflictNote && (
+        <p className="text-[12px] ml-7 text-accent-ink leading-snug">
+          <strong>Heads-up:</strong> you already had other <code className="font-mono">SessionStart</code> hooks in <code className="font-mono">~/.claude/settings.json</code>. Duo's priming hook was added alongside them — all hooks will run on each session start. Edit the file to reorder or remove if needed.
+        </p>
+      )}
+
+      {showShimMissingNote && (
+        <p className="text-[12px] ml-7 text-accent-ink leading-snug">
+          <strong>Claude Code not detected on PATH.</strong> Duo couldn't install the priming shim, so new <code className="font-mono">claude</code> sessions inside Duo won't get the Duo-aware system prompt. Install Claude Code (<a href="https://docs.claude.com/claude-code" className="underline">docs.claude.com/claude-code</a>) and click Install again, or restart Duo from a terminal that has <code className="font-mono">claude</code> on PATH.
+        </p>
       )}
 
       {phase === 'running' && (

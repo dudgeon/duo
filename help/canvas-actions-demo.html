@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Duo — Canvas actions demo</title>
+<!--
+  Stage 23c — worked example for the data-duo-action attribute.
+
+  Notes:
+   - This file ships in `~/.claude/duo/help/` so it lives under the
+     trusted-canvas root. Outside `~/.claude/duo/` actions are inert.
+   - Open this file from the file tree (NOT via the FAQ link) to mount
+     it as a canvas tab. It deliberately does NOT have
+     `<meta name="duo-open-in" content="browser">` so the dispatcher
+     routes it to the canvas, where the click delegate runs.
+   - `duo-editable=false` so opening it doesn't accidentally let users
+     edit the source — they should treat it as a stable reference.
+-->
+<meta name="duo-editable" content="false">
+<meta name="description" content="Three live demo buttons exercising Duo's canvas-action vocabulary: claude:spawn, terminal:send, browser:open.">
+<style>
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-rule: #D4C8A6;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, ui-monospace, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1A1611;
+      --paper-deep: #13100C;
+      --paper-rule: #352D23;
+      --ink: #F0E9D6;
+      --ink-soft: #C8BD9E;
+      --ink-mute: #8A7E66;
+      --accent: #E08F4A;
+      --accent-soft: #3F2A18;
+      --accent-ink: #F2D2A8;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.55; }
+  .layout { max-width: 720px; margin: 0 auto; padding: 48px 36px 120px; }
+  h1 { font-family: var(--serif); font-weight: 500; font-size: 28px; letter-spacing: -0.01em; margin: 0 0 8px; }
+  .lede { color: var(--ink-mute); font-size: 14px; margin: 0 0 32px; }
+  h2 { font-family: var(--serif); font-size: 18px; font-weight: 500; color: var(--accent-ink); margin: 32px 0 8px; }
+  p { margin: 0 0 12px; color: var(--ink-soft); font-size: 14px; }
+  code { font-family: var(--mono); font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; color: var(--ink); }
+  pre { font-family: var(--mono); font-size: 12.5px; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 14px; overflow-x: auto; color: var(--ink); margin: 8px 0 16px; }
+  .demo-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0 18px; }
+  button.duo-action {
+    font-family: var(--sans); font-size: 14px; font-weight: 500;
+    padding: 8px 14px;
+    background: var(--accent); color: white;
+    border: 1px solid var(--accent-ink);
+    border-radius: 6px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  button.duo-action:hover { background: var(--accent-ink); }
+  .hint { color: var(--ink-mute); font-size: 13px; }
+  .trust-note { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-ink); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin: 28px 0; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<h1>Canvas actions demo</h1>
+<p class="lede">Three live buttons exercising the <code>data-duo-action</code> vocabulary added in v0.3.0. Click each one and watch what happens in the rest of the workspace.</p>
+
+<div class="trust-note">
+  <strong>Trust gating:</strong> these buttons fire because this file lives under <code>~/.claude/duo/</code>. Canvases anywhere else stay inert in v0.3.0 — see the FAQ entry on canvas actions for the full trust model.
+</div>
+
+<h2>1. <code>claude:spawn</code> — open a new Claude tab</h2>
+<p>Adds a fresh terminal tab, kind = <code>claude</code>, and auto-launches Claude Code in it. The shim wraps the launch with <code>--append-system-prompt</code> so the new agent arrives Duo-aware.</p>
+<div class="demo-row">
+  <button class="duo-action" data-duo-action="claude:spawn">Spawn a Claude tab</button>
+  <span class="hint">Optional: <code>data-cwd="…"</code> to override the navigator pending CWD; <code>data-cmd="…"</code> to pre-type a prompt before <code>claude</code> takes over.</span>
+</div>
+<pre>&lt;button data-duo-action="claude:spawn"&gt;Spawn a Claude tab&lt;/button&gt;</pre>
+
+<h2>2. <code>terminal:send</code> — write into the active terminal</h2>
+<p>Pipes text into whatever terminal tab is currently active. By default leaves the cursor parked at the prompt so the user confirms by pressing Enter; pass <code>data-enter="true"</code> to submit on their behalf.</p>
+<div class="demo-row">
+  <button class="duo-action" data-duo-action="terminal:send" data-text="echo 'hello from a canvas action'">Send text (no Enter)</button>
+  <button class="duo-action" data-duo-action="terminal:send" data-text="duo --version" data-enter="true">Run <code>duo --version</code></button>
+</div>
+<pre>&lt;button data-duo-action="terminal:send" data-text="duo --version" data-enter="true"&gt;
+  Run duo --version
+&lt;/button&gt;</pre>
+
+<h2>3. <code>browser:open</code> — open a URL in the embedded browser</h2>
+<p>Opens a new browser tab with the given URL. Routing follows the same logic as <code>duo open</code>: hostnames in <code>~/.claude/duo/external-domains.json</code> punt to the system browser instead.</p>
+<div class="demo-row">
+  <button class="duo-action" data-duo-action="browser:open" data-url="https://docs.claude.com/claude-code">Open Claude Code docs</button>
+</div>
+<pre>&lt;button data-duo-action="browser:open" data-url="https://docs.claude.com/claude-code"&gt;
+  Open Claude Code docs
+&lt;/button&gt;</pre>
+
+<h2>Authoring notes</h2>
+<p>Action elements can be <code>&lt;button&gt;</code>, <code>&lt;a&gt;</code>, or any other tag — Duo walks up from the click target to the nearest ancestor with <code>data-duo-action</code>. Clicks inside the action element are intercepted before <code>contentEditable</code> gets a chance to move the cursor, so you can use them inside editable canvases too. Modifier-clicks (<code>⌘</code>, <code>⌥</code>, <code>⇧</code>, <code>⌃</code>) and middle-clicks pass through unchanged so users can copy text or open in a new browser tab as usual.</p>
+
+<p>Malformed markup is logged to the canvas console (with a <code>[duo-canvas-action]</code> prefix) so authors can iterate quickly without an inspector. Untrusted-canvas clicks emit a quiet <code>console.info</code> rather than firing the action — clear in dev, silent in production.</p>
+
+</div>
+</body>
+</html>

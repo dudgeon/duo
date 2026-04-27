@@ -1,6 +1,6 @@
 import * as pty from 'node-pty'
 import { app, type WebContents } from 'electron'
-import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH } from './constants'
+import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { IPC } from '../shared/types'
 
 interface Session {
@@ -23,18 +23,32 @@ export class PtyManager {
     // Every PTY Duo spawns is tagged so child processes (Claude Code,
     // shell prompts, the `duo` CLI) can detect "I'm in Duo" without
     // heuristics. See docs/prd/stage-18-duo-detection.md § Layer 1.
+    //
+    // Stage 19b — prepend SHIM_DIR to PATH so any `claude` invocation
+    // inside this PTY hits Duo's wrapper (which calls real-claude with
+    // --append-system-prompt pointing at ~/.claude/duo/priming.md).
+    // The shim is a no-op pass-through outside Duo (DUO_SESSION unset),
+    // so it's safe even if some downstream process strips DUO_SESSION
+    // and later sees SHIM_DIR on PATH. Prepending (rather than
+    // appending) ensures the shim wins over any user-installed claude
+    // higher up the lookup. If the shim hasn't been installed yet
+    // (e.g. fresh user before clicking Install), the dir simply
+    // doesn't resolve — `claude` falls through to the next PATH entry.
+    const userPath = (process.env.PATH ?? '')
+    const env: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      PATH: `${SHIM_DIR}:${userPath}`,
+      DUO_SESSION: '1',
+      DUO_SOCKET: SOCKET_PATH,
+      DUO_VERSION: app.getVersion(),
+      TERM_PROGRAM: 'Duo'
+    }
     const ptyProcess = pty.spawn(shell, [], {
       name: 'xterm-256color',
       cols: TERMINAL_DEFAULTS.cols,
       rows: TERMINAL_DEFAULTS.rows,
       cwd,
-      env: {
-        ...(process.env as Record<string, string>),
-        DUO_SESSION: '1',
-        DUO_SOCKET: SOCKET_PATH,
-        DUO_VERSION: app.getVersion(),
-        TERM_PROGRAM: 'Duo'
-      }
+      env
     })
 
     ptyProcess.onData((data) => {

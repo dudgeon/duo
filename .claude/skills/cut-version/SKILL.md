@@ -240,6 +240,48 @@ git tag -a vX.Y.Z -m "Duo vX.Y.Z — <one-line headline>"
 world (or will be once the repo has a public mirror), and the user
 should explicitly bless that.
 
+### Step 6.5 — Publish DMG to GitHub Releases (after `git push --tags`)
+
+Once the user has confirmed the tag push, attach the unsigned DMG(s)
+built in Step 4.5 to a GitHub Release so end users can download
+the latest build directly from
+`https://github.com/dudgeon/duo/releases/latest` without cloning
+the repo.
+
+```bash
+# Verify the tag landed remotely first.
+git ls-remote --tags origin "refs/tags/vX.Y.Z" | grep -q "refs/tags/vX.Y.Z" \
+  || { echo "tag vX.Y.Z not on origin yet — push first"; exit 1; }
+
+# Confirm the DMGs from Step 4.5 are still on disk.
+ls -lh dist/Duo-X.Y.Z*.dmg || { echo "no DMG present — re-run Step 4.5"; exit 1; }
+
+# Generate the release body. Pull the most recent v0.X.Y entry from
+# RELEASES.md (everything between "## vX.Y.Z" and the next "## v" or
+# horizontal rule).
+RELEASE_BODY=$(awk -v v="X.Y.Z" '
+  /^## v/ { if (capture) exit; if ($2 == "v" v) capture = 1 }
+  capture { print }
+' docs/RELEASES.md)
+
+gh release create vX.Y.Z \
+  --title "Duo vX.Y.Z — <one-line headline>" \
+  --notes "$RELEASE_BODY" \
+  dist/Duo-X.Y.Z*.dmg
+```
+
+The `dist/Duo-X.Y.Z*.dmg` glob picks up both arm64 and x64 builds when
+electron-builder produces them. Both attach to the same release.
+
+**Stage 21 transition:** once code-signing + notarization land, this
+step still works unchanged — the DMG glob doesn't care whether the
+artifacts are signed. The release notes should call out `signed +
+notarized` so users know the Gatekeeper warning is gone.
+
+**If `gh` isn't authenticated:** `gh auth status` first; `gh auth
+login` to fix. Don't paper over it; an unauthenticated release call
+fails silently in some shells.
+
 ### Step 7 — Stop. Report.
 
 Show the user:

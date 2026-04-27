@@ -376,15 +376,23 @@ async function main(): Promise<void> {
       case 'send': {
         // `duo send --text "…"`            → write the literal arg
         // `cat foo | duo send`             → write stdin
-        // No Enter appended (Stage 15 G11 — user confirms).
-        const textIdx = rest.indexOf('--text')
+        // No Enter appended by default (Stage 15 G11 — user confirms).
+        // Stage 23b — `--enter` appends a newline so the agent (or a
+        // canvas action) can submit a command without two round-trips.
+        // Strip --enter from rest BEFORE we slurp the rest into the
+        // text payload so it isn't accidentally written to the PTY.
+        const enterIdx = rest.indexOf('--enter')
+        const enter = enterIdx !== -1
+        const argv = enter ? [...rest.slice(0, enterIdx), ...rest.slice(enterIdx + 1)] : rest
+        const textIdx = argv.indexOf('--text')
         let text: string
         if (textIdx !== -1) {
-          text = rest.slice(textIdx + 1).join(' ')
+          text = argv.slice(textIdx + 1).join(' ')
         } else {
           text = await readStdin()
         }
-        if (text === '') die('Usage: duo send --text "…"  |  echo … | duo send')
+        if (text === '') die('Usage: duo send [--enter] --text "…"  |  echo … | duo send [--enter]')
+        if (enter) text = `${text}\n`
         out(await send('send', { text }))
         break
       }
@@ -717,13 +725,14 @@ COMMANDS
   nav state                       Print navigator state (cwd, selection,
                                   expanded folders, pinned flag).
 
-  send [--text "..."]             Write a payload into the active
-                                  terminal's PTY (no Enter appended —
-                                  user confirms). Without --text, reads
-                                  from stdin. Stage 15 G17: agent-
-                                  facing inverse of the Send → Duo
-                                  button. Use to plant context for
-                                  the user.
+  send [--text "..."] [--enter]   Write a payload into the active
+                                  terminal's PTY. No Enter appended
+                                  by default (user confirms); pass
+                                  --enter to submit on their behalf
+                                  (Stage 23b — pairs with canvas
+                                  data-duo-action="terminal:send"
+                                  data-enter="true"). Without --text,
+                                  reads from stdin.
 
   selection-format [a|b|c]        Read or set the Send → Duo payload
                                   format (Stage 15 G19, agent-tunable

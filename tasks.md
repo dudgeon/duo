@@ -557,6 +557,207 @@ Alternative: a deliberate post-PS1 sleep (e.g., 200ms). Crude but predictable. L
 **Affected files (suspected):**
 - `renderer/App.tsx` (`waitForPtyReady` helper)
 
+**Update 2026-04-26 evening:** Fix shipped — `waitForPtyReady` now strips ANSI escapes and matches a prompt-tail regex (`/[$%#❯>›→]\s*$/`). 14/14 standalone test cases pass (bash/zsh/conda/root/starship/fish all detected; mid-startup escapes correctly ignored). Live verification owed.
+
+---
+
+### BUG-012: HTML canvas — global ⌘N, ⌘T, ⌃Tab don't reach the App-level handler
+
+**Status:** 🆕 Filed
+**Priority:** High (regression — same family as BUG-001 / BUG-008)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Repro:**
+1. Open any HTML canvas tab (e.g. `~/.claude/duo/help/canvas-actions-demo.html`).
+2. With keyboard focus inside the canvas (click into the body), press ⌘N, ⌘T, or ⌃Tab.
+
+**Expected:** Same global behavior as from any other surface — ⌘N opens a new markdown file interstitial, ⌘T opens a new browser tab (or claude tab from terminal focus per BUG-008), ⌃Tab cycles tabs.
+**Actual:** Nothing happens; keystrokes are swallowed by the iframe's contentEditable.
+
+**Root cause (suspected):**
+`renderer/components/HtmlCanvas/RenderedCanvas.tsx` installs a `keydown` listener on the iframe's document and forwards events to `onShortcut(e)` — but `CanvasTab.tsx`'s `handleShortcut` only handles ⌘S/⌘B/⌘I/⌘U/⌘K and returns `false` for everything else, which currently means "let contentEditable handle it" (incorrect). The else branch should re-dispatch the keydown event up to `window` so `useKeyboardShortcuts` sees it.
+
+**Suggested fix:**
+In `CanvasTab.handleShortcut`, when no canvas-specific shortcut matches, synthesize a `KeyboardEvent` on `window` (or call a hoisted forwarder from App.tsx) so the global hook fires. Mirrors how `BROWSER_KEY_FORWARD` works for the browser pane.
+
+**Class of issue:** keystroke escape from a focused surface. Same family as BUG-001 (xterm), BUG-008 (xterm + browser). Each new pane needs its own escape mechanism documented in the smoke matrix and CLAUDE.md plumbing checklist.
+
+---
+
+### BUG-013: Markdown editor — ⌘T opens a duplicate FAQ instance instead of a new doc
+
+**Status:** 🆕 Filed
+**Priority:** High (regression; user-confusing)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Repro:**
+1. Open a markdown file in the editor.
+2. Press ⌘T.
+
+**Expected:** Per Stage 11 D33e, ⌘T from editor focus opens a new browser tab. (Or per the reporter's expectation here, ⌘T from editor focus could open a new markdown-file interstitial — that's a spec discussion, not a fix.)
+**Actual:** Spawns a duplicate of the duo FAQ as a new tab.
+
+**Plus a related symptom inside the FAQ tab:** ⌃Tab from inside duo FAQ only cycles among duo-FAQ tabs (duplicates), not across all tabs. Possibly because the FAQ is rendered in the embedded browser pane and ⌃Tab inside the WebContentsView is being handled by Chromium's tab-cycling, not Duo's.
+
+**Likely fix:**
+- Confirm Stage 11 D33e behavior: ⌘T from editor focus should open a new browser tab (today's behavior). The "duplicate FAQ" hint suggests the new browser tab is landing on `faq.html` (which is the new default landing per v0.2.0) — that's *expected*, but the reporter's mental model is "I'm in an editor, ⌘T should give me a new doc." Worth surfacing the spec choice.
+- ⌃Tab from inside the FAQ (which is a browser-pane WebContentsView) needs the BROWSER_KEY_FORWARD escape to actually fire — verify that path.
+
+**Class of issue:** spec confusion + keystroke escape. Resolve via the matrix.
+
+---
+
+### BUG-014: Markdown editor — ⌃Tab does nothing (should cycle tabs)
+
+**Status:** 🆕 Filed
+**Priority:** High (regression — same family)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Repro:**
+1. Open a markdown file in the editor.
+2. Press ⌃Tab.
+
+**Expected:** Cycles through the WorkingPane tab strip (or terminal tabs depending on the focus-aware spec — same as the resolution that closed BUG-001 for terminal focus).
+**Actual:** Nothing happens.
+
+**Root cause (suspected):**
+TipTap/ProseMirror swallow the keydown unless the markdown editor adds its own `editorProps.handleKeyDown` that returns `false` for the global-shortcut keys. Same shape of fix as the canvas iframe, different mechanism.
+
+**Class of issue:** keystroke escape from TipTap. Add to the smoke matrix; document the escape mechanism in CLAUDE.md plumbing checklist.
+
+---
+
+### BUG-015: HTML canvas — comment rail renders even when there are no comments
+
+**Status:** 🆕 Filed
+**Priority:** Medium (visual noise; no functional impact)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Repro:**
+1. Open any HTML canvas tab without comments (e.g. a fresh `duo html new` canvas).
+
+**Expected:** Comment rail collapses or hides; gives the editing area more horizontal room.
+**Actual:** Empty rail occupies its full width with no threads.
+
+**Suggested fix:**
+`renderer/components/HtmlCanvas/CanvasTab.tsx` — gate the `<CommentRail>` render on `threads.length > 0` (or surface a placeholder collapsed state). Trivial conditional.
+
+---
+
+### BUG-016: HTML canvas in dark mode — pasted bold text is illegibly low contrast
+
+**Status:** 🆕 Filed
+**Priority:** High (accessibility / readability)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Repro:**
+1. Set theme to dark.
+2. Open an HTML canvas; paste text containing bold (e.g. from a Google Doc or another markdown editor that ships `<b>` / `<strong>`).
+
+**Expected:** Bold text renders in the same ink color as surrounding body text.
+**Actual:** Bold text renders dark-brown on the dark canvas paper background — nearly invisible.
+
+**Likely cause:**
+The pasted HTML carries inline color styles or class names that resolve to light-mode tokens; the canvas's iframe stylesheet isn't overriding `b`/`strong` color in dark mode. Could also be the serializer / paste-handler keeping inline `style="color: #..."` from the source.
+
+**Suggested fix:**
+- Add a paste handler that strips `style="color: ..."` and class attributes from pasted nodes (force the canvas's own typography to win).
+- And/or: explicitly style `b, strong` to inherit `color` in the canvas stylesheet.
+- Pairs naturally with ENH-002 (paste-as-plain-text).
+
+---
+
+### BUG-017: Theme toggle "system" setting renders as light, not actual OS preference
+
+**Status:** 🆕 Filed
+**Priority:** Medium (accessibility / regression)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Repro:**
+1. Set theme toggle to "system."
+2. Set macOS to Dark Mode in System Settings → Appearance.
+
+**Expected:** Duo follows macOS into dark mode without further input.
+**Actual:** Duo stays in light mode regardless of OS setting.
+
+**Suggested fix:**
+Audit the theme service. The css `@media (prefers-color-scheme: dark)` blocks are present in the FAQ / canvas / Atelier tokens, so the matchMedia-driven branch should work — unless the renderer's `system` mode is hard-coded to a light fallback or doesn't subscribe to `matchMedia('(prefers-color-scheme: dark)').addEventListener('change', …)`.
+
+---
+
+## Missing features
+
+### MISSING-001: Markdown editor — no way to add a comment
+
+**Status:** 🆕 Filed
+**Priority:** Medium (feature gap; HTML canvas has comments via Stage 17d-A)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Context:**
+Stage 14a (CommentRail binding for the markdown editor) is the planned home for this — currently labeled "next" on the roadmap, with the visual primitive (`<CommentRail>`) already built in 17d-A and reused by the canvas. The markdown half hasn't shipped.
+
+**Suggested next step:**
+Promote Stage 14a in the v0.3.0 / v0.4.0 sequencing once the kb-shortcut family lands. The CommentRail primitive + new-comment composer pattern are already solved canvas-side; binding them to TipTap is mostly data-plane work.
+
+---
+
+## Enhancement opportunities
+
+### ENH-001: New HTML canvases should default to stable IDs
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX papercut)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Today:**
+First open of a new canvas pops the "Add stable IDs to all elements?" prompt (Stage 17b H12–H14). Per-directory choice persists.
+
+**The papercut:**
+When Duo *itself* wrote the canvas (`duo html new`), the prompt is unnecessary friction — Duo's own boilerplate ships with no IDs, and the agent is the most common CLI user.
+
+**Suggested fix:**
+- `duo html new` could write a sidecar (`<file>.duo.json`) with `idChoice: 'always'` so the first open auto-injects without prompting.
+- Or: `duo html new` injects IDs at write time so the file lands on disk with them already.
+
+The prompt remains valuable for HTML files Duo *didn't* author (a hand-authored or downloaded canvas the user opens).
+
+---
+
+### ENH-003: "What Duo Does" should default-pin alongside the FAQ
+
+**Status:** 🆕 Filed
+**Priority:** Medium (FTUX consistency)
+**Filed:** 2026-04-26 (during v0.3.0 cut)
+
+**Today:**
+First-launch (and every fresh window) shows the FAQ as the default browser-pane landing tab. "What Duo Does" — the canonical capability inventory at `~/.claude/duo/help/what-duo-does.html` — is reachable only via a link from the FAQ.
+
+**The request:**
+Make "What Duo Does" a second pinned default tab alongside the FAQ so users see both reference surfaces immediately without hunting. The FAQ explains *concepts*; What Duo Does enumerates *capabilities* — they pair.
+
+**Suggested implementation:**
+- Bootstrap a `~/.claude/duo/pins.json` with the two help URLs pre-pinned at install time (Stage 18b's `PACK.json § pins` is the natural home, but a smaller direct-write at install can ship sooner).
+- Or: extend the `BrowserManager.defaultLandingUrl()` to seed *two* tabs on a fresh session instead of one, both pre-pinned.
+
+Cross-refs Stage 24 (pin storage), Stage 18b (distro pre-pins).
+
+---
+
+### ENH-002: "Paste as plain text" — menu item + keyboard shortcut for all editors
+
+**Status:** 🆕 Filed
+**Priority:** Medium (request; cross-editor consistency)
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+
+**Scope:**
+Both the markdown editor (TipTap) and the HTML canvas (contentEditable) inherit the standard rich-paste behavior. Users coming from Google Docs / web apps regularly want to drop the styling.
+
+**Suggested implementation:**
+- Single menu item "Edit → Paste and Match Style" wired via Electron's app menu.
+- Keyboard shortcut: ⌘⇧V (macOS standard).
+- Each editor handles by reading the clipboard's `text/plain` instead of `text/html`.
+- Pairs with BUG-016 — fixing paste-as-plain-text by default for the canvas would also kill the dark-mode contrast bug.
+
 ---
 
 ## Follow-ups (open · process / docs)

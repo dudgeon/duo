@@ -1,6 +1,6 @@
 {
   "name": "duo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "macOS desktop app pairing Claude Code terminals with an embedded Chrome browser",
   "main": "out/main/index.js",
   "scripts": {
@@ -10,7 +10,7 @@
     "postinstall": "electron-rebuild",
     "build:cli": "esbuild cli/duo.ts --bundle --platform=node --outfile=cli/duo && chmod +x cli/duo",
     "build:all": "npm run build && npm run build:cli",
-    "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents ~/.claude/duo && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp skill/references/*.md ~/.claude/skills/duo/references/ && cp agents/duo.md ~/.claude/agents/duo.md && rm -f ~/.claude/agents/duo-browser.md && [ -f ~/.claude/duo/external-domains.json ] || echo '{\"domains\":[]}' > ~/.claude/duo/external-domains.json && echo 'Synced skill + subagent (+ bootstrapped external-domains.json) to ~/.claude/'",
+    "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents ~/.claude/duo && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp skill/references/*.md ~/.claude/skills/duo/references/ && cp agents/duo.md ~/.claude/agents/duo.md && rm -f ~/.claude/agents/duo-browser.md && ([ -f ~/.claude/duo/external-domains.json ] || echo '{\"domains\":[]}' > ~/.claude/duo/external-domains.json) && ([ -f ~/.claude/duo/priming.md ] || cp skill/priming.md ~/.claude/duo/priming.md) && echo 'Synced skill + subagent (+ bootstrapped external-domains.json + priming.md) to ~/.claude/. Run install banner once in dev to merge SessionStart hook.'",
     "pack": "npm run build:all && electron-builder --dir",
     "dist": "npm run build:all && electron-builder",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",

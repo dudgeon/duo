@@ -35,6 +35,7 @@ import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { formatSendPayload } from './sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
+import { matchGlobalShortcut } from '../../keyboard/globalShortcuts'
 import type { DocWriteRequest, EditorSelectionSnapshot } from '@shared/types'
 import {
   splitFrontmatter,
@@ -169,6 +170,23 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       attributes: {
         class: 'duo-editor-prose focus:outline-none',
         spellcheck: 'true'
+      },
+      // Preventative kb-shortcut architecture (BUG-014). Capture-phase
+      // listener at document level normally fires before TipTap, but
+      // ProseMirror has its own keymap that can claim some keys before
+      // bubbling. Returning `false` from handleKeyDown lets ProseMirror
+      // still process the event for editor-local shortcuts (⌘B/⌘I/⌘U
+      // for marks); we only short-circuit when the shared matcher
+      // identifies the key as a global shortcut.
+      handleKeyDown: (_view, e) => {
+        const match = matchGlobalShortcut(e, { inEditableSurface: true })
+        if (match) {
+          // Don't let ProseMirror also act on it. The document
+          // capture-phase listener has already fired and dispatched
+          // the action, so we just prevent local handling.
+          return true
+        }
+        return false
       }
     },
     // Content is set after the async file read lands.

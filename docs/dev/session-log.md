@@ -18,6 +18,105 @@
 
 ---
 
+## 2026-04-26 night — v0.3.0 cut: Duo-aware Claude + preventative kb-shortcut architecture
+
+What started as "build Stage 19b (passive priming) per the v0.2.0
+breadcrumb" wound up the largest single-cut surface change yet.
+Three strands closed together:
+
+**1. Stage 19b — passive priming (the priority).** PRD's
+primary/secondary framing got reversed mid-build (owner: *"we
+cannot rely on hooks"*) — the PATH shim at `~/.claude/duo/bin/claude`
+is now load-bearing, the `SessionStart` hook is redundancy. PRD's
+hypothetical `--append-system-prompt-file` flag turned out not to
+exist; shim uses `"$(cat priming.md)"` command-substitution
+instead, which passes the file as a single argv (no shell re-parse
+on the substituted value). Real-claude path resolved via login
+shell at install time and inlined into the script. PtyManager
+prepends `SHIM_DIR` to PATH for every spawned PTY. Verified
+end-to-end: shim wins `which claude` lookup; pass-through works
+outside Duo; fake-claude argv test confirms the priming gets
+injected as one argv (1522 chars) followed by user's original args.
+
+**2. Stage 23 — canvas actions (`data-duo-action`).** Three-verb
+vocabulary: `claude:spawn` / `terminal:send` / `browser:open`.
+Renderer-side dispatch via a delegated capture-phase listener on
+the iframe doc — Stage 17a's H4 sandbox excludes `allow-scripts`,
+so `<button onclick>` would be inert anyway. Trust gate v1: path-
+restricted to `~/.claude/duo/`. `duo send --enter` flag (Stage
+23b) pairs with `data-enter="true"` for the bidirectional loop.
+Worked example at `help/canvas-actions-demo.html`; skill reference
+at `skill/examples/canvas-actions.md`.
+
+**3. Preventative kb-shortcut architecture (the unplanned headline).**
+Smoke walk surfaced BUG-012/013/014 (canvas iframe + TipTap
+swallowing global shortcuts). Owner's diagnosis cut hard: *"your
+fixes are detective controls, not preventative."* Detective: smoke-
+checklist + plumbing checklists I'd just proposed — they catch
+regressions if you remember to walk them. Preventative: invert the
+default so shortcuts work in every surface unless explicitly opted
+out.
+
+Three files land the architecture:
+
+- `renderer/keyboard/globalShortcuts.ts` — typed registry of every
+  global shortcut + a `matchGlobalShortcut(e, ctx)` matcher (single
+  source of truth).
+- `renderer/keyboard/iframeForwarder.ts` —
+  `installGlobalShortcutForwarder(doc, parentWindow)` utility that
+  redispatches matched keystrokes on the parent doc.
+- `renderer/hooks/useKeyboardShortcuts.ts` — refactored to install
+  a *capture-phase* listener on `document` (was bubble on `window`).
+  Capture-phase fires before any focused element's bubble handlers,
+  so TipTap, contentEditable, and the canvas iframe can no longer
+  silently swallow shortcuts.
+
+Three escape patterns, applied uniformly:
+
+1. **In-document surfaces** (TipTap, app controls): the document
+   capture listener catches global shortcuts before they bubble.
+   TipTap's `editorProps.handleKeyDown` consults the matcher.
+2. **Iframe surfaces** (canvas): one call to
+   `installGlobalShortcutForwarder` in the iframe load handler.
+3. **Native-bridged surfaces** (xterm + WebContentsView): existing
+   escape hooks consult the matcher. Hardcoded allowlists deleted.
+
+Quadratic coverage at linear effort. Smoke matrix in
+`docs/dev/smoke-checklist.md` gains a Canvas (C) column and matcher-
+trace steps as defense-in-depth, not first line. CLAUDE.md plumbing
+checklist for new tab types now requires picking one of the three
+patterns.
+
+**Verified end-to-end:** ⌘T from canvas focus opens new browser tab
+(BUG-012); ⌃Tab cycles tabs (BUG-014); BUG-013 covered by same code
+path (matcher claims ⌘T globally regardless of which surface
+raised it).
+
+**4. BUG-010 fix.** `waitForPtyReady` strips ANSI/CSI/OSC escapes
+and matches a prompt-tail regex on the visible last 160 chars
+instead of resolving on the first PTY data event. 14/14 standalone
+test cases pass. The cosmetic `claude` echo above the shell prompt
+from v0.2.0 is gone.
+
+**5. GitHub Releases DMG distribution.** v0.2.0 backfilled; README
+points at `releases/latest/download/Duo-<v>-arm64.dmg`. cut-version
+skill grew Step 6.5 to attach DMGs on every cut.
+
+**Filed but deferred to v0.3.1:** BUG-015 (canvas comment rail
+renders with no comments), BUG-016 (dark-mode pasted bold contrast),
+BUG-017 (theme system mode not following macOS), MISSING-001
+(markdown editor lacks comments — Stage 14a), ENH-001 (default
+stable IDs for new HTML canvases — sidecar `idChoice: 'always'`),
+ENH-002 (paste-and-match-style + ⌘⇧V cross-editor), ENH-003
+(default-pin "What Duo Does" alongside the FAQ).
+
+**Owed for v0.4.0+:** Stage 14a (markdown CommentRail binding),
+Stage 18b (distro skill packs), Stage 25 (post-redirect chrome
+banner), Stage 19d (mid-tab launch-claude banner), Stage 21
+(sign + notarize).
+
+---
+
 ## 2026-04-26 evening (later) — v0.2.0 cut: FTUX foundation
 
 The chapter that started after v0.1.0 closed. Eleven commits since

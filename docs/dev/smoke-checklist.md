@@ -70,29 +70,42 @@
 
 ## 5. Keyboard shortcuts (catches: browser-focus forwarding, chord typos, focus-routing regressions)
 
-**Hard rule:** every Duo shortcut MUST be exercised from **all four
+**Hard rule:** every Duo shortcut MUST be exercised from **all five
 focus surfaces** the user can be on:
 
 1. **Terminal** (xterm.js textarea — eats some keys via xterm's
-   default key handler unless `attachCustomKeyEventHandler` returns
-   false; see BUG-001 for the ⌃Tab gotcha)
+   default key handler unless `attachCustomKeyEventHandler` consults
+   `matchGlobalShortcut` and returns false; see BUG-001 for the
+   ⌃Tab gotcha)
 2. **Browser** (WebContentsView — Chromium eats keys unless
    `BrowserManager.wireKeyForwarding` allowlists them; clicks into
    the page don't bubble to the column wrapper, so renderer's
    `focusedColumn` can stay stuck on the previous value — see
    BUG-001 fix part 3)
-3. **Editor** (TipTap contenteditable — TipTap binds some keys
-   itself: `⌘B`/`⌘I`/`⌘U`/`⌘E`/`⌘K`/`⌘Z` are claimed)
-4. **Files** (tree pane, no editable element but still focusable)
+3. **Editor** (TipTap contenteditable — TipTap's
+   `editorProps.handleKeyDown` consults the matcher and returns
+   `true` for global hits so ProseMirror skips its local keymap;
+   editor-local marks like `⌘B`/`⌘I`/`⌘U`/`⌘K` still fire because
+   the matcher yields when `inEditableSurface=true`)
+4. **Canvas** (iframe + contentEditable — the iframe doc has its
+   own listeners; `installGlobalShortcutForwarder` resyntehsizes
+   matched keystrokes on the parent doc so the capture listener
+   sees them; canvas-local ⌘B/⌘I/⌘U/⌘K/⌘S still fire because the
+   matcher yields when `inEditableSurface=true`. Added 2026-04-26
+   after BUG-012/013/014 — the chronic regression family that
+   forced the preventative architecture.)
+5. **Files** (tree pane, no editable element but still focusable)
 
 **Why we walk this every time:** since 2026-04-19, Duo has shipped
-four keyboard regressions because changes touched one surface and
+five keyboard regressions because changes touched one surface and
 the matrix wasn't walked across the others (BUG-001 ⌃Tab cross-pane,
 BUG-002 ⌘T address-bar focus, BUG-004 ⌘` doesn't move OS focus,
-plus ⌘T-pane-aware churn). Each was caught days later by manual
-daily-driving. Walking this section on every keyboard-touching
-change (even "trivial" ones) catches them at PR time. See
-`tasks.md` PROCESS-001 for the full root-cause discussion.
+⌘T-pane-aware churn, plus BUG-012/013/014 — canvas iframe + TipTap
+swallowing global shortcuts). The 2026-04-26 architectural fix
+inverts the default: every surface now consults a single matcher
+(`renderer/keyboard/globalShortcuts.ts`) so adding a shortcut gives
+all surfaces coverage automatically. This matrix is the SECOND line
+of defense — the architecture is the first. Walk it anyway.
 
 **Three classes of failure to look for, not just "did the shortcut
 fire":**
@@ -111,8 +124,16 @@ c. **Did the visual focus indicator update?** (BUG-003 class).
 
 - [ ] Identify which file(s) changed. If any of these touched, walk
       the FULL matrix (every shortcut × every surface):
+      - `renderer/keyboard/globalShortcuts.ts` (the registry — touch
+        here automatically affects every surface)
+      - `renderer/keyboard/iframeForwarder.ts` (canvas escape path)
       - `renderer/hooks/useKeyboardShortcuts.ts`
-      - `renderer/components/TerminalPane.tsx` (xterm key handler)
+      - `renderer/components/TerminalPane.tsx` (xterm key handler —
+        consults `matchGlobalShortcut`)
+      - `renderer/components/HtmlCanvas/RenderedCanvas.tsx`
+        (installs the iframe forwarder)
+      - `renderer/components/editor/MarkdownEditor.tsx`
+        (`editorProps.handleKeyDown` consults the matcher)
       - `electron/browser-manager.ts` (`wireKeyForwarding` allowlist)
       - `electron/main.ts` (menu accelerator registration)
       - `renderer/App.tsx` (`togglePaneFocus`, `newBrowserTab`,
@@ -124,40 +145,55 @@ c. **Did the visual focus indicator update?** (BUG-003 class).
 ### 5.2 Shortcut × focus-surface matrix
 
 Fire each shortcut from every surface in order (T = terminal,
-B = browser, E = editor, F = files). For each cell, verify ALL of:
+B = browser, E = editor, **C = canvas (HTML)**, F = files). For
+each cell, verify ALL of:
 
 - The **action fires** (new tab, focus moves, etc.)
 - **Focus lands on the right element** (test by typing one
   character — does it go where expected? URL bar? Filename input?
-  PTY? Editor prose?)
+  PTY? Editor prose? Canvas body?)
 - **No collateral damage** to the other panes (focused column
   border updates correctly; previously-focused element loses focus)
 
-| # | Shortcut | T | B | E | F | Expected outcome |
-|---|---|---|---|---|---|---|
-| 1a | `⌘T` from B/E/F | n/a | ☐ | ☐ | ☐ | New foreground browser tab AND address-bar input has DOM focus + URL is selected. **Type one letter immediately** — it should land in the address bar, not in the new tab's page or in the previously focused surface (BUG-002 regression check). |
-| 1b | `⌘T` from T (Stage 19c D18) | ☐ | n/a | n/a | n/a | New **claude tab** in the terminal column (NOT a browser tab). Title prefix `claude · <basename>`; PTY shows `claude` typed and the TUI taking over. If `claude` is not on PATH, a one-line install banner prints instead (D23). The split-button `+` does the same thing. |
-| 2 | `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | New **vanilla shell** terminal tab regardless of focus (Stage 19c D19); PTY accepts typing immediately (xterm focused). The split-button `>` half does the same thing. |
-| 3 | `⌘N` | ☐ | ☐ | ☐ | ☐ | New `editor` tab; filename input focused. Type a name → `Enter` → focus moves to prose, next keystroke lands in prose (D33f). |
-| 4 | `⌘L` | ☐ | ☐ | ☐ | ☐ | Address-bar input focused + URL selected; type replaces URL. |
-| 5 | `⌘W` | ☐ | ☐ | ☐ | ☐ | Closes active tab in the **focused column** (terminal column → terminal tab; working column → browser tab or editor tab depending on active slot). Last terminal tab + last browser tab can't close. |
-| 6 | `⌘B` | ☐ | ☐ | n/a | ☐ | Toggles Files column. **Skipped in editor on purpose** (TipTap claims `⌘B` for bold). When collapsed, rail-icon click still expands. |
-| 7 | `` ⌘` `` | ☐ | ☐ | ☐ | ☐ | Cycles focus between terminal and working pane. **OS-level focus must move too**: after the cycle, type a single character — it goes to xterm OR the browser/editor depending on direction (BUG-004 regression check). The focused-column accent border updates. macOS: registered as a menu accelerator so the system shortcut doesn't intercept it. |
-| 8 | `⌘1` / `⌘2` | ☐ | ☐ | ☐ | ☐ | Jumps to terminal tab N. |
-| 9 | `⌘⇧1` / `⌘⇧2` | ☐ | ☐ | ☐ | ☐ | Jumps to working-pane tab N (browser or file). |
-| 10 | `⌘+` / `⌘-` / `⌘0` | ☐ | n/a | n/a | ☐ | Adjust terminal font bump (browser/editor own native zoom). |
-| 11 | `⌃Tab` / `⌃⇧Tab` | ☐ | ☐ | ☐ | ☐ | **Pane-aware**: from terminal focus → cycles terminal tabs; from browser/editor/files focus → cycles browser tabs (BUG-001). xterm's `attachCustomKeyEventHandler` must let the event bubble; browser-key-forward path must pass `paneOverride='working'`. |
-| 12 | `⌘⇧[` / `⌘⇧]` | ☐ | ☐ | ☐ | ☐ | Previous / next terminal tab (always terminal-scope). |
+| # | Shortcut | T | B | E | C | F | Expected outcome |
+|---|---|---|---|---|---|---|---|
+| 1a | `⌘T` from B/E/C/F | n/a | ☐ | ☐ | ☐ | ☐ | New foreground browser tab AND address-bar input has DOM focus + URL is selected. **Type one letter immediately** — it should land in the address bar, not in the new tab's page or in the previously focused surface (BUG-002, BUG-013 regression check). |
+| 1b | `⌘T` from T (Stage 19c D18) | ☐ | n/a | n/a | n/a | n/a | New **claude tab** in the terminal column (NOT a browser tab). Title prefix `claude · <basename>`; PTY shows `claude` typed and the TUI taking over. If `claude` is not on PATH, a one-line install banner prints instead (D23). The split-button `+` does the same thing. |
+| 2 | `⌘⇧T` | ☐ | ☐ | ☐ | ☐ | ☐ | New **vanilla shell** terminal tab regardless of focus (Stage 19c D19); PTY accepts typing immediately (xterm focused). The split-button `>` half does the same thing. |
+| 3 | `⌘N` | ☐ | ☐ | ☐ | ☐ | ☐ | New `editor` tab; filename input focused. Type a name → `Enter` → focus moves to prose, next keystroke lands in prose (D33f). **Canvas check (BUG-012):** in canvas focus, ⌘N must NOT type 'n' into the canvas body. |
+| 4 | `⌘L` | ☐ | ☐ | ☐ | ☐ | ☐ | Address-bar input focused + URL selected; type replaces URL. |
+| 5 | `⌘W` | ☐ | ☐ | ☐ | ☐ | ☐ | Closes active tab in the **focused column** (terminal column → terminal tab; working column → browser tab, editor tab, or canvas tab depending on active slot). Last terminal tab + last browser tab can't close. Pinned tabs gate behind a confirm modal (Stage 24). |
+| 6 | `⌘B` | ☐ | ☐ | n/a | n/a | ☐ | Toggles Files column. **Skipped in editor + canvas on purpose** (both claim `⌘B` for bold via the matcher's `inEditableSurface` check). When collapsed, rail-icon click still expands. |
+| 7 | `` ⌘` `` | ☐ | ☐ | ☐ | ☐ | ☐ | Cycles focus between terminal and working pane. **OS-level focus must move too**: after the cycle, type a single character — it goes to xterm OR the browser/editor/canvas depending on direction (BUG-004 regression check). The focused-column accent border updates. macOS: registered as a menu accelerator so the system shortcut doesn't intercept it. |
+| 8 | `⌘1` / `⌘2` | ☐ | ☐ | ☐ | ☐ | ☐ | Jumps to terminal tab N. |
+| 9 | `⌘⇧1` / `⌘⇧2` | ☐ | ☐ | ☐ | ☐ | ☐ | Jumps to working-pane tab N (browser, editor, or canvas — all share the strip). |
+| 10 | `⌘+` / `⌘-` / `⌘0` | ☐ | n/a | n/a | n/a | ☐ | Adjust terminal font bump (browser/editor/canvas own native zoom). |
+| 11 | `⌃Tab` / `⌃⇧Tab` | ☐ | ☐ | ☐ | ☐ | ☐ | **Pane-aware**: from terminal focus → cycles terminal tabs; from working-column surfaces (B/E/C) → cycles working-pane tabs across all types (BUG-001, BUG-014 regression check). xterm's `attachCustomKeyEventHandler` and the canvas iframe forwarder must yield to the matcher; browser-key-forward path must pass `paneOverride='working'`. |
+| 12 | `⌘⇧[` / `⌘⇧]` | ☐ | ☐ | ☐ | ☐ | ☐ | Previous / next terminal tab (always terminal-scope). |
 
 **If any cell fails, do NOT call the change done.** Trace through:
-1. Does `useKeyboardShortcuts.ts` see the keydown? (Add a `console.log`
-   at the top of `process()` to confirm.)
-2. If from browser: is the key in `wireKeyForwarding`'s allowlist in
-   `electron/browser-manager.ts`?
-3. If terminal eats it: does `term.attachCustomKeyEventHandler` in
-   `TerminalPane.tsx` return `false` for it?
-4. If editor eats it: is there a TipTap binding to override? Check
-   `renderer/components/editor/extensions/`.
+1. Does `matchGlobalShortcut` in `renderer/keyboard/globalShortcuts.ts`
+   recognize the key combo? Add a temporary `console.log` after the
+   `match` lookup in the surface that's failing — if `match` is null,
+   the registry needs the row.
+2. Does the surface's escape mechanism consult the matcher?
+   - **Terminal:** `term.attachCustomKeyEventHandler` in `TerminalPane.tsx`
+     should return `false` when the matcher claims the key.
+   - **Browser:** `BrowserManager.wireKeyForwarding` in
+     `electron/browser-manager.ts` must include the key in its allowlist
+     so it can be forwarded via IPC; the renderer's
+     `keyboard.onBrowserKey` callback then routes through the matcher.
+   - **Editor:** `editorProps.handleKeyDown` in `MarkdownEditor.tsx`
+     must call the matcher and return `true` when it matches.
+   - **Canvas:** `installGlobalShortcutForwarder` in
+     `RenderedCanvas.tsx` must be installed unconditionally on the
+     iframe doc; check the `cleanForwarder` ref isn't null.
+3. Does `useKeyboardShortcuts.ts` see the keydown? (Add a `console.log`
+   in the document capture handler to confirm.)
+4. If editor or canvas eats a *local* shortcut (⌘B for bold) that
+   should NOT escape: confirm `inEditableSurface=true` is being passed
+   to the matcher when called from that surface — if false, the
+   matcher will claim ⌘B globally and the local handler never fires.
 
 ### 5.3 Theme dimension
 

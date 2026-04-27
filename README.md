@@ -90,11 +90,37 @@ broader cohort, prototype speed in the MVP.
 | Requirement | Check |
 |---|---|
 | macOS 13+ | `sw_vers` |
+| Claude Code installed | `claude --version` ([install](https://docs.claude.com/claude-code)) |
+
+### Install Duo (recommended — download the latest DMG)
+
+The fastest path: grab the latest unsigned DMG from
+[**GitHub Releases**](https://github.com/dudgeon/duo/releases/latest)
+and drop the `Duo.app` it mounts into `/Applications`. Pick the
+`-arm64` build for Apple Silicon and the unsuffixed build for Intel.
+
+Direct links to the most recent release:
+
+- **arm64 (Apple Silicon):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.2.0-arm64.dmg>
+- **x64 (Intel):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.2.0.dmg>
+
+> **Gatekeeper warning is expected.** The DMGs are unsigned until
+> [Stage 21](docs/roadmap.html#s21) lands. On first launch macOS will
+> say "Duo can't be opened because Apple cannot check it for malicious
+> software." Right-click the app → **Open** → **Open** in the
+> confirmation dialog. You only need to do this once.
+
+The first launch shows the install banner described in
+[Install the `duo` CLI and skill](#install-the-duo-cli-and-skill);
+clicking Install once is the rest of the setup.
+
+### Build from source (dev)
+
+| Extra requirement | Check |
+|---|---|
 | Xcode Command Line Tools | `xcode-select -p` |
 | Node ≥ 18 | `node --version` |
 | npm ≥ 9 | `npm --version` |
-
-### Install and run (dev)
 
 ```bash
 git clone https://github.com/dudgeon/duo.git

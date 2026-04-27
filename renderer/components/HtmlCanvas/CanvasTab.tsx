@@ -43,6 +43,7 @@ import { executeHtmlOp } from './htmlOps'
 import { installJustAddedStyles, markJustAdded, REPAINT_FRESHNESS_MS } from './justAddedCanvas'
 import { installBlurredSelection } from './blurredSelection'
 import { installCanvasSelection, computeCanvasSnapshot } from './canvasSelection'
+import { installCanvasActions, isCanvasPathTrusted } from './canvasActions'
 import {
   paintAnchors,
   clearAnchors,
@@ -58,7 +59,8 @@ import type {
   HtmlCanvasSelectionSnapshot,
   HtmlOpRequest,
   HtmlCommentRequest,
-  HtmlCommentResult
+  HtmlCommentResult,
+  CanvasAction
 } from '@shared/types'
 
 interface Props {
@@ -71,6 +73,16 @@ interface Props {
    *  preference), and the host writes it to the active terminal's PTY.
    *  `null` props the pill from rendering at all. */
   onSendToDuo?: ((payload: string) => void) | null
+  /** Stage 23 — host-supplied dispatch for `data-duo-action` clicks
+   *  inside the canvas. Resolves with `{ ok, error? }`; canvasActions
+   *  surfaces dispatch failures to the dev console. Omit to disable
+   *  canvas actions (the listener won't be installed). */
+  onCanvasAction?: (action: CanvasAction) => Promise<{ ok: boolean; error?: string }>
+  /** Stage 23 — user $HOME. Used by the trust gate (canvas files
+   *  under ~/.claude/duo/ are trusted; others are inert). Required
+   *  whenever onCanvasAction is supplied; otherwise the trust check
+   *  returns false and actions never fire. */
+  homeDir?: string
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
@@ -230,7 +242,7 @@ function parseReadOnlyFromHtml(html: string | null): boolean {
   return !!m
 }
 
-export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
+export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -461,6 +473,27 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
     // recentEdits repaint pass below or the html-op handler later).
     installJustAddedStyles(doc)
 
+    // Stage 23 — install the canvas-action delegated click listener.
+    // Skipped if no host dispatcher is wired or no homeDir was passed
+    // (which would mean the trust check can't run — we'd rather
+    // disable than mis-trust). Trust check uses the canvas file's
+    // path; v1 trusts only ~/.claude/duo/ and below.
+    const cleanCanvasActions = (onCanvasAction && homeDir)
+      ? installCanvasActions(doc, {
+          trusted: isCanvasPathTrusted(path, homeDir),
+          onAction: onCanvasAction,
+          onUntrusted: (action) => {
+            // Surface a one-line console hint until 23a-follow-up
+            // ships an in-canvas toast or a "trust this folder?"
+            // dialog. The user knows clicking did something but
+            // didn't fire — better than silent.
+            console.info(
+              `[duo-canvas-action] ignored ${action.kind} — canvas not under ~/.claude/duo/ (path: ${path})`
+            )
+          }
+        })
+      : () => {}
+
     // 17c (PRD H26) — keep the user's selection painted while the
     // iframe loses focus. CSS Custom Highlight Registry (Chromium 105+)
     // means no DOM mutation, so the dirty path doesn't fire on
@@ -537,6 +570,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
       doc.removeEventListener('selectionchange', onSelChange)
       cleanShortcuts()
       cleanPlaceholder()
+      cleanCanvasActions()
       blurred.dispose()
       sel.dispose()
       clearAnchors(doc)
@@ -546,7 +580,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo }: Props) {
       setNewCommentAt(null)
       lastCanvasSelectionRef.current = null
     }
-  }, [path, bumpVersion, readOnly])
+  }, [path, bumpVersion, readOnly, onCanvasAction, homeDir])
 
   // Tear down iframe-side wiring on unmount (CanvasTab is unmounted via
   // the React `key={tab.id}` on path change in WorkingPane).

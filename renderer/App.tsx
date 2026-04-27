@@ -60,28 +60,51 @@ function saveLastTabKind(kind: TerminalTabKind): void {
 const CLAUDE_MISSING_BANNER =
   'echo "Install Claude Code to enable agent tabs: https://docs.claude.com/claude-code"\n'
 
-// BUG-009 fix — wait for the shell's first PTY data (= PS1 has been
-// emitted) before writing the post-spawn payload. Without this, the
-// write races the shell's startup: the bytes can land before the shell
-// has read its rc files, causing the literal payload to render as raw
-// text outside the prompt and the trailing newline to no-op against an
-// empty prompt. Subscribing here is safe — dispatchPostSpawnWrite is
-// called immediately after newTab(), and the PTY's first data flows
-// after zsh's startup (~50–200ms), so the listener is registered well
-// before the data arrives. 30ms paint settle so the prompt fully
-// renders before we type. 1s hard fallback in case data never arrives
-// (would only happen if the shell failed to start; we proceed anyway
-// so the user isn't left wondering).
+// BUG-009 fix — wait for the shell's PS1 to be emitted before writing
+// the post-spawn payload. Without this, the write races the shell's
+// startup: the bytes can land before the shell has read its rc files,
+// causing the literal payload to render as raw text outside the prompt
+// and the trailing newline to no-op against an empty prompt.
+//
+// BUG-010 fix — the original "first PTY data" trigger was too eager:
+// shells emit terminal-init escape codes (OSC 133 prompt-marks,
+// alt-screen toggles, cursor-position queries) and rc-file output
+// (conda/nvm init lines, MOTDs) BEFORE the visible PS1 lands, so the
+// post-spawn write would still interleave with shell startup chatter.
+// We now accumulate the data stream, strip ANSI/CSI/OSC escapes from
+// the visible tail, and only resolve once the tail looks like a
+// rendered prompt (`$ `, `% `, `# `, `❯ `, `> `, …). Both the 30ms
+// paint settle and the 1s hard fallback are preserved — exotic
+// custom prompts that don't match any of the recognized tails will
+// still get the write after the timeout, which is no worse than the
+// pre-BUG-009 behavior.
+const PROMPT_TAIL_REGEX = /[$%#❯>›→]\s*$/
+const ANSI_STRIP_REGEX = /\x1B(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1B]*(?:\x07|\x1B\\)|[@-Z\\-_])/g
+
+function stripAnsi(s: string): string {
+  // Remove CSI / OSC / single-char ESC sequences, plus carriage
+  // returns and NULs that don't render as visible characters.
+  return s.replace(ANSI_STRIP_REGEX, '').replace(/[\r\x00]/g, '')
+}
+
 function waitForPtyReady(id: string, timeoutMs: number = 1000): Promise<void> {
   return new Promise((resolve) => {
     let done = false
+    let buffer = ''
     const finish = () => {
       if (done) return
       done = true
       off()
       setTimeout(resolve, 30)
     }
-    const off = window.electron.pty.onData(id, finish)
+    const off = window.electron.pty.onData(id, (chunk: string) => {
+      if (done) return
+      buffer += chunk
+      // Bound the regex by checking only the recent visible tail —
+      // an rc that prints a kilobyte of MOTD shouldn't slow us down.
+      const tail = stripAnsi(buffer).slice(-160)
+      if (PROMPT_TAIL_REGEX.test(tail)) finish()
+    })
     setTimeout(() => {
       if (done) return
       done = true
@@ -403,6 +426,66 @@ export function App() {
       return prev.map(t => t.id === id ? { ...t, dirty } : t)
     })
   }, [])
+
+  // Stage 23 — host-side dispatcher for canvas data-duo-action clicks.
+  // CanvasTab installs the listener, parses the action verb + args, and
+  // calls back here. We translate to existing infrastructure:
+  //   - claude:spawn   → mirror the `duo new-tab --claude` flow used by
+  //                      the CLI route (makeTab + setTabs +
+  //                      dispatchPostSpawnWrite). Surfaces the terminal
+  //                      column so the new tab is visible immediately.
+  //   - terminal:send  → pty.write into the active PTY, with optional
+  //                      Enter via the data-enter="true" attribute (see
+  //                      Stage 23b).
+  //   - browser:open   → browser.addTab(url) — flips WorkingPane to the
+  //                      browser slot first so the new tab is visible.
+  //
+  // Trust gating happens canvas-side in canvasActions.ts; this handler
+  // is only called for trusted canvases (path under ~/.claude/duo/).
+  const handleCanvasAction = useCallback(async (
+    action: import('@shared/types').CanvasAction
+  ): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      switch (action.kind) {
+        case 'claude:spawn': {
+          const cwd = action.cwd && action.cwd.length > 0 ? action.cwd : pendingCwd
+          const tab = makeTab(cwd, 'claude', home)
+          setTabs(prev => [...prev, tab])
+          setActiveTabId(tab.id)
+          setLastTabKind('claude')
+          saveLastTabKind('claude')
+          setFocusedColumn('terminal')
+          // Use the claude post-spawn write (claude\n) by default; if
+          // the canvas supplied a `data-cmd`, use that instead so the
+          // first thing the agent sees is the user's chosen prompt.
+          void dispatchPostSpawnWrite(tab.id, 'claude', action.cmd)
+          return { ok: true }
+        }
+        case 'terminal:send': {
+          if (!activeTabId) {
+            return { ok: false, error: 'no active terminal tab' }
+          }
+          const payload = action.enter ? `${action.text}\n` : action.text
+          await window.electron.pty.write(activeTabId, payload)
+          setFocusedColumn('terminal')
+          return { ok: true }
+        }
+        case 'browser:open': {
+          // Validate the URL minimally — empty string or whitespace
+          // wouldn't help anyone. Don't enforce protocol; the browser
+          // pane handles relative + bare hostnames gracefully.
+          const url = action.url.trim()
+          if (!url) return { ok: false, error: 'browser:open requires a non-empty URL' }
+          setActiveWorking({ kind: 'browser' })
+          setFocusedColumn('working')
+          await window.electron.browser.addTab(url)
+          return { ok: true }
+        }
+      }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  }, [activeTabId, pendingCwd, home, dispatchPostSpawnWrite])
 
   // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
   // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge
@@ -936,6 +1019,8 @@ export function App() {
               }
               pins={pins}
               onTogglePin={togglePin}
+              onCanvasAction={handleCanvasAction}
+              homeDir={home}
             />
           </div>
         </div>

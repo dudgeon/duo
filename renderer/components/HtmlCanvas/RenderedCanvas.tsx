@@ -18,6 +18,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { serializeDocument } from './serialize'
+import { installGlobalShortcutForwarder } from '../../keyboard/iframeForwarder'
 
 interface Props {
   /** Initial HTML the iframe should render. Set on mount; the iframe
@@ -93,12 +94,23 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
       let wired = false
       let observer: MutationObserver | null = null
       let keyHandler: ((e: KeyboardEvent) => void) | null = null
+      let cleanForwarder: (() => void) | null = null
 
       const wire = () => {
         if (cancelled || wired) return
         const doc = iframe.contentDocument
         if (!doc || !doc.body) return
         wired = true
+
+        // Preventative kb-shortcut architecture (BUG-012 et al). Install
+        // the forwarder UNCONDITIONALLY (read-only canvases still want
+        // ⌘T / ⌘N / ⌃Tab to escape — the readOnly flag only gates
+        // editing affordances). Capture-phase listener on the iframe
+        // doc inspects each keydown via the shared matcher; matched
+        // globals get re-dispatched on the parent doc where
+        // `useKeyboardShortcuts` catches them. No bespoke wiring per
+        // pane; new global shortcuts get free coverage.
+        if (window) cleanForwarder = installGlobalShortcutForwarder(doc, window)
 
         if (!readOnly) {
           // contentEditable on body. PRD H1 — the canvas IS the page.
@@ -162,6 +174,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
       return () => {
         cancelled = true
         observer?.disconnect()
+        cleanForwarder?.()
         const doc = iframe.contentDocument
         if (doc && keyHandler) doc.removeEventListener('keydown', keyHandler, true)
         iframe.removeEventListener('load', wire)

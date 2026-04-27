@@ -21,9 +21,139 @@
 
 ## Pending — not yet cut
 
-_Empty. The deferred v0.2.0 draft folded into the v0.2.0 cut below
-once Stage 24 + Stage 18 (Phase 1 + 2) + the BUG-008 squash brought
-the chapter to a close._
+_Empty. v0.3.0 below absorbed the priming + canvas-actions + DMG-
+distribution + preventative kb-shortcut architecture chapter._
+
+---
+
+## v0.3.0 — 2026-04-26
+
+The Duo-aware-Claude release. Where v0.2.0 was the first release a
+Trailblazer could install in one click, v0.3.0 is the first release
+where every Claude session inside Duo arrives already aware of the
+workspace it's running inside — and where the chronic keyboard-
+shortcut regression family that's plagued every prior cut becomes
+structurally impossible.
+
+### Why v0.3.0 lands here
+
+Three coherent strands closed together. Stage 19b — passive priming —
+was owner-flagged as the v0.3.0 priority. Stage 23 — canvas actions
+— closed the FTUX trio (Stages 18 + 24 + 23) the previous release
+left dangling. The kb-shortcut preventative architecture wasn't
+planned for this version, but a smoke walk surfaced BUG-012/013/014
+(canvas iframe + TipTap swallowing global shortcuts) — a third
+generation of the regression family that produced BUG-001 (xterm
+⌃Tab) and BUG-008 (xterm ⌘T). The owner's diagnosis — *"your fixes
+are detective controls, not preventative"* — drove the design:
+invert the default so global shortcuts work in every surface
+**unless** the surface explicitly opts out, instead of broken
+unless explicitly wired. That structural fix can't ship in a patch
+release and is the headline.
+
+### Key design decisions baked in
+
+- **Two priming mechanisms, shim load-bearing** (Stage 19b D6/D12-D14).
+  PRD spec called for `SessionStart` hook (primary) + PATH-shim
+  (secondary) wrapping `claude` with `--append-system-prompt`. Owner
+  reframed as *"we cannot rely on hooks"* — Claude Code session
+  hooks aren't always reliable (users disable them, settings.json
+  gets reset, certain CLI flags skip them), so the shim is the
+  load-bearing path and the hook is redundancy. Both reference the
+  same source-of-truth `priming.md` at `~/.claude/duo/priming.md`.
+  Real-claude path resolved via login-shell at install time and
+  inlined into the shim. PRD spec assumed a `--append-system-prompt-file`
+  flag that doesn't exist; the shim uses `"$(cat priming.md)"`
+  command-substitution instead, which passes the file as a single
+  argv (no shell re-parse, safe for embedded quotes / dollar signs).
+- **Canvas actions: 3-verb vocabulary, path-restricted trust** (Stage 23).
+  `data-duo-action="claude:spawn|terminal:send|browser:open"` with
+  per-verb `data-*` siblings carrying args. v1 trust roots:
+  `~/.claude/duo/` only. User-marked-trusted folders deferred. The
+  iframe sandbox is `allow-same-origin allow-popups allow-forms` —
+  no `allow-scripts` (PRD H4) — so dispatch is renderer-side: the
+  parent React tree intercepts the click via a delegated capture-
+  phase listener on the iframe doc. As a bonus the trust gate has
+  a natural choke point. Action elements can be any tag; modifier-
+  clicks pass through unchanged. `duo send --enter` flag pairs with
+  `data-enter="true"` for the bidirectional Claude↔HTML loop pattern.
+- **Preventative kb-shortcut architecture** (in response to BUG-012/013/014).
+  Single typed registry (`renderer/keyboard/globalShortcuts.ts`)
+  defines the entire shortcut vocabulary. Three escape patterns
+  per surface kind: capture-phase document listener (in-doc surfaces
+  inherit the matcher for free), `installGlobalShortcutForwarder`
+  utility (iframe doc → resyntehsizes on parent), and "consult the
+  matcher in the surface's existing native escape hook" (xterm's
+  `attachCustomKeyEventHandler`, WebContentsView's
+  `before-input-event`). Adding a row to the registry gives every
+  surface that follows one of the three patterns automatic coverage.
+  Adding a new surface that follows one of the patterns inherits
+  every shortcut. Quadratic coverage at linear effort. The smoke-
+  checklist matrix (now with a Canvas column) and CLAUDE.md
+  plumbing-checklist update are the second line of defense; the
+  architecture is the first.
+- **BUG-010 fix: prompt-tail regex replaces "first PTY data"** —
+  `waitForPtyReady` now strips ANSI/CSI/OSC escapes from the
+  iframe's accumulated output and matches a tail regex
+  (`/[$%#❯>›→]\s*$/`) against the visible last 160 chars. 14/14
+  standalone test cases pass (bash, zsh, conda+zsh, root, starship,
+  fish, ANSI-colored prompts, OSC 0 title-bar prompts; correctly
+  ignores OSC 133 marks, alt-screen toggles, cursor-position
+  queries, mid-startup rc output). The cosmetic claude echo from
+  v0.2.0 is gone.
+- **GitHub Releases DMG distribution** — v0.2.0 backfilled to
+  `https://github.com/dudgeon/duo/releases/v0.2.0`; the cut-version
+  skill grew Step 6.5 to attach DMG(s) to a release on every cut.
+  README points at `releases/latest/download/Duo-<v>-arm64.dmg`
+  (Apple Silicon) and `Duo-<v>.dmg` (Intel) so end users no longer
+  need to clone + build. Unsigned until Stage 21 lands; release
+  notes call out the Gatekeeper right-click → Open dance.
+
+### What v0.3.0 is and isn't
+
+**Is:** the first release where a fresh Claude Code session inside
+Duo arrives already aware of `duo` verbs without the user typing
+anything; where canvas pages can drive the workspace (open Claude
+tabs, type into the active terminal, navigate the embedded browser);
+where downloading a DMG from GitHub Releases is the recommended
+install path; and where the keyboard-shortcut regression family
+that produced BUG-001 / BUG-008 / BUG-012/013/014 is structurally
+prevented at every existing surface and (by adoption pattern) every
+future one.
+
+**Isn't:** signed (Stage 21 still). Doesn't address the smaller bug
++ enhancement pile that surfaced during the v0.3.0 smoke walk —
+BUG-015 (canvas comment rail rendering with no comments), BUG-016
+(dark-mode pasted-bold contrast), BUG-017 (theme "system" mode not
+following macOS), MISSING-001 (markdown editor lacks comments —
+Stage 14a's home), ENH-001 (default stable IDs for new HTML
+canvases — agent-generated content shouldn't trigger the prompt),
+ENH-002 (paste as plain text + ⌘⇧V across editors). All filed in
+`tasks.md` and queued for v0.3.1.
+
+### What's queued next (v0.3.1 / v0.4.0 candidate scope)
+
+**Bug + small-enhancement pass (probably v0.3.1):**
+
+- BUG-015 — gate `<CommentRail>` render on `threads.length > 0`.
+  Trivial.
+- BUG-016 — paste handler scrubs inline `style="color: …"` from
+  pasted nodes; pairs with ENH-002.
+- BUG-017 — theme service should subscribe to
+  `matchMedia('(prefers-color-scheme: dark)').addEventListener`.
+- ENH-001 — `duo html new` writes a sidecar with `idChoice: 'always'`
+  so Duo-authored canvases don't trigger the first-open prompt.
+- ENH-002 — Edit menu "Paste and Match Style" + ⌘⇧V; both editors
+  read `text/plain` from clipboard.
+
+**Stage cluster (probably v0.4.0):**
+
+- Stage 14a — markdown CommentRail binding (closes MISSING-001).
+- Stage 18b — distro skill packs (`extra-skills/` + `PACK.json` +
+  per-conflict consent UI).
+- Stage 25 — post-redirect chrome banner.
+- Stage 19d — mid-tab launch-claude banner.
+- Stage 21 — sign + notarize DMG.
 
 ---
 

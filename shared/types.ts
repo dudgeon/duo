@@ -887,6 +887,12 @@ export interface InstallStatus {
    *  surface a tailored hint when the binary is installed but its
    *  dir isn't on $PATH. */
   cli?: CliInstallStatus
+  /** Stage 19b — passive priming state (SessionStart hook + bundled
+   *  priming.md). Tracked separately from the skill/agent state because
+   *  the user can edit ~/.claude/settings.json by hand and we want
+   *  the renderer to surface "your hook is missing — re-run install?"
+   *  hints accurately. */
+  priming?: PrimingInstallStatus
 }
 
 export interface CliInstallStatus {
@@ -898,6 +904,66 @@ export interface CliInstallStatus {
   /** True if the binary's parent dir is in the user's $PATH at app
    *  boot. False means the user needs to add it via shell-rc. */
   onPath: boolean
+}
+
+// Stage 23 — Canvas actions. A discriminated union of the v1
+// vocabulary the canvas runtime can dispatch: `claude:spawn` (open
+// a new claude tab, optionally with a CWD or a pre-typed cmd
+// payload), `terminal:send` (write text into the active PTY, with
+// an optional Enter), `browser:open` (open a URL in a new browser
+// tab — uses the existing duo-open / external routing logic so
+// off-host hosts in external-domains.json punt to the system
+// browser). Trust gating + feedback ribbons live in the canvas-side
+// runtime module (renderer/components/HtmlCanvas/canvasActions.ts);
+// host-side dispatch lives in App.tsx via WorkingPane → CanvasTab's
+// onCanvasAction prop.
+export type CanvasAction =
+  | { kind: 'claude:spawn'; cwd?: string; cmd?: string }
+  | { kind: 'terminal:send'; text: string; enter?: boolean }
+  | { kind: 'browser:open'; url: string }
+
+// Stage 19b — passive priming. Two delivery mechanisms:
+//
+//   1. PATH shim at ~/.claude/duo/bin/claude (load-bearing). Every PTY
+//      Duo spawns prepends ~/.claude/duo/bin to PATH so any `claude`
+//      invocation inside a Duo terminal hits this wrapper, which calls
+//      the real binary with `--append-system-prompt "$(cat priming.md)"`.
+//      Outside Duo it's a pass-through.
+//   2. SessionStart hook in ~/.claude/settings.json (safety net).
+//      `cat`s priming.md when DUO_SESSION is set. We can't rely on
+//      hooks (users disable them, settings.json gets reset, certain
+//      CLI flags skip them), so this is redundancy on top of the shim.
+//
+// Both reference the same source-of-truth `priming.md` at
+// ~/.claude/duo/priming.md (bootstrap-only on install — never clobber
+// a user-edited copy). The hook block is tagged with a `_duo` marker
+// so re-installs can find + replace it idempotently without touching
+// unrelated hook entries. The shim is fully overwritten on re-install
+// (it's owned by Duo; the user shouldn't edit it).
+export interface PrimingInstallStatus {
+  /** True if ~/.claude/duo/priming.md exists at the install path. */
+  primingFile: boolean
+  /** True if the load-bearing PATH shim file exists + is executable
+   *  at ~/.claude/duo/bin/claude. */
+  shimInstalled: boolean
+  /** Absolute path to the real `claude` binary that the shim execs.
+   *  Resolved via a login shell at install time. Undefined if the
+   *  install couldn't find Claude Code on the user's PATH (the shim
+   *  is then skipped, and the SessionStart hook is the only priming
+   *  mechanism — strictly worse, but workable). */
+  realClaudePath?: string
+  /** True if a duo-managed SessionStart hook entry exists in
+   *  ~/.claude/settings.json. Hook is the redundant safety net; the
+   *  shim is load-bearing. */
+  hookInstalled: boolean
+  /** Version tag on the duo-managed hook block (e.g. "managed-v0.3.0").
+   *  Used for upgrade detection on re-install. */
+  hookVersion?: string
+  /** True if a non-Duo SessionStart hook entry already exists. We
+   *  don't overwrite — the install adds the duo-tagged entry alongside
+   *  it. Surface this so the user knows priming may interleave with
+   *  whatever else they had configured. */
+  hookConflict: boolean
 }
 
 export interface InstallResult {
