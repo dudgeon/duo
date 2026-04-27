@@ -22,14 +22,14 @@
 # and (if newer) downloads + signature-verifies + installs the
 # matching DMG.
 #
-# We build with --publish never (or no flag, which defaults to never)
-# so artifacts stay local; the cut-version skill uploads them to the
-# GH Release alongside the existing DMGs via `gh release upload`.
-publish:
-  provider: github
-  owner: dudgeon
-  repo: duo
-  releaseType: release
+# Stage 21e-i — publish coordinates moved out of yml. dist.sh passes
+# them via CLI override (-c.publish.provider=, -c.publish.owner=,
+# -c.publish.repo=) sourced from fork.config.json. Keeping them out
+# of yml means a forker who edits fork.config.json doesn't have a
+# duplicate dudgeon/duo string sitting in yml waiting to drift.
+# Direct electron-builder invocations (without dist.sh) fail with
+# "missing appId" anyway, so there's no path where the absent yml
+# publish block silently builds incorrectly.
 
 directories:
   buildResources: build
