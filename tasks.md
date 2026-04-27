@@ -867,3 +867,246 @@ qualifier. The `duo` subagent file at `agents/duo.md` is load-bearing.
 4. **Edge cases:** select near the top of the editor (no room above) → pill should appear *below* the selection; select to the far right of the column → pill should clamp to the viewport edge; click outside the editor without clicking the pill → pill should disappear (it follows editor focus).
 
 **Affected files:** none directly. Just a verification pass.
+
+---
+
+## v0.4.2 punch list (filed 2026-04-27 from owner-side smoke)
+
+Owner installed the prebuilt v0.4.2 DMG and walked the surfaces. These
+came back as observations — a mix of bugs and enhancements. Filed
+together so the v0.4.3 patch (or v0.5.0 cut) can scoop them in one
+pass.
+
+---
+
+### BUG-018: ⌘T opens new browser tab landing on FAQ
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (papercut — every new tab needs to be re-navigated)
+**Filed:** 2026-04-27
+
+**Today:**
+`⌘T` from any pane opens a new browser tab that loads `~/.claude/duo/help/faq.html` (the default landing). The FAQ is right above as the default *first* tab — so `⌘T` produces a duplicate FAQ rather than a fresh canvas to navigate from.
+
+**Expected:**
+A "new tab" experience — about:blank, a stub "Where to?" page, or the most-recent-history URL. Whichever, it shouldn't be the FAQ.
+
+**Suggested fix:**
+`electron/browser-manager.ts § defaultLandingUrl()` is the FIRST-tab default. `⌘T`'s code path — `addTab(defaultLandingUrl())` — uses the same call. Split the two: keep `defaultLandingUrl()` as the boot default; add `newTabUrl()` (or accept an `addTab(undefined)` → about:blank) for the keyboard path.
+
+**Affected files:** `electron/browser-manager.ts`, possibly `electron/main.ts` if the IPC for ⌘T-add-tab routes through there.
+
+---
+
+### BUG-019: ⌘T new browser tab doesn't focus the address bar
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (pairs with BUG-018; together they're the "⌘T felt right" fix)
+**Filed:** 2026-04-27
+
+**Today:**
+`⌘T` opens a new browser tab but the address bar stays unfocused. Browser-default behavior is for `⌘T` to land focus in the address bar so the user can type a URL immediately.
+
+**Expected:**
+After `⌘T` resolves, `BrowserRenderer`'s address-bar input has keyboard focus.
+
+**Suggested fix:**
+The new-tab code path needs to push focus to the address bar after `addTab()` resolves. There's likely a renderer-side `useEffect` that watches active tab changes; add a focus-the-address-bar branch when the new tab's URL is the new-tab placeholder (paired with BUG-018).
+
+**Affected files:** `renderer/components/BrowserRenderer.tsx` (or the address-bar component); the new-tab dispatch in `App.tsx` / `WorkingPane.tsx`.
+
+---
+
+### BUG-020: First FAQ tab non-closeable but not pinned
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (UX inconsistency — should match an existing affordance)
+**Filed:** 2026-04-27
+
+**Today:**
+The boot-time first browser tab (FAQ) doesn't render a close-X. Trying to ⌘W on it does nothing. But it doesn't show a pin glyph either — it looks like a regular tab that just happens to be undeletable.
+
+**Expected:**
+Either: (a) auto-pin the FAQ default tab on first install (matches Stage 24's pin model — pin glyph, sorts leftmost, ⌘W gates behind confirm modal); OR (b) keep it non-closeable but pin-styled so the affordance is visible; OR (c) make it closeable like every other tab and let the user re-open it via the help menu / pinned state.
+
+**Owner suggestion:** "we did mean for this to be pinned instead?" — leans toward (a). Stage 24 + ENH-003 already default-pin FAQ + What Duo Does, so the pin should be in `pins.json` post-install. Verify whether the close suppression is from `BrowserManager.closeTab`'s "cannot close last tab" guard (degenerate) vs. the pinned-confirm modal. If it's the former, the bug is "BrowserManager allows closing the only tab if the user really wants to" + "first-launch pins.json includes the FAQ".
+
+**Affected files:** `electron/browser-manager.ts` (closeTab guard), `electron/install-service.ts` (pin bootstrap — verify FAQ is pre-pinned), `renderer/components/WorkingPane.tsx` (close-X visibility).
+
+---
+
+### BUG-021: ⌃Tab cycle skips restored tabs after session restore
+
+**Status:** 🆕 Filed (v0.4.2 punch — regression introduced by Stage 21c Phase 2)
+**Priority:** **High** (load-bearing for session-restore credibility — "the tabs are there but I can't reach them with the keyboard")
+**Filed:** 2026-04-27
+
+**Today:**
+After Duo relaunches and session restore re-creates tabs (terminals + browser tabs), `⌃Tab` only cycles the tabs created/touched in the CURRENT session — not the restored ones. Owner observation: "still seeing a weird tab cycle bug where ; hard to pin down but I think ctrl tab is only cycling this session's tabs, not restored tabs; either way, it is only cycling some of the tabs."
+
+**Expected:**
+`⌃Tab` cycles the full strip — restored + current-session — in display order.
+
+**Hypothesis:**
+The keyboard-shortcut handler likely captures the cycle list at mount time (or memoizes it on a stale dep), so tabs added later (via session restore's mount-time hydration) aren't in the cycle set. Could also be a tab-id-shape mismatch (restored tabs get fresh UUIDs; the handler may be tracking against the original-session UUIDs).
+
+**Suggested triage:**
+1. Look at `useKeyboardShortcuts` and the ⌃Tab branch — does it pull from a `tabs` ref/state that's reactive to changes?
+2. Check the tab-cycle order — is it cycling correctly on tab CREATE within the current session but breaking only on RESTORED tabs? Or is the cycle generally broken with > N tabs?
+3. The session-restore hydration in `App.tsx` calls `setTabs(restoredTabs)` — confirm the keyboard hook re-computes its cycle list when this fires (probably yes since deps include `tabs`, but the `?` is whether the handler closure captures a stale `tabs` reference).
+
+**Affected files:** `renderer/hooks/useKeyboardShortcuts.ts`, `renderer/App.tsx` (the session-state hydration block I added in Phase 2B).
+
+---
+
+### BUG-022: New HTML canvas doesn't focus the writing area on open
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (papercut — every new canvas needs an extra click)
+**Filed:** 2026-04-27
+
+**Today:**
+`⌘N` → name a `.html` file → opens a fresh HTML canvas with the smart-blank overlay. The canvas mounts unfocused; the user must click into the page to start typing.
+
+**Expected:**
+After the canvas mounts, focus moves to the contentEditable body so the first keystroke lands as content. (Mirrors the markdown editor's behavior — `⌘N` → name `.md` → editor opens already focused.)
+
+**Suggested fix:**
+`renderer/components/HtmlCanvas/RenderedCanvas.tsx` `onReady` callback (the iframe-load hook) — after `wired` is set, call `iframe.contentDocument.body.focus()` (or whatever the focus surface is). May need to handle the "iframe steals focus from the address bar" edge case.
+
+**Affected files:** `renderer/components/HtmlCanvas/RenderedCanvas.tsx`, possibly `renderer/components/HtmlCanvas/CanvasTab.tsx`.
+
+---
+
+### BUG-023: HTML canvas click area too small — must click ON existing text
+
+**Status:** 🆕 Filed (v0.4.2 punch — UX papercut)
+**Priority:** Medium-High (significant friction for the canvas surface)
+**Filed:** 2026-04-27
+
+**Today:**
+Owner observation: "clickable area in html canvas still too small; must click RIGHT on existing text to place cursor". Clicking in the visual margin of the page (or in whitespace between paragraphs) doesn't place a cursor; only clicking directly on a glyph or inside a tight bounding box around existing text places it.
+
+**Expected:**
+Click anywhere within the page's content column places a cursor at the nearest text position (typical browser/Word/Notion behavior).
+
+**Hypothesis:**
+The contentEditable body has a too-tight min-height or its child blocks have margins that are outside the click-receptive area. Possibly `<body>` itself isn't claimed as the editable surface or there's a conflicting padding/click-target setup in the boilerplate stylesheet (ENH-001/004 introduced inline Atelier styles).
+
+**Suggested triage:**
+1. Inspect the iframe DOM in DevTools, check `<body>` and its contentEditable boundary.
+2. Look at `shared/html-boilerplate.ts` — the inline stylesheet may need a `min-height: 100%` on body or different padding to expand the click-receptive area.
+3. Worst case: add a click-handler to the iframe document that captures clicks on the *body* and synthetically positions the cursor at the nearest text node.
+
+**Affected files:** `shared/html-boilerplate.ts` (boilerplate stylesheet), `renderer/components/HtmlCanvas/RenderedCanvas.tsx` (iframe + contentEditable wiring).
+
+---
+
+### BUG-024: Comment button occludes Send → Duo pill on canvas selection
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (selection UX — both pills appear at the same anchor and stack visually)
+**Filed:** 2026-04-27
+
+**Today:**
+Selecting text on an HTML canvas surfaces both the Send → Duo pill (Stage 15.2) and the Comment button (Stage 17d-A). They render at the same selection anchor and visually overlap; one tends to be hidden behind the other.
+
+**Owner suggestion:** "combine buttons?"
+
+**Possible fixes:**
+- (a) Single combined pill with a split affordance — primary action (one half) is Send → Duo, secondary (other half, maybe a chevron) is Comment.
+- (b) Stack vertically — Send → Duo on top, Comment below (or vice versa). Both visible, neither occluded.
+- (c) Single primary pill with a hover-to-reveal flyout containing additional actions. More refined but more clicks.
+
+**Recommend:** (a) or (b) for v1; (c) is post-1.0 polish.
+
+**Affected files:** `renderer/components/HtmlCanvas/CanvasTab.tsx` (selection UI), the `SendToDuoPill` primitive in `renderer/components/editor/`.
+
+---
+
+### ENH-005: Copy button on code blocks (markdown editor + HTML canvas)
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (high-value reading-side ergonomic)
+**Filed:** 2026-04-27
+
+**Today:**
+Code blocks in both the markdown editor and HTML canvas render as syntax-highlighted (via lowlight + highlight.js) but have no affordance to copy the contents. User has to manually select-all and `⌘C`.
+
+**Expected:**
+Hover-to-reveal "Copy" button (top-right of each `<pre>` / `<code>` block) that copies the block's text content to the clipboard. Standard pattern (GitHub, Notion, Stack Overflow).
+
+**Suggested implementation:**
+- Markdown editor (TipTap): a code-block extension that renders a button alongside the block via `addNodeView()`. Or simpler: a renderer-level `useEffect` that scans `document.querySelectorAll('.tiptap pre')` and injects a button child.
+- HTML canvas: similar — scan `<pre>` blocks in the iframe contentDocument and inject the button at iframe-load time. The button must NOT be persisted to disk (mark with `data-duo-canvas-runtime` so the serializer strips it on save, mirroring the existing runtime-chrome pattern).
+
+**Affected files:** `renderer/components/editor/MarkdownEditor.tsx` (+ a new TipTap extension or DOM-level script), `renderer/components/HtmlCanvas/RenderedCanvas.tsx` (+ runtime-chrome injector).
+
+---
+
+### ENH-006: Right pane gets a "new browser tab" button (split-button pattern)
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Medium (mirrors terminal pane's discovery affordance for the working pane)
+**Filed:** 2026-04-27
+
+**Today:**
+The WorkingPane tab strip has a `+` button that opens a file interstitial (⌘N flow). The terminal pane has a split `+` button (`+` = claude tab, `>` = shell tab — Stage 19c). Owner wants the WorkingPane to follow the same pattern: `+` for file (existing), and a sibling button for new browser tab.
+
+**Expected:**
+A second affordance on the WorkingPane tab strip — could be a `+ 🌐` button next to the existing `+` (file), or a split-button reuse (`+` defaults to last-used kind, `>` opens the secondary). Whichever mirrors the terminal-side convention.
+
+**Owner phrasing:** "use same convention as double new button on terminal side."
+
+**Suggested impl:**
+- Reuse the same `<SplitTabButton>` primitive that Stage 19c built for the terminal strip — it's already a polymorphic split-button.
+- Wire one half to the existing file-new flow, the other half to `electron.browser.addTab()` (which currently exists for the CLI path; just needs a UI binding).
+
+**Affected files:** `renderer/components/WorkingTabStrip.tsx`, possibly `renderer/components/WorkingPane.tsx`. The Stage 19c split-button might need to be promoted to a shared primitive in `renderer/components/` (it currently lives in the terminal-strip component).
+
+---
+
+### ENH-007: Comment rail collapses but stays findable when all resolved
+
+**Status:** 🆕 Filed (v0.4.2 punch — pairs with BUG-015's empty-rail fix)
+**Priority:** Low-Medium (BUG-015 hides it entirely; ENH-007 polishes "what if you've resolved all")
+**Filed:** 2026-04-27
+
+**Today:**
+BUG-015 (shipped v0.3.1) gates the comment rail render on `railThreads.length > 0`. So when you have 0 OPEN threads (or 0 threads at all), the rail is hidden. The "🆕 there are 5 resolved threads but no open ones" case looks identical to "no threads at all" — the user has no way to see resolved comments.
+
+**Expected:**
+A collapsed pill / chip somewhere on the canvas chrome that says "5 resolved" (or similar), clickable to expand the rail in a "show resolved only" view. Mirrors how Google Docs / Notion handle resolved comments.
+
+**Owner phrasing:** "comment rail looks good; rail should collapse but be findable when all comments resolved."
+
+**Suggested impl:**
+- Add a "rail toggle" affordance to the canvas toolbar / header: shows the count of resolved threads when there are 0 open. Click → reveals rail in resolved-only mode.
+- Update `<CommentRail>` to support a `mode: 'open-only' | 'resolved-only' | 'both'` prop.
+- The `data-duo-canvas-runtime` sentinel handles the "don't persist this UI to disk" part automatically.
+
+**Affected files:** `renderer/components/editor/primitives/CommentRail.tsx`, `renderer/components/HtmlCanvas/CanvasTab.tsx`.
+
+---
+
+### ENH-008: Tooltip on "Your Claude settings" navigator pane
+
+**Status:** 🆕 Filed (v0.4.2 punch)
+**Priority:** Low (small comprehension nudge for non-technical PMs)
+**Filed:** 2026-04-27
+
+**Today:**
+Stage 22 (v0.4.0) introduced the dual-pane navigator with the top pane labeled "Your Claude settings" — surfacing `~/.claude/CLAUDE.md` + `skills/` + `agents/` in plain English. The header is text-only with no explanation of WHAT these are or WHERE on disk they live.
+
+**Expected:**
+A tooltip / hover (or a small `(?)` glyph next to the header) explaining: "These files live at `~/.claude/` and apply to ALL of your Claude Code sessions, not just this project. Edit them to teach Claude your preferences globally."
+
+**Owner phrasing:** "tooltip/hover that explains what these are (global for user) and where they live."
+
+**Suggested impl:**
+- `<UserClaudePane>` header gets a small `(?)` icon (or just title-attribute on the existing label) that surfaces the explanation on hover. Native browser title-attr is the lowest-effort option; a custom tooltip component would be richer but more work.
+- Reciprocal tooltip on the bottom pane's "Project Claude context" section header would be symmetric ("These files live in this project's repo and apply only to Claude sessions started here").
+
+**Affected files:** `renderer/components/UserClaudePane.tsx`, `renderer/components/ProjectClaudeContext.tsx`.
+
+---
