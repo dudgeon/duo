@@ -45,6 +45,19 @@ function defaultLandingUrl(): string {
   return helpUrl('faq.html')
 }
 
+// BUG-018 fix — `⌘T` (and any "open a fresh tab" CLI / UI path)
+// gets a blank canvas, NOT the FAQ. The FAQ is the FIRST-tab
+// default (boot landing) — duplicating it on every ⌘T was
+// confusing.
+//
+// `about:blank` is the simplest "new tab" page: the address bar
+// reflects no URL, the user types where they want to go. Pairs
+// with the renderer-side address-bar auto-focus on new-tab open
+// (see App.tsx § newBrowserTab).
+function newTabUrl(): string {
+  return 'about:blank'
+}
+
 type StateCallback = (state: BrowserState) => void
 type TabsCallback = (tabs: BrowserTab[]) => void
 
@@ -153,7 +166,7 @@ export class BrowserManager {
     return entry
   }
 
-  async openTab(url = defaultLandingUrl()): Promise<{ ok: true; id: number; url: string; title: string }> {
+  async openTab(url = newTabUrl()): Promise<{ ok: true; id: number; url: string; title: string }> {
     const entry = this.addTab(url)
     await this.switchTab(entry.id)
     // Wait briefly for the loaded page to settle so we can return its real
@@ -199,7 +212,37 @@ export class BrowserManager {
   async closeTab(n: number): Promise<{ ok: boolean; error?: string }> {
     const idx = this.tabs.findIndex(t => t.id === n)
     if (idx === -1) return { ok: false, error: `No tab with id ${n}` }
-    if (this.tabs.length === 1) return { ok: false, error: 'Cannot close last tab' }
+
+    // BUG-020 fix — closing the last tab no longer hard-fails. Instead,
+    // open a fresh new-tab page first, then close the requested tab.
+    // Net effect: 1 tab remains, but it's a fresh about:blank.
+    // Mirrors Notion's "close last tab → open blank tab" pattern.
+    // Why: the pre-fix behavior left users with no way to dismiss the
+    // boot-time FAQ tab (it's the first/only tab on first launch and
+    // was non-closeable). With the new behavior, ⌘W on the FAQ
+    // replaces it with a blank tab the user can navigate from.
+    if (this.tabs.length === 1) {
+      this.addTab(newTabUrl())
+      // The new tab is appended to this.tabs[]. The original (last)
+      // tab keeps its index; addTab leaves activeIndex unchanged.
+      // Switch to the new tab so the user lands on it after the
+      // close completes.
+      const newTabId = this.tabs[this.tabs.length - 1].id
+      try { await this.switchTab(newTabId) } catch { /* best-effort */ }
+      // The original tab's index may have shifted? No — addTab pushes
+      // to the END, the original is still at index 0 (or wherever).
+      // Re-resolve the close target by id.
+      const newIdx = this.tabs.findIndex(t => t.id === n)
+      if (newIdx === -1) return { ok: true } // race: target already gone
+      const [removed] = this.tabs.splice(newIdx, 1)
+      try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }
+      try { removed.view.webContents.close() } catch { /* ignore */ }
+      // After removing the original, if it was at an index < activeIndex,
+      // shift activeIndex down.
+      if (newIdx < this.activeIndex) this.activeIndex -= 1
+      this.emitTabs()
+      return { ok: true }
+    }
 
     const [removed] = this.tabs.splice(idx, 1)
     try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }

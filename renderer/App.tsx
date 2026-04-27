@@ -920,10 +920,18 @@ export function App() {
       setActiveWorking({ kind: 'browser' })
       setFocusedColumn('working')
       void window.electron.browser.addTab().then(() => {
-        queueMicrotask(() => {
-          const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
-          addr?.focus()
-          addr?.select()
+        // BUG-019 fix — the previous queueMicrotask scheduled the
+        // focus call BEFORE React had finished re-rendering the
+        // working pane (which holds the address bar). Two nested
+        // requestAnimationFrames push us past the React commit AND
+        // past the paint cycle, so the address-bar DOM node is
+        // guaranteed mounted + visible when we focus().
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+            addr?.focus()
+            addr?.select()
+          })
         })
       })
     },
