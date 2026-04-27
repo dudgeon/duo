@@ -714,11 +714,15 @@ can slip through.
 
 #### Sequencing
 
-21a (sign + notarize) is independent of everything else and ships
-first because it unblocks the whole stage. 21b/c/d each ship as
-separate small PRs against the signed build; auto-update (21c first
-item) and session restore (21c second) are the highest-leverage
-Trailblazer ergonomics, but neither blocks the other.
+21a ✅ shipped first (v0.4.1, 2026-04-27) — signed + notarized DMG
+unblocked everything else. 21c Phase 1+2 ✅ shipped second (v0.4.2,
+2026-04-27) — auto-update via electron-updater + session restore on
+relaunch (closes issue #24). 21e ✅ implementation complete on
+`stage-21e-fork-friendly` branch (i + ii + iii + yml cleanup);
+v0.5.0 cut pending. Remaining: 21b (visual polish — app icon + DMG
+background), 21c Phase 3 (browser history persistence — issue #27),
+21d (Trailblazers cohort: socket auth + agent-nav notifications +
+install guide).
 
 #### Optional cert-pre-work follow-ups (not blocking 21a)
 
@@ -2453,7 +2457,7 @@ algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 | Skills panel layout | **Collapsible sidebar** | Third column right of browser pane |
 | Skills CWD source | **PTY launch CWD** | No shell hooks; capture at `pty:create` time; two scopes: project + home |
 | First-launch install | **Electron permission dialog** | Prompt before installing CLI + skill |
-| Distribution / cert | **No cert — personal use** | Ad-hoc or unsigned; cert procurement (see § Owner pre-work) is the longest lead time before Stage 21 can start |
+| Distribution / cert | **Stage 21a ✅ shipped v0.4.1** | Signed + notarized DMG via `bash scripts/dist-signed.sh`; auto-update (Stage 21c Phase 1) shipped v0.4.2 via electron-updater. Cert lives in macOS Keychain; env packet at `~/Documents/duo-private/.env` |
 | Stage 14 split (2026-04-26) | **Old Stage 14 → new Stages 18 + 21** | Decouples user-facing first-launch UX (Stage 18 — no cert) from cert procurement (Stage 21 — gated). Stage 18 ships to Trailblazers ahead of 21 |
 | 2026-04-26 layered renumber | **Stage numbers reflect actual build order, not chronology of planning** | See § Number history. Stage 12 (Atelier) is now first because every L1+ stage inherits its tokens. Old commit refs may use old numbers — the map translates them. |
 | 2026-04-26 pane focus indicator | **Tint the focused column's chrome strip (`accent-soft`), don't try to ring the column wrapper** | xterm canvas + WebContentsView occlude inset shadows on the wrapper. The strip is renderer DOM and never occluded. See [DECISIONS.md](docs/DECISIONS.md#pane-focus-indicator-chrome-strip-tint-not-column-wrapper-ring) for the v1→v2 history and rejected alternatives. |
@@ -2462,7 +2466,7 @@ algorithm (`fzf`-style) or just substring — pick at stage kickoff.
 
 | Question | Needed Before |
 |---|---|
-| Apple Developer ID cert | Stage 21 |
-| Distribution timeline (personal → Trailblazers) | Stage 21 |
-| Socket auth approach for Trailblazers | Stage 21 |
-| Sandbox-tolerant transport: TCP fallback + `duo doctor` + install-path fix (see `docs/DECISIONS.md` → Open ADRs: *Sandbox-tolerant transport and install paths for the `duo` CLI*) | Stages 5 (docs), 20 (transport), 18 (install path + settings fragment) |
+| Distribution timeline (Trailblazers cohort) | Stage 21d |
+| Socket auth approach for cross-machine cohort distribution | Stage 21d |
+| BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Any further selection-pill iteration |
+| Stage 17a.5 directions A/E (template gallery / registry) | Any code work on templates |

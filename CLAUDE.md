@@ -265,12 +265,13 @@ routed around ad hoc.
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes (project + home) |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
-| Distribution / cert | Stage 18 ships uncert; Stage 21 ships signed + notarized |
+| Distribution / cert | Stage 21a ✅ shipped v0.4.1 — signed + notarized DMG via `bash scripts/dist-signed.sh`; auto-update via electron-updater shipped v0.4.2 (Stage 21c Phase 1) |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Distribution timeline (personal → Trailblazers) | Before Stage 21 |
-| Socket auth approach for Trailblazers | Before Stage 21 |
+| Distribution timeline (Trailblazers cohort) | Before Stage 21d (socket auth + Trailblazers README) |
+| Socket auth approach for cross-machine cohort distribution | Before Stage 21d |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
+| BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |
