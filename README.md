@@ -101,8 +101,8 @@ and drop the `Duo.app` it mounts into `/Applications`. Pick the
 
 Direct links to the most recent release:
 
-- **arm64 (Apple Silicon):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.2.0-arm64.dmg>
-- **x64 (Intel):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.2.0.dmg>
+- **arm64 (Apple Silicon):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.3.1-arm64.dmg>
+- **x64 (Intel):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.3.1.dmg>
 
 > **Gatekeeper warning is expected.** The DMGs are unsigned until
 > [Stage 21](docs/roadmap.html#s21) lands. On first launch macOS will
@@ -167,7 +167,7 @@ When you want a real `.app` to drop into `/Applications` (or send to
 a tester) without running `npm run dev` every time:
 
 ```bash
-# Default — UNSIGNED build (what v0.2.0 currently ships)
+# Default — UNSIGNED build (what v0.3.1 currently ships)
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
 ```
 
@@ -188,7 +188,7 @@ done the Stage 21 cert pre-work). Without `CSC_IDENTITY_AUTO_DISCOVERY=false`,
 `electron-builder` would try to sign the build — but Stage 21's signing
 wiring isn't complete yet (the YAML's `mac.identity` is still
 commented out). The override forces an unsigned build, which is the
-intended v0.2.0 behavior.
+intended pre-Stage-21 behavior.
 
 **Gatekeeper warning on first launch.** Unsigned `.app` files trigger
 macOS Gatekeeper:
@@ -414,13 +414,14 @@ in **[CHANGELOG.md](CHANGELOG.md)** with prose context in
 **[docs/RELEASES.md](docs/RELEASES.md)**.
 
 Most recent release: see the top of [CHANGELOG.md](CHANGELOG.md). At
-v0.2.0+ the headlines worth pulling forward in this README are:
+v0.3.1 the headlines worth pulling forward in this README are:
 
 - **Foundation shipped** — Stages 1–3, 5 (+ 5 v2), 8, 9 (cozy mode).
 - **Editor surfaces shipped** — Stage 11 (markdown editor), Stage 17 (HTML canvas with comments rail), Stage 12 (Atelier visual identity).
 - **Agent ergonomics shipped** — `duo` CLI + skill + Haiku 4.5 subagent (Stage 5/5 v2), Send → Duo selection pill (Stage 15.1/15.2).
-- **First-launch + workspace polish shipped** — Stage 18 (welcome banner installs skill / subagent / CLI binary into `~/.claude/`), Stage 24 (pin WorkingPane tabs).
-- **Coming next** — Stage 18b (distro skill packs), Stage 23 (canvas actions Claude↔HTML loop), Stage 21 (sign + notarize the DMG).
+- **First-launch + workspace polish shipped** — Stage 18 (welcome banner installs skill / subagent / CLI binary + priming shim + SessionStart hook into `~/.claude/`), Stage 24 (pin WorkingPane tabs).
+- **Duo-aware Claude shipped (v0.3.0)** — Stage 19b passive priming via PATH shim + hook; Stage 23 canvas actions (`data-duo-action` Claude↔HTML loop); preventative kb-shortcut architecture.
+- **Coming next** — Stage 14a (markdown editor comments), Stage 18b (distro skill packs), Stage 21 + 21c (sign + notarize the DMG, session restore from pins).
 
 ---
 

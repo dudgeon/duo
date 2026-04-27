@@ -260,7 +260,7 @@ keyboard-touching change.
 
 ### BUG-005: `duo key End --modifiers cmd` triggers Electron About panel on macOS
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fixed 2026-04-26 (v0.3.1)
 **Priority:** Low
 **Filed:** 2026-04-25
 
@@ -321,7 +321,7 @@ Option (b) is closest to the design intent but adds CSS injection + event-routin
 
 ### BUG-007: Deleted files linger in the navigator until full reload
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fixed 2026-04-26 (v0.3.1)
 **Priority:** Medium
 **Filed:** 2026-04-26 (during Navigator polish backlog scoping)
 
@@ -629,7 +629,7 @@ TipTap/ProseMirror swallow the keydown unless the markdown editor adds its own `
 
 ### BUG-015: HTML canvas — comment rail renders even when there are no comments
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fixed 2026-04-26 (v0.3.1)
 **Priority:** Medium (visual noise; no functional impact)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -646,7 +646,7 @@ TipTap/ProseMirror swallow the keydown unless the markdown editor adds its own `
 
 ### BUG-016: HTML canvas in dark mode — pasted bold text is illegibly low contrast
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fixed 2026-04-26 (v0.3.1)
 **Priority:** High (accessibility / readability)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -669,7 +669,7 @@ The pasted HTML carries inline color styles or class names that resolve to light
 
 ### BUG-017: Theme toggle "system" setting renders as light, not actual OS preference
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fixed 2026-04-26 (v0.3.1)
 **Priority:** Medium (accessibility / regression)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -705,7 +705,7 @@ Promote Stage 14a in the v0.3.0 / v0.4.0 sequencing once the kb-shortcut family 
 
 ### ENH-001: New HTML canvases should default to stable IDs
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-26 (v0.3.1)
 **Priority:** Medium (UX papercut)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -723,9 +723,39 @@ The prompt remains valuable for HTML files Duo *didn't* author (a hand-authored 
 
 ---
 
+### ENH-004: Better default boilerplate for new HTML canvases (paired with ENH-001)
+
+**Status:** ✅ Shipped 2026-04-26 (v0.3.1)
+**Priority:** Medium (pair with ENH-001 — both touch `duo html new`'s output)
+**Filed:** 2026-04-26 (during v0.3.0 cut, owner suggestion)
+
+**Today:**
+`shared/html-boilerplate.ts` ships a minimal H17 v1 skeleton: `<!doctype html>`, title meta, `<h1>${title}</h1>`, empty `<p>`. No styles, no IDs, no Atelier flavor. The first-open prompt asks the user about ID injection (because IDs are absent).
+
+**Suggested combined improvement (closes ENH-001 + ENH-004):**
+1. **Inject `data-duo-id="<ulid>"` on every element at write time**, not on first open. The first-open prompt becomes redundant for Duo-authored canvases (closes ENH-001 by construction; the prompt remains valuable for hand-authored / downloaded HTML the user opens later).
+2. **Add a small inline CSS block** so the canvas reads well immediately:
+   - Atelier-ish defaults (cream paper, ink-soft body, serif headings, accent ochre).
+   - `prefers-color-scheme: dark` media query for dark mode.
+   - Body width cap (~720px max-width, centered, generous line-height).
+3. **Add `<meta name="viewport">`** for sensible defaults if a canvas gets shared as a web page later.
+4. **Drop a small invisible HTML comment** describing what the file is and how to extend (helps an agent see "this is a Duo canvas, the IDs are stable, etc." when reading via `duo html get`).
+
+The styles must remain canvas-local and editable — the user can delete or rewrite them at will. They're a starting hint, not a contract. The "no Duo chrome leaks" guarantee (`duo-just-added`, `data-duo-canvas-runtime`, etc.) still applies; these are user-authored CSS, not runtime-only attributes.
+
+**Affected files:**
+- `shared/html-boilerplate.ts` — extend the template.
+- `renderer/components/HtmlCanvas/idInjector.ts` (or the equivalent ulid mint) — used at write time too.
+- `electron/main.ts § htmlNew` — call the new boilerplate that already has IDs.
+- `renderer/App.tsx § onCommitNewFile` — same call site for ⌘N + `.html` path.
+
+**Cross-refs:** ENH-001 (closed by this), Stage 17 PRD H17 (full Atelier body width + Tailwind opt-in is still 17b/17e scope; this is a smaller "useful defaults out of the box" middle ground).
+
+---
+
 ### ENH-003: "What Duo Does" should default-pin alongside the FAQ
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-26 (v0.3.1)
 **Priority:** Medium (FTUX consistency)
 **Filed:** 2026-04-26 (during v0.3.0 cut)
 
@@ -745,7 +775,7 @@ Cross-refs Stage 24 (pin storage), Stage 18b (distro pre-pins).
 
 ### ENH-002: "Paste as plain text" — menu item + keyboard shortcut for all editors
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-26 (v0.3.1)
 **Priority:** Medium (request; cross-editor consistency)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 

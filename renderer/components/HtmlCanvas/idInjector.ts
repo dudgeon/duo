@@ -18,7 +18,7 @@
 // for files in that directory. The choice is stored in localStorage
 // keyed by the file's parent path.
 
-import { newULID } from './ulid'
+import { newULID } from '@shared/ulid'
 
 const SKIP_TAGS = new Set(['BR', 'HR'])
 const STORAGE_KEY = 'duo.html.autoInjectIds.byDir'

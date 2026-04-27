@@ -89,9 +89,18 @@ let activeTerminalId: string | null = null
 const newTabPending = new Map<string, (res: NewTabResult) => void>()
 
 // Stage 12 — Atelier "light is hero". Was 'dark'; flipped so macOS
-// chrome (menu, dialogs) matches the new design baseline. The
-// renderer's useTheme hook independently honours user preference for
-// the in-app surfaces; this only governs Electron's native chrome.
+// chrome (menu, dialogs) matches the new design baseline at app boot
+// before the renderer has a chance to push its preference.
+//
+// IMPORTANT (BUG-017): Electron's `nativeTheme.themeSource` governs
+// BOTH native chrome AND the renderer's `prefers-color-scheme` media
+// query. The earlier comment claiming "this only governs native chrome"
+// was incorrect — keeping it pinned to 'light' broke the renderer's
+// `system` mode (the OS preference was never visible to matchMedia).
+// The renderer now pushes its mode via `IPC.THEME_STATE_PUSH` (see
+// the handler below), and main updates `nativeTheme.themeSource` to
+// match. Boot default stays 'light' so the splash + first paint match
+// Atelier; the push runs immediately after the renderer mounts.
 nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
@@ -401,8 +410,22 @@ function setupIPC(): void {
   })
 
   // Stage 11 \u00a7 D33d \u2014 theme state push from the renderer.
+  // BUG-017 fix (v0.3.1) \u2014 also sync nativeTheme.themeSource with the
+  // user's mode so the renderer's `prefers-color-scheme` media query
+  // reflects the user's choice. Without this, hardcoding
+  // `nativeTheme.themeSource = 'light'` at boot (kept here so native
+  // chrome \u2014 menus, dialogs \u2014 always look light) bleeds into the
+  // renderer's matchMedia result, breaking 'system' mode (the renderer
+  // would always see prefers-color-scheme=light regardless of OS).
+  // Per the Electron docs, themeSource governs BOTH native chrome AND
+  // the renderer's matchMedia, so we have to set it dynamically:
+  //   - 'system' \u2192 follow OS (renderer's media query reflects OS)
+  //   - 'light' / 'dark' \u2192 force that mode
   ipcMain.on(IPC.THEME_STATE_PUSH, (_event, snapshot: ThemeStateSnapshot) => {
     themeState = snapshot
+    if (snapshot.mode === 'system' || snapshot.mode === 'light' || snapshot.mode === 'dark') {
+      nativeTheme.themeSource = snapshot.mode
+    }
   })
 
   // Stage 15 G19 \u2014 Send \u2192 Duo payload format push from the renderer.

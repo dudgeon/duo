@@ -9,6 +9,8 @@
 
 import { WebContentsView, app, session } from 'electron'
 import { join } from 'path'
+import { homedir } from 'os'
+import { existsSync } from 'fs'
 import { pathToFileURL } from 'url'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
@@ -16,16 +18,31 @@ import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from './constants'
 import type { CdpBridge } from './cdp-bridge'
 
-// Default landing page for new browser tabs. Resolves to the bundled
-// help/faq.html via app.getAppPath() — works in dev (project root) and
-// prod (asar root, since electron-builder.yml ships help/**/* inside
-// the asar). Fallback is about:blank if the file resolution throws.
-function defaultLandingUrl(): string {
+// Default landing page for new browser tabs.
+//
+// v0.3.1 — Prefer the user-installed copy at `~/.claude/duo/help/<file>`
+// (created by the install service from the bundle copy). This makes the
+// URL stable across app moves AND matches the URLs in
+// `~/.claude/duo/pins.json` (ENH-003 — FAQ + What Duo Does
+// default-pinned), so the default-landing tab renders with the pin
+// glyph in the strip.
+//
+// Fall back to the bundle copy at `app.getAppPath()/help/<file>` for
+// pre-first-install launches (the user hasn't clicked Install yet).
+// In dev `app.getAppPath()` is the project root; in prod it's the
+// asar root (electron-builder.yml ships help/**/* inside asar).
+function helpUrl(filename: string): string {
   try {
-    return pathToFileURL(join(app.getAppPath(), 'help/faq.html')).href
+    const userPath = join(homedir(), '.claude', 'duo', 'help', filename)
+    if (existsSync(userPath)) return pathToFileURL(userPath).href
+    return pathToFileURL(join(app.getAppPath(), 'help', filename)).href
   } catch {
     return 'about:blank'
   }
+}
+
+function defaultLandingUrl(): string {
+  return helpUrl('faq.html')
 }
 
 type StateCallback = (state: BrowserState) => void

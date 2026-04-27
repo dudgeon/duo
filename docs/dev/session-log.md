@@ -18,6 +18,32 @@
 
 ---
 
+## 2026-04-26 night (after v0.3.0) — v0.3.1 cut: cleanup sprint
+
+Eight items in one cut, all small enough to review individually:
+
+**Bugs closed:**
+
+- **BUG-005** — `duo key End --modifiers cmd` no longer triggers Electron's About panel on macOS. CLI-side translation: `Cmd+End` → `Cmd+ArrowDown`, `Cmd+Home` → `Cmd+ArrowUp`, `Cmd+PageDown`/`Cmd+PageUp` drop the Cmd modifier. 9/9 standalone test cases pass; non-darwin unaffected. (`cli/duo.ts`)
+- **BUG-007** — Deleted files no longer linger in the navigator. The chokidar `unlink`/`unlinkDir` events on the main side were already firing; the renderer just never subscribed. `useNavigator` now installs `electron.files.watch([cwd, ...expanded])` and refreshes the parent dir's listing on every event. (`renderer/hooks/useNavigator.ts`)
+- **BUG-015** — Empty comment rail no longer occupies horizontal space. Gated on `railThreads.length > 0`. (`renderer/components/HtmlCanvas/CanvasTab.tsx`)
+- **BUG-016** — Pasted bold text in dark mode is no longer dark-brown-on-dark-brown. New `installCanvasPasteHandlers` strips inline `style="color"` / `style="background"` and `class` from pasted HTML, so pasted nodes inherit the canvas's own ink token. (`renderer/components/HtmlCanvas/canvasPaste.ts`)
+- **BUG-017** — Theme "system" mode follows macOS again. Root cause was `nativeTheme.themeSource = 'light'` hardcoded at boot bleeding into the renderer's `prefers-color-scheme` query. The renderer's existing `IPC.THEME_STATE_PUSH` now also updates `nativeTheme.themeSource` to match the user's mode. (`electron/main.ts`)
+
+**Enhancements shipped:**
+
+- **ENH-001 + ENH-004 (paired)** — Default new-canvas boilerplate carries `data-duo-id` ULIDs at write time AND inline Atelier-flavored CSS (cream paper, ink-soft body, serif headings, body width cap, dark-mode media query, viewport meta). The first-open ID-injection prompt is skipped for Duo-authored canvases. `ulid.ts` relocated from `renderer/components/HtmlCanvas/` to `shared/` so main can mint IDs at write time. (`shared/html-boilerplate.ts`, `shared/ulid.ts`)
+- **ENH-002** — `⌘⇧V` paste-as-plain-text in both editors. Markdown editor uses TipTap's `commands.insertContent` after `navigator.clipboard.readText()`; canvas uses `document.execCommand('insertText', ...)` (composes with contentEditable's undo stack). (`renderer/components/HtmlCanvas/canvasPaste.ts`, `renderer/components/editor/MarkdownEditor.tsx`)
+- **ENH-003** — Default-pinned help tabs. Install bootstraps `~/.claude/duo/pins.json` with FAQ + What Duo Does pre-pinned. `BrowserManager.defaultLandingUrl` now prefers user-installed `~/.claude/duo/help/<file>` over the bundle copy so URLs match the pin entries. (`electron/install-service.ts`, `electron/browser-manager.ts`)
+
+**Filed but deferred to v0.4.0+:**
+
+- MISSING-001 — Markdown editor lacks comments. → Stage 14a (CommentRail TipTap binding).
+- BUG-006 — Browser-pane Send→Duo pill invisible behind WebContentsView. Three architectural options (chrome strip / CDP-injected / BrowserView mode); needs design decision before code.
+- Stage 14a (markdown comments), Stage 18b (distro skill packs), Stage 21/21c (sign + notarize, session restore from pins), Stage 25 (post-redirect chrome banner), Stage 19d (mid-tab launch-claude banner).
+
+---
+
 ## 2026-04-26 night — v0.3.0 cut: Duo-aware Claude + preventative kb-shortcut architecture
 
 What started as "build Stage 19b (passive priming) per the v0.2.0

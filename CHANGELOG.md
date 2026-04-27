@@ -19,6 +19,24 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-04-26
+
+A bug + small-enhancement sprint. Eight items in one cut: three regressions fixed, three enhancements paired together cleanly, two filed-but-stalled bugs from prior cycles closed.
+
+### Added
+
+- **Better default boilerplate for new HTML canvases (ENH-001 + ENH-004 paired).** `duo html new` (and ⌘N + `.html`) now stamps `data-duo-id` ULIDs on every element at write time and adds an inline Atelier-flavored stylesheet (cream paper / ink-soft body / serif headings, body width cap, dark-mode `prefers-color-scheme` media query, `<meta viewport>`). Closes the "Add stable IDs to all elements?" first-open prompt for Duo-authored canvases by construction (the prompt remains valuable for hand-authored / downloaded HTML the user opens later). The styles are intentionally local + editable — delete or rewrite them at will. (`shared/html-boilerplate.ts`, `shared/ulid.ts` — relocated from `renderer/components/HtmlCanvas/`)
+- **Paste-as-plain-text (ENH-002).** `⌘⇧V` / `⌃⇧V` in both editors (markdown + HTML canvas) reads `text/plain` from the clipboard and inserts it without HTML formatting. Mirrors macOS's "Paste and Match Style." (`renderer/components/HtmlCanvas/canvasPaste.ts`, `renderer/components/editor/MarkdownEditor.tsx`)
+- **Default-pinned help tabs (ENH-003).** Install bootstraps `~/.claude/duo/pins.json` with FAQ + What Duo Does pre-pinned. The browser-pane default landing now prefers the user-installed `~/.claude/duo/help/<file>` (so URLs match the pin entries; falls back to the bundle copy pre-install). When the user opens either help tab, it renders with the pin glyph + sorts to leftmost in the strip. (`electron/install-service.ts`, `electron/browser-manager.ts`)
+
+### Fixed
+
+- **BUG-005** — `duo key End --modifiers cmd` no longer triggers Electron's About panel on macOS. The CLI silently translates cross-platform navigation combos to Mac-native equivalents: `Cmd+End` → `Cmd+ArrowDown`, `Cmd+Home` → `Cmd+ArrowUp`, `Cmd+PageDown` / `Cmd+PageUp` drop the `Cmd` modifier (which was the trigger for the application-menu fall-through). 9/9 standalone test cases pass. Linux / Windows passes through unchanged. (`cli/duo.ts`)
+- **BUG-007** — Deleted files no longer linger in the navigator until full reload. The chokidar `unlink` / `unlinkDir` handlers in `FilesService` were already firing correctly; the gap was that no renderer subscriber existed. `useNavigator` now installs `electron.files.watch` against `[cwd, ...expanded]` and refreshes the parent directory's listing on every event. External terminal `rm`, agent writes, Finder operations, etc. all reflect within a frame or two. (`renderer/hooks/useNavigator.ts`)
+- **BUG-015** — HTML canvas comment rail no longer renders an empty column when there are no comment threads. Gated on `railThreads.length > 0`; reappears the moment the first comment lands. (`renderer/components/HtmlCanvas/CanvasTab.tsx`)
+- **BUG-016** — Pasted bold text in dark mode no longer renders as illegibly low-contrast brown-on-brown. The new canvas paste handler scrubs inline `style="color: …"` and `style="background: …"` declarations from pasted HTML (plus `class` attributes that reference foreign stylesheets) so pasted nodes inherit the canvas's own ink token. Pairs with ENH-002 — fixing paste-with-styles fixes most paste-related grief. (`renderer/components/HtmlCanvas/canvasPaste.ts`)
+- **BUG-017** — Theme toggle "system" mode now correctly follows macOS's dark/light preference. Root cause was `nativeTheme.themeSource = 'light'` hardcoded at boot, which forced the renderer's `prefers-color-scheme` query to `light` regardless of OS. The renderer now pushes its mode via the existing `IPC.THEME_STATE_PUSH` and main updates `nativeTheme.themeSource` to match (`'system'` / `'light'` / `'dark'`). Boot still defaults to `'light'` so the splash + first paint match Atelier; the renderer's mode push runs immediately after mount. (`electron/main.ts`)
+
 ## [0.3.0] — 2026-04-26
 
 ### Added

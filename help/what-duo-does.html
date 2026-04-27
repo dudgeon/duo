@@ -501,8 +501,35 @@
   </div>
 </article>
 
+<article class="item" data-keys="paste plain text shift v match style clipboard">
+  <div class="num">43</div>
+  <div>
+    <h3>Paste as plain text with <code>⌘⇧V</code></h3>
+    <p class="why">macOS-standard "Paste and Match Style" works in both editors (markdown + HTML canvas). Reads <code>text/plain</code> from the clipboard and inserts without HTML formatting — useful when copying from Google Docs / web pages where the source styles would clash with the editor's own. Regular <code>⌘V</code> in the HTML canvas additionally scrubs inline color and class attributes from pasted HTML so dark-mode bold pastes inherit the canvas's ink token (closes the dark-mode brown-on-brown bug).</p>
+    <p class="how"><strong>UI</strong><code>⌘⇧V</code> from the markdown editor or HTML canvas. Edit menu surface coming in v0.4.0 if discoverability is an issue.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="canvas boilerplate atelier defaults dark mode ids ulid duo html new">
+  <div class="num">44</div>
+  <div>
+    <h3>New HTML canvases land with IDs + Atelier defaults baked in</h3>
+    <p class="why"><code>duo html new &lt;path.html&gt;</code> (and <code>⌘N</code> + a <code>.html</code> filename) now writes a canvas that's already populated with stable <code>data-duo-id</code> ULIDs on body/h1/p AND an inline Atelier-flavored stylesheet (cream paper, ink-soft body, serif headings, body width cap, dark-mode <code>prefers-color-scheme</code> media query, <code>&lt;meta viewport&gt;</code>). The first-open "Add stable IDs to all elements?" prompt is skipped for these canvases — IDs are already there. Styles are local + editable; delete or rewrite at will.</p>
+    <p class="how"><strong>CLI</strong><code>duo html new ./notes.html --title "My notes"</code><br><strong>UI</strong><code>⌘N</code>, type <code>foo.html</code>, ↵</p>
+  </div>
+</article>
+
+<article class="item" data-keys="pin default pinned faq what duo does first launch ~/.claude/duo/pins.json">
+  <div class="num">45</div>
+  <div>
+    <h3>FAQ + "What Duo Does" pin themselves on first install</h3>
+    <p class="why">Install bootstraps <code>~/.claude/duo/pins.json</code> with the two help URLs pre-pinned. When you open either tab in the browser pane, it renders with the pin glyph + sorts to leftmost in the strip. Browser-pane default landing now prefers the user-installed copy at <code>~/.claude/duo/help/</code> (which the install service writes from the bundle), so the URL match works. Auto-restore on launch waits for Stage 21c session restore; until then, pins are visual.</p>
+    <p class="how"><strong>UI</strong>Click [Install] in the welcome banner; the pre-pin lands at <code>~/.claude/duo/pins.json</code>.<br><strong>Inspect</strong><code>cat ~/.claude/duo/pins.json</code></p>
+  </div>
+</article>
+
 <footer>
-  <p>This is Duo v0.3.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.3.1. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

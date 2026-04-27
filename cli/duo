@@ -84,6 +84,19 @@ function die(msg, code = 1) {
 `);
   process.exit(code);
 }
+function translateNavKeysForMac(key, modifiers) {
+  if (process.platform !== "darwin") return { key, modifiers };
+  const lowered = modifiers.map((m) => m.toLowerCase());
+  const hasCmd = lowered.includes("cmd") || lowered.includes("meta");
+  if (!hasCmd) return { key, modifiers };
+  const k = key.toLowerCase();
+  if (k === "end") return { key: "ArrowDown", modifiers };
+  if (k === "home") return { key: "ArrowUp", modifiers };
+  if (k === "pagedown" || k === "pageup") {
+    return { key, modifiers: modifiers.filter((m) => m.toLowerCase() !== "cmd" && m.toLowerCase() !== "meta") };
+  }
+  return { key, modifiers };
+}
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
@@ -144,9 +157,10 @@ async function main() {
         break;
       }
       case "key": {
-        const key = rest[0] ?? die("Usage: duo key <keyname> [--modifiers cmd,shift,...]");
+        const rawKey = rest[0] ?? die("Usage: duo key <keyname> [--modifiers cmd,shift,...]");
         const modIdx = rest.indexOf("--modifiers");
-        const modifiers = modIdx !== -1 ? (rest[modIdx + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean) : [];
+        const rawModifiers = modIdx !== -1 ? (rest[modIdx + 1] ?? "").split(",").map((s) => s.trim()).filter(Boolean) : [];
+        const { key, modifiers } = translateNavKeysForMac(rawKey, rawModifiers);
         out(await send("key", { key, modifiers }));
         break;
       }

@@ -101,6 +101,22 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.3.1 release cleanup paste plain text dark mode theme system canvas boilerplate ids navigator deleted">
+  <h3>v0.3.1 — cleanup sprint <span class="date">2026-04-26</span></h3>
+  <p>Eight items in one release: three regressions fixed, three enhancements paired cleanly, two filed-but-stalled bugs from prior cycles closed. No big architectural strokes — the housekeeping after v0.3.0's surface area expansion.</p>
+  <ul>
+    <li><strong>New HTML canvases ship with IDs + Atelier defaults (ENH-001 + ENH-004).</strong> <code>duo html new</code> and <code>⌘N</code> + <code>.html</code> stamp <code>data-duo-id</code> ULIDs on body/h1/p at write time AND embed an inline stylesheet (cream paper, ink-soft body, serif headings, body width cap, dark-mode media query, viewport meta). The first-open "Add stable IDs?" prompt is now skipped for Duo-authored canvases. Styles are local + editable — delete or rewrite freely.</li>
+    <li><strong>Paste as plain text (ENH-002).</strong> <code>⌘⇧V</code> in both editors reads <code>text/plain</code> and inserts without HTML formatting. macOS "Paste and Match Style" parity.</li>
+    <li><strong>Dark-mode pasted-bold contrast fixed (BUG-016).</strong> Regular <code>⌘V</code> in the canvas now scrubs inline <code>style="color:…"</code> / <code>style="background:…"</code> and <code>class</code> attributes from pasted HTML, so pasted nodes inherit the canvas's own ink token instead of the source's brown-on-brown. Other inline styles (margins, font-size) are kept.</li>
+    <li><strong>Theme "system" mode follows macOS again (BUG-017).</strong> Was hardcoded at the boot to 'light' which leaked into the renderer's <code>prefers-color-scheme</code> query. Now syncs <code>nativeTheme.themeSource</code> with the user's mode push.</li>
+    <li><strong>Deleted files no longer linger in the navigator (BUG-007).</strong> The chokidar unlink events were firing correctly all along; the renderer just wasn't subscribed. <code>useNavigator</code> now installs a watcher and refreshes the parent directory on add/change/remove. External <code>rm</code>, agent writes, Finder operations all reflect within a frame.</li>
+    <li><strong>Default-pinned help tabs (ENH-003).</strong> Install now bootstraps <code>~/.claude/duo/pins.json</code> with FAQ + "What Duo Does" pre-pinned. The browser-pane default landing prefers the user-installed help copy at <code>~/.claude/duo/help/</code>, so when you open either tab it renders with the pin glyph + sorts to leftmost.</li>
+    <li><strong><code>duo key End --modifiers cmd</code> stops triggering the About panel (BUG-005).</strong> CLI now silently translates cross-platform navigation combos to Mac equivalents (Cmd+End → Cmd+ArrowDown, Cmd+Home → Cmd+ArrowUp, Cmd+PageDown/Up drops Cmd). 9/9 cases pass; non-macOS unaffected.</li>
+    <li><strong>HTML canvas comment rail no longer renders an empty column (BUG-015).</strong> Gated on <code>railThreads.length &gt; 0</code>; reappears when the first comment lands.</li>
+  </ul>
+  <p style="margin-top: 10px;"><strong>Known issues at this version:</strong> Markdown editor still has no comment support (<code>MISSING-001</code> — Stage 14a, queued for v0.4.0). DMG is unsigned (Stage 21 still). Browser tabs don't auto-restore across launches (Stage 21c).</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.3.0 release priming canvas actions claude-aware shim hook keyboard preventative">
   <h3>v0.3.0 — Duo-aware Claude <span class="date">2026-04-26</span></h3>
   <p>Every <code>claude</code> session inside Duo now arrives Duo-aware — the agent already knows it's in Duo and which <code>duo</code> verbs to prefer, without the user typing anything. Canvas pages can drive the workspace via <code>data-duo-action</code> buttons. Keyboard shortcuts now work in every pane by construction (no more "TipTap / canvas swallowed it" regressions). DMG can be downloaded directly from GitHub Releases.</p>

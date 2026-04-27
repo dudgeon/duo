@@ -133,7 +133,7 @@ declare friction sites once and stop fighting them.
 | `duo fill <selector> <value>` | Set input value (DOM-level) | JSON |
 | `duo focus <selector>` | Focus element (required before `type`/`key` in canvas apps) | JSON |
 | `duo type <text>` | Synthesize keystrokes into the focused element | JSON |
-| `duo key <name> [--modifiers cmd,shift,alt,ctrl]` | Dispatch a named key (Enter, Backspace, ArrowDown, Home, End, Tab, PageUp/Down, or single letter) | JSON |
+| `duo key <name> [--modifiers cmd,shift,alt,ctrl]` | Dispatch a named key (Enter, Backspace, ArrowDown, Home, End, Tab, PageUp/Down, or single letter). On macOS, Cmd+End / Cmd+Home / Cmd+PageDown / Cmd+PageUp are silently translated to Mac-native equivalents (Cmd+ArrowDown / Cmd+ArrowUp / plain PageDown / plain PageUp) so cross-platform muscle memory works without triggering the application menu. | JSON |
 | `duo eval <js>` | Execute JS, return its value | JSON |
 | `duo screenshot [--out <path>] [--selector <css>]` | PNG (base64 or file path) | path or base64 |
 | `duo console [--since <ms>] [--level log,warn,error,...] [--limit N]` | Buffered console events | NDJSON |

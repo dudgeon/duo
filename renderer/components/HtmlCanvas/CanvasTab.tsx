@@ -44,6 +44,7 @@ import { installJustAddedStyles, markJustAdded, REPAINT_FRESHNESS_MS } from './j
 import { installBlurredSelection } from './blurredSelection'
 import { installCanvasSelection, computeCanvasSnapshot } from './canvasSelection'
 import { installCanvasActions, isCanvasPathTrusted } from './canvasActions'
+import { installCanvasPasteHandlers } from './canvasPaste'
 import {
   paintAnchors,
   clearAnchors,
@@ -468,6 +469,13 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     const cleanShortcuts = readOnly ? () => {} : installMarkdownShortcuts(doc)
     const cleanPlaceholder = readOnly ? () => {} : installPlaceholder(doc)
 
+    // BUG-016 + ENH-002 (v0.3.1) — paste handlers. Editing-only:
+    // pasting into a read-only canvas is a no-op anyway. Strips
+    // inline color / background from regular paste (so dark-mode
+    // bold pastes inherit the canvas ink token instead of the
+    // source's brown), and adds ⌘⇧V → paste-as-plain-text.
+    const cleanPaste = readOnly ? () => {} : installCanvasPasteHandlers(doc)
+
     // 17c — install the just-added keyframe + class into the iframe
     // stylesheet. Must happen before any markJustAdded call (the
     // recentEdits repaint pass below or the html-op handler later).
@@ -571,6 +579,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       cleanShortcuts()
       cleanPlaceholder()
       cleanCanvasActions()
+      cleanPaste()
       blurred.dispose()
       sel.dispose()
       clearAnchors(doc)
@@ -1017,11 +1026,15 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
         )}
         {/* Stage 17d — comment rail. Renders to the right of the canvas
             iframe. Hidden when the file has no `data-duo-id`s yet
-            (commenting requires anchors), AND the empty-state hint is
-            most useful AFTER the user has accepted ID injection.
-            Also hidden in read-only mode — comments are an editing
-            affordance, no purpose on a system reference HTML. */}
-        {initialHtml !== null && !readOnly && (
+            (commenting requires anchors). Also hidden in read-only
+            mode — comments are an editing affordance, no purpose on
+            a system reference HTML.
+
+            BUG-015 fix (v0.3.1) — also gated on `railThreads.length > 0`
+            so an empty rail no longer occupies horizontal space when
+            there are no comments. The rail will reappear automatically
+            the moment the first comment lands. */}
+        {initialHtml !== null && !readOnly && railThreads.length > 0 && (
           <CommentRail
             threads={railThreads}
             activeThreadId={activeThreadId}

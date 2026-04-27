@@ -75,6 +75,7 @@ const HELP_DEST_DIR = path.join(DUO_DIR, 'help')
 const CLI_DEST_DIR = path.join(HOME, '.local', 'bin')
 const CLI_DEST_PATH = path.join(CLI_DEST_DIR, 'duo')
 const PRIMING_PATH = path.join(DUO_DIR, 'priming.md')
+const PINS_PATH = path.join(DUO_DIR, 'pins.json')
 const SETTINGS_PATH = path.join(HOME, '.claude', 'settings.json')
 const SHIM_PATH = path.join(SHIM_DIR, 'claude')
 
@@ -227,6 +228,29 @@ export class InstallService {
           path.join(sourceRoot, 'skill', 'priming.md'),
           PRIMING_PATH
         )
+      }
+
+      // ENH-003 (v0.3.1) — bootstrap pins.json with FAQ + What Duo
+      // Does pre-pinned. Bootstrap-only: never clobber a user's
+      // existing pin set. Pin URLs use the user-installed help copies
+      // at `~/.claude/duo/help/*.html` (which we just installed
+      // above) so they match `BrowserManager.defaultLandingUrl`
+      // post-install. Until the user actually opens those tabs, the
+      // pins are inert metadata; once they're opened, the strip
+      // renders them with the pin glyph + sorts to leftmost.
+      try {
+        await fs.access(PINS_PATH)
+      } catch {
+        const faqUrl = `file://${path.join(HELP_DEST_DIR, 'faq.html')}`
+        const wddUrl = `file://${path.join(HELP_DEST_DIR, 'what-duo-does.html')}`
+        const defaultPins = {
+          version: 1,
+          pins: [
+            { kind: 'browser', ref: faqUrl, title: 'Duo — FAQ' },
+            { kind: 'browser', ref: wddUrl, title: 'Duo — What Duo Does' }
+          ]
+        }
+        await fs.writeFile(PINS_PATH, JSON.stringify(defaultPins, null, 2) + '\n')
       }
 
       // Stage 19b — SessionStart hook merge. Idempotent: replaces our

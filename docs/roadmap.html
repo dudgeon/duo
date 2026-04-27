@@ -131,7 +131,7 @@
   <main class="main">
     <header>
       <h1>Duo Roadmap</h1>
-      <div class="sub">Snapshot 2026-04-26 (Stage 17a + 17a polish + 17a.5 D + 17b A-D + Stage 19a + 19c all shipped + merged to main · Stage 21 cert pre-work complete · 5 v2 / 13 / 15.1 / 15.2 also shipped same day) · Stage numbers reflect actual build order · comments save locally to your browser</div>
+      <div class="sub">Snapshot 2026-04-26 (post-v0.3.1) · v0.3.1 cleanup sprint shipped (BUG-005/007/015/016/017 + ENH-001/002/003/004) · v0.3.0 shipped Stage 19b passive priming + Stage 23 canvas actions + preventative kb-shortcut architecture · v0.2.0 shipped FTUX foundation · Stage numbers reflect actual build order · comments save locally to your browser</div>
       <div class="sub" style="margin-top: 8px;">This file is the canonical roadmap · synced markdown view: <a href="https://github.com/dudgeon/duo/blob/main/ROADMAP.md" style="color: var(--accent-ink);"><code>ROADMAP.md</code></a> · per-stage PRDs in <a href="https://github.com/dudgeon/duo/tree/main/docs/prd" style="color: var(--accent-ink);"><code>docs/prd/</code></a> · architecture decisions in <a href="https://github.com/dudgeon/duo/blob/main/docs/DECISIONS.md" style="color: var(--accent-ink);"><code>DECISIONS.md</code></a></div>
     </header>
 
@@ -150,6 +150,20 @@
     </details>
 
     <details class="recent" open>
+      <summary><strong>v0.3.1 cut 2026-04-26 (cleanup sprint)</strong> · BUG-005 ✅ <code>duo key End</code> Mac translation · BUG-007 ✅ navigator filesystem watcher · BUG-015 ✅ empty comment rail gated · BUG-016 ✅ dark-mode pasted-bold contrast · BUG-017 ✅ theme system mode follows macOS · ENH-001 + ENH-004 ✅ default canvas boilerplate (IDs at write time + Atelier defaults) · ENH-002 ✅ paste as plain text (⌘⇧V) · ENH-003 ✅ default-pinned help tabs (FAQ + What Duo Does)</summary>
+      <ul>
+        <li>Eight items, all small, all paired thoughtfully where possible. ENH-001 + ENH-004 land together (both touch <code>shared/html-boilerplate.ts</code>); ENH-002 + BUG-016 land together (both touch the new <code>installCanvasPasteHandlers</code>); ENH-003 + the <code>defaultLandingUrl</code> change land together (URLs must match for pin identity to bind). Filed-but-deferred-to-v0.4.0+: MISSING-001 (markdown editor comments → Stage 14a), BUG-006 (browser-pane Send→Duo pill behind WebContentsView — needs design decision before code).</li>
+      </ul>
+    </details>
+
+    <details class="recent">
+      <summary><strong>v0.3.0 cut 2026-04-26 (Duo-aware Claude + preventative kb-shortcut architecture)</strong> · Stage 19b ✅ passive priming (load-bearing PATH shim + redundant SessionStart hook) · Stage 23 ✅ canvas actions (<code>data-duo-action</code> claude:spawn / terminal:send / browser:open · trust gate v1 path-restricted to <code>~/.claude/duo/</code>) · BUG-010 ✅ <code>waitForPtyReady</code> prompt-tail regex (closes BUG-009 cosmetic residual) · BUG-012/013/014 ✅ canvas iframe + TipTap kb-shortcut escape · GitHub Releases DMG distribution · v0.2.0 backfilled</summary>
+      <ul>
+        <li><strong>Preventative kb-shortcut architecture (the unplanned headline).</strong> Smoke walk surfaced BUG-012/013/014 (canvas iframe + TipTap swallowing global shortcuts) — owner's diagnosis: "your fixes are detective controls, not preventative." Inverted the default: every interactive surface (xterm, browser webview, iframe + contentEditable, TipTap) now consults a single shared matcher (<code>renderer/keyboard/globalShortcuts.ts</code>) and yields global shortcuts to a capture-phase document listener. Three escape patterns (in-doc / iframe / native-bridged); adding a row to the registry covers every conforming surface, adding a surface that adopts one of the patterns inherits every shortcut. Smoke matrix in <code>docs/dev/smoke-checklist.md</code> gains a Canvas (C) column as defense-in-depth.</li>
+      </ul>
+    </details>
+
+    <details class="recent">
       <summary><strong>v0.2.0 cut 2026-04-26 (FTUX foundation)</strong> · Stage 18 ✅ first-launch self-install (Phase 1 + 2: skill+agent+help+CLI binary) · Stage 24 ✅ pin WorkingPane tabs · BUG-008 ✅ ⌘T flip + xterm allowlist sweep · BUG-009 ✅ <code>+</code> claude-tab newline race fixed (cosmetic residual filed as BUG-010) · default landing flipped from about:blank to faq.html · <code>&lt;meta&gt;</code> conventions duo-open-in / duo-editable honored · earlier in 2026-04-26: Stage 17d-A ✅ comment rail primitive + canvas binding · Stage 17c ✅ canvas wash + selection + warn-before-overwrite · Stage 19c ✅ split-button + duo new-tab merged · Stage 17b ✅ IDs + sidecar + agent CLI ops + pretty-printer · 17a polish/parity 1-7 ✅ · 17a ✅ canvas primitive · 17a.5 D ✅ overlay · Stage 21 cert pre-work ✅ · Stage 15.2/15.1/5v2/13 ✅</summary>
       <ul>
         <li><strong>Stage 19c — default-to-claude tabs + split-button + <code>duo new-tab</code> ✅ shipped + merged 2026-04-26.</strong> Worktree-side commits <code>79a1753</code> / <code>a5054a0</code> / <code>efc6462</code> built the user-facing half: split <code>+</code> button on the terminal tab strip (<code>+</code> = new claude tab, <code>&gt;</code> = vanilla shell); <code>TabSession.kind</code> field; <code>⌘T</code> from terminal focus opens claude (was browser); <code>⌘⇧T</code> always vanilla shell (D19); <code>claude · &lt;basename&gt;</code> title format; install-banner fallback when claude isn't on PATH (D23, sync <code>which claude</code> per spawn so PATH changes mid-session take effect on next tab); persisted last-kind in localStorage (D28); <code>duo new-tab [--shell|--claude] [--cwd] [--cmd]</code> CLI verb routed via <code>NEW_TAB_REQUEST/RESULT</code> (mirrors docWrite). <strong>Merge into main (commit <code>cbadc5f</code>)</strong> resolved 6 conflict files — all "BOTH branches added to the same union/list" patterns (canvas + new-tab share no semantic overlap, just touched the same plumbing). Composed both stages' additions in <code>shared/types.ts</code> (DuoCommandName + Tab types), <code>main.ts</code> (NavBridge + dispatch fns), <code>socket-server.ts</code> (NavBridge interface), <code>cli/duo.ts</code> (subcommand cases + help), <code>cli/duo</code> (binary rebuilt), <code>App.tsx</code> (imports). Typecheck clean post-merge; CLI binary rebuilt; skill synced (19c had intentionally deferred sync until merge to avoid skill/app desync). UI walk on the merged build owed.</li>
@@ -568,9 +582,9 @@
       <div class="comment"><label>Comment</label><textarea data-key="s22" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage pending" id="s23" data-id="s23">
-      <h3><span class="num-badge">Stage 23</span> Canvas actions — Claude ↔ HTML loop <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ New 2026-04-26 night (intent conversation) · ships ahead of Stage 21 · enables the FTUX-coordinated trio (23 + 24 + 18) · convention-based, no page scripts needed</div>
+    <article class="stage done" id="s23" data-id="s23">
+      <h3><span class="num-badge">Stage 23</span> Canvas actions — Claude ↔ HTML loop <span class="glyph done"></span></h3>
+      <div class="status-line">✅ Shipped v0.3.0 · 3-verb vocabulary live (claude:spawn / terminal:send / browser:open) · trust gate v1 path-restricted to <code>~/.claude/duo/</code> · <code>duo send --enter</code> flag · worked example at <code>~/.claude/duo/help/canvas-actions-demo.html</code></div>
       <p class="blurb"><strong>The intent.</strong> Users author HTML documents that play roles like training aids and personal dashboards (e.g. a "Check my Slack for anything urgent" button on a personal home page). With one click on a button, the canvas fires an event that triggers a Claude Code action — opening a new claude tab pre-typed with a prompt, sending text to an active claude session, or opening a URL. The richer end of the spectrum: Claude administering a quiz in the canvas, user clicking multiple-choice buttons, Claude reading the response and resuming the lesson. <strong>Bidirectional Claude ↔ HTML conversation.</strong></p>
 
       <p class="blurb" style="margin-top: 14px;"><strong>The architecture insight: no Claude Code hooks needed.</strong> Two layers, both achievable today:</p>
@@ -639,9 +653,9 @@
       <div class="comment"><label>Comment</label><textarea data-key="s18" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage inprog" id="s19" data-id="s19">
-      <h3><span class="num-badge">Stage 19</span> Duo detection &amp; default-to-claude tabs <span class="glyph inprog"></span></h3>
-      <div class="status-line">🟡 Was Stage 18 · 19a + 19c shipped + merged to main 2026-04-26 (commits <code>640ec0e</code>, <code>a5054a0</code>, <code>efc6462</code>; merge <code>cbadc5f</code>) · 19b next · 19d added 2026-04-26 night (intent conversation) · UI walk owed for 19c</div>
+    <article class="stage done" id="s19" data-id="s19">
+      <h3><span class="num-badge">Stage 19</span> Duo detection &amp; default-to-claude tabs <span class="glyph done"></span></h3>
+      <div class="status-line">✅ Was Stage 18 · 19a + 19b + 19c all shipped (v0.2.0 + v0.3.0) · 19b's load-bearing path-shim wraps real-claude with <code>--append-system-prompt "$(cat priming.md)"</code> when <code>$DUO_SESSION</code> is set; <code>SessionStart</code> hook backs it up · 19d (mid-tab launch-claude banner) deferred to a later cut</div>
       <ul class="subitems">
         <li class="done"><span class="glyph shipped"></span><span class="label"><strong>19a</strong> — env signals: <code>DUO_SESSION</code>, <code>DUO_SOCKET</code>, <code>DUO_VERSION</code>, <code>TERM_PROGRAM=Duo</code> (commit <code>640ec0e</code>; commit msg uses pre-renumber "18a" label)</span></li>
         <li><span class="glyph pending"></span><span class="label"><strong>19b</strong> — passive priming: SessionStart hook + PATH shim + <code>priming.md</code> (folds into Stage 18 installer when both land)</span></li>

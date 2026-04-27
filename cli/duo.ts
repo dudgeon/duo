@@ -94,6 +94,30 @@ function die(msg: string, code = 1): never {
   process.exit(code)
 }
 
+/**
+ * BUG-005 fix — translate cross-platform navigation combos to Mac
+ * equivalents. Used by `duo key` so agents reaching for Cmd+End /
+ * Cmd+Home / Cmd+PageDown / Cmd+PageUp from cross-platform muscle
+ * memory don't accidentally trigger the Electron application-menu
+ * chrome on macOS.
+ */
+function translateNavKeysForMac(key: string, modifiers: string[]): { key: string; modifiers: string[] } {
+  if (process.platform !== 'darwin') return { key, modifiers }
+  const lowered = modifiers.map(m => m.toLowerCase())
+  const hasCmd = lowered.includes('cmd') || lowered.includes('meta')
+  if (!hasCmd) return { key, modifiers }
+  const k = key.toLowerCase()
+  if (k === 'end') return { key: 'ArrowDown', modifiers }
+  if (k === 'home') return { key: 'ArrowUp', modifiers }
+  if (k === 'pagedown' || k === 'pageup') {
+    // Drop the Cmd modifier; PageDown / PageUp page-scroll natively
+    // on macOS without it, and Cmd is what would trigger the menu
+    // fall-through.
+    return { key, modifiers: modifiers.filter(m => m.toLowerCase() !== 'cmd' && m.toLowerCase() !== 'meta') }
+  }
+  return { key, modifiers }
+}
+
 // ── Command dispatch ─────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -161,11 +185,25 @@ async function main(): Promise<void> {
         break
       }
       case 'key': {
-        const key = rest[0] ?? die('Usage: duo key <keyname> [--modifiers cmd,shift,...]')
+        const rawKey = rest[0] ?? die('Usage: duo key <keyname> [--modifiers cmd,shift,...]')
         const modIdx = rest.indexOf('--modifiers')
-        const modifiers = modIdx !== -1
+        const rawModifiers = modIdx !== -1
           ? (rest[modIdx + 1] ?? '').split(',').map(s => s.trim()).filter(Boolean)
           : []
+        // BUG-005 fix (v0.3.1) — translate cross-platform navigation
+        // combos to Mac-native equivalents on darwin. On macOS,
+        // Cmd+End / Cmd+Home / Cmd+PageDown / Cmd+PageUp aren't bound
+        // to caret navigation; they fall through to Electron's
+        // application-menu chrome (Cmd+End in particular surfaces the
+        // About panel). The Mac-native equivalents are:
+        //   Cmd+End  → Cmd+Down  (caret to end of document)
+        //   Cmd+Home → Cmd+Up    (caret to start of document)
+        //   Cmd+PageDown / Cmd+PageUp → drop Cmd; PageDown/PageUp
+        //                                page-scroll natively without it
+        // Translation is silent: the agent gets the navigation it
+        // expected, the user doesn't see disruptive UI, and the wire
+        // format stays consistent for main.
+        const { key, modifiers } = translateNavKeysForMac(rawKey, rawModifiers)
         out(await send('key', { key, modifiers }))
         break
       }

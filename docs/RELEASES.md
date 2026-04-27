@@ -21,8 +21,77 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.3.0 below absorbed the priming + canvas-actions + DMG-
-distribution + preventative kb-shortcut architecture chapter._
+_Empty. v0.3.1 below picked up the bug + small-enhancement pile
+that surfaced during the v0.3.0 cut smoke walk._
+
+---
+
+## v0.3.1 — 2026-04-26
+
+The cleanup sprint. Eight items in one cut: three regressions
+fixed, three enhancements paired cleanly, two filed-but-stalled
+bugs from prior cycles closed. No big architectural strokes —
+this version is the housekeeping after v0.3.0's surface area
+expansion.
+
+### Why v0.3.1 lands here
+
+The v0.3.0 cut surfaced six new bugs / enhancement requests during
+its smoke walk (BUG-015/016/017, MISSING-001, ENH-001/002), plus
+two pre-existing filed bugs from prior cycles (BUG-005, BUG-007)
+that fit the same "small, surgical, well-scoped" shape. The owner
+also flagged ENH-003 (default-pin "What Duo Does" alongside the
+FAQ) and proposed pairing ENH-001 with a default-canvas-boilerplate
+upgrade (ENH-004). Eight tractable items, all <~150 LOC each,
+mostly one or two files per item. Cutting them as v0.3.1 keeps
+the pile from rolling into v0.4.0's larger surface (Stage 14a
+markdown comments, Stage 18b distro skill packs, Stage 21
+sign + notarize).
+
+MISSING-001 (markdown-editor comments) deferred — Stage 14a's
+home, v0.4.0 territory.
+
+### Key design decisions baked in
+
+- **Default canvas boilerplate carries IDs + Atelier defaults** (ENH-001 + ENH-004 paired).  
+  `shared/html-boilerplate.ts` v1 was 12 lines of bare HTML5; v0.3.1 makes it ~110 lines of "useful defaults out of the box": ULID stamps on body/h1/p (so the first-open ID-injection prompt is unnecessary), inline CSS variables for the Atelier palette + dark-mode media query, body width cap, viewport meta, and a small HTML comment explaining the file's provenance for an agent reading via `duo html get`. The styles are intentionally local + user-editable — they're a starting hint, not a contract. The "no Duo chrome leaks" property still holds: nothing in the boilerplate is runtime-only chrome (no `data-duo-canvas-runtime` attributes; just plain author CSS that lives in the saved file). Stage 17 PRD H17's "full" version (Tailwind via CDN behind script-opt-in, semantic header/main/footer pre-marked locked) is still 17b/17e scope; this is the smaller middle ground. To support write-time ULID minting from main, `ulid.ts` relocated from `renderer/components/HtmlCanvas/` to `shared/`; the renderer-side import path moved to `@shared/ulid`.
+
+- **Paste-as-plain-text + paste-handler scrub, paired** (ENH-002 + BUG-016). `⌘⇧V` / `⌃⇧V` is the macOS standard for "Paste and Match Style"; both editors now wire it via local keydown handlers (not the global registry — these are editor-local shortcuts). For the canvas: a new `installCanvasPasteHandlers` listener intercepts the regular `paste` event too, scrubbing inline `style="color: …"` / `style="background: …"` and any `class` attributes from pasted HTML. That single change fixes BUG-016 (dark-mode pasted bold rendering as dark-brown-on-dark-brown because the source kept its inline color) AND lets users keep using regular ⌘V without losing structural styles (margins, font-size, etc. stay intact — only color and class are stripped). Markdown editor's TipTap branch uses `editor.commands.insertContent(text)` after `navigator.clipboard.readText()` for plain-text paste; the regular `paste` handler is left to TipTap's own HTML-to-markdown sanitizer. An Edit menu surface for "Paste and Match Style" is on the v0.4.0 backlog if discoverability becomes an issue; for v0.3.1 the keyboard chord is enough.
+
+- **Theme `system` mode, fixed at the right layer** (BUG-017). Root cause: `nativeTheme.themeSource = 'light'` hardcoded at boot in `electron/main.ts`. Comment claimed it "only governed native chrome" — incorrect. Per Electron docs, `themeSource` ALSO drives the renderer's `prefers-color-scheme` media query result. So the renderer's `useTheme` hook saw `prefers-color-scheme: light` regardless of the OS setting, and 'system' mode never escaped light. The fix: the renderer's existing `IPC.THEME_STATE_PUSH` (which already syncs `themeState` for `duo theme`) now ALSO updates `nativeTheme.themeSource` to match. Boot still defaults to `'light'` so the splash + first paint match Atelier; the renderer's mode push runs immediately after mount. Brief one-frame flash on first launch in 'system' mode + dark OS — light first paint, then dark when the matchMedia change event fires post-push. Acceptable; pre-mount IPC is a future refinement.
+
+- **Filesystem watcher subscription wired up** (BUG-007). The chokidar pipeline on the main side already emitted `unlink` / `unlinkDir` events correctly. The renderer just never subscribed. `useNavigator` now installs `electron.files.watch([cwd, ...expanded])` and refreshes the parent directory's cached listing on every event. Subscription is torn down + re-created when the expanded set changes — chokidar startup is sub-ms, so the cost is negligible and the alternative (`updateWatchPaths` with id-tracking) would have required API surface changes. Caller is responsible for refreshing the listing-cache parent path; the `setListings` reducer already handles incremental updates.
+
+- **Default pins via install bootstrap** (ENH-003). `~/.claude/duo/pins.json` is bootstrapped with `{kind: 'browser', ref: <faq URL>, …}` and `<wdd URL>` on first install, only if absent (never clobbers a user's edited pin set). For pin URLs to MATCH the default-landing URL, `BrowserManager.defaultLandingUrl` now prefers the user-installed `~/.claude/duo/help/<file>` over the bundle path — so when the user opens FAQ, the strip renders it with the pin glyph. Until Stage 21c session-restore-from-pins lands, the auto-restore-on-launch behavior is not part of this change; pins surface only when the user actually opens the relevant tabs.
+
+- **`duo key` Mac-native translation** (BUG-005). Pure CLI-side fix — agents using cross-platform keybind muscle memory (`Cmd+End` to jump to document end, etc.) no longer trigger Electron's application-menu chrome. The `duo key` parser detects darwin + `Cmd|Meta` modifiers and translates: `End` → `ArrowDown`, `Home` → `ArrowUp`, `PageDown`/`PageUp` drop the `Cmd` modifier entirely. Wire format unchanged — main sees what main always saw. 9/9 standalone test cases pass; non-darwin platforms unaffected.
+
+- **Comment rail no-empty-state** (BUG-015). One-line conditional in `CanvasTab.tsx`: `railThreads.length > 0`. The empty-rail-occupies-space behavior had been there since 17d-A shipped because the "first comment lands" path was a higher priority than the cosmetic empty case.
+
+### What v0.3.1 is and isn't
+
+**Is:** the cleanup release. Every regression filed during v0.3.0
+smoke is closed; the small-enhancement pile is folded in;
+default new-canvas creation produces something the user can
+read in dark mode without first deleting the prompt; pasted
+text from the web doesn't break dark-mode contrast; theme
+toggle "system" actually means "system" again.
+
+**Isn't:** the markdown-comments release (Stage 14a — MISSING-001's
+home — is v0.4.0 territory). Doesn't ship Stage 18b distro
+skill packs, Stage 21 sign + notarize, Stage 19d mid-tab
+launch-claude banner, Stage 25 post-redirect chrome banner.
+Doesn't yet auto-restore browser tabs across launches (Stage
+21c session restore — still queued).
+
+### What's queued next (v0.4.0 candidate scope)
+
+- **Stage 14a** — markdown CommentRail binding (closes MISSING-001).
+- **Stage 18b** — distro skill packs (`extra-skills/` + `PACK.json` + per-conflict consent UI).
+- **Stage 25** — post-redirect chrome banner.
+- **Stage 19d** — mid-tab launch-claude banner.
+- **Stage 21** — sign + notarize DMG.
+- **Stage 21c** — session restore from pins.
 
 ---
 

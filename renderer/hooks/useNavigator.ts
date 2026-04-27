@@ -105,6 +105,53 @@ export function useNavigator(initialCwd: string) {
     for (const p of expanded) ensureListing(p)
   }, [expanded, ensureListing])
 
+  // BUG-007 fix (v0.3.1) — subscribe to filesystem events so the
+  // navigator reflects external mutations (file deletes, agent
+  // writes via `duo html *`, terminal `mv` / `rm`, Finder operations)
+  // without a full reload. The chokidar watch on the main side
+  // already emitted unlink / unlinkDir events; the gap was that no
+  // renderer subscriber existed.
+  //
+  // We watch [cwd, ...expanded] at depth 0 (matches the listing
+  // shape). When any event lands, we invalidate the parent directory's
+  // cached listing so `ensureListing` re-fetches it on the next
+  // render. Tearing down + re-subscribing on `expanded` membership
+  // change is cheap (chokidar startup is ~ms) and keeps the
+  // subscription set in sync without needing `updateWatchPaths`'s
+  // id-tracking dance.
+  useEffect(() => {
+    const paths = [cwd, ...Array.from(expanded)]
+    if (paths.length === 0) return
+    let unwatch: (() => Promise<void>) | null = null
+    let cancelled = false
+
+    const handleEvent = (event: { kind: 'added' | 'changed' | 'removed'; path: string }) => {
+      // Parent directory of the changed entry. Empty string falls back
+      // to refreshing the cwd to be safe.
+      const parent = event.path.slice(0, event.path.lastIndexOf('/')) || cwd
+      setListings(prev => {
+        if (!prev.has(parent)) return prev
+        const next = new Map(prev)
+        next.delete(parent)
+        return next
+      })
+      ensureListing(parent)
+    }
+
+    void window.electron.files.watch(paths, handleEvent).then(stop => {
+      if (cancelled) { void stop() } else { unwatch = stop }
+    }).catch(err => {
+      // Don't crash the navigator if the watcher fails — fall back
+      // to "refresh on user action" (the existing pre-BUG-007 UX).
+      console.warn('[nav] watch failed:', err instanceof Error ? err.message : err)
+    })
+
+    return () => {
+      cancelled = true
+      if (unwatch) void unwatch()
+    }
+  }, [cwd, expanded, ensureListing])
+
   const navigateTo = useCallback((path: string) => {
     setCwd(path)
     setSelected(null)

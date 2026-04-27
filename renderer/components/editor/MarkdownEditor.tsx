@@ -179,6 +179,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // for marks); we only short-circuit when the shared matcher
       // identifies the key as a global shortcut.
       handleKeyDown: (_view, e) => {
+        // ENH-002 (v0.3.1) — ⌘⇧V / ⌃⇧V → paste-as-plain-text.
+        // Editor-local shortcut (no global meaning), so handled here
+        // rather than via the global shortcut registry. Reads the
+        // clipboard's text/plain via the async API and inserts via
+        // TipTap's content-insertion command, which composes with
+        // the editor's undo stack and markdown serializer.
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v') {
+          e.preventDefault()
+          void navigator.clipboard.readText().then((text) => {
+            if (text) editor?.commands.insertContent(text)
+          }).catch((err) => {
+            console.warn('[duo-editor-paste] readText failed:', err)
+          })
+          return true
+        }
+
         const match = matchGlobalShortcut(e, { inEditableSurface: true })
         if (match) {
           // Don't let ProseMirror also act on it. The document

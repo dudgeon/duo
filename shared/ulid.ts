@@ -1,14 +1,15 @@
-// Stage 17b — tiny ULID generator (PRD H12).
+// Tiny ULID generator (Stage 17b PRD H12).
 //
 // 26-char Crockford base32. First 10 chars encode a 48-bit timestamp
 // (millisecond-resolution, sortable by creation time). Last 16 chars
 // are random (80 bits) — collision-safe at our scale (we mint maybe
 // hundreds of IDs per file; collision probability is astronomical).
 //
-// Hand-rolled to avoid pulling in a dep for a 30-LOC need. The
-// reference implementation (npm `ulid`) is ~150 LOC; this matches the
-// shape but skips the monotonic-counter mode we don't need (we never
-// mint two IDs in the same millisecond from the same context).
+// Lives in `shared/` so both the renderer (canvas ID injector) and
+// the main process (`shared/html-boilerplate.ts` writes IDs at file-
+// creation time per ENH-001/ENH-004) can mint IDs from the same
+// implementation. Hand-rolled to avoid pulling in a dep for a 30-LOC
+// need.
 
 // Crockford base32: skips I, L, O, U to avoid letter/digit confusion.
 const ENCODING = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
@@ -32,8 +33,10 @@ function encodeTime(ts: number, len: number): string {
 
 function encodeRandom(len: number): string {
   const buf = new Uint8Array(len)
-  // crypto.getRandomValues is the same primitive node `ulid` uses.
-  // Available in every Electron renderer + main process.
+  // `crypto.getRandomValues` is the Web Crypto primitive — available
+  // as a global in every Electron renderer (browser global) and in
+  // Node 20+ main processes (Electron 32 ships Node 20.x). Same API
+  // both places.
   crypto.getRandomValues(buf)
   let out = ''
   for (let i = 0; i < len; i++) {
