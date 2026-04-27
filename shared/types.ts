@@ -99,6 +99,12 @@ export type DuoCommandName =
   // No flag = persisted last-kind (D28; defaults to 'claude').
   // Optional --cwd / --cmd; returns {id, kind, cwd, title}.
   | 'new-tab'
+  // Stage 20 — `duo doctor` and the bare-bones liveness probe used
+  // inside it. Both return the running app's version so the CLI can
+  // surface a mismatch when the user has stale binary symlinks
+  // pointing at an older app bundle. See docs/DECISIONS.md → Open
+  // ADRs → *Sandbox-tolerant transport and install paths*.
+  | 'ping'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 

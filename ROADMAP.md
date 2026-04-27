@@ -1349,30 +1349,48 @@ is up. Pulls from the unscheduled backlog the user raised earlier.
 - [ ] **`duo reload`** — a pair for `duo navigate` that doesn't
       require a URL, reloads the active tab in place. Low effort,
       high ergonomic payoff for the Stage 8 iteration flow.
-- [ ] **`duo wait --timeout` / CLI socket timeout race.** Make the
-      CLI's socket timeout `max(explicit + buffer, default)` so
-      `duo wait --timeout 15000` stops hitting the 10s socket cap.
-- [ ] **TCP fallback alongside the Unix socket.** Claude Code's
-      macOS sandbox blocks Unix-domain-socket outbound connections
-      by default but permits localhost TCP, so today every `duo`
-      command silently fails inside a sandboxed Claude Code
-      session. Add a second `server.listen(0, '127.0.0.1')` in
-      `electron/socket-server.ts`, publish the port + a per-install
-      auth token to `~/Library/Application Support/duo/duo.port`,
-      and teach `cli/duo.ts` to fall back to TCP on
-      `EPERM`/`ECONNREFUSED`/timeout. Mirrors the
-      `dudgeon/chrome-cdp-skill` fix for the same class of problem.
-      See `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
-      transport and install paths for the `duo` CLI*.
-- [ ] **`duo doctor` diagnostic.** New CLI verb that reports
-      socket-reachable / TCP-fallback-reachable / install path
-      writable / `~/.claude/skills/duo/` synced / version match.
-      Prints a clear "Claude Code sandbox detected — falling back
-      to TCP" line when appropriate. Paired with a skill
-      instruction to run `duo doctor` on the first failed command
-      so the sandbox failure mode is named, not inferred. See
-      `docs/DECISIONS.md` → Open ADRs → *Sandbox-tolerant
-      transport and install paths for the `duo` CLI*.
+- [x] **`duo wait --timeout` / CLI socket timeout race (shipped).**
+      The CLI's socket timeout is now
+      `max(explicit + 5s buffer, default)`, so `duo wait --timeout
+      30000` stops being killed at the 10s socket cap while the
+      renderer is still polling. Implemented in `cli/duo.ts` `send()`
+      via an optional `timeoutMs` argument threaded through the
+      `wait` case.
+- [x] **TCP fallback alongside the Unix socket (shipped).**
+      `electron/socket-server.ts` now listens on a second
+      `127.0.0.1:0` ephemeral port, writes
+      `{port, token}` to `~/Library/Application Support/duo/duo.port`
+      (mode `0o600`), and requires the token as the first NDJSON
+      line of every TCP connection. `cli/duo.ts` tries the Unix
+      socket first; on `EPERM` / `ECONNREFUSED` / `ENOENT` /
+      connect-timeout it reads the port file and reconnects over
+      TCP. `DUO_TCP_ONLY=1` forces the fallback path for smoke
+      tests. Mirrors the `dudgeon/chrome-cdp-skill` fix for the
+      same class of problem. See `docs/DECISIONS.md` → Open ADRs →
+      *Sandbox-tolerant transport and install paths for the `duo`
+      CLI*.
+- [x] **`duo doctor` diagnostic (shipped).** New CLI verb in
+      `cli/duo.ts` that probes both transports via a cheap `ping`
+      socket cmd, reports app/CLI version match,
+      `$DUO_SESSION` presence, install-path discovery, and
+      `~/.claude/skills/duo/` + `~/.claude/agents/duo.md`
+      presence. Prints a "Claude Code sandbox detected (Unix
+      socket blocked) — using TCP fallback" line when that
+      pattern is detected, plus the recommended `.claude/settings.local.json`
+      allowlist. Paired with the skill troubleshooting section
+      that already directed agents to run `duo doctor` first
+      on any unrecognized failure. See `docs/DECISIONS.md` →
+      Open ADRs → *Sandbox-tolerant transport and install
+      paths for the `duo` CLI*.
+- [x] **Sandbox-safe install path (shipped, carved out of Stage
+      18 because it pairs with the transport work).** `duo install`
+      now prefers `~/.claude/bin/duo` (writable from a sandboxed
+      Claude Code PTY), with `~/.local/bin/duo` as fallback.
+      `--system` opts into `/usr/local/bin/duo` (sudo + outside
+      the sandbox; not recommended for Claude Code use). The
+      command prints a `export PATH=…` hint when the chosen
+      target isn't already on PATH. The full first-launch
+      installer (Stage 18 proper) still pending.
 - [x] **Window drag region fix (issue #17, shipped).** Before the
       fix the top chrome row's drag surface was shrunk to the
       traffic-light sliver by its children; now the entire 40px top

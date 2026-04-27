@@ -12,6 +12,7 @@
 import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as crypto from 'crypto'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserManager } from './browser-manager'
 import type { FilesService } from './files-service'
@@ -41,7 +42,7 @@ import type {
   NewTabResult,
   TerminalTabKind
 } from '../shared/types'
-import { SOCKET_PATH } from './constants'
+import { SOCKET_PATH, PORT_FILE, APP_VERSION } from './constants'
 
 export interface NavBridge {
   /** Returns the most recent snapshot pushed by the renderer. */
@@ -97,7 +98,15 @@ export interface NavBridge {
 }
 
 export class SocketServer {
-  private server: net.Server | null = null
+  private unixServer: net.Server | null = null
+  // Stage 20 — TCP fallback alongside the Unix socket. Lives on
+  // 127.0.0.1 with an ephemeral port + per-launch auth token, so a
+  // sandboxed Claude Code session (where Unix sockets are blocked
+  // but localhost TCP is allowed) can still reach the bridge. See
+  // docs/DECISIONS.md → *Sandbox-tolerant transport*.
+  private tcpServer: net.Server | null = null
+  private tcpPort: number | null = null
+  private tcpToken: string | null = null
 
   constructor(
     private readonly cdp: CdpBridge,
@@ -107,46 +116,120 @@ export class SocketServer {
   ) {}
 
   start(): void {
+    this.startUnix()
+    this.startTcp()
+  }
+
+  stop(): void {
+    this.unixServer?.close()
+    this.tcpServer?.close()
+    try { fs.unlinkSync(SOCKET_PATH) } catch { /* already gone */ }
+    try { fs.unlinkSync(PORT_FILE) } catch { /* already gone */ }
+    this.unixServer = null
+    this.tcpServer = null
+    this.tcpPort = null
+    this.tcpToken = null
+  }
+
+  private startUnix(): void {
     // Remove stale socket from a previous run
     try { fs.unlinkSync(SOCKET_PATH) } catch { /* doesn't exist — fine */ }
 
-    this.server = net.createServer((socket) => {
-      let buf = ''
-
-      socket.on('data', (chunk) => {
-        buf += chunk.toString()
-        const lines = buf.split('\n')
-        buf = lines.pop() ?? ''
-        for (const line of lines) {
-          if (!line.trim()) continue
-          let req: DuoRequest
-          try { req = JSON.parse(line) } catch { continue }
-          this.handle(req)
-            .then(res => { if (!socket.destroyed) socket.write(JSON.stringify(res) + '\n') })
-            .catch(err => {
-              const res: DuoResponse = { id: req.id, ok: false, error: String(err) }
-              if (!socket.destroyed) socket.write(JSON.stringify(res) + '\n')
-            })
-        }
-      })
-
-      socket.on('error', () => { /* client disconnected mid-flight — ignore */ })
+    this.unixServer = net.createServer((socket) => {
+      this.attachConnection(socket, /* requireToken */ null)
     })
 
-    this.server.listen(SOCKET_PATH, () => {
+    this.unixServer.listen(SOCKET_PATH, () => {
       // Restrict to owner only — prevents other local users from driving the browser
       try { fs.chmodSync(SOCKET_PATH, 0o700) } catch { /* non-fatal */ }
     })
 
-    this.server.on('error', (err) => {
-      console.error('[SocketServer] error:', err.message)
+    this.unixServer.on('error', (err) => {
+      console.error('[SocketServer] unix error:', err.message)
     })
   }
 
-  stop(): void {
-    this.server?.close()
-    try { fs.unlinkSync(SOCKET_PATH) } catch { /* already gone */ }
-    this.server = null
+  private startTcp(): void {
+    // Per-launch token; lives only in this process and the port file.
+    const token = crypto.randomBytes(32).toString('hex')
+    this.tcpToken = token
+
+    this.tcpServer = net.createServer((socket) => {
+      this.attachConnection(socket, /* requireToken */ token)
+    })
+
+    this.tcpServer.listen(0, '127.0.0.1', () => {
+      const addr = this.tcpServer?.address()
+      if (typeof addr === 'object' && addr) {
+        this.tcpPort = addr.port
+        this.writePortFile(addr.port, token)
+      }
+    })
+
+    this.tcpServer.on('error', (err) => {
+      // TCP failure is non-fatal — the Unix socket is the primary
+      // transport and the CLI happily uses it when present.
+      console.error('[SocketServer] tcp error:', err.message)
+    })
+  }
+
+  private writePortFile(port: number, token: string): void {
+    try {
+      // 0o600 ensures only the owner can read the token, matching the
+      // Unix socket's chmod.
+      fs.writeFileSync(
+        PORT_FILE,
+        JSON.stringify({ port, token }, null, 2),
+        { mode: 0o600 }
+      )
+    } catch (err) {
+      console.error('[SocketServer] failed to write port file:', err)
+    }
+  }
+
+  /**
+   * Wires a newly accepted connection to the request dispatch loop.
+   * If `requireToken` is non-null, the first NDJSON line must be
+   * `{"token":"<value>"}` matching it; otherwise the connection is
+   * dropped before any command can run. Unix sockets pass `null`
+   * because their chmod 0o700 is the access control.
+   */
+  private attachConnection(socket: net.Socket, requireToken: string | null): void {
+    let buf = ''
+    let authed = requireToken == null
+
+    socket.on('data', (chunk) => {
+      buf += chunk.toString()
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.trim()) continue
+        if (!authed) {
+          try {
+            const handshake = JSON.parse(line) as { token?: unknown }
+            if (typeof handshake.token === 'string' && handshake.token === requireToken) {
+              authed = true
+              continue
+            }
+          } catch { /* fall through to reject */ }
+          if (!socket.destroyed) {
+            socket.write(JSON.stringify({ id: '', ok: false, error: 'auth required' }) + '\n')
+          }
+          socket.destroy()
+          return
+        }
+        let req: DuoRequest
+        try { req = JSON.parse(line) } catch { continue }
+        this.handle(req)
+          .then(res => { if (!socket.destroyed) socket.write(JSON.stringify(res) + '\n') })
+          .catch(err => {
+            const res: DuoResponse = { id: req.id, ok: false, error: String(err) }
+            if (!socket.destroyed) socket.write(JSON.stringify(res) + '\n')
+          })
+      }
+    })
+
+    socket.on('error', () => { /* client disconnected mid-flight — ignore */ })
   }
 
   private async handle(req: DuoRequest): Promise<DuoResponse> {
@@ -155,6 +238,15 @@ export class SocketServer {
       let result: unknown
 
       switch (cmd) {
+        case 'ping': {
+          // Stage 20 — cheap liveness probe used by `duo doctor` and
+          // by the CLI fallback to confirm the TCP transport is wired
+          // up before bothering with any real command. Returns the
+          // running app's version so the CLI can flag mismatches when
+          // a stale binary symlink is pointing at an older bundle.
+          result = { version: APP_VERSION }
+          break
+        }
         case 'navigate': {
           const url = args['url'] as string
           if (!url) throw new Error('navigate requires a url arg')

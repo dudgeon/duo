@@ -677,13 +677,15 @@
 
     <article class="stage pending" id="s20" data-id="s20">
       <h3><span class="num-badge">Stage 20</span> Interaction polish + <code>duo doctor</code> + TCP fallback + pane-aware shortcuts <span class="glyph pending"></span></h3>
-      <div class="status-line">⬜ Was Stage 13 · unblocked by 19a's <code>DUO_SESSION</code> for <code>duo doctor</code> · cross-refs issues #12, #22, #23</div>
+      <div class="status-line">🟡 <strong>Sandbox-resilience cluster shipped</strong> (TCP fallback + <code>duo doctor</code> + <code>wait --timeout</code> race fix + sandbox-safe install path). Remaining items below are interaction polish · cross-refs issues #12, #22, #23.</div>
       <ul class="subitems">
         <li><span class="glyph pending"></span><span class="label">Tab numbers in the unified Viewer/Editor strip ("read tab 1, write to tab 2")</span></li>
         <li><span class="glyph pending"></span><span class="label">Terminal selection / clipboard refinements</span></li>
-        <li><span class="glyph pending"></span><span class="label"><code>duo reload</code> verb + CLI socket-timeout race fix</span></li>
-        <li><span class="glyph pending"></span><span class="label"><strong>TCP fallback</strong> alongside Unix socket (sandbox-tolerant transport)</span></li>
-        <li><span class="glyph pending"></span><span class="label"><code>duo doctor</code> diagnostic — uses <code>DUO_SESSION</code> from Stage 19a</span></li>
+        <li><span class="glyph pending"></span><span class="label"><code>duo reload</code> verb</span></li>
+        <li><span class="glyph done"></span><span class="label"><code>duo wait --timeout</code> CLI socket-timeout race fix (shipped — socket cap = <code>max(explicit + 5s, default)</code>)</span></li>
+        <li><span class="glyph done"></span><span class="label"><strong>TCP fallback</strong> alongside Unix socket (shipped — <code>127.0.0.1:0</code> dual listener, port + token at <code>duo.port</code>, CLI fall-through on <code>EPERM</code>/<code>ECONNREFUSED</code>/<code>ENOENT</code>/connect-timeout)</span></li>
+        <li><span class="glyph done"></span><span class="label"><code>duo doctor</code> diagnostic (shipped — probes both transports via <code>ping</code>, reports version match, <code>$DUO_SESSION</code>, install path, skill files; names "Claude Code sandbox detected" when that's the cause)</span></li>
+        <li><span class="glyph done"></span><span class="label">Sandbox-safe install path (shipped — carved out of Stage 18; <code>~/.claude/bin/duo</code> preferred, <code>~/.local/bin/duo</code> fallback, <code>--system</code> opts into <code>/usr/local/bin/duo</code>)</span></li>
         <li><span class="glyph pending"></span><span class="label">PTY-side sandbox operations audit · <em>issue #12</em></span></li>
         <li><span class="glyph pending"></span><span class="label"><code>⌘[</code> in file-explorer focus moves up one level · <em>issue #22</em></span></li>
         <li><span class="glyph pending"></span><span class="label"><code>⌘+/-</code> pane-aware: browser focus → <code>setZoomLevel</code> · <em>issue #23</em></span></li>

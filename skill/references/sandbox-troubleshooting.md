@@ -27,12 +27,19 @@ When the sandbox is the cause it prints a line like
 `Claude Code sandbox detected (Unix socket blocked) — falling back to
 TCP`; once that's in the output you can proceed normally.
 
-If `duo doctor` is not recognized on this machine, the fallback isn't
-shipped yet — stop, tell the user "every `duo` call is failing; I
-think the Claude Code sandbox is blocking the Unix socket", and offer
-the two fixes below. Do not retry in a loop.
+If `duo doctor` is not recognized on this machine, the user is on a
+pre-Stage-20 build without the TCP fallback — stop, tell the user
+"every `duo` call is failing; I think the Claude Code sandbox is
+blocking the Unix socket", and offer the two fixes below. Do not retry
+in a loop.
 
-## Fix 1 (recommended): allow the Unix socket in project settings
+When `duo doctor` *is* available and reports `Claude Code sandbox
+detected (Unix socket blocked) — using TCP fallback`, transport is
+already healed and you can run `duo` commands normally. The two fixes
+below are only relevant when neither transport works (app down) or when
+the user prefers the lower-overhead Unix-socket path.
+
+## Fix 1 (recommended when sticking with Unix sockets): allow them in project settings
 
 Add this to the project's `.claude/settings.json`:
 
@@ -51,8 +58,8 @@ The user then restarts their Claude Code session for the new policy
 to take effect. Caveat: the Claude Code docs warn that
 `allowUnixSockets` "can inadvertently grant access to powerful system
 services" (e.g. the Docker socket). Teams with a stricter posture
-should wait for the Stage 20 TCP fallback rather than widen the
-socket allowlist.
+should keep the default and rely on Duo's TCP fallback (Stage 20)
+rather than widen the socket allowlist.
 
 ## Fix 2 (last resort): per-call sandbox escape
 

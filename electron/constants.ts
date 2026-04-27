@@ -7,6 +7,12 @@ export const APP_VERSION = '0.1.0'
 export const DUO_DIR = join(homedir(), 'Library', 'Application Support', 'duo')
 export const SOCKET_PATH = join(DUO_DIR, 'duo.sock')
 
+// Stage 20 — TCP fallback. Claude Code's macOS sandbox blocks Unix
+// sockets by default but allows localhost TCP, so we publish an
+// ephemeral 127.0.0.1 port + per-launch auth token for the CLI to
+// fall back on. See docs/DECISIONS.md → *Sandbox-tolerant transport*.
+export const PORT_FILE = join(DUO_DIR, 'duo.port')
+
 export const SKILL_SOURCE_DIR = 'skill' // relative to app resources
 export const SKILL_INSTALL_DIR = join(homedir(), '.claude', 'skills', 'duo')
 
