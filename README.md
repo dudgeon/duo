@@ -94,21 +94,20 @@ broader cohort, prototype speed in the MVP.
 
 ### Install Duo (recommended — download the latest DMG)
 
-The fastest path: grab the latest unsigned DMG from
+The fastest path: grab the latest **signed + notarized** DMG from
 [**GitHub Releases**](https://github.com/dudgeon/duo/releases/latest)
 and drop the `Duo.app` it mounts into `/Applications`. Pick the
 `-arm64` build for Apple Silicon and the unsuffixed build for Intel.
 
 Direct links to the most recent release:
 
-- **arm64 (Apple Silicon):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.4.0-arm64.dmg>
-- **x64 (Intel):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.4.0.dmg>
+- **arm64 (Apple Silicon):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.4.1-arm64.dmg>
+- **x64 (Intel):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.4.1.dmg>
 
-> **Gatekeeper warning is expected.** The DMGs are unsigned until
-> [Stage 21](docs/roadmap.html#s21) lands. On first launch macOS will
-> say "Duo can't be opened because Apple cannot check it for malicious
-> software." Right-click the app → **Open** → **Open** in the
-> confirmation dialog. You only need to do this once.
+> **No Gatekeeper warning** as of v0.4.1. The DMGs are signed with
+> Apple Developer ID and notarized — first launch is a clean
+> double-click. (Pre-v0.4.1 builds were unsigned and required a
+> right-click → Open workaround; that's gone.)
 
 The first launch shows the install banner described in
 [Install the `duo` CLI and skill](#install-the-duo-cli-and-skill);
@@ -167,13 +166,19 @@ When you want a real `.app` to drop into `/Applications` (or send to
 a tester) without running `npm run dev` every time:
 
 ```bash
-# Default — UNSIGNED build (what v0.4.0 currently ships)
-CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
+# Signed + notarized — DEFAULT for the owner (v0.4.1+)
+bash scripts/dist-signed.sh
+# (sources cert env from ~/Documents/duo-private/.env, builds + signs +
+#  notarizes both archs, copies signed DMGs back to dist/, validates
+#  via codesign + spctl + xcrun stapler. ~5–8 min on M1.)
 
-# Signed + notarized build (Stage 21 path):
-#   bash scripts/dist-signed.sh
-# Validate:
-#   bash scripts/validate-signed-dmg.sh
+# Unsigned — fallback for contributors without certs
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
+# (end users see Gatekeeper "Apple cannot check this" on first launch
+#  and need right-click → Open. Useful for quick local-test cuts.)
+
+# Validate either build
+bash scripts/validate-signed-dmg.sh
 ```
 
 Output:
@@ -181,41 +186,38 @@ Output:
 ```
 dist/
 ├── Duo-X.Y.Z-arm64.dmg          # Apple Silicon
-└── Duo-X.Y.Z.dmg                # Universal/x64
+└── Duo-X.Y.Z.dmg                # x64
 ```
 
 Open the DMG, drag `Duo.app` to `/Applications`, double-click to launch.
 
-**About the env override.** `npm run dist` runs `electron-builder`,
-which auto-detects your Developer ID Application cert from the macOS
-keychain if `CSC_NAME` is in the environment (it might be, if you've
-done the Stage 21 cert pre-work). Without `CSC_IDENTITY_AUTO_DISCOVERY=false`,
-`electron-builder` would try to sign the build — but Stage 21's signing
-wiring isn't complete yet (the YAML's `mac.identity` is still
-commented out). The override forces an unsigned build, which is the
-intended pre-Stage-21 behavior.
+**Cert pre-work (one-time, owner only).** `scripts/dist-signed.sh`
+expects an env packet at `~/Documents/duo-private/.env` containing
+`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`,
+`APPLE_TEAM_ID`. The full procurement walkthrough lives at
+[`docs/dev/cert-procurement.md`](docs/dev/cert-procurement.md) — it
+also has a Sequoia compatibility appendix covering the iCloud File
+Provider gotcha and the FOLLOWUP-005 keychain prompt.
 
-**Gatekeeper warning on first launch.** Unsigned `.app` files trigger
-macOS Gatekeeper:
-
-> "Duo" can't be opened because Apple cannot check it for malicious
-> software.
-
-Workaround: right-click → Open (not double-click), then click "Open"
-in the dialog. Once approved, double-click works thereafter. Stage 21
-(signed + notarized DMGs) closes this; cert pre-work is done.
-
-**Stage 21 / signed-build gotcha (when we get there).** The first
-time `codesign` accesses the cert's private key on a given Mac, macOS
-prompts:
+**FOLLOWUP-005 — keychain prompt on first signing per session.**
+The first time `codesign` accesses the cert's private key after a
+system reboot, macOS pops:
 
 > "codesign wants to use the key in keychain. Allow / Always Allow / Deny."
 
-If the user doesn't click within macOS's internal timeout, codesign
-fails with misleading errors ("timestamps differ", "resource fork
-detritus", etc.). Click "Always Allow" — once granted, the cert
-access is cached and subsequent builds run unattended. Documented in
-`tasks.md § FOLLOWUP-005`.
+Click **Always Allow.** If you miss the prompt, the build hangs
+silently. Persists across builds in the same session; recurs after
+reboot.
+
+**iCloud File Provider gotcha — already solved by `dist-signed.sh`.**
+If your repo lives under `~/Documents/` (the macOS default with
+iCloud Desktop & Documents sync), iCloud tags directories inside
+Electron helper bundles with attrs that `codesign` rejects with
+*"resource fork, Finder information, or similar detritus not
+allowed."* The script sidesteps this by building to
+`$HOME/.cache/duo-build` (outside iCloud territory) and copying DMGs
+back. If you override `DUO_BUILD_OUTPUT` to a path inside
+`~/Documents/`, signing will fail. Don't.
 
 ### Try it
 
@@ -419,15 +421,18 @@ in **[CHANGELOG.md](CHANGELOG.md)** with prose context in
 **[docs/RELEASES.md](docs/RELEASES.md)**.
 
 Most recent release: see the top of [CHANGELOG.md](CHANGELOG.md). At
-v0.4.0 the headlines worth pulling forward in this README are:
+v0.4.1 (post-Stage-21-cut) the headlines worth pulling forward in this
+README are:
 
 - **Foundation shipped** — Stages 1–3, 5 (+ 5 v2), 8, 9 (cozy mode).
 - **Editor surfaces shipped** — Stage 11 (markdown editor), Stage 17 (HTML canvas with comments rail), Stage 12 (Atelier visual identity).
 - **Agent ergonomics shipped** — `duo` CLI + skill + Haiku 4.5 subagent (Stage 5/5 v2), Send → Duo selection pill (Stage 15.1/15.2).
 - **First-launch + workspace polish shipped** — Stage 18 (welcome banner installs skill / subagent / CLI binary + priming shim + SessionStart hook into `~/.claude/`), Stage 24 (pin WorkingPane tabs).
 - **Duo-aware Claude shipped (v0.3.0)** — Stage 19b passive priming via PATH shim + hook; Stage 23 canvas actions (`data-duo-action` Claude↔HTML loop); preventative kb-shortcut architecture.
-- **Context pedagogy shipped (v0.4.0)** — Stage 22 navigator dual-pane ("Your Claude settings" + "Project Claude context"); GitHub Releases auto-update banner; Stage 25 post-redirect chrome banner with `*.capitalone.com` defaulted in the off-host list; Edit-menu "Paste and Match Style"; Stage 21 signing-script prep.
-- **Coming next** — Stage 21 actual signed cut (scripts ready, need keychain-prompt-friendly window), Stage 14a (markdown editor comments), Stage 18b (distro skill packs), Stage 21c (session restore from pins).
+- **Context pedagogy shipped (v0.4.0)** — Stage 22 navigator dual-pane ("Your Claude settings" + "Project Claude context"); GitHub Releases auto-update banner; Stage 25 post-redirect chrome banner with `*.capitalone.com` defaulted in the off-host list; Edit-menu "Paste and Match Style".
+- **Sandbox resilience shipped (v0.4.1)** — Stage 20's TCP fallback transport (Capital One Seatbelt blocks Unix-domain sockets; CLI now falls through to `127.0.0.1` with a per-launch auth token), `duo doctor` diagnostic that names the failure mode, sandbox-writable install path (`~/.claude/bin/duo`).
+- **Signed + notarized DMG shipped (v0.4.1, Stage 21a)** — first launch is a clean double-click; Gatekeeper accepts as Notarized Developer ID. Toolchain in `scripts/dist-signed.sh` (env-driven, iCloud-aware, builds outside `~/Documents/` to dodge the File Provider xattrs that block codesign).
+- **Coming next** — Stage 14 (markdown editor track-changes / CommentRail binding), Stage 16 (external-write reconciliation), Stage 18b (distro skill packs), Stage 21c (electron-updater + session restore on relaunch), the rest of the Stage 20 polish cluster (tab numbers, terminal selection, `duo reload`, pane-aware `⌘+/-`).
 
 ---
 

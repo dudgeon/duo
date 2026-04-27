@@ -18,6 +18,83 @@
 
 ---
 
+## 2026-04-27 dawn — Stage 21 ✅ shipped (signed + notarized DMG) + doc refresh
+
+Picked up the Stage 21 work after the parallel agent's v0.4.1 cut
+landed on main. Toolchain shipped end-to-end on
+`stage-21-signing-toolchain` then cherry-picked to main as `4ffde29`
+(toolchain) + `955f959` (cut-version + cert-procurement docs) +
+`f506f36` (intent-pause archive). v0.4.1 GH release re-uploaded with
+signed DMGs via `gh release upload --clobber` — same release, same
+tag, same notes (with a small "Updated 2026-04-27 09:42 UTC — DMGs
+re-uploaded as signed" callout above the original body).
+
+**The actual root cause was simpler than the wip exploration commit
+suggested.** `com.apple.provenance` was a red herring — every file
+on Sequoia carries it (including `/tmp/`); codesign accepts those
+fine. The real blocker is **iCloud File Provider** tagging
+directories inside Electron helper bundles
+(`Duo Helper (GPU).app`, etc.) with `com.apple.FinderInfo` /
+`com.apple.fileprovider.fpfs#P` / `com.apple.fileprovider.dir#N`
+xattrs whenever the build path lives under `~/Documents/` (the macOS
+default with iCloud Desktop & Documents sync). The afterPack `ditto`
+strip from the wip commit ran successfully but iCloud re-tagged the
+bundle directories before codesign could read them. Empirical: same
+fresh helper binary fails to codesign in
+`~/Documents/GitHub/duo/dist/`, succeeds when copied to `/tmp/`.
+
+**Fix** — one CLI flag.
+`electron-builder -c.directories.output=$HOME/.cache/duo-build`
+moves the build off iCloud-touched filesystem; `dist-signed.sh`
+copies the resulting DMGs back to `dist/`. No electron-builder
+upgrade (24 → 26 has known regressions with our electron-rebuild
+postinstall — issues #8842, #9020, #9261), no `@electron/osx-sign`
+rewrite, no afterPack hook. The yml stays env-agnostic —
+`mac.identity` and `mac.notarize` remain commented; electron-builder
+auto-discovers the cert + notarization from `CSC_NAME` + the
+`APPLE_API_*` packet via env auto-discovery.
+
+**Toolchain durables encoded for next time.** Cut-version skill's
+Step 4.5 grew a signed / unsigned branch with the iCloud gotcha
+documented inline. `docs/dev/cert-procurement.md` gained a Sequoia
+compatibility appendix covering provenance, File Provider, the
+FOLLOWUP-005 keychain prompt, cert renewal cadence. Resolution
+artifact at `docs/dev/intent-conversations/2026-04-27-stage-21-signing.md`
+preserves the original plan + adds a Resolution summary at top so
+the next operator sees what shipped before reading the historical
+plan body. Plus the v0.4.1 release body got a 1-line "Updated …
+DMGs re-uploaded as signed" callout above the original release notes
+so any reader of the published GH release sees the swap.
+
+**Doc refresh after the ship** (this commit). `docs/roadmap.html` +
+`ROADMAP.md` flipped Stage 21 to 🟡 21a ✅ (with 21b/c/d still ⬜),
+flipped Stage 20 to 🟡 (sandbox-resilience cluster shipped, polish
+items still pending), refreshed the snapshot bar to "post-v0.4.1,
+post-Stage-21", and added a v0.4.1 cut entry to the cut history.
+README.md replaced the "DMGs are unsigned, expect Gatekeeper
+warnings" install instructions with "no Gatekeeper warning as of
+v0.4.1", repointed the direct-download URLs to `Duo-0.4.1-*.dmg`,
+rewrote the "Build a custom DMG" section to lead with
+`bash scripts/dist-signed.sh` (signed default for the owner) and
+relegate the `CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist` flow
+to the unsigned-fallback path, added FOLLOWUP-005 keychain prompt
+and iCloud File Provider gotcha as named subsections (the latter
+already solved by `dist-signed.sh`'s output redirect; documented as a
+"don't override `DUO_BUILD_OUTPUT` to a path inside `~/Documents/`"
+warning). help/faq.html's v0.4.1 entry rewrote the "DMG remains
+unsigned" closing paragraph to "Stage 21 ✅ landed alongside this
+release."
+
+**21b/c/d still ⬜** — custom app icon + DMG background,
+`electron-updater` integration with GH-Releases auto-update channel,
+session restore on relaunch (issue #24), browser history persistence
+(issue #27), socket auth token for Trailblazers cohort distribution,
+agent-driven-navigation notifications, Trailblazers README + install
+guide. None blocking the v0.4.1 ship; all natural follow-ons for a
+v0.4.2 cut.
+
+---
+
 ## 2026-04-27 early — v0.4.1 cut: sandbox-resilience cluster
 
 Owner kicked off the morning with "what's incomplete on the roadmap
