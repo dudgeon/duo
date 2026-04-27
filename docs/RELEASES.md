@@ -71,6 +71,9 @@ v0.1.0 still owed in eyes-on form.
 
 ### What's queued next (v0.3.0 candidate scope)
 
+**🔖 Owner-flagged priority:** **Stage 19b** at the top.
+
+- **Stage 19b — passive priming (PRIORITY).** SessionStart hook + PATH shim + `priming.md` in `~/.claude/`. The remaining piece of the Stage 19 family: when a Claude Code session starts inside a Duo PTY, hand it Duo-specific priming (skill discovery hints, `duo` CLI on PATH already, ambient context) so the agent doesn't need to be told "you're in Duo." Originally specced to fold into the Stage 18 installer; keeping it 19b keeps the flag visible.
 - **Stage 18b** — distro skill packs (`extra-skills/` + `PACK.json` + per-conflict consent UI). Cap One AIP starter pack is the worked example.
 - **Stage 23** — canvas actions (`data-duo-action` Claude↔HTML loop). Pairs with 18b for the FTUX welcome page.
 - **Stage 25** — post-redirect chrome banner (small, ~80 LOC).

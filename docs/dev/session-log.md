@@ -109,16 +109,24 @@ launch claude successfully but show the BUG-010 cosmetic echo).
 
 **Owed for v0.3.0:**
 
-1. **BUG-010 fix** — replace `waitForPtyReady`'s "first data" with
+🔖 **Owner-flagged priority post-v0.2.0:** Stage 19b at the top.
+
+1. **Stage 19b — passive priming (PRIORITY).** SessionStart hook +
+   PATH shim + `priming.md` in `~/.claude/`. Closes the Stage 19
+   family — when Claude Code spawns inside a Duo PTY, hand it
+   ambient Duo context so the agent doesn't need to be told "you're
+   in Duo." Originally specced as folding into Stage 18; keeping
+   it 19b keeps the visibility.
+2. **BUG-010 fix** — replace `waitForPtyReady`'s "first data" with
    a prompt-shape regex.
-2. **V2–V27 verification walk** — inherited from v0.1.0; the
+3. **V2–V27 verification walk** — inherited from v0.1.0; the
    canvas/editor surface verification still owed in eyes-on form.
-3. **Stage 18b** (distro skill packs / `extra-skills/` /
+4. **Stage 18b** (distro skill packs / `extra-skills/` /
    `PACK.json`).
-4. **Stage 23** (canvas actions Claude↔HTML).
-5. **Stage 25** (post-redirect chrome banner — small).
-6. **Stage 19d** (mid-tab launch-claude banner — small).
-7. **Stage 21** (sign + notarize the DMG; cert pre-work done).
+5. **Stage 23** (canvas actions Claude↔HTML).
+6. **Stage 25** (post-redirect chrome banner — small).
+7. **Stage 19d** (mid-tab launch-claude banner — small).
+8. **Stage 21** (sign + notarize the DMG; cert pre-work done).
 
 ---
 
