@@ -105,6 +105,11 @@ export type DuoCommandName =
   // pointing at an older app bundle. See docs/DECISIONS.md → Open
   // ADRs → *Sandbox-tolerant transport and install paths*.
   | 'ping'
+  // Stage 26 item 6 — `duo file rename <old> <new>` and
+  // `duo file trash <path>` mirror the navigator's right-click
+  // Delete / Rename actions. Single 'file' command with a
+  // discriminated `op` arg keeps the verb table small.
+  | 'file'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -652,6 +657,12 @@ export const IPC = {
   FILES_OPEN_EXTERNAL: 'files:open-external',
   FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
   FILES_GET_HTML_META: 'files:get-html-meta',  // pre-flight for <meta duo-open-in> routing
+  // Stage 26 item 6 — file-mutation actions from the navigator
+  // (right-click → Delete / Rename) and the matching `duo file *`
+  // CLI verbs. Trash uses shell.trashItem (recoverable); rename is
+  // a same-fs fs.rename.
+  FILES_TRASH: 'files:trash',
+  FILES_RENAME: 'files:rename',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
@@ -819,6 +830,10 @@ export interface ElectronFilesAPI {
   write: (path: string, bytes: Uint8Array) => Promise<FileWriteResult>
   openExternal: (path: string) => Promise<void>
   revealInFinder: (path: string) => Promise<void>
+  /** Stage 26 item 6 — move to macOS Trash (recoverable from Finder). */
+  trash: (path: string) => Promise<void>
+  /** Stage 26 item 6 — rename / move within the same filesystem. */
+  rename: (oldPath: string, newPath: string) => Promise<void>
   /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
    *  routing meta tags. Used by the file-open dispatcher to decide
    *  whether an .html file mounts as a browser tab or a canvas tab.

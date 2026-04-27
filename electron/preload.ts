@@ -128,6 +128,10 @@ const api: ElectronAPI = {
 
     getHtmlMeta: (p) => ipcRenderer.invoke(IPC.FILES_GET_HTML_META, { path: p }),
 
+    trash: (p) => ipcRenderer.invoke(IPC.FILES_TRASH, { path: p }),
+
+    rename: (oldPath, newPath) => ipcRenderer.invoke(IPC.FILES_RENAME, { oldPath, newPath }),
+
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process

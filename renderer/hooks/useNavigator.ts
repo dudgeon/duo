@@ -158,8 +158,12 @@ export function useNavigator(initialCwd: string) {
   }, [])
 
   const selectItem = useCallback((path: string, kind: 'file' | 'folder') => {
+    // Stage 26 item 1: select-only. The previous "selecting a folder
+    // re-roots the tree" coupling lived here as a setCwd side effect;
+    // it now requires an explicit double-click (FileTree) or
+    // navigateTo() call. computePendingCwd already returns sel.path
+    // for folder selections, so terminal-CWD inheritance is preserved.
     setSelected({ path, kind })
-    if (kind === 'folder') setCwd(path)
   }, [])
 
   const clearSelection = useCallback(() => setSelected(null), [])

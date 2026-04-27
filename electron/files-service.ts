@@ -173,6 +173,25 @@ export class FilesService {
   }
 
   /**
+   * Stage 26 item 6 — move a file or folder to the macOS Trash.
+   * `shell.trashItem` is recoverable from Finder. Throws on failure
+   * (file not found, permission denied, special folders that resist
+   * trashing). Caller is responsible for the user confirm.
+   */
+  async trash(absPath: string): Promise<void> {
+    await shell.trashItem(absPath)
+  }
+
+  /**
+   * Stage 26 item 6 — rename / move a file or folder. Both paths must
+   * be absolute. `fs.rename` is atomic within a filesystem; cross-fs
+   * moves require a copy + unlink (defer until needed).
+   */
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    await fs.rename(oldPath, newPath)
+  }
+
+  /**
    * Start watching a set of paths. Caller keeps the returned `id`; events are
    * pushed back to the renderer on channel FILES_CHANGED with { id, event }.
    */

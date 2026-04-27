@@ -19,6 +19,9 @@ interface FilesPaneProps {
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
   onOpenTerminalHere: (folderPath: string) => void
+  /** Stage 26 item 7 \u2014 hover \"new Claude here\" button. Spawns a new
+   *  terminal tab with kind='claude' and an explicit CWD. */
+  onOpenClaudeIn: (folderPath: string) => void
   revealChip: string | null
   onDismissRevealChip: () => void
   /** Stage 22 \u2014 independent state machine for the "Your Claude
@@ -39,6 +42,7 @@ export function FilesPane({
   userClaudeNav,
   onOpenFile,
   onOpenTerminalHere,
+  onOpenClaudeIn,
   revealChip,
   onDismissRevealChip,
   onToggleCollapsed
@@ -120,6 +124,7 @@ export function FilesPane({
             actions={actions}
             onOpenFile={onOpenFile}
             onOpenTerminalHere={onOpenTerminalHere}
+            onOpenClaudeIn={onOpenClaudeIn}
           />
         </div>
       )}

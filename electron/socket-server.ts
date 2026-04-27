@@ -559,6 +559,27 @@ export class SocketServer {
           result = this.nav.getState()
           break
         }
+        case 'file': {
+          // Stage 26 item 6 — `duo file rename <old> <new>` and
+          // `duo file trash <path>`. Single command with a discriminated
+          // `op` arg, so the Duo verb table stays small.
+          const op = args['op'] as string | undefined
+          if (op === 'trash') {
+            const p = args['path'] as string | undefined
+            if (!p) throw new Error('file trash requires a path arg')
+            await this.files.trash(p)
+            result = { ok: true, path: p }
+          } else if (op === 'rename') {
+            const oldPath = args['oldPath'] as string | undefined
+            const newPath = args['newPath'] as string | undefined
+            if (!oldPath || !newPath) throw new Error('file rename requires oldPath + newPath args')
+            await this.files.rename(oldPath, newPath)
+            result = { ok: true, oldPath, newPath }
+          } else {
+            throw new Error(`file op must be 'rename' or 'trash' (got '${op ?? '<missing>'}')`)
+          }
+          break
+        }
         case 'new-tab': {
           // Stage 19c D27 — open a new terminal tab. All args optional;
           // renderer fills in defaults (last-kind, navigator pending CWD).

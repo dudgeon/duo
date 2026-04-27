@@ -648,6 +648,27 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'file': {
+        // Stage 26 item 6 — file-mutation actions matching the navigator's
+        // right-click menu. Recoverable trash + same-fs rename:
+        //   duo file rename <old> <new>     → fs.rename
+        //   duo file trash <path>           → shell.trashItem (macOS Trash)
+        const sub = rest[0]
+        if (sub === 'rename') {
+          const oldArg = rest[1] ?? die('Usage: duo file rename <old> <new>')
+          const newArg = rest[2] ?? die('Usage: duo file rename <old> <new>')
+          const oldPath = resolveFilePath(oldArg)
+          const newPath = resolveFilePath(newArg)
+          out(await send('file', { op: 'rename', oldPath, newPath }))
+        } else if (sub === 'trash') {
+          const pathArg = rest[1] ?? die('Usage: duo file trash <path>')
+          const resolved = resolveFilePath(pathArg)
+          out(await send('file', { op: 'trash', path: resolved }))
+        } else {
+          die('Usage: duo file <rename|trash> ...')
+        }
+        break
+      }
       case 'new-tab': {
         // Stage 19c D27 — open a new terminal tab.
         //   duo new-tab                        → persisted last-kind, navigator pending CWD
@@ -1062,6 +1083,18 @@ COMMANDS
                                   Each thread: {id, number, excerpt,
                                   resolved, entries: [{id, author, ts,
                                   body}]}.
+
+  file rename <old> <new>         Stage 26 — rename / move a file or
+                                  folder within the same filesystem
+                                  (fs.rename, atomic). Both paths
+                                  resolve relative to the CLI's cwd.
+                                  Mirrors the navigator's right-click
+                                  Rename action.
+  file trash <path>               Move a file or folder to the macOS
+                                  Trash (recoverable from Finder).
+                                  Mirrors the navigator's right-click
+                                  Delete action; \`shell.trashItem\`
+                                  under the hood.
 
   new-tab [--shell|--claude] [--cwd <path>] [--cmd "<text>"]
                                   Open a new terminal tab (Stage 19c).

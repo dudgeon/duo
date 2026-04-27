@@ -422,6 +422,19 @@ export function App() {
     setFocusedColumn('terminal')
   }, [home])
 
+  // Stage 26 item 7 — hover "new Claude here" on folder rows. Same
+  // explicit-CWD pattern as openTerminalHere, but kind='claude' so the
+  // post-spawn writer runs `claude\n` (or the install banner if claude
+  // isn't on PATH). CLI parity already lives in
+  // `duo new-tab --claude --cwd <path>`.
+  const openClaudeIn = useCallback((folderPath: string) => {
+    const tab = makeTab(folderPath, 'claude', home)
+    setTabs(prev => [...prev, tab])
+    setActiveTabId(tab.id)
+    setFocusedColumn('terminal')
+    void dispatchPostSpawnWrite(tab.id, 'claude')
+  }, [home, dispatchPostSpawnWrite])
+
   const closeTab = useCallback((id: string) => {
     setTabs(prev => {
       if (prev.length === 1) return prev
@@ -1031,6 +1044,7 @@ export function App() {
             userClaudeNav={userClaudeNav}
             onOpenFile={onOpenFile}
             onOpenTerminalHere={openTerminalHere}
+            onOpenClaudeIn={openClaudeIn}
             revealChip={revealChip}
             onDismissRevealChip={() => setRevealChip(null)}
             onToggleCollapsed={() => setFilesCollapsed(prev => !prev)}

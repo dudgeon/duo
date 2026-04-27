@@ -54,6 +54,8 @@ for the authoritative usage text.
 | `duo reveal <path>` | Move the file navigator to `<path>`, flash a chip |
 | `duo ls [path]` | List directory contents (JSON) |
 | `duo nav state` | Navigator state: cwd, selection, expanded, pinned |
+| `duo file rename <old> <new>` | **Stage 26** — rename / move a file or folder (atomic `fs.rename`). Mirrors the navigator's right-click Rename. |
+| `duo file trash <path>` | **Stage 26** — move a file or folder to the macOS Trash (recoverable). Mirrors the navigator's right-click Delete. Prefer over `rm`. |
 
 ### Markdown editor (Stage 11)
 
@@ -189,8 +191,8 @@ but they're not shipped yet.
 | `duo nav pin [on\|off\|toggle]` | Pin button in navigator header | Freezes navigator-follows-active-tab behavior |
 | `duo nav dotfiles [on\|off\|toggle]` | (not yet built as UI toggle) | Dotfile visibility; `.claude/` always visible per Stage 10 D6 |
 | `duo nav expand <path>` / `duo nav collapse <path>` | Click twisty | Mostly for agents writing reveal flows |
-| `duo files mv <src> <dst>` | Drag-and-drop (not yet built) | **Gated** — prohibited-action rules apply; confirm with user first |
-| `duo files rm <path>` | (not yet built) | **Gated** — same |
+| `duo files mv <src> <dst>` | Drag-and-drop (not yet built) | Subsumed by ✅ `duo file rename` (Stage 26 — atomic `fs.rename`, mirrors right-click Rename). Cross-fs `mv` (copy + unlink) deferred. |
+| `duo files rm <path>` | Right-click → Delete (✅ Stage 26) | Subsumed by ✅ `duo file trash` (Stage 26 — `shell.trashItem`, recoverable from Finder; mirrors right-click Delete). Hard `rm` deliberately omitted — agents should `duo file trash` and let the user empty Trash. |
 
 ### Terminal ergonomics — P1 / P2
 

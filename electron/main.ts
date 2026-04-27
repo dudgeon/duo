@@ -363,6 +363,14 @@ function setupIPC(): void {
     return filesService.getHtmlMeta(p)
   })
 
+  // Stage 26 item 6 — file-mutation actions (right-click Delete / Rename + CLI parity).
+  ipcMain.handle(IPC.FILES_TRASH, (_event, { path: p }: { path: string }) => {
+    return filesService.trash(p)
+  })
+  ipcMain.handle(IPC.FILES_RENAME, (_event, { oldPath, newPath }: { oldPath: string; newPath: string }) => {
+    return filesService.rename(oldPath, newPath)
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()
