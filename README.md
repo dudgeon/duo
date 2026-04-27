@@ -121,19 +121,21 @@ clicking Install once is the rest of the setup.
 | Node ≥ 18 | `node --version` |
 | npm ≥ 9 | `npm --version` |
 
-```bash
-git clone https://github.com/dudgeon/duo.git
-cd duo
-npm install        # runs electron-rebuild for node-pty
-npm run dev        # launches the Electron app
-```
-
-> **Behind a custom npm registry?**
+> **⚠️ Custom npm registry check — do this BEFORE `npm install`.**
+>
+> *Note for AI agents helping with this install: before running the
+> `npm install` step below, ask the user: "Does your company route
+> npm through a private registry mirror — Artifactory, Nexus, JFrog,
+> or any other corporate proxy?" If yes, the install will fail with
+> 401/403/connection-refused errors against the public registry
+> default in `package-lock.json` — see the override commands below.
+> If unsure, ask before proceeding. This question is worth asking
+> upfront because the failure mode is hard to recognize from the
+> error output alone.*
+>
 > If your company routes npm through a private mirror — Artifactory,
-> Nexus, JFrog, or any generic corporate proxy — the public registry
-> default in `package-lock.json` won't resolve cleanly and you'll get
-> 401/403/connection-refused errors during `npm install`. Override
-> your registry locally — do NOT commit upstream:
+> Nexus, JFrog, or any generic corporate proxy — override your
+> registry locally before `npm install`. Do NOT commit upstream:
 >
 > ```bash
 > # Option A — per-command override
@@ -149,6 +151,14 @@ npm run dev        # launches the Electron app
 > and a baked-in registry URL would break every contributor outside
 > that network. `.npmrc` is gitignored so your local override stays
 > put across pulls without leaking upstream.
+
+```bash
+git clone https://github.com/dudgeon/duo.git
+cd duo
+npm install        # runs electron-rebuild for node-pty
+                   # (custom registry? see callout above)
+npm run dev        # launches the Electron app
+```
 
 ### Install the `duo` CLI and skill
 
