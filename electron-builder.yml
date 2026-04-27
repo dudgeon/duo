@@ -1,6 +1,19 @@
-appId: com.geoffdudgeon.duo
-productName: Duo
-copyright: Copyright © 2026 Geoff
+# Stage 21e-i — fork-friendly architecture.
+#
+# Identity-bearing fields (appId, productName, copyright, publish.*) are
+# passed at build time via CLI overrides from `scripts/dist.sh` /
+# `scripts/dist-signed.sh`, sourced from `fork.config.json` (or
+# `fork.config.default.json`). Running electron-builder directly without
+# those wrappers will fail with "missing appId" — that's intentional;
+# fork identity must come from one config file, not be implicitly
+# inherited from yml defaults.
+#
+# To fork: copy `fork.config.default.json` → `fork.config.json` and edit.
+# See `docs/HOW-TO-FORK.md` for the layered fork modes.
+
+# Identity fields are CLI-injected — see header above. The yml does NOT
+# include `appId`, `productName`, `copyright`, or `publish` because
+# electron-builder doesn't reliably interpolate env vars in those keys.
 
 # Stage 21c — auto-update via GitHub Releases.
 # Configuring `publish:` makes electron-builder emit a `latest-mac.yml`
@@ -65,22 +78,22 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  # === Code-signing + notarization (Stage 21) =================================
+  # === Code-signing + notarization (Stage 21a — shipped 2026-04-27) ===========
   # The signed-cut path is driven by env vars sourced from
   # `~/Documents/duo-private/.env`. Use the helper script:
   #
   #   bash scripts/dist-signed.sh           # build + sign + notarize
   #   bash scripts/validate-signed-dmg.sh   # codesign + spctl + stapler checks
   #
-  # The script sources the env vars and runs `npm run dist`;
+  # The script sources the env vars and runs electron-builder;
   # electron-builder picks up CSC_NAME / APPLE_API_KEY / APPLE_API_KEY_ID /
   # APPLE_API_ISSUER / APPLE_TEAM_ID natively without yml changes. To skip
-  # signing entirely (today's default unsigned cut), use:
+  # signing entirely (default unsigned cut), use:
   #
   #   CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
   #
-  # Why these stay commented in yml: uncommenting `identity: ${env.CSC_NAME}`
-  # makes EVERY `npm run dist` require the env vars to be set — electron-
+  # Why mac.identity / mac.notarize stay commented: uncommenting them makes
+  # EVERY `npm run dist` require those env vars to be set — electron-
   # builder errors when the substitution resolves empty. Keeping the yml
   # env-agnostic + the env-driven discovery path keeps both signed and
   # unsigned flows working without flag flips.
@@ -92,14 +105,13 @@ mac:
   #   APPLE_API_ISSUER  → Issuer UUID from App Store Connect → Users and Access → Integrations
   #   APPLE_TEAM_ID     → 10-char Team ID from developer.apple.com → Membership
   #
-  # Watch out for the FOLLOWUP-005 keychain prompt the first time you sign
-  # after a system reboot — macOS pops a dialog "codesign wants to access
-  # key … Allow / Always Allow / Deny." If you miss this prompt the build
-  # hangs forever. Click "Always Allow" once per Mac.
+  # FOLLOWUP-005 keychain prompt: macOS pops a "codesign wants to access
+  # key … Allow / Always Allow / Deny" dialog the first time after reboot.
+  # Click "Always Allow" or the build hangs forever. Once per session.
   # ============================================================================
 
 dmg:
-  title: "Duo ${version}"
+  title: "${productName} ${version}"
   # Stage 21: DMG-container signing. Keep at false for now — the .app
   # inside is still signed by the env-driven flow above. Flip to true
   # if a future distribution channel requires DMG-level signature.
