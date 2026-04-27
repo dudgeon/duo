@@ -128,6 +128,28 @@ npm install        # runs electron-rebuild for node-pty
 npm run dev        # launches the Electron app
 ```
 
+> **Behind a custom npm registry (enterprise Artifactory, etc.)?**
+> If your environment routes npm through a private mirror (Cap One
+> Artifactory, JPMorgan internal registry, generic enterprise
+> proxy), the public registry default in this repo's `package-
+> lock.json` won't resolve cleanly. Set your registry locally — do
+> NOT commit upstream:
+>
+> ```bash
+> # Option A — per-command override
+> npm install --registry=https://your-internal.example.com/npm/
+>
+> # Option B — persistent local config (.npmrc is gitignored)
+> echo "registry=https://your-internal.example.com/npm/" > .npmrc
+> npm install
+> ```
+>
+> The repo's upstream `.npmrc` deliberately stays empty — Duo aims
+> to be fork-friendly (see [docs/HOW-TO-FORK.md](docs/HOW-TO-FORK.md))
+> and a baked-in enterprise registry would break every contributor
+> who isn't on that org's network. `.npmrc` is gitignored so your
+> local override stays put across pulls without leaking upstream.
+
 ### Install the `duo` CLI and skill
 
 **One click.** When Duo first launches you'll see a welcome banner at the
