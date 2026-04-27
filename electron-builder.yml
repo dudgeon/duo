@@ -2,6 +2,13 @@ appId: com.geoffdudgeon.duo
 productName: Duo
 copyright: Copyright © 2026 Geoff
 
+# Stage 21 — strip macOS extended attributes from the packaged .app
+# before signing. Helper binaries inside Electron's bundle pick up
+# resource-fork / Finder-info xattrs during pack; codesign rejects
+# them with "resource fork, Finder information, or similar detritus
+# not allowed". The hook runs `xattr -cr` against the appOutDir.
+afterPack: scripts/electron-builder-afterPack.js
+
 directories:
   buildResources: build
   output: dist

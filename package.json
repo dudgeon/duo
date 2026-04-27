@@ -51,7 +51,7 @@
     "@xterm/xterm": "^5.5.0",
     "autoprefixer": "^10.4.0",
     "electron": "^32.0.0",
-    "electron-builder": "^24.13.0",
+    "electron-builder": "^24.13.3",
     "electron-vite": "^2.3.0",
     "esbuild": "^0.21.0",
     "postcss": "^8.4.0",

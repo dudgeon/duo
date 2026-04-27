@@ -44,6 +44,16 @@ if [ -z "${CSC_NAME:-}" ]; then
   exit 1
 fi
 
+# electron-builder gotcha — it explicitly rejects CSC_NAME with the
+# "Developer ID Application:" prefix even though that's the canonical
+# common name string macOS keychain stores. The expected format is
+# just the rest ("Geoffrey Dudgeon (TEAMID)"). Strip the prefix +
+# any surrounding quotes so the .env file can use either shape.
+CSC_NAME="${CSC_NAME#\"}"     # leading "
+CSC_NAME="${CSC_NAME%\"}"     # trailing "
+CSC_NAME="${CSC_NAME#Developer ID Application: }"
+export CSC_NAME
+
 if [ -z "${APPLE_API_KEY:-}" ] || [ -z "${APPLE_API_KEY_ID:-}" ] || [ -z "${APPLE_API_ISSUER:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
   echo "WARNING: notarization env vars incomplete; signing only (no notarize)." >&2
 fi
