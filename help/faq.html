@@ -101,6 +101,17 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.4.4 release hotfix dmg launch crash node-pty cannot find module electron-builder bundle node_modules">
+  <h3>v0.4.4 — DMG launch fix <span class="date">2026-04-27</span></h3>
+  <p>One-line hotfix for a release-blocker: every DMG cut from v0.4.0 through v0.4.3 was crashing on launch with <code>Cannot find module 'node-pty'</code>. The build was excluding all production node_modules from the bundle by accident, so Duo's main process couldn't start. v0.4.4 includes them properly. <strong>Important:</strong> auto-update from v0.4.3 won't work because v0.4.3 crashes before fetching the update manifest — install v0.4.4 manually from the GitHub Release.</p>
+  <ul>
+    <li><strong>The fix.</strong> <code>electron-builder.yml</code>'s <code>files</code> config replaced a catch-all <code>"!node_modules/**/*"</code> exclusion with a positive <code>node_modules/**/*</code> include. electron-builder's smart filter still keeps dev deps out, so the bundle stays lean — the only change is that runtime modules <code>node-pty</code>, <code>chokidar</code>, and <code>electron-updater</code> now actually ship.</li>
+    <li><strong>The lesson.</strong> The bug had been latent since the v0.1.x scaffold; v0.4.0–v0.4.3 all shipped with the broken bundle, but the crash only surfaced on a fresh DMG install. Earlier "successful" runs were either <code>npm run dev</code> (which loads node-pty from the local repo) or installs that inherited node-pty on disk from a previous, differently-built bundle.</li>
+    <li><strong>What changed in the toolchain.</strong> The <code>cut-version</code> skill grew a mandatory launch-smoke validation step (<code>scripts/validate-dmg-launch.sh</code>): mounts the DMG, confirms required runtime modules are reachable in either the asar or unpacked tree, then opens the .app and verifies the main process is alive past 8 seconds. Catches the entire class of "DMG builds successfully but crashes on launch" failure modes before the cut proceeds. Both signed and unsigned cut paths now run this check.</li>
+  </ul>
+  <p style="margin-top: 10px;">v0.4.4 ships nothing new in the app itself — same surfaces as v0.4.3. Stage 26 PR 1 (navigator polish — single/double-click semantics, chevron-only hit target, right-click delete/rename, hover-Claude button) is open at <a href="https://github.com/dudgeon/duo/pull/28">duo#28</a> awaiting review; it lands in v0.5.0 alongside Stage 21e.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.4.3 release patch punch list bugs polish ctrl tab session restore regression canvas click area off host slack google docs gmail atlassian microsoft 365 enterprise sso">
   <h3>v0.4.3 — owner-side punch-list patch <span class="date">2026-04-27</span></h3>
   <p>Seven bug fixes + two small enhancements after the owner walked v0.4.2 against a fresh install. Highest-leverage: <strong>⌃Tab cycle now reaches all tabs after session restore</strong> (BUG-021 regression from v0.4.2's session-restore work) and <strong>HTML canvas click area now spans the full iframe</strong> (BUG-023 — clicks in the page margins now place a cursor at the nearest text instead of falling through to <code>&lt;html&gt;</code>).</p>

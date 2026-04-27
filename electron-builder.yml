@@ -26,7 +26,14 @@ files:
   - out/**/*
   - package.json
   - help/**/*
-  - "!node_modules/**/*"
+  # Production node_modules MUST be included so externalized native /
+  # main-process modules (node-pty, chokidar, electron-updater, etc.)
+  # are present at runtime. electron-builder smart-filters this glob
+  # down to package.json's `dependencies` (dev deps stay out).
+  # Earlier v0.4.x configs used `"!node_modules/**/*"` which silently
+  # produced DMGs that crashed on launch with
+  # `Cannot find module 'node-pty'`.
+  - node_modules/**/*
 
 extraResources:
   # skill/ is copied to app bundle so first-launch postinstall can copy it to ~/.claude/skills/duo/

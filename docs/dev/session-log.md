@@ -18,6 +18,64 @@
 
 ---
 
+## 2026-04-27 evening — v0.4.4 cut: DMG launch fix + Stage 26 PR 1 in flight
+
+Owner tried to launch the v0.4.3 DMG and hit `Cannot find module
+'node-pty'` — uncaught exception, app crashes before reaching the
+renderer. Investigation showed `electron-builder.yml § files` had
+`"!node_modules/**/*"` excluding ALL production node_modules from the
+bundle. The `asarUnpack: "**/node_modules/node-pty/**"` line tried to
+compensate but was a no-op since node-pty wasn't in the bundle to
+begin with. Confirmed by mounting the v0.4.3 DMG: app.asar contained
+only `out/`, `package.json`, `help/` — no node_modules, no
+app.asar.unpacked directory at all. The bug had been latent since the
+original Stages 1-3 scaffold (`d1e4d84`); v0.4.0/0.4.1/0.4.2/0.4.3
+all shipped with the same broken bundle. Earlier "successful" runs
+were almost certainly `npm run dev` (which loads node-pty from the
+repo's local node_modules) or installs that inherited node-pty on
+disk from a previous, differently-built bundle.
+
+Fix: replace the negative exclusion with a positive
+`node_modules/**/*` include. electron-builder smart-filters down to
+`package.json § dependencies`, so dev deps stay out and the bundle
+stays lean. Verified by rebuilding unsigned to
+`~/.cache/duo-build-test/`: the resulting Duo.app now has
+`app.asar.unpacked/node_modules/node-pty/build/Release/pty.node`,
+and smoke-launching it stays alive past 8s.
+
+**Toolchain hardening (load-bearing).** Owner asked: "what changes
+will you make to the build skill to NEVER do this again?" Answer:
+new `scripts/validate-dmg-launch.sh` with two layers — (1) static
+check that every module in `REQUIRED_RUNTIME_MODULES` (currently
+node-pty, chokidar, electron-updater) is reachable in either the
+asar or `app.asar.unpacked/`, and that native modules live
+specifically in unpacked; (2) dynamic check — mount, `open` the .app,
+sleep 8s, `pgrep` for the main process. Wired into both
+`scripts/dist-signed.sh` (after the existing signature/notarization
+validator) and the `cut-version` skill (Step 4.5, flagged
+non-negotiable). Catches the entire class of "DMG builds but crashes
+on launch" before the cut proceeds. Tested against both the broken
+v0.4.3 DMG (validator exits 1, names node-pty/chokidar/electron-updater
+as unreachable) and the fixed test build (passes both layers).
+
+Auto-update note: v0.4.3 users won't get v0.4.4 via auto-update —
+v0.4.3 crashes before electron-updater fetches `latest-mac.yml`.
+Manual install required.
+
+In parallel: Stage 26 (Navigator polish & ergonomics) was promoted
+from `backlog-nav-polish` with two new items folded in (BUG-025 —
+chevron-only hit target; ENH-010 — Pinned files & folders section
+at navigator bottom). Stage 26 PR 1 (items 1, 1b, 6, 7 — single/
+double-click semantics, chevron split, right-click delete/rename
++ CLI parity, hover-Claude button) shipped on
+`worktree-stage-26-nav-row-interaction` and opened as
+[duo#28](https://github.com/dudgeon/duo/pull/28). Three new bugs
+filed standalone for v0.5.0+ (BUG-026 markdown paste-as-code,
+BUG-027 ⌘⇧T browser pane should reopen last-closed, BUG-028
+⎋ inside the rename input doesn't dismiss).
+
+---
+
 ## 2026-04-27 mid-morning — v0.4.3 cut: owner punch-list patch
 
 Owner installed v0.4.2 prebuilt DMG (after enterprise approval came

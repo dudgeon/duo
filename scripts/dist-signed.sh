@@ -129,3 +129,7 @@ ls -lh dist/Duo-*.dmg
 echo
 echo "[duo] Validating signature + notarization..."
 bash "$REPO_ROOT/scripts/validate-signed-dmg.sh"
+
+echo
+echo "[duo] Validating launch + runtime modules (catches v0.4.0–v0.4.3-class node-pty crash)..."
+bash "$REPO_ROOT/scripts/validate-dmg-launch.sh"

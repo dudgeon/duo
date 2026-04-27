@@ -253,11 +253,56 @@ ls -lh dist/Duo-*.dmg             # confirm a DMG with the new version
                                   # in its filename exists
 ```
 
+##### Mandatory: launch-smoke validation
+
+```bash
+bash scripts/validate-dmg-launch.sh dist/Duo-X.Y.Z-arm64.dmg
+                                  # static + dynamic checks. Mounts
+                                  # the DMG, confirms the bundle has
+                                  # app.asar.unpacked/node_modules/
+                                  # with the required runtime
+                                  # modules (node-pty, chokidar,
+                                  # electron-updater), then opens
+                                  # the .app and verifies the
+                                  # process is alive past 8s.
+                                  # Exits non-zero on failure.
+```
+
+**This step is non-negotiable.** It exists because v0.4.0–v0.4.3
+shipped DMGs that crashed on launch with "Cannot find module
+'node-pty'" — a bad `electron-builder.yml § files` config silently
+excluded all node_modules from the bundle. The asar built fine, the
+DMG packaged fine, codesign succeeded, notarization succeeded —
+nothing in the build pipeline noticed. The only signal was the
+end-user double-clicking the app and seeing an Uncaught Exception.
+
+`scripts/validate-dmg-launch.sh` catches this class of bug at cut
+time. Two layers:
+
+1. **Static** — confirm `app.asar.unpacked/node_modules/` exists
+   and contains every module in `REQUIRED_RUNTIME_MODULES` (top of
+   the script). Cheap, deterministic, names the specific failure
+   mode in the error message.
+2. **Dynamic** — mount the DMG, `open` the .app, sleep 8s, confirm
+   the main process is still alive. Catches anything else that
+   crashes on startup (config typos, broken imports, missing
+   entitlements, Sequoia bundle-validation regressions).
+
+**When you add a new main-process production dep**, update
+`REQUIRED_RUNTIME_MODULES` at the top of the script. That's the
+only maintenance the validator needs.
+
+If the validator fails, **abort the cut**. Don't push, don't
+release, don't tag. Fix the root cause (almost always
+`electron-builder.yml § files` or `electron.vite.config.ts`'s
+`externalizeDepsPlugin` config), rebuild, re-validate.
+
 Do NOT `git add dist/` — `dist/` is gitignored. The DMG is a build
 artifact tracked outside the repo. Step 6.5 below uploads it to
 GitHub Releases. A future cut shouldn't be considered "done" until
-at least the local DMG exists — that's what proves the build
-pipeline still works.
+at least the local DMG exists AND the launch-smoke validator
+passes — that's what proves the build pipeline still works
+end-to-end.
 
 **Dev-mode banner oddity to flag in the user-facing notes:** because
 the install service runs the same code path regardless of

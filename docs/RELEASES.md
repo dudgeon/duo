@@ -21,8 +21,76 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.4.3 below absorbed the v0.4.2 punch-list cluster (7 bugs +
-ENH-008 tooltip + ENH-009 expanded off-host defaults)._
+_Empty. v0.4.4 below ships a one-line build-config hotfix._
+
+---
+
+## v0.4.4 — 2026-04-27
+
+**The "DMG launch fix" hotfix.** Every DMG cut from v0.4.0 through v0.4.3
+shipped with this bug latent in `electron-builder.yml § files`: a
+`"!node_modules/**/*"` exclusion meant zero production node_modules
+made it into the bundle, so externalized main-process modules
+(`node-pty`, `chokidar`, `electron-updater`) couldn't be `require()`d
+at runtime. The DMGs would crash on launch with an Uncaught Exception
+before reaching the renderer. The asar built fine, codesign succeeded,
+notarization succeeded; the only signal was the end-user double-clicking
+the app and seeing the crash dialog.
+
+The fix is one line: replace the negative exclusion with a positive
+`node_modules/**/*` include. electron-builder's smart filter restricts
+that to `package.json § dependencies`, so dev deps still stay out and
+the bundle stays lean. Verified by rebuilding unsigned and confirming
+`app.asar.unpacked/node_modules/node-pty/build/Release/pty.node` ships
+in the resulting Duo.app, then smoke-launching the .app and confirming
+it stays alive past 8s.
+
+### Why the bug went undetected for so long
+
+The config has been like this since the original Stages 1–3 scaffold
+commit (`d1e4d84`). v0.4.0 / v0.4.1 / v0.4.2 / v0.4.3 all shipped with
+the same broken bundle. The bug only surfaced when a fresh DMG install
+hit the require() — prior "successful" runs were almost certainly
+`npm run dev` (which loads node-pty from the repo's local node_modules)
+or installs that inherited node-pty on disk from a previous,
+differently-built bundle.
+
+### What changed in the toolchain to prevent recurrence
+
+The cut-version skill grew a **mandatory launch-smoke validation** step:
+`scripts/validate-dmg-launch.sh`. Two layers of check:
+
+1. **Static.** Mounts the DMG, confirms every module in
+   `REQUIRED_RUNTIME_MODULES` (currently `node-pty`, `chokidar`,
+   `electron-updater`) is reachable from inside `app.asar` OR
+   `app.asar.unpacked/`. Additionally enforces that native modules
+   (currently just `node-pty`) live specifically in `app.asar.unpacked/`
+   because Node can't `dlopen()` from inside an asar archive.
+2. **Dynamic.** `open` the .app, sleep 8s, `pgrep` for the main process.
+   Catches anything else that crashes on startup — config typos,
+   import failures, missing entitlements, Sequoia bundle-validation
+   regressions.
+
+`scripts/dist-signed.sh` now invokes this validator after the existing
+signature/notarization validator. The `cut-version` skill flags it as
+non-negotiable in Step 4.5. The whole class of "DMG builds successfully
+but crashes on launch" gets caught at cut time, not release time.
+
+### Auto-update note
+
+v0.4.3 users won't get v0.4.4 via auto-update — v0.4.3 crashes before
+electron-updater fetches `latest-mac.yml`. Manual install of v0.4.4
+from the GitHub Release is required. v0.4.4 onwards resumes
+auto-update normally (and v0.4.4's launch validation guarantees the
+DMG actually launches before it reaches the GitHub Release).
+
+### What's queued next
+
+Stage 26 PR 1 (navigator row-interaction — single/double-click
+semantics, chevron-only hit target, right-click delete/rename,
+hover-Claude button) is open at [duo#28](https://github.com/dudgeon/duo/pull/28)
+awaiting review; it lands in v0.5.0 alongside Stage 21e fork-friendly
+architecture and the deferred ENH-005/006/007.
 
 ---
 

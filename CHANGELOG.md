@@ -19,6 +19,42 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.4.4] — 2026-04-27
+
+The "DMG launch fix" hotfix. v0.4.0–v0.4.3 all shipped DMGs that crashed
+on first launch with `Cannot find module 'node-pty'` — `electron-builder.yml § files` had `"!node_modules/**/*"` which excluded
+all production node_modules from the bundle. The asar built fine, the
+DMG packaged fine, codesign and notarization succeeded; the only signal
+was the end-user double-clicking and getting an Uncaught Exception.
+The bug had been latent since the original Stages 1–3 scaffold; prior
+versions worked when the user happened to be running `npm run dev` or
+when a previous DMG install had left node-pty on disk by side effect.
+
+Auto-update from v0.4.3 won't reach v0.4.4 — v0.4.3 crashes before
+electron-updater fetches `latest-mac.yml`. v0.4.3 users need to install
+v0.4.4 manually from the GitHub Release. v0.4.4 onwards resumes
+auto-update normally.
+
+### Fixed
+- DMG no longer crashes on launch (`Cannot find module 'node-pty'`):
+  `electron-builder.yml § files` replaced the catch-all `"!node_modules/**/*"` exclusion with `node_modules/**/*` so
+  production deps actually ship. electron-builder smart-filters the
+  glob down to `package.json § dependencies` (dev deps stay out).
+  `app.asar.unpacked/node_modules/node-pty/build/Release/pty.node`
+  now ships in every cut.
+
+### Changed
+- `cut-version` skill grew a mandatory **launch-smoke validation**
+  step (`scripts/validate-dmg-launch.sh`). Two layers: (1) static —
+  confirm every module in `REQUIRED_RUNTIME_MODULES` is reachable
+  in either the asar or `app.asar.unpacked/`, and that native modules
+  (`node-pty`) live specifically in unpacked; (2) dynamic — mount
+  the DMG, `open` the .app, sleep 8s, confirm the main process is
+  alive. `scripts/dist-signed.sh` now invokes the validator after
+  the existing signature/notarization checks so signed cuts get the
+  same coverage. Catches the entire class of "DMG builds but
+  crashes on launch" failure modes before the cut proceeds.
+
 ## [0.4.3] — 2026-04-27
 
 The "v0.4.2 punch list" patch. Owner installed v0.4.2, walked the
