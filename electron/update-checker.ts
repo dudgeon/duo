@@ -27,7 +27,11 @@ import * as os from 'os'
 import { app } from 'electron'
 
 const CACHE_PATH = path.join(os.homedir(), '.claude', 'duo', 'update-check.json')
-const RELEASES_LATEST_URL = 'https://api.github.com/repos/dudgeon/duo/releases/latest'
+// Stage 21e-ii — `__DUO_PUBLISH_OWNER__` and `__DUO_PUBLISH_REPO__`
+// are Vite-injected compile-time constants (see
+// shared/fork-config.d.ts + electron.vite.config.ts). Forkers
+// edit fork.config.json; the bundle gets their owner/repo.
+const RELEASES_LATEST_URL = `https://api.github.com/repos/${__DUO_PUBLISH_OWNER__}/${__DUO_PUBLISH_REPO__}/releases/latest`
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 
 interface CachedCheck {
