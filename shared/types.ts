@@ -1084,6 +1084,15 @@ export interface InstallResult {
   status?: InstallStatus
   /** When ok=false, a short user-readable explanation. */
   error?: string
+  /** Stage 21e-iii — relative paths under ~/.claude/ that the install
+   *  service WANTED to overwrite but the user's on-disk version
+   *  differed from the previously-recorded SHA. We left those files
+   *  alone; the user's customizations are preserved. The renderer
+   *  surfaces this in the install-result banner so the user knows
+   *  which of their edits survived (and which Duo-shipped updates
+   *  they're missing). Empty array = all writable files were either
+   *  unchanged or freshly created. */
+  preservedConflicts?: string[]
 }
 
 export interface ElectronInstallAPI {
