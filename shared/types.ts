@@ -209,6 +209,83 @@ export interface PinEntry {
   title?: string
 }
 
+// Stage 21c — session state restored across Duo relaunches.
+// Persisted at ~/.claude/duo/session-state.json. Identity-bearing
+// IDs (tab UUIDs, BrowserTab numeric ids) are session-local and
+// regenerated on each launch; persistence keys off durable
+// references (path, url, cwd) instead.
+export interface SessionStateTerminal {
+  cwd: string
+  kind: TerminalTabKind
+  /** Display title at save time. Restored as-is so the user sees the
+   *  same labels they had before the reload. New PTYs may overwrite
+   *  this with a CWD-derived basename once they boot. */
+  title: string
+}
+
+export interface SessionStateFileTab {
+  /** Absolute path to the file. Restored tabs reload the buffer from
+   *  disk on first render; unsaved-edit recovery is out of scope for
+   *  v1 (would need an autosave layer). */
+  path: string
+  /** WorkingTabType minus 'browser'. Mirrors the FileTab.type field. */
+  type: 'editor' | 'html-canvas' | 'markdown-preview' | 'image' | 'pdf' | 'unknown'
+  mime: string
+}
+
+export interface SessionStateBrowserTab {
+  url: string
+  title: string
+}
+
+export type SessionStateActiveWorking =
+  | { kind: 'browser'; index: number }
+  | { kind: 'file'; path: string }
+  | null
+
+export interface SessionState {
+  /** Schema version. Bumped on breaking changes; old schemas return
+   *  empty state so a fresh launch isn't confused by stale data. */
+  version: 1
+  /** ISO timestamp of the most recent successful save. Diagnostic
+   *  only — restore doesn't gate on freshness. */
+  savedAt: string
+  /** `app.getVersion()` at save time. Diagnostic only. */
+  appVersion: string
+
+  terminals: SessionStateTerminal[]
+  /** Index into `terminals` of the active terminal at save time.
+   *  -1 (or out-of-range) → restore picks index 0. */
+  activeTerminalIndex: number
+
+  browserTabs: SessionStateBrowserTab[]
+  /** Index into `browserTabs` of the active browser tab. */
+  activeBrowserIndex: number
+
+  fileTabs: SessionStateFileTab[]
+  /** What the WorkingPane was showing at save time. Restored after
+   *  the tab arrays are rehydrated. */
+  activeWorking: SessionStateActiveWorking
+
+  /** The path that the file navigator was rooted at. Empty string =
+   *  fall back to home dir on next launch. */
+  navigatorPath: string
+}
+
+/** Empty/default state for first launches and corrupt-file recovery. */
+export const EMPTY_SESSION_STATE: SessionState = {
+  version: 1,
+  savedAt: '',
+  appVersion: '',
+  terminals: [],
+  activeTerminalIndex: -1,
+  browserTabs: [],
+  activeBrowserIndex: -1,
+  fileTabs: [],
+  activeWorking: null,
+  navigatorPath: '',
+}
+
 export interface BrowserState {
   url: string
   title: string
@@ -579,6 +656,14 @@ export const IPC = {
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
   PINS_TOGGLE: 'pins:toggle',
+
+  // Stage 21c — session state restored across relaunches
+  // (~/.claude/duo/session-state.json). Renderer pulls on mount,
+  // debounce-saves on each change. Persists terminal CWDs, file
+  // tabs, browser tabs, navigator path so reload feels like
+  // resuming, not starting over.
+  SESSION_STATE_LOAD: 'session-state:load',
+  SESSION_STATE_SAVE: 'session-state:save',
 
   // Stage 18 — first-launch self-install (skill + subagent + provenance).
   INSTALL_STATUS: 'install:status',
@@ -1067,6 +1152,19 @@ export interface ElectronAppMenuAPI {
   onPastePlainRequest: (cb: () => void) => () => void
 }
 
+// Stage 21c — session state restored across Duo relaunches.
+// ~/.claude/duo/session-state.json. Renderer pulls on mount,
+// debounce-saves on every state change.
+export interface ElectronSessionStateAPI {
+  /** Read the persisted session state. Returns the empty state on
+   *  first launch / corrupt-file / missing-file conditions — never
+   *  rejects. */
+  load: () => Promise<SessionState>
+  /** Push the current state. Coalesced + debounced in main; safe to
+   *  call on every state change without thrash. */
+  save: (state: SessionState) => Promise<void>
+}
+
 export interface ElectronAPI {
   env: ElectronEnv
   pty: ElectronPtyAPI
@@ -1085,6 +1183,7 @@ export interface ElectronAPI {
   update: ElectronUpdateAPI
   external: ElectronExternalAPI
   appMenu: ElectronAppMenuAPI
+  sessionState: ElectronSessionStateAPI
 }
 
 declare global {

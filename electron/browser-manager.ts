@@ -88,6 +88,36 @@ export class BrowserManager {
 
   // ── Tab management ─────────────────────────────────────────────────────────
 
+  /** Stage 21c — restore browser tabs from a persisted session. The
+   *  constructor's default-tab call has already opened one tab; this
+   *  method navigates that first tab to `savedTabs[0]` and adds
+   *  additional tabs for `savedTabs[1..N]`. Idempotent at the
+   *  signature level — calling with an empty array is a no-op. */
+  async restoreFromSession(savedTabs: { url: string; title: string }[], activeIndex: number): Promise<void> {
+    if (savedTabs.length === 0) return
+
+    // Repurpose the constructor's default tab as the first restored tab
+    const firstTab = this.tabs[0]
+    if (firstTab) {
+      try { await firstTab.view.webContents.loadURL(savedTabs[0].url) } catch { /* page-load errors are user-visible already */ }
+    }
+
+    // Add the rest
+    for (let i = 1; i < savedTabs.length; i++) {
+      this.addTab(savedTabs[i].url)
+    }
+
+    // Switch to the active tab if the index is valid
+    if (activeIndex >= 0 && activeIndex < this.tabs.length) {
+      const target = this.tabs[activeIndex]
+      if (target) {
+        try { await this.switchTab(target.id) } catch { /* ignore */ }
+      }
+    }
+
+    this.emitTabs()
+  }
+
   addTab(url = defaultLandingUrl()): TabEntry {
     const ses = session.fromPartition(BROWSER_SESSION_PARTITION)
     const view = new WebContentsView({
