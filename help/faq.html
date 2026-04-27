@@ -101,6 +101,17 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.4.2 release auto update electron updater session restore reload reopen tabs terminals browsers files how to fork stage 21c stage 21e">
+  <h3>v0.4.2 — auto-update + session restore <span class="date">2026-04-27</span></h3>
+  <p>Two long-standing papercuts close: (1) Duo now auto-updates over GitHub Releases — no more "see the banner, click the link, manually re-download the DMG, drag to /Applications." Background download, native macOS "Restart Duo to install update?" dialog when ready, defer-on-quit so the next clean cmd-Q applies the update if you missed the prompt. (2) Closing Duo and reopening it now resumes to the same terminals (with their CWDs), file tabs, and browser tabs you had open — closes <a href="https://github.com/dudgeon/duo/issues/24">issue #24</a>.</p>
+  <ul>
+    <li><strong>Auto-update via GitHub Releases (Stage 21c Phase 1).</strong> Background poll on app launch + silent download; Electron's native macOS update dialog when ready. Works because v0.4.1 onwards is signed (<code>electron-updater</code> verifies the new build's Developer ID matches the running app's). Pre-v0.4.1 unsigned installs need ONE manual upgrade to v0.4.1+ before auto-update kicks in. Coexists with the v0.4.0 GH-Releases banner (which becomes informational/fallback).</li>
+    <li><strong>Session restore on relaunch (Stage 21c Phase 2).</strong> State at <code>~/.claude/duo/session-state.json</code> tracks terminal CWDs + kinds (shell vs claude), file-tab paths + types, browser-tab URLs, and active selection. Saves debounce-on-change (500ms in renderer + 250ms in main) plus a flush-on-quit so cmd-Q during a debounce window doesn't drop your last state. Pin restoration was already shipped via <code>pins.json</code> (Stage 24).</li>
+    <li><strong>How to fork Duo doc.</strong> New <code>docs/HOW-TO-FORK.md</code> for would-be forkers (internal enterprise teams, individuals). Five layered fork modes from "use as-is" to "build-time full fork with own GitHub Releases upstream"; what's possible today vs. coming-soon via Stage 21e (the next major distribution-polish work).</li>
+  </ul>
+  <p style="margin-top: 10px;"><strong>Known limitations at v0.4.2:</strong> live <code>cd</code> movement inside the shell isn't tracked (only spawn cwd persists across relaunches). Unsaved file-tab edits at quit time are LOST — there's no autosave layer (matches macOS native-app norms). Browser scroll / form state not captured. Browser history persistence (Stage 21c Phase 3 — issue #27) is still ⬜. Stage 21e (fork-friendly architecture) is in flight; v0.4.2 ships the doc but not the implementation — forkers today still patch seven files by hand.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.4.1 release sandbox resilience tcp fallback duo doctor diagnostic stage 20 install path claude code seatbelt enterprise capital one wait timeout">
   <h3>v0.4.1 — sandbox resilience <span class="date">2026-04-27</span></h3>
   <p>Closes the silent-failure mode where every <code>duo</code> command died inside a sandboxed Claude Code session. Capital One (and other enterprise) Claude Code installs run with default Seatbelt policy, which blocks Unix-domain sockets — and Duo's whole agent-side bridge ran on one. Three pieces moved: a TCP fallback transport alongside the Unix socket, a new <code>duo doctor</code> verb that names the failure mode instead of leaving you guessing, and a sandbox-writable default install path.</p>

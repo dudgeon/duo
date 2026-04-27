@@ -21,9 +21,98 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.4.1 below absorbed the full Stage 20 sandbox-resilience
-cluster (TCP fallback + `duo doctor` + sandbox-safe install path +
-`duo wait --timeout` race fix)._
+_Empty. v0.4.2 below absorbed the Stage 21c Phase 1+2 work
+(electron-updater + session restore) plus the HOW-TO-FORK doc + Stage
+21e roadmap entries._
+
+---
+
+## v0.4.2 — 2026-04-27
+
+The "auto-update + session restore" release. Two long-standing
+papercuts close:
+
+1. **Auto-update.** Today's flow is "see GH-Releases banner → click
+   link → manually re-download the DMG → drag to /Applications →
+   relaunch." With v0.4.2, signed Duo installs poll GitHub Releases
+   in the background, download new builds silently when published,
+   and prompt the user with a native macOS dialog ("Restart Duo to
+   install update?"). Defer-on-quit means even if the user never
+   sees the prompt, the next clean cmd-Q applies it. Stage 21c
+   Phase 1.
+
+2. **Session restore.** Issue #24, filed weeks ago: when Duo
+   reloads, it should resume to the same terminals, files, and
+   browser tabs the user had open. v0.4.2 ships it. State lives at
+   `~/.claude/duo/session-state.json` (atomic-write-rename, debounced,
+   flush-on-quit). Stage 21c Phase 2.
+
+Plus a new doc — `docs/HOW-TO-FORK.md` — laying out the five layered
+fork modes (use-as-is, per-user customization, drop-in org pack,
+build-time partial fork, build-time full fork) and what's possible
+today vs. coming-soon via Stage 21e.
+
+### Why v0.4.2 lands here
+
+Two reasons. First: **closing #24 has been overdue.** With Stage 21a
+(signed cut) behind us, the foundation for polished distribution
+ergonomics matters more than ever; auto-update is the exact mile of
+that road, and session restore is the daily-driver ergonomic that
+makes it feel finished.
+
+Second: **the alternative was waiting for the full Stage 21
+distribution-polish cluster.** Auto-update + session restore are 21c
+Phase 1+2; Phase 3 (browser history) is independent and can ship
+later; 21b (custom app icon) is design-blocked; 21d (socket auth)
+is Trailblazers-distro work that doesn't gate daily-driver
+ergonomics; 21e (fork-friendly architecture) is in flight on its own
+branch. Cutting v0.4.2 now means the auto-update foundation exists
+for v0.5.0+ to flow into automatically.
+
+### Three key design decisions baked in
+
+- **electron-updater's native dialogs are the v1 UI.** No custom
+  "Update available — Download? Install?" banner-integrated
+  experience. Reasoning: macOS users recognize the native dialog
+  pattern (Sparkle, Apple's own software updater); replacing it with
+  custom chrome adds work without obvious UX gain. Phase 1.5
+  (banner-integrated update events) is filed as a follow-on if the
+  native dialogs feel jarring in practice.
+- **Session-restore IDs are durable, not ephemeral.** Tab UUIDs are
+  session-local and regenerated on each launch; persistence keys off
+  durable references (path for files, url for browsers, cwd for
+  terminals). On restore, fresh IDs are minted.
+- **Navigator path stays on its own localStorage layer.** Stage 10's
+  `useNavigator` already persists CWD via `localStorage` keys
+  (`duo.nav.cwd`). The session-state schema includes `navigatorPath`
+  for forward-compat but it's not currently wired — migrating
+  navigator's path persistence into session-state.json would be
+  churn for no functional change.
+
+### What this is and isn't
+
+This is the "ergonomics polish + auto-update foundation" release. It
+is **not** the Stage 21e fork-friendly architecture cut — that lands
+in v0.5.0 with build-time fork config (`fork.config.json`), runtime
+upstream-update endpoint injection via Vite, and provenance-aware
+install with conflict detection so user customizations survive
+upstream binary updates. v0.4.2's `docs/HOW-TO-FORK.md` previews
+those layers with "coming soon" markers; implementation already in
+flight on the `stage-21e-fork-friendly` branch.
+
+### What ships next
+
+- **Stage 21c Phase 3** — browser history persistence (issue #27).
+  Per-partition history capped at N entries surfacing in address-bar
+  autocomplete. Ships into a v0.4.3 patch or folds into v0.5.0.
+- **Stage 21e** — fork-friendly architecture. v0.5.0 target.
+- **Stage 18b** — distro skill packs. Pairs with Stage 21e.
+- **Stage 14 + 16** — markdown editor track-changes binding +
+  external-write reconciliation. Editor-maturity headline; v0.5.0
+  candidate.
+- **First real-world auto-update verification.** v0.4.2 → v0.5.0 (or
+  whatever the next signed cut is) is the first end-to-end test of
+  the auto-update path against a real installed v0.4.2.
 
 ---
 

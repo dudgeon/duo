@@ -18,6 +18,66 @@
 
 ---
 
+## 2026-04-27 morning — v0.4.2 cut: auto-update + session restore
+
+After the v0.4.1 cut + Stage 21 doc refresh, owner picked C (Stage
+21b/c work) for the next sprint. Multi-phase work shipped over
+several hours:
+
+**Phase 1 — `electron-updater` integration.** Lazy-loaded module at
+`electron/auto-updater.ts`; dev-mode no-op; `autoDownload: true`,
+`autoInstallOnAppQuit: true`. Native macOS dialog UX for v1 (no
+custom banner integration; future Phase 1.5 follow-on if jarring).
+`electron-builder.yml` grew a `publish: github` block so each build
+emits `latest-mac.yml` (the metadata file electron-updater fetches at
+runtime). `electron-updater@6.8.3` added as runtime dep. Pre-v0.4.1
+unsigned installs cannot auto-update — signature verification chains
+to the running cert; v0.4.0 lacks one. v0.4.0 users need ONE manual
+upgrade to v0.4.1+ before auto-update works; this is a one-time tax.
+
+**Phase 2 — Session restore on relaunch (closes issue #24).** New
+`SessionState` schema in `shared/types.ts` — terminals + file tabs +
+browser tabs + active selection + navigator path (last field unused;
+`useNavigator` keeps its existing localStorage persistence). New
+`electron/session-state-service.ts` with atomic-write-rename to
+`~/.claude/duo/session-state.json`; defensive load with corrupt-file
+recovery; debounced 250ms in main on top of renderer's 500ms;
+`flush()` on `app.before-quit` + `window-all-closed`. New IPC
+channels `SESSION_STATE_LOAD` / `SAVE`; preload surface
+`electron.sessionState.{load, save}`. App.tsx: one-shot mount-time
+load that replaces default tab seeds with persisted state (brief
+flicker is intentional; matches macOS native restore patterns);
+subscribed to `electron.browser.onTabsChange` for browser-tab tracking;
+debounced save effect tracks every persisted-field change. New
+`BrowserManager.restoreFromSession()` wired into `did-finish-load` so
+renderer is mounted when the resulting `BROWSER_TABS` broadcast
+fires.
+
+**Smoke verification before merge.** Three tiers: Tier 1 build +
+typecheck (clean). Tier 2 npm run dev → session-state.json appears
+within ~5s with default 1-terminal state. Tier 3 pre-populated state
+with 2 terminals (`/tmp` shell + duo-repo claude, active=1) →
+relaunch → state correctly restored + re-saved with fresh timestamp.
+All three pass.
+
+**Fork-friendly architecture preview.** Owner asked mid-sprint about
+supporting partial vs. full forks. New doc `docs/HOW-TO-FORK.md`
+landed on main with five layered fork modes (use-as-is, per-user
+customization, drop-in org pack, build-time partial fork, build-time
+full fork). Stage 21e added as a sub-stage of Stage 21 (i / ii / iii
+/ iv); v0.5.0 target. Implementation work in flight on
+`stage-21e-fork-friendly` branch (21e-i scaffolding committed as
+`86290ee` — `fork.config.default.json` + `scripts/load-fork-config.cjs`
++ `scripts/dist.sh` wrapper + yml stripped of identity fields +
+dist-signed.sh updated; verified end-to-end with a simulated fork).
+
+**Cut.** v0.4.2 = Stage 21c Phase 1+2 + HOW-TO-FORK doc. v0.5.0
+target = Stage 21e (fork-friendly arch implementation) +
+Phase 3 of 21c (browser history) + 18b (skill packs) +
+14/16 (editor track-changes), tbd.
+
+---
+
 ## 2026-04-27 dawn — Stage 21 ✅ shipped (signed + notarized DMG) + doc refresh
 
 Picked up the Stage 21 work after the parallel agent's v0.4.1 cut

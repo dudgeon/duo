@@ -19,6 +19,28 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.4.2] — 2026-04-27
+
+The "auto-update + session restore" release. Closes [issue #24](https://github.com/dudgeon/duo/issues/24) (resume where you left off on Duo relaunch) and lays the auto-update foundation that makes future signed releases roll out to existing users without a manual re-download.
+
+### Added
+
+- **Stage 21c Phase 1 — `electron-updater` integration.** Background-downloads new signed builds when GitHub Releases publishes a newer tag; surfaces macOS native dialog "Restart Duo to install update?" once download completes; auto-installs on next clean quit if user defers. Coexists with the v0.4.0 GH-Releases banner (which becomes informational/fallback). `electron/auto-updater.ts`, `electron-builder.yml` `publish: github` block, `electron-updater@6.8.3` dep, `latest-mac.yml` emitted per build.
+- **Stage 21c Phase 2 — session restore on relaunch.** Terminal CWDs + kinds (shell vs claude), file-tab paths + types, browser-tab URLs, active selection persist across Duo relaunches. Storage at `~/.claude/duo/session-state.json` (atomic-write-rename, debounced 500ms in renderer + 250ms in main, flush-on-quit so cmd-Q never drops state). New `electron/session-state-service.ts`, `SessionState` schema in `shared/types.ts`, hydration + save loop in `App.tsx`, `BrowserManager.restoreFromSession()` called after did-finish-load. Pin restoration already worked via Stage 24's `pins.json`.
+- **`docs/HOW-TO-FORK.md`** — for would-be forkers (internal enterprise teams, individuals, other orgs). Documents the two ways to get Duo running today (download prebaked DMG vs. self-compile), the five layered fork modes (Layer 0 = use as-is, Layer 1 = per-user customization, Layers 2-4 = "coming soon" via Stage 18b + 21e), and a "what's hard-coded today" inventory of the seven files where `dudgeon/duo` / `com.geoffdudgeon.duo` / `*.capitalone.com` appear. README cross-link in "Further reading" pointing here.
+- **Stage 21e roadmap entries.** Fork-friendly architecture as a new sub-stage of Stage 21 with four sub-substages: 21e-i (build-time fork config via `fork.config.json`), 21e-ii (runtime upstream-update endpoint via Vite injection), 21e-iii (provenance-aware install with conflict detection), 21e-iv (this doc + future README updates). Targeted at v0.5.0; work in flight on `stage-21e-fork-friendly` branch.
+
+### Changed
+
+- `docs/roadmap.html` + `ROADMAP.md` snapshot bar updated to "post-v0.4.1, post-Stage-21" with v0.4.1 sandbox-resilience headline; Stage 21 status section flipped from "remaining work is mechanical" to "✅ shipped 2026-04-27" with the iCloud File Provider root cause documented inline.
+
+### Known issues at v0.4.2
+
+- **Pre-v0.4.1 unsigned installs cannot auto-update.** `electron-updater` verifies the new build's Developer ID matches the running app's; unsigned v0.4.0 lacks the cert chain. v0.4.0 users will need ONE manual upgrade to v0.4.1 or later before auto-update kicks in.
+- **Browser history persistence (issue #27) deferred to a later cut** — Phase 3 of Stage 21c, not in this version. Address-bar autocomplete still suggests only currently-open tabs.
+- **Session-restore caveats**: live `cd` movement inside the shell isn't tracked (only spawn cwd persists; Starship-style prompt-string injection would be needed for live tracking); unsaved file-tab edits at quit time are LOST (no autosave layer; matches macOS native-app norms); browser scroll / form state isn't captured (no `WebContentsView` snapshot API).
+- **Stage 21e (fork-friendly architecture) not yet shipped.** Forkers today still patch seven files by hand; v0.5.0 will close that. See `docs/HOW-TO-FORK.md` for the current state.
+
 ## [0.4.1] — 2026-04-27
 
 The "sandbox-resilience" release. Closes the silent-failure mode where every `duo` command died inside a sandboxed Claude Code session (the default Seatbelt policy in Capital One — and other enterprise — Claude Code installs blocks Unix-domain sockets, and Duo's entire agent-side bridge ran on one). Three pieces moved: TCP fallback transport alongside the Unix socket, a new `duo doctor` diagnostic that names the sandbox failure mode explicitly, and a sandbox-writable default install path. Plus a `duo wait --timeout` race fix.
