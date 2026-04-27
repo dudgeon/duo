@@ -21,10 +21,11 @@ npm-debug.log*
 .env
 .env.local
 
-# Local npm config — for forkers behind a custom registry (Cap One
-# Artifactory, JPMorgan internal mirror, etc.). README's "Behind a
-# custom npm registry" note explains the workaround. Per-machine
-# registry URLs and auth tokens never go upstream.
+# Local npm config — for forkers behind a private corporate registry
+# mirror (Artifactory, Nexus, JFrog, or any enterprise proxy). The
+# README's "Behind a custom npm registry" note explains the
+# workaround. Per-machine registry URLs and auth tokens never go
+# upstream.
 .npmrc
 
 # Code-signing / notarization secrets — never commit

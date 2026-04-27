@@ -128,12 +128,12 @@ npm install        # runs electron-rebuild for node-pty
 npm run dev        # launches the Electron app
 ```
 
-> **Behind a custom npm registry (enterprise Artifactory, etc.)?**
-> If your environment routes npm through a private mirror (Cap One
-> Artifactory, JPMorgan internal registry, generic enterprise
-> proxy), the public registry default in this repo's `package-
-> lock.json` won't resolve cleanly. Set your registry locally — do
-> NOT commit upstream:
+> **Behind a custom npm registry?**
+> If your company routes npm through a private mirror — Artifactory,
+> Nexus, JFrog, or any generic corporate proxy — the public registry
+> default in `package-lock.json` won't resolve cleanly and you'll get
+> 401/403/connection-refused errors during `npm install`. Override
+> your registry locally — do NOT commit upstream:
 >
 > ```bash
 > # Option A — per-command override
@@ -144,11 +144,11 @@ npm run dev        # launches the Electron app
 > npm install
 > ```
 >
-> The repo's upstream `.npmrc` deliberately stays empty — Duo aims
-> to be fork-friendly (see [docs/HOW-TO-FORK.md](docs/HOW-TO-FORK.md))
-> and a baked-in enterprise registry would break every contributor
-> who isn't on that org's network. `.npmrc` is gitignored so your
-> local override stays put across pulls without leaking upstream.
+> The repo's upstream `.npmrc` is intentionally absent — Duo aims to
+> be fork-friendly (see [docs/HOW-TO-FORK.md](docs/HOW-TO-FORK.md))
+> and a baked-in registry URL would break every contributor outside
+> that network. `.npmrc` is gitignored so your local override stays
+> put across pulls without leaking upstream.
 
 ### Install the `duo` CLI and skill
 
