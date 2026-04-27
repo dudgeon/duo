@@ -18,6 +18,65 @@
 
 ---
 
+## 2026-04-27 early — v0.4.1 cut: sandbox-resilience cluster
+
+Owner kicked off the morning with "what's incomplete on the roadmap
+and what should we build next?" The survey landed on Stage 20's
+sandbox-resilience cluster as the highest-leverage next move:
+every Capital One Claude Code session has been silently failing on
+the Unix socket (default Seatbelt policy blocks them) and the
+`docs/DECISIONS.md` ADR for sandbox-tolerant transport had been
+sitting Open for four days. Owner said "use a worktree", and we
+shipped the cluster on `worktree-stage-20-sandbox-transport`:
+
+- **TCP fallback** in `electron/socket-server.ts` — a second
+  listener on `127.0.0.1:0` ephemeral port, per-launch random
+  token published to `~/Library/Application Support/duo/duo.port`
+  (mode 0o600), token required as the first NDJSON line of every
+  TCP connection. Both transports share one dispatch loop.
+- **CLI fallback** in `cli/duo.ts` — try Unix first; on
+  `EPERM` / `ECONNREFUSED` / `ENOENT` / connect-timeout, read the
+  port file and reconnect over TCP. `DUO_TCP_ONLY=1` forces the
+  fallback path for testing.
+- **`duo doctor`** — new CLI verb. Probes both transports via a
+  cheap `ping` cmd, reports app/CLI version match, `$DUO_SESSION`
+  presence, install-path discovery, skill/agent-file presence.
+  Names "Claude Code sandbox detected (Unix socket blocked) —
+  using TCP fallback" when that's the failure pattern.
+- **Sandbox-safe install path** — `duo install` now prefers
+  `~/.claude/bin/duo` over `/usr/local/bin/duo`. `--system`
+  opts back into the legacy path with sudo.
+- **`duo wait --timeout` race fix** — socket cap now
+  `max(explicit + 5s, default)`, so `duo wait --timeout 30000`
+  stops being killed at the 10s cap.
+
+Smoke verified live against `npm run dev`: Unix happy path, forced
+TCP path, `duo doctor` output (both transports green), bad-token
+TCP rejection, `duo wait --timeout 12000` waited 12.1s (not 10s),
+missing-socket fallthrough, both-missing graceful die.
+
+**Mid-cut sequencing decision.** The signing/notarization work
+(Stage 21) is on a parallel branch `stage-21-signing-toolchain`
+with an Electron 24→26 upgrade in scope — the larger and more
+invasive change. Owner's instinct: merge sandbox-resilience first
+as v0.4.1 (unsigned), then rebase signing on top. We agreed: the
+asymmetric rebase cost (small file-isolated change vs.
+node_modules-deep platform upgrade) makes this the cheaper
+ordering, and the user-value argument is decisive (sandbox
+resilience helps users today; signing helps Trailblazers next
+month). Cut as proposed.
+
+**Owed.** Real-sandbox confirmation of the TCP fallback comes from
+the owner's next Capital One Claude Code session post-install (we
+smoke-tested via `DUO_TCP_ONLY=1` simulation, not actual sandbox).
+The rest of the Stage 20 cluster is still ⬜: tab numbers in the
+unified strip, terminal selection refinements, `duo reload`,
+pane-aware `⌘+/-` zoom shortcuts (issues #22 / #23), PTY-side
+sandbox audit (issue #12). Stage 21 signing branch will rebase
+onto this v0.4.1 base when ready.
+
+---
+
 ## 2026-04-26 late (after v0.3.1) — v0.4.0 cut: context pedagogy
 
 Five-feature sprint, autonomous overnight. Owner went to bed asking

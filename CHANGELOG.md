@@ -19,6 +19,30 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-04-27
+
+The "sandbox-resilience" release. Closes the silent-failure mode where every `duo` command died inside a sandboxed Claude Code session (the default Seatbelt policy in Capital One — and other enterprise — Claude Code installs blocks Unix-domain sockets, and Duo's entire agent-side bridge ran on one). Three pieces moved: TCP fallback transport alongside the Unix socket, a new `duo doctor` diagnostic that names the sandbox failure mode explicitly, and a sandbox-writable default install path. Plus a `duo wait --timeout` race fix.
+
+### Added
+
+- **Stage 20 — TCP fallback transport.** `electron/socket-server.ts` now dual-listens on the Unix socket (chmod 0700, primary) and an ephemeral 127.0.0.1 TCP port, with a per-launch random auth token published to `~/Library/Application Support/duo/duo.port` (mode 0600). The CLI tries the Unix socket first; on `EPERM` / `ECONNREFUSED` / `ENOENT` / connect-timeout it reads the port file and reconnects over TCP, sending the token as the first NDJSON line of the handshake. `DUO_TCP_ONLY=1` forces the fallback path for testing. Non-sandboxed sessions never notice — they stay on the faster Unix socket. (`electron/socket-server.ts`, `cli/duo.ts`, `electron/constants.ts`, `shared/types.ts`)
+- **Stage 20 — `duo doctor` diagnostic.** New CLI verb that probes both transports via a cheap `ping` socket cmd, reports app/CLI version match, `$DUO_SESSION` presence, install-path discovery, and `~/.claude/skills/duo/` + `~/.claude/agents/duo.md` presence. Prints "Claude Code sandbox detected (Unix socket blocked) — using TCP fallback" with the recommended `.claude/settings.local.json` allowlist when that's the failure pattern. Skill troubleshooting now directs agents to run it first on any unrecognized failure. (`cli/duo.ts § runDoctor`)
+- **Stage 20 — sandbox-safe `duo install` path.** Default install order is now `~/.claude/bin/duo` → `~/.local/bin/duo`. The `~/.claude/` tree is writable from inside a sandboxed Claude Code PTY, so the installer keeps working even when invoked from `claude`. `--system` opts back into `/usr/local/bin/duo` (sudo + outside the sandbox). The command prints a one-line `export PATH=...` hint when the chosen target isn't already on PATH. (`cli/duo.ts § runInstall`)
+
+### Fixed
+
+- **`duo wait --timeout` socket-cap race.** `duo wait --timeout 30000` no longer hits the 10s socket timeout and dies with a misleading "Timeout waiting for response" while the renderer is still polling. CLI socket cap is now `max(explicit + 5s buffer, default)`. (`cli/duo.ts`)
+
+### Changed
+
+- **Skill troubleshooting reframed.** `skill/references/sandbox-troubleshooting.md` updates the post-Stage-20 framing — the TCP fallback now ships, so `allowUnixSockets` becomes one option (faster path) rather than the only fix. The skill's main troubleshooting section already directed agents to `duo doctor` first; now that's the load-bearing instruction.
+
+### Known issues at v0.4.1
+
+- TCP fallback validated via `DUO_TCP_ONLY=1` simulation; first real-sandbox confirmation comes from the owner's next Capital One Claude Code session post-install. The `duo doctor` output names the failure mode if anything's off.
+- Distribution remains unsigned. Stage 21 (signed + notarized + auto-update) is in flight on `stage-21-signing-toolchain` with an Electron 24→26 upgrade in scope.
+- The rest of the Stage 20 cluster is still ⬜: tab numbers in the unified strip, terminal selection / clipboard refinements, `duo reload`, pane-aware zoom shortcuts (issues #22 / #23), PTY-side sandbox audit (issue #12).
+
 ## [0.4.0] — 2026-04-26
 
 The "context pedagogy" release. Stage 22 reorganizes the file navigator into two panes that teach non-technical PMs that Claude reads from BOTH user-level and project-level context buckets. Plus four supporting features (GitHub Releases auto-update banner, Stage 25 post-redirect chrome banner with `*.capitalone.com` defaulted, Edit menu "Paste and Match Style", Stage 21 signed-cut script prep).

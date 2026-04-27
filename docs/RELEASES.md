@@ -21,9 +21,73 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.4.0 below absorbed the Stage 22 navigator overhaul +
-update-checker + Stage 25 chrome banner + Edit-menu paste-plain +
-Stage 21 signing prep._
+_Empty. v0.4.1 below absorbed the full Stage 20 sandbox-resilience
+cluster (TCP fallback + `duo doctor` + sandbox-safe install path +
+`duo wait --timeout` race fix)._
+
+---
+
+## v0.4.1 — 2026-04-27
+
+The "sandbox-resilience" release. Closes the silent-failure mode
+where every `duo` command died inside a sandboxed Claude Code
+session — the default Seatbelt policy in Capital One (and other
+enterprise) Claude Code installs blocks Unix-domain sockets, and
+Duo's entire agent-side bridge ran on one. Three pieces moved:
+
+1. **Dual-transport bridge.** `electron/socket-server.ts` now
+   listens on both the Unix socket (chmod 0700, primary, fast) and
+   an ephemeral 127.0.0.1 TCP port with a per-launch random auth
+   token published to `~/Library/Application Support/duo/duo.port`
+   (mode 0600). The CLI tries the Unix socket first; on `EPERM` /
+   `ECONNREFUSED` / `ENOENT` / connect-timeout it reads the port
+   file and reconnects over TCP, sending the token as the first
+   NDJSON line of the handshake. Non-sandboxed sessions never
+   notice; sandboxed sessions now Just Work.
+
+2. **Named diagnostic.** New `duo doctor` verb. Today, an
+   unrecognized `duo` failure inside a sandbox prompted Claude to
+   retry blindly and burn tokens. `doctor` probes both transports
+   via a cheap `ping` cmd, reports app/CLI version match,
+   `$DUO_SESSION` presence, install-path discovery, and
+   `~/.claude/skills/duo/` + `~/.claude/agents/duo.md` presence.
+   When the Unix socket is blocked but TCP works, it prints
+   "Claude Code sandbox detected (Unix socket blocked) — using TCP
+   fallback" so the failure mode is named, not inferred.
+
+3. **Sandbox-writable install path.** `duo install` now prefers
+   `~/.claude/bin/duo` over `/usr/local/bin/duo` because the
+   `~/.claude/` tree is writable from inside a sandboxed PTY.
+   `--system` opts back into the legacy path with sudo. The
+   command also prints a one-line `export PATH=...` hint when the
+   chosen target isn't already on the user's PATH.
+
+Plus a small race fix: `duo wait --timeout 30000` no longer hits
+the 10s socket cap and fails with "Timeout waiting for response"
+while the renderer is still polling. CLI socket cap is now
+`max(explicit + 5s buffer, default)`.
+
+**Why this lands here, vs. later.** Every Capital One Claude Code
+session has been failing silently — sandbox resilience helps users
+today. Stage 21 (signing + notarization + auto-update) is in
+flight on a parallel branch with an Electron 24→26 upgrade in
+scope; that work is the larger and more invasive change.
+Decoupling the sandbox fix from the platform upgrade ships value
+sooner and lets the signing branch rebase onto a clean base when
+ready. The asymmetric rebase cost (small file-isolated change vs.
+node_modules-deep platform upgrade) makes this ordering the
+cheaper one.
+
+**What this is and isn't.** This is the transport unblocker, not
+the polish. The full Stage 18 first-launch self-install is still
+pending. The rest of the Stage 20 cluster (tab numbers in the
+unified strip, terminal selection refinements, `duo reload`,
+pane-aware zoom shortcuts per issues #22 / #23, PTY-side sandbox
+audit per issue #12) still ⬜. Real-sandbox confirmation of the
+TCP fallback (vs. the `DUO_TCP_ONLY=1` simulation used here)
+comes from the owner's own Capital One Claude Code sessions
+post-install. The DMG ships unsigned; Stage 21 lands the signed
++ notarized build.
 
 ---
 

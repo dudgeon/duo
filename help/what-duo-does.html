@@ -453,6 +453,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="doctor health diagnostic sandbox claude code seatbelt tcp fallback transport unix socket capital one enterprise version">
+  <div class="num">37a</div>
+  <div>
+    <h3>Diagnose why <code>duo</code> commands are failing</h3>
+    <p class="why">When a <code>duo</code> call fails inside Claude Code, the most common cause is the macOS Seatbelt sandbox blocking Unix-domain sockets — the bridge Duo uses by default. <code>duo doctor</code> probes both transports (Unix socket + TCP fallback), reports app/CLI version match, <code>$DUO_SESSION</code> presence, install-path discovery, and skill/agent-file presence. When the Unix socket is blocked but TCP works, it prints a clear "Claude Code sandbox detected (Unix socket blocked) — using TCP fallback" line so the failure mode is named instead of inferred. The sandbox-tolerant TCP fallback ships in v0.4.1; runs transparently without configuration.</p>
+    <p class="how"><strong>CLI</strong><code>duo doctor</code></p>
+  </div>
+</article>
+
 <h2 class="cat">Workspace setup</h2>
 <p class="cat-tagline">Pin tabs you want always-available; install Duo's skill + agent + CLI in one click.</p>
 
