@@ -506,7 +506,12 @@ column with no shared edge.
 
 ### Sandbox-tolerant transport and install paths for the `duo` CLI
 
-**Status:** 🟡 Open / Proposed
+**Status:** 🟢 Partially decided & shipped 2026-04-27 — items 1–3
+landed in Stage 20 (TCP fallback + `duo doctor` + sandbox-safe
+install path). Item 4 (recommended Claude Code settings fragment)
+is documented in `skill/references/sandbox-troubleshooting.md`.
+Item 5 (last-resort `dangerouslyDisableSandbox` escape hatch)
+remains documentation-only.
 **Raised:** 2026-04-23
 **Needed before:** Stage 18 (first-launch self-install) for the
 install-path + settings fragment work; Stage 21 (distribution polish)
@@ -575,9 +580,9 @@ but the "sandbox-safe" framing overstated the case. The path is
 socket connection itself is not** on default policy. This ADR
 clarifies and supersedes that framing.
 
-**Proposed direction.**
+**Proposed direction.** (Items 1–3 ✅ shipped 2026-04-27 in Stage 20.)
 
-1. **TCP fallback alongside the Unix socket.** In
+1. **TCP fallback alongside the Unix socket.** ✅ shipped. In
    `electron/socket-server.ts`, additionally
    `server.listen(0, '127.0.0.1')` (ephemeral port; Electron owns
    both listeners). Write the chosen port and a per-install auth
@@ -590,7 +595,7 @@ clarifies and supersedes that framing.
    transparently. ~100 LoC change; mirrors the chrome-cdp-skill
    pattern.
 
-2. **`duo doctor` diagnostic.** A new CLI verb that reports, in
+2. **`duo doctor` diagnostic.** ✅ shipped. A new CLI verb that reports, in
    order: Electron app reachable via Unix socket? via TCP
    fallback? install path writable? `~/.claude/skills/duo/` present
    and current? `duo --version` vs. Electron app version? Prints a
@@ -599,7 +604,7 @@ clarifies and supersedes that framing.
    instructs the agent to run `duo doctor` on the first failed
    command so the sandbox failure mode is named, not inferred.
 
-3. **Sandbox-safe install path.** Change `duo install` to prefer
+3. **Sandbox-safe install path.** ✅ shipped. Change `duo install` to prefer
    `~/.claude/bin/duo` (the `~/.claude/` tree is writable under
    Claude Code's sandbox), fall back to `~/.local/bin/duo`, and
    only touch `/usr/local/bin/duo` on explicit opt-in. Emit a

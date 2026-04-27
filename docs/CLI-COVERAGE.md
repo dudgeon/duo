@@ -91,7 +91,8 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
-| `duo install` | Symlink CLI into PATH |
+| `duo doctor` | Stage 20 — health-check both transports (Unix socket + TCP fallback), report app/CLI version match, `$DUO_SESSION` presence, install path, skill files. First move when a `duo` command fails — names the sandbox failure mode instead of silent failures. Exits 0 if either transport reaches the app. |
+| `duo install [--system]` | Symlink CLI into a sandbox-safe location. Default order: `~/.claude/bin/duo` → `~/.local/bin/duo`. `--system` forces `/usr/local/bin/duo` (sudo + outside Claude Code's sandbox). Prints a `export PATH=...` hint when the chosen target isn't already on PATH. |
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 
@@ -106,7 +107,9 @@ heuristics. Set in `electron/pty-manager.ts` (D1–D3 in
 | Variable | Value | Notes |
 |---|---|---|
 | `DUO_SESSION` | `1` | Boolean-ish marker; presence is the signal. |
-| `DUO_SOCKET` | absolute path to `duo.sock` | The CLI prefers this over its hard-coded fallback path (D4), so future install-path changes or a TCP fallback flow through one knob. |
+| `DUO_SOCKET` | absolute path to `duo.sock` | The CLI prefers this over its hard-coded fallback path (D4). |
+| `DUO_PORT_FILE` | absolute path to `duo.port` (Stage 20) | Optional override for the TCP-fallback port file. Production paths use the default `~/Library/Application Support/duo/duo.port`; tests / smokes can point this elsewhere. |
+| `DUO_TCP_ONLY` | `1` to force the CLI past the Unix socket | Stage 20 — used by smoke tests / sandbox emulation to verify the TCP fallback wires up end-to-end. Production users should not set this. |
 | `DUO_VERSION` | `app.getVersion()` (e.g. `0.1.0`) | Lets the agent reason about feature availability per Duo build. |
 | `TERM_PROGRAM` | `Duo` | Mixed-case to match `Apple_Terminal` / `iTerm.app` / `vscode`. Tools that already key off `TERM_PROGRAM` (Powerlevel10k, oh-my-zsh, Starship) get a clean signal alongside the agent. |
 

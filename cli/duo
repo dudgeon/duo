@@ -30,21 +30,33 @@ var fs = __toESM(require("fs"));
 var import_crypto = require("crypto");
 var VERSION = "0.1.0";
 var SOCKET_PATH = process.env.DUO_SOCKET ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.sock");
+var PORT_FILE = process.env.DUO_PORT_FILE ?? path.join(os.homedir(), "Library", "Application Support", "duo", "duo.port");
 var TIMEOUT_MS = 1e4;
 var PER_CMD_TIMEOUT_MS = {
   "doc-write": 5 * 60 * 1e3
 };
-async function send(cmd, args = {}) {
-  if (!fs.existsSync(SOCKET_PATH)) {
-    die("Cannot connect: Duo app is not running.\nLaunch Duo.app first.");
+function readPortFile() {
+  try {
+    const raw = fs.readFileSync(PORT_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.port === "number" && typeof parsed.token === "string") {
+      return { port: parsed.port, token: parsed.token };
+    }
+  } catch {
   }
+  return null;
+}
+function sendOver(factory, cmd, args, timeoutMs) {
   return new Promise((resolve2, reject) => {
-    const socket = net.createConnection(SOCKET_PATH);
+    const { socket, preamble } = factory();
     const id = (0, import_crypto.randomUUID)();
     let buf = "";
     let done = false;
-    socket.setTimeout(PER_CMD_TIMEOUT_MS[cmd] ?? TIMEOUT_MS);
+    let connected = false;
+    socket.setTimeout(timeoutMs);
     socket.on("connect", () => {
+      connected = true;
+      if (preamble) socket.write(preamble);
       const req = { id, cmd, args };
       socket.write(JSON.stringify(req) + "\n");
     });
@@ -67,13 +79,58 @@ async function send(cmd, args = {}) {
       }
     });
     socket.on("timeout", () => {
-      if (!done) reject(new Error(`Timeout waiting for response to "${cmd}"`));
+      if (done) return;
+      const err = new Error(`Timeout waiting for response to "${cmd}"`);
+      err.code = connected ? "ETIMEDOUT_RESPONSE" : "ETIMEDOUT_CONNECT";
       socket.destroy();
+      reject(err);
     });
     socket.on("error", (err) => {
-      reject(new Error(`Socket error: ${err.message}`));
+      reject(err);
     });
   });
+}
+var FALLBACK_CONNECT_CODES = /* @__PURE__ */ new Set([
+  "EPERM",
+  // sandbox blocks Unix sockets
+  "ECONNREFUSED",
+  // app down, or stale socket file
+  "ENOENT",
+  // socket file vanished
+  "EAGAIN",
+  "ETIMEDOUT_CONNECT"
+]);
+async function send(cmd, args = {}, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? PER_CMD_TIMEOUT_MS[cmd] ?? TIMEOUT_MS;
+  if (process.env.DUO_TCP_ONLY !== "1" && fs.existsSync(SOCKET_PATH)) {
+    try {
+      return await sendOver(
+        () => ({ socket: net.createConnection(SOCKET_PATH) }),
+        cmd,
+        args,
+        timeoutMs
+      );
+    } catch (err) {
+      const code = err?.code;
+      if (!code || !FALLBACK_CONNECT_CODES.has(code)) throw err;
+    }
+  }
+  const portInfo = readPortFile();
+  if (!portInfo) {
+    if (!fs.existsSync(SOCKET_PATH)) {
+      die("Cannot connect: Duo app is not running.\nLaunch Duo.app first.");
+    }
+    die("Cannot connect: Unix socket failed and no TCP fallback available.\nRun `duo doctor` for details.");
+  }
+  return await sendOver(
+    () => {
+      const socket = net.createConnection({ host: "127.0.0.1", port: portInfo.port });
+      return { socket, preamble: JSON.stringify({ token: portInfo.token }) + "\n" };
+    },
+    cmd,
+    args,
+    timeoutMs
+  );
 }
 function out(value) {
   if (typeof value === "string") process.stdout.write(value + "\n");
@@ -333,7 +390,8 @@ async function main() {
         const selector = rest[0] ?? die("Usage: duo wait <selector> [--timeout ms]");
         const timeoutIdx = rest.indexOf("--timeout");
         const timeout = timeoutIdx !== -1 ? parseInt(rest[timeoutIdx + 1], 10) : void 0;
-        out(await send("wait", { selector, timeout }));
+        const socketTimeoutMs = timeout ? Math.max(timeout + 5e3, TIMEOUT_MS) : void 0;
+        out(await send("wait", { selector, timeout }, { timeoutMs: socketTimeoutMs }));
         break;
       }
       case "external": {
@@ -501,9 +559,14 @@ async function main() {
         out(await send("new-tab", args));
         break;
       }
-      case "install":
-        runInstall();
+      case "doctor":
+        await runDoctor();
         break;
+      case "install": {
+        const system = rest.includes("--system");
+        runInstall({ system });
+        break;
+      }
       default:
         die(`Unknown command: ${cmd}
 Run duo --help for usage`);
@@ -542,9 +605,15 @@ function resolveOpenTarget(target) {
   const encoded = absolute.split("/").map((seg) => encodeURIComponent(seg).replace(/%2F/g, "/")).join("/");
   return "file://" + encoded;
 }
-function runInstall() {
+function runInstall(opts = {}) {
   const self = fs.realpathSync(process.argv[1]);
-  const targets = ["/usr/local/bin/duo", path.join(os.homedir(), ".local", "bin", "duo")];
+  const targets = [];
+  if (opts.system) {
+    targets.push("/usr/local/bin/duo");
+  } else {
+    targets.push(path.join(os.homedir(), ".claude", "bin", "duo"));
+    targets.push(path.join(os.homedir(), ".local", "bin", "duo"));
+  }
   for (const target of targets) {
     try {
       fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -554,11 +623,121 @@ function runInstall() {
       }
       fs.symlinkSync(self, target);
       out(`Installed: ${target} \u2192 ${self}`);
+      const dir = path.dirname(target);
+      const userPath = (process.env.PATH ?? "").split(":");
+      if (!userPath.includes(dir)) {
+        out("");
+        out("Add this to your shell rc to put `duo` on PATH:");
+        out(`  export PATH="${dir}:$PATH"`);
+      }
       return;
     } catch {
     }
   }
-  die("Could not install duo. Try: sudo ln -sf " + self + " /usr/local/bin/duo");
+  if (opts.system) {
+    die("Could not install duo. Try: sudo ln -sf " + self + " /usr/local/bin/duo");
+  }
+  die("Could not install duo. Try: ln -sf " + self + " ~/.claude/bin/duo");
+}
+async function runDoctor() {
+  const lines = [];
+  const probe = async (factory) => {
+    return await sendOver(factory, "ping", {}, 3e3);
+  };
+  let unixOk = false;
+  let unixErr = null;
+  let appVersion = null;
+  if (fs.existsSync(SOCKET_PATH)) {
+    try {
+      const res = await probe(() => ({ socket: net.createConnection(SOCKET_PATH) }));
+      unixOk = true;
+      appVersion = res?.version ?? null;
+    } catch (err) {
+      const e = err;
+      unixErr = e.code ?? e.message ?? String(err);
+    }
+  } else {
+    unixErr = "socket file missing";
+  }
+  let tcpOk = false;
+  let tcpErr = null;
+  const portInfo = readPortFile();
+  if (portInfo) {
+    try {
+      const res = await probe(() => {
+        const socket = net.createConnection({ host: "127.0.0.1", port: portInfo.port });
+        return { socket, preamble: JSON.stringify({ token: portInfo.token }) + "\n" };
+      });
+      tcpOk = true;
+      if (!appVersion) appVersion = res?.version ?? null;
+    } catch (err) {
+      const e = err;
+      tcpErr = e.code ?? e.message ?? String(err);
+    }
+  }
+  lines.push(`duo CLI version: ${VERSION}`);
+  if (appVersion) {
+    const match = appVersion === VERSION ? " (matches)" : " (\u26A0 mismatch \u2014 relink the binary)";
+    lines.push(`Duo app version: ${appVersion}${match}`);
+  } else {
+    lines.push("Duo app version: unknown \u2014 could not reach app via either transport");
+  }
+  lines.push("");
+  lines.push("Transport");
+  lines.push(`  ${unixOk ? "\u2713" : "\u2717"} Unix socket \u2014 ${SOCKET_PATH}${unixErr ? `  (${unixErr})` : ""}`);
+  if (portInfo) {
+    lines.push(`  ${tcpOk ? "\u2713" : "\u2717"} TCP fallback \u2014 127.0.0.1:${portInfo.port}${tcpErr ? `  (${tcpErr})` : ""}`);
+  } else {
+    lines.push(`  \u2717 TCP fallback \u2014 no port file at ${PORT_FILE}`);
+  }
+  if (!unixOk && tcpOk) {
+    lines.push("");
+    lines.push("  \u2192 Claude Code sandbox detected (Unix socket blocked) \u2014 using TCP fallback.");
+    lines.push("  \u2192 To enable the faster Unix-socket path, add this to .claude/settings.local.json:");
+    lines.push('      { "permissions": { "allow": ["allowUnixSockets"] } }');
+  } else if (!unixOk && !tcpOk) {
+    lines.push("");
+    lines.push("  \u2192 Both transports failed. Is Duo.app running?");
+  }
+  lines.push("");
+  lines.push("Sandbox");
+  if (process.env.DUO_SESSION) {
+    lines.push(`  \u2713 $DUO_SESSION = ${process.env.DUO_SESSION}  (running inside a Duo PTY)`);
+  } else {
+    lines.push("  \xB7 $DUO_SESSION not set  (not in a Duo PTY \u2014 fine outside Duo)");
+  }
+  lines.push("");
+  lines.push("Install");
+  const cliPath = process.argv[1];
+  let cliReal = null;
+  try {
+    cliReal = fs.realpathSync(cliPath);
+  } catch {
+  }
+  lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` \u2192 ${cliReal}` : ""}`);
+  const knownInstallTargets = [
+    path.join(os.homedir(), ".claude", "bin", "duo"),
+    path.join(os.homedir(), ".local", "bin", "duo"),
+    "/usr/local/bin/duo"
+  ];
+  for (const t of knownInstallTargets) {
+    if (!fs.existsSync(t)) continue;
+    let real = null;
+    try {
+      real = fs.realpathSync(t);
+    } catch {
+    }
+    const matches = real && cliReal && real === cliReal;
+    lines.push(`  ${matches ? "\u2713" : "\xB7"} ${t}${real && real !== t ? ` \u2192 ${real}` : ""}`);
+  }
+  lines.push("");
+  lines.push("Skill");
+  const skillFile = path.join(os.homedir(), ".claude", "skills", "duo", "SKILL.md");
+  const agentFile = path.join(os.homedir(), ".claude", "agents", "duo.md");
+  lines.push(`  ${fs.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
+  lines.push(`  ${fs.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
+  process.stdout.write(lines.join("\n") + "\n");
+  process.exit(unixOk || tcpOk ? 0 : 1);
 }
 function printHelp() {
   console.log(`
@@ -731,7 +910,24 @@ COMMANDS
                                   spawn \u2014 wins over kind-default if both
                                   apply. Returns {id, kind, cwd, title}.
 
-  install                         Symlink duo to /usr/local/bin/duo
+  doctor                          Health-check both transports (Unix
+                                  socket + TCP fallback), report the
+                                  app/CLI version match, $DUO_SESSION
+                                  presence, install path, and skill
+                                  files. First move when a duo
+                                  command fails \u2014 names the sandbox
+                                  failure mode instead of dying
+                                  silently. Exits 0 if either
+                                  transport is reachable.
+
+  install [--system]              Symlink duo into a sandbox-safe
+                                  location: ~/.claude/bin/duo by
+                                  default (writable from a sandboxed
+                                  Claude Code PTY), with
+                                  ~/.local/bin/duo as fallback. Pass
+                                  --system to force /usr/local/bin
+                                  (needs sudo; not recommended for
+                                  Claude Code use).
 
 FLAGS
   --version, -v    Print version
