@@ -1059,7 +1059,7 @@ Split the chevron out of the row `<button>` into its own button with `e.stopProp
 
 ### BUG-026: Pasted markdown lands as a code block in the markdown editor
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.5.1 (PR 2, 2026-04-28) — root cause: tiptap-markdown's `clipboardTextParser` always parses with `{ inline: true }`, so block-level markdown (headings, lists, fences) lands as a single chunk that the schema collapses into a code block. Fix: new `MarkdownPaste` TipTap extension (priority 1000) installs a higher-priority `clipboardTextParser` that inspects the source text — block markers (`^# `, `^- `, `^1. `, `^> `, ` ``` `, blank-line separator) trigger block-mode parse; otherwise inline-mode is preserved (so the "paste a bold word mid-sentence" case still works). Verified live: pasting `# Heading\n\nA paragraph with **bold**.\n\n- list item 1\n- list item 2\n\n> blockquote` lands as proper H1 + paragraph + bullet list + blockquote.
 **Priority:** Medium-High (degrades the core "paste from another agent / doc" loop)
 **Filed:** 2026-04-27
 
@@ -1127,7 +1127,7 @@ This re-opens the BUG-008 universal-vs-pane-aware debate that was closed in favo
 
 ### ENH-005: Copy button on code blocks (markdown editor + HTML canvas)
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** 🟡 Partially shipped v0.5.1 (PR 2, 2026-04-28) — **canvas side ✅** (verified live: 2 buttons inject into a 2-pre canvas, position absolute top-right of each `<pre>`, opacity:0 → 1 on hover, click copies via `navigator.clipboard.writeText`, marked `data-duo-canvas-runtime` so the serializer strips them on save). **Markdown editor side deferred to a follow-up PR** — direct DOM injection into ProseMirror's contentEditable surface gets reverted on the next transaction; ProseMirror widget decorations are the proper escape hatch but the first cut at that approach (a custom TipTap extension with `addProseMirrorPlugins` + `Decoration.widget`) caused the editor to fail to load files. Need to revisit with a simpler approach (e.g. an external overlay container parented outside the editor view, positioned via `getBoundingClientRect`).
 **Priority:** Medium (high-value reading-side ergonomic)
 **Filed:** 2026-04-27
 
@@ -1169,7 +1169,7 @@ A second affordance on the WorkingPane tab strip — could be a `+ 🌐` button 
 
 ### ENH-007: Comment rail collapses but stays findable when all resolved
 
-**Status:** 🆕 Filed (v0.4.2 punch — pairs with BUG-015's empty-rail fix)
+**Status:** ✅ Shipped v0.5.1 (PR 2, 2026-04-28) — `<CommentRail>` primitive grows internal `expanded` state. When every thread is resolved AND the user hasn't toggled expand, the rail collapses to a small "N resolved" pill (right edge of the canvas chrome). Click to expand into the full rail (in normal mode but with a "Hide" affordance in the header for re-collapse symmetry). Live verification deferred — would need a canvas authored to all-resolved state, which is awkward to set up in the dev smoke session; code-side review confirms the path. Both bindings (canvas Stage 17d already wired; markdown Stage 14 future) get this for free since it's primitive-level.
 **Priority:** Low-Medium (BUG-015 hides it entirely; ENH-007 polishes "what if you've resolved all")
 **Filed:** 2026-04-27
 

@@ -85,7 +85,32 @@ export function CommentRail({
   onResolve,
   onReopen
 }: CommentRailProps) {
+  // ENH-007 — when EVERY thread is resolved, the rail collapses to a
+  // small "N resolved" chip on the right edge. Click expands it back to
+  // the full rail, scoped to this mount; the chip re-asserts itself on
+  // next render only if the data still says "all resolved" (e.g. a new
+  // resolve in the expanded state stays expanded — no surprise flicker).
+  const [expanded, setExpanded] = useState(false)
+
   if (threads === null) return null
+
+  const allResolved = threads.length > 0 && threads.every((t) => t.resolved)
+  const resolvedCount = threads.filter((t) => t.resolved).length
+
+  if (allResolved && !expanded) {
+    return (
+      <aside className="duo-comment-rail duo-comment-rail--collapsed" aria-label="Comments — all resolved">
+        <button
+          type="button"
+          className="duo-comment-rail__resolved-chip"
+          onClick={() => setExpanded(true)}
+          title="Show resolved comments"
+        >
+          {resolvedCount} resolved
+        </button>
+      </aside>
+    )
+  }
 
   return (
     <aside className="duo-comment-rail" aria-label="Comments">
@@ -95,6 +120,18 @@ export function CommentRail({
             ? 'No comments'
             : `${threads.length} comment${threads.length === 1 ? '' : 's'}`}
         </span>
+        {/* ENH-007 — when all are resolved AND user has expanded the rail,
+            offer a re-collapse affordance for symmetry. */}
+        {allResolved && expanded && (
+          <button
+            type="button"
+            className="duo-comment-rail__action-link"
+            onClick={() => setExpanded(false)}
+            title="Collapse"
+          >
+            Hide
+          </button>
+        )}
       </div>
       <div className="duo-comment-rail__threads">
         {threads.length === 0 ? (

@@ -53,6 +53,7 @@ import {
   type BuiltThread
 } from './commentAnchors'
 import { CommentRail, type CommentThread } from '../editor/primitives/CommentRail'
+import { injectCodeBlockCopyButtons, injectCodeBlockCopyStyle } from '../editor/codeBlockCopyButton'
 import { formatCanvasSendPayload } from '../editor/sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
@@ -415,6 +416,11 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     const isDirty = html !== '' && html !== lastSavedRef.current
     setDirty(isDirty)
     bumpVersion()  // mutations may also affect toolbar state (e.g. inTable)
+    // ENH-005 — re-inject copy buttons after any mutation (new <pre>
+    // landing via paste / agent write needs a button). Idempotent;
+    // sentinel class gates per-pre.
+    const doc = canvasRef.current?.getDocument()
+    if (doc) injectCodeBlockCopyButtons(doc, { markCanvasRuntime: true })
     if (isDirty) {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = setTimeout(() => {
@@ -573,6 +579,13 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     // user-authored edits are skipped (we only highlight CLAUDE writes
     // to specific anchors).
     repaintRecentClaudeEdits(doc, sidecarRef.current)
+
+    // ENH-005 — initial Copy-button injection (style + buttons) on
+    // every <pre> in the canvas. Re-runs on doc mutations via
+    // handleChange. Marked data-duo-canvas-runtime so the serializer
+    // strips both on save.
+    injectCodeBlockCopyStyle(doc)
+    injectCodeBlockCopyButtons(doc, { markCanvasRuntime: true })
 
     wireCleanupRef.current = () => {
       doc.removeEventListener('selectionchange', onSelChange)

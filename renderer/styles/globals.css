@@ -97,6 +97,42 @@ html.dark {
     background: var(--duo-paper-deep);
     border-color: var(--duo-paper-rule);
   }
+  /* ENH-005 — hover Copy button on every <pre> code block. The button
+     is injected at runtime (renderer/components/editor/codeBlockCopyButton.ts)
+     into both the markdown editor and the HTML canvas iframe. The pre
+     itself becomes the positioning host. */
+  .duo-code-copy-host {
+    position: relative;
+  }
+  .duo-code-copy-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    padding: 2px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    font-family: inherit;
+    color: var(--duo-ink-soft);
+    background: var(--duo-paper);
+    border: 1px solid var(--duo-paper-rule);
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+  }
+  .duo-code-copy-host:hover .duo-code-copy-btn,
+  .duo-code-copy-btn:focus,
+  .duo-code-copy-btn--copied {
+    opacity: 1;
+  }
+  .duo-code-copy-btn:hover {
+    color: var(--duo-ink);
+    background: var(--duo-paper-deep);
+  }
+  .duo-code-copy-btn--copied {
+    color: var(--duo-accent);
+    border-color: var(--duo-accent);
+  }
   .duo-editor-prose blockquote {
     color: var(--duo-ink-soft);
     border-left-color: var(--duo-accent);
@@ -467,6 +503,33 @@ html.dark {
     padding: 24px 14px;
     text-align: center;
     font-size: 12px;
+  }
+  /* ENH-007 — collapsed-but-findable mode: when every thread is resolved
+     the rail shrinks to a thin column rendering only the "N resolved"
+     chip. Click the chip to re-expand. */
+  .duo-comment-rail--collapsed {
+    width: auto;
+    min-width: 0;
+    padding: 10px 6px;
+    align-items: center;
+    background: transparent;
+    border-left-color: transparent;
+  }
+  .duo-comment-rail__resolved-chip {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--duo-ink-mute);
+    background: var(--duo-paper);
+    border: 1px solid var(--duo-paper-edge);
+    border-radius: 999px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: color 120ms ease, border-color 120ms ease;
+  }
+  .duo-comment-rail__resolved-chip:hover {
+    color: var(--duo-accent);
+    border-color: var(--duo-accent);
   }
   .duo-comment-thread {
     background: var(--duo-paper);
