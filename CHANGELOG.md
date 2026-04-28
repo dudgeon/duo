@@ -19,6 +19,25 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-04-27
+
+First MINOR since v0.4.0. Three coherent surfaces ship together:
+navigator polish (Stage 26), fork-friendly architecture (Stage 21e),
+and the build / install / banner foundation from v0.4.4 + v0.4.5.
+
+### Added
+- **Stage 26 PR 1 — Navigator row-interaction.** Single-click selects, double-click opens (Finder/VS Code parity). Folder chevron is its own hit target (BUG-025). Right-click menu grew **Rename…** and **Move to Trash…**. Inline rename (Enter commits, click-outside cancels). Hover-action sparkle button on folder rows → new claude terminal in that folder. CLI parity: `duo file rename <old> <new>` + `duo file trash <path>`.
+- **Stage 26 PR 2 — Pinned files & folders section (ENH-010).** New section at navigator bottom, hidden when empty. Right-click → "Pin to navigator". Grouped by parent dir. Single-click selects; double-click on a folder pin re-roots the tree. Persists at `~/.claude/duo/nav-pins.json`. CLI parity: `duo nav pin/unpin/pins`.
+- **Stage 21e — Fork-friendly architecture.** Identity-bearing values move to `fork.config.default.json`; forkers copy to `fork.config.json` (gitignored). Build-time CLI overrides + Vite-injected runtime constants replace hard-coded `dudgeon/duo` and `*.capitalone.com` references. Provenance-aware install (SHA-256 tracking) preserves user customizations on upgrade. See [docs/HOW-TO-FORK.md](docs/HOW-TO-FORK.md).
+
+### Changed
+- "Your Claude settings" navigator pane defaults to **collapsed** on first install (ENH-012). Project tree gets the freed vertical space. Users who explicitly expanded stay expanded.
+
+### Known issues at v0.5.0
+- **BUG-028** — Escape inside the inline rename input doesn't dismiss. Workarounds: Enter on no-change cancels; click-outside cancels.
+- **BUG-029** — right-click context menu on a Pinned-section row clips at viewport bottom. Workaround: `duo nav unpin <path>` from CLI.
+- **BUG-030** — CLI pin/unpin doesn't push to the renderer in real time. Workaround: relaunch / reload.
+
 ## [0.4.5] — 2026-04-27
 
 The "Claude detection + plainer install copy" hotfix. v0.4.4 fixed the

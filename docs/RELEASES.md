@@ -25,6 +25,103 @@ _Empty._
 
 ---
 
+## v0.5.0 — 2026-04-27
+
+**The first MINOR since v0.4.0.** Three coherent surfaces ship
+together: **navigator polish** (Stage 26 — single/double-click,
+chevron split, right-click delete/rename + CLI, hover-Claude,
+Pinned section, default-collapsed user-claude pane), **fork-friendly
+architecture** (Stage 21e — one config file controls fork identity;
+provenance-aware install preserves user customizations), and the
+build/install/banner foundation from v0.4.4 (DMG launch fix +
+launch-smoke validator) and v0.4.5 (Claude-detection fix + plain-
+English banner copy).
+
+### Why v0.5.0 lands here
+
+Three reasons converged. First: Stage 21e was implementation-complete
+on its branch since v0.4.2 — sitting on a cut would have meant either
+a stale fork-config doc, or shipping the implementation without
+matching docs. Cutting now lets the HOW-TO-FORK doc reference live
+code paths.
+
+Second: Stage 26 reached a natural ship moment. PR 1 (row-interaction)
+landed the foundation; PR 2 (Pinned section + default-collapsed
+user-claude pane) added enough additional value that bundling them
+into one minor cut feels right. PR 3 (ambient signals + Go-to-path
+input — items 2/3/4/5/8) is left for v0.5.1+ as its own focused
+follow-up.
+
+Third: the build/install foundation work in v0.4.4 + v0.4.5 deserves
+a non-patch release after it. Hotfixing twice in 30 minutes was
+appropriate; piling more onto patches isn't. v0.5.0 is the natural
+home for "the foundation + the new surfaces it enables."
+
+### Three key design decisions baked in
+
+- **Single-click selects, double-click opens** is the new navigator
+  contract (Stage 26 PR 1, item 1). Existing behavior was "click
+  opens, no way to select without opening" — which blocked any
+  context-menu-driven action. Finder/VS Code parity is the right
+  model; the inline-rename UX presumes it. Tradeoff: muscle memory
+  for users who learned Duo's navigator pre-v0.5.0 — a few extra
+  clicks for the first session, then the new model takes over.
+- **Pinned section is its own bottom-of-pane surface, not a tab strip**
+  (Stage 26 PR 2). Considered: showing pins as filterable tabs in
+  the WorkingPane (overlaps with Stage 24 tab pins). Rejected:
+  navigator pins serve a different purpose — they're a "frequent
+  target" shortcut, not a "this tab persists across reloads"
+  marker. Storage at `~/.claude/duo/nav-pins.json` is deliberately
+  separate from `pins.json` (Stage 24's tab pins) so the two
+  systems can evolve independently.
+- **Fork identity lives in one config file, not env vars** (Stage
+  21e). Considered: forkers set `DUO_APP_ID` etc. in `~/Documents/duo-private/.env` alongside cert env vars. Rejected: tying
+  fork identity to a per-user env file means a fresh checkout on a
+  new machine has no identity until the user remembers to set up
+  the env. The config file is repo-relative + gitignored: clone,
+  copy `fork.config.default.json` → `fork.config.json`, edit, build
+  works.
+
+### What this is and isn't
+
+This is a **minor cut**, not a major one. Pre-1.0 means everything
+is still subject to change; v0.5.0 doesn't promise stability of the
+fork-config schema, the Pinned section's CLI verbs, or the navigator
+gesture model. v1.0 is the line where these promises start.
+
+This is also **not the cohort distribution release**. Stage 21d
+(socket auth + Trailblazers README + agent-driven-nav notifications)
+is still ⬜. v0.5.x or v0.6.0 will cover that work.
+
+### Auto-update
+
+v0.4.4 and v0.4.5 users get v0.5.0 via auto-update normally. The
+v0.4.4 launch-smoke validator gates the cut: the signed DMG was
+verified to launch and stay alive past 8s before this version was
+tagged.
+
+### What's queued next ("v0.5.0 fast-follows")
+
+- **BUG-028** — Escape inside the inline rename input doesn't dismiss
+  (Workarounds present; low priority polish).
+- **BUG-029** — right-click context menu on Pinned-section row
+  clips at viewport bottom. Real UX gap; cross-cutting fix at
+  `<ContextMenu>` flip-up logic.
+- **BUG-030** — CLI pin/unpin doesn't refresh the renderer in real
+  time. Push channel needed; Stage 24 tab pins have the same shape
+  — one fix lifts both.
+- **Issue #27** — browser history persistence + address-bar
+  autocomplete. Originally in v0.5.0 scope; deferred to v0.5.1 to
+  keep this cut focused on the three surfaces above.
+- **ENH-005 / ENH-006 / ENH-007** — copy button on code blocks,
+  right-pane new-browser-tab button, collapsed-but-findable comment
+  rail. v0.4.3 punch-list deferrals; still queued.
+- **ENH-011** — broader plain-English rewrite of welcome / update
+  banner copy (the success state was already rewritten in v0.4.5;
+  the welcome and update phases still read like Stack Overflow).
+
+---
+
 ## v0.4.5 — 2026-04-27
 
 **The "Claude detection + plainer install copy" hotfix.** v0.4.4

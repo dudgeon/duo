@@ -18,6 +18,59 @@
 
 ---
 
+## 2026-04-27 late-late evening — v0.5.0 cut: navigator polish + fork-friendly + foundation
+
+First MINOR cut since v0.4.0. Owner approved the v0.5.0 sprint plan
+in this session ("Production polish + the browser history you asked
+for") then dialed it back to scope only what was already in flight:
+Stage 26 PR 1 (row-interaction), Stage 26 PR 2 (Pinned section +
+ENH-012 default-collapsed), and Stage 21e (fork-friendly
+architecture). Issue #27 (browser history) + ENH-005/006/007/011
+deferred to v0.5.1+ alongside the BUG-028/029/030 follow-ups
+identified during this sprint's smoke testing.
+
+Three PRs landed:
+
+- **PR #28 — Stage 26 PR 1** (`b08ff12`) row-interaction cluster.
+  Single/double-click semantics + chevron split (BUG-025) +
+  right-click Rename/Trash + CLI `duo file rename/trash` + hover
+  Claude sparkle button. Verified live in this session via
+  computer-use before the rebase + force-push.
+- **PR #29 — Stage 26 PR 2** (`d1ef59c` + `c86fa80`) Pinned section
+  (ENH-010) + Your Claude settings collapsed default (ENH-012).
+  New `nav-pins-service.ts` (atomic-write JSON, separate from
+  Stage 24's tab pins). New `useNavPins` hook + `<PinnedNav>`
+  component. CLI `duo nav pin/unpin/pins`. Smoke-tested live —
+  pinned a folder + a file, verified grouping + single-click +
+  double-click + persist across relaunch + collapsed-default
+  behavior. Filed BUG-029 (context-menu clipping near viewport
+  bottom) + BUG-030 (CLI→renderer push gap) during the smoke.
+- **PR #30 — Stage 21e** fork-friendly architecture. Build-time
+  fork config + dist.sh wrapper + load-fork-config.cjs + yml
+  publish-block removal + Vite runtime config injection +
+  provenance-aware install. Branch was 4 commits ahead of
+  pre-v0.4.4 main; rebased onto post-v0.4.5 main with one
+  conflict in `electron/install-service.ts` (21e-iii's
+  crypto/execFile imports vs v0.4.5's swap to the shared
+  `resolve-claude.ts`). Resolved: kept crypto, dropped
+  execFile/promisify (v0.4.5 already moved that work).
+
+Merge order: PR #28 → PR #29 → 21e (rebased onto Stage-26-merged
+main, no conflicts). Cut process: typecheck clean, build:cli +
+sync:claude, then `bash scripts/dist-signed.sh` (which now uses
+fork-config + the launch-smoke validator from v0.4.4).
+
+Process note. The owner pushed back on memory mid-sprint when I
+tried to save a "use plain English" feedback note: "Memory?!?!
+that does not sound like a durable idea." Right call — durable fix
+lives in the product (banner copy, FAQ entries, error toasts).
+Deleted the memory; kept the lesson in the v0.4.5 banner rewrite
++ ENH-011 ticket. Worth re-reading: memory is for ABOUT-the-user
+context that future sessions need to act, not for design
+principles that should live in source.
+
+---
+
 ## 2026-04-27 late evening — v0.4.5 cut: claude detection + plainer install copy
 
 Owner installed the freshly-shipped v0.4.4 DMG and immediately hit two

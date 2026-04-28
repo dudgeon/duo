@@ -101,6 +101,20 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.5.0 release navigator double-click chevron rename trash pin pinned files folders fork fork-friendly enterprise capital one trailblazers stage-26 stage-21e architecture">
+  <h3>v0.5.0 — Navigator polish + fork-friendly architecture <span class="date">2026-04-27</span></h3>
+  <p>The first MINOR release since v0.4.0. Big things changed in the file navigator on the left, and Duo can now be forked by editing one config file (mostly relevant to teams running their own internal Duo build).</p>
+  <ul>
+    <li><strong>Navigator works like Finder / VS Code now.</strong> Single-click on a file or folder selects it (highlights without opening). Double-click opens the file in the right pane, or navigates the tree into the folder. The little arrow next to a folder is its own thing — clicking it just expands or collapses, no longer also selects.</li>
+    <li><strong>Right-click → Rename or Move to Trash.</strong> Inline rename — the row turns into a text input. "Move to Trash" uses the macOS Trash, so you can recover from Finder. Same actions are also available from the agent's CLI: <code>duo file rename old new</code> and <code>duo file trash &lt;path&gt;</code>.</li>
+    <li><strong>Hover a folder → little Claude sparkle button appears at the right edge.</strong> Click it → opens a new claude terminal tab in that folder. Same thing the agent can do via <code>duo new-tab --claude --cwd &lt;path&gt;</code>.</li>
+    <li><strong>Pin files and folders.</strong> Right-click anything in the navigator → "Pin to navigator". Pinned items show in a new "Pinned" section at the bottom of the left pane, grouped by parent folder so two files with the same name from different projects are distinguishable. Hidden when you have no pins. Survives Duo relaunches. CLI: <code>duo nav pin/unpin/pins</code>.</li>
+    <li><strong>"Your Claude settings" defaults to collapsed.</strong> Most of you live in the project tree below. The user-claude pane (CLAUDE.md / skills / agents) is still there — just collapsed by default so the project tree gets more room. If you previously expanded it, your preference is preserved.</li>
+    <li><strong>Fork-friendly architecture.</strong> Mostly relevant for enterprise teams (Cap One AIP, etc.) who want to run their own Duo build with their own identity, GitHub Releases coords, and bootstrap defaults. Identity-bearing values move to <code>fork.config.json</code>; runtime constants are Vite-injected at build time; provenance-aware install preserves user customizations across upgrades. See <code>docs/HOW-TO-FORK.md</code>.</li>
+  </ul>
+  <p style="margin-top: 10px;"><strong>Known polish queued for v0.5.1:</strong> Escape inside the inline rename input doesn't dismiss (workaround: Enter on no-change cancels, click-outside cancels). Right-click menu on a pin near the viewport bottom can clip (workaround: CLI <code>duo nav unpin</code>). CLI pin/unpin doesn't push to the renderer in real time (workaround: relaunch). Issue #27 (browser history persistence) and ENH-005/006/007/011 (code-block copy button, right-pane new-browser-tab button, collapsed-but-findable comment rail, plain-English rewrite of welcome / update banner copy) deferred to v0.5.1.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.4.5 release hotfix install banner claude not detected path zshrc shell interactive login terminal tab agent">
   <h3>v0.4.5 — Claude detection + plainer install copy <span class="date">2026-04-27</span></h3>
   <p>v0.4.4 fixed Duo from crashing on launch. v0.4.5 fixes what you saw next: the install banner saying it couldn't find Claude Code (even though you have it installed) and every freshly-opened "claude" terminal tab printing an "Install Claude Code" banner instead of starting Claude. Same root cause both times — Duo was looking for <code>claude</code> in the wrong place because of how macOS shell startup files work. The Apple Terminal sources <code>.zshrc</code> by default; Duo was looking in <code>.zprofile</code> only.</p>

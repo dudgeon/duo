@@ -764,9 +764,9 @@
       <div class="comment"><label>Comment</label><textarea data-key="s24" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
-    <article class="stage inprog" id="s26" data-id="s26">
-      <h3><span class="num-badge">Stage 26</span> Navigator polish &amp; ergonomics <span class="glyph inprog"></span></h3>
-      <div class="status-line">🔄 <strong>PR 1 (items 1, 1b, 6, 7) at <a href="https://github.com/dudgeon/duo/pull/28">duo#28</a> awaiting merge.</strong> <strong>PR 2 (ENH-010 Pinned section) in scope for v0.5.0.</strong> PR 3 (items 2/3/4/5/8 — ambient signals + Go-to path) deferred to v0.5.1+. Pairs with <strong>BUG-007</strong>, <strong>BUG-025</strong>, <strong>BUG-028</strong>, <strong>ENH-010</strong> in <code>tasks.md</code>.</div>
+    <article class="stage done" id="s26" data-id="s26">
+      <h3><span class="num-badge">Stage 26</span> Navigator polish &amp; ergonomics <span class="glyph done"></span></h3>
+      <div class="status-line">✅ <strong>PRs 1 + 2 shipped v0.5.0 (2026-04-27 night).</strong> PR 1 = row-interaction (single/double-click, chevron split BUG-025, right-click Rename/Trash + CLI, hover-Claude). PR 2 = Pinned section (ENH-010) + default-collapsed user-claude pane (ENH-012). PR 3 (items 2/3/4/5/8 — ambient signals + Go-to path) deferred to v0.5.1+. Open follow-ups: <strong>BUG-007</strong> (deleted files linger), <strong>BUG-028</strong> (Escape doesn't dismiss rename), <strong>BUG-029</strong> (context menu clips at viewport bottom), <strong>BUG-030</strong> (CLI pin/unpin doesn't push to renderer).</div>
       <p class="blurb"><strong>The intent.</strong> Refinement bundle for the file navigator covering five surfaces: (a) selection model — Finder/VS Code parity (single-click selects, double-click opens, chevron expands cleanly); (b) ambient signal density — active-CWD highlight, open-vs-active distinction; (c) file-mutation actions — right-click delete / inline rename + CLI parity; (d) frequent-target shortcut — pinned files + folders section at the bottom of the left pane (ENH-010); (e) jump-to navigation — editable breadcrumb path input. Items 1, 6, 7, plus the new BUG-025 (chevron-only hit target) all share the row-interaction surface and ship together as a single PR. ENH-010 is the second PR. Items 2, 3, 4, 5 (BUG-007), 8 sequence after.</p>
 
       <p class="blurb" style="margin-top: 14px;"><strong>Items.</strong></p>
@@ -800,7 +800,7 @@
 
     <article class="stage inprog" id="s21" data-id="s21">
       <h3><span class="num-badge">Stage 21</span> Distribution polish <span class="glyph inprog"></span></h3>
-      <div class="status-line">🟡 <strong>21a ✅ shipped 2026-04-27 (v0.4.1)</strong> · <strong>21c Phase 1+2 ✅ shipped 2026-04-27 (v0.4.2)</strong> — auto-update via electron-updater + session restore on relaunch. Toolchain in <code>scripts/dist-signed.sh</code>; cert env in <code>~/Documents/duo-private/.env</code>. <strong>Still ⬜:</strong> 21b (custom app icon + DMG background) · 21c Phase 3 (browser history persistence — issue #27) · 21d (socket auth + agent-driven-nav notifications + Trailblazers README) · 21e (fork-friendly architecture — implementation complete on <code>stage-21e-fork-friendly</code> branch, awaiting v0.5.0 cut).</div>
+      <div class="status-line">🟡 <strong>21a ✅ shipped v0.4.1</strong> · <strong>21c Phase 1+2 ✅ shipped v0.4.2</strong> · <strong>21e ✅ shipped v0.5.0 (2026-04-27 night)</strong> — fork-friendly architecture (build-time fork config + Vite runtime injection + provenance-aware install). <strong>Still ⬜:</strong> 21b (custom app icon + DMG background) · 21c Phase 3 (browser history persistence — issue #27) · 21d (socket auth + agent-driven-nav notifications + Trailblazers README).</div>
       <p class="blurb"><strong>The intent.</strong> Stage 18 ships a self-installing build that the owner can hand to the next user without a "you must <code>npm install</code> first" handshake. Stage 21 polishes that build for distribution beyond the owner — signed, notarized, auto-updating, with the session-state niceties Trailblazers will expect. 21a (the mechanical core) shipped 2026-04-27; 21b/c/d remain ⬜ for a future cut.</p>
 
       <p class="blurb" style="margin-top: 14px;"><strong>21a — Sign + notarize the DMG ✅ shipped 2026-04-27.</strong> Reference doc: <code>docs/dev/cert-procurement.md</code> (now with Sequoia compatibility appendix). The shipped flow:</p>
@@ -958,9 +958,9 @@
     <div class="side-panel">
       <h2>Status</h2>
       <div class="stats">
-        <div class="stat"><div class="num">10</div><div class="label">Done</div></div>
-        <div class="stat"><div class="num">4</div><div class="label">In progress</div></div>
-        <div class="stat"><div class="num">16</div><div class="label">Pending</div></div>
+        <div class="stat"><div class="num">11</div><div class="label">Done</div></div>
+        <div class="stat"><div class="num">3</div><div class="label">In progress</div></div>
+        <div class="stat"><div class="num">15</div><div class="label">Pending</div></div>
         <div class="stat"><div class="num">15</div><div class="label">Open issues</div></div>
       </div>
       <p style="font-size: 11px; color: var(--ink-mute); margin: 12px 0 0; padding-top: 10px; border-top: 1px dashed var(--paper-edge);"><strong style="color: var(--accent-ink);">→ v0.5.0 sprint scope (locked 2026-04-27 evening):</strong> "Production polish + the browser history you asked for." Six PRs, merged in sequence at cut time:<br>(1) <strong>Stage 21e</strong> fork-friendly architecture — 4 commits on <code style="font-size: 10px;">stage-21e-fork-friendly</code> awaiting rebase + PR;<br>(2) <strong>Stage 26 PR 1</strong> — row-interaction (already at <a href="https://github.com/dudgeon/duo/pull/28" style="color: var(--accent-ink);">duo#28</a>);<br>(3) <strong>Stage 26 PR 2 (ENH-010)</strong> — Pinned files & folders section in navigator (new build);<br>(4) <strong>Issue #27 / Stage 21c Phase 3</strong> — browser history persistence + address-bar autocomplete (new build);<br>(5) <strong>ENH-005/006/007</strong> — v0.4.3 deferred punch-list (copy button on code blocks, right-pane new-browser-tab button, collapsed-but-findable comment rail);<br>(6) <strong>ENH-011</strong> — plain-English rewrite of welcome / update banner copy (broader sweep of the v0.4.5 success-state pass).<br><br>Deferred to v0.5.1+: <strong>Stage 14</strong> (MD CommentRail binding); <strong>Stage 16</strong> (external-write reconciliation); <strong>Stage 18 + 18b + 19d</strong> (FTUX trio); <strong>Stage 21b</strong> (icon + DMG bg); <strong>Stage 21d</strong> (Trailblazers cohort); <strong>Stage 26 PR 3</strong> (ambient signals + Go-to path); <strong>BUG-026 / BUG-027</strong>.</p>
