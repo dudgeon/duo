@@ -37,8 +37,15 @@ export function UserClaudePane({
   onOpenTerminalHere,
   focused
 }: UserClaudePaneProps) {
+  // ENH-012 (Stage 26 PR 2 fold-in) — default to COLLAPSED on first launch.
+  // Most users live in the project tree; the user-claude pane is a
+  // settings-discovery aid that's noisy when always-open. Default-collapsed
+  // gives the project tree more vertical real estate. Users who explicitly
+  // expand it have their preference persisted in localStorage. Treat
+  // anything that isn't '0' as collapsed (including the previous default
+  // for users upgrading mid-state).
   const [collapsed, setCollapsed] = useState<boolean>(() => {
-    try { return localStorage.getItem(LS_KEY_COLLAPSED) === '1' } catch { return false }
+    try { return localStorage.getItem(LS_KEY_COLLAPSED) !== '0' } catch { return true }
   })
 
   const toggleCollapsed = () => {
