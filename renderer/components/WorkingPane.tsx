@@ -178,28 +178,27 @@ export function WorkingPane({
 
   // 17a polish item 2 — plain click on `+` opens the new-file
   // interstitial (parity with ⌘N — covers the most common post-Stage-17
-  // intent: making a doc, not opening a website). ⌥-click preserves
-  // the pre-Stage-17 muscle memory of "+" → new browser tab. The
-  // browser-tab path also focuses the address bar after creation —
-  // mirrors App.tsx § newBrowserTab — so the tab isn't dead on arrival.
-  const handleNew = (e: React.MouseEvent) => {
-    if (e.altKey) {
-      setActiveWorking({ kind: 'browser' })
-      void addTab().then(() => {
-        // BUG-019 fix — see App.tsx § newBrowserTab for rationale.
-        // Two RAFs push past React commit + paint so the address
-        // bar is mounted before focus() runs.
+  // intent: making a doc, not opening a website).
+  //
+  // ENH-006 (PR 4) — the new-browser-tab path used to ride on ⌥-click;
+  // the split button on WorkingTabStrip now exposes it as a discrete
+  // affordance, mirroring the terminal strip's `+` (claude) | `>`
+  // (shell) split. Same dispatch landing point either way — focuses
+  // the address bar after creation so the tab isn't dead on arrival.
+  const handleNewBrowserTab = () => {
+    setActiveWorking({ kind: 'browser' })
+    void addTab().then(() => {
+      // BUG-019 fix — see App.tsx § newBrowserTab for rationale.
+      // Two RAFs push past React commit + paint so the address
+      // bar is mounted before focus() runs.
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
-            addr?.focus()
-            addr?.select()
-          })
+          const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
+          addr?.focus()
+          addr?.select()
         })
       })
-      return
-    }
-    onNewFile()
+    })
   }
 
   // Renderer dispatch.
@@ -262,7 +261,8 @@ export function WorkingPane({
       <WorkingTabStrip
         tabs={mergedTabs}
         onSelect={handleSelect}
-        onNew={handleNew}
+        onNewFile={onNewFile}
+        onNewBrowserTab={handleNewBrowserTab}
         onClose={handleClose}
         onTogglePin={handleTogglePin}
         focused={focused}

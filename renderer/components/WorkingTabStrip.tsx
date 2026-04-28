@@ -13,10 +13,11 @@ import { PinnedCloseConfirm } from './PinnedCloseConfirm'
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
   onSelect: (id: string) => void
-  /** Plain click → opens the new-file interstitial (parity with ⌘N).
-   *  ⌥-click → opens a new browser tab (parity with ⌘T, preserves the
-   *  pre-Stage-17 muscle memory). 17a polish item 2. */
-  onNew: (e: React.MouseEvent) => void
+  /** ENH-006 — split-button new affordance, mirrors TabBar (terminal).
+   *  `+` (left, primary, wider) opens the new-file interstitial (⌘N).
+   *  `>` (right, secondary, narrow) opens a new browser tab (⌘T). */
+  onNewFile: () => void
+  onNewBrowserTab: () => void
   onClose: (id: string) => void
   /** Stage 24 — toggle the pinned state for a tab. Called from the
    *  right-click context menu. */
@@ -31,7 +32,7 @@ interface WorkingTabStripProps {
 // TabBar (terminal). Differentiator: strip bg = paper-deep here vs
 // paper-edge for the terminal strip. Mock reference:
 // docs/design/atelier/project/duo-components.jsx ~L286.
-export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, onTogglePin, focused = false }: WorkingTabStripProps) {
+export function WorkingTabStrip({ tabs, onSelect, onNewFile, onNewBrowserTab, onClose, onTogglePin, focused = false }: WorkingTabStripProps) {
   // Stage 24 — context menu state (which tab + position) and pinned-tab
   // close-confirm modal state.
   const [ctxMenu, setCtxMenu] = useState<{ tabId: string; pinned: boolean; x: number; y: number } | null>(null)
@@ -71,15 +72,34 @@ export function WorkingTabStrip({ tabs, onSelect, onNew, onClose, onTogglePin, f
         />
       ))}
 
-      <button
-        onClick={onNew}
-        className="shrink-0 w-6 h-6 mb-1 flex items-center justify-center rounded text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
-        title="New file (⌘N) · ⌥-click for new browser tab (⌘T)"
-      >
-        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-          <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-      </button>
+      {/* ENH-006 — split button: + new file (primary) | > new browser
+          tab (secondary). Mirrors TabBar's terminal-strip split: the
+          opinionated default keeps the existing "click the +" muscle
+          memory (⌘N file flow), the secondary half exposes the browser-
+          tab path that used to require ⌥-click. */}
+      <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
+        <button
+          onClick={onNewFile}
+          className="w-7 h-6 flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
+          title="New file (⌘N)"
+          aria-label="New file"
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+        <span aria-hidden="true" className="w-px h-3 bg-paper-rule" />
+        <button
+          onClick={onNewBrowserTab}
+          className="w-5 h-6 flex items-center justify-center text-ink-ghost hover:text-ink hover:bg-surface-3 transition-colors"
+          title="New browser tab (⌘T)"
+          aria-label="New browser tab"
+        >
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+            <path d="M2.5 2.5l3 2.5-3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      </div>
 
       {ctxMenu && onTogglePin && (
         <ContextMenu

@@ -1152,7 +1152,7 @@ Hover-to-reveal "Copy" button (top-right of each `<pre>` / `<code>` block) that 
 
 ### ENH-006: Right pane gets a "new browser tab" button (split-button pattern)
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.5.1 (PR 4, 2026-04-28) — `WorkingTabStrip` grew a split button mirroring `TabBar`'s terminal-strip pattern: `+` (primary, wider, ⌘N file) | `>` (secondary, narrower, ⌘T new browser tab). The browser-tab handler reuses the existing `addTab` + two-RAF address-bar focus dance (BUG-019 carryover), so the new tab arrives focused and ready for typing. Replaces the prior ⌥-click-on-`+` muscle memory with a discrete affordance that's visible at rest. **Note:** kept inline in `WorkingTabStrip` rather than extracting a shared `<SplitTabButton>` primitive — the two strips have minor styling differences and a 3rd consumer doesn't exist yet; defer the abstraction. Verified live: clicking `>` opened `about:blank` with the address bar selected.
 **Priority:** Medium (mirrors terminal pane's discovery affordance for the working pane)
 **Filed:** 2026-04-27
 
