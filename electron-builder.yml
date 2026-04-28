@@ -72,7 +72,10 @@ mac:
       arch:
         - arm64
         - x64
-  # Stage 21: create build/icon.icns before running npm run dist
+  # Stage 21b: build/icon.icns is the multi-resolution macOS icon (10
+  # standard sizes 16²..1024², generated from build/icon.png via
+  # sips + iconutil). Regenerate with the same pipeline if the PNG
+  # source changes.
   icon: build/icon.icns
   hardenedRuntime: true
   gatekeeperAssess: false
