@@ -1313,7 +1313,14 @@ Entries are **grouped by parent folder** with the parent path as a small subdued
 
 ### ENH-011: Plain-English rewrite of welcome / update banner copy
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.5.1 (PR 5, 2026-04-28) — `FirstLaunchBanner` now reads in plain user-model English:
+
+- **Welcome:** "Welcome to Duo. Set up the files Duo needs to work with Claude — they go in `~/.claude/`, and we won't touch any of your existing files."
+- **Update available:** "Duo update available. Refresh the agent files in `~/.claude/` (currently from v{version})."
+- **CLI install failed:** unchanged (already plain enough — "Couldn't drop Duo's CLI helper into `~/.local/bin/`; try again or symlink `cli/duo` manually.")
+- **Success:** unchanged ("Installed. Claude inside Duo's terminals will arrive Duo-aware.")
+
+Removed user-facing jargon: "skill", "subagent", "priming shim", "SessionStart hook" — replaced with "agent files" / "make Claude Duo-aware" framing. Technical terms remain in code comments + the README per the spec. Verified live: Update banner now reads "Refresh the agent files in ~/.claude/ (currently from v0.4.5)."
 **Priority:** Medium (the install banner is the FIRST thing every new user sees; tone is load-bearing for AIP/Trailblazers cohort)
 **Filed:** 2026-04-27
 

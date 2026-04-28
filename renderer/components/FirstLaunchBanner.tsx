@@ -138,11 +138,11 @@ export function FirstLaunchBanner() {
             </>
           ) : status.needsUpdate ? (
             <>
-              <strong>Duo update available.</strong> Refresh the installed skill + subagent + help files + CLI + SessionStart hook in <code className="font-mono text-[12px]">~/.claude/</code> (currently at v{status.version}).
+              <strong>Duo update available.</strong> Refresh the agent files in <code className="font-mono text-[12px]">~/.claude/</code> (currently from v{status.version}).
             </>
           ) : (
             <>
-              <strong>Welcome to Duo.</strong> Install the skill, subagent, help files, and CLI into <code className="font-mono text-[12px]">~/.claude/</code> + <code className="font-mono text-[12px]">~/.local/bin/</code>, and install a priming shim + SessionStart hook so <code className="font-mono text-[12px]">claude</code> sessions inside Duo arrive Duo-aware. Your existing files won't be touched.
+              <strong>Welcome to Duo.</strong> Set up the files Duo needs to work with Claude — they go in <code className="font-mono text-[12px]">~/.claude/</code>, and we won't touch any of your existing files.
             </>
           )}
         </span>
