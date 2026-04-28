@@ -32,6 +32,7 @@ import { TableShortcuts } from './extensions/TableShortcuts'
 import { PersistentSelection } from './extensions/PersistentSelection'
 import { JustAdded } from './extensions/JustAdded'
 import { MarkdownPaste } from './extensions/MarkdownPaste'
+import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { formatSendPayload } from './sendFormat'
@@ -163,7 +164,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // BUG-026 — block-aware paste. Higher priority than tiptap-markdown's
       // own clipboard plugin so block-level markdown (headings, lists,
       // fences) lands as structure rather than collapsed-to-code-block.
-      MarkdownPaste
+      MarkdownPaste,
+      // ENH-005 — Copy button on every codeBlock. Implemented as a PM
+      // widget decoration so the button survives ProseMirror's
+      // contentEditable reconciliation.
+      CodeBlockCopyButton
     ],
     []
   )

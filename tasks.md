@@ -1127,7 +1127,12 @@ This re-opens the BUG-008 universal-vs-pane-aware debate that was closed in favo
 
 ### ENH-005: Copy button on code blocks (markdown editor + HTML canvas)
 
-**Status:** 🟡 Partially shipped v0.5.1 (PR 2, 2026-04-28) — **canvas side ✅** (verified live: 2 buttons inject into a 2-pre canvas, position absolute top-right of each `<pre>`, opacity:0 → 1 on hover, click copies via `navigator.clipboard.writeText`, marked `data-duo-canvas-runtime` so the serializer strips them on save). **Markdown editor side deferred to a follow-up PR** — direct DOM injection into ProseMirror's contentEditable surface gets reverted on the next transaction; ProseMirror widget decorations are the proper escape hatch but the first cut at that approach (a custom TipTap extension with `addProseMirrorPlugins` + `Decoration.widget`) caused the editor to fail to load files. Need to revisit with a simpler approach (e.g. an external overlay container parented outside the editor view, positioned via `getBoundingClientRect`).
+**Status:** ✅ Shipped v0.5.1 (PR 2 + PR 2 follow-up, 2026-04-28) — **both surfaces working live**:
+
+- **Canvas (PR 2):** runtime-only buttons injected into the iframe contentDocument via `injectCodeBlockCopyButtons`. Marked `data-duo-canvas-runtime` so the serializer strips them on save.
+- **Markdown editor (PR 2 follow-up):** PM widget + node decorations via the `CodeBlockCopyButton` extension. The node decoration adds the host class (`Decoration.node` survives PM transactions; direct `pre.classList.add` gets reverted). The widget decoration at `pos+1` renders a `<button>` inside the codeBlock content; CSS positions it absolute top-right of the pre. Click handler clones the `<code>` content, strips the button descendant, and `navigator.clipboard.writeText`s the cleaned text. Verified live: 2 buttons render on a 2-pre sample.md, click copies just the code text (no "Copy" label leakage).
+
+**Files:** `renderer/components/editor/codeBlockCopyButton.ts` (canvas helper), `renderer/components/editor/extensions/CodeBlockCopyButton.ts` (TipTap extension), `renderer/components/editor/MarkdownEditor.tsx` (registration), `renderer/styles/globals.css` (positioning + hover-to-reveal).
 **Priority:** Medium (high-value reading-side ergonomic)
 **Filed:** 2026-04-27
 
