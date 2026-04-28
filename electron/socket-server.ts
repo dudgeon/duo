@@ -16,6 +16,7 @@ import * as crypto from 'crypto'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserManager } from './browser-manager'
 import type { FilesService } from './files-service'
+import type { NavPinsService } from './nav-pins-service'
 import type {
   DuoRequest,
   DuoResponse,
@@ -112,7 +113,8 @@ export class SocketServer {
     private readonly cdp: CdpBridge,
     private readonly browser: BrowserManager,
     private readonly files: FilesService,
-    private readonly nav: NavBridge
+    private readonly nav: NavBridge,
+    private readonly navPins: NavPinsService
   ) {}
 
   start(): void {
@@ -577,6 +579,38 @@ export class SocketServer {
             result = { ok: true, oldPath, newPath }
           } else {
             throw new Error(`file op must be 'rename' or 'trash' (got '${op ?? '<missing>'}')`)
+          }
+          break
+        }
+        case 'nav-pin': {
+          // Stage 26 PR 2 (ENH-010) — `duo nav pin <path>`,
+          // `duo nav unpin <path>`, `duo nav pins [--json]`.
+          // Single command with a discriminated `op` arg.
+          const op = args['op'] as string | undefined
+          if (op === 'list') {
+            result = await this.navPins.list()
+          } else if (op === 'pin' || op === 'unpin' || op === 'toggle') {
+            const p = args['path'] as string | undefined
+            const kind = args['kind'] as string | undefined
+            if (!p) throw new Error('nav-pin requires a path arg')
+            if (kind !== 'file' && kind !== 'folder') {
+              throw new Error(`nav-pin kind must be 'file' or 'folder' (got '${kind ?? '<missing>'}')`)
+            }
+            const title = (args['title'] as string | undefined) ?? p.split('/').filter(Boolean).pop()
+            const entry: import('../shared/types').NavPinEntry = { path: p, kind, title }
+            const current = await this.navPins.list()
+            const exists = current.some(e => e.path === p)
+            // op='pin' → add iff missing; op='unpin' → remove iff present;
+            // op='toggle' → flip. Toggle's the agent-friendly default.
+            if ((op === 'pin' && exists) || (op === 'unpin' && !exists)) {
+              result = { ok: true, pinned: exists, pins: current }
+            } else {
+              const next = await this.navPins.toggle(entry)
+              const isPinned = next.some(e => e.path === p)
+              result = { ok: true, pinned: isPinned, pins: next }
+            }
+          } else {
+            throw new Error(`nav-pin op must be 'pin', 'unpin', 'toggle', or 'list' (got '${op ?? '<missing>'}')`)
           }
           break
         }

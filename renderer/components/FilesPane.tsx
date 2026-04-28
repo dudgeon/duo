@@ -5,10 +5,12 @@
 
 import { Breadcrumb } from './Breadcrumb'
 import { FileTree } from './FileTree'
+import { PinnedNav } from './PinnedNav'
 import { UserClaudePane } from './UserClaudePane'
 import { ProjectClaudeContext } from './ProjectClaudeContext'
-import type { DirEntry } from '@shared/types'
+import type { DirEntry, NavPinEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
+import type { NavPinsApi } from '../hooks/useNavPins'
 import type { UserClaudeNavigatorApi } from '../hooks/useUserClaudeNavigator'
 
 interface FilesPaneProps {
@@ -28,6 +30,8 @@ interface FilesPaneProps {
    *  settings" pane. Lives in App.tsx so its `expanded` set persists
    *  across re-mounts of FilesPane. */
   userClaudeNav: UserClaudeNavigatorApi
+  /** Stage 26 PR 2 (ENH-010) \u2014 navigator pins API. */
+  navPins: NavPinsApi
   /** Flip collapsed state. Needed as a click-to-expand affordance so users
    *  stuck with \u2318B swallowed by an editor tab (bold) always have an escape. */
   onToggleCollapsed: () => void
@@ -40,6 +44,7 @@ export function FilesPane({
   state,
   actions,
   userClaudeNav,
+  navPins,
   onOpenFile,
   onOpenTerminalHere,
   onOpenClaudeIn,
@@ -125,6 +130,30 @@ export function FilesPane({
             onOpenFile={onOpenFile}
             onOpenTerminalHere={onOpenTerminalHere}
             onOpenClaudeIn={onOpenClaudeIn}
+            navPins={navPins}
+          />
+
+          {/* Stage 26 PR 2 (ENH-010) — Pinned files & folders.
+              Hidden when empty; collapsible header when populated. */}
+          <PinnedNav
+            pins={navPins.pins}
+            home={home}
+            selectedPath={state.selected?.path ?? null}
+            onSelect={(entry) => actions.selectItem(entry.path, entry.kind)}
+            onOpenFile={(entry) => {
+              // Build a DirEntry-shaped record so onOpenFile (which
+              // expects DirEntry, not NavPinEntry) routes through the
+              // same fileClassifier path as the project tree.
+              onOpenFile({
+                name: entry.title ?? entry.path.split('/').pop() ?? entry.path,
+                path: entry.path,
+                kind: 'file'
+              })
+            }}
+            onOpenFolder={(entry) => actions.navigateTo(entry.path)}
+            onOpenTerminalHere={onOpenTerminalHere}
+            onRevealInFinder={(p) => window.electron.files.revealInFinder(p)}
+            onUnpin={(entry) => navPins.toggle(entry)}
           />
         </div>
       )}

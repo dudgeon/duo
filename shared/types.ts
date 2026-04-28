@@ -110,6 +110,11 @@ export type DuoCommandName =
   // Delete / Rename actions. Single 'file' command with a
   // discriminated `op` arg keeps the verb table small.
   | 'file'
+  // Stage 26 PR 2 (ENH-010) — `duo nav pin <path>`,
+  // `duo nav unpin <path>`, `duo nav pins [--json]` mirror the
+  // navigator's right-click Pin / Unpin actions. Same single-verb
+  // discriminated-op shape as 'file'.
+  | 'nav-pin'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -211,6 +216,21 @@ export interface PinEntry {
   kind: 'browser' | 'file'
   /** URL for `kind: 'browser'`, absolute path for `kind: 'file'`. */
   ref: string
+  title?: string
+}
+
+// Stage 26 PR 2 (ENH-010) — navigator pin entry. Persisted at
+// ~/.claude/duo/nav-pins.json. Separate from Stage 24's tab pins:
+// nav pins are shortcuts in the navigator's left pane (bottom
+// section), not WorkingPane tabs. Identity is the absolute path;
+// `kind` lets the renderer pick the right icon without statting.
+export interface NavPinEntry {
+  /** Absolute path to a file or folder. */
+  path: string
+  kind: 'file' | 'folder'
+  /** Cached basename so the section can render without a stat. The
+   *  navigator can refresh this lazily; the persisted copy is the
+   *  basename at pin time. */
   title?: string
 }
 
@@ -667,6 +687,12 @@ export const IPC = {
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
   PINS_TOGGLE: 'pins:toggle',
+  // Stage 26 PR 2 (ENH-010) — pinned files & folders in the navigator,
+  // persisted to ~/.claude/duo/nav-pins.json. Separate from Stage 24's
+  // tab pins (different storage, different UX): nav pins surface as a
+  // bottom-of-pane shortcut list keyed by absolute path.
+  NAV_PINS_LIST: 'nav-pins:list',
+  NAV_PINS_TOGGLE: 'nav-pins:toggle',
 
   // Stage 21c — session state restored across relaunches
   // (~/.claude/duo/session-state.json). Renderer pulls on mount,
@@ -992,6 +1018,17 @@ export interface ElectronPinsAPI {
   toggle: (entry: PinEntry) => Promise<PinEntry[]>
 }
 
+// Stage 26 PR 2 (ENH-010) — navigator pins (separate from Stage 24's
+// tab pins). Same atomic-write JSON pattern, different storage file
+// (~/.claude/duo/nav-pins.json), different UI surface (navigator's
+// bottom section, not the WorkingPane strip).
+export interface ElectronNavPinsAPI {
+  list: () => Promise<NavPinEntry[]>
+  /** Toggle a nav pin: add if absent (matched by absolute path),
+   *  remove if present. Returns the resulting full list. */
+  toggle: (entry: NavPinEntry) => Promise<NavPinEntry[]>
+}
+
 // Stage 18 — first-launch self-install state. The "installed"
 // provenance lives at ~/.claude/duo/installed.json with a version +
 // timestamp; absence of that file means we've never set up this
@@ -1194,6 +1231,7 @@ export interface ElectronAPI {
   terminal: ElectronTerminalAPI
   keyboard: ElectronKeyboardAPI
   pins: ElectronPinsAPI
+  navPins: ElectronNavPinsAPI
   install: ElectronInstallAPI
   update: ElectronUpdateAPI
   external: ElectronExternalAPI

@@ -26,6 +26,7 @@ import type {
   NewTabRequest,
   NewTabResult,
   PinEntry,
+  NavPinEntry,
   ExternalRedirectedPush,
   SessionState
 } from '../shared/types'
@@ -308,6 +309,11 @@ const api: ElectronAPI = {
   pins: {
     list: () => ipcRenderer.invoke(IPC.PINS_LIST) as Promise<PinEntry[]>,
     toggle: (entry) => ipcRenderer.invoke(IPC.PINS_TOGGLE, entry) as Promise<PinEntry[]>
+  },
+
+  navPins: {
+    list: () => ipcRenderer.invoke(IPC.NAV_PINS_LIST) as Promise<NavPinEntry[]>,
+    toggle: (entry) => ipcRenderer.invoke(IPC.NAV_PINS_TOGGLE, entry) as Promise<NavPinEntry[]>
   },
 
   sessionState: {

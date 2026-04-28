@@ -13,6 +13,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
+import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
@@ -175,6 +176,10 @@ export function App() {
   // settings" pane (rooted at ~/.claude/). Lives at App level so its
   // expanded set + show-all toggle persist across re-mounts.
   const userClaudeNav = useUserClaudeNavigator(home)
+  // Stage 26 PR 2 (ENH-010) — navigator pin state, persisted at
+  // ~/.claude/duo/nav-pins.json. Hook loads on mount; PinnedNav
+  // renders the section when pins.length > 0.
+  const navPins = useNavPins()
   const pendingCwd = computePendingCwd(nav.state)
   const theme = useTheme()
   // Stage 15 G19 — sets up the localStorage round-trip for `duo
@@ -1042,6 +1047,7 @@ export function App() {
             state={nav.state}
             actions={nav.actions}
             userClaudeNav={userClaudeNav}
+            navPins={navPins}
             onOpenFile={onOpenFile}
             onOpenTerminalHere={openTerminalHere}
             onOpenClaudeIn={openClaudeIn}

@@ -9,6 +9,7 @@ import { CdpBridge } from './cdp-bridge'
 import { SocketServer, ensureSocketDir } from './socket-server'
 import { FilesService } from './files-service'
 import { PinsService } from './pins-service'
+import { NavPinsService } from './nav-pins-service'
 import { InstallService } from './install-service'
 import { UpdateChecker } from './update-checker'
 import { initAutoUpdater } from './auto-updater'
@@ -112,6 +113,7 @@ let mainWindow: BrowserWindow | null = null
 const ptyManager = new PtyManager()
 const filesService = new FilesService()
 const pinsService = new PinsService()
+const navPinsService = new NavPinsService()
 const installService = new InstallService()
 const updateChecker = new UpdateChecker()
 // Load the cached check at boot so the renderer's first IPC call
@@ -181,7 +183,7 @@ function createWindow(): void {
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab
-  })
+  }, navPinsService)
   socketServer.start()
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -377,6 +379,14 @@ function setupIPC(): void {
   })
   ipcMain.handle(IPC.PINS_TOGGLE, (_event, entry: import('../shared/types').PinEntry) => {
     return pinsService.toggle(entry)
+  })
+
+  // Stage 26 PR 2 (ENH-010) — pinned files & folders in the navigator.
+  ipcMain.handle(IPC.NAV_PINS_LIST, () => {
+    return navPinsService.list()
+  })
+  ipcMain.handle(IPC.NAV_PINS_TOGGLE, (_event, entry: import('../shared/types').NavPinEntry) => {
+    return navPinsService.toggle(entry)
   })
 
   // Stage 21c Phase 2 — session state restored across relaunches.

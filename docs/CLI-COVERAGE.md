@@ -56,6 +56,8 @@ for the authoritative usage text.
 | `duo nav state` | Navigator state: cwd, selection, expanded, pinned |
 | `duo file rename <old> <new>` | **Stage 26** — rename / move a file or folder (atomic `fs.rename`). Mirrors the navigator's right-click Rename. |
 | `duo file trash <path>` | **Stage 26** — move a file or folder to the macOS Trash (recoverable). Mirrors the navigator's right-click Delete. Prefer over `rm`. |
+| `duo nav pin <path>` / `duo nav unpin <path>` | **Stage 26 PR 2 (ENH-010)** — pin / unpin a path to the navigator's "Pinned" section. Persists at `~/.claude/duo/nav-pins.json`. |
+| `duo nav pins` | **Stage 26 PR 2 (ENH-010)** — list all navigator pins (JSON). |
 
 ### Markdown editor (Stage 11)
 

@@ -461,13 +461,39 @@ async function main(): Promise<void> {
         out(await send('ls', resolved ? { path: resolved } : {}))
         break
       }
-      case 'nav-state':
-      case 'nav': {
-        // `duo nav state` and `duo nav-state` are equivalent spellings.
-        if (cmd === 'nav' && rest[0] !== 'state') {
-          die('Usage: duo nav state')
-        }
+      case 'nav-state': {
         out(await send('nav-state'))
+        break
+      }
+      case 'nav': {
+        // Stage 26 PR 2 (ENH-010) — `duo nav state | pin | unpin | pins`.
+        // 'state' echoes the navigator snapshot (cwd, selected, expanded).
+        // 'pin' / 'unpin' / 'pins' manage the navigator pin list at
+        // ~/.claude/duo/nav-pins.json (separate from Stage 24's tab pins).
+        const sub = rest[0]
+        if (!sub || sub === 'state') {
+          out(await send('nav-state'))
+        } else if (sub === 'pin' || sub === 'unpin') {
+          const pathArg = rest[1] ?? die(`Usage: duo nav ${sub} <path>`)
+          const resolved = resolveFilePath(pathArg)
+          // Stat the resolved path so we can record the right kind.
+          // resolveFilePath already exists checks; if the path doesn't
+          // exist, the agent gets a clear error from the renderer.
+          let kind: 'file' | 'folder' = 'file'
+          try {
+            const st = await import('fs').then(m => m.promises.stat(resolved))
+            kind = st.isDirectory() ? 'folder' : 'file'
+          } catch {
+            // Pin a non-existent path? Default to 'file'; the renderer
+            // surfaces the missing file in the section with a faint
+            // "missing" treatment.
+          }
+          out(await send('nav-pin', { op: sub, path: resolved, kind }))
+        } else if (sub === 'pins') {
+          out(await send('nav-pin', { op: 'list' }))
+        } else {
+          die('Usage: duo nav <state|pin|unpin|pins> ...')
+        }
         break
       }
       case 'wait': {
@@ -1015,6 +1041,14 @@ COMMANDS
                                   knows you moved their tree.
   ls [path]                       List directory contents (JSON). Defaults
                                   to the navigator's current folder.
+  nav pin <path>                  Stage 26 — pin a file or folder to
+                                  the navigator's "Pinned" section.
+                                  Mirrors the right-click "Pin to
+                                  navigator" action. Stored at
+                                  \`~/.claude/duo/nav-pins.json\`
+                                  (separate from Stage 24's tab pins).
+  nav unpin <path>                Remove the pin at <path>.
+  nav pins                        List all navigator pins (JSON).
   nav state                       Print navigator state (cwd, selection,
                                   expanded folders, pinned flag).
 

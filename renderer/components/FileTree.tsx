@@ -18,8 +18,9 @@
 // `duo file rename / trash`.
 
 import { useEffect, useRef, useState } from 'react'
-import type { DirEntry } from '@shared/types'
+import type { DirEntry, NavPinEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
+import type { NavPinsApi } from '../hooks/useNavPins'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 /** Return the parent directory of an absolute POSIX-style path. */
@@ -44,6 +45,9 @@ interface FileTreeProps {
    *  Optional: panes that don't pass it (UserClaudePane today) suppress
    *  the hover affordance. */
   onOpenClaudeIn?: (folderPath: string) => void
+  /** Stage 26 PR 2 (ENH-010) — navigator pin state. Optional so panes
+   *  that don't expose pin actions (UserClaudePane) suppress them. */
+  navPins?: NavPinsApi
   /** Stage 22 — override the default root entry source (which is
    *  `state.listings.get(state.cwd)`). The user-claude pane uses
    *  this to inject a curated root list (CLAUDE.md, skills/, agents/)
@@ -52,7 +56,7 @@ interface FileTreeProps {
   rootEntriesOverride?: DirEntry[] | null
 }
 
-export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, rootEntriesOverride }: FileTreeProps) {
+export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride }: FileTreeProps) {
   const rootEntries = rootEntriesOverride !== undefined ? rootEntriesOverride : state.listings.get(state.cwd)
   // Shared context-menu state — only one menu open at a time across the whole
   // tree. `target` carries the entry the user right-clicked.
@@ -129,7 +133,17 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
             },
             onOpenWithDefault: (p) => window.electron.files.openExternal(p),
             onStartRename: () => setRenamingPath(menu.target.path),
-            onTrash: () => { void onTrashEntry(menu.target) }
+            onTrash: () => { void onTrashEntry(menu.target) },
+            navPins,
+            onTogglePin: navPins
+              ? (entry) => {
+                  void navPins.toggle({
+                    path: entry.path,
+                    kind: entry.kind === 'directory' ? 'folder' : 'file',
+                    title: entry.name
+                  })
+                }
+              : undefined
           })}
           onClose={() => setMenu(null)}
         />
@@ -152,6 +166,10 @@ function buildMenuItems(
     onOpenWithDefault: (path: string) => void | Promise<void>
     onStartRename: () => void
     onTrash: () => void
+    /** Stage 26 PR 2 (ENH-010) — present only when the host pane wires
+     *  navPins (project tree does; user-claude pane does not). */
+    navPins?: NavPinsApi
+    onTogglePin?: (entry: DirEntry) => void
   }
 ): ContextMenuItem[] {
   const isFolder = entry.kind === 'directory'
@@ -181,6 +199,16 @@ function buildMenuItems(
     separatorBefore: true,
     onClick: () => { void handlers.onOpenWithDefault(entry.path) }
   })
+  // Stage 26 PR 2 (ENH-010) — Pin / Unpin from navigator. Visible when
+  // the host pane wires navPins; suppressed otherwise (user-claude pane).
+  if (handlers.navPins && handlers.onTogglePin) {
+    const pinned = handlers.navPins.isPinned(entry.path)
+    items.push({
+      label: pinned ? 'Unpin from navigator' : 'Pin to navigator',
+      separatorBefore: true,
+      onClick: () => handlers.onTogglePin!(entry)
+    })
+  }
   items.push({
     label: 'Rename…',
     separatorBefore: true,
