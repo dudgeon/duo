@@ -321,7 +321,7 @@ Option (b) is closest to the design intent but adds CSS injection + event-routin
 
 ### BUG-007: Deleted files linger in the navigator until full reload
 
-**Status:** ✅ Fixed 2026-04-26 (v0.3.1)
+**Status:** ✅ Fix v1 shipped v0.3.1 (chokidar subscription wired) · ✅ Hardening shipped v0.5.1 (refresh on watcher (re)subscribe + clear stale selection on remove) — see "Update 2026-04-28" below
 **Priority:** Medium
 **Filed:** 2026-04-26 (during Navigator polish backlog scoping)
 
@@ -344,6 +344,12 @@ Option (b) is closest to the design intent but adds CSS injection + event-routin
 **Cross-ref:** Bundled into the [Navigator polish & ergonomics pass](docs/roadmap.html#backlog-nav-polish) backlog item — listed there as item 5 of 7. Fix lands here in `tasks.md`; backlog scoping lives in the roadmap.
 
 **Discovered:** 2026-04-26, during the user's review of the file navigator surface. Surfaced as part of the Navigator polish bundle (item 5).
+
+**Update 2026-04-28 (v0.5.1 hardening):** v0.3.1's chokidar subscription was correct, but the bug recurred under a race: when the user expanded a folder mid-delete (or navigated to a new cwd while a delete was firing), the watcher tear-down + re-subscribe gap could drop the unlink event. Hardening in `renderer/hooks/useNavigator.ts`:
+1. After the watcher attaches, refresh every visible folder's listing once — catches events that fired during the sub-resub window.
+2. On `removed` events, clear `selected` if it pointed to the deleted path — so a vanishing row doesn't leave a stale highlight.
+
+**Affected files (v0.5.1):** `renderer/hooks/useNavigator.ts`.
 
 ---
 
@@ -518,7 +524,7 @@ The remaining checks correctly let the success/error states render through phase
 
 ### BUG-010: BUG-009 residual — literal `claude` echoes above the shell prompt
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.3.0 (2026-04-26 evening) — `waitForPtyReady` now uses prompt-tail regex on stripped ANSI; 14/14 standalone test cases pass
 **Priority:** Low (cosmetic — claude DOES launch end-to-end)
 **Filed:** 2026-04-26 (during v0.2.0 smoke-pass after BUG-009 fix landed)
 
@@ -563,7 +569,7 @@ Alternative: a deliberate post-PS1 sleep (e.g., 200ms). Crude but predictable. L
 
 ### BUG-012: HTML canvas — global ⌘N, ⌘T, ⌃Tab don't reach the App-level handler
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.3.0 (2026-04-26) — preventative kb-shortcut architecture: iframe forwarder consults `matchGlobalShortcut` and re-dispatches global shortcuts to parent window
 **Priority:** High (regression — same family as BUG-001 / BUG-008)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -586,7 +592,7 @@ In `CanvasTab.handleShortcut`, when no canvas-specific shortcut matches, synthes
 
 ### BUG-013: Markdown editor — ⌘T opens a duplicate FAQ instance instead of a new doc
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.3.0 (2026-04-26) — TipTap surface adopts the shared `matchGlobalShortcut` matcher; ⌘T now properly opens a fresh browser tab from MD editor focus
 **Priority:** High (regression; user-confusing)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -609,7 +615,7 @@ In `CanvasTab.handleShortcut`, when no canvas-specific shortcut matches, synthes
 
 ### BUG-014: Markdown editor — ⌃Tab does nothing (should cycle tabs)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.3.0 (2026-04-26) — same fix as BUG-012/013: TipTap consults the shared global-shortcut matcher and yields ⌃Tab to the document capture-phase listener
 **Priority:** High (regression — same family)
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
 
@@ -881,7 +887,7 @@ pass.
 
 ### BUG-018: ⌘T opens new browser tab landing on FAQ
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — `⌘T` now opens fresh `about:blank` instead of duplicate FAQ
 **Priority:** Medium (papercut — every new tab needs to be re-navigated)
 **Filed:** 2026-04-27
 
@@ -900,7 +906,7 @@ A "new tab" experience — about:blank, a stub "Where to?" page, or the most-rec
 
 ### BUG-019: ⌘T new browser tab doesn't focus the address bar
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — address-bar focus via two nested `requestAnimationFrame`s after new-tab commit
 **Priority:** Medium (pairs with BUG-018; together they're the "⌘T felt right" fix)
 **Filed:** 2026-04-27
 
@@ -919,7 +925,7 @@ The new-tab code path needs to push focus to the address bar after `addTab()` re
 
 ### BUG-020: First FAQ tab non-closeable but not pinned
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — first/last tab now closeable; opens fresh `about:blank` first, then closes (Notion pattern)
 **Priority:** Medium (UX inconsistency — should match an existing affordance)
 **Filed:** 2026-04-27
 
@@ -937,7 +943,7 @@ Either: (a) auto-pin the FAQ default tab on first install (matches Stage 24's pi
 
 ### BUG-021: ⌃Tab cycle skips restored tabs after session restore
 
-**Status:** 🆕 Filed (v0.4.2 punch — regression introduced by Stage 21c Phase 2)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — cycle now uses refs instead of closure-captured tabs so post-session-restore state is always visible
 **Priority:** **High** (load-bearing for session-restore credibility — "the tabs are there but I can't reach them with the keyboard")
 **Filed:** 2026-04-27
 
@@ -961,7 +967,7 @@ The keyboard-shortcut handler likely captures the cycle list at mount time (or m
 
 ### BUG-022: New HTML canvas doesn't focus the writing area on open
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — `RenderedCanvas` calls `doc.body.focus()` on canvas mount
 **Priority:** Medium (papercut — every new canvas needs an extra click)
 **Filed:** 2026-04-27
 
@@ -980,7 +986,7 @@ After the canvas mounts, focus moves to the contentEditable body so the first ke
 
 ### BUG-023: HTML canvas click area too small — must click ON existing text
 
-**Status:** 🆕 Filed (v0.4.2 punch — UX papercut)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — body fills viewport (`min-height: 100vh`) with content in a 720px `<main>` child so clicks anywhere place a cursor
 **Priority:** Medium-High (significant friction for the canvas surface)
 **Filed:** 2026-04-27
 
@@ -1004,7 +1010,7 @@ The contentEditable body has a too-tight min-height or its child blocks have mar
 
 ### BUG-024: Comment button occludes Send → Duo pill on canvas selection
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — Comment button stacks below selection (Send→Duo stays above), falls back to "stack above" when selection is at viewport bottom
 **Priority:** Medium (selection UX — both pills appear at the same anchor and stack visually)
 **Filed:** 2026-04-27
 
@@ -1026,7 +1032,7 @@ Selecting text on an HTML canvas surfaces both the Send → Duo pill (Stage 15.2
 
 ### BUG-025: Folder chevron click promotes/opens the row instead of just toggling expansion
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.5.0 (2026-04-27) — Stage 26 PR 1: chevron split into discrete button with `e.stopPropagation()`
 **Priority:** Medium (papercut on the most-used navigator gesture)
 **Filed:** 2026-04-27
 
@@ -1186,7 +1192,7 @@ A collapsed pill / chip somewhere on the canvas chrome that says "5 resolved" (o
 
 ### ENH-009: Expand default external-domains.json bootstrap list
 
-**Status:** 🆕 Filed (v0.4.2 punch addendum)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — fresh-install defaults expanded to Slack/Gmail/Google Workspace/Atlassian/M365 (mile 1); existing-user additive merge folded into Stage 21e-iii
 **Priority:** Medium-High (every Trailblazer hits Slack / Gmail / Google Docs daily; the embedded browser breaks SSO on most of them)
 **Filed:** 2026-04-27
 
@@ -1230,7 +1236,7 @@ A more comprehensive default list covering common SaaS apps that fail in the emb
 
 ### ENH-008: Tooltip on "Your Claude settings" navigator pane
 
-**Status:** 🆕 Filed (v0.4.2 punch)
+**Status:** ✅ Shipped v0.4.3 (2026-04-27) — "Your Claude settings" + "Project Claude context" headers got explanatory `title` tooltips
 **Priority:** Low (small comprehension nudge for non-technical PMs)
 **Filed:** 2026-04-27
 
@@ -1252,7 +1258,7 @@ A tooltip / hover (or a small `(?)` glyph next to the header) explaining: "These
 
 ### ENH-010: Pinned files & folders section at the bottom of the navigator
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.5.0 (2026-04-27 night) — Stage 26 PR 2 landed Pinned section with right-click Pin/Unpin + CLI parity (`duo nav pin/unpin/pins`)
 **Priority:** Medium (frequent-target shortcut for cross-folder workflows; pairs naturally with the rest of Stage 26)
 **Filed:** 2026-04-27
 
@@ -1348,7 +1354,7 @@ Plus a sweep of inline jargon — "skill", "subagent", "priming shim", "SessionS
 
 ### BUG-029: Right-click context menu on Pinned section gets clipped at viewport bottom
 
-**Status:** 🆕 Filed (Stage 26 PR 2 smoke)
+**Status:** ✅ Shipped v0.5.1 (PR 1, 2026-04-28) — `<ContextMenu>` now measures rendered height in `useLayoutEffect` and flips up/left when the natural position would overflow the viewport. Verified live: right-click on Pinned "Documents" at viewport bottom flipped the menu upward with all four items visible.
 **Priority:** Medium
 **Filed:** 2026-04-27
 
@@ -1364,7 +1370,7 @@ Plus a sweep of inline jargon — "skill", "subagent", "priming shim", "SessionS
 
 ### BUG-030: Navigator pin state doesn't push to renderer when changed via CLI
 
-**Status:** 🆕 Filed (Stage 26 PR 2 smoke)
+**Status:** ✅ Shipped v0.5.1 (PR 1, 2026-04-28) — new `IPC.NAV_PINS_CHANGED` push channel; `mainWindow.webContents.send` from both the IPC `NAV_PINS_TOGGLE` handler and the socket-server `nav-pin` op via new `NavBridge.pushNavPinsChanged`; `useNavPins` subscribes via `electron.navPins.onChange`. Verified live: `duo nav pin/unpin <path>` from a terminal flips the renderer's Pinned section count immediately, no reload.
 **Priority:** Low
 **Filed:** 2026-04-27
 
@@ -1377,5 +1383,107 @@ Plus a sweep of inline jargon — "skill", "subagent", "priming shim", "SessionS
 **Affected files:** `shared/types.ts`, `electron/main.ts`, `electron/preload.ts`, `renderer/hooks/useNavPins.ts`.
 
 **Cross-refs:** Stage 24's `usePins` has the same shape (snapshot-on-mount, no push). A shared `json-state-file.ts` helper that bundles the push gives both systems live updates from one fix.
+
+---
+
+### BUG-028: Escape doesn't dismiss inline rename in navigator
+
+**Status:** 🟡 Fix shipped v0.5.1 (PR 1, 2026-04-28) · live verification owed — computer-use harness can't send Escape keystrokes to Electron, so smoke walk left to owner. Code-side fix: Escape branch now calls `e.stopPropagation()` + sets a `cancelledRef` + explicitly calls `inputRef.current?.blur()` before `onCancel()`, with the blur handler short-circuiting when the cancel ref is set. Belt-and-suspenders against any React-18 batching path that could swallow the keydown's setState.
+**Priority:** Medium
+**Filed:** 2026-04-28 (referenced in roadmap + session log; never had a tasks.md entry)
+
+**Today:**
+Stage 26 PR 1 added inline rename: right-click → Rename flips the row label into a contenteditable input. ↵ commits, but ⎋ does not cancel — the input keeps focus, the rename state stays "in flight," and the only way out is to commit (or click elsewhere, which may or may not commit depending on blur handler).
+
+Conventional file-tree spec (Finder, VS Code): ⎋ cancels rename, restores the original name, exits rename mode.
+
+**Repro:**
+1. Right-click a file row in the navigator → Rename.
+2. Type a partial new name.
+3. Press ⎋.
+
+**Expected:** Input dismisses, original name restored, row exits rename state, focus returns to the row.
+**Actual:** ⎋ does nothing visible; input keeps focus and content.
+
+**Suggested fix:**
+Inline-rename handler in `renderer/components/FileTree.tsx` (the row whose `isRenaming` flag is true) gets a `onKeyDown` branch:
+```ts
+if (e.key === 'Escape') {
+  e.preventDefault();
+  setRenamingId(null);  // exit rename state
+  // input is unmounted; original label re-renders
+}
+```
+Also worth ensuring blur doesn't auto-commit (or if it does, ⎋ has to set a flag the blur handler reads to suppress commit).
+
+**Cross-cuts:** Same gesture model should apply to the Stage 26 inline-rename surface in the Pinned section (PR 2) — single rename-in-progress at a time, ⎋ cancels everywhere. Probably one cancel handler covers both surfaces if they share state.
+
+**Affected files:** `renderer/components/FileTree.tsx` (row rename handler).
+
+**Cross-refs:** Stage 26 PR 1 (the surface this lands on); BUG-029 (context menu clipping — same right-click flow surfaces both bugs together); BUG-030 (nav pins push channel — different bug, same PR cluster).
+
+---
+
+### ENH-013: "Send → Duo" pill enabled only when front terminal has a live Claude session
+
+**Status:** 🆕 Filed (v0.5.1 sprint — PR 3)
+**Priority:** Medium-High (correctness — the pill currently routes to dead PTYs / shell tabs and silently fails)
+**Filed:** 2026-04-28
+
+**Today:**
+The "Send → Duo" pill renders on selection across three surfaces (markdown editor — Stage 15.1; browser pane — Stage 15.2; HTML canvas — Stage 17c) regardless of what's running in the focused terminal. If the user's front terminal is a bare shell (or a `kind: 'claude'` tab where they've `/exit`'d back to the shell), clicking the pill pushes selection text into a non-Claude prompt — looks broken.
+
+`TabSession.kind` only records launch *intent*, not current process state — survives `/exit` to a bare shell, survives the claude process dying.
+
+**Owner spec (option a — strict):**
+- Pill is enabled only when the *front-of-terminal-column* tab has a live `claude` descendant in its PTY's process tree.
+- Pill is disabled (or hidden — design call below) when: no terminals exist; front terminal has no claude descendant (bare shell); claude is mid-startup (>500ms gap from launch — see below).
+- *Strict*, not permissive: even if another terminal tab has a live claude, the pill stays disabled until the user focuses that tab. Predictable trade for the muscle-memory cost.
+
+**Implementation:**
+1. **Process-tree probe.** New `electron/claude-presence.ts` (or fold into `electron/pty-manager.ts`) walks the PTY's child-process tree looking for a `claude` (or `node` running the claude entrypoint) descendant. Use `pgrep -P <ptyPid>` recursively, or one `ps -ax -o pid,ppid,comm` walk and filter. Sub-millisecond per walk.
+2. **Polling loop.** Per active tab, probe every ~500ms while the tab exists. Cache last result; broadcast on flip only.
+3. **State machine.** New `TerminalClaudeState` per tab: `'no-pty' | 'shell' | 'claude' | 'starting'`. `'starting'` covers the gap between `+ claude` click and the descendant appearing — gated by a 1500ms grace window from tab creation when `kind: 'claude'`. After the grace window, falls back to whatever ps says.
+4. **IPC push channel.** New `TERMINAL_CLAUDE_STATE_CHANGED` channel — main → renderer broadcast on every state flip. Renderer caches `Map<tabId, TerminalClaudeState>`.
+5. **Gating logic in the three pill sites.**
+   - `renderer/components/editor/primitives/SendToDuoPill.tsx` (or wherever the pill primitive lives — locate during PR 3) reads `useFrontTerminalClaudeState()` hook.
+   - When state !== 'claude' && state !== 'starting': render in disabled state (or hide entirely — owner picks during PR 3 walk; *recommend* render with grey-out + tooltip "Focus a Claude terminal to enable" so the user learns the rule, vs. silent disappear).
+   - Same logic for the browser-pane pill and the canvas pill.
+6. **CLI parity per CLAUDE.md §4.**
+   - `duo terminal claude-state` → prints front-tab state (`shell` / `claude` / `starting` / `no-pty`).
+   - `duo terminal claude-state --json` → all tabs as `[{tabId, kind, claudeLive, state}]`.
+   - `duo terminal claude-state --tab <n>` → specific tab.
+7. **Bonus: FOLLOWUP-002 piggyback.** The agent's session guard (`agents/duo.md`) currently relies on `$DUO_SESSION` env var checks; the same `pgrep` plumbing makes the agent guard cheaper and more robust. Land both at once.
+
+**Edge cases to walk:**
+- Claude crash → process disappears → state flips to `'shell'`, pill greys out. ✓
+- `/exit` from claude back to shell → same as crash. ✓
+- User runs `claude` directly (bypassing the `+ button` shim path) → descendant still named `claude`, state flips to `'claude'`. ✓
+- Two terminal panes both with live claude — pill targets the front one only (per option a). Predictable.
+- Terminal column not focused (browser focus / editor focus) → "front" is the most-recently-focused terminal tab. Same logic; the pill is about the routing target, not the user's current focus.
+- Subprocess of claude (claude → bash → vim) — pgrep recursion finds claude in the chain regardless of depth. ✓
+- Stage 19b PATH-shim wraps `claude --append-system-prompt` — descendant is still `claude`. ✓
+
+**Affected files:**
+- `electron/main.ts` (instantiate prober + broadcast)
+- `electron/pty-manager.ts` (expose ptyPid per tab if not already)
+- new `electron/claude-presence.ts` (the prober)
+- `electron/preload.ts` (renderer subscription bridge)
+- `electron/socket-server.ts` (new `terminal claude-state` case)
+- `cli/duo.ts` (new verb + `printHelp()` update; rebuild binary)
+- `shared/types.ts` (TerminalClaudeState type + IPC channel name + DuoCommandName extension)
+- `renderer/hooks/useFrontTerminalClaudeState.ts` (new)
+- `renderer/components/editor/primitives/SendToDuoPill.tsx` (gating)
+- (browser-pane pill site + canvas pill site — locate during PR 3)
+- `skill/SKILL.md` (verb cheat-sheet — sync:claude after)
+- `agents/duo.md` (verb cheat-sheet entry under `## Verb cheat-sheet`)
+- `docs/CLI-COVERAGE.md` (inventory)
+
+**Cross-refs:** Stage 15.1 / 15.2 / 17c (the three pill sites); Stage 19c (`+ button` claude-launch — provides the `kind: 'claude'` marker we use as the grace-window seed); FOLLOWUP-002 (agent guard hardening — same plumbing).
+
+**Open questions (decide during PR 3):**
+- Disabled-pill UX: grey-out-with-tooltip vs. hide entirely. *Recommend* grey-out for discoverability.
+- Polling cadence: 500ms vs. 1000ms vs. event-driven (xterm output sniff). *Recommend* 500ms polling for v1; event-driven is fragile across shell variants.
+- Should `'starting'` count as enabled? *Recommend* yes — the user's intent is clearly "send to claude", and the pill click queues vs. fails, no worse than the existing flow.
 
 ---

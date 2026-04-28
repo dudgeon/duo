@@ -105,20 +105,17 @@ export function useNavigator(initialCwd: string) {
     for (const p of expanded) ensureListing(p)
   }, [expanded, ensureListing])
 
-  // BUG-007 fix (v0.3.1) — subscribe to filesystem events so the
-  // navigator reflects external mutations (file deletes, agent
-  // writes via `duo html *`, terminal `mv` / `rm`, Finder operations)
-  // without a full reload. The chokidar watch on the main side
-  // already emitted unlink / unlinkDir events; the gap was that no
-  // renderer subscriber existed.
-  //
-  // We watch [cwd, ...expanded] at depth 0 (matches the listing
-  // shape). When any event lands, we invalidate the parent directory's
-  // cached listing so `ensureListing` re-fetches it on the next
-  // render. Tearing down + re-subscribing on `expanded` membership
-  // change is cheap (chokidar startup is ~ms) and keeps the
-  // subscription set in sync without needing `updateWatchPaths`'s
-  // id-tracking dance.
+  // BUG-007 — subscribe to filesystem events so the navigator reflects
+  // external mutations (file deletes, agent writes, terminal `mv`/`rm`,
+  // Finder ops) without a full reload. v0.3.1 added the renderer
+  // subscription; v0.5.1 hardens the unlink path:
+  //   - On every (re)subscribe, refresh the watched paths' listings
+  //     once. Catches deletes that fired during the sub-resub gap
+  //     (e.g. when the user expanded a folder mid-delete).
+  //   - When an event invalidates the parent cache, also clear any
+  //     `selected` row whose path equals `event.path` — the row's
+  //     vanishing should not leave a stale highlight on a row that
+  //     was deleted.
   useEffect(() => {
     const paths = [cwd, ...Array.from(expanded)]
     if (paths.length === 0) return
@@ -126,8 +123,6 @@ export function useNavigator(initialCwd: string) {
     let cancelled = false
 
     const handleEvent = (event: { kind: 'added' | 'changed' | 'removed'; path: string }) => {
-      // Parent directory of the changed entry. Empty string falls back
-      // to refreshing the cwd to be safe.
       const parent = event.path.slice(0, event.path.lastIndexOf('/')) || cwd
       setListings(prev => {
         if (!prev.has(parent)) return prev
@@ -136,13 +131,28 @@ export function useNavigator(initialCwd: string) {
         return next
       })
       ensureListing(parent)
+      if (event.kind === 'removed') {
+        setSelected(curr => (curr && curr.path === event.path ? null : curr))
+      }
     }
 
     void window.electron.files.watch(paths, handleEvent).then(stop => {
-      if (cancelled) { void stop() } else { unwatch = stop }
+      if (cancelled) { void stop(); return }
+      unwatch = stop
+      // Belt-and-suspenders: refresh visible folders once after the
+      // watcher is fully attached, so any events that fired during
+      // the sub-resub window are reflected. Cheap (one fs.readdir per
+      // visible folder) and keeps the tree honest.
+      for (const p of paths) {
+        setListings(prev => {
+          if (!prev.has(p)) return prev
+          const next = new Map(prev)
+          next.delete(p)
+          return next
+        })
+        ensureListing(p)
+      }
     }).catch(err => {
-      // Don't crash the navigator if the watcher fails — fall back
-      // to "refresh on user action" (the existing pre-BUG-007 UX).
       console.warn('[nav] watch failed:', err instanceof Error ? err.message : err)
     })
 

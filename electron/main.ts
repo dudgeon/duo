@@ -182,7 +182,10 @@ function createWindow(): void {
     htmlOp: dispatchHtmlOp,
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
-    newTab: dispatchNewTab
+    newTab: dispatchNewTab,
+    pushNavPinsChanged: (pins) => {
+      mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
+    }
   }, navPinsService)
   socketServer.start()
 
@@ -385,8 +388,12 @@ function setupIPC(): void {
   ipcMain.handle(IPC.NAV_PINS_LIST, () => {
     return navPinsService.list()
   })
-  ipcMain.handle(IPC.NAV_PINS_TOGGLE, (_event, entry: import('../shared/types').NavPinEntry) => {
-    return navPinsService.toggle(entry)
+  ipcMain.handle(IPC.NAV_PINS_TOGGLE, async (_event, entry: import('../shared/types').NavPinEntry) => {
+    const next = await navPinsService.toggle(entry)
+    // BUG-030 — push to renderer so any other subscriber (or other
+    // window someday) sees the change live.
+    mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, next)
+    return next
   })
 
   // Stage 21c Phase 2 — session state restored across relaunches.

@@ -36,6 +36,16 @@ export function useNavPins(): NavPinsApi {
     return () => { cancelled = true }
   }, [])
 
+  // BUG-030 — subscribe to main-process push events so CLI mutations
+  // (`duo nav pin/unpin`) and any future window-to-window updates show
+  // up live without a relaunch.
+  useEffect(() => {
+    const unsubscribe = window.electron.navPins.onChange((next) => {
+      setPins(next)
+    })
+    return () => { unsubscribe() }
+  }, [])
+
   const isPinned = useCallback((path: string) => {
     return pins.some(p => p.path === path)
   }, [pins])

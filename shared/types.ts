@@ -693,6 +693,10 @@ export const IPC = {
   // bottom-of-pane shortcut list keyed by absolute path.
   NAV_PINS_LIST: 'nav-pins:list',
   NAV_PINS_TOGGLE: 'nav-pins:toggle',
+  // BUG-030 — main → renderer push when nav pins change. Broadcast on
+  // every TOGGLE handler reply AND every socket-server `nav-pin` op so
+  // CLI mutations show up live in the renderer without a relaunch.
+  NAV_PINS_CHANGED: 'nav-pins:changed',
 
   // Stage 21c — session state restored across relaunches
   // (~/.claude/duo/session-state.json). Renderer pulls on mount,
@@ -1027,6 +1031,9 @@ export interface ElectronNavPinsAPI {
   /** Toggle a nav pin: add if absent (matched by absolute path),
    *  remove if present. Returns the resulting full list. */
   toggle: (entry: NavPinEntry) => Promise<NavPinEntry[]>
+  /** BUG-030 — subscribe to nav-pin state changes (UI- or CLI-driven).
+   *  Returns an unsubscribe function. */
+  onChange: (cb: (pins: NavPinEntry[]) => void) => () => void
 }
 
 // Stage 18 — first-launch self-install state. The "installed"

@@ -2,8 +2,15 @@
 // at `position`, closes on outside click / Escape / any item activation.
 // Portal-free (just renders in place) — consumers should render it
 // conditionally based on their own open/closed state.
+//
+// BUG-029 — flip-aware positioning: after first paint, measure the menu's
+// natural size and adjust the position upward / leftward if it would
+// overflow the viewport bottom or right edge. The pattern is render-
+// then-correct (vs. measure-then-render): the first paint may flicker
+// at the click position before snapping into the flipped slot, but it
+// avoids a hidden-measure pre-pass and keeps the component synchronous.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 export interface ContextMenuItem {
   label: string
@@ -19,8 +26,11 @@ interface ContextMenuProps {
   onClose: () => void
 }
 
+const VIEWPORT_GUTTER = 4 // px — keep some breathing room from window edges
+
 export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const [adjusted, setAdjusted] = useState<{ x: number; y: number }>(position)
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -38,12 +48,38 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
     }
   }, [onClose])
 
+  // BUG-029 — after first paint, flip up/left when menu overflows viewport.
+  // useLayoutEffect runs synchronously after DOM mutation, before browser
+  // paints, so the user sees the corrected position on the first frame in
+  // most cases.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    let x = position.x
+    let y = position.y
+    if (y + rect.height + VIEWPORT_GUTTER > window.innerHeight) {
+      // Flip upward: anchor bottom edge to click point.
+      y = Math.max(VIEWPORT_GUTTER, position.y - rect.height)
+    }
+    if (x + rect.width + VIEWPORT_GUTTER > window.innerWidth) {
+      x = Math.max(VIEWPORT_GUTTER, position.x - rect.width)
+    }
+    if (x !== adjusted.x || y !== adjusted.y) {
+      setAdjusted({ x, y })
+    }
+    // `position` change forces a re-measure when the same menu re-opens at
+    // a new spot. `items.length` covers menu-content swaps. `adjusted`
+    // intentionally not in deps — would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [position.x, position.y, items.length])
+
   return (
     <div
       ref={ref}
       role="menu"
       className="fixed z-50 min-w-[180px] py-1 rounded bg-surface-2 border border-border shadow-xl text-[12px] text-zinc-200"
-      style={{ left: position.x, top: position.y }}
+      style={{ left: adjusted.x, top: adjusted.y }}
     >
       {items.map((item, i) => (
         <div key={i}>

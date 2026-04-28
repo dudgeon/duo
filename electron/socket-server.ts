@@ -41,7 +41,8 @@ import type {
   SelectionFormatStateSnapshot,
   NewTabRequest,
   NewTabResult,
-  TerminalTabKind
+  TerminalTabKind,
+  NavPinEntry
 } from '../shared/types'
 import { SOCKET_PATH, PORT_FILE, APP_VERSION } from './constants'
 
@@ -96,6 +97,10 @@ export interface NavBridge {
    *  renderer picks defaults (D28 persisted last-kind, navigator
    *  pending CWD, no pre-typed command). */
   newTab: (req: Omit<NewTabRequest, 'reqId'>) => Promise<NewTabResult>
+  /** BUG-030 — broadcast nav-pin state change to renderer subscribers
+   *  after a CLI-driven mutation (the IPC handler broadcasts itself;
+   *  this is the socket-server's path to the same channel). */
+  pushNavPinsChanged: (pins: NavPinEntry[]) => void
 }
 
 export class SocketServer {
@@ -607,6 +612,9 @@ export class SocketServer {
             } else {
               const next = await this.navPins.toggle(entry)
               const isPinned = next.some(e => e.path === p)
+              // BUG-030 — push the new list so renderer subscribers
+              // (useNavPins) see the change without a relaunch.
+              this.nav.pushNavPinsChanged(next)
               result = { ok: true, pinned: isPinned, pins: next }
             }
           } else {

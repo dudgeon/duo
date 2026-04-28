@@ -422,6 +422,13 @@ interface RenameInputProps {
 function RenameInput({ initial, isFolder, onCommit, onCancel }: RenameInputProps) {
   const [value, setValue] = useState(initial)
   const inputRef = useRef<HTMLInputElement>(null)
+  // BUG-028 — track whether Escape just fired, so the resulting blur
+  // (which we trigger explicitly to force unmount) doesn't fire a second
+  // cancel from a stale-looking onBlur path. Belt-and-suspenders for
+  // React 18 batching: keyDown's setRenamingPath(null) might not commit
+  // before the next event tick, so we also call inputRef.current.blur()
+  // synchronously and let onBlur path do the cancel.
+  const cancelledRef = useRef(false)
 
   useEffect(() => {
     const el = inputRef.current
@@ -446,9 +453,13 @@ function RenameInput({ initial, isFolder, onCommit, onCancel }: RenameInputProps
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
+          e.stopPropagation()
           void onCommit(value)
         } else if (e.key === 'Escape') {
           e.preventDefault()
+          e.stopPropagation()
+          cancelledRef.current = true
+          inputRef.current?.blur()
           onCancel()
         } else {
           // Block global shortcuts from hijacking typing in the rename
@@ -456,7 +467,12 @@ function RenameInput({ initial, isFolder, onCommit, onCancel }: RenameInputProps
           e.stopPropagation()
         }
       }}
-      onBlur={() => onCancel()}
+      onBlur={() => {
+        // Skip if Escape already cancelled — avoids the second-cancel
+        // race during the unmount cycle.
+        if (cancelledRef.current) return
+        onCancel()
+      }}
       className="flex-1 min-w-0 bg-surface-3 border border-accent rounded px-1 py-0 text-[12px] text-zinc-100 outline-none"
     />
   )

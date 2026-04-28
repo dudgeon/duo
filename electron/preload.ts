@@ -313,7 +313,12 @@ const api: ElectronAPI = {
 
   navPins: {
     list: () => ipcRenderer.invoke(IPC.NAV_PINS_LIST) as Promise<NavPinEntry[]>,
-    toggle: (entry) => ipcRenderer.invoke(IPC.NAV_PINS_TOGGLE, entry) as Promise<NavPinEntry[]>
+    toggle: (entry) => ipcRenderer.invoke(IPC.NAV_PINS_TOGGLE, entry) as Promise<NavPinEntry[]>,
+    onChange: (cb) => {
+      const handler = (_: IpcRendererEvent, pins: NavPinEntry[]) => cb(pins)
+      ipcRenderer.on(IPC.NAV_PINS_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.NAV_PINS_CHANGED, handler) }
+    }
   },
 
   sessionState: {
