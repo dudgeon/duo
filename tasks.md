@@ -1024,6 +1024,101 @@ Selecting text on an HTML canvas surfaces both the Send → Duo pill (Stage 15.2
 
 ---
 
+### BUG-025: Folder chevron click promotes/opens the row instead of just toggling expansion
+
+**Status:** 🆕 Filed
+**Priority:** Medium (papercut on the most-used navigator gesture)
+**Filed:** 2026-04-27
+
+**Today:**
+The whole folder row in `FileTree.tsx` is a single `<button>` with one `onClick` that does both `actions.toggleExpand(entry.path)` AND `actions.selectItem(entry.path, 'folder')`. Clicking the chevron is structurally identical to clicking anywhere else on the row — there's no chevron-only hit-target.
+
+**Why this is a bug now (and why it pairs with the Stage 26 / nav-polish item 1):**
+Once we land single-click-to-select / double-click-to-open semantics (Stage 26 item 1), the row's primary click becomes "select/promote." The chevron must remain a discrete affordance that *only* toggles expansion, otherwise clicking it will also select the folder (and, in the future, double-clicking to open will fight the toggle).
+
+**Expected:**
+- Click on chevron → toggle expand/collapse only. Does not change selection. Does not open.
+- Click on the rest of the row → select-only (per Stage 26 item 1) or open (today, until item 1 lands).
+
+**Suggested fix:**
+Split the chevron out of the row `<button>` into its own button with `e.stopPropagation()` on click. Two paths:
+- (a) Nest a `<span role="button">` inside the row button (semantically iffy but simple).
+- (b) Refactor the row into a `<div>` containing two siblings: a chevron button and a row button. Cleaner; matches VS Code / Finder DOM. *Recommend.*
+
+**Affected files:** `renderer/components/FileTree.tsx` (the `TreeNode` component, lines ~158-200).
+
+**Cross-refs:** Stage 26 item 1 (double-click-to-open) — these ship together; item 1 alone without BUG-025 leaves the chevron half-broken.
+
+---
+
+### BUG-026: Pasted markdown lands as a code block in the markdown editor
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (degrades the core "paste from another agent / doc" loop)
+**Filed:** 2026-04-27
+
+**Today:**
+Pasting raw markdown text into the TipTap markdown editor wraps the entire paste in a single `<pre><code>` block — even when the source has no triple-backtick fences. Headings, lists, bold/italic, links — all rendered as literal characters inside a code block.
+
+**Repro:**
+1. Copy any markdown text from outside the editor (another markdown file, ChatGPT/Claude output, GitHub raw view).
+2. Paste into a markdown editor tab.
+3. The whole paste becomes one code block.
+
+**Expected:**
+The paste lands rendered: `# Heading` becomes a heading, `- item` becomes a list, `**bold**` becomes bold. Plain prose stays prose. Existing fenced code blocks (with triple-backticks in the source) stay code blocks.
+
+**Hypothesis:**
+TipTap's default paste handler treats unknown text/plain content as code on the current schema (likely because of a `code-block` extension's paste rule that's matching too greedily, or because the `text/plain` clipboard payload is being routed through the code-block path before any markdown parser sees it).
+
+**Suggested triage:**
+1. Inspect the editor's TipTap configuration — which paste rules are registered, in what order? Look in `renderer/components/editor/extensions/` and `renderer/components/editor/MarkdownEditor.tsx`.
+2. Add a markdown-aware paste rule that runs ahead of the code-block path: when `text/plain` clipboard data parses cleanly as markdown (or has structural markers like `#`, `-`, `*`, fenced blocks), parse it via the existing markdown→ProseMirror pipeline (whatever drives the initial doc load).
+3. Edge cases to think through: pure prose with no markers should still paste as prose (not code); content with backtick-fenced code blocks inside should keep those as code blocks; smart-paste needs to not destroy line breaks in poetry/lists.
+
+**Affected files:** `renderer/components/editor/MarkdownEditor.tsx`, `renderer/components/editor/extensions/` (paste rule lives here).
+
+**Cross-refs:** ENH-002 (paste-as-plain-text — a complementary affordance for users who *want* the plain-text version).
+
+---
+
+### BUG-027: ⌘⇧T in browser focus opens claude tab instead of reopening last-closed browser tab
+
+**Status:** 🆕 Filed
+**Priority:** Medium (Chrome-parity on the browser pane; muscle memory)
+**Filed:** 2026-04-27
+
+**Today:**
+Per BUG-008's spec resolution (2026-04-26 evening), ⌘⇧T was locked as "new claude tab everywhere" for predictability — flipping the previous Stage 19c assignment of "vanilla shell tab." From browser focus today, ⌘⇧T spawns a claude terminal tab.
+
+**Owner request:**
+Browser-pane ⌘⇧T should match Chrome: **reopen the last-closed tab** in the browser pane, not spawn a claude terminal tab.
+
+**Expected (revised spec):**
+- ⌘⇧T from browser focus → reopen the last-closed browser tab (Chrome parity).
+- ⌘⇧T from terminal / files / editor focus → new claude tab (current behavior).
+- Re-introduces pane-awareness on this specific shortcut, contra BUG-008's "universal" line.
+
+**Spec impact:**
+This re-opens the BUG-008 universal-vs-pane-aware debate that was closed in favor of universal. Worth documenting the rationale clearly in `globalShortcuts.ts` and the smoke matrix. Pane-awareness on the *browser pane* is closer to Chrome muscle memory than on the *terminal pane* — defensible to make ⌘⇧T pane-aware here without litigating ⌘T again.
+
+**Implementation:**
+1. `BrowserManager` grows a closed-tab stack — capped (~10), entries hold `{ url, title, favicon, closedAt }`. Push on `closeTab`, pop on reopen.
+2. New IPC channel `BROWSER_REOPEN_LAST_CLOSED` + preload bridge entry.
+3. `renderer/keyboard/globalShortcuts.ts` — change the ⌘⇧T row's intent from `'newClaudeTab'` to a pane-aware dispatcher (browser focus → `reopenLastClosedBrowserTab`; otherwise → `newClaudeTab`).
+4. CLI parity per CLAUDE.md §4: `duo browser reopen` (or `duo tab reopen --kind browser`).
+
+**Edge cases:**
+- Stack empty → no-op (or subtle toast: "Nothing to reopen").
+- Reopening a tab that's currently in another pane's history (e.g., the URL is also in current-session history) — fine, just open it fresh.
+- Session restore + reopen — the closed-tab stack can persist across relaunch via `~/.claude/duo/session-state.json` (additive — defer to a later cut if it's friction).
+
+**Affected files:** `electron/browser-manager.ts` (closed-tab stack), `electron/main.ts` (IPC), `electron/preload.ts` (bridge entry), `renderer/keyboard/globalShortcuts.ts`, `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`.
+
+**Cross-refs:** BUG-008 (the universal-⌘⇧T resolution this revises); Stage 21c Phase 2 (session restore — fold the closed-tab stack into persisted state if needed).
+
+---
+
 ### ENH-005: Copy button on code blocks (markdown editor + HTML canvas)
 
 **Status:** 🆕 Filed (v0.4.2 punch)
@@ -1152,5 +1247,87 @@ A tooltip / hover (or a small `(?)` glyph next to the header) explaining: "These
 - Reciprocal tooltip on the bottom pane's "Project Claude context" section header would be symmetric ("These files live in this project's repo and apply only to Claude sessions started here").
 
 **Affected files:** `renderer/components/UserClaudePane.tsx`, `renderer/components/ProjectClaudeContext.tsx`.
+
+---
+
+### ENH-010: Pinned files & folders section at the bottom of the navigator
+
+**Status:** 🆕 Filed
+**Priority:** Medium (frequent-target shortcut for cross-folder workflows; pairs naturally with the rest of Stage 26)
+**Filed:** 2026-04-27
+
+**Today:**
+The navigator's left pane has two sections — "Your Claude settings" (top, Stage 22) and the project tree (bottom, Stage 10) — but no surface for *user-pinned* files or folders. WorkingPane tab pinning (Stage 24) covers tabs in the right column, not the navigator. Frequent targets that aren't on the project tree's current visible subtree (e.g., `~/Documents/notes/inbox.md`, a sibling project's `tasks.md`, a deep config file) require manual breadcrumb navigation every time.
+
+**Expected:**
+A new third section at the *bottom* of the left pane labeled "Pinned" (collapsible, hidden when empty). Each entry shows:
+- File icon (or folder icon for folder pins).
+- Filename / folder name in primary text.
+- A *shortened path* secondary line — e.g., `~/Documents/notes` or `…/sibling-project/.claude` — to disambiguate same-named files (`tasks.md` from three different projects, all pinned).
+
+Entries are **grouped by parent folder** with the parent path as a small subdued group header. Single-/double-click semantics inherit from Stage 26 item 1 (single = select, double = open / reveal in tree).
+
+**Pin scope (recommended for v1):**
+- *Navigator pins are independent of WorkingPane tab pins* — different verbs, different storage. A user can pin a folder to navigate into quickly even if they never open it as a tab.
+- Storage at `~/.claude/duo/nav-pins.json` (atomic tmp-rename writes; schema v1; corrupt → empty list). Mirrors Stage 24's `pins.json` shape but separate file.
+
+**Pin verbs:**
+- Right-click on any nav row → "Pin to navigator" / "Unpin from navigator". Pairs with the right-click menu added in Stage 26 item 6.
+- CLI parity per CLAUDE.md §4: `duo nav pin <path>` / `duo nav unpin <path>` / `duo nav pins [--json]`.
+
+**Open questions:**
+- a. Drag-to-reorder within the Pinned section? Defer — v1 is insertion order or alphabetical-by-parent.
+- b. Group expand/collapse per parent folder? Defer — v1 has flat groups; collapse the whole "Pinned" section as a unit.
+- c. What does double-click on a *folder* pin do? Two options: (c1) open it as the navigator's current root (replaces breadcrumb); (c2) reveal-and-expand it in the project tree above. Pick (c1) for v1 — it's the "jump to" muscle memory; the tree always re-roots on entry.
+- d. Shortened path algorithm: `~/` for home, `…/` for paths longer than ~30 chars. Pin to the same heuristic the breadcrumb uses for symmetry.
+
+**Plumbing checklist:**
+1. `shared/types.ts` — `NavPinsSnapshot` schema; new IPC channels `NAV_PINS_LOAD` / `SAVE` / `PUSH`.
+2. `electron/preload.ts` — `electron.navPins.{load, save, subscribe}`.
+3. `electron/main.ts` — IPC handler + atomic-write service (mirrors Stage 24's `pins-service.ts` — likely refactor to a shared `json-state-file.ts` helper since the pattern is identical).
+4. `electron/socket-server.ts` — `nav pin/unpin/pins` cases.
+5. `cli/duo.ts` — `duo nav pin/unpin/pins` subcommand parser. Rebuild binary.
+6. `skill/SKILL.md` + `agents/duo.md` cheat-sheet.
+7. `docs/CLI-COVERAGE.md` — inventory.
+8. `renderer/hooks/useNavPins.ts` — new state machine (mirrors `useNavigator`).
+9. `renderer/components/PinnedNav.tsx` — new section component, mounted at bottom of `FilesPane`.
+10. `renderer/components/FilesPane.tsx` — slot the new section below the project tree; threading the `useNavPins` API.
+11. `renderer/components/FileTree.tsx` — extend the row context menu (item 6) with Pin/Unpin entries.
+
+**Affected files (high-level):** `shared/types.ts`, `electron/main.ts`, `electron/preload.ts`, `electron/socket-server.ts`, `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`, `renderer/components/FilesPane.tsx`, `renderer/components/FileTree.tsx` (context menu), new `renderer/components/PinnedNav.tsx` + `renderer/hooks/useNavPins.ts`.
+
+**Cross-refs:** Stage 24 (WorkingPane tab pins — separate concept, similar architecture; consider sharing a `json-state-file.ts` helper); Stage 26 item 6 (right-click menu — Pin/Unpin entries land there); Stage 26 item 8 (Go-to-path input — pinned folders are a common Go-to target, so the path input could optionally show pin matches as autocomplete).
+
+---
+
+### ENH-011: Plain-English rewrite of welcome / update banner copy
+
+**Status:** 🆕 Filed
+**Priority:** Medium (the install banner is the FIRST thing every new user sees; tone is load-bearing for AIP/Trailblazers cohort)
+**Filed:** 2026-04-27
+
+**Today (post-v0.4.5):**
+The success-state copy and "Claude Code not detected" follow-up note got a plain-English pass in v0.4.5. The other three states still read like Stack Overflow:
+
+- **Welcome (idle, fresh install):** "Welcome to Duo. Install the skill, subagent, help files, and CLI into `~/.claude/` + `~/.local/bin/`, and install a priming shim + SessionStart hook so `claude` sessions inside Duo arrive Duo-aware. Your existing files won't be touched."
+- **Update available (idle, needsUpdate):** "Duo update available. Refresh the installed skill + subagent + help files + CLI + SessionStart hook in `~/.claude/` (currently at v{status.version})."
+- **CLI install failed (success, !cli.installed):** "Installed. Skill + subagent + help files + SessionStart hook in `~/.claude/`. (CLI binary couldn't be copied — try again or symlink `cli/duo` manually.)"
+
+Each one mentions terms the non-technical PM audience doesn't have a model for: "skill", "subagent", "priming shim", "SessionStart hook". Even reading them as a developer, the copy doesn't land — they're describing implementation, not outcome.
+
+**Expected:**
+The user model is "Duo will work with Claude" / "Update Duo" / "Something went a bit wrong but you can probably ignore it." Copy should match that register.
+
+**Suggested rewrites (starter — wordsmithing welcome at write-time):**
+
+- **Welcome:** "Welcome to Duo. Set up the files Duo needs to work with Claude — they go in `~/.claude/`, and we won't touch any of your existing files."
+- **Update available:** "Duo update available — refresh the agent files in `~/.claude/` (currently from v{version})."
+- **CLI failed:** "Installed. Agent files added to `~/.claude/`. (Couldn't drop Duo's CLI helper into `~/.local/bin/` — try again or symlink `cli/duo` manually.)"
+
+Plus a sweep of inline jargon — "skill", "subagent", "priming shim", "SessionStart hook" — replaced with "agent files" / "make Claude Duo-aware" framing throughout. The technical terms can stay in code comments and the README, but the user-facing surface should be plain.
+
+**Affected files:** `renderer/components/FirstLaunchBanner.tsx` (the idle / running / error / success-CLI-failed branches; success state was already partially rewritten in v0.4.5).
+
+**Cross-refs:** v0.4.5 (which started this rewrite for the success state + shim-missing note); the broader "non-technical PM audience" thread that surfaced after v0.4.4 / v0.4.5 install. Owner pushback: "I barely understand it" / "that's not user-friendly" — the install banner copy is one of the first surfaces where Duo loses non-technical users.
 
 ---
