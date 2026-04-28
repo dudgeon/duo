@@ -85,16 +85,19 @@ export function FirstLaunchBanner() {
     }
   }
 
-  // Success path may need the user's eyes longer than the rest if the
-  // PATH hint applies. The shell-rc block renders as a separate row
-  // below the main banner line.
+  // Success path may need the user's eyes longer than the rest when a
+  // follow-up note applies (hook conflict, claude not detected). Each
+  // such note renders as a separate row below the main banner line.
+  // v0.4.5: dropped the duo-CLI-on-PATH hint entirely — the CLI is
+  // designed to run inside Duo's own terminals (whose PTYs inherit
+  // ~/.local/bin via priming), not from external shells. Surfacing
+  // a "fix your PATH" warning to non-technical users for an
+  // intentionally-internal CLI was confusing without being load-bearing.
   const cli = status.cli
   const priming = status.priming
-  const showPathHint = phase === 'success' && cli?.installed && !cli.onPath
   const showHookConflictNote = phase === 'success' && priming?.hookConflict
   const showShimMissingNote = phase === 'success' && priming && !priming.shimInstalled
-  const pathSnippet = 'export PATH="$HOME/.local/bin:$PATH"'
-  const expandRow = showPathHint || showHookConflictNote || showShimMissingNote
+  const expandRow = showHookConflictNote || showShimMissingNote
 
   return (
     <div
@@ -120,17 +123,13 @@ export function FirstLaunchBanner() {
 
         <span className="flex-1 leading-snug">
           {phase === 'success' ? (
-            cli?.installed && cli.onPath ? (
+            cli?.installed ? (
               <>
-                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>; <code className="font-mono text-[12px]">duo</code> CLI ready on your PATH; priming shim + SessionStart hook installed for Duo-aware Claude sessions inside Duo.
-              </>
-            ) : cli?.installed ? (
-              <>
-                <strong>Installed.</strong> Skill + subagent + help files in <code className="font-mono text-[12px]">~/.claude/</code>; priming shim + SessionStart hook installed for Duo-aware Claude sessions; <code className="font-mono text-[12px]">duo</code> CLI at <code className="font-mono text-[12px]">~/.local/bin/duo</code>. Add this dir to your PATH to use the CLI from any terminal:
+                <strong>Installed.</strong> Claude inside Duo's terminals will arrive Duo-aware.
               </>
             ) : (
               <>
-                <strong>Installed.</strong> Skill + subagent + help files + SessionStart hook in <code className="font-mono text-[12px]">~/.claude/</code>. (CLI binary couldn't be copied — try again or symlink <code className="font-mono text-[12px]">cli/duo</code> manually.)
+                <strong>Installed.</strong> Agent files added to <code className="font-mono text-[12px]">~/.claude/</code>. (Couldn't drop Duo's CLI helper into <code className="font-mono text-[12px]">~/.local/bin/</code>; try again or symlink <code className="font-mono text-[12px]">cli/duo</code> manually.)
               </>
             )
           ) : phase === 'error' ? (
@@ -178,22 +177,15 @@ export function FirstLaunchBanner() {
         )}
       </div>
 
-      {showPathHint && (
-        <pre
-          aria-label="Add to your shell rc file (e.g. ~/.zshrc)"
-          className="text-[12px] font-mono bg-surface-0 border border-accent-soft rounded px-3 py-2 ml-7 text-ink select-all whitespace-pre-wrap break-all"
-        >{pathSnippet}</pre>
-      )}
-
       {showHookConflictNote && (
         <p className="text-[12px] ml-7 text-accent-ink leading-snug">
-          <strong>Heads-up:</strong> you already had other <code className="font-mono">SessionStart</code> hooks in <code className="font-mono">~/.claude/settings.json</code>. Duo's priming hook was added alongside them — all hooks will run on each session start. Edit the file to reorder or remove if needed.
+          <strong>Heads-up:</strong> you had existing entries in <code className="font-mono">~/.claude/settings.json</code>. Duo added its setup alongside them — nothing was overwritten.
         </p>
       )}
 
       {showShimMissingNote && (
         <p className="text-[12px] ml-7 text-accent-ink leading-snug">
-          <strong>Claude Code not detected on PATH.</strong> Duo couldn't install the priming shim, so new <code className="font-mono">claude</code> sessions inside Duo won't get the Duo-aware system prompt. Install Claude Code (<a href="https://docs.claude.com/claude-code" className="underline">docs.claude.com/claude-code</a>) and click Install again, or restart Duo from a terminal that has <code className="font-mono">claude</code> on PATH.
+          <strong>Couldn't find Claude Code on this Mac.</strong> Duo searched your usual shell paths and didn't see <code className="font-mono">claude</code>. If it's installed, the agent inside Duo's terminals will still work — it just won't be Duo-aware (won't know how to drive the browser pane, etc.). Install Claude Code from <a href="https://docs.claude.com/claude-code" className="underline">docs.claude.com/claude-code</a>, then click Update.
         </p>
       )}
 

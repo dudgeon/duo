@@ -18,6 +18,64 @@
 
 ---
 
+## 2026-04-27 late evening — v0.4.5 cut: claude detection + plainer install copy
+
+Owner installed the freshly-shipped v0.4.4 DMG and immediately hit two
+follow-on issues with the install banner: (1) "Claude Code not
+detected on PATH" warning even though `claude` is installed at
+`~/.local/bin/claude`; (2) when the user opened a new claude terminal
+tab, it printed "Install Claude Code to enable agent tabs" instead of
+running claude. Both root-caused to the same shell-startup model bug:
+zsh login shells (`-l`) source `.zprofile` / `.zlogin` / `.zshenv`
+but NOT `.zshrc`. The owner's `~/.local/bin` PATH addition lives in
+`.zshrc` (line 40), they have no `.zprofile`, so login-only
+invocations couldn't see `~/.local/bin`. Confirmed by simulating
+Electron's PATH:
+`env -i HOME=$HOME PATH=/usr/bin:/bin /bin/zsh -l -c 'command -v claude'`
+returns nothing; switching to `-i -c` finds it.
+
+The bug had two sites:
+- `install-service.ts § resolveRealClaude` — used `zsh -l -c
+  'command -v claude'`. Result: the priming shim never installed
+  for the entire majority case.
+- `main.ts § isClaudeOnPath` — used `spawnSync('which', ['claude'])`
+  against Electron's inherited `process.env.PATH`. Finder-launched
+  Electron has only the system-default `/usr/bin:/bin:/usr/sbin:/sbin`
+  PATH. Result: every claude tab printed the install banner.
+
+Both bugs latent since v0.2.0 (Stage 19c shipped). Surfaced now
+because v0.4.4 was the first DMG that actually launched
+end-to-end — earlier DMGs crashed on `node-pty` before either
+check ran.
+
+**Fix.** Extracted shared helper `electron/resolve-claude.ts` that
+walks `(shell × {-l -i, -i, -l})` flag combinations until one finds
+claude. `-l -i` reads everything (login files AND `.zshrc`); `-i` is
+fallback; `-l` last resort. Both detection sites now route through
+the helper. Drift between them is impossible going forward.
+
+Owner also called out the install banner copy itself: too much
+engineer-speak for non-technical PMs ("priming shim", "SessionStart
+hook", "Add this dir to your PATH"). Made two surgical fixes for
+v0.4.5: (a) collapsed the success message to "Installed. Claude
+inside Duo's terminals will arrive Duo-aware." — no more PATH hint
+for the duo CLI helper (which is meant to run inside Duo's terminals,
+not external shells); (b) rewrote the "Claude Code not detected"
+follow-up note in plain English. A broader rewrite of welcome/update
+banner copy is queued as ENH-011 for a later cut to keep this hotfix
+focused.
+
+Memory note (process correction). Earlier in the session I tried to
+save a "use plain English with Geoff" feedback memory after he flagged
+the engineer-speak. He pushed back: "Memory?!?! that does not sound
+like a durable idea." Right call — memory is too volatile and narrow
+for what's really a product UX principle. The durable fix lives in
+the source: install banner copy, FAQ entries, error toasts. Deleted
+the memory file; the lesson is encoded in the v0.4.5 banner rewrite
+(and queued for a wider sweep via ENH-011).
+
+---
+
 ## 2026-04-27 evening — v0.4.4 cut: DMG launch fix + Stage 26 PR 1 in flight
 
 Owner tried to launch the v0.4.3 DMG and hit `Cannot find module

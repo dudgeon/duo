@@ -57,13 +57,10 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
 import { app } from 'electron'
 import type { InstallStatus, InstallResult, CliInstallStatus, PrimingInstallStatus } from '../shared/types'
 import { SHIM_DIR } from './constants'
-
-const execFileAsync = promisify(execFile)
+import { resolveClaudeBinary } from './resolve-claude'
 
 const HOME = os.homedir()
 const DUO_DIR = path.join(HOME, '.claude', 'duo')
@@ -485,53 +482,21 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
   }
 
   /**
-   * Stage 19b — resolve the real `claude` binary via a login shell
-   * (`zsh -l -c 'command -v claude'`). Login shells source .zshrc /
-   * .zprofile so PATH additions there (commonly ~/.local/bin) are
-   * picked up.
+   * Stage 19b — resolve the real `claude` binary so the priming shim
+   * at ~/.claude/duo/bin/claude can `exec` it with
+   * --append-system-prompt. Excludes our own SHIM_DIR from the PATH
+   * the shell sees so we never resolve back to ourselves and loop.
    *
-   * Returns null if not found, or if the resolved path is inside our
-   * own SHIM_DIR (defensive — we'd loop forever if our shim shadowed
-   * the real binary).
+   * Implementation in `./resolve-claude.ts` is shared with main.ts's
+   * isClaudeOnPath check (Stage 19c D23) so both detection sites
+   * see the same shell PATH and never disagree. v0.4.4 had drift
+   * between the two: install-service used `zsh -l -c` (no .zshrc),
+   * main.ts used bare `which` (no rc files at all), and Finder-
+   * launched users with PATH in .zshrc got "Claude not detected"
+   * everywhere even though they had it installed.
    */
   private async resolveRealClaude(): Promise<string | null> {
-    // Try a couple of login-shell flavors; the user's $SHELL might be
-    // bash, zsh, fish — `command -v` is POSIX, so the simplest
-    // formulation works across them all when run with `-l -c`.
-    const shells = [process.env.SHELL || '/bin/zsh', '/bin/zsh', '/bin/bash']
-    const seen = new Set<string>()
-    for (const shell of shells) {
-      if (seen.has(shell)) continue
-      seen.add(shell)
-      try {
-        const { stdout } = await execFileAsync(shell, ['-l', '-c', 'command -v claude'], {
-          timeout: 5000,
-          // Inherit Electron's env but DO NOT include our SHIM_DIR
-          // on PATH (we're trying to find real-claude, not ourselves).
-          env: { ...process.env, PATH: this.pathWithoutShim() }
-        })
-        const resolved = stdout.trim()
-        if (resolved && !resolved.startsWith(SHIM_DIR)) {
-          return resolved
-        }
-      } catch {
-        // Shell missing, command not found, or timeout — try next.
-        continue
-      }
-    }
-    return null
-  }
-
-  private pathWithoutShim(): string {
-    const segments = (process.env.PATH || '').split(':').filter(s => {
-      if (!s) return false
-      try {
-        return path.resolve(s) !== path.resolve(SHIM_DIR)
-      } catch {
-        return true
-      }
-    })
-    return segments.join(':')
+    return resolveClaudeBinary({ excludeShimDir: true })
   }
 
   /**

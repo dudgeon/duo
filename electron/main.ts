@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { promises as fsPromises } from 'fs'
-import { spawnSync } from 'child_process'
+import { resolveClaudeBinary } from './resolve-claude'
 import { PtyManager } from './pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
@@ -873,17 +873,21 @@ export async function htmlNew(absPath: string, title?: string): Promise<{ ok: bo
   }
 }
 
-// Stage 19c D23 — sync `which claude` so the renderer can choose between
-// auto-typing `claude\n` and printing the install banner. Cheap enough
-// (~5ms) that we don't bother caching across calls; PATH can change
-// mid-session if the user `brew install`s claude or sources a new rc.
-function isClaudeOnPath(): boolean {
-  try {
-    const r = spawnSync('which', ['claude'], { encoding: 'utf8' })
-    return r.status === 0 && r.stdout.trim().length > 0
-  } catch {
-    return false
-  }
+// Stage 19c D23 — does the user's shell know where `claude` is? The
+// renderer uses this answer to decide between auto-typing `claude\n`
+// and printing the install banner.
+//
+// v0.4.5: re-implemented on top of resolveClaudeBinary() (which asks
+// the user's actual shell — interactive + login — so .zshrc PATH
+// additions are picked up). v0.4.4 used a bare `which claude` against
+// Electron's inherited PATH, which on Finder-launched apps only
+// contains the macOS-default /usr/bin:/bin:/usr/sbin:/sbin and never
+// the user's ~/.local/bin where the official Claude Code installer
+// drops the binary. Result: every Finder-launched Duo terminal tab
+// printed the "Install Claude Code" banner even when claude WAS
+// installed.
+async function isClaudeOnPath(): Promise<boolean> {
+  return (await resolveClaudeBinary()) !== null
 }
 
 // Stage 19c D27 — dispatch a `duo new-tab` request to the renderer and

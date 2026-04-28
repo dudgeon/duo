@@ -21,7 +21,88 @@
 
 ## Pending — not yet cut
 
-_Empty. v0.4.4 below ships a one-line build-config hotfix._
+_Empty._
+
+---
+
+## v0.4.5 — 2026-04-27
+
+**The "Claude detection + plainer install copy" hotfix.** v0.4.4
+shipped 30 minutes earlier and fixed the DMG actually launching, but
+the install banner's success state still had two issues that the
+owner caught immediately on first install: (1) Duo claimed it
+couldn't detect Claude Code on PATH even though `claude` was clearly
+installed at `~/.local/bin/claude`, and (2) the success message
+included an "Add this dir to your PATH" hint for the `duo` CLI
+helper that was confusing non-technical users for a CLI that's not
+meant to run from external shells anyway.
+
+### Why claude detection was broken
+
+Two separate sites in main process check for `claude` and both
+disagreed with the user's actual shell:
+
+- `install-service.ts § resolveRealClaude` ran `zsh -l -c 'command -v claude'`. Login shells DO source `.zprofile` / `.zlogin` /
+  `.zshenv` — but NOT `.zshrc`. The official Claude Code installer
+  drops the binary at `~/.local/bin/claude` and tells users to add
+  `export PATH="$HOME/.local/bin:$PATH"` to their shell rc; modern
+  macOS users put that line in `.zshrc` (the default file Apple's
+  Terminal sources for new tabs). Login-only invocations therefore
+  miss it, and Duo's installer reported "Claude Code not detected"
+  for the entire majority case.
+- `main.ts § isClaudeOnPath` did `spawnSync('which', ['claude'])`
+  against Electron's inherited `process.env.PATH`. Finder-launched
+  Electron processes inherit only the system-default PATH
+  (`/usr/bin:/bin:/usr/sbin:/sbin`) — never the user's interactive
+  PATH. So every "claude" terminal tab opened from Duo printed the
+  "Install Claude Code to enable agent tabs" banner instead of
+  running claude.
+
+Both bugs had been latent since v0.2.0 (Stage 19c). They only
+surfaced now because v0.4.4 was the first DMG that actually launched
+end-to-end — earlier DMGs were crashing on `node-pty` before reaching
+either check.
+
+### What changed
+
+New shared helper `electron/resolve-claude.ts` walks
+`(shell × {-l -i, -i, -l})` flag combinations until one finds
+`claude`. The `-l -i` variant reads everything (login files AND
+`.zshrc`); `-i` is the fallback for users with weird login files
+that error under `-l`; `-l` is the last resort for users with PATH
+in `.zprofile` and a noisy `.zshrc` that breaks under `-i`. Both
+detection sites in main route through this helper now, so they can
+no longer disagree.
+
+Install banner copy collapsed from three permutations of
+"installed-with-or-without-PATH-hint" to a single plain-English
+"Installed. Claude inside Duo's terminals will arrive Duo-aware."
+The `export PATH=...` hint for the `duo` CLI is gone — the CLI is
+designed to run inside Duo's own terminals (whose PTYs already
+inherit the right environment), not external shells, so the hint
+was a footgun without being load-bearing. The "Claude Code not
+detected" follow-up note also rewritten in plain English (no
+"shim" or "PATH" jargon for non-technical readers).
+
+### What this is and isn't
+
+This is a copy + path-resolution patch. No new features. Same
+shipping surface as v0.4.4. Auto-update from v0.4.4 to v0.4.5
+works normally (v0.4.4 launches, fetches `latest-mac.yml`, sees
+v0.4.5 available).
+
+A broader plain-English rewrite of the welcome / update banner
+copy (engineer-speak phrases like "skill + subagent + help files",
+"priming shim", "SessionStart hook") is queued for a later cut as
+ENH-011 — touched only the success-state copy here to keep the
+hotfix scoped.
+
+### What's queued next
+
+Stage 26 PR 1 (navigator row-interaction) at
+[duo#28](https://github.com/dudgeon/duo/pull/28) awaiting review;
+v0.5.0 with Stage 21e fork-friendly architecture + the deferred
+ENH-005/006/007.
 
 ---
 

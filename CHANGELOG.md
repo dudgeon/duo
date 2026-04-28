@@ -19,6 +19,46 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.4.5] — 2026-04-27
+
+The "Claude detection + plainer install copy" hotfix. v0.4.4 fixed the
+DMG launching but two issues with the install banner remained for
+Finder-launched users:
+
+1. Duo's two `claude`-detection sites both used PATH lookups that
+   missed `.zshrc` — so users with `~/.local/bin` in `.zshrc` (the
+   default shell rc the official Claude Code installer points at)
+   got "Claude Code not detected on PATH" even when claude was
+   installed. The same bug also caused every freshly-opened
+   "claude" terminal tab to print the "Install Claude Code to enable
+   agent tabs" banner instead of running claude.
+2. The install banner included a "Add this dir to your PATH" hint
+   for the `duo` CLI helper. Duo's CLI is designed to run inside
+   Duo's own terminals (not external shells), so the hint was
+   confusing to non-technical users without being load-bearing.
+
+### Fixed
+- **Claude binary detection now sources the user's interactive
+  shell.** New `electron/resolve-claude.ts` helper walks
+  `(shell × {-l -i, -i, -l})` flag combinations until one finds
+  `claude`. Both `install-service.ts § resolveRealClaude` (priming
+  shim install) and `main.ts § isClaudeOnPath` (terminal-tab spawn
+  decision) route through it, so they can no longer disagree.
+  Closes the "Claude Code not detected" banner regression and the
+  "Install Claude Code to enable agent tabs" terminal echo for
+  users with `~/.local/bin` in `.zshrc`.
+
+### Changed
+- Install banner copy on success state collapsed from two
+  CLI-on-PATH variants into a single plain-English "Installed.
+  Claude inside Duo's terminals will arrive Duo-aware." Dropped
+  the `export PATH="$HOME/.local/bin:$PATH"` shell-rc hint for
+  the `duo` CLI helper — the CLI is designed to run inside Duo's
+  own terminals (not external shells), so the hint was a footgun
+  for non-technical users without being load-bearing.
+- "Claude Code not detected" follow-up note rewritten in plain
+  English (no "shim" / "PATH" jargon).
+
 ## [0.4.4] — 2026-04-27
 
 The "DMG launch fix" hotfix. v0.4.0–v0.4.3 all shipped DMGs that crashed

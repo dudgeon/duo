@@ -101,6 +101,16 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.4.5 release hotfix install banner claude not detected path zshrc shell interactive login terminal tab agent">
+  <h3>v0.4.5 — Claude detection + plainer install copy <span class="date">2026-04-27</span></h3>
+  <p>v0.4.4 fixed Duo from crashing on launch. v0.4.5 fixes what you saw next: the install banner saying it couldn't find Claude Code (even though you have it installed) and every freshly-opened "claude" terminal tab printing an "Install Claude Code" banner instead of starting Claude. Same root cause both times — Duo was looking for <code>claude</code> in the wrong place because of how macOS shell startup files work. The Apple Terminal sources <code>.zshrc</code> by default; Duo was looking in <code>.zprofile</code> only.</p>
+  <ul>
+    <li><strong>Claude detection now matches your shell.</strong> Both places where Duo checks for <code>claude</code> (the install banner's "make it Duo-aware" wrapper, and every new claude terminal tab's spawn check) now ask your actual shell with <code>-l -i</code> flags so it sources <code>.zshrc</code>. If you have <code>~/.local/bin</code> in your <code>.zshrc</code> (the default place the official Claude Code installer points users), Duo finds it now.</li>
+    <li><strong>Install banner says less.</strong> Dropped the "Add <code>~/.local/bin</code> to your PATH" hint for the <code>duo</code> CLI helper — that helper is meant to run inside Duo's own terminals, not from your system Terminal, so the warning was confusing without being useful. Success message is now a single line: "Installed. Claude inside Duo's terminals will arrive Duo-aware." The "Claude Code not detected" follow-up message (when it does fire) is also rewritten in plain English.</li>
+  </ul>
+  <p style="margin-top: 10px;">Auto-update from v0.4.4 → v0.4.5 works normally (v0.4.4 launches and fetches the update manifest). If you're still on v0.4.3 or earlier, install v0.4.4 manually first, then v0.4.5 will land via auto-update.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.4.4 release hotfix dmg launch crash node-pty cannot find module electron-builder bundle node_modules">
   <h3>v0.4.4 — DMG launch fix <span class="date">2026-04-27</span></h3>
   <p>One-line hotfix for a release-blocker: every DMG cut from v0.4.0 through v0.4.3 was crashing on launch with <code>Cannot find module 'node-pty'</code>. The build was excluding all production node_modules from the bundle by accident, so Duo's main process couldn't start. v0.4.4 includes them properly. <strong>Important:</strong> auto-update from v0.4.3 won't work because v0.4.3 crashes before fetching the update manifest — install v0.4.4 manually from the GitHub Release.</p>
