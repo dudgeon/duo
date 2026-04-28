@@ -79,6 +79,13 @@ export class PtyManager {
     }
   }
 
+  /** ENH-013 — return the PTY's child process pid for a tab. The
+   *  ClaudePresenceProbe walks this pid's descendant tree to detect a
+   *  live `claude` process. */
+  getPid(id: string): number | null {
+    return this.sessions.get(id)?.pty.pid ?? null
+  }
+
   dispose(): void {
     for (const { pty: p } of this.sessions.values()) {
       p.kill()

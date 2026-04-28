@@ -1090,7 +1090,7 @@ TipTap's default paste handler treats unknown text/plain content as code on the 
 
 ### BUG-027: ⌘⇧T in browser focus opens claude tab instead of reopening last-closed browser tab
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.5.1 (PR 3, 2026-04-28) — `BrowserManager` grows a `closedTabs` stack (cap 10, skips `about:blank`); `closeTab` pushes the URL+title before tear-down; new `reopenLastClosed()` pops + addTab + switchTab. New IPC `BROWSER_REOPEN_LAST_CLOSED` + preload `browser.reopenLastClosed`. `useKeyboardShortcuts` dispatch branches: `pane === 'working'` → `browser.reopenLastClosed()`, otherwise → existing `newClaudeTab` (per BUG-008's universal-vs-pane-aware resolution). Verified live: opened `https://example.com/page1`, ⌘W'd it, ⌘⇧T from browser focus brought it back.
 **Priority:** Medium (Chrome-parity on the browser pane; muscle memory)
 **Filed:** 2026-04-27
 
@@ -1431,7 +1431,7 @@ Also worth ensuring blur doesn't auto-commit (or if it does, ⎋ has to set a fl
 
 ### ENH-013: "Send → Duo" pill enabled only when front terminal has a live Claude session
 
-**Status:** 🆕 Filed (v0.5.1 sprint — PR 3)
+**Status:** ✅ Shipped v0.5.1 (PR 3, 2026-04-28) — strict mode (option a). New `electron/claude-presence.ts` polls the active terminal's PTY child-process tree via one `ps -ax -o pid,ppid,comm` walk every 500ms, looking for any descendant whose basename is `claude`. State machine: `'no-pty' | 'shell' | 'claude' | 'starting'` (the latter is a 1.5s grace window after a `kind: 'claude'` tab spawn so the pill doesn't flicker off during the launch gap). State pushes via `IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED`; renderer hook `useFrontTerminalClaudeLive` returns `state === 'claude' || state === 'starting'`. App.tsx gates the `onSendToDuo` prop on the hook — when false, pill primitive returns null entirely. PtyManager exposes `getPid(tabId)`. Renderer's `pushActiveId` now carries `kind` so main can arm the grace window correctly. Verified live: shell-only terminal + selected text in canvas → no pill. (CLI `duo terminal claude-state` deferred to a follow-up — not ship-blocking.)
 **Priority:** Medium-High (correctness — the pill currently routes to dead PTYs / shell tabs and silently fails)
 **Filed:** 2026-04-28
 

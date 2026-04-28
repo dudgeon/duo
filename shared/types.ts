@@ -659,6 +659,12 @@ export const IPC = {
   BROWSER_ADD_TAB: 'browser:add-tab',
   BROWSER_SWITCH_TAB: 'browser:switch-tab',
   BROWSER_CLOSE_TAB: 'browser:close-tab',
+  // BUG-027 — reopen last-closed browser tab (Chrome ⌘⇧T parity).
+  BROWSER_REOPEN_LAST_CLOSED: 'browser:reopen-last-closed',
+  // Issue #27 — URL-bar autocomplete suggestions from persisted browser
+  // history. Renderer queries on every input keystroke; main returns a
+  // ranked list of {url, title}.
+  BROWSER_HISTORY_SUGGEST: 'browser:history-suggest',
   BROWSER_FOCUS_ACTIVE: 'browser:focus-active',
 
   // Main → renderer
@@ -773,8 +779,13 @@ export const IPC = {
   SELECTION_FORMAT_STATE_PUSH: 'selection-format:state-push',  // renderer → main
   SELECTION_FORMAT_SET: 'selection-format:set',                // main → renderer
 
-  // Stage 15 G17 — active terminal id push so `duo send` knows where to write
+  // Stage 15 G17 — active terminal id push so `duo send` knows where to write.
+  // ENH-013 — payload now also carries `kind` so the claude-presence prober
+  // can arm its starting-grace window for `kind: 'claude'` tabs.
   TERMINAL_ACTIVE_PUSH: 'terminal:active-push',                // renderer → main
+  // ENH-013 — main → renderer push when the front terminal's
+  // claude-presence state flips. Drives the Send → Duo pill gate.
+  TERMINAL_CLAUDE_PRESENCE_CHANGED: 'terminal:claude-presence-changed',
 
   // Stage 9 — cozy mode
   COZY_TOGGLE: 'cozy:toggle',            // main → renderer (menu clicked)
@@ -825,6 +836,14 @@ export interface ElectronBrowserAPI {
   addTab: (url?: string) => Promise<{ ok: boolean; id: number; url: string; title: string }>
   switchTab: (id: number) => Promise<{ ok: boolean; error?: string }>
   closeTab: (id: number) => Promise<{ ok: boolean; error?: string }>
+  /** BUG-027 — reopen the most-recently-closed browser tab. ⌘⇧T from
+   *  browser focus routes here (Chrome parity). Returns ok:false with
+   *  reason 'empty' when the closed-tab stack is empty. */
+  reopenLastClosed: () => Promise<{ ok: boolean; id?: number; url?: string; reason?: string }>
+  /** Issue #27 — URL-bar autocomplete. Returns history entries
+   *  matching `prefix` (substring, case-fold) ranked by recency ×
+   *  visit count. Empty prefix → top recent entries. */
+  historySuggest: (prefix: string, limit?: number) => Promise<HistorySuggestion[]>
   /** Move keyboard focus to the active browser view. */
   focusActive: () => void
   onStateChange: (cb: (state: BrowserState) => void) => () => void
@@ -973,9 +992,10 @@ export interface ElectronSelectionFormatAPI {
 
 export interface ElectronTerminalAPI {
   /** Renderer pushes the active terminal-tab id (or null when no
-   *  terminal tabs exist) so `duo send` knows where to write the
-   *  payload. */
-  pushActiveId: (id: string | null) => void
+   *  terminal tabs exist) plus its kind so `duo send` knows where to
+   *  write the payload AND ENH-013's claude-presence prober can arm
+   *  its starting-grace window for kind=='claude' tabs. */
+  pushActiveId: (payload: { id: string | null; kind: TerminalTabKind | null }) => void
   /** Stage 19c D23 — `true` if `claude` was found on PATH at app boot
    *  (or last refresh). Used to decide between auto-typing `claude\n`
    *  and printing the install banner when a `kind: 'claude'` tab spawns. */
@@ -985,6 +1005,22 @@ export interface ElectronTerminalAPI {
   onNewTabRequest: (cb: (req: NewTabRequest) => void) => () => void
   /** Reply to a new-tab request with the resolved tab metadata. */
   replyNewTab: (result: NewTabResult) => void
+  /** ENH-013 — subscribe to claude-presence state changes for the
+   *  front terminal. The Send → Duo pill is enabled only when the
+   *  state is 'claude' or 'starting'. */
+  onClaudePresenceChange: (cb: (state: ClaudePresenceState) => void) => () => void
+}
+
+/** ENH-013 — claude-presence state. See electron/claude-presence.ts. */
+export type ClaudePresenceState = 'no-pty' | 'shell' | 'claude' | 'starting'
+
+/** Issue #27 — URL-bar autocomplete suggestion shape. Returned by
+ *  `browser.historySuggest`. */
+export interface HistorySuggestion {
+  url: string
+  title: string
+  lastVisited: number
+  visitCount: number
 }
 
 // Stage 19c D27 — `duo new-tab` request shape (CLI → main → renderer).

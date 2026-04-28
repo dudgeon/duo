@@ -28,7 +28,8 @@ import type {
   PinEntry,
   NavPinEntry,
   ExternalRedirectedPush,
-  SessionState
+  SessionState,
+  ClaudePresenceState
 } from '../shared/types'
 
 const api: ElectronAPI = {
@@ -93,6 +94,12 @@ const api: ElectronAPI = {
 
     closeTab: (id) =>
       ipcRenderer.invoke(IPC.BROWSER_CLOSE_TAB, { id }),
+
+    reopenLastClosed: () =>
+      ipcRenderer.invoke(IPC.BROWSER_REOPEN_LAST_CLOSED),
+
+    historySuggest: (prefix, limit) =>
+      ipcRenderer.invoke(IPC.BROWSER_HISTORY_SUGGEST, { prefix, limit }),
 
     focusActive: () =>
       ipcRenderer.send(IPC.BROWSER_FOCUS_ACTIVE),
@@ -276,8 +283,14 @@ const api: ElectronAPI = {
   },
 
   terminal: {
-    pushActiveId: (id: string | null) => {
-      ipcRenderer.send(IPC.TERMINAL_ACTIVE_PUSH, id)
+    pushActiveId: (payload) => {
+      ipcRenderer.send(IPC.TERMINAL_ACTIVE_PUSH, payload)
+    },
+
+    onClaudePresenceChange: (cb) => {
+      const handler = (_: IpcRendererEvent, state: ClaudePresenceState) => cb(state)
+      ipcRenderer.on(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, handler) }
     },
 
     claudeOnPath: () => ipcRenderer.invoke('terminal:claude-on-path'),

@@ -17,6 +17,7 @@ import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
 import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from './constants'
 import type { CdpBridge } from './cdp-bridge'
+import type { BrowserHistoryService } from './browser-history-service'
 
 // Default landing page for new browser tabs.
 //
@@ -66,6 +67,15 @@ interface TabEntry {
   id: number          // stable 1-based ID shown to CLI/user
 }
 
+// BUG-027 — captured on every closeTab, popped by reopenLastClosed.
+interface ClosedTabEntry {
+  url: string
+  title: string
+  closedAt: number
+}
+
+const CLOSED_TAB_CAP = 10
+
 export class BrowserManager {
   private window: BrowserWindow
   private cdp: CdpBridge
@@ -75,17 +85,24 @@ export class BrowserManager {
   private activeIndex = 0
   private nextId = 1
   private currentBounds: BrowserBounds = { x: 0, y: 0, width: 0, height: 0 }
+  // BUG-027 — most-recently-closed stack. Used by reopenLastClosed().
+  private closedTabs: ClosedTabEntry[] = []
+  // Issue #27 — history service for URL-bar autocomplete. Injected by
+  // main; populated on did-navigate.
+  private history: BrowserHistoryService | null = null
 
   constructor(
     window: BrowserWindow,
     cdp: CdpBridge,
     onStateChange: StateCallback,
-    onTabsChange: TabsCallback
+    onTabsChange: TabsCallback,
+    history?: BrowserHistoryService
   ) {
     this.window = window
     this.cdp = cdp
     this.onStateChange = onStateChange
     this.onTabsChange = onTabsChange
+    this.history = history ?? null
 
     // Stage 15.2 — forward live browser-selection pushes from the
     // page-side observer to the renderer over IPC. Subscribed once at
@@ -213,6 +230,18 @@ export class BrowserManager {
     const idx = this.tabs.findIndex(t => t.id === n)
     if (idx === -1) return { ok: false, error: `No tab with id ${n}` }
 
+    // BUG-027 — record the URL+title before we tear the tab down so
+    // ⌘⇧T from browser focus can reopen it. Skip about:blank entries
+    // (no signal worth restoring; matches Chrome's heuristic).
+    const closingTab = this.tabs[idx]
+    const closingWc = closingTab.view.webContents
+    const closingUrl = closingWc.getURL() || ''
+    const closingTitle = closingWc.getTitle() || ''
+    if (closingUrl && closingUrl !== 'about:blank') {
+      this.closedTabs.push({ url: closingUrl, title: closingTitle, closedAt: Date.now() })
+      if (this.closedTabs.length > CLOSED_TAB_CAP) this.closedTabs.shift()
+    }
+
     // BUG-020 fix — closing the last tab no longer hard-fails. Instead,
     // open a fresh new-tab page first, then close the requested tab.
     // Net effect: 1 tab remains, but it's a fresh about:blank.
@@ -266,6 +295,19 @@ export class BrowserManager {
 
     this.emitTabs()
     return { ok: true }
+  }
+
+  /**
+   * BUG-027 — pop the most-recently-closed tab off the stack and reopen
+   * it. Switches to the new tab so the user lands on it. Returns
+   * ok:false with reason 'empty' when nothing has been closed.
+   */
+  async reopenLastClosed(): Promise<{ ok: boolean; id?: number; url?: string; reason?: string }> {
+    const last = this.closedTabs.pop()
+    if (!last) return { ok: false, reason: 'empty' }
+    const entry = this.addTab(last.url)
+    try { await this.switchTab(entry.id) } catch { /* best-effort */ }
+    return { ok: true, id: entry.id, url: last.url }
   }
 
   getTabs(): BrowserTab[] {
@@ -364,6 +406,20 @@ export class BrowserManager {
     wc.on('page-title-updated', emit)
     wc.on('did-start-loading', emit)
     wc.on('did-stop-loading', emit)
+    // Issue #27 — record history on stable navigations. did-navigate
+    // is the right hook (not did-finish-load which fires for failed
+    // loads too) and the title is usually populated by then; we also
+    // top up via page-title-updated when the page swaps in a real
+    // title after the URL committed.
+    if (this.history) {
+      const recordCurrent = () => {
+        const url = wc.getURL()
+        const title = wc.getTitle()
+        if (url) void this.history?.record(url, title)
+      }
+      wc.on('did-navigate', recordCurrent)
+      wc.on('page-title-updated', recordCurrent)
+    }
   }
 
   // When the browser WebContentsView has focus, keystrokes like Cmd+T

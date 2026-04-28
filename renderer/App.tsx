@@ -13,6 +13,7 @@ import { ThemeToggle } from './components/ThemeToggle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
+import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
 import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
@@ -355,14 +356,24 @@ export function App() {
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const activeCozy = activeTab ? (cozyByTab[activeTab.id] ?? cozyDefault) : false
+  // ENH-013 — Send → Duo pill gates on whether the front terminal has
+  // a live `claude` descendant in its PTY tree (or is in the post-spawn
+  // grace window for a kind=='claude' tab). State pushed by main's
+  // claude-presence probe.
+  const claudeLive = useFrontTerminalClaudeLive()
 
   // Stage 15 G17 — push the active terminal id to main so `duo send`
   // can write into the right PTY. `null` covers the degenerate case
   // where every terminal tab was closed (today the UI prevents this,
   // but the IPC contract supports it for future surfaces).
+  // ENH-013 — payload also carries `kind` so main's claude-presence
+  // probe can arm its starting-grace window for kind=='claude' tabs.
   useEffect(() => {
-    window.electron.terminal?.pushActiveId(activeTab ? activeTab.id : null)
-  }, [activeTab?.id])
+    window.electron.terminal?.pushActiveId({
+      id: activeTab ? activeTab.id : null,
+      kind: activeTab ? activeTab.kind : null
+    })
+  }, [activeTab?.id, activeTab?.kind])
 
   // ── Tab actions ────────────────────────────────────────────────────────────
 
@@ -1153,8 +1164,14 @@ export function App() {
               // flip (drives the focus-ring CSS) AND OS-level focus on
               // the xterm helper-textarea so PTY keystrokes route in —
               // mirrors togglePaneFocus's terminal branch.
+              // ENH-013 — gate on the front terminal having a live
+              // Claude session. `null` causes the pill to suppress
+              // entirely (matches the legacy "no terminal tabs" path
+              // that this prop already handled). Pill flips back on
+              // automatically when the user focuses a Claude tab or
+              // launches Claude in the active tab.
               onSendToDuo={
-                activeTabId
+                activeTabId && claudeLive
                   ? (payload) => {
                       void window.electron.pty.write(activeTabId, payload)
                       setFocusedColumn('terminal')

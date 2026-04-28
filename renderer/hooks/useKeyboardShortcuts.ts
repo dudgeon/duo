@@ -72,6 +72,14 @@ export function useKeyboardShortcuts(opts: Options) {
           opts.newBrowserTab()
           return
         case 'newClaudeTab':
+          // BUG-027 — ⌘⇧T from browser focus reopens the last-closed
+          // browser tab (Chrome parity), instead of spawning a Claude
+          // terminal tab. From any other focus, the original spec
+          // applies: ⌘⇧T → new Claude tab.
+          if (pane === 'working') {
+            void window.electron.browser.reopenLastClosed()
+            return
+          }
           opts.newClaudeTab()
           return
         case 'newMarkdownFile':

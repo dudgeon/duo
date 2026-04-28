@@ -14,6 +14,8 @@ import { InstallService } from './install-service'
 import { UpdateChecker } from './update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from './session-state-service'
+import { ClaudePresenceProbe } from './claude-presence'
+import { BrowserHistoryService } from './browser-history-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -90,6 +92,11 @@ let selectionFormatState: SelectionFormatStateSnapshot = { format: 'a' }
 // surfaces an error).
 let activeTerminalId: string | null = null
 
+// ENH-013 — claude-presence probe. Polls the active terminal's PTY
+// process tree for a live `claude` descendant; broadcasts state
+// changes so the renderer's Send → Duo pill gates correctly.
+const claudePresence = new ClaudePresenceProbe()
+
 // Stage 19c D27 — pending `duo new-tab` requests awaiting a renderer
 // reply. Shape mirrors docWritePending / docReadPending.
 const newTabPending = new Map<string, (res: NewTabResult) => void>()
@@ -114,6 +121,8 @@ const ptyManager = new PtyManager()
 const filesService = new FilesService()
 const pinsService = new PinsService()
 const navPinsService = new NavPinsService()
+// Issue #27 / Stage 21c Phase 3 — browser history for URL-bar autocomplete.
+const browserHistory = new BrowserHistoryService()
 const installService = new InstallService()
 const updateChecker = new UpdateChecker()
 // Load the cached check at boot so the renderer's first IPC call
@@ -158,7 +167,8 @@ function createWindow(): void {
     mainWindow,
     cdpBridge,
     (state: BrowserState) => mainWindow?.webContents.send(IPC.BROWSER_STATE, state),
-    (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs)
+    (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs),
+    browserHistory
   )
 
   // Socket server starts listening; CLI connects here
@@ -194,6 +204,17 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // ENH-013 — start the claude-presence probe + wire its broadcast to
+  // the renderer. Subscribed once at first load so the pill responds
+  // to state changes for the lifetime of the window. The unsubscribe
+  // hook isn't kept (process tear-down is the only ender).
+  claudePresence.start()
+  claudePresence.onChange((state) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
+    }
+  })
 
   // Once the renderer reports its bounds, attach CDP to the active tab
   mainWindow.webContents.once('did-finish-load', async () => {
@@ -260,6 +281,10 @@ app.whenReady().then(() => {
 // during a debounce window.
 app.on('before-quit', () => {
   void sessionStateService.flush()
+  // Issue #27 — flush pending history writes too.
+  void browserHistory.flush()
+  // ENH-013 — stop polling.
+  claudePresence.stop()
 })
 
 app.on('window-all-closed', () => {
@@ -268,6 +293,7 @@ app.on('window-all-closed', () => {
   // Best-effort final flush — `before-quit` already fired but the
   // disk write may still be in flight.
   void sessionStateService.flush()
+  void browserHistory.flush()
   if (process.platform !== 'darwin') app.quit()
 })
 
@@ -336,6 +362,17 @@ function setupIPC(): void {
   ipcMain.handle(IPC.BROWSER_CLOSE_TAB, async (_event, { id }: { id: number }) => {
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.closeTab(id)
+  })
+
+  // BUG-027 — ⌘⇧T from browser focus pops the last-closed tab.
+  ipcMain.handle(IPC.BROWSER_REOPEN_LAST_CLOSED, async () => {
+    if (!browserManager) return { ok: false, reason: 'no-browser-manager' }
+    return browserManager.reopenLastClosed()
+  })
+
+  // Issue #27 — URL-bar autocomplete suggestions from persisted history.
+  ipcMain.handle(IPC.BROWSER_HISTORY_SUGGEST, async (_event, args: { prefix: string; limit?: number }) => {
+    return browserHistory.suggest(args.prefix ?? '', args.limit ?? 8)
   })
 
   ipcMain.on(IPC.BROWSER_FOCUS_ACTIVE, () => {
@@ -515,8 +552,12 @@ function setupIPC(): void {
   })
 
   // Stage 15 G17 \u2014 active terminal-tab id push from the renderer.
-  ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (_event, id: string | null) => {
-    activeTerminalId = id
+  // ENH-013 \u2014 the payload also carries `kind` so the claude-presence
+  // probe can arm its starting-grace window for kind=='claude' tabs.
+  ipcMain.on(IPC.TERMINAL_ACTIVE_PUSH, (_event, payload: { id: string | null; kind: 'claude' | 'shell' | null }) => {
+    activeTerminalId = payload.id
+    const pid = payload.id ? ptyManager.getPid(payload.id) : null
+    claudePresence.setTarget({ pid, kind: payload.kind })
   })
 
   // Stage 19c D23 \u2014 renderer asks "is `claude` on PATH?" before spawning a
