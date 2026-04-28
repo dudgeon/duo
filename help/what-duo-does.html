@@ -132,6 +132,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="copy code block button hover clipboard">
+  <div class="num">4b</div>
+  <div>
+    <h3>Copy a code block</h3>
+    <p class="why">Hover any <code>&lt;pre&gt;</code> in the markdown editor or HTML canvas — a Copy button appears top-right. Click it; the code text lands on your clipboard.</p>
+    <p class="how"><strong>UI</strong>Hover the code block. <strong>v0.5.1+</strong></p>
+  </div>
+</article>
+
 <article class="item" data-keys="html canvas render edit duo open">
   <div class="num">5</div>
   <div>
@@ -180,21 +189,30 @@
 <h2 class="cat">Browsing the web</h2>
 <p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
 
-<article class="item" data-keys="browser tab open url web new">
+<article class="item" data-keys="browser tab open url web new split-button">
   <div class="num">10</div>
   <div>
     <h3>Open a browser tab</h3>
     <p class="why">A real Chromium tab inside Duo. Logged-in sessions persist between launches.</p>
-    <p class="how"><strong>UI</strong>⌥-click <code>+</code> on the working pane strip, or ⌘T while the browser pane has focus. <strong>CLI</strong><code>duo open &lt;url&gt;</code></p>
+    <p class="how"><strong>UI</strong>Click <code>&gt;</code> on the working pane's split-button (right of the tab strip), or ⌘T while the browser pane has focus. <strong>CLI</strong><code>duo open &lt;url&gt;</code></p>
   </div>
 </article>
 
-<article class="item" data-keys="address bar url focus type">
+<article class="item" data-keys="reopen last closed browser tab restore history">
+  <div class="num">10b</div>
+  <div>
+    <h3>Reopen the last-closed browser tab</h3>
+    <p class="why">Closed something by accident? Same gesture you use in Chrome.</p>
+    <p class="how"><strong>UI</strong>⌘⇧T while the browser pane has focus. (From any other focus, ⌘⇧T spawns a new Claude tab.) <strong>v0.5.1+</strong></p>
+  </div>
+</article>
+
+<article class="item" data-keys="address bar url focus type autocomplete history suggestions">
   <div class="num">11</div>
   <div>
     <h3>Jump to the address bar</h3>
-    <p class="why">Type a URL or search term without reaching for the mouse.</p>
-    <p class="how"><strong>UI</strong>⌘L from anywhere in the working pane.</p>
+    <p class="why">Type a URL or search term without reaching for the mouse. Start typing → suggestions from your visited-history match as you type (sorted by recency × visits).</p>
+    <p class="how"><strong>UI</strong>⌘L from anywhere in the working pane. Arrow keys to pick a suggestion; Enter commits.</p>
   </div>
 </article>
 
@@ -297,12 +315,12 @@
 <h2 class="cat">Capture & send</h2>
 <p class="cat-tagline">Get a quote, an excerpt, or a selection from any pane into the conversation with Claude.</p>
 
-<article class="item" data-keys="send duo selection pill quote excerpt">
+<article class="item" data-keys="send duo selection pill quote excerpt claude-presence gating">
   <div class="num">22</div>
   <div>
     <h3>Send a selection to your active terminal</h3>
-    <p class="why">Highlight text in the markdown editor, the browser pane, or the HTML canvas — a "Send → Duo" pill appears. Click it; the selection lands in your active terminal as quoted text with a path / URL trail so Claude knows where it came from.</p>
-    <p class="how"><strong>UI</strong>Select text → click the pill.</p>
+    <p class="why">Highlight text in the markdown editor, the browser pane, or the HTML canvas — a "Send → Duo" pill appears. Click it; the selection lands in your active terminal as quoted text with a path / URL trail so Claude knows where it came from. <strong>v0.5.1+:</strong> the pill only shows when your front terminal has Claude actually running; if you're at a shell prompt the pill stays hidden so you don't accidentally pipe text into a non-Claude session.</p>
+    <p class="how"><strong>UI</strong>Select text → click the pill (when visible).</p>
   </div>
 </article>
 

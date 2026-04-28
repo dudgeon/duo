@@ -19,6 +19,36 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-04-28
+
+Polish + the gating you asked for. Closes the known-issue list from v0.5.0, ships the editor-polish punch list deferred from v0.4.3, and lands strict claude-presence gating on the Send → Duo pill.
+
+### Added
+- **Stage 21c Phase 3 — Browser history persistence (closes [issue #27](https://github.com/dudgeon/duo/issues/27)).** Address bar grows a native `<datalist>` autocomplete from persisted history (`~/.claude/duo/browser-history.json`). Recorded on every `did-navigate` / `page-title-updated`. Ranked by `visitCount / (1 + ageHours)` — Wilson-style proxy favoring recent + repeated visits. Skip-list keeps `about:blank`, `chrome:`, `devtools:`, and `~/.claude/duo/help/` out of suggestions.
+- **ENH-006 — Split-button new affordance on the WorkingPane tab strip.** `+` (file, primary) | `>` (new browser tab, secondary). Mirrors the terminal pane's Stage 19c split. Replaces the prior ⌥-click muscle memory with a discrete affordance visible at rest.
+- **ENH-005 — Copy button on every code block** (markdown editor + HTML canvas). Hover-to-reveal top-right of each `<pre>`. Markdown editor uses ProseMirror node + widget decorations (survives the contentEditable reconciliation that reverts naive DOM mutations); canvas uses a runtime injection that the serializer strips on save.
+- **ENH-013 — Send → Duo pill gated on live Claude.** New main-process `ClaudePresenceProbe` polls the active terminal's PTY child-process tree every 500ms; the pill renders only when a `claude` descendant exists (or in a 1.5s grace window after a `kind:'claude'` tab spawn). Strict mode (option a) — focus follows the user, not heuristics.
+- **Stage 21b — App icon.** `build/icon.icns` + source `build/icon.png` committed; `npm run dist` picks them up automatically. (DMG background image deferred from this cut.)
+
+### Changed
+- **ENH-011 — Plain-English banner copy.** `FirstLaunchBanner`'s welcome + update states no longer mention "skill", "subagent", "priming shim", or "SessionStart hook". Welcome reads "Set up the files Duo needs to work with Claude — they go in `~/.claude/`, and we won't touch any of your existing files." Update reads "Refresh the agent files in `~/.claude/` (currently from v{version})."
+- **ENH-007 — Comment rail collapses to a "N resolved" pill** when every thread is resolved. Click expands; "Hide" re-collapses. Primitive-level — both the canvas binding (Stage 17d) and future markdown binding (Stage 14) inherit it.
+- **BUG-026 — Pasted markdown lands as structure, not a code block.** New `MarkdownPaste` TipTap extension (priority 1000) overrides tiptap-markdown's `inline:true`-everything paste rule with a block-aware parse — block markers (`^# `, `^- `, `^> `, ` ``` `, blank-line) trigger block mode; otherwise inline mode is preserved (for "paste a bold word mid-sentence").
+
+### Fixed
+- **BUG-007 — Deleted files no longer linger in the navigator.** v0.3.1's chokidar subscription was correct but a sub-resub gap could drop unlink events when the user expanded a folder mid-delete. Hardening: refresh visible folders once after the watcher attaches; clear stale `selected` row on `removed`.
+- **BUG-027 — `⌘⇧T` from browser focus reopens the last-closed tab** (Chrome parity). New `closedTabs` stack on BrowserManager (cap 10, skips `about:blank`). Other panes keep BUG-008's universal "⌘⇧T → new Claude tab" spec.
+- **BUG-028 — Escape dismisses inline rename in the navigator.** Defensive fix: explicit `inputRef.blur()` on Escape forces unmount even if React-18 batching delays the keydown's setState; `cancelledRef` prevents the resulting blur from double-cancelling.
+- **BUG-029 — Right-click context menu flips upward when it would clip the viewport bottom.** `useLayoutEffect` measures rendered height + flips up/left as needed.
+- **BUG-030 — Navigator pin state pushes to the renderer live when changed via CLI.** New `IPC.NAV_PINS_CHANGED` channel; main broadcasts on every IPC `NAV_PINS_TOGGLE` reply AND every socket-server `nav-pin` op.
+
+### Reconciled
+- `tasks.md` ↔ roadmap audit. 12 stale 🆕 entries (BUG-010, BUG-012/013/014, BUG-018..025, ENH-008/009/010) flipped to ✅ to match shipped status from v0.3.0 / v0.4.3 / v0.5.0.
+
+### Deferred
+- Stage 21b DMG background image — visual asset, not ship-blocking.
+- ENH-013 CLI parity (`duo terminal claude-state`) — agent introspection of presence state; not used by core flow.
+
 ## [0.5.0] — 2026-04-27
 
 First MINOR since v0.4.0. Three coherent surfaces ship together:

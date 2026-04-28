@@ -25,6 +25,111 @@ _Empty._
 
 ---
 
+## v0.5.1 — 2026-04-28
+
+**Polish + the gating you asked for.** A rapid-fire follow-up to
+v0.5.0 that closes everything left on its known-issues list, ships
+the editor-polish punch list that was deferred from v0.4.3, and lands
+the strict claude-presence gate that prevents the Send → Duo pill
+from routing to dead or non-Claude PTYs.
+
+### Why v0.5.1 lands here
+
+Three forcing functions, in order. First: **the v0.5.0 known-issues
+list was a real foot-gun.** BUG-028 (Escape doesn't cancel rename),
+BUG-029 (context menu clips at viewport bottom), BUG-030 (CLI pin
+state doesn't push to renderer) were all "the navigator surface you
+just shipped doesn't quite work" — the kind of friction that
+silently degrades day-1 trust. Closing them in a follow-up patch
+beats letting them age into a workflow stale-fix.
+
+Second: **ENH-005/006/007 had been on the deferred list since
+v0.4.3.** Two cuts in a row punted them; a third would have meant
+they were de-facto cancelled. The actual implementations turned out
+to be tractable — ENH-005's markdown editor side took two cuts at
+ProseMirror's contentEditable reconciliation to land cleanly (widget
+decoration + node decoration, not DOM mutation), but it's done now
+and the user-facing affordance is a small but constant ergonomic
+win.
+
+Third: **ENH-013 was load-bearing for correctness.** The Send → Duo
+pill routing into a non-Claude terminal silently produced output
+the user then had to clean up — not just confusing, actively
+destructive. Strict gating (only show the pill when the front
+terminal has a live `claude` descendant) was the right line; the
+process-tree probe is cheap and the implementation falls naturally
+out of the existing PtyManager surface.
+
+### Three key design decisions baked in
+
+1. **ProseMirror decorations, not DOM mutations, for editor chrome.**
+   ENH-005's markdown-editor copy buttons went through three
+   abandoned approaches (direct appendChild → reverted; pre-class via
+   classList → reverted; widget at pos+1 inside `<code>` → button
+   text leaked into the copy payload) before landing on the working
+   pattern: `Decoration.node` adds the host class (PM manages it;
+   survives transactions), `Decoration.widget(pos+1)` inserts the
+   button DOM, click handler clones the `<code>` and strips the
+   button before reading textContent. The lesson is broader than
+   ENH-005 — any future "add chrome to the editor without touching
+   the doc" pattern (Stage 14's CommentRail markers, Stage 16's
+   external-write banner) should reach for decorations first.
+
+2. **Process-tree probing for claude-presence, not tab-kind heuristics.**
+   The naive way to gate the Send → Duo pill is to check
+   `tab.kind === 'claude'`. That's wrong: kind records *intent at
+   spawn*, not current state. A user typing `/exit` to back out of
+   Claude into a shell prompt would still see the pill light up. The
+   probe walks the active PTY's child-process tree via one `ps -ax`
+   call every 500ms (~1ms per probe on macOS); state machine adds a
+   1.5s grace for `kind:'claude'` tabs that haven't yet exec'd
+   `claude`. Same plumbing will eventually back agent guards
+   (FOLLOWUP-002) and other "is the agent live" surfaces.
+
+3. **Native `<datalist>` for URL autocomplete, not a custom dropdown.**
+   Issue #27's history-suggest UI is one HTML5 element + a debounced
+   IPC call. No custom keyboard nav, no custom styling, no
+   focus-management bug surface. The trade is suggestions look
+   platform-stock instead of Atelier-themed — fine, this is a power-
+   user surface where speed beats aesthetic. If the look ever needs
+   to change, the swap is well-contained (the rendering boundary is
+   one component).
+
+### What this is and isn't
+
+**This is** the patch release that earns v0.5.0 the "stable enough
+to put in front of someone" label. The navigator papercuts are
+gone, the editor surfaces have the polish that makes the agent
+loop feel intentional rather than improvised, and the Send → Duo
+pill stops misfiring.
+
+**This isn't** the cut that closes Stage 21 (21d Trailblazers
+cohort distribution remains; 21b DMG background remains a small
+visual asset deferred from this cut), and it isn't the one that
+flips Stage 14 / Stage 16 (the markdown editor's CommentRail
+binding + external-write reconciliation). Those are the v0.5.2 /
+v0.6.0 conversations.
+
+### Queued next
+
+- **Stage 21d** (Trailblazers cohort) — socket auth token + agent-
+  driven-nav notifications + README. Last item before the cohort
+  can receive the build.
+- **Stage 26 PR 3** (navigator ambient signals + Go-to path) —
+  items 2/3/4/8 from the original Stage 26 framing. The remaining
+  Stage 26 surface.
+- **Stage 14** (markdown editor's CommentRail binding) — the
+  primitive shipped in v0.2.0; the markdown binding completes the
+  editor side of the comment loop.
+- **CLI `duo terminal claude-state`** — agent-side introspection of
+  the presence-prober state (ENH-013 follow-up).
+
+### Known issues at v0.5.1
+
+_None tracked. v0.5.0's known-issues list closed in this cut._
+
+---
+
 ## v0.5.0 — 2026-04-27
 
 **The first MINOR since v0.4.0.** Three coherent surfaces ship

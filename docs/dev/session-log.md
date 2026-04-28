@@ -18,6 +18,34 @@
 
 ---
 
+## 2026-04-28 — v0.5.1 cut: polish + the gating you asked for
+
+Single-session sprint follow-up to v0.5.0. Six PRs in sequence; all
+verified live; one DMG cut at the end.
+
+**What shipped:**
+
+- **PR 1 (`a801124`) — Navigator follow-ups + Stage 21b icon + tasks reconciliation.** Closed v0.5.0's known-issue list: BUG-007 (deleted files linger — chokidar watcher hardening on sub-resub gap), BUG-028 (Escape dismisses inline rename — `cancelledRef` + explicit `inputRef.blur()`), BUG-029 (right-click context menu flips up when overflowing viewport via `useLayoutEffect` measure), BUG-030 (CLI `duo nav pin/unpin` pushes to renderer live via new `IPC.NAV_PINS_CHANGED`). Stage 21b icon shipped as `build/icon.icns` (10 standard macOS sizes 16²..1024², generated via sips + iconutil from a 1254×1254 source). 12 stale `🆕 Filed` entries in `tasks.md` flipped to `✅ Shipped` to match shipped status from v0.3.0 / v0.4.3 / v0.5.0.
+- **PR 2 (`ff77346`) — Editor polish.** BUG-026 (markdown paste lands as structure not code-block — new `MarkdownPaste` TipTap extension at priority 1000 overrides tiptap-markdown's `inline:true`-everything default with a block-aware parse). ENH-005 canvas side (hover Copy button on every `<pre>` via runtime injection; serializer strips on save). ENH-007 (CommentRail collapses to `N resolved` pill when every thread is resolved).
+- **PR 2 follow-up (`f134332`) — ENH-005 markdown editor side.** Three abandoned approaches (direct appendChild, classList add, widget-only) before landing on the working pattern: `Decoration.node` adds the host class (PM-managed, survives transactions), `Decoration.widget(pos+1)` inserts the button DOM, click-handler clones the `<code>` and strips the button before reading textContent.
+- **PR 3 (`525ff48`) — Browser pane + Send → Duo gating.** BUG-027 (⌘⇧T from browser focus reopens last-closed tab via new `closedTabs` stack — Chrome parity). Issue #27 / Stage 21c Phase 3 (browser history persistence at `~/.claude/duo/browser-history.json`; native `<datalist>` autocomplete). ENH-013 (Send → Duo pill gated on live `claude` descendant in front terminal's PTY tree — process-tree probe via `ps -ax` every 500ms, with 1.5s grace for `kind:'claude'` tabs that haven't yet exec'd).
+- **PR 4 (`48d2b2e`) — ENH-006 split-button on WorkingPane.** `+` (file) | `>` (new browser tab); mirrors terminal-strip Stage 19c rhyme. Replaces the prior ⌥-click muscle memory.
+- **PR 5 (`d3c2f4d`) — ENH-011 plain-English banner copy.** Welcome + Update banners no longer mention "skill", "subagent", "priming shim", or "SessionStart hook". User model is "agent files" / "make Claude Duo-aware".
+
+**Three design decisions baked in (full prose in `docs/RELEASES.md § v0.5.1`):**
+
+1. **ProseMirror decorations, not DOM mutations, for editor chrome.** Direct DOM mutations to ProseMirror's contentEditable surface get reverted on transactions; node + widget decorations are tracked separately and survive. Future "add chrome to the editor without touching the doc" patterns (Stage 14's CommentRail markers, Stage 16's external-write banner) should reach for decorations first.
+2. **Process-tree probing for claude-presence, not tab-kind heuristics.** `tab.kind === 'claude'` records intent at spawn, not current state — `/exit` would leave the pill misfiring. Walking the active PTY's child-process tree via one `ps -ax` call every 500ms is cheap (~1ms/probe) and accurate. Same plumbing will eventually back FOLLOWUP-002 (agent guards).
+3. **Native `<datalist>` for URL autocomplete, not a custom dropdown.** One HTML5 element + a debounced IPC call. No custom keyboard nav, no custom styling. Trade is platform-stock look — fine for a power-user surface.
+
+**Verification flow:** all PRs verified live in dev mode via computer-use except BUG-028 (Escape via the harness doesn't reach the Electron renderer — known accessibility/OS-level limitation; manual verification owed).
+
+**Stage flips:** Stage 21c Phase 3 ✅; Stage 21b partial (icon ✅, DMG bg deferred); Stage 26 follow-up cluster (BUG-007/028/029/030) ✅. v0.5.1 closes [issue #27](https://github.com/dudgeon/duo/issues/27).
+
+**What's queued next:** Stage 21d (Trailblazers cohort distribution — socket auth + agent-driven-nav notifications + README). Stage 26 PR 3 (navigator ambient signals + Go-to path). Stage 14 (markdown editor's CommentRail binding via CriticMarkup). CLI `duo terminal claude-state` (ENH-013 follow-up).
+
+---
+
 ## 2026-04-27 late-late evening — v0.5.0 cut: navigator polish + fork-friendly + foundation
 
 First MINOR cut since v0.4.0. Owner approved the v0.5.0 sprint plan

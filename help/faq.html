@@ -101,6 +101,23 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.5.1 release polish gating browser history autocomplete url copy button code block markdown editor canvas escape rename context menu pinned send-to-duo claude-presence">
+  <h3>v0.5.1 — Polish + the gating you asked for <span class="date">2026-04-28</span></h3>
+  <p>Fast follow-up to v0.5.0 that closes everything on its known-issues list, ships the editor-polish punch list deferred from v0.4.3, and fixes the Send → Duo pill so it stops routing into shells that don't have Claude running.</p>
+  <ul>
+    <li><strong>URL bar autocomplete from your history.</strong> Start typing in the address bar; the URLs you've visited match as you type (sorted by recency × visits). Native browser-style typeahead — arrow keys to nav, Enter to commit. About:blank and the FAQ are skipped so suggestions stay clean.</li>
+    <li><strong>Send → Duo pill only shows when Claude is actually running</strong> in your front terminal. If you're at a shell prompt or you've <code>/exit</code>'d Claude, the pill disappears — no more accidentally piping selected text into a non-Claude shell. Works by walking the active terminal's process tree every 500ms looking for a live <code>claude</code> descendant; flips back on automatically when you launch Claude.</li>
+    <li><strong>Code blocks get a hover Copy button.</strong> Both the markdown editor and the HTML canvas. Top-right of every <code>&lt;pre&gt;</code>; copies the code text only (no leakage of the button's own label).</li>
+    <li><strong>WorkingPane <code>+</code> button is now a split.</strong> <code>+</code> = new file (⌘N flow), <code>&gt;</code> = new browser tab (⌘T). Mirrors the terminal pane's existing split. The browser-tab path used to live on ⌥-click — discoverable now.</li>
+    <li><strong>Pasted markdown lands as structure.</strong> Heading, list, fence, blockquote, bold/italic — all render correctly when you paste markdown into the editor. The previous behavior collapsed everything into one code block.</li>
+    <li><strong>Comment rail collapses to a "N resolved" pill</strong> when every thread is resolved. Click expands it; "Hide" re-collapses. Stops a fully-resolved canvas from carrying a 280px-wide rail of nothing.</li>
+    <li><strong>Plain-English banner copy.</strong> The Welcome and Update banners no longer mention "skill", "subagent", "priming shim", or "SessionStart hook". Welcome now reads "Set up the files Duo needs to work with Claude — they go in <code>~/.claude/</code>, and we won't touch any of your existing files."</li>
+    <li><strong>v0.5.0 navigator papercuts closed.</strong> Escape now dismisses inline rename (BUG-028). Right-click context menus flip up when they'd clip the viewport bottom (BUG-029). <code>duo nav pin/unpin</code> from the CLI updates the Pinned section live (BUG-030). Deleted files no longer linger (BUG-007 hardening).</li>
+    <li><strong>⌘⇧T from browser focus reopens the last-closed tab</strong> (Chrome parity, BUG-027). From any other focus, it still spawns a new Claude tab.</li>
+    <li><strong>App icon.</strong> Custom icon shipped (<code>build/icon.icns</code>); next signed dist build picks it up. (DMG background image deferred.)</li>
+  </ul>
+</article>
+
 <article class="whatsnew" data-keys="v0.5.0 release navigator double-click chevron rename trash pin pinned files folders fork fork-friendly enterprise capital one trailblazers stage-26 stage-21e architecture">
   <h3>v0.5.0 — Navigator polish + fork-friendly architecture <span class="date">2026-04-27</span></h3>
   <p>The first MINOR release since v0.4.0. Big things changed in the file navigator on the left, and Duo can now be forked by editing one config file (mostly relevant to teams running their own internal Duo build).</p>
