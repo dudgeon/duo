@@ -500,6 +500,123 @@ column with no shared edge.
   again — the WebContentsView occlusion isn't going away unless the
   whole browser-rendering architecture changes.
 
+### Editor chrome inside ProseMirror: decorations, not DOM mutations
+
+**Status:** 🟢 Locked (v0.5.1, ENH-005 follow-up)
+**Raised:** 2026-04-28 — copy buttons on markdown-editor code blocks
+**Resolves:** "what's the right way to add non-doc chrome (buttons,
+badges, overlays) inside the markdown editor's contentEditable
+surface so the chrome survives transactions?"
+
+**Decision.** Use ProseMirror decorations, never direct DOM
+mutations to the editor's `view.dom`:
+
+- **`Decoration.node(pos, pos + node.nodeSize, { class: ... })`** for
+  attribute/class additions to existing nodes. PM tracks node
+  decorations separately from doc state; classes survive
+  transactions.
+- **`Decoration.widget(pos, renderFn, { side, key })`** for inserted
+  DOM that isn't part of the doc. The widget is a PM-managed sibling
+  of the rendered node DOM; it doesn't show up in the doc model and
+  doesn't trigger the dirty buffer / autosave path.
+- For widgets that need text-content extraction from the host node
+  (e.g. a Copy button reading the codeBlock's text), clone the host
+  + strip the widget's own DOM before reading textContent.
+
+**Why this option won.**
+
+- **PM aggressively reverts unsanctioned DOM mutations.** Direct
+  `pre.appendChild(button)` and `pre.classList.add(...)` both get
+  undone on the next transaction (ENH-005 went through three
+  abandoned approaches before landing here). The reconciliation runs
+  on every edit, every selection change, and every node-view refresh
+  — there's no event you can hook to "re-inject after PM reverts"
+  that doesn't fight the renderer.
+- **Decorations don't trigger doc-mutation cycles.** A widget is
+  invisible to the dirty-detection path; the autosave timer doesn't
+  fire when widgets render. DOM mutations on contentEditable do
+  trigger dirty detection and would falsely mark every codeBlock as
+  edited on first paint.
+- **Composes cleanly with CodeBlockLowlight + future NodeViews.**
+  CodeBlockLowlight has its own NodeView for syntax highlighting;
+  decorations layer on top without conflict. A widget at `pos+1`
+  renders inside the codeBlock's content area but isn't part of its
+  text — no schema violations.
+
+**Why not the alternatives.**
+
+- *Direct DOM mutation*: reverted on transactions. Fails immediately.
+- *MutationObserver-based re-injection*: fights PM's reconciliation
+  loop; pathological CPU usage on large docs.
+- *External overlay positioned via getBoundingClientRect*: works but
+  fragile under scroll, resize, and HMR. Adds a sync loop the editor
+  primitives don't otherwise need. Reach for this only when widget
+  decorations genuinely can't express what's needed (e.g. chrome
+  spanning multiple disjoint nodes).
+- *NodeView replacement for codeBlock*: would conflict with
+  CodeBlockLowlight's own NodeView. Possible but invasive.
+
+**Generalization.** Future "add chrome to the editor without
+touching the doc" patterns (Stage 14's CommentRail markers, Stage 16
+external-write banner inline anchors, BUG-024's selection-pill
+unification) should reach for decorations first. Implementation
+reference: `renderer/components/editor/extensions/CodeBlockCopyButton.ts`.
+
+### Claude-presence gating: process-tree probing, not tab-kind heuristics
+
+**Status:** 🟢 Locked (v0.5.1, ENH-013)
+**Raised:** 2026-04-28 — Send → Duo pill misfiring into shells where
+Claude was `/exit`'d.
+**Resolves:** "how do we tell whether the user's active terminal is
+running Claude RIGHT NOW (vs. spawned-as-Claude-but-now-shell)?"
+
+**Decision.** Walk the active PTY's child-process tree every 500ms
+via one `ps -ax -o pid,ppid,comm` call; flip the gate state when a
+descendant whose basename is `claude` enters or leaves the tree. Add
+a 1.5s grace window after a `kind:'claude'` tab spawn so the gate
+stays "live" during the launch gap before `claude` exec's.
+
+Reference implementation: `electron/claude-presence.ts`. State
+machine: `'no-pty' | 'shell' | 'claude' | 'starting'`. Renderer hook:
+`useFrontTerminalClaudeLive` (true iff state is `claude` or
+`starting`).
+
+**Why this option won.**
+
+- **`tab.kind === 'claude'` records intent at spawn, not current
+  state.** A user typing `/exit` to back out of Claude into a shell
+  prompt would still see the pill light up — actively destructive
+  (selected text pipes into a shell, runs as a command).
+- **Process-tree probe is cheap.** `ps -ax` walks the system's
+  process table once per call (~1ms on macOS even with 500+ procs);
+  BFS over the tree is microseconds. Polling at 500ms is invisible
+  on top of normal Electron CPU use.
+- **Generalizable.** Same plumbing will eventually back FOLLOWUP-002
+  (agent guards on `agents/duo.md` against Bash-allowlist denial)
+  and any future "is the agent live in this terminal?" gate. The
+  prober's `setTarget({ pid, kind })` API is small and reusable.
+
+**Why not the alternatives.**
+
+- *Watch PTY output for claude prompt regex*: brittle to UI changes
+  in Claude Code (and would lag a turn behind on user keystrokes).
+- *Hook into Stage 19c's `+ button → claude\n` write*: only catches
+  the auto-spawned case; misses `claude` typed manually.
+- *Push state via the renderer*: requires the renderer to know about
+  child processes, which violates the renderer/main split. Main owns
+  PTYs already; the prober belongs there.
+- *Tab-kind only (status quo)*: described above — wrong on `/exit`,
+  wrong on crashed-claude.
+
+**Trade-offs accepted.**
+
+- 500ms poll cadence introduces up-to-500ms latency between Claude
+  exiting and the pill disappearing. Acceptable — the pill being
+  briefly stale is much less harmful than firing into a shell.
+- The prober assumes macOS `ps` flags. Cross-platform support would
+  need `pgrep -P <pid>` recursion or `/proc` parsing. Out of scope
+  pre-1.0 (Duo is macOS-only per the framework decision above).
+
 ---
 
 ## Open ADRs (pending decision)

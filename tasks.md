@@ -1,5 +1,24 @@
 # Duo — Bug & Task Backlog
 
+> **Scope.** Engineering ledger — open work + root-cause writeups for
+> closed bugs. **Canonical version-by-version inventory lives in
+> [CHANGELOG.md](CHANGELOG.md)** and the prose log in
+> [docs/RELEASES.md](docs/RELEASES.md); this file is the
+> running notebook with the "why did this break, what did we learn"
+> detail those don't carry.
+>
+> **Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` /
+> `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for
+> historical reference). To find what's actively open at a glance:
+> `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`.
+>
+> **Pruning policy.** Closed entries stay until the lesson migrates
+> to DECISIONS.md / CLAUDE.md plumbing checklist / smoke-checklist
+> (then they're prune candidates). The file currently runs ~1500
+> lines; not blocking anything, but a future cleanup cut can
+> aggressively trim BUG-001..BUG-017 era entries since their lessons
+> live elsewhere now.
+
 ## Bugs
 
 ### BUG-001: ⌃Tab does not cycle terminal tabs when focus is on terminal
