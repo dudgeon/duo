@@ -17,8 +17,14 @@
     "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents ~/.claude/duo && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp skill/references/*.md ~/.claude/skills/duo/references/ && cp agents/duo.md ~/.claude/agents/duo.md && rm -f ~/.claude/agents/duo-browser.md && ([ -f ~/.claude/duo/external-domains.json ] || echo '{\"domains\":[\"*.capitalone.com\",\"*.slack.com\",\"mail.google.com\",\"docs.google.com\",\"drive.google.com\",\"calendar.google.com\",\"meet.google.com\",\"chat.google.com\",\"accounts.google.com\",\"*.atlassian.net\",\"*.microsoftonline.com\"]}' > ~/.claude/duo/external-domains.json) && ([ -f ~/.claude/duo/priming.md ] || cp skill/priming.md ~/.claude/duo/priming.md) && echo 'Synced skill + subagent (+ bootstrapped external-domains.json + priming.md) to ~/.claude/. Run install banner once in dev to merge SessionStart hook.'",
     "pack": "bash scripts/dist.sh --dir",
     "dist": "bash scripts/dist.sh",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "lint": "eslint ."
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p web/daemon/tsconfig.json && tsc --noEmit -p web/client/tsconfig.json",
+    "lint": "eslint .",
+    "web:daemon": "tsx web/daemon/src/server.ts",
+    "web:daemon:dev": "DUO_WEB_DEV_PROXY=1 DUO_WEB_PORT=8765 tsx --watch web/daemon/src/server.ts",
+    "web:client:dev": "vite -c web/client/vite.config.ts",
+    "web:client:build": "vite build -c web/client/vite.config.ts",
+    "web:dev": "concurrently -n daemon,client -c blue,green \"npm:web:daemon:dev\" \"npm:web:client:dev\"",
+    "web:build": "npm run web:client:build"
   },
   "dependencies": {
     "@tiptap/extension-code-block-lowlight": "^2.27.2",
@@ -42,7 +48,8 @@
     "react-markdown": "^10.1.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "tiptap-markdown": "^0.8.10"
+    "tiptap-markdown": "^0.8.10",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.6.0",
@@ -50,11 +57,13 @@
     "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.3.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-web-links": "^0.11.0",
     "@xterm/xterm": "^5.5.0",
     "autoprefixer": "^10.4.0",
+    "concurrently": "^9.2.1",
     "electron": "^32.0.0",
     "electron-builder": "^24.13.0",
     "electron-vite": "^2.3.0",
@@ -63,6 +72,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tailwindcss": "^3.4.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.0"
   }
 }
