@@ -1798,3 +1798,48 @@ The banner only tells the user "add this line to your shell rc" — it doesn't *
 - Windows / Linux story? Out of scope for v1 — Duo is macOS-only today. File as a follow-up if/when cross-platform lands.
 
 ---
+
+### BUG-035: False-positive "Couldn't find Claude Code" banner when shell init takes >5s
+
+**Status:** ✅ v1 fix shipped 2026-04-29 (v0.5.2 sprint PR 3). `electron/resolve-claude.ts` now:
+1. Walks well-known absolute install dirs (`~/.local/bin`, `~/.npm-global/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.volta/bin`, `~/.bun/bin`, `~/bin`) + every entry in `process.env.PATH` with `fs.access(..., X_OK)` BEFORE attempting any shell.
+2. Falls back to shell only when fast path misses; bumps per-attempt timeout from 5s → 15s; reorders flag-sets fastest-first (`-l` before `-l -i`).
+
+**Verified on the user's machine:** the previously-timing-out call (5236ms, hit timeout) now resolves in **0.8ms** via the fast path (`~/.local/bin/claude`). 6500x speedup.
+
+v2 (still backlog): banner copy that distinguishes "rc is slow" vs "claude genuinely missing"; in-banner `duo doctor` retry.
+
+**Priority:** High (visible-on-every-launch friction; the banner accuses users of not having Claude Code installed when they do)
+**Filed:** 2026-04-29
+
+**Repro (timed on the user's machine):**
+```
+$ time zsh -l -i -c 'command -v claude'
+/Users/geoffreydudgeon/.local/bin/claude
+zsh -l -i -c 'command -v claude'  2.12s user 1.91s system 77% cpu 5.236 total
+```
+
+The shell takes **5.236s** to spawn-resolve. The resolver's per-attempt timeout is **5000ms** (`electron/resolve-claude.ts:69`), so the first attempt times out. The next attempts (`-i -c`, `-l -c`) likely time out the same way for users with rich `.zshrc` (NVM, conda, plugins). All three flag-sets time out → resolver returns `null` → `installShim()` throws → `priming.shimInstalled = false` → the banner copy `"Couldn't find Claude Code on this Mac. Duo searched your usual shell paths and didn't see claude."` fires falsely.
+
+**Root cause:**
+1. **Timeout too short** for users with slow rc files. 5s is below the realistic ceiling for a login-interactive zsh on a populated dev machine (NVM source, conda init, oh-my-zsh, asdf shims, etc.).
+2. **No fast path** — the resolver always pays the cost of a full login-interactive shell load even when `claude` is already on `process.env.PATH` or in a well-known install location.
+3. **Silent failure** — `try/catch` discards the actual error code (timeout vs ENOENT vs rc-file syntax error), so the false-positive banner gives the same copy whether the user lacks claude entirely or simply has slow rc files. No diagnostic surface.
+
+**Proposed fix (split into v1 / v2):**
+
+**v1 (small, ship soon):**
+1. **Fast path before shell:** check well-known absolute install locations directly with `fs.access` — `~/.local/bin/claude`, `~/.npm-global/bin/claude`, `/opt/homebrew/bin/claude`, `/usr/local/bin/claude`, `~/.volta/bin/claude`, `~/.bun/bin/claude`, plus every entry in `process.env.PATH`. Return the first executable hit. Costs ~5–10 stat calls (~ms total) vs ~5–15s for the shell path. Catches the vast majority of installs without ever spawning a shell.
+2. **Bump timeout to 15s** for the shell-fallback path. The user's measured 5.2s sets the realistic floor; 15s gives 3x headroom for users with even fattier rc files.
+3. **Order shell variants fastest-first:** try `-l -c` (no `.zshrc`, fast) before `-l -i -c` (full load, slow).
+
+**v2 (later):**
+- Surface the actual failure mode in the banner: distinguish "rc file is slow" (suggest `duo doctor` or shell tuning) from "claude not on PATH at all" (suggest install link). Today's monolithic copy hides the difference.
+- Auto-retry via `duo doctor` button right in the banner: spawns a one-shot login shell with longer timeout and shows the real `command -v claude` output.
+
+**Affected files (v1):**
+- `electron/resolve-claude.ts` — add `tryFastPaths()` that walks well-known locations + `process.env.PATH` before falling through to shells. Bump shell timeout to 15s. Reorder flag-sets so the fastest combo (no `-i`) goes first.
+
+**Cross-ref:** v0.4.5 was the previous "Claude not detected" fix (drift between install-service and main.ts on which shell flags they used). This is a similar issue (timeout / fast-path) that v0.4.5's all-shell-fallback approach didn't anticipate.
+
+---
