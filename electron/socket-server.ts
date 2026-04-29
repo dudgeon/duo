@@ -67,6 +67,8 @@ export interface NavBridge {
   getTheme: () => ThemeStateSnapshot
   /** Stage 11 § D33d — CLI-driven theme override. */
   setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
+  /** ENH-014 — CLI-driven split-pane percentage (clamped 20–80). */
+  setSplit: (pct: number) => { ok: boolean; pct?: number; error?: string }
   /** Stage 5 v2 A24 — open a URL in the macOS default browser via
    *  Electron's `shell.openExternal`. Used by the duo subagent for
    *  hostnames listed in `~/.claude/duo/external-domains.json`. */
@@ -468,6 +470,17 @@ export class SocketServer {
           const text = args['text'] as string
           if (typeof text !== 'string') throw new Error('send requires a text arg')
           result = this.nav.sendToActiveTerminal(text)
+          break
+        }
+        case 'split': {
+          // ENH-014 — `duo split <pct>` (0–100, clamped to 20–80).
+          const pct = args['pct']
+          if (typeof pct !== 'number' || !Number.isFinite(pct)) {
+            throw new Error('split requires a numeric pct (0–100)')
+          }
+          const setResult = this.nav.setSplit(pct)
+          if (!setResult.ok) throw new Error(setResult.error ?? 'split set failed')
+          result = { pct: setResult.pct }
           break
         }
         case 'selection-format': {

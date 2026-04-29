@@ -1025,6 +1025,15 @@ export function App() {
     return window.electron.keyboard?.onPaneToggleFocus?.(togglePaneFocus)
   }, [togglePaneFocus])
 
+  // ENH-014 — View → Pane size menu items, ⌘⌥1/2/3/0/9, and `duo
+  // split <pct>` all land here. Main clamps to 20–80 before pushing;
+  // we re-clamp defensively in case of contract drift.
+  useEffect(() => {
+    return window.electron.layout?.onSplitSet?.((pct) => {
+      setSplitPct(Math.min(Math.max(pct, 20), 80))
+    })
+  }, [])
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (

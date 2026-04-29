@@ -336,6 +336,31 @@ async function main() {
         }
         break;
       }
+      case "split": {
+        const arg = rest[0];
+        if (arg === void 0) {
+          die("Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>");
+        }
+        const presets = {
+          even: 50,
+          "terminal-heavy": 67,
+          "canvas-heavy": 33,
+          terminal: 80,
+          canvas: 20
+        };
+        let pct;
+        if (arg in presets) {
+          pct = presets[arg];
+        } else {
+          const parsed = Number(arg);
+          if (!Number.isFinite(parsed)) {
+            die("Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>");
+          }
+          pct = parsed;
+        }
+        out(await send("split", { pct }));
+        break;
+      }
       case "doc": {
         const sub = rest[0];
         const subRest = rest.slice(1);
@@ -857,6 +882,14 @@ COMMANDS
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
+  split <pct|preset>              Set the split-pane percentage
+                                  (terminal column as % of the split
+                                  container). Numeric arg clamps to
+                                  20\u201380. Presets: even (50), terminal-
+                                  heavy (67), canvas-heavy (33),
+                                  terminal (80, full-terminal), canvas
+                                  (20, full-canvas). Mirrors View \u2192
+                                  Pane size menu and \u2318\u23251/2/3/0/9.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.

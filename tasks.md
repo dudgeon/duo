@@ -1666,7 +1666,13 @@ So:
 
 ### ENH-014: View menu — preset pane sizes (50:50, 67:33, 33:67, full-left, full-right)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-29 (v0.5.2 sprint PR 1, bundled with BUG-031). Menu surface, keyboard accelerators, and CLI verb all wired:
+- View → Pane size submenu: Even (50/50), Terminal heavy (67/33), Canvas heavy (33/67), Full terminal (80), Full canvas (20).
+- Accelerators: ⌘⌥1 = 67/33, ⌘⌥2 = 50/50, ⌘⌥3 = 33/67, ⌘⌥0 = full terminal, ⌘⌥9 = full canvas. (⌘1–⌘9 stayed bound to `jumpTerminalTab`, so the proposal's bare-⌘ scheme would have collided — escalating modifier picked the orthogonal slot.)
+- CLI: `duo split <pct|even|terminal-heavy|canvas-heavy|terminal|canvas>`. Numeric arg clamps to 20–80. Returns `{pct}`.
+- Plumbing: new `IPC.SPLIT_SET` channel; `setSplit` exported from `electron/main.ts`; new `'split'` case in `socket-server.ts`; `ElectronLayoutAPI` in shared/types + preload; App.tsx subscribes via `window.electron.layout.onSplitSet`.
+- Persistence: session-only (matches today's `splitPct` state — not persisted across relaunches; queue for a follow-up if the user wants the preset to stick).
+
 **Priority:** Medium (depends on BUG-031's fix — divider has to actually move both ways first)
 **Filed:** 2026-04-28
 

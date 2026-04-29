@@ -270,6 +270,14 @@ const api: ElectronAPI = {
     }
   },
 
+  layout: {
+    onSplitSet: (cb) => {
+      const handler = (_: IpcRendererEvent, pct: number) => cb(pct)
+      ipcRenderer.on(IPC.SPLIT_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.SPLIT_SET, handler)
+    }
+  },
+
   selectionFormat: {
     pushState: (snapshot: SelectionFormatStateSnapshot) => {
       ipcRenderer.send(IPC.SELECTION_FORMAT_STATE_PUSH, snapshot)

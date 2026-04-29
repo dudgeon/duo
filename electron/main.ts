@@ -184,6 +184,7 @@ function createWindow(): void {
     docRead: dispatchDocRead,
     getTheme: getThemeState,
     setTheme: setThemeMode,
+    setSplit: setSplit,
     openExternal: openExternalUrl,
     getSelectionFormat: getSelectionFormatState,
     setSelectionFormat: setSelectionFormat,
@@ -681,6 +682,41 @@ function installAppMenu(): void {
           }
         },
         { type: 'separator' },
+        // ENH-014 — preset pane sizes. Accelerators use ⌘⌥<digit>
+        // because ⌘<digit> is already taken by jumpTerminalTab.
+        // Range matches the divider drag clamp (20–80).
+        {
+          label: 'Pane size',
+          submenu: [
+            {
+              label: 'Even (50/50)',
+              accelerator: 'CmdOrCtrl+Alt+2',
+              click: () => setSplit(50)
+            },
+            {
+              label: 'Terminal heavy (67/33)',
+              accelerator: 'CmdOrCtrl+Alt+1',
+              click: () => setSplit(67)
+            },
+            {
+              label: 'Canvas heavy (33/67)',
+              accelerator: 'CmdOrCtrl+Alt+3',
+              click: () => setSplit(33)
+            },
+            { type: 'separator' },
+            {
+              label: 'Full terminal',
+              accelerator: 'CmdOrCtrl+Alt+0',
+              click: () => setSplit(80)
+            },
+            {
+              label: 'Full canvas',
+              accelerator: 'CmdOrCtrl+Alt+9',
+              click: () => setSplit(20)
+            }
+          ]
+        },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
         { role: 'toggleDevTools' },
@@ -759,6 +795,22 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
   }
   mainWindow.webContents.send(IPC.THEME_SET, mode)
   return { ok: true }
+}
+
+// ENH-014 — `duo split <pct>` and View → Pane size menu items both
+// land here. Renderer clamps to the divider drag's 20–80 range; the
+// validator below mirrors that so an invalid CLI value errors at the
+// socket boundary instead of a silent clamp.
+export function setSplit(pct: number): { ok: boolean; pct?: number; error?: string } {
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) {
+    return { ok: false, error: 'split pct must be a finite number' }
+  }
+  const clamped = Math.min(Math.max(pct, 20), 80)
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.SPLIT_SET, clamped)
+  return { ok: true, pct: clamped }
 }
 
 // Stage 15 G19 — `duo selection-format` reads the cache; `duo
