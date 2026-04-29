@@ -352,6 +352,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   saveRef.current = save
 
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // BUG-033 v1 (a) — block autosave while a pending agent write is on
+  // screen. We can't use the React state directly inside the change
+  // handler (closure staleness), so route through a ref that the
+  // setPendingWrite effect updates.
+  const blockAutosaveRef = useRef(false)
 
   useEffect(() => {
     if (!editor) return
@@ -361,7 +366,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       const body = editor.storage.markdown.getMarkdown() as string
       const isDirty = body !== lastSavedBodyRef.current
       setDirty(isDirty)
-      if (isDirty) {
+      if (isDirty && !blockAutosaveRef.current) {
         if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
         autosaveTimerRef.current = setTimeout(() => {
           autosaveTimerRef.current = null
@@ -570,6 +575,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [editor])
 
   const [pendingWrite, setPendingWrite] = useState<DocWriteRequest | null>(null)
+  // BUG-033 v1 (a) — when a pending write appears, immediately suspend
+  // the autosave loop and clear any timer that was about to fire. Save
+  // resumes on accept/decline (the next user keystroke arms a fresh
+  // timer through the normal change handler).
+  useEffect(() => {
+    blockAutosaveRef.current = pendingWrite !== null
+    if (pendingWrite && autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+  }, [pendingWrite])
 
   // Refs let the IPC handler read latest dirty + pending state without
   // re-subscribing on every keystroke (which would tear down listeners
@@ -685,8 +701,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       {pendingWrite && (
         <WriteWarningBanner
           action={
+            // BUG-033 v1 (b) — replace-all is silently destructive when
+            // accepted under typing. Spell out the consequence so the
+            // user can decide deliberately rather than dismiss on
+            // muscle memory.
             pendingWrite.mode === 'replace-all'
-              ? 'Replace the whole document'
+              ? 'Replace the whole document (your unsaved edits will be lost)'
               : 'Insert at the current selection'
           }
           preview={pendingWrite.text.slice(0, 140) + (pendingWrite.text.length > 140 ? '…' : '')}
