@@ -448,6 +448,10 @@ function setupIPC(): void {
   ipcMain.handle(IPC.INSTALL_RUN, () => {
     return installService.run()
   })
+  // ENH-017 — banner-driven "Add to PATH" action.
+  ipcMain.handle(IPC.INSTALL_ADD_TO_PATH, () => {
+    return installService.addToShellPath()
+  })
 
   // v0.4.0 — GitHub Releases update checker.
   ipcMain.handle(IPC.UPDATE_CHECK, () => {

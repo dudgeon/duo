@@ -59,7 +59,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
 import { app } from 'electron'
-import type { InstallStatus, InstallResult, CliInstallStatus, PrimingInstallStatus } from '../shared/types'
+import type { InstallStatus, InstallResult, CliInstallStatus, PrimingInstallStatus, AddToShellPathResult } from '../shared/types'
 import { SHIM_DIR } from './constants'
 import { resolveClaudeBinary } from './resolve-claude'
 
@@ -864,5 +864,81 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
         await fs.copyFile(s, d)
       }
     }
+  }
+
+  /**
+   * ENH-017 — banner-driven "Add ~/.local/bin to PATH" action.
+   *
+   * Detects the user's shell from `$SHELL`, picks the right rc file
+   * (`~/.zshrc`, `~/.bash_profile`, `~/.config/fish/config.fish`),
+   * and appends a fenced block that prepends `~/.local/bin` to PATH.
+   *
+   * Idempotent: re-running detects the fence and returns
+   * `{ alreadyPresent: true }` without rewriting.
+   *
+   * Failure modes (all surface as `{ ok: false, error }`): unrecognized
+   * shell, rc file not writable, fs error.
+   */
+  async addToShellPath(): Promise<AddToShellPathResult> {
+    const shellEnv = process.env.SHELL ?? ''
+    const basename = path.basename(shellEnv)
+    let shell: 'zsh' | 'bash' | 'fish'
+    let rcFile: string
+    let block: string
+
+    // Fenced block markers — we look for these on re-runs to detect
+    // a prior install. Keep simple + grep-able so the user can find
+    // them if they want to remove the line by hand.
+    const FENCE_OPEN = '# >>> duo PATH (added by Duo installer; safe to remove or move) >>>'
+    const FENCE_CLOSE = '# <<< duo PATH <<<'
+
+    if (basename === 'zsh') {
+      shell = 'zsh'
+      rcFile = path.join(HOME, '.zshrc')
+      block = `\n${FENCE_OPEN}\nexport PATH="$HOME/.local/bin:$PATH"\n${FENCE_CLOSE}\n`
+    } else if (basename === 'bash') {
+      shell = 'bash'
+      // macOS Terminal launches login shells, which read ~/.bash_profile
+      // (NOT ~/.bashrc). Use .bash_profile as the canonical write target.
+      rcFile = path.join(HOME, '.bash_profile')
+      block = `\n${FENCE_OPEN}\nexport PATH="$HOME/.local/bin:$PATH"\n${FENCE_CLOSE}\n`
+    } else if (basename === 'fish') {
+      shell = 'fish'
+      rcFile = path.join(HOME, '.config', 'fish', 'config.fish')
+      // Fish uses different syntax (no `export`, separate `set` for PATH).
+      block = `\n${FENCE_OPEN}\nset -gx PATH $HOME/.local/bin $PATH\n${FENCE_CLOSE}\n`
+    } else {
+      return {
+        ok: false,
+        error: `Unrecognized shell: ${shellEnv || '(unset)'}. Add this line to your shell rc manually: export PATH="$HOME/.local/bin:$PATH"`
+      }
+    }
+
+    // Read existing content (or fall through to "create new file"). The
+    // fish rc file may live in a directory that doesn't exist yet.
+    let existing = ''
+    try {
+      existing = await fs.readFile(rcFile, 'utf8')
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code
+      if (code !== 'ENOENT') {
+        return { ok: false, error: `Could not read ${rcFile}: ${(err as Error).message}` }
+      }
+      // ENOENT — file doesn't exist; we'll create it below.
+    }
+
+    if (existing.includes(FENCE_OPEN)) {
+      return { ok: true, rcFile, shell, alreadyPresent: true }
+    }
+
+    try {
+      // Ensure parent dir exists (matters for fish's nested config dir).
+      await fs.mkdir(path.dirname(rcFile), { recursive: true })
+      await fs.appendFile(rcFile, block, 'utf8')
+    } catch (err) {
+      return { ok: false, error: `Could not write to ${rcFile}: ${(err as Error).message}` }
+    }
+
+    return { ok: true, rcFile, shell, alreadyPresent: false }
   }
 }

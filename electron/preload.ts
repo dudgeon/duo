@@ -341,7 +341,8 @@ const api: ElectronAPI = {
 
   install: {
     status: () => ipcRenderer.invoke(IPC.INSTALL_STATUS),
-    run: () => ipcRenderer.invoke(IPC.INSTALL_RUN)
+    run: () => ipcRenderer.invoke(IPC.INSTALL_RUN),
+    addToShellPath: () => ipcRenderer.invoke(IPC.INSTALL_ADD_TO_PATH)
   },
 
   update: {
