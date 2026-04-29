@@ -1635,7 +1635,13 @@ Recommendation: **v1 is the unblock**, ship in next bug-smashing sprint. v2 is a
 
 ### BUG-034: Canvas onboarding overlay occludes content on populated files
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-29 (v0.5.2 sprint PR 2). Per the user's verbatim ask ("remove it and add a TODO to revisit"):
+- `installPlaceholder` call site in `CanvasTab.tsx` replaced with a no-op (`cleanPlaceholder = () => {}`); import removed.
+- TODO header added to `placeholder.ts` describing the right gate (`isJustBoilerplate(doc)` checked at install time, not on first mutation) so the Stage 17a.5 rebuild has the design context inline.
+- Module file kept in tree as a starting point for the Stage 17a.5 onboarding refresh.
+
+Verified: opening a populated `.html` (e.g. `~/demo.html`) now shows only its content — no centered "TYPE / SOON / SOON / SOON" card floating over the heading.
+
 **Priority:** Medium (visible on every populated `.html` open until user types — high friction)
 **Filed:** 2026-04-28
 
