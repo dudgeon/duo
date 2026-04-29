@@ -719,6 +719,10 @@ export const IPC = {
   // Stage 18 — first-launch self-install (skill + subagent + provenance).
   INSTALL_STATUS: 'install:status',
   INSTALL_RUN: 'install:run',
+  // ENH-017 (v0.5.2 sprint) — banner-driven "Add ~/.local/bin to PATH"
+  // action. Detects shell from $SHELL, appends a fenced PATH block to
+  // the user's rc file, returns a result describing what changed.
+  INSTALL_ADD_TO_PATH: 'install:add-to-path',
 
   // v0.4.0 — GitHub Releases update checker. Renderer asks main for
   // the latest cached upstream version + a refresh-if-stale hint.
@@ -1215,6 +1219,25 @@ export interface ElectronInstallAPI {
    *  re-running on an already-installed system overwrites the skill
    *  + subagent (useful for upgrades) and rewrites installed.json. */
   run: () => Promise<InstallResult>
+  /** ENH-017 — append a fenced PATH block to the user's shell rc so
+   *  `~/.local/bin` (where the CLI lives) is on PATH. Idempotent: if
+   *  the fence is already present, returns ok without rewriting. */
+  addToShellPath: () => Promise<AddToShellPathResult>
+}
+
+export interface AddToShellPathResult {
+  ok: boolean
+  /** When ok: absolute path to the rc file we wrote to (or detected
+   *  the fenced block in). The renderer shows it in the success copy
+   *  so the user knows which file to `source`. */
+  rcFile?: string
+  /** When ok: the shell family we detected. */
+  shell?: 'zsh' | 'bash' | 'fish'
+  /** When ok: true if the fenced block was already present (we did
+   *  nothing); false if we appended it just now. */
+  alreadyPresent?: boolean
+  /** When ok=false: short user-readable explanation. */
+  error?: string
 }
 
 // Stage 25 (v0.4.0) — post-redirect chrome banner payload. Pushed

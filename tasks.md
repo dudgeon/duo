@@ -1770,7 +1770,13 @@ The button **is there.** It's just too muted to find. Three things compound the 
 
 ### ENH-017: Install service offers to add CLI dir to shell PATH
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-29 (v0.5.2 sprint PR 6). Banner-driven action:
+- `installService.addToShellPath()` detects shell from `$SHELL` (zsh / bash / fish), picks the right rc file (`~/.zshrc`, `~/.bash_profile`, `~/.config/fish/config.fish`), and appends a fenced `# >>> duo PATH ... # <<< duo PATH <<<` block. Idempotent — re-runs detect the fence and return `{alreadyPresent: true}` without rewriting.
+- `INSTALL_ADD_TO_PATH` IPC channel + `install.addToShellPath()` preload exposure.
+- New `showAddToPathNote` row in `FirstLaunchBanner` renders when `cli.installed && !cli.onPath` (post-install state). Three sub-states: idle ("Use duo from outside the app? Add to PATH" + button), running ("Updating shell config…"), done (success copy that names the rc file + tells the user to open a new terminal or source it), error (manual-line fallback copy).
+
+Failure modes are explicit (unrecognized shell, rc not writable) and surface a manual-line copy block. Cross-platform: macOS-only as scoped (Windows/Linux deferred).
+
 **Priority:** Medium (current banner-hint flow loses users; "duo command not found" is the most-cited papercut in retros)
 **Filed:** 2026-04-28
 

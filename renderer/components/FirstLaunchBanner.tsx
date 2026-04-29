@@ -17,13 +17,16 @@
 // shell-rc PATH if needed.
 
 import { useEffect, useState } from 'react'
-import type { InstallStatus } from '@shared/types'
+import type { InstallStatus, AddToShellPathResult } from '@shared/types'
 
 export function FirstLaunchBanner() {
   const [status, setStatus] = useState<InstallStatus | null>(null)
   const [phase, setPhase] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
+  // ENH-017 — local state for the inline "Add to PATH" follow-up.
+  const [pathPhase, setPathPhase] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  const [pathResult, setPathResult] = useState<AddToShellPathResult | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -67,6 +70,8 @@ export function FirstLaunchBanner() {
       //     the user should know our hook will run alongside theirs
       const cli = result.status.cli
       const priming = result.status.priming
+      // ENH-017 — when CLI installed but not on PATH, hold the banner
+      // so the user can click the new "Add to PATH" button.
       const cliStable = !cli || (cli.installed && cli.onPath) || !cli.installed
       // Hold the banner if priming has a hook conflict (user should
       // notice their other hooks will run alongside ours) OR if the
@@ -97,7 +102,20 @@ export function FirstLaunchBanner() {
   const priming = status.priming
   const showHookConflictNote = phase === 'success' && priming?.hookConflict
   const showShimMissingNote = phase === 'success' && priming && !priming.shimInstalled
-  const expandRow = showHookConflictNote || showShimMissingNote
+  // ENH-017 — show the "Add to PATH" row when the CLI is installed but
+  // its directory isn't on the user's external-shell PATH. Inside Duo
+  // PTYs the binary works because PtyManager prepends ~/.local/bin;
+  // this row offers to also wire it up for external Terminal/iTerm
+  // sessions where users hit "duo: command not found".
+  const showAddToPathNote = phase === 'success' && cli?.installed && cli.onPath === false
+  const expandRow = showHookConflictNote || showShimMissingNote || showAddToPathNote
+
+  const handleAddToPath = async () => {
+    setPathPhase('running')
+    const result = await window.electron.install.addToShellPath()
+    setPathResult(result)
+    setPathPhase(result.ok ? 'done' : 'error')
+  }
 
   return (
     <div
@@ -187,6 +205,46 @@ export function FirstLaunchBanner() {
         <p className="text-[12px] ml-7 text-accent-ink leading-snug">
           <strong>Couldn't find Claude Code on this Mac.</strong> Duo searched your usual shell paths and didn't see <code className="font-mono">claude</code>. If it's installed, the agent inside Duo's terminals will still work — it just won't be Duo-aware (won't know how to drive the browser pane, etc.). Install Claude Code from <a href="https://docs.claude.com/claude-code" className="underline">docs.claude.com/claude-code</a>, then click Update.
         </p>
+      )}
+
+      {showAddToPathNote && (
+        <div className="text-[12px] ml-7 text-accent-ink leading-snug flex items-start gap-3">
+          <div className="flex-1">
+            {pathPhase === 'idle' && (
+              <>
+                <strong>Use <code className="font-mono">duo</code> from outside the app?</strong> Inside Duo's terminals it works automatically. To use it from Terminal / iTerm too, add <code className="font-mono">~/.local/bin</code> to your shell PATH.
+              </>
+            )}
+            {pathPhase === 'running' && <>Updating shell config…</>}
+            {pathPhase === 'done' && pathResult?.ok && (
+              <>
+                {pathResult.alreadyPresent ? (
+                  <>
+                    <strong>Already done.</strong> The Duo PATH block is already in <code className="font-mono">{pathResult.rcFile}</code>. If <code className="font-mono">duo</code> still isn't found, open a new terminal.
+                  </>
+                ) : (
+                  <>
+                    <strong>Done.</strong> Added <code className="font-mono">~/.local/bin</code> to <code className="font-mono">{pathResult.rcFile}</code>. Open a new terminal (or run <code className="font-mono">source {pathResult.rcFile}</code>) to pick it up.
+                  </>
+                )}
+              </>
+            )}
+            {pathPhase === 'error' && (
+              <>
+                <strong>Couldn't update shell config:</strong> {pathResult?.error ?? 'unknown error'}. Add this line manually: <code className="font-mono">export PATH="$HOME/.local/bin:$PATH"</code>
+              </>
+            )}
+          </div>
+          {pathPhase === 'idle' && (
+            <button
+              type="button"
+              onClick={() => void handleAddToPath()}
+              className="shrink-0 px-3 h-7 rounded text-xs font-medium bg-accent text-white hover:bg-accent-ink transition-colors"
+            >
+              Add to PATH
+            </button>
+          )}
+        </div>
       )}
 
       {phase === 'running' && (
