@@ -1518,3 +1518,283 @@ The "Send → Duo" pill renders on selection across three surfaces (markdown edi
 - Should `'starting'` count as enabled? *Recommend* yes — the user's intent is clearly "send to claude", and the pill click queues vs. fails, no worse than the existing flow.
 
 ---
+
+### BUG-031: HTML canvas / split-pane divider can't be dragged rightward (right pane shrinks-blocked)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (one of the most-felt papercuts; user can grow the right pane but never give it back to the left)
+**Filed:** 2026-04-28
+
+**Repro:**
+1. Open a `.html` canvas (or any working-pane content that mounts an iframe / WebContentsView).
+2. Drag the split divider rightward (intent: shrink the right pane, grow the terminal column).
+
+**Expected:** Divider follows the cursor smoothly across the full 20–80% range, in either direction.
+**Actual:** Drag works leftward (right pane grows). Drag rightward stalls — the divider stops as the cursor crosses the iframe's edge, even though `mousemove` is bound to `window`.
+
+**Root cause (traced):**
+`renderer/App.tsx:887–905` registers `mousemove` / `mouseup` on `window`, but iframes (HTML canvas) **and** the WebContentsView (browser pane) are out-of-process surfaces that *trap* mouse events when the cursor crosses into them. Once trapped, the events fire on the iframe's `contentDocument` window, never bubble up to the parent — so the parent's listener stops getting positions. The divider freezes wherever the cursor crossed the iframe edge.
+
+The bug is invisible for empty / pure-text working-pane content because there's no out-of-process surface to capture events. It's specific to canvas + browser pane (which is most of the time the user is in a real layout).
+
+**Proposed fix:** During an active drag, install a transparent overlay covering the entire split-container's right pane (z-index above the iframe + WebContentsView). Three patterns to consider:
+1. **Overlay div (recommended).** While `isDragging.current === true`, render a `<div className="fixed inset-0 cursor-col-resize"/>` over the split area. Mouse events stay in the parent document. Cleanup on mouseup.
+2. **`pointer-events: none` on iframes.** Toggle inline style on every mounted iframe + the WebContentsView host element. More invasive (need to know all surfaces); breaks if a new surface ships without registering.
+3. **Pointer capture API.** `e.target.setPointerCapture(e.pointerId)` on mousedown — but this only works for events whose initial target is the divider itself, and the divider is a 1-2px sliver. Brittle.
+
+Recommendation: **(1)**. One overlay element, one CSS class, no per-surface registration. Same pattern VS Code, Figma, and most pro web apps use for resize handles over rich content.
+
+**Affected files (proposed):**
+- `renderer/App.tsx` — extend `onDividerMouseDown` / mouse handlers to mount the overlay; read `isDragging.current` for visibility; cleanup on `mouseup`.
+- `renderer/index.css` (or wherever split-divider styles live) — add `.split-drag-overlay` class.
+
+**Cross-ref:** ENH-014 (pane-size presets — same divider plumbing).
+
+---
+
+### BUG-032: Canvas iframe steals focus from terminal on re-mount / agent edit
+
+**Status:** 🆕 Filed
+**Priority:** Medium (annoying mid-typing; intermittent so easy to dismiss until it happens enough)
+**Filed:** 2026-04-28
+
+**Repro (intermittent):**
+1. Open an HTML canvas in the right pane.
+2. Click into a terminal tab (focus on left pane).
+3. Type into the terminal — at some point the cursor jumps into the canvas without the user clicking, and subsequent keystrokes land in the canvas.
+
+**Root cause hypothesis (traced; needs confirm with logs):**
+`renderer/components/HtmlCanvas/RenderedCanvas.tsx:162` calls `doc.body.focus()` on every iframe `load` event ("BUG-022 fix — focus the body when the canvas opens so the first keystroke lands as content"). The `wire()` function runs on the `load` event, which fires:
+- Initial mount (intended).
+- Whenever the iframe's srcdoc changes (e.g. `bumpVersion()` triggers a re-render via dependency on `[path, bumpVersion, readOnly, onCanvasAction, homeDir]` in CanvasTab's `onReady` effect — BUT the iframe srcdoc is keyed on initial HTML, not version, so this *shouldn't* re-fire).
+- HMR re-mounts in dev.
+- After a `duo html *` op that mutates the DOM enough to re-stamp srcdoc — we don't currently do this, but worth confirming.
+
+The intermittency suggests the trigger isn't every-mutation but some specific path. Top suspects, in order:
+1. Agent calls `duo html *` → DOM mutation observer fires `handleChange` → autosave fires → `setDirty(false)` → no re-render. Probably not it.
+2. ENH-013's `useFrontTerminalClaudeLive` push-channel resubscribes the working-pane parent and the canvas re-mounts with `key={tab.id}` — but the key is stable per-tab, so this shouldn't tear down. Worth verifying with a `console.count` in `onReady`.
+3. External file change (chokidar) — but neither editor wires file-watcher reload (confirmed: `grep -n "watch\|external\|reload" renderer/components/HtmlCanvas/CanvasTab.tsx renderer/components/editor/MarkdownEditor.tsx renderer/App.tsx` shows no path).
+
+**Proposed fix:** Make the `body.focus()` call conditional on "canvas is the active pane focus." Two patterns:
+1. **Skip focus when terminal column is focused** (recommended). RenderedCanvas accepts a `shouldStealFocus` prop; CanvasTab passes `focusedColumn === 'working'`. When the canvas re-mounts under terminal focus, no focus theft.
+2. **Move the focus call to a one-shot effect** keyed only on initial mount — drop `wire()`'s focus side effect and put it in a separate `useEffect(() => { doc.body.focus() }, [])` that runs once.
+
+Recommendation: **(1)** — keeps the BUG-022 ergonomic (first keystroke lands in canvas when the user opens one with intent) but doesn't fight focus when the user has clearly chosen a different surface.
+
+**Affected files (proposed):**
+- `renderer/components/HtmlCanvas/RenderedCanvas.tsx:148–162` — gate `doc.body.focus()` on a new prop.
+- `renderer/components/HtmlCanvas/CanvasTab.tsx` — pass `focusedColumn` through (already lifted in App.tsx; thread via a new prop or context).
+
+**Verification asks:**
+- Add a `console.count('[RenderedCanvas] wire fire')` instrumentation and reproduce, to confirm WHICH path causes the re-fire — root-cause certainty before code change.
+- Repro on markdown editor (MarkdownEditor doesn't have an iframe so likely immune) — confirm.
+
+**Cross-ref:** BUG-022 (the original "canvas should focus on open" fix that this regresses).
+
+---
+
+### BUG-033: Autosave races with `duo doc-write` / `duo html *` mid-edit
+
+**Status:** 🆕 Filed
+**Priority:** Medium (real correctness risk — agent's writes can clobber user keystrokes; today partially mitigated by dirty-buffer banner)
+**Filed:** 2026-04-28
+
+**Today's behavior (traced):**
+- **Markdown editor** (`MarkdownEditor.tsx:582–604`): clean buffer → agent's `duo doc-write` applies immediately. Dirty buffer → renders `WriteWarningBanner`, holds the IPC reply until user accepts/declines (Stage 13b). One pending write at a time; subsequent writes return `'Another write is awaiting the user's decision.'`
+- **HTML canvas** (`CanvasTab.tsx:706–722`): same gate — dirty + write op → banner; clean + write op → applies immediately (Stage 17c PRD H36).
+
+**The race the user is hitting:**
+The dirty-buffer gate works *eventually*, but there's a window where the ergonomic outcomes can still surprise:
+
+1. **Stale-snapshot save during agent write (canvas).** User types; autosave timer set for 800ms (`AUTOSAVE_DEBOUNCE_MS = 800`). Agent calls `duo html append`; clean-buffer-by-the-time-IPC-arrives → DOM mutates → MutationObserver fires → handleChange → autosave timer reset. But if user typed *just before* the agent op, the buffer is dirty → banner appears → user is mid-keystroke and accepts on muscle memory → applyDocWrite runs → user's recent keystrokes survive (DOM mutations merge), but the autosave that was queued for the user's earlier keystroke fires later and writes the merged state, in a non-deterministic order.
+   *Why it feels like a fight:* the user sees their intended edit, the agent's edit, and sometimes a save state that looks half-applied — depending on the autosave timing.
+2. **`replace-all` is silently destructive when accepted under typing.** The banner gives Yes/No. If the user accepts, `applyDocWrite` does `editor.commands.setContent(req.text, true)` — **replaces the entire buffer**. Anything the user typed between the agent's request and their acceptance is lost. The banner copy doesn't currently call this out (or does it — verify during fix).
+3. **Markdown's banner accept doesn't pause autosave.** If autosave was about to fire and the user clicks accept, both happen.
+
+**Proposed fix (split into v1 / v2):**
+
+**v1 (small, ship soon):**
+- (a) Pause the autosave timer while a `pendingWrite` is shown (markdown + canvas) — `clearTimeout` on banner show; user's accept/decline triggers the appropriate next state.
+- (b) `WriteWarningBanner` copy update for `replace-all`: explicit "this will replace the entire document, including your unsaved changes." (Today's copy is generic.)
+- (c) Add a "snapshot diff" preview to the banner so the user can SEE what the agent wants to write — at least a line count + "first 200 chars" peek. Lower-stakes acceptance.
+
+**v2 (bigger):**
+- (a) Operational-transform style merge for `replace-selection` writes that land on dirty buffer — apply the agent's insert at its anchor without dropping the user's edits. Not trivial; PM/TipTap supports this pattern but it's a real implementation.
+- (b) Per-section locks: agent op declares a target anchor (`--id` or `--selector`); we lock just that subtree from user keystrokes for the brief op duration. Simpler than full OT; trades some keystroke-eating for guaranteed merge.
+
+Recommendation: **v1 is the unblock**, ship in next bug-smashing sprint. v2 is a real Stage 16 (external-write reconciliation) item — fold there.
+
+**Affected files (v1):**
+- `renderer/components/editor/MarkdownEditor.tsx` — pause autosave timer on `setPendingWrite`; add diff preview to banner.
+- `renderer/components/HtmlCanvas/CanvasTab.tsx` — ditto (canvas's autosave timer at line 425–429).
+- `renderer/components/editor/primitives/WriteWarningBanner.tsx` — accept new `mode` + `preview` props; render explicit `replace-all` warning + diff peek.
+
+**Cross-ref:** Stage 13b (markdown banner), Stage 17c PRD H36 (canvas banner), Stage 16 (external-write reconciliation — v2 home).
+
+---
+
+### BUG-034: Canvas onboarding overlay occludes content on populated files
+
+**Status:** 🆕 Filed
+**Priority:** Medium (visible on every populated `.html` open until user types — high friction)
+**Filed:** 2026-04-28
+
+**Repro:**
+1. `duo edit ~/some-existing-canvas.html` (or open via FileTree) — file has real content (not the boilerplate).
+2. Canvas tab loads with the existing content visible — and a centered card overlay floating *over* the content showing "Markdown shortcuts work as you type · Component blocks via / · Start from a template · Ask the agent to draft this."
+
+**Expected:** Overlay only on fresh / boilerplate canvases (which is what the original Stage 17a polish item 7 was scoped to).
+**Actual:** `installPlaceholder` (`renderer/components/HtmlCanvas/placeholder.ts`) calls `refresh()` unconditionally at install time (line 168). There's no startup check against `isJustBoilerplate(doc)` — the helper exists at line 206 and is used only inside the MutationObserver callback to decide whether to dismiss on subsequent mutations.
+
+So:
+- Fresh canvas (boilerplate) → overlay shows → user types → first `input` event dismisses. ✓ intended.
+- Populated canvas → overlay shows → MutationObserver checks on next mutation, sees `!isJustBoilerplate`, dismisses. But until a mutation fires (which on read-only viewing may be never), the overlay stays. ✗ bug.
+
+**User's ask (verbatim):** "remove it and add a TODO to revisit."
+
+**Proposed fix (matches the user's ask):**
+1. **Remove the placeholder install entirely** for v1. Comment out the `installPlaceholder(doc)` call site in `CanvasTab.tsx` (or guard it behind a feature flag set to `false`).
+2. **File the smart-blank onboarding work as a deferred substage of Stage 17a.5** with a note that the right gate is `isJustBoilerplate(doc)` checked at install time, not on first mutation. The `placeholder.ts` module stays in tree as a starting point for the rebuild.
+
+**Cross-ref:** Stage 17a polish item 7, Stage 17a.5 directions A/E (template gallery / registry — overlap with the "soon" doors mentioned in the placeholder).
+
+**Affected files:**
+- `renderer/components/HtmlCanvas/CanvasTab.tsx` — find + comment out `installPlaceholder` call (search `installPlaceholder` in CanvasTab; the import is at line 20).
+- `renderer/components/HtmlCanvas/placeholder.ts` — leave as-is; add a top-level TODO comment "v1 disabled per BUG-034 — re-enable with isJustBoilerplate gate at install time."
+
+---
+
+### ENH-014: View menu — preset pane sizes (50:50, 67:33, 33:67, full-left, full-right)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (depends on BUG-031's fix — divider has to actually move both ways first)
+**Filed:** 2026-04-28
+
+**Why:** Users frequently want a known-good split — 50:50 for parity, ~67:33 for "terminal-heavy", inverse for "canvas-heavy." Doing this with the divider is finicky; a menu shortcut is faster.
+
+**Proposed surface:**
+- Native macOS Edit / View menu adds a "Pane size" submenu with: 50/50, 67/33 (terminal heavy), 33/67 (canvas heavy), Full terminal, Full canvas.
+- Keyboard shortcuts for the three most-used: ⌘1 = 67/33, ⌘2 = 50/50, ⌘3 = 33/67.
+- CLI parity per CLAUDE.md §4: `duo split <pct>` (0–100) sets the percentage. `duo split 50` mirrors the menu's 50/50.
+
+**Affected files (proposed):**
+- `electron/main.ts` — extend the application menu.
+- `renderer/keyboard/globalShortcuts.ts` — register ⌘1/⌘2/⌘3 → `setSplit:33|50|67`.
+- `renderer/App.tsx` — exposed setter / IPC handler.
+- `cli/duo.ts` + `electron/socket-server.ts` — new `split` verb.
+- `shared/types.ts` — `SPLIT_SET` IPC channel + `DuoCommandName` extension.
+
+**Cross-ref:** BUG-031 (divider drag fix — must ship before this lands or the menu is the only way to resize, which is wrong).
+
+---
+
+### ENH-015: File-navigator collapse button discoverability
+
+**Status:** 🆕 Filed
+**Priority:** Low-Medium (button exists today; this is purely visibility)
+**Filed:** 2026-04-28
+
+**Today:** `CollapseButton` exists at `renderer/components/FilesPane.tsx:234–249`. Renders next to the pin button in the Files header. Icon: 12×12 chevron-into-rail SVG. Color: `text-zinc-600` → `hover:text-zinc-300`. Tooltip: "Collapse files column (⌘B)."
+
+**User's report:** "cannot find the button to collapse the file navigator — is there one? I can see the button to un-collapse it when it is collapsed via window size."
+
+The button **is there.** It's just too muted to find. Three things compound the discoverability:
+1. **Color contrast** — `zinc-600` is barely-there on the cream surface; the eye doesn't catch it.
+2. **Position** — sits to the right of the pin button, which is itself a small icon. Two small icons next to each other read as a single "controls cluster."
+3. **Icon glyph** — the chevron-into-rail is unconventional (most apps use a sidebar / hamburger / stack). Users don't recognize it as "collapse."
+
+**Proposed fix:** Three small things:
+1. Bump default color to `text-zinc-500` or `text-zinc-400` so the glyph is visible at rest.
+2. Swap the glyph for a more conventional sidebar-toggle icon (matches macOS Finder's sidebar toggle, VS Code's sidebar toggle).
+3. Consider a one-time tooltip / coach-mark on first launch ("⌘B toggles the files column") — but this is an FTUX additive, not strictly required.
+
+**Affected files:**
+- `renderer/components/FilesPane.tsx:234–249` (CollapseButton — color + glyph).
+
+**Cross-ref:** Stage 18 (FTUX) for the optional coach-mark.
+
+---
+
+### ENH-016: Create new file / new folder from FileTree context menu
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (parity with VS Code / Finder; common ask)
+**Filed:** 2026-04-28
+
+**Today:** Right-clicking a row in the FileTree (`renderer/components/FileTree.tsx:174–223`) shows: Open terminal here / Open in editor, Reveal in Finder, Copy path, Open with default app, Pin/Unpin, Rename, Move to Trash. **No "New file" or "New folder."**
+
+`⌘N` exists for "new markdown file" (`App.tsx § onCommitNewFile`) but it spawns at the active pane / project root, not at the right-clicked folder. There's no way to "new file inside this folder" without a terminal.
+
+**Proposed surface:**
+1. Right-click a folder row → context menu adds **"New file…"** and **"New folder…"** at the top (above "Open terminal here").
+2. Right-click a file row → menu adds **"New file in this folder…"** and **"New folder in this folder…"** (parent folder is the implicit target).
+3. Right-click empty space inside the FileTree (no row hit) → menu shows "New file…" / "New folder…" / "Reveal in Finder" / "Open terminal here" against the project root.
+4. Selection: clicking either entry reveals the new row inline in the tree with the rename input pre-focused (re-uses the existing `RenameInput` component). Empty default name; commit on Enter, cancel on Esc.
+
+**CLI parity per CLAUDE.md §4:** Already covered — `duo new-file <path>` and `mkdir` from a terminal both work. The CLI side doesn't need new verbs; this is pure UI.
+
+**Affected files (proposed):**
+- `renderer/components/FileTree.tsx:174–223` — extend `buildContextMenu` to include the new entries; thread handlers from caller.
+- `renderer/components/FilesPane.tsx` — handle `onContextMenu` on the empty area below the tree (currently drops; add a fallback menu).
+- `renderer/App.tsx` (or wherever FileTree is mounted) — wire `onCreateFile(parent: string)` / `onCreateFolder(parent: string)` callbacks; reuse the `onCommitNewFile` plumbing.
+- `electron/files-service.ts` — confirm `mkdir` / `writeFile` are exposed to renderer (they are; `files.write` works for new paths).
+
+**Open questions:**
+- For a new file, what's the default extension? Recommend: leave the rename input fully blank (user types `name.ext`); auto-classify on commit via `fileClassifier.ts`.
+- For a new folder created via context menu on a file-row, do we expand the parent folder in the tree before showing the inline rename? Recommend: yes (otherwise the new row is invisible in a collapsed parent).
+
+**Cross-ref:** Stage 26 (navigator polish — this folds into PR 3 ambient signals + Go-to path or stands alone).
+
+---
+
+### ENH-017: Install service offers to add CLI dir to shell PATH
+
+**Status:** 🆕 Filed
+**Priority:** Medium (current banner-hint flow loses users; "duo command not found" is the most-cited papercut in retros)
+**Filed:** 2026-04-28
+
+**Today (traced):**
+- `electron/install-service.ts:73` — `CLI_DEST_DIR = ~/.local/bin`. CLI lands at `~/.local/bin/duo`, chmod 755.
+- Stage 19b PATH shim → `~/.claude/duo/bin/claude` (a wrapper, not a duo binary).
+- `isOnPath()` (line 193) checks if `~/.local/bin` is on `process.env.PATH`. Surfaces a banner hint in the install panel.
+
+The banner only tells the user "add this line to your shell rc" — it doesn't *do* it. Most users either don't see the hint, or skip it on first read, then hit "duo: command not found" the first time they try the CLI from a Duo terminal.
+
+**User's feedback (retro):** "neither `~/.claude/bin` nor `~/.local/bin` is on $PATH, even though duo install correctly symlinked the cli to both locations. Is this something that the install script should improve?"
+
+(Note: `~/.claude/bin` doesn't exist as a CLI install target today — the user may be conflating with `~/.claude/duo/bin/claude` shim. Confirm during fix.)
+
+**Proposed fix:**
+1. **Add a "Add to PATH" button to the install banner.** Click → install service appends `export PATH="$HOME/.local/bin:$PATH"` to the user's shell rc:
+   - Detect shell from `$SHELL` env: `zsh` → `~/.zshrc` (or `~/.zshenv` if it exists; zsh users with chezmoi/dotfiles often prefer `.zshenv`).
+   - `bash` → `~/.bash_profile` (macOS convention) with fallback to `~/.bashrc`.
+   - `fish` → `~/.config/fish/config.fish` (different syntax: `set -gx PATH $HOME/.local/bin $PATH`).
+2. **Idempotent.** Wrap the appended line in a fenced block:
+   ```
+   # duo PATH (added by Duo installer; safe to remove or move)
+   export PATH="$HOME/.local/bin:$PATH"
+   # /duo PATH
+   ```
+   On re-install, detect the fence and skip if already present. If user moved the line manually, leave their version alone.
+3. **Tell the user what to do next.** Banner success state: "Added `~/.local/bin` to your PATH in `~/.zshrc`. Open a new terminal (or run `source ~/.zshrc`) to pick it up."
+4. **Surface failure modes clearly.** If the rc file is owned by another user, read-only, or in a non-standard location, show the manual-line copy block as today. Don't fail silently.
+
+**Risks + safeguards:**
+- Editing user shell rc files is invasive. Pattern: prompt explicitly via the banner button (not a silent default). Document the change in the success state. Use a fenced block so future-Duo can detect / remove its own line.
+- Some users have `.zshenv` *and* `.zshrc` and PATH gets reset by `.zshrc` after `.zshenv` — appending to `.zshrc` is the safe default. Document this in the banner copy.
+- macOS Bash users with `.bash_profile` *and* `.bashrc` — same hierarchy concern. `.bash_profile` for login shells (Terminal default), so that's the right target.
+
+**Affected files (proposed):**
+- `electron/install-service.ts` — new `addToShellPath()` method; called from a new IPC handler.
+- `electron/main.ts` — register IPC handler.
+- `electron/preload.ts` — expose `install.addToShellPath()` to renderer.
+- `renderer/components/FirstLaunchBanner.tsx` (or wherever the install banner lives) — render the "Add to PATH" button when `isOnPath === false`.
+- `shared/types.ts` — IPC channel + result type.
+
+**Cross-ref:** Stage 18 (FTUX — install service home), Stage 19b (PATH shim — overlapping concern), retro feedback from Capital One trailblazers cohort.
+
+**Open questions:**
+- Should it offer to fix the shim path too (`~/.claude/duo/bin` for the `claude` wrapper)? That's already handled silently by the shim install — and it's only on PATH if the user has set it up. Recommend: same button covers both PATHs (symlink dirs the install service writes to).
+- Windows / Linux story? Out of scope for v1 — Duo is macOS-only today. File as a follow-up if/when cross-platform lands.
+
+---
