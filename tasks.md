@@ -1554,7 +1554,10 @@ Recommendation: **(1)**. One overlay element, one CSS class, no per-surface regi
 
 ### BUG-032: Canvas iframe steals focus from terminal on re-mount / agent edit
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-29 (v0.5.2 sprint PR 4). `RenderedCanvas` accepts a new `shouldStealFocus` prop (default `true` for backwards compat); the `wire()` function reads it through a ref and only calls `doc.body.focus()` when truthy. `CanvasTab` gates it on `focused === true` (threaded from `WorkingPane.focused`, which is `focusedColumn === 'working'` at App.tsx). The ref-based read keeps the host effect from tearing down + re-mounting the iframe whenever focus toggles.
+
+Effect: BUG-022's "first keystroke lands as content" ergonomic still fires when the user has the working pane focused. A re-mount triggered by srcdoc changes / HMR / post-doc-write reloads under terminal focus no longer yanks the cursor mid-typing.
+
 **Priority:** Medium (annoying mid-typing; intermittent so easy to dismiss until it happens enough)
 **Filed:** 2026-04-28
 
