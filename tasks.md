@@ -1598,7 +1598,13 @@ Recommendation: **(1)** — keeps the BUG-022 ergonomic (first keystroke lands i
 
 ### BUG-033: Autosave races with `duo doc-write` / `duo html *` mid-edit
 
-**Status:** 🆕 Filed
+**Status:** ✅ v1 fix shipped 2026-04-29 (v0.5.2 sprint PR 5).
+- **(a) Autosave paused while pending agent write is on screen.** Both surfaces add a `blockAutosaveRef` set true when `pendingWrite` / `pendingHtmlOp` becomes non-null. The timer is cleared immediately on transition to non-null; the change-handler arm-path skips queueing new timers while blocked. Save resumes naturally on accept / decline (the next user keystroke or sidecar mutation arms a fresh timer). Covers all three autosave call sites in `CanvasTab.tsx` (DOM-mutation handler, sidecar-mutation handler).
+- **(b) Markdown replace-all banner copy sharpened.** `'Replace the whole document'` → `'Replace the whole document (your unsaved edits will be lost)'`. Canvas ops are already granular (`replace`, `set`, etc.) — no monolithic destruction surface, so existing copy stays.
+- **(c) Diff preview already in tree** (140-char peek of the proposed text via existing `preview` prop on `WriteWarningBanner`). Both surfaces already pass it.
+
+v2 still backlog: OT-style merge for `replace-selection` writes that land on dirty buffer; per-section locks. Stage 16 (external-write reconciliation) home.
+
 **Priority:** Medium (real correctness risk — agent's writes can clobber user keystrokes; today partially mitigated by dirty-buffer banner)
 **Filed:** 2026-04-28
 

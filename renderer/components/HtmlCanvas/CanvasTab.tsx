@@ -266,6 +266,12 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
   // or write. Diff against this to compute `dirty`.
   const lastSavedRef = useRef<string>('')
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // BUG-033 v1 (a) — block autosave while a pending agent write
+  // (`pendingHtmlOp`) is on screen waiting for user accept/decline.
+  // Without this, autosave can fire mid-banner and write a stale DOM
+  // snapshot before the agent's edit lands. Updated by the
+  // setPendingHtmlOp effect below.
+  const blockAutosaveRef = useRef(false)
 
   // 17a polish item 3 — shared toolbar reactivity. Bumped from inside
   // the iframe on every selectionchange / DOM mutation so the toolbar
@@ -303,6 +309,17 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
   pendingHtmlOpRef.current = pendingHtmlOp
   const dirtyRef = useRef(false)
   dirtyRef.current = dirty
+  // BUG-033 v1 (a) — when a pending agent write appears, suspend the
+  // autosave loop and clear any timer that was about to fire. Save
+  // resumes on accept/decline (the next user edit / sidecar mutation
+  // arms a fresh timer through the normal change path).
+  useEffect(() => {
+    blockAutosaveRef.current = pendingHtmlOp !== null
+    if (pendingHtmlOp && autosaveTimerRef.current) {
+      clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+  }, [pendingHtmlOp])
 
   // 17d — comment threads computed from the live sidecar. State (not
   // ref) because the rail re-renders on every change. `threadsTick` is
@@ -430,7 +447,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     // sentinel class gates per-pre.
     const doc = canvasRef.current?.getDocument()
     if (doc) injectCodeBlockCopyButtons(doc, { markCanvasRuntime: true })
-    if (isDirty) {
+    if (isDirty && !blockAutosaveRef.current) {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = setTimeout(() => {
         autosaveTimerRef.current = null
@@ -830,7 +847,11 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     sidecarDirtyRef.current = true
     setThreadsTick(v => v + 1)
     // Trigger autosave path so the sidecar lands without waiting for
-    // the next iframe mutation.
+    // the next iframe mutation. BUG-033 v1 (a) — same blockAutosave
+    // gate so a pending agent write doesn't get stomped by a sidecar-
+    // driven save (a comment landing while a pendingHtmlOp banner is
+    // up).
+    if (blockAutosaveRef.current) return
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = setTimeout(() => {
       autosaveTimerRef.current = null
