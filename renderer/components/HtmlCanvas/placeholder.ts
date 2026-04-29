@@ -1,3 +1,18 @@
+// TODO (BUG-034 / Stage 17a.5 D, 2026-04-29) — installPlaceholder is
+// currently NOT called from CanvasTab. The bug: refresh() ran at install
+// time without an `isJustBoilerplate(doc)` check, so the onboarding card
+// rendered on EVERY canvas open and occluded real content on populated
+// files. The MutationObserver-driven dismiss only fires on the next
+// mutation, which on read-only viewing may never happen.
+//
+// Re-enabling correctly requires gating the initial install on
+// `isJustBoilerplate(doc)` (function below at line ~206) — only mount the
+// overlay when the body content is purely boilerplate at install time.
+// The MutationObserver-driven dismissal stays as the dismiss path.
+// Owner re-enables this as part of the Stage 17a.5 onboarding refresh.
+//
+// Original design notes preserved below.
+//
 // Stage 17a polish item 7 + 17a.5 direction D — smart-blank onboarding
 // overlay on fresh + empty canvas pages.
 //

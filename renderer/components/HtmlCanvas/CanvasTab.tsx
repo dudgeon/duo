@@ -17,7 +17,11 @@ import { EditorToolbar } from '../editor/EditorToolbar'
 import { RenderedCanvas, type RenderedCanvasHandle } from './RenderedCanvas'
 import { buildCanvasEditorActions } from './canvasEditorActions'
 import { installMarkdownShortcuts } from './markdownShortcuts'
-import { installPlaceholder } from './placeholder'
+// BUG-034 — `installPlaceholder` import removed. Module kept in tree at
+// `./placeholder` as a starting point for the Stage 17a.5 rebuild (the
+// gate has to fire at install time, not on first mutation). When re-
+// enabling, restore the import and the call site at the marked location
+// in handleReady.
 import { IdInjectionBanner } from './IdInjectionBanner'
 import { SendToDuoPill, type PillAnchorRect } from '../editor/primitives/SendToDuoPill'
 import { WriteWarningBanner } from '../editor/primitives/WriteWarningBanner'
@@ -469,11 +473,16 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     const onSelChange = () => bumpVersion()
     doc.addEventListener('selectionchange', onSelChange)
 
-    // Markdown shortcuts + placeholder are editing-only. Skip in
-    // read-only mode so a system reference HTML (FAQ etc.) doesn't
-    // wire keyboard mutations or render the empty-state placeholder.
+    // Markdown shortcuts are editing-only. Skip in read-only mode so a
+    // system reference HTML (FAQ etc.) doesn't wire keyboard mutations.
     const cleanShortcuts = readOnly ? () => {} : installMarkdownShortcuts(doc)
-    const cleanPlaceholder = readOnly ? () => {} : installPlaceholder(doc)
+    // BUG-034 — placeholder install disabled. The current `installPlaceholder`
+    // shows the onboarding card on EVERY canvas open, including populated
+    // files (the `isJustBoilerplate` gate is checked on first mutation, not
+    // at install time, so it occludes real content until the user types).
+    // Re-enable in Stage 17a.5 with the gate at install time. See
+    // placeholder.ts header for the design note.
+    const cleanPlaceholder = () => {}
 
     // BUG-016 + ENH-002 (v0.3.1) — paste handlers. Editing-only:
     // pasting into a read-only canvas is a no-op anyway. Strips
