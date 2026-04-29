@@ -85,6 +85,11 @@ interface Props {
    *  whenever onCanvasAction is supplied; otherwise the trust check
    *  returns false and actions never fire. */
   homeDir?: string
+  /** BUG-032 — `focusedColumn === 'working'` from the host. Threaded
+   *  into RenderedCanvas's `shouldStealFocus` so an iframe load event
+   *  fired while the user has the terminal focused doesn't yank the
+   *  cursor mid-typing. */
+  focused?: boolean
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
@@ -244,7 +249,7 @@ function parseReadOnlyFromHtml(html: string | null): boolean {
   return !!m
 }
 
-export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir }: Props) {
+export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir, focused = false }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -1051,6 +1056,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
             onShortcut={handleShortcut}
             onReady={handleReady}
             readOnly={readOnly}
+            shouldStealFocus={focused}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">

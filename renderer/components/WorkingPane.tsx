@@ -234,6 +234,11 @@ export function WorkingPane({
           onSendToDuo={onSendToDuo}
           onCanvasAction={onCanvasAction}
           homeDir={homeDir}
+          // BUG-032 — only let the iframe steal focus when the user
+          // has chosen the working pane. Without this, every iframe
+          // load (mount, srcdoc reload, post-write rerender) re-grabs
+          // focus from the terminal mid-typing.
+          focused={focused}
         />
       )
     } else if (tab.type === 'markdown-preview') {

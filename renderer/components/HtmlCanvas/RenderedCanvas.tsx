@@ -46,6 +46,15 @@ interface Props {
    *  on system reference HTMLs (FAQ, What Duo Does, etc.) so they can
    *  be displayed without accidental human edits. */
   readOnly?: boolean
+  /** BUG-032 — when false, the iframe's `wire()` SKIPS the
+   *  `body.focus()` call on every load (intended only for the very
+   *  first mount). The iframe load event re-fires on srcdoc changes,
+   *  HMR re-mounts, and post-doc-write reloads — letting `wire()`
+   *  re-grab focus then steals the cursor from a terminal the user
+   *  has clicked into. The host (CanvasTab) gates this on
+   *  `focusedColumn === 'working'` so the canvas only steals focus
+   *  when the user has clearly chosen the working pane. */
+  shouldStealFocus?: boolean
 }
 
 export interface RenderedCanvasHandle {
@@ -63,8 +72,15 @@ export interface RenderedCanvasHandle {
 }
 
 export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
-  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady, readOnly = false }, ref) {
+  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady, readOnly = false, shouldStealFocus = true }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null)
+    // BUG-032 — read shouldStealFocus through a ref inside `wire()` so
+    // toggling focus on/off doesn't tear down the iframe effect. Without
+    // this, adding `shouldStealFocus` to the effect's deps array would
+    // remount the entire iframe (including srcdoc reload) on every
+    // focus change.
+    const shouldStealFocusRef = useRef(shouldStealFocus)
+    useEffect(() => { shouldStealFocusRef.current = shouldStealFocus }, [shouldStealFocus])
 
     const getDocument = useCallback((): Document | null => {
       const f = iframeRef.current
@@ -159,7 +175,16 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           // markdown editor's behavior — the user shouldn't have to
           // click into the page before typing). Wrapped in try/catch
           // because some sandboxed iframe states reject focus().
-          try { doc.body.focus() } catch { /* ignore */ }
+          //
+          // BUG-032 — `wire()` re-fires on every iframe `load` event:
+          // initial mount, srcdoc changes, HMR re-mounts, post-doc-
+          // write reloads. Without a focus gate, those re-fires steal
+          // the cursor from a terminal the user has clicked into. The
+          // host (CanvasTab) sets `shouldStealFocus = focusedColumn ===
+          // 'working'`, so a re-mount under terminal focus stays put.
+          if (shouldStealFocusRef.current) {
+            try { doc.body.focus() } catch { /* ignore */ }
+          }
         }
 
         // Fire onReady AFTER the body is populated. CanvasTab mounts
