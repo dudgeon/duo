@@ -205,6 +205,11 @@ export function App() {
   const [splitPct, setSplitPct] = useState(55)
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
+  // BUG-031 — re-render trigger for the drag overlay. The overlay
+  // covers iframes (canvas) during drag so mousemove keeps reaching
+  // the parent document. Ref alone is invisible to React; pair it
+  // with state.
+  const [isDraggingSplit, setIsDraggingSplit] = useState(false)
 
   const [filesCollapsed, setFilesCollapsed] = useState(false)
   const lastAutoCollapseState = useRef(false)
@@ -880,6 +885,7 @@ export function App() {
 
   const onDividerMouseDown = useCallback(() => {
     isDragging.current = true
+    setIsDraggingSplit(true)
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
   }, [])
@@ -892,7 +898,9 @@ export function App() {
       setSplitPct(Math.min(Math.max(pct, 20), 80))
     }
     const onUp = () => {
+      if (!isDragging.current) return
       isDragging.current = false
+      setIsDraggingSplit(false)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
     }
@@ -1131,6 +1139,18 @@ export function App() {
             className="split-divider"
             onMouseDown={onDividerMouseDown}
           />
+
+          {/* BUG-031 — drag overlay. While the divider is being dragged,
+              this transparent layer sits over iframes/canvases so
+              mousemove keeps bubbling to the window listener instead of
+              being trapped inside an iframe's contentDocument. Pattern
+              matches VS Code / Figma's resize handles. */}
+          {isDraggingSplit && (
+            <div
+              className="fixed inset-0 z-50 cursor-col-resize"
+              aria-hidden="true"
+            />
+          )}
 
           <div
             className={[

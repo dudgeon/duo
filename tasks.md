@@ -1521,7 +1521,7 @@ The "Send → Duo" pill renders on selection across three surfaces (markdown edi
 
 ### BUG-031: HTML canvas / split-pane divider can't be dragged rightward (right pane shrinks-blocked)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-28 (v0.5.2 sprint PR 1) — option (1) overlay div implemented in `renderer/App.tsx` (`isDraggingSplit` state + `<div className="fixed inset-0 z-50 cursor-col-resize"/>` mounted while dragging). Verified in dev: synthetic mousedown on `.split-divider` mounts an overlay covering the full 1440×600 viewport; mouseup unmounts it. The iframe-trapping path is closed. **Browser-pane (WebContentsView) coverage is NOT in scope for this PR** — z-index can't push DOM above an Electron WebContentsView; if drag-over-browser repros for the user, file as a follow-up needing IPC-driven `setBounds` suppression during drag.
 **Priority:** Medium-High (one of the most-felt papercuts; user can grow the right pane but never give it back to the left)
 **Filed:** 2026-04-28
 
