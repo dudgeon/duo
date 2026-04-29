@@ -88,6 +88,7 @@ for the authoritative usage text.
 | Verb | What it does |
 |---|---|
 | `duo theme [system\|light\|dark]` | Read or set theme mode |
+| `duo split <pct\|preset>` | ENH-014 — set split-pane percentage (terminal column as % of split container; clamped 20–80). Numeric arg or named preset (`even`, `terminal-heavy`, `canvas-heavy`, `terminal`, `canvas`). Mirrors View → Pane size menu and ⌘⌥1/2/3/0/9. |
 | `duo selection-format [a\|b\|c]` | Read or set the Send → Duo payload format (Stage 15 G19, agent-tunable). a = quote + provenance (default), b = literal, c = opaque token. Persisted in renderer localStorage. |
 | `duo send [--text "…"] [--enter]` | Write a payload into the active terminal's PTY (Stage 15 G17). No Enter by default — user confirms. Pass `--enter` to submit on their behalf (Stage 23b — pairs with canvas `data-duo-action="terminal:send" data-enter="true"`). Without `--text`, reads stdin. Returns `{ok, written, terminalId}`. |
 

@@ -115,6 +115,10 @@ export type DuoCommandName =
   // navigator's right-click Pin / Unpin actions. Same single-verb
   // discriminated-op shape as 'file'.
   | 'nav-pin'
+  // ENH-014 (v0.5.2 sprint) — set split-pane percentage. Mirrors
+  // the View → Pane size menu and ⌘⌥1/2/3 keyboard accelerators.
+  // Clamps to the 20–80 range the divider drag uses.
+  | 'split'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -804,7 +808,12 @@ export const IPC = {
   // request (kind/cwd/cmd) to the renderer; renderer adds the tab and
   // ships the result back so the socket can return {id, kind, cwd, title}.
   NEW_TAB_REQUEST: 'terminal:new-tab-request',
-  NEW_TAB_RESULT: 'terminal:new-tab-result'
+  NEW_TAB_RESULT: 'terminal:new-tab-result',
+
+  // ENH-014 (v0.5.2 sprint) — split-pane percentage push. Driven by
+  // View → Pane size menu, ⌘⌥1/2/3/0/9 accelerators, and `duo split
+  // <pct>`. Renderer clamps to 20–80 (same range as divider drag).
+  SPLIT_SET: 'split:set'
 } as const
 
 // ── Electron preload API surface ─────────────────────────────────────────────
@@ -972,6 +981,13 @@ export interface ElectronCozyAPI {
   onToggle: (cb: () => void) => () => void
   /** Push the active tab's cozy state so the menu checkmark tracks it. */
   pushState: (cozy: boolean) => void
+}
+
+export interface ElectronLayoutAPI {
+  /** ENH-014 — fires when View → Pane size menu, the ⌘⌥1/2/3/0/9
+   *  accelerators, or `duo split <pct>` set the split percentage.
+   *  Renderer clamps to 20–80 (matching divider drag). */
+  onSplitSet: (cb: (pct: number) => void) => () => void
 }
 
 export interface ElectronThemeAPI {
@@ -1278,6 +1294,7 @@ export interface ElectronAPI {
   editor: ElectronEditorAPI
   canvas: ElectronCanvasAPI
   cozy: ElectronCozyAPI
+  layout: ElectronLayoutAPI
   theme: ElectronThemeAPI
   selectionFormat: ElectronSelectionFormatAPI
   terminal: ElectronTerminalAPI

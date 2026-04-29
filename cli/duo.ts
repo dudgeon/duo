@@ -412,6 +412,35 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'split': {
+        // ENH-014 \u2014 `duo split <pct>` sets the split-pane percentage
+        // (terminal column width as % of the split container). Clamps
+        // to 20\u201380 server-side. Also accepts named presets to mirror
+        // the View \u2192 Pane size menu shortcuts.
+        const arg = rest[0]
+        if (arg === undefined) {
+          die('Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>')
+        }
+        const presets: Record<string, number> = {
+          even: 50,
+          'terminal-heavy': 67,
+          'canvas-heavy': 33,
+          terminal: 80,
+          canvas: 20
+        }
+        let pct: number
+        if (arg in presets) {
+          pct = presets[arg]
+        } else {
+          const parsed = Number(arg)
+          if (!Number.isFinite(parsed)) {
+            die('Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>')
+          }
+          pct = parsed
+        }
+        out(await send('split', { pct }))
+        break
+      }
       case 'doc': {
         // `duo doc <subcmd>` for editor doc operations.
         const sub = rest[0]
@@ -1036,6 +1065,14 @@ COMMANDS
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
+  split <pct|preset>              Set the split-pane percentage
+                                  (terminal column as % of the split
+                                  container). Numeric arg clamps to
+                                  20–80. Presets: even (50), terminal-
+                                  heavy (67), canvas-heavy (33),
+                                  terminal (80, full-terminal), canvas
+                                  (20, full-canvas). Mirrors View →
+                                  Pane size menu and ⌘⌥1/2/3/0/9.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.
