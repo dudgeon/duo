@@ -18,6 +18,29 @@
 
 ---
 
+## 2026-04-29 — v0.5.2 cut: bug-smashing sprint
+
+Six PRs in one day across the Stage 17 canvas + Stage 18 install surfaces — pure quality-of-life on the surfaces real users hit in normal flow. No new headline capability beyond preset pane sizes (ENH-014); the rest are five bug fixes + one small ergonomics addition.
+
+**What landed (chronological, six PRs merged before tag):**
+
+- **PR 1 — BUG-031 (split-divider drag overlay) + ENH-014 (preset pane sizes).** Bundled because the divider had to actually move both ways before the menu shortcut would matter. BUG-031: transparent `fixed inset-0 z-50 cursor-col-resize` overlay mounts during drag so mousemove keeps reaching the parent window listener instead of being trapped inside the canvas iframe's contentDocument. ENH-014: View → Pane size submenu + ⌘⌥1/2/3/0/9 + `duo split <pct|preset>` CLI. ⌘⌥ instead of bare ⌘ because ⌘1–⌘9 stay bound to `jumpTerminalTab` (escalating modifier kept the slot orthogonal). Browser-pane WebContentsView NOT covered by BUG-031 — z-index can't push DOM above an Electron native view; flagged as follow-up.
+- **PR 2 — BUG-034 (canvas onboarding overlay disabled).** Per the user's verbatim ask ("remove it and add a TODO to revisit"). The "TYPE / SOON / SOON / SOON" card was mounting on every canvas open and dismissing only on first mutation (which never fires on read-only viewing). Disabled entirely; module preserved with a TODO for the Stage 17a.5 rebuild that gates on `isJustBoilerplate(doc)` at install time.
+- **PR 3 — BUG-035 (false-positive "Couldn't find Claude Code" banner).** Filed mid-sprint as a high-priority insertion when the user reported the banner accusing him of not having Claude Code installed when he did. Root cause: `zsh -l -i -c 'command -v claude'` measured **5236ms** on the user's machine (NVM/conda/asdf/oh-my-zsh stack) — the resolver's 5000ms timeout was below the realistic floor. Fix: walk well-known absolute install dirs (`~/.local/bin`, `~/.npm-global/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.volta/bin`, `~/.bun/bin`, `~/bin`) + `process.env.PATH` with `fs.access(..., X_OK)` BEFORE attempting any shell. Standalone smoke verified: 0.8ms hit on the affected machine (~6500x speedup). Shell fallback still exists with timeout bumped 5s → 15s and flag-sets reordered fastest-first.
+- **PR 4 — BUG-032 (canvas focus theft).** `RenderedCanvas` accepts a new `shouldStealFocus` prop, read through a ref so the gate toggles without tearing down the iframe effect. CanvasTab threads `focused` from `WorkingPane.focused` (which is `focusedColumn === 'working'` at App.tsx). BUG-022's "first keystroke after canvas open lands as content" ergonomic preserved; iframe re-mounts under terminal focus no longer yank the cursor.
+- **PR 5 — BUG-033 v1 (autosave race during pending agent-write banner).** Both editors add a `blockAutosaveRef` synced from the pending state via `useEffect`. Change handler skips arming new timers while blocked; the effect also clears any timer about to fire. Save resumes naturally on accept/decline. Markdown's replace-all banner copy sharpened: "Replace the whole document (your unsaved edits will be lost)". Canvas ops are already granular (`replace`/`set`/`append` target one anchor) so the canvas banner copy stayed. v2 (OT-style merge for `replace-selection` on dirty buffer) deferred to Stage 16.
+- **PR 6 — ENH-017 ("Add to PATH" button).** v0.4.5 had dropped a passive "add this line" hint as too confusing for non-technical users; this PR brings the affordance back as an action button. `installService.addToShellPath()` detects `$SHELL` (zsh / bash / fish), picks the right rc file (`~/.zshrc`, `~/.bash_profile`, `~/.config/fish/config.fish`), appends a fenced `# >>> duo PATH ... # <<< duo PATH <<<` block. Idempotent — re-runs detect the fence and return `{alreadyPresent: true}` without rewriting. New `showAddToPathNote` row in `FirstLaunchBanner` gated on `cli.installed && !cli.onPath`.
+
+**Workflow notes for future cuts:**
+
+- All 6 PRs branched off main locally and were verified in an integration branch before any merge to main. Six branches, no merge conflicts (file overlaps in CanvasTab.tsx between PRs 2/4/5 composed cleanly via three-way merge).
+- The mid-sprint priority insertion (BUG-035) demonstrated the value of a shared base commit (b2c3a82) — pushing it to origin/main first kept each PR's diff clean against origin/main when the merges finally landed.
+- Verification gaps to flag: BUG-032 + BUG-033 + ENH-017 visual-cursor-drag scenarios were not directly walked at merge time (typecheck + boot smoke only). State-machine changes are low-risk; if regressions surface, they'll be specific and reproducible.
+
+**Deferred from v0.5.2:** ENH-015 (collapse-button discoverability) and ENH-016 (FileTree new-file/folder context menu) — backlog for v0.5.3. BUG-033 v2 (OT-style merge) lives at Stage 16.
+
+---
+
 ## 2026-04-28 — v0.5.1 cut: polish + the gating you asked for
 
 Single-session sprint follow-up to v0.5.0. Six PRs in sequence; all

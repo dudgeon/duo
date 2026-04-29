@@ -101,6 +101,21 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.5.2 release bug-smashing canvas focus autosave pane-size split shortcut keyboard ⌘⌥ pane-resize divider drag iframe claude path PATH terminal banner onboarding overlay populated">
+  <h3>v0.5.2 — Bug-smashing sprint <span class="date">2026-04-29</span></h3>
+  <p>Six fixes and one small new capability — all on the surfaces you touch most. No new headline feature, just a chunk of papercuts gone in one day.</p>
+  <ul>
+    <li><strong>Pane-size shortcuts</strong> — View → Pane size submenu with five presets (Even, Terminal heavy, Canvas heavy, Full terminal, Full canvas). Or hit <code>⌘⌥1</code> / <code>⌘⌥2</code> / <code>⌘⌥3</code> for terminal-heavy / 50-50 / canvas-heavy, <code>⌘⌥0</code> for full terminal, <code>⌘⌥9</code> for full canvas. From a Duo terminal: <code>duo split 67</code> (or <code>duo split even</code>, etc.).</li>
+    <li><strong>The split divider works over canvases now.</strong> Dragging the divider rightward used to stall as soon as the cursor crossed into the HTML canvas. Fixed — it follows your cursor smoothly in either direction.</li>
+    <li><strong>Canvases stop stealing focus from your terminal mid-typing.</strong> If you opened a canvas, then clicked into a terminal, then typed — the cursor used to occasionally jump back into the canvas mid-keystroke (any time the canvas re-mounted). Now it only takes focus when you actually have the working pane focused.</li>
+    <li><strong>Autosave pauses while you're deciding on an agent edit.</strong> When the agent's <em>"Claude wants to edit this document"</em> banner appears, your editor's autosave timer is suspended until you accept or decline. Closes a race where the autosave could fire mid-banner with stale content.</li>
+    <li><strong>Replace-all warning is more explicit.</strong> When the agent wants to replace your whole document, the banner now reads "Replace the whole document (your unsaved edits will be lost)" — so you can decline deliberately rather than accept on muscle memory.</li>
+    <li><strong>Populated canvases no longer have an onboarding card floating over them.</strong> The "Markdown shortcuts work as you type / Component blocks / Templates / Ask the agent" card was showing on every canvas open, including ones you'd already filled with content. Disabled until we rebuild it correctly.</li>
+    <li><strong>"Couldn't find Claude Code" banner now only fires when Claude Code actually isn't installed.</strong> If you have a slow shell startup (NVM, conda, oh-my-zsh, etc.), the resolver used to time out and falsely report Claude as missing. Now we check well-known install locations directly first; the shell fallback only fires if those miss, and has 15s headroom instead of 5s.</li>
+    <li><strong>"Add to PATH" button in the install banner.</strong> If <code>~/.local/bin</code> isn't on your shell's PATH (so <code>duo</code> doesn't work from external Terminal/iTerm sessions), one click appends a fenced <code>export PATH</code> block to your <code>~/.zshrc</code> (or <code>~/.bash_profile</code> / <code>~/.config/fish/config.fish</code>). Idempotent — re-runs detect the fence and skip.</li>
+  </ul>
+</article>
+
 <article class="whatsnew" data-keys="v0.5.1 release polish gating browser history autocomplete url copy button code block markdown editor canvas escape rename context menu pinned send-to-duo claude-presence">
   <h3>v0.5.1 — Polish + the gating you asked for <span class="date">2026-04-28</span></h3>
   <p>Fast follow-up to v0.5.0 that closes everything on its known-issues list, ships the editor-polish punch list deferred from v0.4.3, and fixes the Send → Duo pill so it stops routing into shells that don't have Claude running.</p>

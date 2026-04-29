@@ -19,6 +19,26 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-04-29
+
+Bug-smashing sprint. Six PRs in one day closing longstanding canvas/install papercuts, plus one small new capability (preset pane sizes via menu + CLI).
+
+### Added
+- **ENH-014 — Preset pane sizes.** View → Pane size submenu (Even, Terminal heavy, Canvas heavy, Full terminal, Full canvas) with accelerators ⌘⌥1/⌘⌥2/⌘⌥3/⌘⌥0/⌘⌥9. CLI parity: `duo split <pct|preset>` (clamps 20–80; presets `even` / `terminal-heavy` / `canvas-heavy` / `terminal` / `canvas`). ⌘⌥ instead of bare ⌘ because ⌘1–⌘9 stayed bound to `jumpTerminalTab`.
+- **ENH-017 — "Add to PATH" button in the install banner.** When `~/.local/bin/duo` lands but the dir isn't on the user's external-shell PATH, the success banner now offers a one-click action that appends a fenced PATH block to `~/.zshrc` / `~/.bash_profile` / `~/.config/fish/config.fish`. Idempotent (re-runs detect the fence). Replaces the v0.4.5 "passive hint" approach that was dropped as too confusing.
+
+### Fixed
+- **BUG-031 — Split-divider drag now follows the cursor over canvas iframes.** A transparent overlay (`fixed inset-0 z-50 cursor-col-resize`) mounts during drag so mousemove keeps reaching the parent window listener instead of being trapped inside the canvas iframe's contentDocument. Same pattern VS Code / Figma use for resize handles over rich content. Browser-pane (WebContentsView) is out of scope — z-index can't push DOM above an Electron native view.
+- **BUG-032 — Canvas iframe no longer steals focus from the terminal mid-typing.** `RenderedCanvas` accepts a `shouldStealFocus` prop (read through a ref), gated on `focusedColumn === 'working'`. BUG-022's "first keystroke after canvas open lands as content" ergonomic still fires when you open the canvas with intent; iframe re-mounts (srcdoc changes, HMR, post-doc-write reloads) under terminal focus no longer yank the cursor.
+- **BUG-033 v1 — Autosave paused while a pending agent-write banner is up.** Both markdown editor and HTML canvas now block their autosave timers when `pendingWrite` / `pendingHtmlOp` is non-null. Closes the race where a queued autosave would fire mid-banner and write a stale snapshot. Markdown's replace-all banner copy also sharpened: now reads "Replace the whole document (your unsaved edits will be lost)". v2 (OT-style merge for replace-selection on dirty buffer) deferred to Stage 16.
+- **BUG-034 — Canvas onboarding overlay no longer occludes populated content.** The "TYPE / SOON / SOON / SOON" card was mounting on every canvas open, dismissing only on first mutation (which never fires on read-only viewing). Disabled entirely; module preserved with a TODO for the Stage 17a.5 rebuild that will gate it on `isJustBoilerplate(doc)` at install time.
+- **BUG-035 — False-positive "Couldn't find Claude Code on this Mac" banner.** Resolver now walks well-known install dirs (`~/.local/bin`, `~/.npm-global/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.volta/bin`, `~/.bun/bin`, `~/bin`) + `process.env.PATH` with `fs.access(..., X_OK)` BEFORE attempting any shell. Shell fallback timeout 5s → 15s; flag-sets reordered fastest-first. Verified ~6500x speedup on the affected machine (5236ms shell timeout → 0.8ms fast-path hit).
+
+### Deferred
+- **ENH-015** (collapse-button discoverability) and **ENH-016** (FileTree new-file/folder context menu) — backlog for v0.5.3.
+- **BUG-033 v2** (OT-style merge for replace-selection on dirty buffer; per-section locks) — folds into Stage 16 external-write reconciliation.
+- **Browser-pane (WebContentsView) drag coverage** for BUG-031 — needs IPC-driven `setBounds` suppression during drag; file when users hit it.
+
 ## [0.5.1] — 2026-04-28
 
 Polish + the gating you asked for. Closes the known-issue list from v0.5.0, ships the editor-polish punch list deferred from v0.4.3, and lands strict claude-presence gating on the Send → Duo pill.

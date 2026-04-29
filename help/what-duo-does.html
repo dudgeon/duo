@@ -414,6 +414,15 @@
 <h2 class="cat">Look & feel</h2>
 <p class="cat-tagline">Atelier visual identity — paper-cream surfaces, warm ochre accents, light by default.</p>
 
+<article class="item" data-keys="pane size split divider preset terminal heavy canvas heavy 50 67 33 even keyboard shortcut layout resize">
+  <div class="num">51</div>
+  <div>
+    <h3>Snap pane sizes (terminal vs canvas)</h3>
+    <p class="why">Drag the divider between the terminal column and the working pane to resize, or pick a preset. Range is 20–80% terminal column. Useful when you want to focus reading (canvas-heavy) vs typing (terminal-heavy) without fiddling.</p>
+    <p class="how"><strong>UI</strong>Drag the divider, or View → Pane size → Even / Terminal heavy / Canvas heavy / Full terminal / Full canvas. <strong>Keyboard</strong><code>⌘⌥1</code> (terminal heavy 67/33), <code>⌘⌥2</code> (even 50/50), <code>⌘⌥3</code> (canvas heavy 33/67), <code>⌘⌥0</code> (full terminal), <code>⌘⌥9</code> (full canvas). <strong>CLI</strong><code>duo split &lt;pct&gt;</code> (numeric, 0–100, clamped to 20–80) or <code>duo split &lt;preset&gt;</code> (<code>even</code>, <code>terminal-heavy</code>, <code>canvas-heavy</code>, <code>terminal</code>, <code>canvas</code>).</p>
+  </div>
+</article>
+
 <article class="item" data-keys="theme system light dark mode appearance">
   <div class="num">32</div>
   <div>
@@ -492,12 +501,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="install banner first launch welcome skill agent path setup">
+<article class="item" data-keys="install banner first launch welcome skill agent path setup add-to-path zshrc bash_profile fish">
   <div class="num">39</div>
   <div>
     <h3>Install the skill + subagent + CLI in one click</h3>
-    <p class="why">On first launch (and after upgrades), a welcome banner appears at the top of Duo. Click <strong>Install</strong> — it copies the skill to <code>~/.claude/skills/duo/</code>, the subagent to <code>~/.claude/agents/duo.md</code>, the help files to <code>~/.claude/duo/help/</code>, and the <code>duo</code> CLI binary to <code>~/.local/bin/duo</code>. Bootstraps <code>~/.claude/duo/external-domains.json</code> + <code>~/.claude/duo/priming.md</code> if absent (never clobbered) and writes <code>installed.json</code> with the version. v0.3.0 also installs a load-bearing <code>~/.claude/duo/bin/claude</code> shim and a <code>SessionStart</code> hook so claude sessions inside Duo arrive Duo-aware. If <code>~/.local/bin</code> isn't on your <code>$PATH</code>, the banner shows a one-liner to add to your shell rc.</p>
-    <p class="how"><strong>UI</strong>Click [Install] in the welcome banner.</p>
+    <p class="why">On first launch (and after upgrades), a welcome banner appears at the top of Duo. Click <strong>Install</strong> — it copies the skill to <code>~/.claude/skills/duo/</code>, the subagent to <code>~/.claude/agents/duo.md</code>, the help files to <code>~/.claude/duo/help/</code>, and the <code>duo</code> CLI binary to <code>~/.local/bin/duo</code>. Bootstraps <code>~/.claude/duo/external-domains.json</code> + <code>~/.claude/duo/priming.md</code> if absent (never clobbered) and writes <code>installed.json</code> with the version. v0.3.0 also installs a load-bearing <code>~/.claude/duo/bin/claude</code> shim and a <code>SessionStart</code> hook so claude sessions inside Duo arrive Duo-aware. If <code>~/.local/bin</code> isn't on your shell <code>$PATH</code>, the success banner now shows an <strong>Add to PATH</strong> button — one click appends a fenced <code>export PATH</code> block to your <code>~/.zshrc</code> (or <code>~/.bash_profile</code> / <code>~/.config/fish/config.fish</code>) so <code>duo</code> works from external Terminal/iTerm too. Idempotent — re-runs detect the fence and skip.</p>
+    <p class="how"><strong>UI</strong>Click [Install] in the welcome banner. If the post-install row says "Use <code>duo</code> from outside the app?", click <strong>Add to PATH</strong> + open a new terminal.</p>
   </div>
 </article>
 

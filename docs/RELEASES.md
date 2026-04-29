@@ -25,6 +25,23 @@ _Empty._
 
 ---
 
+## v0.5.2 — 2026-04-29
+
+**Bug-smashing sprint.** Six PRs in one day closing longstanding papercuts on the Stage 17 canvas + Stage 18 install surfaces. No new headline capability beyond preset pane sizes — pure quality-of-life on the surfaces real users were hitting in normal flow.
+
+The six items chained: BUG-031 (divider stuck over canvas) blocked ENH-014 (preset sizes) — divider had to actually move both ways before the menu shortcut would matter. BUG-034 (overlay occluding canvases) was a single-line fix per the user's verbatim ask ("remove it and add a TODO to revisit"). BUG-035 (false-positive Claude-not-found banner) surfaced mid-sprint and was the highest-priority insertion: the banner accused users of not having Claude Code installed when the only problem was `zsh -l -i -c` taking >5s to load on populated dev machines (NVM/conda/asdf/oh-my-zsh stacks). Fast-path resolution dropped that from 5236ms hit-timeout to 0.8ms hit-cache. BUG-032 (canvas focus theft) and BUG-033 v1 (autosave race) closed two of the most-felt mid-typing surprises. ENH-017 (Add to PATH button) restored the affordance that v0.4.5 had passively hidden — users were hitting `duo: command not found` from external shells and the prior "add this line" hint was too easy to dismiss.
+
+**Key design decisions baked in:**
+
+1. **Drag-overlay z-index covers iframes, not WebContentsViews.** BUG-031's recommended fix (option 1 from the bug filing) is the DOM-overlay approach. It works for canvas iframes but doesn't help for the browser pane WebContentsView — Electron paints native views above the renderer DOM regardless of z-index. The fix is scoped accordingly; if drag-over-browser repros, that's a follow-up needing IPC-driven `setBounds` suppression during drag.
+2. **Fast-path resolver, not shell-only.** v0.4.5 added a three-flag-set shell fallback to fix detection drift; v0.5.2 inverts the priority — well-known absolute paths first, shell as fallback only. This catches the vast majority of installs without paying a 5–15s shell-init cost. Bumping the shell timeout to 15s makes the fallback genuinely usable when it does fire.
+3. **`⌘⌥` instead of `⌘` for split presets.** The bug filing proposed ⌘1/⌘2/⌘3 — but ⌘1–⌘9 already drive `jumpTerminalTab`. Escalating modifier keeps the slot orthogonal; bare ⌘ stays with terminal-tab muscle memory.
+4. **Autosave-pause via ref, not effect re-key.** Both editors use a `blockAutosaveRef` synced via `useEffect`. Reading the ref inside the change handler avoids closure-staleness; the ref-not-state read keeps the host effect from tearing down + re-mounting on every focus toggle (same pattern BUG-032's `shouldStealFocusRef` uses).
+
+**What this is and isn't.** This is a polish + friction sprint. Not a new headline capability surface. The two remaining v0.5.2 backlog items (ENH-015 collapse-button discoverability, ENH-016 FileTree new-file/folder context menu) didn't make this cut — they're queued for v0.5.3. BUG-033 v2 (OT-style merge for replace-selection on dirty buffer) lives at Stage 16 (external-write reconciliation), not v0.5.x.
+
+---
+
 ## v0.5.1 — 2026-04-28
 
 **Polish + the gating you asked for.** A rapid-fire follow-up to
