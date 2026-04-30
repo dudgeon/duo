@@ -18,6 +18,125 @@
 
 ---
 
+## 2026-04-30 — Chrome-extension exploration: phases 4–6.5 shipped, distribution decided
+
+A long autonomous session on the `duo-chrome-extension-exploration`
+branch. The exploration's load-bearing question — *can Duo ship as
+a Chrome extension?* — is answered yes. Architecture proven through
+six MVP phases (most still pending Geoff's tonight verification);
+strategic shape decided (both shapes ship, no deprecation); Phase 7
+file-level plan ready for next session.
+
+**What landed on the exploration branch (chronological):**
+
+- **Phase 4a (✅ verified)** — file r/w through the Native Messaging
+  helper (`files:read` / `files:write`); plain textarea editor in
+  the canvas tab, end-to-end save round-trip working. Validated the
+  wire path before introducing the React toolchain.
+- **Phase 4b (✅ verified)** — esbuild bundle + React + TipTap
+  markdown editor in the canvas tab. 1.9 MB dev bundle (613 KB
+  minified prod). Reuses existing root deps (`react`, `tiptap-markdown`,
+  `@tiptap/starter-kit`, `esbuild`, `typescript`); chose esbuild
+  over Vite to avoid a `dist/` reorg.
+- **Phase 5 (🟡)** — agent verbs over `chrome.tabs` /
+  `chrome.scripting`. Two new rail buttons in the side panel
+  (`agent:tabs:list`, `agent:scripting:title`). Manifest gained
+  `tabs`, `scripting`, `host_permissions: <all_urls>`.
+- **Phase 6 (🟡)** — `chrome.debugger` CDP path with `agent:cdp:eval`.
+  Attach / Runtime.evaluate / detach with `finally`-guarded cleanup
+  so the yellow "Duo started debugging" bar can't get stuck.
+- **Phase 6.5 (🟡)** — CLI bridge. Helper exposes both a Unix socket
+  AND a TCP listener (32-byte hex auth token gates TCP); `duo-ext`
+  CLI binary tries Unix first, falls back to TCP on the sandbox
+  failure modes (`EPERM`/`ECONNREFUSED`/timeout). Empirically
+  verified TCP localhost passes Claude Code's bash sandbox in the
+  same session that wrote the code. Pattern mirrors the Stage 20
+  ADR for the Electron-app `cli/duo` (transport-agnostic).
+- **`install.sh` Sequoia fix.** macOS Sequoia gates Chrome's NM-host
+  spawn from `~/Documents/`. The original install.sh pointed the
+  manifest at the worktree path inside `~/Documents/`; Chrome
+  silently failed to spawn the helper. Fix: install.sh now copies
+  the helper into `~/Library/Application Support/Duo/` (in user
+  space, outside the gate). Symlinks `duo-ext` into `~/.claude/bin/`
+  so it's on PATH from any terminal (Claude Code's sandbox writes
+  through `~/.claude/`).
+
+**Distribution strategy (PR [#39](https://github.com/dudgeon/duo/pull/39))** — Initial
+sketch was extension-as-primary with Electron sunset; Geoff pushed
+back. Revised landing: **both shapes ship indefinitely as
+complementary peer products**. The Electron app is the foundation
+and serves as the Native Messaging host (`Duo.app --nm-shim` mode);
+no separate helper PKG. Auto-launch Duo.app on extension's first NM
+connect. Explicit `chrome:` / `embedded:` CLI verb prefixes
+disambiguate the two browser surfaces; default targets the surface
+adjacent to the calling terminal. Doc:
+[`docs/research/duo-as-chrome-extension/distribution-strategy.md`](../research/duo-as-chrome-extension/distribution-strategy.md).
+
+**Phase 7 implementation plan** (on exploration branch):
+file-level cutover spec at
+`docs/research/duo-as-chrome-extension/phase7-implementation-plan.md`.
+Net **-470 LOC** — most of `phase0/helper/` collapses into a 50-line
+`--nm-shim` mode in `electron/main.ts`; `phase0/cli/duo-ext` folds
+into the unified `cli/duo` with `chrome:` / `embedded:` prefix
+routing. Six-row test matrix for the cutover. Effort ~2 working
+days; Web Store review takes 3-5 days separately.
+
+**Web Store listing prep** (on exploration branch): pre-baked
+content at `docs/research/duo-as-chrome-extension/web-store-listing.md`
+covering listing copy, single-purpose statement, per-permission
+justifications, icon/screenshot plan, privacy policy stub, and a
+submission checklist. Copy-paste exercise when Phase 7 reaches the
+upload step.
+
+**Lessons / forward-looking notes:**
+
+1. **Stage A is now strategically load-bearing.** It was always a
+   no-regrets refactor; with the dual-target distribution committed,
+   `core/` is the foundation both shapes import from. Smoke-walk +
+   PR-to-main is the next blocking step before any Phase 7 code
+   lands.
+2. **The Electron app's existing socket-server.ts already has the
+   protocol the extension needs** (Stage 20 TCP fallback, auth
+   tokens, NDJSON framing). Phase 7 is mostly *additive* — adding
+   `agent:*` verbs and `cli:request` to the existing dispatcher,
+   not building a parallel transport.
+3. **Sequoia's `~/Documents/` gate is a reusable lesson.** Anything
+   Chrome / Native Messaging needs to spawn must live outside
+   `~/Documents`, `~/Downloads`, `~/Desktop`. `~/Library/Application
+   Support/` is the canonical home; `~/.claude/` is sandbox-writable
+   for CLI binaries.
+4. **The chrome-cdp skill's pattern** (used elsewhere by the user)
+   demonstrates that **TCP localhost passes Claude Code's bash
+   sandbox** even when Unix sockets don't. Both transports are
+   live in the helper to support both contexts; the CLI's fallback
+   logic is what makes "works inside Claude Code" the default.
+
+**What's owed (in priority order):**
+
+- 🟡 **Phases 5/6/6.5 verification.** Geoff to test in real Chrome
+  tonight. Verbs and rail buttons listed in `phase0/README.md` →
+  *"Phase 6.5 — driving Chrome from a terminal"* + the build-
+  roadmap status row notes.
+- ⬜ **Stage A merge to main.** Smoke-walk per
+  `docs/dev/smoke-checklist.md`; PR; merge. Foundation step before
+  any Phase 7 code. Currently parked on exploration branch as
+  commits `366fe4e` (services to `core/`) + `613a87a` (host-api
+  split).
+- ⬜ **Phase 7 execution.** File-by-file work per the implementation
+  plan. ~2 working days. Gated on verification + Stage A merge.
+- ⬜ **Web Store unlisted upload + Trailblazers cohort dogfood.**
+  Phase 7 milestone; runs ≥30 days before public promotion.
+- ⬜ **Public Web Store promotion + background-mode menu bar.**
+  Phase 8.
+
+**Branch state at session end:**
+`duo-chrome-extension-exploration` is 14 commits ahead of `main`.
+Two PRs merged to main this session ([#38](https://github.com/dudgeon/duo/pull/38) docs research bundle,
+[#39](https://github.com/dudgeon/duo/pull/39) distribution strategy). Latest exploration
+commit: `9178264 chore(phase7-prep): prod bundle script + duo-ext skill + Web Store listing draft`.
+
+---
+
 ## 2026-04-29 — v0.5.2 cut: bug-smashing sprint
 
 Six PRs in one day across the Stage 17 canvas + Stage 18 install surfaces — pure quality-of-life on the surfaces real users hit in normal flow. No new headline capability beyond preset pane sizes (ENH-014); the rest are five bug fixes + one small ergonomics addition.
