@@ -61,9 +61,20 @@ interface FileTreeProps {
    *  the indicator (e.g., on user-claude pane where no terminal
    *  semantics apply). */
   activeTerminalCwd?: string | null
+  /** Stage 26 PR 3 item 3 — set of file paths currently open in any
+   *  WorkingPane tab. File rows in this set render with brighter
+   *  text (subtle "open" signal) on top of the default. Distinct
+   *  from active-file (a stronger signal — see `activeFilePath`).
+   *  Empty set / undefined suppresses both signals. */
+  openFilePaths?: ReadonlySet<string>
+  /** Stage 26 PR 3 item 3 — path of the currently-active WorkingPane
+   *  file tab. The matching file row renders an accent dot inline
+   *  (mirrors `activeTerminalCwd` on folders — symmetric "what's
+   *  front-most" signal across files + folders). */
+  activeFilePath?: string | null
 }
 
-export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride, activeTerminalCwd = null }: FileTreeProps) {
+export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: FileTreeProps) {
   const rootEntries = rootEntriesOverride !== undefined ? rootEntriesOverride : state.listings.get(state.cwd)
   // Shared context-menu state — only one menu open at a time across the whole
   // tree. `target` carries the entry the user right-clicked.
@@ -128,6 +139,8 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         onCancelRename={() => setRenamingPath(null)}
         onOpenClaudeIn={onOpenClaudeIn}
         activeTerminalCwd={activeTerminalCwd}
+        openFilePaths={openFilePaths}
+        activeFilePath={activeFilePath}
       />
       {menu && (
         <ContextMenu
@@ -246,9 +259,12 @@ interface TreeNodesProps {
   onOpenClaudeIn?: (folderPath: string) => void
   /** Stage 26 PR 3 item 2 — active terminal CWD for ambient highlight. */
   activeTerminalCwd?: string | null
+  /** Stage 26 PR 3 item 3 — open / active file signals. */
+  openFilePaths?: ReadonlySet<string>
+  activeFilePath?: string | null
 }
 
-export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null }: TreeNodesProps) {
+export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }
@@ -272,6 +288,8 @@ export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContex
           onCancelRename={onCancelRename}
           onOpenClaudeIn={onOpenClaudeIn}
           activeTerminalCwd={activeTerminalCwd}
+          openFilePaths={openFilePaths}
+          activeFilePath={activeFilePath}
         />
       ))}
     </>
@@ -291,9 +309,12 @@ interface TreeNodeProps {
   onOpenClaudeIn?: (folderPath: string) => void
   /** Stage 26 PR 3 item 2 — active terminal CWD for ambient highlight. */
   activeTerminalCwd?: string | null
+  /** Stage 26 PR 3 item 3 — open / active file signals. */
+  openFilePaths?: ReadonlySet<string>
+  activeFilePath?: string | null
 }
 
-function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null }: TreeNodeProps) {
+function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
   const isSelected = state.selected?.path === entry.path
@@ -304,6 +325,14 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
   // selection: selection is a full-row tint, this is a small dot to
   // the right of the name.
   const isActiveCwd = isFolder && activeTerminalCwd !== null && entry.path === activeTerminalCwd
+  // Stage 26 PR 3 item 3 — file rows that are open in some
+  // WorkingPane tab render with brighter text (subtle "open"
+  // signal). The active file (front-most WorkingPane tab) ALSO
+  // renders an accent dot to the right — same gesture as the
+  // active-CWD dot, symmetric across files + folders for "what's
+  // front-most."
+  const isOpenFile = !isFolder && openFilePaths !== undefined && openFilePaths.has(entry.path)
+  const isActiveFile = !isFolder && activeFilePath !== null && entry.path === activeFilePath
 
   // Stage 26 item 1 — single-click selects, double-click opens.
   // Stage 26 item 1b (BUG-025) — chevron is a discrete hit target;
@@ -352,7 +381,13 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
           'group/row relative w-full flex items-center gap-1.5 pr-2 py-0.5 text-[12px] leading-tight rounded transition-colors',
           isSelected
             ? 'bg-accent/15 text-zinc-100'
-            : 'text-zinc-400 hover:bg-surface-2 hover:text-zinc-200'
+            // Stage 26 PR 3 item 3 — open file rows render with
+            // brighter text than unopened rows. Distinct from
+            // selection (full-row tint), this is just text color.
+            // Layered on top: hover still tints, active gets a dot.
+            : isOpenFile
+              ? 'text-zinc-200 hover:bg-surface-2 hover:text-zinc-100'
+              : 'text-zinc-400 hover:bg-surface-2 hover:text-zinc-200'
         ].join(' ')}
         style={{ paddingLeft: `${indentLeft}px` }}
       >
@@ -400,6 +435,18 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
               <span
                 aria-label="Active terminal CWD"
                 title="Front terminal is in this folder"
+                className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent"
+              />
+            )}
+            {/* Stage 26 PR 3 item 3 — symmetric "front-most" signal
+                for files: the active WorkingPane file tab gets the
+                same dot the active-CWD folder gets above. Open files
+                (in any tab, not necessarily front-most) render with
+                brighter text — see the row's className. */}
+            {isActiveFile && (
+              <span
+                aria-label="Active file tab"
+                title="This file is the active WorkingPane tab"
                 className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent"
               />
             )}

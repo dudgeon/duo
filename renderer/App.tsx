@@ -1107,6 +1107,17 @@ export function App() {
             // launch CWD (live cwd post-`cd` is not tracked yet —
             // OSC 7 hook is its own follow-up enhancement).
             activeTerminalCwd={tabs.find(t => t.id === activeTabId)?.cwd ?? null}
+            // Stage 26 PR 3 item 3 — open / active file signals for
+            // the project tree. `openFilePaths` is the set of every
+            // file currently in fileTabs (any WorkingPane tab);
+            // `activeFilePath` is the path of the front-most tab if
+            // it's a file (browser tabs resolve to null).
+            openFilePaths={new Set(fileTabs.map(t => t.path))}
+            activeFilePath={
+              activeWorking.kind === 'file'
+                ? fileTabs.find(t => t.id === activeWorking.id)?.path ?? null
+                : null
+            }
           />
         </div>
 

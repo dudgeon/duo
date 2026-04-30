@@ -40,6 +40,14 @@ interface FilesPaneProps {
    *  ambient accent dot. `null` when no terminal exists or its cwd
    *  isn't tracked yet. */
   activeTerminalCwd?: string | null
+  /** Stage 26 PR 3 item 3 \u2014 set of file paths currently open in any
+   *  WorkingPane tab. Threaded down so file rows render with brighter
+   *  text. */
+  openFilePaths?: ReadonlySet<string>
+  /** Stage 26 PR 3 item 3 \u2014 path of the currently-active file tab.
+   *  The matching file row gets an accent dot (mirrors
+   *  `activeTerminalCwd` on folders). */
+  activeFilePath?: string | null
 }
 
 export function FilesPane({
@@ -56,7 +64,9 @@ export function FilesPane({
   revealChip,
   onDismissRevealChip,
   onToggleCollapsed,
-  activeTerminalCwd = null
+  activeTerminalCwd = null,
+  openFilePaths,
+  activeFilePath = null
 }: FilesPaneProps) {
   return (
     <div
@@ -147,6 +157,8 @@ export function FilesPane({
             onOpenClaudeIn={onOpenClaudeIn}
             navPins={navPins}
             activeTerminalCwd={activeTerminalCwd}
+            openFilePaths={openFilePaths}
+            activeFilePath={activeFilePath}
           />
 
           {/* Stage 26 PR 2 (ENH-010) — Pinned files & folders.
