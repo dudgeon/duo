@@ -51,6 +51,9 @@ export type ShortcutId =
   | 'closeTab'
   | 'focusAddressBar'
   | 'focusBreadcrumbEdit'
+  | 'openFind'
+  | 'findNext'
+  | 'findPrev'
   | 'toggleFilesColumn'
   | 'togglePaneFocus'
   | 'fontBumpUp'
@@ -123,6 +126,21 @@ export function matchGlobalShortcut(
   // Flips the navigator breadcrumb into an editable input.
   if (meta && shift && !alt && !ctrl && key === 'g') {
     return { id: 'focusBreadcrumbEdit' }
+  }
+
+  // ENH-023 — ⌘F open find / focus existing find input.
+  if (meta && !shift && !alt && !ctrl && key === 'f') {
+    return { id: 'openFind' }
+  }
+  // ENH-023 — ⌘G next match. Works even when find bar is closed if
+  // there's a previous query (matches Chrome / VS Code).
+  if (meta && !shift && !alt && !ctrl && key === 'g') {
+    return { id: 'findNext' }
+  }
+  // ENH-023 — ⌘⇧F previous match (avoids the ⌘⇧G conflict with
+  // breadcrumb-edit Go to folder).
+  if (meta && shift && !alt && !ctrl && key === 'f') {
+    return { id: 'findPrev' }
   }
 
   // ⌘B — toggle the Files column. Yields to the local editor when

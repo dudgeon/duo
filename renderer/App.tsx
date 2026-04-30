@@ -1044,7 +1044,16 @@ export function App() {
     focusBreadcrumbEdit: () => {
       setFocusedColumn('files')
       filesPaneRef.current?.focusBreadcrumbEdit()
-    }
+    },
+    // ENH-023 — find-in-document. Only the markdown editor surface
+    // implements find in v1 (canvas / browser / terminal deferred).
+    // We dispatch a window-scoped custom event; the active
+    // MarkdownEditor (WorkingPane swaps activeRenderer per-tab so
+    // there's at most one mounted) listens and handles. If no
+    // markdown editor is active, the event is a no-op.
+    openFind: () => window.dispatchEvent(new CustomEvent('duo-editor-find-open')),
+    findNext: () => window.dispatchEvent(new CustomEvent('duo-editor-find-next')),
+    findPrev: () => window.dispatchEvent(new CustomEvent('duo-editor-find-prev'))
   })
 
   // ⌘` menu-accelerator path. The app menu registers the same

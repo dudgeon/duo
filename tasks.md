@@ -2368,7 +2368,19 @@ $ duo doc goto --anchor "checklist-section"
 
 ### ENH-023: ⌘F find-in-document for the markdown editor (v1)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-30 (sprint addition).
+- New `FindHighlight` TipTap extension (`renderer/components/editor/extensions/FindHighlight.ts`) — pure-decoration ProseMirror plugin, paints `.duo-find-match` (yellow) on every match + `.duo-find-match-current` (orange/accent) on the cursor's current match. Storage exposes `{query, caseSensitive, total, current, open}` for the FindBar's match counter.
+- New `FindBar` component (`renderer/components/editor/FindBar.tsx`) drops below the toolbar when open: input + case-sensitive toggle + counter + prev/next/close buttons.
+- Keyboard: ⌘F opens / re-focus + select; ⌘G next; ⌘⇧F previous; ↩ / ⇧↩ inside the input next/prev; ⎋ closes.
+- App.tsx routes via `window.dispatchEvent(new CustomEvent('duo-editor-find-{open,next,prev}'))`. Only one MarkdownEditor mounts at a time (WorkingPane swaps activeRenderer per-tab) so the listener is unambiguous.
+- CLI counterpart `duo doc find <query> [<path>] [--case-sensitive]` shipped with ENH-022's plumbing — markdown only v1, returns `{matches, first: {line, col}}`.
+
+**v2 deferrals:**
+- Replace input + Replace / Replace All buttons.
+- Regex toggle.
+- Canvas / browser / terminal find variants.
+- Selection sync — currently the editor's caret stays put when navigating matches (intentional: don't steal focus from the find input). v2 could add a "press ↩ + then ⎋ jumps to current match" finalize gesture.
+
 **Priority:** Medium-High (every editor has this; missing it makes long docs feel hostile)
 **Filed:** 2026-04-30 (sprint addition)
 
@@ -2422,47 +2434,5 @@ Returns count + first-match line/col so an agent can decide whether to `duo doc 
 <!-- (Duplicate older draft removed 2026-04-30; the canonical entry is the
 ENH-022 above with shipped status and full plumbing notes.) -->
 
-### ENH-023: ⌘F find-in-document for the markdown editor (and other surfaces)
-
-**Status:** Open
-**Priority:** Medium-High (basic table-stakes for any editing surface — the lack of it surfaces the moment a doc is longer than one screen, e.g. `tasks.md` is 2000+ lines)
-**Filed:** 2026-04-30 (discovered alongside ENH-022 — when ENH-022 came up, the fallback "use ⌘F" turned out not to exist either)
-
-**Today:**
-The markdown editor (TipTap) has no in-document search. ⌘F on a long document does nothing. Same gap on the HTML canvas (iframe). Browser pane and terminal each have their own native find paths but neither is wired to a global ⌘F shortcut, and neither is exposed to the CLI.
-
-**Class of issue:**
-Find/search parity across Duo's text surfaces. The lack is most acute in the editor — a long-doc surface with no scroll-to (ENH-022) AND no find means the agent and user are both blind to anything past the visible viewport.
-
-**v1 — markdown editor:**
-- ⌘F opens a small find bar (top-right of the editor pane, dismissible with Esc).
-- Type-as-you-search, highlights all matches, ⏎ / Shift+⏎ steps through, ⌘G / ⌘⇧G also step.
-- Match count badge ("3 of 17").
-- Case-sensitive + whole-word toggles (off by default).
-- ⌘⌥F opens find-and-replace (deferred to v2 if it complicates v1).
-- Implementation: TipTap has `@tiptap/extension-search` or roll on top of ProseMirror's `prosemirror-search` plugin. Either gives decoration-based highlights without mutating the doc.
-
-**v2 — broader surface coverage (deferred but worth noting now so the global shortcut wiring is built once):**
-- HTML canvas: forward ⌘F into the iframe; use `window.find()` or a custom highlighter over the rendered DOM.
-- Browser pane: `webContents.findInPage()` — Electron has this built in; needs a UI shell for the find bar.
-- Terminal: `xterm-addon-search` — already a maintained xterm extension.
-- The keyboard registry in `renderer/keyboard/globalShortcuts.ts` should grow a single `find-in-active-surface` action that each surface implements per the three patterns in CLAUDE.md § 6 (in-document / iframe / native-bridged).
-
-**CLI parity (CLAUDE.md § 4 — every UI feature ships a `duo` counterpart):**
-```
-duo doc find "BUG-040"                    # next match in active editor; returns {matched, line, occurrence}
-duo doc find --all "BUG-0"                # JSON list of all matches
-duo doc find --next / --prev              # step through last query
-```
-Equivalent `duo html find` / `duo browser find` come along with v2 surface coverage.
-
-**Plumbing checklist for v1:**
-1. `renderer/keyboard/globalShortcuts.ts` — register `find-in-document` (⌘F) + `find-next`/`find-prev` (⌘G/⌘⇧G).
-2. `renderer/components/editor/MarkdownEditor.tsx` — install search plugin, render find-bar primitive (likely `renderer/components/editor/primitives/FindBar.tsx`), wire shortcut → toggle bar / step matches.
-3. `electron/menu.ts` — Edit menu: Find / Find Next / Find Previous (so the muscle-memory works even before the find bar is open).
-4. `shared/types.ts`, `electron/preload.ts`, `electron/main.ts`, `electron/socket-server.ts`, `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` — all touched per the CLI plumbing checklist when adding `duo doc find`.
-5. `docs/dev/smoke-checklist.md` — add a "long-doc find" row.
-
-**Cross-ref:** ENH-022 (`duo doc goto` — same surface, complementary capability — agent navigates by structure, user navigates by text).
-
----
+<!-- (Duplicate older draft removed 2026-04-30; the canonical entry is the
+ENH-023 above with shipped status and full plumbing notes.) -->

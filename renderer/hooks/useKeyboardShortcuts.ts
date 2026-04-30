@@ -41,6 +41,13 @@ interface Options {
   /** Stage 26 PR 3 item 8 — flip the navigator breadcrumb into the
    *  editable input. Fired by ⌘⇧G ("Go to folder"). */
   focusBreadcrumbEdit?: () => void
+  /** ENH-023 — find-in-document. App.tsx routes these to the active
+   *  markdown editor's FindBar. ⌘F opens / re-focuses; ⌘G cycles to
+   *  next match (works even with bar closed if there's a stored
+   *  query); ⌘⇧F cycles to previous. */
+  openFind?: () => void
+  findNext?: () => void
+  findPrev?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -117,6 +124,15 @@ export function useKeyboardShortcuts(opts: Options) {
         }
         case 'focusBreadcrumbEdit':
           opts.focusBreadcrumbEdit?.()
+          return
+        case 'openFind':
+          opts.openFind?.()
+          return
+        case 'findNext':
+          opts.findNext?.()
+          return
+        case 'findPrev':
+          opts.findPrev?.()
           return
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()

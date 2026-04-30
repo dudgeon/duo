@@ -33,6 +33,8 @@ import { PersistentSelection } from './extensions/PersistentSelection'
 import { JustAdded } from './extensions/JustAdded'
 import { MarkdownPaste } from './extensions/MarkdownPaste'
 import { BulletListWithMarker } from './extensions/BulletListWithMarker'
+import { FindHighlight } from './extensions/FindHighlight'
+import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
@@ -110,6 +112,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // ENH-023 — find bar visibility. ⌘F opens; ⎋ inside the input
+  // closes (handled in FindBar). The extension's storage flips
+  // `open` for any callers that need to gate behavior on it (e.g.
+  // hiding the comment rail while find is up).
+  const [findOpen, setFindOpen] = useState(false)
 
   const hostRef = useRef<HTMLDivElement | null>(null)
 
@@ -188,7 +195,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // ENH-005 — Copy button on every codeBlock. Implemented as a PM
       // widget decoration so the button survives ProseMirror's
       // contentEditable reconciliation.
-      CodeBlockCopyButton
+      CodeBlockCopyButton,
+      // ENH-023 — find-in-document. Highlights matches inline +
+      // exposes setFindQuery/findNext/findPrev/closeFind commands.
+      // FindBar (mounted below) drives it.
+      FindHighlight
     ],
     []
   )
@@ -691,6 +702,36 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     })
   }, [editor, path, isNew])
 
+  // ── ⌘F find bar wiring (ENH-023) ────────────────────────────────────────
+  // App.tsx routes the global ⌘F / ⌘G / ⌘⇧F shortcuts into custom
+  // events on `window`. Only one MarkdownEditor is mounted at a time
+  // (WorkingPane swaps activeRenderer per-tab), so this listener is
+  // unambiguous: whichever editor is mounted handles the event.
+  useEffect(() => {
+    if (!editor) return
+    const onOpen = () => setFindOpen(true)
+    const onNext = () => {
+      // ⌘G works even when the bar is closed if there's a stored
+      // query — open the bar first to make the highlight visible.
+      const total = editor.storage.findHighlight?.total as number ?? 0
+      if (total > 0) setFindOpen(true)
+      editor.commands.findNext()
+    }
+    const onPrev = () => {
+      const total = editor.storage.findHighlight?.total as number ?? 0
+      if (total > 0) setFindOpen(true)
+      editor.commands.findPrev()
+    }
+    window.addEventListener('duo-editor-find-open', onOpen)
+    window.addEventListener('duo-editor-find-next', onNext)
+    window.addEventListener('duo-editor-find-prev', onPrev)
+    return () => {
+      window.removeEventListener('duo-editor-find-open', onOpen)
+      window.removeEventListener('duo-editor-find-next', onNext)
+      window.removeEventListener('duo-editor-find-prev', onPrev)
+    }
+  }, [editor])
+
   // ── Serve doc-find requests (ENH-023) ───────────────────────────────────
   useEffect(() => {
     if (!editor || isNew) return
@@ -898,6 +939,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         dirty={dirty}
         saving={saving}
       />
+      {/* ENH-023 — find bar drops down between toolbar and prose
+          when ⌘F is pressed. Closed state renders nothing. */}
+      <FindBar editor={editor} open={findOpen} onClose={() => setFindOpen(false)} />
       {pendingWrite && (
         <WriteWarningBanner
           action={

@@ -27,6 +27,24 @@
    editor surface gets its own goto-flash via the JustAdded
    extension. */
 
+/* ENH-023 — find-in-document highlight classes. Painted as
+   ProseMirror inline decorations by FindHighlight; the rules live
+   here at document scope so the prose's own `.duo-editor-prose`
+   styling doesn't compete. Yellow `--mark` background for every
+   match; orange `--accent` for the current cursor match. */
+.duo-find-match {
+  background: var(--mark, #F8E59C);
+  border-radius: 2px;
+  /* Slight padding so adjacent matches in the same word are
+     visually separable. */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+.duo-find-match-current {
+  background: var(--accent, #C66A2E);
+  color: var(--paper, #FBF8EE);
+  font-weight: 600;
+}
+
 /* ─────────────────────────────────────────────────────────────────────
    Stage 12 — Atelier visual foundation
    Tokens from docs/design/atelier/project/tokens.jsx (`atelier` direction).
