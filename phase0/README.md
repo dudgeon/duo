@@ -23,10 +23,14 @@ reproduce when the SW pings the helper this often.
 ```
 phase0/
 ├── extension/                 ← load this as an unpacked extension
-│   ├── manifest.json          ← MV3 manifest, nativeMessaging + alarms
-│   ├── sw.js                  ← service worker; connects helper, keeps alive
-│   ├── popup.html             ← single "Send ping" button
-│   └── popup.js
+│   ├── manifest.json          ← MV3 manifest (nativeMessaging + alarms + sidePanel)
+│   ├── sw.js                  ← service worker; helper keep-alive + side panel
+│   ├── popup.html / popup.js  ← Phase-0 diagnostic popup (no longer wired —
+│   │                            replaced by the side panel's clock-icon ping)
+│   ├── sidepanel.html         ← Phase 1 — side panel root layout
+│   ├── sidepanel.css          ← rail + drawer + terminal placeholder styles
+│   └── sidepanel.js           ← rail click, drawer toggle, ⌘B, mock filetree,
+│                                ping wiring (sends to SW)
 └── helper/
     ├── duo-helper.js              ← Native Messaging stdio host (Node)
     ├── duo-helper-launcher.sh     ← shell wrapper (install.sh writes the
@@ -181,4 +185,73 @@ Chrome 146. The structural foundation for Stage C MVP is sound.
 
 These are deferred to Stage D (stabilization) per
 [`build-roadmap.md`](../docs/research/duo-as-chrome-extension/build-roadmap.md).
+
+
+---
+
+## Phase 1 — side panel scaffolding (added 2026-04-29)
+
+Stage C Phase 1 from
+[`build-roadmap.md`](../docs/research/duo-as-chrome-extension/build-roadmap.md#phase-1--side-panel-ui-scaffolding-1-day)
+— UI layout + interaction with mock data. No real PTY or filesystem
+(those are Phases 2 and 3).
+
+### What it does
+
+- **Click the extension icon** → opens the Chrome side panel (Chrome's
+  `chrome.sidePanel.setPanelBehavior({openPanelOnActionClick:true})`).
+- **Default state:** terminal placeholder fills ~328px (full width minus
+  the 32px nav rail). Two icons on the rail: 📁 (folder) and 🕒 (clock).
+- **Click 📁 or press ⌘+B** → 280px nav drawer slides in (200ms ease,
+  `position: absolute` over the terminal area, with a subtle
+  backdrop-blur scrim on the terminal portion not covered).
+- **Click outside the drawer / Esc / click a mock file** → drawer dismisses.
+- **Click 🕒** → fires the Phase-0 keep-alive ping (the same
+  `chrome.runtime.sendMessage({type:'ping-helper'})` flow the popup used
+  to do); result shown as a small banner at the bottom of the panel.
+
+### Pass criteria
+
+- [x] Side panel opens via the extension's action icon.
+- [x] Terminal at default (no drawer): comfortable width.
+- [x] Drawer slide is smooth (<250ms perceived).
+- [x] ⌘+B toggles. Esc / outside / file-click dismiss.
+- [x] 🕒 ping still works (round-trip <100ms on a warm SW).
+- [ ] Multi-window: open a second Chrome window, side panel works there
+  too with independent drawer state. (Verify by hand.)
+
+### Test instructions
+
+```bash
+# After pulling the new code, reload the extension:
+#   1. open chrome://extensions/
+#   2. find "Duo Phase 0 — Keep-Alive Probe" (now version 0.2.0)
+#   3. click the ⟳ reload button on its card
+#
+# Then click the extension's action icon in Chrome's toolbar —
+# the side panel opens on the right edge.
+```
+
+### What's still mocked
+
+- **Filetree:** hardcoded entries in `sidepanel.js` (constant
+  `MOCK_TREE`). Phase 3 wires this to `chokidar` via the helper.
+- **Terminal:** static text. Phase 2 mounts xterm.js and wires PTY data
+  through the SW port to the helper's `node-pty`.
+- **File click action:** logs to console and shows a placeholder
+  banner. Phase 3 will `chrome.tabs.create({url:
+  chrome.runtime.getURL('canvas.html?path=...')})`.
+
+### Why vanilla JS for now
+
+Phase 2 introduces Vite + React because the existing
+[`renderer/components/TerminalPane.tsx`](../renderer/components/TerminalPane.tsx)
+and
+[`renderer/components/FileTree.tsx`](../renderer/components/FileTree.tsx)
+are React components and the
+[D1 shim approach](../docs/research/duo-as-chrome-extension/mvp-plan.md#d-numbered-decisions)
+reuses them verbatim. Setting that pipeline up while still validating
+the layout is over-investment — Phase 1's scaffolding gets replaced
+by React anyway. The CSS (drawer animation, rail, terminal styling)
+and event-handling semantics carry over directly.
 

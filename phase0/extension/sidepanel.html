@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Duo</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div id="root">
+    <!-- 32px nav rail (left edge, always visible) -->
+    <aside id="nav-rail" aria-label="Navigation rail">
+      <button
+        id="rail-folder-btn"
+        class="rail-btn"
+        title="Files (⌘B)"
+        aria-label="Toggle file navigator"
+        aria-expanded="false"
+        aria-controls="nav-drawer"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </button>
+      <button
+        id="rail-ping-btn"
+        class="rail-btn"
+        title="Send diagnostic ping (Phase 0 keep-alive)"
+        aria-label="Send diagnostic ping"
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="9"></circle>
+          <path d="M12 7v5l3 3"></path>
+        </svg>
+      </button>
+    </aside>
+
+    <!-- main work area (terminal full-width by default) -->
+    <main id="work-area">
+      <div id="terminal" role="region" aria-label="Terminal (mock)">
+        <div class="terminal-mock">
+          <div class="terminal-line">$ <span class="muted">welcome to duo phase 1 — terminal mock</span></div>
+          <div class="terminal-line">$ <span class="muted">click 📁 on the rail or press ⌘+B for files</span></div>
+          <div class="terminal-line">$ <span class="muted">click 🕒 on the rail to send a phase-0 keep-alive ping</span></div>
+          <div class="terminal-line">$ <span class="cursor">_</span></div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 280px slide-in nav drawer (covers terminal area when open) -->
+    <aside
+      id="nav-drawer"
+      class="closed"
+      aria-label="File navigator"
+      aria-hidden="true"
+    >
+      <header class="drawer-header">
+        <div>Files</div>
+        <button id="drawer-close-btn" class="icon-btn" title="Close (Esc)" aria-label="Close drawer">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </header>
+      <ul id="filetree" class="filetree" role="tree"></ul>
+    </aside>
+
+    <!-- ping result banner (anchored at bottom of work-area when present) -->
+    <div id="ping-banner" class="hidden" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

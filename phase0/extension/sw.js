@@ -1,16 +1,21 @@
-// Duo Phase 0 — service worker.
+// Duo Phase 0/1 — service worker.
 //
 // Connects to the Native Messaging helper, sets a chrome.alarms keep-
 // alive at 25-second cadence (just under the SW idle timeout of 30s),
-// relays pings from the popup, and logs everything so the user can see
-// what's happening from chrome://extensions → "service worker".
+// relays pings from the side panel, and routes the action click to the
+// side panel.
 //
-// Test pass criteria (per phase0/README.md):
-//   * After 30+ minutes of zero user interaction, a popup ping still
-//     round-trips in <100ms.
+// Phase 0 test pass criteria (validated 2026-04-29):
+//   * After 30+ minutes of zero user interaction, a ping still round-
+//     trips in <100ms.
 //   * Helper PID stays constant the whole time (helper not respawned).
 //   * No "port disconnected" events while the SW is supposed to be
 //     warm.
+
+// Phase 1 — clicking the action icon opens the side panel.
+chrome.sidePanel
+  .setPanelBehavior({ openPanelOnActionClick: true })
+  .catch((e) => console.warn('[sw] setPanelBehavior failed:', e))
 
 const HELPER_NAME = 'com.duo.phase0'
 const KEEP_ALIVE_NAME = 'duo-phase0-keepalive'

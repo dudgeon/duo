@@ -1,0 +1,266 @@
+/* Duo Phase 1 — side panel layout + drawer animation.
+ *
+ * Layout (D3 from mvp-plan.md): 32px nav rail on the left, terminal
+ * fills the rest. Drawer is position:absolute over the terminal area.
+ *
+ * Chrome enforces a 360px minimum side-panel width, so the working
+ * baseline is rail (32px) + terminal (~328px) = 360px.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  background: #1e1e1e;
+  color: #e0e0e0;
+  overflow: hidden;
+}
+
+#root {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Nav rail ──────────────────────────────────────────────────────── */
+
+#nav-rail {
+  width: 32px;
+  flex: 0 0 32px;
+  background: #181818;
+  border-right: 1px solid #2a2a2a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8px;
+  z-index: 3;
+}
+
+.rail-btn {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 4px;
+  border: 0;
+  background: transparent;
+  color: #888;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 100ms ease, background 100ms ease;
+}
+
+.rail-btn:hover {
+  color: #ccc;
+  background: #2a2a2a;
+}
+
+.rail-btn[aria-expanded="true"],
+.rail-btn.active {
+  color: #6ab0f3;
+  background: #1f2a3a;
+}
+
+/* ── Work area (terminal placeholder) ──────────────────────────────── */
+
+#work-area {
+  flex: 1 1 auto;
+  position: relative;
+  min-width: 0;
+  background: #1e1e1e;
+}
+
+#terminal {
+  height: 100%;
+  width: 100%;
+  padding: 8px 10px;
+  overflow: auto;
+}
+
+.terminal-mock {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: #d4d4d4;
+}
+
+.terminal-line {
+  margin: 0 0 2px 0;
+}
+
+.terminal-line .muted {
+  color: #888;
+}
+
+.terminal-line .cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: #d4d4d4;
+  vertical-align: text-bottom;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* ── Drawer ────────────────────────────────────────────────────────── */
+
+#nav-drawer {
+  position: absolute;
+  top: 0;
+  left: 32px;                                /* starts right of the rail */
+  width: 280px;
+  height: 100%;
+  background: #1e1e1e;
+  border-right: 1px solid #2a2a2a;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+  z-index: 2;
+  transform: translateX(0);
+  transition: transform 200ms ease, opacity 200ms ease;
+  display: flex;
+  flex-direction: column;
+}
+
+#nav-drawer.closed {
+  transform: translateX(calc(-100% - 32px));  /* tucks behind the rail */
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #888;
+  border-bottom: 1px solid #2a2a2a;
+  flex: 0 0 auto;
+}
+
+.icon-btn {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  background: transparent;
+  color: #888;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.icon-btn:hover {
+  color: #ccc;
+  background: #2a2a2a;
+}
+
+.filetree {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.filetree li {
+  padding: 4px 12px 4px 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #ccc;
+  position: relative;
+}
+
+.filetree li:hover {
+  background: #2a2a2a;
+}
+
+.filetree li.folder::before {
+  content: "▸";
+  position: absolute;
+  left: 8px;
+  color: #888;
+  font-size: 10px;
+}
+
+.filetree li.folder.expanded::before {
+  content: "▾";
+}
+
+.filetree li.file::before {
+  content: "·";
+  position: absolute;
+  left: 14px;
+  color: #555;
+}
+
+.filetree li.depth-1 { padding-left: 36px; }
+.filetree li.depth-1.folder::before { left: 20px; }
+.filetree li.depth-1.file::before { left: 26px; }
+
+.filetree li.depth-2 { padding-left: 48px; }
+.filetree li.depth-2.folder::before { left: 32px; }
+.filetree li.depth-2.file::before { left: 38px; }
+
+/* Terminal-area scrim while drawer is open — subtle visibility cue */
+#root.drawer-open #work-area::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(2px);
+  z-index: 1;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+/* ── Ping banner ───────────────────────────────────────────────────── */
+
+#ping-banner {
+  position: absolute;
+  bottom: 8px;
+  left: 40px;
+  right: 8px;
+  padding: 6px 8px;
+  background: #2a2a2a;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: #d4d4d4;
+  z-index: 4;
+}
+
+#ping-banner.hidden {
+  display: none;
+}
+
+#ping-banner.ok {
+  background: #1f3a2a;
+  color: #8af0a0;
+}
+
+#ping-banner.err {
+  background: #3a1f1f;
+  color: #f08a8a;
+}
