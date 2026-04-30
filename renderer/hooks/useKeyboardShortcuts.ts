@@ -38,6 +38,9 @@ interface Options {
   toggleFilesColumn?: () => void
   togglePaneFocus?: () => void
   adjustTerminalFontBump?: (delta: number | 'reset') => void
+  /** Stage 26 PR 3 item 8 — flip the navigator breadcrumb into the
+   *  editable input. Fired by ⌘⇧G ("Go to folder"). */
+  focusBreadcrumbEdit?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -112,6 +115,9 @@ export function useKeyboardShortcuts(opts: Options) {
           el?.select()
           return
         }
+        case 'focusBreadcrumbEdit':
+          opts.focusBreadcrumbEdit?.()
+          return
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()
           return

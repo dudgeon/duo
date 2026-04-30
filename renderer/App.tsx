@@ -8,7 +8,7 @@ import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
-import { FilesPane } from './components/FilesPane'
+import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { ThemeToggle } from './components/ThemeToggle'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
@@ -215,6 +215,9 @@ export function App() {
   const lastAutoCollapseState = useRef(false)
 
   const [focusedColumn, setFocusedColumn] = useState<FocusedColumn>('terminal')
+  // Stage 26 PR 3 item 8 — handle for the FilesPane so the global
+  // ⌘⇧G shortcut can flip its breadcrumb into the editable input.
+  const filesPaneRef = useRef<FilesPaneHandle | null>(null)
 
   // Stage 10 Phase 5 — working-pane file tabs live in App-level state so
   // the navigator can push into them from FilesPane.onOpenFile.
@@ -1033,7 +1036,15 @@ export function App() {
     togglePaneFocus,
     // BUG-001 fix — pane-aware ⌃Tab routing. Without this, ⌃Tab from
     // terminal focus cycles browser tabs instead of terminal tabs.
-    activePaneFocus: focusedColumn
+    activePaneFocus: focusedColumn,
+    // Stage 26 PR 3 item 8 — ⌘⇧G ("Go to folder", Finder parity)
+    // flips the navigator breadcrumb into an editable input. Brings
+    // focus to the files column too — the breadcrumb edit is most
+    // useful when the user can immediately see the resolved tree.
+    focusBreadcrumbEdit: () => {
+      setFocusedColumn('files')
+      filesPaneRef.current?.focusBreadcrumbEdit()
+    }
   })
 
   // ⌘` menu-accelerator path. The app menu registers the same
@@ -1088,6 +1099,7 @@ export function App() {
           aria-label="Files column"
         >
           <FilesPane
+            ref={filesPaneRef}
             collapsed={filesCollapsed}
             focused={focusedColumn === 'files'}
             home={home}
@@ -1118,6 +1130,22 @@ export function App() {
                 ? fileTabs.find(t => t.id === activeWorking.id)?.path ?? null
                 : null
             }
+            // Stage 26 PR 3 item 8 — when the editable breadcrumb
+            // resolves to a FILE, navigate to its parent folder and
+            // open the file in the working pane. Mirrors the `duo
+            // reveal <path>` CLI verb's same-shape behavior.
+            onRevealFile={(path) => {
+              const dir = path.slice(0, path.lastIndexOf('/')) || '/'
+              nav.actions.navigateTo(dir)
+              // The file open uses onOpenFile's existing classifier
+              // path, so synthesize a minimal DirEntry for it.
+              const fileName = path.slice(path.lastIndexOf('/') + 1)
+              onOpenFile({
+                kind: 'file',
+                name: fileName,
+                path
+              })
+            }}
           />
         </div>
 

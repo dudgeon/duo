@@ -50,6 +50,7 @@ export type ShortcutId =
   | 'newClaudeTab'
   | 'closeTab'
   | 'focusAddressBar'
+  | 'focusBreadcrumbEdit'
   | 'toggleFilesColumn'
   | 'togglePaneFocus'
   | 'fontBumpUp'
@@ -116,6 +117,12 @@ export function matchGlobalShortcut(
   // ⌘L — focus address bar (Chrome parity).
   if (meta && !shift && !alt && !ctrl && key === 'l') {
     return { id: 'focusAddressBar' }
+  }
+
+  // Stage 26 PR 3 item 8 — ⌘⇧G "Go to folder" (Finder parity).
+  // Flips the navigator breadcrumb into an editable input.
+  if (meta && shift && !alt && !ctrl && key === 'g') {
+    return { id: 'focusBreadcrumbEdit' }
   }
 
   // ⌘B — toggle the Files column. Yields to the local editor when

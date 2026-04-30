@@ -146,6 +146,9 @@ const api: ElectronAPI = {
     // ENH-016 — create a directory (navigator "New folder…").
     mkdir: (p) => ipcRenderer.invoke(IPC.FILES_MKDIR, { path: p }),
 
+    // Stage 26 PR 3 item 8 — path-kind probe (editable breadcrumb).
+    kind: (p) => ipcRenderer.invoke(IPC.FILES_KIND, { path: p }),
+
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process

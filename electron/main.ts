@@ -443,6 +443,11 @@ function setupIPC(): void {
     return filesService.mkdir(p)
   })
 
+  // Stage 26 PR 3 item 8 — path-kind probe (editable breadcrumb).
+  ipcMain.handle(IPC.FILES_KIND, (_event, { path: p }: { path: string }) => {
+    return filesService.kind(p)
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()

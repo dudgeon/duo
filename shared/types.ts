@@ -699,6 +699,9 @@ export const IPC = {
   // ENH-016 — create a directory (used by the navigator's "New
   // folder…" context-menu entry).
   FILES_MKDIR: 'files:mkdir',
+  // Stage 26 PR 3 item 8 — path-kind probe for the editable
+  // breadcrumb's resolution logic.
+  FILES_KIND: 'files:kind',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',

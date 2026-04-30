@@ -108,6 +108,10 @@ export interface ElectronFilesAPI {
    *  missing). Used by the navigator's "New folder…" context-menu
    *  entry. */
   mkdir: (path: string) => Promise<void>
+  /** Stage 26 PR 3 item 8 — path-kind probe for the editable
+   *  breadcrumb's resolution logic. Returns 'file' / 'folder' /
+   *  null. Symlinks resolve through to the target. */
+  kind: (path: string) => Promise<'file' | 'folder' | null>
   /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
    *  routing meta tags. Used by the file-open dispatcher to decide
    *  whether an .html file mounts as a browser tab or a canvas tab.

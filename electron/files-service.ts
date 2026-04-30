@@ -183,6 +183,21 @@ export class FilesService {
     await fs.mkdir(absPath, { recursive: true })
   }
 
+  /** Stage 26 PR 3 item 8 — path-kind probe for the editable
+   *  breadcrumb's resolution logic. Returns `'file'` / `'folder'` /
+   *  `null` (path doesn't exist or isn't a regular file/dir).
+   *  Symlinks resolve through to the target. */
+  async kind(absPath: string): Promise<'file' | 'folder' | null> {
+    try {
+      const st = await fs.stat(absPath)
+      if (st.isFile()) return 'file'
+      if (st.isDirectory()) return 'folder'
+      return null
+    } catch {
+      return null
+    }
+  }
+
   async openExternal(absPath: string): Promise<void> {
     // shell.openPath resolves with '' on success, error string on failure
     const err = await shell.openPath(absPath)

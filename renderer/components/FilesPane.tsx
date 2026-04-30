@@ -3,7 +3,8 @@
 // + collapsed rail. Contents drive pending-CWD for new terminal tabs and
 // file-open requests for the working pane (wired in App.tsx).
 
-import { Breadcrumb } from './Breadcrumb'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
+import { Breadcrumb, type BreadcrumbHandle } from './Breadcrumb'
 import { FileTree } from './FileTree'
 import { PinnedNav } from './PinnedNav'
 import { UserClaudePane } from './UserClaudePane'
@@ -48,9 +49,19 @@ interface FilesPaneProps {
    *  The matching file row gets an accent dot (mirrors
    *  `activeTerminalCwd` on folders). */
   activeFilePath?: string | null
+  /** Stage 26 PR 3 item 8 \u2014 fired when the editable breadcrumb
+   *  resolves to a file. Host (App.tsx) routes to "navigate to
+   *  parent + open file." */
+  onRevealFile?: (path: string) => void
 }
 
-export function FilesPane({
+export interface FilesPaneHandle {
+  /** Stage 26 PR 3 item 8 \u2014 programmatically open the breadcrumb's
+   *  editable input. Wired to \u2318\u21e7G in App.tsx via useKeyboardShortcuts. */
+  focusBreadcrumbEdit: () => void
+}
+
+export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function FilesPane({
   collapsed,
   focused,
   home,
@@ -66,8 +77,20 @@ export function FilesPane({
   onToggleCollapsed,
   activeTerminalCwd = null,
   openFilePaths,
-  activeFilePath = null
-}: FilesPaneProps) {
+  activeFilePath = null,
+  onRevealFile
+}: FilesPaneProps, ref) {
+  const breadcrumbRef = useRef<BreadcrumbHandle | null>(null)
+  useImperativeHandle(ref, () => ({
+    focusBreadcrumbEdit: () => {
+      // Auto-expand if collapsed; otherwise focus is invisible.
+      if (collapsed) onToggleCollapsed()
+      // requestAnimationFrame so the layout settles after the
+      // collapsed→expanded transition before the input mounts/focuses.
+      requestAnimationFrame(() => breadcrumbRef.current?.focusEdit())
+    }
+  }), [collapsed, onToggleCollapsed])
+
   return (
     <div
       className={[
@@ -123,9 +146,11 @@ export function FilesPane({
           >
             <div className="flex-1 min-w-0">
               <Breadcrumb
+                ref={breadcrumbRef}
                 cwd={state.cwd}
                 home={home}
                 onNavigate={actions.navigateTo}
+                onRevealFile={onRevealFile}
               />
             </div>
             <PinButton pinned={state.pinned} onClick={actions.togglePinned} />
@@ -187,7 +212,7 @@ export function FilesPane({
       )}
     </div>
   )
-}
+})
 
 function CollapsedRail({ onExpand }: { onExpand: () => void }) {
   return (
