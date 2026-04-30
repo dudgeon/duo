@@ -176,6 +176,13 @@ export class FilesService {
     return { ok: true, size: st.size, mtimeMs: st.mtimeMs }
   }
 
+  /** ENH-016 — create a directory (recursive — parents created if
+   *  missing). Used by the navigator's "New folder…" context-menu
+   *  entry. Errors if the path already exists as a file. */
+  async mkdir(absPath: string): Promise<void> {
+    await fs.mkdir(absPath, { recursive: true })
+  }
+
   async openExternal(absPath: string): Promise<void> {
     // shell.openPath resolves with '' on success, error string on failure
     const err = await shell.openPath(absPath)

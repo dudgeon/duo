@@ -153,6 +153,53 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
               try { await navigator.clipboard.writeText(p) } catch { /* permission denied */ }
             },
             onOpenWithDefault: (p) => window.electron.files.openExternal(p),
+            onNewFile: async (parentPath) => {
+              // ENH-016 v1 — window.prompt for the filename. v2
+              // upgrade path: inline-rename a placeholder row in the
+              // tree (reuse RenameInput). Prompt is the unblock; the
+              // upgrade is purely cosmetic.
+              const name = window.prompt(`New file in ${parentPath.split('/').pop() || parentPath}:`, '')
+              if (!name || !name.trim()) return
+              const trimmed = name.trim()
+              if (trimmed.includes('/')) {
+                window.alert("Filename can't contain '/'.")
+                return
+              }
+              const target = joinPath(parentPath, trimmed)
+              try {
+                await window.electron.files.write(target, new Uint8Array(0))
+                // Expand the parent folder so the new row is visible
+                // in the tree, then refresh its listing so the watcher's
+                // delayed event isn't the only path that surfaces it.
+                if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
+                  actions.toggleExpand(parentPath)
+                }
+                actions.refresh(parentPath)
+              } catch (err) {
+                console.error('[ENH-016] new file failed:', err)
+                window.alert(`Couldn't create ${trimmed}: ${err instanceof Error ? err.message : String(err)}`)
+              }
+            },
+            onNewFolder: async (parentPath) => {
+              const name = window.prompt(`New folder in ${parentPath.split('/').pop() || parentPath}:`, '')
+              if (!name || !name.trim()) return
+              const trimmed = name.trim()
+              if (trimmed.includes('/')) {
+                window.alert("Folder name can't contain '/'.")
+                return
+              }
+              const target = joinPath(parentPath, trimmed)
+              try {
+                await window.electron.files.mkdir(target)
+                if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
+                  actions.toggleExpand(parentPath)
+                }
+                actions.refresh(parentPath)
+              } catch (err) {
+                console.error('[ENH-016] new folder failed:', err)
+                window.alert(`Couldn't create ${trimmed}: ${err instanceof Error ? err.message : String(err)}`)
+              }
+            },
             onStartRename: () => setRenamingPath(menu.target.path),
             onTrash: () => { void onTrashEntry(menu.target) },
             navPins,
@@ -187,6 +234,11 @@ function buildMenuItems(
     onOpenWithDefault: (path: string) => void | Promise<void>
     onStartRename: () => void
     onTrash: () => void
+    /** ENH-016 — "New file…" / "New folder…" prompts. Target folder
+     *  is the entry itself if it's a folder, otherwise the entry's
+     *  parent. */
+    onNewFile: (parentDirPath: string) => void | Promise<void>
+    onNewFolder: (parentDirPath: string) => void | Promise<void>
     /** Stage 26 PR 2 (ENH-010) — present only when the host pane wires
      *  navPins (project tree does; user-claude pane does not). */
     navPins?: NavPinsApi
@@ -196,14 +248,30 @@ function buildMenuItems(
   const isFolder = entry.kind === 'directory'
   const items: ContextMenuItem[] = []
 
+  // ENH-016 — "New file…" / "New folder…" at the top of the menu.
+  // Target folder = entry itself for folder rows, parent dir for
+  // file rows. Mirrors VS Code / Finder convention.
+  const newTargetDir = isFolder ? entry.path : parentDir(entry.path)
+  const newSuffix = isFolder ? '' : ' here'
+  items.push({
+    label: `New file${newSuffix}…`,
+    onClick: () => { void handlers.onNewFile(newTargetDir) }
+  })
+  items.push({
+    label: `New folder${newSuffix}…`,
+    onClick: () => { void handlers.onNewFolder(newTargetDir) }
+  })
+
   if (isFolder) {
     items.push({
       label: 'Open terminal here',
+      separatorBefore: true,
       onClick: () => handlers.onOpenTerminalHere(entry.path)
     })
   } else {
     items.push({
       label: 'Open in Duo editor',
+      separatorBefore: true,
       onClick: () => handlers.onOpenFile(entry)
     })
   }

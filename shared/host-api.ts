@@ -104,6 +104,10 @@ export interface ElectronFilesAPI {
    *  session-restore hydration to drop tabs whose files were
    *  deleted between sessions. */
   exists: (path: string) => Promise<boolean>
+  /** ENH-016 — create a directory (recursive — parents created if
+   *  missing). Used by the navigator's "New folder…" context-menu
+   *  entry. */
+  mkdir: (path: string) => Promise<void>
   /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
    *  routing meta tags. Used by the file-open dispatcher to decide
    *  whether an .html file mounts as a browser tab or a canvas tab.

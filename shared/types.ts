@@ -696,6 +696,9 @@ export const IPC = {
   // BUG-039 — lightweight existence check used by session-restore
   // hydration to drop tabs whose files were deleted between sessions.
   FILES_EXISTS: 'files:exists',
+  // ENH-016 — create a directory (used by the navigator's "New
+  // folder…" context-menu entry).
+  FILES_MKDIR: 'files:mkdir',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',

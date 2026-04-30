@@ -1742,7 +1742,12 @@ The button **is there.** It's just too muted to find. Three things compound the 
 
 ### ENH-016: Create new file / new folder from FileTree context menu
 
-**Status:** 🆕 Filed
+**Status:** ✅ v1 shipped 2026-04-30 (v0.5.4 sprint W4). `buildMenuItems` adds "New file…" + "New folder…" entries at the top of the right-click context menu (folder rows: target = the folder; file rows: target = parent dir, labels show "here"). Click → `window.prompt` for the name → `files.write` (empty bytes for a new file) or `files.mkdir` (recursive) → expand parent if collapsed + `actions.refresh(parentPath)` so the new row surfaces immediately even if the chokidar event lags.
+
+New IPC plumbing: `IPC.FILES_MKDIR` channel, `electron/files-service.ts § mkdir(absPath)` (recursive `fs.mkdir`), preload + host-api types updated.
+
+**v2 follow-up (deferred):** replace the prompt with an inline-rename placeholder row in the tree (reuse `RenameInput`). Pure UX upgrade — the v1 prompt is functional and unblocks the most-asked navigator gap.
+
 **Priority:** **High** (parity with VS Code / Finder; re-asked 2026-04-30 with explicit "new folder" emphasis)
 **Filed:** 2026-04-28 · re-asked 2026-04-30 (`20260430-improvement-notes.md` item 3 — "need new folder button in file explorer")
 

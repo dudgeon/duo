@@ -438,6 +438,11 @@ function setupIPC(): void {
     return filesService.exists(p)
   })
 
+  // ENH-016 — create a directory (navigator "New folder…").
+  ipcMain.handle(IPC.FILES_MKDIR, (_event, { path: p }: { path: string }) => {
+    return filesService.mkdir(p)
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()
