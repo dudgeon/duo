@@ -283,13 +283,20 @@ in a Chrome tab, agent-driven Gmail screenshot, AX tree via
 | 5 | Tab-driving via lighter `chrome.tabs`/`chrome.scripting` APIs | 0.3 | 🟡 |
 | 6 | `chrome.debugger` for CDP-only operations — `agent:cdp:eval` attach/eval/detach gate | 0.2 | 🟡 |
 | 6.5 | CLI bridge — helper-side Unix socket + TCP fallback (sandbox-tolerant); `duo-ext` binary | 0.5 | 🟡 |
-| 7 | Distribution dry-run — Web Store unlisted + helper PKG | 1.0 | ⬜ |
-| 8 | End-to-end demo + buffer | 0.5 | ⬜ |
+| 7 | Distribution refactor — Electron-app-as-NM-host + Web Store unlisted (see `distribution-strategy.md`) | 2.0 | ⬜ |
+| 8 | Public Web Store promotion + background-mode menu bar (see `distribution-strategy.md`) | 1.0 | ⬜ |
 | **Total** | | **7.0** | |
 
 **Status legend:** ✅ shipped + verified · 🟡 shipped, awaiting Geoff
 verification (test in real Chrome before flipping to ✅) · ⬜ not yet
 started.
+
+**Distribution strategy** for Phase 7/8 lives in
+[`distribution-strategy.md`](./distribution-strategy.md). TL;DR:
+both shapes ship indefinitely; the Electron app is the foundation
+and serves as the Native Messaging host (`Duo.app --nm-shim`); no
+separate helper PKG; explicit `chrome:` / `embedded:` verb prefixes
+disambiguate the two browser surfaces.
 
 **Phase 4 split rationale.** The original Phase-4 deliverable
 ("MarkdownEditor in canvas tab + file r/w through helper") bundles two
