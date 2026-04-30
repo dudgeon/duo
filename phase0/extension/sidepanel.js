@@ -17,6 +17,8 @@ const root = document.getElementById('root')
 const drawer = document.getElementById('nav-drawer')
 const folderBtn = document.getElementById('rail-folder-btn')
 const pingBtn = document.getElementById('rail-ping-btn')
+const tabsBtn = document.getElementById('rail-tabs-btn')
+const scriptBtn = document.getElementById('rail-script-btn')
 const closeBtn = document.getElementById('drawer-close-btn')
 const filetree = document.getElementById('filetree')
 const banner = document.getElementById('ping-banner')
@@ -212,6 +214,59 @@ pingBtn.addEventListener('click', () => {
     }
   })
 })
+
+// ── Phase 5 — agent verbs (chrome.tabs / chrome.scripting) ───────────
+//
+// Minimum-viable validation: two rail buttons that each fire one
+// agent verb at the SW and surface the answer in the banner. The
+// real surface (CLI verbs `duo tabs ...` / `duo eval ...`) lands when
+// the helper grows a CLI-side socket so terminal commands can reach
+// the SW; this is just the gate for "does the lighter API surface
+// actually drive Chrome from the SW".
+
+function callAgent(payload) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(payload, (response) => {
+      if (chrome.runtime.lastError) {
+        resolve({ ok: false, error: chrome.runtime.lastError.message })
+        return
+      }
+      resolve(response || { ok: false, error: 'no response' })
+    })
+  })
+}
+
+tabsBtn.addEventListener('click', async () => {
+  showBanner('→ listing tabs...')
+  const res = await callAgent({ type: 'agent:tabs:list' })
+  if (!res.ok) {
+    showBanner(`✗ tabs:list — ${res.error}`, 'err')
+    return
+  }
+  const tabs = res.result || []
+  const active = tabs.find((t) => t.active)
+  showBanner(
+    `✓ ${tabs.length} tab${tabs.length === 1 ? '' : 's'}` +
+      (active ? ` — active: ${truncate(active.title || active.url, 60)}` : ''),
+    'ok'
+  )
+  console.log('[sidepanel] tabs:list →', tabs)
+})
+
+scriptBtn.addEventListener('click', async () => {
+  showBanner('→ reading active tab title...')
+  const res = await callAgent({ type: 'agent:scripting:title' })
+  if (!res.ok) {
+    showBanner(`✗ scripting:title — ${res.error}`, 'err')
+    return
+  }
+  showBanner(`✓ tab #${res.result.tabId}: ${truncate(res.result.title, 60)}`, 'ok')
+})
+
+function truncate(s, n) {
+  if (typeof s !== 'string') return ''
+  return s.length > n ? s.slice(0, n - 1) + '…' : s
+}
 
 let bannerTimer = null
 function showBanner(text, cls) {

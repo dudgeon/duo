@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Duo Phase 0 — Keep-Alive Probe",
-  "version": "0.4.0",
-  "description": "MV3 service worker + Native Messaging keep-alive (P0) + side panel (P1) + real PTY (P2) + filetree (P3) + canvas-tab editor (P4a). See phase0/README.md.",
+  "version": "0.5.0",
+  "description": "MV3 SW + NM keep-alive (P0) + side panel (P1) + real PTY (P2) + filetree (P3) + canvas-tab editor (P4) + agent tab control (P5). See phase0/README.md.",
   "background": {
     "service_worker": "sw.js"
   },
-  "permissions": ["nativeMessaging", "alarms", "sidePanel"],
+  "permissions": ["nativeMessaging", "alarms", "sidePanel", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
   "action": {
     "default_title": "Duo (Phase 0/1)"
   },

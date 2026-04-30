@@ -101,12 +101,101 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 })
 
-// Popup pings come through here. Reply asynchronously.
+// Popup pings + Phase-5 agent verbs come through here. Reply
+// asynchronously. The agent verbs let the side panel (and eventually
+// the CLI, via the helper) drive Chrome through the lighter
+// chrome.tabs / chrome.scripting APIs without falling through to
+// chrome.debugger CDP — that heavier surface is reserved for ops
+// the lighter APIs can't do (Phase 6).
 chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
-  if (req.type !== 'ping-helper') return false
-  handlePing(req, sendResponse)
-  return true // keep sendResponse alive
+  if (req.type === 'ping-helper') {
+    handlePing(req, sendResponse)
+    return true
+  }
+  if (req.type && req.type.startsWith('agent:')) {
+    handleAgent(req, sendResponse)
+    return true
+  }
+  return false
 })
+
+async function handleAgent(req, sendResponse) {
+  try {
+    let result
+    switch (req.type) {
+      case 'agent:tabs:list': {
+        const tabs = await chrome.tabs.query({})
+        result = tabs.map((t) => ({
+          id: t.id,
+          windowId: t.windowId,
+          index: t.index,
+          url: t.url,
+          title: t.title,
+          active: t.active,
+          status: t.status,
+        }))
+        break
+      }
+      case 'agent:tabs:open': {
+        if (!req.url) throw new Error('url required')
+        const tab = await chrome.tabs.create({ url: req.url, active: req.active !== false })
+        result = { id: tab.id, windowId: tab.windowId, url: tab.url }
+        break
+      }
+      case 'agent:tabs:close': {
+        if (typeof req.id !== 'number') throw new Error('id required')
+        await chrome.tabs.remove(req.id)
+        result = { closed: req.id }
+        break
+      }
+      case 'agent:tabs:activate': {
+        if (typeof req.id !== 'number') throw new Error('id required')
+        await chrome.tabs.update(req.id, { active: true })
+        result = { activated: req.id }
+        break
+      }
+      case 'agent:scripting:title': {
+        const tabId = req.tabId ?? (await activeTabId())
+        const [{ result: title } = {}] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => document.title,
+        })
+        result = { tabId, title }
+        break
+      }
+      case 'agent:scripting:eval': {
+        // Stage 5 keeps eval narrow: the side panel passes a function
+        // body string; the SW wraps it in `new Function('return (' + body + ')(document)')`
+        // and runs it against the active tab. Real agent ops will use
+        // typed verbs (click, fill, getText) that build on this primitive.
+        if (typeof req.body !== 'string') throw new Error('body required (function body string)')
+        const tabId = req.tabId ?? (await activeTabId())
+        const [{ result: out } = {}] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: (body) => {
+            // eslint-disable-next-line no-new-func
+            const fn = new Function('document', `return (${body})(document)`)
+            return fn(document)
+          },
+          args: [req.body],
+        })
+        result = { tabId, out }
+        break
+      }
+      default:
+        throw new Error('unknown agent verb: ' + req.type)
+    }
+    sendResponse({ ok: true, result })
+  } catch (e) {
+    sendResponse({ ok: false, error: e.message || String(e) })
+  }
+}
+
+async function activeTabId() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
+  if (!tab || typeof tab.id !== 'number') throw new Error('no active tab')
+  return tab.id
+}
 
 // ── Phase 2/4a — client-port ↔ helper relay ──────────────────────────
 // Side panel and canvas tabs each open a long-lived port via
