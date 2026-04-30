@@ -2,20 +2,20 @@ import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
 import { promises as fsPromises } from 'fs'
-import { resolveClaudeBinary } from './resolve-claude'
-import { PtyManager } from './pty-manager'
+import { resolveClaudeBinary } from '../core/resolve-claude'
+import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
-import { SocketServer, ensureSocketDir } from './socket-server'
+import { SocketServer, ensureSocketDir } from '../core/socket-server'
 import { FilesService } from './files-service'
-import { PinsService } from './pins-service'
-import { NavPinsService } from './nav-pins-service'
+import { PinsService } from '../core/pins-service'
+import { NavPinsService } from '../core/nav-pins-service'
 import { InstallService } from './install-service'
-import { UpdateChecker } from './update-checker'
+import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
-import { SessionStateService } from './session-state-service'
-import { ClaudePresenceProbe } from './claude-presence'
-import { BrowserHistoryService } from './browser-history-service'
+import { SessionStateService } from '../core/session-state-service'
+import { ClaudePresenceProbe } from '../core/claude-presence'
+import { BrowserHistoryService } from '../core/browser-history-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -117,14 +117,14 @@ const newTabPending = new Map<string, (res: NewTabResult) => void>()
 nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
-const ptyManager = new PtyManager()
+const ptyManager = new PtyManager(app.getVersion())
 const filesService = new FilesService()
 const pinsService = new PinsService()
 const navPinsService = new NavPinsService()
 // Issue #27 / Stage 21c Phase 3 — browser history for URL-bar autocomplete.
 const browserHistory = new BrowserHistoryService()
 const installService = new InstallService()
-const updateChecker = new UpdateChecker()
+const updateChecker = new UpdateChecker(app.getVersion())
 // Load the cached check at boot so the renderer's first IPC call
 // can return immediately even before a network refresh completes.
 // `maybeRefresh()` will then fire the network call in the background
@@ -159,7 +159,12 @@ function createWindow(): void {
     }
   })
 
-  ptyManager.setWebContents(mainWindow.webContents)
+  // Move A2 — PtyManager talks to the UI through an EventSink. The
+  // adapter is one line in Electron (webContents.send); a future
+  // extension helper would wrap a Native Messaging port write instead.
+  ptyManager.setEventSink({
+    send: (channel, payload) => mainWindow?.webContents.send(channel, payload)
+  })
 
   // Browser manager owns WebContentsViews and forwards state to renderer
   const cdpBridge = new CdpBridge()

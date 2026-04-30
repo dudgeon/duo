@@ -13,9 +13,9 @@ import * as net from 'net'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
-import type { CdpBridge } from './cdp-bridge'
-import type { BrowserManager } from './browser-manager'
-import type { FilesService } from './files-service'
+import type { CdpBridge } from '../electron/cdp-bridge'
+import type { BrowserManager } from '../electron/browser-manager'
+import type { FilesService } from '../electron/files-service'
 import type { NavPinsService } from './nav-pins-service'
 import type {
   DuoRequest,

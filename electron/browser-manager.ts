@@ -15,9 +15,9 @@ import { pathToFileURL } from 'url'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
 import { IPC } from '../shared/types'
-import { BROWSER_SESSION_PARTITION } from './constants'
+import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import type { CdpBridge } from './cdp-bridge'
-import type { BrowserHistoryService } from './browser-history-service'
+import type { BrowserHistoryService } from '../core/browser-history-service'
 
 // Default landing page for new browser tabs.
 //

@@ -11,6 +11,7 @@
   },
   "include": [
     "electron/**/*",
+    "core/**/*",
     "shared/**/*",
     "scripts/**/*",
     "electron.vite.config.*"
