@@ -59,3 +59,8 @@ coverage/
 !.claude/skills/**
 fork.config.json
 fork.config.local.json
+
+# Phase 4b — bundled output for the React canvas tab. Source lives in
+# phase0/extension/src/canvas/. Regenerate with: npm run build:ext-canvas
+phase0/extension/canvas.bundle.js
+phase0/extension/canvas.bundle.js.map

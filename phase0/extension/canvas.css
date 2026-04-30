@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 
-html, body {
+html, body, #root {
   margin: 0;
   padding: 0;
   height: 100vh;
@@ -10,7 +10,7 @@ html, body {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
-body {
+#root {
   display: grid;
   grid-template-rows: 40px 1fr;
 }
@@ -70,17 +70,65 @@ body {
   cursor: default;
 }
 
-#editor {
-  background: #1e1e1e;
-  color: #d4d4d4;
-  border: 0;
-  outline: none;
-  resize: none;
-  padding: 16px 20px;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.6;
-  width: 100%;
-  height: 100%;
-  tab-size: 2;
+#editor-host {
+  overflow: auto;
+  padding: 24px 32px 64px;
 }
+
+.placeholder {
+  color: #888;
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* TipTap / ProseMirror surface — match the system font (the toolbar
+   stays mono, the document is read-friendly). */
+.md-editor,
+.md-editor .ProseMirror {
+  outline: none;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    Cantarell, "Helvetica Neue", sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #d4d4d4;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.md-editor .ProseMirror h1 { font-size: 24px; font-weight: 600; margin: 24px 0 12px; }
+.md-editor .ProseMirror h2 { font-size: 20px; font-weight: 600; margin: 20px 0 10px; }
+.md-editor .ProseMirror h3 { font-size: 16px; font-weight: 600; margin: 16px 0 8px; }
+.md-editor .ProseMirror p  { margin: 12px 0; }
+
+.md-editor .ProseMirror ul,
+.md-editor .ProseMirror ol { padding-left: 22px; margin: 12px 0; }
+.md-editor .ProseMirror li { margin: 4px 0; }
+
+.md-editor .ProseMirror blockquote {
+  border-left: 3px solid #444;
+  padding-left: 12px;
+  color: #aaa;
+  margin: 12px 0;
+}
+
+.md-editor .ProseMirror code {
+  background: #2a2a2a;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.md-editor .ProseMirror pre {
+  background: #2a2a2a;
+  border-radius: 4px;
+  padding: 12px 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  overflow-x: auto;
+}
+.md-editor .ProseMirror pre code { background: none; padding: 0; }
+
+.md-editor .ProseMirror a { color: #6db3f2; text-decoration: underline; }
+.md-editor .ProseMirror hr { border: 0; border-top: 1px solid #333; margin: 24px 0; }

@@ -13,6 +13,8 @@
     "preview": "electron-vite preview",
     "postinstall": "electron-rebuild",
     "build:cli": "esbuild cli/duo.ts --bundle --platform=node --outfile=cli/duo && chmod +x cli/duo",
+    "build:ext-canvas": "esbuild phase0/extension/src/canvas/main.tsx --bundle --outfile=phase0/extension/canvas.bundle.js --loader:.tsx=tsx --loader:.ts=ts --format=esm --target=chrome120 --jsx=automatic --sourcemap",
+    "build:ext-canvas:watch": "npm run build:ext-canvas -- --watch",
     "build:all": "npm run build && npm run build:cli",
     "sync:claude": "mkdir -p ~/.claude/skills/duo/examples ~/.claude/skills/duo/references ~/.claude/agents ~/.claude/duo && cp skill/SKILL.md ~/.claude/skills/duo/SKILL.md && cp skill/examples/*.md ~/.claude/skills/duo/examples/ && cp skill/references/*.md ~/.claude/skills/duo/references/ && cp agents/duo.md ~/.claude/agents/duo.md && rm -f ~/.claude/agents/duo-browser.md && ([ -f ~/.claude/duo/external-domains.json ] || echo '{\"domains\":[\"*.capitalone.com\",\"*.slack.com\",\"mail.google.com\",\"docs.google.com\",\"drive.google.com\",\"calendar.google.com\",\"meet.google.com\",\"chat.google.com\",\"accounts.google.com\",\"*.atlassian.net\",\"*.microsoftonline.com\"]}' > ~/.claude/duo/external-domains.json) && ([ -f ~/.claude/duo/priming.md ] || cp skill/priming.md ~/.claude/duo/priming.md) && echo 'Synced skill + subagent (+ bootstrapped external-domains.json + priming.md) to ~/.claude/. Run install banner once in dev to merge SessionStart hook.'",
     "pack": "bash scripts/dist.sh --dir",
