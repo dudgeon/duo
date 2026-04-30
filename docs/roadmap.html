@@ -143,6 +143,15 @@
         no-regrets refactor that benefits both targets and is a merge candidate
         back to <code>main</code> once smoke-walked. The <code>phase0/</code> prototype
         directory is exploration-only — not in the Electron build pipeline.
+        <br><br>
+        <strong>Strategic outcome</strong> →
+        <a href="distribution-strategy.md" style="color: var(--accent-ink);"><code>distribution-strategy.md</code></a>
+        (or
+        <a href="https://github.com/dudgeon/duo/blob/main/docs/research/duo-as-chrome-extension/distribution-strategy.md" style="color: var(--accent-ink);">on GitHub</a>):
+        both Duo Desktop and Duo for Chrome ship indefinitely; Electron app is the
+        Native Messaging host (<code>Duo.app --nm-shim</code>); explicit
+        <code>chrome:</code> / <code>embedded:</code> verb prefixes disambiguate the
+        two browser surfaces. Read before any Phase 7+ work.
       </div>
     </header>
 
