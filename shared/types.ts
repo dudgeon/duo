@@ -61,6 +61,10 @@ export type DuoCommandName =
   | 'selection'
   | 'doc-write'
   | 'doc-read'
+  // ENH-022 / ENH-023 (v0.5.4) — agent-driven editor navigation +
+  // read-only buffer search.
+  | 'doc-goto'
+  | 'doc-find'
   // Stage 11 § D33d — theme
   | 'theme'
   // Stage 5 v2 (Duo subagent) A24 — open a URL in the system default
@@ -405,6 +409,57 @@ export interface DocWriteRequest {
 export interface DocWriteResult {
   reqId: string
   ok: boolean
+  error?: string
+}
+
+// ENH-022 (v0.5.4) — `duo doc goto` — agent-driven editor navigation.
+// One of the three target fields must be set. The handler routes by
+// active editor type: markdown editor handles `heading` + `line` +
+// `anchor` (slugified-id); canvas handles `anchor` (data-duo-id or
+// id attribute) + `line` (counts source lines in the rendered HTML).
+// `path` is optional — main routes to the active editor when omitted.
+export interface DocGotoRequest {
+  reqId: string
+  path?: string
+  heading?: string                      // case-insensitive substring match on heading text (markdown only)
+  line?: number                         // 1-indexed (clamped to last line if too large)
+  anchor?: string                       // markdown: slugified-id; canvas: data-duo-id or HTML id
+}
+
+export interface DocGotoResult {
+  reqId: string
+  ok: boolean
+  /** Resolved absolute path the goto landed on. */
+  path?: string
+  /** Resolved 1-indexed line number, when meaningful (markdown only). */
+  line?: number
+  /** Resolved anchor / heading slug — useful when the agent
+   *  matched on `--heading "Foo"` and wants the canonical slug
+   *  back for a follow-up `--anchor` call. */
+  anchor?: string
+  error?: string
+}
+
+// ENH-023 (v0.5.4) — `duo doc find` — read-only search of the
+// markdown editor's buffer. Returns count + first-match line/col so
+// an agent can pipe to `duo doc goto --line N` next. v1 markdown
+// only; canvas / browser / terminal find variants are deferred.
+export interface DocFindRequest {
+  reqId: string
+  path?: string
+  query: string
+  caseSensitive?: boolean              // default false
+}
+
+export interface DocFindResult {
+  reqId: string
+  ok: boolean
+  path?: string
+  matches?: number
+  /** First-match position. 1-indexed line; 0-indexed col matches
+   *  text-editor convention (the position-in-line where the match
+   *  starts). */
+  first?: { line: number; col: number }
   error?: string
 }
 
@@ -770,6 +825,12 @@ export const IPC = {
   EDITOR_DOC_WRITE_RESULT: 'editor:doc-write-result', // renderer → main (reply)
   EDITOR_DOC_READ: 'editor:doc-read',             // main → renderer (request live buffer)
   EDITOR_DOC_READ_RESULT: 'editor:doc-read-result',   // renderer → main (reply)
+  // ENH-022 (v0.5.4) — `duo doc goto` request/reply pair.
+  EDITOR_DOC_GOTO: 'editor:doc-goto',               // main → renderer (scroll-to)
+  EDITOR_DOC_GOTO_RESULT: 'editor:doc-goto-result', // renderer → main (reply)
+  // ENH-023 (v0.5.4) — `duo doc find` request/reply pair (markdown only v1).
+  EDITOR_DOC_FIND: 'editor:doc-find',
+  EDITOR_DOC_FIND_RESULT: 'editor:doc-find-result',
 
   // Stage 17b Phase C — agent ops against the active HTML canvas.
   CANVAS_HTML_OP: 'canvas:html-op',               // main → renderer (apply / read)

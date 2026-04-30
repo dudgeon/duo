@@ -386,8 +386,50 @@ async function main() {
           }
           process.stdout.write(res.text ?? "");
           if (res.text && !res.text.endsWith("\n")) process.stdout.write("\n");
+        } else if (sub === "goto") {
+          const heading = flagValue(subRest, "--heading");
+          const lineStr = flagValue(subRest, "--line");
+          const anchor = flagValue(subRest, "--anchor");
+          let target;
+          for (let i = 0; i < subRest.length; i++) {
+            const token = subRest[i];
+            if (token === "--heading" || token === "--line" || token === "--anchor") {
+              i += 1;
+              continue;
+            }
+            if (token.startsWith("--")) continue;
+            target = token;
+            break;
+          }
+          if (heading === void 0 && lineStr === void 0 && anchor === void 0) {
+            die('Usage: duo doc goto [<path>] --heading "X" | --line N | --anchor "Y"');
+          }
+          const resolved = target ? resolveFilePath(target) : void 0;
+          const payload = {};
+          if (resolved !== void 0) payload.path = resolved;
+          if (heading !== void 0) payload.heading = heading;
+          if (lineStr !== void 0) {
+            const n = Number(lineStr);
+            if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+              die("--line requires a positive integer");
+            }
+            payload.line = n;
+          }
+          if (anchor !== void 0) payload.anchor = anchor;
+          out(await send("doc-goto", payload));
+        } else if (sub === "find") {
+          const caseSensitive = subRest.includes("--case-sensitive");
+          const positionals = subRest.filter((t) => !t.startsWith("--"));
+          const query = positionals[0];
+          if (!query) die("Usage: duo doc find <query> [<path>] [--case-sensitive]");
+          const target = positionals[1];
+          const resolved = target ? resolveFilePath(target) : void 0;
+          const payload = { query };
+          if (resolved !== void 0) payload.path = resolved;
+          if (caseSensitive) payload["case-sensitive"] = true;
+          out(await send("doc-find", payload));
         } else {
-          die("Usage: duo doc <write|read> [...]");
+          die("Usage: duo doc <write|read|goto|find> [...]");
         }
         break;
       }
@@ -484,7 +526,7 @@ async function main() {
           out(await send("html-new", title ? { path: resolved, title } : { path: resolved }));
           break;
         }
-        const flagValue = (name) => {
+        const flagValue2 = (name) => {
           const i = subRest.indexOf(name);
           return i !== -1 ? subRest[i + 1] : void 0;
         };
@@ -514,61 +556,61 @@ async function main() {
           if (!selector) die("Usage: duo html query <css-selector>");
           out(await send("html-op", { op: "query", selector }));
         } else if (sub === "get") {
-          const id = flagValue("--id");
-          const selector = flagValue("--selector");
+          const id = flagValue2("--id");
+          const selector = flagValue2("--selector");
           if (!id && !selector) die("Usage: duo html get --id <duo-id> | --selector <css>");
           out(await send("html-op", { op: "get", id, selector }));
         } else if (sub === "set") {
-          const id = flagValue("--id");
-          const selector = flagValue("--selector");
+          const id = flagValue2("--id");
+          const selector = flagValue2("--selector");
           if (!id && !selector) die('Usage: duo html set --id <duo-id> --content "\u2026"');
-          let html = flagValue("--content") ?? flagValue("--html");
+          let html = flagValue2("--content") ?? flagValue2("--html");
           if (html === void 0) html = await readStdin();
           if (html === "") die('duo html set: content required (use --content "\u2026" or pipe via stdin)');
           out(await send("html-op", { op: "set", id, selector, html }));
         } else if (sub === "replace") {
-          const id = flagValue("--id");
-          const selector = flagValue("--selector");
+          const id = flagValue2("--id");
+          const selector = flagValue2("--selector");
           if (!id && !selector) die('Usage: duo html replace --id <duo-id> --html "\u2026"');
-          let html = flagValue("--html");
+          let html = flagValue2("--html");
           if (html === void 0) html = await readStdin();
           if (html === "") die('duo html replace: html required (use --html "\u2026" or pipe via stdin)');
           out(await send("html-op", { op: "replace", id, selector, html }));
         } else if (sub === "append") {
-          const parentId = flagValue("--parent") ?? flagValue("--parent-id");
-          const parentSelector = flagValue("--parent-selector");
+          const parentId = flagValue2("--parent") ?? flagValue2("--parent-id");
+          const parentSelector = flagValue2("--parent-selector");
           if (!parentId && !parentSelector) die('Usage: duo html append --parent <duo-id> --html "\u2026"');
-          let html = flagValue("--html");
+          let html = flagValue2("--html");
           if (html === void 0) html = await readStdin();
           if (html === "") die('duo html append: html required (use --html "\u2026" or pipe via stdin)');
           out(await send("html-op", { op: "append", parentId, parentSelector, html }));
         } else if (sub === "remove") {
-          const id = flagValue("--id");
-          const selector = flagValue("--selector");
+          const id = flagValue2("--id");
+          const selector = flagValue2("--selector");
           if (!id && !selector) die("Usage: duo html remove --id <duo-id> | --selector <css>");
           out(await send("html-op", { op: "remove", id, selector }));
         } else if (sub === "attr") {
-          const id = flagValue("--id");
-          const selector = flagValue("--selector");
+          const id = flagValue2("--id");
+          const selector = flagValue2("--selector");
           if (!id && !selector) die("Usage: duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]");
           const ops = collectAttrs();
           if (!ops.set && !ops.remove) die("duo html attr: at least one --set k=v or --remove k required");
           out(await send("html-op", { op: "attr", id, selector, ...ops }));
         } else if (sub === "comment") {
-          const id = flagValue("--id");
-          const selector = flagValue("--selector");
-          const text = flagValue("--text");
+          const id = flagValue2("--id");
+          const selector = flagValue2("--selector");
+          const text = flagValue2("--text");
           if (!id && !selector && !text) {
             die('Usage: duo html comment --id <duo-id> | --selector <css> | --text "<substring>" --body "\u2026"');
           }
-          let body = flagValue("--body");
+          let body = flagValue2("--body");
           if (body === void 0) body = await readStdin();
           if (!body || body.trim() === "") {
             die('duo html comment: --body required (use --body "\u2026" or pipe via stdin)');
           }
           out(await send("html-comment", { id, selector, text, body }));
         } else if (sub === "comments") {
-          const filterRaw = flagValue("--filter");
+          const filterRaw = flagValue2("--filter");
           const filter = filterRaw ?? "all";
           if (filter !== "all" && filter !== "open" && filter !== "resolved") {
             die("duo html comments: --filter must be 'all', 'open', or 'resolved'");
@@ -879,6 +921,23 @@ COMMANDS
                                   current selection, or inserts at caret
                                   if collapsed). --replace-all swaps the
                                   whole document body.
+  doc goto [<path>] --heading "X" | --line N | --anchor "Y"
+                                  Scroll the active editor (or specified
+                                  file's editor) to a target. --heading
+                                  is markdown-only (case-insensitive
+                                  substring match on heading text).
+                                  --line is 1-indexed (any text editor).
+                                  --anchor is a markdown heading slug OR
+                                  a canvas DOM element id /
+                                  data-duo-id. Returns resolved {line,
+                                  anchor}.
+  doc find <query> [<path>] [--case-sensitive]
+                                  Search the markdown editor's live
+                                  buffer. Returns {matches, first:
+                                  {line, col}}. Case-insensitive by
+                                  default. (v1 markdown only; canvas /
+                                  browser / terminal find variants
+                                  deferred.)
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.

@@ -473,8 +473,55 @@ async function main(): Promise<void> {
           }
           process.stdout.write(res.text ?? '')
           if (res.text && !res.text.endsWith('\n')) process.stdout.write('\n')
+        } else if (sub === 'goto') {
+          // ENH-022 — `duo doc goto [<path>] --heading X | --line N | --anchor Y`.
+          // Optional positional path; one of three flags required.
+          const heading = flagValue(subRest, '--heading')
+          const lineStr = flagValue(subRest, '--line')
+          const anchor = flagValue(subRest, '--anchor')
+          // First positional that isn't a flag value = path. Walk subRest
+          // skipping --flag <value> pairs.
+          let target: string | undefined
+          for (let i = 0; i < subRest.length; i++) {
+            const token = subRest[i]
+            if (token === '--heading' || token === '--line' || token === '--anchor') {
+              i += 1 // skip the value
+              continue
+            }
+            if (token.startsWith('--')) continue
+            target = token
+            break
+          }
+          if (heading === undefined && lineStr === undefined && anchor === undefined) {
+            die('Usage: duo doc goto [<path>] --heading "X" | --line N | --anchor "Y"')
+          }
+          const resolved = target ? resolveFilePath(target) : undefined
+          const payload: Record<string, unknown> = {}
+          if (resolved !== undefined) payload.path = resolved
+          if (heading !== undefined) payload.heading = heading
+          if (lineStr !== undefined) {
+            const n = Number(lineStr)
+            if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+              die('--line requires a positive integer')
+            }
+            payload.line = n
+          }
+          if (anchor !== undefined) payload.anchor = anchor
+          out(await send('doc-goto', payload))
+        } else if (sub === 'find') {
+          // ENH-023 — `duo doc find <query> [<path>] [--case-sensitive]`.
+          const caseSensitive = subRest.includes('--case-sensitive')
+          const positionals = subRest.filter(t => !t.startsWith('--'))
+          const query = positionals[0]
+          if (!query) die('Usage: duo doc find <query> [<path>] [--case-sensitive]')
+          const target = positionals[1]
+          const resolved = target ? resolveFilePath(target) : undefined
+          const payload: Record<string, unknown> = { query }
+          if (resolved !== undefined) payload.path = resolved
+          if (caseSensitive) payload['case-sensitive'] = true
+          out(await send('doc-find', payload))
         } else {
-          die('Usage: duo doc <write|read> [...]')
+          die('Usage: duo doc <write|read|goto|find> [...]')
         }
         break
       }
@@ -1062,6 +1109,23 @@ COMMANDS
                                   current selection, or inserts at caret
                                   if collapsed). --replace-all swaps the
                                   whole document body.
+  doc goto [<path>] --heading "X" | --line N | --anchor "Y"
+                                  Scroll the active editor (or specified
+                                  file's editor) to a target. --heading
+                                  is markdown-only (case-insensitive
+                                  substring match on heading text).
+                                  --line is 1-indexed (any text editor).
+                                  --anchor is a markdown heading slug OR
+                                  a canvas DOM element id /
+                                  data-duo-id. Returns resolved {line,
+                                  anchor}.
+  doc find <query> [<path>] [--case-sensitive]
+                                  Search the markdown editor's live
+                                  buffer. Returns {matches, first:
+                                  {line, col}}. Case-insensitive by
+                                  default. (v1 markdown only; canvas /
+                                  browser / terminal find variants
+                                  deferred.)
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.

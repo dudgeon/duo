@@ -148,6 +148,8 @@ empty.
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'html-canvas', path, text, html, anchorId, anchorPath, range, surrounding}` for the active HTML canvas tab. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
 | `duo doc write [--replace-selection\|--replace-all]` | Apply text to active editor (stdin or `--text`) |
+| `duo doc goto [<path>] --heading "X" \| --line N \| --anchor "Y"` | ENH-022 — scroll editor to a target. `--heading` markdown-only (case-insensitive substring). `--line` 1-indexed. `--anchor` = markdown heading slug OR canvas/HTML element id (`data-duo-id` first, then `id`). Returns `{ok, path, line?, anchor?}` |
+| `duo doc find <query> [<path>] [--case-sensitive]` | ENH-023 — search markdown editor's live buffer; returns `{ok, path, matches, first: {line, col}}`. v1 markdown only |
 | `duo theme [system\|light\|dark]` | Read or set theme |
 | `duo split <pct\|even\|terminal-heavy\|canvas-heavy\|terminal\|canvas>` | ENH-014 — set split-pane percentage (terminal column as % of split container; clamped 20–80). Numeric arg or named preset (mirrors View → Pane size). Use to give a canvas surface room when the user is reviewing it, or hand the column back to the terminal when typing-heavy. |
 | `duo selection-format [a\|b\|c]` | Send → Duo payload format (Stage 15 G19): `a` quote+provenance (default), `b` literal, `c` opaque token. Set once at session start when a multi-step session benefits from compact tokens; otherwise leave at default. |

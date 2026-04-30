@@ -2296,48 +2296,131 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ---
 
-### ENH-022: `duo doc goto` — scroll the markdown editor to a heading / anchor / line
+### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** Open
-**Priority:** Medium (small but high-utility — every "find BUG-040 in tasks.md" / "show me the Stage 17 section" turn currently requires the user to ⌘F)
-**Filed:** 2026-04-30 (discovered while opening `tasks.md` in the editor and being unable to land on `BUG-040` from the CLI)
+**Status:** ✅ Shipped 2026-04-30 (sprint addition). New `duo doc goto [<path>] --heading "X" | --line N | --anchor "Y"` verb. Markdown editor handles `--heading` (case-insensitive substring on heading text), `--line` (1-indexed; PM-tree walk to map line → block position), and `--anchor` (GitHub-slug match against headings; exact > prefix > substring). HTML canvas handles `--anchor` (`data-duo-id` first, falls back to `id`) and `--line` (top-level child of `<main>` / `<body>` — coarse). After landing: focus the editor, place caret / scroll into view, paint a 1.5s `.duo-goto-flash` highlight on canvas matches. Plumbing: full 8-step checklist + types in shared/types.ts (`DocGotoRequest` / `DocGotoResult`) + IPC channels + preload/host-api + main dispatch + socket-server case + cli verb + skill + agents + CLI-COVERAGE.
+**Priority:** **High** (real workflow gap — owner hit it 2026-04-30 looking for BUG-040 in `tasks.md`; agent has no way to land the editor view at the right spot after `duo edit`)
+**Filed:** 2026-04-30 (sprint addition)
 
-**Today:**
-`duo edit <path>` opens a markdown file in the rich editor (right pane), but the CLI has no verb to scroll the editor to a specific heading, anchor, or line number. `duo reveal` is navigator-side only. The agent has no programmatic way to land the user's view on a section after opening — they have to ⌘F.
+**Owner ask:** "duo doc goto --heading|--line|--anchor so the agent can land the editor view after duo edit (the gap I just hit looking for BUG-040)." Followed by: "Should probably be go-to arbitrary dom element in html, and heading in markdown."
 
-**Class of issue:**
-Editor-side navigation parity with the file navigator's `reveal`. The skill description even advertises "navigate the editor" but the verb surface ends at `doc read` / `doc write`.
+**Today:** `duo edit <path>` opens the file in the working pane. The user / agent then has to scroll to find what they came for. For a 2200-line `tasks.md` looking for `### BUG-040`, that's manual scrolling. Same gap exists for HTML canvases (no way to scroll to a specific `data-duo-id` after `duo edit`).
 
-**Expected:**
-A CLI verb that scrolls the active markdown editor (or the editor for `--path <path>`) to a target and optionally moves the caret there.
+**Expected (v1):**
 
 ```
-duo doc goto --heading "BUG-040"          # text match against ## / ### / #### (case-insensitive substring)
-duo doc goto --line 2015                  # line number in the source markdown
-duo doc goto --anchor bug-040             # GitHub-style slug
-duo doc goto [...] --pin-caret            # also move the caret + select the heading
+duo doc goto [<path>] --heading "Foo"
+duo doc goto [<path>] --line 1043
+duo doc goto [<path>] --anchor "bug-040"
 ```
 
-Returns `{ok, matched: {heading, line}}` or `{ok: false, reason: "no match"}`.
+`<path>` optional — defaults to the active editor's path. One of the three flags is required. Returns `{ ok, path, line?, anchor?, error? }`.
 
-**Plumbing checklist (touch every one — see CLAUDE.md § 4):**
-1. `shared/types.ts` — add `DocGotoRequest` to the IPC contract; add to `DuoCommandName`.
-2. `electron/preload.ts` — expose to renderer.
-3. `electron/main.ts` — ipcMain handler; main→renderer dispatch.
-4. `electron/socket-server.ts` — new case in command switch.
-5. `cli/duo.ts` — `doc goto` subcommand + `printHelp()` update. Rebuild `cli/duo`.
-6. `renderer/components/editor/MarkdownEditor.tsx` (or its primitives) — resolve target → ProseMirror position → `view.dispatch(scrollIntoView)`. Heading match: walk the doc tree for `heading` nodes whose textContent matches.
-7. `skill/SKILL.md` — agent discovery + example.
-8. `agents/duo.md` — verb cheat-sheet entry.
-9. `docs/CLI-COVERAGE.md` — inventory update.
-10. `npm run sync:claude` after skill / agent edits.
+**Resolution semantics:**
 
-**Pairs with:**
-- An equivalent for the HTML canvas would be `duo html goto --id <duo-id>` or `--selector <css>` (canvas already has `data-duo-id` resolution; this is a thin wrapper over `scrollIntoView`).
+- **`--heading "Foo"`** (markdown only) — case-insensitive substring match against heading text in document order. First match wins. Errors with helpful message + list of matched headings if zero matches.
+- **`--line N`** (any text editor) — 1-indexed (vim / VS Code convention). Clamps to last line if N > line count.
+- **`--anchor "X"`** —
+  - **Markdown editor:** matches the slugified-id of any heading. `### BUG-040: Foo` → slug `bug-040-foo`. `--anchor "bug-040"` matches via prefix or substring (case-insensitive). The slug computation matches GitHub's: lowercase, replace whitespace with hyphens, strip non-alphanumerics-or-hyphens.
+  - **HTML canvas:** matches the FIRST element whose `data-duo-id` OR `id` attribute equals `--anchor`. `data-duo-id` wins if both exist on different elements. Owner clarification: "go-to arbitrary dom element in html" — so any `id` is in scope, not just `data-duo-id`.
 
-**Cross-ref:** Discovered while looking up BUG-040 (line 2015 of this file) from the CLI.
+**After landing:**
+- Scroll the matched line / element into view (centered or top-third — recommend top-third for context).
+- Place cursor at start of line (markdown) / focus the body and select the matched element (canvas).
+- Focus the editor surface so subsequent keystrokes land in the doc.
+- Push a brief "just-added" highlight on the matched line / element so the user sees where it landed.
+
+**Plumbing checklist (per CLAUDE.md § 4):**
+
+1. `shared/types.ts` — `DocGotoRequest` / `DocGotoResult` discriminated unions; new IPC channels `DOC_GOTO_REQUEST` / `DOC_GOTO_RESULT`.
+2. `electron/preload.ts` — wire request/reply pair (mirror `dispatchDocWrite`).
+3. `electron/main.ts` — `dispatchDocGoto()` + socket-server handler.
+4. `core/socket-server.ts` — extend NavBridge with `docGoto`; new case in command switch.
+5. `cli/duo.ts` — `case 'doc'` branch with `goto` subcommand; flag parsing for `--heading | --line | --anchor`; `printHelp()` update. Rebuild binary.
+6. `skill/SKILL.md` — verb cheat-sheet entry under § Verb cheat-sheet.
+7. `agents/duo.md` — same.
+8. `docs/CLI-COVERAGE.md` — inventory update.
+
+**Renderer side:**
+- `MarkdownEditor.tsx` — accept a new `onGotoRequest` callback or expose a ref method. Use TipTap's `editor.commands.setTextSelection` + `editor.view.dispatch` with a scroll-into-view marker. Heading lookup: walk the editor's doc tree, find heading nodes, match text. Line lookup: count newlines in the markdown (or use TipTap's `state.doc.resolve`). Anchor lookup: compute slug from each heading, match.
+- `CanvasTab.tsx` — accept goto via the existing `htmlOp`-style dispatch OR a dedicated channel. Use `iframe.contentDocument.querySelector('[data-duo-id="X"], #X')`, then `element.scrollIntoView({ block: 'center' })` and add a "just-added" CSS class to the element for ~2s.
+
+**Scope:**
+- v1 ships markdown + canvas goto (the two surfaces with editor semantics).
+- Browser tab goto (scroll to anchor in a loaded page) deferred — `BrowserManager` could add `--anchor` for `#fragment` URLs, but that's URL-bar work, not editor work.
+- Image / PDF / markdown-preview tabs don't make sense for goto.
+
+**CLI shape examples:**
+```
+$ duo doc goto --heading "BUG-040"
+{"ok":true,"path":"/Users/geoff/.../tasks.md","line":2161,"anchor":"bug-040-external-domain-blocklist-not-bouncing-capitalonecom-gmailcom-to-system-browser"}
+
+$ duo doc goto ~/notes/scratch.md --line 42
+{"ok":true,"path":"/Users/geoff/notes/scratch.md","line":42}
+
+$ duo doc goto --anchor "checklist-section"
+{"ok":true,"path":"...","anchor":"checklist-section"}
+```
+
+**Cross-ref:** Stage 11 (markdown editor host), Stage 17a (canvas), Stage 15 (CLI plumbing checklist), `duo reveal` (file-level analog — this is the in-document analog).
 
 ---
+
+### ENH-023: ⌘F find-in-document for the markdown editor (v1)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (every editor has this; missing it makes long docs feel hostile)
+**Filed:** 2026-04-30 (sprint addition)
+
+**Owner ask:** "⌘F find-in-document for the markdown editor (with v2 extensions for canvas / browser / terminal, and a duo doc find CLI counterpart)."
+
+**Locked spec (AskUserQuestion 2026-04-30):**
+
+| Decision | Choice |
+|---|---|
+| v1 surfaces | Markdown editor only |
+| Find vs find+replace | **Find only** |
+| Open chord | `⌘F` |
+| Next match | `⌘G` (also `↵` while find input has focus) |
+| **Previous match** | **`⌘⇧F`** (chosen to avoid the `⌘⇧G` conflict — that chord just shipped as "Go to folder" / breadcrumb edit) |
+| Close | `⎋` while find input has focus |
+| Case sensitivity | Case-insensitive default; toggle for case-sensitive |
+| Regex | Defer to v2 |
+
+**v1 UI:**
+- A find bar drops down from the top of the markdown editor's chrome (above or below the comment-rail header — TBD; probably above). Inputs: query text, case-sensitive toggle, prev/next buttons, close button. Match counter ("3 of 17") to the right of the input.
+- Match-as-you-type: every keystroke re-runs the search; all matches are highlighted inline with a yellow `--mark` background; the current match gets a stronger orange `--accent` highlight.
+- Arrow keys / `↵` cycle through matches; the current-match highlight scrolls into view (top-third for context).
+- `⎋` closes the bar but preserves the query for next ⌘F.
+
+**Implementation approach:**
+- TipTap doesn't ship a built-in find extension, but the prosemirror-search package OR a hand-rolled decoration plugin both work. Recommend hand-rolled since the surface is contained: a custom TipTap extension that maintains a `findQuery` state, runs a regex-or-string search over the doc on each update, emits a `Decoration.inline` set with two classes (`duo-find-match` + `duo-find-match-current`).
+- Bar component lives in `renderer/components/editor/FindBar.tsx`; mounts conditionally based on `findOpen` state in `MarkdownEditor`.
+- Keyboard wiring: `⌘F` is currently unused (bullet bind doesn't exist). Add to `globalShortcuts.ts` matcher with id `openFind`. Dispatch through `useKeyboardShortcuts` to `MarkdownEditor`'s ref API. Inside the find input, `↵` / `⇧↵` / `⎋` are local handlers — they don't need to escape to the matcher. `⌘G` and `⌘⇧F` route through the matcher when the editor (not the input) has focus.
+
+**CLI counterpart (`duo doc find`):**
+```
+$ duo doc find "BUG-040"
+{"ok":true,"path":"...","matches":3,"first":{"line":2161,"col":4}}
+```
+
+Returns count + first-match line/col so an agent can decide whether to `duo doc goto --line N` next. v1 markdown only. Returns `{ ok:false, error: "..." }` if active doc isn't a markdown editor (or no doc is open).
+
+**Plumbing checklist (per CLAUDE.md § 4) — same 8 steps as ENH-022.**
+
+**v2 deferrals:**
+- Replace input + "Replace" / "Replace all" buttons (⌘⌥F to open replace mode).
+- Regex toggle.
+- Canvas find (search the iframe's contentEditable body — same decoration pattern but a separate plugin since canvas isn't TipTap).
+- Browser find (delegates to Chromium's `webContents.findInPage`).
+- Terminal find (xterm.js's `SearchAddon`).
+
+**Cross-ref:** ENH-022 (`duo doc goto` — find's natural follow-up: find the line, goto it). Stage 11 (markdown editor home).
+
+---
+
+<!-- (Duplicate older draft removed 2026-04-30; the canonical entry is the
+ENH-022 above with shipped status and full plumbing notes.) -->
 
 ### ENH-023: ⌘F find-in-document for the markdown editor (and other surfaces)
 

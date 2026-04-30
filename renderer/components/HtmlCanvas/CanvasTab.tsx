@@ -791,6 +791,91 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     })
   }, [])
 
+  // ── ENH-022 doc-goto for canvases ───────────────────────────────────────
+  // Canvas accepts `--anchor X` (matches data-duo-id first, falls back
+  // to plain id) and `--line N` (counts source lines in the rendered
+  // HTML — best-effort; HTML serialization isn't 1:1 with on-disk
+  // line numbers, so --line is a coarse jump). `--heading` is markdown-
+  // only — return an error if requested for a canvas.
+  useEffect(() => {
+    if (initialHtml === null) return
+    return window.electron.editor?.onDocGoto((req) => {
+      if (req.path && req.path !== path) {
+        // Not for us — the active markdown editor (if any) handles its
+        // own subscription. Don't reply, otherwise we'd race against
+        // the editor's reply.
+        return
+      }
+      // No path mismatch: this canvas is the active surface (or the
+      // user passed --path explicitly). Handle.
+      try {
+        const doc = canvasRef.current?.getDocument()
+        if (!doc) {
+          window.electron.editor.replyDocGoto({
+            reqId: req.reqId, ok: false,
+            error: 'Canvas iframe not yet ready'
+          })
+          return
+        }
+        if (req.heading !== undefined) {
+          window.electron.editor.replyDocGoto({
+            reqId: req.reqId, ok: false,
+            error: '--heading is markdown-only; for canvas use --anchor with the element id or data-duo-id'
+          })
+          return
+        }
+        let target: HTMLElement | null = null
+        let resolvedAnchor: string | undefined
+        if (req.anchor !== undefined) {
+          // data-duo-id wins; HTML id is the fallback so any DOM
+          // element is reachable.
+          const escaped = cssEscape(req.anchor)
+          target = doc.querySelector<HTMLElement>(`[data-duo-id="${escaped}"]`)
+          if (!target) target = doc.querySelector<HTMLElement>(`#${escaped}`)
+          if (!target) {
+            window.electron.editor.replyDocGoto({
+              reqId: req.reqId, ok: false,
+              error: `No element with data-duo-id or id="${req.anchor}" in the canvas`
+            })
+            return
+          }
+          resolvedAnchor = target.getAttribute('data-duo-id') ?? target.id ?? req.anchor
+        } else if (req.line !== undefined) {
+          // Coarse: pick the Nth top-level child of <main> (or <body>).
+          // Real source-line mapping would need the on-disk text; we
+          // don't have it cached at the renderer. Document the
+          // limitation in the help text.
+          const root = doc.querySelector('main') ?? doc.body
+          const children = root ? Array.from(root.children) as HTMLElement[] : []
+          const idx = Math.min(Math.max(0, req.line - 1), Math.max(0, children.length - 1))
+          target = children[idx] ?? null
+          if (!target) {
+            window.electron.editor.replyDocGoto({
+              reqId: req.reqId, ok: false,
+              error: 'Canvas has no top-level children to jump to'
+            })
+            return
+          }
+        }
+        if (target) {
+          target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          // Brief just-added flash so the user sees where it landed.
+          target.classList.add('duo-goto-flash')
+          setTimeout(() => target?.classList.remove('duo-goto-flash'), 1500)
+        }
+        window.electron.editor.replyDocGoto({
+          reqId: req.reqId, ok: true, path,
+          anchor: resolvedAnchor, line: req.line
+        })
+      } catch (err) {
+        window.electron.editor.replyDocGoto({
+          reqId: req.reqId, ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [initialHtml, path])
+
   // 17c — Send → Duo pill click. Format the cached snapshot via the
   // user's current selection-format preference, then hand it to the
   // host (which writes to the active terminal's PTY).

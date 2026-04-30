@@ -12,6 +12,10 @@ import type {
   DocWriteResult,
   DocReadRequest,
   DocReadResult,
+  DocGotoRequest,
+  DocGotoResult,
+  DocFindRequest,
+  DocFindResult,
   HtmlOpRequest,
   HtmlOpResult,
   HtmlCommentRequest,
@@ -216,6 +220,28 @@ const api: ElectronAPI = {
 
     replyDocRead: (result: DocReadResult) => {
       ipcRenderer.send(IPC.EDITOR_DOC_READ_RESULT, result)
+    },
+
+    // ENH-022 (v0.5.4) — `duo doc goto` request/reply.
+    onDocGoto: (cb) => {
+      const handler = (_: IpcRendererEvent, req: DocGotoRequest) => cb(req)
+      ipcRenderer.on(IPC.EDITOR_DOC_GOTO, handler)
+      return () => ipcRenderer.removeListener(IPC.EDITOR_DOC_GOTO, handler)
+    },
+
+    replyDocGoto: (result: DocGotoResult) => {
+      ipcRenderer.send(IPC.EDITOR_DOC_GOTO_RESULT, result)
+    },
+
+    // ENH-023 (v0.5.4) — `duo doc find` request/reply.
+    onDocFind: (cb) => {
+      const handler = (_: IpcRendererEvent, req: DocFindRequest) => cb(req)
+      ipcRenderer.on(IPC.EDITOR_DOC_FIND, handler)
+      return () => ipcRenderer.removeListener(IPC.EDITOR_DOC_FIND, handler)
+    },
+
+    replyDocFind: (result: DocFindResult) => {
+      ipcRenderer.send(IPC.EDITOR_DOC_FIND_RESULT, result)
     }
   },
 

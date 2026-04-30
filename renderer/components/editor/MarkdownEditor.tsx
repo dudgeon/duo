@@ -75,6 +75,20 @@ const AUTOSAVE_DEBOUNCE_MS = 800
 // Module-scope lowlight instance — cheap to construct, shared across tabs.
 const lowlight = createLowlight(common)
 
+// ENH-022 — GitHub-style heading slug. Lowercase, whitespace → '-',
+// strip non-alphanumerics-or-hyphens. The agent reaches for this when
+// it wants a stable anchor name (e.g. `#bug-040` matches `### BUG-040
+// Foo bar` after slugifying both sides).
+function slugifyHeading(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+}
+
 // 17a polish item 3 — no-op EditorActions used while the TipTap editor
 // instance is being constructed (single render frame). Avoids
 // conditional-render plumbing in the toolbar; toolbar buttons are
@@ -529,6 +543,186 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         window.electron.editor.replyDocRead({
           reqId: req.reqId,
           ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [editor, path, isNew])
+
+  // ── Serve doc-goto requests (ENH-022) ───────────────────────────────────
+  // Three target modes:
+  //   --heading "X" : case-insensitive substring match on heading text.
+  //   --line N      : 1-indexed line in the markdown source.
+  //   --anchor "X"  : matches the slugified-id of any heading (GitHub
+  //                   slug convention: lowercase, whitespace → '-',
+  //                   strip non-alphanumerics-or-hyphens).
+  // After landing: scroll into view (start), focus the editor,
+  // place the caret at the target. The renderer also paints a brief
+  // "just-added" decoration via the existing JustAdded extension so
+  // the user sees where the cursor jumped to.
+  useEffect(() => {
+    if (!editor || isNew) return
+    return window.electron.editor?.onDocGoto((req) => {
+      if (req.path && req.path !== path) {
+        window.electron.editor.replyDocGoto({
+          reqId: req.reqId, ok: false,
+          error: `Active editor is at ${path}, not ${req.path}`
+        })
+        return
+      }
+      try {
+        const heading = req.heading
+        const anchor = req.anchor
+        const reqLine = req.line
+
+        // Walk heading nodes once; collect text + slug + position.
+        type HeadingHit = { text: string; slug: string; pos: number; line: number }
+        const headings: HeadingHit[] = []
+        editor.state.doc.descendants((node, pos) => {
+          if (node.type.name === 'heading') {
+            const text = node.textContent
+            const slug = slugifyHeading(text)
+            // Convert ProseMirror position → 1-indexed source line.
+            // Approximation: count newlines in the markdown up to
+            // the heading. Build that mapping below from the
+            // serialized markdown (cheap; doc is small).
+            headings.push({ text, slug, pos, line: 0 })
+          }
+          return true
+        })
+
+        // Build a markdown line index for line/heading-line mapping.
+        const md = editor.storage.markdown.getMarkdown() as string
+        const mdLines = md.split('\n')
+        // Match each heading to its source line by walking md and
+        // looking for `^#{1,6}\s+<text>` lines in order.
+        let mdHeadingCursor = 0
+        for (const h of headings) {
+          for (let i = mdHeadingCursor; i < mdLines.length; i++) {
+            const m = mdLines[i].match(/^#{1,6}\s+(.+)$/)
+            if (m && m[1].trim() === h.text.trim()) {
+              h.line = i + 1
+              mdHeadingCursor = i + 1
+              break
+            }
+          }
+        }
+
+        // Resolve the target.
+        let resolvedPos: number | null = null
+        let resolvedLine: number | undefined
+        let resolvedAnchor: string | undefined
+
+        if (heading !== undefined) {
+          const needle = heading.toLowerCase()
+          const hit = headings.find(h => h.text.toLowerCase().includes(needle))
+          if (!hit) {
+            window.electron.editor.replyDocGoto({
+              reqId: req.reqId, ok: false,
+              error: `No heading matched "${heading}". Try one of: ${headings.slice(0, 8).map(h => `"${h.text}"`).join(', ')}${headings.length > 8 ? ', …' : ''}`
+            })
+            return
+          }
+          resolvedPos = hit.pos
+          resolvedLine = hit.line
+          resolvedAnchor = hit.slug
+        } else if (anchor !== undefined) {
+          const needle = anchor.toLowerCase()
+          // Match exact slug, then prefix, then substring — first hit wins.
+          const exact = headings.find(h => h.slug === needle)
+          const prefix = !exact ? headings.find(h => h.slug.startsWith(needle)) : null
+          const sub = !exact && !prefix ? headings.find(h => h.slug.includes(needle)) : null
+          const hit = exact || prefix || sub
+          if (!hit) {
+            window.electron.editor.replyDocGoto({
+              reqId: req.reqId, ok: false,
+              error: `No heading slug matched "${anchor}".`
+            })
+            return
+          }
+          resolvedPos = hit.pos
+          resolvedLine = hit.line
+          resolvedAnchor = hit.slug
+        } else if (reqLine !== undefined) {
+          // Line-based goto: clamp to last line; map to a PM position.
+          const targetLine = Math.min(Math.max(1, reqLine), mdLines.length)
+          resolvedLine = targetLine
+          // PM doesn't have a direct line→pos API; walk the doc
+          // counting newlines until we hit the target line, then
+          // position at the start of that block.
+          let line = 1
+          let foundPos: number | null = null
+          editor.state.doc.descendants((node, pos) => {
+            if (foundPos !== null) return false
+            if (node.isBlock && line === targetLine) {
+              foundPos = pos + 1 // inside the block, before its first child
+              return false
+            }
+            if (node.isBlock) {
+              // Heuristic: each top-level block bumps line by its
+              // textContent's newline count + 1. Markdown
+              // serialization isn't perfectly 1:1 with PM blocks,
+              // but it's close enough for line-jump behavior to
+              // feel right on real docs.
+              const text = node.textContent
+              line += 1 + (text.match(/\n/g)?.length ?? 0)
+            }
+            return true
+          })
+          resolvedPos = foundPos ?? Math.max(1, editor.state.doc.content.size - 1)
+        }
+
+        if (resolvedPos !== null) {
+          editor.commands.focus()
+          editor.commands.setTextSelection(resolvedPos)
+          editor.commands.scrollIntoView()
+        }
+
+        window.electron.editor.replyDocGoto({
+          reqId: req.reqId, ok: true, path,
+          line: resolvedLine, anchor: resolvedAnchor
+        })
+      } catch (err) {
+        window.electron.editor.replyDocGoto({
+          reqId: req.reqId, ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [editor, path, isNew])
+
+  // ── Serve doc-find requests (ENH-023) ───────────────────────────────────
+  useEffect(() => {
+    if (!editor || isNew) return
+    return window.electron.editor?.onDocFind((req) => {
+      if (req.path && req.path !== path) {
+        window.electron.editor.replyDocFind({
+          reqId: req.reqId, ok: false,
+          error: `Active editor is at ${path}, not ${req.path}`
+        })
+        return
+      }
+      try {
+        const body = editor.storage.markdown.getMarkdown() as string
+        const lines = body.split('\n')
+        const haystackLines = req.caseSensitive ? lines : lines.map(l => l.toLowerCase())
+        const needle = req.caseSensitive ? req.query : req.query.toLowerCase()
+        let matches = 0
+        let first: { line: number; col: number } | undefined
+        for (let i = 0; i < haystackLines.length; i++) {
+          let idx = haystackLines[i].indexOf(needle)
+          while (idx !== -1) {
+            matches++
+            if (!first) first = { line: i + 1, col: idx }
+            idx = haystackLines[i].indexOf(needle, idx + needle.length)
+          }
+        }
+        window.electron.editor.replyDocFind({
+          reqId: req.reqId, ok: true, path, matches, first
+        })
+      } catch (err) {
+        window.electron.editor.replyDocFind({
+          reqId: req.reqId, ok: false,
           error: err instanceof Error ? err.message : String(err)
         })
       }

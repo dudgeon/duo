@@ -28,6 +28,10 @@ import type {
   DocWriteResult,
   DocReadRequest,
   DocReadResult,
+  DocGotoRequest,
+  DocGotoResult,
+  DocFindRequest,
+  DocFindResult,
   HtmlOpRequest,
   HtmlOpResult,
   HtmlCommentRequest,
@@ -68,6 +72,11 @@ const docWritePending = new Map<string, (res: DocWriteResult) => void>()
 
 // Pending doc-read requests awaiting a renderer reply.
 const docReadPending = new Map<string, (res: DocReadResult) => void>()
+
+// ENH-022 / ENH-023 (v0.5.4) — pending doc-goto / doc-find requests
+// awaiting a renderer reply. Same pairing pattern as docWritePending.
+const docGotoPending = new Map<string, (res: DocGotoResult) => void>()
+const docFindPending = new Map<string, (res: DocFindResult) => void>()
 
 // Stage 17b Phase C — pending `duo html *` ops awaiting a renderer reply.
 const htmlOpPending = new Map<string, (res: HtmlOpResult) => void>()
@@ -199,6 +208,8 @@ async function createWindow(): Promise<void> {
     getCanvasSelection: getCanvasSelection,
     docWrite: dispatchDocWrite,
     docRead: dispatchDocRead,
+    docGoto: dispatchDocGoto,
+    docFind: dispatchDocFind,
     getTheme: getThemeState,
     setTheme: setThemeMode,
     setSplit: setSplit,
@@ -528,6 +539,24 @@ function setupIPC(): void {
     const resolver = docWritePending.get(result.reqId)
     if (resolver) {
       docWritePending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // ENH-022 (v0.5.4) — doc-goto reply.
+  ipcMain.on(IPC.EDITOR_DOC_GOTO_RESULT, (_event, result: DocGotoResult) => {
+    const resolver = docGotoPending.get(result.reqId)
+    if (resolver) {
+      docGotoPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
+  // ENH-023 (v0.5.4) — doc-find reply.
+  ipcMain.on(IPC.EDITOR_DOC_FIND_RESULT, (_event, result: DocFindResult) => {
+    const resolver = docFindPending.get(result.reqId)
+    if (resolver) {
+      docFindPending.delete(result.reqId)
       resolver(result)
     }
   })
@@ -912,6 +941,46 @@ export function dispatchDocRead(req: Omit<DocReadRequest, 'reqId'>): Promise<Doc
       resolve(res)
     })
     mainWindow!.webContents.send(IPC.EDITOR_DOC_READ, { ...req, reqId })
+  })
+}
+
+// ENH-022 (v0.5.4) — `duo doc goto`. Same shape as dispatchDocWrite,
+// short timeout (no human gate; the renderer just resolves a target
+// + scrolls into view, bounded by frame budget).
+export function dispatchDocGoto(req: Omit<DocGotoRequest, 'reqId'>): Promise<DocGotoResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `dg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<DocGotoResult>((resolve) => {
+    const timer = setTimeout(() => {
+      docGotoPending.delete(reqId)
+      resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
+    }, 5000)
+    docGotoPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.EDITOR_DOC_GOTO, { ...req, reqId })
+  })
+}
+
+// ENH-023 (v0.5.4) — `duo doc find`. Read-only, fast — same 5s budget.
+export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<DocFindResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `df_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<DocFindResult>((resolve) => {
+    const timer = setTimeout(() => {
+      docFindPending.delete(reqId)
+      resolve({ reqId, ok: false, error: 'Renderer did not reply within 5s' })
+    }, 5000)
+    docFindPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.EDITOR_DOC_FIND, { ...req, reqId })
   })
 }
 

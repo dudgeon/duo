@@ -20,6 +20,13 @@
   }
 }
 
+/* ENH-022 — `duo doc goto --anchor X` flash. Lives inside the canvas
+   iframe's runtime <style data-duo-canvas-runtime> block (injected
+   by RenderedCanvas's wire()), so the parent-scope rule isn't
+   needed. Kept this comment as a forward-pointer when the markdown
+   editor surface gets its own goto-flash via the JustAdded
+   extension. */
+
 /* ─────────────────────────────────────────────────────────────────────
    Stage 12 — Atelier visual foundation
    Tokens from docs/design/atelier/project/tokens.jsx (`atelier` direction).

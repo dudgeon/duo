@@ -15,6 +15,8 @@ import type {
   EditorSelectionSnapshot,
   DocWriteRequest, DocWriteResult,
   DocReadRequest, DocReadResult,
+  DocGotoRequest, DocGotoResult,
+  DocFindRequest, DocFindResult,
   HtmlOpRequest, HtmlOpResult, HtmlCanvasSelectionSnapshot,
   HtmlCommentRequest, HtmlCommentResult,
   HtmlCommentsListRequest, HtmlCommentsListResult,
@@ -158,6 +160,12 @@ export interface ElectronEditorAPI {
   onDocRead: (cb: (req: DocReadRequest) => void) => () => void
   /** Reply to a doc-read request with the live buffer. */
   replyDocRead: (result: DocReadResult) => void
+  /** ENH-022 — `duo doc goto`. */
+  onDocGoto: (cb: (req: DocGotoRequest) => void) => () => void
+  replyDocGoto: (result: DocGotoResult) => void
+  /** ENH-023 — `duo doc find` (markdown editor v1). */
+  onDocFind: (cb: (req: DocFindRequest) => void) => () => void
+  replyDocFind: (result: DocFindResult) => void
 }
 
 /** Stage 17b Phase C — agent ops against the active HTML canvas.

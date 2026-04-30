@@ -28,6 +28,10 @@ import type {
   DocWriteResult,
   DocReadRequest,
   DocReadResult,
+  DocGotoRequest,
+  DocGotoResult,
+  DocFindRequest,
+  DocFindResult,
   DuoSelection,
   HtmlOpRequest,
   HtmlOpResult,
@@ -63,6 +67,10 @@ export interface NavBridge {
   docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
   /** Read the live editor buffer (active or specified path). */
   docRead: (req: Omit<DocReadRequest, 'reqId'>) => Promise<DocReadResult>
+  /** ENH-022 — agent-driven editor navigation (heading / line / anchor). */
+  docGoto: (req: Omit<DocGotoRequest, 'reqId'>) => Promise<DocGotoResult>
+  /** ENH-023 — read-only buffer search (markdown editor v1). */
+  docFind: (req: Omit<DocFindRequest, 'reqId'>) => Promise<DocFindResult>
   /** Stage 11 § D33d — current theme state (renderer \u2192 main cache). */
   getTheme: () => ThemeStateSnapshot
   /** Stage 11 § D33d — CLI-driven theme override. */
@@ -446,6 +454,36 @@ export class SocketServer {
         case 'doc-read': {
           const path = args['path'] as string | undefined
           result = await this.nav.docRead({ path })
+          break
+        }
+        case 'doc-goto': {
+          // ENH-022 — at least one of heading/line/anchor must be set.
+          const path = args['path'] as string | undefined
+          const heading = args['heading'] as string | undefined
+          const lineRaw = args['line']
+          const anchor = args['anchor'] as string | undefined
+          let line: number | undefined
+          if (lineRaw !== undefined) {
+            const n = typeof lineRaw === 'number' ? lineRaw : Number(lineRaw)
+            if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+              throw new Error('doc-goto --line requires a positive integer')
+            }
+            line = n
+          }
+          if (heading === undefined && line === undefined && anchor === undefined) {
+            throw new Error('doc-goto requires one of --heading, --line, --anchor')
+          }
+          result = await this.nav.docGoto({ path, heading, line, anchor })
+          break
+        }
+        case 'doc-find': {
+          const query = args['query'] as string
+          if (typeof query !== 'string' || query.length === 0) {
+            throw new Error('doc-find requires a query string')
+          }
+          const path = args['path'] as string | undefined
+          const caseSensitive = args['case-sensitive'] === true
+          result = await this.nav.docFind({ path, query, caseSensitive })
           break
         }
         case 'theme': {

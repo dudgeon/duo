@@ -159,7 +159,18 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           if (!doc.head?.querySelector('style[data-duo-canvas-runtime]')) {
             const style = doc.createElement('style')
             style.setAttribute('data-duo-canvas-runtime', '1')
-            style.textContent = 'body { outline: none; }'
+            // ENH-022 — `.duo-goto-flash` highlight applied for ~1.5s
+            // when `duo doc goto --anchor X` lands. Class is added by
+            // CanvasTab; this rule keeps the flash inside the iframe
+            // scope where parent stylesheets don't reach.
+            style.textContent = `
+              body { outline: none; }
+              .duo-goto-flash { animation: duo-goto-flash-anim 1.5s ease-out; }
+              @keyframes duo-goto-flash-anim {
+                0%   { background: rgba(248, 229, 156, 0.85); }
+                100% { background: transparent; }
+              }
+            `
             doc.head?.appendChild(style)
           }
 
