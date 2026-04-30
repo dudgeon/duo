@@ -267,7 +267,7 @@ export function App() {
     if (sessionLoadStartedRef.current) return
     sessionLoadStartedRef.current = true
 
-    void window.electron.sessionState.load().then(state => {
+    void window.electron.sessionState.load().then(async state => {
       // Terminal tabs first — these drive most of the renderer's
       // initial state. Empty list (first launch) → keep the default
       // single shell tab the constructor seeded.
@@ -282,14 +282,30 @@ export function App() {
         }
       }
 
+      // BUG-039 — gate file-tab hydration on `files.exists`. Tabs
+      // whose paths were deleted between sessions get dropped here
+      // (silently — the user's mental model is "I deleted that file";
+      // re-opening Duo to a half-broken tab strip is worse than
+      // silent prune). Logs a one-shot console diagnostic so
+      // unexpected drops are diagnosable.
+      const existenceChecks = await Promise.all(
+        state.fileTabs.map(async f => ({ entry: f, exists: await window.electron.files.exists(f.path) }))
+      )
+      const dropped = existenceChecks.filter(c => !c.exists).map(c => c.entry.path)
+      if (dropped.length > 0) {
+        console.warn(`[session-restore] dropped ${dropped.length} file tab(s) (no longer on disk):`, dropped)
+      }
+
       // File tabs — IDs are session-local; mint fresh, key off path.
-      const restoredFileTabs: FileTab[] = state.fileTabs.map(f => ({
-        id: crypto.randomUUID(),
-        type: f.type,
-        path: f.path,
-        title: f.path.split('/').pop() || f.path,
-        mime: f.mime
-      }))
+      const restoredFileTabs: FileTab[] = existenceChecks
+        .filter(c => c.exists)
+        .map(c => ({
+          id: crypto.randomUUID(),
+          type: c.entry.type,
+          path: c.entry.path,
+          title: c.entry.path.split('/').pop() || c.entry.path,
+          mime: c.entry.mime
+        }))
       if (restoredFileTabs.length > 0) {
         setFileTabs(restoredFileTabs)
       }
@@ -301,6 +317,9 @@ export function App() {
         if (matching) {
           setActiveWorking({ kind: 'file', id: matching.id })
         }
+        // BUG-039 — if the active-working file was dropped, fall
+        // through to the default 'browser' state. Don't try to land
+        // the user on a tab that's no longer there.
       }
       // 'browser' is the default initial state, no-op.
 

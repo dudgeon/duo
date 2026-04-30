@@ -95,6 +95,20 @@ export class FilesService {
     return results
   }
 
+  /** BUG-039 — lightweight existence check used by session-restore
+   *  hydration to drop tabs whose files were deleted between
+   *  sessions. Returns true if the path exists AND is a regular
+   *  file. Symbolic links resolve through to the target via
+   *  `fs.stat` (vs `fs.lstat`); a broken symlink reports false. */
+  async exists(absPath: string): Promise<boolean> {
+    try {
+      const st = await fs.stat(absPath)
+      return st.isFile()
+    } catch {
+      return false
+    }
+  }
+
   async read(absPath: string): Promise<FileReadResult> {
     const st = await fs.stat(absPath)
     if (st.size > MAX_READ_BYTES) {

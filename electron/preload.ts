@@ -140,6 +140,9 @@ const api: ElectronAPI = {
 
     rename: (oldPath, newPath) => ipcRenderer.invoke(IPC.FILES_RENAME, { oldPath, newPath }),
 
+    // BUG-039 — existence check for session-restore tab hydration.
+    exists: (p) => ipcRenderer.invoke(IPC.FILES_EXISTS, { path: p }),
+
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process

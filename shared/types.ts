@@ -693,6 +693,9 @@ export const IPC = {
   // a same-fs fs.rename.
   FILES_TRASH: 'files:trash',
   FILES_RENAME: 'files:rename',
+  // BUG-039 — lightweight existence check used by session-restore
+  // hydration to drop tabs whose files were deleted between sessions.
+  FILES_EXISTS: 'files:exists',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',

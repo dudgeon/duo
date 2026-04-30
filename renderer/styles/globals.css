@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ENH-019 — utility to suppress the OS-default scrollbar handle on
+   any element with `overflow-*: auto/scroll`. Used by the terminal +
+   working-pane tab strips to hide the macOS overlay scrollbar that
+   appears whenever tabs overflow horizontally. Keyboard-accessible
+   scroll (⌃Tab cycle, tab activation) is unchanged — this is purely
+   cosmetic. */
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;        /* Firefox */
+    -ms-overflow-style: none;     /* IE / old Edge */
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;                /* Chromium / WebKit */
+    width: 0;
+    height: 0;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────────
    Stage 12 — Atelier visual foundation
    Tokens from docs/design/atelier/project/tokens.jsx (`atelier` direction).

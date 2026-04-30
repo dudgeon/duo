@@ -433,6 +433,11 @@ function setupIPC(): void {
     return filesService.rename(oldPath, newPath)
   })
 
+  // BUG-039 — existence check for session-restore tab hydration.
+  ipcMain.handle(IPC.FILES_EXISTS, (_event, { path: p }: { path: string }) => {
+    return filesService.exists(p)
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()

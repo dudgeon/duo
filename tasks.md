@@ -2010,7 +2010,7 @@ BUG-021 (shipped v0.4.3) fixed the closure-stale-tabs case by switching the cycl
 
 ### BUG-039: Session restore errors when a previously-open file was deleted between sessions
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W5). New `files.exists(path): Promise<boolean>` IPC method (`electron/files-service.ts § exists` — `fs.stat` + `isFile()`, returns false on ENOENT). Session-restore hydration in `App.tsx` now `Promise.all`s an existence check across all restored file tabs, drops missing ones silently, and logs a one-shot console diagnostic listing dropped paths so unexpected drops are diagnosable. Active-working selection falls through to default `'browser'` when its target was dropped. New IPC channel `FILES_EXISTS`; preload + host-api types updated.
 **Priority:** Medium-High (visible-on-launch error; common case for any user who deletes files between sessions)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 12)
 
@@ -2184,7 +2184,7 @@ F. **Behavioral fallback (Cozy-port).** Even with full AST tracking, on Enter / 
 
 ### ENH-019: Suppress OS scrollbar UI on horizontal tab strip overflow
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W3). The `scrollbar-none` Tailwind class was already referenced on `TabBar.tsx` and `WorkingTabStrip.tsx` overflow containers — but the underlying CSS rule was never defined, so the class was a no-op and macOS painted its overlay scrollbar handle on every tab-strip overflow. Defined the utility in `globals.css § @layer utilities` covering Firefox (`scrollbar-width: none`), Chromium / WebKit (`::-webkit-scrollbar { display: none; width: 0; height: 0 }`), and old Edge (`-ms-overflow-style: none`). Pure cosmetic; ⌃Tab cycle / tab activation unchanged.
 **Priority:** Low (visual polish)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 14)
 

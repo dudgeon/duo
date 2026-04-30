@@ -100,6 +100,10 @@ export interface ElectronFilesAPI {
   trash: (path: string) => Promise<void>
   /** Stage 26 item 6 — rename / move within the same filesystem. */
   rename: (oldPath: string, newPath: string) => Promise<void>
+  /** BUG-039 — lightweight existence check (regular file). Used by
+   *  session-restore hydration to drop tabs whose files were
+   *  deleted between sessions. */
+  exists: (path: string) => Promise<boolean>
   /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
    *  routing meta tags. Used by the file-open dispatcher to decide
    *  whether an .html file mounts as a browser tab or a canvas tab.
