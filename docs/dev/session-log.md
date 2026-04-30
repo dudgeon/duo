@@ -111,29 +111,80 @@ upload step.
    live in the helper to support both contexts; the CLI's fallback
    logic is what makes "works inside Claude Code" the default.
 
-**What's owed (in priority order):**
+**Evening update (post-verification + Stage A landed):**
 
-- 🟡 **Phases 5/6/6.5 verification.** Geoff to test in real Chrome
-  tonight. Verbs and rail buttons listed in `phase0/README.md` →
-  *"Phase 6.5 — driving Chrome from a terminal"* + the build-
-  roadmap status row notes.
-- ⬜ **Stage A merge to main.** Smoke-walk per
-  `docs/dev/smoke-checklist.md`; PR; merge. Foundation step before
-  any Phase 7 code. Currently parked on exploration branch as
-  commits `366fe4e` (services to `core/`) + `613a87a` (host-api
-  split).
-- ⬜ **Phase 7 execution.** File-by-file work per the implementation
-  plan. ~2 working days. Gated on verification + Stage A merge.
+After Geoff got home: walked the verification checklist
+(`phase0/VERIFICATION-CHECKLIST.md`) end-to-end. All ✅:
+- **Phase 5** rail buttons: `tabs:list` returned "232 tabs — active:
+  Orders - Etsy"; `scripting:title` returned active tab title.
+- **Phase 6** CDP gear button: yellow "Duo started debugging" bar
+  flashed and auto-detached; banner showed "✓ tab #N CDP eval →
+  number 2".
+- **Phase 6.5** from a regular terminal: doctor (sock + tcp OK),
+  tabs (232-element JSON), title, eval — all clean. From inside a
+  sandboxed Claude Code session: same commands worked. Interesting
+  finding — Geoff's specific Claude-Code sandbox didn't block the
+  Unix socket on this run, but the TCP fallback is still load-
+  bearing for sandbox configs that do (per CLAUDE.md's documented
+  failure mode). Belt-and-suspenders earns its keep.
+
+Build-roadmap rows 5/6/6.5 flipped 🟡 → ✅.
+
+Then drove **Stage A → main via PR #42** with computer-use:
+quit production Duo, ran `npm run dev` from the worktree, walked
+the smoke checklist's load-bearing sections via screenshots:
+- App boot: three columns rendered, no mount crashes
+- PTY echo: typed `echo "stage-a-smoke: $(date +%s)"` — output
+  echoed back; multi-tab isolation verified (separate scrollbacks)
+- Socket-server: `duo url`, `duo doctor`, `duo title`, `duo open
+  https://example.com` — all round-tripped through the new
+  `core/socket-server.ts` import path
+- Browser-manager: `duo open` created tab #2 active at example.com
+- Update-checker: dev log line confirms `new UpdateChecker(app.getVersion())`
+  constructed cleanly with the new constructor signature
+
+PR #42 merged. **`core/`, `EventSink`, and `shared/host-api.ts` are
+now on main.** Phase 7's NM-shim refactor can build directly
+against them.
+
+**Five PRs merged to main today:**
+- [#38](https://github.com/dudgeon/duo/pull/38) — research bundle (README, mvp-plan, refactor-analysis, build-roadmap)
+- [#39](https://github.com/dudgeon/duo/pull/39) — distribution strategy (both shapes ship; Electron-as-NM-host)
+- [#40](https://github.com/dudgeon/duo/pull/40) — session-log entry (this entry, originally)
+- [#41](https://github.com/dudgeon/duo/pull/41) — `docs/PRIVACY.md`
+- [#42](https://github.com/dudgeon/duo/pull/42) — Stage A refactor (services → core/, host-api split)
+
+Plus this commit: docs cleanup that brings the build-roadmap status
+flips, the Phase 7 implementation plan, and the Web Store listing
+pre-bake to main.
+
+**What's owed (in priority order, post-verification):**
+
+- ✅ ~~Phases 5/6/6.5 verification~~ — done
+- ✅ ~~Stage A merge to main~~ — landed via PR #42
+- ⬜ **Phase 7 execution.** File-by-file work per
+  [`docs/research/duo-as-chrome-extension/phase7-implementation-plan.md`](../research/duo-as-chrome-extension/phase7-implementation-plan.md).
+  ~2 working days. The exploration branch's `phase0/` directory
+  becomes the basis for the cutover but doesn't merge to main as-is —
+  the helper logic collapses into a `--nm-shim` mode in
+  `electron/main.ts`, the extension surface lands at top-level
+  `extension/` (renamed from `phase0/extension/`).
 - ⬜ **Web Store unlisted upload + Trailblazers cohort dogfood.**
   Phase 7 milestone; runs ≥30 days before public promotion.
+  Listing copy + permission justifications + privacy policy
+  pre-baked at [`docs/research/duo-as-chrome-extension/web-store-listing.md`](../research/duo-as-chrome-extension/web-store-listing.md).
 - ⬜ **Public Web Store promotion + background-mode menu bar.**
   Phase 8.
 
 **Branch state at session end:**
-`duo-chrome-extension-exploration` is 14 commits ahead of `main`.
-Two PRs merged to main this session ([#38](https://github.com/dudgeon/duo/pull/38) docs research bundle,
-[#39](https://github.com/dudgeon/duo/pull/39) distribution strategy). Latest exploration
-commit: `9178264 chore(phase7-prep): prod bundle script + duo-ext skill + Web Store listing draft`.
+- `main` has all docs + Stage A. Five PRs merged today.
+- `duo-chrome-extension-exploration` retains the `phase0/` prototype
+  for the Phase 7 cutover. 21 commits ahead of `main`; nothing in
+  that delta needs to merge as-is — Phase 7's refactor will replace
+  the relevant pieces.
+- The local worktree at `.claude/worktrees/elegant-sanderson-05aa7a`
+  was deleted at session end. Next pickup happens on the origin
+  repo at `~/Documents/GitHub/duo`.
 
 ---
 
