@@ -78,42 +78,25 @@ html, body {
   position: relative;
   min-width: 0;
   background: #1e1e1e;
+  overflow: hidden;
 }
 
-#terminal {
+#terminal-host {
   height: 100%;
   width: 100%;
-  padding: 8px 10px;
-  overflow: auto;
+  padding: 4px 4px 4px 6px;
+  background: #1e1e1e;
 }
 
-.terminal-mock {
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  color: #d4d4d4;
+/* xterm fills the host; xterm.css provides .xterm; we just stretch it */
+#terminal-host .xterm {
+  height: 100%;
+  width: 100%;
 }
 
-.terminal-line {
-  margin: 0 0 2px 0;
-}
-
-.terminal-line .muted {
-  color: #888;
-}
-
-.terminal-line .cursor {
-  display: inline-block;
-  width: 7px;
-  height: 14px;
-  background: #d4d4d4;
-  vertical-align: text-bottom;
-  animation: blink 1s steps(1) infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
+#terminal-host .xterm-viewport,
+#terminal-host .xterm-screen {
+  background: #1e1e1e !important;
 }
 
 /* ── Drawer ────────────────────────────────────────────────────────── */

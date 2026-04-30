@@ -3,7 +3,10 @@
 <head>
   <meta charset="utf-8">
   <title>Duo</title>
+  <link rel="stylesheet" href="vendor/xterm.css">
   <link rel="stylesheet" href="sidepanel.css">
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/addon-fit.js"></script>
 </head>
 <body>
   <div id="root">
@@ -36,14 +39,7 @@
 
     <!-- main work area (terminal full-width by default) -->
     <main id="work-area">
-      <div id="terminal" role="region" aria-label="Terminal (mock)">
-        <div class="terminal-mock">
-          <div class="terminal-line">$ <span class="muted">welcome to duo phase 1 — terminal mock</span></div>
-          <div class="terminal-line">$ <span class="muted">click 📁 on the rail or press ⌘+B for files</span></div>
-          <div class="terminal-line">$ <span class="muted">click 🕒 on the rail to send a phase-0 keep-alive ping</span></div>
-          <div class="terminal-line">$ <span class="cursor">_</span></div>
-        </div>
-      </div>
+      <div id="terminal-host" role="region" aria-label="Terminal"></div>
     </main>
 
     <!-- 280px slide-in nav drawer (covers terminal area when open) -->

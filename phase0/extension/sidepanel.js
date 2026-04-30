@@ -1,13 +1,17 @@
-// Duo Phase 1 — side panel logic.
+// Duo Phase 1/2 — side panel logic.
 //
-// Handles:
-//   * rail folder button + ⌘B → toggle drawer
-//   * rail clock button → send a Phase-0 diagnostic ping via SW
+// Phase 1 (UI scaffolding):
+//   * rail folder + ⌘B → toggle drawer
+//   * rail clock → send Phase-0 diagnostic ping via SW
 //   * Esc / outside-click / file-click → close drawer
-//   * mock filetree rendering
 //
-// No real PTY or filesystem yet — that's Phase 2 and Phase 3. Mock
-// data is hardcoded below so the UX can be validated independently.
+// Phase 2 (real PTY):
+//   * mount xterm.Terminal + FitAddon in #terminal-host
+//   * open chrome.runtime.connect({name:'sidepanel'}) to the SW
+//   * spawn a real PTY in the helper via pty:create
+//   * forward keystrokes (term.onData) → SW → helper.write
+//   * pipe pty:data from helper → SW → term.write
+//   * fit on window resize, propagate cols/rows to helper
 
 const root = document.getElementById('root')
 const drawer = document.getElementById('nav-drawer')
@@ -16,6 +20,7 @@ const pingBtn = document.getElementById('rail-ping-btn')
 const closeBtn = document.getElementById('drawer-close-btn')
 const filetree = document.getElementById('filetree')
 const banner = document.getElementById('ping-banner')
+const termHost = document.getElementById('terminal-host')
 
 // ── Drawer ────────────────────────────────────────────────────────────
 
@@ -34,7 +39,6 @@ function toggleDrawer() {
 folderBtn.addEventListener('click', toggleDrawer)
 closeBtn.addEventListener('click', () => setDrawer(false))
 
-// ⌘B (Cmd on macOS, Ctrl on others)
 window.addEventListener('keydown', (e) => {
   if (e.key === 'b' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault()
@@ -46,7 +50,6 @@ window.addEventListener('keydown', (e) => {
   }
 })
 
-// click-outside dismiss — anywhere inside #work-area while drawer is open
 document.addEventListener('click', (e) => {
   if (drawer.classList.contains('closed')) return
   const t = e.target
@@ -56,9 +59,6 @@ document.addEventListener('click', (e) => {
 })
 
 // ── Mock filetree ─────────────────────────────────────────────────────
-// Phase 1 hardcodes these so the layout/interaction can be validated
-// without wiring chokidar through the helper. Phase 3 replaces this
-// with real entries from helper/files-bridge.
 
 const MOCK_TREE = [
   { name: 'duo', kind: 'folder', depth: 0, expanded: true },
@@ -90,8 +90,6 @@ function renderTree() {
 }
 
 function isAncestorExpanded(entry) {
-  // walk up the mock tree by index — hardcoded shape, so just check
-  // the most recent ancestor of lower depth
   const idx = MOCK_TREE.indexOf(entry)
   for (let i = idx - 1; i >= 0; i--) {
     const cand = MOCK_TREE[i]
@@ -109,7 +107,6 @@ function onTreeClick(entry, li, e) {
     renderTree()
     return
   }
-  // file click — dismiss drawer, log a stub for now
   console.log('[sidepanel] file clicked (Phase 3 will open canvas):', entry.name)
   setDrawer(false)
   showBanner(`(Phase 3 will open ${entry.name} in a new tab)`)
@@ -148,3 +145,118 @@ function showBanner(text, cls) {
   if (bannerTimer) clearTimeout(bannerTimer)
   bannerTimer = setTimeout(() => banner.classList.add('hidden'), 6000)
 }
+
+// ── Phase 2 — real PTY via xterm + SW port ────────────────────────────
+
+const SESSION_ID = 'sp-' + Math.random().toString(36).slice(2, 10)
+
+const term = new window.Terminal({
+  cursorBlink: true,
+  fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace',
+  fontSize: 12,
+  lineHeight: 1.2,
+  theme: {
+    background: '#1e1e1e',
+    foreground: '#d4d4d4',
+    cursor: '#d4d4d4',
+    black: '#000',
+    red: '#cd3131',
+    green: '#0dbc79',
+    yellow: '#e5e510',
+    blue: '#2472c8',
+    magenta: '#bc3fbc',
+    cyan: '#11a8cd',
+    white: '#e5e5e5',
+    brightBlack: '#666',
+    brightRed: '#f14c4c',
+    brightGreen: '#23d18b',
+    brightYellow: '#f5f543',
+    brightBlue: '#3b8eea',
+    brightMagenta: '#d670d6',
+    brightCyan: '#29b8db',
+    brightWhite: '#fff'
+  },
+  scrollback: 10_000,
+  convertEol: false
+})
+
+const fitAddon = new window.FitAddon.FitAddon()
+term.loadAddon(fitAddon)
+term.open(termHost)
+
+let lastCols = 80, lastRows = 24
+
+function fitAndPropagate() {
+  try {
+    fitAddon.fit()
+    const { cols, rows } = term
+    if (cols !== lastCols || rows !== lastRows) {
+      lastCols = cols
+      lastRows = rows
+      if (swPort && ptyReady) {
+        swPort.postMessage({ type: 'pty:resize', id: SESSION_ID, cols, rows })
+      }
+    }
+  } catch (e) {
+    console.warn('[sidepanel] fit failed:', e)
+  }
+}
+
+// Initial fit happens after layout stabilizes.
+requestAnimationFrame(() => requestAnimationFrame(fitAndPropagate))
+window.addEventListener('resize', fitAndPropagate)
+
+// Connect to the SW.
+let swPort = null
+let ptyReady = false
+
+function connectSw() {
+  if (swPort) return
+  swPort = chrome.runtime.connect({ name: 'sidepanel' })
+  swPort.onMessage.addListener((msg) => {
+    if (!msg || msg.id !== SESSION_ID) return
+    if (msg.type === 'pty:created') {
+      ptyReady = true
+      console.log('[sidepanel] pty created (helper pid=' + msg.pid + ')')
+    } else if (msg.type === 'pty:data') {
+      term.write(msg.data)
+    } else if (msg.type === 'pty:exit') {
+      ptyReady = false
+      term.write(`\r\n\x1b[2;90m[pty exited code=${msg.exitCode}]\x1b[0m\r\n`)
+    } else if (msg.type === 'pty:error') {
+      term.write(`\r\n\x1b[31m[pty error: ${msg.error}]\x1b[0m\r\n`)
+      ptyReady = false
+    }
+  })
+  swPort.onDisconnect.addListener(() => {
+    console.warn('[sidepanel] sw port disconnected')
+    swPort = null
+    ptyReady = false
+    // Try to reconnect on next user keypress.
+  })
+  // Spawn the PTY.
+  swPort.postMessage({
+    type: 'pty:create',
+    id: SESSION_ID,
+    cols: term.cols,
+    rows: term.rows
+  })
+}
+
+connectSw()
+
+// Forward keystrokes to the PTY.
+term.onData((data) => {
+  if (!ptyReady) {
+    if (!swPort) connectSw()
+    return
+  }
+  swPort.postMessage({ type: 'pty:write', id: SESSION_ID, data })
+})
+
+// Tear down the PTY when the panel is closed (browser fires this on tab/panel close).
+window.addEventListener('beforeunload', () => {
+  if (swPort && ptyReady) {
+    try { swPort.postMessage({ type: 'pty:kill', id: SESSION_ID }) } catch {}
+  }
+})

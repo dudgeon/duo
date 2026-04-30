@@ -40,8 +40,16 @@ function connectHelper() {
 
   port.onMessage.addListener((msg) => {
     messageCount++
-    console.log(`[sw] msg from helper #${messageCount}:`, msg)
     if (msg.pid) helperPid = msg.pid
+    // Phase 2 — relay pty:* events back to all connected sidepanel ports.
+    // Anything else (hello-ack, pong, keep-alive-ack) stays SW-internal.
+    if (msg.type && msg.type.startsWith('pty:')) {
+      for (const sp of sidepanelPorts) {
+        try { sp.postMessage(msg) } catch (e) { console.warn('[sw] sp post failed:', e) }
+      }
+    } else {
+      console.log(`[sw] msg from helper #${messageCount}:`, msg)
+    }
   })
 
   port.onDisconnect.addListener(() => {
@@ -96,6 +104,39 @@ chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
   handlePing(req, sendResponse)
   return true // keep sendResponse alive
 })
+
+// ── Phase 2 — sidepanel ↔ helper PTY relay ───────────────────────────
+// Side panel opens a long-lived port via chrome.runtime.connect({name:'sidepanel'}).
+// pty:* messages from the side panel forward to the native helper port;
+// pty:* responses from the helper fan out to all connected sidepanel ports.
+// Single-window for now; multi-window adds a Map<windowId, port>.
+
+const sidepanelPorts = new Set()
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== 'sidepanel') return
+  console.log('[sw] sidepanel port connected')
+  sidepanelPorts.add(port)
+  port.onDisconnect.addListener(() => {
+    console.log('[sw] sidepanel port disconnected')
+    sidepanelPorts.delete(port)
+  })
+  port.onMessage.addListener((msg) => {
+    if (!msg || !msg.type || !msg.type.startsWith('pty:')) return
+    if (!port) connectHelper()
+    if (!nativePortOk()) {
+      port.postMessage({ type: 'pty:error', id: msg.id, error: 'native helper unavailable' })
+      return
+    }
+    try { /* eslint-disable-next-line no-undef */ port_to_helper().postMessage(msg) }
+    catch (e) { port.postMessage({ type: 'pty:error', id: msg.id, error: e.message }) }
+  })
+})
+
+// Tiny helpers so the sidepanel-port handler stays readable.
+// (`port` is the Native Messaging port declared at the top of this file.)
+function nativePortOk() { return !!port }
+function port_to_helper() { return port }  // eslint-disable-line camelcase
 
 function handlePing(req, sendResponse) {
   const t0 = performance.now()
