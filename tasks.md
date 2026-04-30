@@ -1558,6 +1558,8 @@ Recommendation: **(1)**. One overlay element, one CSS class, no per-surface regi
 
 Effect: BUG-022's "first keystroke lands as content" ergonomic still fires when the user has the working pane focused. A re-mount triggered by srcdoc changes / HMR / post-doc-write reloads under terminal focus no longer yanks the cursor mid-typing.
 
+**Re-reported 2026-04-30** (`20260430-improvement-notes.md` item 5 — "when focus is on terminal, and html canvas is open in work space, sometimes the cursor spontaneously jumps from the terminal to the html canvas"). Owner confirmed via AskUserQuestion that they were on a pre-v0.5.2 build; pull main + rebuild picks up the fix. No code change needed.
+
 **Priority:** Medium (annoying mid-typing; intermittent so easy to dismiss until it happens enough)
 **Filed:** 2026-04-28
 
@@ -1651,6 +1653,8 @@ Recommendation: **v1 is the unblock**, ship in next bug-smashing sprint. v2 is a
 
 Verified: opening a populated `.html` (e.g. `~/demo.html`) now shows only its content — no centered "TYPE / SOON / SOON / SOON" card floating over the heading.
 
+**Re-reported 2026-04-30** (`20260430-improvement-notes.md` item 4 — "the html canvas, on initial load, shows the 'features' view, which occludes the content below it; please just delete this feature"). Owner confirmed via AskUserQuestion that they were on a pre-v0.5.2 build; pull main + rebuild picks up the fix. No code change needed.
+
 **Priority:** Medium (visible on every populated `.html` open until user types — high friction)
 **Filed:** 2026-04-28
 
@@ -1739,8 +1743,8 @@ The button **is there.** It's just too muted to find. Three things compound the 
 ### ENH-016: Create new file / new folder from FileTree context menu
 
 **Status:** 🆕 Filed
-**Priority:** Medium-High (parity with VS Code / Finder; common ask)
-**Filed:** 2026-04-28
+**Priority:** **High** (parity with VS Code / Finder; re-asked 2026-04-30 with explicit "new folder" emphasis)
+**Filed:** 2026-04-28 · re-asked 2026-04-30 (`20260430-improvement-notes.md` item 3 — "need new folder button in file explorer")
 
 **Today:** Right-clicking a row in the FileTree (`renderer/components/FileTree.tsx:174–223`) shows: Open terminal here / Open in editor, Reveal in Finder, Copy path, Open with default app, Pin/Unpin, Rename, Move to Trash. **No "New file" or "New folder."**
 
@@ -1868,5 +1872,381 @@ The shell takes **5.236s** to spawn-resolve. The resolver's per-attempt timeout 
 - `electron/resolve-claude.ts` — add `tryFastPaths()` that walks well-known locations + `process.env.PATH` before falling through to shells. Bump shell timeout to 15s. Reorder flag-sets so the fastest combo (no `-i`) goes first.
 
 **Cross-ref:** v0.4.5 was the previous "Claude not detected" fix (drift between install-service and main.ts on which shell flags they used). This is a similar issue (timeout / fast-path) that v0.4.5's all-shell-fallback approach didn't anticipate.
+
+---
+
+### BUG-036: ⌘T from terminal focus opens browser tab — should open vanilla shell tab (decision reversal)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (revives pane-aware ⌘T mental model; reverses BUG-008 spec resolution)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 2)
+
+**Owner ask:** "need to revert decision: cmd+t in terminal should open new terminal, not new browser tab"
+
+**Resolution clarified 2026-04-30 (AskUserQuestion):**
+- `⌘T` from terminal focus → **vanilla shell tab in current CWD**.
+- `⌘⇧T` from terminal focus → **claude tab in current CWD**.
+- `⌘T` from browser focus → new browser tab (Chrome-parity, unchanged).
+- `⌘T` from files / editor / canvas focus → fall through to new browser tab (current behavior; recommend keep — only the terminal pane has a coherent "new of this kind" gesture).
+
+**Today (post-BUG-008 + v0.2.0):**
+- `renderer/hooks/useKeyboardShortcuts.ts` — `⌘T` everywhere → `newBrowserTab()`; `⌘⇧T` → `newClaudeTab()` from any focus.
+- `renderer/components/TerminalPane.tsx` xterm allowlist bubbles `⌘T` / `⌘⇧T` to the window so the global handler fires.
+- The `>` (shell) button on the terminal strip is the only path to a vanilla-shell tab today.
+
+**What changes:**
+1. `⌘T` branch in `useKeyboardShortcuts.ts` becomes pane-aware: `activePaneFocus === 'terminal'` → spawn shell tab at front terminal's CWD; otherwise → `newBrowserTab()`.
+2. `⌘⇧T` branch becomes pane-aware too: from terminal focus → claude tab at front terminal's CWD; from any other focus → claude tab at last-known CWD (keeps the universal "spawn a Claude" affordance).
+3. Front-terminal CWD plumbing already exists for the navigator/breadcrumb (Stage 10) and is being threaded for Stage 26 PR 3 item 2 (active-CWD highlight). Reuse it here.
+
+**Cross-ref:** BUG-008 (the spec this reverses) — its "Chrome-parity ⌘T everywhere" rationale loses to "pane-aware muscle memory" once a user spends time in terminals. The discovery affordance for browser tabs lives on the browser pane's split `+` button (Stage 19c / ENH-006).
+
+**Open questions:**
+- Update `docs/dev/smoke-checklist.md § 5` keyboard matrix.
+- `~/.claude/duo/help/faq.html` "⌘T conflict" entry needs rewrite; `what-duo-does.html` "Open a Claude tab" line stays accurate (`⌘⇧T` still spawns Claude).
+- Roadmap card for Stage 19c gets a third spec note (this is now its third revision).
+
+**Affected files:**
+- `renderer/hooks/useKeyboardShortcuts.ts`
+- `renderer/App.tsx` (thread current-CWD into the hook)
+- `docs/dev/smoke-checklist.md`
+- `~/.claude/duo/help/faq.html`
+
+**Class of issue:** spec-revision (third on the `⌘T` family). Worth adding a note in `DECISIONS.md` once this lands so the next future-Claude doesn't re-debate it.
+
+---
+
+### BUG-037: HTML canvas — clicking inside the canvas while focus is elsewhere doesn't switch focus to it
+
+**Status:** 🆕 Filed
+**Priority:** Medium (breaks the "click → focus" invariant; cascades into wrong-pane keyboard shortcuts)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 9)
+
+**Owner observation:** "when focus is not on html canvas, clicking within the html canvas does not switch focus there"
+
+**Repro:**
+1. Open an HTML canvas in the working pane.
+2. Click into the terminal so the terminal column has focus (orange chrome strip).
+3. Click anywhere inside the canvas iframe.
+
+**Expected:** The working column gains focus (chrome strip flips orange) AND the click places a cursor in the canvas body.
+**Actual:** The cursor may place (BUG-023's "click anywhere → cursor lands" path) but `focusedColumn` stays `'terminal'`. Subsequent ⌃Tab cycles the wrong pane's tabs; subsequent ⌘T spawns the wrong-pane new-tab.
+
+**Root cause hypothesis (untraced):**
+The canvas iframe is a separate document. Click events inside the iframe don't bubble to the outer column wrapper's `onMouseDown` handler that sets `focusedColumn`. The outer wrapper sees the click happening on the `<iframe>` element itself (outer DOM), not on its contents.
+
+For comparison: clicking into the markdown editor (no iframe) DOES flip `focusedColumn` because the contentEditable lives in the same document.
+
+**Suggested fix:**
+Install a `mousedown` listener on the iframe's document; on first interaction, post a message / call a parent-exposed setter that sets `focusedColumn = 'working'`. Pattern is symmetric to BUG-032's iframe focus-steal solution (it added an opt-out for iframe → terminal focus theft; this adds an opt-in for terminal → canvas focus acquisition on user click).
+
+```ts
+// renderer/components/HtmlCanvas/RenderedCanvas.tsx
+iframe.contentDocument.addEventListener('mousedown', () => {
+  onUserClickInCanvas?.()  // parent calls setFocusedColumn('working')
+}, { capture: true })
+```
+
+**Affected files:**
+- `renderer/components/HtmlCanvas/RenderedCanvas.tsx`
+- `renderer/components/HtmlCanvas/CanvasTab.tsx` (forward the prop)
+- `renderer/App.tsx` (pass setter)
+
+**Cross-ref:** BUG-022 (canvas should focus body on open — opposite gesture, same component); BUG-032 (canvas iframe focus-steal — opposite direction); BUG-023 (click anywhere places cursor — adjacent fix).
+
+---
+
+### BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (load-bearing for tab navigation; user reports recurrence on 2026-04-30)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 11)
+
+**Owner observation:** "still an issue where some tabs are included when we cycle (ctrl-tab) through tabs, others are not; currently I can only cycle through the right few tabs with ctrl-tab, but not the rest"
+
+**Context:**
+BUG-021 (shipped v0.4.3) fixed the closure-stale-tabs case by switching the cycle handler to read `tabs` via a ref instead of capturing it in a useEffect closure. The user is reporting a different symptom — ⌃Tab reaches some tabs but not others, asymmetrically (not just "session-restored tabs unreachable" which BUG-021 closed).
+
+**Triage hypotheses:**
+1. **Pinned tabs sort vs. cycle order.** Stage 24 pins sort to leftmost; does the cycle iterate `tabs` in display order (post-sort) or insertion order? If insertion, pinned tabs may be skipped when cycling forward from a non-pinned tab.
+2. **Browser vs. terminal cycle list sync.** ⌃Tab in browser focus → `browser.getTabs()` + `switchTab(nextId)`; ⌃Tab in terminal focus → terminal-tab cycle. Are the two cycle lists aligned with the strip's display order?
+3. **`focusedColumn` stale during transitions.** If ⌃Tab fires while focus is mid-transition, the cycle may consult the wrong pane's list.
+4. **First-tab special handling (BUG-020 era).** The first FAQ tab has historical special-casing — confirm it's not being treated as "outside the cycle list."
+
+**Verification ask (owner):** enumerate WHICH tabs are reachable vs. not in a specific repro session — e.g., "5 terminal tabs, ⌃Tab reaches tabs 3/4/5 but skips 1/2." The asymmetry will narrow the hypothesis.
+
+**Class of issue:** Recurring regression on the same family of code. Per the global preference for durable test coverage on recurring regressions, this fix should land WITH a regression test that opens N terminal + browser tabs, presses ⌃Tab N times from each pane focus, and asserts every tab ID was visited exactly once.
+
+**Cross-ref:** BUG-001 (xterm-eats-shortcut, three-part fix), BUG-021 (closure-stale tabs, ref fix). This is the third instance of "⌃Tab doesn't reach all tabs."
+
+**Affected files (suspected):** `renderer/hooks/useKeyboardShortcuts.ts`, `renderer/App.tsx`.
+
+---
+
+### BUG-039: Session restore errors when a previously-open file was deleted between sessions
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (visible-on-launch error; common case for any user who deletes files between sessions)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 12)
+
+**Owner observation:** "when a file that was open in a session is deleted between sessions, duo attempts to reopen the tab/file at relaunch, and shows an error (because it is gone)"
+
+**Repro:**
+1. Open a file (e.g. `~/Documents/notes/scratch.md`) in a WorkingPane tab.
+2. Quit Duo.
+3. Delete the file from disk (Finder / `rm`).
+4. Relaunch Duo.
+
+**Expected:** Either the tab is silently dropped during session-restore hydration, OR it opens with a friendly placeholder ("file not found at `<path>` — close tab? reveal parent in Finder?").
+**Actual:** Duo attempts to read the file, hits ENOENT, surfaces an unhandled error in the tab.
+
+**Suggested fix:**
+During session-restore tab hydration, `fs.access(path)` each restored file path before pushing the tab into `tabs`. On ENOENT: drop silently OR push a `kind: 'missing-file'` tab shape that renders a placeholder. Recommend the placeholder for better mental-model continuity (the user knows what disappeared); silent drop is fine as a 30-LOC v1.
+
+**Affected files:**
+- `electron/session-store.ts` (session hydration)
+- `renderer/App.tsx` (restoreTabs hydration block)
+- `renderer/components/WorkingPane.tsx` (placeholder kind, if added)
+
+**Cross-ref:** Stage 21c Phase 2 (session restore — original home of this code path). BUG-007 (deleted-files-linger in navigator — adjacent symptom; both stem from missing `unlink` event handling).
+
+---
+
+### BUG-040: External-domain blocklist not bouncing capitalone.com / gmail.com to system browser
+
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W2). Diagnosis revealed the bug was bigger than a matcher tweak — there was **no routing interceptor for user-driven navigation at all.** Pre-fix, `external-domains.json` was an agent-only convention: the duo subagent read the file from `priming.md` and chose `duo external <url>` for off-host targets, while the BrowserManager's `webContents.loadURL` called from address-bar typing / link clicks bypassed the file entirely. Fix:
+- New `core/external-domains-service.ts` — loads + parses + caches + matches; watches the file for live edits (250ms debounce). The matcher `*.foo.com` already handled bare-domain (`foo.com`) since Stage 25 — that part wasn't broken; the missing piece was hooking it into BrowserManager.
+- `BrowserManager` now installs `will-navigate` + `will-redirect` interceptors on every WebContentsView (catches address-bar, link clicks, form posts, redirects). Off-host hosts → `event.preventDefault()` + `shell.openExternal(url)` + push the existing `EXTERNAL_REDIRECTED` IPC banner.
+- `setWindowOpenHandler` consults the same matcher for popups.
+- `addTab` initial load checks first; off-host URLs leave the tab on `about:blank` to avoid a flash-load-then-bounce.
+- `electron/main.ts` `openExternalUrl` reuses the same service for the post-redirect banner reason lookup; the inline `lookupExternalDomainReason` + `matchesDomain` are gone.
+**Priority:** **High** (defeats the whole point of the off-host blocklist; SSO + corporate-managed-browser flows break in the embedded browser)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 13)
+
+**Owner observation:** "we still need to implement the browser blocklist ... capitalone.com and gmail still load in the duo browser -- this should not happen"
+
+**State of the bundled blocklist (per ENH-009 v0.4.3 + Stage 21e v0.5.0):**
+Fresh installs get an expanded `~/.claude/duo/external-domains.json` covering `*.capitalone.com`, `*.slack.com`, `mail.google.com`, `docs.google.com`, `drive.google.com`, `*.atlassian.net`, `*.microsoftonline.com`, etc. Existing-user upgrade-additive merge was deferred (mile 2 of ENH-009) — see ENH-021 below.
+
+**Two distinct problems behind the user's report:**
+
+1. **gmail.com loads in embedded browser** — likely existing-user issue. User installed pre-v0.4.3, their `external-domains.json` only contains `["*.capitalone.com"]`, gmail isn't on their list because additive merge never landed. Resolution path: ENH-021 (additive merge) OR `rm ~/.claude/duo/external-domains.json && relaunch` to re-bootstrap.
+
+2. **capitalone.com STILL loads in embedded browser despite being in the user's list** — this is the real bug. The pattern-match / route-decision code is failing for an entry that's known-present. Hypotheses, in order of likelihood:
+   - **Bare-domain mismatch.** Pattern is `*.capitalone.com` (subdomain wildcard) but user is hitting `capitalone.com` (no subdomain). `*.capitalone.com` doesn't match `capitalone.com` itself — only subdomains. This is the most common cause of "blocklist ignored my entry."
+   - **In-page redirect / nested-frame blind spot.** Browser-Manager's URL-decision path may only check the top-level navigation URL, not subsequent in-page redirects (e.g., `capitalone.com` → `www.capitalone.com` → `myaccounts.capitalone.com`). The `will-navigate` vs `did-navigate-in-page` events handle these differently.
+   - **Stale or invalid `external-domains.json`.** JSON parse failure could silently fall back to empty-list — confirm with explicit logging.
+
+**Suggested triage:**
+1. Owner: paste contents of `~/.claude/duo/external-domains.json`. If it's `["*.capitalone.com"]` only, item 1 (existing-user gap) is confirmed — workaround = delete the file, relaunch.
+2. Test bare vs. subdomain navigation in the embedded browser. If `capitalone.com` (bare) loads but `www.capitalone.com` bounces to system browser, the matcher is strict-wildcard-only.
+3. Log the URL + match decision in `BrowserManager`'s `will-navigate` / `will-redirect` handlers temporarily.
+
+**v1 fix scope:**
+- (a) Confirm bundled defaults cover both bare AND wildcard forms (`capitalone.com` + `*.capitalone.com`, `gmail.com` + `mail.google.com`, etc.). Add bare-domain entries where missing.
+- (b) Fix the matcher to handle bare-domain entries OR document the subdomain-only semantic in the file's leading comment + ship a `duo blocklist test <url>` verb so users (and agents) can validate routing decisions deterministically.
+- (c) Trace `will-redirect` / `did-navigate-in-page` to confirm same routing is applied to redirects.
+
+**Affected files (suspected):**
+- `electron/browser-manager.ts` (URL-routing decision; matcher logic)
+- `electron/install-service.ts` (bundled defaults — add bare forms)
+- `cli/duo.ts` (new `blocklist test/list` verb — optional v1 scope)
+
+**Cross-ref:** ENH-009 (the original mile 1 — fresh-install defaults expansion); ENH-021 below (additive-merge for existing users); Stage 21e-iii (provenance-aware install pattern that was supposed to host the merge).
+
+---
+
+### ENH-018: Markdown editor — bullet marker character should match the source (`*` → disc, `-` → dash)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (visual fidelity — what's on disk should match what's rendered, character by character)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 1; spec corrected same day)
+
+**Owner observation:** "treat dashed bullets as dashed bullets -- not round bullets" → corrected to: "`*` should render as round bullets, `-` should render as dash bullets"
+
+**Today:**
+- TipTap's `BulletList` node has no concept of "which marker character was in the source" — it normalizes to a single `bulletList` node type.
+- `markdown-io.ts` round-trips both `*` and `-` to a single canonical character on save (currently `-`). This means a user who typed `* foo` gets `- foo` back on save → marker character is silently rewritten.
+- `renderer/styles/globals.css` `.duo-editor-prose ul:not([data-type="taskList"])` falls through to browser default `disc` for everything.
+
+**Expected:**
+1. `* foo` in source → renders as a **round bullet (disc)** AND round-trips back to `* foo` on save.
+2. `- foo` in source → renders as a **dash** (en-dash `–` or hyphen-style) AND round-trips back to `- foo` on save.
+3. Mixed lists in the same document preserve their respective markers.
+4. New lists created via toolbar / shortcut default to one or the other (recommend `-`, matching CommonMark norm + current default).
+5. Lists started by typing `* ` (input rule) → disc marker; lists started by `- ` → dash marker.
+
+**This is structurally larger than the original "swap disc for dash" suggestion.** Three pieces:
+
+**A. Schema attribute on `bulletList` to track the source marker.**
+- Extend TipTap's `BulletList` (or wrap it) with a `marker: '*' | '-'` attribute, default `'-'`.
+- Round-trip:
+  - Parse: `markdown-io.ts` markdown → ProseMirror parser sets `marker` to whichever character was at the start of the list. (Requires reading the source line — most md→PM parsers don't expose this. May need a custom remark plugin or post-parse pass.)
+  - Serialize: ProseMirror → markdown writes the `marker` attribute back as the bullet character.
+
+**B. CSS rendering keyed on the attribute.**
+```css
+.duo-editor-prose ul[data-marker="*"]:not([data-type="taskList"]) {
+  list-style-type: disc;
+}
+.duo-editor-prose ul[data-marker="-"]:not([data-type="taskList"]) {
+  list-style-type: '–  ';  /* en-dash + double space */
+}
+```
+
+**C. Input rules respect the typed character.**
+- TipTap's default bullet-list input rule matches `[*+-]\s` and creates a `bulletList`. Override (or add a parallel rule) so the matched character sets `marker` on the new node.
+- Toolbar "bullet list" button defaults to `'-'` (CommonMark canonical).
+
+**Round-trip risks:**
+- A list started with `*` and later edited (split / merged / re-flowed) — the `marker` attribute should propagate through edits. ProseMirror handles attribute preservation for splits but verify behavior for merging two lists with different markers.
+- Lists nested inside other lists — each `bulletList` carries its own `marker`. Should compose naturally.
+- Pasting markdown with `+` (third CommonMark bullet character) — for v1, recommend `+` → dash (treat as `-` synonym) OR add a third style. Plus is rare; defer.
+
+**v1 scope (locked 2026-04-30 after research + AskUserQuestion):**
+
+| Decision | Choice |
+|---|---|
+| Round-trip #1 — direct edits (Enter, Backspace, indent/outdent) preserve marker | ✅ ship in v1 |
+| Round-trip #2 — save → reopen preserves marker | ✅ ship in v1 |
+| Round-trip #3 — paste from another markdown source preserves markers | ⏳ deferred to v2 (document as known limitation; markers normalize to canonical on paste) |
+| Round-trip #4 — copy out preserves markers in `text/markdown` clipboard MIME | ✅ free with #2 (serializer covers it) |
+| Marker variants supported | **All three: `*`, `-`, `+`** (full CommonMark) |
+| Mixed-list collision behavior | **Inherit parent's marker.** If user types `* ` inside an existing dashed list, the new item conforms to `-`. Cozy-md-editor's pattern — predictable, surprise-free. Mixed-marker authoring requires explicit edit at the source. |
+
+**Implementation sketch (informed by cozy-md-editor research):**
+
+A. **Schema attribute on `bulletList`.** Add `marker: '*' | '-' | '+'` (default `'-'`) via a small `BulletListWithMarker` extension that wraps `@tiptap/extension-bullet-list`.
+
+B. **Parse: source character → attribute.** Custom remark plugin (or post-parse pass on the mdast tree) reads the bullet character at each list's start position and stamps it into the `bulletList` node attrs. The remark `list` node has a `start` offset that lets us peek at the original character in the raw source.
+
+C. **Serialize: attribute → source character.** Extend the ProseMirror→markdown serializer in `markdown-io.ts` to emit the stored marker character per list.
+
+D. **Input rules respect the typed character on list creation.** Override TipTap's default bullet-list input rule (matches `[*+-]\s`) so the matched character sets `marker` on the new node. **Inheritance rule: if the new list is being created inside an existing `bulletList`, inherit the parent's marker; only top-level new lists adopt the typed character.**
+
+E. **CSS attribute selectors.**
+```css
+.duo-editor-prose ul[data-marker="*"]:not([data-type="taskList"]) { list-style-type: disc; }
+.duo-editor-prose ul[data-marker="-"]:not([data-type="taskList"]) { list-style-type: '–  '; }
+.duo-editor-prose ul[data-marker="+"]:not([data-type="taskList"]) { list-style-type: '+  '; }
+```
+
+F. **Behavioral fallback (Cozy-port).** Even with full AST tracking, on Enter / Backspace / Shift+Tab inside a list, run a Cozy-style regex (`/^(\s*)([-*+])\s/`) over the current line as a second-line check. Catches edge cases where ProseMirror's command output drifts from the AST attribute. Cozy's `findParentListType` is the reference for outdent inheritance.
+
+**Test plan:**
+- Round-trip fixture: `tests/fixtures/bullet-markers.md` with `*`, `-`, `+` lists, nested mixed lists, and an alternating sibling pattern. Parse → serialize → assert byte-identical with the source.
+- Behavioral tests: Enter on a `*` line yields `*`, Enter on a `-` line yields `-`, Shift+Tab on a `* child` under `- parent` outputs `- child`.
+- Known-failure test for paste fidelity (until v2): paste `- A\n* B` → both render with the canonical marker; document as expected.
+
+**Out of scope (v1):**
+- Paste fidelity (round-trip #3).
+- HTML canvas marker selection — canvas authors hand-craft their own CSS; ENH-020 templates may follow this convention but it's not enforced.
+- Numbered list marker variants (`1.` vs `1)`) — same architectural shape but separate ENH.
+- Ordered-list re-numbering on outdent (cozy-md-editor's open TODO line 590) — out of scope.
+
+**Reusable assets from cozy-md-editor** (`/Users/geoffreydudgeon/VSC Projects/vsc-cozy-md-editor/src/commands/editing.ts`): the `BULLET_RE` regex, `findParentListType()` function, and the Enter / Shift+Tab handlers. These are pure TypeScript text utilities — not VS Code-specific. Port verbatim into a `bullet-marker-utils.ts` helper in `renderer/components/editor/` and call it from the TipTap commands.
+
+**Affected files:**
+- `renderer/components/editor/extensions/BulletListWithMarker.ts` (new — wraps `@tiptap/extension-bullet-list` with the `marker` attribute + input rules)
+- `renderer/components/editor/markdown-io.ts` (parse + serialize)
+- `renderer/components/editor/bullet-marker-utils.ts` (new — Cozy-port of `BULLET_RE` + `findParentListType` for behavioral fallback)
+- `renderer/styles/globals.css` (attribute-selector CSS rules)
+- `renderer/components/editor/EditorToolbar.tsx` (bullet button: default to `-`; if cursor is inside an existing list, adopt that list's marker)
+
+**Cross-ref:** Cozy-md-editor's `findParentListType` + `BULLET_RE` are the behavioral reference. v2 (paste fidelity) maps to `extensions/MarkdownPaste.ts` — fold there when picked up.
+
+---
+
+### ENH-019: Suppress OS scrollbar UI on horizontal tab strip overflow
+
+**Status:** 🆕 Filed
+**Priority:** Low (visual polish)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 14)
+
+**Owner observation:** "when scrolling horizontally through tabs in either the terminal or the working area/right pane, an os-default scroll bar ui/handle renders -- this is not necessary and should be suppressed"
+
+**Today:**
+The terminal tab strip (`renderer/components/TabBar.tsx`) and the WorkingPane tab strip (`renderer/components/WorkingTabStrip.tsx`) both use horizontal `overflow-x: auto`. macOS renders a transient scrollbar handle when content exceeds container width. Visually noisy.
+
+**Suggested fix (v1):**
+- `overflow-x: scroll; scrollbar-width: none` (Firefox) + `&::-webkit-scrollbar { display: none }` (Chromium) on the tab-strip scroll containers. Pure cosmetic suppression, no interaction change. ⌃Tab cycle + tab activation already cover keyboard navigation.
+- Alternative (deferred): change to `overflow-x: hidden` and add ◀/▶ chevron buttons revealed only when overflow exists. UX polish but changes interaction model.
+
+**Affected files:**
+- `renderer/components/TabBar.tsx` (or its CSS)
+- `renderer/components/WorkingTabStrip.tsx` (or its CSS)
+- Possibly a single shared utility class in `globals.css`.
+
+---
+
+### ENH-020: Skill — "Building effective HTML canvases" (templates + ID conventions + agent-event buttons)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (canvas authoring is the most-used Stage 17 surface; structured guidance turns ad-hoc canvas builds into reproducible patterns)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 10)
+
+**Owner ask:** "we need skill for building effective html canvases -- should include things like a template (eg notion-like structure you previously recommended), and rules for unique identifiers for divs where appropriate, guidance to make button elements function well with the duo cli for sending events from canvas >> duo, etc; skill should include multiple templates"
+
+**Scope:** A dedicated skill at `skill/examples/canvas-authoring.md` (per CLAUDE.md plumbing checklist § 8 stub for new tab types) covering:
+
+1. **Anatomy of a Duo canvas.** Boilerplate from `shared/html-boilerplate.ts` walked line-by-line — atelier palette tokens (`--paper`, `--ink`, `--accent`), dark-mode `@media`, `body min-height: 100vh` (BUG-023 fix), `<main>` content column at 720px max-width.
+2. **Stable IDs (`data-duo-id`).** Why agent edits rely on them; auto-stamping at write time (ENH-001); when to author IDs by hand (durable anchors for comment threads / agent-targeted ops); ULID pattern.
+3. **Agent-event buttons.** `data-duo-action` triple — `claude:spawn`, `terminal:send`, `browser:open`. Trust-gate path restriction (Stage 23 — actions only fire from `~/.claude/duo/`). Worked examples: a "run this checklist with Claude" button, a "send selected text to terminal" button, an "open external doc in browser" button.
+4. **CLI ops cheat-sheet.** `duo html append/replace/prepend/set/delete/wrap/move/edit-attr/get/query` — what each does, when to reach for it, how `--id` vs `--selector` resolves.
+5. **Three (or more) templates** at `skill/examples/canvas-templates/`:
+   - `notion-doc.html` — title + heading hierarchy + callout blocks + checklist; mirrors a Notion-style daily-doc.
+   - `dashboard.html` — top-row metric cards + a status table + an "ask Claude" CTA.
+   - `walkthrough.html` — numbered step blocks each with a `claude:spawn` button + collapsible details. Pairs well with onboarding flows.
+6. **Anti-patterns.** `<script>` tags swallowed by the iframe sanitizer; absolutely-positioned overlays (BUG-034 onboarding card story); inline `style` attributes harmless but discouraged.
+
+**Discoverability:**
+- New row in `skill/SKILL.md` linking to the skill file.
+- New row in `agents/duo.md` cheat-sheet noting the skill location (so the Haiku-driven subagent can find it).
+- `npm run sync:claude` after edits.
+
+**Cross-ref:**
+- Stage 17a.5 (template gallery — direct overlap; this skill's templates seed the 17a.5 gallery if/when it ships).
+- `backlog-templates` roadmap item (template registry across markdown + HTML).
+- ENH-001 + ENH-004 (stable IDs + atelier defaults — already shipped; this skill teaches users how to use them).
+
+**Affected files (proposed):**
+- `skill/examples/canvas-authoring.md` (new)
+- `skill/examples/canvas-templates/*.html` (new — at least 3 seed templates)
+- `skill/SKILL.md` (link + summary line)
+- `agents/duo.md` (cheat-sheet entry)
+
+---
+
+### ENH-021: External-domains.json — additive-merge for existing users on upgrade
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sprint W2). `electron/install-service.ts § bootstrapOrMergeExternalDomains()` replaces the prior bootstrap-only block. On every install/upgrade: parse the existing `~/.claude/duo/external-domains.json`, compute `missing = bundledDefaults - userHosts` (string-equal compare against `host` field; handles both string and `{host, reason?}` entry forms), append missing to the array, write back. User entries preserved verbatim. Malformed-JSON case → leave alone (don't clobber edit-in-progress); the runtime service handles parse failures with empty-list fallback. v2 deferred: dismissed-defaults sidecar so a default the user explicitly deleted doesn't come back on next install.
+**Priority:** Medium-High (gates ENH-009's reach for any pre-v0.4.3 install; pairs with BUG-040)
+**Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 13 — partial; the existing-user side)
+
+**Today:**
+`electron/install-service.ts:296–303` bootstraps `~/.claude/duo/external-domains.json` only if absent. Existing users with a populated file (typically just `["*.capitalone.com"]` from the original v0.x bootstrap) don't pick up v0.4.3's expanded list (Slack, Gmail, Google Docs, Atlassian, M365). The comment at line 293 references "Stage 21e-iii (v0.5.0) adds an additive-merge upgrade path" — but Stage 21e shipped without that mile.
+
+**Expected:**
+On install / version-bump, read existing `external-domains.json`, parse `domains`, add any MISSING bundled defaults to the array. Don't remove user entries. Don't re-add entries the user explicitly deleted (requires a "dismissed-defaults" tracker — deferred to v2).
+
+**v1 algorithm:**
+1. Read `external-domains.json`. If parse fails, fall through to bootstrap-from-scratch (existing path).
+2. Compute `missing = bundledDefaults - userDomains`.
+3. If `missing` is non-empty, write back `userDomains ∪ missing`. Atomic tmp-rename pattern (existing `writeFileAtomic` helper).
+4. Log: "added N new bundled defaults — capitalone.com (bare), mail.google.com, docs.google.com, *.slack.com, *.atlassian.net".
+5. Surface in the install banner (or a one-shot toast on first relaunch post-upgrade): "Updated your blocklist with N new SaaS domains. Edit at `~/.claude/duo/external-domains.json`."
+
+**v2 (deferred):**
+- "Dismissed-defaults" tracker (sibling JSON) so re-runs don't re-add user-removed entries.
+- In-app UI to view / toggle the blocklist (settings panel).
+- `duo blocklist add/remove/test/list` CLI verbs.
+
+**Affected files:**
+- `electron/install-service.ts` — `mergeExternalDomains()` helper alongside the existing bootstrap block.
+- `shared/external-domains-defaults.ts` — extract the bundled default array if not already (so install-service + matcher share one source).
+- `fork.config.default.json` — verify the Vite-injected runtime defaults match bundled.
+- Release notes for the version that ships this.
+
+**Cross-ref:** ENH-009 (the original mile 1 — fresh-install defaults), BUG-040 (the bare-domain matcher fix that pairs with this).
 
 ---

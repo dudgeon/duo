@@ -267,10 +267,9 @@ export class InstallService {
         fileResults
       )
 
-      // external-domains.json — bootstrap only. Never clobber a user's
-      // existing list.
+      // external-domains.json — bootstrap-or-additive-merge.
       //
-      // v0.4.0 — seed default off-host patterns. Upstream Duo seeds the
+      // v0.4.0 — seeded default off-host patterns. Upstream Duo seeds the
       // `*.capitalone.com` Cap One AIP entry plus (since ENH-009 in
       // v0.4.3) the daily-driver SaaS apps that fail in embedded
       // browsers due to SSO + conditional access: Slack, Gmail + full
@@ -283,24 +282,22 @@ export class InstallService {
       // `__DUO_BOOTSTRAP_EXTERNAL_DOMAINS__`. So a fork distributing
       // internally (e.g. JPMorgan Trailblazers-equivalent) can seed
       // their own host patterns by editing fork.config.json before
-      // building. The default value matches v0.4.3's expanded list.
+      // building.
       //
-      // Caveat for upgrades: bootstrap is "only-if-absent", so existing
-      // users with a populated external-domains.json from a prior
-      // version DON'T pick up the expanded list automatically. They can
-      // either edit the file by hand or `rm
-      // ~/.claude/duo/external-domains.json && relaunch` to re-
-      // bootstrap. Stage 21e-iii (v0.5.0) adds an additive-merge
-      // upgrade path so the runtime can detect "user has prior
-      // bootstrap, MERGE in any new defaults."
-      try {
-        await fs.access(EXTERNAL_DOMAINS_PATH)
-      } catch {
-        const defaults = {
-          domains: __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__
-        }
-        await fs.writeFile(EXTERNAL_DOMAINS_PATH, JSON.stringify(defaults, null, 2) + '\n')
-      }
+      // ENH-021 (v0.5.3) — additive-merge for existing users. Pre-
+      // ENH-021 the bootstrap was "only-if-absent" which meant users
+      // who installed before v0.4.3 still had only the original
+      // single-entry default. Each install/upgrade now reads any
+      // existing file, adds bundled defaults that aren't already
+      // present (string-equal compare against `host` field), and
+      // writes back. User-added entries are preserved verbatim.
+      // Removed-defaults aren't re-added if they were never in this
+      // user's file: we compare against the file as-it-stands, NOT
+      // against a "previously-bundled-defaults" snapshot, so a
+      // default the user explicitly deleted DOES come back on the
+      // next install. v2 adds a "dismissed-defaults" sidecar to fix
+      // that — deferred.
+      await this.bootstrapOrMergeExternalDomains()
 
       // Stage 19b — priming.md bootstrap. Only write if absent so
       // re-installs don't clobber a user-edited copy. The bundled
@@ -723,6 +720,61 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
    *    The recorded SHA becomes the user's modified version so
    *    next install detects further changes against that baseline.
    */
+  /**
+   * ENH-021 — bootstrap-or-additive-merge for `external-domains.json`.
+   *
+   * - File missing → write bundled defaults verbatim (the original
+   *   bootstrap behavior).
+   * - File present + parseable → merge in any bundled defaults whose
+   *   `host` isn't already in the file. User-added entries and
+   *   custom reasons preserved. Order: user entries first (insertion
+   *   order), then any newly-merged defaults appended at the end.
+   * - File present + UNPARSEABLE (corrupt JSON, wrong shape) → leave
+   *   alone. We don't want to clobber a user's edit-in-progress.
+   *   The runtime ExternalDomainsService handles parse failures
+   *   gracefully (empty list, no routing); the user notices via the
+   *   blocklist not working and re-bootstraps by hand.
+   *
+   * Schema accepted: both string entries (`"*.foo.com"`) and the
+   * extended object form (`{host, reason}`). Comparison key is the
+   * `host` string in both cases.
+   */
+  private async bootstrapOrMergeExternalDomains(): Promise<void> {
+    const bundled = (__DUO_BOOTSTRAP_EXTERNAL_DOMAINS__ as readonly string[]) ?? []
+    let existing: Array<string | { host: string; reason?: string }> | null = null
+    try {
+      const raw = await fs.readFile(EXTERNAL_DOMAINS_PATH, 'utf8')
+      const parsed = JSON.parse(raw) as { domains?: Array<string | { host: string; reason?: string }> }
+      if (Array.isArray(parsed.domains)) existing = parsed.domains
+    } catch {
+      existing = null
+    }
+
+    if (existing === null) {
+      // Bootstrap-from-scratch. Includes the case where the file
+      // exists but is malformed — we leave it alone (see jsdoc).
+      try {
+        await fs.access(EXTERNAL_DOMAINS_PATH)
+        // File exists but parse failed → don't touch.
+        return
+      } catch {
+        const defaults = { domains: bundled }
+        await fs.writeFile(EXTERNAL_DOMAINS_PATH, JSON.stringify(defaults, null, 2) + '\n')
+        return
+      }
+    }
+
+    // Additive merge. Compare by `host` string.
+    const existingHosts = new Set(
+      existing.map(e => (typeof e === 'string' ? e : e.host)).filter((h): h is string => typeof h === 'string')
+    )
+    const missing = bundled.filter(b => !existingHosts.has(b))
+    if (missing.length === 0) return
+
+    const merged = [...existing, ...missing]
+    await fs.writeFile(EXTERNAL_DOMAINS_PATH, JSON.stringify({ domains: merged }, null, 2) + '\n')
+  }
+
   private async safeOverwriteFile(
     src: string,
     dest: string,

@@ -7,17 +7,19 @@
 // SSO persistence: every view uses the BROWSER_SESSION_PARTITION ('persist:duo-browser'),
 // so cookies / localStorage survive app restarts.
 
-import { WebContentsView, app, session } from 'electron'
+import { WebContentsView, app, session, shell } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
 import { pathToFileURL } from 'url'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
+import type { ExternalRedirectedPush } from '../shared/host-api'
 import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserHistoryService } from '../core/browser-history-service'
+import type { ExternalDomainsService } from '../core/external-domains-service'
 
 // Default landing page for new browser tabs.
 //
@@ -90,19 +92,25 @@ export class BrowserManager {
   // Issue #27 — history service for URL-bar autocomplete. Injected by
   // main; populated on did-navigate.
   private history: BrowserHistoryService | null = null
+  // BUG-040 — off-host routing. When non-null, will-navigate +
+  // setWindowOpenHandler consult the service and route matching URLs
+  // through shell.openExternal instead of the embedded browser.
+  private externalDomains: ExternalDomainsService | null = null
 
   constructor(
     window: BrowserWindow,
     cdp: CdpBridge,
     onStateChange: StateCallback,
     onTabsChange: TabsCallback,
-    history?: BrowserHistoryService
+    history?: BrowserHistoryService,
+    externalDomains?: ExternalDomainsService
   ) {
     this.window = window
     this.cdp = cdp
     this.onStateChange = onStateChange
     this.onTabsChange = onTabsChange
     this.history = history ?? null
+    this.externalDomains = externalDomains ?? null
 
     // Stage 15.2 — forward live browser-selection pushes from the
     // page-side observer to the renderer over IPC. Subscribed once at
@@ -158,8 +166,13 @@ export class BrowserManager {
       }
     })
 
-    // Redirect popup windows back into the same view
+    // Redirect popup windows back into the same view, EXCEPT off-host
+    // hosts on the user's external-domains list — those go to the
+    // system default browser. Mirrors the will-navigate routing below.
     view.webContents.setWindowOpenHandler(({ url: popupUrl }) => {
+      if (this.routeOffHostIfMatched(popupUrl)) {
+        return { action: 'deny' }
+      }
       view.webContents.loadURL(popupUrl).catch(() => null)
       return { action: 'deny' }
     })
@@ -174,10 +187,17 @@ export class BrowserManager {
     this.wireEvents(view)
     this.wireKeyForwarding(view)
 
-    // Always load a URL — even about:blank. Without it, the WebContents stays
-    // in an uninitialized state where getURL() returns '' and CDP attach fails,
-    // which would swallow switchTab's state emits.
-    view.webContents.loadURL(url).catch(() => null)
+    // BUG-040 — if the initial URL is off-host, route it externally
+    // and leave the tab on about:blank. Avoids a brief load-then-bounce
+    // in the embedded view (which would steal focus + flicker).
+    if (this.routeOffHostIfMatched(url)) {
+      view.webContents.loadURL('about:blank').catch(() => null)
+    } else {
+      // Always load a URL — even about:blank. Without it, the WebContents stays
+      // in an uninitialized state where getURL() returns '' and CDP attach fails,
+      // which would swallow switchTab's state emits.
+      view.webContents.loadURL(url).catch(() => null)
+    }
 
     this.emitTabs()
     return entry
@@ -353,6 +373,39 @@ export class BrowserManager {
     return this.activeView().webContents.getTitle() || ''
   }
 
+  // ── External-domain routing (BUG-040) ─────────────────────────────────────
+  // Consult the user's external-domains.json. If `url`'s host matches
+  // a blocklist entry, route through shell.openExternal and push the
+  // post-redirect banner. Returns true when routed (caller should
+  // preventDefault on the underlying navigation). Returns false when
+  // either no service is wired or the host doesn't match.
+
+  private routeOffHostIfMatched(url: string): boolean {
+    if (!this.externalDomains) return false
+    const result = this.externalDomains.matchUrl(url)
+    if (!result.matched) return false
+
+    // Fire-and-forget — shell.openExternal returns a promise but we
+    // don't await; the embedded navigation has already been
+    // intercepted. Errors here are typically "user has no default
+    // browser for this scheme" which is rare for http(s).
+    void shell.openExternal(url).catch(() => null)
+
+    // Push the banner so the user sees what happened. Same shape +
+    // channel as openExternalUrl in main.ts — keeps the renderer
+    // banner code unchanged.
+    if (this.window && !this.window.isDestroyed()) {
+      try {
+        const host = new URL(url).hostname
+        const push: ExternalRedirectedPush = { host, reason: result.reason }
+        this.window.webContents.send(IPC.EXTERNAL_REDIRECTED, push)
+      } catch {
+        /* malformed URL — already routed; banner is best-effort */
+      }
+    }
+    return true
+  }
+
   // ── Focus ──────────────────────────────────────────────────────────────────
   // Move keyboard focus to the active browser view. Used by ⌘` pane-cycling.
 
@@ -401,6 +454,26 @@ export class BrowserManager {
       // URL/loading state in the chrome only tracks the active tab
       if (this.tabs[this.activeIndex]?.view === view) this.emitState()
     }
+
+    // BUG-040 — intercept top-level navigations and route off-host
+    // hosts through shell.openExternal. `will-navigate` fires for
+    // address-bar navigations, link clicks, and form submissions
+    // (NOT for in-page anchor changes — `did-navigate-in-page` would
+    // catch those, but those don't change host so we don't need to).
+    // `will-redirect` fires for HTTP redirects mid-load — also catch
+    // these so e.g. `capitalone.com → www.capitalone.com → SSO host`
+    // bounces at any redirect hop on the blocklist.
+    wc.on('will-navigate', (event, navUrl) => {
+      if (this.routeOffHostIfMatched(navUrl)) {
+        event.preventDefault()
+      }
+    })
+    wc.on('will-redirect', (event, redirectUrl) => {
+      if (this.routeOffHostIfMatched(redirectUrl)) {
+        event.preventDefault()
+      }
+    })
+
     wc.on('did-navigate', emit)
     wc.on('did-navigate-in-page', emit)
     wc.on('page-title-updated', emit)

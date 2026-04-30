@@ -1,7 +1,6 @@
 import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 import { join } from 'path'
-import { promises as fsPromises } from 'fs'
 import { resolveClaudeBinary } from '../core/resolve-claude'
 import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
@@ -16,6 +15,7 @@ import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
 import { ClaudePresenceProbe } from '../core/claude-presence'
 import { BrowserHistoryService } from '../core/browser-history-service'
+import { ExternalDomainsService } from '../core/external-domains-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -133,6 +133,7 @@ void updateChecker.loadCache()
 const sessionStateService = new SessionStateService()
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
+let externalDomainsService: ExternalDomainsService | null = null
 
 // Stage 9 — the menu's Cozy mode checkmark tracks the active tab.
 // The renderer is the source of truth; main caches the last pushed value
@@ -140,7 +141,7 @@ let socketServer: SocketServer | null = null
 let cozyActiveTab = false
 let cozyMenuItemId: string | null = null
 
-function createWindow(): void {
+async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -166,6 +167,16 @@ function createWindow(): void {
     send: (channel, payload) => mainWindow?.webContents.send(channel, payload)
   })
 
+  // BUG-040 — external-domains routing service. Loaded once at boot;
+  // file-watched so user edits to ~/.claude/duo/external-domains.json
+  // take effect without a relaunch. Passed to BrowserManager so it
+  // can intercept user-driven navigations + popups, AND retained here
+  // so the agent path (openExternalUrl) can reuse the same matcher
+  // for the post-redirect banner reason lookup.
+  externalDomainsService = new ExternalDomainsService()
+  await externalDomainsService.load()
+  externalDomainsService.watch()
+
   // Browser manager owns WebContentsViews and forwards state to renderer
   const cdpBridge = new CdpBridge()
   browserManager = new BrowserManager(
@@ -173,7 +184,8 @@ function createWindow(): void {
     cdpBridge,
     (state: BrowserState) => mainWindow?.webContents.send(IPC.BROWSER_STATE, state),
     (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs),
-    browserHistory
+    browserHistory,
+    externalDomainsService
   )
 
   // Socket server starts listening; CLI connects here
@@ -260,16 +272,18 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     socketServer?.stop()
     browserManager?.dispose()
+    externalDomainsService?.dispose()
     mainWindow = null
     browserManager = null
     socketServer = null
+    externalDomainsService = null
   })
 }
 
 app.whenReady().then(() => {
   setupIPC()
   installAppMenu()
-  createWindow()
+  void createWindow()
 
   // Stage 21c — fire-and-forget auto-update check. No-ops in dev.
   // Uses Electron's native dialogs for v1 ("Update available — Download?"
@@ -278,7 +292,7 @@ app.whenReady().then(() => {
   initAutoUpdater()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) void createWindow()
   })
 })
 
@@ -1062,8 +1076,8 @@ export async function openExternalUrl(url: string): Promise<{ ok: boolean; opene
     // doesn't have to interact with it.
     if (mainWindow && !mainWindow.isDestroyed() && (scheme === 'http:' || scheme === 'https:')) {
       const host = parsed.hostname
-      const reason = await lookupExternalDomainReason(host)
-      const push: ExternalRedirectedPush = { host, reason: reason || undefined }
+      const match = externalDomainsService?.match(host)
+      const push: ExternalRedirectedPush = { host, reason: match?.reason || undefined }
       mainWindow.webContents.send(IPC.EXTERNAL_REDIRECTED, push)
     }
     return { ok: true, opened: url }
@@ -1072,40 +1086,7 @@ export async function openExternalUrl(url: string): Promise<{ ok: boolean; opene
   }
 }
 
-/**
- * Stage 25 — look up a per-domain `reason` string in
- * `~/.claude/duo/external-domains.json`'s extended schema. The
- * historical schema is `{ domains: ["host.com", "*.suffix.com"] }`;
- * the extended schema (backward-compatible) also accepts entries
- * shaped like `{ host: "host.com", reason: "internal SSO" }`. We
- * match exact hostname or `*.suffix` glob; first match wins. Returns
- * empty string when no entry has a reason or no entry matches.
- */
-async function lookupExternalDomainReason(host: string): Promise<string> {
-  const PATH_TO_FILE = `${process.env.HOME ?? ''}/.claude/duo/external-domains.json`
-  try {
-    const raw = await fsPromises.readFile(PATH_TO_FILE, 'utf8')
-    const parsed = JSON.parse(raw) as { domains?: Array<string | { host: string; reason?: string }> }
-    if (!Array.isArray(parsed.domains)) return ''
-    for (const entry of parsed.domains) {
-      const ent = typeof entry === 'string' ? { host: entry, reason: undefined } : entry
-      if (typeof ent.host !== 'string') continue
-      if (matchesDomain(host, ent.host)) {
-        return typeof ent.reason === 'string' ? ent.reason : ''
-      }
-    }
-    return ''
-  } catch {
-    return ''
-  }
-}
-
-function matchesDomain(host: string, pattern: string): boolean {
-  if (pattern === host) return true
-  if (pattern.startsWith('*.')) {
-    const suffix = pattern.slice(2) // drop leading '*.'
-    if (host === suffix) return true
-    if (host.endsWith(`.${suffix}`)) return true
-  }
-  return false
-}
+// Stage 25 + BUG-040 (v0.5.3) — per-domain reason lookup now lives
+// on `externalDomainsService`. Both this agent path
+// (`openExternalUrl`) and the BrowserManager's user-driven
+// will-navigate interceptor share the same matcher + cache.
