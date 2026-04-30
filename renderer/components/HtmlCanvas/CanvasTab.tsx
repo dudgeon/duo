@@ -94,6 +94,13 @@ interface Props {
    *  fired while the user has the terminal focused doesn't yank the
    *  cursor mid-typing. */
   focused?: boolean
+  /** BUG-037 — fires when the user clicks (mousedown) inside the
+   *  canvas iframe. The host (App.tsx via WorkingPane) maps this to
+   *  `setFocusedColumn('working')`. Iframe events don't bubble to
+   *  the column wrapper's `onMouseDown`, so without this forwarder
+   *  clicking the canvas while terminal had focus leaves
+   *  `focusedColumn` stuck. */
+  onUserInteract?: () => void
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
@@ -253,7 +260,7 @@ function parseReadOnlyFromHtml(html: string | null): boolean {
   return !!m
 }
 
-export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir, focused = false }: Props) {
+export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir, focused = false, onUserInteract }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -1087,6 +1094,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
             onReady={handleReady}
             readOnly={readOnly}
             shouldStealFocus={focused}
+            onUserInteract={onUserInteract}
           />
         ) : (
           <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm">

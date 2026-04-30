@@ -1877,7 +1877,17 @@ The shell takes **5.236s** to spawn-resolve. The resolver's per-attempt timeout 
 
 ### BUG-036: ⌘T from terminal focus opens browser tab — should open vanilla shell tab (decision reversal)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W1). `useKeyboardShortcuts` dispatcher is now pane-aware:
+- `⌘T` from terminal focus → `newShellTab()` (front terminal's launch CWD via `pendingCwd`).
+- `⌘T` from any other focus → `newBrowserTab()` (Chrome parity, unchanged).
+- `⌘⇧T` from terminal focus → `newClaudeTab()` (front terminal's launch CWD).
+- `⌘⇧T` from browser focus → `reopenLastClosed()` (BUG-027, unchanged).
+- `⌘⇧T` from any other focus → `newClaudeTab()` (unchanged).
+
+The matcher in `globalShortcuts.ts` stays pane-agnostic (returns canonical `newBrowserTab` / `newClaudeTab` IDs); pane mapping is at dispatch only. `what-duo-does.html` items 18 + 19 updated to reflect the new bindings.
+
+Note: "current CWD" resolves to the active tab's launch CWD (not live cwd post-`cd`). Live-cwd tracking would require an OSC 7 hook in PtyManager — separate ENH if requested. Pairs with Stage 26 PR 3 item 2 (active terminal CWD highlight) which has the same dependency.
+
 **Priority:** Medium (revives pane-aware ⌘T mental model; reverses BUG-008 spec resolution)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 2)
 
@@ -1918,7 +1928,7 @@ The shell takes **5.236s** to spawn-resolve. The resolver's per-attempt timeout 
 
 ### BUG-037: HTML canvas — clicking inside the canvas while focus is elsewhere doesn't switch focus to it
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W1). Iframe-mousedown forwarder pattern: `RenderedCanvas` accepts `onUserInteract?: () => void`; inside `wire()` it attaches a capture-phase `mousedown` listener to the iframe document that calls the prop (read through a ref so prop changes don't re-mount the iframe). `CanvasTab` + `WorkingPane` thread it up; `App.tsx` passes `onCanvasFocusGained={() => setFocusedColumn('working')}`. Symmetric to BUG-032: that fix stopped the iframe from STEALING focus when the user had chosen another surface; this lets the iframe ACQUIRE focus when the user clicks in.
 **Priority:** Medium (breaks the "click → focus" invariant; cascades into wrong-pane keyboard shortcuts)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 9)
 
@@ -1958,7 +1968,22 @@ iframe.contentDocument.addEventListener('mousedown', () => {
 
 ### BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W1). Diagnosis + fix:
+
+**Root cause confirmed.** The cycle logic itself in `useKeyboardShortcuts.ts § cycleTabsForward / Backward` is correct (reads from refs, indexes by id, advances mod length). The bug was upstream: `focusedColumn` was getting stuck at `'working'` when the user thought they were "in" a terminal, so `pane !== 'terminal'` and the cycle went through browser tabs (which has fewer entries) — exactly matching the user's "right few tabs reachable" report.
+
+Two paths where focus tracking lost the user's intent:
+1. **Click into HTML canvas** — iframe events don't bubble to the column wrapper's `onMouseDown`, so `focusedColumn` stayed wherever it was last set. Fixed by BUG-037's mousedown forwarder.
+2. **Focus arriving at xterm via a non-click path** — `webContents.focus()` reclaim (BUG-002), `⌘`-pane-cycle, post-spawn PTY init. xterm manages its own DOM heavily; the column wrapper's React `onMouseDown` doesn't fire on these.
+
+**BUG-038-specific fix:** TerminalPane installs a `focus` listener on xterm's helper textarea. Whenever xterm gains focus by ANY path (click, programmatic, key-routed), `focusedColumn` flips to `'terminal'`. Belt+braces over the column wrapper's onMouseDown.
+
+**Durable test coverage** (per the recurring-class regression rule):
+- `docs/dev/smoke-checklist.md` row 11 expanded with **11b** (full-cycle: open ≥4 tabs, ⌃Tab N times, every tab visited, including post-session-restore) and **11c** (cross-pane focus tracking: alternate clicking terminal → canvas → terminal, ⌃Tab routes correctly each time).
+- A unit test framework isn't in place yet (PROCESS-001 Phase 2 deferred); when it lands, the cycle helper extracts cleanly into a pure function for fixture-based testing.
+
+**Class summary.** This is the third instance of "⌃Tab doesn't reach all tabs" (BUG-001, BUG-021, BUG-038). The first two were closure / xterm-eats-shortcut bugs; this one was a focus-tracking bug. All three resolutions are now structural: capture-phase matcher, ref reads, focus-event listeners. The smoke checklist row covers the scenario going forward.
+
 **Priority:** Medium (load-bearing for tab navigation; user reports recurrence on 2026-04-30)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 11)
 
@@ -2248,5 +2273,93 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 - Release notes for the version that ships this.
 
 **Cross-ref:** ENH-009 (the original mile 1 — fresh-install defaults), BUG-040 (the bare-domain matcher fix that pairs with this).
+
+---
+
+### ENH-022: `duo doc goto` — scroll the markdown editor to a heading / anchor / line
+
+**Status:** Open
+**Priority:** Medium (small but high-utility — every "find BUG-040 in tasks.md" / "show me the Stage 17 section" turn currently requires the user to ⌘F)
+**Filed:** 2026-04-30 (discovered while opening `tasks.md` in the editor and being unable to land on `BUG-040` from the CLI)
+
+**Today:**
+`duo edit <path>` opens a markdown file in the rich editor (right pane), but the CLI has no verb to scroll the editor to a specific heading, anchor, or line number. `duo reveal` is navigator-side only. The agent has no programmatic way to land the user's view on a section after opening — they have to ⌘F.
+
+**Class of issue:**
+Editor-side navigation parity with the file navigator's `reveal`. The skill description even advertises "navigate the editor" but the verb surface ends at `doc read` / `doc write`.
+
+**Expected:**
+A CLI verb that scrolls the active markdown editor (or the editor for `--path <path>`) to a target and optionally moves the caret there.
+
+```
+duo doc goto --heading "BUG-040"          # text match against ## / ### / #### (case-insensitive substring)
+duo doc goto --line 2015                  # line number in the source markdown
+duo doc goto --anchor bug-040             # GitHub-style slug
+duo doc goto [...] --pin-caret            # also move the caret + select the heading
+```
+
+Returns `{ok, matched: {heading, line}}` or `{ok: false, reason: "no match"}`.
+
+**Plumbing checklist (touch every one — see CLAUDE.md § 4):**
+1. `shared/types.ts` — add `DocGotoRequest` to the IPC contract; add to `DuoCommandName`.
+2. `electron/preload.ts` — expose to renderer.
+3. `electron/main.ts` — ipcMain handler; main→renderer dispatch.
+4. `electron/socket-server.ts` — new case in command switch.
+5. `cli/duo.ts` — `doc goto` subcommand + `printHelp()` update. Rebuild `cli/duo`.
+6. `renderer/components/editor/MarkdownEditor.tsx` (or its primitives) — resolve target → ProseMirror position → `view.dispatch(scrollIntoView)`. Heading match: walk the doc tree for `heading` nodes whose textContent matches.
+7. `skill/SKILL.md` — agent discovery + example.
+8. `agents/duo.md` — verb cheat-sheet entry.
+9. `docs/CLI-COVERAGE.md` — inventory update.
+10. `npm run sync:claude` after skill / agent edits.
+
+**Pairs with:**
+- An equivalent for the HTML canvas would be `duo html goto --id <duo-id>` or `--selector <css>` (canvas already has `data-duo-id` resolution; this is a thin wrapper over `scrollIntoView`).
+
+**Cross-ref:** Discovered while looking up BUG-040 (line 2015 of this file) from the CLI.
+
+---
+
+### ENH-023: ⌘F find-in-document for the markdown editor (and other surfaces)
+
+**Status:** Open
+**Priority:** Medium-High (basic table-stakes for any editing surface — the lack of it surfaces the moment a doc is longer than one screen, e.g. `tasks.md` is 2000+ lines)
+**Filed:** 2026-04-30 (discovered alongside ENH-022 — when ENH-022 came up, the fallback "use ⌘F" turned out not to exist either)
+
+**Today:**
+The markdown editor (TipTap) has no in-document search. ⌘F on a long document does nothing. Same gap on the HTML canvas (iframe). Browser pane and terminal each have their own native find paths but neither is wired to a global ⌘F shortcut, and neither is exposed to the CLI.
+
+**Class of issue:**
+Find/search parity across Duo's text surfaces. The lack is most acute in the editor — a long-doc surface with no scroll-to (ENH-022) AND no find means the agent and user are both blind to anything past the visible viewport.
+
+**v1 — markdown editor:**
+- ⌘F opens a small find bar (top-right of the editor pane, dismissible with Esc).
+- Type-as-you-search, highlights all matches, ⏎ / Shift+⏎ steps through, ⌘G / ⌘⇧G also step.
+- Match count badge ("3 of 17").
+- Case-sensitive + whole-word toggles (off by default).
+- ⌘⌥F opens find-and-replace (deferred to v2 if it complicates v1).
+- Implementation: TipTap has `@tiptap/extension-search` or roll on top of ProseMirror's `prosemirror-search` plugin. Either gives decoration-based highlights without mutating the doc.
+
+**v2 — broader surface coverage (deferred but worth noting now so the global shortcut wiring is built once):**
+- HTML canvas: forward ⌘F into the iframe; use `window.find()` or a custom highlighter over the rendered DOM.
+- Browser pane: `webContents.findInPage()` — Electron has this built in; needs a UI shell for the find bar.
+- Terminal: `xterm-addon-search` — already a maintained xterm extension.
+- The keyboard registry in `renderer/keyboard/globalShortcuts.ts` should grow a single `find-in-active-surface` action that each surface implements per the three patterns in CLAUDE.md § 6 (in-document / iframe / native-bridged).
+
+**CLI parity (CLAUDE.md § 4 — every UI feature ships a `duo` counterpart):**
+```
+duo doc find "BUG-040"                    # next match in active editor; returns {matched, line, occurrence}
+duo doc find --all "BUG-0"                # JSON list of all matches
+duo doc find --next / --prev              # step through last query
+```
+Equivalent `duo html find` / `duo browser find` come along with v2 surface coverage.
+
+**Plumbing checklist for v1:**
+1. `renderer/keyboard/globalShortcuts.ts` — register `find-in-document` (⌘F) + `find-next`/`find-prev` (⌘G/⌘⇧G).
+2. `renderer/components/editor/MarkdownEditor.tsx` — install search plugin, render find-bar primitive (likely `renderer/components/editor/primitives/FindBar.tsx`), wire shortcut → toggle bar / step matches.
+3. `electron/menu.ts` — Edit menu: Find / Find Next / Find Previous (so the muscle-memory works even before the find bar is open).
+4. `shared/types.ts`, `electron/preload.ts`, `electron/main.ts`, `electron/socket-server.ts`, `cli/duo.ts`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` — all touched per the CLI plumbing checklist when adding `duo doc find`.
+5. `docs/dev/smoke-checklist.md` — add a "long-doc find" row.
+
+**Cross-ref:** ENH-022 (`duo doc goto` — same surface, complementary capability — agent navigates by structure, user navigates by text).
 
 ---

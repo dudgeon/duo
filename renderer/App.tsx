@@ -1140,6 +1140,12 @@ export function App() {
                 fontBumpByTab={fontBumpByTab}
                 fontBumpDefault={fontBumpDefault}
                 themeEffective={theme.effective}
+                // BUG-038 — xterm focus events flip focusedColumn so
+                // ⌃Tab cycles terminal tabs (not whatever pane the
+                // synthetic-event path last touched). xterm manages
+                // its own DOM heavily and clicks on it sometimes
+                // miss the column wrapper's onMouseDown.
+                onTerminalFocus={() => setFocusedColumn('terminal')}
               />
             </div>
           </div>
@@ -1184,6 +1190,12 @@ export function App() {
               onCommitNewFile={onCommitNewFile}
               onNewFile={newMarkdownFile}
               focused={focusedColumn === 'working'}
+              // BUG-037 — clicking inside the canvas iframe doesn't
+              // bubble out to the column wrapper's onMouseDown, so
+              // the canvas explicitly tells us when the user has
+              // chosen it. Flips focusedColumn → 'working' so
+              // subsequent ⌃Tab / ⌘T fire against the right pane.
+              onCanvasFocusGained={() => setFocusedColumn('working')}
               // Stage 15.1 — Send → Duo pill: pipe the formatted payload
               // into the active terminal's PTY. PRD G11: no Enter
               // appended — the user confirms by pressing Enter

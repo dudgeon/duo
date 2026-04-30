@@ -169,6 +169,8 @@ each cell, verify ALL of:
 | 9 | `⌘⇧1` / `⌘⇧2` | ☐ | ☐ | ☐ | ☐ | ☐ | Jumps to working-pane tab N (browser, editor, or canvas — all share the strip). |
 | 10 | `⌘+` / `⌘-` / `⌘0` | ☐ | n/a | n/a | n/a | ☐ | Adjust terminal font bump (browser/editor/canvas own native zoom). |
 | 11 | `⌃Tab` / `⌃⇧Tab` | ☐ | ☐ | ☐ | ☐ | ☐ | **Pane-aware**: from terminal focus → cycles terminal tabs; from working-column surfaces (B/E/C) → cycles working-pane tabs across all types (BUG-001, BUG-014 regression check). xterm's `attachCustomKeyEventHandler` and the canvas iframe forwarder must yield to the matcher; browser-key-forward path must pass `paneOverride='working'`. |
+| 11b | **Full-cycle coverage (BUG-038)** | ☐ | ☐ | n/a | n/a | n/a | Open ≥4 terminal tabs (mix shell+claude). Click last tab. Press `⌃Tab` 4 times — cursor must visit EVERY tab in display order, no skips. Repeat after a session restore (Quit → relaunch). Repeat with browser tabs (open ≥4, press `⌃Tab` 4 times, all visited). Pinned WorkingPane tabs included in cycle. |
+| 11c | **Cross-pane focus tracking (BUG-038)** | ☐ | ☐ | ☐ | ☐ | ☐ | Click into terminal → ⌃Tab cycles terminals. Click into HTML canvas → ⌃Tab cycles working-pane tabs. Click back into terminal → ⌃Tab cycles terminals again. The xterm-focus listener (BUG-038) and canvas-mousedown forwarder (BUG-037) must keep `focusedColumn` in sync with where the user actually is. |
 | 12 | `⌘⇧[` / `⌘⇧]` | ☐ | ☐ | ☐ | ☐ | ☐ | Previous / next terminal tab (always terminal-scope). |
 
 **If any cell fails, do NOT call the change done.** Trace through:

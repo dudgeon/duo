@@ -69,13 +69,31 @@ export function useKeyboardShortcuts(opts: Options) {
       const pane = paneOverride ?? opts.activePaneFocus
       switch (id) {
         case 'newBrowserTab':
+          // BUG-036 (v0.5.3) — pane-aware ⌘T. From terminal focus,
+          // open a new vanilla shell tab in the front terminal's
+          // launch CWD (newShellTab uses pendingCwd, which the
+          // active-terminal-switch effect syncs to the active tab).
+          // From any other focus (browser / files / editor /
+          // canvas), keep Chrome-parity behavior: new browser tab.
+          // Reverts the BUG-008 spec ("⌘T everywhere → browser
+          // tab") in favor of the discovery affordance — the `>`
+          // and `+` buttons on the strip teach the explicit kinds
+          // for users who want them, but ⌘T from a terminal goes
+          // where muscle memory expects.
+          if (pane === 'terminal') {
+            opts.newShellTab()
+            return
+          }
           opts.newBrowserTab()
           return
         case 'newClaudeTab':
           // BUG-027 — ⌘⇧T from browser focus reopens the last-closed
-          // browser tab (Chrome parity), instead of spawning a Claude
-          // terminal tab. From any other focus, the original spec
-          // applies: ⌘⇧T → new Claude tab.
+          // browser tab (Chrome parity).
+          // BUG-036 (v0.5.3) — from terminal focus, ⌘⇧T spawns a
+          // claude tab in the front terminal's launch CWD (this
+          // already worked because newClaudeTab uses pendingCwd;
+          // the comment is here to anchor the spec).
+          // From any other focus, ⌘⇧T → new claude tab.
           if (pane === 'working') {
             void window.electron.browser.reopenLastClosed()
             return

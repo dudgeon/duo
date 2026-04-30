@@ -142,10 +142,20 @@ interface TerminalPaneProps {
   fontBumpDefault: number
   /** Stage 11 — resolved `light` | `dark` for the active app theme. */
   themeEffective: 'light' | 'dark'
+  /** BUG-038 — fires when xterm gains keyboard focus. The host
+   *  (App.tsx) flips `focusedColumn` to 'terminal' so subsequent
+   *  ⌃Tab cycles terminal tabs (not browser tabs). Belt+braces over
+   *  the column wrapper's onMouseDown — xterm manages its own DOM
+   *  heavily and there are paths (focus arriving from
+   *  `webContents.focus()` in BUG-002, focus arriving via
+   *  ⌘`-pane-cycle, focus arriving from a dispatchPostSpawnWrite
+   *  PTY init) where the synthetic-event path doesn't see the
+   *  click. */
+  onTerminalFocus?: () => void
 }
 
 export function TerminalPane({
-  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective
+  tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective, onTerminalFocus
 }: TerminalPaneProps) {
   return (
     <div className="relative w-full h-full bg-surface-0">
@@ -158,6 +168,7 @@ export function TerminalPane({
           cozy={cozyByTab[tab.id] ?? cozyDefault}
           fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
           themeEffective={themeEffective}
+          onTerminalFocus={onTerminalFocus}
         />
       ))}
     </div>
@@ -175,9 +186,11 @@ interface InstanceProps {
   cozy: boolean
   fontBump: number
   themeEffective: 'light' | 'dark'
+  /** BUG-038 — fires on xterm focus. See TerminalPaneProps jsdoc. */
+  onTerminalFocus?: () => void
 }
 
-function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeEffective }: InstanceProps) {
+function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeEffective, onTerminalFocus }: InstanceProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -285,6 +298,17 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
 
     // OSC title sequence → tab title
     term.onTitleChange((title) => onTitleChange(tab.id, title || 'Terminal'))
+
+    // BUG-038 — when xterm gains keyboard focus, tell the host so
+    // it can flip focusedColumn to 'terminal'. Belt+braces over the
+    // column wrapper's onMouseDown for cases where focus arrives by
+    // a non-click path (BUG-002 webContents.focus() reclaim,
+    // ⌘`-pane-cycle, post-spawn PTY init). xterm's helper textarea
+    // gets focus when xterm gains focus — listening on it catches
+    // both human clicks and programmatic term.focus() calls.
+    if (onTerminalFocus && term.textarea) {
+      term.textarea.addEventListener('focus', onTerminalFocus)
+    }
 
     // User keystrokes → PTY
     term.onData((data) => window.electron.pty.write(tab.id, data))

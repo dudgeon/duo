@@ -76,6 +76,13 @@ interface WorkingPaneProps {
   /** Stage 23 — user $HOME for the canvas trust check (only canvas
    *  files under ~/.claude/duo/ may dispatch actions in v1). */
   homeDir?: string
+  /** BUG-037 — fires when the user clicks inside an HTML canvas
+   *  iframe. Forwarded to App.tsx so it can flip `focusedColumn` to
+   *  'working'. The column wrapper's own `onMouseDown` covers
+   *  non-iframe surfaces (markdown editor, image preview, etc.) but
+   *  iframe events don't bubble out, so the canvas needs an
+   *  explicit forwarder. */
+  onCanvasFocusGained?: () => void
 }
 
 export function WorkingPane({
@@ -92,7 +99,8 @@ export function WorkingPane({
   pins,
   onTogglePin,
   onCanvasAction,
-  homeDir
+  homeDir,
+  onCanvasFocusGained
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -239,6 +247,11 @@ export function WorkingPane({
           // load (mount, srcdoc reload, post-write rerender) re-grabs
           // focus from the terminal mid-typing.
           focused={focused}
+          // BUG-037 — iframe mousedown forwards up to App.tsx so it
+          // can flip focusedColumn to 'working'. Otherwise clicks
+          // into the canvas while terminal had focus leave the
+          // pane-focus signal stuck.
+          onUserInteract={onCanvasFocusGained}
         />
       )
     } else if (tab.type === 'markdown-preview') {

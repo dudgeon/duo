@@ -55,6 +55,13 @@ interface Props {
    *  `focusedColumn === 'working'` so the canvas only steals focus
    *  when the user has clearly chosen the working pane. */
   shouldStealFocus?: boolean
+  /** BUG-037 — fires on mousedown inside the iframe document. The
+   *  iframe is a separate document, so its mousedown events don't
+   *  bubble up to the column wrapper's `onMouseDown` handler that
+   *  flips `focusedColumn`. Without this forwarder, clicking into
+   *  the canvas when terminal had focus leaves `focusedColumn` stuck
+   *  at `'terminal'` and subsequent ⌃Tab / ⌘T cycle the wrong pane. */
+  onUserInteract?: () => void
 }
 
 export interface RenderedCanvasHandle {
@@ -72,7 +79,7 @@ export interface RenderedCanvasHandle {
 }
 
 export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
-  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady, readOnly = false, shouldStealFocus = true }, ref) {
+  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady, readOnly = false, shouldStealFocus = true, onUserInteract }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null)
     // BUG-032 — read shouldStealFocus through a ref inside `wire()` so
     // toggling focus on/off doesn't tear down the iframe effect. Without
@@ -81,6 +88,10 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
     // focus change.
     const shouldStealFocusRef = useRef(shouldStealFocus)
     useEffect(() => { shouldStealFocusRef.current = shouldStealFocus }, [shouldStealFocus])
+    // BUG-037 — same pattern as shouldStealFocusRef so prop changes
+    // don't tear down the iframe effect.
+    const onUserInteractRef = useRef(onUserInteract)
+    useEffect(() => { onUserInteractRef.current = onUserInteract }, [onUserInteract])
 
     const getDocument = useCallback((): Document | null => {
       const f = iframeRef.current
@@ -110,6 +121,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
       let wired = false
       let observer: MutationObserver | null = null
       let keyHandler: ((e: KeyboardEvent) => void) | null = null
+      let mouseHandler: ((e: MouseEvent) => void) | null = null
       let cleanForwarder: (() => void) | null = null
 
       const wire = () => {
@@ -170,6 +182,19 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           }
           doc.addEventListener('keydown', keyHandler, true)
 
+          // BUG-037 — forward mousedown to the parent so it can flip
+          // `focusedColumn` to 'working'. The iframe is a separate
+          // document; without this forwarder, clicking the canvas
+          // while a terminal had focus leaves `focusedColumn` stuck
+          // and subsequent ⌃Tab / ⌘T fire against the wrong pane.
+          // Capture-phase so we see the click before any iframe-side
+          // handlers (none today, but keeps it robust to future
+          // canvas-authored event handlers calling stopPropagation).
+          mouseHandler = () => {
+            try { onUserInteractRef.current?.() } catch { /* ignore */ }
+          }
+          doc.addEventListener('mousedown', mouseHandler, true)
+
           // BUG-022 fix — focus the body when the canvas opens so
           // the first keystroke lands as content (matches the
           // markdown editor's behavior — the user shouldn't have to
@@ -209,6 +234,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         cleanForwarder?.()
         const doc = iframe.contentDocument
         if (doc && keyHandler) doc.removeEventListener('keydown', keyHandler, true)
+        if (doc && mouseHandler) doc.removeEventListener('mousedown', mouseHandler, true)
         iframe.removeEventListener('load', wire)
       }
     }, [onChange, onShortcut, onReady, readOnly])
