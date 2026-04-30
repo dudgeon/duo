@@ -4,7 +4,34 @@
 research project's three reference docs into a single
 do-this-then-this sequence: refactor, build, test, evolve.
 
-This is **the** plan. The other docs in this directory are reference:
+> **Relationship to the main Duo roadmap** ([`/ROADMAP.md`](../../../ROADMAP.md) /
+> [`docs/roadmap.html`](../../roadmap.html)) — read first, then the
+> rest of this document.
+>
+> The main roadmap is the **Electron app shipping path** (Stages
+> 1–21, ongoing). This file is the **Chrome-extension exploration
+> roadmap** (Stages A–H). They do **not** gate each other.
+>
+> | Where it lives | What it is | Touches main app? | Merges back to `main`? |
+> |---|---|---|---|
+> | **Stage A — refactor** (`core/`, `electron/`, `shared/host-api.ts`, `tsconfig.node.json`, `scripts/postinstall.ts`) | Pure-Node service extraction + EventSink + host-api split. Identified as **no-regrets** in [`refactor-analysis.md`](./refactor-analysis.md). | Yes — same files the Electron app builds from. `npm run typecheck` + `npm run build` are clean; smoke-matrix walk pending. | **Yes** — these are merge candidates back to `main` once smoke-walked. They benefit the Electron app whether or not the extension ever ships. |
+> | **Stage B/C work** (`phase0/` directory, helper script) | Extension prototype, Native Messaging helper, side panel scaffolding, real PTY, real filetree, etc. | No — `phase0/` isn't in the Electron build pipeline. | **No** — exploration-only, lives on the `duo-chrome-extension-exploration` branch. If the extension ships, a future migration moves these out of `phase0/` and into proper top-level `extension/` + `helper/` directories with build pipeline. |
+> | **Research artifacts** (`docs/research/duo-as-chrome-extension/`) | This planning bundle. | No. | Yes — docs are safe to land on `main` whenever; they don't affect any build. |
+>
+> **Practical guidance:**
+>
+> - Working on a main-roadmap stage? You can ignore this file
+>   entirely. Stage A's refactor *did* move services from `electron/`
+>   to `core/` — if you need a service, look in `core/` first. (See
+>   `refactor-analysis.md` for the move map.)
+> - Picking up extension work? Read this file end-to-end, then the
+>   referenced PRDs.
+> - Wondering if extension work is blocking a main release? **No.**
+>   The exploration branch is non-gating. Main releases proceed
+>   independently.
+
+This is **the** extension build plan. The other docs in this
+directory are reference:
 
 - [`README.md`](./README.md) — feasibility rationale and
   surface-by-surface architectural analysis.

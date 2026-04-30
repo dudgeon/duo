@@ -133,6 +133,17 @@
       <h1>Duo Roadmap</h1>
       <div class="sub">Snapshot 2026-04-29 (post-v0.5.2, bug-smashing sprint) · v0.5.2 closes 5 canvas/install bugs (BUG-031..035) + 2 enhancements (ENH-014 preset pane sizes via View menu + ⌘⌥1/2/3 + <code>duo split</code>; ENH-017 install banner "Add to PATH" button) · v0.5.1 polish + claude-presence gate · v0.5.0 navigator polish (Stage 26 PRs 1+2) + fork-friendly architecture (Stage 21e) · v0.4.3 owner punch-list patch · v0.4.2 auto-update (Stage 21c Phase 1) + session restore (Phase 2 — closes <a href="https://github.com/dudgeon/duo/issues/24">issue #24</a>) + new <a href="HOW-TO-FORK.md" style="color: var(--accent-ink);">HOW-TO-FORK</a> doc · v0.4.1 sandbox-resilience (Stage 20 TCP fallback + <code>duo doctor</code> + sandbox-writable install path) + DMGs <strong>signed + notarized</strong> · v0.4.0 context-pedagogy · v0.3.1 cleanup · v0.3.0 Duo-aware Claude · v0.2.0 FTUX · comments save locally to your browser</div>
       <div class="sub" style="margin-top: 8px;">This file is the canonical roadmap · synced markdown view: <a href="https://github.com/dudgeon/duo/blob/main/ROADMAP.md" style="color: var(--accent-ink);"><code>ROADMAP.md</code></a> · per-stage PRDs in <a href="https://github.com/dudgeon/duo/tree/main/docs/prd" style="color: var(--accent-ink);"><code>docs/prd/</code></a> · architecture decisions in <a href="https://github.com/dudgeon/duo/blob/main/docs/DECISIONS.md" style="color: var(--accent-ink);"><code>DECISIONS.md</code></a></div>
+      <div class="sub" style="margin-top: 12px; padding: 10px 14px; background: rgba(180, 140, 60, 0.08); border-left: 3px solid var(--accent-ink); border-radius: 3px;">
+        <strong>Chrome-extension exploration is a separate, non-gating roadmap.</strong>
+        Lives on branch <code>duo-chrome-extension-exploration</code>; tracked in
+        <a href="https://github.com/dudgeon/duo/blob/duo-chrome-extension-exploration/docs/research/duo-as-chrome-extension/build-roadmap.md" style="color: var(--accent-ink);"><code>build-roadmap.md</code></a>
+        as Stages A–H. None of those stages gate any stage on this main roadmap.
+        <strong>Stage A</strong> (services extracted from <code>electron/</code> to
+        <code>core/</code>, EventSink adapter, <code>shared/host-api.ts</code> split) is a
+        no-regrets refactor that benefits both targets and is a merge candidate
+        back to <code>main</code> once smoke-walked. The <code>phase0/</code> prototype
+        directory is exploration-only — not in the Electron build pipeline.
+      </div>
     </header>
 
     <details class="prework">

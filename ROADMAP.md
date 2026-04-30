@@ -24,6 +24,16 @@
 > [CLI-COVERAGE.md](docs/CLI-COVERAGE.md) (CLI verb inventory) ·
 > [docs/design/atelier/](docs/design/atelier/) (visual design bundle) ·
 > [docs/prd/](docs/prd/) (per-stage PRDs).
+>
+> **Chrome-extension exploration is a separate, non-gating roadmap.**
+> Lives on branch `duo-chrome-extension-exploration`; tracked in
+> [docs/research/duo-as-chrome-extension/build-roadmap.md](docs/research/duo-as-chrome-extension/build-roadmap.md)
+> as Stages A–H. None of those stages gate any stage on this main
+> roadmap. **Stage A** (services extracted from `electron/` to
+> `core/`, EventSink adapter, `shared/host-api.ts` split) is a
+> no-regrets refactor that benefits both targets and is a merge
+> candidate back to `main` once smoke-walked. The `phase0/` prototype
+> directory is exploration-only — not in the Electron build pipeline.
 
 ---
 

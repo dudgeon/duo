@@ -47,6 +47,14 @@ Owner: Geoff (Capital One, AI in Product program).
 - **`docs/design/atelier/`** — visual source-of-truth. Read its
   README before any UI-touching work.
 - **`docs/VISION.md`** — product north star.
+- **`docs/research/duo-as-chrome-extension/build-roadmap.md`** —
+  Chrome-extension exploration roadmap (Stages A–H), lives on
+  branch `duo-chrome-extension-exploration`. **Non-gating** — does
+  not block any main-roadmap stage. **Stage A** is a no-regrets
+  refactor (services to `core/`, EventSink, `host-api.ts` split)
+  that's a merge candidate back to `main` once smoke-walked. The
+  `phase0/` prototype directory is exploration-only; not in the
+  Electron build pipeline.
 
 ## Architecture in one paragraph
 
