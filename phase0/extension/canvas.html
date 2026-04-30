@@ -2,43 +2,17 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Duo Canvas (Phase 3 stub)</title>
-  <style>
-    body {
-      margin: 0;
-      padding: 24px;
-      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-      background: #1e1e1e;
-      color: #d4d4d4;
-    }
-    h2 { font-weight: 500; font-size: 14px; color: #888; margin: 0 0 16px 0; text-transform: uppercase; letter-spacing: 0.5px; }
-    .path {
-      font-size: 13px;
-      background: #2a2a2a;
-      padding: 8px 12px;
-      border-radius: 4px;
-      margin-bottom: 16px;
-      word-break: break-all;
-    }
-    .note { font-size: 12px; color: #888; line-height: 1.6; }
-  </style>
+  <title>Duo Canvas</title>
+  <link rel="stylesheet" href="canvas.css">
 </head>
 <body>
-  <h2>Duo Canvas — Phase 3 stub</h2>
-  <div class="path" id="path">(no path)</div>
-  <div class="note">
-    Phase 4 will mount <code>renderer/components/editor/MarkdownEditor.tsx</code>
-    here for <code>.md</code> files. Phase 4 also wires file r/w through the
-    helper (<code>files:read</code> / <code>files:write</code> messages),
-    not implemented yet.
-    <br><br>
-    Today this stub just confirms the
-    <code>chrome.tabs.create({url: chrome.runtime.getURL('canvas.html?path=…')})</code>
-    routing from the side panel works end-to-end.
-  </div>
-  <script>
-    const params = new URLSearchParams(location.search)
-    document.getElementById('path').textContent = params.get('path') || '(no path)'
-  </script>
+  <header id="toolbar">
+    <span class="label">file</span>
+    <span id="path" class="path">(no path)</span>
+    <span id="status" class="status"></span>
+    <button id="save-btn" type="button" disabled>save</button>
+  </header>
+  <textarea id="editor" spellcheck="false" placeholder="(loading…)"></textarea>
+  <script src="canvas.js"></script>
 </body>
 </html>

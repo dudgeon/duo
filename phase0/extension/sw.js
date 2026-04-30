@@ -41,12 +41,14 @@ function connectHelper() {
   port.onMessage.addListener((msg) => {
     messageCount++
     if (msg.pid) helperPid = msg.pid
-    // Phase 2/3 — relay pty:* and files:* events back to all connected
-    // sidepanel ports. Anything else (hello-ack, pong, keep-alive-ack)
-    // stays SW-internal.
+    // Phase 2/3/4a — relay pty:* and files:* events back to all
+    // connected client ports (sidepanel + canvas). Anything else
+    // (hello-ack, pong, keep-alive-ack) stays SW-internal. Fanout is
+    // safe because pty messages are keyed by id and files messages by
+    // reqId; non-matching clients ignore them.
     if (msg.type && (msg.type.startsWith('pty:') || msg.type.startsWith('files:'))) {
-      for (const sp of sidepanelPorts) {
-        try { sp.postMessage(msg) } catch (e) { console.warn('[sw] sp post failed:', e) }
+      for (const cp of clientPorts) {
+        try { cp.postMessage(msg) } catch (e) { console.warn('[sw] client post failed:', e) }
       }
     } else {
       console.log(`[sw] msg from helper #${messageCount}:`, msg)
@@ -106,21 +108,23 @@ chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
   return true // keep sendResponse alive
 })
 
-// ── Phase 2 — sidepanel ↔ helper PTY relay ───────────────────────────
-// Side panel opens a long-lived port via chrome.runtime.connect({name:'sidepanel'}).
-// pty:* messages from the side panel forward to the native helper port;
-// pty:* responses from the helper fan out to all connected sidepanel ports.
+// ── Phase 2/4a — client-port ↔ helper relay ──────────────────────────
+// Side panel and canvas tabs each open a long-lived port via
+// chrome.runtime.connect({name: 'sidepanel' | 'canvas'}). Any pty:*
+// or files:* message from a client forwards to the native helper port;
+// helper replies fan out to all connected client ports (above).
 // Single-window for now; multi-window adds a Map<windowId, port>.
 
-const sidepanelPorts = new Set()
+const clientPorts = new Set()
+const ACCEPTED_PORT_NAMES = new Set(['sidepanel', 'canvas'])
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'sidepanel') return
-  console.log('[sw] sidepanel port connected')
-  sidepanelPorts.add(port)
+  if (!ACCEPTED_PORT_NAMES.has(port.name)) return
+  console.log(`[sw] ${port.name} port connected`)
+  clientPorts.add(port)
   port.onDisconnect.addListener(() => {
-    console.log('[sw] sidepanel port disconnected')
-    sidepanelPorts.delete(port)
+    console.log(`[sw] ${port.name} port disconnected`)
+    clientPorts.delete(port)
   })
   port.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return
@@ -129,23 +133,24 @@ chrome.runtime.onConnect.addListener((port) => {
     if (!isPty && !isFiles) return
     if (!nativePortOk()) connectHelper()
     if (!nativePortOk()) {
-      const errType = isPty ? 'pty:error' : 'files:list:result'
-      const errPayload = isPty
-        ? { type: errType, id: msg.id, error: 'native helper unavailable' }
-        : { type: errType, reqId: msg.reqId, ok: false, error: 'native helper unavailable' }
-      port.postMessage(errPayload)
+      port.postMessage(buildHelperError(msg, 'native helper unavailable'))
       return
     }
     try { port_to_helper().postMessage(msg) }
     catch (e) {
-      const errType = isPty ? 'pty:error' : 'files:list:result'
-      const errPayload = isPty
-        ? { type: errType, id: msg.id, error: e.message }
-        : { type: errType, reqId: msg.reqId, ok: false, error: e.message }
-      port.postMessage(errPayload)
+      port.postMessage(buildHelperError(msg, e.message))
     }
   })
 })
+
+// files:list / files:read / files:write all use { reqId } and reply
+// with `:result`. PTY uses { id } and replies with pty:error.
+function buildHelperError(req, errorMessage) {
+  if (req.type.startsWith('pty:')) {
+    return { type: 'pty:error', id: req.id, error: errorMessage }
+  }
+  return { type: req.type + ':result', reqId: req.reqId, ok: false, error: errorMessage }
+}
 
 // Tiny helpers so the sidepanel-port handler stays readable.
 // (`port` is the Native Messaging port declared at the top of this file.)

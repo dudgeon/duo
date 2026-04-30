@@ -273,17 +273,27 @@ in a Chrome tab, agent-driven Gmail screenshot, AX tree via
 
 ### Phase summary (full detail in `mvp-plan.md`)
 
-| Phase | Deliverable | Days |
-|---|---|---|
-| 1 | Side panel UI scaffolding + nav drawer (mock data) | 1.0 |
-| 2 | Real PTY through Native Messaging — leverages `core/pty/PtyManager` from Stage A | 1.0 |
-| 3 | Real filetree + open canvas-as-tab — leverages `core/files/FilesService` | 1.0 |
-| 4 | MarkdownEditor in canvas tab, file r/w through helper | 1.0 |
-| 5 | Tab-driving via lighter `chrome.tabs`/`chrome.scripting` APIs | 1.0 |
-| 6 | `chrome.debugger` for CDP-only operations | 0.5 |
-| 7 | Distribution dry-run — Web Store unlisted + helper PKG | 1.0 |
-| 8 | End-to-end demo + buffer | 0.5 |
-| **Total** | | **7.0** |
+| Phase | Deliverable | Days | Status |
+|---|---|---|---|
+| 1 | Side panel UI scaffolding + nav drawer (mock data) | 1.0 | ✅ |
+| 2 | Real PTY through Native Messaging — leverages `core/pty/PtyManager` from Stage A | 1.0 | ✅ |
+| 3 | Real filetree + open canvas-as-tab — leverages `core/files/FilesService` | 1.0 | ✅ |
+| 4a | File r/w through helper (`files:read` / `files:write`); plain textarea editor in canvas tab — validates the r/w path before adding the React toolchain | 0.3 | ✅ |
+| 4b | Vite + React build pipeline; mount `MarkdownEditor` (TipTap) in the canvas tab | 0.7 | ⬜ |
+| 5 | Tab-driving via lighter `chrome.tabs`/`chrome.scripting` APIs | 1.0 | ⬜ |
+| 6 | `chrome.debugger` for CDP-only operations | 0.5 | ⬜ |
+| 7 | Distribution dry-run — Web Store unlisted + helper PKG | 1.0 | ⬜ |
+| 8 | End-to-end demo + buffer | 0.5 | ⬜ |
+| **Total** | | **7.0** | |
+
+**Phase 4 split rationale.** The original Phase-4 deliverable
+("MarkdownEditor in canvas tab + file r/w through helper") bundles two
+unknowns: (a) does file r/w work end-to-end through Native Messaging,
+and (b) does Vite + React + TipTap build cleanly inside the extension
+shape? Splitting into 4a (textarea + r/w) and 4b (build toolchain +
+MarkdownEditor) lets each unknown land independently — each half is
+small enough to validate in one session. Phase 4a also keeps `phase0/`
+"no build step, vanilla JS" until 4b explicitly opts in.
 
 Add 30% buffer for MV3 papercuts: **~9 working days.**
 

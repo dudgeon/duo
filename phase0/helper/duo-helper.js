@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-// Duo Phase 0/1/2/3 — Native Messaging host.
+// Duo Phase 0/1/2/3/4a — Native Messaging host.
 //
 // Phase 0: keep-alive helper for the SW idle-survival proof.
 //   recv: hello / ping / keep-alive  →  send: hello-ack / pong / keep-alive-ack
@@ -12,12 +12,19 @@
 //   recv: pty:create / pty:write / pty:resize / pty:kill
 //   send: pty:created / pty:data / pty:exit / pty:error
 //
-// Phase 3: filesystem bridge — directory listings (no chokidar
-// watching yet; Phase 3.5 adds it). Defaults to $HOME when path is
-// omitted so the side panel can boot to a useful tree without
-// hardcoding the user's machine layout.
+// Phase 3: filesystem listing (no chokidar watching yet; Phase 3.5
+// adds it). Defaults to $HOME when path is omitted so the side panel
+// can boot to a useful tree without hardcoding the user's machine
+// layout.
 //   recv: files:list { reqId, path? }
 //   send: files:list:result { reqId, ok, entries?, resolvedPath?, error? }
+//
+// Phase 4a: filesystem read/write — backs the canvas-tab editor. UTF-8
+// text only for now; binary handling can come later.
+//   recv: files:read  { reqId, path }
+//   send: files:read:result  { reqId, ok, content?, mtimeMs?, error? }
+//   recv: files:write { reqId, path, content }
+//   send: files:write:result { reqId, ok, mtimeMs?, error? }
 
 const fs = require('fs')
 const path = require('path')
@@ -190,6 +197,46 @@ async function filesList(req) {
   }
 }
 
+async function filesRead(req) {
+  if (!req.path) {
+    send({ type: 'files:read:result', reqId: req.reqId, ok: false, error: 'path required' })
+    return
+  }
+  try {
+    const [content, st] = await Promise.all([
+      fs.promises.readFile(req.path, 'utf8'),
+      fs.promises.stat(req.path),
+    ])
+    send({
+      type: 'files:read:result',
+      reqId: req.reqId,
+      ok: true,
+      content,
+      mtimeMs: st.mtimeMs,
+    })
+  } catch (e) {
+    send({ type: 'files:read:result', reqId: req.reqId, ok: false, error: e.message })
+  }
+}
+
+async function filesWrite(req) {
+  if (!req.path) {
+    send({ type: 'files:write:result', reqId: req.reqId, ok: false, error: 'path required' })
+    return
+  }
+  if (typeof req.content !== 'string') {
+    send({ type: 'files:write:result', reqId: req.reqId, ok: false, error: 'content must be a string' })
+    return
+  }
+  try {
+    await fs.promises.writeFile(req.path, req.content, 'utf8')
+    const st = await fs.promises.stat(req.path)
+    send({ type: 'files:write:result', reqId: req.reqId, ok: true, mtimeMs: st.mtimeMs })
+  } catch (e) {
+    send({ type: 'files:write:result', reqId: req.reqId, ok: false, error: e.message })
+  }
+}
+
 // ── Message dispatch ─────────────────────────────────────────────────
 
 function handleMessage(msg) {
@@ -207,8 +254,11 @@ function handleMessage(msg) {
   else if (msg.type === 'pty:write')  ptyWrite(msg)
   else if (msg.type === 'pty:resize') ptyResize(msg)
   else if (msg.type === 'pty:kill')   ptyKill(msg)
-  // Phase 3 — files
-  else if (msg.type === 'files:list') filesList(msg)
+  // Phase 3 — files (list)
+  else if (msg.type === 'files:list')  filesList(msg)
+  // Phase 4a — files (read/write)
+  else if (msg.type === 'files:read')  filesRead(msg)
+  else if (msg.type === 'files:write') filesWrite(msg)
   else {
     log(`recv unknown: ${msg.type}`)
     send({ type: 'unknown', pid: process.pid, original: msg.type })

@@ -24,15 +24,21 @@ reproduce when the SW pings the helper this often.
 phase0/
 ├── extension/                 ← load this as an unpacked extension
 │   ├── manifest.json          ← MV3 manifest (nativeMessaging + alarms + sidePanel)
-│   ├── sw.js                  ← service worker; helper keep-alive + side panel
+│   ├── sw.js                  ← service worker; helper keep-alive + client relay
 │   ├── popup.html / popup.js  ← Phase-0 diagnostic popup (no longer wired —
 │   │                            replaced by the side panel's clock-icon ping)
-│   ├── sidepanel.html         ← Phase 1 — side panel root layout
+│   ├── sidepanel.html         ← P1 — side panel root layout
 │   ├── sidepanel.css          ← rail + drawer + terminal placeholder styles
-│   └── sidepanel.js           ← rail click, drawer toggle, ⌘B, mock filetree,
-│                                ping wiring (sends to SW)
+│   ├── sidepanel.js           ← rail click, drawer toggle, ⌘B, real filetree (P3),
+│   │                            xterm + PTY wiring (P2), file-click → canvas tab
+│   ├── canvas.html            ← P4a — canvas-tab editor (textarea stub for now;
+│   │                            P4b swaps in MarkdownEditor / TipTap)
+│   ├── canvas.css             ← dark theme for the editor toolbar + textarea
+│   └── canvas.js              ← files:read on load, files:write on ⌘S / save click
 └── helper/
     ├── duo-helper.js              ← Native Messaging stdio host (Node)
+    │                                P0 keep-alive · P2 PTY · P3 files:list ·
+    │                                P4a files:read/write
     ├── duo-helper-launcher.sh     ← shell wrapper (install.sh writes the
     │                                 real one with the user's node path)
     └── install.sh                 ← drops the NM manifest in Chrome's path
