@@ -95,6 +95,19 @@ xattr -d com.apple.provenance "$HELPER_PATH"   2>/dev/null || true
 
 chmod +x "$LAUNCHER_PATH" "$HELPER_PATH"
 
+# Phase 6.5 — symlink duo-ext into ~/.claude/bin/ so it's on PATH from
+# any terminal (including Claude Code sessions, where the ~/.claude/
+# tree is sandbox-writable). Symlink (not copy) so worktree edits to
+# the binary land immediately, no install round-trip.
+CLI_SRC="$SCRIPT_DIR/../cli/duo-ext"
+CLI_LINK_DIR="$HOME/.claude/bin"
+CLI_LINK="$CLI_LINK_DIR/duo-ext"
+mkdir -p "$CLI_LINK_DIR"
+if [ -f "$CLI_SRC" ]; then
+  rm -f "$CLI_LINK"
+  ln -s "$CLI_SRC" "$CLI_LINK"
+fi
+
 NM_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 NM_PATH="$NM_DIR/com.duo.phase0.json"
 
@@ -118,11 +131,19 @@ echo "  launcher:    $LAUNCHER_PATH"
 echo "  helper:      $HELPER_PATH"
 echo "  node-pty in: $NODE_MODULES_DIR"
 echo "  origin:      chrome-extension://$EXTENSION_ID/"
+if [ -L "$CLI_LINK" ]; then
+  echo "  cli symlink: $CLI_LINK -> $CLI_SRC"
+fi
 echo
 echo "Next:"
 echo "  1. reload the extension at chrome://extensions/"
 echo "  2. open the side panel — terminal should show a prompt"
-echo "  3. tail the helper log to watch keep-alive ticks:"
+echo "  3. (Phase 6.5) test the CLI bridge:"
+echo "     ~/.claude/bin/duo-ext doctor   # should show sock + tcp OK"
+echo "     ~/.claude/bin/duo-ext tabs     # JSON list of Chrome tabs"
+echo "     # Add ~/.claude/bin to PATH if not already:"
+echo "     #   echo 'export PATH=\"\$HOME/.claude/bin:\$PATH\"' >> ~/.zshrc"
+echo "  4. tail the helper log to watch keep-alive ticks:"
 echo "     tail -f \"\$HOME/.claude/duo/phase0-helper.log\""
 echo
 echo "If you switch worktrees: re-run this script from the new worktree"
