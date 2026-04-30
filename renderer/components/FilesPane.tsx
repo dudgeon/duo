@@ -35,6 +35,11 @@ interface FilesPaneProps {
   /** Flip collapsed state. Needed as a click-to-expand affordance so users
    *  stuck with \u2318B swallowed by an editor tab (bold) always have an escape. */
   onToggleCollapsed: () => void
+  /** Stage 26 PR 3 item 2 \u2014 front terminal's launch CWD. Threaded
+   *  through to FileTree so folder rows whose path matches render an
+   *  ambient accent dot. `null` when no terminal exists or its cwd
+   *  isn't tracked yet. */
+  activeTerminalCwd?: string | null
 }
 
 export function FilesPane({
@@ -50,7 +55,8 @@ export function FilesPane({
   onOpenClaudeIn,
   revealChip,
   onDismissRevealChip,
-  onToggleCollapsed
+  onToggleCollapsed,
+  activeTerminalCwd = null
 }: FilesPaneProps) {
   return (
     <div
@@ -64,8 +70,17 @@ export function FilesPane({
         // focused. Files pane's "header" is the breadcrumb row below.
         // Seam border still flips to full-opacity accent as a secondary
         // cue.
-        'flex flex-col h-full bg-surface-1 border-r transition-[width] duration-150',
-        focused ? 'border-accent' : 'border-border'
+        //
+        // Stage 26 PR 3 item 11 (v0.5.4) — focus signal extended from
+        // chrome-only to a 2px LEFT-EDGE accent stripe on the column
+        // wrapper itself. The column has no occluding child (unlike
+        // Terminal's xterm canvas or Working's WebContentsView), so the
+        // wrapper's own border paints unambiguously. Read together with
+        // the existing tinted-header pattern: header chrome tints +
+        // left edge stripes when focused = whole pane reads as
+        // "this is the focused column."
+        'flex flex-col h-full bg-surface-1 border-r border-l-2 transition-[width,border-color] duration-150',
+        focused ? 'border-r-accent border-l-accent' : 'border-r-border border-l-transparent'
       ].join(' ')}
       style={{ width: collapsed ? '44px' : '208px', flexShrink: 0 }}
       aria-label="Files"
@@ -131,6 +146,7 @@ export function FilesPane({
             onOpenTerminalHere={onOpenTerminalHere}
             onOpenClaudeIn={onOpenClaudeIn}
             navPins={navPins}
+            activeTerminalCwd={activeTerminalCwd}
           />
 
           {/* Stage 26 PR 2 (ENH-010) — Pinned files & folders.

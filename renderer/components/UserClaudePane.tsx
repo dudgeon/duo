@@ -60,7 +60,12 @@ export function UserClaudePane({
     <div
       className={[
         // The pane sits above ProjectPane; bottom border separates them.
-        'flex flex-col border-b border-paper-rule shrink-0 transition-colors',
+        // Stage 26 PR 3 item 10 — bump the divider from 1px subtle to a
+        // more emphatic 2px so the boundary between "Your Claude
+        // settings" (user-level / global) and the project tree
+        // (project-local) reads as two distinct surfaces, not one
+        // continuous column.
+        'flex flex-col border-b-2 border-paper-edge shrink-0 transition-colors',
         focused ? 'bg-accent-soft' : ''
       ].join(' ')}
       aria-label="Your Claude settings"

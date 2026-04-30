@@ -1101,6 +1101,12 @@ export function App() {
             revealChip={revealChip}
             onDismissRevealChip={() => setRevealChip(null)}
             onToggleCollapsed={() => setFilesCollapsed(prev => !prev)}
+            // Stage 26 PR 3 item 2 — front terminal's launch CWD,
+            // surfaced to FileTree as an ambient highlight on the
+            // matching folder row. Resolves to the active tab's
+            // launch CWD (live cwd post-`cd` is not tracked yet —
+            // OSC 7 hook is its own follow-up enhancement).
+            activeTerminalCwd={tabs.find(t => t.id === activeTabId)?.cwd ?? null}
           />
         </div>
 

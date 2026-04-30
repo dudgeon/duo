@@ -54,9 +54,16 @@ interface FileTreeProps {
    *  instead of the full `~/.claude/` listing. Children of expanded
    *  folders still come from `state.listings`. */
   rootEntriesOverride?: DirEntry[] | null
+  /** Stage 26 PR 3 item 2 — front terminal's launch CWD. Folder rows
+   *  whose `path` matches render a subtle accent dot to the right of
+   *  the name, distinct from selection's full-row tint (selection is
+   *  interaction state, this is ambient signal). `null` suppresses
+   *  the indicator (e.g., on user-claude pane where no terminal
+   *  semantics apply). */
+  activeTerminalCwd?: string | null
 }
 
-export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride }: FileTreeProps) {
+export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride, activeTerminalCwd = null }: FileTreeProps) {
   const rootEntries = rootEntriesOverride !== undefined ? rootEntriesOverride : state.listings.get(state.cwd)
   // Shared context-menu state — only one menu open at a time across the whole
   // tree. `target` carries the entry the user right-clicked.
@@ -120,6 +127,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         onCommitRename={onCommitRename}
         onCancelRename={() => setRenamingPath(null)}
         onOpenClaudeIn={onOpenClaudeIn}
+        activeTerminalCwd={activeTerminalCwd}
       />
       {menu && (
         <ContextMenu
@@ -236,9 +244,11 @@ interface TreeNodesProps {
   onCancelRename?: () => void
   /** Stage 26 item 7 — hover "new Claude here" button on folder rows. */
   onOpenClaudeIn?: (folderPath: string) => void
+  /** Stage 26 PR 3 item 2 — active terminal CWD for ambient highlight. */
+  activeTerminalCwd?: string | null
 }
 
-export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn }: TreeNodesProps) {
+export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }
@@ -261,6 +271,7 @@ export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContex
           onCommitRename={onCommitRename}
           onCancelRename={onCancelRename}
           onOpenClaudeIn={onOpenClaudeIn}
+          activeTerminalCwd={activeTerminalCwd}
         />
       ))}
     </>
@@ -278,13 +289,21 @@ interface TreeNodeProps {
   onCommitRename?: (entry: DirEntry, newName: string) => Promise<boolean>
   onCancelRename?: () => void
   onOpenClaudeIn?: (folderPath: string) => void
+  /** Stage 26 PR 3 item 2 — active terminal CWD for ambient highlight. */
+  activeTerminalCwd?: string | null
 }
 
-function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn }: TreeNodeProps) {
+function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
   const isSelected = state.selected?.path === entry.path
   const isRenaming = renamingPath === entry.path
+  // Stage 26 PR 3 item 2 — folder rows whose path matches the front
+  // terminal's launch CWD render an ambient accent dot. Files don't
+  // get the dot (terminals can't have a file as cwd). Distinct from
+  // selection: selection is a full-row tint, this is a small dot to
+  // the right of the name.
+  const isActiveCwd = isFolder && activeTerminalCwd !== null && entry.path === activeTerminalCwd
 
   // Stage 26 item 1 — single-click selects, double-click opens.
   // Stage 26 item 1b (BUG-025) — chevron is a discrete hit target;
@@ -372,6 +391,18 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
           >
             <FileIcon entry={entry} />
             <span className="truncate">{entry.name}</span>
+            {/* Stage 26 PR 3 item 2 — ambient signal: this folder is
+                the front terminal's launch CWD. A small accent dot
+                inline with the name; doesn't overlap selection's
+                full-row tint or item 7's hover button (which lives in
+                its own sibling). */}
+            {isActiveCwd && (
+              <span
+                aria-label="Active terminal CWD"
+                title="Front terminal is in this folder"
+                className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent"
+              />
+            )}
           </button>
         )}
         {/* Stage 26 item 7 — hover "new Claude here" button. Folders only,
