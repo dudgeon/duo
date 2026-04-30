@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Duo Phase 0 — Keep-Alive Probe",
+  "version": "0.1.0",
+  "description": "MV3 service worker + Native Messaging keep-alive proof for the Duo Chrome extension exploration. See phase0/README.md.",
+  "background": {
+    "service_worker": "sw.js"
+  },
+  "permissions": ["nativeMessaging", "alarms"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Duo Phase 0"
+  }
+}

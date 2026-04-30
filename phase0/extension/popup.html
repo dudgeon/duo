@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Duo Phase 0</title>
+  <style>
+    body {
+      font-family: -apple-system, system-ui, sans-serif;
+      padding: 16px;
+      width: 360px;
+      margin: 0;
+    }
+    h3 { margin: 0 0 12px 0; font-size: 14px; }
+    button {
+      padding: 8px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #2a6cb8;
+      color: white;
+      border: 0;
+      border-radius: 4px;
+    }
+    button:hover { background: #205a9c; }
+    pre {
+      background: #f4f4f4;
+      padding: 8px;
+      font-size: 11px;
+      white-space: pre-wrap;
+      max-height: 280px;
+      overflow-y: auto;
+      margin-top: 12px;
+      border-radius: 4px;
+      line-height: 1.4;
+    }
+    .ok { color: #0a7d20; }
+    .err { color: #b03030; }
+    .hint { color: #777; font-size: 11px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h3>Duo Phase 0 — keep-alive probe</h3>
+  <button id="ping">Send ping to helper</button>
+  <pre id="log">Click "Send ping" to round-trip a message through the SW to the native helper.
+
+Pass criteria:
+  • &lt;100ms response on first call
+  • helperPid stays constant across pings
+  • Same after 30+ min of idle</pre>
+  <div class="hint">Helper log: <code>~/.claude/duo/phase0-helper.log</code></div>
+  <script src="popup.js"></script>
+</body>
+</html>
