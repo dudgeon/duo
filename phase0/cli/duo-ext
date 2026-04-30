@@ -1,0 +1,263 @@
+#!/usr/bin/env node
+
+// Duo Phase 6.5 — CLI bridge to the extension's helper.
+//
+// Connects to the helper via Unix socket (fast path) with TCP
+// fallback for sandboxed environments (Claude Code's bash sandbox
+// blocks Unix sockets unless explicitly allowlisted). The helper
+// writes ~/Library/Application Support/Duo/duo-helper.port — a small
+// JSON file with the TCP port + auth token. Reads outside cwd are
+// allowed in Claude Code's sandbox, so the fallback heals
+// transparently.
+//
+// Verb list mirrors the SW's runAgentVerb dispatcher:
+//   duo-ext tabs                  → agent:tabs:list
+//   duo-ext open <url>            → agent:tabs:open
+//   duo-ext close <id>            → agent:tabs:close
+//   duo-ext activate <id>         → agent:tabs:activate
+//   duo-ext title [<tabId>]       → agent:scripting:title
+//   duo-ext eval <expression>     → agent:cdp:eval (uses chrome.debugger)
+//   duo-ext script <body>         → agent:scripting:eval (lighter API)
+//   duo-ext doctor                → diagnose connection (sock vs tcp)
+//
+// Output is JSON. Set DUO_FORMAT=human for terse text output.
+
+const net = require('net')
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
+
+const DUO_DIR = path.join(os.homedir(), 'Library', 'Application Support', 'Duo')
+const SOCKET_PATH = path.join(DUO_DIR, 'duo-helper.sock')
+const PORT_FILE = path.join(DUO_DIR, 'duo-helper.port')
+
+const args = process.argv.slice(2)
+
+function usage(code) {
+  process.stderr.write(`usage: duo-ext <verb> [args...]
+
+Verbs:
+  tabs                       list open Chrome tabs
+  open <url>                 open <url> in a new tab
+  close <id>                 close tab by id
+  activate <id>              focus tab by id
+  title [tabId]              read document.title from active tab (or tabId)
+  eval <expression>          chrome.debugger Runtime.evaluate (yellow bar)
+  script <body>              chrome.scripting.executeScript with a function body
+  doctor                     diagnose helper connectivity (sock + tcp)
+
+Output is JSON. Set DUO_FORMAT=human for terse text output.
+`)
+  process.exit(code)
+}
+
+if (args.length === 0 || args[0] === '-h' || args[0] === '--help') usage(args.length === 0 ? 1 : 0)
+
+const verb = args[0]
+let payload = null
+
+switch (verb) {
+  case 'doctor':
+    runDoctor().then(
+      () => process.exit(0),
+      (e) => { process.stderr.write(`doctor: ${e.message}\n`); process.exit(2) }
+    )
+    return
+  case 'tabs':
+    payload = { verb: 'agent:tabs:list' }
+    break
+  case 'open':
+    if (!args[1]) usage(1)
+    payload = { verb: 'agent:tabs:open', args: { url: args[1] } }
+    break
+  case 'close':
+    if (!args[1]) usage(1)
+    payload = { verb: 'agent:tabs:close', args: { id: Number(args[1]) } }
+    break
+  case 'activate':
+    if (!args[1]) usage(1)
+    payload = { verb: 'agent:tabs:activate', args: { id: Number(args[1]) } }
+    break
+  case 'title': {
+    const tabId = args[1] ? Number(args[1]) : undefined
+    payload = { verb: 'agent:scripting:title', args: tabId !== undefined ? { tabId } : {} }
+    break
+  }
+  case 'eval':
+    if (!args[1]) usage(1)
+    payload = { verb: 'agent:cdp:eval', args: { expression: args.slice(1).join(' ') } }
+    break
+  case 'script':
+    if (!args[1]) usage(1)
+    payload = { verb: 'agent:scripting:eval', args: { body: args.slice(1).join(' ') } }
+    break
+  default:
+    process.stderr.write(`unknown verb: ${verb}\n\n`)
+    usage(1)
+}
+
+const reqId = `cli-${process.pid}-${Date.now()}`
+
+connectAndSend(payload, reqId).catch((e) => {
+  process.stderr.write(`✗ ${e.message}\n`)
+  process.exit(2)
+})
+
+// ── Connection logic ────────────────────────────────────────────────
+
+async function connectAndSend(payload, reqId) {
+  const request = JSON.stringify({ reqId, ...payload }) + '\n'
+
+  // 1. Try Unix socket first (fast path).
+  try {
+    const socket = await connectUnix()
+    return await speak(socket, request, reqId)
+  } catch (unixErr) {
+    if (unixErr.code !== 'ENOENT' && unixErr.code !== 'ECONNREFUSED' &&
+        unixErr.code !== 'EPERM' && unixErr.code !== 'EACCES' &&
+        !/timeout/i.test(unixErr.message || '')) {
+      // Non-sandbox error — fail loud, don't try TCP.
+      throw unixErr
+    }
+    // 2. Fall back to TCP. Sandbox-blocked Unix sockets land here.
+    const tcp = await connectTcp()
+    return await speak(tcp, request, reqId)
+  }
+}
+
+function connectUnix() {
+  return new Promise((resolve, reject) => {
+    const sock = net.createConnection(SOCKET_PATH)
+    const t = setTimeout(() => { sock.destroy(); reject(new Error('unix connect timeout')) }, 2000)
+    sock.once('connect', () => { clearTimeout(t); resolve(sock) })
+    sock.once('error', (e) => { clearTimeout(t); reject(e) })
+  })
+}
+
+async function connectTcp() {
+  let info
+  try {
+    info = JSON.parse(fs.readFileSync(PORT_FILE, 'utf8'))
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      throw new Error(
+        `helper port file missing at ${PORT_FILE} — is the Duo extension running?\n` +
+        `Reload it at chrome://extensions/ and try again.`
+      )
+    }
+    throw new Error(`reading ${PORT_FILE}: ${e.message}`)
+  }
+  if (!info.port || !info.token) throw new Error(`port file malformed: ${PORT_FILE}`)
+  return new Promise((resolve, reject) => {
+    const sock = net.createConnection(info.port, '127.0.0.1')
+    const t = setTimeout(() => { sock.destroy(); reject(new Error('tcp connect timeout')) }, 2000)
+    sock.once('connect', () => {
+      clearTimeout(t)
+      // First line is the auth token.
+      sock.write(info.token + '\n')
+      resolve(sock)
+    })
+    sock.once('error', (e) => { clearTimeout(t); reject(e) })
+  })
+}
+
+function speak(socket, request, reqId) {
+  return new Promise((resolve, reject) => {
+    let buf = ''
+    socket.on('data', (chunk) => {
+      buf += chunk.toString('utf8')
+      let idx
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx)
+        buf = buf.slice(idx + 1)
+        if (!line) continue
+        let res
+        try { res = JSON.parse(line) }
+        catch (e) {
+          reject(new Error(`bad response: ${e.message} (${line})`))
+          socket.end()
+          return
+        }
+        if (res.reqId !== reqId) continue
+        socket.end()
+        if (!res.ok) {
+          process.stderr.write(`✗ ${res.error || 'request failed'}\n`)
+          process.exit(1)
+        }
+        if (process.env.DUO_FORMAT === 'human') {
+          printHuman(verb, res.result)
+        } else {
+          process.stdout.write(JSON.stringify(res.result, null, 2) + '\n')
+        }
+        process.exit(0)
+      }
+    })
+    socket.on('error', reject)
+    socket.write(request)
+    resolve()
+  })
+}
+
+// ── doctor ─────────────────────────────────────────────────────────
+
+async function runDoctor() {
+  process.stdout.write(`duo-ext doctor\n`)
+  process.stdout.write(`  socket path: ${SOCKET_PATH}\n`)
+  process.stdout.write(`  port file:   ${PORT_FILE}\n`)
+
+  // Unix socket path
+  const unixOk = await tryUnix()
+  process.stdout.write(`  unix socket: ${unixOk.ok ? 'OK' : `FAIL — ${unixOk.error}`}\n`)
+
+  // TCP path
+  let portInfo = null
+  try { portInfo = JSON.parse(fs.readFileSync(PORT_FILE, 'utf8')) }
+  catch (e) {
+    process.stdout.write(`  tcp:         FAIL — port file unreadable (${e.code || e.message})\n`)
+    return
+  }
+  process.stdout.write(`  tcp port:    127.0.0.1:${portInfo.port}\n`)
+  const tcpOk = await tryTcp(portInfo)
+  process.stdout.write(`  tcp socket:  ${tcpOk.ok ? 'OK' : `FAIL — ${tcpOk.error}`}\n`)
+
+  if (!unixOk.ok && tcpOk.ok) {
+    process.stdout.write(`\n  → falling back to TCP (Unix socket blocked, likely sandboxed)\n`)
+  }
+}
+
+function tryUnix() {
+  return new Promise((resolve) => {
+    const s = net.createConnection(SOCKET_PATH)
+    const t = setTimeout(() => { s.destroy(); resolve({ ok: false, error: 'timeout' }) }, 1500)
+    s.once('connect', () => { clearTimeout(t); s.end(); resolve({ ok: true }) })
+    s.once('error', (e) => { clearTimeout(t); resolve({ ok: false, error: e.code || e.message }) })
+  })
+}
+
+function tryTcp(info) {
+  return new Promise((resolve) => {
+    const s = net.createConnection(info.port, '127.0.0.1')
+    const t = setTimeout(() => { s.destroy(); resolve({ ok: false, error: 'timeout' }) }, 1500)
+    s.once('connect', () => {
+      clearTimeout(t)
+      s.write(info.token + '\n')
+      s.end()
+      resolve({ ok: true })
+    })
+    s.once('error', (e) => { clearTimeout(t); resolve({ ok: false, error: e.code || e.message }) })
+  })
+}
+
+function printHuman(verb, r) {
+  if (verb === 'tabs') {
+    if (!Array.isArray(r)) { process.stdout.write('(no tabs)\n'); return }
+    for (const t of r) {
+      const star = t.active ? '*' : ' '
+      process.stdout.write(`${star} #${t.id}\t${t.title || '(untitled)'}\t${t.url}\n`)
+    }
+    return
+  }
+  if (verb === 'title') { process.stdout.write(`${r.title || '(no title)'}\n`); return }
+  if (verb === 'eval') { process.stdout.write(`${JSON.stringify(r.value)}\n`); return }
+  process.stdout.write(JSON.stringify(r) + '\n')
+}

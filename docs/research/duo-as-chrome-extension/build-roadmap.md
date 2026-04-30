@@ -282,6 +282,7 @@ in a Chrome tab, agent-driven Gmail screenshot, AX tree via
 | 4b | esbuild bundle + React + TipTap markdown editor in canvas tab — validates the React toolchain question without a Vite reorg | 0.5 | ✅ |
 | 5 | Tab-driving via lighter `chrome.tabs`/`chrome.scripting` APIs | 0.3 | 🟡 |
 | 6 | `chrome.debugger` for CDP-only operations — `agent:cdp:eval` attach/eval/detach gate | 0.2 | 🟡 |
+| 6.5 | CLI bridge — helper-side Unix socket + TCP fallback (sandbox-tolerant); `duo-ext` binary | 0.5 | 🟡 |
 | 7 | Distribution dry-run — Web Store unlisted + helper PKG | 1.0 | ⬜ |
 | 8 | End-to-end demo + buffer | 0.5 | ⬜ |
 | **Total** | | **7.0** | |

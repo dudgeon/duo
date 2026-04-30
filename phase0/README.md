@@ -37,14 +37,19 @@ phase0/
 │   │                            P4b swaps in MarkdownEditor / TipTap)
 │   ├── canvas.css             ← dark theme for the editor toolbar + textarea
 │   └── canvas.js              ← files:read on load, files:write on ⌘S / save click
-└── helper/
-    ├── duo-helper.js              ← Native Messaging stdio host (Node)
-    │                                P0 keep-alive · P2 PTY · P3 files:list ·
-    │                                P4a files:read/write
-    └── install.sh                 ← copies helper into ~/Library/Application
-                                     Support/Duo/, generates the launcher with
-                                     the user's node path baked in, drops the
-                                     NM manifest in Chrome's lookup dir
+├── helper/
+│   ├── duo-helper.js              ← Native Messaging stdio host (Node)
+│   │                                P0 keep-alive · P2 PTY · P3 files:list ·
+│   │                                P4a files:read/write · P6.5 CLI socket
+│   └── install.sh                 ← copies helper into ~/Library/Application
+│                                    Support/Duo/, generates the launcher with
+│                                    the user's node path baked in, drops the
+│                                    NM manifest in Chrome's lookup dir
+└── cli/
+    └── duo-ext                    ← Phase 6.5 — CLI binary; connects to the
+                                     helper via Unix socket (fast path) or TCP
+                                     (sandbox-tolerant fallback). Verbs mirror
+                                     the SW's runAgentVerb dispatcher.
 ```
 
 No build step. Vanilla JS + a Node script.
@@ -120,7 +125,36 @@ documenting the finding.
 rm "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.duo.phase0.json"
 rm -rf "$HOME/Library/Application Support/Duo"
 # then chrome://extensions/ → remove the extension
+# (Phase 6.5: the helper's Unix socket + duo-helper.port file live
+#  inside ~/Library/Application Support/Duo/ and are removed by the
+#  rm -rf above.)
 ```
+
+## Phase 6.5 — driving Chrome from a terminal
+
+After Phase 6.5, the helper exposes a CLI socket so the `duo-ext`
+binary in `phase0/cli/duo-ext` can drive Chrome from any terminal
+(including a Duo PTY tab).
+
+```bash
+# After install.sh has run + the extension is loaded:
+phase0/cli/duo-ext doctor               # verifies sock + tcp paths
+phase0/cli/duo-ext tabs                 # lists Chrome tabs as JSON
+DUO_FORMAT=human phase0/cli/duo-ext tabs  # terse text instead
+phase0/cli/duo-ext open https://example.com
+phase0/cli/duo-ext title                # active tab document.title
+phase0/cli/duo-ext eval '1+1'           # CDP Runtime.evaluate (yellow bar)
+```
+
+The CLI tries the Unix socket first
+(`~/Library/Application Support/Duo/duo-helper.sock`); on `EPERM` /
+`ECONNREFUSED` / timeout it reads
+`~/Library/Application Support/Duo/duo-helper.port` and reconnects
+over TCP `127.0.0.1:<random-port>` using a per-install auth token
+sent as the first NDJSON line. The TCP fallback heals Claude Code's
+sandboxed bash sessions transparently — the sandbox blocks Unix
+sockets by default but lets TCP localhost through. Mirrors the
+Stage 20 transport ADR for the Electron-app `duo` CLI.
 
 ## Known gotchas
 

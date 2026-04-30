@@ -50,6 +50,12 @@ function connectHelper() {
       for (const cp of clientPorts) {
         try { cp.postMessage(msg) } catch (e) { console.warn('[sw] client post failed:', e) }
       }
+    } else if (msg.type === 'cli:request') {
+      // Phase 6.5 — CLI verb dispatched from the helper's Unix socket.
+      // Run the agent verb; reply with cli:response carrying the same
+      // cliReqId so the helper can route the answer back to the right
+      // socket connection.
+      handleCliRequest(msg)
     } else {
       console.log(`[sw] msg from helper #${messageCount}:`, msg)
     }
@@ -120,6 +126,16 @@ chrome.runtime.onMessage.addListener((req, _sender, sendResponse) => {
 })
 
 async function handleAgent(req, sendResponse) {
+  const out = await runAgentVerb(req)
+  sendResponse(out)
+}
+
+// Pure dispatcher: { type, ...args } → { ok, result?, error? }
+// Used by both the chrome.runtime.onMessage path (popup / sidepanel)
+// and the helper-port cli:request path. Keep this side-effect-free
+// outside of the chrome.* calls themselves so adding a new verb
+// is one switch case, no plumbing.
+async function runAgentVerb(req) {
   try {
     let result
     switch (req.type) {
@@ -218,9 +234,9 @@ async function handleAgent(req, sendResponse) {
       default:
         throw new Error('unknown agent verb: ' + req.type)
     }
-    sendResponse({ ok: true, result })
+    return { ok: true, result }
   } catch (e) {
-    sendResponse({ ok: false, error: e.message || String(e) })
+    return { ok: false, error: e.message || String(e) }
   }
 }
 
@@ -228,6 +244,30 @@ async function activeTabId() {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
   if (!tab || typeof tab.id !== 'number') throw new Error('no active tab')
   return tab.id
+}
+
+// Phase 6.5 — handle a cli:request that arrived on the helper port.
+// The helper has the socket connection; we just run the verb and ship
+// a cli:response back via the same NM port.
+async function handleCliRequest(msg) {
+  const verbReq = { type: msg.verb, ...(msg.args || {}) }
+  const out = await runAgentVerb(verbReq)
+  if (!port) {
+    console.warn('[sw] cli:response dropped — helper port closed mid-flight')
+    return
+  }
+  try {
+    port.postMessage({
+      type: 'cli:response',
+      cliReqId: msg.cliReqId,
+      cliRequestId: msg.cliRequestId,
+      ok: out.ok,
+      result: out.result,
+      error: out.error,
+    })
+  } catch (e) {
+    console.warn('[sw] cli:response post failed:', e)
+  }
 }
 
 // ── Phase 2/4a — client-port ↔ helper relay ──────────────────────────
