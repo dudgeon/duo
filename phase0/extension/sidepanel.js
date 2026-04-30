@@ -30,6 +30,11 @@ function setDrawer(open) {
   folderBtn.setAttribute('aria-expanded', String(open))
   folderBtn.classList.toggle('active', open)
   root.classList.toggle('drawer-open', open)
+  // Phase 3 — first open triggers the real fs boot. Idempotent.
+  if (open && typeof bootTree === 'function' && !treeBooted) {
+    treeBooted = true
+    bootTree()
+  }
 }
 
 function toggleDrawer() {
@@ -58,61 +63,132 @@ document.addEventListener('click', (e) => {
   setDrawer(false)
 })
 
-// ── Mock filetree ─────────────────────────────────────────────────────
+// ── Real filetree (Phase 3) ───────────────────────────────────────────
+//
+// Lazy tree. We hold per-path state in `nodes` (kind, expanded,
+// children). Children are loaded on first expand via `files:list`
+// over the SW port. Re-render happens after every state change.
 
-const MOCK_TREE = [
-  { name: 'duo', kind: 'folder', depth: 0, expanded: true },
-  { name: 'core', kind: 'folder', depth: 1, expanded: true },
-  { name: 'pty-manager.ts', kind: 'file', depth: 2 },
-  { name: 'files-service.ts', kind: 'file', depth: 2 },
-  { name: 'socket-server.ts', kind: 'file', depth: 2 },
-  { name: 'electron', kind: 'folder', depth: 1 },
-  { name: 'docs', kind: 'folder', depth: 1, expanded: true },
-  { name: 'roadmap.html', kind: 'file', depth: 2 },
-  { name: 'CHANGELOG.md', kind: 'file', depth: 2 },
-  { name: 'phase0', kind: 'folder', depth: 1 },
-  { name: 'package.json', kind: 'file', depth: 1 },
-  { name: 'README.md', kind: 'file', depth: 1 }
-]
+const nodes = new Map() // absPath → { kind, expanded, children? }
+let rootPath = null
+const pendingFilesRequests = new Map() // reqId → { resolve, reject }
+
+function listDir(absPath) {
+  return new Promise((resolve, reject) => {
+    if (!swPort) connectSw()
+    if (!swPort) { reject(new Error('no SW port')); return }
+    const reqId = 'fl-' + Math.random().toString(36).slice(2, 10)
+    const timer = setTimeout(() => {
+      pendingFilesRequests.delete(reqId)
+      reject(new Error('files:list timeout'))
+    }, 5000)
+    pendingFilesRequests.set(reqId, { resolve, reject, timer })
+    swPort.postMessage({ type: 'files:list', reqId, path: absPath ?? '' })
+  })
+}
+
+function handleFilesResult(msg) {
+  const pending = pendingFilesRequests.get(msg.reqId)
+  if (!pending) return
+  clearTimeout(pending.timer)
+  pendingFilesRequests.delete(msg.reqId)
+  if (msg.ok) pending.resolve(msg)
+  else pending.reject(new Error(msg.error || 'files:list failed'))
+}
+
+async function loadAndExpand(absPath) {
+  let node = nodes.get(absPath)
+  if (!node) {
+    node = { kind: 'directory', expanded: false }
+    nodes.set(absPath, node)
+  }
+  if (!node.children) {
+    try {
+      const result = await listDir(absPath)
+      node.children = result.entries
+      for (const e of result.entries) {
+        if (!nodes.has(e.path)) nodes.set(e.path, { kind: e.kind === 'directory' ? 'directory' : 'file', expanded: false })
+      }
+    } catch (e) {
+      showBanner(`✗ ${e.message}`, 'err')
+      return
+    }
+  }
+  node.expanded = true
+  renderTree()
+}
+
+function collapse(absPath) {
+  const node = nodes.get(absPath)
+  if (node) { node.expanded = false; renderTree() }
+}
 
 function renderTree() {
   filetree.innerHTML = ''
-  for (const entry of MOCK_TREE) {
-    if (entry.depth > 0 && !isAncestorExpanded(entry)) continue
+  if (!rootPath) return
+  // Root row: shows the resolved root dir as the first entry.
+  const rootName = rootPath.split('/').filter(Boolean).pop() || rootPath
+  const rootLi = document.createElement('li')
+  rootLi.className = 'folder depth-0 expanded'
+  rootLi.textContent = rootName
+  rootLi.title = rootPath
+  rootLi.addEventListener('click', (e) => { e.stopPropagation(); collapse(rootPath) })
+  filetree.appendChild(rootLi)
+  // Render children in document order, recursively walking expanded folders.
+  walkRender(rootPath, 1)
+}
+
+function walkRender(absPath, depth) {
+  const node = nodes.get(absPath)
+  if (!node || !node.expanded || !node.children) return
+  for (const e of node.children) {
     const li = document.createElement('li')
-    li.className = `${entry.kind} depth-${entry.depth} ${entry.expanded ? 'expanded' : ''}`
-    li.textContent = entry.name
-    li.dataset.name = entry.name
-    li.dataset.kind = entry.kind
-    li.addEventListener('click', (e) => onTreeClick(entry, li, e))
+    const childNode = nodes.get(e.path)
+    const expanded = e.kind === 'directory' && childNode && childNode.expanded
+    li.className = `${e.kind === 'directory' ? 'folder' : 'file'} depth-${Math.min(depth, 2)} ${expanded ? 'expanded' : ''}`
+    li.textContent = e.name
+    li.title = e.path
+    li.addEventListener('click', (ev) => onEntryClick(ev, e))
     filetree.appendChild(li)
+    if (expanded) walkRender(e.path, depth + 1)
   }
 }
 
-function isAncestorExpanded(entry) {
-  const idx = MOCK_TREE.indexOf(entry)
-  for (let i = idx - 1; i >= 0; i--) {
-    const cand = MOCK_TREE[i]
-    if (cand.depth < entry.depth) {
-      return !!cand.expanded && (cand.depth === 0 || isAncestorExpanded(cand))
-    }
-  }
-  return true
-}
-
-function onTreeClick(entry, li, e) {
-  e.stopPropagation()
-  if (entry.kind === 'folder') {
-    entry.expanded = !entry.expanded
-    renderTree()
+function onEntryClick(ev, entry) {
+  ev.stopPropagation()
+  if (entry.kind === 'directory') {
+    const node = nodes.get(entry.path)
+    if (node && node.expanded) collapse(entry.path)
+    else loadAndExpand(entry.path)
     return
   }
-  console.log('[sidepanel] file clicked (Phase 3 will open canvas):', entry.name)
+  // File click: open in a new tab via canvas.html.
+  // Phase 4 will mount MarkdownEditor; today canvas.html is a stub.
   setDrawer(false)
-  showBanner(`(Phase 3 will open ${entry.name} in a new tab)`)
+  const url = chrome.runtime.getURL('canvas.html') + '?path=' + encodeURIComponent(entry.path)
+  chrome.tabs.create({ url })
+  showBanner(`opened ${entry.name} in new tab`, 'ok')
 }
 
-renderTree()
+async function bootTree() {
+  try {
+    const result = await listDir('')
+    rootPath = result.resolvedPath
+    const root = nodes.get(rootPath) || { kind: 'directory', expanded: true }
+    root.children = result.entries
+    root.expanded = true
+    nodes.set(rootPath, root)
+    for (const e of result.entries) {
+      if (!nodes.has(e.path)) nodes.set(e.path, { kind: e.kind === 'directory' ? 'directory' : 'file', expanded: false })
+    }
+    renderTree()
+  } catch (e) {
+    filetree.innerHTML = `<li class="file" style="color:#f08a8a">✗ ${e.message}</li>`
+  }
+}
+
+// First open triggers the real fs boot — guarded inside setDrawer.
+let treeBooted = false
 
 // ── Ping (Phase-0 diagnostic) ─────────────────────────────────────────
 
@@ -214,7 +290,14 @@ function connectSw() {
   if (swPort) return
   swPort = chrome.runtime.connect({ name: 'sidepanel' })
   swPort.onMessage.addListener((msg) => {
-    if (!msg || msg.id !== SESSION_ID) return
+    if (!msg || !msg.type) return
+    // Phase 3 — files:list:result is keyed by reqId, not session id.
+    if (msg.type === 'files:list:result') {
+      handleFilesResult(msg)
+      return
+    }
+    // Phase 2 — pty messages are keyed by SESSION_ID.
+    if (msg.id !== SESSION_ID) return
     if (msg.type === 'pty:created') {
       ptyReady = true
       console.log('[sidepanel] pty created (helper pid=' + msg.pid + ')')

@@ -41,9 +41,10 @@ function connectHelper() {
   port.onMessage.addListener((msg) => {
     messageCount++
     if (msg.pid) helperPid = msg.pid
-    // Phase 2 — relay pty:* events back to all connected sidepanel ports.
-    // Anything else (hello-ack, pong, keep-alive-ack) stays SW-internal.
-    if (msg.type && msg.type.startsWith('pty:')) {
+    // Phase 2/3 — relay pty:* and files:* events back to all connected
+    // sidepanel ports. Anything else (hello-ack, pong, keep-alive-ack)
+    // stays SW-internal.
+    if (msg.type && (msg.type.startsWith('pty:') || msg.type.startsWith('files:'))) {
       for (const sp of sidepanelPorts) {
         try { sp.postMessage(msg) } catch (e) { console.warn('[sw] sp post failed:', e) }
       }
@@ -122,14 +123,27 @@ chrome.runtime.onConnect.addListener((port) => {
     sidepanelPorts.delete(port)
   })
   port.onMessage.addListener((msg) => {
-    if (!msg || !msg.type || !msg.type.startsWith('pty:')) return
-    if (!port) connectHelper()
+    if (!msg || !msg.type) return
+    const isPty = msg.type.startsWith('pty:')
+    const isFiles = msg.type.startsWith('files:')
+    if (!isPty && !isFiles) return
+    if (!nativePortOk()) connectHelper()
     if (!nativePortOk()) {
-      port.postMessage({ type: 'pty:error', id: msg.id, error: 'native helper unavailable' })
+      const errType = isPty ? 'pty:error' : 'files:list:result'
+      const errPayload = isPty
+        ? { type: errType, id: msg.id, error: 'native helper unavailable' }
+        : { type: errType, reqId: msg.reqId, ok: false, error: 'native helper unavailable' }
+      port.postMessage(errPayload)
       return
     }
-    try { /* eslint-disable-next-line no-undef */ port_to_helper().postMessage(msg) }
-    catch (e) { port.postMessage({ type: 'pty:error', id: msg.id, error: e.message }) }
+    try { port_to_helper().postMessage(msg) }
+    catch (e) {
+      const errType = isPty ? 'pty:error' : 'files:list:result'
+      const errPayload = isPty
+        ? { type: errType, id: msg.id, error: e.message }
+        : { type: errType, reqId: msg.reqId, ok: false, error: e.message }
+      port.postMessage(errPayload)
+    }
   })
 })
 
