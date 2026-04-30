@@ -202,16 +202,22 @@ Without this permission the extension would have no UI surface.
 
 | Size | Source | Status |
 |---|---|---|
-| 16×16 | Generate from existing Duo desktop icon (`build/icon.icns`) | ⬜ Phase 7 |
-| 32×32 | Same | ⬜ Phase 7 |
-| 48×48 | Same | ⬜ Phase 7 |
-| 128×128 | Web Store listing icon. Required. | ⬜ Phase 7 |
+| 16×16 | Generated from `build/icon.icns` via `sips -z 16 16` | ✅ `phase0/extension/icons/icon-16.png` |
+| 32×32 | Same | ✅ `phase0/extension/icons/icon-32.png` |
+| 48×48 | Same | ✅ `phase0/extension/icons/icon-48.png` |
+| 128×128 | Web Store listing icon. Required. | ✅ `phase0/extension/icons/icon-128.png` |
 
-Use the existing Duo desktop icon (`build/icon.icns` after Stage
-21b shipped) as the source. Generate PNGs via `sips` and `iconutil`,
-mirroring the desktop icon's process. Store the PNGs in
-`phase0/extension/icons/` (or `extension/icons/` after the Phase 8
-rename).
+Wired into `manifest.json`'s `icons` and `action.default_icon`
+fields so Chrome surfaces them in the toolbar, extension picker,
+and Web Store listing without further wiring. Re-extract from the
+desktop icns if the desktop icon ever changes:
+
+```bash
+for s in 16 32 48 128; do
+  sips -s format png -z $s $s build/icon.icns \
+       --out phase0/extension/icons/icon-$s.png
+done
+```
 
 ## Screenshots
 
