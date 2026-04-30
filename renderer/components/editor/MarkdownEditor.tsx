@@ -32,6 +32,7 @@ import { TableShortcuts } from './extensions/TableShortcuts'
 import { PersistentSelection } from './extensions/PersistentSelection'
 import { JustAdded } from './extensions/JustAdded'
 import { MarkdownPaste } from './extensions/MarkdownPaste'
+import { BulletListWithMarker } from './extensions/BulletListWithMarker'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
@@ -130,9 +131,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       StarterKit.configure({
         // CodeBlockLowlight replaces StarterKit's codeBlock.
         codeBlock: false,
+        // ENH-018 — BulletListWithMarker replaces StarterKit's bulletList
+        // so the source marker character (`*`, `-`, `+`) round-trips
+        // through save/reopen instead of getting normalized to `-`.
+        bulletList: false,
         // StarterKit's heading defaults to levels [1..6] — leave as-is.
         // Keep history plugin (undo/redo).
       }),
+      BulletListWithMarker,
       Underline,
       Link.configure({
         openOnClick: false,

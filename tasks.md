@@ -2083,7 +2083,22 @@ Fresh installs get an expanded `~/.claude/duo/external-domains.json` covering `*
 
 ### ENH-018: Markdown editor — bullet marker character should match the source (`*` → disc, `-` → dash)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W3). Three coordinated changes ship the locked v1 spec end-to-end:
+
+A. **Schema attribute on `bulletList`.** New `BulletListWithMarker` extension (`renderer/components/editor/extensions/BulletListWithMarker.ts`) extends `@tiptap/extension-bullet-list` with a `marker: '*' | '-' | '+'` attribute (default `'-'`). `parseHTML` / `renderHTML` round-trip via a `data-marker` attribute on the `<ul>`. `StarterKit.configure({ bulletList: false })` disables the default bullet so ours wins.
+
+B. **markdown-it parse pass.** `parse.setup` registers a markdown-it core ruler that runs after the block parser; for every `bullet_list_open` token, it copies `token.markup` (the actual `*`/`-`/`+` from the source) into `data-marker` HTML attribute so tiptap-markdown's HTML pipeline carries it back into the ProseMirror tree.
+
+C. **Serialize override.** `addStorage().markdown.serialize` reads `node.attrs.marker` and emits `${marker} ` per item, replacing tiptap-markdown's default that read the global `bulletListMarker` option. Each list keeps its source character on save.
+
+D. **Input rule preserves typed character at top level only.** `wrappingInputRule({ find: /^\s*([-+*])\s$/ })` — the matched character sets `marker` on the new node. Per the locked spec (AskUserQuestion), inside an existing list the character is conformed to the parent's marker (TipTap's `wrappingInputRule` only fires when there's no surrounding bulletList, so this is enforced naturally — the rule never matches inside a list).
+
+E. **CSS visual marker.** `globals.css` adds `ul[data-marker="*"]` → `disc`, `ul[data-marker="-"]` → en-dash + space, `ul[data-marker="+"]` → plus + space. Lists arriving without the attribute (legacy paths) fall through to the browser's `disc` default.
+
+**Round-trip scope shipped (v1):** Direct edits (Enter, Backspace, indent/outdent), save → reopen, copy out (free with serializer fix). **Deferred to v2 (known limitation):** paste-fidelity from another markdown source — pasted markdown with mixed markers normalizes to the destination context's marker. cozy-md-editor explicitly didn't solve this either; the right home is `extensions/MarkdownPaste.ts` when picked up.
+
+**Cozy-md-editor port note:** I didn't end up needing the `BULLET_RE` + `findParentListType` text-based fallback because tiptap-markdown's serializer hook + markdown-it parse hook gave us AST round-trip directly. If a behavioral regression appears (Enter splitting a list with the wrong marker), Cozy's regex utility is a clean drop-in for the keymap layer.
+
 **Priority:** Medium (visual fidelity — what's on disk should match what's rendered, character by character)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 1; spec corrected same day)
 
