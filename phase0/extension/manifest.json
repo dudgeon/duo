@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Duo Phase 0 — Keep-Alive Probe",
+  "name": "Duo for Chrome",
+  "short_name": "Duo",
   "version": "0.6.0",
-  "description": "MV3 SW + NM keep-alive (P0) + side panel (P1) + real PTY (P2) + filetree (P3) + canvas-tab editor (P4) + lighter tab control (P5) + chrome.debugger CDP (P6). See phase0/README.md.",
+  "description": "Pair Claude Code terminals with your Chrome — let your AI agent drive tabs, edit markdown, and live in your real browser.",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -15,7 +16,7 @@
   "permissions": ["nativeMessaging", "alarms", "sidePanel", "tabs", "scripting", "debugger"],
   "host_permissions": ["<all_urls>"],
   "action": {
-    "default_title": "Duo (Phase 0/1)",
+    "default_title": "Duo",
     "default_icon": {
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png",
