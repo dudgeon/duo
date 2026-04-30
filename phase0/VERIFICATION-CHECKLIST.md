@@ -7,9 +7,11 @@ and a "what to tell Claude" if it fails. Total time: ~10 minutes.
 
 ## 0 — Pre-flight (1 minute)
 
+The exploration's `phase0/` directory only exists in the worktree
+(not on `main`), so use the absolute path so this works from any cwd:
+
 ```bash
-# From this worktree's root:
-bash phase0/helper/install.sh iheckmlfnjoppacjalemgdhhlejmgmod
+bash ~/Documents/GitHub/duo/.claude/worktrees/elegant-sanderson-05aa7a/phase0/helper/install.sh iheckmlfnjoppacjalemgdhhlejmgmod
 ```
 
 Expected output ends with:
