@@ -280,9 +280,9 @@ in a Chrome tab, agent-driven Gmail screenshot, AX tree via
 | 3 | Real filetree + open canvas-as-tab — leverages `core/files/FilesService` | 1.0 | ✅ |
 | 4a | File r/w through helper (`files:read` / `files:write`); plain textarea editor in canvas tab — validates the r/w path before adding the React toolchain | 0.3 | ✅ |
 | 4b | esbuild bundle + React + TipTap markdown editor in canvas tab — validates the React toolchain question without a Vite reorg | 0.5 | ✅ |
-| 5 | Tab-driving via lighter `chrome.tabs`/`chrome.scripting` APIs | 0.3 | 🟡 |
-| 6 | `chrome.debugger` for CDP-only operations — `agent:cdp:eval` attach/eval/detach gate | 0.2 | 🟡 |
-| 6.5 | CLI bridge — helper-side Unix socket + TCP fallback (sandbox-tolerant); `duo-ext` binary | 0.5 | 🟡 |
+| 5 | Tab-driving via lighter `chrome.tabs`/`chrome.scripting` APIs | 0.3 | ✅ |
+| 6 | `chrome.debugger` for CDP-only operations — `agent:cdp:eval` attach/eval/detach gate | 0.2 | ✅ |
+| 6.5 | CLI bridge — helper-side Unix socket + TCP fallback (sandbox-tolerant); `duo-ext` binary | 0.5 | ✅ |
 | 7 | Distribution refactor — Electron-app-as-NM-host + Web Store unlisted (see `distribution-strategy.md`) | 2.0 | ⬜ |
 | 8 | Public Web Store promotion + background-mode menu bar (see `distribution-strategy.md`) | 1.0 | ⬜ |
 | **Total** | | **7.0** | |
