@@ -55,6 +55,13 @@ Owner: Geoff (Capital One, AI in Product program).
   that's a merge candidate back to `main` once smoke-walked. The
   `phase0/` prototype directory is exploration-only; not in the
   Electron build pipeline.
+- **`docs/research/duo-as-chrome-extension/distribution-strategy.md`** —
+  the **strategic** decision the exploration produced: both Duo
+  Desktop (Electron) and Duo for Chrome (extension) ship
+  indefinitely; the Electron app serves as the Native Messaging
+  host (`Duo.app --nm-shim`); explicit `chrome:` / `embedded:`
+  verb prefixes disambiguate the two browser surfaces. **Read
+  this before any Phase 7+ work.**
 
 ## Architecture in one paragraph
 

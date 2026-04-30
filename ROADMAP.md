@@ -34,6 +34,14 @@
 > no-regrets refactor that benefits both targets and is a merge
 > candidate back to `main` once smoke-walked. The `phase0/` prototype
 > directory is exploration-only — not in the Electron build pipeline.
+>
+> The strategic shape of the exploration's outcome is captured in
+> [docs/research/duo-as-chrome-extension/distribution-strategy.md](docs/research/duo-as-chrome-extension/distribution-strategy.md) —
+> both Duo Desktop and Duo for Chrome ship indefinitely; the Electron
+> app serves as the Native Messaging host (`Duo.app --nm-shim`); no
+> separate helper PKG; explicit `chrome:` / `embedded:` CLI verb
+> prefixes disambiguate the two browser surfaces. **Read this before
+> doing any Phase 7+ extension distribution work.**
 
 ---
 
