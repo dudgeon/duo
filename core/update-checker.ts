@@ -2,7 +2,7 @@
 //
 // Asks `https://api.github.com/repos/dudgeon/duo/releases/latest` for
 // the newest published release, compares its tag to the running
-// `app.getVersion()` via semver, and caches the result so the
+// `this.appVersion` via semver, and caches the result so the
 // renderer can surface a "v0.X.Y available" banner without a hot
 // path to GitHub on every render.
 //
@@ -24,7 +24,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
-import { app } from 'electron'
 
 const CACHE_PATH = path.join(os.homedir(), '.claude', 'duo', 'update-check.json')
 // Stage 21e-ii — `__DUO_PUBLISH_OWNER__` and `__DUO_PUBLISH_REPO__`
@@ -37,7 +36,7 @@ const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
 interface CachedCheck {
   /** ISO timestamp of the last successful network fetch. */
   fetchedAt: string
-  /** Duo's `app.getVersion()` when the cache was written. Used to
+  /** Duo's `this.appVersion` when the cache was written. Used to
    *  invalidate the cache on app upgrade — a stale "v0.3.0 available"
    *  banner would be embarrassing if the user already upgraded. */
   runningVersion: string
@@ -48,7 +47,7 @@ interface CachedCheck {
 }
 
 export interface UpdateCheckResult {
-  /** Duo's running version (`app.getVersion()`). */
+  /** Duo's running version (`this.appVersion`). */
   current: string
   /** Latest tag on GitHub Releases, with the `v` prefix stripped, or
    *  null if the check hasn't completed / failed. */
@@ -68,6 +67,8 @@ export class UpdateChecker {
   private cache: CachedCheck | null = null
   private inFlight: Promise<void> | null = null
 
+  constructor(private readonly appVersion: string) {}
+
   /** Read the cache from disk. Best-effort — invalid JSON / missing
    *  file just leaves the cache empty. */
   async loadCache(): Promise<void> {
@@ -83,7 +84,7 @@ export class UpdateChecker {
         // Invalidate the cache if the running version no longer
         // matches what was cached — running an upgraded build
         // shouldn't surface a "stale upgrade" banner.
-        if (parsed.runningVersion === app.getVersion()) {
+        if (parsed.runningVersion === this.appVersion) {
           this.cache = parsed as CachedCheck
         }
       }
@@ -102,7 +103,7 @@ export class UpdateChecker {
         const res = await fetch(RELEASES_LATEST_URL, {
           headers: {
             'Accept': 'application/vnd.github+json',
-            'User-Agent': `Duo/${app.getVersion()}`
+            'User-Agent': `Duo/${this.appVersion}`
           },
           // Hard timeout — don't block boot on a flaky network.
           signal: AbortSignal.timeout(10_000)
@@ -112,7 +113,7 @@ export class UpdateChecker {
         if (typeof json.tag_name !== 'string') return
         const next: CachedCheck = {
           fetchedAt: new Date().toISOString(),
-          runningVersion: app.getVersion(),
+          runningVersion: this.appVersion,
           latestTag: json.tag_name,
           releaseUrl: typeof json.html_url === 'string' ? json.html_url : ''
         }
@@ -145,7 +146,7 @@ export class UpdateChecker {
 
   /** Return the current cached snapshot without a network fetch. */
   snapshot(): UpdateCheckResult {
-    const current = app.getVersion()
+    const current = this.appVersion
     if (!this.cache) {
       return {
         current,

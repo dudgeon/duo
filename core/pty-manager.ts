@@ -1,7 +1,7 @@
 import * as pty from 'node-pty'
-import { app, type WebContents } from 'electron'
 import { DEFAULT_SHELL, DEFAULT_CWD, TERMINAL_DEFAULTS, SOCKET_PATH, SHIM_DIR } from './constants'
 import { IPC } from '../shared/types'
+import type { EventSink } from './event-sink'
 
 interface Session {
   id: string
@@ -10,10 +10,12 @@ interface Session {
 
 export class PtyManager {
   private sessions = new Map<string, Session>()
-  private webContents: WebContents | null = null
+  private eventSink: EventSink | null = null
 
-  setWebContents(wc: WebContents): void {
-    this.webContents = wc
+  constructor(private readonly appVersion: string) {}
+
+  setEventSink(sink: EventSink): void {
+    this.eventSink = sink
   }
 
   create(id: string, shell: string = DEFAULT_SHELL, cwd: string = DEFAULT_CWD): void {
@@ -40,7 +42,7 @@ export class PtyManager {
       PATH: `${SHIM_DIR}:${userPath}`,
       DUO_SESSION: '1',
       DUO_SOCKET: SOCKET_PATH,
-      DUO_VERSION: app.getVersion(),
+      DUO_VERSION: this.appVersion,
       TERM_PROGRAM: 'Duo'
     }
     const ptyProcess = pty.spawn(shell, [], {
@@ -52,11 +54,11 @@ export class PtyManager {
     })
 
     ptyProcess.onData((data) => {
-      this.webContents?.send(IPC.PTY_DATA(id), data)
+      this.eventSink?.send(IPC.PTY_DATA(id), data)
     })
 
     ptyProcess.onExit(({ exitCode }) => {
-      this.webContents?.send(IPC.PTY_EXIT(id), exitCode)
+      this.eventSink?.send(IPC.PTY_EXIT(id), exitCode)
       this.sessions.delete(id)
     })
 

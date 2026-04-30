@@ -60,8 +60,8 @@ import * as os from 'os'
 import * as crypto from 'crypto'
 import { app } from 'electron'
 import type { InstallStatus, InstallResult, CliInstallStatus, PrimingInstallStatus, AddToShellPathResult } from '../shared/types'
-import { SHIM_DIR } from './constants'
-import { resolveClaudeBinary } from './resolve-claude'
+import { SHIM_DIR } from '../core/constants'
+import { resolveClaudeBinary } from '../core/resolve-claude'
 
 const HOME = os.homedir()
 const DUO_DIR = path.join(HOME, '.claude', 'duo')
