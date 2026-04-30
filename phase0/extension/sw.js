@@ -163,6 +163,39 @@ async function handleAgent(req, sendResponse) {
         result = { tabId, title }
         break
       }
+      case 'agent:cdp:eval': {
+        // Phase 6 — chrome.debugger CDP path. Reserved for ops that
+        // chrome.tabs / chrome.scripting can't do (Network.* events,
+        // Page.printToPDF, Page.captureScreenshot, perf traces).
+        //
+        // This is the minimum-viable validation: attach, run a single
+        // Runtime.evaluate, detach. Real agent verbs (cdp:network:start,
+        // cdp:screenshot, etc.) build on the same attach/detach
+        // discipline. We always detach in a finally so a thrown CDP
+        // command doesn't leave the "Duo started debugging this tab"
+        // banner stuck on screen.
+        const tabId = req.tabId ?? (await activeTabId())
+        const expr = typeof req.expression === 'string' ? req.expression : '1+1'
+        const target = { tabId }
+        await chrome.debugger.attach(target, '1.3')
+        try {
+          const out = await chrome.debugger.sendCommand(target, 'Runtime.evaluate', {
+            expression: expr,
+            returnByValue: true,
+          })
+          result = {
+            tabId,
+            value: out?.result?.value,
+            type: out?.result?.type,
+            exceptionDetails: out?.exceptionDetails ?? null,
+          }
+        } finally {
+          try { await chrome.debugger.detach(target) } catch (e) {
+            console.warn('[sw] cdp:eval detach failed:', e)
+          }
+        }
+        break
+      }
       case 'agent:scripting:eval': {
         // Stage 5 keeps eval narrow: the side panel passes a function
         // body string; the SW wraps it in `new Function('return (' + body + ')(document)')`

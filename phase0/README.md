@@ -25,7 +25,8 @@ phase0/
 ├── extension/                 ← load this as an unpacked extension
 │   ├── manifest.json          ← MV3 manifest (nativeMessaging + alarms + sidePanel)
 │   ├── sw.js                  ← service worker; helper keep-alive + client relay +
-│   │                            agent verbs (chrome.tabs / chrome.scripting, P5)
+│   │                            agent verbs (chrome.tabs / chrome.scripting, P5;
+│   │                            chrome.debugger CDP, P6)
 │   ├── popup.html / popup.js  ← Phase-0 diagnostic popup (no longer wired —
 │   │                            replaced by the side panel's clock-icon ping)
 │   ├── sidepanel.html         ← P1 — side panel root layout

@@ -19,6 +19,7 @@ const folderBtn = document.getElementById('rail-folder-btn')
 const pingBtn = document.getElementById('rail-ping-btn')
 const tabsBtn = document.getElementById('rail-tabs-btn')
 const scriptBtn = document.getElementById('rail-script-btn')
+const cdpBtn = document.getElementById('rail-cdp-btn')
 const closeBtn = document.getElementById('drawer-close-btn')
 const filetree = document.getElementById('filetree')
 const banner = document.getElementById('ping-banner')
@@ -261,6 +262,26 @@ scriptBtn.addEventListener('click', async () => {
     return
   }
   showBanner(`✓ tab #${res.result.tabId}: ${truncate(res.result.title, 60)}`, 'ok')
+})
+
+cdpBtn.addEventListener('click', async () => {
+  showBanner('→ CDP eval (1+1)... (yellow "Duo started debugging" bar will flash)')
+  const res = await callAgent({
+    type: 'agent:cdp:eval',
+    expression: '1 + 1',
+  })
+  if (!res.ok) {
+    showBanner(`✗ cdp:eval — ${res.error}`, 'err')
+    return
+  }
+  if (res.result.exceptionDetails) {
+    showBanner(`✗ cdp:eval threw: ${res.result.exceptionDetails.text}`, 'err')
+    return
+  }
+  showBanner(
+    `✓ tab #${res.result.tabId} CDP eval → ${res.result.type} ${JSON.stringify(res.result.value)}`,
+    'ok'
+  )
 })
 
 function truncate(s, n) {
