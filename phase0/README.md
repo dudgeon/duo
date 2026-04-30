@@ -39,12 +39,20 @@ phase0/
     ├── duo-helper.js              ← Native Messaging stdio host (Node)
     │                                P0 keep-alive · P2 PTY · P3 files:list ·
     │                                P4a files:read/write
-    ├── duo-helper-launcher.sh     ← shell wrapper (install.sh writes the
-    │                                 real one with the user's node path)
-    └── install.sh                 ← drops the NM manifest in Chrome's path
+    └── install.sh                 ← copies helper into ~/Library/Application
+                                     Support/Duo/, generates the launcher with
+                                     the user's node path baked in, drops the
+                                     NM manifest in Chrome's lookup dir
 ```
 
 No build step. Vanilla JS + a Node script.
+
+> **Re-run `install.sh` after switching worktrees.** The Native
+> Messaging manifest is a single global file; it points at one
+> launcher. If you cherry-pick this branch into a new worktree and
+> edit the helper there, the running helper is still the one
+> deployed by your previous install. Re-run `install.sh` from the
+> active worktree to redeploy.
 
 ## Run the test
 
@@ -108,8 +116,49 @@ documenting the finding.
 
 ```bash
 rm "$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.duo.phase0.json"
+rm -rf "$HOME/Library/Application Support/Duo"
 # then chrome://extensions/ → remove the extension
 ```
+
+## Known gotchas
+
+### macOS Sequoia: Chrome can't spawn NM hosts from `~/Documents/`
+
+**Symptom:** `chrome.runtime.connectNative()` succeeds, the port
+appears connected, but the helper never boots — no log entry, no
+hello-ack, no PID in the SW console. Side panel terminal shows no
+prompt; `files:list` times out.
+
+**Cause:** macOS Sequoia adds a privacy gate around `~/Documents`,
+`~/Downloads`, and `~/Desktop`. Chrome's NM-host spawn does not have
+the system entitlement to exec binaries inside the gated dirs.
+Standalone shell invocation of the same launcher works fine, which
+makes this hard to diagnose — the script isn't broken, the spawn
+context is.
+
+**Fix:** `install.sh` copies the helper + launcher into
+`~/Library/Application Support/Duo/` (in user space, but outside the
+gate) and points the manifest there. Symlinks back to the worktree
+do not work — Chrome resolves the symlink and rejects the gated
+target.
+
+**Past failure mode (resolved 2026-04-30):** an earlier version of
+`install.sh` pointed the manifest at `phase0/helper/duo-helper-launcher.sh`
+in-tree. That worked on pre-Sequoia macOS but broke once the gate
+shipped. Verified via the helper log: zero "=== helper boot ==="
+entries after Chrome reload, even though the launcher executed
+fine from the shell.
+
+### `com.apple.provenance` xattr re-applies automatically
+
+macOS Sequoia tags files in user space with `com.apple.provenance`
+shortly after creation. `xattr -d com.apple.provenance <file>`
+strips it, but the kernel re-applies it within seconds for files
+inside Spotlight-indexed dirs. Empirically this xattr is **not**
+the actual blocker for Chrome's NM-host spawn — `~/Library/Application
+Support/Duo/` files keep the xattr and still work fine. The
+`xattr -d` calls in `install.sh` are best-effort hygiene; the real
+fix is the install path (above).
 
 ---
 
