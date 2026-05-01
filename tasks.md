@@ -1979,7 +1979,9 @@ iframe.contentDocument.addEventListener('mousedown', () => {
 
 ### BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)
 
-**Status:** 🟡 **v3 fix didn't fix it — re-opened 2026-04-30 from v0.5.4 smoke walk.** The closure-staleness fix was real and may have helped a subset of repros, but the user-reported symptom that prompted the re-open is **structurally different from the previous four flavors**. New symptom: in the WORKING pane (not terminal), ⌃Tab cycles through "the left two html viewers" (browser tabs pointing at local HTML files) but skips a leftmost markdown editor tab. Confirmed by the user re-spawning a fresh markdown file via ⌘N — the new markdown tab landed at far left and was unreachable from ⌃Tab.
+**Status:** ✅ **v4 fix shipped 2026-04-30 (v0.5.4 sub-sprint).** The working-pane else-branch in `useKeyboardShortcuts` no longer calls `browser.getTabs()` + `browser.switchTab()` directly. Instead it dispatches a `duo-cycle-working-tab` CustomEvent (mirrors the `duo-tree-start-rename` pattern). `WorkingPane.tsx` installs a window listener, reads its `mergedTabs` — which already interleaves file + browser tabs in the strip's pinned-first display order — feeds the pure `cycleNext` helper from `renderer/keyboard/tabCycle.ts`, and calls `handleSelect()` with the next id. `handleSelect` already dispatches correctly to either `setActiveWorking({kind:'file',id})` or `browser.switchTab()` based on the strip-id encoding (`f:` vs `b:`). Refs ensure the listener installs once but always sees fresh state. Smoke-walk verification owed: ⌘N spawns a markdown file at far-left of strip → ⌃Tab now visits it.
+
+**Was 🟡 (v3 didn't fix it — re-opened 2026-04-30 from v0.5.4 smoke walk):** The closure-staleness fix was real and may have helped a subset of repros, but the user-reported symptom that prompted the re-open is **structurally different from the previous four flavors**. New symptom: in the WORKING pane (not terminal), ⌃Tab cycles through "the left two html viewers" (browser tabs pointing at local HTML files) but skips a leftmost markdown editor tab. Confirmed by the user re-spawning a fresh markdown file via ⌘N — the new markdown tab landed at far left and was unreachable from ⌃Tab.
 
 **v4 root cause (5th instance):** The cycle handler's working-pane branch calls `window.electron.browser.getTabs()` and switches via `browser.switchTab()`. That IPC pair only knows about BrowserManager's tab list — i.e. browser tabs only. **File tabs (markdown editors, HTML canvases, image previews) live in `App.tsx`'s `fileTabs` state and are invisible to the working-pane cycle.** The strip's `mergedTabs` interleaves both kinds for display, but the cycle code only iterates browsers.
 
@@ -2357,7 +2359,9 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** 🟡 **CLI parses + IPC returns ok, but the renderer doesn't scroll. Re-opened 2026-04-30 from v0.5.4 smoke walk.** User repro:
+**Status:** ✅ **v2 fix shipped 2026-04-30 (v0.5.4 sub-sprint).** Two-pronged fix in `MarkdownEditor.tsx`'s doc-goto handler. (1) Chain `focus()`, `setTextSelection(pos)`, `scrollIntoView()` into a single `editor.chain().run()` so the scrollIntoView flag is on the same transaction that moves the selection — the original three-separate-commands form ended up with `scrollIntoView` running on an empty transaction after the selection had already settled, which PM treated as "selection visible — nothing to do" depending on layout. (2) Belt-and-braces RAF callback that resolves the target's DOM node via `view.domAtPos()` and calls native `scrollIntoView({ block: 'center', behavior: 'smooth' })` — same fix shape as BUG-043. PM's built-in scrollIntoView walks up looking for an ancestor with `overflow:auto/scroll`, but the markdown editor's actual scroller is 2-3 ancestors above `view.dom`, so the heuristic missed; native `scrollIntoView` walks all the way up correctly. Smoke-walk verification owed.
+
+**Was 🟡 (CLI parses + IPC returns ok, but the renderer doesn't scroll. Re-opened 2026-04-30 from v0.5.4 smoke walk):** User repro:
 
 ```
 $ duo doc goto --heading "BUG-038"
@@ -2605,7 +2609,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-044: Find-bar text contrast unreadable in dark mode
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sub-sprint). Root cause was broader than the find bar: `tailwind.config.mjs` never defined a `paper` color family, so `bg-paper`, `bg-paper-deep`, `bg-paper-edge`, `bg-paper-rule`, `border-paper-rule`, `border-paper-edge` (used across TabBar, WorkingTabStrip, FindBar) were silently inert. In light mode the fallthrough was unnoticed because browser-default white still contrasted with `text-ink` (dark in light mode). In dark mode, FindBar's input rendered as light-cream `text-ink` on browser-default white — exactly the user's "light brown on white" report. Fix: added a `paper` color family to the Tailwind config that mirrors `surface.*` (same CSS variables, new aliases). Also dropped FindBar's `focus:bg-white` since it forced a white bg even in dark mode once `bg-paper` started actually applying — `focus:border-accent` already provides enough emphasis. Smoke-walk verification owed.
 **Priority:** Medium (paper-cut — find still works, just hard to read)
 **Filed:** 2026-04-30 (smoke-walk OTHER NOTES from BUG-043 PASS)
 
@@ -2735,9 +2739,11 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 ### ENH-026: Right-click on a WorkingPane tab → rename / delete / reveal in navigator
 
-**Status:** 🟡 **Partial ship — re-opened 2026-04-30 from v0.5.4 smoke walk.** User reports the menu fires correctly on markdown editor tabs, but **doesn't fire on HTML canvas tabs** (and as expected, browser tabs viewing local HTML only show Pin/Unpin, which is correct).
+**Status:** ✅ **v1 verified working on real canvas tabs 2026-04-30 (v0.5.4 sub-sprint).** Closed by BUG-045's separate fix. Diagnosis: the user's "html canvas" failure during the v0.5.4 smoke walk was actually about the smoke walk page itself, which opens in the BROWSER pane (via `duo open`), not the canvas pane. Verified directly via computer-use: created a real canvas tab via `duo html new` + `duo edit`, right-clicked the tab, menu shows Reveal in navigator / Rename… / Pin tab / Move to Trash… correctly. ENH-026 v1 was always right for genuine canvas tabs; the user's grouping ("html canvas / browser showing local html") conflated two distinct surfaces. BUG-045 closed the browser-tab-with-file-URL case; the canvas case never broke.
 
-**v2 diagnosis (carry into next sprint):**
+**Was 🟡 (Partial ship — re-opened 2026-04-30 from v0.5.4 smoke walk):** User reported the menu fires correctly on markdown editor tabs, but didn't fire on HTML canvas tabs (and as expected, browser tabs viewing local HTML only show Pin/Unpin, which is correct).
+
+Diagnosis hypothesis at filing time:
 - `WorkingTabStrip.tsx § handleContextMenu` reads `tab.path ?? null`. The expectation: HTML canvas tabs are file tabs and have `path` populated.
 - Most likely: the canvas tab's `WorkingTab` projection in `WorkingPane.tsx § mergedTabs` is dropping `path`, OR the FileTab type for canvases doesn't have `path` set, OR the canvas onContextMenu is being intercepted elsewhere (CanvasTab.tsx might preventDefault on right-click before it bubbles).
 - Quick repro path: log `tab` inside `handleContextMenu` for a canvas tab; if `tab.path` is undefined, follow the chain back to where it should have been set.
