@@ -2626,6 +2626,51 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ---
 
+### BUG-045: File:// browser tabs should expose file context menu (ENH-026 follow-up)
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint, post-smoke-walk hotfix). When a browser tab points at a local file (`file://` URL — e.g. smoke walk page, agent-generated dashboard, local HTML preview), the right-click context menu now exposes Reveal in navigator / Rename… / Move to Trash… in addition to Pin/Unpin. Previously only "true" file tabs (path-bearing markdown, canvas, image previews) got the file menu. Closes the user's "local html artifacts should be deletable" ask.
+
+**Owner observation (from v0.5.4 smoke walk):** "for local html artifacts, these should be deletable, or (better yet) they should default open in canvas not in browser."
+
+**Implementation:** `WorkingTabStrip.tsx § handleContextMenu` reads `tab.path ?? pathFromFileUrl(tab.url)` — the helper converts a `file://` URL back to a filesystem path via the URL constructor + decodeURIComponent. `App.tsx § onTrashTabFile` extended to handle both id encodings — `f:<uuid>` calls `closeFileTab`, `b:<numericId>` calls `browser.closeTab` (so trashing a local file via its browser tab also closes the tab cleanly).
+
+**Cross-ref:** ENH-026 (parent — tab context menu). The "(better yet)" half of the user's observation is filed as **ENH-027** below (canvas-default routing for local HTML).
+
+---
+
+### ENH-027: Local HTML defaults to canvas, not browser (`<meta name="duo-open-in">` opt-out)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (user's "(better yet)" preference; design already exists in ROADMAP backlog)
+**Filed:** 2026-04-30 (v0.5.4 smoke walk OTHER NOTES)
+
+**Owner observation:** "for local html artifacts, ... (better yet) they should default open in canvas not in browser."
+
+**Today:**
+- `duo edit foo.html` → routes via `fileClassifier.ts` → `html-canvas` type → opens in working pane as canvas. ✅ correct.
+- Click `foo.html` in navigator → also via classifier → canvas. ✅ correct.
+- `duo open foo.html` → resolves to `file://...` URL → calls `browser.openTab()` → opens in **browser pane**, NOT canvas. ❌ inconsistent.
+
+The `duo open` verb was originally designed for URLs (web pages), and the file-path-resolution sugar (`resolveOpenTarget` converts a relative path to `file://`) was bolted on for convenience. But that means the same .html file routes to two different surfaces depending on which verb the agent chose, which leaks an internal distinction the user shouldn't have to know about.
+
+**Design (already in ROADMAP.md — Help/FAQ backlog):**
+A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="duo-open-in" content="browser">` to a file that explicitly needs browser semantics (scripts, full Chromium APIs, navigation, devtools). Default for HTML without the meta = canvas.
+
+**Affected paths:**
+- `core/socket-server.ts § case 'open'` — for `file://` URLs ending in `.html`/`.htm`, peek at the file's `<meta>` to decide canvas vs browser. If browser, current behavior. If canvas (or no meta), dispatch via NAV_EDIT-style IPC to the renderer to mount via fileClassifier.
+- `renderer/components/fileClassifier.ts` — already returns `html-canvas` for `.html`. Optionally extend to read the meta tag and switch to a `browser` indicator when set, so the click-in-navigator path can also honor it.
+- `.claude/skills/smoke-walk/generate.mjs` — add `<meta name="duo-open-in" content="browser">` to the generated HTML so smoke walks continue to land in browser (where their copy-button JS runs). Without this, ENH-027 would break the smoke-walk skill since canvas iframes have no `allow-scripts` (Stage 17e deferred).
+
+**Sequencing decision:** ENH-027 should land before/alongside Stage 17e (per-file allow-scripts opt-in). Until 17e ships, the meta tag is the only escape valve for HTML that needs scripts — agent-generated dashboards, FAQ live-search, smoke walks, mini-tools.
+
+**Cross-ref:**
+- ROADMAP.md § Help/FAQ — established the `duo-open-in` design.
+- Stage 17e — allow-scripts opt-in dialog (still deferred). Once shipped, scripts can run in canvas, and `duo-open-in: browser` becomes a narrower escape valve (specifically for full-Chromium APIs, devtools, navigation history).
+- BUG-045 — covers the deletable-from-browser case for files that explicitly chose browser semantics.
+- `.claude/skills/smoke-walk/` — needs the meta tag once ENH-027 ships, OR a `--browser` CLI flag on `duo open`.
+
+---
+
 ### ENH-024: Tab strip pans/shifts to keep the active tab visible when overflowing
 
 **Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Both strips (`TabBar.tsx` for terminal, `WorkingTabStrip.tsx` for working) now ref the active `<button>` and call `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })` in a `useEffect` keyed on the active tab's id. `inline: 'nearest'` is the right primitive — clicking an already-visible tab is a no-op (no spurious horizontal jitter), and a programmatic switch to an off-screen tab smoothly pans it just enough to be visible. Active tab `<button>` accepts a `buttonRef?: React.Ref<HTMLButtonElement>` prop (typed as `Ref<>` not `RefObject<>` for React 19 compatibility); only the active row gets the ref so the assignment naturally rotates as the active id changes.

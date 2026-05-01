@@ -1332,10 +1332,19 @@ export function App() {
               onTrashTabFile={async (id, filePath) => {
                 try {
                   await window.electron.files.trash(filePath)
-                  // Parse the strip id back to the file-tab id.
-                  // WorkingPane prefixes file ids with "f:".
-                  const fid = id.startsWith('f:') ? id.slice(2) : id
-                  closeFileTab(fid)
+                  // Strip-id encoding: file tabs are "f:<uuid>",
+                  // browser tabs are "b:<numericId>". BUG-045 — a
+                  // file:// browser tab can also reach this handler
+                  // (Reveal/Trash now exposed for them too) so we
+                  // need to close whichever kind it actually is.
+                  if (id.startsWith('f:')) {
+                    closeFileTab(id.slice(2))
+                  } else if (id.startsWith('b:')) {
+                    const numericId = parseInt(id.slice(2), 10)
+                    if (Number.isFinite(numericId)) {
+                      void window.electron.browser.closeTab(numericId)
+                    }
+                  }
                 } catch (err) {
                   window.alert(`Move to Trash failed: ${err instanceof Error ? err.message : String(err)}`)
                 }

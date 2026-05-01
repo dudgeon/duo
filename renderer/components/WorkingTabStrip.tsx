@@ -75,7 +75,14 @@ export function WorkingTabStrip({
     setCtxMenu({
       tabId: tab.id,
       pinned: !!tab.pinned,
-      path: tab.path ?? null,
+      // BUG-045 — when a browser tab points at a local file
+      // (file:// URL), expose the same file-management menu as
+      // file tabs. Lets the user Reveal / Rename / Trash the
+      // underlying file even when they explicitly chose to open
+      // it in the browser pane (smoke-walk pages, agent-generated
+      // dashboards, local previews). Falls through to null for
+      // remote URLs.
+      path: tab.path ?? pathFromFileUrl(tab.url),
       x: e.clientX,
       y: e.clientY
     })
@@ -263,6 +270,21 @@ function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose, butto
 function tabLabel(tab: WorkingTab): string {
   if (tab.type === 'browser') return tab.title || tab.url || 'New tab'
   return tab.title
+}
+
+// BUG-045 — convert a file:// URL back to a filesystem path so a
+// browser tab pointing at a local artifact (smoke walks, agent-
+// generated reports, local previews) can offer the same Reveal /
+// Rename / Trash menu items as a file tab. Returns null for any
+// non-file URL or malformed input — caller falls through to the
+// existing "browser tab → Pin/Unpin only" branch.
+function pathFromFileUrl(url: string | undefined): string | null {
+  if (!url || !url.startsWith('file://')) return null
+  try {
+    return decodeURIComponent(new URL(url).pathname)
+  } catch {
+    return null
+  }
 }
 
 // ENH-026 — assemble the right-click context menu items for a working
