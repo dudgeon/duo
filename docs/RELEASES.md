@@ -25,6 +25,77 @@ _Empty._
 
 ---
 
+## v0.5.3 — 2026-05-01
+
+Two stages closed in one cut. **Stage 12** (Atelier visual redesign)
+flips ✅ with whisper-level agent presence — a soft accent dot that
+breathes in the chrome strip when Claude is live, and a brief halo
+on the working pane when Claude reads a selection. **Stage 15**
+(Send → Duo) flips ✅ with the polish trio that's been deferred
+since 15.1+15.2 shipped — ⌘D as the global chord, a 5000-char
+length cap with a self-describing truncation marker, and canvas
+image flattening for embedded `<img>` tags.
+
+Around those two closures, a broad polish sweep landed across the
+navigator / editor / tab strips: editable breadcrumb (⌘⇧G), CWD
+highlight + section dividers, open/active file distinction, tab
+strip pan-to-active when overflowing, right-click context menus
+on FileTree whitespace + WorkingPane tabs (including `file://`
+browser tabs, with a WebContentsView overlay-mute trick to dodge
+the macOS native subview occlusion), find-in-document for the
+markdown editor with smooth scroll-to-match, ⌘[ / ⌘] list indent,
+and bullet-marker round-trip preservation.
+
+Two new agent-driven CLI verbs: `duo doc goto` (heading / line /
+anchor) and `duo doc find` (read-only buffer search). Plus
+`duo reload` for the agent's iteration loop (closes 1 of 6
+remaining Stage 20 items). The **smoke-walk skill** itself is new
+this cut: it generates an interactive HTML walk page from a JSON
+manifest, opens it in Duo's browser pane, and the user clicks
+through pass/fail toggles + notes; Copy results dumps a
+structured block for paste-back into the chat. Used end-to-end
+for this release's verification — three rev passes, ten distinct
+walked items, all green except one carried-over known issue.
+
+### Why this version lands here
+
+v0.5.2 was a bug-smashing sprint; v0.5.3 moves the needle on three
+open stages (12, 15, 20-partial) and substantially tightens the
+editor + navigator polish. The labels in the engineering log
+called the prep work "v0.5.3 sprint" and the close-out "v0.5.4
+sub-sprint," but the actual semver next from v0.5.2 is v0.5.3 —
+the v0.5.4 internal label was speculative.
+
+### One known issue, intentionally shipped
+
+`duo doc goto --heading "BUG-038"` against the engineering tasks
+file still scrolls to the wrong entry (rev2: BUG-032; rev3:
+BUG-034). v2 fixed the scroll plumbing; v3 tightened match
+precedence but a wrong heading still wins. Likely buffer staleness
+(Stage 16 external-write reconciliation isn't shipped yet) or a
+regex permissivity issue inside TipTap's heading walk. Released
+as-is per owner call; the response shape already exposes a
+`matched_heading` field so v4 debugging is self-diagnosing.
+
+### What this is and isn't
+
+This is the first cut where the **smoke-walk skill** drove the
+verification loop — three walks, real fail-then-fix iterations,
+structured carry-overs filed as typed BUG/ENH IDs. Worth noting
+because the next cuts will inherit that workflow, and the eventual
+`tasks ↔ roadmap` reconciliation (filed as a proposal at
+`docs/dev/tasks-roadmap-reconciliation.md`) will likely deepen
+that loop.
+
+**Not in this cut:** Stage 17 sub-phases (17d-B / 17d-C / 17e),
+Stage 14 (track changes), Stage 16 (external-write reconciliation),
+Stage 21d (Trailblazers cohort distribution). ENH-027
+(canvas-default routing for local HTML via
+`<meta name="duo-open-in">`) is held until Stage 17e,
+cross-referenced in both roadmap files.
+
+---
+
 ## v0.5.2 — 2026-04-29
 
 **Bug-smashing sprint.** Six PRs in one day closing longstanding papercuts on the Stage 17 canvas + Stage 18 install surfaces. No new headline capability beyond preset pane sizes — pure quality-of-life on the surfaces real users were hitting in normal flow.

@@ -141,6 +141,42 @@
   </div>
 </article>
 
+<article class="item" data-keys="find document search ⌘F arrow keys highlight match scroll">
+  <div class="num">4c</div>
+  <div>
+    <h3>Find text in the markdown editor</h3>
+    <p class="why">⌘F opens a find bar above the prose. Type a query; matches highlight inline with a counter (3/47). ↓ / ↑ (or ▼ / ▲ buttons) navigate to the next/prev match with a smooth scroll. ⎋ closes. Case-sensitive toggle (Aa) is a click. Works in dark mode without the previous contrast issue.</p>
+    <p class="how"><strong>UI</strong>⌘F. <strong>v0.5.3+</strong></p>
+  </div>
+</article>
+
+<article class="item" data-keys="indent outdent list cmd cmd+[ cmd+] markdown bullet ordered task">
+  <div class="num">4d</div>
+  <div>
+    <h3>Indent / outdent list items</h3>
+    <p class="why">Inside a bullet, ordered, or task list, ⌘] indents the current item (sinks it into a sub-list); ⌘[ outdents (lifts it back). Outside a list the chord no-ops. Familiar from Obsidian / Bear / Notion.</p>
+    <p class="how"><strong>UI</strong>⌘] / ⌘[. <strong>v0.5.3+</strong></p>
+  </div>
+</article>
+
+<article class="item" data-keys="agent goto heading line anchor scroll editor jump claude">
+  <div class="num">4e</div>
+  <div>
+    <h3>Tell the agent to scroll the editor</h3>
+    <p class="why">When Claude is working with you on a long doc, this gets it to land you both at the same spot without you having to scroll-and-search. <code>--heading</code> matches by heading text; <code>--line</code> by 1-indexed source line; <code>--anchor</code> by GitHub-slug (so <code>--anchor "bug-038"</code> matches the heading <code>### BUG-038: …</code>). Response includes <code>matched_heading</code> so the agent can confirm it landed on the right entry.</p>
+    <p class="how"><strong>CLI</strong><code>duo doc goto [&lt;path&gt;] --heading "X" | --line N | --anchor "Y"</code> · <strong>v0.5.3+</strong></p>
+  </div>
+</article>
+
+<article class="item" data-keys="agent search find document buffer read-only">
+  <div class="num">4f</div>
+  <div>
+    <h3>Have the agent search the editor's live buffer</h3>
+    <p class="why">Read-only counterpart to <code>duo doc goto</code>. The agent gets back the matching lines + counts without scrolling you anywhere. Use when the agent needs to know "is this term in the doc, and where?" without disrupting your view.</p>
+    <p class="how"><strong>CLI</strong><code>duo doc find "&lt;query&gt;" [&lt;path&gt;] [--case-sensitive]</code> · <strong>v0.5.3+</strong></p>
+  </div>
+</article>
+
 <article class="item" data-keys="html canvas render edit duo open">
   <div class="num">5</div>
   <div>

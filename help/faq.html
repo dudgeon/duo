@@ -101,6 +101,29 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.5.3 release stage-12 stage-15 stage-20 atelier whisper presence titlebar dot send-to-duo cmd-d length cap image flatten duo doc goto duo doc find duo reload smoke walk skill verification context menu file tree right-click breadcrumb cwd find-in-document">
+  <h3>v0.5.3 — Two stages closed + a polish sweep <span class="date">2026-05-01</span></h3>
+  <p>Two roadmap stages flipped to ✅ in one cut: <strong>Stage 12</strong> (Atelier visual redesign) closes with the whisper-level agent presence — a soft accent dot in the titlebar that breathes when Claude is running, and a brief halo on the working pane when Claude reads your selection. <strong>Stage 15</strong> (Send → Duo) closes with the polish trio that's been deferred since 15.1 + 15.2 shipped.</p>
+  <ul>
+    <li><strong>⌘D fires Send → Duo</strong> on whichever surface (markdown editor, canvas, browser pane) currently has a selection. No more reaching for the floating pill — the chord works from anywhere.</li>
+    <li><strong>Long selections truncate at 5000 chars</strong> with a marker that tells the agent how to fetch the rest. Stops a runaway 50k-char blockquote from flooding your terminal scrollback.</li>
+    <li><strong>Canvas selections with images now flatten cleanly.</strong> An <code>&lt;img&gt;</code> tag in the selected range becomes <code>[image: alt-text]</code> placeholder text — the agent knows an image was there without the payload turning into a base64 wall.</li>
+    <li><strong>⌘F find-in-document</strong> for the markdown editor — find bar with match counter, ↓/↑ + ▼/▲ navigation, smooth scroll-to-match. Works in dark mode now too (the input was unreadable before).</li>
+    <li><strong>⌘[ / ⌘]</strong> outdent / indent in markdown lists (bullet, ordered, and task lists).</li>
+    <li><strong>Three new agent CLI verbs.</strong> <code>duo doc goto --heading "X"</code> / <code>--line N</code> / <code>--anchor "Y"</code> jumps the active editor to a heading, line, or GitHub-slug anchor. <code>duo doc find "Q"</code> does a read-only buffer search. <code>duo reload</code> reloads the active browser tab without needing a URL — pair for <code>duo navigate</code> in the agent's iteration loop.</li>
+    <li><strong>Right-click context menus on the file tree's whitespace</strong> (project-root scoped: New file / New folder / Open terminal here / Reveal in Finder) and on <strong>WorkingPane tabs</strong> (file tabs and <code>file://</code> browser tabs alike: Reveal in navigator / Rename… / Pin tab / Move to Trash…). The right-click on browser tabs uses a temporary WebContentsView mute trick to dodge a macOS native subview occlusion that was clipping the menu.</li>
+    <li><strong>Tab strip pans to keep the active tab visible</strong> when you have more tabs open than fit on screen — across both the terminal pane and the working pane.</li>
+    <li><strong>⌃Tab cycle reaches all working-pane tabs.</strong> Markdown editor and HTML canvas tabs were invisible to the cycle (it only knew about browser tabs); now the cycle iterates the merged file + browser list. Long-running recurring bug, fifth instance, finally root-caused.</li>
+    <li><strong>Editable breadcrumb in the navigator</strong> — ⌘⇧G flips it into a path-input. Type or paste a path; Return navigates.</li>
+    <li><strong>Session restore drops files that no longer exist</strong> — no more "phantom" tabs pointing at deleted files.</li>
+    <li><strong>Off-host blocklist routes more aggressively.</strong> Sites in <code>external-domains.json</code> route to your system browser even on user-driven navigation (typed URL, clicked link, popup) — previously only the <code>duo</code> CLI did the routing.</li>
+    <li><strong>The Files-pane collapse button is visible at rest now</strong> — was barely-visible muted-zinc on cream paper, swapped to a Finder/VS-Code-style sidebar-toggle glyph.</li>
+    <li><strong>Bullet markers round-trip.</strong> Type <code>* </code>, <code>- </code>, or <code>+ </code> at line start; the marker survives save/load (was always coercing to one default before).</li>
+    <li><strong>New <code>smoke-walk</code> skill.</strong> The end-of-sprint verification flow now generates an interactive HTML walk page with one entry per shipped item — pass/fail toggle, notes textarea, and a Copy results button that dumps a structured block for paste-back into the agent. v0.5.3 itself shipped through three smoke walks.</li>
+  </ul>
+  <p><strong>One known issue, intentionally shipped.</strong> <code>duo doc goto --heading X</code> still picks the wrong heading on very large docs (tasks.md). v2 fixed the scroll plumbing; v3 tightened match precedence but a wrong heading still wins. Likely buffer staleness (Stage 16 isn't shipped yet) or a regex permissivity in TipTap's heading walk. Released as-is per owner call; the response shape now exposes a <code>matched_heading</code> field so v4 debugging is self-diagnosing.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.5.2 release bug-smashing canvas focus autosave pane-size split shortcut keyboard ⌘⌥ pane-resize divider drag iframe claude path PATH terminal banner onboarding overlay populated">
   <h3>v0.5.2 — Bug-smashing sprint <span class="date">2026-04-29</span></h3>
   <p>Six fixes and one small new capability — all on the surfaces you touch most. No new headline feature, just a chunk of papercuts gone in one day.</p>

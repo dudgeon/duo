@@ -18,7 +18,34 @@
 
 ---
 
-## 2026-04-30 (late evening) — v0.5.4 sprint: carry-over closeout from v0.5.3 walk
+## 2026-05-01 — v0.5.3 cut
+
+Released v0.5.3 closing out the multi-day arc that ran across two
+internal sprint labels ("v0.5.3 sprint" Apr 30 evening + "v0.5.4
+sub-sprint" Apr 30 night → May 1). The internal labeling jumped a
+number; cut went out as v0.5.3 (correct semver from v0.5.2). All
+documentation references relabeled from "v0.5.4" → "v0.5.3" before
+commit (4 files, 66 occurrences).
+
+Two stages flipped to ✅: **Stage 12** (Atelier visual redesign —
+whisper-level agent presence) and **Stage 15** (Send → Duo polish
+trio). Stage 20 partial close (`duo reload` shipped; 5 of 6
+remaining items still open). Plus a broad polish sweep across
+navigator / editor / tab strips, three new agent CLI verbs, and
+the new `smoke-walk` skill that drove this release's verification.
+
+One known issue intentionally shipped: ENH-022 v3 (heading match
+still picks wrong on tasks.md). Released as-is per owner call;
+response shape now exposes `matched_heading` for v4 self-diagnosis.
+
+The cut itself ran through the cut-version skill end-to-end —
+first cut where the smoke-walk skill drove verification (3 walks,
+real fail-then-fix iterations, all carry-overs filed as typed
+BUG/ENH IDs).
+
+---
+
+## 2026-04-30 (late evening) — v0.5.3 sprint: carry-over closeout from v0.5.3 walk
 
 Picked up after compaction, in auto mode, to clear the seven carry-over
 items from the v0.5.3 smoke walk. One new bug (BUG-043) surfaced
@@ -86,7 +113,7 @@ one shipped clean in a single working pass.
 ### Pre-cut owed
 
 Smoke-walk this sprint via computer-use OR ask the user to verify
-before proposing v0.5.4. Specifically:
+before proposing v0.5.3. Specifically:
 - BUG-038 v3: open ≥10 mixed terminal tabs, click rightmost, ⌃Tab
   forward, confirm cycle visits all 10 in order. Then click a
   browser tab, confirm ⌃Tab routes to browser cycle (immediately —
@@ -107,7 +134,7 @@ before proposing v0.5.4. Specifically:
 ### Carry-over from this sprint
 
 None on the engineering side. Pre-cut-decision items:
-- Whether to bundle BUG-038 v3 into a v0.5.4 cut alongside the rest
+- Whether to bundle BUG-038 v3 into a v0.5.3 cut alongside the rest
   or hold for a one-day soak. The v3 fix is structurally sound (same
   pattern as BUG-021 which has been stable for months) but this is
   the 4th instance of "⌃Tab cycle skips tabs" so caution is
@@ -121,7 +148,7 @@ None on the engineering side. Pre-cut-decision items:
 ### Smoke walk results (2026-04-30, post-build)
 
 First user-driven smoke walk via the new `smoke-walk` skill.
-8 items, **5 PASS / 3 FAIL / 0 SKIP**. v0.5.4 cut on hold pending
+8 items, **5 PASS / 3 FAIL / 0 SKIP**. v0.5.3 cut on hold pending
 fixes. Results:
 
 - ✅ BUG-042 — Browser pane click → focus.
@@ -158,8 +185,8 @@ fixes. Results:
 
 ### Pre-cut-decision update
 
-**v0.5.4 cut on hold.** Three substantive failures (one of them a
-recurring-class bug now in its 5th instance). Recommend a v0.5.4
+**v0.5.3 cut on hold.** Three substantive failures (one of them a
+recurring-class bug now in its 5th instance). Recommend a v0.5.3
 sub-sprint to fix all three carry-overs + BUG-044, re-walk, then
 cut. Estimated scope: BUG-038 v4 wiring (medium — touches App.tsx
 + useKeyboardShortcuts), ENH-022 v2 (small — tracing a
@@ -177,7 +204,7 @@ and Stage 15 (Send → Duo polish). Plus the user-asked
 reconciliation plan at `docs/dev/tasks-roadmap-reconciliation.md`
 awaiting owner sign-off.
 
-**v0.5.4-rev2 smoke walk results (5 of 8 walked):**
+**v0.5.3-rev2 smoke walk results (5 of 8 walked):**
 
 - ✅ BUG-038 v4 — cycle reaches all working-pane tabs. **New
   observation:** tab-render-catchup delay between two markdown
@@ -198,10 +225,10 @@ awaiting owner sign-off.
   filed as ENH-029.
 
 **Unwalked (3):** DUO-RELOAD, STAGE-15.3, STAGE-12 — these were
-added to the v0.5.4-rev2 page AFTER the user had loaded it; will
+added to the v0.5.3-rev2 page AFTER the user had loaded it; will
 walk in the next session.
 
-**v0.5.4 cut still on hold** until ENH-022 v3 + BUG-045 v2 (via
+**v0.5.3 cut still on hold** until ENH-022 v3 + BUG-045 v2 (via
 BUG-047 path A) ship and the 3 unwalked items pass. The
 walked-PASS items + the two stage closures (12 + 15) are solid
 material for the cut once everything's green.
@@ -331,7 +358,7 @@ Duo via `mcp__computer-use__*`:
 2. Re-fix BUG-038 + add the regression test (recurring-class rule
    from CLAUDE.md).
 3. Decide whether BUG-041 (whitespace context menu) ships with
-   v0.5.3 or rolls into v0.5.4 — recommend bundling with v0.5.3
+   v0.5.3 or rolls into v0.5.3 — recommend bundling with v0.5.3
    to make ENH-016 feel complete.
 4. The remaining carry-over items (BUG-042, ENH-024/025/026) are
    their own sprint.

@@ -1715,7 +1715,7 @@ So:
 
 ### ENH-015: File-navigator collapse button discoverability
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sub-sprint, late-evening). Two of the three proposed tweaks applied to `FilesPane.tsx § CollapseButton`: (1) color bumped from `text-zinc-600` (barely visible on cream paper) to `text-ink-mute` so the button reads as present-and-clickable at rest; (2) glyph swapped from chevron-into-rail to a macOS-Finder-style sidebar-toggle (rounded outer rect + left-side filled column). The third proposed tweak (first-launch coach-mark) stays deferred to Stage 18 FTUX. Smoke-walk verification owed.
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sub-sprint, late-evening). Two of the three proposed tweaks applied to `FilesPane.tsx § CollapseButton`: (1) color bumped from `text-zinc-600` (barely visible on cream paper) to `text-ink-mute` so the button reads as present-and-clickable at rest; (2) glyph swapped from chevron-into-rail to a macOS-Finder-style sidebar-toggle (rounded outer rect + left-side filled column). The third proposed tweak (first-launch coach-mark) stays deferred to Stage 18 FTUX. Smoke-walk verification owed.
 **Priority:** Low-Medium (button exists today; this is purely visibility)
 **Filed:** 2026-04-28 · shipped 2026-04-30
 
@@ -1979,9 +1979,9 @@ iframe.contentDocument.addEventListener('mousedown', () => {
 
 ### BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)
 
-**Status:** ✅ **v4 fix shipped 2026-04-30 (v0.5.4 sub-sprint).** The working-pane else-branch in `useKeyboardShortcuts` no longer calls `browser.getTabs()` + `browser.switchTab()` directly. Instead it dispatches a `duo-cycle-working-tab` CustomEvent (mirrors the `duo-tree-start-rename` pattern). `WorkingPane.tsx` installs a window listener, reads its `mergedTabs` — which already interleaves file + browser tabs in the strip's pinned-first display order — feeds the pure `cycleNext` helper from `renderer/keyboard/tabCycle.ts`, and calls `handleSelect()` with the next id. `handleSelect` already dispatches correctly to either `setActiveWorking({kind:'file',id})` or `browser.switchTab()` based on the strip-id encoding (`f:` vs `b:`). Refs ensure the listener installs once but always sees fresh state. Smoke-walk verification owed: ⌘N spawns a markdown file at far-left of strip → ⌃Tab now visits it.
+**Status:** ✅ **v4 fix shipped 2026-04-30 (v0.5.3 sub-sprint).** The working-pane else-branch in `useKeyboardShortcuts` no longer calls `browser.getTabs()` + `browser.switchTab()` directly. Instead it dispatches a `duo-cycle-working-tab` CustomEvent (mirrors the `duo-tree-start-rename` pattern). `WorkingPane.tsx` installs a window listener, reads its `mergedTabs` — which already interleaves file + browser tabs in the strip's pinned-first display order — feeds the pure `cycleNext` helper from `renderer/keyboard/tabCycle.ts`, and calls `handleSelect()` with the next id. `handleSelect` already dispatches correctly to either `setActiveWorking({kind:'file',id})` or `browser.switchTab()` based on the strip-id encoding (`f:` vs `b:`). Refs ensure the listener installs once but always sees fresh state. Smoke-walk verification owed: ⌘N spawns a markdown file at far-left of strip → ⌃Tab now visits it.
 
-**Was 🟡 (v3 didn't fix it — re-opened 2026-04-30 from v0.5.4 smoke walk):** The closure-staleness fix was real and may have helped a subset of repros, but the user-reported symptom that prompted the re-open is **structurally different from the previous four flavors**. New symptom: in the WORKING pane (not terminal), ⌃Tab cycles through "the left two html viewers" (browser tabs pointing at local HTML files) but skips a leftmost markdown editor tab. Confirmed by the user re-spawning a fresh markdown file via ⌘N — the new markdown tab landed at far left and was unreachable from ⌃Tab.
+**Was 🟡 (v3 didn't fix it — re-opened 2026-04-30 from v0.5.3 smoke walk):** The closure-staleness fix was real and may have helped a subset of repros, but the user-reported symptom that prompted the re-open is **structurally different from the previous four flavors**. New symptom: in the WORKING pane (not terminal), ⌃Tab cycles through "the left two html viewers" (browser tabs pointing at local HTML files) but skips a leftmost markdown editor tab. Confirmed by the user re-spawning a fresh markdown file via ⌘N — the new markdown tab landed at far left and was unreachable from ⌃Tab.
 
 **v4 root cause (5th instance):** The cycle handler's working-pane branch calls `window.electron.browser.getTabs()` and switches via `browser.switchTab()`. That IPC pair only knows about BrowserManager's tab list — i.e. browser tabs only. **File tabs (markdown editors, HTML canvases, image previews) live in `App.tsx`'s `fileTabs` state and are invisible to the working-pane cycle.** The strip's `mergedTabs` interleaves both kinds for display, but the cycle code only iterates browsers.
 
@@ -2359,9 +2359,16 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** ✅ **v3 fix shipped 2026-05-01 (v0.5.4 sub-sprint).** Match precedence tightened: `exact (case-insensitive) > starts-with > word-boundary > substring`. Previous v2 logic used a single `includes` pass which could pick a heading that mentions the needle as a stray substring; the precedence chain now ranks intentional matches above incidental ones. Response shape (`DocGotoResult`) extends with `matched_heading` so the user can verify which heading was picked — wrong-match reports become self-diagnosing. Smoke-walk verification owed; the key check is that `duo doc goto --heading "BUG-038"` against tasks.md returns `matched_heading: "BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)"` and lands on the right anchor.
+**Status:** 🟡 **v3 partially fixed — released as-is in v0.5.3 per owner call ("please proceed with the release and we can leave this one open").** v3 precedence chain DID move the match (rev2: BUG-032; rev3: BUG-034 — different wrong heading, so the precedence change is doing something), but still wrong target. v4 hypotheses, in priority order:
+1. **Buffer staleness (most likely).** TipTap's editor.state.doc was loaded when tasks.md was opened. Subsequent disk edits don't reload (Stage 16 external-write reconciliation is ⬜). The headings the precedence chain walks are from a stale buffer. The "different wrong heading" pattern between rev2 (BUG-032) and rev3 (BUG-034) is consistent with a buffer-from-different-snapshot.
+2. **Word-boundary regex permissive.** My v3 regex `(^|\W)bug-038(\W|$)` should match a heading text containing "BUG-038" as a word, but my heading walk is comparing against `node.textContent` which loses formatting context — possibly multiple headings span "BUG-038" in their text via inline marks. Diagnose: log all headings the walk produces, see what matches.
+3. **Closer numeric matches.** Rev2 picked BUG-032 (4 chars apart from 038); rev3 picked BUG-034 (4 chars apart). Coincidence? Or my word-boundary regex is matching shared prefix "bug-03" somehow. The needle "bug-038" should match exactly one heading; debugging via `matched_heading` field is the diagnostic path.
 
-**Was 🟡 (v2 partially fixed — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk):** Editor scrolled (v2 fix landed) but to BUG-032 instead of BUG-038. v2 fix proved the scroll plumbing; v3 fixes the heading-match logic.
+**Next-walk diagnostic ask:** when re-running, share the FULL CLI JSON response — the `matched_heading` field will name the actual heading text picked. With that, the cause is unambiguous.
+
+**Was the v3 close attempt:** Match precedence tightened: `exact (case-insensitive) > starts-with > word-boundary > substring`. Previous v2 logic used a single `includes` pass which could pick a heading that mentions the needle as a stray substring; the precedence chain ranks intentional matches above incidental ones. Response shape (`DocGotoResult`) extends with `matched_heading` so wrong-match reports are self-diagnosing.
+
+**Was 🟡 (v2 partially fixed — re-opened 2026-05-01 from v0.5.3-rev2 smoke walk):** Editor scrolled (v2 fix landed) but to BUG-032 instead of BUG-038. v2 fix proved the scroll plumbing; v3 fixes the heading-match logic.
 
 **v3 hypotheses (carry into next sprint):**
 1. **Heading match precedence is too loose.** Current impl: `headings.find(h => h.text.toLowerCase().includes(needle))`. First match wins, but `includes` is permissive — a heading text "BUG-032 (… mentions BUG-038 in body)" wouldn't match (only the heading text is searched), so this is unlikely. Worth verifying with the actual returned `anchor` field from the CLI response.
@@ -2373,7 +2380,7 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 **Was ✅ (v2 — briefly):** Two-pronged fix in `MarkdownEditor.tsx`'s doc-goto handler. (1) Chain `focus()`, `setTextSelection(pos)`, `scrollIntoView()` into a single `editor.chain().run()` so the scrollIntoView flag is on the same transaction that moves the selection — the original three-separate-commands form ended up with `scrollIntoView` running on an empty transaction after the selection had already settled, which PM treated as "selection visible — nothing to do" depending on layout. (2) Belt-and-braces RAF callback that resolves the target's DOM node via `view.domAtPos()` and calls native `scrollIntoView({ block: 'center', behavior: 'smooth' })` — same fix shape as BUG-043. v2 fixed the SCROLL gap; v3 must fix the MATCH gap.
 
-**Was 🟡 (CLI parses + IPC returns ok, but the renderer doesn't scroll. Re-opened 2026-04-30 from v0.5.4 smoke walk):** User repro:
+**Was 🟡 (CLI parses + IPC returns ok, but the renderer doesn't scroll. Re-opened 2026-04-30 from v0.5.3 smoke walk):** User repro:
 
 ```
 $ duo doc goto --heading "BUG-038"
@@ -2545,7 +2552,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-041: Right-click on FileTree whitespace shows no context menu (ENH-016 follow-up)
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Wrapper-level `onContextMenu` in `FileTree.tsx`; gates on `e.target === e.currentTarget` so row clicks don't double-fire. Synthesized "root" target = `{name: basename(state.cwd), path: state.cwd, kind: 'directory'}`; new `whitespaceMode` flag on `buildMenuItems` trims the menu to the safe set (New file / New folder / Open terminal here / Reveal in Finder). Suppressed: Rename, Move to Trash, Copy path, Open with default app, Pin/Unpin — all of which would target the project root (almost always destructive or irrelevant).
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sprint). Wrapper-level `onContextMenu` in `FileTree.tsx`; gates on `e.target === e.currentTarget` so row clicks don't double-fire. Synthesized "root" target = `{name: basename(state.cwd), path: state.cwd, kind: 'directory'}`; new `whitespaceMode` flag on `buildMenuItems` trims the menu to the safe set (New file / New folder / Open terminal here / Reveal in Finder). Suppressed: Rename, Move to Trash, Copy path, Open with default app, Pin/Unpin — all of which would target the project root (almost always destructive or irrelevant).
 **Priority:** Medium-High (paired with ENH-016 — without this, "new file" / "new folder" only works from a row-anchored right-click, which is a discoverability gap)
 **Filed:** 2026-04-30 (smoke-walk follow-up)
 
@@ -2567,7 +2574,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-042: Browser pane click while focus is elsewhere doesn't switch focus (BUG-037 sibling)
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Subscribed to `webContents.on('focus', ...)` in `BrowserManager.wireKeyForwarding()` and added IPC channel `BROWSER_FOCUS_GAINED` (`browser:focus-gained`). Renderer subscribes via `window.electron.keyboard.onBrowserFocusGained` and flips `focusedColumn = 'working'`. Symmetric to the BUG-037 canvas mousedown forwarder. The `focus` event covers click-to-focus, Tab-to-focus from devtools, and programmatic `webContents.focus()` calls — every path that gives the WebContentsView OS keyboard focus. Combined with BUG-038's v3 ref fix, this closes the "wrong-pane keyboard shortcut" failure family.
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sprint). Subscribed to `webContents.on('focus', ...)` in `BrowserManager.wireKeyForwarding()` and added IPC channel `BROWSER_FOCUS_GAINED` (`browser:focus-gained`). Renderer subscribes via `window.electron.keyboard.onBrowserFocusGained` and flips `focusedColumn = 'working'`. Symmetric to the BUG-037 canvas mousedown forwarder. The `focus` event covers click-to-focus, Tab-to-focus from devtools, and programmatic `webContents.focus()` calls — every path that gives the WebContentsView OS keyboard focus. Combined with BUG-038's v3 ref fix, this closes the "wrong-pane keyboard shortcut" failure family.
 **Priority:** Medium (same root-class as BUG-037 but for a different surface; cascades into wrong-pane keyboard shortcuts including BUG-038's symptom)
 **Filed:** 2026-04-30 (smoke-walk follow-up)
 
@@ -2596,7 +2603,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-043: ⌘F find counts matches but doesn't scroll; arrow keys do nothing (ENH-023 follow-up)
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint).
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sprint).
 
 **Owner observation:** "the cmd-f find seems to count the number of instances of the search string, but does not scroll to it, and the up/down arrows (I assume for next/prev) also do nothing."
 
@@ -2613,7 +2620,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 - `renderer/components/editor/extensions/FindHighlight.ts` — scroll mechanism + dedupe.
 - `renderer/components/editor/FindBar.tsx` — Arrow key handlers.
 
-**Filed:** 2026-04-30 (in-flight during v0.5.4 sprint).
+**Filed:** 2026-04-30 (in-flight during v0.5.3 sprint).
 **Priority:** High (find without scroll is unusable; arrow-key gap is a discoverability bug).
 **Cross-ref:** ENH-023 (parent enhancement).
 
@@ -2621,7 +2628,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-044: Find-bar text contrast unreadable in dark mode
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sub-sprint). Root cause was broader than the find bar: `tailwind.config.mjs` never defined a `paper` color family, so `bg-paper`, `bg-paper-deep`, `bg-paper-edge`, `bg-paper-rule`, `border-paper-rule`, `border-paper-edge` (used across TabBar, WorkingTabStrip, FindBar) were silently inert. In light mode the fallthrough was unnoticed because browser-default white still contrasted with `text-ink` (dark in light mode). In dark mode, FindBar's input rendered as light-cream `text-ink` on browser-default white — exactly the user's "light brown on white" report. Fix: added a `paper` color family to the Tailwind config that mirrors `surface.*` (same CSS variables, new aliases). Also dropped FindBar's `focus:bg-white` since it forced a white bg even in dark mode once `bg-paper` started actually applying — `focus:border-accent` already provides enough emphasis. Smoke-walk verification owed.
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sub-sprint). Root cause was broader than the find bar: `tailwind.config.mjs` never defined a `paper` color family, so `bg-paper`, `bg-paper-deep`, `bg-paper-edge`, `bg-paper-rule`, `border-paper-rule`, `border-paper-edge` (used across TabBar, WorkingTabStrip, FindBar) were silently inert. In light mode the fallthrough was unnoticed because browser-default white still contrasted with `text-ink` (dark in light mode). In dark mode, FindBar's input rendered as light-cream `text-ink` on browser-default white — exactly the user's "light brown on white" report. Fix: added a `paper` color family to the Tailwind config that mirrors `surface.*` (same CSS variables, new aliases). Also dropped FindBar's `focus:bg-white` since it forced a white bg even in dark mode once `bg-paper` started actually applying — `focus:border-accent` already provides enough emphasis. Smoke-walk verification owed.
 **Priority:** Medium (paper-cut — find still works, just hard to read)
 **Filed:** 2026-04-30 (smoke-walk OTHER NOTES from BUG-043 PASS)
 
@@ -2644,13 +2651,13 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-045: File:// browser tabs should expose file context menu (ENH-026 follow-up)
 
-**Status:** ✅ **v2 fix shipped 2026-05-01 (v0.5.4 sub-sprint, post-rev2 walk).** WCV-overlay-mute via the new `browser.setOverlayMuted(boolean)` API: when the user right-clicks a browser tab in the WorkingTabStrip, the WebContentsView is collapsed to 1×1 for the duration of the menu, then restored on close (or outside-click / Escape). Closes the occlusion gap — full menu is now visible regardless of menu height. See BUG-047 for the broader class summary + the alternative paths considered.
+**Status:** ✅ **v2 fix shipped 2026-05-01 (v0.5.3 sub-sprint, post-rev2 walk).** WCV-overlay-mute via the new `browser.setOverlayMuted(boolean)` API: when the user right-clicks a browser tab in the WorkingTabStrip, the WebContentsView is collapsed to 1×1 for the duration of the menu, then restored on close (or outside-click / Escape). Closes the occlusion gap — full menu is now visible regardless of menu height. See BUG-047 for the broader class summary + the alternative paths considered.
 
-**Was 🟡 (menu items render but are visually occluded — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk):** User screenshot shows "Reveal in navigator" and a partial "Rename..." entry visible above the strip / address bar zone, with the rest of the menu cut off behind the WebContentsView. Same root cause family as BUG-006 (Send → Duo pill on browser pane): renderer-DOM overlays sit ABOVE the renderer's own DOM but BELOW the WebContentsView at the macOS compositor level. v1 (2026-04-30) shipped the data plumbing correctly; only the rendering surface was occluded.
+**Was 🟡 (menu items render but are visually occluded — re-opened 2026-05-01 from v0.5.3-rev2 smoke walk):** User screenshot shows "Reveal in navigator" and a partial "Rename..." entry visible above the strip / address bar zone, with the rest of the menu cut off behind the WebContentsView. Same root cause family as BUG-006 (Send → Duo pill on browser pane): renderer-DOM overlays sit ABOVE the renderer's own DOM but BELOW the WebContentsView at the macOS compositor level. v1 (2026-04-30) shipped the data plumbing correctly; only the rendering surface was occluded.
 
 **Was ✅ (v1 shipped 2026-04-30):** When a browser tab points at a local file (`file://` URL — e.g. smoke walk page, agent-generated dashboard, local HTML preview), the right-click context menu exposes Reveal in navigator / Rename… / Move to Trash… in addition to Pin/Unpin. Previously only "true" file tabs (path-bearing markdown, canvas, image previews) got the file menu. The data plumbing is correct; the rendering occlusion is the only remaining gap.
 
-**Owner observation (from v0.5.4 smoke walk):** "for local html artifacts, these should be deletable, or (better yet) they should default open in canvas not in browser."
+**Owner observation (from v0.5.3 smoke walk):** "for local html artifacts, these should be deletable, or (better yet) they should default open in canvas not in browser."
 
 **Implementation:** `WorkingTabStrip.tsx § handleContextMenu` reads `tab.path ?? pathFromFileUrl(tab.url)` — the helper converts a `file://` URL back to a filesystem path via the URL constructor + decodeURIComponent. `App.tsx § onTrashTabFile` extended to handle both id encodings — `f:<uuid>` calls `closeFileTab`, `b:<numericId>` calls `browser.closeTab` (so trashing a local file via its browser tab also closes the tab cleanly).
 
@@ -2662,7 +2669,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 **Status:** 🆕 Filed · **held until Stage 17e** (cross-referenced in `docs/roadmap.html` + `ROADMAP.md` Phase 17e bullet list).
 **Priority:** Medium-High (user's "(better yet)" preference; design already exists in ROADMAP backlog).
-**Filed:** 2026-04-30 (v0.5.4 smoke walk OTHER NOTES).
+**Filed:** 2026-04-30 (v0.5.3 smoke walk OTHER NOTES).
 
 **Why held until 17e:** the same machinery 17e ships for the
 script opt-in dialog (H8) reads the file's `<head>` at open time
@@ -2673,7 +2680,7 @@ either (a) building a temporary single-purpose meta-reader that
 17e then has to absorb, or (b) shipping ENH-027 without a path
 for users to upgrade their browser-routed pages to scripts-allowed
 canvases (the obvious progression). BUG-045 (file:// browser tabs
-expose Reveal/Trash — ✅ shipped v0.5.4) closes the immediate
+expose Reveal/Trash — ✅ shipped v0.5.3) closes the immediate
 user pain so the wait costs nothing. See § BUG-045 above + the
 17e roadmap entry for the bundling rationale.
 
@@ -2708,7 +2715,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 **Status:** 🆕 Filed
 **Priority:** Medium (regression in the focus-toggle path; happy-path flow is "agent opens an artifact, user reads, ⌘\` back to terminal to chat")
-**Filed:** 2026-05-01 (v0.5.4-rev2 walk #2 — DUO-RELOAD PASS note)
+**Filed:** 2026-05-01 (v0.5.3-rev2 walk #2 — DUO-RELOAD PASS note)
 
 **Owner observation:** "on `duo open`, page opens correctly; and focus shifts to newly opened browser (good!) but then ⌘\` to shift focus back to terminal is broken."
 
@@ -2730,8 +2737,8 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 ### ENH-031: Right-click context menu in markdown editor / browser pane (electron-context-menu)
 
 **Status:** 🆕 Filed
-**Priority:** Medium-High (pre-existing UX gap surfaced during v0.5.4-rev2 walk; users expect Cut / Copy / Paste / Spell-check / Inspect at right-click)
-**Filed:** 2026-05-01 (v0.5.4-rev2 walk #2 — STAGE-15.3 FAIL note: "context clicking in markdown editor also does nothing — expected copy/paste/etc actions")
+**Priority:** Medium-High (pre-existing UX gap surfaced during v0.5.3-rev2 walk; users expect Cut / Copy / Paste / Spell-check / Inspect at right-click)
+**Filed:** 2026-05-01 (v0.5.3-rev2 walk #2 — STAGE-15.3 FAIL note: "context clicking in markdown editor also does nothing — expected copy/paste/etc actions")
 
 **Today:** Electron renderers don't show a default context menu unless one is explicitly wired up. We never have. Right-click in the markdown editor / canvas / browser pane does nothing — no Cut / Copy / Paste / Spell-check / Inspect. WorkingPane tabs DO show their context menu (BUG-045 / ENH-026 wiring); FileTree rows DO show theirs (BUG-041 / Stage 26 PR 1 wiring). The text-editing surfaces are the gap.
 
@@ -2754,7 +2761,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 **Status:** 🆕 Filed
 **Priority:** Medium (real UX gap — agent and human both want plain-text export from rich content)
-**Filed:** 2026-05-01 (v0.5.4-rev2 walk #2 — STAGE-15.3 FAIL note)
+**Filed:** 2026-05-01 (v0.5.3-rev2 walk #2 — STAGE-15.3 FAIL note)
 
 **Owner observation:** "new ENH, new action to 'copy as plain text' in menu and with keyboard shortcut" — surfaced while testing the markdown editor's pill / context menu.
 
@@ -2781,7 +2788,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 **Status:** 🆕 Filed
 **Priority:** Low (BUG-038 v4 cycle is functionally correct; this is perceived-performance)
-**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk PASS note on BUG-038)
+**Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk PASS note on BUG-038)
 
 **Owner observation:** "when ctrl-tab from tab 1 (markdown) to tab 2 (markdown) there is a delay and it takes a second or two for the tab rendering to catch up, which makes it look like it is failing; but after the pause, the tab cycles."
 
@@ -2797,7 +2804,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 **Affected files:** `renderer/components/WorkingPane.tsx` (activeRenderer dispatch), possibly `MarkdownEditor.tsx` (mount-time setup).
 
-**Cross-ref:** BUG-038 (parent — cycle behavior). Same PASS in the v0.5.4-rev2 smoke walk.
+**Cross-ref:** BUG-038 (parent — cycle behavior). Same PASS in the v0.5.3-rev2 smoke walk.
 
 ---
 
@@ -2805,7 +2812,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 **Status:** 🆕 Filed
 **Priority:** Medium (parity gap — markdown editor has find via ENH-023, browser doesn't)
-**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk PASS note on BUG-044)
+**Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk PASS note on BUG-044)
 
 **Owner observation:** "'find' is either not present or not working in the browser — this is either a bug or an ENH."
 
@@ -2826,7 +2833,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 **Status:** 🆕 Filed
 **Priority:** Medium (current behavior shows the wrong end of the path)
-**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk PASS note on ENH-015)
+**Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk PASS note on ENH-015)
 
 **Owner observation:** "in the current location strip, e.g. `~/Documents/Github/duo`, it defaults to be panned all the way to the left (I can see `~/Documents/`) and I often cannot see the folder that is active in the navigator without panning left. this space should default to be panned all the way to the right (so I can see `.../duo`), with the last element in the path (`/duo`) bolded, and including the CWD dot if that is the CWD."
 
@@ -2849,7 +2856,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 **Status:** 🟡 **First fix landed 2026-05-01** — `BrowserManager.setOverlayMuted(boolean)` collapses the WCV to 1×1 while a renderer-DOM overlay is open. WorkingTabStrip uses it for browser-tab right-click (BUG-045 v2). BUG-006 (Send → Duo pill) and ENH-028 (find-bar) still need their own integrations of the same primitive. Filed for follow-up — keep open as a class summary until BUG-006 is closed.
 **Priority:** Medium-High (blocks the FIX path for BUG-006 + ENH-028; structural)
-**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk FAIL on BUG-045)
+**Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk FAIL on BUG-045)
 
 **Owner observation:** From the BUG-045 fail note + screenshot: "context menu is occluded — cannot fully test (renders over the url bar but under the browser content pane; same issue does not occur with the markdown tab context menu)."
 
@@ -2880,7 +2887,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### ENH-024: Tab strip pans/shifts to keep the active tab visible when overflowing
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Both strips (`TabBar.tsx` for terminal, `WorkingTabStrip.tsx` for working) now ref the active `<button>` and call `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })` in a `useEffect` keyed on the active tab's id. `inline: 'nearest'` is the right primitive — clicking an already-visible tab is a no-op (no spurious horizontal jitter), and a programmatic switch to an off-screen tab smoothly pans it just enough to be visible. Active tab `<button>` accepts a `buttonRef?: React.Ref<HTMLButtonElement>` prop (typed as `Ref<>` not `RefObject<>` for React 19 compatibility); only the active row gets the ref so the assignment naturally rotates as the active id changes.
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sprint). Both strips (`TabBar.tsx` for terminal, `WorkingTabStrip.tsx` for working) now ref the active `<button>` and call `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })` in a `useEffect` keyed on the active tab's id. `inline: 'nearest'` is the right primitive — clicking an already-visible tab is a no-op (no spurious horizontal jitter), and a programmatic switch to an off-screen tab smoothly pans it just enough to be visible. Active tab `<button>` accepts a `buttonRef?: React.Ref<HTMLButtonElement>` prop (typed as `Ref<>` not `RefObject<>` for React 19 compatibility); only the active row gets the ref so the assignment naturally rotates as the active id changes.
 **Priority:** Medium (the smoke walk surfaced this clearly — the user has 10+ tabs across panes and can't always see the active one without manual scrolling)
 **Filed:** 2026-04-30 (smoke-walk follow-up)
 
@@ -2904,7 +2911,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### ENH-025: `⌘[` / `⌘]` for outdent / indent in the markdown editor
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). New `ListIndentShortcuts` TipTap extension at `renderer/components/editor/extensions/ListIndentShortcuts.ts` binds `Mod-]` → `sinkListItem` and `Mod-[` → `liftListItem`. Tries `taskItem` first (TaskList) then `listItem` (bullet/ordered). Outside a list, returns false → keystroke bubbles to the global matcher. Plain `⌘[` / `⌘]` aren't in the global registry (only `⌘⇧[` / `⌘⇧]` are claimed for prev/next terminal tab), so non-list strokes fall through harmlessly. Browser back/forward nav was already suppressed by `wireKeyForwarding`'s `[`/`]` allowlist, so we don't disturb other surfaces.
+**Status:** ✅ Shipped 2026-04-30 (v0.5.3 sprint). New `ListIndentShortcuts` TipTap extension at `renderer/components/editor/extensions/ListIndentShortcuts.ts` binds `Mod-]` → `sinkListItem` and `Mod-[` → `liftListItem`. Tries `taskItem` first (TaskList) then `listItem` (bullet/ordered). Outside a list, returns false → keystroke bubbles to the global matcher. Plain `⌘[` / `⌘]` aren't in the global registry (only `⌘⇧[` / `⌘⇧]` are claimed for prev/next terminal tab), so non-list strokes fall through harmlessly. Browser back/forward nav was already suppressed by `wireKeyForwarding`'s `[`/`]` allowlist, so we don't disturb other surfaces.
 **Priority:** Medium-Low (Google-Docs-style muscle memory; missing today is a friction point for long-form list editing)
 **Filed:** 2026-04-30 (post-sprint)
 
@@ -2929,9 +2936,9 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### ENH-026: Right-click on a WorkingPane tab → rename / delete / reveal in navigator
 
-**Status:** ✅ **v1 verified working on real canvas tabs 2026-04-30 (v0.5.4 sub-sprint).** Closed by BUG-045's separate fix. Diagnosis: the user's "html canvas" failure during the v0.5.4 smoke walk was actually about the smoke walk page itself, which opens in the BROWSER pane (via `duo open`), not the canvas pane. Verified directly via computer-use: created a real canvas tab via `duo html new` + `duo edit`, right-clicked the tab, menu shows Reveal in navigator / Rename… / Pin tab / Move to Trash… correctly. ENH-026 v1 was always right for genuine canvas tabs; the user's grouping ("html canvas / browser showing local html") conflated two distinct surfaces. BUG-045 closed the browser-tab-with-file-URL case; the canvas case never broke.
+**Status:** ✅ **v1 verified working on real canvas tabs 2026-04-30 (v0.5.3 sub-sprint).** Closed by BUG-045's separate fix. Diagnosis: the user's "html canvas" failure during the v0.5.3 smoke walk was actually about the smoke walk page itself, which opens in the BROWSER pane (via `duo open`), not the canvas pane. Verified directly via computer-use: created a real canvas tab via `duo html new` + `duo edit`, right-clicked the tab, menu shows Reveal in navigator / Rename… / Pin tab / Move to Trash… correctly. ENH-026 v1 was always right for genuine canvas tabs; the user's grouping ("html canvas / browser showing local html") conflated two distinct surfaces. BUG-045 closed the browser-tab-with-file-URL case; the canvas case never broke.
 
-**Was 🟡 (Partial ship — re-opened 2026-04-30 from v0.5.4 smoke walk):** User reported the menu fires correctly on markdown editor tabs, but didn't fire on HTML canvas tabs (and as expected, browser tabs viewing local HTML only show Pin/Unpin, which is correct).
+**Was 🟡 (Partial ship — re-opened 2026-04-30 from v0.5.3 smoke walk):** User reported the menu fires correctly on markdown editor tabs, but didn't fire on HTML canvas tabs (and as expected, browser tabs viewing local HTML only show Pin/Unpin, which is correct).
 
 Diagnosis hypothesis at filing time:
 - `WorkingTabStrip.tsx § handleContextMenu` reads `tab.path ?? null`. The expectation: HTML canvas tabs are file tabs and have `path` populated.

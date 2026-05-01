@@ -19,6 +19,55 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-05-01
+
+Two stages closed (Atelier whisper-presence + Send → Duo polish), a broad polish sweep across the navigator/editor/tab strips, three new agent-driven CLI verbs (`duo doc goto` / `duo doc find` / `duo reload`), and the new **smoke-walk** skill that turns sprint-end verification into a structured user walk-through.
+
+### Added
+
+- **Stage 12 close — whisper-level agent presence** (titlebar dot + pane-level selection glow). Small accent dot in the chrome strip softly breathes when the front terminal has a live Claude session (commit `26e69d9`); working pane briefly flashes a soft accent halo when the agent calls `duo selection`. Selection-anchored CHR-driven glow stays as future polish per `globals.css`.
+- **Stage 15 close (15.3) — Send → Duo polish trio** (commit `6340832`). ⌘D global chord routes via `duo-send-to-duo` CustomEvent to whichever surface has a cached selection. 5000-char length cap with `… [truncated; N total — call \`duo selection\` for the full text]` marker. Canvas image-flatten replaces `<img>` with `[image: alt-or-filename]` placeholders.
+- `duo reload` CLI verb (commit `11b0bf2`) — reload the active browser tab in place; pair for `duo navigate` that doesn't require a URL. Stage 20 partial (1 of 6 remaining items closed).
+- `duo doc goto [<path>] --heading X | --line N | --anchor Y` (commit `bc5e520` + earlier `84f5a35`) — agent-driven editor scroll via headings, line numbers, or GitHub-slug anchors (ENH-022). Response shape includes `matched_heading` for diagnostic visibility into the precedence chain.
+- `duo doc find <query> [<path>] [--case-sensitive]` (earlier `c3c7745`) — read-only buffer search (ENH-023).
+- ⌘F find-in-document for the markdown editor — find bar with match counter, ↓/↑ + ▼/▲ navigation, smooth scroll-to-match (commits `c3c7745` + `1645e9a` + `9dc7ac4`).
+- ⌘[ / ⌘] outdent / indent in markdown bullet / ordered / task lists (`1645e9a`).
+- Bullet-marker round-trip — typing `*`, `-`, or `+ ` preserves the marker through save/load (`e4dd809`).
+- Right-click context menu on FileTree whitespace → New file / New folder / Open terminal here / Reveal in Finder, anchored to project root (`d14fd82`).
+- Right-click context menu on WorkingPane tabs (file tabs and `file://` browser tabs) → Reveal in navigator / Rename… / Pin tab / Move to Trash… (`d14fd82` + `ba0af8a` + `2a9e59f`).
+- Tab strip pans to keep the active tab visible when overflowing (`d14fd82`).
+- Editable breadcrumb at the navigator top — ⌘⇧G flips it into a path input (`ff3e7c3`).
+- CWD highlight + section dividers + focus stripe in the navigator (`cc11912`).
+- Open / active file visual distinction in the navigator (`7a2e9ca`).
+- New **smoke-walk** skill (`1b51c8a` + `4660f26` + `6cf14bb`) — generates an interactive HTML walk page from a JSON manifest, opens it in Duo's browser pane; user clicks pass/fail toggles + notes, hits Copy, pastes the structured block back into chat for parse + status flips.
+
+### Changed
+
+- BUG-038 (4th + 5th instance) — ⌃Tab cycle now reaches all working-pane tabs. v3 added an `activePaneRef` to mirror `opts.activePaneFocus` (closes the closure-staleness flavor; commit `f8527a3`); v4 dispatches `duo-cycle-working-tab` so WorkingPane iterates the merged file+browser tab list (closes the structural flavor where file tabs were invisible to the cycle; commit `d4f40cd`). Cycle math extracted into a pure `cycleNext()` helper at `renderer/keyboard/tabCycle.ts` for future PROCESS-001 unit tests.
+- BUG-042 — browser-pane click-to-focus (`ad839d8`). `webContents.on('focus')` pushes `BROWSER_FOCUS_GAINED` so the renderer flips `focusedColumn = 'working'`. Symmetric to the canvas mousedown forwarder (BUG-037).
+- BUG-040 + ENH-021 — off-host blocklist routing on user-driven navigation (`40ab246` + `d8c248c` + `4435fd9`). `BrowserManager` intercepts `will-navigate` / `will-redirect` / popups and routes `external-domains.json` matches to the system browser. Self-heals an empty domains file at boot.
+- BUG-039 — session-restore drops files that no longer exist (`5195320`).
+- BUG-044 — find-input contrast in dark mode (`9dc7ac4`). Added a `paper` color family to `tailwind.config.mjs` (was silently inert across multiple components); dropped FindBar's `focus:bg-white` so the input keeps its theme-aware paper bg on focus.
+- BUG-045 v2 — file:// browser tab right-click menu was visually occluded by the WebContentsView (`2a9e59f`). New `BrowserManager.setOverlayMuted(boolean)` collapses the WCV to 1×1 while a renderer-DOM overlay is open; restores on close. macOS composites WCV above renderer DOM regardless of z-index, so this mute-and-restore is the structurally simplest path. Filed as **BUG-047** (class-summary primitive); BUG-006 (Send → Duo pill) and ENH-028 (browser pane find bar) still need their own integrations of the same API.
+- BUG-043 — find scroll-to-match (`1645e9a`). ProseMirror's `scrollIntoView` couldn't find the right scroll container; replaced with native `scrollIntoView({block:'center'})` on the decoration node. Plus ArrowDown/ArrowUp navigation in the find input.
+- ENH-015 — Files-pane collapse button is now visible at rest (`70d6ffc`). Was barely-visible `text-zinc-600` on cream paper; bumped to `text-ink-mute` and swapped to a Finder/VS-Code-style sidebar-toggle glyph.
+- ENH-019 — tab-strip scrollbars suppressed (`5195320`).
+
+### Fixed
+
+- BUG-036 + BUG-037 — pane-aware ⌘T + canvas focus mousedown forwarder (`ca3b3a3`).
+- ENH-016 — context-menu New file / New folder hotfix (`3eee115`). `window.prompt()` is silently disabled in Electron renderers; replaced with a create-default-name (`untitled.md` / `untitled-folder`) + auto-rename pattern.
+- ENH-022 v2 — chained editor commands into one transaction + DOM-level `scrollIntoView` fallback so the editor visibly scrolls (`a58a58f`).
+- ENH-022 v3 — heading-match precedence chain (exact > starts-with > word-boundary > substring) + `matched_heading` field in the response (`2a9e59f`). Partial fix; see Known issues.
+
+### Known issues
+
+- **ENH-022 v3 — `duo doc goto --heading X` still picks the wrong heading on tasks.md.** v2 fixed the scroll plumbing; v3 tightened match precedence but a wrong heading still wins on the smoke walk (rev2: BUG-032; rev3: BUG-034). Likely buffer-staleness (Stage 16 external-write reconciliation is ⬜) or word-boundary regex permissive in TipTap textContent. Released as-is per owner's call; the response shape already exposes a `matched_heading` field so v4 debugging is self-diagnosing.
+- **ENH-031 — right-click in markdown editor / canvas / browser pane shows no context menu** (no Cut / Copy / Paste / Spell-check / Inspect). Pre-existing Electron-renderer gap; never had `electron-context-menu` wired. Filed at v0.5.3 cut from a smoke-walk observation; recommend Path A (electron-context-menu npm package) for a v1 follow-up.
+- **BUG-046** — visible 1–2s render delay between two markdown editor tabs on ⌃Tab. Root cause: TipTap instance gets re-mounted per tab switch (key={path}). v1 fix is to keep inactive editors mounted under display:none (mirror TerminalPane).
+- **BUG-048** — ⌘\` (pane focus toggle) broken after `duo open` shifts focus to a new browser tab. Diagnosis path filed.
+- **BUG-038 carry-over** — render-catchup delay between markdown tabs (BUG-046 above) is the visible artifact of the otherwise-functional v4 fix.
+
 ## [0.5.2] — 2026-04-29
 
 Bug-smashing sprint. Six PRs in one day closing longstanding canvas/install papercuts, plus one small new capability (preset pane sizes via menu + CLI).
@@ -435,6 +484,15 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.5.3...HEAD
+[0.5.3]: https://github.com/dudgeon/duo/releases/tag/v0.5.3
+[0.5.2]: https://github.com/dudgeon/duo/releases/tag/v0.5.2
+[0.5.1]: https://github.com/dudgeon/duo/releases/tag/v0.5.1
+[0.5.0]: https://github.com/dudgeon/duo/releases/tag/v0.5.0
+[0.4.5]: https://github.com/dudgeon/duo/releases/tag/v0.4.5
+[0.4.4]: https://github.com/dudgeon/duo/releases/tag/v0.4.4
+[0.4.3]: https://github.com/dudgeon/duo/releases/tag/v0.4.3
+[0.4.2]: https://github.com/dudgeon/duo/releases/tag/v0.4.2
+[0.4.1]: https://github.com/dudgeon/duo/releases/tag/v0.4.1
 [0.2.0]: https://github.com/dudgeon/duo/releases/tag/v0.2.0
 [0.1.0]: https://github.com/dudgeon/duo/releases/tag/v0.1.0
