@@ -578,6 +578,23 @@ export class BrowserManager {
         ctrl: input.control
       })
     })
+
+    // BUG-042 — when the user clicks into the WebContentsView, the
+    // page captures keyboard focus but the renderer's column wrapper
+    // never sees a mousedown event (the click lands inside a separate
+    // process). That left `focusedColumn` stuck at whatever the user
+    // last clicked OUTSIDE the browser pane, so ⌃Tab cycled terminal
+    // tabs even when the user thought they were "in" the browser.
+    //
+    // The webContents `focus` event fires whenever this view gains
+    // OS-level keyboard focus — covers click-to-focus, Tab-to-focus
+    // from devtools, and programmatic webContents.focus() calls.
+    // Forward a one-shot signal to the renderer so it can flip
+    // focusedColumn = 'working'. Symmetric to the canvas iframe's
+    // mousedown forwarder (BUG-037 fix on the renderer side).
+    view.webContents.on('focus', () => {
+      this.window.webContents.send(IPC.BROWSER_FOCUS_GAINED)
+    })
   }
 
   getState(): BrowserState {

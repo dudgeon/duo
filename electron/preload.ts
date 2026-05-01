@@ -359,6 +359,11 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.PANE_TOGGLE_FOCUS, handler)
       return () => ipcRenderer.removeListener(IPC.PANE_TOGGLE_FOCUS, handler)
+    },
+    onBrowserFocusGained: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.BROWSER_FOCUS_GAINED, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_FOCUS_GAINED, handler)
     }
   },
 

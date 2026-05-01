@@ -194,6 +194,12 @@ export interface ElectronKeyboardAPI {
   /** Fires when the View → Toggle pane focus menu accelerator
    *  (⌘`) is triggered. */
   onPaneToggleFocus: (cb: () => void) => () => void
+  /** BUG-042 — fires when the browser WebContentsView gains keyboard
+   *  focus (click into the page, programmatic focus, etc.). Renderer
+   *  flips `focusedColumn = 'working'` so subsequent ⌃Tab / ⌘T fire
+   *  against the right pane. Symmetric to the canvas iframe's
+   *  mousedown forwarder (BUG-037). */
+  onBrowserFocusGained: (cb: () => void) => () => void
 }
 
 export interface ForwardedKeyEvent {

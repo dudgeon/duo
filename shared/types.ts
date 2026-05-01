@@ -874,6 +874,13 @@ export const IPC = {
   // window-focus keydowns (the WebContentsView swallows them otherwise).
   BROWSER_KEY_FORWARD: 'browser:key-forward',
 
+  // BUG-042 — browser WebContentsView gained input focus (mousedown
+  // landed inside the page, or it received OS focus via the focus
+  // event). Renderer flips `focusedColumn = 'working'` so subsequent
+  // ⌃Tab / ⌘T fire against the right pane. Symmetric to the canvas
+  // iframe's mousedown forwarder (BUG-037 fix).
+  BROWSER_FOCUS_GAINED: 'browser:focus-gained',
+
   // ⌘` — fired by the app-menu accelerator so it beats macOS's built-in
   // "cycle windows" system shortcut.
   PANE_TOGGLE_FOCUS: 'pane:toggle-focus',

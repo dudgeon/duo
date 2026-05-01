@@ -1064,6 +1064,19 @@ export function App() {
     return window.electron.keyboard?.onPaneToggleFocus?.(togglePaneFocus)
   }, [togglePaneFocus])
 
+  // BUG-042 — when the user clicks into the browser WebContentsView,
+  // the click happens in a separate process and the renderer's
+  // column-wrapper onMouseDown never fires. Main forwards a focus
+  // signal here so we can flip focusedColumn = 'working'. Closes
+  // the symmetric gap to the BUG-037 canvas mousedown forwarder
+  // and unblocks BUG-038's recurring repro shape (cycle keystrokes
+  // routing to the wrong pane because focus tracking was stuck).
+  useEffect(() => {
+    return window.electron.keyboard?.onBrowserFocusGained?.(() => {
+      setFocusedColumn('working')
+    })
+  }, [])
+
   // ENH-014 — View → Pane size menu items, ⌘⌥1/2/3/0/9, and `duo
   // split <pct>` all land here. Main clamps to 20–80 before pushing;
   // we re-clamp defensively in case of contract drift.
@@ -1302,6 +1315,46 @@ export function App() {
               onTogglePin={togglePin}
               onCanvasAction={handleCanvasAction}
               homeDir={home}
+              // ENH-026 — right-click on WorkingPane tab. Reveal
+              // navigates the tree to the file's parent dir + selects
+              // the file (the FileTree row scrolls into view, expands
+              // ancestors as needed). Trash confirms in the strip's
+              // own dialog, then runs files.trash + closes the tab.
+              // Rename reveals + dispatches a custom DOM event that
+              // FileTree listens to, transitioning the row to
+              // rename mode without lifting state.
+              onRevealInNavigator={(filePath) => {
+                const dir = filePath.slice(0, filePath.lastIndexOf('/')) || '/'
+                nav.actions.navigateTo(dir)
+                nav.actions.selectItem(filePath, 'file')
+                setFocusedColumn('files')
+              }}
+              onTrashTabFile={async (id, filePath) => {
+                try {
+                  await window.electron.files.trash(filePath)
+                  // Parse the strip id back to the file-tab id.
+                  // WorkingPane prefixes file ids with "f:".
+                  const fid = id.startsWith('f:') ? id.slice(2) : id
+                  closeFileTab(fid)
+                } catch (err) {
+                  window.alert(`Move to Trash failed: ${err instanceof Error ? err.message : String(err)}`)
+                }
+              }}
+              onStartRenameFromTab={(filePath) => {
+                const dir = filePath.slice(0, filePath.lastIndexOf('/')) || '/'
+                nav.actions.navigateTo(dir)
+                nav.actions.selectItem(filePath, 'file')
+                setFocusedColumn('files')
+                // Custom event picked up by FileTree's effect; the
+                // path is the absolute file path to put into rename
+                // mode. requestAnimationFrame defers until the tree
+                // has rendered the row.
+                requestAnimationFrame(() => {
+                  window.dispatchEvent(
+                    new CustomEvent('duo-tree-start-rename', { detail: { path: filePath } })
+                  )
+                })
+              }}
             />
           </div>
         </div>
