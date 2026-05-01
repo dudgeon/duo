@@ -202,38 +202,27 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
           const delta = (id === 'cycleTabsBackward' ? -1 : 1) as 1 | -1
-          // BUG-021 + BUG-038 — read both tabs and activePaneFocus from
-          // refs so the cycle sees CURRENT state at keystroke time, not
-          // a useEffect-closure snapshot. cycleNext is a pure helper
-          // that handles wrap-around and -1-idx fallback consistently.
+          // BUG-021 + BUG-038 v3 — read both tabs and activePaneFocus
+          // from refs so the cycle sees CURRENT state at keystroke
+          // time, not a useEffect-closure snapshot. cycleNext is a
+          // pure helper that handles wrap-around and -1-idx fallback
+          // consistently.
           const tabs = tabsRef.current
           if (pane === 'terminal' && tabs.length > 0) {
             const nextId = cycleNext(tabs, activeTabIdRef.current, delta)
             if (nextId) opts.setActiveTabId(nextId)
           } else {
-            void (async () => {
-              // Browser side: getTabs() is an IPC call, so it
-              // always returns BrowserManager's CURRENT state
-              // (no closure issue). But add a small fallback log
-              // when the cycle yields a no-op so user repros land
-              // a useful breadcrumb.
-              const btabs = await window.electron.browser.getTabs()
-              if (btabs.length === 0) {
-                console.warn('[shortcuts] cycleTabs: browser has zero tabs — nothing to cycle')
-                return
-              }
-              const activeIdx = btabs.findIndex(t => t.isActive)
-              if (activeIdx < 0) {
-                // No active tab found — switch to the first one
-                // anyway so the cycle progresses rather than
-                // silently no-oping.
-                console.warn('[shortcuts] cycleTabs: no active browser tab found; defaulting to index 0')
-                await window.electron.browser.switchTab(btabs[0].id)
-                return
-              }
-              const nextIdx = (activeIdx + delta + btabs.length) % btabs.length
-              await window.electron.browser.switchTab(btabs[nextIdx].id)
-            })()
+            // BUG-038 v4 — when pane is 'working' (or anything
+            // non-terminal), cycle the WHOLE working-pane strip,
+            // not just BrowserManager's tab list. The strip mixes
+            // file tabs (markdown, canvas, image) and browser tabs;
+            // the previous browser-only branch left file tabs
+            // unreachable from ⌃Tab. WorkingPane.tsx owns the merged
+            // list (and its pinned-first sort), so dispatch a
+            // CustomEvent and let WorkingPane do the right thing.
+            // Mirrors the duo-tree-start-rename pattern: avoids
+            // lifting mergedTabs state up to App just to read it.
+            window.dispatchEvent(new CustomEvent('duo-cycle-working-tab', { detail: { delta } }))
           }
           return
         }

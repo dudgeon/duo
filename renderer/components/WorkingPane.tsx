@@ -5,7 +5,8 @@
 // passes down) into a single unified tab strip. A single active-tab state
 // controls which renderer mounts below the strip.
 
-import { useCallback } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
+import { cycleNext } from '../keyboard/tabCycle'
 import { BrowserRenderer } from './BrowserRenderer'
 import { MarkdownPreview } from './MarkdownPreview'
 import { MarkdownEditor } from './editor/MarkdownEditor'
@@ -187,6 +188,45 @@ export function WorkingPane({
       void switchTab(parsed.id)
     }
   }
+
+  // BUG-038 v4 — useKeyboardShortcuts dispatches a CustomEvent for
+  // ⌃Tab / ⌃⇧Tab in the working pane (since WorkingPane owns the
+  // merged tab list and its pinned-first sort, not the hook). We
+  // need refs because the listener installs once but mergedTabs +
+  // active id rebuild every render — without the ref, the closure
+  // would freeze the first render's state.
+  const mergedTabsRef = useRef<WorkingTab[]>([])
+  const activeIdRef = useRef<string>('')
+  mergedTabsRef.current = mergedTabs
+  // Compute the strip-id of the currently active tab so cycleNext
+  // can find the right index. activeWorking carries the typed
+  // identity; we re-encode to the strip namespace ("f:<uuid>" or
+  // "b:<numericId>") for the lookup.
+  const activeStripId = (() => {
+    if (activeWorking.kind === 'file') return stringifyFileId(activeWorking.id)
+    const activeBrowserTab = browserTabs.find(b => b.isActive)
+    return activeBrowserTab ? stringifyBrowserId(activeBrowserTab.id) : ''
+  })()
+  activeIdRef.current = activeStripId
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ delta: 1 | -1 }>
+      const delta = ce.detail?.delta
+      if (delta !== 1 && delta !== -1) return
+      const tabs = mergedTabsRef.current
+      if (tabs.length === 0) return
+      const nextId = cycleNext(tabs, activeIdRef.current, delta)
+      if (nextId) handleSelect(nextId)
+    }
+    window.addEventListener('duo-cycle-working-tab', handler)
+    return () => window.removeEventListener('duo-cycle-working-tab', handler)
+    // handleSelect is recreated each render but reads through
+    // refs / stable hooks; safe to omit from deps to avoid churning
+    // the listener on every render. The ref reads inside the
+    // handler always see fresh values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleClose = (id: string) => {
     const parsed = parseId(id)
