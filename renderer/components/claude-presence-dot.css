@@ -1,0 +1,47 @@
+/* Stage 12 close — whisper-level agent presence. Sized to read at
+   peripheral vision but not draw the eye. */
+
+.duo-claude-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--duo-paper-rule);
+  flex-shrink: 0;
+  margin-right: 6px;
+  /* Subtle ring so the dot remains visible against accent-soft strip
+     backgrounds (focused tab strip, dark-mode chrome). */
+  box-shadow: 0 0 0 1px var(--duo-paper-rule);
+  transition: background 0.45s ease, box-shadow 0.45s ease;
+}
+
+.duo-claude-presence-dot.is-active {
+  background: var(--duo-accent);
+  box-shadow:
+    0 0 0 1px var(--duo-accent),
+    0 0 6px 0 var(--duo-accent-soft);
+  animation: duo-claude-presence-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes duo-claude-presence-breathe {
+  0%, 100% {
+    opacity: 0.55;
+    box-shadow:
+      0 0 0 1px var(--duo-accent),
+      0 0 4px 0 var(--duo-accent-soft);
+  }
+  50% {
+    opacity: 1.0;
+    box-shadow:
+      0 0 0 1px var(--duo-accent),
+      0 0 8px 0 var(--duo-accent-soft);
+  }
+}
+
+/* Reduced motion: hold the active color but skip the breathe so the
+   dot doesn't pulse for users who've opted out. */
+@media (prefers-reduced-motion: reduce) {
+  .duo-claude-presence-dot.is-active {
+    animation: none;
+    opacity: 0.85;
+  }
+}

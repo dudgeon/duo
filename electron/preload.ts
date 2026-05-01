@@ -364,6 +364,11 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.BROWSER_FOCUS_GAINED, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_FOCUS_GAINED, handler)
+    },
+    onClaudeReadSelection: (cb) => {
+      const handler = (_: IpcRendererEvent, e: { pane: 'editor' | 'browser' | 'html-canvas' }) => cb(e)
+      ipcRenderer.on(IPC.CLAUDE_READ_SELECTION, handler)
+      return () => ipcRenderer.removeListener(IPC.CLAUDE_READ_SELECTION, handler)
     }
   },
 

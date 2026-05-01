@@ -124,6 +124,14 @@ export class SocketServer {
   private tcpPort: number | null = null
   private tcpToken: string | null = null
 
+  // Stage 12 close — optional renderer event sink. When set, the
+  // socket-server pushes `claude:read-selection` (and any future
+  // ambient-presence events) so the UI can paint a glow when the
+  // agent reads from a pane. Optional because the sink is wired in
+  // Electron-host setup; a future Native Messaging host would inject
+  // its own. Same pattern as PtyManager's setEventSink (electron/main.ts).
+  private eventSink: ((channel: string, payload: unknown) => void) | null = null
+
   constructor(
     private readonly cdp: CdpBridge,
     private readonly browser: BrowserManager,
@@ -131,6 +139,11 @@ export class SocketServer {
     private readonly nav: NavBridge,
     private readonly navPins: NavPinsService
   ) {}
+
+  /** Stage 12 close — install a renderer-push callback. */
+  setEventSink(send: (channel: string, payload: unknown) => void): void {
+    this.eventSink = send
+  }
 
   start(): void {
     this.startUnix()
@@ -452,6 +465,14 @@ export class SocketServer {
                 resolved = ed ? { kind: 'editor', ...ed } : null
               }
             }
+          }
+          // Stage 12 close — whisper-level "Claude read here" cue.
+          // Pushes the resolved pane up to the renderer so it can
+          // paint a transient accent glow. Only fires when we
+          // actually returned a non-null selection (gates out
+          // collapsed-or-missing reads that wouldn't be visible).
+          if (this.eventSink && resolved) {
+            this.eventSink('claude:read-selection', { pane: resolved.kind })
           }
           result = resolved
           break

@@ -884,6 +884,14 @@ export const IPC = {
   // iframe's mousedown forwarder (BUG-037 fix).
   BROWSER_FOCUS_GAINED: 'browser:focus-gained',
 
+  // Stage 12 close — Claude just read a selection via `duo selection`.
+  // Main pushes which pane the resolved selection came from; renderer
+  // paints a brief accent glow on that pane's container so the user
+  // sees "Claude is reading my work" without an explicit notification.
+  // pane is one of 'editor' | 'browser' | 'canvas'; carries no
+  // selection content (the agent already has it).
+  CLAUDE_READ_SELECTION: 'claude:read-selection',
+
   // ⌘` — fired by the app-menu accelerator so it beats macOS's built-in
   // "cycle windows" system shortcut.
   PANE_TOGGLE_FOCUS: 'pane:toggle-focus',

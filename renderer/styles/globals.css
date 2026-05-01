@@ -348,6 +348,45 @@ html.dark {
     opacity: 0.55;
   }
 
+  /* Stage 12 close — whisper-level "Claude is reading" pane flash.
+     Triggered when the agent calls `duo selection` and the resolved
+     pane is one of editor / canvas / browser. The host pane sets
+     data-claude-reading="1" on its wrapper for ~1.2s; this rule
+     paints a soft accent halo that fades in / out via the
+     keyframes below.
+
+     Pane-level for v1. A future Stage 12 polish item could upgrade
+     to selection-anchored glow per-surface (TipTap decoration for
+     the markdown editor, Custom Highlight Registry for the canvas,
+     CDP-injected style for the browser pane). The pane flash gets
+     the "Claude just read here" signal across without that
+     cross-process complexity. */
+  [data-claude-reading="1"] {
+    animation: duo-claude-reading-glow 1.2s ease-out;
+  }
+
+  @keyframes duo-claude-reading-glow {
+    0% {
+      box-shadow:
+        inset 0 0 0 0 transparent,
+        0 0 0 0 transparent;
+    }
+    20% {
+      box-shadow:
+        inset 0 0 0 2px var(--duo-accent-soft),
+        0 0 12px 0 var(--duo-accent-soft);
+    }
+    100% {
+      box-shadow:
+        inset 0 0 0 0 transparent,
+        0 0 0 0 transparent;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-claude-reading="1"] { animation: none; }
+  }
+
   /* Stage 13a — `duo-just-added` highlight (editor-agnostic primitive).
      Applied to ranges the agent just wrote so the human can see what
      changed. Single source of truth: this keyframe + class. The

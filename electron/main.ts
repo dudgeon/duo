@@ -235,6 +235,13 @@ async function createWindow(): Promise<void> {
       mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
     }
   }, navPinsService)
+  // Stage 12 close — wire the renderer event sink so the socket
+  // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
+  // the agent calls `duo selection`). Same one-liner adapter as
+  // PtyManager's setEventSink.
+  socketServer.setEventSink((channel, payload) => {
+    mainWindow?.webContents.send(channel, payload)
+  })
   socketServer.start()
 
   if (process.env['ELECTRON_RENDERER_URL']) {

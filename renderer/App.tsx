@@ -10,6 +10,7 @@ import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { ThemeToggle } from './components/ThemeToggle'
+import { ClaudePresenceDot } from './components/ClaudePresenceDot'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
@@ -1077,6 +1078,43 @@ export function App() {
     })
   }, [])
 
+  // Stage 12 close — whisper-level "Claude is reading here" cue.
+  // Main pushes which pane the resolved selection came from when
+  // the agent calls `duo selection`. We toggle data-claude-reading
+  // on the corresponding pane wrapper for 1.2s; the CSS keyframe
+  // in globals.css paints a soft accent halo that fades. Each pane
+  // wrapper carries a stable data-pane attribute so this lookup is
+  // O(1) and lives entirely in App.
+  useEffect(() => {
+    return window.electron.keyboard?.onClaudeReadSelection?.((e) => {
+      // Map the resolved-selection kind back to the pane wrapper's
+      // data-pane attribute. Editor + canvas both live in the
+      // working pane → flash the working column; browser also lives
+      // in working but the WebContentsView occludes the inner DOM,
+      // so the column-level halo is what reads visually.
+      const paneAttr = e.pane === 'editor' || e.pane === 'html-canvas' ? 'working' : 'working-browser'
+      // Both kinds collapse to the working pane wrapper for v1.
+      // (Editor lives there when MarkdownEditor is the active
+      // renderer; canvas there when CanvasTab is active; browser
+      // there when BrowserRenderer is active.) A future polish
+      // could glow only the active sub-surface.
+      void paneAttr
+      const el = document.querySelector<HTMLElement>('[data-pane="working"]')
+      if (!el) return
+      // Drop any in-flight glow so a back-to-back read re-triggers
+      // the keyframe. Re-add via rAF after a tick so the browser
+      // restarts the animation.
+      el.removeAttribute('data-claude-reading')
+      requestAnimationFrame(() => {
+        el.setAttribute('data-claude-reading', '1')
+        // Self-clear after the keyframe duration so the attribute
+        // doesn't linger on the DOM (idempotent; re-fire just
+        // resets it).
+        window.setTimeout(() => el.removeAttribute('data-claude-reading'), 1300)
+      })
+    })
+  }, [])
+
   // ENH-014 — View → Pane size menu items, ⌘⌥1/2/3/0/9, and `duo
   // split <pct>` all land here. Main clamps to 20–80 before pushing;
   // we re-clamp defensively in case of contract drift.
@@ -1095,6 +1133,12 @@ export function App() {
           traffic lights are positioned over this row by
           `trafficLightPosition` without a DOM spacer. */}
       <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center justify-end pr-2 gap-1">
+        {/* Stage 12 close — whisper-level Claude presence. Soft accent
+            dot when the front terminal has a live Claude session.
+            titlebar-nodrag so the dot itself isn't a drag affordance. */}
+        <div className="titlebar-nodrag">
+          <ClaudePresenceDot active={claudeLive} />
+        </div>
         <ThemeToggle mode={theme.mode} onCycle={theme.cycleMode} />
       </div>
 
@@ -1265,6 +1309,7 @@ export function App() {
             ].join(' ')}
             onMouseDown={() => setFocusedColumn('working')}
             aria-label="Working pane"
+            data-pane="working"
           >
             <WorkingPane
               fileTabs={fileTabs}

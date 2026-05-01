@@ -200,6 +200,11 @@ export interface ElectronKeyboardAPI {
    *  against the right pane. Symmetric to the canvas iframe's
    *  mousedown forwarder (BUG-037). */
   onBrowserFocusGained: (cb: () => void) => () => void
+  /** Stage 12 close — Claude just read a selection via `duo selection`.
+   *  Carries which pane the resolved selection came from so the
+   *  renderer can paint a transient accent glow on the right surface.
+   *  No selection content (the agent already has it). */
+  onClaudeReadSelection: (cb: (e: { pane: 'editor' | 'browser' | 'html-canvas' }) => void) => () => void
 }
 
 export interface ForwardedKeyEvent {
