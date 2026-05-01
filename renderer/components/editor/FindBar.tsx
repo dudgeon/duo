@@ -9,6 +9,9 @@
 // shortcut matcher doesn't pre-empt them):
 //   - ↩          → next match
 //   - ⇧↩         → previous match
+//   - ↓ / ↑      → next / previous match (BUG-043 — natural
+//                  arrow-key affordance to match the ▼ / ▲ buttons
+//                  while focus is in the input)
 //   - ⎋          → close the bar
 //   - ⌘F         → re-focus + select-all (matches Chrome's behavior)
 //   - ⌘G         → next match (works even when input has focus)
@@ -102,6 +105,23 @@ export function FindBar({ editor, open, onClose }: Props) {
       e.stopPropagation()
       if (e.shiftKey) editor?.commands.findPrev()
       else editor?.commands.findNext()
+      return
+    }
+    // BUG-043 — ↓ / ↑ → next / previous match. Mirrors the ▼ / ▲
+    // buttons in the bar so users reach for the arrows naturally
+    // (Chrome's find bar behaves identically). preventDefault keeps
+    // the input from inserting a control character or moving the
+    // caret around the input itself.
+    if (e.key === 'ArrowDown' && !e.metaKey && !e.altKey && !e.ctrlKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      editor?.commands.findNext()
+      return
+    }
+    if (e.key === 'ArrowUp' && !e.metaKey && !e.altKey && !e.ctrlKey) {
+      e.preventDefault()
+      e.stopPropagation()
+      editor?.commands.findPrev()
       return
     }
     // ⎋ → close.

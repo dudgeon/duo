@@ -34,6 +34,7 @@ import { JustAdded } from './extensions/JustAdded'
 import { MarkdownPaste } from './extensions/MarkdownPaste'
 import { BulletListWithMarker } from './extensions/BulletListWithMarker'
 import { FindHighlight } from './extensions/FindHighlight'
+import { ListIndentShortcuts } from './extensions/ListIndentShortcuts'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
@@ -199,7 +200,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // ENH-023 — find-in-document. Highlights matches inline +
       // exposes setFindQuery/findNext/findPrev/closeFind commands.
       // FindBar (mounted below) drives it.
-      FindHighlight
+      FindHighlight,
+      // ENH-025 — ⌘[ / ⌘] outdent / indent for list items.
+      // No-op outside a list; bubbles to the global matcher (which
+      // doesn't claim plain ⌘[ / ⌘]) so we don't disrupt other
+      // surfaces.
+      ListIndentShortcuts
     ],
     []
   )

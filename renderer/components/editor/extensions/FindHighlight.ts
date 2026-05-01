@@ -143,6 +143,14 @@ export const FindHighlight = Extension.create({
 
   addProseMirrorPlugins() {
     const ext = this
+    // BUG-043 fix — dedupe per scrollTo signal so the smooth scroll
+    // fires exactly once per setQuery / next / prev. Plain `view.update`
+    // can re-fire for cursor moves, focus changes, and other unrelated
+    // transactions, all of which would re-read `scrollTo` and re-scroll
+    // (visible as either the doc not scrolling at all when smooth-scroll
+    // animations layer on top of each other, or as jittery snap-backs).
+    let lastScrolledIndex: number | null = null
+    let lastScrolledQuery: string | null = null
     return [
       new Plugin<FindState>({
         key: PLUGIN_KEY,
@@ -223,36 +231,38 @@ export const FindHighlight = Extension.create({
           update: (view) => {
             const findState = PLUGIN_KEY.getState(view.state)
             if (!findState || findState.scrollTo === null) return
+            // BUG-043 fix — dedupe by (query, scrollTo) so we only
+            // scroll on actual user-driven find navigation, not on
+            // every unrelated transaction that re-fires `update`.
+            if (
+              lastScrolledIndex === findState.scrollTo &&
+              lastScrolledQuery === findState.query
+            ) {
+              return
+            }
+            lastScrolledIndex = findState.scrollTo
+            lastScrolledQuery = findState.query
             const target = findState.matches[findState.scrollTo]
             if (!target) return
-            // Consume the scrollTo signal so we don't loop on
-            // subsequent updates. setMeta in a transaction would
-            // re-fire this view.update — instead, write directly to
-            // the plugin state's mutable scrollTo by building a
-            // no-op transaction. Simpler: just check scrollTo and
-            // schedule the scroll once per view.update; the next
-            // unrelated update will see scrollTo === current
-            // (potentially stale), so guard with a short ref.
-            try {
-              const coords = view.coordsAtPos(target.from)
-              const editorEl = view.dom.parentElement ?? view.dom
-              const rect = (editorEl as HTMLElement).getBoundingClientRect()
-              const desired = coords.top - rect.top - rect.height / 3
-              ;(editorEl as HTMLElement).scrollBy({ top: desired, behavior: 'smooth' })
-              // Clear scrollTo via a no-op transaction so we don't
-              // re-scroll on the next unrelated render.
-              const clear = view.state.tr.setMeta(PLUGIN_KEY, { type: 'next-clear-scroll' })
-              // Actually 'next-clear-scroll' isn't a valid meta type; use
-              // a different mechanism: mutate the storage directly.
-              // PM doesn't allow mutating plugin state outside apply,
-              // so just leave scrollTo as-is — the next setQuery /
-              // next / prev call will overwrite it. This means the
-              // smooth scroll will fire once per state-change, which
-              // is the desired behavior. Drop the no-op tr.
-              void clear
-            } catch {
-              /* coordsAtPos can throw mid-render; ignore */
-            }
+            // BUG-043 fix — original `scrollBy` on `view.dom.parentElement`
+            // failed silently because the actual scroll container is
+            // 2-3 ancestors up from `view.dom` (the `.flex-1.overflow-auto`
+            // wrapper in MarkdownEditor.tsx, with `.tiptap` and the
+            // centered column in between). Use the decoration's DOM
+            // node directly + native `scrollIntoView`, which walks up
+            // looking for the right scrollport itself. Defer to the
+            // next frame so the decoration has been painted by the
+            // time we look it up.
+            requestAnimationFrame(() => {
+              try {
+                const el = view.dom.querySelector('.duo-find-match-current')
+                if (el && typeof (el as HTMLElement).scrollIntoView === 'function') {
+                  ;(el as HTMLElement).scrollIntoView({ block: 'center', behavior: 'smooth' })
+                }
+              } catch {
+                /* scrollIntoView can throw mid-teardown; ignore */
+              }
+            })
           }
         })
       })
