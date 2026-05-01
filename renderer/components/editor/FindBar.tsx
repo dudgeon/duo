@@ -148,7 +148,7 @@ export function FindBar({ editor, open, onClose }: Props) {
         spellCheck={false}
         autoCorrect="off"
         autoCapitalize="off"
-        className="flex-1 min-w-0 px-2 py-0.5 text-[12px] bg-paper border border-paper-rule rounded text-ink placeholder-ink-ghost outline-none focus:border-accent focus:bg-white"
+        className="flex-1 min-w-0 px-2 py-0.5 text-[12px] bg-paper border border-paper-rule rounded text-ink placeholder-ink-ghost outline-none focus:border-accent"
       />
       <button
         type="button"

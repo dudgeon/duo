@@ -57,6 +57,25 @@ export default {
           mute: 'var(--duo-ink-mute)',
           ghost: 'var(--duo-ink-ghost)'
         },
+        // BUG-044 — `paper-*` aliases. Multiple components (TabBar,
+        // WorkingTabStrip, FindBar) reach for `bg-paper-deep`,
+        // `border-paper-rule`, etc. — but those classes were never
+        // defined in this config, so they silently fell through to
+        // browser defaults. In light mode the fallthrough was
+        // unnoticed (browser-default white reads fine against dark
+        // `text-ink`). In dark mode the FindBar's input rendered as
+        // light-cream text on white because `bg-paper` resolved to
+        // nothing — flagged as "light brown on white" in the v0.5.4
+        // smoke walk. Add the aliases so all existing usages start
+        // working correctly. Same CSS variables as `surface.*`; new
+        // names are kept because that's how the components already
+        // reach for them and renaming them risks more drift.
+        paper: {
+          DEFAULT: 'var(--duo-paper)',
+          deep: 'var(--duo-paper-deep)',
+          edge: 'var(--duo-paper-edge)',
+          rule: 'var(--duo-paper-rule)'
+        },
         mark: 'var(--duo-mark)'
       }
     }
