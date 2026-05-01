@@ -182,7 +182,16 @@ async function createWindow(): Promise<void> {
   // can intercept user-driven navigations + popups, AND retained here
   // so the agent path (openExternalUrl) can reuse the same matcher
   // for the post-redirect banner reason lookup.
-  externalDomainsService = new ExternalDomainsService()
+  //
+  // ENH-021 v2 (2026-04-30) — pass the Vite-injected bundled defaults
+  // so the runtime can self-heal an empty / missing file at boot.
+  // The install-service's bootstrap+merge path (ENH-021 v1) only
+  // fires on user-clicked install; existing users with a populated-
+  // but-empty file (a state we discovered during the v0.5.3 smoke
+  // walk) never triggered it and ended up with zero routing.
+  externalDomainsService = new ExternalDomainsService({
+    defaults: __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__
+  })
   await externalDomainsService.load()
   externalDomainsService.watch()
 

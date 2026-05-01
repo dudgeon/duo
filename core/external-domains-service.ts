@@ -47,18 +47,48 @@ export interface ExternalDomainMatch {
 
 const DEFAULT_FILE_PATH = path.join(homedir(), '.claude', 'duo', 'external-domains.json')
 
+export interface ExternalDomainsServiceOptions {
+  /** Optional override for the on-disk JSON path (testing). */
+  filePath?: string
+  /** Bundled defaults that bootstrap the file when it's missing OR
+   *  when its `domains` array is empty. ENH-021 had the
+   *  install-service handle bootstrap+merge, but that path only
+   *  fires on user-clicked install. Existing users with a
+   *  populated-but-empty `external-domains.json` (e.g. a prior bug
+   *  cleared it, or a manual edit) never triggered the merge and
+   *  ended up with no off-host routing at all. Passing defaults
+   *  here lets the runtime self-heal at every boot — independent
+   *  of the install banner state. */
+  defaults?: readonly string[]
+}
+
 export class ExternalDomainsService {
   private filePath: string
+  private defaults: readonly string[]
   private entries: ExternalDomainEntry[] = []
   private loaded = false
   private watcher: FSWatcher | null = null
   private reloadTimer: NodeJS.Timeout | null = null
 
-  constructor(filePath: string = DEFAULT_FILE_PATH) {
-    this.filePath = filePath
+  constructor(opts: ExternalDomainsServiceOptions | string = {}) {
+    // Backwards-compat: callers in tests pass a path string directly.
+    if (typeof opts === 'string') {
+      this.filePath = opts
+      this.defaults = []
+    } else {
+      this.filePath = opts.filePath ?? DEFAULT_FILE_PATH
+      this.defaults = opts.defaults ?? []
+    }
   }
 
-  /** Load the file once. Idempotent — subsequent calls reload. */
+  /** Load the file once. Idempotent — subsequent calls reload.
+   *
+   *  Self-heal contract (ENH-021 v2 · 2026-04-30): when the file is
+   *  missing OR parses to an empty `domains` array AND we have
+   *  bundled defaults, write the defaults to disk and reload. This
+   *  closes the gap where existing users had a populated-but-empty
+   *  file that the install-service's merge path never saw (because
+   *  it only fires on user-clicked install, not at every boot). */
   async load(): Promise<void> {
     try {
       const raw = await fsPromises.readFile(this.filePath, 'utf8')
@@ -72,14 +102,43 @@ export class ExternalDomainsService {
         })
         .filter((e): e is ExternalDomainEntry => e !== null)
       this.loaded = true
+
+      // Self-heal: empty array + defaults available → write defaults.
+      if (this.entries.length === 0 && this.defaults.length > 0) {
+        await this.bootstrapFromDefaults()
+      }
     } catch {
-      // Missing or malformed → empty list. Don't fall back to
-      // hardcoded defaults here; the install-service is responsible
-      // for bootstrapping the file. If it's missing AND the user
-      // typed `capitalone.com`, the embedded browser will load it.
-      // That's acceptable — re-bootstrap restores routing.
+      // File missing or malformed.
       this.entries = []
       this.loaded = true
+      // Self-heal: write bundled defaults if available. Malformed-JSON
+      // case: we'd rather overwrite a malformed file than leave the
+      // user's blocklist permanently broken. (The install-service's
+      // additive-merge path explicitly preserves malformed files; this
+      // runtime path takes the opposite stance because the user
+      // experience of "domain bouncing silently broken forever" is
+      // worse than overwriting a file that's already non-functional.)
+      if (this.defaults.length > 0) {
+        await this.bootstrapFromDefaults()
+      }
+    }
+  }
+
+  private async bootstrapFromDefaults(): Promise<void> {
+    try {
+      const payload = JSON.stringify({ domains: this.defaults }, null, 2) + '\n'
+      // Ensure the parent dir exists. mkdir is recursive + idempotent.
+      const dir = path.dirname(this.filePath)
+      await fsPromises.mkdir(dir, { recursive: true })
+      await fsPromises.writeFile(this.filePath, payload)
+      // Re-read so `entries` reflects the just-written file.
+      const raw = await fsPromises.readFile(this.filePath, 'utf8')
+      const parsed = JSON.parse(raw) as { domains?: string[] }
+      this.entries = (parsed.domains ?? []).map(host => ({ host }))
+    } catch {
+      // Couldn't write (permissions, disk full, etc.). entries
+      // stays as the empty list; routing is degraded but the app
+      // doesn't crash. The next boot will retry.
     }
   }
 
