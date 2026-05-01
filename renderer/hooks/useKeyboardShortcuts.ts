@@ -156,6 +156,15 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'findPrev':
           opts.findPrev?.()
           return
+        case 'sendToDuo': {
+          // Stage 15.3 — ⌘D dispatches a CustomEvent that each
+          // editor / canvas / browser-pane surface listens for and
+          // routes to its own Send → Duo handler. Same indirection
+          // pattern as duo-cycle-working-tab and duo-tree-start-rename:
+          // keeps the global hook free of surface-specific state.
+          window.dispatchEvent(new CustomEvent('duo-send-to-duo', { detail: { pane } }))
+          return
+        }
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()
           return

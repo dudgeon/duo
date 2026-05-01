@@ -888,6 +888,19 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     setPillRect(null)
   }, [onSendToDuo, selectionFormat])
 
+  // Stage 15.3 — ⌘D listener. Same pattern as MarkdownEditor's:
+  // global shortcut matcher fires `duo-send-to-duo`; canvas runs its
+  // own pill click. Listener is gated on a cached selection snapshot
+  // so a chord with no active selection no-ops cleanly.
+  useEffect(() => {
+    const handler = () => {
+      if (!lastCanvasSelectionRef.current) return
+      handleSendToDuoClick()
+    }
+    window.addEventListener('duo-send-to-duo', handler)
+    return () => window.removeEventListener('duo-send-to-duo', handler)
+  }, [handleSendToDuoClick])
+
   // 17d — comment threads. Recomputed on every threadsTick bump (when
   // sidecar mutates) and on every selection-rebuild — the second case
   // catches the rare "anchor moved in DOM" scenario without us having

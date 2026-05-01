@@ -541,6 +541,9 @@ export class BrowserManager {
         key === 'l' ||
         key === 'w' ||
         key === 'b' ||
+        // Stage 15.3 — ⌘D = Send → Duo (chord works from browser focus
+        // when the user has selected text in the page).
+        key === 'd' ||
         key === '[' ||
         key === ']' ||
         (key >= '1' && key <= '9')

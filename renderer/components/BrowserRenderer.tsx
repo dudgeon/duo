@@ -84,6 +84,20 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
     onSendToDuo(payload)
   }, [onSendToDuo, browserSelection, selectionFormat, state.title])
 
+  // Stage 15.3 — ⌘D listener. Same shape as MarkdownEditor + CanvasTab.
+  // Browser pane is mounted whenever activeWorking.kind === 'browser';
+  // multiple browser tabs share one BrowserRenderer mount, so the
+  // single listener is correct. Gates on a non-null selection snapshot
+  // so a chord with nothing selected no-ops cleanly.
+  useEffect(() => {
+    const handler = () => {
+      if (!browserSelection.snapshot) return
+      handleSendToDuoClick()
+    }
+    window.addEventListener('duo-send-to-duo', handler)
+    return () => window.removeEventListener('duo-send-to-duo', handler)
+  }, [handleSendToDuoClick, browserSelection])
+
   return (
     <div className="flex flex-col w-full h-full bg-surface-1">
       <div className="flex items-center h-10 px-3 gap-2 border-b border-border shrink-0">

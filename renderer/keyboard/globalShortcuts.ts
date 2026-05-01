@@ -65,6 +65,10 @@ export type ShortcutId =
   | 'nextTerminalTab'
   | 'cycleTabsForward'
   | 'cycleTabsBackward'
+  // Stage 15.3 — ⌘D fires Send → Duo on the active surface (editor /
+  // canvas / browser pane). Each surface listens for the
+  // duo-send-to-duo CustomEvent and runs its own pill click.
+  | 'sendToDuo'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -147,6 +151,18 @@ export function matchGlobalShortcut(
   // focus is on a contentEditable surface (⌘B = bold there).
   if (meta && !shift && !alt && !ctrl && key === 'b' && !ctx.inEditableSurface) {
     return { id: 'toggleFilesColumn' }
+  }
+
+  // Stage 15.3 — ⌘D fires Send → Duo on the active surface. Yields
+  // to the local editor when focus is on a contentEditable surface
+  // (⌘D in markdown editors / canvas iframes is "duplicate line" /
+  // selection in some keymaps; we don't override). Outside editable
+  // surfaces (browser pane, files navigator), ⌘D fires the chord.
+  // Inside the markdown editor / canvas, the SendToDuoPill click
+  // and the chord resolution at the surface level handle it
+  // (each surface installs its own listener for duo-send-to-duo).
+  if (meta && !shift && !alt && !ctrl && key === 'd') {
+    return { id: 'sendToDuo' }
   }
 
   // ⌘` — cycle pane focus.

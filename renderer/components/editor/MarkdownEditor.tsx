@@ -533,6 +533,21 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     setPillRect(null)
   }, [onSendToDuo, selectionFormat])
 
+  // Stage 15.3 — ⌘D listener. The global shortcut matcher fires a
+  // CustomEvent; each surface that hosts a Send → Duo pill subscribes
+  // and runs its own pill-click handler. Only one editor is mounted
+  // at a time, so the listener is unambiguous; we still gate on a
+  // non-null pillRect so a chord with no active selection no-ops
+  // cleanly instead of sending an empty payload.
+  useEffect(() => {
+    const handler = () => {
+      if (!lastSelectionRef.current) return
+      handleSendToDuoClick()
+    }
+    window.addEventListener('duo-send-to-duo', handler)
+    return () => window.removeEventListener('duo-send-to-duo', handler)
+  }, [handleSendToDuoClick])
+
   // ── Serve doc-read requests with the live buffer ────────────────────────
   useEffect(() => {
     if (!editor || isNew) return

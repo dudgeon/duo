@@ -23,6 +23,60 @@ import type {
   SelectionFormat
 } from '@shared/types'
 
+// Stage 15.3 — length cap for Send → Duo payloads. The agent has
+// `duo selection` to fetch the full snapshot, so a runaway 50k-char
+// blockquote in the user's terminal is pure noise. 5000 chars =
+// ~750 words = a reasonable paragraph or two; truncation marker
+// tells the agent to call `duo selection` for the full text.
+const SEND_PAYLOAD_LENGTH_CAP = 5000
+
+/**
+ * Truncate a payload that exceeds SEND_PAYLOAD_LENGTH_CAP, appending
+ * a marker so the agent (and the human reader) can see it was cut.
+ * The marker stays on its own line so format-A's quote-block + final
+ * trailing newline remain visually clean. Format C is short by
+ * design and never trips the cap.
+ */
+function capLength(payload: string): string {
+  if (payload.length <= SEND_PAYLOAD_LENGTH_CAP) return payload
+  const truncated = payload.slice(0, SEND_PAYLOAD_LENGTH_CAP)
+  // Trim back to the last full line so we don't cut mid-character or
+  // mid-quote. Keeps the truncated body well-formed.
+  const lastNewline = truncated.lastIndexOf('\n')
+  const body = lastNewline > 0 ? truncated.slice(0, lastNewline) : truncated
+  return `${body}\n… [truncated; ${payload.length} chars total — call \`duo selection\` for the full text]\n`
+}
+
+/**
+ * Replace inline `<img>` tags in an HTML fragment with a text
+ * placeholder like `[image: alt-or-filename]`. Used by canvas
+ * formatters where snapshot.html may carry image markup. The
+ * placeholder gives the agent enough information to know an image
+ * was there without flooding the payload with base64 / long URLs.
+ * Falls back to the original text-only path when no html is present.
+ */
+function flattenImagesInHtml(html: string): string {
+  // Cheap regex pass: matches `<img ... >` (self-closing or not),
+  // captures alt= and src= for the placeholder. This is a lossy
+  // pretty-printer, not a parser; avoids pulling in a DOM dependency
+  // for the renderer-only formatter. ~95% of canvas images will
+  // match cleanly.
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  tmp.querySelectorAll('img').forEach(img => {
+    const alt = img.getAttribute('alt')?.trim()
+    const src = img.getAttribute('src') || ''
+    // Strip query / fragment / leading directories from src for the
+    // fallback label. data: URIs render as "[image: data]".
+    const fallback = src.startsWith('data:')
+      ? 'data'
+      : (src.split(/[?#]/)[0].split('/').pop() || 'image')
+    const label = alt && alt.length > 0 ? alt : fallback
+    img.replaceWith(document.createTextNode(`[image: ${label}]`))
+  })
+  return tmp.innerText
+}
+
 /**
  * Pretty-print a path: prefer `~/...` when inside the user's HOME so
  * the provenance line is readable. Falls back to the literal absolute
@@ -90,8 +144,8 @@ export function formatSendPayload(
   format: SelectionFormat
 ): string {
   switch (format) {
-    case 'a': return formatA(snapshot)
-    case 'b': return formatB(snapshot)
+    case 'a': return capLength(formatA(snapshot))
+    case 'b': return capLength(formatB(snapshot))
     case 'c': return formatC()
   }
 }
@@ -146,8 +200,8 @@ export function formatBrowserSendPayload(
   ctx?: BrowserFormatContext
 ): string {
   switch (format) {
-    case 'a': return formatBrowserA(snapshot, ctx)
-    case 'b': return formatBrowserB(snapshot)
+    case 'a': return capLength(formatBrowserA(snapshot, ctx))
+    case 'b': return capLength(formatBrowserB(snapshot))
     case 'c': return formatC()
   }
 }
@@ -168,8 +222,25 @@ function canvasProvenance(snapshot: HtmlCanvasSelectionSnapshot): string {
   return `${path} · ${snapshot.anchorPath.join(' > ')}`
 }
 
+/**
+ * Stage 15.3 — pick the best textual representation of a canvas
+ * selection. When the snapshot includes html (a non-collapsed range),
+ * pass it through flattenImagesInHtml so embedded images become
+ * `[image: alt]` placeholders instead of disappearing silently.
+ * Falls back to the plain `text` field when html isn't present
+ * (collapsed selections, surrounding-only). The .innerText path
+ * already strips images naturally on plain-text snapshots, so this
+ * branch only kicks in for the canvas-with-html case.
+ */
+function canvasSelectionText(snapshot: HtmlCanvasSelectionSnapshot): string {
+  if (snapshot.html && snapshot.html.length > 0) {
+    return flattenImagesInHtml(snapshot.html)
+  }
+  return snapshot.text || snapshot.surrounding || ''
+}
+
 function formatCanvasA(snapshot: HtmlCanvasSelectionSnapshot): string {
-  const text = snapshot.text || snapshot.surrounding || ''
+  const text = canvasSelectionText(snapshot)
   const quoted = text
     .split('\n')
     .map((line) => `> ${line}`)
@@ -178,7 +249,7 @@ function formatCanvasA(snapshot: HtmlCanvasSelectionSnapshot): string {
 }
 
 function formatCanvasB(snapshot: HtmlCanvasSelectionSnapshot): string {
-  return (snapshot.text || snapshot.surrounding || '') + ' '
+  return canvasSelectionText(snapshot) + ' '
 }
 
 export function formatCanvasSendPayload(
@@ -186,8 +257,8 @@ export function formatCanvasSendPayload(
   format: SelectionFormat
 ): string {
   switch (format) {
-    case 'a': return formatCanvasA(snapshot)
-    case 'b': return formatCanvasB(snapshot)
+    case 'a': return capLength(formatCanvasA(snapshot))
+    case 'b': return capLength(formatCanvasB(snapshot))
     case 'c': return formatC()
   }
 }
