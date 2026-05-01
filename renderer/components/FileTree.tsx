@@ -34,6 +34,21 @@ function joinPath(dir: string, base: string): string {
   return dir.endsWith('/') ? dir + base : dir + '/' + base
 }
 
+/** ENH-016 — pick a non-conflicting path under `parentDir` of the form
+ *  `${stem}${ext}`, `${stem}-1${ext}`, `${stem}-2${ext}`, etc. Used by
+ *  the "New file" / "New folder" context menu so the create + rename
+ *  flow doesn't crash on existing-file conflicts. ext = '' for folders. */
+async function pickUniquePath(parentDir: string, stem: string, ext: string): Promise<string> {
+  for (let i = 0; i < 100; i++) {
+    const name = i === 0 ? `${stem}${ext}` : `${stem}-${i}${ext}`
+    const candidate = joinPath(parentDir, name)
+    const exists = await window.electron.files.exists(candidate)
+    if (!exists) return candidate
+  }
+  // Highly unlikely; if 100 untitleds exist, fall back to a timestamp.
+  return joinPath(parentDir, `${stem}-${Date.now()}${ext}`)
+}
+
 interface FileTreeProps {
   state: NavigatorState
   actions: NavigatorActions
@@ -154,50 +169,41 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
             },
             onOpenWithDefault: (p) => window.electron.files.openExternal(p),
             onNewFile: async (parentPath) => {
-              // ENH-016 v1 — window.prompt for the filename. v2
-              // upgrade path: inline-rename a placeholder row in the
-              // tree (reuse RenameInput). Prompt is the unblock; the
-              // upgrade is purely cosmetic.
-              const name = window.prompt(`New file in ${parentPath.split('/').pop() || parentPath}:`, '')
-              if (!name || !name.trim()) return
-              const trimmed = name.trim()
-              if (trimmed.includes('/')) {
-                window.alert("Filename can't contain '/'.")
-                return
-              }
-              const target = joinPath(parentPath, trimmed)
+              // ENH-016 v2 (2026-04-30 hotfix) — replaced
+              // `window.prompt` with the create-default-name +
+              // auto-rename pattern. Electron renderer silently
+              // returns null from window.prompt(), so the original v1
+              // implementation's "name" was always empty and nothing
+              // happened. Now: create `untitled.md` (or `untitled-N.md`
+              // if it exists), then immediately put the new row into
+              // rename mode so the user names it.
+              const target = await pickUniquePath(parentPath, 'untitled', '.md')
               try {
                 await window.electron.files.write(target, new Uint8Array(0))
-                // Expand the parent folder so the new row is visible
-                // in the tree, then refresh its listing so the watcher's
-                // delayed event isn't the only path that surfaces it.
                 if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
                   actions.toggleExpand(parentPath)
                 }
                 actions.refresh(parentPath)
+                // Wait one frame so the tree has the new row before we
+                // try to put it into rename mode.
+                requestAnimationFrame(() => setRenamingPath(target))
               } catch (err) {
                 console.error('[ENH-016] new file failed:', err)
-                window.alert(`Couldn't create ${trimmed}: ${err instanceof Error ? err.message : String(err)}`)
+                window.alert(`Couldn't create file: ${err instanceof Error ? err.message : String(err)}`)
               }
             },
             onNewFolder: async (parentPath) => {
-              const name = window.prompt(`New folder in ${parentPath.split('/').pop() || parentPath}:`, '')
-              if (!name || !name.trim()) return
-              const trimmed = name.trim()
-              if (trimmed.includes('/')) {
-                window.alert("Folder name can't contain '/'.")
-                return
-              }
-              const target = joinPath(parentPath, trimmed)
+              const target = await pickUniquePath(parentPath, 'untitled-folder', '')
               try {
                 await window.electron.files.mkdir(target)
                 if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
                   actions.toggleExpand(parentPath)
                 }
                 actions.refresh(parentPath)
+                requestAnimationFrame(() => setRenamingPath(target))
               } catch (err) {
                 console.error('[ENH-016] new folder failed:', err)
-                window.alert(`Couldn't create ${trimmed}: ${err instanceof Error ? err.message : String(err)}`)
+                window.alert(`Couldn't create folder: ${err instanceof Error ? err.message : String(err)}`)
               }
             },
             onStartRename: () => setRenamingPath(menu.target.path),

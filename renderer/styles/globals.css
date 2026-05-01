@@ -283,14 +283,41 @@ html.dark {
   .duo-editor-prose ul[data-type="taskList"] li > div { flex: 1 1 auto; }
   .duo-editor-prose ul[data-type="taskList"] input[type="checkbox"] { margin-top: 2px; accent-color: var(--duo-accent); }
   /* ENH-018 — bullet marker character matches the source. `*` renders
-     as a round bullet (disc), `-` as an en-dash, `+` as a plus. The
-     `data-marker` attribute is set by BulletListWithMarker — see
-     renderer/components/editor/extensions/BulletListWithMarker.ts.
-     Unmarked lists fall through to disc (browser default) for any
-     bullet that arrives without the attribute (legacy paths). */
+     as a round bullet (disc), `-` as a dash, `+` as a plus. The
+     `data-marker` attribute is set by BulletListWithMarker (see
+     renderer/components/editor/extensions/BulletListWithMarker.ts).
+     Unmarked lists fall through to disc (browser default).
+     Implementation note (2026-04-30 hotfix): the previous version
+     used CSS `list-style-type: '...'` string literals, which render
+     a single character as the marker glyph but are subtly broken in
+     Chromium when the string is multi-codepoint or contains certain
+     unicode chars (the en-dash version was rendering as a tiny dot
+     indistinguishable from disc). Switched to ::marker pseudo-
+     elements with explicit `content`, which is unambiguous. */
   .duo-editor-prose ul[data-marker="*"]:not([data-type="taskList"]) { list-style-type: disc; }
-  .duo-editor-prose ul[data-marker="-"]:not([data-type="taskList"]) { list-style-type: '–  '; }
-  .duo-editor-prose ul[data-marker="+"]:not([data-type="taskList"]) { list-style-type: '+  '; }
+  .duo-editor-prose ul[data-marker="-"]:not([data-type="taskList"]),
+  .duo-editor-prose ul[data-marker="+"]:not([data-type="taskList"]) {
+    list-style: none;
+    padding-left: 1.5em;
+  }
+  .duo-editor-prose ul[data-marker="-"]:not([data-type="taskList"]) > li,
+  .duo-editor-prose ul[data-marker="+"]:not([data-type="taskList"]) > li {
+    position: relative;
+  }
+  .duo-editor-prose ul[data-marker="-"]:not([data-type="taskList"]) > li::before {
+    content: '–';                            /* en-dash */
+    position: absolute;
+    left: -1.2em;
+    color: var(--duo-ink-mute);
+    font-weight: 600;
+  }
+  .duo-editor-prose ul[data-marker="+"]:not([data-type="taskList"]) > li::before {
+    content: '+';
+    position: absolute;
+    left: -1.1em;
+    color: var(--duo-ink-mute);
+    font-weight: 600;
+  }
   .duo-editor-prose table {
     border-collapse: collapse;
     width: 100%;
