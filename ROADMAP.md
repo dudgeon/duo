@@ -2408,6 +2408,23 @@ snippet vocabulary lets it produce structurally consistent reports.
 - [ ] External-write reconciliation (H35) — re-use Stage 16's
       three-pane diff.
 - [ ] Slash menu (H29). Floating selection bubble (H30).
+- [ ] **ENH-027** — canvas-default routing for local HTML via
+      `<meta name="duo-open-in" content="browser">` opt-out. Today
+      `duo open foo.html` lands in browser pane while
+      `duo edit foo.html` + click-in-navigator land in canvas —
+      same file, two surfaces. ENH-027 makes canvas the universal
+      default; the meta tag is the escape valve for HTML that
+      needs full Chromium APIs (devtools, navigation history,
+      scripts that don't qualify under H8's per-file dialog).
+      **Held until 17e** because the same scripts opt-in machinery
+      is the natural place to land the meta-tag detection — both
+      read the file's `<head>` at open time, both decide a
+      routing/sandbox property. BUG-045 (file:// browser tabs
+      expose Reveal/Trash menu — ✅ shipped v0.5.4) covers the
+      immediate user pain so this can wait. See
+      `tasks.md § ENH-027` for the design + smoke-walk template
+      dependency (the skill ships with `duo-open-in: browser`
+      baked in once ENH-027 ships).
 - **Exit:** the canvas feels native enough that an HTML report from
   Claude is the natural artifact, not the markdown.
 

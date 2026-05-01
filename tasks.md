@@ -2640,9 +2640,22 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### ENH-027: Local HTML defaults to canvas, not browser (`<meta name="duo-open-in">` opt-out)
 
-**Status:** 🆕 Filed
-**Priority:** Medium-High (user's "(better yet)" preference; design already exists in ROADMAP backlog)
-**Filed:** 2026-04-30 (v0.5.4 smoke walk OTHER NOTES)
+**Status:** 🆕 Filed · **held until Stage 17e** (cross-referenced in `docs/roadmap.html` + `ROADMAP.md` Phase 17e bullet list).
+**Priority:** Medium-High (user's "(better yet)" preference; design already exists in ROADMAP backlog).
+**Filed:** 2026-04-30 (v0.5.4 smoke walk OTHER NOTES).
+
+**Why held until 17e:** the same machinery 17e ships for the
+script opt-in dialog (H8) reads the file's `<head>` at open time
+and decides a sandbox/routing property based on what it finds.
+ENH-027 piggybacks naturally — same `<head>` peek, same routing
+gate, same sidecar persistence model. Doing ENH-027 first means
+either (a) building a temporary single-purpose meta-reader that
+17e then has to absorb, or (b) shipping ENH-027 without a path
+for users to upgrade their browser-routed pages to scripts-allowed
+canvases (the obvious progression). BUG-045 (file:// browser tabs
+expose Reveal/Trash — ✅ shipped v0.5.4) closes the immediate
+user pain so the wait costs nothing. See § BUG-045 above + the
+17e roadmap entry for the bundling rationale.
 
 **Owner observation:** "for local html artifacts, ... (better yet) they should default open in canvas not in browser."
 
