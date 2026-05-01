@@ -246,6 +246,14 @@ async function main(): Promise<void> {
         out(await send('open', { url: resolved }))
         break
       }
+      case 'reload': {
+        // Stage 20 — pair for `duo navigate` that doesn't require a
+        // URL; reloads the active browser tab in place. Useful for
+        // the Stage 8 iteration flow (agent emits HTML → user clicks
+        // → agent edits → user runs `duo reload`).
+        out(await send('reload'))
+        break
+      }
       case 'url':
         out(await send('url'))
         break
@@ -1053,6 +1061,9 @@ COMMANDS
                                   tab and activate it. Useful for showing the
                                   user generated HTML artifacts or
                                   prototypes.
+  reload                          Reload the active browser tab in place
+                                  (no URL needed). Pair for "duo navigate"
+                                  in the agent's iteration loop.
   url                             Print current URL
   title                           Print current page title
   dom                             Print full page HTML

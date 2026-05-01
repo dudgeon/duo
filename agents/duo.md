@@ -116,6 +116,7 @@ empty.
 | `duo url` / `duo title` | Current URL / title (orient) |
 | `duo navigate <url>` | Active tab → URL |
 | `duo open <path-or-url>` | New browser tab + activate |
+| `duo reload` | Reload the active browser tab in place (no URL needed; pair for `navigate`) |
 | `duo external <url>` | Open in macOS default browser (listed hostnames only) |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs |
 | `duo text [--selector]` | Visible text (DOM `innerText`) — DOM pages |

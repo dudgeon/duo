@@ -182,6 +182,10 @@ async function main() {
         out(await send("open", { url: resolved }));
         break;
       }
+      case "reload": {
+        out(await send("reload"));
+        break;
+      }
       case "url":
         out(await send("url"));
         break;
@@ -854,6 +858,9 @@ COMMANDS
                                   tab and activate it. Useful for showing the
                                   user generated HTML artifacts or
                                   prototypes.
+  reload                          Reload the active browser tab in place
+                                  (no URL needed). Pair for "duo navigate"
+                                  in the agent's iteration loop.
   url                             Print current URL
   title                           Print current page title
   dom                             Print full page HTML

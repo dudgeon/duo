@@ -31,6 +31,9 @@ export interface DuoResponse {
 export type DuoCommandName =
   | 'navigate'
   | 'open'
+  // Stage 20 — `duo reload` reloads the active browser tab in place.
+  // Pair for `navigate` that doesn't require a URL.
+  | 'reload'
   | 'url'
   | 'title'
   | 'dom'

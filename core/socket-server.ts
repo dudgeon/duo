@@ -276,6 +276,22 @@ export class SocketServer {
           result = await this.browser.openTab(url)
           break
         }
+        case 'reload': {
+          // Stage 20 — `duo reload` reloads the active browser tab in
+          // place. Pair for `duo navigate` that doesn't require a URL;
+          // closes the Stage 8 iteration flow ("agent emits HTML →
+          // user clicks → agent edits → user clicks reload").
+          this.browser.reload()
+          // Capture state via the existing public getters so the
+          // response shape matches `navigate` — agents that chain
+          // `duo navigate` → `duo reload` keep getting the same
+          // `{url, title}` shape. (Reload is async at the WebContents
+          // layer; the response captures the BEFORE-reload state,
+          // which is the same URL the user is reloading.)
+          const state = this.browser.getState()
+          result = { ok: true, url: state.url, title: state.title }
+          break
+        }
         case 'url':
           result = this.browser.getActiveUrl()
           break

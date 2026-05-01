@@ -123,6 +123,7 @@ declare friction sites once and stop fighting them.
 |---|---|---|
 | `duo navigate <url>` | Navigate the **active tab** to URL | JSON: `{ok, url, title}` |
 | `duo open <path-or-url>` | Open a local file or URL in a **new** tab, activate it. Use for showing the user agent-generated artifacts. | JSON: `{ok, id, url, title}` |
+| `duo reload` | Reload the active browser tab in place (no URL). Pair for `duo navigate` in iteration loops — agent edits an artifact, user runs `duo reload` to see the result without typing the URL again. | JSON: `{ok, url, title}` |
 | `duo external <url>` | Open `<url>` in the **macOS default browser** (via Electron's `shell.openExternal`). Used for hostnames listed in `~/.claude/duo/external-domains.json` — sites that don't render well in Duo's embedded `WebContentsView` (Claude.ai, ChatGPT, banking, sites that block Electron UAs). NOT the default route — Duo handles everything not on the list. http(s) and mailto schemes only. | JSON: `{ok, opened}` |
 | `duo url` | Current URL | plain text |
 | `duo title` | Current page title | plain text |

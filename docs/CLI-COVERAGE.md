@@ -28,6 +28,7 @@ for the authoritative usage text.
 |---|---|
 | `duo navigate <url>` | Navigate the active browser tab |
 | `duo open <path-or-url>` | New browser tab with a file or URL; activates it (Stage 8) |
+| `duo reload` | Reload the active browser tab in place — pair for `navigate` without a URL (Stage 20) |
 | `duo external <url>` | Opens the URL in the macOS default browser via Electron `shell.openExternal`. Used by the `duo` subagent for hostnames listed in `~/.claude/duo/external-domains.json` — sites known not to render well in the embedded `WebContentsView` (Claude.ai, ChatGPT, banking sites, etc.). NOT used for general navigation; the default route is always Duo. http(s) and mailto schemes only. |
 | `duo url` / `duo title` | Current URL / title |
 | `duo text [--selector]` | Visible text via `innerText` |
