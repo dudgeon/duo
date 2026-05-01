@@ -259,6 +259,42 @@ const html = `<!DOCTYPE html>
   }
   textarea.notes:focus { border-color: var(--accent); background: white; }
 
+  /* Misc notes — full-width slab below the item list. Distinct
+     visual rhyme so it doesn't read as a missing 9th item. */
+  section.misc {
+    margin-top: 24px;
+    padding: 14px 18px;
+    border: 1px dashed var(--paper-rule);
+    border-radius: 6px;
+    background: var(--paper-deep);
+  }
+  .misc-title {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 15px;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+  .misc-help {
+    margin: 0 0 10px;
+    color: var(--ink-mute);
+    font-size: 12.5px;
+  }
+  textarea.misc-textarea {
+    width: 100%;
+    border: 1px solid var(--paper-rule);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    background: white;
+    color: var(--ink);
+    outline: none;
+  }
+  textarea.misc-textarea:focus { border-color: var(--accent); }
+
   /* Sticky footer with the copy + summary controls. */
   footer.actions {
     position: fixed;
@@ -328,6 +364,21 @@ const html = `<!DOCTYPE html>
 <main id="items">
 ${itemsHtml}
 </main>
+
+<section class="misc">
+  <h2 class="misc-title">Other notes</h2>
+  <p class="misc-help">
+    Anything you noticed during the walk that didn't belong to a
+    specific item — paper cuts, drift, side bugs, "while we're at
+    it" thoughts. Captured in the Copy output as a separate block.
+  </p>
+  <textarea
+    id="misc-notes"
+    class="misc-textarea"
+    rows="4"
+    placeholder="Free-form notes (optional)"
+  ></textarea>
+</section>
 
 <footer class="actions">
   <div class="summary" id="summary"></div>
@@ -403,6 +454,17 @@ ${itemsHtml}
       else skip++;
     }
     lines.push(\`SUMMARY: \${pass} PASS, \${fail} FAIL, \${skip} SKIP (\${TOTAL} total)\`);
+
+    // Misc notes — appended below the summary, only when non-empty,
+    // so the result block stays clean for runs that don't need it.
+    const misc = (document.getElementById('misc-notes').value || '').trim();
+    if (misc) {
+      lines.push('');
+      lines.push('OTHER NOTES');
+      lines.push('-----------');
+      for (const line of misc.split('\\n')) lines.push(line);
+    }
+
     return lines.join('\\n');
   }
 

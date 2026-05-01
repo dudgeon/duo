@@ -200,6 +200,11 @@ SMOKE WALK v0.5.4 (2026-04-30)
 [SKIP] ENH-026 — Right-click on tab menu
 
 SUMMARY: 6 PASS, 1 FAIL, 1 SKIP (8 total)
+
+OTHER NOTES
+-----------
+Tab strip background contrast still feels off in dark mode.
+Filed as a separate paper-cut to track.
 ```
 
 **Format invariants the parser depends on:**
@@ -208,6 +213,12 @@ SUMMARY: 6 PASS, 1 FAIL, 1 SKIP (8 total)
   `  Notes: <text>` line (indented 2 spaces; multi-line notes use
   `\n  ` to preserve indentation).
 - Footer: `SUMMARY: ...` line.
+- **Optional `OTHER NOTES` block** at the bottom (blank line +
+  `OTHER NOTES` + dash rule + free text). Only present when the
+  user typed into the misc-notes field. Capture verbatim and treat
+  every line as observation: file paper cuts as their own BUG-* /
+  ENH- entries in tasks.md, surface UX drift in the next sprint
+  plan, etc. Don't try to PASS/FAIL anything in this block.
 - STATUS is exactly one of `PASS`, `FAIL`, `SKIP`.
 - Items are in the same order as the manifest (so ordering errors
   in the source manifest propagate, but parse-side is positional).
