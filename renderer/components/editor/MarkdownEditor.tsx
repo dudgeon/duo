@@ -690,9 +690,44 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         }
 
         if (resolvedPos !== null) {
-          editor.commands.focus()
-          editor.commands.setTextSelection(resolvedPos)
-          editor.commands.scrollIntoView()
+          // ENH-022 v2 — chain everything into ONE transaction so the
+          // scrollIntoView flag is on the same tr that moves the
+          // selection. The original three-separate-commands form
+          // ended up with scrollIntoView running on an empty
+          // transaction after the selection had already settled,
+          // which PM treated as "selection already visible — nothing
+          // to scroll" depending on layout. Chain forces PM to scroll
+          // to the new selection at commit time.
+          editor.chain()
+            .focus()
+            .setTextSelection(resolvedPos)
+            .scrollIntoView()
+            .run()
+          // ENH-022 v2 belt-and-braces — same family of failures as
+          // BUG-043: ProseMirror's scrollIntoView walks up looking for
+          // a scrollable ancestor, but the MarkdownEditor's actual
+          // scroll container is 2-3 ancestors above view.dom (the
+          // .flex-1.overflow-auto wrapper, with .tiptap and the
+          // centered column in between). When PM's heuristic misses,
+          // the chain above succeeds but no visual scroll happens.
+          // Resolve the target's DOM node and call native
+          // scrollIntoView so the browser walks all the way up. RAF
+          // defers until after the chain's transaction has rendered.
+          const targetPos = resolvedPos
+          requestAnimationFrame(() => {
+            try {
+              const dom = editor.view.domAtPos(targetPos)
+              const node = dom.node.nodeType === 1
+                ? (dom.node as HTMLElement)
+                : (dom.node.parentElement as HTMLElement | null)
+              if (node && typeof node.scrollIntoView === 'function') {
+                node.scrollIntoView({ block: 'center', behavior: 'smooth' })
+              }
+            } catch {
+              /* domAtPos can throw on edge positions; PM's chain
+                 already attempted the scroll, so swallow */
+            }
+          })
         }
 
         window.electron.editor.replyDocGoto({
