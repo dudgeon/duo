@@ -22,6 +22,7 @@ import {
   isInEditableSurface,
   type ShortcutId
 } from '../keyboard/globalShortcuts'
+import { cycleNext } from '../keyboard/tabCycle'
 
 interface Options {
   // Action callbacks. App.tsx owns the actual side effects (tab
@@ -65,8 +66,25 @@ export function useKeyboardShortcuts(opts: Options) {
   // the keystroke fires.
   const tabsRef = useRef<TabSession[]>(opts.tabs)
   const activeTabIdRef = useRef<string>(opts.activeTabId)
+  // BUG-038 (4th instance) — same closure-staleness story as BUG-021,
+  // applied to `activePaneFocus`. The dispatcher used to read the focus
+  // value off the useEffect closure, which `opts.activePaneFocus`
+  // populates via the deps array. But there's a window where:
+  //   1. User clicks into a terminal tab → React schedules a state
+  //      update for `focusedColumn`.
+  //   2. Before React re-runs the useEffect (and rebinds the
+  //      dispatcher closure), the user presses ⌃Tab.
+  //   3. The capture-phase keydown fires, but `pane` is still the
+  //      previous value (often `'working'` from a prior browser /
+  //      canvas click), so the cycle takes the BROWSER branch instead
+  //      of the terminal branch, leaving most terminal tabs
+  //      unreachable.
+  // Ref ensures the dispatcher always sees the latest pane focus at
+  // keystroke time, no matter where useEffect's render loop is.
+  const activePaneRef = useRef<'files' | 'terminal' | 'working' | undefined>(opts.activePaneFocus)
   tabsRef.current = opts.tabs
   activeTabIdRef.current = opts.activeTabId
+  activePaneRef.current = opts.activePaneFocus
 
   useEffect(() => {
     // Build a single dispatcher that App.tsx callbacks resolve through.
@@ -76,7 +94,11 @@ export function useKeyboardShortcuts(opts: Options) {
     // focus so ⌃Tab routes to browser tabs even when the renderer's
     // cached `focusedColumn` is stale.
     const dispatch = (id: ShortcutId, arg: number | undefined, paneOverride?: 'files' | 'terminal' | 'working') => {
-      const pane = paneOverride ?? opts.activePaneFocus
+      // BUG-038 (4th instance) fix — read pane from a ref so the
+      // dispatcher always sees the CURRENT focus state, not the
+      // useEffect-closure snapshot. paneOverride still wins for the
+      // browser-pane forwarder path (Chromium-swallowed keydowns).
+      const pane = paneOverride ?? activePaneRef.current
       switch (id) {
         case 'newBrowserTab':
           // BUG-036 (v0.5.3) — pane-aware ⌘T. From terminal focus,
@@ -168,34 +190,26 @@ export function useKeyboardShortcuts(opts: Options) {
           return
         }
         case 'prevTerminalTab': {
-          const tabs = tabsRef.current
-          if (tabs.length === 0) return
-          const idx = tabs.findIndex(t => t.id === activeTabIdRef.current)
-          const prev = tabs[(idx - 1 + tabs.length) % tabs.length]
-          opts.setActiveTabId(prev.id)
+          const nextId = cycleNext(tabsRef.current, activeTabIdRef.current, -1)
+          if (nextId) opts.setActiveTabId(nextId)
           return
         }
         case 'nextTerminalTab': {
-          const tabs = tabsRef.current
-          if (tabs.length === 0) return
-          const idx = tabs.findIndex(t => t.id === activeTabIdRef.current)
-          const next = tabs[(idx + 1) % tabs.length]
-          opts.setActiveTabId(next.id)
+          const nextId = cycleNext(tabsRef.current, activeTabIdRef.current, 1)
+          if (nextId) opts.setActiveTabId(nextId)
           return
         }
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
-          const delta = id === 'cycleTabsBackward' ? -1 : 1
-          // BUG-021 fix — read tabs from ref so the cycle always
-          // sees post-session-restore state. The closure itself
-          // re-binds when opts.tabs changes (via deps) but the ref
-          // is belt+braces against any timing windows where the
-          // closure is stale.
+          const delta = (id === 'cycleTabsBackward' ? -1 : 1) as 1 | -1
+          // BUG-021 + BUG-038 — read both tabs and activePaneFocus from
+          // refs so the cycle sees CURRENT state at keystroke time, not
+          // a useEffect-closure snapshot. cycleNext is a pure helper
+          // that handles wrap-around and -1-idx fallback consistently.
           const tabs = tabsRef.current
           if (pane === 'terminal' && tabs.length > 0) {
-            const idx = tabs.findIndex(t => t.id === activeTabIdRef.current)
-            const next = tabs[(idx + delta + tabs.length) % tabs.length]
-            opts.setActiveTabId(next.id)
+            const nextId = cycleNext(tabs, activeTabIdRef.current, delta)
+            if (nextId) opts.setActiveTabId(nextId)
           } else {
             void (async () => {
               // Browser side: getTabs() is an IPC call, so it
