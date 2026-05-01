@@ -98,25 +98,39 @@ The generator reads the JSON, embeds the items into a self-contained
 HTML page (Atelier-styled, scriptless dependencies, inline JS for
 the copy button), and writes the output file.
 
-### 4. Ensure dev server is running
+### 4. Run `npm run dev` yourself — DO NOT ASK
 
-Check for an Electron process:
+This is the first thing the skill must do. Geoff has been
+explicit: *"run the dev server yourself."* Do not ask permission.
+Do not offer options. Do not propose alternatives. The skill's
+whole point is to remove the "should I?" friction from sprint-end
+verification.
 
 ```bash
 ps aux | grep -i "[D]uo.app/Contents/MacOS/Duo\|[e]lectron" | head -3
 ```
 
-If a packed `.app` is running, ask the user to quit it first — the
-smoke walk needs the dev server (`npm run dev`) so freshly-shipped
-code is live. If nothing's running, start it in the background:
+- **If a packed `.app` is running** (path contains `dist/mac-arm64/`
+  or `/Applications/Duo.app`), tell the user once: *"Quitting the
+  packed app and starting dev — your shipped code isn't live in
+  the running build. The smoke page will reload when dev comes
+  up."* Then: kill the packed app politely (`osascript -e 'quit
+  app "Duo"'`) OR ask the user to quit it via ⌘Q if you don't have
+  computer-use access. Do NOT proceed until it's gone — two Duo
+  instances fighting over the socket is worse than no Duo.
+- **If nothing's running**, just start `npm run dev` straight away.
+- Either way: launch via Bash with `run_in_background: true`. Don't
+  poll for output — the dev server takes 3–6s to boot.
 
-```bash
-npm run dev
-# (run_in_background: true)
-```
+After kicking it off, wait one cache-window (~270s if you have
+nothing else to do, or ~10s plus a `duo nav-state` probe to
+confirm the bridge is up). The probe returns JSON when the
+renderer is alive; before that it errors with `ECONNREFUSED`.
 
-Wait ~5s for the renderer to boot; check via `duo nav-state` (returns
-JSON if the bridge is up).
+If `duo nav-state` still errors after ~30s, surface the dev
+server's stderr to the user — something else is wrong (port in
+use, missing dependency, sandbox refusal). Don't keep silently
+retrying.
 
 ### 5. Open the smoke walk page in Duo's browser pane
 
