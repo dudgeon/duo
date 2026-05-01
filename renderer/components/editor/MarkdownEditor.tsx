@@ -644,10 +644,34 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         let resolvedPos: number | null = null
         let resolvedLine: number | undefined
         let resolvedAnchor: string | undefined
+        // ENH-022 v3 — surface the matched heading text in the
+        // response so the user can verify which heading the
+        // precedence chain picked (vs. assuming "BUG-038" landed on
+        // BUG-038). Wrong-match reports become self-diagnosing.
+        let resolvedHeading: string | undefined
 
         if (heading !== undefined) {
+          // ENH-022 v3 — match precedence: exact (case-insensitive) >
+          // starts-with > whole-word > substring. Previous v2 logic
+          // used a single `includes` pass which could pick a heading
+          // that mentions the needle in passing (e.g. an entry whose
+          // body cross-refs the target ID would not match — but if
+          // an earlier heading TEXT contains the needle as a stray
+          // substring, find returns that one first). Tightening the
+          // precedence resolves "duo doc goto --heading BUG-038
+          // landed on BUG-032" by ranking exact / starts-with / word
+          // matches above naive substring.
           const needle = heading.toLowerCase()
-          const hit = headings.find(h => h.text.toLowerCase().includes(needle))
+          const exact = headings.find(h => h.text.toLowerCase() === needle)
+          const startsWith = !exact ? headings.find(h => h.text.toLowerCase().startsWith(needle)) : null
+          // Word-boundary match — needle preceded/followed by non-word char
+          // OR start/end of the heading text. Catches "BUG-038" inside
+          // "### BUG-038: …" (colon is a word boundary) but rejects a
+          // heading that just has "bug-038" as part of a longer slug.
+          const wordRe = new RegExp(`(^|\\W)${needle.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}(\\W|$)`, 'i')
+          const wordMatch = !exact && !startsWith ? headings.find(h => wordRe.test(h.text)) : null
+          const sub = !exact && !startsWith && !wordMatch ? headings.find(h => h.text.toLowerCase().includes(needle)) : null
+          const hit = exact || startsWith || wordMatch || sub
           if (!hit) {
             window.electron.editor.replyDocGoto({
               reqId: req.reqId, ok: false,
@@ -658,6 +682,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           resolvedPos = hit.pos
           resolvedLine = hit.line
           resolvedAnchor = hit.slug
+          resolvedHeading = hit.text
         } else if (anchor !== undefined) {
           const needle = anchor.toLowerCase()
           // Match exact slug, then prefix, then substring — first hit wins.
@@ -675,6 +700,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           resolvedPos = hit.pos
           resolvedLine = hit.line
           resolvedAnchor = hit.slug
+          resolvedHeading = hit.text
         } else if (reqLine !== undefined) {
           // Line-based goto: clamp to last line; map to a PM position.
           const targetLine = Math.min(Math.max(1, reqLine), mdLines.length)
@@ -747,7 +773,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         window.electron.editor.replyDocGoto({
           reqId: req.reqId, ok: true, path,
-          line: resolvedLine, anchor: resolvedAnchor
+          line: resolvedLine, anchor: resolvedAnchor,
+          matched_heading: resolvedHeading
         })
       } catch (err) {
         window.electron.editor.replyDocGoto({

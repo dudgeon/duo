@@ -2359,7 +2359,9 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** 🟡 **v2 partially fixed — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk.** Editor now scrolls (v2 fix landed) BUT scrolls to the **wrong heading**. User repro: `duo doc goto --heading "BUG-038"` lands on BUG-032 instead of BUG-038. Both headings exist in tasks.md; both contain the substring searched-for in some shape. v2 fix proved the scroll plumbing works; v3 needs to fix the heading-match logic.
+**Status:** ✅ **v3 fix shipped 2026-05-01 (v0.5.4 sub-sprint).** Match precedence tightened: `exact (case-insensitive) > starts-with > word-boundary > substring`. Previous v2 logic used a single `includes` pass which could pick a heading that mentions the needle as a stray substring; the precedence chain now ranks intentional matches above incidental ones. Response shape (`DocGotoResult`) extends with `matched_heading` so the user can verify which heading was picked — wrong-match reports become self-diagnosing. Smoke-walk verification owed; the key check is that `duo doc goto --heading "BUG-038"` against tasks.md returns `matched_heading: "BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)"` and lands on the right anchor.
+
+**Was 🟡 (v2 partially fixed — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk):** Editor scrolled (v2 fix landed) but to BUG-032 instead of BUG-038. v2 fix proved the scroll plumbing; v3 fixes the heading-match logic.
 
 **v3 hypotheses (carry into next sprint):**
 1. **Heading match precedence is too loose.** Current impl: `headings.find(h => h.text.toLowerCase().includes(needle))`. First match wins, but `includes` is permissive — a heading text "BUG-032 (… mentions BUG-038 in body)" wouldn't match (only the heading text is searched), so this is unlikely. Worth verifying with the actual returned `anchor` field from the CLI response.
@@ -2642,7 +2644,9 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-045: File:// browser tabs should expose file context menu (ENH-026 follow-up)
 
-**Status:** 🟡 **Menu items render but are visually occluded — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk.** User screenshot shows "Reveal in navigator" and a partial "Rename..." entry visible above the strip / address bar zone, with the rest of the menu cut off behind the WebContentsView (the dark area below the address bar). Same root cause family as BUG-006 (Send → Duo pill on browser pane): renderer-DOM overlays sit ABOVE the renderer's own DOM but BELOW the WebContentsView at the macOS compositor level. The menu items are functionally correct (BUG-045's logic shipped); the rendering surface is the gap. **See BUG-047 for the systemic fix to the whole class.** For BUG-045 specifically, the workaround is to render the menu inside the renderer-DOM area (above the WebContentsView's top edge — the address bar / strip zone) rather than at the cursor's exact y-coordinate. Filed 2026-05-01.
+**Status:** ✅ **v2 fix shipped 2026-05-01 (v0.5.4 sub-sprint, post-rev2 walk).** WCV-overlay-mute via the new `browser.setOverlayMuted(boolean)` API: when the user right-clicks a browser tab in the WorkingTabStrip, the WebContentsView is collapsed to 1×1 for the duration of the menu, then restored on close (or outside-click / Escape). Closes the occlusion gap — full menu is now visible regardless of menu height. See BUG-047 for the broader class summary + the alternative paths considered.
+
+**Was 🟡 (menu items render but are visually occluded — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk):** User screenshot shows "Reveal in navigator" and a partial "Rename..." entry visible above the strip / address bar zone, with the rest of the menu cut off behind the WebContentsView. Same root cause family as BUG-006 (Send → Duo pill on browser pane): renderer-DOM overlays sit ABOVE the renderer's own DOM but BELOW the WebContentsView at the macOS compositor level. v1 (2026-04-30) shipped the data plumbing correctly; only the rendering surface was occluded.
 
 **Was ✅ (v1 shipped 2026-04-30):** When a browser tab points at a local file (`file://` URL — e.g. smoke walk page, agent-generated dashboard, local HTML preview), the right-click context menu exposes Reveal in navigator / Rename… / Move to Trash… in addition to Pin/Unpin. Previously only "true" file tabs (path-bearing markdown, canvas, image previews) got the file menu. The data plumbing is correct; the rendering occlusion is the only remaining gap.
 
@@ -2697,6 +2701,79 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 - Stage 17e — allow-scripts opt-in dialog (still deferred). Once shipped, scripts can run in canvas, and `duo-open-in: browser` becomes a narrower escape valve (specifically for full-Chromium APIs, devtools, navigation history).
 - BUG-045 — covers the deletable-from-browser case for files that explicitly chose browser semantics.
 - `.claude/skills/smoke-walk/` — needs the meta tag once ENH-027 ships, OR a `--browser` CLI flag on `duo open`.
+
+---
+
+### BUG-048: ⌘\` (pane focus toggle) broken after `duo open` shifts focus to a new browser tab
+
+**Status:** 🆕 Filed
+**Priority:** Medium (regression in the focus-toggle path; happy-path flow is "agent opens an artifact, user reads, ⌘\` back to terminal to chat")
+**Filed:** 2026-05-01 (v0.5.4-rev2 walk #2 — DUO-RELOAD PASS note)
+
+**Owner observation:** "on `duo open`, page opens correctly; and focus shifts to newly opened browser (good!) but then ⌘\` to shift focus back to terminal is broken."
+
+**Hypothesis:** ⌘\` is wired through the app menu accelerator (which beats macOS's built-in "cycle windows" system shortcut) and dispatched via `IPC.PANE_TOGGLE_FOCUS` to the renderer. It's intentionally NOT in `wireKeyForwarding`'s allowlist — so when the WebContentsView has OS focus, the menu accelerator fires anyway. Possible breaks:
+1. **OS focus didn't actually leave the renderer.** BUG-042 fix made `webContents.on('focus')` flip `focusedColumn = 'working'`, but maybe OS focus is split (renderer has it for keyboard purposes but the WCV thinks it has it for input-routing). togglePaneFocus's "focus the active xterm" branch runs but the xterm doesn't actually become the keyboard target.
+2. **togglePaneFocus reads stale state.** togglePaneFocus is a useCallback in App.tsx; if its closure's `focusedColumn` is stale, the toggle direction could be wrong.
+3. **The accelerator path is being preempted.** Some other listener is consuming ⌘\` before the menu fires.
+
+**Diagnosis path (next sprint):**
+- Add a `console.log('[togglePaneFocus]', { focusedColumn, activeTabId })` at the top of the handler.
+- Reproduce: `duo open https://example.com` → press ⌘\`.
+- Check what focusedColumn is at the moment of the toggle, and whether the toggle ran at all.
+- Verify the menu accelerator still fires by adding a separate console.log in `electron/main.ts § app-menu`.
+
+**Cross-ref:** BUG-002 (⌘T from browser focus reclaims focus correctly — same family). BUG-042 (browser-pane focus-gained signal — recent fix). DUO-RELOAD (parent walk PASS).
+
+---
+
+### ENH-031: Right-click context menu in markdown editor / browser pane (electron-context-menu)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (pre-existing UX gap surfaced during v0.5.4-rev2 walk; users expect Cut / Copy / Paste / Spell-check / Inspect at right-click)
+**Filed:** 2026-05-01 (v0.5.4-rev2 walk #2 — STAGE-15.3 FAIL note: "context clicking in markdown editor also does nothing — expected copy/paste/etc actions")
+
+**Today:** Electron renderers don't show a default context menu unless one is explicitly wired up. We never have. Right-click in the markdown editor / canvas / browser pane does nothing — no Cut / Copy / Paste / Spell-check / Inspect. WorkingPane tabs DO show their context menu (BUG-045 / ENH-026 wiring); FileTree rows DO show theirs (BUG-041 / Stage 26 PR 1 wiring). The text-editing surfaces are the gap.
+
+**Implementation paths:**
+- **A. `electron-context-menu` npm package** — small dependency that wires `Cut / Copy / Paste / Select All / Spell check / Inspect element` based on what's clicked. Most common Electron pattern. ~5 lines in main.ts to install.
+- **B. Custom `webContents.on('context-menu', ...)` handler** — build the menu ourselves with full control over items + ordering. More work but lets us add Atelier-styled items and integrate with `duo` verbs (e.g. "Send to Duo" as a context-menu entry alongside Copy / Paste).
+- **C. Renderer-side React context menu** — same pattern as our existing FileTree / WorkingTabStrip context menus. Captures `onContextMenu` events on each editor surface; renders our `<ContextMenu>` component. Most aesthetic consistency, but loses access to Electron's Spell-check infrastructure.
+
+**Recommend Path A for v1** — fastest path to "right-click does the right thing"; B/C as future iterations if we want custom items. Pairs well with **ENH-030** ("copy as plain text") which would slot in as one of B/C's custom items.
+
+**Affected files:**
+- `electron/main.ts` — install electron-context-menu OR wire `webContents.on('context-menu')`.
+- (Optional) `package.json` if we add the dependency.
+
+**Cross-ref:** STAGE-15.3 walk #2 fail (the symptom that surfaced this). ENH-030 ("copy as plain text" — natural sibling). BUG-045 (right-click on tabs already shipped — sets the design rhyme).
+
+---
+
+### ENH-030: "Copy as plain text" — context menu entry + keyboard shortcut
+
+**Status:** 🆕 Filed
+**Priority:** Medium (real UX gap — agent and human both want plain-text export from rich content)
+**Filed:** 2026-05-01 (v0.5.4-rev2 walk #2 — STAGE-15.3 FAIL note)
+
+**Owner observation:** "new ENH, new action to 'copy as plain text' in menu and with keyboard shortcut" — surfaced while testing the markdown editor's pill / context menu.
+
+**Today:** Default copy in the markdown editor includes formatting (rich HTML clipboard payload). Pasting into a terminal or another markdown editor preserves marks; pasting into a plain-text target requires the user to manually strip formatting (or use a downstream tool).
+
+**Expected:**
+- Context menu (right-click in the editor): new entry "Copy as plain text" between Copy and Paste.
+- Keyboard: ⌘⌥C (Chrome's "Paste without formatting" is ⌘⇧V; we want a parallel for Copy).
+- Behavior: `getSelection().toString()` of the current selection → `navigator.clipboard.writeText(...)`. No formatting marks, no `<>` tags, no markdown syntax — just the visible text.
+- Should work in: markdown editor, HTML canvas, browser pane (the page might trap clipboard, but we can fall through to default).
+
+**Implementation sketch:**
+- Wire ⌘⌥C in `globalShortcuts.ts` → dispatcher → CustomEvent `duo-copy-plain` → each surface listens.
+- For the markdown editor: TipTap's `editor.state.selection` has range; `editor.state.doc.textBetween(from, to, ' ')` returns plain text.
+- For the canvas: iframe's `getSelection().toString()`.
+- For the browser pane: same, via CDP `Runtime.evaluate('window.getSelection().toString()')` then write to renderer clipboard.
+- Context menu: add an entry to whichever menu fires on right-click in editable surfaces. (In the markdown editor today, the BROWSER's native context menu fires; we'd need to override with a custom one OR rely on the keyboard shortcut alone.)
+
+**Cross-ref:** STAGE-15.3 PASS-with-fail observation. Send → Duo (different verb but related semantic — "agent reads my selection plainly").
 
 ---
 
@@ -2770,8 +2847,8 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### BUG-047: WebContentsView occludes renderer-DOM overlays (BUG-006 / BUG-045 class)
 
-**Status:** 🆕 Filed
-**Priority:** Medium-High (blocks the FIX path for BUG-006 + BUG-045 + ENH-028; structural)
+**Status:** 🟡 **First fix landed 2026-05-01** — `BrowserManager.setOverlayMuted(boolean)` collapses the WCV to 1×1 while a renderer-DOM overlay is open. WorkingTabStrip uses it for browser-tab right-click (BUG-045 v2). BUG-006 (Send → Duo pill) and ENH-028 (find-bar) still need their own integrations of the same primitive. Filed for follow-up — keep open as a class summary until BUG-006 is closed.
+**Priority:** Medium-High (blocks the FIX path for BUG-006 + ENH-028; structural)
 **Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk FAIL on BUG-045)
 
 **Owner observation:** From the BUG-045 fail note + screenshot: "context menu is occluded — cannot fully test (renders over the url bar but under the browser content pane; same issue does not occur with the markdown tab context menu)."

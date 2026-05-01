@@ -50,6 +50,12 @@ export interface ElectronBrowserAPI {
   forward: () => void
   reload: () => void
   setBounds: (bounds: BrowserBounds) => void
+  /** BUG-047 — temporarily mute the WebContentsView (collapse to 1×1)
+   *  so a renderer-DOM overlay (context menu, tooltip) can render
+   *  unobstructed. macOS composites WCV above renderer DOM regardless
+   *  of z-index. Renderer should pair `setOverlayMuted(true)` on
+   *  overlay open with `setOverlayMuted(false)` on close. */
+  setOverlayMuted: (muted: boolean) => void
   getState: () => Promise<BrowserState>
   getTabs: () => Promise<BrowserTab[]>
   addTab: (url?: string) => Promise<{ ok: boolean; id: number; url: string; title: string }>

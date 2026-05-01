@@ -86,6 +86,16 @@ export function WorkingTabStrip({
       x: e.clientX,
       y: e.clientY
     })
+    // BUG-047 — when right-clicking a browser tab, the WebContentsView
+    // covers the area where the menu would render, occluding everything
+    // below the strip+address-bar zone. Mute the WCV (collapse to 1×1)
+    // for the duration of the menu so it renders unobstructed. Unmute
+    // happens in the ContextMenu's onClose callback below. We only do
+    // this for browser tabs because file/canvas tabs don't have a WCV
+    // overlay to worry about.
+    if (tab.type === 'browser') {
+      window.electron.browser.setOverlayMuted(true)
+    }
   }
 
   const handleClose = (tab: WorkingTab) => {
@@ -171,9 +181,19 @@ export function WorkingTabStrip({
             onTrashRequest: (tabId, path, label) => {
               setConfirmTrash({ tabId, path, label })
             },
-            onClose: () => setCtxMenu(null)
+            onClose: () => {
+              setCtxMenu(null)
+              // BUG-047 — unmute the WebContentsView when the menu
+              // closes (mirror the mute on open in handleContextMenu).
+              window.electron.browser.setOverlayMuted(false)
+            }
           })}
-          onClose={() => setCtxMenu(null)}
+          onClose={() => {
+            setCtxMenu(null)
+            // BUG-047 — also unmute when the user dismisses via
+            // outside-click / Escape (ContextMenu calls onClose).
+            window.electron.browser.setOverlayMuted(false)
+          }}
         />
       )}
 

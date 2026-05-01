@@ -388,6 +388,14 @@ function setupIPC(): void {
     browserManager?.setBounds(bounds)
   })
 
+  // BUG-047 — overlay-mute toggle. Renderer sends `{ muted: true }` when
+  // a renderer-DOM overlay opens that would overlap the WebContentsView
+  // (e.g. browser-pane tab right-click menu). Main collapses the WCV to
+  // 1×1 so the menu renders unobstructed; restores on `{ muted: false }`.
+  ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (_event, payload: { muted: boolean }) => {
+    browserManager?.setOverlayMuted(payload.muted)
+  })
+
   ipcMain.handle(IPC.BROWSER_GET_STATE, () => {
     return browserManager?.getState() ?? null
   })

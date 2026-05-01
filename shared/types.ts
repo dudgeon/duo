@@ -440,6 +440,11 @@ export interface DocGotoResult {
    *  matched on `--heading "Foo"` and wants the canonical slug
    *  back for a follow-up `--anchor` call. */
   anchor?: string
+  /** ENH-022 v3 — matched heading text verbatim. Lets the user
+   *  verify which heading the precedence chain (exact > starts-with
+   *  > word-boundary > substring) actually picked, so wrong-match
+   *  reports are self-diagnosing. Omitted for line-based gotos. */
+  matched_heading?: string
   error?: string
 }
 
@@ -891,6 +896,13 @@ export const IPC = {
   // pane is one of 'editor' | 'browser' | 'canvas'; carries no
   // selection content (the agent already has it).
   CLAUDE_READ_SELECTION: 'claude:read-selection',
+
+  // BUG-047 — temporarily mute the WebContentsView so renderer-DOM
+  // overlays (context menus, tooltips) can render unobstructed. macOS
+  // composites WCV above renderer DOM regardless of z-index. Renderer
+  // sends `{ muted: true }` when the overlay opens and `{ muted: false }`
+  // on close.
+  BROWSER_OVERLAY_MUTED: 'browser:overlay-muted',
 
   // ⌘` — fired by the app-menu accelerator so it beats macOS's built-in
   // "cycle windows" system shortcut.

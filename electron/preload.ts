@@ -84,6 +84,9 @@ const api: ElectronAPI = {
     setBounds: (bounds) =>
       ipcRenderer.send(IPC.BROWSER_BOUNDS, bounds),
 
+    setOverlayMuted: (muted) =>
+      ipcRenderer.send(IPC.BROWSER_OVERLAY_MUTED, { muted }),
+
     getState: () =>
       ipcRenderer.invoke(IPC.BROWSER_GET_STATE),
 

@@ -432,8 +432,30 @@ export class BrowserManager {
 
   setBounds(bounds: BrowserBounds): void {
     this.currentBounds = bounds
-    if (this.tabs.length > 0) {
+    if (this.tabs.length > 0 && !this.mutedForOverlay) {
       this.tabs[this.activeIndex].view.setBounds(bounds)
+    }
+  }
+
+  // BUG-047 Path B (overlay-mute) — temporarily collapse the active
+  // WebContentsView to 1×1 so renderer-DOM overlays (context menus,
+  // tooltips) can render unobstructed. The macOS compositor paints
+  // WCV above renderer DOM regardless of z-index, so a renderer-side
+  // menu that extends past the strip area gets clipped without this.
+  // Restoring re-applies the most recent setBounds.
+  //
+  // Path A (clamp menu to renderer-DOM area) was specced but the
+  // strip + address bar zone is ~80px tall — too small for a 4-item
+  // menu. Path E (native Menu.popup) is the long-term answer; this
+  // mute-and-restore approach is the minimum viable for v1.
+  private mutedForOverlay = false
+  setOverlayMuted(muted: boolean): void {
+    this.mutedForOverlay = muted
+    if (this.tabs.length === 0) return
+    if (muted) {
+      this.tabs[this.activeIndex].view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+    } else {
+      this.tabs[this.activeIndex].view.setBounds(this.currentBounds)
     }
   }
 
