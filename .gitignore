@@ -59,3 +59,10 @@ coverage/
 !.claude/skills/**
 fork.config.json
 fork.config.local.json
+
+# Smoke-walk pages and manifests — generated from sprint output.
+# The skill at .claude/skills/smoke-walk/ produces these on demand;
+# they're transient artifacts, not source. Keep the directory
+# hierarchy out of git unless someone explicitly wants to commit a
+# manifest as a release receipt (rare).
+docs/dev/smoke-walks/*

@@ -221,6 +221,24 @@ on anything touching renderer / main / preload / CSS / menus:
 If you can't fill in the "saw in the live app" block from the
 checklist's reporting template, the task isn't done.
 
+### 7b. End every UI sprint with a generated smoke-walk page
+After 7 confirms the work runs locally, hand the user-side
+verification to them via the **`smoke-walk` skill**
+(`.claude/skills/smoke-walk/`). The skill:
+
+- Generates an interactive HTML page with one row per shipped item
+  (description, repro steps, Pass / Fail / Skip toggle, notes textbox).
+- Opens the page in Duo's browser pane via `duo open <path>`.
+- The user clicks each item, marks pass/fail, hits "Copy results,"
+  and pastes the structured output back into the chat.
+- Claude parses the result, flips tasks.md statuses, decides whether
+  to advance to the `cut-version` skill.
+
+**Use the skill, don't ad-hoc this.** A consistent format for
+sprint-to-sprint smoke walks is part of the data — drift defeats
+the point. Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
+(gitignored by default; the skill's SKILL.md has the format spec).
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits
@@ -250,6 +268,12 @@ proposal starts with drafted release notes; if the notes don't feel
 substantive, the cut waits and the draft accumulates in
 `docs/RELEASES.md § Pending`. Geoff will not remember to ask.
 Trigger detection has to come from Claude.
+
+**Order with the smoke walk (item 7b):** if the sprint touched
+user-visible surfaces, generate the smoke-walk page FIRST, wait for
+the user's pasted results, parse them, and only then propose the
+cut. Skip-and-go-straight-to-cut is fine ONLY for doc-only changes
+or refactors with no observable behavior delta.
 
 ---
 
