@@ -83,6 +83,16 @@ interface WorkingPaneProps {
    *  iframe events don't bubble out, so the canvas needs an
    *  explicit forwarder. */
   onCanvasFocusGained?: () => void
+  /** ENH-026 — Reveal a tab's underlying file in the navigator
+   *  (selects + scrolls + expands). App.tsx owns the navigator. */
+  onRevealInNavigator?: (path: string) => void
+  /** ENH-026 — Move a tab's file to the Trash AND close the tab.
+   *  App.tsx confirms (already done in the strip), calls
+   *  `files.trash`, and closes the tab. */
+  onTrashTabFile?: (id: string, path: string) => void
+  /** ENH-026 — Reveal a tab's file in the navigator AND start
+   *  rename mode on its row. */
+  onStartRenameFromTab?: (path: string) => void
 }
 
 export function WorkingPane({
@@ -100,7 +110,10 @@ export function WorkingPane({
   onTogglePin,
   onCanvasAction,
   homeDir,
-  onCanvasFocusGained
+  onCanvasFocusGained,
+  onRevealInNavigator,
+  onTrashTabFile,
+  onStartRenameFromTab
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -284,6 +297,9 @@ export function WorkingPane({
         onClose={handleClose}
         onTogglePin={handleTogglePin}
         focused={focused}
+        onRevealInNavigator={onRevealInNavigator}
+        onTrashFile={onTrashTabFile}
+        onStartRenameFromTab={onStartRenameFromTab}
       />
       {activeRenderer}
     </div>

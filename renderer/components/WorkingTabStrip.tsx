@@ -5,7 +5,7 @@
 // browser page, a markdown preview, and an image preview can sit side by
 // side without visual ambiguity (Stage 10 § D26).
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { WorkingTab, WorkingTabType } from '@shared/types'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { PinnedCloseConfirm } from './PinnedCloseConfirm'
@@ -26,21 +26,59 @@ interface WorkingTabStripProps {
    *  focus. The strip is renderer DOM, unaffected by WebContentsView
    *  occlusion (which kills any inset shadow on the column wrapper). */
   focused?: boolean
+  /** ENH-026 — Reveal the tab's underlying file in the navigator
+   *  (selects + scrolls + expands). Called from the right-click
+   *  context menu. Only fires when the tab has a `path` (i.e. file
+   *  tabs, not browser tabs). */
+  onRevealInNavigator?: (path: string) => void
+  /** ENH-026 — Move the tab's file to the Trash AND close the tab.
+   *  App.tsx confirms the action, calls `files.trash`, and closes
+   *  the tab. */
+  onTrashFile?: (id: string, path: string) => void
+  /** ENH-026 — Reveal the tab's file in the navigator AND put the
+   *  tree row into rename mode. Custom-event-driven so we don't
+   *  need to lift FileTree's renamingPath state up to App. */
+  onStartRenameFromTab?: (path: string) => void
 }
 
 // Stage 12 Phase 3 — tab-strip rhyme. Strip + chip language matches
 // TabBar (terminal). Differentiator: strip bg = paper-deep here vs
 // paper-edge for the terminal strip. Mock reference:
 // docs/design/atelier/project/duo-components.jsx ~L286.
-export function WorkingTabStrip({ tabs, onSelect, onNewFile, onNewBrowserTab, onClose, onTogglePin, focused = false }: WorkingTabStripProps) {
+export function WorkingTabStrip({
+  tabs,
+  onSelect,
+  onNewFile,
+  onNewBrowserTab,
+  onClose,
+  onTogglePin,
+  focused = false,
+  onRevealInNavigator,
+  onTrashFile,
+  onStartRenameFromTab
+}: WorkingTabStripProps) {
   // Stage 24 — context menu state (which tab + position) and pinned-tab
   // close-confirm modal state.
-  const [ctxMenu, setCtxMenu] = useState<{ tabId: string; pinned: boolean; x: number; y: number } | null>(null)
+  // ENH-026 — extended ctxMenu to carry the tab's path (or null) so we
+  // can decide which items are applicable without re-finding the tab.
+  const [ctxMenu, setCtxMenu] = useState<
+    | { tabId: string; pinned: boolean; path: string | null; x: number; y: number }
+    | null
+  >(null)
   const [confirmClose, setConfirmClose] = useState<{ tabId: string; label: string } | null>(null)
+  // ENH-026 — separate confirm dialog for trash (different copy +
+  // different action than the pinned-close confirm).
+  const [confirmTrash, setConfirmTrash] = useState<{ tabId: string; path: string; label: string } | null>(null)
 
   const handleContextMenu = (e: React.MouseEvent, tab: WorkingTab) => {
     e.preventDefault()
-    setCtxMenu({ tabId: tab.id, pinned: !!tab.pinned, x: e.clientX, y: e.clientY })
+    setCtxMenu({
+      tabId: tab.id,
+      pinned: !!tab.pinned,
+      path: tab.path ?? null,
+      x: e.clientX,
+      y: e.clientY
+    })
   }
 
   const handleClose = (tab: WorkingTab) => {
@@ -50,6 +88,16 @@ export function WorkingTabStrip({ tabs, onSelect, onNewFile, onNewBrowserTab, on
     }
     onClose(tab.id)
   }
+
+  // ENH-024 — when the active tab changes (click, ⌃Tab, ⌘1–9, CLI),
+  // scroll it into view inside the overflow-x-auto strip. `inline:
+  // 'nearest'` + `block: 'nearest'` only scrolls when the tab is
+  // actually clipped — clicking an already-visible tab is a no-op.
+  const activeTabRef = useRef<HTMLButtonElement | null>(null)
+  const activeTabId = tabs.find(t => t.isActive)?.id
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+  }, [activeTabId])
 
   return (
     <div
@@ -69,6 +117,9 @@ export function WorkingTabStrip({ tabs, onSelect, onNewFile, onNewBrowserTab, on
           }}
           onContextMenu={(e) => handleContextMenu(e, tab)}
           canClose={tabs.length > 1}
+          // ENH-024 — only the active tab gets the ref so the
+          // useEffect above can scroll it into view.
+          buttonRef={tab.isActive ? activeTabRef : undefined}
         />
       ))}
 
@@ -101,18 +152,20 @@ export function WorkingTabStrip({ tabs, onSelect, onNewFile, onNewBrowserTab, on
         </button>
       </div>
 
-      {ctxMenu && onTogglePin && (
+      {ctxMenu && (
         <ContextMenu
           position={{ x: ctxMenu.x, y: ctxMenu.y }}
-          items={[
-            {
-              label: ctxMenu.pinned ? 'Unpin tab' : 'Pin tab',
-              onClick: () => {
-                onTogglePin(ctxMenu.tabId)
-                setCtxMenu(null)
-              }
-            }
-          ] as ContextMenuItem[]}
+          items={buildTabContextMenuItems({
+            ctxMenu,
+            tabs,
+            onTogglePin,
+            onRevealInNavigator,
+            onStartRenameFromTab,
+            onTrashRequest: (tabId, path, label) => {
+              setConfirmTrash({ tabId, path, label })
+            },
+            onClose: () => setCtxMenu(null)
+          })}
           onClose={() => setCtxMenu(null)}
         />
       )}
@@ -127,6 +180,17 @@ export function WorkingTabStrip({ tabs, onSelect, onNewFile, onNewBrowserTab, on
           onCancel={() => setConfirmClose(null)}
         />
       )}
+
+      {confirmTrash && (
+        <PinnedCloseConfirm
+          label={`Move "${confirmTrash.label}" to the Trash? The tab will close and the file will be moved.`}
+          onConfirm={() => {
+            onTrashFile?.(confirmTrash.tabId, confirmTrash.path)
+            setConfirmTrash(null)
+          }}
+          onCancel={() => setConfirmTrash(null)}
+        />
+      )}
     </div>
   )
 }
@@ -137,13 +201,17 @@ interface ItemProps {
   onClose: (e: React.MouseEvent) => void
   onContextMenu: (e: React.MouseEvent) => void
   canClose: boolean
+  /** ENH-024 — passed by the parent on the active tab so it can
+   *  `scrollIntoView` whenever the active tab changes. */
+  buttonRef?: React.Ref<HTMLButtonElement>
 }
 
-function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose }: ItemProps) {
+function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose, buttonRef }: ItemProps) {
   const label = tabLabel(tab)
   const tooltip = tab.path ?? tab.url ?? label
   return (
     <button
+      ref={buttonRef}
       onClick={onSelect}
       onContextMenu={onContextMenu}
       className={[
@@ -195,6 +263,70 @@ function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose }: Ite
 function tabLabel(tab: WorkingTab): string {
   if (tab.type === 'browser') return tab.title || tab.url || 'New tab'
   return tab.title
+}
+
+// ENH-026 — assemble the right-click context menu items for a working
+// tab. File-bearing tabs (path != null) get Reveal in navigator /
+// Rename / Move to Trash; browser tabs only get Pin/Unpin. Pin is
+// also shown for file tabs for symmetry with the navigator pins.
+function buildTabContextMenuItems(opts: {
+  ctxMenu: { tabId: string; pinned: boolean; path: string | null }
+  tabs: WorkingTab[]
+  onTogglePin?: (id: string) => void
+  onRevealInNavigator?: (path: string) => void
+  onStartRenameFromTab?: (path: string) => void
+  onTrashRequest: (tabId: string, path: string, label: string) => void
+  onClose: () => void
+}): ContextMenuItem[] {
+  const { ctxMenu, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onTrashRequest, onClose } = opts
+  const items: ContextMenuItem[] = []
+  const tab = tabs.find(t => t.id === ctxMenu.tabId)
+  const path = ctxMenu.path
+
+  if (path) {
+    if (onRevealInNavigator) {
+      items.push({
+        label: 'Reveal in navigator',
+        onClick: () => {
+          onRevealInNavigator(path)
+          onClose()
+        }
+      })
+    }
+    if (onStartRenameFromTab) {
+      items.push({
+        label: 'Rename…',
+        onClick: () => {
+          onStartRenameFromTab(path)
+          onClose()
+        }
+      })
+    }
+  }
+
+  if (onTogglePin) {
+    items.push({
+      label: ctxMenu.pinned ? 'Unpin tab' : 'Pin tab',
+      separatorBefore: items.length > 0,
+      onClick: () => {
+        onTogglePin(ctxMenu.tabId)
+        onClose()
+      }
+    })
+  }
+
+  if (path && tab) {
+    items.push({
+      label: 'Move to Trash…',
+      separatorBefore: items.length > 0,
+      onClick: () => {
+        onTrashRequest(ctxMenu.tabId, path, tabLabel(tab))
+        onClose()
+      }
+    })
+  }
+
+  return items
 }
 
 // Stage 24 — pin glyph replaces TypeIcon when a tab is pinned. Same

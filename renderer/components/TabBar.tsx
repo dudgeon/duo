@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { TabSession } from '@shared/types'
 
 interface TabBarProps {
@@ -49,6 +50,17 @@ export function TabBar({
   const cwdSuffix = pendingCwd ? ` in ${pendingCwd}` : ''
   const claudeTip = `New Claude session (⌘T from terminal focus)${cwdSuffix}`
   const shellTip = `New shell tab (⌘⇧T)${cwdSuffix}`
+
+  // ENH-024 — when the active tab changes (click, ⌃Tab, ⌘1–9, CLI),
+  // scroll it into view inside the overflow-x-auto strip so users
+  // and agents never lose track of where the active tab lives.
+  // `inline: 'nearest'` only scrolls when the tab is actually clipped
+  // by the viewport — clicking an already-visible tab is a no-op.
+  const activeTabRef = useRef<HTMLButtonElement | null>(null)
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+  }, [activeTabId])
+
   return (
     <div
       className={[
@@ -70,6 +82,9 @@ export function TabBar({
               onClose(tab.id)
             }}
             canClose={tabs.length > 1}
+            // ENH-024 — only the active tab gets the ref; previous
+            // active tab loses the assignment naturally on re-render.
+            buttonRef={tab.id === activeTabId ? activeTabRef : undefined}
           />
         ))}
       </div>
@@ -111,11 +126,15 @@ interface TabProps {
   onSelect: () => void
   onClose: (e: React.MouseEvent) => void
   canClose: boolean
+  /** ENH-024 — passed by the parent on the active tab so it can
+   *  `scrollIntoView` whenever the active tab changes. */
+  buttonRef?: React.Ref<HTMLButtonElement>
 }
 
-function Tab({ tab, isActive, onSelect, onClose, canClose }: TabProps) {
+function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef }: TabProps) {
   return (
     <button
+      ref={buttonRef}
       onClick={onSelect}
       className={[
         'group relative flex items-center gap-1.5 px-2.5 h-7 max-w-[200px] rounded-t-lg shrink-0 transition-colors',

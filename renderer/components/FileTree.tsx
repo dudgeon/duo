@@ -99,6 +99,21 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // because rename is a transient renderer-side state (no IPC mirror).
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
 
+  // ENH-026 — accept rename requests from outside the tree (e.g. the
+  // WorkingPane tab strip's right-click menu). App.tsx dispatches a
+  // CustomEvent with the file's absolute path; we put that row into
+  // rename mode if it's renderable in this tree.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ path: string }>
+      if (typeof ce.detail?.path === 'string') {
+        setRenamingPath(ce.detail.path)
+      }
+    }
+    window.addEventListener('duo-tree-start-rename', handler)
+    return () => window.removeEventListener('duo-tree-start-rename', handler)
+  }, [])
+
   const onCommitRename = async (entry: DirEntry, newName: string): Promise<boolean> => {
     const trimmed = newName.trim()
     if (trimmed === '' || trimmed === entry.name) {
@@ -137,8 +152,37 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     }
   }
 
+  // BUG-041 — synthesize a "root" target for whitespace right-clicks.
+  // The project cwd is always a directory; the menu's whitespaceMode
+  // restricts the items to the New file / New folder / Open terminal
+  // here / Reveal in Finder set so we never accidentally surface
+  // Rename or Trash on the project root.
+  const rootEntry: DirEntry = {
+    name: state.cwd.split('/').filter(Boolean).pop() ?? '/',
+    path: state.cwd,
+    kind: 'directory'
+  }
+  const onWhitespaceContextMenu = (e: React.MouseEvent) => {
+    // Only handle clicks that landed directly on this wrapper (i.e.
+    // whitespace below the rows). Row clicks already preventDefault
+    // in TreeNode's onContextMenu, so they never reach here. Belt &
+    // braces: also bail when the immediate target is anything but
+    // this div, to avoid grabbing right-clicks on possible future
+    // wrapper-level descendants.
+    if (e.target !== e.currentTarget) return
+    e.preventDefault()
+    setMenu({ x: e.clientX, y: e.clientY, target: rootEntry })
+  }
+
+  // The menu reads `menu.target` to decide which items to show. When
+  // the target is the synthesized root (path === state.cwd), enable
+  // whitespaceMode so we serve the trimmed item set.
+  const isWhitespaceMenu = menu !== null && menu.target.path === state.cwd
   return (
-    <div className="flex-1 overflow-auto scrollbar-none py-1">
+    <div
+      className="flex-1 overflow-auto scrollbar-none py-1"
+      onContextMenu={onWhitespaceContextMenu}
+    >
       <TreeNodes
         entries={rootEntries}
         depth={0}
@@ -217,7 +261,8 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
                     title: entry.name
                   })
                 }
-              : undefined
+              : undefined,
+            whitespaceMode: isWhitespaceMenu
           })}
           onClose={() => setMenu(null)}
         />
@@ -249,10 +294,19 @@ function buildMenuItems(
      *  navPins (project tree does; user-claude pane does not). */
     navPins?: NavPinsApi
     onTogglePin?: (entry: DirEntry) => void
+    /** BUG-041 — when the user right-clicks whitespace below the file
+     *  rows, we synthesize a "root" target (the project cwd) and
+     *  trim the menu down to the actions that make sense without a
+     *  specific row: New file, New folder, Open terminal here,
+     *  Reveal in Finder. Rename / Trash / Open with default app /
+     *  Copy path / Pin would all act on the project root, which is
+     *  almost always destructive or irrelevant — suppress them. */
+    whitespaceMode?: boolean
   }
 ): ContextMenuItem[] {
   const isFolder = entry.kind === 'directory'
   const items: ContextMenuItem[] = []
+  const whitespace = handlers.whitespaceMode ?? false
 
   // ENH-016 — "New file…" / "New folder…" at the top of the menu.
   // Target folder = entry itself for folder rows, parent dir for
@@ -285,34 +339,36 @@ function buildMenuItems(
     label: 'Reveal in Finder',
     onClick: () => { void handlers.onRevealInFinder(entry.path) }
   })
-  items.push({
-    label: 'Copy path',
-    onClick: () => { void handlers.onCopyPath(entry.path) }
-  })
-  items.push({
-    label: 'Open with default app',
-    separatorBefore: true,
-    onClick: () => { void handlers.onOpenWithDefault(entry.path) }
-  })
-  // Stage 26 PR 2 (ENH-010) — Pin / Unpin from navigator. Visible when
-  // the host pane wires navPins; suppressed otherwise (user-claude pane).
-  if (handlers.navPins && handlers.onTogglePin) {
-    const pinned = handlers.navPins.isPinned(entry.path)
+  if (!whitespace) {
     items.push({
-      label: pinned ? 'Unpin from navigator' : 'Pin to navigator',
+      label: 'Copy path',
+      onClick: () => { void handlers.onCopyPath(entry.path) }
+    })
+    items.push({
+      label: 'Open with default app',
       separatorBefore: true,
-      onClick: () => handlers.onTogglePin!(entry)
+      onClick: () => { void handlers.onOpenWithDefault(entry.path) }
+    })
+    // Stage 26 PR 2 (ENH-010) — Pin / Unpin from navigator. Visible when
+    // the host pane wires navPins; suppressed otherwise (user-claude pane).
+    if (handlers.navPins && handlers.onTogglePin) {
+      const pinned = handlers.navPins.isPinned(entry.path)
+      items.push({
+        label: pinned ? 'Unpin from navigator' : 'Pin to navigator',
+        separatorBefore: true,
+        onClick: () => handlers.onTogglePin!(entry)
+      })
+    }
+    items.push({
+      label: 'Rename…',
+      separatorBefore: true,
+      onClick: handlers.onStartRename
+    })
+    items.push({
+      label: isFolder ? 'Move folder to Trash…' : 'Move to Trash…',
+      onClick: handlers.onTrash
     })
   }
-  items.push({
-    label: 'Rename…',
-    separatorBefore: true,
-    onClick: handlers.onStartRename
-  })
-  items.push({
-    label: isFolder ? 'Move folder to Trash…' : 'Move to Trash…',
-    onClick: handlers.onTrash
-  })
 
   return items
 }
