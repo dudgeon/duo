@@ -180,6 +180,19 @@ function die(msg: string, code = 1): never {
 }
 
 /**
+ * ENH-022 follow-up — module-scope `flagValue(args, name)` so subcommand
+ * handlers across `case 'doc'`, `case 'html'`, etc. can share a single
+ * argv-flag lookup. Returns the value following `--name` in `args`, or
+ * `undefined` if the flag isn't present. Bug fixed: the original helper
+ * lived inside `case 'html'` only, so `case 'doc'`'s `flagValue(...)`
+ * calls hit `flagValue is not defined` at runtime.
+ */
+function flagValue(args: string[], name: string): string | undefined {
+  const i = args.indexOf(name)
+  return i !== -1 ? args[i + 1] : undefined
+}
+
+/**
  * BUG-005 fix — translate cross-platform navigation combos to Mac
  * equivalents. Used by `duo key` so agents reaching for Cmd+End /
  * Cmd+Home / Cmd+PageDown / Cmd+PageUp from cross-platform muscle
@@ -648,11 +661,10 @@ async function main(): Promise<void> {
         }
 
         // Stage 17b Phase C — agent ops against the active canvas.
-        // Common flag parsing.
-        const flagValue = (name: string): string | undefined => {
-          const i = subRest.indexOf(name)
-          return i !== -1 ? subRest[i + 1] : undefined
-        }
+        // Common flag parsing. Local one-arg shim wraps the module-scope
+        // two-arg `flagValue` so the dense html-op handlers stay legible
+        // without re-passing `subRest` on every call.
+        const flag = (name: string): string | undefined => flagValue(subRest, name)
         const collectAttrs = (): { set?: Record<string, string>; remove?: string[] } => {
           // --set k=v can repeat; --remove k can repeat.
           const set: Record<string, string> = {}
@@ -681,42 +693,42 @@ async function main(): Promise<void> {
           if (!selector) die('Usage: duo html query <css-selector>')
           out(await send('html-op', { op: 'query', selector }))
         } else if (sub === 'get') {
-          const id = flagValue('--id')
-          const selector = flagValue('--selector')
+          const id = flag('--id')
+          const selector = flag('--selector')
           if (!id && !selector) die('Usage: duo html get --id <duo-id> | --selector <css>')
           out(await send('html-op', { op: 'get', id, selector }))
         } else if (sub === 'set') {
-          const id = flagValue('--id')
-          const selector = flagValue('--selector')
+          const id = flag('--id')
+          const selector = flag('--selector')
           if (!id && !selector) die('Usage: duo html set --id <duo-id> --content "…"')
-          let html = flagValue('--content') ?? flagValue('--html')
+          let html = flag('--content') ?? flag('--html')
           if (html === undefined) html = await readStdin()
           if (html === '') die('duo html set: content required (use --content "…" or pipe via stdin)')
           out(await send('html-op', { op: 'set', id, selector, html }))
         } else if (sub === 'replace') {
-          const id = flagValue('--id')
-          const selector = flagValue('--selector')
+          const id = flag('--id')
+          const selector = flag('--selector')
           if (!id && !selector) die('Usage: duo html replace --id <duo-id> --html "…"')
-          let html = flagValue('--html')
+          let html = flag('--html')
           if (html === undefined) html = await readStdin()
           if (html === '') die('duo html replace: html required (use --html "…" or pipe via stdin)')
           out(await send('html-op', { op: 'replace', id, selector, html }))
         } else if (sub === 'append') {
-          const parentId = flagValue('--parent') ?? flagValue('--parent-id')
-          const parentSelector = flagValue('--parent-selector')
+          const parentId = flag('--parent') ?? flag('--parent-id')
+          const parentSelector = flag('--parent-selector')
           if (!parentId && !parentSelector) die('Usage: duo html append --parent <duo-id> --html "…"')
-          let html = flagValue('--html')
+          let html = flag('--html')
           if (html === undefined) html = await readStdin()
           if (html === '') die('duo html append: html required (use --html "…" or pipe via stdin)')
           out(await send('html-op', { op: 'append', parentId, parentSelector, html }))
         } else if (sub === 'remove') {
-          const id = flagValue('--id')
-          const selector = flagValue('--selector')
+          const id = flag('--id')
+          const selector = flag('--selector')
           if (!id && !selector) die('Usage: duo html remove --id <duo-id> | --selector <css>')
           out(await send('html-op', { op: 'remove', id, selector }))
         } else if (sub === 'attr') {
-          const id = flagValue('--id')
-          const selector = flagValue('--selector')
+          const id = flag('--id')
+          const selector = flag('--selector')
           if (!id && !selector) die('Usage: duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]')
           const ops = collectAttrs()
           if (!ops.set && !ops.remove) die('duo html attr: at least one --set k=v or --remove k required')
@@ -724,13 +736,13 @@ async function main(): Promise<void> {
         } else if (sub === 'comment') {
           // Stage 17d — `duo html comment`. Anchor via --id, --selector,
           // or --text; --body is required (or via stdin).
-          const id = flagValue('--id')
-          const selector = flagValue('--selector')
-          const text = flagValue('--text')
+          const id = flag('--id')
+          const selector = flag('--selector')
+          const text = flag('--text')
           if (!id && !selector && !text) {
             die('Usage: duo html comment --id <duo-id> | --selector <css> | --text "<substring>" --body "…"')
           }
-          let body = flagValue('--body')
+          let body = flag('--body')
           if (body === undefined) body = await readStdin()
           if (!body || body.trim() === '') {
             die('duo html comment: --body required (use --body "…" or pipe via stdin)')
@@ -739,7 +751,7 @@ async function main(): Promise<void> {
         } else if (sub === 'comments') {
           // Stage 17d — `duo html comments` lists threads on the active
           // canvas. Optional --filter all|open|resolved (default 'all').
-          const filterRaw = flagValue('--filter')
+          const filterRaw = flag('--filter')
           const filter = filterRaw ?? 'all'
           if (filter !== 'all' && filter !== 'open' && filter !== 'resolved') {
             die("duo html comments: --filter must be 'all', 'open', or 'resolved'")

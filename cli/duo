@@ -141,6 +141,10 @@ function die(msg, code = 1) {
 `);
   process.exit(code);
 }
+function flagValue(args, name) {
+  const i = args.indexOf(name);
+  return i !== -1 ? args[i + 1] : void 0;
+}
 function translateNavKeysForMac(key, modifiers) {
   if (process.platform !== "darwin") return { key, modifiers };
   const lowered = modifiers.map((m) => m.toLowerCase());
@@ -526,10 +530,7 @@ async function main() {
           out(await send("html-new", title ? { path: resolved, title } : { path: resolved }));
           break;
         }
-        const flagValue2 = (name) => {
-          const i = subRest.indexOf(name);
-          return i !== -1 ? subRest[i + 1] : void 0;
-        };
+        const flag = (name) => flagValue(subRest, name);
         const collectAttrs = () => {
           const set = {};
           const remove = [];
@@ -556,61 +557,61 @@ async function main() {
           if (!selector) die("Usage: duo html query <css-selector>");
           out(await send("html-op", { op: "query", selector }));
         } else if (sub === "get") {
-          const id = flagValue2("--id");
-          const selector = flagValue2("--selector");
+          const id = flag("--id");
+          const selector = flag("--selector");
           if (!id && !selector) die("Usage: duo html get --id <duo-id> | --selector <css>");
           out(await send("html-op", { op: "get", id, selector }));
         } else if (sub === "set") {
-          const id = flagValue2("--id");
-          const selector = flagValue2("--selector");
+          const id = flag("--id");
+          const selector = flag("--selector");
           if (!id && !selector) die('Usage: duo html set --id <duo-id> --content "\u2026"');
-          let html = flagValue2("--content") ?? flagValue2("--html");
+          let html = flag("--content") ?? flag("--html");
           if (html === void 0) html = await readStdin();
           if (html === "") die('duo html set: content required (use --content "\u2026" or pipe via stdin)');
           out(await send("html-op", { op: "set", id, selector, html }));
         } else if (sub === "replace") {
-          const id = flagValue2("--id");
-          const selector = flagValue2("--selector");
+          const id = flag("--id");
+          const selector = flag("--selector");
           if (!id && !selector) die('Usage: duo html replace --id <duo-id> --html "\u2026"');
-          let html = flagValue2("--html");
+          let html = flag("--html");
           if (html === void 0) html = await readStdin();
           if (html === "") die('duo html replace: html required (use --html "\u2026" or pipe via stdin)');
           out(await send("html-op", { op: "replace", id, selector, html }));
         } else if (sub === "append") {
-          const parentId = flagValue2("--parent") ?? flagValue2("--parent-id");
-          const parentSelector = flagValue2("--parent-selector");
+          const parentId = flag("--parent") ?? flag("--parent-id");
+          const parentSelector = flag("--parent-selector");
           if (!parentId && !parentSelector) die('Usage: duo html append --parent <duo-id> --html "\u2026"');
-          let html = flagValue2("--html");
+          let html = flag("--html");
           if (html === void 0) html = await readStdin();
           if (html === "") die('duo html append: html required (use --html "\u2026" or pipe via stdin)');
           out(await send("html-op", { op: "append", parentId, parentSelector, html }));
         } else if (sub === "remove") {
-          const id = flagValue2("--id");
-          const selector = flagValue2("--selector");
+          const id = flag("--id");
+          const selector = flag("--selector");
           if (!id && !selector) die("Usage: duo html remove --id <duo-id> | --selector <css>");
           out(await send("html-op", { op: "remove", id, selector }));
         } else if (sub === "attr") {
-          const id = flagValue2("--id");
-          const selector = flagValue2("--selector");
+          const id = flag("--id");
+          const selector = flag("--selector");
           if (!id && !selector) die("Usage: duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]");
           const ops = collectAttrs();
           if (!ops.set && !ops.remove) die("duo html attr: at least one --set k=v or --remove k required");
           out(await send("html-op", { op: "attr", id, selector, ...ops }));
         } else if (sub === "comment") {
-          const id = flagValue2("--id");
-          const selector = flagValue2("--selector");
-          const text = flagValue2("--text");
+          const id = flag("--id");
+          const selector = flag("--selector");
+          const text = flag("--text");
           if (!id && !selector && !text) {
             die('Usage: duo html comment --id <duo-id> | --selector <css> | --text "<substring>" --body "\u2026"');
           }
-          let body = flagValue2("--body");
+          let body = flag("--body");
           if (body === void 0) body = await readStdin();
           if (!body || body.trim() === "") {
             die('duo html comment: --body required (use --body "\u2026" or pipe via stdin)');
           }
           out(await send("html-comment", { id, selector, text, body }));
         } else if (sub === "comments") {
-          const filterRaw = flagValue2("--filter");
+          const filterRaw = flag("--filter");
           const filter = filterRaw ?? "all";
           if (filter !== "all" && filter !== "open" && filter !== "resolved") {
             die("duo html comments: --filter must be 'all', 'open', or 'resolved'");
