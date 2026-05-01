@@ -285,17 +285,30 @@ function PinButton({ pinned, onClick }: { pinned: boolean; onClick: () => void }
 // CollapsedRail (which is the click-to-expand affordance). Atelier
 // annotation showed a chevron-into-rail glyph next to the pin button.
 function CollapseButton({ onClick }: { onClick: () => void }) {
+  // ENH-015 — discoverability: bumped color from text-zinc-600 (barely
+  // visible against the cream paper bg) to text-ink-mute, so the button
+  // reads as "present and clickable" at rest. Glyph swapped from a
+  // chevron-into-rail to the macOS-Finder-style sidebar-toggle (rail +
+  // filled column on one side) — that pattern is already in users'
+  // muscle memory from Finder, VS Code, Mail. The two visual cues
+  // together (better contrast + recognizable glyph) close the
+  // user-reported "cannot find the button to collapse the file
+  // navigator" gap; the optional first-launch coach-mark from the
+  // task entry is deferred to Stage 18 FTUX.
   return (
     <button
       onClick={onClick}
       title="Collapse files column (⌘B)"
       aria-label="Collapse files column"
-      className="shrink-0 w-7 h-7 mr-1 flex items-center justify-center rounded transition-colors text-zinc-600 hover:text-zinc-300 hover:bg-surface-3"
+      className="shrink-0 w-7 h-7 mr-1 flex items-center justify-center rounded transition-colors text-ink-mute hover:text-ink hover:bg-surface-3"
     >
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-        {/* Chevron pointing left into a vertical rail */}
-        <path d="M7 3l-3 3 3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M2.5 2v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+        {/* Sidebar-toggle glyph: rounded outer rect + a left-side filled
+            column representing "the sidebar." Mirrors macOS Finder's
+            sidebar-toggle in the toolbar. Wider/taller than the previous
+            chevron so it reads at rest. */}
+        <rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+        <rect x="1.5" y="2.5" width="3.5" height="9" fill="currentColor" opacity="0.55" />
       </svg>
     </button>
   )

@@ -1715,9 +1715,9 @@ So:
 
 ### ENH-015: File-navigator collapse button discoverability
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sub-sprint, late-evening). Two of the three proposed tweaks applied to `FilesPane.tsx § CollapseButton`: (1) color bumped from `text-zinc-600` (barely visible on cream paper) to `text-ink-mute` so the button reads as present-and-clickable at rest; (2) glyph swapped from chevron-into-rail to a macOS-Finder-style sidebar-toggle (rounded outer rect + left-side filled column). The third proposed tweak (first-launch coach-mark) stays deferred to Stage 18 FTUX. Smoke-walk verification owed.
 **Priority:** Low-Medium (button exists today; this is purely visibility)
-**Filed:** 2026-04-28
+**Filed:** 2026-04-28 · shipped 2026-04-30
 
 **Today:** `CollapseButton` exists at `renderer/components/FilesPane.tsx:234–249`. Renders next to the pin button in the Files header. Icon: 12×12 chevron-into-rail SVG. Color: `text-zinc-600` → `hover:text-zinc-300`. Tooltip: "Collapse files column (⌘B)."
 
