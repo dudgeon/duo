@@ -134,10 +134,19 @@ export class BrowserManager {
   async restoreFromSession(savedTabs: { url: string; title: string }[], activeIndex: number): Promise<void> {
     if (savedTabs.length === 0) return
 
-    // Repurpose the constructor's default tab as the first restored tab
+    // Repurpose the constructor's default tab as the first restored tab.
+    // BUG-040 hole-fix: gate the restored URL through the off-host
+    // matcher so a session containing capitalone.com (or any matched
+    // host) bounces to the system browser instead of resurrecting an
+    // SSO-broken embedded session on relaunch.
     const firstTab = this.tabs[0]
     if (firstTab) {
-      try { await firstTab.view.webContents.loadURL(savedTabs[0].url) } catch { /* page-load errors are user-visible already */ }
+      const restored = savedTabs[0].url
+      if (this.routeOffHostIfMatched(restored)) {
+        try { await firstTab.view.webContents.loadURL('about:blank') } catch { /* ignore */ }
+      } else {
+        try { await firstTab.view.webContents.loadURL(restored) } catch { /* page-load errors are user-visible already */ }
+      }
     }
 
     // Add the rest
@@ -343,6 +352,12 @@ export class BrowserManager {
 
   async navigate(url: string): Promise<{ ok: boolean; url: string; title: string }> {
     const view = this.activeView()
+    // BUG-040 hole-fix: programmatic loadURL doesn't fire `will-navigate`,
+    // so the address-bar input path bypassed the off-host route check on
+    // first try. Gate here too.
+    if (this.routeOffHostIfMatched(url)) {
+      return { ok: true, url: view.webContents.getURL() || 'about:blank', title: view.webContents.getTitle() || '' }
+    }
     await view.webContents.loadURL(url)
     return {
       ok: true,
