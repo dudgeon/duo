@@ -18,6 +18,40 @@
 
 ---
 
+## 2026-05-01 — v0.5.4 cut
+
+Released v0.5.4 — the carry-over Known Issues sprint from v0.5.3.
+Six of seven items shipped clean; ENH-022 (`duo doc goto` wrong
+heading) deferred indefinitely per owner ("I'm tired of working this
+one, drop priority — should not block the next release"). Three
+smoke-walk rounds (`v0.5.4-final.html`, `v0.5.4-rev3.html`) drove
+the cut — first walk surfaced four failures, v2 fixed three of them
+(ENH-031 context menu wiring needed per-webContents installation
+because `electron-context-menu` only auto-attaches to BrowserWindow,
+not WCV; ENH-030 was actually a terminal-locale issue not a Duo bug,
+confirmed via TextEdit round-trip), v3 fixed the BUG-048 ⌘\` toggle
+race that v1+v2 had been chasing the wrong way. Real BUG-048 root
+cause: the menu accelerator's pre-IPC focus reclaim fired the xterm
+helper-textarea's `focus` event in the renderer, whose listener
+flipped `focusedColumn` to 'terminal' as a side effect, poisoning
+`togglePaneFocus`'s `prev` read. Fix is structural: main no longer
+reclaims on ⌘\`; renderer reads via a `focusedColumnRef` bypassed by
+the xterm listener, decides direction, then asks main to reclaim
+via the new `PANE_FOCUS_RECLAIM` IPC. Build-version badge in
+titlebar (`0.5.4 ·dev`) shipped mid-sprint after rev2 walk surfaced
+"am I walking the right build?" confusion; cut-version skill § Step
+7 now codifies post-cut bump so badge + smoke-walk filenames stay
+aligned. Smoke-walk skill `generate.mjs` got a runtime guard that
+refuses to write the HTML when manifest version diverges from
+`package.json`. Skill itself got a "duo: command not found"
+troubleshooting section with explicit install-location checklist
+after enterprise-sandboxed user feedback (gave up on the CLI too
+easily, fell back to native `open` which doesn't route through
+Duo). All synced via `npm run sync:claude`. No stage flips this
+cut — pure polish + foundational focus-toggle fix.
+
+---
+
 ## 2026-05-01 — v0.5.3 cut
 
 Released v0.5.3 closing out the multi-day arc that ran across two

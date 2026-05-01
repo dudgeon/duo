@@ -1,5 +1,11 @@
-import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell } from 'electron'
+import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
+// electron-context-menu v4 is ESM-only; main bundles as CJS, so we
+// load it via dynamic import inside app.whenReady. The lazy import
+// also defers the cost off the cold-start critical path. Imported
+// for its type only here; the runtime call uses await import(...)
+// below.
+import type { Options as ContextMenuOptions } from 'electron-context-menu'
 import { join } from 'path'
 import { resolveClaudeBinary } from '../core/resolve-claude'
 import { PtyManager } from '../core/pty-manager'
@@ -165,7 +171,16 @@ async function createWindow(): Promise<void> {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false // required for preload to use Node.js APIs
+      sandbox: false, // required for preload to use Node.js APIs
+      // Smoke-walk diagnostic — surface the running version + dev/prod
+      // flag in the titlebar so the user can confirm WHICH build they're
+      // walking before validating fixes. Otherwise the previous fail of
+      // "did my fix actually land" was a 30-second chore (kill app,
+      // restart dev, rebuild …). Now it's a glance at the titlebar.
+      additionalArguments: [
+        `--duo-app-version=${app.getVersion()}`,
+        `--duo-is-dev=${app.isPackaged ? '0' : '1'}`
+      ]
     }
   })
 
@@ -307,9 +322,62 @@ async function createWindow(): Promise<void> {
   })
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   setupIPC()
   installAppMenu()
+  // ENH-031 — global right-click context menu for every WebContents
+  // (main renderer + every WebContentsView Duo creates). Default items
+  // cover Cut / Copy / Paste / Select All / Spell-check / Look Up /
+  // Inspect (dev only). Prepended item: ENH-030 "Copy as Plain Text"
+  // — uses Electron's `parameters.selectionText` which is always plain
+  // (no rich-clipboard payload), parallel to the Edit menu entry's
+  // ⌘⌥C accelerator. Without this, right-click in the markdown editor
+  // / canvas / browser pane was a no-op (Electron renderers don't get
+  // a default menu without explicit wiring).
+  //
+  // electron-context-menu v4 is ESM-only — load via dynamic import so
+  // the CJS main bundle stays compatible. Default export comes off
+  // `.default` because esbuild interops the ESM namespace.
+  //
+  // ENH-031 v2 — ECM auto-attaches via `app.on('browser-window-created')`
+  // only, so WebContentsView's (browser tabs) don't get the menu. Fix
+  // by installing on every webContents via `app.on('web-contents-created')`.
+  // This catches: main BrowserWindow, every browser tab WCV (created
+  // by addTab), and any future webContents (devtools, popups, etc).
+  // The per-webContents call is the same as ECM's internal init path
+  // for windows, so behavior is identical to the auto-installed flavor.
+  try {
+    const mod = await import('electron-context-menu')
+    const contextMenu = (mod as { default: (opts: ContextMenuOptions) => () => void }).default
+    const ecmOptions: ContextMenuOptions = {
+      showSelectAll: true,
+      showCopyLink: true,
+      showSaveImageAs: true,
+      showInspectElement: !app.isPackaged,
+      showLookUpSelection: true,
+      showSearchWithGoogle: false,
+      prepend: (_defaults, parameters) => {
+        const sel = parameters.selectionText.trim()
+        if (sel.length === 0) return []
+        return [
+          {
+            label: 'Copy as Plain Text',
+            accelerator: 'CmdOrCtrl+Alt+C',
+            click: () => clipboard.writeText(parameters.selectionText)
+          }
+        ]
+      }
+    }
+    // Attach to existing webContents and any new ones.
+    for (const wc of webContents.getAllWebContents()) {
+      contextMenu({ ...ecmOptions, window: wc })
+    }
+    app.on('web-contents-created', (_event, wc) => {
+      contextMenu({ ...ecmOptions, window: wc })
+    })
+  } catch (err) {
+    console.warn('[main] failed to install context menu:', err)
+  }
   void createWindow()
 
   // Stage 21c — fire-and-forget auto-update check. No-ops in dev.
@@ -394,6 +462,29 @@ function setupIPC(): void {
   // 1×1 so the menu renders unobstructed; restores on `{ muted: false }`.
   ipcMain.on(IPC.BROWSER_OVERLAY_MUTED, (_event, payload: { muted: boolean }) => {
     browserManager?.setOverlayMuted(payload.muted)
+  })
+
+  // BUG-048 v3 — renderer-driven OS focus reclaim. The ⌘` toggle
+  // computes its direction in the renderer first, then asks main to
+  // pull OS focus from a WebContentsView (if needed) so a subsequent
+  // renderer-side `.focus()` call on xterm or the editor lands. See
+  // App.tsx § togglePaneFocus.
+  ipcMain.on(IPC.PANE_FOCUS_RECLAIM, () => {
+    mainWindow?.webContents.focus()
+  })
+
+  // ENH-028 — find-in-page. Renderer's find bar (in BrowserRenderer)
+  // sends START on each keystroke / next / prev navigation. Main calls
+  // webContents.findInPage; results are pushed back via the
+  // `found-in-page` event listener wired in BrowserManager.wireEvents.
+  ipcMain.on(IPC.BROWSER_FIND_START, (_event, payload: { query: string; findNext?: boolean; forward?: boolean }) => {
+    browserManager?.findInPage(payload.query, {
+      findNext: payload.findNext,
+      forward: payload.forward
+    })
+  })
+  ipcMain.on(IPC.BROWSER_FIND_STOP, () => {
+    browserManager?.stopFindInPage()
   })
 
   ipcMain.handle(IPC.BROWSER_GET_STATE, () => {
@@ -730,6 +821,30 @@ function installAppMenu(): void {
             mainWindow?.webContents.send(IPC.PASTE_PLAIN_REQUEST)
           }
         },
+        // ENH-030 — "Copy as Plain Text" with ⌘⌥C as a parallel for
+        // macOS's standard "Paste and Match Style" (⌘⇧V). Reads the
+        // current selection from the focused webContents (works for
+        // markdown editor, canvas iframe, browser pane, and any nested
+        // WebContentsView) and writes it to the clipboard with no
+        // formatting marks. Falls back silently if no selection is
+        // accessible (selection lives in a sandboxed origin, etc.).
+        {
+          label: 'Copy as Plain Text',
+          accelerator: 'CmdOrCtrl+Alt+C',
+          click: async () => {
+            const wc = webContents.getFocusedWebContents()
+            if (!wc) return
+            try {
+              const text = await wc.executeJavaScript(
+                'String(window.getSelection?.()?.toString() ?? "")',
+                true
+              )
+              if (typeof text === 'string' && text.length > 0) {
+                clipboard.writeText(text)
+              }
+            } catch { /* selection cross-origin / inaccessible — silent no-op */ }
+          }
+        },
         { role: 'selectAll' }
       ]
     },
@@ -754,21 +869,23 @@ function installAppMenu(): void {
           // key through Electron's menu system first, so the system
           // shortcut never sees it.
           //
-          // BUG-004 fix: pull OS-level keyboard focus back to the main
-          // renderer BEFORE asking it to cycle. If the user pressed ⌘`
-          // while the browser WebContentsView had focus, the renderer
-          // didn't own focus — so a renderer-side `xterm.focus()` would
-          // be a no-op (you can't give focus you don't have). Calling
-          // `mainWindow.webContents.focus()` first reclaims focus from
-          // the WebContentsView; the renderer's togglePaneFocus then
-          // hands it on to xterm or the editor as appropriate. (For the
-          // working→browser direction the renderer immediately calls
-          // `browser.focusActive()` which re-focuses the WebContentsView
-          // — that path is unaffected.)
+          // BUG-048 v3 — DON'T pull OS-level focus here. The previous
+          // implementation called `mainWindow.webContents.focus()`
+          // BEFORE sending PANE_TOGGLE_FOCUS, but that reclaim fires
+          // the xterm helper-textarea's `focus` event in the renderer
+          // BEFORE the IPC arrives — and TerminalPane's focus listener
+          // then flipped `focusedColumn` to 'terminal' as a side effect.
+          // togglePaneFocus's `setFocusedColumn(prev => ...)` then read
+          // prev='terminal' (poisoned) and toggled to 'working' instead
+          // of the user's expected 'working' → 'terminal'. Now: the
+          // renderer reads its OWN authoritative state first, decides
+          // direction, then requests the focus reclaim via
+          // PANE_FOCUS_RECLAIM (handled below). For the working →
+          // browser direction the renderer calls `browser.focusActive()`
+          // directly, no main-side reclaim needed.
           label: 'Toggle pane focus',
           accelerator: 'CmdOrCtrl+`',
           click: () => {
-            mainWindow?.webContents.focus()
             mainWindow?.webContents.send(IPC.PANE_TOGGLE_FOCUS)
           }
         },

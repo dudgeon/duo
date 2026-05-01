@@ -2359,7 +2359,10 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** 🟡 **v3 partially fixed — released as-is in v0.5.3 per owner call ("please proceed with the release and we can leave this one open").** v3 precedence chain DID move the match (rev2: BUG-032; rev3: BUG-034 — different wrong heading, so the precedence change is doing something), but still wrong target. v4 hypotheses, in priority order:
+**Status:** 🔵 **DEFERRED — owner call v0.5.4 walk: "I'm tired of working this one, please drop priority level on this bug — it should not block the next release".** v4 added disk-reload (re-read file before each goto if the editor's clean) + `matched_heading` diagnostic field; v5 added `console.log('[doc-goto v4]', { didReload, bufferStale, heading })` for instrumentation. Both shipped in v0.5.4 but rev3 walk still showed BUG-034 instead of BUG-048. Carries over indefinitely; do NOT pull into the next sprint without owner re-prioritization. The instrumentation stays in the codebase so a future debugging pass has data without re-instrumenting.
+**Priority:** Deferred (was Medium; owner downgraded 2026-05-01)
+
+**Was 🟡 (v3 partially fixed — released as-is in v0.5.3):** v3 precedence chain DID move the match (rev2: BUG-032; rev3: BUG-034 — different wrong heading, so the precedence change is doing something), but still wrong target. v4 hypotheses, in priority order:
 1. **Buffer staleness (most likely).** TipTap's editor.state.doc was loaded when tasks.md was opened. Subsequent disk edits don't reload (Stage 16 external-write reconciliation is ⬜). The headings the precedence chain walks are from a stale buffer. The "different wrong heading" pattern between rev2 (BUG-032) and rev3 (BUG-034) is consistent with a buffer-from-different-snapshot.
 2. **Word-boundary regex permissive.** My v3 regex `(^|\W)bug-038(\W|$)` should match a heading text containing "BUG-038" as a word, but my heading walk is comparing against `node.textContent` which loses formatting context — possibly multiple headings span "BUG-038" in their text via inline marks. Diagnose: log all headings the walk produces, see what matches.
 3. **Closer numeric matches.** Rev2 picked BUG-032 (4 chars apart from 038); rev3 picked BUG-034 (4 chars apart). Coincidence? Or my word-boundary regex is matching shared prefix "bug-03" somehow. The needle "bug-038" should match exactly one heading; debugging via `matched_heading` field is the diagnostic path.
@@ -2713,7 +2716,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 ### BUG-048: ⌘\` (pane focus toggle) broken after `duo open` shifts focus to a new browser tab
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Fixed v0.5.4 (v3) — root cause was xterm focus-listener race during ⌘\`'s focus reclaim.** Three rounds: v1 added `webContents.focus()` to `openTab`; v2 added explicit `BROWSER_FOCUS_GAINED` IPC push from socket-server. Both helped flip `focusedColumn = 'working'` after `duo open` but neither fixed the race. **v3 is the real fix:** main no longer reclaims OS focus on ⌘\` (it used to do that BEFORE sending PANE_TOGGLE_FOCUS, which fired the xterm helper-textarea's `focus` event in the renderer — that listener flipped `focusedColumn` to 'terminal' as a side effect, poisoning togglePaneFocus's `prev` read). v3: renderer reads its own state via a `focusedColumnRef` that's mirrored alongside React state but bypassed by the xterm focus listener (which now uses `setFocusedColumnSilent`). Renderer asks main to reclaim only AFTER deciding direction. New IPC `PANE_FOCUS_RECLAIM`. v0.5.3-rev3 walk PASS.
 **Priority:** Medium (regression in the focus-toggle path; happy-path flow is "agent opens an artifact, user reads, ⌘\` back to terminal to chat")
 **Filed:** 2026-05-01 (v0.5.3-rev2 walk #2 — DUO-RELOAD PASS note)
 
@@ -2736,7 +2739,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 ### ENH-031: Right-click context menu in markdown editor / browser pane (electron-context-menu)
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.4.** Path A as recommended — installed `electron-context-menu` v4 (ESM, loaded via dynamic `await import()` because main bundles CJS). v1 attached only via `app.on('browser-window-created')` which missed WebContentsView's; v2 fix iterates `webContents.getAllWebContents()` at install time AND subscribes `app.on('web-contents-created')` so every WCV (browser tabs) AND the main BrowserWindow (canvas iframes ride on it) gets the menu. Default actions: Cut / Copy / Paste / Select All / Look Up / Spell-check / Inspect (dev only). v0.5.3-rev3 walk PASS.
 **Priority:** Medium-High (pre-existing UX gap surfaced during v0.5.3-rev2 walk; users expect Cut / Copy / Paste / Spell-check / Inspect at right-click)
 **Filed:** 2026-05-01 (v0.5.3-rev2 walk #2 — STAGE-15.3 FAIL note: "context clicking in markdown editor also does nothing — expected copy/paste/etc actions")
 
@@ -2759,7 +2762,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 ### ENH-030: "Copy as plain text" — context menu entry + keyboard shortcut
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.4.** Two surfaces: (1) ⌘⌥C in the Edit menu — uses `webContents.getFocusedWebContents()` + `executeJavaScript('window.getSelection?.()?.toString() ?? ""')` to read the selection across markdown editor / canvas iframe / browser WCV, then `clipboard.writeText`; (2) "Copy as Plain Text" prepended to the right-click context menu (when text is selected) via `electron-context-menu`'s `prepend` hook — uses `parameters.selectionText` directly (always plain). v0.5.3-rev2 walk reported terminal-paste rendering issue (em-dash → `<0080><0094>` bytes); v0.5.3-rev3 confirmed root cause is **terminal locale** (LC_ALL/LANG = C/POSIX, often from conda's `(base)` activator), NOT the clipboard write. TextEdit paste round-trips correctly. **Carry-over: ENH-032** (file install/onboarding doc improvement).
 **Priority:** Medium (real UX gap — agent and human both want plain-text export from rich content)
 **Filed:** 2026-05-01 (v0.5.3-rev2 walk #2 — STAGE-15.3 FAIL note)
 
@@ -2786,7 +2789,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 
 ### BUG-046: Working-pane tab cycle has a visible render delay between markdown tabs
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.4.** Restructured `WorkingPane` to keep every file-tab renderer mounted permanently and toggle visibility via `display:none` ↔ `display:flex` (mirrors the TerminalPane pattern). Eliminates the per-switch TipTap teardown + re-spin cost. `BrowserRenderer` stays mount/unmount because its singleton `setBounds(1×1)` cleanup is what hides the WCV — keeping it always-mounted would race the bounds push. CanvasTab's `focused` prop now gates on `focused && isActive` so hidden canvases don't fight for focus. v0.5.3-rev2 walk PASS (cycle is now instant).
 **Priority:** Low (BUG-038 v4 cycle is functionally correct; this is perceived-performance)
 **Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk PASS note on BUG-038)
 
@@ -2810,7 +2813,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### ENH-028: ⌘F find-in-page for the browser pane
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.4.** Wraps Electron's `webContents.findInPage` API. Renderer-side find-bar lives in BrowserRenderer above the address row (NOT floating over the page — sidesteps BUG-047 occlusion). New IPCs `BROWSER_FIND_START`, `BROWSER_FIND_STOP`, `BROWSER_FIND_RESULT`. App.tsx's `openFind` / `findNext` / `findPrev` now branch by `activeWorking`: `'browser'` → `duo-browser-find-*` events; else → editor's `duo-editor-find-*`. Browser-side ⌘F now also forwards through `wireKeyForwarding` so it works when the page has OS focus (added `f` and `g` to the Duo-shortcut allowlist; `f` gets the focus-reclaim treatment so the find input takes focus). v0.5.3-rev2 walk PASS.
 **Priority:** Medium (parity gap — markdown editor has find via ENH-023, browser doesn't)
 **Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk PASS note on BUG-044)
 
@@ -2831,7 +2834,7 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### ENH-029: Navigator breadcrumb pans right (current folder visible) + bold last segment
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.4.** Added a useRef + 2× rAF effect on the Breadcrumb's overflow container that sets `scrollLeft = scrollWidth` on every cwd change, so the active (rightmost) segment is flush with the right edge by default. Last segment renders `font-semibold text-zinc-100` (vs. `text-zinc-400` for earlier segments) — the eye lands on the active folder. Earlier segments still scroll into view via the user's pan gesture. v0.5.3-rev2 walk PASS.
 **Priority:** Medium (current behavior shows the wrong end of the path)
 **Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk PASS note on ENH-015)
 
@@ -2967,5 +2970,58 @@ Right-click on any WorkingPane tab → context menu with:
 - `buildMenuItems` factored out of `FileTree.tsx` could become a shared utility — though the tab strip's menu has different items, so simpler to write a fresh `buildTabMenuItems` here.
 
 **Cross-ref:** Stage 26 PR 1 (navigator right-click — established the pattern). ENH-016 (renderer prompt is broken; learn from that and use inline rename or modal).
+
+---
+
+### ENH-032: Document terminal-locale requirement in install / onboarding
+
+**Status:** 🆕 Filed
+**Priority:** Medium (silent paper-cut for users with conda or non-UTF-8-default shells)
+**Filed:** 2026-05-01 (v0.5.4-rev3 walk — ENH-030 PASS-with-question)
+
+**Owner observation:** "should we add to the duo setup procedures/install?" — surfaced after the v0.5.4-rev3 walk confirmed that ENH-030's "Copy as Plain Text" feature works correctly (TextEdit paste round-trips), but pasting multi-byte UTF-8 (em-dash, ⌘⌥, etc.) into terminals shows raw bytes (`<0080><0094>`) when the shell's locale isn't UTF-8. Most common cause: conda's `(base)` activator inheriting `LC_ALL=C` or unset locale.
+
+**Today:** Duo install / onboarding docs (the FAQ, the welcome banner, what-duo-does.html) don't mention terminal locale. A user paste-failing into their terminal can't tell whether the bug is in Duo's clipboard write or their shell — and Duo can't actually fix the shell.
+
+**Expected:**
+1. Add a short FAQ entry: "Why do special characters look broken when I paste into the terminal?" — points to `locale | grep LC_`, suggests `export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` in shell rc-file (after conda init), notes this affects ANY paste source on the user's machine, not just Duo.
+2. Optional: have `duo doctor` warn if the running PTY's `LC_ALL` / `LC_CTYPE` looks non-UTF-8. Cheap detection — just check the env var.
+3. Optional: install-time hint banner in `~/.claude/duo/install/install.md` (or wherever the welcome lives) noting the conda gotcha.
+
+**Affected files:**
+- `help/faq.html` — new question.
+- `cli/duo.ts` § doctor case — env-var check.
+- `~/.claude/duo/welcome` (if such a file exists) — banner copy.
+
+**Cross-ref:** ENH-030 (parent — Copy as Plain Text). The fix isn't in Duo's clipboard write; it's environmental documentation.
+
+---
+
+### ENH-033: Build-version badge in titlebar
+
+**Status:** ✅ **Shipped v0.5.4** (filed-as-shipped — landed during the v0.5.4 sprint as a smoke-walk-prep enhancement).
+**Filed:** 2026-05-01 (v0.5.4 walk #2 — owner observation: "need to show current build number somewhere in app so I can be sure I am smoke walking the right build")
+
+**What shipped:** Glanceable badge at the top-right of the titlebar (left of the theme toggle) showing `<version>` with a `·dev` suffix in accent color when `!app.isPackaged`. Reads from `app.getVersion()` in main → passed to renderer via `webPreferences.additionalArguments` (`--duo-app-version=…`, `--duo-is-dev=…`) which the preload parses out of `process.argv` and exposes as `window.electron.env.appVersion` / `.isDev`. Hover tooltip shows the full label (e.g. `Duo 0.5.4 (dev)`).
+
+**Cross-ref:** Smoke-walk skill SKILL.md § Step 2 precondition (verify package.json matches manifest version). Cut-version skill § Step 7 (post-cut bump, added in same sprint to keep the badge and walk filenames aligned).
+
+---
+
+### SKILL-001: Skill troubleshooting — `duo: command not found` + sandbox PATH gaps
+
+**Status:** ✅ **Shipped v0.5.4** (filed-as-shipped).
+**Filed:** 2026-05-01 (v0.5.4-rev3 walk — enterprise-sandboxed user feedback verbatim)
+
+**What shipped:** `skill/SKILL.md` now has:
+1. Expanded "Sanity check" section enumerating the `duo: command not found` failure mode with concrete diagnostic commands (`ls ~/.claude/bin/duo ~/.local/bin/duo /usr/local/bin/duo`) and explicit env-var probe (`DUO_SESSION`, `DUO_SOCKET`).
+2. New top-level "Troubleshooting: `duo: command not found`" section. Investigation order, install-location list, "don't fall back to `open <path>`" rule, "don't ask the user to run it for you" rule (skill exists so the agent acts on their behalf).
+3. Behavior rule in Sanity check: **for one-shot ops (`duo open`, `duo nav-state`), invoke the CLI directly via Bash — don't delegate to the `duo` subagent for one-liners.** The subagent is for multi-step browser workflows where its observe-act-observe loop pays off; spawning it for `duo open <path>` is pure overhead.
+
+**User repro that surfaced this:** enterprise sandboxed shell where `$PATH` didn't include the Duo install dir, the model gave up on `duo` entirely after a single `command not found`, fell back to native macOS `open` (which doesn't route through Duo), then asked the user to do it themselves — directly violating the "Act, Don't Ask" rule. Root cause was investigative-laziness; mitigation is encoding "check these install paths before declaring `duo` unavailable" in the skill so future agents don't reinvent the failure.
+
+**Synced via `npm run sync:claude` so the live `~/.claude/skills/duo/SKILL.md` is current.**
+
+**Cross-ref:** ENH-017 (PATH-mod for shell rc — partial overlap; that lands the export, this catches the case where the user hasn't run that yet). The `Act, Don't Ask` rule lives in Geoff's `~/.claude/CLAUDE.md` and is unchanged.
 
 ---

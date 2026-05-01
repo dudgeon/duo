@@ -133,8 +133,28 @@ export const Breadcrumb = forwardRef<BreadcrumbHandle, BreadcrumbProps>(
     }
 
     const segments = breadcrumbSegments(cwd, home)
+    // ENH-029 — pan the breadcrumb all the way right on mount and on
+    // every cwd change so the active (last) segment is visible by
+    // default. Without this, deep paths show "~/Documents/..." with
+    // the user's actual current folder scrolled off the right edge.
+    // Pairs with the bolder weight on the last segment below.
+    const scrollerRef = useRef<HTMLDivElement | null>(null)
+    useEffect(() => {
+      const el = scrollerRef.current
+      if (!el) return
+      // Two rAFs — first lets layout settle after the segment array
+      // mounts, second commits the scroll. Single rAF was racing the
+      // truncation/measurement on first paint for some paths.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!scrollerRef.current) return
+          scrollerRef.current.scrollLeft = scrollerRef.current.scrollWidth
+        })
+      })
+    }, [cwd])
     return (
       <div
+        ref={scrollerRef}
         className="flex items-center gap-0.5 px-3 h-8 text-[11px] overflow-x-auto scrollbar-none border-b border-border shrink-0 cursor-text"
         onClick={(e) => {
           // Only flip into edit mode when the click hit the bar's
@@ -153,8 +173,13 @@ export const Breadcrumb = forwardRef<BreadcrumbHandle, BreadcrumbProps>(
             <button
               onClick={(e) => { e.stopPropagation(); onNavigate(seg.path) }}
               className={[
-                'px-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-surface-3 transition-colors truncate max-w-[120px]',
-                i === segments.length - 1 ? 'text-zinc-200 font-medium' : ''
+                'px-1 rounded hover:text-zinc-100 hover:bg-surface-3 transition-colors truncate max-w-[160px]',
+                // ENH-029 — last segment renders bolder + brighter so
+                // the eye lands on it after the pan-right; earlier
+                // segments fade back to the muted breadcrumb tone.
+                i === segments.length - 1
+                  ? 'text-zinc-100 font-semibold'
+                  : 'text-zinc-400'
               ].join(' ')}
               title={seg.path}
             >

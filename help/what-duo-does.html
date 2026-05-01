@@ -177,6 +177,24 @@
   </div>
 </article>
 
+<article class="item" data-keys="right-click context menu cut copy paste select-all spell-check inspect electron-context-menu">
+  <div class="num">4g</div>
+  <div>
+    <h3>Right-click for the usual context menu</h3>
+    <p class="why">Right-click anywhere in the markdown editor, HTML canvas, or browser pane to get Cut / Copy / Paste / Select All / Look Up "<em>selection</em>" / Spell-check suggestions. In dev builds you also get Inspect Element. Browser tabs get the link / image variants too (Copy Link, Save Image As, etc.) when you right-click a link or image.</p>
+    <p class="how"><strong>UI</strong>Right-click. <strong>v0.5.4+</strong></p>
+  </div>
+</article>
+
+<article class="item" data-keys="copy plain text format strip clipboard cmd-alt-c shortcut">
+  <div class="num">4h</div>
+  <div>
+    <h3>Copy without formatting</h3>
+    <p class="why">When you copy from a rich source, Duo's "Copy as Plain Text" gives you just the text — no markdown marks, no HTML tags, no bold/italic. Pastes cleanly into terminals, plain-text fields, anywhere you don't want formatting following along.</p>
+    <p class="how"><strong>UI</strong>Right-click selected text → "Copy as Plain Text", or <strong>⌘⌥C</strong> from the keyboard. <strong>v0.5.4+</strong></p>
+  </div>
+</article>
+
 <article class="item" data-keys="html canvas render edit duo open">
   <div class="num">5</div>
   <div>
@@ -267,6 +285,15 @@
     <h3>Open a link in your real browser</h3>
     <p class="why">Off-host or work-restricted URLs (SSO, internal sites, bookmarks-only) belong in your default browser, not Duo's embedded Chromium. Duo will route them out automatically when the domain is on the external list.</p>
     <p class="how"><strong>CLI</strong><code>duo external &lt;url&gt;</code> — or just paste a URL into a Duo terminal and let Claude decide.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="find in page browser cmd-f search highlight match count next previous">
+  <div class="num">13b</div>
+  <div>
+    <h3>Find text on the current page</h3>
+    <p class="why">⌘F opens a find bar above the address row when the browser pane is active. Matches highlight on the page; the bar shows "n/m" so you know where you are. Enter or ⌘G goes to the next match; ⇧Enter or ⌘⇧F goes back. ⎋ closes and clears highlights.</p>
+    <p class="how"><strong>UI</strong>⌘F (browser pane focused). <strong>v0.5.4+</strong></p>
   </div>
 </article>
 

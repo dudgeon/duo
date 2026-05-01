@@ -33,13 +33,28 @@ import type {
   NavPinEntry,
   ExternalRedirectedPush,
   SessionState,
-  ClaudePresenceState
+  ClaudePresenceState,
+  BrowserFindResult
 } from '../shared/types'
 
+// app version + dev/prod flag come from main process via
+// additionalArguments on the BrowserWindow (set up in main.ts §
+// createWindow). Surface in the titlebar so the user can confirm
+// which build is live before walking a smoke. Without
+// additionalArguments fallback, defaults to '?.?.?' to make the
+// missing-wiring case obvious during dev.
+function readArg(prefix: string, fallback: string): string {
+  const arg = process.argv.find(a => a.startsWith(prefix))
+  return arg ? arg.slice(prefix.length) : fallback
+}
+const APP_VERSION = readArg('--duo-app-version=', '?.?.?')
+const IS_DEV = readArg('--duo-is-dev=', '0') === '1'
 const api: ElectronAPI = {
   env: {
     HOME: process.env.HOME ?? '',
-    SHELL: process.env.SHELL ?? '/bin/zsh'
+    SHELL: process.env.SHELL ?? '/bin/zsh',
+    appVersion: APP_VERSION,
+    isDev: IS_DEV
   },
 
   pty: {
@@ -86,6 +101,25 @@ const api: ElectronAPI = {
 
     setOverlayMuted: (muted) =>
       ipcRenderer.send(IPC.BROWSER_OVERLAY_MUTED, { muted }),
+
+    // ENH-028 — find-in-page. Each keystroke / next / prev resends
+    // START with the new query. Main streams results back through
+    // `onFindResult` so the find bar can display "n / m".
+    findStart: (query, options) =>
+      ipcRenderer.send(IPC.BROWSER_FIND_START, {
+        query,
+        findNext: options?.findNext,
+        forward: options?.forward
+      }),
+
+    findStop: () =>
+      ipcRenderer.send(IPC.BROWSER_FIND_STOP),
+
+    onFindResult: (cb) => {
+      const handler = (_e: Electron.IpcRendererEvent, payload: BrowserFindResult) => cb(payload)
+      ipcRenderer.on(IPC.BROWSER_FIND_RESULT, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_FIND_RESULT, handler)
+    },
 
     getState: () =>
       ipcRenderer.invoke(IPC.BROWSER_GET_STATE),
@@ -363,6 +397,7 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.PANE_TOGGLE_FOCUS, handler)
       return () => ipcRenderer.removeListener(IPC.PANE_TOGGLE_FOCUS, handler)
     },
+    reclaimFocus: () => ipcRenderer.send(IPC.PANE_FOCUS_RECLAIM),
     onBrowserFocusGained: (cb) => {
       const handler = () => cb()
       ipcRenderer.on(IPC.BROWSER_FOCUS_GAINED, handler)

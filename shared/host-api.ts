@@ -9,7 +9,7 @@
 
 import type {
   TerminalTabKind,
-  BrowserState, BrowserBounds, BrowserTab, BrowserSelectionPush,
+  BrowserState, BrowserBounds, BrowserTab, BrowserSelectionPush, BrowserFindResult,
   DirEntry, FileReadResult, FileChangeEvent,
   NavStateSnapshot,
   EditorSelectionSnapshot,
@@ -31,6 +31,14 @@ import type {
 export interface ElectronEnv {
   HOME: string
   SHELL: string
+  /** Duo's package.json `version` field, populated at preload time
+   *  via `app.getVersion()`. Surfaces in the titlebar so the user
+   *  can confirm which build is running before a smoke walk. */
+  appVersion: string
+  /** True when running under `npm run dev` (electron-vite's HMR
+   *  loop), false in a packaged build. Drives the dev-mode badge
+   *  next to the version in the titlebar. */
+  isDev: boolean
 }
 
 export interface ElectronPtyAPI {
@@ -56,6 +64,14 @@ export interface ElectronBrowserAPI {
    *  of z-index. Renderer should pair `setOverlayMuted(true)` on
    *  overlay open with `setOverlayMuted(false)` on close. */
   setOverlayMuted: (muted: boolean) => void
+  /** ENH-028 — find-in-page. Each keystroke (and ⌘G / ⌘⇧G) calls
+   *  findStart with the current query; pass `findNext: true` +
+   *  forward direction to advance. Match counts stream back via
+   *  onFindResult. Calling findStop closes the active find session
+   *  and clears the page highlight. */
+  findStart: (query: string, options?: { findNext?: boolean; forward?: boolean }) => void
+  findStop: () => void
+  onFindResult: (cb: (result: BrowserFindResult) => void) => () => void
   getState: () => Promise<BrowserState>
   getTabs: () => Promise<BrowserTab[]>
   addTab: (url?: string) => Promise<{ ok: boolean; id: number; url: string; title: string }>
@@ -200,6 +216,12 @@ export interface ElectronKeyboardAPI {
   /** Fires when the View → Toggle pane focus menu accelerator
    *  (⌘`) is triggered. */
   onPaneToggleFocus: (cb: () => void) => () => void
+  /** BUG-048 v3 — renderer-driven OS focus reclaim. Called by
+   *  togglePaneFocus AFTER it has decided direction so the focus
+   *  reclaim's xterm-focus-event side-effect doesn't poison the
+   *  toggle's prev read. Fires `mainWindow.webContents.focus()`
+   *  in the main process. */
+  reclaimFocus: () => void
   /** BUG-042 — fires when the browser WebContentsView gains keyboard
    *  focus (click into the page, programmatic focus, etc.). Renderer
    *  flips `focusedColumn = 'working'` so subsequent ⌃Tab / ⌘T fire

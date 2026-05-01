@@ -25,6 +25,84 @@ _Empty._
 
 ---
 
+## v0.5.4 — 2026-05-01 — Right-click everywhere + ⌘\` finally clean
+
+This release lands a small cluster of UX paper-cuts that had
+accumulated since v0.5.3, plus the foundational fix for a recurring
+focus-toggle race that's been chased through three rounds.
+
+### Why this lands here
+
+v0.5.3 cleared the FTUX big surfaces and the v0.5.4 cycle was meant
+to be tight — pull the carry-over Known Issues from the v0.5.3 cut,
+ship them, and move on. Seven items in the original sprint, six
+landed, one (ENH-022 doc-goto wrong-heading) deferred indefinitely
+per owner call after rev3 walk still showed the same wrong target.
+The remaining six are coherent: every right-click in Duo now does
+what users expect, ⌘\` stops behaving differently after `duo open`,
+the browser pane finally gets ⌘F, the breadcrumb shows the active
+folder by default instead of `~/Documents/...`, and tab switching
+between markdown docs is instant.
+
+### Three design decisions baked in
+
+1. **`electron-context-menu` over a custom React menu.** Path A
+   from the ENH-031 spec — fastest path to "right-click does the
+   right thing" without inventing a renderer-side menu primitive.
+   Default actions (Cut / Copy / Paste / Spell-check / Look Up /
+   Inspect-in-dev) cover the obvious gap; "Copy as Plain Text"
+   prepends as a custom item when there's a selection. The library
+   only auto-attaches to BrowserWindow webContents, so we wired it
+   per-webContents via `app.on('web-contents-created')` to catch
+   every browser-tab WCV too.
+
+2. **BUG-048's third try: stop racing the xterm focus event.**
+   Rounds 1+2 chased the wrong thing — they tried to make
+   `focusedColumn` flip to 'working' more reliably after `duo open`.
+   That was happening fine. The actual bug was the menu accelerator's
+   focus reclaim firing the xterm helper-textarea's `focus` event
+   *before* `togglePaneFocus` ran — the listener flipped state to
+   'terminal' as a side effect, poisoning the toggle's prev read.
+   Fix: main no longer reclaims on ⌘\`; renderer reads its own state
+   first, decides direction, then asks main to reclaim. Plus a
+   `focusedColumnRef` mirror that's bypassed by the xterm focus
+   listener, so reclaim-induced focus events can't poison the next
+   toggle either. Belt + braces.
+
+3. **Build-version badge — debt repaid before it bites again.** During
+   the v0.5.4 walk the user asked "is the dev build I'm walking
+   actually the build with the fix?" — fair question, no good answer.
+   Added a glanceable badge in the titlebar that reads from
+   `app.getVersion()` and tags `·dev` when not packaged. While we
+   were there, we also (a) added a precondition step to the smoke-walk
+   skill that verifies `package.json` matches the manifest version
+   before generating the walk page, (b) added a runtime guard in
+   `generate.mjs` that refuses to write the HTML on mismatch, and
+   (c) codified "bump `package.json` to next MINOR immediately after
+   cut" as Step 7 of the cut-version skill. Three layers so the
+   confusion can't recur silently.
+
+### What this is and isn't
+
+It's polish + one foundational fix. It isn't a new stage — Stage 14
+(cohort distribution), Stage 16 (external-write reconciliation),
+Stage 17 sub-phases (template gallery, comments) are still on deck.
+ENH-022 is parked indefinitely; the instrumentation stays in the
+codebase but no further work is scheduled until owner re-prioritizes.
+
+### Queued next
+
+- Cohort distribution / Trailblazers (Stage 21d) — socket auth,
+  agent-driven-nav notifications, README.
+- The remaining v0.5.4-walk-filed paper-cuts: ENH-032 (terminal
+  locale documentation in install path).
+- BUG-047 — WCV occlusion class still has open subitems (BUG-006
+  Send-to-Duo pill).
+- A future debugging pass at ENH-022 once the owner has appetite
+  for it again.
+
+---
+
 ## v0.5.3 — 2026-05-01
 
 Two stages closed in one cut. **Stage 12** (Atelier visual redesign)

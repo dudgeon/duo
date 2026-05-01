@@ -215,7 +215,41 @@ export function App() {
   const [filesCollapsed, setFilesCollapsed] = useState(false)
   const lastAutoCollapseState = useRef(false)
 
-  const [focusedColumn, setFocusedColumn] = useState<FocusedColumn>('terminal')
+  // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
+  // React state. The ref is the AUTHORITATIVE source for the ⌘`
+  // toggle direction; the React state drives UI highlights. Why a
+  // ref: when ⌘` fires, the main process used to reclaim OS focus
+  // BEFORE sending PANE_TOGGLE_FOCUS, which fired the xterm
+  // helper-textarea's `focus` event in the renderer (xterm was the
+  // previously-focused element). The xterm focus listener flipped
+  // focusedColumn = 'terminal' as a side effect — so by the time
+  // togglePaneFocus's `setFocusedColumn(prev => …)` read prev, it
+  // had already been poisoned to 'terminal'. The toggle ran
+  // 'terminal' → 'working' instead of the user's expected
+  // 'working' → 'terminal'.
+  //
+  // Fix has two parts:
+  //  (a) main no longer reclaims focus on ⌘` (see
+  //      installAppMenu in electron/main.ts § BUG-048 v3 comment).
+  //      Renderer requests reclaim AFTER it's decided direction.
+  //  (b) The xterm focus listener uses `setFocusedColumnSilent`
+  //      which updates state but NOT the ref. So even if the
+  //      reclaim-induced focus event still fires (after the toggle),
+  //      the ref keeps the deliberate value for the *next* ⌘`.
+  const [focusedColumn, _internalSetFocusedColumn] = useState<FocusedColumn>('terminal')
+  const focusedColumnRef = useRef<FocusedColumn>('terminal')
+  const setFocusedColumn = useCallback((next: FocusedColumn) => {
+    focusedColumnRef.current = next
+    _internalSetFocusedColumn(next)
+  }, [])
+  const setFocusedColumnSilent = useCallback((next: FocusedColumn) => {
+    // Updates state (UI highlight) but bypasses the ref. Used only
+    // by the xterm helper-textarea focus listener — which fires for
+    // programmatic .focus() reclaims, not just deliberate user
+    // clicks. Refusing to clobber the ref here lets the ⌘` toggle
+    // read the user's last deliberate column choice unaffected.
+    _internalSetFocusedColumn(next)
+  }, [])
   // Stage 26 PR 3 item 8 — handle for the FilesPane so the global
   // ⌘⇧G shortcut can flip its breadcrumb into the editable input.
   const filesPaneRef = useRef<FilesPaneHandle | null>(null)
@@ -860,31 +894,43 @@ export function App() {
   //     alone has tabIndex=0 but isn't a typing target — typing into
   //     a focused tabIndex wrapper is a no-op for the editor.
   const togglePaneFocus = useCallback(() => {
-    setFocusedColumn(prev => {
-      const next = prev === 'working' ? 'terminal' : 'working'
-      queueMicrotask(() => {
-        if (next === 'terminal') {
-          const textarea = document.querySelector<HTMLTextAreaElement>(
-            '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
-          )
-          textarea?.focus()
-        } else if (activeWorking.kind === 'browser') {
-          window.electron.browser.focusActive()
-        } else {
-          const wrapper = document.querySelector<HTMLElement>('[data-duo-workingpane]')
-          if (!wrapper) return
-          // Editor tab: prose is `.ProseMirror[contenteditable=true]`.
-          // Other file types (image / pdf / unknown preview) have no
-          // contenteditable; fall back to focusing the wrapper so arrow
-          // keys can scroll the pane.
-          const ce = wrapper.querySelector<HTMLElement>('[contenteditable="true"]')
-          if (ce) ce.focus()
-          else wrapper.focus()
-        }
-      })
-      return next
+    // BUG-048 v3 — read direction from the REF, which holds the
+    // user's last-deliberate column choice (untouched by the xterm
+    // focus listener's silent state updates). Main no longer fires a
+    // pre-IPC focus reclaim, so the ref is also fresh from the
+    // most recent BROWSER_FOCUS_GAINED / click / etc. when the toggle
+    // arrives.
+    const prev = focusedColumnRef.current
+    const next = prev === 'working' ? 'terminal' : 'working'
+    setFocusedColumn(next)
+    if (next === 'terminal') {
+      // Need OS focus on the renderer to focus xterm. Ask main now;
+      // the reclaim's resulting xterm-focus event will land AFTER
+      // we've committed `next` to state + ref, so the silent setter's
+      // re-set is idempotent.
+      window.electron.keyboard.reclaimFocus()
+    }
+    queueMicrotask(() => {
+      if (next === 'terminal') {
+        const textarea = document.querySelector<HTMLTextAreaElement>(
+          '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
+        )
+        textarea?.focus()
+      } else if (activeWorking.kind === 'browser') {
+        window.electron.browser.focusActive()
+      } else {
+        const wrapper = document.querySelector<HTMLElement>('[data-duo-workingpane]')
+        if (!wrapper) return
+        // Editor tab: prose is `.ProseMirror[contenteditable=true]`.
+        // Other file types (image / pdf / unknown preview) have no
+        // contenteditable; fall back to focusing the wrapper so arrow
+        // keys can scroll the pane.
+        const ce = wrapper.querySelector<HTMLElement>('[contenteditable="true"]')
+        if (ce) ce.focus()
+        else wrapper.focus()
+      }
     })
-  }, [activeWorking])
+  }, [activeWorking, setFocusedColumn])
 
   // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
   // bump value, updates the "remember last choice" default (so new tabs
@@ -1046,15 +1092,30 @@ export function App() {
       setFocusedColumn('files')
       filesPaneRef.current?.focusBreadcrumbEdit()
     },
-    // ENH-023 — find-in-document. Only the markdown editor surface
-    // implements find in v1 (canvas / browser / terminal deferred).
-    // We dispatch a window-scoped custom event; the active
-    // MarkdownEditor (WorkingPane swaps activeRenderer per-tab so
-    // there's at most one mounted) listens and handles. If no
-    // markdown editor is active, the event is a no-op.
-    openFind: () => window.dispatchEvent(new CustomEvent('duo-editor-find-open')),
-    findNext: () => window.dispatchEvent(new CustomEvent('duo-editor-find-next')),
-    findPrev: () => window.dispatchEvent(new CustomEvent('duo-editor-find-prev'))
+    // ENH-023 + ENH-028 — find-in-document / find-in-page. Branch
+    // by active surface: browser pane uses `webContents.findInPage`
+    // via BrowserRenderer's local find bar; markdown editor uses
+    // ProseMirror's text-search via MarkdownEditor's find bar.
+    // Canvas / preview / image surfaces don't implement find in v1
+    // — events are a no-op when those are active.
+    openFind: () => {
+      const evt = activeWorking.kind === 'browser'
+        ? 'duo-browser-find-open'
+        : 'duo-editor-find-open'
+      window.dispatchEvent(new CustomEvent(evt))
+    },
+    findNext: () => {
+      const evt = activeWorking.kind === 'browser'
+        ? 'duo-browser-find-next'
+        : 'duo-editor-find-next'
+      window.dispatchEvent(new CustomEvent(evt))
+    },
+    findPrev: () => {
+      const evt = activeWorking.kind === 'browser'
+        ? 'duo-browser-find-prev'
+        : 'duo-editor-find-prev'
+      window.dispatchEvent(new CustomEvent(evt))
+    }
   })
 
   // ⌘` menu-accelerator path. The app menu registers the same
@@ -1133,6 +1194,21 @@ export function App() {
           traffic lights are positioned over this row by
           `trafficLightPosition` without a DOM spacer. */}
       <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center justify-end pr-2 gap-1">
+        {/* v0.5.4 sprint — running version badge. Glanceable confirmation
+            for "am I smoke-walking the build I think I am?" — surfaced
+            after a v0.5.4-final walk where it was non-trivial to tell
+            whether a fix had landed in the running dev process or not.
+            Dev builds tag with " · dev"; prod builds show the version
+            alone. Hover gives the full label including build kind. */}
+        <span
+          className="titlebar-nodrag text-[11px] tabular-nums text-zinc-500 select-none px-1"
+          title={`Duo ${window.electron.env.appVersion}${window.electron.env.isDev ? ' (dev)' : ''}`}
+        >
+          {window.electron.env.appVersion}
+          {window.electron.env.isDev && (
+            <span className="text-accent ml-1">·dev</span>
+          )}
+        </span>
         {/* Stage 12 close — whisper-level Claude presence. Soft accent
             dot when the front terminal has a live Claude session.
             titlebar-nodrag so the dot itself isn't a drag affordance. */}
@@ -1275,7 +1351,7 @@ export function App() {
                 // synthetic-event path last touched). xterm manages
                 // its own DOM heavily and clicks on it sometimes
                 // miss the column wrapper's onMouseDown.
-                onTerminalFocus={() => setFocusedColumn('terminal')}
+                onTerminalFocus={() => setFocusedColumnSilent('terminal')}
               />
             </div>
           </div>

@@ -337,6 +337,27 @@ export interface BrowserBounds {
   height: number
 }
 
+// ENH-028 — find-in-page IPC payloads. Mirrors Electron's
+// `webContents.findInPage` API but trimmed to what the renderer
+// actually sends + receives.
+export interface BrowserFindRequest {
+  query: string
+  /** When true, advance to the next/prev match for the same query. */
+  findNext?: boolean
+  /** Direction. Default true (forward). */
+  forward?: boolean
+}
+
+export interface BrowserFindResult {
+  /** 1-indexed position of the active match, 0 if no matches. */
+  activeMatchOrdinal: number
+  /** Total match count for the current query. */
+  matches: number
+  /** Electron sets this true on the final result for a query;
+   *  intermediate updates while still scanning have it false. */
+  finalUpdate: boolean
+}
+
 // ── Skills panel ─────────────────────────────────────────────────────────────
 
 export interface SkillEntry {
@@ -445,6 +466,11 @@ export interface DocGotoResult {
    *  > word-boundary > substring) actually picked, so wrong-match
    *  reports are self-diagnosing. Omitted for line-based gotos. */
   matched_heading?: string
+  /** ENH-022 v4 — true when the editor's buffer diverges from disk
+   *  AND the buffer has unsaved edits (so we can't safely reload).
+   *  The match was run against the stale buffer; if the result looks
+   *  wrong, the agent should ask the user to save and retry. */
+  buffer_stale?: boolean
   error?: string
 }
 
@@ -904,9 +930,26 @@ export const IPC = {
   // on close.
   BROWSER_OVERLAY_MUTED: 'browser:overlay-muted',
 
+  // ENH-028 — find-in-page for the browser pane. Wraps Electron's
+  // built-in `webContents.findInPage` API. Renderer sends START with
+  // a query (re-called for each keystroke / next / prev), STOP to
+  // close. Main pushes RESULT back with match counts via the
+  // `found-in-page` event so the find bar can show "n / m".
+  BROWSER_FIND_START: 'browser:find-start',
+  BROWSER_FIND_STOP: 'browser:find-stop',
+  BROWSER_FIND_RESULT: 'browser:find-result',
+
   // ⌘` — fired by the app-menu accelerator so it beats macOS's built-in
   // "cycle windows" system shortcut.
   PANE_TOGGLE_FOCUS: 'pane:toggle-focus',
+
+  // BUG-048 v3 — renderer asks main to reclaim OS focus from a
+  // WebContentsView. Used by togglePaneFocus AFTER it has decided
+  // the toggle direction (so the xterm focus listener doesn't
+  // poison the read). Without this, the focus reclaim used to live
+  // in main's ⌘` accelerator click handler and fired BEFORE the
+  // IPC, racing the toggle's prev read.
+  PANE_FOCUS_RECLAIM: 'pane:focus-reclaim',
 
   // Stage 19c D27 — `duo new-tab` from the CLI. Main forwards the
   // request (kind/cwd/cmd) to the renderer; renderer adds the tab and

@@ -47,8 +47,34 @@ verification — small refactors get folded into the parent item.
 
 ### 2. Construct a manifest
 
-Build a JSON manifest at
-`docs/dev/smoke-walks/v<NEXT_VERSION>.json` with this shape:
+**Precondition — verify package.json matches the in-progress version
+BEFORE generating the manifest.**
+
+```bash
+grep '"version"' package.json | head -1
+```
+
+If `package.json` still reads the version that was just CUT (e.g.
+"0.5.3" right after a v0.5.3 cut), the dev build's titlebar will say
+`0.5.3 ·dev` while the smoke walk page is named `v0.5.4-*`. This was
+the v0.5.4-rev3 confusion: Geoff asked "is the badge wrong or am I
+walking the wrong build?" The answer was "neither, the cut-version
+skill missed a step."
+
+The fix lives in `cut-version` § Step 7 (post-cut bump). If you find
+the version unbumped here, **stop and bump it first** — same MINOR
+the smoke walk is targeting:
+
+```bash
+# Edit package.json: "version": "0.5.4"  (no -dev suffix)
+# Then commit it as a separate "chore: bump to vX.Y.Z for next sprint"
+# commit before generating the manifest.
+```
+
+**Then** build a JSON manifest at
+`docs/dev/smoke-walks/v<NEXT_VERSION>.json` (or
+`v<NEXT_VERSION>-rev<N>.json` for re-walks of the same sprint) with
+this shape:
 
 ```json
 {
@@ -70,6 +96,11 @@ Build a JSON manifest at
   ]
 }
 ```
+
+`generate.mjs` (Step 3) ALSO cross-checks the manifest's `version`
+field against `package.json` and refuses to write the HTML when they
+don't match — so even if Step 2's precondition is missed, the walk
+page can't ship under a misleading version string.
 
 Field guide:
 - `id`: BUG-* / ENH-* exactly as in tasks.md.

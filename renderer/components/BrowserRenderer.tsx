@@ -3,13 +3,14 @@
 // collapse the WebContentsView to 1×1 so the browser doesn't remain visible
 // over whatever took its place.
 
-import { useRef, useEffect, useMemo, useCallback } from 'react'
+import { useRef, useEffect, useMemo, useCallback, useState } from 'react'
 import { AddressBar } from './AddressBar'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { useBrowserSelection } from '../hooks/useBrowserSelection'
 import { useSelectionFormat } from '../hooks/useSelectionFormat'
 import { SendToDuoPill, type PillAnchorRect } from './editor/primitives/SendToDuoPill'
 import { formatBrowserSendPayload } from './editor/sendFormat'
+import type { BrowserFindResult } from '@shared/types'
 
 interface BrowserRendererProps {
   /** Stage 15.2 — same `onSendToDuo` callback the editor uses; writes
@@ -98,8 +99,122 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
     return () => window.removeEventListener('duo-send-to-duo', handler)
   }, [handleSendToDuoClick, browserSelection])
 
+  // ENH-028 — find-in-page state lives in the renderer; main owns the
+  // actual webContents.findInPage call. ⌘F (forwarded as the
+  // `duo-browser-find-open` window event by App.tsx when the active
+  // surface is the browser) opens the bar; ⎋ closes it; ⌘G / ⌘⇧G
+  // navigate. Match counts arrive via onFindResult from main.
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [findResult, setFindResult] = useState<BrowserFindResult | null>(null)
+  const findInputRef = useRef<HTMLInputElement | null>(null)
+
+  // Open / focus / close hooks. App.tsx dispatches these on ⌘F /
+  // ⌘G / ⌘⇧G when the working pane's active surface is the browser.
+  useEffect(() => {
+    const onOpen = () => {
+      setFindOpen(true)
+      // rAF so the input is mounted before .focus() runs.
+      requestAnimationFrame(() => {
+        findInputRef.current?.focus()
+        findInputRef.current?.select()
+      })
+    }
+    const onNext = () => {
+      if (!findQuery) return
+      window.electron.browser.findStart(findQuery, { findNext: true, forward: true })
+    }
+    const onPrev = () => {
+      if (!findQuery) return
+      window.electron.browser.findStart(findQuery, { findNext: true, forward: false })
+    }
+    window.addEventListener('duo-browser-find-open', onOpen)
+    window.addEventListener('duo-browser-find-next', onNext)
+    window.addEventListener('duo-browser-find-prev', onPrev)
+    return () => {
+      window.removeEventListener('duo-browser-find-open', onOpen)
+      window.removeEventListener('duo-browser-find-next', onNext)
+      window.removeEventListener('duo-browser-find-prev', onPrev)
+    }
+  }, [findQuery])
+
+  // Subscribe to match-count results. Main pushes intermediate +
+  // final updates per `webContents.findInPage`; we keep the latest.
+  useEffect(() => {
+    return window.electron.browser.onFindResult((result) => {
+      setFindResult(result)
+    })
+  }, [])
+
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    setFindQuery('')
+    setFindResult(null)
+    window.electron.browser.findStop()
+  }, [])
+
+  const handleFindInput = useCallback((next: string) => {
+    setFindQuery(next)
+    if (next.length === 0) {
+      setFindResult(null)
+      window.electron.browser.findStop()
+      return
+    }
+    window.electron.browser.findStart(next)
+  }, [])
+
   return (
     <div className="flex flex-col w-full h-full bg-surface-1">
+      {/* ENH-028 — find-in-page bar. Renders above the address bar
+          when active so it doesn't overlap the WebContentsView (BUG-047
+          occlusion class). Slides into the renderer-DOM column flow,
+          which pushes the WCV's content area down via the existing
+          ResizeObserver. */}
+      {findOpen && (
+        <div className="flex items-center h-9 px-3 gap-2 border-b border-border shrink-0 bg-surface-2 text-zinc-200">
+          <span className="text-[11px] text-zinc-500 select-none">Find</span>
+          <input
+            ref={findInputRef}
+            type="text"
+            value={findQuery}
+            onChange={(e) => handleFindInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                closeFind()
+              } else if (e.key === 'Enter') {
+                // ↵ = next, ⇧↵ = previous (browser convention).
+                e.preventDefault()
+                if (!findQuery) return
+                window.electron.browser.findStart(findQuery, {
+                  findNext: true,
+                  forward: !e.shiftKey
+                })
+              }
+            }}
+            placeholder="Search this page…"
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            className="flex-1 min-w-0 px-2 py-0.5 text-[12px] bg-surface-3 border border-accent rounded text-zinc-100 placeholder-zinc-500 outline-none"
+          />
+          <span className="text-[11px] text-zinc-500 tabular-nums select-none w-16 text-right">
+            {findResult && findQuery
+              ? findResult.matches > 0
+                ? `${findResult.activeMatchOrdinal}/${findResult.matches}`
+                : '0/0'
+              : ''}
+          </span>
+          <button
+            type="button"
+            onClick={closeFind}
+            title="Close find"
+            className="text-[11px] text-zinc-500 hover:text-zinc-200 px-1.5"
+          >
+            ×
+          </button>
+        </div>
+      )}
       <div className="flex items-center h-10 px-3 gap-2 border-b border-border shrink-0">
         <div className="flex items-center gap-1">
           <NavButton

@@ -53,13 +53,38 @@ when you're doing a single simple call.
 duo --version
 ```
 
-If this fails with `Cannot connect: Duo app is not running`, the app is
-closed — ask the user to launch it and retry. If it fails with any
-other shape — `Socket error: connect EPERM`, `ECONNREFUSED`, a hang
-that ends in `Timeout waiting for response`, or every subsequent `duo`
-call failing the same way — jump to
-[Troubleshooting: Claude Code sandbox](#troubleshooting-claude-code-sandbox)
-below. Do not retry blindly.
+If this fails with:
+
+- **`Cannot connect: Duo app is not running`** — the app is closed.
+  Ask the user to launch it and retry.
+- **`duo: command not found`** (or `bash: duo: command not found`) —
+  the CLI isn't on your shell's `$PATH`, but may still be installed.
+  **Don't give up.** Check the install locations Duo uses:
+
+  ```bash
+  ls -l ~/.claude/bin/duo ~/.local/bin/duo /usr/local/bin/duo 2>/dev/null
+  echo "DUO_SESSION=$DUO_SESSION  DUO_SOCKET=$DUO_SOCKET"
+  ```
+
+  If any path resolves, invoke `duo` by full path (e.g.
+  `~/.claude/bin/duo open <path>`). If `DUO_SOCKET` is set, the
+  app IS running and the bridge is reachable — the only thing
+  missing is PATH. If none of the paths resolve AND `DUO_SESSION`
+  is unset, ask the user to run `duo install` from a non-sandboxed
+  shell (Terminal.app outside Claude Code, or a plain Duo terminal).
+
+- **`Socket error: connect EPERM`**, **`ECONNREFUSED`**, or a hang
+  ending in `Timeout waiting for response`, or every subsequent
+  `duo` call failing the same way — jump to
+  [Troubleshooting: Claude Code sandbox](#troubleshooting-claude-code-sandbox)
+  below. Do not retry blindly.
+
+**Behavior rule.** For single-shot operations (`duo open <path>`,
+`duo nav-state`, `duo --version`), invoke the CLI **directly via
+Bash**. Don't delegate to the `duo` subagent for one-liners — the
+spawn overhead and tool-routing dance defeats the point of the CLI.
+The subagent is for multi-step browser workflows where its loop of
+"observe → click → wait → observe" pays off.
 
 ## Detecting "I'm in Duo"
 
@@ -439,6 +464,55 @@ When a selector fails:
    switch to `duo ax`.
 5. Retry transient navigation/timing errors up to three times before
    declaring the operation impossible.
+
+## Troubleshooting: `duo: command not found`
+
+The CLI isn't on `$PATH` for the current shell, but may still be
+installed at one of Duo's known locations. Inheriting `$PATH` from a
+sandboxed Claude Code subshell often misses these — the skill loaded
+("duo is on PATH") but the actual environment doesn't match.
+
+**Investigation order:**
+
+1. **Check the env signals first.** If `DUO_SESSION=1` is set, the
+   PTY is a Duo-managed terminal AND Duo is running. If
+   `DUO_SOCKET=<path>` resolves to a real socket, the bridge is up.
+   In either case, the only missing piece is PATH — the binary is on
+   the machine.
+2. **Look in the install locations.** In order of likelihood:
+
+   ```bash
+   ls -l ~/.claude/bin/duo ~/.local/bin/duo /usr/local/bin/duo 2>/dev/null
+   ```
+
+   `~/.claude/bin/duo` is the default install (sandbox-writable).
+   `~/.local/bin/duo` is the Linux-style fallback. `/usr/local/bin/duo`
+   needs sudo to install but works without `$DUO_SESSION` shell-init
+   support — this is what `duo install --system` produces.
+
+3. **If found, invoke by full path.** Example:
+
+   ```bash
+   ~/.claude/bin/duo open /path/to/file.md
+   ```
+
+   Don't shadow your shell with `export PATH=...` — too easy to
+   forget to undo. Just use the absolute path for the call.
+
+4. **If NONE of the paths resolve and `DUO_SESSION` is unset**, the
+   CLI was never installed (or got removed). Ask the user to run
+   `duo install` from a non-sandboxed shell (Duo's own terminal, or
+   Terminal.app outside Claude Code). The install command symlinks
+   into `~/.claude/bin/duo` and works inside the sandbox.
+
+**Don't fall back to native `open <path>`** as a substitute — it
+opens the file in macOS's default app, NOT in Duo. The user wants
+Duo's editor / canvas / pin behavior, not Preview / TextEdit.
+
+**Don't ask the user to run the command for you.** The skill exists
+specifically so you can act on their behalf inside Duo. If `duo` is
+genuinely not findable, that's a one-line `duo install` to fix —
+ask them to run that, not "please open the file yourself."
 
 ## Troubleshooting: Claude Code sandbox
 

@@ -287,6 +287,21 @@ export class SocketServer {
           const url = args['url'] as string
           if (!url) throw new Error('open requires a url arg')
           result = await this.browser.openTab(url)
+          // BUG-048 v2 — explicit BROWSER_FOCUS_GAINED push.
+          // BrowserManager.openTab calls webContents.focus() on the new
+          // view, which SHOULD fire `webContents.on('focus')` and route
+          // through the existing IPC. But when `duo open` runs from a
+          // terminal that's NOT inside Duo (e.g. iTerm), Terminal.app is
+          // frontmost — Electron's programmatic .focus() may queue or
+          // no-op until Duo is foregrounded, and the focus event may
+          // never fire. The renderer's focusedColumn stays at 'terminal'
+          // and ⌘` toggles in the wrong direction. Pushing the IPC
+          // unconditionally here aligns the renderer's tracking with
+          // user intent ("the page just opened, attention is here now")
+          // independent of OS-focus mechanics.
+          if (this.eventSink) {
+            this.eventSink('browser:focus-gained', null)
+          }
           break
         }
         case 'reload': {

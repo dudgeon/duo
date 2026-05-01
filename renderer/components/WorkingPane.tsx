@@ -262,19 +262,26 @@ export function WorkingPane({
     })
   }
 
-  // Renderer dispatch.
-  let activeRenderer: React.ReactNode = null
-  if (activeWorking.kind === 'browser') {
-    activeRenderer = <BrowserRenderer onSendToDuo={onSendToDuo} />
-  } else {
-    const tab = fileTabs.find(ft => ft.id === activeWorking.id)
-    if (!tab) {
-      // Stale active id — fall back to browser.
-      activeRenderer = <BrowserRenderer onSendToDuo={onSendToDuo} />
-    } else if (tab.type === 'editor') {
-      activeRenderer = (
+  // BUG-046 — keep every file-tab renderer mounted permanently and
+  // toggle visibility via display:none. Switching between markdown
+  // tabs no longer tears down + re-spins-up the TipTap editor, which
+  // was the source of the visible 1–2s render delay BUG-038's smoke
+  // walk surfaced. Mirrors the TerminalPane pattern (xterm instances
+  // stay mounted across tab switches).
+  //
+  // BrowserRenderer stays mount/unmount because it's a singleton
+  // wrapper around the native WebContentsView pool — the WCV is
+  // already kept alive across tab cycles by BrowserManager itself,
+  // and BrowserRenderer's unmount cleanup (collapse to 1×1) is what
+  // lets a file tab take over the visible region. Always-mounting
+  // BrowserRenderer would race the bounds push against display:none.
+  const isFileActive = (tabId: string) =>
+    activeWorking.kind === 'file' && activeWorking.id === tabId
+
+  function renderFileTab(tab: FileTab): React.ReactNode {
+    if (tab.type === 'editor') {
+      return (
         <MarkdownEditor
-          key={tab.id}
           path={tab.path}
           isNew={tab.isNew}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
@@ -283,23 +290,23 @@ export function WorkingPane({
           onSendToDuo={onSendToDuo}
         />
       )
-    } else if (tab.type === 'html-canvas') {
+    }
+    if (tab.type === 'html-canvas') {
       // Stage 17a + 17c — rendered + editable .html with Send → Duo,
       // just-added highlight on agent edits, and warn-before-overwrite
       // banner. Comments + CriticMarkup track-changes land in 17d/14.
-      activeRenderer = (
+      return (
         <CanvasTab
-          key={tab.id}
           path={tab.path}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onSendToDuo={onSendToDuo}
           onCanvasAction={onCanvasAction}
           homeDir={homeDir}
-          // BUG-032 — only let the iframe steal focus when the user
-          // has chosen the working pane. Without this, every iframe
-          // load (mount, srcdoc reload, post-write rerender) re-grabs
-          // focus from the terminal mid-typing.
-          focused={focused}
+          // BUG-032 + BUG-046 — only let the iframe steal focus when
+          // the user has chosen the working pane AND this tab is the
+          // active one. Without the active gate, hidden canvases would
+          // try to claim focus when ⌘` lands in the working pane.
+          focused={focused && isFileActive(tab.id)}
           // BUG-037 — iframe mousedown forwards up to App.tsx so it
           // can flip focusedColumn to 'working'. Otherwise clicks
           // into the canvas while terminal had focus leave the
@@ -307,20 +314,18 @@ export function WorkingPane({
           onUserInteract={onCanvasFocusGained}
         />
       )
-    } else if (tab.type === 'markdown-preview') {
-      activeRenderer = (
+    }
+    if (tab.type === 'markdown-preview') {
+      return (
         <MarkdownPreview
           path={tab.path}
           onOpenMarkdown={onOpenMarkdown}
         />
       )
-    } else if (tab.type === 'image') {
-      activeRenderer = <ImagePreview tab={asWorkingTab(tab)} />
-    } else if (tab.type === 'pdf') {
-      activeRenderer = <PdfPreview tab={asWorkingTab(tab)} />
-    } else {
-      activeRenderer = <UnknownFilePreview tab={asWorkingTab(tab)} />
     }
+    if (tab.type === 'image') return <ImagePreview tab={asWorkingTab(tab)} />
+    if (tab.type === 'pdf') return <PdfPreview tab={asWorkingTab(tab)} />
+    return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }
 
   return (
@@ -341,7 +346,31 @@ export function WorkingPane({
         onTrashFile={onTrashTabFile}
         onStartRenameFromTab={onStartRenameFromTab}
       />
-      {activeRenderer}
+      {/* BUG-046 — each file tab renders inside an absolutely-
+          positioned wrapper with display gated on activity. All
+          renderers stay mounted; only the active one is visible. */}
+      <div className="flex-1 min-h-0 relative">
+        {fileTabs.map(tab => (
+          <div
+            key={tab.id}
+            className="absolute inset-0 flex flex-col"
+            style={{ display: isFileActive(tab.id) ? 'flex' : 'none' }}
+          >
+            {renderFileTab(tab)}
+          </div>
+        ))}
+        {(activeWorking.kind === 'browser' ||
+          (activeWorking.kind === 'file' &&
+            !fileTabs.some(ft => ft.id === activeWorking.id))) && (
+          // Browser is the active surface, OR we have a stale file id
+          // (closeFileTab usually flips back to 'browser', but defend
+          // against any race that leaves activeWorking pointing at a
+          // missing tab — fall back to the browser pane).
+          <div className="absolute inset-0 flex flex-col">
+            <BrowserRenderer onSendToDuo={onSendToDuo} />
+          </div>
+        )}
+      </div>
     </div>
   )
 }

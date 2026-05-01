@@ -409,13 +409,53 @@ double-click.
 login` to fix. Don't paper over it; an unauthenticated release call
 fails silently in some shells.
 
-### Step 7 — Stop. Report.
+### Step 7 — Bump `package.json` to the next in-progress version.
+
+After the cut commit + tag are in, the next dev work shouldn't run
+under the just-cut version's identity. Bump `package.json` to the
+next likely MINOR (or PATCH if the next sprint is bug-only) and
+commit it as a separate "chore: bump to vX.Y.Z-dev" commit.
+
+```bash
+# After cutting v0.5.3, bump for next sprint:
+# Edit package.json: "version": "0.5.4"  (no -dev suffix needed —
+# the dev build's titlebar already paints "·dev" via app.isPackaged).
+
+git add package.json
+git commit -m "$(cat <<'EOF'
+chore: bump to v0.5.4 for next sprint
+
+Post-v0.5.3 cut. Lets the dev build's titlebar version badge
+correctly identify the in-progress work as v0.5.4 rather than
+"still v0.5.3 in dev." Skipping this step makes smoke-walk
+filenames (v0.5.4-rev*.json) and dev-build version mismatch,
+which is confusing during a re-walk.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+**Why this matters.** Without the bump, dev builds run under the
+just-cut version's identity. When mid-sprint smoke walks happen, the
+walk page is named `vNEXT-rev*.html` but the dev titlebar still says
+`v0.5.3 ·dev` — the user reasonably asks "am I walking the right
+build?" and the answer is genuinely confusing. Bumping at cut time
+makes "the badge matches the walk" the default, so the question
+never surfaces.
+
+If you're not sure whether next sprint is MINOR or PATCH, lean
+MINOR. Re-bumping later is free; under-bumping leaves dev under the
+wrong identity for a whole sprint.
+
+### Step 8 — Stop. Report.
 
 Show the user:
-- The new version.
+- The new (cut) version.
 - One-line summary.
-- The commit SHA.
-- The tag (local only — not pushed).
+- The cut commit SHA + tag (local only — not pushed unless step 6.5
+  ran).
+- The bump commit SHA (Step 7).
 - Suggested next: `git push --tags` (defer to user).
 
 ---

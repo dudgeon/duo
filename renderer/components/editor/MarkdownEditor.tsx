@@ -594,7 +594,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // the user sees where the cursor jumped to.
   useEffect(() => {
     if (!editor || isNew) return
-    return window.electron.editor?.onDocGoto((req) => {
+    return window.electron.editor?.onDocGoto(async (req) => {
       if (req.path && req.path !== path) {
         window.electron.editor.replyDocGoto({
           reqId: req.reqId, ok: false,
@@ -606,6 +606,56 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         const heading = req.heading
         const anchor = req.anchor
         const reqLine = req.line
+
+        // ENH-022 v4 — buffer-staleness defense. When tasks.md (or any
+        // long-lived file) gets edits via `duo doc-write` / external
+        // editor / `duo html *` AFTER the user opened it in Duo, the
+        // editor's TipTap doc is the snapshot loaded at open time —
+        // not what's on disk. The heading walk below operates on the
+        // editor's stale buffer, so newly-added headings don't match
+        // even though they exist on disk. This is the most likely
+        // cause of v3's "scrolls to BUG-034 instead of BUG-038":
+        // BUG-038's heading was added after the user opened tasks.md.
+        //
+        // Reconciliation: re-read disk; if it differs from the
+        // editor's serialized buffer AND the editor is clean (no
+        // unsaved local edits), reload via setContent. If dirty,
+        // skip the reload to avoid clobbering user work — surface
+        // staleness in the response so the agent knows to ask the
+        // user to save.
+        let bufferStale = false
+        let didReload = false
+        try {
+          const diskRead = await window.electron.files.read(path)
+          const diskText = decodeUtf8(diskRead.bytes)
+          const diskSplit = splitFrontmatter(diskText)
+          const diskBody = diskSplit.body
+          const editorBody = editor.storage.markdown.getMarkdown() as string
+          if (diskBody !== editorBody) {
+            const editorIsDirty = editorBody !== lastSavedBodyRef.current
+            if (!editorIsDirty) {
+              // Clean buffer behind disk — safe to reload.
+              frontmatterRef.current = diskSplit.frontmatter
+              eolRef.current = diskSplit.eol
+              editor.commands.setContent(diskBody, false)
+              lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+              didReload = true
+            } else {
+              // Dirty buffer + diverged disk = real conflict. Don't
+              // touch the buffer; mark the response so the agent
+              // can warn. Stage 16 (external-write reconciliation)
+              // is the longer-term fix; this is a doc-goto-local
+              // band-aid.
+              bufferStale = true
+            }
+          }
+        } catch (err) {
+          console.warn('[doc-goto v4] disk reload failed:', err)
+        }
+        // Smoke-walk diagnostic — surface in DevTools console so
+        // wrong-match reports tell us whether v4's reload path ran.
+        // Drop or gate behind a flag once stable.
+        console.log('[doc-goto v4]', { path, didReload, bufferStale, heading: req.heading })
 
         // Walk heading nodes once; collect text + slug + position.
         type HeadingHit = { text: string; slug: string; pos: number; line: number }
@@ -774,7 +824,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         window.electron.editor.replyDocGoto({
           reqId: req.reqId, ok: true, path,
           line: resolvedLine, anchor: resolvedAnchor,
-          matched_heading: resolvedHeading
+          matched_heading: resolvedHeading,
+          buffer_stale: bufferStale || undefined
         })
       } catch (err) {
         window.electron.editor.replyDocGoto({

@@ -19,6 +19,36 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-05-01
+
+A tight follow-up sprint to v0.5.3: every right-click in Duo now does what users expect, ⌘\` after `duo open` finally toggles cleanly, the browser pane gets ⌘F find-in-page, breadcrumbs show the active folder by default, markdown tab cycling is instant, and a build-version badge in the titlebar prevents "am I walking the right build?" confusion at smoke-walk time.
+
+### Added
+
+- **Right-click context menus everywhere** (ENH-031). Cut / Copy / Paste / Select All / Look Up / Spell-check / Inspect (dev only) in the markdown editor, HTML canvas, and browser pane. Previously a no-op. Wired via `electron-context-menu` v4 (ESM, dynamic-imported) per webContents — catches every WCV (browser tabs) AND the main BrowserWindow (canvas iframes ride on it).
+- **Copy as Plain Text** (ENH-030). New entry at the top of the right-click menu when text is selected; ⌘⌥C in the Edit menu. Strips formatting marks; pastes cleanly into terminals and other plain-text targets.
+- **⌘F find-in-page in the browser pane** (ENH-028). Parity with the markdown editor's find — find bar above the address row, ⌘G / ⌘⇧F navigate matches, ⎋ closes, match counts stream live via Electron's `webContents.findInPage` + `found-in-page` event.
+- **Build-version badge in the titlebar** (ENH-033). `0.5.4 ·dev` (or just `0.5.4` when packaged), left of the theme toggle. Glanceable confirmation of which build is live before walking a smoke.
+- **Smoke-walk skill** now refuses to generate a walk page whose manifest version doesn't match `package.json`, with a clear error explaining both fix paths. Three layers of defense (cut-version § Step 7 + smoke-walk § Step 2 precondition + `generate.mjs` runtime guard).
+
+### Changed
+
+- **`duo open` shifts focus to the new browser tab.** Explicit `webContents.focus()` after `switchTab` plus a `BROWSER_FOCUS_GAINED` IPC push from the open handler so the renderer's `focusedColumn` aligns with user intent independent of OS-focus mechanics.
+- **Navigator breadcrumb pans to the right** on every cwd change (ENH-029). Active (rightmost) segment renders bolder + brighter; earlier segments stay reachable via the user's pan gesture.
+- **Cycling between markdown tabs is now instant** (BUG-046). `WorkingPane` keeps every file-tab renderer mounted (display-toggled), mirroring TerminalPane. No more 1–2s TipTap rebuild per switch.
+- **Skill — `duo: command not found` troubleshooting added** (SKILL-001). Explicit install-location checklist (`~/.claude/bin/duo`, `~/.local/bin/duo`, `/usr/local/bin/duo`), env-var probes, and a "don't fall back to native `open`, don't ask the user to do it for you" rule. Plus a behavior rule: invoke `duo` directly via Bash for one-shot ops; reserve the subagent for multi-step browser workflows.
+- **Cut-version skill** codifies "bump `package.json` to next MINOR immediately after cut" as Step 7. Without it, the dev-build version badge and smoke-walk filenames diverge mid-sprint, which was confusing during a v0.5.4 re-walk.
+- **Browser-pane ⌘F / ⌘G / ⌘⇧F now reach the renderer.** Added `f` and `g` to the `wireKeyForwarding` allowlist so they work even when the WCV has OS focus; `f` gets the BUG-002 focus-reclaim treatment so the find input takes focus correctly.
+
+### Fixed
+
+- **⌘\` toggles back to terminal cleanly after `duo open`** (BUG-048 v3, the real fix). Root cause was the menu accelerator's pre-IPC focus reclaim firing the xterm helper-textarea's `focus` event in the renderer BEFORE `togglePaneFocus` read its `prev` — the listener flipped `focusedColumn` to 'terminal' as a side effect, poisoning the toggle direction. Fix: main no longer reclaims on ⌘\`; renderer reads its own state via a `focusedColumnRef` that's bypassed by the xterm focus listener (`setFocusedColumnSilent`), decides direction, then asks main to reclaim via the new `PANE_FOCUS_RECLAIM` IPC.
+
+### Known issues
+
+- **`duo doc goto --heading "X"`** still scrolls to a wrong-but-numerically-near heading on `tasks.md` (rev3 walk: target BUG-038 → landed on BUG-034). Deferred per owner: do not block future releases. v4 disk-reload + v5 instrumentation are in the codebase for the next debugging pass; no further work scheduled. (ENH-022)
+- **Multi-byte UTF-8 paste into terminals with non-UTF-8 locale** (e.g. conda's `(base)` activator setting `LC_ALL=C`) renders bytes individually rather than as proper Unicode chars. Not a Duo bug — the clipboard write is correct (TextEdit confirms round-trip). Filed as ENH-032 to add install-time documentation. Workaround: `export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8` in your shell rc-file after conda init.
+
 ## [0.5.3] — 2026-05-01
 
 Two stages closed (Atelier whisper-presence + Send → Duo polish), a broad polish sweep across the navigator/editor/tab strips, three new agent-driven CLI verbs (`duo doc goto` / `duo doc find` / `duo reload`), and the new **smoke-walk** skill that turns sprint-end verification into a structured user walk-through.
@@ -484,7 +514,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.5.3...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.5.4...HEAD
+[0.5.4]: https://github.com/dudgeon/duo/releases/tag/v0.5.4
 [0.5.3]: https://github.com/dudgeon/duo/releases/tag/v0.5.3
 [0.5.2]: https://github.com/dudgeon/duo/releases/tag/v0.5.2
 [0.5.1]: https://github.com/dudgeon/duo/releases/tag/v0.5.1

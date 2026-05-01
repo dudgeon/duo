@@ -101,6 +101,23 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.5.4 release context menu right-click electron-context-menu copy as plain text find in page browser pane breadcrumb pan markdown tab cycle render delay version badge titlebar build version cmd-backtick focus toggle pane focus reclaim race xterm focus listener bug-048 bug-046 enh-028 enh-029 enh-030 enh-031 enh-033">
+  <h3>v0.5.4 — Right-click everywhere + ⌘\` finally clean <span class="date">2026-05-01</span></h3>
+  <p>A tight follow-up sprint to v0.5.3 — pulling the carry-over Known Issues from that cut and shipping six of seven cleanly. Every right-click in Duo now does what users expect, ⌘\` after <code>duo open</code> finally toggles back to the terminal cleanly, and a few smaller paper-cuts cleared.</p>
+  <ul>
+    <li><strong>Right-click context menus everywhere.</strong> Cut / Copy / Paste / Select All / Look Up / Spell-check / Inspect (in dev) in the markdown editor, HTML canvas, and browser pane — previously a no-op. Wired via the <code>electron-context-menu</code> library, attached per-webContents so every browser tab gets it too.</li>
+    <li><strong>"Copy as Plain Text"</strong> — new entry at the top of the right-click menu when you have text selected, plus <strong>⌘⌥C</strong> in the Edit menu. Strips formatting marks; pastes cleanly into terminals and other plain-text targets.</li>
+    <li><strong>⌘F find-in-page in the browser pane.</strong> Parity with the markdown editor's find — find bar above the address row, ⌘G / ⌘⇧F navigate matches, ⎋ closes, match counts stream live as you type.</li>
+    <li><strong>⌘\` after <code>duo open</code> toggles back cleanly.</strong> Third try — the previous two rounds chased the wrong cause. Real fix: stop the menu accelerator's focus reclaim from racing the toggle's read of the current pane.</li>
+    <li><strong>Cycling between markdown tabs is instant.</strong> File-tab editors stay mounted across switches now (display-toggled) — no more 1–2s rebuild per ⌃Tab.</li>
+    <li><strong>Navigator breadcrumb shows the active folder.</strong> Default scroll position is now flush with the right edge instead of the left, so deep paths show the current folder by default. Last segment is rendered bolder so the eye lands on it.</li>
+    <li><strong>Build-version badge in the titlebar.</strong> Glanceable confirmation of which version is running — useful when validating fixes against a dev build. Shows <code>·dev</code> in accent color when not packaged.</li>
+    <li><strong>Skill: troubleshooting for "duo: command not found".</strong> If your shell can't find <code>duo</code> on <code>$PATH</code>, the skill now walks the agent through checking the install locations and using the binary by full path — instead of giving up and falling back to native macOS <code>open</code>, which doesn't route through Duo.</li>
+  </ul>
+  <p><strong>One known issue, parked indefinitely.</strong> <code>duo doc goto --heading X</code> still picks a wrong-but-near heading on very large docs (tasks.md). The v3 → v4 → v5 fix attempts are in the codebase with diagnostic instrumentation, but the bug doesn't block usable behavior for most cases (line-based and anchor-based goto work fine). Carries over to a future debugging pass.</p>
+  <p><strong>Terminal paste rendering quirk.</strong> If multi-byte Unicode characters (em-dash, ⌘⌥, etc.) come out as raw bytes when you paste into a terminal, your shell's locale is non-UTF-8 (often from conda's <code>(base)</code> activator setting <code>LC_ALL=C</code>). Fix: <code>export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8</code> in your <code>~/.zshrc</code> after conda init. Not a Duo bug — TextEdit confirms the clipboard is correct.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.5.3 release stage-12 stage-15 stage-20 atelier whisper presence titlebar dot send-to-duo cmd-d length cap image flatten duo doc goto duo doc find duo reload smoke walk skill verification context menu file tree right-click breadcrumb cwd find-in-document">
   <h3>v0.5.3 — Two stages closed + a polish sweep <span class="date">2026-05-01</span></h3>
   <p>Two roadmap stages flipped to ✅ in one cut: <strong>Stage 12</strong> (Atelier visual redesign) closes with the whisper-level agent presence — a soft accent dot in the titlebar that breathes when Claude is running, and a brief halo on the working pane when Claude reads your selection. <strong>Stage 15</strong> (Send → Duo) closes with the polish trio that's been deferred since 15.1 + 15.2 shipped.</p>

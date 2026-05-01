@@ -11,7 +11,8 @@
 // stays portable across Node versions.
 
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
-import { dirname } from 'path'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 
 const [, , manifestPath, outPath] = process.argv
 if (!manifestPath || !outPath) {
@@ -31,6 +32,58 @@ const { version, date, items } = manifest
 if (typeof version !== 'string' || typeof date !== 'string' || !Array.isArray(items)) {
   console.error('Manifest must have { version: string, date: string, items: [...] }')
   process.exit(2)
+}
+
+// Cross-check the manifest version against package.json's version.
+// This catches the v0.5.4-rev3 confusion: dev-build titlebar said
+// `0.5.3 ·dev` while the smoke walk page said `v0.5.4-rev3` because
+// the post-cut bump (cut-version skill § Step 7) was missed. Without
+// this guard, the user has to ask "am I walking the right build?"
+// — and the answer is genuinely confusing because BOTH are right
+// from their own frame of reference.
+//
+// Allow `version` to be either an exact match (e.g. "0.5.4") or a
+// `<base>-rev<N>` / `<base>-<suffix>` form for re-walks of the
+// same sprint (the base must match package.json).
+//
+// Locate package.json by walking up from the script's own dir; the
+// skill lives under `.claude/skills/smoke-walk/`, so two levels up
+// is the repo root in the canonical layout. Falls back to CWD if
+// the canonical layout isn't found (e.g. forks that move the skill).
+function readPackageVersion() {
+  const __dirname = dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    resolve(__dirname, '../../..', 'package.json'),
+    resolve(process.cwd(), 'package.json')
+  ]
+  for (const p of candidates) {
+    try {
+      const pkg = JSON.parse(readFileSync(p, 'utf8'))
+      if (pkg && typeof pkg.version === 'string') return { path: p, version: pkg.version }
+    } catch { /* try next candidate */ }
+  }
+  return null
+}
+const pkg = readPackageVersion()
+if (pkg) {
+  const manifestBase = version.split('-')[0]  // strip "-rev3" / "-final" / etc.
+  if (manifestBase !== pkg.version) {
+    console.error('')
+    console.error(`✗ Version mismatch — refusing to generate.`)
+    console.error(`  Smoke walk manifest version : ${version}  (base: ${manifestBase})`)
+    console.error(`  package.json version         : ${pkg.version}`)
+    console.error(`  Source: ${pkg.path}`)
+    console.error('')
+    console.error('  This will cause the dev build titlebar to read one')
+    console.error('  version while the walk page reads another — confusing')
+    console.error('  during a re-walk ("am I walking the right build?").')
+    console.error('')
+    console.error('  Fix one of:')
+    console.error(`    a) Bump package.json to ${manifestBase} (preferred — see cut-version § Step 7)`)
+    console.error(`    b) Rename the manifest to v${pkg.version}*.json`)
+    console.error('')
+    process.exit(3)
+  }
 }
 
 // HTML escape — keep it tiny + dep-free. Covers the cases that

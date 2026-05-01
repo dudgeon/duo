@@ -215,6 +215,17 @@ export class BrowserManager {
   async openTab(url = newTabUrl()): Promise<{ ok: true; id: number; url: string; title: string }> {
     const entry = this.addTab(url)
     await this.switchTab(entry.id)
+    // BUG-048 — pull OS-level keyboard focus to the new tab so the
+    // user's perceived "the page just opened, I'm in the browser"
+    // state matches the renderer's tracking. Without this, OS focus
+    // stays in whatever pane the user was in (typically the xterm
+    // they ran `duo open` from), so `focusedColumn` stays 'terminal'
+    // and the next ⌘` toggles terminal→browser instead of the
+    // user's expected browser→terminal. The .focus() call fires
+    // view.webContents.on('focus') (wired in addTab → wireEvents)
+    // which forwards BROWSER_FOCUS_GAINED → renderer flips
+    // focusedColumn = 'working'. Mirrors the BUG-042 fix's intent.
+    entry.view.webContents.focus()
     // Wait briefly for the loaded page to settle so we can return its real
     // URL and title (the initial render may not yet have emitted
     // did-navigate). Best-effort — cap at ~2s.
@@ -380,6 +391,30 @@ export class BrowserManager {
     this.activeView().webContents.reload()
   }
 
+  // ── Find-in-page (ENH-028) ────────────────────────────────────────────────
+  // Wraps Electron's `webContents.findInPage` for the active tab. Each
+  // keystroke from the find-bar resends START with the new query;
+  // ⌘G / ⌘⇧G resend with `findNext: true` + a forward flag. Match
+  // counts arrive via the `found-in-page` event wired in addTab →
+  // wireEvents (search "ENH-028 found-in-page wiring").
+
+  findInPage(query: string, options?: { findNext?: boolean; forward?: boolean }): void {
+    if (!query) return
+    const wc = this.activeView().webContents
+    wc.findInPage(query, {
+      findNext: options?.findNext,
+      forward: options?.forward !== false
+    })
+  }
+
+  stopFindInPage(): void {
+    const wc = this.activeView().webContents
+    // 'clearSelection' drops the find highlight without leaving the
+    // last-found range selected (which would interfere with the next
+    // user keystroke / Send → Duo selection).
+    wc.stopFindInPage('clearSelection')
+  }
+
   getActiveUrl(): string {
     return this.activeView().webContents.getURL() || 'about:blank'
   }
@@ -516,6 +551,22 @@ export class BrowserManager {
     wc.on('page-title-updated', emit)
     wc.on('did-start-loading', emit)
     wc.on('did-stop-loading', emit)
+    // ENH-028 found-in-page wiring — Electron emits this every time
+    // findInPage's match state updates (intermediate while still
+    // scanning, then once with finalUpdate=true). Forward to the
+    // renderer so the find bar can show "n / m". Only fire when the
+    // tab matching the result is the currently-active one (the user
+    // can't see results from a backgrounded tab).
+    wc.on('found-in-page', (_event, result) => {
+      if (this.tabs[this.activeIndex]?.view !== view) return
+      if (this.window && !this.window.isDestroyed()) {
+        this.window.webContents.send(IPC.BROWSER_FIND_RESULT, {
+          activeMatchOrdinal: result.activeMatchOrdinal,
+          matches: result.matches,
+          finalUpdate: result.finalUpdate
+        })
+      }
+    })
     // Issue #27 — record history on stable navigations. did-navigate
     // is the right hook (not did-finish-load which fires for failed
     // loads too) and the title is usually populated by then; we also
@@ -566,6 +617,14 @@ export class BrowserManager {
         // Stage 15.3 — ⌘D = Send → Duo (chord works from browser focus
         // when the user has selected text in the page).
         key === 'd' ||
+        // ENH-028 — ⌘F / ⌘G / ⌘⇧F = find-in-page. Without forwarding,
+        // Chromium would consume these inside the page (its built-in
+        // find UI doesn't render in WebContentsView, so ⌘F was a
+        // no-op when the user was focused on a page). Renderer's
+        // openFind/findNext/findPrev branches on activeWorking and
+        // dispatches the right window event.
+        key === 'f' ||
+        key === 'g' ||
         key === '[' ||
         key === ']' ||
         (key >= '1' && key <= '9')
@@ -590,7 +649,11 @@ export class BrowserManager {
       // target. Reclaiming focus for ⌃Tab in particular would steal it
       // away from the next-active browser tab, which the user expects
       // to keep typing into.
-      const needsRendererFocus = key === 't' || key === 'n' || key === 'l'
+      // ENH-028 — ⌘F also needs the focus reclaim: the renderer's
+      // openFind dispatcher mounts the find input and calls .focus()
+      // on it. Without OS focus on the renderer, that focus call is
+      // a no-op and the user types into the page instead of the bar.
+      const needsRendererFocus = key === 't' || key === 'n' || key === 'l' || key === 'f'
       if (needsRendererFocus) {
         this.window.webContents.focus()
       }
