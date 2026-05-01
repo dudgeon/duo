@@ -118,6 +118,60 @@ None on the engineering side. Pre-cut-decision items:
   expand row 14 in place. Did not modify smoke-checklist this
   sprint.
 
+### Smoke walk results (2026-04-30, post-build)
+
+First user-driven smoke walk via the new `smoke-walk` skill.
+8 items, **5 PASS / 3 FAIL / 0 SKIP**. v0.5.4 cut on hold pending
+fixes. Results:
+
+- ✅ BUG-042 — Browser pane click → focus.
+- ✅ BUG-041 — FileTree whitespace right-click context menu.
+- ✅ ENH-024 — Tab strip pan-to-active.
+- ✅ ENH-025 — ⌘[ / ⌘] outdent / indent.
+- ✅ BUG-043 — Find scroll + arrows. **Note:** dark-mode find-input
+  contrast is unreadable (light brown on white). Filed as **BUG-044**.
+
+- ❌ **BUG-038 (5th instance)** — v3 closure-staleness fix didn't
+  cover the working-pane flavor. Cycle handler's else-branch calls
+  `browser.getTabs()` + `browser.switchTab()`, which only knows
+  browser tabs — file tabs (markdown editor, HTML canvases) are
+  invisible to the cycle. User repro: ⌘N spawns a markdown file at
+  far-left of working strip; ⌃Tab visits the right-side browser
+  tabs but skips the markdown tab entirely. v4 fix sketch + class
+  summary in `tasks.md § BUG-038`. The pure-helper extraction
+  (`renderer/keyboard/tabCycle.ts`) IS the right shape — v4 just
+  needs to feed it the merged tab list, not browsers-only.
+
+- ❌ **ENH-022** — CLI succeeds, renderer doesn't scroll. The CLI
+  scope-fix (commit `bc5e520`) is correct; user pasted a clean
+  ok:true response with the right path / line / anchor. The bug is
+  downstream in `MarkdownEditor.tsx`'s scroll-to-position handler —
+  most likely the same scroll-container-mismatch class as BUG-043
+  (`scrollBy` on the wrong element). Diagnosis carry-over.
+
+- ❌ **ENH-026** — Menu fires on markdown editor tabs but not on
+  HTML canvas tabs. Browser tabs correctly show Pin/Unpin only.
+  Diagnosis carry-over: trace `tab.path` for canvas tabs — likely
+  dropped somewhere in `WorkingPane.tsx § mergedTabs` projection,
+  or canvas tab's `FileTab` type is missing `path`, or
+  `CanvasTab.tsx` is intercepting right-click.
+
+### Pre-cut-decision update
+
+**v0.5.4 cut on hold.** Three substantive failures (one of them a
+recurring-class bug now in its 5th instance). Recommend a v0.5.4
+sub-sprint to fix all three carry-overs + BUG-044, re-walk, then
+cut. Estimated scope: BUG-038 v4 wiring (medium — touches App.tsx
++ useKeyboardShortcuts), ENH-022 v2 (small — tracing a
+ProseMirror scroll), ENH-026 v2 (small — tracing path
+propagation), BUG-044 (small — CSS).
+
+The smoke-walk skill itself worked well — first run captured the
+right level of structured detail to act on. One template tweak
+landed mid-flight (commit `4660f26`): added a free-form "Other
+notes" field for paper cuts that don't fit a specific item, with
+SKILL.md format spec + parser instructions.
+
 ---
 
 ## 2026-04-30 (evening) — v0.5.3 sprint: post-v0.5.2 papercut sweep + smoke walk

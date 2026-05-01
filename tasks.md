@@ -1979,7 +1979,37 @@ iframe.contentDocument.addEventListener('mousedown', () => {
 
 ### BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)
 
-**Status:** ✅ **v3 fix shipped 2026-04-30 (v0.5.4 sprint).** Root cause finally identified: closure staleness on `opts.activePaneFocus` inside `useKeyboardShortcuts.ts`. The dispatcher closure read `opts.activePaneFocus` directly from `useEffect`'s closure, which was up-to-date *eventually* (the deps array re-ran the effect on focus change), but there was a window where: (1) user clicks into a terminal tab, React schedules `setFocusedColumn('terminal')`, (2) before the effect re-runs and rebinds the closure, the user presses ⌃Tab, (3) the document-capture handler fires the dispatcher, which reads the STALE `pane` value (often `'working'` from a prior browser/canvas click), takes the BROWSER cycle branch, and only reaches the (much smaller) browser-tab list. User saw "left 7 nonresponsive" because they had ~3 browser tabs in the working pane, and the cycle was hitting those instead of the 10 terminal tabs. **v3 fix:** added `activePaneRef`, mirrors `opts.activePaneFocus` like BUG-021's `tabsRef` mirrors `opts.tabs`. Same exact pattern, applied to a different prop. Plus extracted the cycle math into a pure `cycleNext(tabs, currentId, delta)` helper in `renderer/keyboard/tabCycle.ts` so PROCESS-001 Phase 2 unit tests can pin the contract when the framework lands.
+**Status:** 🟡 **v3 fix didn't fix it — re-opened 2026-04-30 from v0.5.4 smoke walk.** The closure-staleness fix was real and may have helped a subset of repros, but the user-reported symptom that prompted the re-open is **structurally different from the previous four flavors**. New symptom: in the WORKING pane (not terminal), ⌃Tab cycles through "the left two html viewers" (browser tabs pointing at local HTML files) but skips a leftmost markdown editor tab. Confirmed by the user re-spawning a fresh markdown file via ⌘N — the new markdown tab landed at far left and was unreachable from ⌃Tab.
+
+**v4 root cause (5th instance):** The cycle handler's working-pane branch calls `window.electron.browser.getTabs()` and switches via `browser.switchTab()`. That IPC pair only knows about BrowserManager's tab list — i.e. browser tabs only. **File tabs (markdown editors, HTML canvases, image previews) live in `App.tsx`'s `fileTabs` state and are invisible to the working-pane cycle.** The strip's `mergedTabs` interleaves both kinds for display, but the cycle code only iterates browsers.
+
+```ts
+// useKeyboardShortcuts.ts § cycleTabsForward / Backward — working-pane branch
+} else {
+  void (async () => {
+    const btabs = await window.electron.browser.getTabs()  // ← browsers only
+    ...
+    await window.electron.browser.switchTab(btabs[nextIdx].id)  // ← can't activate a file tab
+  })()
+}
+```
+
+**v4 fix sketch (carry into next sprint):**
+1. App.tsx threads the merged working-pane tab list through useKeyboardShortcuts (a function getter, since the list re-builds every render and we want it fresh at keystroke time).
+2. App.tsx threads a `setActiveWorking({kind, id})` callback so the hook can switch to either a file tab or a browser tab.
+3. The hook's working-pane cycle iterates merged tabs in their display order, finds active by composite id, advances by delta, calls the right setter. Pure-helper `cycleNext` already supports this — it just needs the merged list, not just browsers.
+4. The browser-only `browser.switchTab` path stays as a fallback for ⌘1–9 working-pane jumps that already work.
+
+**Class summary update.** This is now the FIFTH instance of "⌃Tab doesn't reach all tabs":
+- BUG-001 (xterm eats keystroke) — fixed
+- BUG-021 (closure-stale tabs ref) — fixed
+- BUG-038 v1 (xterm-focus listener) — partial fix
+- BUG-038 v2/v3 (activePaneRef closure-staleness) — real fix but DIDN'T cover the working-pane flavor
+- BUG-038 v4 (this) — working-pane cycle ignores file tabs entirely
+
+The pure-helper extraction (`renderer/keyboard/tabCycle.ts`) DID help — it made the math testable AND it's the right shape for v4 (just feed it the merged list). The v4 fix is a wiring fix, not a math fix. PROCESS-001 Phase 2 unit tests for cycleNext will pin a regression net for this whole family once the framework lands.
+
+**Was ✅ v3 (briefly):** Root cause was identified as closure staleness on `opts.activePaneFocus` inside `useKeyboardShortcuts.ts`. The dispatcher closure read `opts.activePaneFocus` directly from `useEffect`'s closure, which was up-to-date *eventually* (the deps array re-ran the effect on focus change), but there was a window where: (1) user clicks into a terminal tab, React schedules `setFocusedColumn('terminal')`, (2) before the effect re-runs and rebinds the closure, the user presses ⌃Tab, (3) the document-capture handler fires the dispatcher, which reads the STALE `pane` value (often `'working'` from a prior browser/canvas click), takes the BROWSER cycle branch, and only reaches the (much smaller) browser-tab list. The v3 fix added `activePaneRef`, mirroring `opts.activePaneFocus` like BUG-021's `tabsRef` mirrors `opts.tabs`. The fix is correct for what it addresses but doesn't cover the working-pane file-tab gap above.
 
 **Was 🟡 (re-opened 2026-04-30)** after user verified v0.5.3 build. Symptom unchanged from the original report: "can only cycle between the last 3 tabs in the group; left 7 tabs are nonresponsive to ⌃Tab and not included in the cycle when starting from the rightmost tabs." So my W1 fix (xterm-focus listener flipping `focusedColumn` → `'terminal'`) was insufficient: the cycle is consulting the right `pane` value but the cycle list itself isn't covering all visible tabs.
 
@@ -2327,7 +2357,27 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Lifted `flagValue(args, name)` to module scope in `cli/duo.ts` so all subcommand cases share a single arg-flag lookup. Renamed the local one-arg shim in `case 'html'` to `flag` (closure over `subRest`) and updated all html-op call sites. Smoke-tested: `node cli/duo doc goto --heading "BUG-040"` against the live app returns `{ ok: true, path: ..., line: 0, anchor: "bug-040-..." }`. Original v1 (84f5a35) had the renderer/IPC plumbing right; only the CLI parser was broken.
+**Status:** 🟡 **CLI parses + IPC returns ok, but the renderer doesn't scroll. Re-opened 2026-04-30 from v0.5.4 smoke walk.** User repro:
+
+```
+$ duo doc goto --heading "BUG-038"
+{
+  "ok": true,
+  "path": "/Users/.../tasks.md",
+  "line": 1802,
+  "anchor": "bug-038-tab-cycle-still-skips-some-tabs-bug-021-follow-up"
+}
+```
+
+The CLI lexical-scope fix (commit `bc5e520`) is correct — the response parses cleanly with the right path / line / anchor. The bug is now downstream in the renderer-side `dispatchDocGoto` handler, the markdown editor's response to that IPC, OR the editor's scroll-to-position implementation. The successful response means main + IPC are fine; the issue is in `MarkdownEditor.tsx`'s actual scrolling.
+
+**v2 diagnosis (carry into next sprint):**
+- Walk the path: `electron/main.ts § dispatchDocGoto` → IPC.DOC_GOTO_REQUEST → renderer handler in `MarkdownEditor.tsx` → ProseMirror commands.
+- Most likely: the editor's `scrollToHeading` / `scrollToLine` helper has the same scroll-container-mismatch issue as BUG-043's find-bar (`scrollBy` on the wrong element). Look for `scrollIntoView` on a non-scrolling parent.
+- Or: the active-editor matching is dropping the path mid-flight.
+- Quick check: open tasks.md, run `duo doc goto --line 100`, watch the Electron devtools for any ProseMirror command errors.
+
+**Was ✅ (briefly):** Lifted `flagValue(args, name)` to module scope in `cli/duo.ts` so all subcommand cases share a single arg-flag lookup. Renamed the local one-arg shim in `case 'html'` to `flag` (closure over `subRest`) and updated all html-op call sites. Smoke-tested: `node cli/duo doc goto --heading "BUG-040"` against the live app returned `ok:true` with the resolved anchor. Original v1 (84f5a35) had the renderer/IPC plumbing right (or so I thought); only the CLI parser was broken — but the renderer's actual scroll handler is now exposed as the second half of this bug.
 
 **Was 🟡 (broken at CLI surface — re-opened 2026-04-30):** User repro:
 ```
@@ -2553,6 +2603,29 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ---
 
+### BUG-044: Find-bar text contrast unreadable in dark mode
+
+**Status:** 🆕 Filed
+**Priority:** Medium (paper-cut — find still works, just hard to read)
+**Filed:** 2026-04-30 (smoke-walk OTHER NOTES from BUG-043 PASS)
+
+**Owner observation:** "currently search string is light brown on white -- hard to read; not an issue on light mode."
+
+**Today (traced):** The FindBar input in `renderer/components/editor/FindBar.tsx` uses Atelier tokens — `bg-paper border border-paper-rule text-ink placeholder-ink-ghost`. In dark mode, `--duo-paper` flips to a dark surface but `text-ink` evidently isn't matching the pair correctly (or some intermediate token is). Result: the typed query renders as light-brown-on-white instead of light-on-dark. Light mode's paper bg + ink text reads fine.
+
+**Proposed fix:**
+- Inspect via devtools in dark mode: which CSS token is the input's `color` actually resolving to?
+- Likely culprit: a dark-mode override missed the find-bar input, OR the input's bg token (paper) is dark but its color token (ink) is being shadowed by browser default or a Tailwind reset.
+- Fix in `renderer/styles/globals.css` or a scoped class on the input.
+
+**Affected files:**
+- `renderer/components/editor/FindBar.tsx` (input element).
+- `renderer/styles/globals.css` (theme tokens / dark-mode overrides).
+
+**Cross-ref:** BUG-043 (parent — find functionality), ENH-023 (find-bar v1).
+
+---
+
 ### ENH-024: Tab strip pans/shifts to keep the active tab visible when overflowing
 
 **Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Both strips (`TabBar.tsx` for terminal, `WorkingTabStrip.tsx` for working) now ref the active `<button>` and call `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })` in a `useEffect` keyed on the active tab's id. `inline: 'nearest'` is the right primitive — clicking an already-visible tab is a no-op (no spurious horizontal jitter), and a programmatic switch to an off-screen tab smoothly pans it just enough to be visible. Active tab `<button>` accepts a `buttonRef?: React.Ref<HTMLButtonElement>` prop (typed as `Ref<>` not `RefObject<>` for React 19 compatibility); only the active row gets the ref so the assignment naturally rotates as the active id changes.
@@ -2604,7 +2677,14 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### ENH-026: Right-click on a WorkingPane tab → rename / delete / reveal in navigator
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). `WorkingTabStrip.tsx` extended with `buildTabContextMenuItems`. File-bearing tabs get **Reveal in navigator** (selects + scrolls + expands via `nav.actions.navigateTo` + `selectItem`), **Rename…** (reveal + dispatches a `duo-tree-start-rename` CustomEvent that `FileTree.tsx` listens to and transitions the row to rename mode — avoids lifting `renamingPath` state up to App.tsx), and **Move to Trash…** (dedicated confirm dialog `confirmTrash` separate from the pinned-close confirm; on confirm runs `files.trash` + `closeFileTab`). Browser tabs only see Pin/Unpin (existing behavior). Pin/Unpin remains for file tabs too — symmetry with Stage 26 PR 2.
+**Status:** 🟡 **Partial ship — re-opened 2026-04-30 from v0.5.4 smoke walk.** User reports the menu fires correctly on markdown editor tabs, but **doesn't fire on HTML canvas tabs** (and as expected, browser tabs viewing local HTML only show Pin/Unpin, which is correct).
+
+**v2 diagnosis (carry into next sprint):**
+- `WorkingTabStrip.tsx § handleContextMenu` reads `tab.path ?? null`. The expectation: HTML canvas tabs are file tabs and have `path` populated.
+- Most likely: the canvas tab's `WorkingTab` projection in `WorkingPane.tsx § mergedTabs` is dropping `path`, OR the FileTab type for canvases doesn't have `path` set, OR the canvas onContextMenu is being intercepted elsewhere (CanvasTab.tsx might preventDefault on right-click before it bubbles).
+- Quick repro path: log `tab` inside `handleContextMenu` for a canvas tab; if `tab.path` is undefined, follow the chain back to where it should have been set.
+
+**v1 (shipped, partial):** `WorkingTabStrip.tsx` extended with `buildTabContextMenuItems`. File-bearing tabs get **Reveal in navigator** (selects + scrolls + expands via `nav.actions.navigateTo` + `selectItem`), **Rename…** (reveal + dispatches a `duo-tree-start-rename` CustomEvent that `FileTree.tsx` listens to and transitions the row to rename mode — avoids lifting `renamingPath` state up to App.tsx), and **Move to Trash…** (dedicated confirm dialog `confirmTrash` separate from the pinned-close confirm; on confirm runs `files.trash` + `closeFileTab`). Browser tabs only see Pin/Unpin (existing behavior). Pin/Unpin remains for file tabs too — symmetry with Stage 26 PR 2.
 **Priority:** Medium (Stage 26's right-click context model from the navigator should extend to the tab strip — paired affordance)
 **Filed:** 2026-04-30 (post-sprint)
 
