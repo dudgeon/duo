@@ -2359,7 +2359,17 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** ✅ **v2 fix shipped 2026-04-30 (v0.5.4 sub-sprint).** Two-pronged fix in `MarkdownEditor.tsx`'s doc-goto handler. (1) Chain `focus()`, `setTextSelection(pos)`, `scrollIntoView()` into a single `editor.chain().run()` so the scrollIntoView flag is on the same transaction that moves the selection — the original three-separate-commands form ended up with `scrollIntoView` running on an empty transaction after the selection had already settled, which PM treated as "selection visible — nothing to do" depending on layout. (2) Belt-and-braces RAF callback that resolves the target's DOM node via `view.domAtPos()` and calls native `scrollIntoView({ block: 'center', behavior: 'smooth' })` — same fix shape as BUG-043. PM's built-in scrollIntoView walks up looking for an ancestor with `overflow:auto/scroll`, but the markdown editor's actual scroller is 2-3 ancestors above `view.dom`, so the heuristic missed; native `scrollIntoView` walks all the way up correctly. Smoke-walk verification owed.
+**Status:** 🟡 **v2 partially fixed — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk.** Editor now scrolls (v2 fix landed) BUT scrolls to the **wrong heading**. User repro: `duo doc goto --heading "BUG-038"` lands on BUG-032 instead of BUG-038. Both headings exist in tasks.md; both contain the substring searched-for in some shape. v2 fix proved the scroll plumbing works; v3 needs to fix the heading-match logic.
+
+**v3 hypotheses (carry into next sprint):**
+1. **Heading match precedence is too loose.** Current impl: `headings.find(h => h.text.toLowerCase().includes(needle))`. First match wins, but `includes` is permissive — a heading text "BUG-032 (… mentions BUG-038 in body)" wouldn't match (only the heading text is searched), so this is unlikely. Worth verifying with the actual returned `anchor` field from the CLI response.
+2. **Buffer staleness.** If the user opened tasks.md before tonight's edits and the editor's TipTap doc hasn't reloaded from disk (Stage 16 external-write reconciliation is ⬜), the `editor.state.doc.descendants` walk sees stale headings — possibly a version where BUG-038's heading text was different. Quick verify: run `duo doc read` against tasks.md, compare the buffer against the disk file.
+3. **Heading text shifted.** If the BUG-038 heading was renamed in a recent edit, an old anchor / heading text in the user's mental model wouldn't match the current text. Same diagnosis path as #2.
+4. **Different file is the active editor.** `duo doc goto` operates on the active editor's path. If a different markdown file is active and contains a heading like "BUG-032 (… BUG-038 follow-up)", the match could land there. The CLI response's `path` field would tell us. Earlier smoke walks showed `path: ".../tasks.md"` so this seems unlikely but worth ruling out.
+
+**Diagnostic ask for the next walk:** when re-running, share the FULL CLI JSON response (path / line / anchor fields). With that, the wrong-match cause is unambiguous.
+
+**Was ✅ (v2 — briefly):** Two-pronged fix in `MarkdownEditor.tsx`'s doc-goto handler. (1) Chain `focus()`, `setTextSelection(pos)`, `scrollIntoView()` into a single `editor.chain().run()` so the scrollIntoView flag is on the same transaction that moves the selection — the original three-separate-commands form ended up with `scrollIntoView` running on an empty transaction after the selection had already settled, which PM treated as "selection visible — nothing to do" depending on layout. (2) Belt-and-braces RAF callback that resolves the target's DOM node via `view.domAtPos()` and calls native `scrollIntoView({ block: 'center', behavior: 'smooth' })` — same fix shape as BUG-043. v2 fixed the SCROLL gap; v3 must fix the MATCH gap.
 
 **Was 🟡 (CLI parses + IPC returns ok, but the renderer doesn't scroll. Re-opened 2026-04-30 from v0.5.4 smoke walk):** User repro:
 
@@ -2632,7 +2642,9 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### BUG-045: File:// browser tabs should expose file context menu (ENH-026 follow-up)
 
-**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint, post-smoke-walk hotfix). When a browser tab points at a local file (`file://` URL — e.g. smoke walk page, agent-generated dashboard, local HTML preview), the right-click context menu now exposes Reveal in navigator / Rename… / Move to Trash… in addition to Pin/Unpin. Previously only "true" file tabs (path-bearing markdown, canvas, image previews) got the file menu. Closes the user's "local html artifacts should be deletable" ask.
+**Status:** 🟡 **Menu items render but are visually occluded — re-opened 2026-05-01 from v0.5.4-rev2 smoke walk.** User screenshot shows "Reveal in navigator" and a partial "Rename..." entry visible above the strip / address bar zone, with the rest of the menu cut off behind the WebContentsView (the dark area below the address bar). Same root cause family as BUG-006 (Send → Duo pill on browser pane): renderer-DOM overlays sit ABOVE the renderer's own DOM but BELOW the WebContentsView at the macOS compositor level. The menu items are functionally correct (BUG-045's logic shipped); the rendering surface is the gap. **See BUG-047 for the systemic fix to the whole class.** For BUG-045 specifically, the workaround is to render the menu inside the renderer-DOM area (above the WebContentsView's top edge — the address bar / strip zone) rather than at the cursor's exact y-coordinate. Filed 2026-05-01.
+
+**Was ✅ (v1 shipped 2026-04-30):** When a browser tab points at a local file (`file://` URL — e.g. smoke walk page, agent-generated dashboard, local HTML preview), the right-click context menu exposes Reveal in navigator / Rename… / Move to Trash… in addition to Pin/Unpin. Previously only "true" file tabs (path-bearing markdown, canvas, image previews) got the file menu. The data plumbing is correct; the rendering occlusion is the only remaining gap.
 
 **Owner observation (from v0.5.4 smoke walk):** "for local html artifacts, these should be deletable, or (better yet) they should default open in canvas not in browser."
 
@@ -2685,6 +2697,107 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 - Stage 17e — allow-scripts opt-in dialog (still deferred). Once shipped, scripts can run in canvas, and `duo-open-in: browser` becomes a narrower escape valve (specifically for full-Chromium APIs, devtools, navigation history).
 - BUG-045 — covers the deletable-from-browser case for files that explicitly chose browser semantics.
 - `.claude/skills/smoke-walk/` — needs the meta tag once ENH-027 ships, OR a `--browser` CLI flag on `duo open`.
+
+---
+
+### BUG-046: Working-pane tab cycle has a visible render delay between markdown tabs
+
+**Status:** 🆕 Filed
+**Priority:** Low (BUG-038 v4 cycle is functionally correct; this is perceived-performance)
+**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk PASS note on BUG-038)
+
+**Owner observation:** "when ctrl-tab from tab 1 (markdown) to tab 2 (markdown) there is a delay and it takes a second or two for the tab rendering to catch up, which makes it look like it is failing; but after the pause, the tab cycles."
+
+**Hypothesis:** WorkingPane's `activeRenderer` swap dispatches based on `activeWorking.kind`/`id` change. For markdown tabs, the render pipeline is:
+1. `setActiveWorking({kind:'file', id})` → React schedules render.
+2. WorkingPane reads `activeWorking` → branches into `<MarkdownEditor key={path} ... />`.
+3. MarkdownEditor mounts (or re-mounts, since `key={path}` changes), spins up a new TipTap instance, parses the markdown source, hydrates the editor view.
+4. First paint happens after step 3 completes — TipTap's `useEditor` is async-ish.
+
+The lag is most visible when both tabs are markdown editors because each tab gets a fresh TipTap instance per current `key={path}` semantics. Switching to a tab that's been rendered before means re-parsing the file from scratch.
+
+**Proposed v1 fix:** Cache the TipTap instance per file id rather than tearing it down on tab switch — keep all open editors mounted but hide the inactive ones via `display:none` (mirror the TerminalPane pattern). Trade-off: more memory usage when many editors are open. Trade-off acceptable for v1 since most users have 2–3 editors open at a time.
+
+**Affected files:** `renderer/components/WorkingPane.tsx` (activeRenderer dispatch), possibly `MarkdownEditor.tsx` (mount-time setup).
+
+**Cross-ref:** BUG-038 (parent — cycle behavior). Same PASS in the v0.5.4-rev2 smoke walk.
+
+---
+
+### ENH-028: ⌘F find-in-page for the browser pane
+
+**Status:** 🆕 Filed
+**Priority:** Medium (parity gap — markdown editor has find via ENH-023, browser doesn't)
+**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk PASS note on BUG-044)
+
+**Owner observation:** "'find' is either not present or not working in the browser — this is either a bug or an ENH."
+
+**Today:** ENH-023 / BUG-043 / BUG-044 ship the find-bar for the markdown editor. The browser pane has no equivalent — pressing ⌘F dispatches to the markdown editor's find listener (when one is mounted) but does nothing visible from the browser pane.
+
+**Proposed v1:** Wire ⌘F when the active surface is the browser pane to call `webContents.findInPage(query)` via Electron's built-in API. Add a small inline find-bar UI above the WebContentsView (which would also need to deal with BUG-047's occlusion problem — the find bar would have to live inside the renderer-DOM strip area, not float over the page).
+
+**Affected files:**
+- `renderer/keyboard/globalShortcuts.ts` — ⌘F already returns `'openFind'`; the dispatcher would need to branch by pane.
+- `renderer/components/BrowserRenderer.tsx` — host the find-bar UI in the address-bar zone.
+- `electron/browser-manager.ts` — `findInPage(query, options)` IPC + `webContents.on('found-in-page', ...)` for match-count signal.
+
+**Cross-ref:** ENH-023 (markdown editor find), BUG-044 (paper-cut that surfaced this gap). BUG-047 (occlusion class — affects the find-bar UI placement decision).
+
+---
+
+### ENH-029: Navigator breadcrumb pans right (current folder visible) + bold last segment
+
+**Status:** 🆕 Filed
+**Priority:** Medium (current behavior shows the wrong end of the path)
+**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk PASS note on ENH-015)
+
+**Owner observation:** "in the current location strip, e.g. `~/Documents/Github/duo`, it defaults to be panned all the way to the left (I can see `~/Documents/`) and I often cannot see the folder that is active in the navigator without panning left. this space should default to be panned all the way to the right (so I can see `.../duo`), with the last element in the path (`/duo`) bolded, and including the CWD dot if that is the CWD."
+
+**Today:** `Breadcrumb.tsx` renders the path segments left-to-right in an overflow-x-auto container. Default scroll position is left (browser default). For a deep path like `~/Documents/GitHub/duo/some/nested/file.md`, the user sees the start of the path (`~/Documents/...`), not the end where the CURRENT folder sits.
+
+**Expected:** the active (rightmost) segment should be flush with the right edge by default; left segments scroll off into "..." truncation as needed. Last segment renders in a slightly heavier weight (bold or accent-tinted) so the eye lands on it. CWD-active marker (existing dot or new) sits beside the last segment when the active terminal's CWD matches.
+
+**Implementation sketch:**
+1. `Breadcrumb.tsx` — set the scroll container's `scrollLeft = scrollWidth - clientWidth` on mount and on every path change (a small `useEffect` keyed on the cwd).
+2. Add a class to the last segment span so it picks up `font-weight: 600` and the CWD-dot affordance.
+3. Apply `text-overflow: ellipsis` on the leading segments OR rely on horizontal scroll + a soft fade-mask on the left edge so users still know there's more path to the left.
+
+**Affected files:** `renderer/components/Breadcrumb.tsx`.
+
+**Cross-ref:** Stage 26 PR 3 item 8 (breadcrumb edit mode — already shipped). ENH-015 (parent — surfaced this during the same smoke walk pass).
+
+---
+
+### BUG-047: WebContentsView occludes renderer-DOM overlays (BUG-006 / BUG-045 class)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-High (blocks the FIX path for BUG-006 + BUG-045 + ENH-028; structural)
+**Filed:** 2026-05-01 (v0.5.4-rev2 smoke walk FAIL on BUG-045)
+
+**Owner observation:** From the BUG-045 fail note + screenshot: "context menu is occluded — cannot fully test (renders over the url bar but under the browser content pane; same issue does not occur with the markdown tab context menu)."
+
+**Today (class-summary):** Renderer-DOM overlays (context menus, tooltips, the Send → Duo pill, the eventual browser-pane find bar) are rendered in the renderer's DOM and obey z-index inside that DOM. But `BrowserWindow.contentView` mounts the WebContentsView as a NATIVE subview at the macOS compositor level, which paints OVER any renderer DOM that overlaps the WebContentsView's bounds. Z-index in the renderer is meaningless against a native subview — the OS composites the WCV on top.
+
+**Affected today:**
+- **BUG-006** (Send → Duo pill on browser pane): pill is portaled to body with `z-index:50`, invisible because it sits over the WCV bounds.
+- **BUG-045** (file:// browser tab context menu): menu pops up over the right-clicked tab; the menu extends below the strip into the WCV bounds, so its lower half is hidden.
+- **ENH-028** (browser-pane ⌘F find bar): same problem if the find bar floats over the page.
+
+**Fix options (each is a v2 candidate; not all need to ship):**
+- **A. Position-aware overlay placement.** Detect when the cursor / anchor is in the WCV-bounds and clamp the overlay so it stays inside the renderer-DOM area (above the WCV's top edge — the strip + address bar zone). Cheap; covers context menus that are short. Doesn't help long menus or pills that need to follow page-level coords.
+- **B. Shrink WebContentsView while the overlay is open.** Temporarily resize the WCV bounds so the overlay area becomes renderer-DOM. Causes a visible content reflow / scrollbar flash on the page, which is bad UX.
+- **C. Render overlays via a separate frameless BrowserWindow.** Each overlay (menu / pill / find bar) becomes its own tiny window positioned at the cursor / anchor. macOS composites windows over WCV. Heavy but most flexible.
+- **D. CDP-injected DOM into the page.** Inject the overlay HTML directly into the WCV's page DOM via CDP. The page composites with itself, no occlusion. Most invasive (requires CDP write access + sanitization), but matches how the existing canvas-comments rail anchors content into the iframe.
+
+**Recommend Path A as the v1 fix** — it's the smallest scope, addresses BUG-045's reported symptom directly (and BUG-006 partially), and doesn't preclude C/D as future upgrades for richer overlays. Filed alongside BUG-045 / BUG-006 / ENH-028 as the systemic carry-over.
+
+**Affected files:**
+- `renderer/components/ContextMenu.tsx` (clamp logic — already does some viewport-edge handling per BUG-029; extend to WCV-aware clamping).
+- `renderer/components/editor/primitives/SendToDuoPill.tsx` (BUG-006 fix landing place).
+- `renderer/components/BrowserRenderer.tsx` (find-bar host — ENH-028).
+- New helper: a hook / utility that returns "is this y-coordinate inside the WCV?" so all three call sites share the same predicate.
+
+**Cross-ref:** BUG-006 (Send → Duo pill — parent symptom), BUG-045 (context menu — recent symptom), ENH-028 (find bar — anticipated symptom).
 
 ---
 

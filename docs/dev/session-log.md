@@ -166,6 +166,46 @@ cut. Estimated scope: BUG-038 v4 wiring (medium — touches App.tsx
 ProseMirror scroll), ENH-026 v2 (small — tracing path
 propagation), BUG-044 (small — CSS).
 
+### Sub-sprint shipped 2026-04-30 / morning walk 2026-05-01
+
+Sub-sprint commits (`d4f40cd` BUG-038 v4 · `a58a58f` ENH-022 v2 ·
+`9dc7ac4` BUG-044 · `ba0af8a` BUG-045 · `70d6ffc` ENH-015 ·
+`11b0bf2` `duo reload` · `6340832` Stage 15.3 close · `26e69d9`
+Stage 12 close · `8e2c625` roadmap status flips). Two stages
+flipped to ✅ — Stage 12 (Atelier whisper-level agent presence)
+and Stage 15 (Send → Duo polish). Plus the user-asked
+reconciliation plan at `docs/dev/tasks-roadmap-reconciliation.md`
+awaiting owner sign-off.
+
+**v0.5.4-rev2 smoke walk results (5 of 8 walked):**
+
+- ✅ BUG-038 v4 — cycle reaches all working-pane tabs. **New
+  observation:** tab-render-catchup delay between two markdown
+  editors (~1–2s); filed as BUG-046.
+- ❌ ENH-022 v2 — editor scrolls (v2 fix landed) but to BUG-032
+  instead of BUG-038. v3 hypotheses: heading-match too loose,
+  buffer staleness, or wrong active editor. Need full CLI JSON
+  response from re-walk to disambiguate.
+- ✅ BUG-044 — find input readable in dark mode. **New ENH:** ⌘F
+  find missing in browser pane; filed as ENH-028.
+- ❌ BUG-045 — menu items render correctly but get OCCLUDED by
+  the WebContentsView (user screenshot confirms). Same
+  architectural class as BUG-006. Filed BUG-047 as the systemic
+  fix; BUG-045's specific fix folds into A in BUG-047's option
+  table (clamp the menu to renderer-DOM area).
+- ✅ ENH-015 — collapse button visible. **New ENH:** breadcrumb
+  default-pans-left; user wants pan-right + bold-last + CWD-dot;
+  filed as ENH-029.
+
+**Unwalked (3):** DUO-RELOAD, STAGE-15.3, STAGE-12 — these were
+added to the v0.5.4-rev2 page AFTER the user had loaded it; will
+walk in the next session.
+
+**v0.5.4 cut still on hold** until ENH-022 v3 + BUG-045 v2 (via
+BUG-047 path A) ship and the 3 unwalked items pass. The
+walked-PASS items + the two stage closures (12 + 15) are solid
+material for the cut once everything's green.
+
 The smoke-walk skill itself worked well — first run captured the
 right level of structured detail to act on. One template tweak
 landed mid-flight (commit `4660f26`): added a free-form "Other
