@@ -1742,11 +1742,15 @@ The button **is there.** It's just too muted to find. Three things compound the 
 
 ### ENH-016: Create new file / new folder from FileTree context menu
 
-**Status:** ✅ v1 shipped 2026-04-30 (v0.5.4 sprint W4). `buildMenuItems` adds "New file…" + "New folder…" entries at the top of the right-click context menu (folder rows: target = the folder; file rows: target = parent dir, labels show "here"). Click → `window.prompt` for the name → `files.write` (empty bytes for a new file) or `files.mkdir` (recursive) → expand parent if collapsed + `actions.refresh(parentPath)` so the new row surfaces immediately even if the chokidar event lags.
+**Status:** ✅ v1 + v1-hotfix shipped 2026-04-30. **Partially working** — user-verified that the entries fire correctly when right-clicking on an existing file or folder row, but the entries don't appear when right-clicking in the empty space below the file tree. Tracked as **BUG-041** (no-target context menu fallback).
 
-New IPC plumbing: `IPC.FILES_MKDIR` channel, `electron/files-service.ts § mkdir(absPath)` (recursive `fs.mkdir`), preload + host-api types updated.
+**v1 (commit `59769da`, since superseded):** `buildMenuItems` added "New file…" / "New folder…" entries to the row context menu. The original v1 used `window.prompt()` for the filename, which silently returned `null` in the Electron renderer (Electron disables prompt() for security). The menu fired, the click handler fired, but `name` was always null and the early-return killed the action without surfacing an error.
 
-**v2 follow-up (deferred):** replace the prompt with an inline-rename placeholder row in the tree (reuse `RenameInput`). Pure UX upgrade — the v1 prompt is functional and unblocks the most-asked navigator gap.
+**v1-hotfix (commit `3eee115`):** replaced the prompt with the create-default-name + auto-rename pattern (closer to the v2 design we'd flagged anyway). Click "New file…" → write `untitled.md` (or `untitled-N.md` if it exists) → refresh + drop the new row into rename mode immediately. Same shape for "New folder…" with `untitled-folder`. New `pickUniquePath()` helper handles conflict-suffix walking; `files.exists` already lives in the IPC contract.
+
+**Affected files:** `renderer/components/FileTree.tsx`, `electron/files-service.ts § mkdir`, `electron/main.ts`, `electron/preload.ts`, `shared/host-api.ts`, `shared/types.ts § FILES_MKDIR`.
+
+**Still open (see BUG-041):** right-click on the whitespace below the last file row should fire the same context menu (with the project root as the implicit target). Today it fires no menu at all.
 
 **Priority:** **High** (parity with VS Code / Finder; re-asked 2026-04-30 with explicit "new folder" emphasis)
 **Filed:** 2026-04-28 · re-asked 2026-04-30 (`20260430-improvement-notes.md` item 3 — "need new folder button in file explorer")
@@ -1933,7 +1937,9 @@ Note: "current CWD" resolves to the active tab's launch CWD (not live cwd post-`
 
 ### BUG-037: HTML canvas — clicking inside the canvas while focus is elsewhere doesn't switch focus to it
 
-**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W1). Iframe-mousedown forwarder pattern: `RenderedCanvas` accepts `onUserInteract?: () => void`; inside `wire()` it attaches a capture-phase `mousedown` listener to the iframe document that calls the prop (read through a ref so prop changes don't re-mount the iframe). `CanvasTab` + `WorkingPane` thread it up; `App.tsx` passes `onCanvasFocusGained={() => setFocusedColumn('working')}`. Symmetric to BUG-032: that fix stopped the iframe from STEALING focus when the user had chosen another surface; this lets the iframe ACQUIRE focus when the user clicks in.
+**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W1) — **canvas surface only.** User-verified working post-build. The matching gap on the **browser pane (WebContentsView)** was discovered the same day during smoke-walk follow-up — filed as **BUG-042** (sibling bug; same root cause shape but a different pane that needs a different forwarder mechanism since WebContentsView clicks don't reach renderer JS at all).
+
+Iframe-mousedown forwarder pattern: `RenderedCanvas` accepts `onUserInteract?: () => void`; inside `wire()` it attaches a capture-phase `mousedown` listener to the iframe document that calls the prop (read through a ref so prop changes don't re-mount the iframe). `CanvasTab` + `WorkingPane` thread it up; `App.tsx` passes `onCanvasFocusGained={() => setFocusedColumn('working')}`. Symmetric to BUG-032: that fix stopped the iframe from STEALING focus when the user had chosen another surface; this lets the iframe ACQUIRE focus when the user clicks in.
 **Priority:** Medium (breaks the "click → focus" invariant; cascades into wrong-pane keyboard shortcuts)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 9)
 
@@ -1973,7 +1979,30 @@ iframe.contentDocument.addEventListener('mousedown', () => {
 
 ### BUG-038: ⌃Tab cycle still skips some tabs (BUG-021 follow-up)
 
-**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W1). Diagnosis + fix:
+**Status:** ✅ **v3 fix shipped 2026-04-30 (v0.5.4 sprint).** Root cause finally identified: closure staleness on `opts.activePaneFocus` inside `useKeyboardShortcuts.ts`. The dispatcher closure read `opts.activePaneFocus` directly from `useEffect`'s closure, which was up-to-date *eventually* (the deps array re-ran the effect on focus change), but there was a window where: (1) user clicks into a terminal tab, React schedules `setFocusedColumn('terminal')`, (2) before the effect re-runs and rebinds the closure, the user presses ⌃Tab, (3) the document-capture handler fires the dispatcher, which reads the STALE `pane` value (often `'working'` from a prior browser/canvas click), takes the BROWSER cycle branch, and only reaches the (much smaller) browser-tab list. User saw "left 7 nonresponsive" because they had ~3 browser tabs in the working pane, and the cycle was hitting those instead of the 10 terminal tabs. **v3 fix:** added `activePaneRef`, mirrors `opts.activePaneFocus` like BUG-021's `tabsRef` mirrors `opts.tabs`. Same exact pattern, applied to a different prop. Plus extracted the cycle math into a pure `cycleNext(tabs, currentId, delta)` helper in `renderer/keyboard/tabCycle.ts` so PROCESS-001 Phase 2 unit tests can pin the contract when the framework lands.
+
+**Was 🟡 (re-opened 2026-04-30)** after user verified v0.5.3 build. Symptom unchanged from the original report: "can only cycle between the last 3 tabs in the group; left 7 tabs are nonresponsive to ⌃Tab and not included in the cycle when starting from the rightmost tabs." So my W1 fix (xterm-focus listener flipping `focusedColumn` → `'terminal'`) was insufficient: the cycle is consulting the right `pane` value but the cycle list itself isn't covering all visible tabs.
+
+**Hypothesis revision (next-sprint scope):**
+- The xterm focus listener fired and `focusedColumn === 'terminal'` is correct.
+- The cycle handler reads `tabsRef.current` (BUG-021 fix) which should include all 10 tabs.
+- BUT only the rightmost 3 are reachable. That smells like a **list-slicing bug** — possibly:
+  1. The cycle is iterating a SLICED view of tabs (e.g. only "browser-pane terminal tabs" vs all of them — Stage 24 pinned-tab partitioning?).
+  2. Tab IDs of the leftmost 7 don't match `activeTabIdRef.current` lookup — so `findIndex(...)` returns -1 and the cycle defaults to a bounded subset.
+  3. Pinning-related sort order: pinned tabs are sorted to leftmost on the strip but the cycle list is unsorted — `findIndex` on the un-sorted list locates the active tab at index 7+, then `(7+1) % 10` advances correctly, but the next iteration of `(8+1) % 10 = 9` is the rightmost; from there `(9+1) % 10 = 0` should land on the leftmost. If it doesn't, something is partitioning the list.
+
+**Verification asks (carry into next sprint):**
+1. From the user's repro: count the EXACT tab kinds on the strip (claude / shell / browser) — pinned vs. unpinned, and which ones are reachable.
+2. Add a `console.log({ tabsRef, activeTabIdRef })` instrumentation to the cycle handler, reproduce, capture the snapshot.
+3. Check `Stage 24 pins-service` — does the cycle handler iterate a different list than what the strip displays?
+
+**Class summary update:** This is now the FOURTH instance of "⌃Tab doesn't reach all tabs" (BUG-001, BUG-021, BUG-038 v1, BUG-038 v2). Each previous fix addressed a real subset of the failure mode but didn't enumerate all the partitioning the cycle was doing. Next-round fix MUST land with a regression test that opens N tabs of mixed kinds (claude + shell + browser, pinned + unpinned) and asserts every visible tab ID is visited exactly once from any starting tab. The smoke checklist row 11b alone (added in v0.5.3) is insufficient — needs an actual unit / integration test.
+
+---
+
+**Original v0.5.3 fix attempt (kept for reference; insufficient):**
+
+Diagnosis + fix:
 
 **Root cause confirmed.** The cycle logic itself in `useKeyboardShortcuts.ts § cycleTabsForward / Backward` is correct (reads from refs, indexes by id, advances mod length). The bug was upstream: `focusedColumn` was getting stuck at `'working'` when the user thought they were "in" a terminal, so `pane !== 'terminal'` and the cycle went through browser tabs (which has fewer entries) — exactly matching the user's "right few tabs reachable" report.
 
@@ -2088,7 +2117,7 @@ Fresh installs get an expanded `~/.claude/duo/external-domains.json` covering `*
 
 ### ENH-018: Markdown editor — bullet marker character should match the source (`*` → disc, `-` → dash)
 
-**Status:** ✅ Fix shipped 2026-04-30 (v0.5.3 sprint W3). Three coordinated changes ship the locked v1 spec end-to-end:
+**Status:** ✅ Fix shipped + user-verified 2026-04-30 (v0.5.3 sprint W3 + post-walk hotfix `3eee115`). Initial v1 had a CSS bug where `list-style-type: '–  '` rendered as a tiny dot indistinguishable from disc; hotfix replaced with `::before` pseudo-elements. User verified working on the freshly-built `dist/mac-arm64/Duo.app`. Three coordinated changes ship the locked v1 spec end-to-end:
 
 A. **Schema attribute on `bulletList`.** New `BulletListWithMarker` extension (`renderer/components/editor/extensions/BulletListWithMarker.ts`) extends `@tiptap/extension-bullet-list` with a `marker: '*' | '-' | '+'` attribute (default `'-'`). `parseHTML` / `renderHTML` round-trip via a `data-marker` attribute on the `<ul>`. `StarterKit.configure({ bulletList: false })` disables the default bullet so ours wins.
 
@@ -2298,7 +2327,18 @@ On install / version-bump, read existing `external-domains.json`, parse `domains
 
 ### ENH-022: `duo doc goto` — agent-driven editor navigation (heading / line / anchor)
 
-**Status:** ✅ Shipped 2026-04-30 (sprint addition). New `duo doc goto [<path>] --heading "X" | --line N | --anchor "Y"` verb. Markdown editor handles `--heading` (case-insensitive substring on heading text), `--line` (1-indexed; PM-tree walk to map line → block position), and `--anchor` (GitHub-slug match against headings; exact > prefix > substring). HTML canvas handles `--anchor` (`data-duo-id` first, falls back to `id`) and `--line` (top-level child of `<main>` / `<body>` — coarse). After landing: focus the editor, place caret / scroll into view, paint a 1.5s `.duo-goto-flash` highlight on canvas matches. Plumbing: full 8-step checklist + types in shared/types.ts (`DocGotoRequest` / `DocGotoResult`) + IPC channels + preload/host-api + main dispatch + socket-server case + cli verb + skill + agents + CLI-COVERAGE.
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Lifted `flagValue(args, name)` to module scope in `cli/duo.ts` so all subcommand cases share a single arg-flag lookup. Renamed the local one-arg shim in `case 'html'` to `flag` (closure over `subRest`) and updated all html-op call sites. Smoke-tested: `node cli/duo doc goto --heading "BUG-040"` against the live app returns `{ ok: true, path: ..., line: 0, anchor: "bug-040-..." }`. Original v1 (84f5a35) had the renderer/IPC plumbing right; only the CLI parser was broken.
+
+**Was 🟡 (broken at CLI surface — re-opened 2026-04-30):** User repro:
+```
+$ duo doc goto --heading "BUG-040"
+duo: flagValue is not defined
+```
+
+**Root cause:** `cli/duo.ts § case 'doc' / sub === 'goto'` (lines ~479–481) called `flagValue(subRest, '--heading')` etc., but `flagValue` was defined locally INSIDE `case 'html'` (line ~652) and wasn't visible from the `'doc'` case scope. Pure lexical-scope bug.
+
+**Implementation (renderer / IPC / main — all good, just blocked by the CLI bug):**
+New `duo doc goto [<path>] --heading "X" | --line N | --anchor "Y"` verb. Markdown editor handles `--heading` (case-insensitive substring on heading text), `--line` (1-indexed; PM-tree walk to map line → block position), and `--anchor` (GitHub-slug match against headings; exact > prefix > substring). HTML canvas handles `--anchor` (`data-duo-id` first, falls back to `id`) and `--line` (top-level child of `<main>` / `<body>` — coarse). After landing: focus the editor, place caret / scroll into view, paint a 1.5s `.duo-goto-flash` highlight on canvas matches. Plumbing: full 8-step checklist + types in shared/types.ts (`DocGotoRequest` / `DocGotoResult`) + IPC channels + preload/host-api + main dispatch + socket-server case + cli verb + skill + agents + CLI-COVERAGE.
 **Priority:** **High** (real workflow gap — owner hit it 2026-04-30 looking for BUG-040 in `tasks.md`; agent has no way to land the editor view at the right spot after `duo edit`)
 **Filed:** 2026-04-30 (sprint addition)
 
@@ -2436,3 +2476,155 @@ ENH-022 above with shipped status and full plumbing notes.) -->
 
 <!-- (Duplicate older draft removed 2026-04-30; the canonical entry is the
 ENH-023 above with shipped status and full plumbing notes.) -->
+
+### BUG-041: Right-click on FileTree whitespace shows no context menu (ENH-016 follow-up)
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Wrapper-level `onContextMenu` in `FileTree.tsx`; gates on `e.target === e.currentTarget` so row clicks don't double-fire. Synthesized "root" target = `{name: basename(state.cwd), path: state.cwd, kind: 'directory'}`; new `whitespaceMode` flag on `buildMenuItems` trims the menu to the safe set (New file / New folder / Open terminal here / Reveal in Finder). Suppressed: Rename, Move to Trash, Copy path, Open with default app, Pin/Unpin — all of which would target the project root (almost always destructive or irrelevant).
+**Priority:** Medium-High (paired with ENH-016 — without this, "new file" / "new folder" only works from a row-anchored right-click, which is a discoverability gap)
+**Filed:** 2026-04-30 (smoke-walk follow-up)
+
+**Owner observation:** "context menu fires on existing file/folder rows, but no menu fires when right-clicking in the whitespace below the files in the navigator."
+
+**Today (traced):** `renderer/components/FileTree.tsx § TreeNode` wires `onContextMenu` per-row. The empty area below the last row sits inside the FileTree wrapper (`.flex-1 overflow-auto scrollbar-none py-1`) but has no `onContextMenu` handler — the right-click bubbles up but no listener catches it. ENH-016 originally proposed (3) "right-click empty space inside the FileTree (no row hit) → menu shows New file… / New folder… / Reveal in Finder / Open terminal here against the project root." That bullet wasn't implemented in v1.
+
+**Proposed fix:**
+- Add `onContextMenu` to the FileTree wrapper div that opens a project-root-anchored context menu when `e.target === e.currentTarget` (i.e., the click hit the wrapper, not a nested row that has its own handler).
+- Menu items: "New file…", "New folder…", "Open terminal here", "Reveal in Finder" — all targeting `state.cwd`.
+- The "New file…" / "New folder…" items reuse the same handlers wired in v1-hotfix.
+
+**Affected files:**
+- `renderer/components/FileTree.tsx` — extend the wrapper's `onContextMenu`; reuse `buildMenuItems` with a synthesized "root folder" entry.
+
+**Cross-ref:** ENH-016 (parent enhancement). Stage 26 PR 3.
+
+---
+
+### BUG-042: Browser pane click while focus is elsewhere doesn't switch focus (BUG-037 sibling)
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Subscribed to `webContents.on('focus', ...)` in `BrowserManager.wireKeyForwarding()` and added IPC channel `BROWSER_FOCUS_GAINED` (`browser:focus-gained`). Renderer subscribes via `window.electron.keyboard.onBrowserFocusGained` and flips `focusedColumn = 'working'`. Symmetric to the BUG-037 canvas mousedown forwarder. The `focus` event covers click-to-focus, Tab-to-focus from devtools, and programmatic `webContents.focus()` calls — every path that gives the WebContentsView OS keyboard focus. Combined with BUG-038's v3 ref fix, this closes the "wrong-pane keyboard shortcut" failure family.
+**Priority:** Medium (same root-class as BUG-037 but for a different surface; cascades into wrong-pane keyboard shortcuts including BUG-038's symptom)
+**Filed:** 2026-04-30 (smoke-walk follow-up)
+
+**Owner observation:** "BUG-037 squashed for html canvas; still open for browser panes."
+
+**Repro:**
+1. Open a browser tab in the working pane.
+2. Click into a terminal so terminal column has focus (orange chrome strip).
+3. Click anywhere inside the browser viewport.
+
+**Expected:** The working column gains focus (chrome strip flips orange) and subsequent ⌃Tab / ⌘T fire against the working pane.
+**Actual:** `focusedColumn` stays `'terminal'`. The browser does receive the click (link follow-through, scroll, etc. work), but the pane-focus signal doesn't update.
+
+**Why BUG-037's fix doesn't cover this:** The canvas uses an `<iframe srcdoc>` that lives in the same renderer process — `RenderedCanvas` could install a `mousedown` listener on `iframe.contentDocument` and call back into the parent. The browser pane uses `WebContentsView` (a SEPARATE WebContents process) — its DOM events don't reach renderer JS at all. The forwarder mechanism has to live in the main process, not the renderer.
+
+**Suggested fix (proposal — refine in next sprint):**
+- `electron/browser-manager.ts § wireKeyForwarding` already forwards keystrokes from each `WebContentsView` to the main BrowserWindow via `before-input-event`. Extend with a parallel `mousedown` forwarder via `webContents.on('input-event', …)` (or a similar hook) that fires `IPC.WORKING_PANE_FOCUS` to the renderer.
+- The renderer (`App.tsx`) handles the IPC and calls `setFocusedColumn('working')`.
+- Symmetric to BUG-038 fix's xterm-focus listener — different mechanism but same outcome shape.
+
+**Class summary:** When BUG-038 shipped, I noted "focus arriving by non-click paths" as a symptom, but the BROWSER-pane equivalent of click-acquires-focus wasn't traced or fixed at the same time. BUG-038's recurring failures are partially downstream of this — if the user clicked into a browser tab and `focusedColumn` stayed `'terminal'`, ⌃Tab cycles terminal tabs (the user's mental model says "I'm in the browser now, ⌃Tab should cycle browser tabs"). Fixing BUG-042 should also un-stick part of BUG-038's reproduction surface.
+
+**Cross-ref:** BUG-037 (canvas equivalent — shipped), BUG-032 (canvas focus-steal — shipped, opposite direction), BUG-038 (recurring ⌃Tab cycle bug — partial overlap).
+
+---
+
+### BUG-043: ⌘F find counts matches but doesn't scroll; arrow keys do nothing (ENH-023 follow-up)
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint).
+
+**Owner observation:** "the cmd-f find seems to count the number of instances of the search string, but does not scroll to it, and the up/down arrows (I assume for next/prev) also do nothing."
+
+**Root causes (two distinct):**
+1. **Scroll-to-match silently failed.** `FindHighlight.ts § view.update` called `editorEl.scrollBy({ top, behavior: 'smooth' })` on `view.dom.parentElement`. But the actual scroll container is 2–3 ancestors up — `MarkdownEditor.tsx` wraps `<EditorContent>` in `<div class="mx-auto max-w-[760px] ...">` inside `<div class="flex-1 overflow-auto">`. `view.dom.parentElement` is the TipTap `.tiptap` wrapper (or ProseMirror's own host) — not the scroller. `scrollBy` on a non-scrolling element is a silent no-op.
+2. **Arrow keys weren't bound.** The user expected `↓` / `↑` inside the find input to navigate matches (mirroring the visible ▼ / ▲ buttons in the bar). FindBar's `onKeyDown` handled only `Enter`, `Escape`, `⌘F/G/⇧F` — Arrow keys fell through and acted as default caret movement inside the input.
+
+**Fix:**
+1. Replace `scrollBy` with `el.scrollIntoView({ block: 'center', behavior: 'smooth' })` on the `.duo-find-match-current` decoration node directly. `scrollIntoView` walks up looking for the right scrollport itself, so the deeply-nested layout doesn't matter. Defer to `requestAnimationFrame` so the decoration has been painted by the time we look it up.
+2. Add a closure-scoped `lastScrolledIndex` + `lastScrolledQuery` dedupe so the smooth scroll fires exactly once per setQuery / next / prev. Without this, every `view.update` (cursor moves, focus changes, unrelated transactions) re-reads `scrollTo` and re-scrolls — visible as jitter or no scroll at all when smooth animations stack.
+3. Bind `ArrowDown` → `findNext()` and `ArrowUp` → `findPrev()` in `FindBar.tsx § onKeyDown` (Chrome's find bar behaves identically). `preventDefault` keeps the input from inserting a control character or moving the caret.
+
+**Affected files:**
+- `renderer/components/editor/extensions/FindHighlight.ts` — scroll mechanism + dedupe.
+- `renderer/components/editor/FindBar.tsx` — Arrow key handlers.
+
+**Filed:** 2026-04-30 (in-flight during v0.5.4 sprint).
+**Priority:** High (find without scroll is unusable; arrow-key gap is a discoverability bug).
+**Cross-ref:** ENH-023 (parent enhancement).
+
+---
+
+### ENH-024: Tab strip pans/shifts to keep the active tab visible when overflowing
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). Both strips (`TabBar.tsx` for terminal, `WorkingTabStrip.tsx` for working) now ref the active `<button>` and call `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })` in a `useEffect` keyed on the active tab's id. `inline: 'nearest'` is the right primitive — clicking an already-visible tab is a no-op (no spurious horizontal jitter), and a programmatic switch to an off-screen tab smoothly pans it just enough to be visible. Active tab `<button>` accepts a `buttonRef?: React.Ref<HTMLButtonElement>` prop (typed as `Ref<>` not `RefObject<>` for React 19 compatibility); only the active row gets the ref so the assignment naturally rotates as the active id changes.
+**Priority:** Medium (the smoke walk surfaced this clearly — the user has 10+ tabs across panes and can't always see the active one without manual scrolling)
+**Filed:** 2026-04-30 (smoke-walk follow-up)
+
+**Owner ask:** "Tab strip should pan/shift horizontally to reveal new active tab when more tabs are open than can be shown on screen."
+
+**Today:** Both the terminal tab strip (`renderer/components/TabBar.tsx`) and the WorkingPane strip (`renderer/components/WorkingTabStrip.tsx`) use horizontal `overflow-x: auto` (with the new `scrollbar-none` from ENH-019). When tabs exceed the strip's visible width, the user has to scroll horizontally to find the active one. Selecting a tab via ⌃Tab / ⌘1–9 / programmatic spawn doesn't auto-scroll the strip.
+
+**Expected:**
+- When the active tab is not in the strip's visible range, scroll it into view smoothly (e.g. `element.scrollIntoView({ behavior: 'smooth', inline: 'nearest' })`).
+- Trigger on every active-tab change AND on tab-strip resize (window resize, pane drag).
+- For the very-many-tabs case (50+), the active tab should land at roughly 1/3 from the visible edge for context — not flush against the edge.
+
+**Implementation sketch:**
+- Each active tab `<button>` carries a ref or `data-active="true"` attribute; on `useEffect` that depends on `activeTabId`, find that element and `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })`.
+- Two strips, two implementations — small enough to inline in each component, OR extract a `useScrollActiveIntoView(activeId, getEl)` hook that both consume.
+- Verify the scroll doesn't fight ⌃Tab cycle's keyboard timing — debounce or trigger after the React render flushes.
+
+**Cross-ref:** ENH-019 (scrollbar suppression — pairs with this; once we suppress the scrollbar we MUST handle pan-to-active ourselves since users can't manually scroll). Stage 24 (pinned tabs — pinned tabs should always be visible regardless of pan; consider sticky-positioning them).
+
+---
+
+### ENH-025: `⌘[` / `⌘]` for outdent / indent in the markdown editor
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). New `ListIndentShortcuts` TipTap extension at `renderer/components/editor/extensions/ListIndentShortcuts.ts` binds `Mod-]` → `sinkListItem` and `Mod-[` → `liftListItem`. Tries `taskItem` first (TaskList) then `listItem` (bullet/ordered). Outside a list, returns false → keystroke bubbles to the global matcher. Plain `⌘[` / `⌘]` aren't in the global registry (only `⌘⇧[` / `⌘⇧]` are claimed for prev/next terminal tab), so non-list strokes fall through harmlessly. Browser back/forward nav was already suppressed by `wireKeyForwarding`'s `[`/`]` allowlist, so we don't disturb other surfaces.
+**Priority:** Medium-Low (Google-Docs-style muscle memory; missing today is a friction point for long-form list editing)
+**Filed:** 2026-04-30 (post-sprint)
+
+**Owner ask:** "Add handling for `⌘[` / `⌘]` for tab in/outdent."
+
+**Today:** The markdown editor uses TipTap StarterKit which supports `Tab` / `Shift+Tab` to indent / outdent inside a list item. Outside a list, `Tab` types a literal tab character (or maybe nothing). `⌘[` and `⌘]` are unbound — they default to browser navigation (back / forward) which has no meaning inside an editor.
+
+**Expected:**
+- `⌘]` → indent (sinkListItem) when caret is in a list item.
+- `⌘[` → outdent (liftListItem).
+- For non-list paragraphs: probably no-op (or, optionally, indent/outdent via `blockquote`-wrap unwrap — defer to v2 and treat as scope creep).
+
+**Implementation sketch:**
+1. `renderer/keyboard/globalShortcuts.ts` — register the two chords. They're meaningful ONLY inside the markdown editor; we don't want global ⌘[ to swallow browser-pane back-nav.
+   - Option A: register globally, dispatcher checks `activePaneFocus` and only fires inside markdown surface.
+   - Option B (better): handle in the markdown editor's TipTap keymap directly via `addKeyboardShortcuts`. Doesn't need the global registry at all. Mirrors how StarterKit's Tab / Shift+Tab work.
+2. Extend `MarkdownEditor.tsx`'s extension list with a small `Extension.create({ addKeyboardShortcuts })` that maps `Mod-]` and `Mod-[` to TipTap's `sinkListItem(listItem)` / `liftListItem(listItem)` commands (passing the `listItem` node type from the schema).
+
+**Cross-ref:** Stage 11 (markdown editor home). ENH-005 (toolbar editor actions — consider exposing these on the toolbar too).
+
+---
+
+### ENH-026: Right-click on a WorkingPane tab → rename / delete / reveal in navigator
+
+**Status:** ✅ Shipped 2026-04-30 (v0.5.4 sprint). `WorkingTabStrip.tsx` extended with `buildTabContextMenuItems`. File-bearing tabs get **Reveal in navigator** (selects + scrolls + expands via `nav.actions.navigateTo` + `selectItem`), **Rename…** (reveal + dispatches a `duo-tree-start-rename` CustomEvent that `FileTree.tsx` listens to and transitions the row to rename mode — avoids lifting `renamingPath` state up to App.tsx), and **Move to Trash…** (dedicated confirm dialog `confirmTrash` separate from the pinned-close confirm; on confirm runs `files.trash` + `closeFileTab`). Browser tabs only see Pin/Unpin (existing behavior). Pin/Unpin remains for file tabs too — symmetry with Stage 26 PR 2.
+**Priority:** Medium (Stage 26's right-click context model from the navigator should extend to the tab strip — paired affordance)
+**Filed:** 2026-04-30 (post-sprint)
+
+**Owner ask:** "Right click on tab — can rename, delete, or reveal file in navigator."
+
+**Today:** The WorkingPane tab strip (`renderer/components/WorkingTabStrip.tsx`) renders tab chips with no right-click context menu. Stage 26 PR 1 (v0.5.0) shipped right-click context menus for the navigator's file rows (rename / move-to-trash); the tab strip was out of scope.
+
+**Expected (v1):**
+Right-click on any WorkingPane tab → context menu with:
+- **Rename** → flips the tab's underlying file path via `files.rename(oldPath, newPath)`. Same UX as the navigator rename: inline `RenameInput` on the tab chip itself, OR (simpler) prompt-based rename (which we know is broken in renderer — see ENH-016 hotfix; reuse the create-default-name + auto-rename pattern... actually simplest is a single-shot dialog modal).
+- **Move to Trash** → `shell.trashItem` via the existing `files.trash` IPC. Confirm via single-click ("Move to Trash…" with ellipsis + tip) since it's recoverable from Finder.
+- **Reveal in navigator** → `actions.navigateTo(parentDir(path))` + `selectItem(path)` so the file lights up in the tree (and the navigator pane scrolls / expands as needed).
+
+**Optional:** Pin/Unpin (already exists via the click-pin glyph; could add as a context-menu entry for symmetry with Stage 26 PR 2 nav pins).
+
+**Implementation sketch:**
+- New `onContextMenu` handler on the tab `<button>` in `WorkingTabStrip.tsx`.
+- Reuse `ContextMenu` primitive from `renderer/components/ContextMenu.tsx`.
+- `buildMenuItems` factored out of `FileTree.tsx` could become a shared utility — though the tab strip's menu has different items, so simpler to write a fresh `buildTabMenuItems` here.
+
+**Cross-ref:** Stage 26 PR 1 (navigator right-click — established the pattern). ENH-016 (renderer prompt is broken; learn from that and use inline rename or modal).
+
+---

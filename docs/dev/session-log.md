@@ -18,7 +18,233 @@
 
 ---
 
-## 2026-04-30 — Chrome-extension exploration: phases 4–6.5 shipped, distribution decided
+## 2026-04-30 (late evening) — v0.5.4 sprint: carry-over closeout from v0.5.3 walk
+
+Picked up after compaction, in auto mode, to clear the seven carry-over
+items from the v0.5.3 smoke walk. One new bug (BUG-043) surfaced
+mid-flight from user feedback on the ⌘F find bar. All 7 + the new
+one shipped clean in a single working pass.
+
+### What landed (one commit-scoped sprint)
+
+1. **ENH-022** (CLI surface fix) — lifted `flagValue(args, name)` to
+   module scope in `cli/duo.ts`, renamed the local one-arg shim in
+   `case 'html'` to `flag`. `node cli/duo doc goto --heading "BUG-040"`
+   now returns `{ ok: true, anchor: "bug-040-..." }` against the live
+   app. Rebuilt the binary.
+2. **BUG-038 v3 (4th instance — finally root-caused)** — added
+   `activePaneRef` mirror in `useKeyboardShortcuts.ts`. Same ref
+   pattern as BUG-021's `tabsRef`, applied to `opts.activePaneFocus`.
+   Closes the closure-staleness window where the dispatcher reads
+   the stale pane from a not-yet-rebound effect closure when the
+   user clicks a terminal tab and immediately presses ⌃Tab. User
+   was hitting it because the cycle was taking the BROWSER branch
+   (3 tabs visible) instead of the terminal branch (10 tabs). Also
+   extracted the cycle math into a pure `cycleNext(tabs, currentId,
+   delta)` helper at `renderer/keyboard/tabCycle.ts` so PROCESS-001
+   Phase 2 can pin the contract via unit tests.
+3. **BUG-042** — subscribed `webContents.on('focus', ...)` in
+   `BrowserManager.wireKeyForwarding`; new IPC channel
+   `BROWSER_FOCUS_GAINED` flows through preload + `host-api.ts`
+   (`onBrowserFocusGained`) into App.tsx, which flips `focusedColumn
+   = 'working'`. Symmetric to the BUG-037 canvas mousedown forwarder.
+   Combined with BUG-038 v3 this closes the wrong-pane-shortcut
+   failure family.
+4. **BUG-041** — wrapper-level `onContextMenu` on the FileTree
+   container; `e.target === e.currentTarget` gate prevents double-fire
+   from row clicks. Synthesized "root" target uses `state.cwd`. New
+   `whitespaceMode` flag on `buildMenuItems` trims the menu to
+   New file / New folder / Open terminal here / Reveal in Finder.
+5. **ENH-024** — both tab strips ref the active button and call
+   `scrollIntoView({ inline: 'nearest', block: 'nearest', behavior:
+   'smooth' })` on active-id change. `inline: 'nearest'` is the
+   right primitive: visible tabs no-op, off-screen tabs pan into
+   view smoothly. React 19 ref typing required `Ref<>` not
+   `RefObject<>` on the prop.
+6. **ENH-025** — new `ListIndentShortcuts` TipTap extension binds
+   `Mod-]` → `sinkListItem` and `Mod-[` → `liftListItem`. Tries
+   `taskItem` first (TaskList) then `listItem`. Outside a list,
+   returns false → keystroke bubbles harmlessly (plain `⌘[` / `⌘]`
+   aren't claimed globally; only `⌘⇧[` / `⌘⇧]` are).
+7. **ENH-026** — `WorkingTabStrip` extended with
+   `buildTabContextMenuItems`. File tabs get **Reveal in navigator**,
+   **Rename…**, **Move to Trash…**. Browser tabs only see
+   Pin/Unpin (existing). Trash uses a dedicated `confirmTrash`
+   dialog separate from the pinned-close confirm. Rename uses a
+   `duo-tree-start-rename` CustomEvent so FileTree picks it up
+   without lifting `renamingPath` state.
+8. **BUG-043 (in-flight, surfaced from user feedback)** — ⌘F find
+   was counting matches but not scrolling to them; arrow keys did
+   nothing. Two distinct bugs: (a) `scrollBy` on `view.dom.parentElement`
+   silently failed because the actual scroll container is 2-3
+   ancestors up — replaced with `el.scrollIntoView({ block: 'center'
+   })` on the `.duo-find-match-current` decoration node directly,
+   plus a closure-scoped (lastScrolledIndex, lastScrolledQuery)
+   dedupe to fire smooth-scroll exactly once per next/prev. (b)
+   ArrowDown / ArrowUp not bound — added handlers in `FindBar.tsx`.
+
+### Pre-cut owed
+
+Smoke-walk this sprint via computer-use OR ask the user to verify
+before proposing v0.5.4. Specifically:
+- BUG-038 v3: open ≥10 mixed terminal tabs, click rightmost, ⌃Tab
+  forward, confirm cycle visits all 10 in order. Then click a
+  browser tab, confirm ⌃Tab routes to browser cycle (immediately —
+  no first-keystroke staleness).
+- BUG-042: with terminal focused, click into the browser pane, press
+  ⌃Tab — should cycle browser tabs. Without the fix this would have
+  cycled terminal tabs because focusedColumn never flipped.
+- BUG-043: ⌘F → search a string with many matches → press ↓/↑ and
+  ▼/▲ buttons → smooth scroll lands the current match in viewport.
+- ENH-024: open enough tabs to overflow the strip, ⌘1 → ⌘9 → confirm
+  the active tab pans into view each time.
+- ENH-025: in a markdown bullet list, `⌘]` indents nested, `⌘[`
+  outdents. In TaskList items the same. Outside a list, both no-op.
+- ENH-026: right-click any file tab → see Reveal/Rename/Trash;
+  Reveal lights up the tree row; Rename puts the row in inline rename;
+  Trash confirms then closes the tab.
+
+### Carry-over from this sprint
+
+None on the engineering side. Pre-cut-decision items:
+- Whether to bundle BUG-038 v3 into a v0.5.4 cut alongside the rest
+  or hold for a one-day soak. The v3 fix is structurally sound (same
+  pattern as BUG-021 which has been stable for months) but this is
+  the 4th instance of "⌃Tab cycle skips tabs" so caution is
+  warranted. Recommend cut + monitor; PROCESS-001 Phase 2 unit tests
+  will pin the contract once the framework lands.
+- Whether to add a smoke-checklist row for BUG-043 (find scroll +
+  arrows). Arguably overlaps with row 14 (⌘F find bar) — could
+  expand row 14 in place. Did not modify smoke-checklist this
+  sprint.
+
+---
+
+## 2026-04-30 (evening) — v0.5.3 sprint: post-v0.5.2 papercut sweep + smoke walk
+
+A long autonomous session on `main`. Filed 14 items from
+`20260430-improvement-notes.md` + 2 sprint-add ENHs (`duo doc goto`,
+⌘F find-in-document), shipped them across 14 commits, then
+smoke-walked via computer-use against a freshly-packed unsigned
+`.app`. Walk surfaced 4 bugs in the just-shipped code that landed
+as in-walk hotfixes; user follow-up surfaced 4 more known-issues
+that carry into the next sprint.
+
+### What landed (14 commits)
+
+1. `40ab246` **BUG-040 + ENH-021 v1** — off-host blocklist routing
+   for user-driven navigation. New `core/external-domains-service.ts`
+   loads + watches `~/.claude/duo/external-domains.json`; BrowserManager
+   gains `will-navigate` + `will-redirect` interceptors and a
+   `setWindowOpenHandler` check.
+2. `ca3b3a3` **BUG-036/037/038 (W1)** — pane-aware ⌘T (terminal →
+   shell tab in CWD; ⌘⇧T → claude tab in CWD), canvas iframe
+   mousedown forwarder for focus, xterm-focus listener flipping
+   `focusedColumn` on non-click focus paths.
+3. `5195320` **BUG-039 + ENH-019** — session-restore guards against
+   deleted files via new `files.exists` IPC; tab-strip scrollbar
+   suppression (the `scrollbar-none` Tailwind class was referenced
+   but the underlying CSS rule was never defined).
+4. `e4dd809` **ENH-018 v1** — bullet marker round-trip (`*` / `-` /
+   `+`). New `BulletListWithMarker` extension; markdown-it parse
+   hook copies `token.markup` to `data-marker`; serializer override
+   per list.
+5. `cc11912` **Stage 26 PR 3 items 2 + 10 + 11** — active-CWD dot
+   on folder rows, stronger Claude-settings ↔ project-tree divider,
+   2px left-edge accent stripe on the files column when focused.
+6. `7a2e9ca` **Stage 26 PR 3 item 3** — open / active file
+   distinction. Brighter text for open files; accent dot for the
+   active one.
+7. `59769da` **ENH-016 v1** (since superseded by hotfix) — "New
+   file" / "New folder" context-menu entries via `window.prompt`.
+8. `ff3e7c3` **Stage 26 PR 3 item 8** — editable breadcrumb (⌘⇧G).
+   New `files.kind(path)` IPC for the file-vs-folder branch.
+9. `84f5a35` **ENH-022** — `duo doc goto [<path>] --heading | --line
+   | --anchor`. Markdown editor handles all three; canvas handles
+   anchor + line. **CLI side has a lexical-scope bug (carry-over).**
+10. `c3c7745` **ENH-023** — ⌘F find-in-document for the markdown
+    editor. New `FindHighlight` ProseMirror plugin (decoration-only).
+    FindBar React component with Aa toggle, prev/next, counter.
+    CLI counterpart `duo doc find`.
+11. `4435fd9` **BUG-040 hole-fix** (in-walk) — smoke walk found two
+    more `loadURL` paths that bypassed `will-navigate`:
+    `BrowserManager.navigate()` (address-bar IPC) and
+    `restoreFromSession()`'s firstTab repurpose.
+12. `d8c248c` **ENH-021 v2** (in-walk) — runtime self-heals empty
+    `external-domains.json` at every boot. Walk found a real
+    machine where the file was `{"domains":[]}`; install-service's
+    bootstrap+merge only fires on user-clicked install.
+13. `3eee115` **ENH-016 + ENH-018 hotfixes** (in-walk).
+    ENH-016 replaced `window.prompt` (silently null in renderer)
+    with create-default-name + auto-rename pattern. ENH-018
+    replaced `list-style-type: 'X  '` string literals (rendered
+    indistinguishably in Chromium) with `::before` pseudo-elements.
+
+### What I verified live via computer-use
+
+Built unsigned `.app` (signing failed at codesign GPU-helper xattr
+quirk; bypassed with `CSC_IDENTITY_AUTO_DISCOVERY=false`). Drove
+Duo via `mcp__computer-use__*`:
+
+- ✅ ENH-023 find bar (`smoke` query → 6 matches → counter `1/6` →
+  ⌘G cycled to `2/6` → Aa toggle filtered to `1/3`).
+- ✅ Stage 26 PR 3 item 8 (⌘⇧G opens editable breadcrumb;
+  navigates + opens tasks.md).
+- ✅ Stage 26 PR 3 item 10 (clear 2px accent rule between
+  Claude-settings and project tree).
+- ✅ BUG-040 (after the hole-fix + populating
+  `external-domains.json`: `capitalone.com` → tab stayed at
+  `about:blank`, Chrome opened externally).
+
+### User-verified post-walk
+
+- ✅ ENH-019 (scrollbar suppression, on the running build)
+- ✅ ENH-018 (bullets render distinctly post-hotfix)
+- ⚠️ ENH-016 (works on row right-click; misses whitespace below
+  tree → BUG-041)
+- ⚠️ BUG-037 (canvas works; browser pane sibling open → BUG-042)
+- 🟡 BUG-038 (re-opened — left 7 tabs unreachable; this is now
+  the FOURTH ⌃Tab cycle bug)
+- 🟡 ENH-022 (CLI lexical-scope bug — `flagValue is not defined`)
+
+### Carry-over into next sprint (all filed in tasks.md)
+
+- 🟡 **BUG-038** — fourth instance; cycle list still partitioning.
+  Next round MUST land with regression test.
+- 🟡 **ENH-022** — one-line fix (lift `flagValue` to module
+  scope) + binary rebuild.
+- 🆕 **BUG-041** — context menu missing on FileTree whitespace.
+- 🆕 **BUG-042** — browser-pane click → focus (BUG-037 sibling
+  for `WebContentsView`; main-side forwarder).
+- 🆕 **ENH-024** — tab strip pan-to-active when overflow
+  (`scrollIntoView` on active-tab change).
+- 🆕 **ENH-025** — `⌘[` / `⌘]` outdent / indent in markdown
+  editor.
+- 🆕 **ENH-026** — right-click on tab → rename / delete /
+  reveal in navigator.
+
+### Open questions for the planning round
+
+- BUG-042's main-side forwarder may overlap with BUG-038's fix.
+  Sequence BUG-042 first if they're related.
+- The blocklist self-heal (ENH-021 v2) overwrites a malformed
+  file; the install-service path explicitly preserves it. Worth a
+  short DECISIONS.md ADR on which contract wins where.
+
+### Owed before the v0.5.3 cut
+
+1. Fix ENH-022 CLI scope bug (~5 minutes).
+2. Re-fix BUG-038 + add the regression test (recurring-class rule
+   from CLAUDE.md).
+3. Decide whether BUG-041 (whitespace context menu) ships with
+   v0.5.3 or rolls into v0.5.4 — recommend bundling with v0.5.3
+   to make ENH-016 feel complete.
+4. The remaining carry-over items (BUG-042, ENH-024/025/026) are
+   their own sprint.
+
+---
+
+## 2026-04-30 (afternoon) — Chrome-extension exploration: phases 4–6.5 shipped, distribution decided
 
 A long autonomous session on the `duo-chrome-extension-exploration`
 branch. The exploration's load-bearing question — *can Duo ship as
