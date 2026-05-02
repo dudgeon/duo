@@ -708,6 +708,11 @@ async function main() {
           const ops = collectAttrs();
           if (!ops.set && !ops.remove) die("duo html attr: at least one --set k=v or --remove k required");
           out(await send("html-op", { op: "attr", id, selector, ...ops }));
+        } else if (sub === "click") {
+          const id = flag("--id");
+          const selector = flag("--selector");
+          if (!id && !selector) die("Usage: duo html click --id <duo-id> | --selector <css>");
+          out(await send("html-op", { op: "click", id, selector }));
         } else if (sub === "comment") {
           const id = flag("--id");
           const selector = flag("--selector");
@@ -1182,6 +1187,12 @@ COMMANDS
   html attr --id <duo-id> [--set k=v ...] [--remove k ...]
                                   Modify attributes (--set / --remove
                                   can repeat).
+  html click --id <duo-id>        Programmatically click the matched
+       --selector <css>           element. Triggers the canvas-action
+                                  dispatcher just like a user click \u2014
+                                  data-duo-action verbs fire, events
+                                  emit, downstream paint ops execute.
+                                  Used by lesson fly-through harnesses.
 
   Stage 17d \u2014 comments. Stored in <file>.duo.json \xA7 comments[]; never
   modify the .html itself.

@@ -4046,7 +4046,13 @@ What's NOT shipping with this entry: a discoverable button surface (e.g. "Build 
 
 ### ENH-055: Lesson preview / fly-through harness (closes meta-goal gap 5)
 
-**Status:** ⏳ **Deferred to v0.6.2.** ENH-053 (canonical lesson template) shipped in v0.6.1 + the existing two packs adopted canonical event names; the harness now has a stable contract to assert against, but implementing it (read playground HTML → enumerate `data-duo-action` buttons → simulate clicks via `duo html click <selector>` → observe `duo events --follow` → assert expected events fire + expected `data-duo-pane` repaints → report pass/fail per step) is ~2-3 hours of focused coding that's not blocking the v0.6.1 cut. Re-evaluate as a v0.6.2 candidate after the canonical packs have been used in anger.
+**Status:** ✅ **Shipped v0.6.2 — primitive + procedure doc.** Two artifacts:
+- New CLI verb `duo html click --id <duo-id>` / `--selector <css>` (the missing primitive). Resolves the target, calls `element.click()` on the matched HTMLElement. Triggers the canvas-action delegated dispatcher just like a user click — `data-duo-action` verbs fire, events emit, downstream paint ops execute. Wired through `HtmlOpRequest` discriminated union, `htmlOps.ts § runClick`, CLI parser, help text, and the `agents/duo.md` cheat-sheet. CanvasTab.tsx skips the recentEdit log path for clicks (clicks don't mutate the canvas DOM directly; downstream mutations are caught by the existing MutationObserver).
+- New skill `skill/lesson-flythrough.md`. Frontmatter description deliberately broad — fires on "fly through this lesson", "test my new lesson", "preview the lesson", "validate the lesson runs", "smoke-test this playground", "step through the lesson automatically", "make sure the lesson works end-to-end". Documents the canonical harness loop: open playground → start `duo events --follow` in a separate terminal → enumerate buttons → `duo html click` each in canonical step order → wait for matching events → verify paint regions advanced → report pass/fail per step. Includes edge cases (form-gated steps, multiple buttons matching, paint-without-event, browser blocking the playground) and anti-patterns ("don't substitute manual clicking").
+
+Closes meta-goal gap 5 from the v0.6.0 zoom-out. Combined with ENH-053 (canonical lesson template) + ENH-054 (skill-recognition entry point), the meta-goal arc is complete: a non-expert user can ask Claude for a training, get one built from canonical conventions, and have Claude fly-through-test it before shipping.
+
+**No `duo lesson preview <pack>` CLI wrapper** — same reasoning as ENH-054 ("A cli verb for lesson seems like overkill"). The skill description is the entry point; users say "fly through my lesson" and Claude loads the harness.
 **Priority:** Medium (downstream of ENH-053). Without it, lesson authors can't reliably test what they built.
 **Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
 

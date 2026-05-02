@@ -30,6 +30,7 @@ export function executeHtmlOp(doc: Document, req: HtmlOpRequest): HtmlOpResult {
       case 'append':      return ok(req, runAppend(doc, req))
       case 'remove':      return ok(req, runRemove(doc, req))
       case 'attr':        return ok(req, runAttr(doc, req))
+      case 'click':       return ok(req, runClick(doc, req))
       default: {
         // Exhaustiveness check — TS will complain here if a new op is
         // added to the union without a corresponding case above.
@@ -120,6 +121,24 @@ function runAttr(doc: Document, req: Extract<HtmlOpRequest, { op: 'attr' }>): { 
     for (const k of req.remove) el.removeAttribute(k)
   }
   return { id: el.getAttribute('data-duo-id') }
+}
+
+function runClick(doc: Document, req: Extract<HtmlOpRequest, { op: 'click' }>): { id: string | null; tag: string } {
+  // ENH-055 — programmatic click. The element must support .click()
+  // (HTMLElement does; SVG and a few exotic types don't reliably).
+  // We dispatch via the native click() rather than a synthesized
+  // MouseEvent because click() correctly walks the activation
+  // behavior for buttons, anchors, etc., AND the canvas-action
+  // delegated dispatcher (canvasActions.ts) doesn't gate on
+  // event.isTrusted — a synthetic click bubbles up and fires the
+  // verb just like a real user click.
+  const el = resolveTarget(doc, req)
+  if (!el) throw new Error(targetErr(req))
+  if (typeof (el as HTMLElement).click !== 'function') {
+    throw new Error(`click: element <${el.tagName.toLowerCase()}> does not support .click()`)
+  }
+  ;(el as HTMLElement).click()
+  return { id: el.getAttribute('data-duo-id'), tag: el.tagName.toLowerCase() }
 }
 
 // ── Targeting helpers ──────────────────────────────────────────────────────

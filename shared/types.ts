@@ -623,6 +623,13 @@ export type HtmlOpRequest =
   | { reqId: string; op: 'append'; parentId?: string; parentSelector?: string; html: string; path?: string }
   | { reqId: string; op: 'remove'; id?: string; selector?: string; path?: string }
   | { reqId: string; op: 'attr'; id?: string; selector?: string; set?: Record<string, string>; remove?: string[]; path?: string }
+  /** ENH-055 — programmatic click. Resolves the target via `--id` or
+   *  `--selector`, calls `element.click()`. Triggers the canvas-action
+   *  delegated dispatcher (canvasActions.ts) just like a real user
+   *  click — `data-duo-action` verbs fire normally. Used by the
+   *  lesson fly-through harness to walk a playground end-to-end
+   *  without manual clicking. */
+  | { reqId: string; op: 'click'; id?: string; selector?: string; path?: string }
 
 export interface HtmlOpResult {
   reqId: string

@@ -787,7 +787,13 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       return
     }
     const result = executeHtmlOp(doc, req)
-    if (result.ok && req.op !== 'query' && req.op !== 'get') {
+    // ENH-055 — 'click' is a programmatic click, not an edit. It
+    // dispatches a click event which may trigger downstream DOM
+    // mutations via canvas-action verbs, but those mutations are
+    // already covered by the MutationObserver path. Don't double-
+    // log + don't paint just-added (the affected element is the
+    // BUTTON, which the user just "clicked" — no wash needed).
+    if (result.ok && req.op !== 'query' && req.op !== 'get' && req.op !== 'click') {
       const anchorId = (result.result as { id?: string | null } | undefined)?.id ?? undefined
       // 17c — paint the affected element with the just-added wash so
       // the user can see what Claude changed. Skip 'remove' (the
@@ -1602,6 +1608,7 @@ function describeHtmlOp(req: HtmlOpRequest): string {
     case 'attr':    return `Update attributes on ${targetLabel(req.id, req.selector)}`
     case 'query':
     case 'get':     return 'Read the document'
+    case 'click':   return `Click ${targetLabel(req.id, req.selector)}`
     default: {
       const _exhaustive: never = req
       return 'Modify the document' + (_exhaustive ? '' : '')

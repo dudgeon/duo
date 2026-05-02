@@ -143,6 +143,7 @@ empty.
 | `duo html append --parent <duo-id> --html "…"` | Stage 17b — append child to parent (or stdin) |
 | `duo html remove --id <duo-id>` / `--selector <css>` | Stage 17b — delete element |
 | `duo html attr --id <duo-id> [--set k=v ...] [--remove k ...]` | Stage 17b — modify attributes |
+| `duo html click --id <duo-id>` / `--selector <css>` | ENH-055 (v0.6.2) — programmatic click. Triggers the canvas-action dispatcher just like a user click — `data-duo-action` verbs fire, events emit, downstream paint ops execute. Used by lesson fly-through harnesses to walk a playground without manual clicking. Returns `{id, tag}`. |
 | `duo html comment --id <duo-id> --body "…"` | Stage 17d — add a sidecar comment anchored to the matched element's nearest `data-duo-id` ancestor. Anchor via `--id`, `--selector <css>`, or `--text "<substring>"`. Body via flag or stdin. Stored in `<file>.duo.json § comments[]`; never modifies the `.html`. Returns `{ok, commentId, anchorId}`. |
 | `duo html comments [--filter all\|open\|resolved]` | Stage 17d — list comment threads on the active canvas, sorted in document order. Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. |
 | `duo reveal <path>` | Move file navigator to path; flash chip |
