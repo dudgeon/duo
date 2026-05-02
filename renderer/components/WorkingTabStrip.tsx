@@ -86,14 +86,23 @@ export function WorkingTabStrip({
       x: e.clientX,
       y: e.clientY
     })
-    // BUG-047 — when right-clicking a browser tab, the WebContentsView
-    // covers the area where the menu would render, occluding everything
-    // below the strip+address-bar zone. Mute the WCV (collapse to 1×1)
-    // for the duration of the menu so it renders unobstructed. Unmute
-    // happens in the ContextMenu's onClose callback below. We only do
-    // this for browser tabs because file/canvas tabs don't have a WCV
-    // overlay to worry about.
-    if (tab.type === 'browser') {
+    // BUG-047 / BUG-058 — when the working pane currently shows a
+    // browser tab, the WebContentsView occludes the area below the
+    // strip+address-bar zone. The context menu opens at the click
+    // point and its lower rows extend INTO the WCV's area where
+    // browser content shows through (renderer-DOM portal can't beat
+    // a native subview at the macOS compositor layer).
+    //
+    // Walk-2 BUG-058 narrowed this: the original BUG-047 fix only
+    // muted when the user right-clicked a browser tab. But the
+    // occlusion depends on what's CURRENTLY VISIBLE in the working
+    // pane, not on what tab was right-clicked. If a browser tab is
+    // the active working tab and the user right-clicks ANY tab in
+    // the strip (file, canvas, browser), the menu still gets
+    // occluded by the visible WCV. Fix: mute whenever any tab in
+    // the strip is active AND of kind 'browser'.
+    const activeIsBrowser = tabs.some(t => t.isActive && t.type === 'browser')
+    if (activeIsBrowser) {
       window.electron.browser.setOverlayMuted(true)
     }
   }
