@@ -18,6 +18,30 @@
 
 ---
 
+## 2026-05-02 — v0.5.6 cut (descope from v0.6.0)
+
+Released **v0.5.6** — a stability cut that descopes from the originally-planned v0.6.0. The v0.6.0 mental model was "Stages 27 + 18b + 28 land together"; walk-2 of v0.6.0 (this morning) yielded 13 PASS / 4 FAIL / 4 SKIP plus 4 separately-reported BUG/REGRESSIONs in adjacent surfaces. Holding the cut hostage to those 7 release-blockers would push next-ship 2-3 sessions out, with more regressions likely. Instead: cut v0.5.6 with the FIXED-and-VERIFIED work (v0.5.5 carry-overs + BUG-051 read-only + ENH-037 ⌘W safety + ENH-046 smoke-walk Copy buttons), keep Stage 27/18b/28 code in the binary as "internal preview" (NOT ✅ on the roadmap), and re-target v0.6.0 for when those features clear walk-3.
+
+Bumped package.json from 0.6.0 (speculative pre-cut bump) back to 0.5.6. Pre-1.0 — no v0.6.0 was ever published, so this isn't a downgrade in any installed-base sense; it's a re-target.
+
+What's IN this cut (with full release-notes detail in CHANGELOG.md and docs/RELEASES.md):
+- BUG-006 (Send → Duo pill on browser pane — in-page CDP injection); BUG-049 (trash dialog wording); BUG-050 (context menu portal); BUG-051 (read-only canvas toggle stuck); ENH-037 (⌘W only closes tabs).
+- ENH-032 (`duo doctor` locale section + FAQ entry); `shared/feature-flags.ts` kill-switch module; ENH-046 (smoke-walk Copy buttons); smoke-walk skill restart-warning convention; smoke-walk generator emits `duo-open-in="browser"` meta.
+- HTML canvas auto-inject IDs banner gated behind `FEATURE_AUTO_INJECT_IDS = false`; `canvas-authoring.md` skill split into authoring + interaction.
+
+What's NOT documented as shipped (but is in the binary):
+- Stage 27 (canvas-authoring vocabulary): six new verbs, `duo events --follow`, `data-payload-from`, `<meta duo-default-editable>`, two skills, five reference templates. Walk-2 found BUG-052..055 in this surface.
+- Stage 18b (distro skill packs).
+- Stage 28 (`intro-to-duo` + `claude-code-basics` lesson packs). 28-Pack-A renders + spawns Claude (needs gating per ENH-049); 28-Pack-B SKIP'd in walk.
+
+Known issues at v0.5.6 (separate from internal-preview Stage 27/18b/28): BUG-056 (Send → Duo pill fires without Claude session — recurring; needs gating + regression test), BUG-057 (pinned tabs lost across sessions/upgrades), BUG-058 (WCV occludes WorkingTabStrip context menu — BUG-050 partial fix needs WCV-mute pattern). All three targeted for v0.6.0.
+
+Three design decisions noted in RELEASES.md prose: (1) BUG-051's fix targets the right layer (RenderedCanvas wire() else branch, not React state); (2) the "never restart Duo mid-walk" guard is convention-level not code-level (pending ENH-038 textarea persistence); (3) `shared/feature-flags.ts` is compile-time constants only — no runtime flipping.
+
+Walk-2 backlog filed in tasks.md: BUG-052..061 + ENH-043..049. Idle-thoughts.md processed and gitignored.
+
+---
+
 ## 2026-05-01 — v0.5.4 cut
 
 Released v0.5.4 — the carry-over Known Issues sprint from v0.5.3.

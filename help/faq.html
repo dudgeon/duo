@@ -101,6 +101,23 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.5.6 release stability cut send-to-duo browser pane in-page injection cdp binding read-only canvas toggle ratchet cmd-w close window data loss feature-flags auto-inject ids smoke-walk copy buttons restart warning trash dialog wording context-menu portal terminal locale conda lc_all bug-006 bug-049 bug-050 bug-051 enh-032 enh-037 enh-046 stage-27 stage-18b stage-28 internal preview">
+  <h3>v0.5.6 — Stability cut: carry-overs + read-only fix + ⌘W safety <span class="date">2026-05-02</span></h3>
+  <p>A focused stability cut that lands the v0.5.5 carry-over fixes alongside the new read-only canvas fix, the ⌘W data-loss patch, and the smoke-walk page Copy buttons. <strong>Stages 27 / 18b / 28 (canvas-authoring vocabulary, distro skill packs, lesson packs) ride along as initial preview but are not yet validated</strong> — full release lands in v0.6.0 once their walk-2 regressions are fixed.</p>
+  <ul>
+    <li><strong>Send → Duo pill on the browser pane is now visible AND clickable.</strong> The pill renders inside the page itself (via Chrome DevTools Protocol injection) instead of in renderer DOM where the macOS native subview compositor was occluding it. Selection snapshot is captured synchronously at click-time so the round-trip can't race.</li>
+    <li><strong>Read-only canvas toggle now actually reverts.</strong> Off → on → off was leaving the body editable; the wiring effect added edit-mode attributes but never removed them on flip-back. Fixed by an explicit revert branch.</li>
+    <li><strong>⌘W only closes tabs — never the window.</strong> The "Close Window" menu accelerator moved to ⌘⇧W (Chrome's convention). No more accidentally closing the entire Duo window when reaching for ⌘W to close a tab.</li>
+    <li><strong>"Move to Trash" confirm dialog reads coherently</strong> — was sandwiching the trash copy between hardcoded "Close pinned tab?" / "is pinned. Close it anyway?" strings.</li>
+    <li><strong>Right-click on a markdown editor tab shows the full context menu</strong> — the menu was being clipped by the strip's overflow stacking context. Portaled to document.body now.</li>
+    <li><strong>FAQ entry for the conda <code>LC_ALL=C</code> terminal-locale gotcha.</strong> Multi-byte Unicode chars come out garbled when you paste into a terminal whose shell has a non-UTF-8 locale. <code>duo doctor</code> now flags this; the FAQ explains the fix recipe.</li>
+    <li><strong>HTML canvas no longer auto-prompts to inject IDs on every fresh open</strong> — gated behind a feature flag (off by default). Existing files with IDs continue to work; agents can still call <code>duo html stamp-ids</code> manually.</li>
+    <li><strong>Smoke-walk page Copy buttons</strong> — any backtick-wrapped command in a smoke-walk step now renders as a code block with a one-click Copy button. Replaces triple-click + careful selection of inline code.</li>
+  </ul>
+  <p><strong>Three known issues — targeted for v0.6.0:</strong> the Send → Duo pill in the browser pane fires even without an active Claude session (BUG-056); pinned working-pane tabs are lost across sessions / app upgrades (BUG-057); and the WorkingTabStrip context menu is still occluded by the browser pane in the lower portion of the menu (BUG-058 — needs a different fix path than BUG-050's portal).</p>
+  <p><strong>Why this is v0.5.6 and not v0.6.0.</strong> The original v0.6.0 plan was Stages 27 + 18b + 28 landing together. Walk-2 of v0.6.0 surfaced 7 release-blockers in those features; descoping to a smaller v0.5.6 here gets the FIXED-and-VERIFIED work to users now and lets 27/28 graduate to shipped status separately when they pass walk-3.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.5.4 release context menu right-click electron-context-menu copy as plain text find in page browser pane breadcrumb pan markdown tab cycle render delay version badge titlebar build version cmd-backtick focus toggle pane focus reclaim race xterm focus listener bug-048 bug-046 enh-028 enh-029 enh-030 enh-031 enh-033">
   <h3>v0.5.4 — Right-click everywhere + ⌘\` finally clean <span class="date">2026-05-01</span></h3>
   <p>A tight follow-up sprint to v0.5.3 — pulling the carry-over Known Issues from that cut and shipping six of seven cleanly. Every right-click in Duo now does what users expect, ⌘\` after <code>duo open</code> finally toggles back to the terminal cleanly, and a few smaller paper-cuts cleared.</p>
@@ -467,7 +484,7 @@ export LC_ALL=en_US.UTF-8</pre>
 </details>
 
 <footer>
-  <p>This is Duo v0.1.0. Last updated 2026-04-26. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p>This is Duo v0.5.6. Last updated 2026-05-02. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find a question that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

@@ -19,6 +19,45 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.5.6] — 2026-05-02
+
+A focused stability cut: the carry-over fixes from the v0.5.5 sprint (Send → Duo pill on the browser pane, trash dialog wording, context-menu portal-stacking, terminal-locale FAQ) + the read-only canvas toggle that ratcheted the wrong way + the ⌘W data-loss bug + smoke-walk page Copy buttons. **Stages 27 / 18b / 28 (canvas-authoring vocabulary, distro skill packs, lesson packs) are present in the binary as initial preview but stay 🔄 In progress on the roadmap — full validation lands in v0.6.0.**
+
+### Fixed
+
+- **Send → Duo pill on the browser pane is now visible AND clickable** (BUG-006). The renderer-DOM portal pill was occluded by the WebContentsView at the macOS compositor level (z-index can't beat a native subview). Pill now renders INSIDE the page DOM via the existing CDP selection-observer IIFE; clicks route via a new `duoSendToDuoClick` binding → IPC → `handleSendToDuoClick`. Snapshot is captured synchronously at mousedown so the click round-trip doesn't race with selectionchange clearing the renderer's cache.
+- **"Move to Trash" confirm dialog reads coherently** (BUG-049). `PinnedCloseConfirm` parameterized with explicit title/body/confirmLabel; trash branch passes its own copy ("Move to Trash?" / "<file> will be moved to the Trash. The tab will close.").
+- **Right-click on a markdown editor tab shows the full context menu** (BUG-050). `ContextMenu` portaled to `document.body` with z-index:1000 (was inheriting the strip's overflow-x-auto stacking context). BUG-047 class closed for renderer-DOM cases.
+- **Read-only canvas toggle now actually reverts** (BUG-051). Off → on → off was leaving body `contenteditable="true"` because the wiring effect's `wire()` only ADDED edit-mode body attributes; never removed them on flip-back. Explicit `else` branch in `RenderedCanvas § wire()` clears `contenteditable` / `spellcheck` / `data-duo-canvas-runtime` and blurs active element on re-mount under `readOnly: true`.
+- **⌘W only closes tabs — never the parent window** (ENH-037). Window menu's `{role: 'close'}` had its default ⌘W accelerator overridden to ⌘⇧W (Chrome convention). Owner lost ~20 minutes of smoke-walk notes to a stray ⌘W; this prevents the recurrence permanently.
+
+### Added
+
+- **`duo doctor` locale section + FAQ entry** (ENH-032). Probes `$LC_ALL` / `$LC_CTYPE` / `$LANG`; flags non-UTF-8 values with the conda `(base)` `LC_ALL=C` fix recipe inline.
+- **`shared/feature-flags.ts`** — kill-switch module for opt-in / kill-switch gating of features. First user: `FEATURE_AUTO_INJECT_IDS = false` (HTML canvas no longer auto-prompts to inject `data-duo-id` attributes; was firing on every fresh canvas open, surfacing on local HTML files that didn't need anchors).
+- **Smoke-walk page Copy buttons** (ENH-046). Any backtick-wrapped command in a step's prose now renders as a `<pre>` block with a Copy-to-clipboard button alongside. Single-click clipboard write replaces triple-click + careful selection.
+- **Smoke-walk skill — restart-warning** (Step 4). Loud "**never restart Duo while a walk is in progress**" guard with a 3-option escape hatch when a main-process change MUST land mid-walk. Owner lost 20 min of typed walk notes to this; convention prevents the next instance.
+- **Smoke-walk generator emits `<meta name="duo-open-in" content="browser">`**. Walk pages route to the browser pane regardless of how they're opened (canvas mode would put the body in contenteditable, trapping Copy-button clicks as cursor placements).
+
+### Changed
+
+- **HTML canvas no longer auto-prompts to inject `data-duo-id` attributes** (gated behind `FEATURE_AUTO_INJECT_IDS`; default off). Existing files with IDs continue to work; agents can call `duo html stamp-ids` manually when a session needs anchors.
+- **`canvas-authoring.md` skill split** into `canvas-authoring.md` + `canvas-interaction.md` (single-responsibility per Anthropic skill best practices). Authoring covers building canvases; interaction covers driving them via `duo html *` from a Claude session.
+
+### Internal preview — present but not yet validated
+
+The following Stage 27 + 18b + 28 work is included in this release as code, but **smoke walk-2 surfaced 7 regressions** that are still open. These features may behave unexpectedly; full validation + fixes land in v0.6.0.
+
+- **Stage 27 (canvas-authoring vocabulary)** — six new canvas-action verbs (`editor:open`, `nav:reveal`, `selection:set`, `theme:set`, `terminal:focus`, `duo:event`); `duo events --follow` streaming CLI; `data-payload-from` form-input binding; `<meta name="duo-default-editable">` routing; canvas-authoring + canvas-interaction skills; five reference templates. **Known issues:** BUG-052 (`editor:open data-mode='canvas'` — toolbar/strip missing), BUG-053 (`nav:reveal` — file not highlighted), BUG-054 (`terminal:focus` — visual flips but cursor not active), BUG-055 (canvas click should focus working pane).
+- **Stage 18b (distro skill packs)** — pack format, PackLoader, `installed-packs.json`, first-launch hook, `duo packs` CLI. CLI walk passes.
+- **Stage 28 (lesson packs)** — `intro-to-duo` and `claude-code-basics` packs. Both render; "Start lesson" spawn behavior in `intro-to-duo` needs gating (ENH-049).
+
+### Known issues (separate from internal-preview Stage 27/18b/28)
+
+- **BUG-056** — Send → Duo pill on browser pane fires without an active Claude session. Recurring; needs gating + regression test. Targeted for v0.6.0.
+- **BUG-057** — Pinned working-pane tabs lost across sessions / app upgrades. Targeted for v0.6.0.
+- **BUG-058** — Browser pane (WCV) still occludes the WorkingTabStrip context menu (BUG-050 partial fix; needs WCV-mute pattern). Targeted for v0.6.0.
+
 ## [0.5.4] — 2026-05-01
 
 A tight follow-up sprint to v0.5.3: every right-click in Duo now does what users expect, ⌘\` after `duo open` finally toggles cleanly, the browser pane gets ⌘F find-in-page, breadcrumbs show the active folder by default, markdown tab cycling is instant, and a build-version badge in the titlebar prevents "am I walking the right build?" confusion at smoke-walk time.
@@ -514,7 +553,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.5.4...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.5.6...HEAD
+[0.5.6]: https://github.com/dudgeon/duo/releases/tag/v0.5.6
 [0.5.4]: https://github.com/dudgeon/duo/releases/tag/v0.5.4
 [0.5.3]: https://github.com/dudgeon/duo/releases/tag/v0.5.3
 [0.5.2]: https://github.com/dudgeon/duo/releases/tag/v0.5.2

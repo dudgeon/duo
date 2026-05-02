@@ -21,35 +21,36 @@
 
 ## Pending — not yet cut
 
-> Drafted 2026-05-01 after the v0.5.5 walk passed; deferred at the
-> owner's call. The shipped fixes don't constitute a meaningful
-> release on their own — the next release will be anchored on the
-> canvas-authoring + tutorial-content + FTUX initiative scoped
-> below. These notes will fold into that cut.
+_Empty._ Carry-over stash folded into v0.5.6 (2026-05-02).
 
-### Carry-over from the v0.5.5 sprint (not yet cut)
+---
 
-**Fixed**
+## v0.5.6 — 2026-05-02 — Stability cut: carry-overs + read-only fix + ⌘W safety
 
-- **Send → Duo pill on the browser pane is visible AND clickable** (BUG-006, Path b). Renderer-DOM portal pill was occluded by the WebContentsView at the macOS compositor level (z-index can't beat a native subview). Pill now renders INSIDE the page DOM via the existing CDP selection-observer IIFE; clicks route via a new `duoSendToDuoClick` binding → `IPC.BROWSER_SEND_TO_DUO_CLICK` → renderer's `handleSendToDuoClick`. v2 sub-fix: snapshot is captured synchronously at mousedown and passed through the binding payload so the click round-trip doesn't race with selectionchange clearing the renderer's cached snapshot.
-- **Right-click on a markdown editor tab now shows the full context menu** (BUG-050). `ContextMenu` portaled to `document.body` with `z-index: 1000` (was rendered inline at the call site, inheriting the strip's `overflow-x-auto` stacking context). Different root cause from BUG-047 (native subview compositing); both classes now have their own fix paths.
-- **"Move to Trash" confirm dialog reads coherently** (BUG-049). `PinnedCloseConfirm` parameterized to take explicit `title` / `body` / `confirmLabel` props. Trash branch passes its own copy ("Move to Trash?" / "<file> will be moved to the Trash. The tab will close.").
-- **BUG-047 class — closed.** All three child symptoms (BUG-045 file-tab right-click, BUG-006 Send → Duo pill, ENH-028 browser ⌘F) now have working fix paths via three different strategies (mute, in-page injection, above-WCV placement).
+A descoped follow-up to v0.5.4 instead of the originally-planned v0.6.0 cut. The v0.5.5 carry-over stash had been sitting in the "Pending — not yet cut" section since 2026-05-01 with the plan to fold it into v0.6.0 alongside Stages 27 + 18b + 28. Walk-2 of v0.6.0 (2026-05-02) surfaced 7 release-blockers in 27/28's verbs and adjacent surfaces (BUG-052..058); rather than spend 2-3 more sessions chasing those down before the cut, we descope: ship the carry-overs + the new BUG-051 fix + the ⌘W safety + the smoke-walk usability improvements as v0.5.6, hold 27/18b/28 out of the formal cut until they pass walk-3.
 
-**Added**
+### Why this lands here, not as v0.6.0
 
-- **Locale section in `duo doctor`** (ENH-032). Probes `$LC_ALL`/`$LC_CTYPE`/`$LANG`; flags non-UTF-8 values with the fix recipe inline.
-- **FAQ entry — "Why do special characters look broken when I paste into the terminal?"** (ENH-032). Diagnostic command + fix recipe (export LANG/LC_ALL after conda init).
-- **`shared/feature-flags.ts`** — small constants module for kill-switching features that aren't ready to be on-by-default. First user: `FEATURE_AUTO_INJECT_IDS` (off — see Changed below).
+The v0.6.0 mental model was "Stages 27 + 18b + 28 land together." Walk-2 invalidated that — three Stage 27 verbs (V2 / V3 / V7) failed, and four other regressions surfaced (BUG-055..058). Holding the cut hostage to those fixes would push the next ship 2-3 sessions out, with more regressions likely as the fixes interact. Cutting v0.5.6 now gets the FIXED-and-VERIFIED work to users immediately, lets the 27/28 work bake separately under a v0.6.0 retry plan, and re-establishes the discipline of "a cut means it's verified."
 
-**Changed**
+The Stage 27 / 18b / 28 code IS in this release's binary — it's already on `main` and would have been wherever the next cut landed. What we're NOT doing is documenting it as shipped, flipping its roadmap status to ✅, or recommending it for use. It's "internal preview" — present, possibly working, definitely not validated. (The pre-cut bump from `0.6.0 → 0.5.6` reflects this: v0.6.0 was a speculative version label that never published, so it's not a downgrade — just a re-target.)
 
-- **HTML canvas no longer auto-prompts to inject `data-duo-id` attributes** (gated behind `FEATURE_AUTO_INJECT_IDS`; default off). Banner was firing on every fresh canvas open, surfacing on local HTML files that don't need or benefit from anchors. Existing files with IDs continue to work.
-- **Smoke-walk generator emits `<meta name="duo-open-in" content="browser">`.** Forces walk pages to route to the browser pane regardless of how they're opened.
+### Three design decisions baked in
 
-**Verified live**
+**(1) BUG-051's fix targets the right layer.** The read-only toggle's failure mode wasn't a state-management bug at the React level — `readOnly` flipped correctly. The bug was in `RenderedCanvas`'s wiring effect: it ADDED edit-mode body attributes inside the `if (!readOnly)` branch but never removed them when re-running under `readOnly: true`. The fix adds an explicit `else` branch that reverts those attributes, blurs the active element, and leaves the `data-duo-canvas-runtime` `<style>` in place (the goto-flash keyframes are needed in both modes). One-screen edit, no architectural shift.
 
-- **BUG-028 (Escape dismisses inline rename in navigator).** Code fix shipped v0.5.1; live verification deferred (computer-use can't send Escape to Electron). Walk-1 of v0.5.5 confirmed the fix holds.
+**(2) The smoke-walk "never restart Duo mid-walk" guard is convention-level, not code-level.** The user lost 20 minutes of typed walk notes when ⌘W closed the parent window mid-walk. Two fixes: (a) ENH-037 prevents ⌘W from EVER closing the window again; (b) the smoke-walk SKILL.md gains a Step-4 "never restart" guard with a 3-option escape hatch for the cases where a restart genuinely is required mid-walk. The second is convention because the primary defense is "don't let the user lose work" — the textarea persistence (ENH-038) is queued but not blocking this cut.
+
+**(3) `shared/feature-flags.ts` is a kill-switch module, not a runtime-flag system.** The first flag (`FEATURE_AUTO_INJECT_IDS = false`) is a compile-time constant with no runtime flipping. Adding a flag means: declare the const, gate the feature, document the deciding bug/ENH ID. Removing means: delete the const, delete the gate. No persistence, no UI, no `duo flag` CLI. We need this discipline early — every "let's add a runtime flag" is a maintenance commitment that compounds.
+
+### What this is and isn't
+
+This is a stability cut that gets fixes shipped without releasing the unfinished Stage 27 / 28 surface as a "feature." It's not the originally-planned v0.6.0 — that target moves out, and v0.6.0 is now a placeholder for the cut that lands when 27 + 28 pass walk-3. It's not a major release — there's no architectural shift, no new user-facing capability beyond the smoke-walk Copy buttons (which is dev-experience, not user-experience). It IS a clean cut: every item in the "Fixed" / "Added" / "Changed" sections has been tested through at least one walk and has a known fix path.
+
+Queued next:
+- v0.6.0: BUG-052..058 fix sprint + walk-3 (Stage 27 + 18b + 28 graduate from internal-preview to shipped)
+- v0.6.x or later: ENH-038 (textarea persistence), ENH-039 (clickable paths), ENH-040 / ENH-041 / ENH-042 (collapse / split-canvas / tab-reorder), ENH-043 (smoke-walk via canvas primitives), ENH-044 (clawd icon), ENH-045 (Project Claude Context navigator features)
+- v0.7+: Stage 13 (just-added highlight), Stage 14 (track changes + comment rail)
 
 ---
 
