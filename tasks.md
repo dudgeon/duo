@@ -3781,7 +3781,7 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### ENH-049: 28-Pack-A "Start lesson" button should gate on / spawn a Claude session (and be unclickable otherwise)
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.1 (option b — fix `claude:spawn` semantics).** `dispatchPostSpawnWrite` now sends `claude\n${cmd}\n` when kind='claude' AND a cmd is supplied — claude launches first; cmd lands in the PTY input buffer; claude reads it as the first user message once it takes over stdin. Previously the cmd was sent DIRECTLY (no claude\n prefix), so it typed into zsh as a shell command and errored because the cmd was prose ("Read ~/.claude/duo/.../SKILL.md and walk me through..."). Owner picked option b ("make claude:spawn always create a terminal if none exists, and have the cmd land in claude not the shell") over option a (gate the button), correctly: the verb's contract is "ensure a Claude tab exists with these args."
 **Priority:** Medium (UX correctness for FTUX).
 **Filed:** 2026-05-02 (walk-2 owner observation on 28-Pack-A)
 

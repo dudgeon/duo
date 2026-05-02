@@ -520,16 +520,32 @@ export function App() {
   // payloads — claude auto-launch, install banner, --cmd from CLI.
   const dispatchPostSpawnWrite = useCallback(async (id: string, kind: TerminalTabKind, cmd?: string) => {
     let payload: string | null = null
-    if (cmd && cmd.length > 0) {
-      // D21 alternative path: explicit --cmd from the CLI wins over
-      // the kind-based default. No trailing newline — parity with
-      // `duo send` (the user / agent confirms).
-      payload = cmd
-    } else if (kind === 'claude') {
+    if (kind === 'claude') {
       // D23 — only auto-launch if claude is reachable; otherwise print
       // the install banner so the user knows why their tab opened bare.
       const onPath = await window.electron.terminal.claudeOnPath()
-      payload = onPath ? 'claude\n' : CLAUDE_MISSING_BANNER
+      if (onPath) {
+        // ENH-049 — when a cmd is supplied (Stage 27 `claude:spawn`
+        // data-cmd, CLI `duo new-tab --claude --cmd "<msg>"`), launch
+        // claude FIRST, then queue the cmd into the PTY input buffer
+        // so claude reads it as its FIRST MESSAGE once it takes over
+        // stdin. Previously the code path sent the cmd directly (no
+        // claude\n prefix), which typed the cmd into zsh and errored
+        // because the cmd was prose like "Read X and walk me through".
+        // PTY input is line-buffered: zsh reads `claude\n`, execs
+        // claude, claude inherits stdin with `<cmd>\n` already in the
+        // buffer, claude reads it as the first user message.
+        payload = cmd && cmd.length > 0 ? `claude\n${cmd}\n` : 'claude\n'
+      } else {
+        // claude not on PATH — show the install banner. Cmd (if any)
+        // is dropped: it's a Claude prompt, useless without Claude.
+        payload = CLAUDE_MISSING_BANNER
+      }
+    } else if (cmd && cmd.length > 0) {
+      // kind='shell' + --cmd — type the cmd as the shell's first
+      // command. No trailing newline — parity with `duo send` (the
+      // user / agent confirms by pressing Enter).
+      payload = cmd
     }
     if (payload === null) return
     await waitForPtyReady(id)
