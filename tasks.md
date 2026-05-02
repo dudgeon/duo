@@ -3880,3 +3880,54 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 **Cross-ref:** ENH-046 (smoke-walk Copy buttons); the W3-V5 step that surfaced this.
 
+
+### ENH-051: Enterprise distro setting to toggle which packs auto-install + auto-open
+
+**Status:** 🆕 Filed
+**Priority:** Medium (unblocks "many demo lessons in the repo" — the user's framing).
+**Filed:** 2026-05-02 (post-v0.6.0 owner request)
+
+**Owner framing (verbatim):** "I think we are going to build a bunch of demo lessons, which is fine to include in the repo as the file sizes are small, but it would be good to be able to toggle them on / off in the enterprise distro settings."
+
+**Context:** Today, Stage 18b's `PackLoader` scans `~/.claude/duo/packs/` at boot. Every directory there is a pack; every pack's `PACK.json § defaults[].openOnFirstLaunch:true` triggers an auto-open on first launch. There's no per-fork mechanism to opt OUT of a pack: shipping `intro-to-duo` in the upstream repo means every fork installs it, and every fork's first-launch FTUX shows it. An enterprise fork that has its own onboarding flow gets the upstream `intro-to-duo` whether they want it or not.
+
+**What's wanted:** a `packs` section in `fork.config.json` that controls per-pack enable/disable + (later) extra-pack-dir paths. Per-fork, gitignored — so upstream Duo ships the full set and forks pick.
+
+**Proposed schema (v1):**
+
+```json
+{
+  "$comment": "fork.config.json — copy from fork.config.default.json and edit.",
+  "appId": "com.example.duo",
+  "productName": "Example Duo",
+  "publish": { ... },
+  "bootstrap": { ... },
+  "packs": {
+    "$comment": "Per-pack toggle. Packs not listed here use their PACK.json defaults (auto-open on first launch). Listed-as-false packs are SKIPPED entirely — the install service does NOT copy them into ~/.claude/duo/packs/, the PackLoader does NOT scan them, and the first-launch hook does NOT fire NAV_EDIT for their defaults. Listed-as-true is the same as not-listing (sane default).",
+    "disabled": [
+      "intro-to-duo",
+      "lesson-cap-one-aip"
+    ],
+    "extraDirs": [
+      "$comment": "v2 — fork-private packs that ship outside the upstream repo (e.g. an internal lesson set in a separate enterprise repo or a network share). v1 ignores this; v2 adds rsync support.",
+      "/path/to/internal/packs"
+    ]
+  }
+}
+```
+
+**Implementation v1 (core):**
+1. `fork.config.default.json` → add empty `packs: { disabled: [] }` section as the canonical schema.
+2. `core/pack-loader.ts § scan` → consult fork-config's `packs.disabled` list before classifying a directory as a pack. Skipped packs aren't even loaded — `errors[]` doesn't get an entry, the directory just isn't seen.
+3. `electron/install-service.ts` → when copying upstream `packs/*` into `~/.claude/duo/packs/`, skip any pack on the disabled list. Forks that disable `intro-to-duo` don't even get its files copied.
+4. CLI: `duo packs --include-disabled` to list what's there + what's filtered out (without this flag, only enabled packs show).
+
+**Implementation v2 (queued):**
+- `extraDirs` — let forks point at additional pack source dirs (network share, separate enterprise repo). PackLoader scans them too. install-service copies on first launch.
+- A per-pack `enabled` flag that's a boolean (vs. opt-out via list) — slightly more verbose but symmetric with future per-pack overrides (e.g. `enabled: false`, `forceFirstLaunchOpen: false`).
+
+**Why pack on/off is the right primitive (vs. "demo mode" flag):**
+The user's framing — "many demo lessons in the repo, toggle them on/off in enterprise distro settings" — implies they want SOME packs available + others disabled. A single "demo mode" boolean would force the full set on/off; per-pack control is what enterprise customization actually needs.
+
+**Cross-ref:** Stage 18b (pack format + loader); ENH-045 (Project Claude Context navigator improvements — its v1d "new project skill" might want to use this same mechanism for project-template packs); fork.config.default.json (the schema).
+
