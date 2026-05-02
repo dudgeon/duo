@@ -17,12 +17,13 @@
 ## Current state — last updated 2026-05-01
 
 **Active sprint:** Stage 27 — Canvas authoring vocabulary + skill.
-**Active commit:** Commit 4 (`<meta name="duo-default-editable">` —
-ENH-034).
+**Active commit:** Commit 5 (canvas authoring skill).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Commits 1–3 landed. Commit 3 = `data-payload-from`
-form-input binding inside the canvas-action click handler;
-`captureFormValue(doc, selector)` is the helper. Typecheck clean.
+**Status:** Commits 1–4 landed. Commit 4 = ENH-034 (soft default-
+editable). Distinct from existing `duo-editable: false` hard lock —
+toolbar toggle stays available so a user can flip into edit mode
+on a tutorial canvas. Override persists at `duo-canvas-editable-
+override:<absPath>` in localStorage. Typecheck clean.
 
 ## Big-picture initiative
 

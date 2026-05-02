@@ -261,13 +261,82 @@ function parseReadOnlyFromHtml(html: string | null): boolean {
   return !!m
 }
 
+/**
+ * Stage 27 (ENH-034) — soft default-editable hint. Returns
+ * `true` when `<meta name="duo-default-editable" content="false">`
+ * is present (i.e. canvas should mount read-only by default but the
+ * user can flip via the toolbar toggle). Distinct from the hard
+ * `duo-editable: false` lock — that one hides the toggle entirely.
+ */
+function parseDefaultReadOnlyFromHtml(html: string | null): boolean {
+  if (!html) return false
+  const m = html.match(/<meta\s+[^>]*name\s*=\s*["']duo-default-editable["'][^>]*content\s*=\s*["']false["']/i)
+  return !!m
+}
+
+/**
+ * localStorage key for the per-path read-only override. When a user
+ * flips the toolbar toggle on a `duo-default-editable: false` canvas,
+ * we remember their choice keyed on the absolute path so re-opens
+ * honor it. The hard `duo-editable: false` lock skips this entirely
+ * — its read-only state isn't user-overridable.
+ */
+const READONLY_OVERRIDE_KEY_PREFIX = 'duo-canvas-editable-override:'
+
+function readReadOnlyOverride(absPath: string): boolean | null {
+  try {
+    const raw = localStorage.getItem(`${READONLY_OVERRIDE_KEY_PREFIX}${absPath}`)
+    if (raw === 'true') return true
+    if (raw === 'false') return false
+    return null
+  } catch { return null }
+}
+
+function writeReadOnlyOverride(absPath: string, readOnly: boolean): void {
+  try {
+    localStorage.setItem(`${READONLY_OVERRIDE_KEY_PREFIX}${absPath}`, String(readOnly))
+  } catch { /* private browsing / storage quota — drop silently */ }
+}
+
 export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir, focused = false, onUserInteract }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const readOnly = useMemo(() => parseReadOnlyFromHtml(initialHtml), [initialHtml])
+  // Stage 27 (ENH-034) — `lockedReadOnly` is the existing
+  // `<meta duo-editable="false">` hard-lock; toolbar toggle hidden,
+  // user can't flip. `readOnly` is the live state used by the canvas
+  // chrome. When `lockedReadOnly` is true, `readOnly` is forced true
+  // and never flips. Otherwise it initializes from (in priority):
+  //   1. localStorage override at READONLY_OVERRIDE_KEY_PREFIX:<path>
+  //   2. `<meta duo-default-editable="false">` hint (initial read-only)
+  //   3. default editable
+  const lockedReadOnly = useMemo(() => parseReadOnlyFromHtml(initialHtml), [initialHtml])
+  const [readOnly, setReadOnly] = useState<boolean>(() => false)
+  useEffect(() => {
+    if (initialHtml === null) return
+    if (lockedReadOnly) {
+      setReadOnly(true)
+      return
+    }
+    const override = readReadOnlyOverride(path)
+    if (override !== null) {
+      setReadOnly(override)
+      return
+    }
+    const defaultReadOnly = parseDefaultReadOnlyFromHtml(initialHtml)
+    setReadOnly(defaultReadOnly)
+  }, [initialHtml, lockedReadOnly, path])
+
+  const toggleReadOnly = useCallback(() => {
+    if (lockedReadOnly) return
+    setReadOnly(prev => {
+      const next = !prev
+      writeReadOnlyOverride(path, next)
+      return next
+    })
+  }, [lockedReadOnly, path])
 
   const canvasRef = useRef<RenderedCanvasHandle | null>(null)
   // The serialized HTML as it was on disk after the last successful read
@@ -1212,7 +1281,12 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       {/* Read-only mode (`<meta name="duo-editable" content="false">`)
           hides the entire editing chrome. Toolbar, ID-injection
           banner, and write-warning banner are all editing affordances
-          that have no purpose on a system reference HTML. */}
+          that have no purpose on a system reference HTML.
+
+          Stage 27 (ENH-034) — when the canvas is read-only because of
+          `duo-default-editable: false` (soft hint), we still show a
+          tiny toggle strip so the user can flip back to edit mode.
+          The toggle is only hidden when `lockedReadOnly` is true. */}
       {!readOnly && (
         <EditorToolbar
           actions={editorActions}
@@ -1221,6 +1295,35 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
           dirty={dirty}
           saving={saving}
         />
+      )}
+      {readOnly && !lockedReadOnly && (
+        <div className="shrink-0 flex items-center justify-end gap-2 border-b border-stroke px-3 py-1.5 bg-surface-1">
+          <span className="text-xs text-ink-soft">Read-only</span>
+          <button
+            type="button"
+            onClick={toggleReadOnly}
+            className="text-xs px-2 py-0.5 rounded border border-stroke bg-surface-0 hover:bg-surface-2 text-ink"
+            title="Allow editing this canvas"
+          >
+            Edit
+          </button>
+        </div>
+      )}
+      {!readOnly && !lockedReadOnly && parseDefaultReadOnlyFromHtml(initialHtml) && (
+        // Stage 27 — when the file's meta hint is `default-editable: false`
+        // but the user has flipped to edit, surface a discreet "back to
+        // read-only" affordance alongside the full toolbar so they can
+        // return without hunting through a menu.
+        <div className="shrink-0 flex items-center justify-end gap-2 border-b border-stroke px-3 py-1 bg-surface-1">
+          <button
+            type="button"
+            onClick={toggleReadOnly}
+            className="text-xs px-2 py-0.5 rounded border border-stroke bg-surface-0 hover:bg-surface-2 text-ink-soft"
+            title="Return to read-only mode"
+          >
+            Back to read-only
+          </button>
+        </div>
       )}
       {!readOnly && pendingHtmlOp && (
         <WriteWarningBanner

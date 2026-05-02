@@ -115,8 +115,19 @@ export interface HtmlFileMeta {
   /** `<meta name="duo-editable" content="false">` — when false, the
    *  canvas mounts read-only (no contentEditable, toolbar, comment
    *  composer, or ID-injection probe). Honored regardless of where the
-   *  file ends up routing to. */
+   *  file ends up routing to. **Hard lock** — toolbar toggle is hidden;
+   *  use `defaultEditable` for soft-default behaviour the user can
+   *  flip at runtime. */
   editable?: boolean
+  /** Stage 27 (ENH-034) — `<meta name="duo-default-editable" content="false">`
+   *  hints the canvas should mount read-only by default but allows the
+   *  user to flip it via the toolbar toggle. The choice persists in
+   *  localStorage at `duo-canvas-editable-override:<absPath>` so a
+   *  re-open honors the user's last decision. Tutorial / lesson
+   *  canvases ship with `false` so click handlers fire instead of
+   *  contentEditable's cursor placement; the user can opt INTO editing
+   *  if they want to take notes on the page. */
+  defaultEditable?: boolean
 }
 
 export interface ElectronFilesAPI {

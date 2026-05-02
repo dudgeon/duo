@@ -154,6 +154,14 @@ export class FilesService {
     if (openIn) meta.openIn = openIn[1].toLowerCase() as 'browser' | 'canvas'
     const editable = head.match(/<meta\s+[^>]*name\s*=\s*["']duo-editable["'][^>]*content\s*=\s*["'](true|false)["']/i)
     if (editable) meta.editable = editable[1].toLowerCase() === 'true'
+    // Stage 27 (ENH-034) — soft-default editable hint. Distinct from
+    // the hard-lock `duo-editable` above: when this is `false`, the
+    // canvas mounts read-only but the toolbar toggle stays available
+    // so the user can flip it back. Tutorial canvases use this so
+    // click handlers fire on first load instead of being intercepted
+    // by contentEditable's cursor placement.
+    const defaultEditable = head.match(/<meta\s+[^>]*name\s*=\s*["']duo-default-editable["'][^>]*content\s*=\s*["'](true|false)["']/i)
+    if (defaultEditable) meta.defaultEditable = defaultEditable[1].toLowerCase() === 'true'
     return meta
   }
 
