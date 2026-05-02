@@ -13,6 +13,17 @@ naturally as it runs shell commands.
 
 Owner: Geoff.
 
+## Audience and references
+
+Duo is a personal, open-source project intended for both individual
+users and enterprise teams. **Do not write company-specific
+references into the codebase, docs, or commit messages** — no
+employer names, internal project / program / cohort codenames, or
+anything else that ties Duo to a specific organization. Use generic
+descriptors instead (e.g. "early-adopter cohort", not a real cohort
+name). Exceptions: references to Claude / Anthropic, and specific
+domain names that appear in the browser blocklist.
+
 ## Where to look
 
 - **`docs/roadmap.html`** — canonical roadmap (status, layered build
