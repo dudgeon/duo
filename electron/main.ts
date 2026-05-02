@@ -24,6 +24,7 @@ import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
 import { PackLoader } from '../core/pack-loader'
+import { InstalledPacksService } from '../core/installed-packs-service'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -162,6 +163,7 @@ const eventBus = new EventBus()
 // boot to populate the registry; first-launch defaults + the
 // `duo packs` CLI both consume it. Hot-reload deferred to Stage 18c.
 const packLoader = new PackLoader()
+const installedPacksService = new InstalledPacksService()
 
 // Stage 9 — the menu's Cozy mode checkmark tracks the active tab.
 // The renderer is the source of truth; main caches the last pushed value
@@ -306,6 +308,42 @@ async function createWindow(): Promise<void> {
       } catch (err) {
         console.warn('[main] browser-tab restore failed:', (err as Error)?.message ?? err)
       }
+    }
+
+    // Stage 18b — first-launch defaults hook. Runs AFTER session
+    // restore so default tabs don't fight the user's pinned /
+    // restored ones. For each pack whose `<name>@<version>` flag
+    // hasn't been recorded in installed-packs.json yet, dispatch
+    // NAV_EDIT for every default with `openOnFirstLaunch: true`.
+    // Then mark the pack flagged so subsequent boots stay quiet.
+    //
+    // Trust gate: pack canvases live under ~/.claude/duo/packs/<name>/
+    // which is under ~/.claude/duo/, so the canvas-action trust gate
+    // automatically trusts them. No additional consent flow needed.
+    try {
+      const registry = packLoader.get()
+      const installed = await installedPacksService.load()
+      for (const loaded of registry.packs) {
+        const m = loaded.manifest
+        if (!m) continue                    // malformed manifest — skip
+        if (!InstalledPacksService.needsFirstLaunch(installed, m.name, m.version)) {
+          continue
+        }
+        const defaults = m.defaults ?? []
+        for (const def of defaults) {
+          if (!def.openOnFirstLaunch) continue
+          if (def.kind !== 'canvas') continue   // editor/browser are v2
+          const absPath = join(loaded.rootDir, def.path)
+          // NAV_EDIT routes through the renderer's openFileSmart, which
+          // honors duo-open-in meta. Most pack canvases will land in
+          // the canvas tab; templates that opt into browser routing
+          // get there via the meta hint without bespoke wiring here.
+          mainWindow?.webContents.send(IPC.NAV_EDIT, absPath)
+        }
+        await installedPacksService.markFirstLaunched(m.name, m.version)
+      }
+    } catch (err) {
+      console.warn('[main] first-launch defaults hook failed:', (err as Error)?.message ?? err)
     }
   })
 
