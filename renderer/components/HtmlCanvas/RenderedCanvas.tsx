@@ -140,6 +140,25 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         // pane; new global shortcuts get free coverage.
         if (window) cleanForwarder = installGlobalShortcutForwarder(doc, window)
 
+        // BUG-037 / BUG-055 — mousedown forwarder. Same UNCONDITIONAL
+        // logic as the global-shortcut forwarder above: read-only
+        // canvases ALSO need clicks-into-canvas to flip
+        // `focusedColumn` to 'working' (otherwise ⌃Tab / ⌘T after
+        // clicking into a read-only canvas like welcome.html target
+        // the wrong pane, AND the focus indicator stays on whatever
+        // pane the user came from). BUG-055 was the regression: this
+        // listener was inside `if (!readOnly)` so canvases mounted
+        // with `<meta duo-default-editable="false">` (welcome.html,
+        // claude-code-basics, the smoke walk page in canvas mode,
+        // etc.) didn't get it. Capture-phase so we see the click
+        // before any iframe-side handlers (none today, but keeps it
+        // robust to future canvas-authored event handlers calling
+        // stopPropagation).
+        mouseHandler = () => {
+          try { onUserInteractRef.current?.() } catch { /* ignore */ }
+        }
+        doc.addEventListener('mousedown', mouseHandler, true)
+
         if (!readOnly) {
           // contentEditable on body. PRD H1 — the canvas IS the page.
           // We mark these as runtime-only via a sentinel attribute so the
@@ -193,18 +212,9 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           }
           doc.addEventListener('keydown', keyHandler, true)
 
-          // BUG-037 — forward mousedown to the parent so it can flip
-          // `focusedColumn` to 'working'. The iframe is a separate
-          // document; without this forwarder, clicking the canvas
-          // while a terminal had focus leaves `focusedColumn` stuck
-          // and subsequent ⌃Tab / ⌘T fire against the wrong pane.
-          // Capture-phase so we see the click before any iframe-side
-          // handlers (none today, but keeps it robust to future
-          // canvas-authored event handlers calling stopPropagation).
-          mouseHandler = () => {
-            try { onUserInteractRef.current?.() } catch { /* ignore */ }
-          }
-          doc.addEventListener('mousedown', mouseHandler, true)
+          // BUG-037 / BUG-055 — mousedown forwarder moved above the
+          // `if (!readOnly)` gate (it now fires unconditionally).
+          // Editing-specific install stays here.
 
           // BUG-022 fix — focus the body when the canvas opens so
           // the first keystroke lands as content (matches the
