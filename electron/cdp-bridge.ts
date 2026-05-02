@@ -130,6 +130,19 @@ const SELECTION_OBSERVER_IIFE = `(function () {
     if (pill) pill.style.setProperty('display', 'none', 'important');
   }
   function showPillFor(rect) {
+    // BUG-056 — gate the pill render on a live Claude session. The
+    // \`__duoClaudeLive\` window flag is set by main via
+    // Runtime.evaluate whenever the renderer's claudeLive state
+    // flips (cdp-bridge § setClaudeLive method below). When false
+    // (no Claude tab active in the terminal pane), the pill never
+    // renders — clicking "Send → Duo" with no destination is dead
+    // UI noise. Owner has reported this recurringly across walks;
+    // gating at the page-DOM-creation level is the correct layer
+    // (the renderer-side onSendToDuo gate already prevents the
+    // CLICK from doing anything, but the visual pill alone was
+    // confusing). Defaults to false until main pushes a value, so
+    // the first selection on a fresh page is suppressed cleanly.
+    if (!window.__duoClaudeLive) { hidePill(); return; }
     var el = ensurePill();
     // Make pill visible to measure its size, then position relative to
     // the selection's viewport-relative rect. Place above the selection
@@ -281,6 +294,48 @@ export class CdpBridge {
     this.browserSelectionListener?.(push)
   }
 
+  /** BUG-056 — push the current "is a Claude session live" state into
+   *  the page-side `window.__duoClaudeLive` flag. The selection-
+   *  observer IIFE checks this in `showPillFor` and bails out (hides
+   *  the pill) when false. Called whenever the renderer's claudeLive
+   *  state flips. Re-applied on every page nav (the IIFE re-injects
+   *  on did-finish-load AND we re-push the latest state to the new
+   *  page). The default-false in the IIFE means "no Claude detected"
+   *  is the safe initial state — pill stays suppressed until main
+   *  explicitly enables. */
+  private latestClaudeLive: boolean = false
+  setClaudeLive(live: boolean): void {
+    this.latestClaudeLive = live
+    // Best-effort eval; if no debugger is attached (initial boot
+    // before attachCdp finishes) we'll re-push on the next page-nav
+    // injection.
+    try {
+      void this.dbg().sendCommand('Runtime.evaluate', {
+        expression: `window.__duoClaudeLive = ${JSON.stringify(live)};`,
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch {
+      // Debugger not attached yet; the next injectSelectionObserver
+      // run will pick up the latest value via the
+      // applyClaudeLiveToPage call below.
+    }
+  }
+  /** Internal helper called from injectSelectionObserver — re-applies
+   *  the latest Claude-live flag to a freshly-injected IIFE. Without
+   *  this, the IIFE on a new page would see `__duoClaudeLive`
+   *  undefined → falsy → pill suppressed forever until the renderer
+   *  manually re-pushes. */
+  private async applyClaudeLiveToPage(): Promise<void> {
+    try {
+      await this.dbg().sendCommand('Runtime.evaluate', {
+        expression: `window.__duoClaudeLive = ${JSON.stringify(this.latestClaudeLive)};`,
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch { /* ignore */ }
+  }
+
   /** Stage 15.2 — inject (or re-inject) the page-side observer IIFE
    *  into the active page's main world. Idempotent thanks to the
    *  IIFE's `__duoSelectionObserver` guard. */
@@ -294,6 +349,13 @@ export class CdpBridge {
         returnByValue: true,
         awaitPromise: false
       })
+      // BUG-056 — re-apply the latest claudeLive flag immediately
+      // after the IIFE is bound. Without this, the page's first
+      // showPillFor sees `window.__duoClaudeLive === undefined`
+      // (falsy) and suppresses the pill until the renderer pushes
+      // again via setClaudeLive. Re-applying here means a new tab
+      // / page nav inherits the current flag value.
+      await this.applyClaudeLiveToPage()
     } catch (err) {
       // Soft-fail: the observer is a UX nicety, not a correctness
       // primitive. `duo selection` (request-response) keeps working

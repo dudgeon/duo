@@ -284,11 +284,19 @@ async function createWindow(): Promise<void> {
   // the renderer. Subscribed once at first load so the pill responds
   // to state changes for the lifetime of the window. The unsubscribe
   // hook isn't kept (process tear-down is the only ender).
+  //
+  // BUG-056 — also push the live state into the browser pane via
+  // cdpBridge.setClaudeLive so the in-page Send → Duo pill gates on
+  // it. State 'claude' or 'starting' = live (claude is running OR
+  // about to). Anything else (no-pty / shell) = not live → pill
+  // suppressed at the page-DOM level (NOT just at click-handler time
+  // — the visual pill itself was the source of confusion).
   claudePresence.start()
   claudePresence.onChange((state) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     }
+    cdpBridge.setClaudeLive(state === 'claude' || state === 'starting')
   })
 
   // Once the renderer reports its bounds, attach CDP to the active tab
