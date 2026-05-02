@@ -3592,9 +3592,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-060: Markdown editor does not parse \`\`\`fenced\`\`\` code blocks (should AskUser if ambiguous)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium (fundamental markdown feature missing).
 **Filed:** 2026-05-02 (idle-thoughts.md item)
+**Shipped:** 2026-05-02 — root cause was TipTap's built-in `textblockTypeInputRule` for code blocks fires on trailing SPACE (regex `^```([a-z]+)?[\s\n]$`), not on Enter. PM input rules don't run on Enter — Enter is consumed by `splitBlock` in the keymap layer before input rules see it. Users typing ` ```javascript` + Enter (the natural pattern) saw nothing happen and assumed fenced code blocks weren't supported. Fix: new `FencedCodeBlockEnter` extension at `renderer/components/editor/extensions/FencedCodeBlockEnter.ts` hooks the Enter keymap, scans the cursor's paragraph for `^(```|~~~)([a-z0-9-]*)$`, and replaces with a codeBlock node carrying the matched language. Returns true (consumes Enter) on match; returns false on miss so default `splitBlock` runs unchanged. Tilde fences (rare but valid in markdown) covered too. Markdown ↔ TipTap round-trip already worked correctly via `tiptap-markdown`'s `Markdown` extension; only the live-typing path needed the fix.
 
 **Repro:**
 1. In a markdown editor tab, type:

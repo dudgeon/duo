@@ -35,6 +35,7 @@ import { MarkdownPaste } from './extensions/MarkdownPaste'
 import { BulletListWithMarker } from './extensions/BulletListWithMarker'
 import { FindHighlight } from './extensions/FindHighlight'
 import { ListIndentShortcuts } from './extensions/ListIndentShortcuts'
+import { FencedCodeBlockEnter } from './extensions/FencedCodeBlockEnter'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
@@ -205,7 +206,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // No-op outside a list; bubbles to the global matcher (which
       // doesn't claim plain ⌘[ / ⌘]) so we don't disrupt other
       // surfaces.
-      ListIndentShortcuts
+      ListIndentShortcuts,
+      // BUG-060 — Enter on a paragraph matching `\`\`\`(\w*)$`
+      // converts to a codeBlock with that language. Closes the gap
+      // where TipTap's built-in input rule only fires on trailing
+      // SPACE — users typing the fence + Enter expected the
+      // paragraph to convert, but nothing happened.
+      FencedCodeBlockEnter
     ],
     []
   )
