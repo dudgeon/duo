@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Claude Code 101 — orientation</title>
+
+  <!--
+    claude-code-basics 00-orientation.html (Stage 28 — Pack B).
+
+    The launcher for the seven-family curriculum. Auto-opens on first
+    launch via Stage 18b's defaults hook. Each family button uses
+    `editor:open` to load that family's canvas. A "Start lesson"
+    button spawns Claude with a data-cmd that asks the agent to
+    walk the user through Family A first; subsequent families either
+    auto-advance via the lesson skill's `family-N-done` events, or
+    the user clicks directly to skip ahead.
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-soft: #F2D9B8;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 40px 24px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    main { max-width: 880px; margin: 0 auto; }
+    header {
+      border-bottom: 1px solid var(--paper-edge);
+      padding-bottom: 18px;
+      margin-bottom: 24px;
+    }
+    h1 { margin: 0 0 6px; font-size: 26px; font-weight: 700; }
+    .lead { margin: 0; color: var(--ink-soft); font-size: 15px; }
+    .meta {
+      display: flex;
+      gap: 16px;
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--ink-mute);
+    }
+    .meta span { padding: 3px 9px; background: var(--paper-edge); border-radius: 999px; }
+
+    .start-strip {
+      background: var(--paper-deep);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .start-strip h2 { margin: 0 0 4px; font-size: 16px; }
+    .start-strip p { margin: 0; color: var(--ink-soft); font-size: 13px; }
+    .cta {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 11px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .cta:hover { background: var(--accent-ink); }
+    .secondary {
+      background: transparent;
+      color: var(--ink-mute);
+      border: 1px solid var(--paper-edge);
+      padding: 10px 16px;
+      font-size: 13px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .secondary:hover { color: var(--ink-soft); border-color: var(--ink-mute); }
+
+    .families {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+    }
+    .family {
+      background: var(--paper-deep);
+      border-radius: 8px;
+      padding: 16px 18px;
+      border: 1px solid var(--paper-edge);
+    }
+    .family-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 6px;
+    }
+    .family-title h3 { margin: 0; font-size: 15px; }
+    .family-title .letter {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .family p { margin: 0 0 12px; color: var(--ink-soft); font-size: 13px; }
+    .family-open {
+      display: inline-block;
+      padding: 5px 12px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .family-open:hover { background: var(--accent); color: white; }
+
+    footer {
+      margin-top: 28px;
+      padding-top: 16px;
+      border-top: 1px solid var(--paper-edge);
+      font-size: 12px;
+      color: var(--ink-mute);
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Claude Code 101 — for PMs</h1>
+      <p class="lead">A 30-minute, self-paced walkthrough of Claude Code's
+      primitives. Concepts first, procedures second.</p>
+      <div class="meta">
+        <span>~30 min total</span>
+        <span>7 families</span>
+        <span>Source: Capital One AIP curriculum</span>
+      </div>
+    </header>
+
+    <section class="start-strip" data-duo-pane="orientation-start">
+      <div>
+        <h2>Start with Family A</h2>
+        <p>Or use the buttons below to jump to any family in any order.
+        Each family is ~3–5 minutes.</p>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="cta"
+                data-duo-action="claude:spawn"
+                data-cwd="~/"
+                data-cmd="Read ~/.claude/duo/packs/claude-code-basics/lesson-skill/SKILL.md and walk me through the Claude Code 101 curriculum, starting with Family A."
+                data-duo-id="start-curriculum-cta">
+          Start lesson
+        </button>
+        <button class="secondary"
+                data-duo-action="duo:event"
+                data-event="curriculum-skip"
+                data-payload='{"pack":"claude-code-basics"}'
+                data-duo-id="skip-curriculum-cta">
+          I'll explore
+        </button>
+      </div>
+    </section>
+
+    <section class="families">
+      <article class="family" data-duo-id="family-a">
+        <div class="family-title">
+          <h3>Mental model</h3>
+          <span class="letter">A</span>
+        </div>
+        <p>Agent harness vs. chatbot. The agentic loop. Why "smart
+        chatbot" gets it wrong.</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/01-mental-model.html">
+          Open Family A →
+        </button>
+      </article>
+
+      <article class="family" data-duo-id="family-b">
+        <div class="family-title">
+          <h3>Context</h3>
+          <span class="letter">B</span>
+        </div>
+        <p>The context window as a budget. <code>/clear</code>,
+        <code>/compact</code>, <code>/context</code>. The "give Claude
+        the materials" principle.</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/02-context.html">
+          Open Family B →
+        </button>
+      </article>
+
+      <article class="family" data-duo-id="family-c">
+        <div class="family-title">
+          <h3>Place</h3>
+          <span class="letter">C</span>
+        </div>
+        <p>CWD as "where am I standing." The three-folder pattern
+        (<code>~/</code>, <code>~/notes/</code>, a specific repo).</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/03-place.html">
+          Open Family C →
+        </button>
+      </article>
+
+      <article class="family" data-duo-id="family-d">
+        <div class="family-title">
+          <h3>Memory</h3>
+          <span class="letter">D</span>
+        </div>
+        <p>CLAUDE.md (project + user). Auto-memory. Files on disk as
+        the real memory.</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/04-memory.html">
+          Open Family D →
+        </button>
+      </article>
+
+      <article class="family" data-duo-id="family-e">
+        <div class="family-title">
+          <h3>Capability</h3>
+          <span class="letter">E</span>
+        </div>
+        <p>Skills + progressive disclosure. Local vs. global vs.
+        plugins. Subagents. MCP (conceptually).</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/05-capability.html">
+          Open Family E →
+        </button>
+      </article>
+
+      <article class="family" data-duo-id="family-f">
+        <div class="family-title">
+          <h3>Trust</h3>
+          <span class="letter">F</span>
+        </div>
+        <p>The five permission modes. Trust boundaries. Plan-then-
+        execute as the default rhythm.</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/06-trust.html">
+          Open Family F →
+        </button>
+      </article>
+
+      <article class="family" data-duo-id="family-g">
+        <div class="family-title">
+          <h3>Authoring</h3>
+          <span class="letter">G</span>
+        </div>
+        <p>"Promote it to a skill" reflex. Slash commands. Reading vs.
+        writing modes — knowing which you're in.</p>
+        <button class="family-open"
+                data-duo-action="editor:open"
+                data-path="~/.claude/duo/packs/claude-code-basics/canvases/07-authoring.html">
+          Open Family G →
+        </button>
+      </article>
+    </section>
+
+    <footer>
+      <span>Pack: claude-code-basics · v1.0.0</span>
+      <span>
+        Source canvas:
+        <a href="#" data-duo-action="editor:open"
+                    data-path="~/.claude/duo/packs/claude-code-basics/canvases/source.md">
+          source.md (full curriculum)
+        </a>
+      </span>
+    </footer>
+  </main>
+</body>
+</html>

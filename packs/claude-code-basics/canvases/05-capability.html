@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family E — Capability</title>
+  <meta name="duo-default-editable" content="false">
+  <style>
+    :root { --paper:#FBF8EE; --paper-deep:#F0E9D6; --paper-edge:#E5DCC1; --ink:#1A1410; --ink-soft:#3D352A; --ink-mute:#7B6F58; --accent:#C66A2E; --accent-soft:#F2D9B8; --accent-ink:#7A3E1A; }
+    @media (prefers-color-scheme: dark) { :root { --paper:#1A1611; --paper-deep:#13100C; --paper-edge:#26201A; --ink:#F0E9D6; --ink-soft:#C8BFA3; --ink-mute:#8A7E60; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:40px 24px; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; font-size:14px; }
+    main { max-width:760px; margin:0 auto; }
+    .breadcrumb { font-size:12px; color:var(--ink-mute); margin-bottom:14px; }
+    .breadcrumb a { color:var(--accent); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    header { border-bottom:1px solid var(--paper-edge); padding-bottom:16px; margin-bottom:24px; }
+    .family-letter { font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+    h1 { margin:4px 0 6px; font-size:24px; font-weight:700; }
+    .lead { margin:0; color:var(--ink-soft); font-size:14px; }
+    .block { background:var(--paper-deep); border-radius:8px; padding:18px 22px; margin-bottom:14px; border:1px solid var(--paper-edge); }
+    .block h2 { margin:0 0 10px; font-size:16px; }
+    .block .row { margin:6px 0; font-size:13px; color:var(--ink-soft); }
+    .block .row strong { color:var(--ink); }
+    .block code { background:var(--paper-edge); padding:1px 5px; border-radius:3px; font-size:12px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+    .block ul { margin:6px 0; padding-left:20px; font-size:13px; color:var(--ink-soft); }
+    .block ul li { margin-bottom:3px; }
+    .misconception { background:var(--accent-soft); color:var(--accent-ink); padding:10px 14px; border-radius:4px; margin-top:10px; font-size:13px; }
+    @media (prefers-color-scheme: dark) { .misconception { background:rgba(198,106,46,0.18); color:var(--accent-soft); } }
+    .actions { display:flex; gap:10px; margin-top:24px; align-items:center; flex-wrap:wrap; }
+    .cta { background:var(--accent); color:white; border:0; padding:10px 20px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .cta:hover { background:var(--accent-ink); }
+    .secondary { background:transparent; color:var(--ink-mute); border:1px solid var(--paper-edge); padding:9px 14px; font-size:13px; border-radius:6px; cursor:pointer; }
+    .secondary:hover { color:var(--ink-soft); border-color:var(--ink-mute); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="breadcrumb"><a href="#" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/00-orientation.html">← Curriculum overview</a></div>
+  <header>
+    <span class="family-letter">Family E · Capability</span>
+    <h1>Skills, subagents, MCP, plugins</h1>
+    <p class="lead">How Claude does more than read and write your local files. The path from <em>user</em> to <em>author</em>.</p>
+  </header>
+
+  <article class="block" data-duo-id="block-e1">
+    <h2>E1 · Skills and progressive disclosure</h2>
+    <div class="row"><strong>Why for a PM.</strong> Skills are how a PM turns "the thing I keep asking Claude to do" into "the thing Claude does the same way every time" — without re-typing the instructions. They're the path from user to author.</div>
+    <div class="row"><strong>MVE.</strong> "A skill is a folder with a <code>SKILL.md</code> file. The top of the file is metadata (name + description) — Claude reads this at startup so it <em>knows the skill exists</em> but doesn't load the instructions yet. When your task matches the description, Claude loads the body. If the body references additional files, Claude only loads those when needed. This three-layer progressive disclosure is what lets you have dozens of skills without bloating context."</div>
+    <div class="row"><strong>Where they live.</strong> <code>~/.claude/skills/&lt;skill-name&gt;/SKILL.md</code> (personal, all projects) or <code>.claude/skills/&lt;skill-name&gt;/SKILL.md</code> (committed to a repo, shared with team).</div>
+    <div class="row"><strong>Analogy.</strong> A binder of SOPs in the drawer. The drawer label tells you what's inside; you pull the binder only when the situation calls for it; inside the binder, sections are tabbed and you flip to the one you need.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Skills are like prompts." They're more durable: same trigger, same instructions, every time, with bundled reference docs. If you find yourself pasting the same instruction more than twice, it should be a skill.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-e2">
+    <h2>E2 · Local vs. global vs. plugins</h2>
+    <div class="row"><strong>Why for a PM.</strong> PMs get confused by overlap. A precise model prevents wasted effort.</div>
+    <ul>
+      <li><strong>User/global skills</strong> (<code>~/.claude/skills/</code>) — your personal toolkit; available in every session.</li>
+      <li><strong>Project/local skills</strong> (<code>.claude/skills/</code> in a repo) — team-shared; committed to git.</li>
+      <li><strong>Managed/enterprise skills</strong> — deployed by Capital One platform team; can't be overridden.</li>
+      <li><strong>Plugins</strong> — bundles that include skills + commands + subagents + MCP server config, installable from a marketplace. <em>Note: enterprise policy may restrict marketplaces; treat plugins as advanced.</em></li>
+    </ul>
+    <div class="row"><strong>Analogy.</strong> Your personal cookbook (user) vs. the team recipe binder in the office (project) vs. the corporate-issued recipe binder you can't write in (managed) vs. ordering a recipe pack from a publisher (plugin).</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Plugins are required." They're not — most of the value for a PM comes from a handful of well-authored local skills.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-e3">
+    <h2>E3 · Subagents (and forks)</h2>
+    <div class="row"><strong>Why for a PM.</strong> Subagents are the single best tool for keeping the main session clean during research-heavy work — exactly the kind of work PMs do (reading 12 customer transcripts, scanning a backlog of 80 Jira tickets).</div>
+    <div class="row"><strong>MVE.</strong> "A subagent is a Claude that runs a side task in its own fresh context window and returns only the summary. Use one when you'd otherwise pollute your main conversation with logs or file dumps. Anthropic's own mental test: 'Will I need this tool output again, or just the conclusion?' If just the conclusion, use a subagent."</div>
+    <div class="row"><strong>Analogy.</strong> Sending an intern to read 40 emails and come back with a one-page brief. The intern's drafts don't end up on your desk.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "More subagents = better." Subagents add coordination cost. Reach for them when output volume would otherwise drown the main session.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-e4">
+    <h2>E4 · MCP servers (concept only)</h2>
+    <div class="row"><strong>Why for a PM.</strong> Worth knowing the <em>category</em> exists even if Capital One restricts which MCP servers are approved. PMs hear about Jira MCPs, Figma MCPs, etc., from outside content.</div>
+    <div class="row"><strong>MVE.</strong> "MCP (Model Context Protocol) is how Claude Code can talk to outside systems — Jira, GitHub, a database — beyond your local files. Each connection is an 'MCP server.' At Capital One, the platform team controls which servers are approved; you'll get a list, not a free-for-all. Until then, paste-driven workflows (copy a Jira ticket into a file, point Claude at the file) get you 80% of the value."</div>
+    <div class="row"><strong>Analogy.</strong> A network of phones that let your contractor call other vendors. Useful but governed; you don't get to wire arbitrary phones in.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "I need MCP servers to be productive." False — file-based workflows are the dominant pattern, and several Anthropic case studies (legal, marketing) ran entirely on local files.</div>
+  </article>
+
+  <div class="actions">
+    <button class="cta" data-duo-action="duo:event" data-event="family-E-done" data-payload='{"family":"E"}' data-duo-id="family-e-done-cta">
+      Mark Family E done
+    </button>
+    <button class="secondary" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/06-trust.html">
+      Next: Family F (Trust) →
+    </button>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family F — Trust</title>
+  <meta name="duo-default-editable" content="false">
+  <style>
+    :root { --paper:#FBF8EE; --paper-deep:#F0E9D6; --paper-edge:#E5DCC1; --ink:#1A1410; --ink-soft:#3D352A; --ink-mute:#7B6F58; --accent:#C66A2E; --accent-soft:#F2D9B8; --accent-ink:#7A3E1A; }
+    @media (prefers-color-scheme: dark) { :root { --paper:#1A1611; --paper-deep:#13100C; --paper-edge:#26201A; --ink:#F0E9D6; --ink-soft:#C8BFA3; --ink-mute:#8A7E60; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:40px 24px; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; font-size:14px; }
+    main { max-width:760px; margin:0 auto; }
+    .breadcrumb { font-size:12px; color:var(--ink-mute); margin-bottom:14px; }
+    .breadcrumb a { color:var(--accent); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    header { border-bottom:1px solid var(--paper-edge); padding-bottom:16px; margin-bottom:24px; }
+    .family-letter { font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+    h1 { margin:4px 0 6px; font-size:24px; font-weight:700; }
+    .lead { margin:0; color:var(--ink-soft); font-size:14px; }
+    .block { background:var(--paper-deep); border-radius:8px; padding:18px 22px; margin-bottom:14px; border:1px solid var(--paper-edge); }
+    .block h2 { margin:0 0 10px; font-size:16px; }
+    .block .row { margin:6px 0; font-size:13px; color:var(--ink-soft); }
+    .block .row strong { color:var(--ink); }
+    .block code { background:var(--paper-edge); padding:1px 5px; border-radius:3px; font-size:12px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+    .block ul { margin:6px 0; padding-left:20px; font-size:13px; color:var(--ink-soft); }
+    .block ul li { margin-bottom:4px; }
+    .misconception { background:var(--accent-soft); color:var(--accent-ink); padding:10px 14px; border-radius:4px; margin-top:10px; font-size:13px; }
+    @media (prefers-color-scheme: dark) { .misconception { background:rgba(198,106,46,0.18); color:var(--accent-soft); } }
+    .actions { display:flex; gap:10px; margin-top:24px; align-items:center; flex-wrap:wrap; }
+    .cta { background:var(--accent); color:white; border:0; padding:10px 20px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .cta:hover { background:var(--accent-ink); }
+    .secondary { background:transparent; color:var(--ink-mute); border:1px solid var(--paper-edge); padding:9px 14px; font-size:13px; border-radius:6px; cursor:pointer; }
+    .secondary:hover { color:var(--ink-soft); border-color:var(--ink-mute); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="breadcrumb"><a href="#" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/00-orientation.html">← Curriculum overview</a></div>
+  <header>
+    <span class="family-letter">Family F · Trust</span>
+    <h1>Permissions, modes, safety</h1>
+    <p class="lead">The single most-asked question in any Claude Code rollout. A 60-second internal model unlocks the rest.</p>
+  </header>
+
+  <article class="block" data-duo-id="block-f1">
+    <h2>F1 · The five permission modes</h2>
+    <div class="row"><strong>Why for a PM.</strong> The most-asked question in any Claude Code rollout, and the place enterprise governance bites hardest. PMs need a 60-second internal model.</div>
+    <ul>
+      <li><strong>default</strong> — asks before every write or shell command. Safe, slow.</li>
+      <li><strong>acceptEdits</strong> — auto-approves file edits in your workspace, still asks for shell. Good for productive sessions.</li>
+      <li><strong>plan</strong> — read-only; Claude analyzes and proposes a plan, can't modify anything. Best for exploration.</li>
+      <li><strong>auto</strong> — Claude executes without prompts, with a safety classifier blocking risky actions. Available on Team/Enterprise; admins can disable. (Research preview as of early 2026.)</li>
+      <li><strong>bypassPermissions</strong> (<code>--dangerously-skip-permissions</code>) — no checks, no prompts. <em>Don't use it on a Capital One laptop.</em> Anthropic chose the word "dangerously" deliberately. Capital One almost certainly has this disabled via managed settings.</li>
+    </ul>
+    <div class="row">Cycle modes mid-session with <strong>Shift+Tab</strong>.</div>
+    <div class="row"><strong>Analogy.</strong> Five postures for a contractor: "ask me before every nail" / "you can hammer, but ask before plumbing" / "look, don't touch" / "work autonomously, with a safety inspector watching" / "no oversight at all." You choose based on the day.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Plan mode means Claude is doing the work safely." Plan mode means Claude is <em>not</em> doing the work — it's planning. Many PMs confuse "planning" with "executing carefully."</div>
+  </article>
+
+  <article class="block" data-duo-id="block-f2">
+    <h2>F2 · Trust boundaries</h2>
+    <div class="row"><strong>Why for a PM.</strong> Reduces the "what could go wrong" anxiety that often paralyzes first-time use.</div>
+    <div class="row"><strong>MVE.</strong> "Even in auto-mode, certain things are never silently approved: writing to your <code>.claude/</code> configuration, your shell config, your SSH keys, force-pushes to git main. Capital One's managed settings add to this list."</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Claude can wreck my machine if I'm not watching." It's possible but unlikely under default settings; the harness has multiple layers.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-f3">
+    <h2>F3 · Plan-then-execute as the default rhythm</h2>
+    <div class="row"><strong>Why for a PM.</strong> The biggest behavior change for PMs coming from chat tools. PMs are used to "ask, get answer." Claude Code rewards "ask Claude to plan, review, then ask Claude to execute the plan."</div>
+    <div class="row"><strong>MVE.</strong> "Default workflow: enter plan mode (Shift+Tab), describe what you want, let Claude propose a plan as a markdown file, edit it, then say 'execute.' This is faster than it sounds and prevents 90% of off-track sessions."</div>
+    <div class="row"><strong>Analogy.</strong> Outline before draft. Spec before sprint.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Planning is overhead." On non-trivial work, the alternative is rework.</div>
+  </article>
+
+  <div class="actions">
+    <button class="cta" data-duo-action="duo:event" data-event="family-F-done" data-payload='{"family":"F"}' data-duo-id="family-f-done-cta">
+      Mark Family F done
+    </button>
+    <button class="secondary" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/07-authoring.html">
+      Next: Family G (Authoring) →
+    </button>
+  </div>
+</main>
+</body>
+</html>

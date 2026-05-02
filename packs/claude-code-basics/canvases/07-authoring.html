@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family G — Authoring</title>
+  <meta name="duo-default-editable" content="false">
+  <style>
+    :root { --paper:#FBF8EE; --paper-deep:#F0E9D6; --paper-edge:#E5DCC1; --ink:#1A1410; --ink-soft:#3D352A; --ink-mute:#7B6F58; --accent:#C66A2E; --accent-soft:#F2D9B8; --accent-ink:#7A3E1A; }
+    @media (prefers-color-scheme: dark) { :root { --paper:#1A1611; --paper-deep:#13100C; --paper-edge:#26201A; --ink:#F0E9D6; --ink-soft:#C8BFA3; --ink-mute:#8A7E60; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:40px 24px; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; font-size:14px; }
+    main { max-width:760px; margin:0 auto; }
+    .breadcrumb { font-size:12px; color:var(--ink-mute); margin-bottom:14px; }
+    .breadcrumb a { color:var(--accent); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    header { border-bottom:1px solid var(--paper-edge); padding-bottom:16px; margin-bottom:24px; }
+    .family-letter { font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+    h1 { margin:4px 0 6px; font-size:24px; font-weight:700; }
+    .lead { margin:0; color:var(--ink-soft); font-size:14px; }
+    .block { background:var(--paper-deep); border-radius:8px; padding:18px 22px; margin-bottom:14px; border:1px solid var(--paper-edge); }
+    .block h2 { margin:0 0 10px; font-size:16px; }
+    .block .row { margin:6px 0; font-size:13px; color:var(--ink-soft); }
+    .block .row strong { color:var(--ink); }
+    .block code { background:var(--paper-edge); padding:1px 5px; border-radius:3px; font-size:12px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+    .misconception { background:var(--accent-soft); color:var(--accent-ink); padding:10px 14px; border-radius:4px; margin-top:10px; font-size:13px; }
+    @media (prefers-color-scheme: dark) { .misconception { background:rgba(198,106,46,0.18); color:var(--accent-soft); } }
+    .actions { display:flex; gap:10px; margin-top:24px; align-items:center; flex-wrap:wrap; }
+    .cta { background:var(--accent); color:white; border:0; padding:10px 20px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .cta:hover { background:var(--accent-ink); }
+    .secondary { background:transparent; color:var(--ink-mute); border:1px solid var(--paper-edge); padding:9px 14px; font-size:13px; border-radius:6px; cursor:pointer; }
+    .secondary:hover { color:var(--ink-soft); border-color:var(--ink-mute); }
+    .completion { background:var(--accent); color:white; padding:18px 22px; border-radius:8px; margin-top:24px; }
+    .completion h3 { margin:0 0 6px; font-size:18px; }
+    .completion p { margin:0; opacity:0.9; font-size:13px; }
+  </style>
+</head>
+<body>
+<main>
+  <div class="breadcrumb"><a href="#" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/00-orientation.html">← Curriculum overview</a></div>
+  <header>
+    <span class="family-letter">Family G · Authoring</span>
+    <h1>The move from <em>user</em> to <em>author</em></h1>
+    <p class="lead">The arc of mastery: ask things in chat → put context in CLAUDE.md → extract repeated patterns into skills → bundle skills into a personal workflow.</p>
+  </header>
+
+  <article class="block" data-duo-id="block-g1">
+    <h2>G1 · The "promote it to a skill" reflex</h2>
+    <div class="row"><strong>Why for a PM.</strong> The arc of Claude Code mastery is: (1) ask things in chat, (2) put context in CLAUDE.md, (3) extract repeated patterns into skills, (4) bundle skills into a personal workflow. PMs need the reflex named so they recognize it when it shows up.</div>
+    <div class="row"><strong>MVE.</strong> "If you've prompted Claude to do the same thing twice, write the third invocation as a skill. The cost is 10 minutes; the payoff is every future session."</div>
+    <div class="row"><strong>Analogy.</strong> The first time you write a status update, you draft. The third time, you make a template. The tenth time, you make a generator.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-g2">
+    <h2>G2 · Slash commands as the lighter-weight alternative</h2>
+    <div class="row"><strong>Why for a PM.</strong> Many PM workflows aren't "let Claude decide when to use this" — they're "I want to type one thing and trigger a known recipe." That's a slash command, not a skill.</div>
+    <div class="row"><strong>MVE.</strong> "A markdown file in <code>~/.claude/commands/</code> becomes a <code>/your-command-name</code> shortcut. Use slash commands when you always invoke explicitly (e.g., <code>/standup-prep</code>); use skills when you want Claude to recognize the situation and reach for the right tool itself."</div>
+    <div class="row"><strong>Analogy.</strong> Slash commands are macros (you press the button). Skills are policies (the system applies them when relevant).</div>
+  </article>
+
+  <article class="block" data-duo-id="block-g3">
+    <h2>G3 · Reading vs. writing — knowing which mode you're in</h2>
+    <div class="row"><strong>Why for a PM.</strong> PMs habitually conflate "Claude told me X" with "Claude did X." Distinguishing read-only synthesis from write actions sharpens both safety and effectiveness.</div>
+    <div class="row"><strong>MVE.</strong> "Every session is some mix of read (Claude scanning your materials and synthesizing) and write (Claude generating files, editing existing ones, running commands). Be explicit about which you want. 'Read these 5 transcripts and tell me the top 3 themes' is a read task. 'Write a 1-page synthesis to <code>~/notes/research/q2-themes.md</code>' is a write task. The second compounds."</div>
+  </article>
+
+  <section class="completion" data-duo-pane="completion-pane">
+    <h3>🎉 You've reached the end of the curriculum</h3>
+    <p>Seven families, ~20 concepts. The next move is a "birdhouse" — a small, self-contained Claude Code project that exercises 2–3 of these concepts. Ask the lesson agent for a starting suggestion fitted to your role.</p>
+  </section>
+
+  <div class="actions">
+    <button class="cta" data-duo-action="duo:event" data-event="curriculum-complete" data-payload='{"pack":"claude-code-basics"}' data-duo-id="curriculum-complete-cta">
+      Mark curriculum complete
+    </button>
+    <button class="secondary" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/source.md">
+      Open source.md (full curriculum)
+    </button>
+  </div>
+</main>
+</body>
+</html>

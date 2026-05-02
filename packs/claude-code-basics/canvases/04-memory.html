@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family D — Memory</title>
+  <meta name="duo-default-editable" content="false">
+  <style>
+    :root { --paper:#FBF8EE; --paper-deep:#F0E9D6; --paper-edge:#E5DCC1; --ink:#1A1410; --ink-soft:#3D352A; --ink-mute:#7B6F58; --accent:#C66A2E; --accent-soft:#F2D9B8; --accent-ink:#7A3E1A; }
+    @media (prefers-color-scheme: dark) { :root { --paper:#1A1611; --paper-deep:#13100C; --paper-edge:#26201A; --ink:#F0E9D6; --ink-soft:#C8BFA3; --ink-mute:#8A7E60; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:40px 24px; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; font-size:14px; }
+    main { max-width:760px; margin:0 auto; }
+    .breadcrumb { font-size:12px; color:var(--ink-mute); margin-bottom:14px; }
+    .breadcrumb a { color:var(--accent); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    header { border-bottom:1px solid var(--paper-edge); padding-bottom:16px; margin-bottom:24px; }
+    .family-letter { font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+    h1 { margin:4px 0 6px; font-size:24px; font-weight:700; }
+    .lead { margin:0; color:var(--ink-soft); font-size:14px; }
+    .block { background:var(--paper-deep); border-radius:8px; padding:18px 22px; margin-bottom:14px; border:1px solid var(--paper-edge); }
+    .block h2 { margin:0 0 10px; font-size:16px; }
+    .block .row { margin:6px 0; font-size:13px; color:var(--ink-soft); }
+    .block .row strong { color:var(--ink); }
+    .block code { background:var(--paper-edge); padding:1px 5px; border-radius:3px; font-size:12px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+    .block ul { margin:6px 0; padding-left:20px; font-size:13px; color:var(--ink-soft); }
+    .block ul li { margin-bottom:3px; }
+    .misconception { background:var(--accent-soft); color:var(--accent-ink); padding:10px 14px; border-radius:4px; margin-top:10px; font-size:13px; }
+    @media (prefers-color-scheme: dark) { .misconception { background:rgba(198,106,46,0.18); color:var(--accent-soft); } }
+    .actions { display:flex; gap:10px; margin-top:24px; align-items:center; flex-wrap:wrap; }
+    .cta { background:var(--accent); color:white; border:0; padding:10px 20px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .cta:hover { background:var(--accent-ink); }
+    .secondary { background:transparent; color:var(--ink-mute); border:1px solid var(--paper-edge); padding:9px 14px; font-size:13px; border-radius:6px; cursor:pointer; }
+    .secondary:hover { color:var(--ink-soft); border-color:var(--ink-mute); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="breadcrumb"><a href="#" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/00-orientation.html">← Curriculum overview</a></div>
+  <header>
+    <span class="family-letter">Family D · Memory</span>
+    <h1>What survives between sessions</h1>
+    <p class="lead">CLAUDE.md, auto-memory, and the deepest unlock: files on disk are the real memory.</p>
+  </header>
+
+  <article class="block" data-duo-id="block-d1">
+    <h2>D1 · CLAUDE.md (project-level vs. user-level)</h2>
+    <div class="row"><strong>Why for a PM.</strong> The single highest-leverage authoring activity. A good CLAUDE.md is the difference between re-explaining your job every session and Claude already knowing.</div>
+    <div class="row"><strong>MVE.</strong> CLAUDE.md is a markdown file Claude auto-loads at the start of every session. Two scopes that matter to you:</div>
+    <ul>
+      <li><strong><code>~/.claude/CLAUDE.md</code></strong> (user-level): loaded into <em>every</em> session on your laptop. Put your role, your team, your terminology, your writing style, your "always do / never do" rules.</li>
+      <li><strong><code>./CLAUDE.md</code></strong> in any project folder (project-level): loaded only when you launch Claude in that folder. Put project-specific terminology, repo conventions, stakeholder lists for <em>that</em> effort.</li>
+    </ul>
+    <div class="row">Higher specificity wins on conflict. Capital One may also deploy a <em>managed</em> organization-level CLAUDE.md that takes precedence over both — that's expected.</div>
+    <div class="row"><strong>Analogy.</strong> Your standing instructions to a contract analyst (user level) plus a project-specific brief (project level) plus your manager's policy memo (managed/enterprise level).</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Longer is better." Wrong — Anthropic's own guidance and the HumanLayer research show LLMs follow fewer instructions more reliably than many. Aim for 50–200 lines, prefer pointers to other files over inline copies, and use <em>progressive disclosure</em> (CLAUDE.md as a "map" pointing to detail files).</div>
+  </article>
+
+  <article class="block" data-duo-id="block-d2">
+    <h2>D2 · Auto-memory vs. explicit memory</h2>
+    <div class="row"><strong>Why for a PM.</strong> Claude Code v2.1.59+ now writes its own notes about what worked. PMs need to know this exists, that it's editable via <code>/memory</code>, and that it's stored in <code>~/.claude/projects/</code> per-project.</div>
+    <div class="row"><strong>MVE.</strong> CLAUDE.md is what <em>you</em> told Claude. Auto-memory is what <em>Claude</em> learned. Both are loaded next session. You can review and edit both with <code>/memory</code>.</div>
+    <div class="row"><strong>Analogy.</strong> Your standing instructions vs. an analyst's running notebook. Both inform tomorrow's work.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "It remembers everything from last time." It doesn't — only what was either written to a file or captured in auto-memory. Anything ephemeral in the chat is gone after <code>/clear</code>.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-d3">
+    <h2>D3 · Files on disk as the <em>real</em> memory</h2>
+    <div class="row"><strong>Why for a PM.</strong> The deepest unlock. The chat is ephemeral; markdown files in your folders are forever (and portable across tools — no vendor lock-in, an underrated point at a regulated enterprise).</div>
+    <div class="row"><strong>MVE.</strong> "If you want Claude to remember it next session, ask Claude to <em>write a file</em>. Markdown files in your notes folder are the real memory. Conversations are scratch paper."</div>
+    <div class="row"><strong>Analogy.</strong> Whiteboard vs. wiki page. The whiteboard is great for thinking; only the wiki page is there next month.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "Saving the chat transcript is enough." Transcripts are unstructured and unsearchable; Claude won't reliably re-read them. <em>Synthesized</em> artifacts (a glossary, a stakeholder map, a decision log) are what compound.</div>
+  </article>
+
+  <div class="actions">
+    <button class="cta" data-duo-action="duo:event" data-event="family-D-done" data-payload='{"family":"D"}' data-duo-id="family-d-done-cta">
+      Mark Family D done
+    </button>
+    <button class="secondary" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/05-capability.html">
+      Next: Family E (Capability) →
+    </button>
+  </div>
+</main>
+</body>
+</html>

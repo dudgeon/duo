@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family A — Mental model</title>
+  <meta name="duo-default-editable" content="false">
+  <style>
+    :root { --paper:#FBF8EE; --paper-deep:#F0E9D6; --paper-edge:#E5DCC1; --ink:#1A1410; --ink-soft:#3D352A; --ink-mute:#7B6F58; --accent:#C66A2E; --accent-soft:#F2D9B8; --accent-ink:#7A3E1A; }
+    @media (prefers-color-scheme: dark) { :root { --paper:#1A1611; --paper-deep:#13100C; --paper-edge:#26201A; --ink:#F0E9D6; --ink-soft:#C8BFA3; --ink-mute:#8A7E60; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:40px 24px; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; font-size:14px; }
+    main { max-width:760px; margin:0 auto; }
+    .breadcrumb { font-size:12px; color:var(--ink-mute); margin-bottom:14px; }
+    .breadcrumb a { color:var(--accent); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    header { border-bottom:1px solid var(--paper-edge); padding-bottom:16px; margin-bottom:24px; }
+    .family-letter { font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+    h1 { margin:4px 0 6px; font-size:24px; font-weight:700; }
+    .lead { margin:0; color:var(--ink-soft); font-size:14px; }
+    .block { background:var(--paper-deep); border-radius:8px; padding:18px 22px; margin-bottom:14px; border:1px solid var(--paper-edge); }
+    .block h2 { margin:0 0 10px; font-size:16px; }
+    .block .row { margin:6px 0; font-size:13px; color:var(--ink-soft); }
+    .block .row strong { color:var(--ink); }
+    .block code { background:var(--paper-edge); padding:1px 5px; border-radius:3px; font-size:12px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+    .misconception { background:var(--accent-soft); color:var(--accent-ink); padding:10px 14px; border-radius:4px; margin-top:10px; font-size:13px; }
+    @media (prefers-color-scheme: dark) { .misconception { background:rgba(198,106,46,0.18); color:var(--accent-soft); } }
+    .actions { display:flex; gap:10px; margin-top:24px; align-items:center; flex-wrap:wrap; }
+    .cta { background:var(--accent); color:white; border:0; padding:10px 20px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .cta:hover { background:var(--accent-ink); }
+    .secondary { background:transparent; color:var(--ink-mute); border:1px solid var(--paper-edge); padding:9px 14px; font-size:13px; border-radius:6px; cursor:pointer; }
+    .secondary:hover { color:var(--ink-soft); border-color:var(--ink-mute); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="breadcrumb"><a href="#" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/00-orientation.html">← Curriculum overview</a></div>
+  <header>
+    <span class="family-letter">Family A · Mental model</span>
+    <h1>The thing that breaks if you skip it</h1>
+    <p class="lead">Treating Claude Code as "ChatGPT in a black window" is the single biggest predictor of failure. Two concepts here lock in the right model.</p>
+  </header>
+
+  <article class="block" data-duo-id="block-a1">
+    <h2>A1 · Agent harness vs. chatbot</h2>
+    <div class="row"><strong>Why for a PM.</strong> A chatbot answers; an agent reads, writes, and acts on your machine. Every other concept (permissions, CWD, CLAUDE.md, skills) only makes sense once you stop treating Claude Code as Claude.ai in a terminal. Anthropic's own framing has shifted from "Claude Code SDK" to "Claude <em>Agent</em> SDK" precisely because the harness is the product.</div>
+    <div class="row"><strong>MVE.</strong> "When you type into Claude.ai, you're talking to a model. When you type into Claude Code, you're directing an agent that has hands — it can read files, run commands, and edit your filesystem. The trade is: it's vastly more useful, and you're now responsible for telling it where to stand and what it's allowed to touch."</div>
+    <div class="row"><strong>Analogy.</strong> A <em>contractor with keys to your house</em> vs. a <em>consultant on a Zoom call</em>. The consultant gives you advice. The contractor needs an address, a key, a scope of work, and a "don't touch the wine cellar" rule.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "It's just a smarter chatbot." No — the value comes from durable artifacts on your filesystem, not from the conversation transcript.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-a2">
+    <h2>A2 · The agentic loop (read → think → act → observe → repeat)</h2>
+    <div class="row"><strong>Why for a PM.</strong> Explains why Claude sometimes "spins" reading files, why it asks before editing, and why the same prompt can land differently depending on what's on disk.</div>
+    <div class="row"><strong>MVE.</strong> "Claude Code runs a loop: it picks a tool (read, write, search, run), executes it, looks at the result, and decides what to do next, until it thinks the task is done or hits a permission gate."</div>
+    <div class="row"><strong>Analogy.</strong> A new analyst on day one with a Confluence login and a corporate laptop — they read a doc, decide what to do next, run a query, react to the output.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "The model knows things." It doesn't, until it reads them. Almost every "Claude got it wrong" complaint is really a "Claude wasn't given the right files to read" problem.</div>
+  </article>
+
+  <div class="actions">
+    <button class="cta" data-duo-action="duo:event" data-event="family-A-done" data-payload='{"family":"A"}' data-duo-id="family-a-done-cta">
+      Mark Family A done
+    </button>
+    <button class="secondary" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/02-context.html">
+      Next: Family B (Context) →
+    </button>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Family C — Place</title>
+  <meta name="duo-default-editable" content="false">
+  <style>
+    :root { --paper:#FBF8EE; --paper-deep:#F0E9D6; --paper-edge:#E5DCC1; --ink:#1A1410; --ink-soft:#3D352A; --ink-mute:#7B6F58; --accent:#C66A2E; --accent-soft:#F2D9B8; --accent-ink:#7A3E1A; }
+    @media (prefers-color-scheme: dark) { :root { --paper:#1A1611; --paper-deep:#13100C; --paper-edge:#26201A; --ink:#F0E9D6; --ink-soft:#C8BFA3; --ink-mute:#8A7E60; } }
+    * { box-sizing: border-box; }
+    body { margin:0; padding:40px 24px; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; line-height:1.55; font-size:14px; }
+    main { max-width:760px; margin:0 auto; }
+    .breadcrumb { font-size:12px; color:var(--ink-mute); margin-bottom:14px; }
+    .breadcrumb a { color:var(--accent); text-decoration:none; }
+    .breadcrumb a:hover { text-decoration:underline; }
+    header { border-bottom:1px solid var(--paper-edge); padding-bottom:16px; margin-bottom:24px; }
+    .family-letter { font-size:14px; color:var(--accent); text-transform:uppercase; letter-spacing:1px; font-weight:700; }
+    h1 { margin:4px 0 6px; font-size:24px; font-weight:700; }
+    .lead { margin:0; color:var(--ink-soft); font-size:14px; }
+    .block { background:var(--paper-deep); border-radius:8px; padding:18px 22px; margin-bottom:14px; border:1px solid var(--paper-edge); }
+    .block h2 { margin:0 0 10px; font-size:16px; }
+    .block .row { margin:6px 0; font-size:13px; color:var(--ink-soft); }
+    .block .row strong { color:var(--ink); }
+    .block code { background:var(--paper-edge); padding:1px 5px; border-radius:3px; font-size:12px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+    .block ol { margin:6px 0; padding-left:22px; font-size:13px; color:var(--ink-soft); }
+    .block ol li { margin-bottom:4px; }
+    .misconception { background:var(--accent-soft); color:var(--accent-ink); padding:10px 14px; border-radius:4px; margin-top:10px; font-size:13px; }
+    @media (prefers-color-scheme: dark) { .misconception { background:rgba(198,106,46,0.18); color:var(--accent-soft); } }
+    .actions { display:flex; gap:10px; margin-top:24px; align-items:center; flex-wrap:wrap; }
+    .cta { background:var(--accent); color:white; border:0; padding:10px 20px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; }
+    .cta:hover { background:var(--accent-ink); }
+    .secondary { background:transparent; color:var(--ink-mute); border:1px solid var(--paper-edge); padding:9px 14px; font-size:13px; border-radius:6px; cursor:pointer; }
+    .secondary:hover { color:var(--ink-soft); border-color:var(--ink-mute); }
+  </style>
+</head>
+<body>
+<main>
+  <div class="breadcrumb"><a href="#" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/00-orientation.html">← Curriculum overview</a></div>
+  <header>
+    <span class="family-letter">Family C · Place</span>
+    <h1>Where to invoke, and why CWD matters</h1>
+    <p class="lead">Where you launch Claude shapes what it sees by default. The skill is <em>deciding</em>, not memorizing.</p>
+  </header>
+
+  <article class="block" data-duo-id="block-c1">
+    <h2>C1 · Current Working Directory as "where am I standing"</h2>
+    <div class="row"><strong>Why for a PM.</strong> Where you launch Claude shapes what it sees by default. Launch from a repo root and Claude can read code; launch from <code>~/Documents/notes/</code> and Claude can read your meeting notes; launch from <code>~/</code> and Claude has the broadest view but loses focus.</div>
+    <div class="row"><strong>MVE.</strong> "When you type <code>claude</code> in your terminal, the folder you're in becomes Claude's home base. It auto-loads any <code>CLAUDE.md</code> in that folder, can read files relative to it, and bounds what it considers 'this project.' Choose the folder deliberately, the same way you'd choose which conference room to hold a meeting in."</div>
+    <div class="row"><strong>Analogy.</strong> <em>Where you enter the building.</em> If you walk into Capital One via the McLean lobby, you see McLean people. Walk in via the Plano office and you see Plano people. Same building, different field of view.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "I can just point Claude at a file later." You can with <code>--add-dir</code>, but that doesn't auto-load the CLAUDE.md in that directory. Where you start matters most.</div>
+  </article>
+
+  <article class="block" data-duo-id="block-c2">
+    <h2>C2 · The three-folder pattern</h2>
+    <div class="row"><strong>Why for a PM.</strong> Most PMs don't have "repos" in the way engineers do. They need an explicit recommendation for <em>where</em> to keep things.</div>
+    <div class="row"><strong>MVE.</strong> Three default invocation points:</div>
+    <ol>
+      <li><strong><code>~/</code></strong> (your home directory) — for general "thinking partner" sessions; loads your <em>user-level</em> CLAUDE.md and skills.</li>
+      <li><strong><code>~/notes/</code></strong> (or an Obsidian vault) — for personal knowledge work, customer synthesis, weekly reviews.</li>
+      <li><strong>A specific repo</strong> (e.g., the Conversational Servicing repo) — for code-aware work, where the team's project-level CLAUDE.md guides Claude.</li>
+    </ol>
+    <div class="row"><strong>Analogy.</strong> Three desks. Personal desk for journaling, library desk for research, team conference room for project work. You choose the desk, and the desk shapes the work.</div>
+    <div class="misconception"><strong>Misconception to preempt:</strong> "There's one right place." Different work, different CWD. The skill is <em>deciding</em>, not memorizing.</div>
+  </article>
+
+  <div class="actions">
+    <button class="cta" data-duo-action="duo:event" data-event="family-C-done" data-payload='{"family":"C"}' data-duo-id="family-c-done-cta">
+      Mark Family C done
+    </button>
+    <button class="secondary" data-duo-action="editor:open" data-path="~/.claude/duo/packs/claude-code-basics/canvases/04-memory.html">
+      Next: Family D (Memory) →
+    </button>
+  </div>
+</main>
+</body>
+</html>
