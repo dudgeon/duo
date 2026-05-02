@@ -243,6 +243,17 @@ export class InstallService {
         path.join(SKILLS_DUO_DIR, 'canvas-authoring.md'),
         prevShas
       ))
+      // Stage 27 (post-modularization) — skill/canvas-interaction.md →
+      // ~/.claude/skills/duo/canvas-interaction.md. Companion to
+      // canvas-authoring.md; covers opening / reading / driving
+      // existing canvases (vs. authoring new ones). Split per
+      // Anthropic's skill-design guidance on single-responsibility
+      // scope.
+      fileResults.push(await this.safeOverwriteFile(
+        path.join(sourceRoot, 'skill', 'canvas-interaction.md'),
+        path.join(SKILLS_DUO_DIR, 'canvas-interaction.md'),
+        prevShas
+      ))
       await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'skill', 'examples'),
         path.join(SKILLS_DUO_DIR, 'examples'),

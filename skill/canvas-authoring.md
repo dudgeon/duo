@@ -2,15 +2,19 @@
 
 > **Stage 27 — `skill/canvas-authoring.md`.** Full reference for the
 > canvas authoring vocabulary: action verbs, paint regions, form
-> bindings, agent-side event stream, routing meta tags, and the
-> anti-patterns that turn an authored canvas from "demo" into "actual
-> tool the user keeps coming back to."
+> bindings, routing meta tags, and the anti-patterns that turn an
+> authored canvas from "demo" into "actual tool the user keeps
+> coming back to."
 >
-> This skill is the source of truth for canvas authoring. The shorter
-> Stage 23 cheat sheet at `skill/examples/canvas-actions.md` is the
-> drive-by reference for the action verbs alone; reach for THIS file
-> when you're designing a multi-step lesson, dashboard, or any canvas
-> the agent and user will collaborate over.
+> **Reach for this file when** the user asks you to: create an HTML
+> canvas, design a multi-step lesson, build a dashboard with paint
+> regions, choose between canvas / browser / markdown, or pick the
+> right action verb for a button. **Reach for `canvas-interaction.md`
+> when** they ask you to OPEN, READ, or DRIVE an existing canvas
+> (paint into it, query its DOM, react to clicks).
+>
+> The shorter Stage 23 cheat sheet at `skill/examples/canvas-actions.md`
+> is the drive-by lookup for action-verb signatures.
 
 ---
 
@@ -183,61 +187,23 @@ input has a different value.
 
 ---
 
-## Agent-side: `duo events --follow`
+## Agent-side wiring (consumer of what you author)
 
-Subscribers stream events from main's bus. Each event is a single
-JSON line on stdout:
+When you author a canvas, you're producing markup that an agent (you,
+later, in a separate Claude tab) will run against. The runtime
+contract:
 
-```bash
-duo events --follow
-```
+- **Buttons emit events.** A `data-duo-action="duo:event"` click
+  lands as one JSON line in `duo events --follow`.
+- **Paint regions are stable.** A `data-duo-pane="<name>"` div is the
+  agent's `duo html update --selector` target.
+- **Form values ride along.** `data-payload-from="#input"` puts
+  `.value` (or `.checked`) in the event's `payload.value`.
 
-```jsonc
-{"cursor":"1714589125-1","ts":"…","source":"canvas","name":"lesson-step-1-next","payload":{}}
-{"cursor":"1714589140-3","ts":"…","source":"canvas","name":"user-introduced","payload":{"value":"Geoff"}}
-```
-
-### Resume from cursor
-
-If the subscriber dies and restarts, pass `--since <cursor>` to
-replay events that landed during the gap:
-
-```bash
-duo events --follow --since 1714589125-1
-```
-
-Cursor format: `<unix-ms>-<seq-within-ms>`. The bus keeps a 200-event
-ring buffer; older events are evicted. Subscribe early in a session
-to avoid missing the first event.
-
-### Common patterns for the agent
-
-**Lesson runner:**
-
-```bash
-duo events --follow | while IFS= read -r line; do
-  case $(jq -r '.event.name // empty' <<< "$line") in
-    "lesson-step-1-next")
-      duo html update --selector '[data-duo-pane="body"]' --html '<p>Step 2…</p>'
-      ;;
-    "lesson-step-2-done")
-      duo html update --selector '[data-duo-pane="body"]' --html '<p>You finished!</p>'
-      ;;
-  esac
-done
-```
-
-**Form-collected onboarding:**
-
-```bash
-duo events --follow | while IFS= read -r line; do
-  if [[ $(jq -r '.event.name' <<< "$line") == "user-introduced" ]]; then
-    name=$(jq -r '.event.payload.value' <<< "$line")
-    duo html update --selector '[data-duo-pane="greeting"]' \
-                    --html "<p>Hello, $name. Let's begin.</p>"
-  fi
-done
-```
+The full agent-side playbook — subscription patterns, `--since`
+cursor resume, `duo html update` paint syntax, debugging — lives in
+`skill/canvas-interaction.md`. That's where you go when you switch
+hats from author to driver.
 
 ---
 
@@ -360,11 +326,71 @@ emits a final summary event (`lesson-step-2-done`) and unsubscribes.
 
 ---
 
+## On WebMCP — should authored canvases conform?
+
+**Short answer: not for canvas-tab content. Maybe later for browser-
+tab content.**
+
+The W3C WebMCP draft proposes `navigator.modelContext.registerTool({...})`
+as a JS API for pages to publish "agent-action contracts" — named,
+typed, callable tools an agent can discover at runtime. Spiritually
+adjacent to what Duo's `data-duo-action` vocabulary already does:
+both publish discoverable contracts on the page.
+
+The practical mismatch:
+
+- **Canvas-tab iframes are sandboxed without `allow-scripts`.**
+  `navigator.modelContext.registerTool()` requires JS execution.
+  Canvas authoring CANNOT use WebMCP today. The `data-duo-action`
+  attribute pattern is our equivalent — same outcome (publish a
+  discoverable agent-action), declarative not imperative, no JS
+  required.
+- **Browser-tab content (`<meta name="duo-open-in" content="browser">`)
+  CAN run scripts.** A page Duo opens in browser mode could
+  theoretically register WebMCP tools. The CDP-driven browser
+  reading we already do (`duo eval`, `duo dom`, `duo text`) would
+  let an agent discover those tools.
+
+**Author guidance for v1 (today):**
+
+- For canvases (`canvas` mode): keep using `data-duo-action`. It IS
+  the contract. Stable names, typed inputs (`data-*` attributes),
+  declarative invocation. No additional WebMCP layer needed.
+- For browser-mode HTML you author for Duo: same recommendation —
+  it'll be opened by Duo specifically, so use the Duo vocabulary
+  for action discovery. WebMCP is currently overkill for this case
+  too.
+- For arbitrary public sites the user happens to load via Duo's
+  browser pane: WebMCP is the SITE author's concern, not Duo's.
+  When/if a site exposes WebMCP tools, a future Duo enhancement can
+  surface them. Filed as a Stage 27.5+ exploration.
+
+**Why NOT add a parallel WebMCP layer to authoring today:**
+
+- It would conflict with the no-allow-scripts trust gate (canvases
+  ship inert outside Duo by design).
+- It adds an imperative authoring path beside the declarative one;
+  same expressive surface, doubled maintenance.
+- It doesn't unblock anything Stage 28's lesson packs need.
+
+**What WebMCP convergence might earn us later:** if the wider web
+adopts it, a Duo browser pane could discover and call WebMCP tools
+on arbitrary pages, complementing CDP-based DOM reading. That's a
+Stage Z exploration item, not Sprint A authoring guidance. Keep
+authoring around `data-duo-action` for now; the convention is
+ours and works in the surfaces Duo controls.
+
+---
+
 ## Cross-references
 
+- `skill/canvas-interaction.md` — companion skill: open + read +
+  drive existing canvases (`duo html update`, `duo events --follow`,
+  trust-gate debugging)
 - `skill/examples/canvas-actions.md` — drive-by cheat sheet (Stage 23 + 27 verbs)
 - `skill/examples/canvas-templates/` — five copy-paste templates (Stage 27 Commit 6)
 - `docs/prd/stage-27-canvas-authoring.md` — Sprint A PRD
 - `docs/prd/stage-28-lesson-packs.md` — Sprint C consumer (intro-to-duo + claude-code-basics)
 - `agents/duo.md` — `duo events --follow` cheat-sheet entry
 - Stage 23 trust gate spec — `renderer/components/HtmlCanvas/canvasActions.ts § isCanvasPathTrusted`
+- W3C WebMCP draft — `https://github.com/webmachinelearning/webmcp` (background reading)

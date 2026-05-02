@@ -417,22 +417,31 @@ reloads in place — no new tabs accumulate.
 file, about, data, etc.), plus local file paths with `~/` or relative
 paths — path resolution happens client-side.
 
-### Author a canvas the user can interact with
+### Author or interact with an HTML canvas
 
-When you need to ship an *interactive* HTML — a tutorial, a dashboard,
-a quiz flow, a click-through form — read **`skill/canvas-authoring.md`**
-first. It covers the full Stage 27 vocabulary: nine action verbs
-(`claude:spawn` / `terminal:send` / `browser:open` / `editor:open` /
-`nav:reveal` / `selection:set` / `theme:set` / `terminal:focus` /
-`duo:event`), `data-duo-pane` repaint regions, `data-payload-from`
-form-input bindings, agent-side subscription via `duo events --follow`,
-and the `<meta name="duo-default-editable">` routing convention for
-read-only-by-default interactive canvases. Five copy-paste templates
-live at `skill/examples/canvas-templates/`.
+Two companion skills cover the canvas surface, split on a single
+question — are you CREATING markup, or are you DRIVING existing
+markup?
 
-The drive-by cheat sheet at `skill/examples/canvas-actions.md` is the
-right tab when you need ONE verb's signature; the canvas-authoring
-skill is the right tab when you're designing the canvas as a whole.
+- **`skill/canvas-authoring.md`** — when you need to ship an
+  interactive HTML (a tutorial, dashboard, quiz, click-through form):
+  the full Stage 27 vocabulary (nine action verbs, `data-duo-pane`
+  repaint regions, `data-payload-from` form bindings, the
+  `<meta name="duo-default-editable">` routing convention),
+  anti-patterns, and a worked tutorial example. Five copy-paste
+  templates live at `skill/examples/canvas-templates/`.
+
+- **`skill/canvas-interaction.md`** — when you need to OPEN, READ,
+  or DRIVE an existing canvas: `duo edit`/`duo open` smart routing,
+  `duo html query`/`get`/`update` for reading + painting, the
+  `duo events --follow` subscription pattern for reacting to user
+  clicks, and a debugging playbook for "the button isn't firing"
+  / "events aren't reaching me" / "paint doesn't show up".
+
+The drive-by cheat sheet at `skill/examples/canvas-actions.md` is
+the right tab when you need ONE verb's signature; the two skills
+above are the right tabs when you're working with canvases as a
+whole.
 
 ### Diagnose a failing interaction with the page
 
