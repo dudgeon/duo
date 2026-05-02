@@ -50,12 +50,12 @@ engaged. The pattern:
 Don't paint into the canvas's body — Family canvases are designed
 to be stable static content. Reserve canvas painting for the
 **completion-pane** in `07-authoring.html` after the
-`curriculum-complete` event fires (paint a birdhouse suggestion in
+`lesson:curriculum-complete` event fires (paint a birdhouse suggestion in
 there).
 
 ### Birdhouse suggestion (end of lesson)
 
-When `curriculum-complete` lands, ask the user one-line:
+When `lesson:curriculum-complete` lands, ask the user one-line:
 
 > "Quick question for the birdhouse — are you closer to a
 > general-purpose PM (PRDs, customer research, OKRs), a platform
@@ -107,14 +107,14 @@ with a concrete next 20-minute commitment.
 
 | Event | Source | Meaning |
 |---|---|---|
-| `curriculum-skip` | orientation Skip button | User wants to explore on their own; ack and stand by |
-| `family-A-done` | 01-mental-model.html | Family A complete |
-| `family-B-done` | 02-context.html | Family B complete |
-| `family-C-done` | 03-place.html | Family C complete |
-| `family-D-done` | 04-memory.html | Family D complete |
-| `family-E-done` | 05-capability.html | Family E complete |
-| `family-F-done` | 06-trust.html | Family F complete |
-| `curriculum-complete` | 07-authoring.html | Whole curriculum done |
+| `lesson:curriculum-skip` | orientation Skip button | User wants to explore on their own; ack and stand by |
+| `lesson:family-A-done` | 01-mental-model.html | Family A complete |
+| `lesson:family-B-done` | 02-context.html | Family B complete |
+| `lesson:family-C-done` | 03-place.html | Family C complete |
+| `lesson:family-D-done` | 04-memory.html | Family D complete |
+| `lesson:family-E-done` | 05-capability.html | Family E complete |
+| `lesson:family-F-done` | 06-trust.html | Family F complete |
+| `lesson:curriculum-complete` | 07-authoring.html | Whole curriculum done |
 
 If the user clicks `family-N-done` out of order (e.g. they jumped
 straight from orientation to Family C), that's fine — affirm and

@@ -4016,8 +4016,16 @@ A third lesson would invent a third structure. We need a **canonical template** 
 
 ### ENH-054: User entry point for "I want to make a training/guide" (closes meta-goal gap 1)
 
-**Status:** 🆕 Filed
-**Priority:** Medium-high (downstream of ENH-053; meaningless until the template exists).
+**Status:** ✅ **Resolved v0.6.1 via skill-description tuning, NOT a CLI verb.** Owner pushed back on the proposed `duo lesson new <name>` CLI: "A cli verb for lesson seems like overkill" — and the FTUX user (the meta-goal target) doesn't yet know `duo` is a CLI, so a CLI entry point is hostile to the audience. The right primitive is **skill recognition**: when a user says "build me a training" / "make a guide" / "create a lesson" / "teach my team X" / "interactive demo" / etc., Claude's harness auto-loads the right skill from its YAML frontmatter `description` matcher. The skill (currently `make-playground.md`) then walks the agent through copying `examples/lesson-template/` and customizing.
+
+The v0.6.1 commits that close this:
+- `04cd9b5` (terminology lock) — defines what a "lesson" IS so skill descriptions can describe it precisely
+- `f01559b` (canonical lesson template + lesson-runtime skill)
+- `3a90c7b` (skill split: `make-playground.md` frontmatter description deliberately broad — fires on any "interactivity" trigger phrase per owner's "Playground front matter should be pretty open" direction)
+
+What's NOT shipping with this entry: a discoverable button surface (e.g. "Build a new lesson" CTA on the welcome page). Filed as a v0.6.x candidate if user-side trigger discovery proves insufficient — but the natural-language trigger is the cleaner primitive: users already know how to ask Claude for things; the CLI is overhead.
+
+**Priority:** Resolved.
 **Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
 
 **Meta-goal:** A user with no understanding of canvas/page/playground/lesson terminology says "I want to build a training" and gets there. Today there's no canonical entry point — a Claude session would need to invoke the playground-authoring skill manually + improvise scaffolding.
@@ -4038,7 +4046,7 @@ A third lesson would invent a third structure. We need a **canonical template** 
 
 ### ENH-055: Lesson preview / fly-through harness (closes meta-goal gap 5)
 
-**Status:** 🆕 Filed
+**Status:** ⏳ **Deferred to v0.6.2.** ENH-053 (canonical lesson template) shipped in v0.6.1 + the existing two packs adopted canonical event names; the harness now has a stable contract to assert against, but implementing it (read playground HTML → enumerate `data-duo-action` buttons → simulate clicks via `duo html click <selector>` → observe `duo events --follow` → assert expected events fire + expected `data-duo-pane` repaints → report pass/fail per step) is ~2-3 hours of focused coding that's not blocking the v0.6.1 cut. Re-evaluate as a v0.6.2 candidate after the canonical packs have been used in anger.
 **Priority:** Medium (downstream of ENH-053). Without it, lesson authors can't reliably test what they built.
 **Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
 
@@ -4057,4 +4065,44 @@ A third lesson would invent a third structure. We need a **canonical template** 
 - Coverage report — which buttons fired, which paths through the lesson got walked, which branches are unreachable.
 
 **Cross-ref:** ENH-053 (template — defines the canonical events the harness asserts on); ENH-054 (entry point — preview is the natural next step after authoring).
+
+
+### ENH-056: Multi-canvas curriculum template (sibling of lesson-template)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (downstream of ENH-053; needed when the next multi-canvas pack lands).
+**Filed:** 2026-05-02 (post-v0.6.1 — surfaced while refactoring claude-code-basics)
+
+**Context:** ENH-053 shipped a canonical `lesson-template/` for SINGLE-CANVAS LINEAR LESSONS — one playground.html with N steps, three stable paint regions (`step-counter` / `step-body` / `step-controls`), event names like `lesson:step-N-done`. Works for `intro-to-duo` (now refactored to canonical event names + paint regions in v0.6.1).
+
+**The gap:** `claude-code-basics` is a MULTI-CANVAS curriculum — an orientation launcher (`00-orientation.html`) plus 7 family canvases (`01-mental-model.html` through `07-authoring.html`). User picks a family from orientation; the family canvas loads; user finishes; emits `lesson:family-A-done`; orientation refreshes to mark the family complete; user picks next. This shape doesn't fit `lesson-template`'s single-playground assumption — and shouldn't: it's a different lesson topology (curriculum vs. linear walk).
+
+**What's wanted:** a sibling template at `skill/examples/curriculum-template/` for multi-canvas curricula. Canonical structure:
+
+- `orientation.html` — the launcher; lists modules; shows progress per module.
+  - Stable panes: `[data-duo-pane="curriculum-progress"]` (overall %), one paint region per module (`[data-duo-pane="module-A"]`, `module-B`, etc.) showing locked / available / completed state.
+  - Buttons emit `lesson:module-<id>-launch` to open a module canvas (the skill responds via `editor:open` to switch the working tab).
+- `module-<id>.html` per module — content + a final "Done with this module" button that emits `lesson:module-<id>-done`.
+- `lesson-skill/SKILL.md` — orchestrates the cross-canvas state. Reads sidecar at `~/.claude/duo/lesson-state/<pack-name>.json`; updates orientation when modules complete.
+
+**Sidecar state schema (curriculum):**
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "curriculum",
+  "packName": "claude-code-basics",
+  "modules": {
+    "A": { "completed": true, "completedAt": "..." },
+    "B": { "completed": true, "completedAt": "..." },
+    "C": { "completed": false }
+  },
+  "completed": false,
+  "lastEventCursor": "..."
+}
+```
+
+**v1 scope:** template + runtime helper section in `lesson-runtime.md` describing the curriculum case alongside the linear case. Update `make-playground.md § Lessons specifically` to mention "two shapes — linear (use lesson-template) or curriculum (use curriculum-template)."
+
+**Cross-ref:** ENH-053 (linear lesson template that this extends); `packs/claude-code-basics/` (the existing multi-canvas pack that prompted this — its events are now `lesson:`-prefixed in v0.6.1, but its structure should migrate to this template once it exists).
 

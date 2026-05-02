@@ -13,7 +13,7 @@
     asks Claude to read the accompanying lesson skill at
     ~/.claude/duo/packs/intro-to-duo/lesson-skill/SKILL.md and walk
     them through. The agent paints subsequent step content into
-    `data-duo-pane="lesson-body"` via `duo html update --selector`.
+    `data-duo-pane="step-body"` via `duo html update --selector`.
 
     Anti-pattern dodge: the canvas does NOT script the lesson —
     Claude does. The canvas is a paint surface + click-event source.
@@ -153,7 +153,7 @@
       minutes to learn the surfaces.</p>
     </header>
 
-    <section class="body" data-duo-pane="lesson-body">
+    <section class="body" data-duo-pane="step-body">
       <div class="step-counter" data-duo-pane="step-counter">Step 0 — before we begin</div>
       <h2 style="margin-top: 6px;">What is Duo?</h2>
       <p>Duo is a desktop app pairing terminal sessions (where Claude
@@ -175,7 +175,7 @@
       </ul>
     </section>
 
-    <div class="actions">
+    <div class="actions" data-duo-pane="step-controls">
       <button class="cta"
               data-duo-action="claude:spawn"
               data-cwd="~/"
@@ -185,7 +185,7 @@
       </button>
       <button class="secondary"
               data-duo-action="duo:event"
-              data-event="lesson-skip"
+              data-event="lesson:skip"
               data-payload='{"pack":"intro-to-duo"}'
               data-duo-id="skip-lesson-cta">
         I'll explore on my own

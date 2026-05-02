@@ -19,7 +19,7 @@ The user is looking at a canvas at
 canvas has TWO stable paint regions you'll address by selector:
 
 - `[data-duo-pane="step-counter"]` — small text above each step ("Step 1 — …")
-- `[data-duo-pane="lesson-body"]` — the main content area for each step
+- `[data-duo-pane="step-body"]` — the main content area for each step
 
 You repaint these regions with `duo html update --selector "<sel>" --html "<…>"`.
 
@@ -73,7 +73,7 @@ this in a Claude tab. Tell them what they're looking at:
 duo html update --selector '[data-duo-pane="step-counter"]' \
   --html 'Step 1 of 6 — The terminal'
 
-duo html update --selector '[data-duo-pane="lesson-body"]' --html '
+duo html update --selector '[data-duo-pane="step-body"]' --html '
   <h2>The terminal is where I live</h2>
   <p>You spawned this Claude session by clicking <strong>Start lesson</strong>.
   Look to your left — that terminal tab is me. You can talk to me here
@@ -82,13 +82,13 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
   new one. Each can run its own Claude session, or just be a regular
   shell. The icon in the tab tells you which.</p>
   <button class="cta" data-duo-action="duo:event"
-          data-event="lesson-step-1-done">
+          data-event="lesson:step-1-done">
     Next — show me the file navigator
   </button>
 '
 ```
 
-**Wait for:** `lesson-step-1-done`.
+**Wait for:** `lesson:step-1-done`.
 
 ### Step 2 — The file navigator (left pane)
 
@@ -96,7 +96,7 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
 duo html update --selector '[data-duo-pane="step-counter"]' \
   --html 'Step 2 of 6 — File navigator'
 
-duo html update --selector '[data-duo-pane="lesson-body"]' --html '
+duo html update --selector '[data-duo-pane="step-body"]' --html '
   <h2>The file navigator (left column)</h2>
   <p>The left column has two panes: <strong>Your Claude</strong>
   (rooted at <code>~/.claude/</code> — your skills, agents, settings)
@@ -110,7 +110,7 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
   </button>
   <button class="secondary" style="margin-left: 8px;"
           data-duo-action="duo:event"
-          data-event="lesson-step-2-done">
+          data-event="lesson:step-2-done">
     Got it — what is the working pane?
   </button>
 '
@@ -120,7 +120,7 @@ If the user clicks "Show me my CLAUDE.md" first, the navigator
 reveals it but no event fires for the lesson — the second button
 is what advances. Be ready for either order.
 
-**Wait for:** `lesson-step-2-done`.
+**Wait for:** `lesson:step-2-done`.
 
 ### Step 3 — The working pane (browser + canvas + editor)
 
@@ -128,7 +128,7 @@ is what advances. Be ready for either order.
 duo html update --selector '[data-duo-pane="step-counter"]' \
   --html 'Step 3 of 6 — Working pane'
 
-duo html update --selector '[data-duo-pane="lesson-body"]' --html '
+duo html update --selector '[data-duo-pane="step-body"]' --html '
   <h2>The working pane (right column)</h2>
   <p>This canvas you are looking at right now <em>is</em> the working
   pane. It hosts three kinds of tab:</p>
@@ -147,13 +147,13 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
   </button>
   <button class="secondary" style="margin-left: 8px;"
           data-duo-action="duo:event"
-          data-event="lesson-step-3-done">
+          data-event="lesson:step-3-done">
     Next — how does the agent loop work?
   </button>
 '
 ```
 
-**Wait for:** `lesson-step-3-done`.
+**Wait for:** `lesson:step-3-done`.
 
 ### Step 4 — The agent loop (you and me)
 
@@ -161,7 +161,7 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
 duo html update --selector '[data-duo-pane="step-counter"]' \
   --html 'Step 4 of 6 — Agent loop'
 
-duo html update --selector '[data-duo-pane="lesson-body"]' --html '
+duo html update --selector '[data-duo-pane="step-body"]' --html '
   <h2>The agent loop</h2>
   <p>Every click on a button like the ones below emits a structured
   event into a small in-process bus. I subscribe via
@@ -193,12 +193,12 @@ duo html update --selector '[data-duo-pane="lesson-greeting"]' --html "
   <strong>Hello, $NAME.</strong> See how that works? Your Submit
   click crossed the canvas → CLI bus → me, and my paint crossed
   back the other way. <button class='cta' style='margin-left: 8px;'
-  data-duo-action='duo:event' data-event='lesson-step-4-done'>
+  data-duo-action='duo:event' data-event='lesson:step-4-done'>
   I see it — what's next?</button>
 "
 ```
 
-**Wait for:** `lesson-step-4-done`.
+**Wait for:** `lesson:step-4-done`.
 
 ### Step 5 — Theme + terminal focus (small surfaces)
 
@@ -206,7 +206,7 @@ duo html update --selector '[data-duo-pane="lesson-greeting"]' --html "
 duo html update --selector '[data-duo-pane="step-counter"]' \
   --html 'Step 5 of 6 — Small surfaces'
 
-duo html update --selector '[data-duo-pane="lesson-body"]' --html '
+duo html update --selector '[data-duo-pane="step-body"]' --html '
   <h2>Theme &amp; focus — small but useful</h2>
   <p>Two more verbs you should know about. Try these:</p>
   <p>
@@ -228,13 +228,13 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
   author into your own canvases. See
   <code>~/.claude/skills/duo/canvas-authoring.md</code>.)</p>
   <button class="cta" data-duo-action="duo:event"
-          data-event="lesson-step-5-done">
+          data-event="lesson:step-5-done">
     Last step
   </button>
 '
 ```
 
-**Wait for:** `lesson-step-5-done`.
+**Wait for:** `lesson:step-5-done`.
 
 ### Step 6 — You're done
 
@@ -242,7 +242,7 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
 duo html update --selector '[data-duo-pane="step-counter"]' \
   --html '✓ Lesson complete'
 
-duo html update --selector '[data-duo-pane="lesson-body"]' --html '
+duo html update --selector '[data-duo-pane="step-body"]' --html '
   <h2>You finished the intro</h2>
   <p>You now know about the terminal, the file navigator, the working
   pane (browser / editor / canvas), the agent loop, and a few small
@@ -298,6 +298,6 @@ walk you through it after the lesson?") and stay on the current step.
 
 ## Troubleshooting
 
-- **Canvas isn't painting.** Check `duo html query --selector "[data-duo-pane=lesson-body]"` returns a hit. If not, the canvas might have closed; ask the user to re-open via "Open ~/.claude/duo/packs/intro-to-duo/canvases/welcome.html".
+- **Canvas isn't painting.** Check `duo html query --selector "[data-duo-pane=step-body]"` returns a hit. If not, the canvas might have closed; ask the user to re-open via "Open ~/.claude/duo/packs/intro-to-duo/canvases/welcome.html".
 - **`duo events --follow` shows nothing on click.** Click handlers only fire when the canvas's path is under `~/.claude/duo/` (Stage 23 trust gate). The pack canvas is — but if the user manually copied it elsewhere, actions inert. Tell them.
 - **Multiple events per click.** Shouldn't happen with v1, but if you ever see it, the symptom is a double-jump in lesson steps. Make each step idempotent (re-painting the same step's HTML is harmless).
