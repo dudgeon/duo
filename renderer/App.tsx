@@ -757,6 +757,20 @@ export function App() {
             setActiveTabId(action.tabId)
           }
           setFocusedColumn('terminal')
+          // BUG-054 — `setFocusedColumn` only flips the React state
+          // that drives the focus *indicator* (orange glow on the
+          // terminal pane). It does NOT call `term.focus()` on the
+          // xterm instance, so keystrokes still go to whatever had
+          // OS focus before. Dispatch a CustomEvent that the active
+          // TerminalPane listens for and calls termRef.focus() —
+          // matches the find-open / find-next CustomEvent pattern
+          // used elsewhere. The setActiveTabId(action.tabId) above
+          // also fires the existing isActive-change effect that
+          // calls term.focus(), so for tab-targeted calls the
+          // CustomEvent is belt-and-braces; for the bare
+          // terminal:focus call (no tabId), the CustomEvent is the
+          // only path.
+          window.dispatchEvent(new CustomEvent('duo-terminal-focus'))
           return { ok: true }
         }
         // Stage 27 — emit a named event into the duo event bus. Main

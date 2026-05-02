@@ -380,6 +380,29 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     return () => cancelAnimationFrame(id)
   }, [isActive, tab.id])
 
+  // ── BUG-054: terminal:focus action verb listener ─────────────────────────
+  // The Stage 27 `terminal:focus` action verb dispatches a
+  // `duo-terminal-focus` CustomEvent on the window after flipping
+  // focusedColumn to 'terminal'. setFocusedColumn alone only changes
+  // the React focus *indicator*; it doesn't put the xterm in
+  // keyboard-focus state. This listener catches the event and calls
+  // termRef.focus() ON THE ACTIVE TAB ONLY (so multiple terminal
+  // tabs don't all fight for focus when the verb fires). Mirrors
+  // the duo-editor-find-open / duo-browser-find-open CustomEvent
+  // pattern.
+  useEffect(() => {
+    if (!isActive) return
+    const onFocus = () => {
+      // Match the visibility-change effect's behavior exactly: defer
+      // one frame so any concurrent layout settles, then call focus().
+      requestAnimationFrame(() => {
+        termRef.current?.focus()
+      })
+    }
+    window.addEventListener('duo-terminal-focus', onFocus)
+    return () => window.removeEventListener('duo-terminal-focus', onFocus)
+  }, [isActive])
+
   // ── Resize observer ────────────────────────────────────────────────────────
   useEffect(() => {
     const host = hostRef.current
