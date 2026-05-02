@@ -3692,9 +3692,19 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### ENH-045: Navigator — "Project Claude Context" improvements (collapsible, dynamic name, project detection, gh integration)
 
-**Status:** 🆕 Filed
+**Status:** 🚧 ENH-045a shipped v0.6.3 — sub-stages b/c/d still queued
 **Priority:** Medium (meaningful UX upgrade with downstream ENH branches).
 **Filed:** 2026-05-02 (idle-thoughts.md item — multi-bullet)
+**ENH-045a shipped 2026-05-02** — `renderer/components/ProjectClaudeContext.tsx`:
+- Collapsible header (default collapsed per owner direction). Toggle persists across sessions in localStorage at `duo:project-claude-context:collapsed`.
+- Dynamic title: `{projectName} Claude context` where projectName resolves to `package.json` `name` field if present at cwd, otherwise the last segment of cwd. Async package.json read happens once per cwd change; folder-name shows immediately, package name upgrades when read lands.
+- Auto-detection: the existing `candidates` check (renders nothing when no `CLAUDE.md` / `.claude/` / `tasks.md` / `AGENTS.md` exist) already matched the owner's "any folder containing a `.claude/` OR being the root of a git/github repo IS a project" framing — projects with no Claude context still don't render the section.
+- Disclosure caret rotates 90° on expand; click anywhere on the header toggles.
+
+**Still queued:**
+- **ENH-045b** — gh status visibility (depends on a `git`/`gh` background prober; deferred — needs Stage 21d socket auth).
+- **ENH-045c** — promote-to-project + sync-to-github actions (downstream of 045b).
+- **ENH-045d** — new-project skill (interview flow + templates).
 
 **Owner's full feature set:**
 1. **"Project Claude Context" should be collapsible**, default to collapsed.
