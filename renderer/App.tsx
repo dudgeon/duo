@@ -682,11 +682,98 @@ export function App() {
           await window.electron.browser.addTab(url)
           return { ok: true }
         }
+        // Stage 27 — `editor:open` opens an arbitrary file in whichever
+        // surface fits. `data-mode` forces the surface; absent, defer
+        // to openFileSmart which honors `<meta name="duo-open-in">`.
+        case 'editor:open': {
+          const trimmed = action.path.trim()
+          if (!trimmed) return { ok: false, error: 'editor:open requires a non-empty data-path' }
+          // Resolve `~/` and (best-effort) leave relative paths alone —
+          // they resolve against the canvas's CWD on the renderer side
+          // via openFile. openFileSmart accepts an absolute path; for
+          // most authored canvases under ~/.claude/duo/ that's what
+          // we'll get.
+          const absPath = trimmed.startsWith('~/') ? `${home}/${trimmed.slice(2)}` : trimmed
+          const title = absPath.slice(absPath.lastIndexOf('/') + 1) || absPath
+          if (action.mode === 'browser') {
+            // Force browser regardless of meta hint.
+            const fileUrl = absPath.startsWith('http://') || absPath.startsWith('https://')
+              ? absPath
+              : `file://${encodeURI(absPath)}`
+            setActiveWorking({ kind: 'browser' })
+            setFocusedColumn('working')
+            await window.electron.browser.addTab(fileUrl)
+            return { ok: true }
+          }
+          if (action.mode === 'canvas' || action.mode === 'editor') {
+            // Force the file-tab path (canvas vs. editor is decided by
+            // classifyFile from the extension; both routes go through
+            // openFile which sets active surface to the file tab).
+            openFile(absPath, title)
+            return { ok: true }
+          }
+          // Default: smart routing (honors duo-open-in meta).
+          await openFileSmart(absPath, title)
+          return { ok: true }
+        }
+        // Stage 27 — reveal a path in the file navigator. Mirrors the
+        // file-tab context-menu "Reveal in Navigator" entry.
+        case 'nav:reveal': {
+          const trimmed = action.path.trim()
+          if (!trimmed) return { ok: false, error: 'nav:reveal requires a non-empty data-path' }
+          const absPath = trimmed.startsWith('~/') ? `${home}/${trimmed.slice(2)}` : trimmed
+          const dir = absPath.slice(0, absPath.lastIndexOf('/')) || '/'
+          nav.actions.navigateTo(dir)
+          nav.actions.selectItem(absPath, 'file')
+          setFocusedColumn('files')
+          return { ok: true }
+        }
+        // Stage 27 — scroll-to-and-select. Renderer-internal CustomEvent
+        // matches the duo-tree-start-rename pattern: the editor /
+        // canvas tabs subscribe and consume. v1 handles editor + text
+        // and canvas + anchor; line / cross-target combinations land
+        // when callers exercise them (Stage 27.5 carve-out).
+        case 'selection:set': {
+          window.dispatchEvent(
+            new CustomEvent('duo-canvas-selection-set', { detail: action })
+          )
+          return { ok: true }
+        }
+        // Stage 27 — flip the global theme. Matches the titlebar toggle
+        // and `duo theme <mode>`; persists via useTheme's localStorage.
+        case 'theme:set': {
+          theme.setMode(action.mode)
+          return { ok: true }
+        }
+        // Stage 27 — focus the active terminal (or a specific tab when
+        // data-tab-id is set). Mirrors ⌘\` "go to terminal" behaviour.
+        case 'terminal:focus': {
+          if (action.tabId) {
+            const exists = tabs.some(t => t.id === action.tabId)
+            if (!exists) {
+              return { ok: false, error: `no terminal tab with id "${action.tabId}"` }
+            }
+            setActiveTabId(action.tabId)
+          }
+          setFocusedColumn('terminal')
+          return { ok: true }
+        }
+        // Stage 27 — emit a named event into the duo event bus. Commit 2
+        // wires the bus + `duo events --follow` streaming socket case;
+        // Commit 1 keeps the dispatch surface so authored canvases can
+        // already encode their click handlers. Until the bus lands the
+        // emit is a console log so authors can verify their wiring
+        // shows up at all.
+        case 'duo:event': {
+          // eslint-disable-next-line no-console
+          console.log('[duo:event]', action.event, action.payload ?? {})
+          return { ok: true }
+        }
       }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
     }
-  }, [activeTabId, pendingCwd, home, dispatchPostSpawnWrite])
+  }, [activeTabId, pendingCwd, home, dispatchPostSpawnWrite, openFile, openFileSmart, nav.actions, theme, tabs])
 
   // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
   // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge

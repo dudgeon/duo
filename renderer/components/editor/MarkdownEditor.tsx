@@ -866,6 +866,69 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     }
   }, [editor])
 
+  // Stage 27 — `selection:set` editor-target listener. Companion to
+  // CanvasTab's same-named effect: a canvas action button that wants
+  // to drop the cursor into the active markdown editor (typically to
+  // direct the user's attention) fires `duo-canvas-selection-set` from
+  // App.tsx; we listen for the editor-targeted variant. v1 supports
+  // `text` (use the FindHighlight extension's setFindQuery/findNext to
+  // jump to + highlight first match) and `line` (clamp + walk doc to
+  // the matching block, mirroring onDocGoto's line path). `anchor` is
+  // canvas-only; ignore for the editor target.
+  useEffect(() => {
+    if (!editor) return
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{
+        target: 'editor' | 'canvas'
+        text?: string
+        line?: number
+        anchor?: string
+      }>).detail
+      if (!detail || detail.target !== 'editor') return
+      try {
+        if (detail.text !== undefined && detail.text !== '') {
+          // Prime the find extension with the needle, then advance to
+          // the first match. Leaves the bar closed by default; users
+          // can ⌘F to surface it. ScrollIntoView happens via PM's
+          // native find behaviour.
+          editor.commands.setFindQuery?.({ query: detail.text })
+          editor.commands.findNext?.()
+          editor.commands.focus()
+          return
+        }
+        if (detail.line !== undefined) {
+          // Reuse onDocGoto's line-walk logic in miniature: walk the
+          // doc, count newlines, position at start of the matching
+          // block. Lines are 1-indexed and clamped to the last line.
+          const md = editor.storage.markdown.getMarkdown() as string
+          const mdLines = md.split('\n')
+          const targetLine = Math.min(Math.max(1, detail.line), mdLines.length)
+          let line = 1
+          let foundPos: number | null = null
+          editor.state.doc.descendants((node, pos) => {
+            if (foundPos !== null) return false
+            if (node.isBlock && line === targetLine) {
+              foundPos = pos + 1
+              return false
+            }
+            if (node.isBlock) {
+              const text = node.textContent
+              line += 1 + (text.match(/\n/g)?.length ?? 0)
+            }
+            return true
+          })
+          if (foundPos !== null) {
+            editor.chain().focus().setTextSelection(foundPos).scrollIntoView().run()
+          }
+        }
+      } catch (err) {
+        console.warn('[duo-canvas-selection-set] editor handler failed:', err)
+      }
+    }
+    window.addEventListener('duo-canvas-selection-set', handler)
+    return () => window.removeEventListener('duo-canvas-selection-set', handler)
+  }, [editor])
+
   // ── Serve doc-find requests (ENH-023) ───────────────────────────────────
   useEffect(() => {
     if (!editor || isNew) return

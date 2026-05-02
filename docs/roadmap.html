@@ -614,6 +614,74 @@
       <div class="comment"><label>Comment</label><textarea data-key="s17d-C" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
     </article>
 
+    <article class="stage pending" id="s27" data-id="s27">
+      <h3><span class="num-badge">Stage 27</span> Canvas authoring vocabulary + skill <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Filed 2026-05-01 · Sprint A of the FTUX-tutorial initiative · primitives only, no content · subsumes Stage 17a.5 Direction A</div>
+      <p class="blurb"><strong>The intent.</strong> Ship the <em>primitives</em> for interactive canvas content — extended action vocabulary, agent event stream, form-input bindings, default-editable routing, authoring skill, and reference templates — so that any tutorial / dashboard / agent-driven artifact we want to build later (Stage 28's lesson packs being the first test) can be assembled from these primitives without one-off wiring. The user's framing: "build the patterns/primitives, then use them" — Sprint C content (Stage 28) validates Sprint A's primitives by being the first real consumer.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>What ships.</strong></p>
+      <ol class="subitems" style="list-style: decimal inside; padding-left: 8px;">
+        <li><span class="label"><strong>Six new canvas-action verbs</strong> in <code>renderer/components/HtmlCanvas/canvasActions.ts</code>. Extends Stage 23's three:
+          <ul style="margin-top: 6px; padding-left: 24px;">
+            <li><code>editor:open</code> — <code>data-path="..."</code> opens the file in the working pane via existing <code>openFileSmart</code></li>
+            <li><code>nav:reveal</code> — <code>data-path="..."</code> reveals path in navigator + selects (existing onRevealInNavigator)</li>
+            <li><code>selection:set</code> — <code>data-target="editor|canvas"</code> + position/text spec; places a selection</li>
+            <li><code>theme:set</code> — <code>data-theme="light|dark|system"</code></li>
+            <li><code>terminal:focus</code> — focus active terminal (or <code>data-tab-id="..."</code>)</li>
+            <li><code>duo:event</code> — fires a CustomEvent + emits via the new event bus; payload via <code>data-payload</code> JSON or <code>data-payload-from</code> CSS selector</li>
+          </ul>
+        </span></li>
+        <li><span class="label"><strong><code>duo events --follow</code> streaming CLI</strong> — pulls in <a href="https://github.com/dudgeon/duo/issues/19">issue #19</a> from the 15-family backlog. New <code>core/event-bus.ts</code> with a 200-event ring buffer. New streaming case in <code>core/socket-server.ts</code> (socket stays open, emits one JSON line per event). Full new-CLI-verb plumbing checklist per CLAUDE.md item 4.</span></li>
+        <li><span class="label"><strong><code>data-payload-from</code> form-input binding</strong> — small diff in the <code>duo:event</code> handler: <code>const captured = doc.querySelector(payloadFrom)?.value</code>. Works with <code>&lt;input&gt;</code>, <code>&lt;textarea&gt;</code>, <code>&lt;select&gt;</code>, <code>&lt;input type="checkbox"&gt;</code>. Powers the "user fills field → pushes value to Duo" lesson pattern.</span></li>
+        <li><span class="label"><strong><code>&lt;meta name="duo-default-editable" content="false"&gt;</code></strong> routing convention (folds in ENH-034). <code>files-service.ts § getHtmlMeta</code> reads it; <code>HtmlFileMeta</code> grows the field; <code>CanvasTab</code> initial <code>readOnly</code> state respects the hint. Toolbar pencil/eye-icon button flips read-only at runtime; persists per-path in localStorage.</span></li>
+        <li><span class="label"><strong>Canvas authoring skill</strong> at <code>skill/canvas-authoring.md</code>. Documents: when canvas vs. browser vs. markdown editor; stable IDs + <code>duo html stamp-ids</code>; full action-verb cheat sheet (3 from Stage 23 + 6 new); <code>data-duo-pane</code> convention for paint-target regions; <code>data-payload-from</code> binding for forms; <code>duo events --follow</code> agent-side hook; routing/mode meta tags; anti-patterns. <code>npm run sync:claude</code> after.</span></li>
+        <li><span class="label"><strong>Five reference templates</strong> at <code>skill/examples/canvas-templates/</code>:
+          <ul style="margin-top: 6px; padding-left: 24px;">
+            <li><code>button-card.html</code> — card + CTA button wired to <code>editor:open</code></li>
+            <li><code>paint-target.html</code> — layout with <code>data-duo-pane="result"</code> for <code>duo html update --selector</code></li>
+            <li><code>form-input.html</code> — input + button using <code>data-payload-from</code> to push value as <code>duo:event</code></li>
+            <li><code>lesson-scaffold.html</code> — multi-step tutorial layout: header, body pane, "Next step" button</li>
+            <li><code>dashboard.html</code> — multi-pane layout with refresh buttons that paint independently</li>
+          </ul>
+          Each ~50–100 lines, Atelier palette tokens, <code>&lt;meta name="duo-default-editable" content="false"&gt;</code> by default, "How this works" comment header.
+        </span></li>
+      </ol>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>What does NOT ship in Stage 27.</strong> Tutorial content (that's Stage 28). Distro pack install machinery (Stage 18b — packs ship via temporary <code>cp -r</code> + <code>npm run sync:claude</code> until 18b lands). The remaining 17e items (script opt-in dialog, source view, find/replace, external-write reconciliation) — orthogonal and stay filed under Stage 17e proper.</p>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Subsumes / cross-refs.</strong> Stage 17a.5 Direction A (template gallery — wins by default; the five templates above ARE the seed). Stage 17d-C (skill snippet bundle — Stage 27 covers the skill page; Stage 17d-C's H17 boilerplate v2 + ten content snippets like callout/comparison-table remain a separate authoring concern). ENH-020 (canvas authoring skill — closed by Stage 27.5). ENH-034 (canvas edit-mode toggle — folded in via duo-default-editable).</p>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Verification.</strong> Smoke walk against a hand-built test canvas exercising each new verb, plus the five templates rendering correctly. Detailed punch list filed when work begins.</p>
+
+      <div class="comment"><label>Comment</label><textarea data-key="s27" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
+    <article class="stage pending" id="s28" data-id="s28">
+      <h3><span class="num-badge">Stage 28</span> First-launch lesson packs (intro-to-duo + claude-code-basics) <span class="glyph pending"></span></h3>
+      <div class="status-line">⬜ Filed 2026-05-01 · Sprint C — content built on Stage 27's primitives · validates the primitives by use · ships v0.6.0 default tabs</div>
+      <p class="blurb"><strong>The intent.</strong> The first two real consumers of Stage 27's canvas-authoring primitives. Both packs validate the pattern by being authored entirely in the convention — any place we have to escape the convention is a Stage 27 primitive gap.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Pack A — <code>intro-to-duo</code></strong> (single-canvas FTUX tutorial). Target audience: CLI-noob users new to Claude Code. Walks them through Duo's primitives — terminal, browser pane, canvas, file navigator, agent loop — in a click-through interactive. "Start lesson" button uses <code>claude:spawn</code> (Stage 23) with <code>data-cwd</code> + <code>data-cmd</code> to open a fresh Claude tab and tell that Claude to begin the lesson. The lesson skill (installed at <code>~/.claude/skills/intro-to-duo-lesson/SKILL.md</code> via the pack) knows the lesson structure, runs <code>duo events --follow</code> in the background to track user clicks, and uses <code>duo html update --selector "[data-duo-pane=...]"</code> to paint content into pre-marked regions. User progresses through clicks → events → agent paints next panel.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Pack B — <code>claude-code-basics</code></strong> (multi-canvas pack). Source content: <code>untitled-folder/claude-code-basics-temp.md</code> — the Capital One PM Claude Code 101 curriculum (7 concept families + 30-min suggested spine + 5 birdhouse projects). Convert into one canvas per Family (or per spine module — to be decided when authoring). Validates the multi-canvas pack-with-shared-skill case: one lesson skill watches events from any canvas in the pack and routes appropriately. Each module's "Next module →" button fires an event the skill uses to know which canvas to paint into next.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>FTUX behavior (both packs).</strong> Both ship as <code>PACK.json § defaults</code> — Duo's first-ever launch (gated by <code>~/.claude/duo/installed.json</code>) opens the default canvases as tabs. User dismisses by closing the tab; existing session-restore machinery means the tab does NOT reopen on subsequent launches. No new "tutorial state" infrastructure — leverage the pin/close/session-restore primitives already shipped (Stages 21c + 24).</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Why both.</strong> Pack A is the simplest possible application of the primitives — single canvas, single skill, linear flow. Pack B stresses richness — multi-canvas pack, shared skill, real curriculum content. Building both surfaces different gaps. <code>intro-to-duo</code> ships as the FTUX hello-world; <code>claude-code-basics</code> ships as the first "this is what a serious lesson pack looks like" template that future enterprise distros (Cap One AIP, Trailblazers) can fork.</p>
+
+      <p class="blurb" style="margin-top: 14px;"><strong>Open questions for when work begins.</strong></p>
+      <ul class="subitems">
+        <li><span class="label">Pack A's CWD on spawn — <code>~/</code> (most general "thinking partner") or <code>~/.claude/duo/lessons/intro-to-duo/</code> (lesson-local sandbox)? Lean toward <code>~/</code> per the source curriculum's "general invocation point" recommendation.</span></li>
+        <li><span class="label">Lesson skill structure — does each pack's skill encode the lesson STEPS (sequential) or the lesson STATE-MACHINE (event-driven, agent decides what to do)? Lean state-machine — flexibility for branching.</span></li>
+        <li><span class="label">Pack B granularity — one canvas per concept Family (7 canvases) or per spine module (7 canvases) or per concept (~25 canvases)? Lean toward Family granularity for Pack B v1.</span></li>
+        <li><span class="label">Source content lifecycle — does <code>untitled-folder/claude-code-basics-temp.md</code> get committed as the source-of-truth for the pack or stays as a temp scratch? Probably moves into the pack folder as the canonical reference.</span></li>
+      </ul>
+
+      <p class="blurb" style="margin-top: 12px;"><strong>Cross-refs.</strong> Stage 27 (the primitives this consumes). Stage 18b (distro pack format — if shipped first, Stage 28 packs go through the proper <code>duo pack install</code> path; if not, packs install via <code>npm run sync:claude</code>-style hand-copy). Stage 23 (canvas-action vocabulary). <code>untitled-folder/claude-code-basics-temp.md</code> for Pack B source.</p>
+
+      <div class="comment"><label>Comment</label><textarea data-key="s28" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
     <article class="stage done" id="s22" data-id="s22">
       <h3><span class="num-badge">Stage 22</span> Navigator dual-pane overhaul (context pedagogy) <span class="glyph done"></span></h3>
       <div class="status-line">✅ Shipped v0.4.0 · top "Your Claude settings" + bottom "Project Claude context" group · separate state machines, shared <code>&lt;TreeNodes&gt;</code> primitive · plain-English labels, no literal <code>~/.claude/</code> · file-ops symmetry deferred to Navigator polish bundle</div>

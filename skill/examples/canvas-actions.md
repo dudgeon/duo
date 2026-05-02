@@ -59,6 +59,96 @@ Optional siblings:
   hostnames on that list punt to the macOS default browser via `duo
   external` instead of opening in Duo's embedded view.
 
+## Stage 27 vocabulary additions
+
+Six more verbs let an authored canvas drive the wider Duo surface
+without needing scripts. All inherit the same trust gate as Stage 23.
+
+### `editor:open` — open a file in the editor / canvas / browser
+
+```html
+<button data-duo-action="editor:open" data-path="~/notes/today.md">
+  Open today's notes
+</button>
+```
+
+- `data-path="<path>"` (required) — absolute path or `~/`-relative.
+- `data-mode="editor|canvas|browser"` (optional) — force the routing
+  surface. When omitted, falls through to Duo's smart router (which
+  honors the file's `<meta name="duo-open-in">` hint, if present).
+
+### `nav:reveal` — show a path in the file navigator
+
+```html
+<button data-duo-action="nav:reveal" data-path="~/notes/today.md">
+  Show in navigator
+</button>
+```
+
+- `data-path="<path>"` (required) — same resolution as `editor:open`.
+- The navigator scrolls the row into view, expands ancestors as
+  needed, and selects it.
+
+### `selection:set` — scroll to and select inside the editor or canvas
+
+```html
+<button data-duo-action="selection:set"
+        data-target="editor"
+        data-text="## Glossary">
+  Jump to the glossary
+</button>
+
+<button data-duo-action="selection:set"
+        data-target="canvas"
+        data-anchor="result-pane">
+  Show the result pane
+</button>
+```
+
+- `data-target="editor|canvas"` (required).
+- One of `data-text`, `data-line`, or `data-anchor`. Editor handles
+  `text` (find first match) and `line` (1-indexed); canvas handles
+  `anchor` (matches `data-duo-id`, then `id`) and `line` (Nth
+  top-level child of `<main>` / `<body>`).
+
+### `theme:set` — flip Duo's light/dark/system theme
+
+```html
+<button data-duo-action="theme:set" data-theme="dark">Dark mode</button>
+```
+
+- `data-theme="light|dark|system"` (required). Persists via the same
+  localStorage key the titlebar toggle and `duo theme <mode>` use.
+
+### `terminal:focus` — give focus to the active terminal
+
+```html
+<button data-duo-action="terminal:focus">Focus the terminal</button>
+<button data-duo-action="terminal:focus" data-tab-id="terminal-3">
+  Focus terminal 3
+</button>
+```
+
+- `data-tab-id="<id>"` (optional) — focus a specific terminal tab by
+  id; absent, the currently active terminal gets focus.
+
+### `duo:event` — emit a named event into the bus
+
+```html
+<button data-duo-action="duo:event"
+        data-event="lesson-step-1-done"
+        data-payload='{"score": 5}'>
+  Next step
+</button>
+```
+
+- `data-event="<name>"` (required) — convention `<source>-<noun>-<verb>`
+  e.g. `lesson-step-1-done`.
+- `data-payload="<json-object>"` (optional) — JSON object literal merged
+  into the emitted event payload.
+- Subscribers stream events via `duo events --follow` (Sprint A
+  Commit 2 wires the bus + CLI).
+
 ## Patterns
 
 **Quiz flow (bidirectional Claude ↔ HTML).** A canvas displays a

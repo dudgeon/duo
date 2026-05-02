@@ -41,6 +41,11 @@ domain names that appear in the browser blocklist.
 - **`docs/dev/smoke-checklist.md`** — test matrix walked before
   calling any UI change done.
 - **`docs/dev/cert-procurement.md`** — Stage 21 cert tracker.
+- **`docs/dev/active-sprint.md`** — running scratchpad for the
+  active sprint. **Read this FIRST after any conversation
+  compaction** or when picking up an in-flight initiative. Points
+  at the formal PRD + tracks commit-by-commit progress. Updated
+  at the end of each commit.
 - **`docs/dev/session-log.md`** — running session-by-session log of
   what shipped, why, and what's owed. Most recent at the top. Read
   this if you need to know what happened in prior sessions; do NOT

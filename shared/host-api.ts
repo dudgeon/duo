@@ -91,6 +91,13 @@ export interface ElectronBrowserAPI {
   onTabsChange: (cb: (tabs: BrowserTab[]) => void) => () => void
   /** Stage 15.2 — live selection push from the page-side observer. */
   onSelection: (cb: (push: BrowserSelectionPush) => void) => () => void
+  /** BUG-006 — in-page Send → Duo pill clicks (renderer-DOM pill is
+   *  occluded by the WCV at the macOS compositor level, so we render
+   *  the pill INSIDE the page via CDP and route clicks back here).
+   *  The snapshot is captured synchronously by the page-side IIFE at
+   *  mousedown time and passed through the binding payload (BUG-006
+   *  v2 — eliminates the cache-clear race with selectionchange). */
+  onSendToDuoClick: (cb: (snapshot: import('./types').BrowserSelectionSnapshot | null) => void) => () => void
 }
 
 export interface FileWriteResult {
@@ -407,10 +414,31 @@ export interface CliInstallStatus {
 // runtime module (renderer/components/HtmlCanvas/canvasActions.ts);
 // host-side dispatch lives in App.tsx via WorkingPane → CanvasTab's
 // onCanvasAction prop.
+//
+// Stage 27 — Canvas authoring vocabulary expansion. Six additional
+// verbs let an authored canvas drive the wider Duo surface (open a
+// file in the editor / canvas / browser, reveal in the navigator,
+// scroll to a selection, flip the theme, focus the active terminal,
+// emit an arbitrary event for `duo events --follow` consumers).
+// These power the lesson packs that ship in Stage 28; the primitives
+// land here so tutorial canvases never need bespoke renderer code.
+// All verbs inherit the path-restricted trust gate from Stage 23.
 export type CanvasAction =
   | { kind: 'claude:spawn'; cwd?: string; cmd?: string }
   | { kind: 'terminal:send'; text: string; enter?: boolean }
   | { kind: 'browser:open'; url: string }
+  | { kind: 'editor:open'; path: string; mode?: 'editor' | 'canvas' | 'browser' }
+  | { kind: 'nav:reveal'; path: string }
+  | {
+      kind: 'selection:set'
+      target: 'editor' | 'canvas'
+      text?: string
+      line?: number
+      anchor?: string
+    }
+  | { kind: 'theme:set'; mode: 'light' | 'dark' | 'system' }
+  | { kind: 'terminal:focus'; tabId?: string }
+  | { kind: 'duo:event'; event: string; payload?: Record<string, unknown> }
 
 // Stage 19b — passive priming. Two delivery mechanisms:
 //

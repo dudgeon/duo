@@ -43,7 +43,19 @@ export interface CanvasActionsOptions {
   onMalformed?: (reason: string, el: Element) => void
 }
 
-const KNOWN_VERBS = ['claude:spawn', 'terminal:send', 'browser:open'] as const
+const KNOWN_VERBS = [
+  // Stage 23 originals.
+  'claude:spawn',
+  'terminal:send',
+  'browser:open',
+  // Stage 27 additions — canvas authoring vocabulary.
+  'editor:open',
+  'nav:reveal',
+  'selection:set',
+  'theme:set',
+  'terminal:focus',
+  'duo:event',
+] as const
 
 /**
  * Resolve a click target to its action element.
@@ -88,6 +100,96 @@ function parseAction(el: HTMLElement): { action: CanvasAction } | { error: strin
       const url = el.getAttribute('data-url')
       if (!url) return { error: 'browser:open requires data-url' }
       return { action: { kind: 'browser:open', url } }
+    }
+    // Stage 27 — open an arbitrary file in whichever surface fits.
+    // `data-mode` forces the routing surface (editor | canvas | browser);
+    // when omitted, host falls back to openFileSmart which honors the
+    // file's `<meta name="duo-open-in">` hint.
+    case 'editor:open': {
+      const path = el.getAttribute('data-path')
+      if (!path) return { error: 'editor:open requires data-path' }
+      const modeRaw = el.getAttribute('data-mode')
+      let mode: 'editor' | 'canvas' | 'browser' | undefined
+      if (modeRaw !== null) {
+        if (modeRaw !== 'editor' && modeRaw !== 'canvas' && modeRaw !== 'browser') {
+          return { error: `editor:open data-mode must be editor|canvas|browser (got "${modeRaw}")` }
+        }
+        mode = modeRaw
+      }
+      return { action: { kind: 'editor:open', path, mode } }
+    }
+    // Stage 27 — reveal a path in the file navigator (selects + scrolls
+    // into view, expands ancestors). Same plumbing as the file-tab
+    // context menu's "Reveal in Navigator" entry.
+    case 'nav:reveal': {
+      const path = el.getAttribute('data-path')
+      if (!path) return { error: 'nav:reveal requires data-path' }
+      return { action: { kind: 'nav:reveal', path } }
+    }
+    // Stage 27 — scroll-to-and-select inside the editor or canvas. v1
+    // ships text-search for editor + anchor (data-duo-id) for canvas;
+    // `data-line` is best-effort (clamps to last line in editor; coarse
+    // top-level-child index in canvas — see CanvasTab onDocGoto).
+    case 'selection:set': {
+      const target = el.getAttribute('data-target')
+      if (target !== 'editor' && target !== 'canvas') {
+        return { error: 'selection:set requires data-target="editor" or "canvas"' }
+      }
+      const text = el.getAttribute('data-text') ?? undefined
+      const lineRaw = el.getAttribute('data-line')
+      let line: number | undefined
+      if (lineRaw !== null) {
+        const parsed = Number.parseInt(lineRaw, 10)
+        if (!Number.isFinite(parsed) || parsed < 1) {
+          return { error: `selection:set data-line must be a positive integer (got "${lineRaw}")` }
+        }
+        line = parsed
+      }
+      const anchor = el.getAttribute('data-anchor') ?? undefined
+      if (!text && line === undefined && !anchor) {
+        return { error: 'selection:set requires one of data-text / data-line / data-anchor' }
+      }
+      return { action: { kind: 'selection:set', target, text, line, anchor } }
+    }
+    // Stage 27 — flip the global theme. Mirrors the titlebar toggle and
+    // `duo theme <mode>`. Persists via the same localStorage key.
+    case 'theme:set': {
+      const mode = el.getAttribute('data-theme')
+      if (mode !== 'light' && mode !== 'dark' && mode !== 'system') {
+        return { error: `theme:set requires data-theme="light"|"dark"|"system" (got "${mode ?? '<missing>'}")` }
+      }
+      return { action: { kind: 'theme:set', mode } }
+    }
+    // Stage 27 — focus the active terminal (or a specific tab when
+    // data-tab-id is set). Mirrors ⌘\` toggle behaviour to working-pane
+    // when already on a terminal.
+    case 'terminal:focus': {
+      const tabId = el.getAttribute('data-tab-id') ?? undefined
+      return { action: { kind: 'terminal:focus', tabId } }
+    }
+    // Stage 27 — emit an arbitrary named event for `duo events --follow`
+    // subscribers. `data-payload` is parsed as JSON literal; malformed
+    // JSON surfaces as a developer-facing onMalformed warning.
+    // `data-payload-from` is read by the dispatcher (Commit 3) so it
+    // stays out of the parser surface.
+    case 'duo:event': {
+      const event = el.getAttribute('data-event')
+      if (!event) return { error: 'duo:event requires data-event' }
+      const payloadRaw = el.getAttribute('data-payload')
+      let payload: Record<string, unknown> | undefined
+      if (payloadRaw !== null && payloadRaw !== '') {
+        try {
+          const parsed = JSON.parse(payloadRaw)
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            payload = parsed as Record<string, unknown>
+          } else {
+            return { error: 'duo:event data-payload must be a JSON object literal' }
+          }
+        } catch (err) {
+          return { error: `duo:event data-payload is not valid JSON: ${err instanceof Error ? err.message : String(err)}` }
+        }
+      }
+      return { action: { kind: 'duo:event', event, payload } }
     }
   }
 

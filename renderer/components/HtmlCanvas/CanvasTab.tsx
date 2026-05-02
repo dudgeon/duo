@@ -32,6 +32,7 @@ import {
   setChoiceForDir,
   dirOf
 } from './idInjector'
+import { FEATURE_AUTO_INJECT_IDS } from '@shared/feature-flags'
 import {
   readSidecar,
   writeSidecar,
@@ -582,7 +583,13 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     // affordance (comments, agent ops) and have no purpose in files
     // the user can't modify. Mutating a read-only file's DOM would
     // also dirty the buffer, which the user can't save.
-    const existingIds = readOnly ? 1 : countDuoIds(doc)  // sentinel non-zero skips the injection branch
+    //
+    // v0.5.5 — gated behind FEATURE_AUTO_INJECT_IDS (currently off).
+    // Sentinel non-zero short-circuits the entire prompt-or-inject
+    // branch so files without IDs just open clean. Agents can still
+    // call `duo html stamp-ids` if a session needs anchors. See
+    // shared/feature-flags.ts for re-enable criteria.
+    const existingIds = readOnly || !FEATURE_AUTO_INJECT_IDS ? 1 : countDuoIds(doc)
     if (existingIds === 0) {
       const dir = dirOf(path)
       const choice = getChoiceForDir(dir)
@@ -875,6 +882,60 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       }
     })
   }, [initialHtml, path])
+
+  // Stage 27 — `selection:set` canvas-target listener. The canvas
+  // action handler in App.tsx fires a `duo-canvas-selection-set`
+  // CustomEvent; v1 handles `target: 'canvas'` with `anchor` (matches
+  // data-duo-id first, falls back to plain id) and `line` (Nth
+  // top-level child of <main> / <body>, mirroring onDocGoto). Editor
+  // target is handled in MarkdownEditor; we silently ignore it here.
+  useEffect(() => {
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{
+        target: 'editor' | 'canvas'
+        text?: string
+        line?: number
+        anchor?: string
+      }>).detail
+      if (!detail || detail.target !== 'canvas') return
+      const doc = canvasRef.current?.getDocument()
+      if (!doc) return
+      let target: HTMLElement | null = null
+      if (detail.anchor !== undefined) {
+        const escaped = cssEscape(detail.anchor)
+        target = doc.querySelector<HTMLElement>(`[data-duo-id="${escaped}"]`)
+        if (!target) target = doc.querySelector<HTMLElement>(`#${escaped}`)
+      } else if (detail.line !== undefined) {
+        const root = doc.querySelector('main') ?? doc.body
+        const children = root ? Array.from(root.children) as HTMLElement[] : []
+        const idx = Math.min(Math.max(0, detail.line - 1), Math.max(0, children.length - 1))
+        target = children[idx] ?? null
+      } else if (detail.text !== undefined) {
+        // Best-effort plain-text search inside the rendered canvas.
+        // Walks the DOM, picks the first text node that contains the
+        // needle, and scrolls the parent element into view. No
+        // highlight beyond the same just-added flash that --anchor uses.
+        const needle = detail.text
+        if (needle) {
+          const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null)
+          let node: Node | null
+          while ((node = walker.nextNode())) {
+            if ((node.nodeValue ?? '').includes(needle)) {
+              target = node.parentElement
+              break
+            }
+          }
+        }
+      }
+      if (target) {
+        target.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        target.classList.add('duo-goto-flash')
+        setTimeout(() => target?.classList.remove('duo-goto-flash'), 1500)
+      }
+    }
+    window.addEventListener('duo-canvas-selection-set', handler)
+    return () => window.removeEventListener('duo-canvas-selection-set', handler)
+  }, [])
 
   // 17c — Send → Duo pill click. Format the cached snapshot via the
   // user's current selection-format preference, then hand it to the
