@@ -74,7 +74,7 @@ gate; all parse from `data-*` attributes on the clicked element.
 
 | Verb | Signature (data-*) | What it does |
 |---|---|---|
-| `claude:spawn` | `data-cwd?`, `data-cmd?` | New Claude tab in CWD; optional pre-typed prompt |
+| `claude:spawn` | `data-cwd?`, `data-cmd?` | New Claude tab in CWD; `data-cmd` is Claude's **first user message** (not a shell command — see semantic note below) |
 | `terminal:send` | `data-text`, `data-enter?` | Write to active terminal's PTY; optional auto-Enter |
 | `browser:open` | `data-url` | New browser tab (external-domain blocklist applies) |
 | `editor:open` | `data-path`, `data-mode?` | Open file in editor / canvas / browser |
@@ -264,6 +264,20 @@ through the agent — the agent owns the "between canvases" memory.
 typically the navigator's current folder — which may not be where the
 user expects to start. Always specify the CWD when spawning from a
 canvas; the user's `~` is rarely the right answer.
+
+**`claude:spawn` `data-cmd` semantics — IT'S A CLAUDE PROMPT, NOT A
+SHELL COMMAND.** When `data-cmd` is supplied, the runtime sends
+`claude\n${cmd}\n` to the new PTY: the shell launches Claude, then
+Claude reads the cmd as its **first user message**. So write
+`data-cmd` as natural-language prose ("Read X and walk me through
+it"), NOT as a shell invocation (`claude --prompt "..."` would be
+wrong — `claude` runs first; the cmd lands in Claude's stdin, not
+zsh's). This semantic was clarified in v0.6.1 (ENH-049); pre-v0.6.1
+the cmd was sent directly to the shell, which meant prose cmds
+errored. Authoring agents writing `claude:spawn` data-cmd should
+default to prose; if the canvas needs a SHELL command in the new
+tab, use `claude:spawn` without `data-cmd` and follow up with a
+`terminal:send data-text="..."` button.
 
 **Don't auth-prompt-block at startup.** A canvas that needs the user
 to fill in a form before any action is available makes the canvas
