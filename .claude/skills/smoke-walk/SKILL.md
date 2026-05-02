@@ -137,6 +137,19 @@ Do not offer options. Do not propose alternatives. The skill's
 whole point is to remove the "should I?" friction from sprint-end
 verification.
 
+> **HARD RULE — never write any variant of "to walk, run `npm run dev`"
+> in the handoff message.** That's offloading your job onto the user.
+> The skill is broken if it produces those words. If Duo isn't running
+> when you reach the handoff, you START IT YOURSELF (background `npm
+> run dev`, wait for `duo doctor` to confirm the socket is up,
+> THEN write the handoff). The user's only job is to walk the page —
+> not to debug whether Duo is running.
+>
+> This rule is restated here because Claude has violated it (2026-05-02,
+> walk-3) by telling the user to relaunch — Geoff's response was the
+> obvious one ("NO NO NO -- the fucking skill should tell you this").
+> The skill DID tell you. Read this section before every handoff.
+
 > **CRITICAL — never restart Duo (or kill the dev process tree)
 > AFTER the user has started clicking through the smoke walk page.**
 > Until ENH-038 (textarea persistence) ships, the user's typed walk
