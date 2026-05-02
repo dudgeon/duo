@@ -39,6 +39,12 @@ interface WorkingTabStripProps {
    *  tree row into rename mode. Custom-event-driven so we don't
    *  need to lift FileTree's renamingPath state up to App. */
   onStartRenameFromTab?: (path: string) => void
+  /** ENH-042 — reorder by id pair. Source moves to target's zone
+   *  position; drag direction (sourceIdx vs targetIdx in tabOrder)
+   *  determines insert-before vs insert-after semantics. Cross-zone
+   *  moves are gated here in the strip (we have pin info on tabs)
+   *  before reaching the parent. */
+  onReorderTab?: (sourceId: string, targetId: string) => void
 }
 
 // Stage 12 Phase 3 — tab-strip rhyme. Strip + chip language matches
@@ -55,8 +61,35 @@ export function WorkingTabStrip({
   focused = false,
   onRevealInNavigator,
   onTrashFile,
-  onStartRenameFromTab
+  onStartRenameFromTab,
+  onReorderTab
 }: WorkingTabStripProps) {
+  // ENH-042 — drag visual state. While a tab is being dragged, the
+  // tab being hovered shows an accent-colored insertion cue. Cleared
+  // on drop / dragend.
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null)
+
+  // ENH-042 — zone-aware neighbor lookup for menu items + drag drop.
+  const moveTabBy = (id: string, delta: -1 | 1) => {
+    if (!onReorderTab) return
+    const tab = tabs.find(t => t.id === id)
+    if (!tab) return
+    const zone = tabs.filter(t => t.pinned === tab.pinned)
+    const idx = zone.findIndex(t => t.id === id)
+    const targetIdx = idx + delta
+    if (targetIdx < 0 || targetIdx >= zone.length) return
+    onReorderTab(id, zone[targetIdx].id)
+  }
+  const tryReorderDrop = (sourceId: string, targetId: string) => {
+    if (!onReorderTab) return
+    const source = tabs.find(t => t.id === sourceId)
+    const target = tabs.find(t => t.id === targetId)
+    // Cross-zone drops are silently ignored — pinned tabs always sort
+    // leftmost. The user gets no visual confirmation of the rejection;
+    // accept this as v1, document if it surfaces as confusing.
+    if (!source || !target || source.pinned !== target.pinned) return
+    onReorderTab(sourceId, targetId)
+  }
   // Stage 24 — context menu state (which tab + position) and pinned-tab
   // close-confirm modal state.
   // ENH-026 — extended ctxMenu to carry the tab's path (or null) so we
@@ -146,6 +179,41 @@ export function WorkingTabStrip({
           // ENH-024 — only the active tab gets the ref so the
           // useEffect above can scroll it into view.
           buttonRef={tab.isActive ? activeTabRef : undefined}
+          // ENH-042 — HTML5 drag-and-drop reorder. Each tab is
+          // draggable; dropTargetId paints the accent cue on the
+          // hovered tab. Disabled when no parent reorder callback
+          // (defensive — every consumer wires one in v0.6.3+).
+          draggable={!!onReorderTab}
+          isDropTarget={dropTargetId === tab.id}
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move'
+            e.dataTransfer.setData('application/x-duo-tab-id', tab.id)
+          }}
+          onDragOver={(e) => {
+            const sourceId = e.dataTransfer.types.includes('application/x-duo-tab-id')
+              ? null  // we can't read data on dragover, but the type set is enough
+              : null
+            // Allow drop only if the dragged source is a Duo tab id
+            // (other drag-drop pastes — e.g. text from the editor —
+            // shouldn't claim the tab strip).
+            if (e.dataTransfer.types.includes('application/x-duo-tab-id')) {
+              e.preventDefault()
+              setDropTargetId(tab.id)
+            }
+            void sourceId
+          }}
+          onDragLeave={() => {
+            // Only clear if we're the current target; multiple tabs
+            // race their leave/over events on adjacent moves.
+            setDropTargetId(prev => (prev === tab.id ? null : prev))
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            const sourceId = e.dataTransfer.getData('application/x-duo-tab-id')
+            setDropTargetId(null)
+            if (sourceId) tryReorderDrop(sourceId, tab.id)
+          }}
+          onDragEnd={() => setDropTargetId(null)}
         />
       ))}
 
@@ -190,6 +258,7 @@ export function WorkingTabStrip({
             onTrashRequest: (tabId, path, label) => {
               setConfirmTrash({ tabId, path, label })
             },
+            onMoveTab: onReorderTab ? moveTabBy : undefined,
             onClose: () => {
               setCtxMenu(null)
               // BUG-047 — unmute the WebContentsView when the menu
@@ -250,9 +319,31 @@ interface ItemProps {
   /** ENH-024 — passed by the parent on the active tab so it can
    *  `scrollIntoView` whenever the active tab changes. */
   buttonRef?: React.Ref<HTMLButtonElement>
+  /** ENH-042 — drag-and-drop reorder. Strip-level state passed down. */
+  draggable?: boolean
+  isDropTarget?: boolean
+  onDragStart?: (e: React.DragEvent<HTMLButtonElement>) => void
+  onDragOver?: (e: React.DragEvent<HTMLButtonElement>) => void
+  onDragLeave?: (e: React.DragEvent<HTMLButtonElement>) => void
+  onDrop?: (e: React.DragEvent<HTMLButtonElement>) => void
+  onDragEnd?: (e: React.DragEvent<HTMLButtonElement>) => void
 }
 
-function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose, buttonRef }: ItemProps) {
+function WorkingTabItem({
+  tab,
+  onSelect,
+  onClose,
+  onContextMenu,
+  canClose,
+  buttonRef,
+  draggable,
+  isDropTarget,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd
+}: ItemProps) {
   const label = tabLabel(tab)
   const tooltip = tab.path ?? tab.url ?? label
   return (
@@ -260,11 +351,19 @@ function WorkingTabItem({ tab, onSelect, onClose, onContextMenu, canClose, butto
       ref={buttonRef}
       onClick={onSelect}
       onContextMenu={onContextMenu}
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
       className={[
         'group relative flex items-center gap-1.5 px-2.5 h-7 max-w-[200px] rounded-t-lg shrink-0 transition-colors',
         tab.isActive
           ? 'bg-surface-0 text-ink shadow-[inset_0_1px_0_var(--duo-paper-rule),inset_1px_0_var(--duo-paper-rule),inset_-1px_0_var(--duo-paper-rule)] font-serif italic text-[13px] font-medium'
-          : 'text-ink-mute hover:text-ink-soft hover:bg-surface-2 text-xs'
+          : 'text-ink-mute hover:text-ink-soft hover:bg-surface-2 text-xs',
+        // ENH-042 — accent ring when this tab is the drop target.
+        isDropTarget ? 'ring-2 ring-accent ring-inset' : ''
       ].join(' ')}
       title={tooltip}
     >
@@ -337,9 +436,10 @@ function buildTabContextMenuItems(opts: {
   onRevealInNavigator?: (path: string) => void
   onStartRenameFromTab?: (path: string) => void
   onTrashRequest: (tabId: string, path: string, label: string) => void
+  onMoveTab?: (id: string, delta: -1 | 1) => void
   onClose: () => void
 }): ContextMenuItem[] {
-  const { ctxMenu, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onTrashRequest, onClose } = opts
+  const { ctxMenu, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onTrashRequest, onMoveTab, onClose } = opts
   const items: ContextMenuItem[] = []
   const tab = tabs.find(t => t.id === ctxMenu.tabId)
   const path = ctxMenu.path
@@ -359,6 +459,36 @@ function buildTabContextMenuItems(opts: {
         label: 'Rename…',
         onClick: () => {
           onStartRenameFromTab(path)
+          onClose()
+        }
+      })
+    }
+  }
+
+  // ENH-042 — Move left / Move right. Disabled when the tab is at
+  // the edge of its zone (pinned-leftmost or unpinned-rightmost).
+  // Computed from the strip's current order via tabs[] indices.
+  if (onMoveTab && tab) {
+    const zone = tabs.filter(t => t.pinned === tab.pinned)
+    const zoneIdx = zone.findIndex(t => t.id === ctxMenu.tabId)
+    const canMoveLeft = zoneIdx > 0
+    const canMoveRight = zoneIdx >= 0 && zoneIdx < zone.length - 1
+    if (canMoveLeft) {
+      items.push({
+        label: 'Move tab left',
+        separatorBefore: items.length > 0,
+        onClick: () => {
+          onMoveTab(ctxMenu.tabId, -1)
+          onClose()
+        }
+      })
+    }
+    if (canMoveRight) {
+      items.push({
+        label: 'Move tab right',
+        separatorBefore: items.length > 0 && !canMoveLeft,
+        onClick: () => {
+          onMoveTab(ctxMenu.tabId, 1)
           onClose()
         }
       })

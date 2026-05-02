@@ -3291,9 +3291,10 @@ The smoke-walk page renders in BROWSER mode (`<meta duo-open-in="browser">` so t
 
 ### ENH-042: Tab reordering — move a working-pane tab left / right
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3 (drag + menu; keyboard chord follow-up)
 **Priority:** Medium (small but high-frequency UX paper-cut — users reach for "put this tab next to that one" at workflow-level rates)
 **Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
+**Shipped:** 2026-05-02 — `WorkingPane.tsx` adds a session-local `tabOrder: string[]` of strip-ids, reconciled with the live tab set via useEffect (append unknowns, drop missing). `mergedTabs` now sorts within pinned/unpinned zones independently using `tabOrder` indices. `reorderTab(sourceId, targetId)` callback handles both menu + drag — when source was originally to target's LEFT in tabOrder, insert AFTER target (drag-rightward intent); when RIGHT, insert BEFORE target (leftward). Cross-zone moves are gated in `WorkingTabStrip.tryReorderDrop` (we have pin info on tabs there) before reaching the parent. `WorkingTabItem` is now `draggable` with HTML5 drag handlers (custom `application/x-duo-tab-id` MIME type); dropTargetId paints an accent ring on the hovered tab. New context-menu items "Move tab left" / "Move tab right" — disabled at zone edges. Not persisted across launches: file-tab ids are uuids generated at creation, so cross-launch state would have no anchor. Keyboard chord (⌘⌥← / →) deferred — not blocking for v1; may collide with browser-history nav, needs decision.
 
 **What's wanted:** a way to reorder working-pane tabs. Two interaction patterns to choose from (or both):
 1. **Drag-to-reorder** — pointer-down on a tab, drag horizontally, tab moves between siblings, drop commits.

@@ -5,7 +5,7 @@
 // passes down) into a single unified tab strip. A single active-tab state
 // controls which renderer mounts below the strip.
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cycleNext } from '../keyboard/tabCycle'
 import { BrowserRenderer } from './BrowserRenderer'
 import { MarkdownPreview } from './MarkdownPreview'
@@ -171,13 +171,63 @@ export function WorkingPane({
     }))
   ]
 
-  // Stage 24 — pinned tabs sort to leftmost. Stable order within each
-  // group preserves insertion order (file tabs first by file insertion,
-  // then browser tabs in id order — matches the existing layout).
+  // ENH-042 — user-controlled tab order. tabOrder is a per-session
+  // list of strip-ids that the merge sorts by; new tabs append, closed
+  // tabs drop. Reorder operations (drag, "Move left/right" menu)
+  // mutate tabOrder. Within each pinned/unpinned zone, sort by
+  // tabOrder index; cross-zone reorder is rejected (pinned stays
+  // pinned-leftmost). Not persisted across launches — file-tab ids
+  // are uuids generated on creation, so cross-launch state would have
+  // no anchor to map to. Session-local is enough; the user re-orders
+  // tabs they've just opened, not tabs from yesterday.
+  const [tabOrder, setTabOrder] = useState<string[]>([])
+  // Keep tabOrder reconciled with current strip ids: append unknown
+  // ids in their insertion order, drop ids no longer present. The
+  // join is the dep — string identity is fine here, list is short.
+  const currentIdsKey = unsortedTabs.map(t => t.id).join(',')
+  useEffect(() => {
+    setTabOrder(prev => {
+      const present = new Set(unsortedTabs.map(t => t.id))
+      const filtered = prev.filter(id => present.has(id))
+      const known = new Set(filtered)
+      const appended = unsortedTabs.map(t => t.id).filter(id => !known.has(id))
+      if (filtered.length === prev.length && appended.length === 0) return prev
+      return [...filtered, ...appended]
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIdsKey])
+
+  const orderIdx = new Map(tabOrder.map((id, i) => [id, i]))
+  const byOrder = (a: WorkingTab, b: WorkingTab) =>
+    (orderIdx.get(a.id) ?? Number.POSITIVE_INFINITY) -
+    (orderIdx.get(b.id) ?? Number.POSITIVE_INFINITY)
+
+  // Pinned tabs sort to leftmost (Stage 24); ENH-042 layers tabOrder
+  // on top, sorting WITHIN each zone independently so a user reorder
+  // never crosses the pinned/unpinned boundary.
   const mergedTabs: WorkingTab[] = [
-    ...unsortedTabs.filter(t => t.pinned),
-    ...unsortedTabs.filter(t => !t.pinned)
+    ...unsortedTabs.filter(t => t.pinned).sort(byOrder),
+    ...unsortedTabs.filter(t => !t.pinned).sort(byOrder)
   ]
+
+  // ENH-042 — reorder a tab to land before/after a target in the same
+  // zone. If source was originally to target's LEFT, insert AFTER
+  // target (drag-rightward intent); if RIGHT, insert BEFORE target
+  // (drag-leftward intent). Cross-zone moves silently no-op so the
+  // pinned-leftmost guarantee survives. Also no-ops on self-drop.
+  const reorderTab = useCallback((sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return
+    setTabOrder(prev => {
+      const sourceIdx = prev.indexOf(sourceId)
+      const targetIdx = prev.indexOf(targetId)
+      if (sourceIdx < 0 || targetIdx < 0) return prev
+      const without = prev.filter(id => id !== sourceId)
+      const newTargetIdx = without.indexOf(targetId)
+      if (newTargetIdx < 0) return prev
+      const insertAt = sourceIdx < targetIdx ? newTargetIdx + 1 : newTargetIdx
+      return [...without.slice(0, insertAt), sourceId, ...without.slice(insertAt)]
+    })
+  }, [])
 
   const handleSelect = (id: string) => {
     const parsed = parseId(id)
@@ -335,6 +385,7 @@ export function WorkingPane({
     // contrast. See docs/design/atelier/project/duo-components.jsx ~L286.
     <div className="flex flex-col w-full h-full bg-surface-0">
       <WorkingTabStrip
+        onReorderTab={reorderTab}
         tabs={mergedTabs}
         onSelect={handleSelect}
         onNewFile={onNewFile}
