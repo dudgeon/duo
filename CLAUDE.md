@@ -94,21 +94,40 @@ tab.
 
 ## Glossary — terms the user uses vs. internal names
 
+> **Terminology lock 2026-05-02 (v0.6.1).** "Canvas" used to be
+> overloaded ("the right pane" AND "the interactive HTML thing in
+> Stage 17"). Owner clarified the hierarchy: canvas = the slot
+> (type-agnostic), page = a basic HTML tab inside the slot,
+> playground = a page with interactivity (verbs / events / page-
+> agent feedback), lesson = a playground paired with a guide skill
+> (~/.claude/skills/duo/playground-authoring.md). The internal
+> code names (`WorkingTab.kind === 'html-canvas'`) lag the
+> external vocabulary; ENH-052 tracks the mechanical rename.
+
 | User says | What they mean | Internal name |
 |---|---|---|
-| **the canvas** | The right pane (slot that hosts whatever tab is active) | `WorkingPane` / `activeWorking` |
-| **a canvas** | A single tab inside the right pane (any kind: markdown editor, HTML canvas tab, browser tab, image viewer, PDF viewer, future modalities like JSON viewer) | `WorkingTab` (kinds: `editor`, `html-canvas`, `browser`, `image`, `pdf`, ...) |
+| **the canvas** | The right pane (slot that hosts whatever tab is active) — type-agnostic | `WorkingPane` / `activeWorking` |
+| **a tab** (no qualifier) | A single tab inside the right pane (any kind: markdown editor, page, browser tab, image viewer, PDF viewer, future modalities) | `WorkingTab` (kinds: `editor`, `html-canvas`, `browser`, `image`, `pdf`, ...) |
+| **a page** | A basic HTML tab inside the canvas — static or lightly-styled. Read-only by default; no actions, no events. | `WorkingTab` with `kind: 'html-canvas'` (rename to `kind: 'page'` queued — ENH-052) |
+| **a playground** | A page with interactivity — fires canvas-action verbs (`claude:spawn` / `editor:open` / `nav:reveal` / `selection:set` / `theme:set` / `terminal:focus` / `duo:event` / `terminal:send` / `browser:open`), reads form inputs via `data-payload-from`, emits events that an agent can stream via `duo events --follow`. The interactive tier of a page. Same `kind` internally; the distinction is what's IN the HTML. | `WorkingTab` with `kind: 'html-canvas'` (no internal split — same code path; difference is content) |
+| **a lesson** | A playground paired with an accompanying guide skill (a `.md` Claude reads to drive the user through). The most common consumer of playground primitives. Distributed via Stage 18b packs. | Stage 28 lesson packs at `packs/<name>/{canvases/, lesson-skill/}` |
 | **the navigator** / **the tree** / **the file pane** | The left column with the dual-pane file tree | `FileTree` / `useNavigator` |
 | **the terminal** | The middle column (xterm host) | `TerminalPane` / `tabs[]` |
-| **a tab** (no qualifier) | A working-pane tab (right pane) | `WorkingTab` |
 | **a terminal tab** | One of the xterm sessions in the middle column | `TabSession` |
 
-When user-facing copy or ENH discussions say **"canvas"**, that
-means the right pane — the slot — independent of what's currently
-rendering inside. Don't confuse "the canvas" (slot) with "an HTML
-canvas" (Stage 17 tab kind). Internal code can be precise
-(`activeWorking.kind === 'html-canvas'`); user-facing language uses
-"canvas" as the slot.
+**The page/playground distinction is content-level, not kind-level.**
+Both are the same `WorkingTab` kind (`'html-canvas'` until ENH-052
+mechanically renames). What makes a page a playground is whether
+it has interactivity baked in. A user asking "build me a
+playground" is asking for an HTML page with action verbs and
+events; "build me a lesson" adds a paired `lesson-skill/SKILL.md`
+that Claude reads as the runtime conversation partner.
+
+**When to reach for which.**
+- **Page** — when the artifact is mostly read-only content (a doc, a snippet of inline data, a static reference card the user will glance at).
+- **Playground** — when the user will click buttons, fill forms, expect things to happen in Duo (open a file, focus the terminal, send selected text to Claude). Default for "agent-emitted dashboards" and "interactive references."
+- **Lesson** — when there's a teaching arc with steps, progress, and a Claude session that knows the user is mid-lesson. The lesson skill encodes the arc; the playground encodes the surface.
+- **Start tab** — a playground that ships with Duo (or with a fork's distro) auto-opening on first launch. `intro-to-duo` is one; future "configure your Duo" / "tour the FAQ" / "import your settings" playgrounds belong here too.
 
 ## Build commands
 

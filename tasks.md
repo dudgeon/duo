@@ -3931,3 +3931,124 @@ The user's framing — "many demo lessons in the repo, toggle them on/off in ent
 
 **Cross-ref:** Stage 18b (pack format + loader); ENH-045 (Project Claude Context navigator improvements — its v1d "new project skill" might want to use this same mechanism for project-template packs); fork.config.default.json (the schema).
 
+
+### ENH-052: Mechanical rename of internal "canvas" → "page"/"playground" identifiers
+
+**Status:** 🆕 Filed
+**Priority:** Low (UX-neutral; internal hygiene). Defer until other v0.6.x work settles.
+**Filed:** 2026-05-02 (post-v0.6.0 — terminology lock)
+
+**Owner clarification (2026-05-02):** "canvas is the right pane work area, type agnostic; page is an html canvas tab — basic; as you add interactivity, esp between page and agent, it is a playground; playgrounds are a good way to build a lesson—but they are also good start tabs as people start to customize their duo"
+
+**Context:** The CLAUDE.md glossary now distinguishes:
+- **canvas** — the right pane (slot, type-agnostic) — UNCHANGED meaning
+- **page** — a basic HTML tab inside the canvas (no actions/events) — NEW
+- **playground** — a page with interactivity (data-duo-action, data-payload-from, duo:event) — NEW
+- **lesson** — playground + paired guide skill — NEW
+- **start tab** — a playground that auto-opens on first launch — NEW
+
+The v0.6.1 vocabulary lock renamed the EXTERNAL surface:
+- `skill/canvas-authoring.md` → `skill/playground-authoring.md`
+- `skill/canvas-interaction.md` → `skill/playground-interaction.md`
+
+The INTERNAL surface still uses "canvas":
+- `WorkingTabType: 'html-canvas'` (should rename to `'page'`)
+- `renderer/components/HtmlCanvas/` directory + ~20 files inside
+- `skill/examples/canvas-templates/` directory
+- `~/.claude/duo/packs/<name>/canvases/` (per-pack subdirectory naming convention)
+- `CanvasTab` / `RenderedCanvas` component names
+- `canvasActions.ts` / `canvasSelection.ts` / `canvasPaste.ts` / etc.
+- `'CANVAS_*'` IPC channel names
+- `installCanvasSelection` / `installCanvasActions` / `installCanvasPasteHandlers` exports
+- ENH-022's `duo doc goto --anchor` → `duo html *` verbs (these stay since "html" is correct, but tasks.md docs say "canvas" in many places)
+
+**What's wanted:** a focused mechanical rename PR that touches every internal "canvas" identifier and renames to either "page" (basic) or "playground" (interactive) per context. Most things are pages → playgrounds, so default to "playground" for interactive surfaces and "page" only when the basic-no-interactivity tier is meaningful.
+
+**Risk profile:** mechanical, but high blast-radius (touches 50+ files). Best done as ONE focused PR that's never merged piecemeal — a half-renamed codebase is worse than the current state. Prefer a worktree branch for the rename so the diff is reviewable in one go.
+
+**Suggested order (per file group, atomic):**
+1. `WorkingTabType` enum rename `'html-canvas'` → `'page'`. Touch: shared/types.ts, fileClassifier.ts, every consumer doing `kind === 'html-canvas'` (~15 files).
+2. Component dir rename: `renderer/components/HtmlCanvas/` → `renderer/components/Page/`. Update imports.
+3. File rename inside: `CanvasTab.tsx` → `PageTab.tsx`, `RenderedCanvas.tsx` → `RenderedPage.tsx`, `canvasActions.ts` → `pageActions.ts`, etc.
+4. IPC channel renames: `CANVAS_*` → `PAGE_*` (or keep CANVAS_ as the wire-format constant; user-facing names stay aligned with the new vocab).
+5. Per-pack subdirectory: `canvases/` → `pages/` in PACK.json defaults references + the existing two packs (`intro-to-duo`, `claude-code-basics`).
+6. `skill/examples/canvas-templates/` → `skill/examples/playground-templates/` (these ARE playgrounds — they have action verbs).
+7. `tasks.md` historical references — leave as-is for closed entries; the rename only applies to new entries going forward.
+
+**Cross-ref:** v0.6.1 vocabulary lock commit (the external rename — skill files + glossary); ENH-053 (lesson template/runtime — wants the new vocabulary); ENH-054 (user entry point — same).
+
+---
+
+### ENH-053: Canonical lesson template + runtime helper skill (closes meta-goal gaps 2 + 3)
+
+**Status:** 🆕 Filed
+**Priority:** **High — load-bearing for the meta-goal.** Without this, every lesson is a snowflake.
+**Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
+
+**Meta-goal context (owner framing):** "Users, who don't yet understand what a canvas (is this more of a playground?) really is need to be able to give Claude/duo high level instructions (I want to make a training/guide) and Claude/duo need to understand the patterns and primitives, both for the interface and the accompanying lesson skill."
+
+**Gap 2 — no canonical lesson-skill template.** The two example packs (`intro-to-duo`, `claude-code-basics`) each invented their own SKILL.md structure:
+- `intro-to-duo/lesson-skill/SKILL.md` — single-step, single-canvas. Walks the user through the lesson via direct Claude conversation.
+- `claude-code-basics/lesson-skill/SKILL.md` — multi-step, multi-canvas. Different structure entirely.
+
+A third lesson would invent a third structure. We need a **canonical template** that says: "here's how a lesson skill is laid out — frontmatter, step-state machine, event-loop reference, how to paint into `data-duo-pane` regions." Future lessons extend this rather than starting from scratch.
+
+**Gap 3 — no runtime helper for the page↔skill conversation.** The current pattern: playground emits `duo:event step-complete`, skill listens via `duo events --follow`, parses, then writes content via `duo doc write` or `duo html update`. Every lesson skill re-implements this loop manually. The boilerplate is substantial — error handling, cursor resumption on reconnect, distinguishing this-lesson's events from other events on the bus, gracefully stopping when the user closes the lesson tab.
+
+**What's wanted (v1):**
+1. **Lesson template at `skill/examples/lesson-template/`** — a paired `playground.html` + `lesson-skill/SKILL.md` skeleton. Comments call out the points where authors customize (step content, transition conditions, completion check). The template uses canonical step-state, canonical event names (`lesson:step-start`, `lesson:step-complete`, `lesson:done`), and canonical `data-duo-pane` regions (`step-content`, `step-feedback`, `step-controls`).
+2. **`skill/lesson-runtime.md` skill** — explains the canonical event-loop. When Claude reads this skill, it knows how to: subscribe to `duo events --follow --since <cursor>` filtered to the current lesson, react to step-complete by paint-into-pane, react to step-skip by branch, react to lesson-done by celebrate + close. Also describes the cursor-persistence pattern (write cursor to a sidecar JSON so reconnects resume).
+3. **Update `playground-authoring.md`** — add a "Lessons specifically" section that points at the template + runtime + canonical events.
+
+**v2 (queued):**
+- A `duo lesson scaffold <name>` CLI verb that copies the template into `~/.claude/duo/packs/<name>/` with the directory structure pre-populated.
+- A `duo lesson preview <name>` CLI verb that opens the playground + auto-spawns Claude with the lesson skill, so the author can fly through the lesson to test it.
+
+**Cross-ref:** ENH-054 (user entry point — the "I want to build a training" surface uses this template); ENH-049 (the `claude:spawn` data-cmd semantic that lessons rely on); Stage 28 lesson packs (today's snowflakes — both refactored to use the new template once it lands).
+
+---
+
+### ENH-054: User entry point for "I want to make a training/guide" (closes meta-goal gap 1)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-high (downstream of ENH-053; meaningless until the template exists).
+**Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
+
+**Meta-goal:** A user with no understanding of canvas/page/playground/lesson terminology says "I want to build a training" and gets there. Today there's no canonical entry point — a Claude session would need to invoke the playground-authoring skill manually + improvise scaffolding.
+
+**What's wanted:** a discoverable invocation that scaffolds a new lesson from a brief description. Two candidate shapes:
+
+**Option A — CLI:** `duo lesson new <name>` — interactive prompt asks "what topic" / "how many steps" / "single playground or multi-playground", scaffolds `~/.claude/duo/packs/<name>/` from the ENH-053 template, opens the new playground in the canvas, optionally `claude:spawn`s a Claude tab with the lesson skill pre-loaded.
+
+**Option B — Canvas action:** a "build a lesson" button on a meta-playground (perhaps `intro-to-duo`'s welcome page gets a "build your own lesson" button next to "start the demo lesson"). Click → fires `claude:spawn` with a data-cmd that points the agent at `lesson-runtime.md` + the canonical template, with the user's intent as the first message ("I want to build a lesson on X").
+
+**Recommended: both.** A is for power users + agents that already know to reach for it; B is for the FTUX user who doesn't yet know `duo` is a CLI.
+
+**Sequencing:** ENH-053 first (template + runtime); this ENH builds on top of that.
+
+**Cross-ref:** ENH-053 (template the entry point copies from); ENH-049 (claude:spawn data-cmd is the mechanism Option B uses).
+
+---
+
+### ENH-055: Lesson preview / fly-through harness (closes meta-goal gap 5)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (downstream of ENH-053). Without it, lesson authors can't reliably test what they built.
+**Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
+
+**Context:** A user (or Claude on the user's behalf) authors a new lesson via ENH-053's template + ENH-054's entry point. They want to TEST it before shipping. Today there's no harness — they'd manually click each button, watch events, eyeball the state transitions. Bugs surface at smoke-walk time rather than authoring time.
+
+**What's wanted:** a harness that fires every action verb in the playground's HTML, observes the resulting events, validates the lesson runs end-to-end without manual intervention. Output: a pass/fail report that says which steps the lesson advanced through cleanly + which got stuck.
+
+**Implementation sketch (v1):**
+1. `duo lesson preview <pack-name>` CLI verb. Opens the playground + auto-spawns Claude with the lesson skill.
+2. Agent-side: read the playground's HTML, enumerate action buttons in document order, simulate clicks via `duo html click <selector>`, observe event stream via `duo events --follow`, advance step-by-step.
+3. After each click: assert the expected event fires + the expected `data-duo-pane` repaints.
+4. Report at end: "Step 1 → 2 → 3 → done" or "Step 2 stuck; expected event 'lesson:step-complete' but got 'lesson:step-error'."
+
+**v2 (queued):**
+- Snapshot-based regression: capture a "golden" event stream on first preview pass; subsequent runs assert the stream matches (plus tolerance for non-deterministic content).
+- Coverage report — which buttons fired, which paths through the lesson got walked, which branches are unreachable.
+
+**Cross-ref:** ENH-053 (template — defines the canonical events the harness asserts on); ENH-054 (entry point — preview is the natural next step after authoring).
+

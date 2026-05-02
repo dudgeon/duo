@@ -1,33 +1,61 @@
-# Authoring canvases for Duo
+# Authoring pages and playgrounds for Duo
 
-> **Stage 27 — `skill/canvas-authoring.md`.** Full reference for the
-> canvas authoring vocabulary: action verbs, paint regions, form
-> bindings, routing meta tags, and the anti-patterns that turn an
-> authored canvas from "demo" into "actual tool the user keeps
-> coming back to."
+> **Stage 27 — `skill/playground-authoring.md`.** Full reference for
+> authoring HTML content that lives in Duo's canvas (the right pane).
+> Action verbs, paint regions, form bindings, routing meta tags, and
+> the anti-patterns that turn an authored page from "demo" into
+> "actual tool the user keeps coming back to."
 >
-> **Reach for this file when** the user asks you to: create an HTML
-> canvas, design a multi-step lesson, build a dashboard with paint
-> regions, choose between canvas / browser / markdown, or pick the
-> right action verb for a button. **Reach for `canvas-interaction.md`
-> when** they ask you to OPEN, READ, or DRIVE an existing canvas
-> (paint into it, query its DOM, react to clicks).
+> **Vocabulary lock (v0.6.1).** Read this carefully — the words have
+> specific meanings:
+> - **canvas** — the right pane of Duo (slot, type-agnostic). Holds
+>   whatever tab is active. NOT the thing you author.
+> - **page** — a basic HTML tab inside the canvas. Static or lightly
+>   styled. No actions, no events. Just rendered content.
+> - **playground** — a page WITH interactivity. Has `data-duo-action`
+>   buttons, form inputs piped via `data-payload-from`, emits events
+>   via `duo:event`. The interactive tier of a page. Same `<iframe>`
+>   runtime, same trust gate, same routing — distinction is what's
+>   IN the HTML.
+> - **lesson** — a playground paired with a guide skill (a `.md`
+>   Claude reads to drive the user through). Distributed via Stage
+>   18b packs.
+> - **start tab** — a playground that auto-opens on first launch
+>   (Stage 18b's `PACK.json § defaults[].openOnFirstLaunch`).
+>   `intro-to-duo` is one. Future "set up your Duo" /
+>   "tour the FAQ" / "import settings" playgrounds belong here.
 >
-> The shorter Stage 23 cheat sheet at `skill/examples/canvas-actions.md`
-> is the drive-by lookup for action-verb signatures.
+> When the user says "build me a training" / "make a guide" / "give
+> me a way to teach my team X," they're asking for a **lesson**:
+> playground + skill + (optional) pack. When they say "give me a
+> dashboard" or "make me a playground to test X," they're asking
+> for a playground without the skill.
+>
+> **Reach for this file when** the user asks you to: create a
+> page, build a playground, design a multi-step lesson, build a
+> dashboard with paint regions, choose between page / browser /
+> markdown, or pick the right action verb for a button. **Reach
+> for `playground-interaction.md` when** they ask you to OPEN,
+> READ, or DRIVE an existing page or playground (paint into it,
+> query its DOM, react to clicks).
+>
+> The shorter Stage 23 cheat sheet at
+> `skill/examples/canvas-actions.md` is the drive-by lookup for
+> action-verb signatures.
 
 ---
 
-## When to canvas, when to browser, when to markdown editor
+## When to page / playground, when to browser, when to markdown editor
 
 | Surface | Use when |
 |---|---|
-| **HTML canvas** | The artifact is *interactive* (buttons that drive Duo) OR *visually structured* (diagrams, multi-pane dashboards, comparison tables). Click handlers on buttons drive `data-duo-action` verbs. Canvas iframes are sandboxed (`allow-scripts` is OFF) so authored content stays inert outside Duo. |
-| **Browser tab** | The artifact is a static reference document the user wants to read uninterrupted (long FAQ, what-duo-does page). Browser-tab routing keeps form inputs and links functional natively. Use `<meta name="duo-open-in" content="browser">` to direct Duo to open the file there instead of the canvas. |
+| **Playground** (interactive HTML) | The artifact is *interactive* (buttons that drive Duo via `data-duo-action`) OR *visually structured* (diagrams, multi-pane dashboards, comparison tables). Iframes are sandboxed (`allow-scripts` is OFF) so authored content stays inert outside Duo. Verbs run via the renderer's delegated dispatcher; events emit via `duo:event` for an agent to stream. |
+| **Page** (static HTML) | The artifact is HTML you want rendered cleanly inside the canvas slot but it doesn't yet need interactivity. Same iframe runtime as a playground; just no `data-duo-action` buttons. Add interactivity later → it becomes a playground without changing tabs. |
+| **Browser tab** | The artifact is a static reference document the user wants to read uninterrupted (long FAQ, what-duo-does page). Browser-tab routing keeps form inputs and links functional natively. Use `<meta name="duo-open-in" content="browser">` to direct Duo to open the file there instead of as a page in the canvas. |
 | **Markdown editor** | The artifact is text-first prose the user wants to edit collaboratively with the agent. Use markdown when the content is *the point*, not the interaction. |
 
-Canvas is the right answer when the page IS the UI — buttons, forms,
-paint regions, anything where the user clicks and Duo reacts.
+A playground is the right answer when the page IS the UI — buttons,
+forms, paint regions, anything where the user clicks and Duo reacts.
 
 ---
 

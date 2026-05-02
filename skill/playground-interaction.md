@@ -1,17 +1,24 @@
-# Interacting with HTML canvases in Duo
+# Interacting with pages and playgrounds in Duo
 
-> **Stage 27 — `skill/canvas-interaction.md`.** How to OPEN a local
-> HTML file in Duo, READ what's on a canvas, and DRIVE a running
-> canvas (paint into it, query its DOM, react to user clicks).
-> Companion to `skill/canvas-authoring.md`, which covers CREATING
-> canvases.
+> **Stage 27 — `skill/playground-interaction.md`.** How to OPEN a
+> local HTML file in Duo, READ what's on a page or playground, and
+> DRIVE a running playground (paint into it, query its DOM, react
+> to user clicks). Companion to `skill/playground-authoring.md`,
+> which covers CREATING pages and playgrounds.
+>
+> **Vocabulary lock (v0.6.1).** "Canvas" is the right pane (slot,
+> type-agnostic). What you author and read here is a **page**
+> (basic HTML tab) or a **playground** (page with interactivity —
+> action verbs, events, form bindings). A **lesson** is a playground
+> + a guide skill. See `playground-authoring.md` § Vocabulary lock
+> for the full breakdown.
 >
 > **Reach for this file when** the user asks you to: open an HTML
-> file they have, read what's on a canvas they're looking at, repaint
-> a region of a canvas in response to something, debug why a canvas
-> button isn't firing, or subscribe to canvas-driven events. **Reach
-> for `canvas-authoring.md` when** they ask you to CREATE a canvas
-> from scratch or from a template.
+> file they have, read what's on a page they're looking at, repaint
+> a region of a playground in response to something, debug why a
+> playground button isn't firing, or subscribe to playground-driven
+> events. **Reach for `playground-authoring.md` when** they ask you
+> to CREATE a page or playground from scratch or from a template.
 
 ---
 
@@ -20,12 +27,13 @@
 | What the user asked | Right skill |
 |---|---|
 | "Open today's notes" / "show me that HTML I made" | `interaction` (this file) — `editor:open` / `duo edit` |
-| "Read what's in the welcome canvas" | `interaction` — `duo html query` / `duo html get` |
-| "Add a Save button to this canvas" | **`authoring`** — modify markup with action verbs |
-| "Build a tutorial canvas with three steps" | **`authoring`** — pick a template + author content |
+| "Read what's in the welcome page" | `interaction` — `duo html query` / `duo html get` |
+| "Add a Save button to this page" | **`authoring`** — modify markup with action verbs (page becomes a playground) |
+| "Build a tutorial playground with three steps" | **`authoring`** — pick a template + author content |
+| "Build me a lesson on X" | **`authoring`** — playground + paired lesson-skill |
 | "Update the result pane with what I just computed" | `interaction` — `duo html update --selector` |
 | "Why isn't the button firing?" | `interaction` — debug trust gate + console |
-| "Watch for clicks on the lesson canvas" | `interaction` — `duo events --follow` |
+| "Watch for clicks on the lesson playground" | `interaction` — `duo events --follow` |
 | "What action verbs can I add to a button?" | **`authoring`** — vocabulary cheat sheet |
 
 In a single session you might cross between modes (a user opens a
