@@ -308,6 +308,31 @@ async function createWindow(): Promise<void> {
       } catch (err) {
         console.warn('[main] browser-tab restore failed:', (err as Error)?.message ?? err)
       }
+
+      // BUG-057 — auto-open pinned browser tabs that aren't in the
+      // restored session. Pins.json is authoritative for "I want
+      // these tabs to come back every time"; without this step,
+      // closing a pinned tab drops it from session-state, and the
+      // pin entry becomes a dangling reference. Owner's framing:
+      // "pinned files should stay pinned and NEVER be lost between
+      // sessions or after app updates/upgrades — that's the whole
+      // point of the feature." Browsers (Chrome, Safari) auto-reopen
+      // pinned tabs on restart; matching that convention here.
+      try {
+        const pinnedEntries = await pinsService.list()
+        const browserPins = pinnedEntries.filter(p => p.kind === 'browser')
+        if (browserPins.length > 0) {
+          // Snapshot what's currently open after session restore.
+          const currentUrls = new Set(browserManager.getTabs().map(t => t.url))
+          for (const pin of browserPins) {
+            if (!currentUrls.has(pin.ref)) {
+              browserManager.addTab(pin.ref)
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[main] pinned browser tab auto-open failed:', (err as Error)?.message ?? err)
+      }
     }
 
     // Stage 18b — first-launch defaults hook. Runs AFTER session

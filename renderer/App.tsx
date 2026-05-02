@@ -275,6 +275,8 @@ export function App() {
     const next = await window.electron.pins.toggle(entry)
     setPins(next)
   }, [])
+
+  // BUG-057 file-tab pin auto-open lives below, after sessionHydrated.
   // App-level pinned-close confirmation (used by the ⌘W keyboard path
   // when the active working tab is pinned). Strip-side close-button
   // path uses its own local state in WorkingTabStrip — both render
@@ -367,6 +369,68 @@ export function App() {
       setSessionHydrated(true)  // don't block the save loop on a load failure
     })
   }, [home])
+
+  // BUG-057 — auto-open pinned file tabs that aren't in the
+  // session-restored fileTabs list. Mirrors the main-side logic for
+  // browser pins (in did-finish-load): pins.json is the authoritative
+  // "I want these tabs to come back every time" list; without this
+  // step, closing a pinned tab drops it from session-state.json and
+  // the pin entry becomes a dangling reference. Owner: "pinned files
+  // should stay pinned and NEVER be lost between sessions — that's
+  // the whole point."
+  //
+  // Runs after sessionHydrated so we know the restore step has
+  // settled. Adds any missing pinned file tabs to fileTabs WITHOUT
+  // changing the active tab (session-restore's `activeWorking`
+  // wins; pin-auto-opens are background tabs).
+  const pinAutoOpenRanRef = useRef(false)
+  useEffect(() => {
+    if (!sessionHydrated) return
+    if (pinAutoOpenRanRef.current) return
+    pinAutoOpenRanRef.current = true
+    const filePins = pins.filter(p => p.kind === 'file')
+    if (filePins.length === 0) return
+    setFileTabs(prev => {
+      const existing = new Set(prev.map(t => t.path))
+      const missing = filePins.filter(p => !existing.has(p.ref))
+      if (missing.length === 0) return prev
+      // Verify each missing path actually exists before opening — a
+      // pinned file the user moved or deleted shouldn't crash the
+      // tab UI. Fire-and-forget; result lands as a follow-up state
+      // update.
+      Promise.all(
+        missing.map(async p => {
+          const exists = await window.electron.files.exists(p.ref)
+          return exists ? p : null
+        })
+      ).then(results => {
+        const valid = results.filter((r): r is PinEntry & { kind: 'file' } => r !== null)
+        if (valid.length === 0) return
+        setFileTabs(current => {
+          const stillMissing = valid.filter(p => !current.some(t => t.path === p.ref))
+          if (stillMissing.length === 0) return current
+          const newTabs = stillMissing.map(p => {
+            const { type, mime } = classifyFile(p.ref)
+            return {
+              id: crypto.randomUUID(),
+              type,
+              path: p.ref,
+              title: p.title || p.ref.slice(p.ref.lastIndexOf('/') + 1) || p.ref,
+              mime
+            }
+          })
+          return [...current, ...newTabs]
+        })
+      }).catch(err => {
+        console.warn('[pins] auto-open file tabs failed:', err)
+      })
+      return prev
+    })
+    // Intentionally only depend on sessionHydrated — pins state may
+    // change later (toggle), but auto-open is a one-shot boot-time
+    // reconciliation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionHydrated])
 
   // Debounced save on every change post-hydration. The 500ms in
   // renderer + 250ms in main coalesces bursty edits into a single
