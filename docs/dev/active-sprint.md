@@ -16,30 +16,41 @@
 
 ## Current state — last updated 2026-05-01
 
-**Active sprint:** Sprint B complete (Stage 18b v1 minimums).
-**Active commit:** Sprint C Commit 1 (Stage 28 — intro-to-duo pack).
+**Active sprint:** Sprint C complete (Stage 28 packs shipped).
+**Next move:** v0.6.0 cut OR human-walked smoke-walk pickup.
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Sprints A + B complete. Sprint A landed Stage 27
-primitives in six commits (c11d999 → 11d484c). Sprint B landed
-Stage 18b's v1 minimum scope in five commits (2646f62 → b04ce8e):
-PACK.json schema, PackLoader, first-launch defaults hook + atomic
-state file, `duo packs` CLI verb. The CLI walk passed end-to-end —
-test-pack discovered, malformed bad-pack errored without crashing,
-first-launch fired, second boot stayed quiet, version bump re-fired.
-V9 trust-gate verification deferred (inherited from Stage 23).
+**Status:** Three sprints, sixteen commits.
 
-## Sprint C — Stage 28 plan
+| Sprint | Stage | Commits | Outcome |
+|---|---|---|---|
+| A | 27 — canvas authoring vocabulary | 6 (c11d999 → 11d484c) | All shipped. Smoke walk blocked-on-visual-walk; CLI surface verified. |
+| B | 18b — distro skill packs (v1 minimums) | 5 (2646f62 → 78ae208) | All shipped. CLI walk passed end-to-end. extra-skills/ merge + UI deferred to Stage 18c. |
+| C | 28 — lesson packs | 3 (f709ddf, … this commit) | Both packs shipped: `intro-to-duo` + `claude-code-basics`. CLI walk passed; visual lesson walks need a human. |
 
-Two lesson packs that ship as part of v0.6.0:
+## Sprint C smoke walk results
 
-| # | Commit | Files |
-|---|---|---|
-| 1 | `intro-to-duo` pack scaffold (PACK.json + canvases/welcome.html + canvases/step-{1..N}.html using lesson-scaffold template) | `~/.claude/duo/packs/intro-to-duo/` (synthesized into the repo for distro), `docs/prd/stage-28-lesson-packs.md` updates |
-| 2 | `intro-to-duo-lesson` skill (markdown reference for the agent that runs `duo events --follow` + `duo html update --selector` to advance the lesson) | `~/.claude/skills/intro-to-duo-lesson/SKILL.md` (synthesized into the repo) |
-| 3 | `claude-code-basics` pack — multi-canvas derived from `untitled-folder/claude-code-basics-temp.md`. One canvas per Family / 30-min spine module | similar shape to intro-to-duo; references the source curriculum |
-| 4 | `claude-code-basics-lesson` skill — same agent-side pattern as intro-to-duo; tracks state for the multi-canvas user flow | mirrors Commit 2 shape |
-| 5 | End-of-Sprint-C smoke walk — boot fresh, both packs first-launch, dismiss patterns work, lesson advances on click | `docs/dev/smoke-walks/v0.6.0-stage-28-rev1.{html,json}` |
-| 6 | v0.6.0 cut — fold in v0.5.5 carry-overs (BUG-006/049/050/047/028, ENH-032), Sprints A+B+C, smoke pass | `docs/RELEASES.md`, `CHANGELOG.md`, `package.json`, `cli/duo`, signed DMG |
+Manifest at `docs/dev/smoke-walks/v0.6.0-stage-28-rev1.json`
+(gitignored). V1–V5 + V8 + V9 pass; V6/V7 (visual lesson walks)
+deferred to a human walker before any cut.
+
+**Authoring stress-test outcome:** every interaction in both packs
+uses only Sprint A primitives. No primitive gaps surfaced — that's
+the validation goal of Sprint C met.
+
+## What's owed before v0.6.0 cut
+
+1. **Human visual walk** of intro-to-duo + claude-code-basics
+   (V6/V7 above). Confirms the lesson agent's paint cycle works
+   end-to-end with a real user clicking through.
+2. **Sprint A V1–V16 visual walks** at
+   `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html`. Same blocker
+   as before — needs UI clicks to verify each verb.
+3. **v0.5.5 carry-over fixes** still in working tree
+   (BUG-006/049/050/047/028, ENH-032 + auto-inject feature flag,
+   smoke-walk generator duo-open-in change). Not committed yet
+   but mostly self-contained — fold into the v0.6.0 cut.
+4. **CHANGELOG / RELEASES.md drafting** for v0.6.0 covering
+   Stages 27 + 18b + 28 + the v0.5.5 carry-overs.
 
 ## Big-picture initiative
 

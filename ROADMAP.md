@@ -131,8 +131,8 @@ Layer 2 — New surfaces (built against Layer 1)
    22    Navigator dual-pane overhaul (context pedagogy)               ✓ shipped v0.4.0
    23    Canvas actions — Claude ↔ HTML loop (data-duo-action)         ✓ shipped v0.3.0
    26    Navigator polish & ergonomics (row-interaction + pins)         ← promoted from backlog 2026-04-27
-   27    Canvas authoring vocabulary + skill                            ← new 2026-05-01 (Sprint A — primitives for tutorial packs)
-   28    First-launch lesson packs (intro-to-duo + claude-code-basics)  ← new 2026-05-01 (Sprint C — content built ON the primitives)
+   27    Canvas authoring vocabulary + skill                            ✓ Sprint A shipped 2026-05-01
+   28    First-launch lesson packs (intro-to-duo + claude-code-basics)  ✓ Sprint C shipped 2026-05-02 (lesson walks need human verification)
 
 Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
    18    First-launch self-install (no cert needed)                    ← FTUX trio leg
