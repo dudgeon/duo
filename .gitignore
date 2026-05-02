@@ -66,3 +66,9 @@ fork.config.local.json
 # hierarchy out of git unless someone explicitly wants to commit a
 # manifest as a release receipt (rare).
 docs/dev/smoke-walks/*
+
+# Owner's idle-thoughts scratchpad — personal working file the
+# `agent` reads + processes per the convention at the top of the
+# file. Not a commit-worthy artifact (gets emptied as items move
+# to Processed and eventually pruned).
+idle-thoughts.md
