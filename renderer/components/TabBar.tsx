@@ -96,13 +96,11 @@ export function TabBar({
       <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
         <button
           onClick={onNewClaude}
-          className="w-7 h-6 flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
+          className="w-7 h-6 flex items-center justify-center hover:bg-surface-3 transition-colors"
           title={claudeTip}
           aria-label={claudeTip}
         >
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+          <ClawdGlyph />
         </button>
         <span aria-hidden="true" className="w-px h-3 bg-paper-rule" />
         <button
@@ -227,6 +225,35 @@ function ClaudeIcon({ active }: { active: boolean }) {
         fill="currentColor"
         fillOpacity="0.18"
       />
+    </svg>
+  )
+}
+
+// ENH-044 — clawd glyph for the new-Claude split-button affordance.
+// Source: Inkscape canvas authored by Geoff (`renderer/assets/icons/clawd.svg`).
+// Cropped from the original 210mm × 297mm A4 canvas to the creature's
+// bounding box. The fixed `#c15f3c` body color (Atelier accent family)
+// is preserved as the icon's visual identity — this is intentional;
+// clawd reads as "Claude" in both themes regardless of currentColor.
+// If a button hover wants to tint, do it via a wrapper opacity, not
+// by switching fills. Eyes are pure white pixels (96×96 each in the
+// original coord system).
+function ClawdGlyph() {
+  return (
+    <svg
+      width="16"
+      height="9"
+      viewBox="27.4 38.2 38.3 22.4"
+      aria-hidden="true"
+    >
+      <g transform="matrix(0.03329941,0,0,0.03329941,60.408867,-2.3441801)">
+        <path
+          d="m -31.782336,1890.5197 v -384 H 160.21767 v -192 H -31.782336 v -192 H -799.78233 v 192 h -192.00002 v 192 h 192.00002 v 384 h 96 v -192 h 96 v 192 h 96 v -192 h 192 v 192 h 96 v -192 h 96 v 192 z"
+          fill="#c15f3c"
+        />
+        <path d="m -223.78233,1314.5197 v -96 h 96 v 96 z" fill="#ffffff" />
+        <path d="m -607.78233,1218.5197 v 96 h -96 v -96 z" fill="#ffffff" />
+      </g>
     </svg>
   )
 }

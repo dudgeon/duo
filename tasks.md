@@ -3670,9 +3670,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### ENH-044: New-claude-terminal button needs a custom icon — `clawd.svg` available
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.2
 **Priority:** Low (cosmetic).
 **Filed:** 2026-05-02 (idle-thoughts.md item)
+**Shipped:** 2026-05-02 — copied owner's `clawd.svg` into `renderer/assets/icons/clawd.svg` (with provenance comment + cropped viewBox from the original 210mm × 297mm A4 canvas) and replaced the generic `+` glyph in TabBar.tsx's new-Claude split-button half with an inline `ClawdGlyph` React component. The `#c15f3c` body color (Atelier accent family) is preserved as the icon's visual identity — this matches `ClaudeIcon` / `TerminalIcon` already living inline in the same file. The eye-pixels stay pure white. Deleted the source file from `~/Desktop/clawd.svg`.
 
 **What's wanted:** the "New Claude terminal" button in the terminal-tab strip's `+` affordance currently uses a generic terminal icon (or no icon — owner observation pending). Owner has provided a custom icon: `/Users/geoffreydudgeon/Desktop/clawd.svg`.
 

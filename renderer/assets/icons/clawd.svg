@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ENH-044 — clawd glyph used by the new-Claude split-button affordance
+  in the terminal tab strip. Source: Inkscape canvas authored by Geoff
+  (2026-05-02). Cropped from the original 210mm × 297mm A4 canvas to
+  the creature's actual bounding box so it renders at button size
+  without empty padding. Original color: c15f3c (Atelier accent
+  family) — preserved as the visual identity. The glyph is the
+  authoritative visual cue for "open a new Claude tab" anywhere in
+  the renderer; if it gets reused (titlebar, status pill, etc.), it
+  should always carry that semantic.
+-->
+<svg
+   width="38.3mm"
+   height="22.4mm"
+   viewBox="27.4 38.2 38.3 22.4"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+  <g transform="matrix(0.03329941,0,0,0.03329941,60.408867,-2.3441801)"
+     style="fill:#c15f3c;fill-opacity:1;stroke-width:23.8368">
+    <path
+       d="m -31.782336,1890.5197 v -384 H 160.21767 v -192 H -31.782336 v -192 H -799.78233 v 192 h -192.00002 v 192 h 192.00002 v 384 h 96 v -192 h 96 v 192 h 96 v -192 h 192 v 192 h 96 v -192 h 96 v 192 z"
+       style="fill:#c15f3c;fill-opacity:1;stroke:none" />
+    <path
+       d="m -223.78233,1314.5197 v -96 h 96 v 96 z"
+       style="fill:#ffffff;fill-opacity:1;stroke:none" />
+    <path
+       d="m -607.78233,1218.5197 v 96 h -96 v -96 z"
+       style="fill:#ffffff;fill-opacity:1;stroke:none" />
+  </g>
+</svg>
