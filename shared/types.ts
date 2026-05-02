@@ -850,6 +850,77 @@ export interface SelectionFormatStateSnapshot {
   format: SelectionFormat
 }
 
+// ── ENH-050: native NSMenu + system sheet dialog primitives ──────────────────
+//
+// Renderer sends a flat template of menu items; main builds the
+// macOS-native menu and pops it. Items are leaves only (v1) — no
+// submenus. The chosen item's `id` returns to the renderer; the
+// renderer maps the id to the action it wants to fire.
+//
+// Why flat: keeps the wire format simple, avoids serializing
+// click handlers across IPC. The renderer maps id → handler
+// after the response lands. v2 can add submenu support if needed.
+
+export interface MenuTemplateItem {
+  /** Stable id the renderer maps back to a click handler. Required
+   *  for actionable rows; use unique values like 'reveal' / 'pin' /
+   *  'trash'. Ignored for separators. */
+  id?: string
+  /** The label shown in the menu. Required for actionable rows. */
+  label?: string
+  /** Electron accelerator string, e.g. "CommandOrControl+Alt+Left".
+   *  Renders on the right side of the menu item via OS conventions.
+   *  v1 doesn't bind the accelerator to actually fire the menu item
+   *  outside the menu — the row is just visually labeled. */
+  accelerator?: string
+  /** When false, the row renders dimmed and isn't clickable. */
+  enabled?: boolean
+  /** When 'separator', the entry renders as a horizontal rule and
+   *  ignores all other fields. */
+  type?: 'normal' | 'separator'
+}
+
+export interface MenuPopupRequest {
+  /** Flat list of items. Use `{ type: 'separator' }` between groups. */
+  items: MenuTemplateItem[]
+  /** Optional anchor point in window coordinates. When omitted, the
+   *  menu pops at the OS-default position (typically the cursor). */
+  x?: number
+  y?: number
+}
+
+export interface MenuPopupResult {
+  /** The id of the clicked item, or null if dismissed without click
+   *  (Esc / outside-click / clicking a separator). */
+  chosenId: string | null
+}
+
+export interface DialogConfirmRequest {
+  /** Heading shown in bold above the message. */
+  title: string
+  /** Body text below the title. Multi-line OK. */
+  message: string
+  /** Button labels, left-to-right. The leftmost is typically Cancel
+   *  (mapped via `cancelId`). The default (Enter) is `defaultId`. */
+  buttons: string[]
+  /** Index of the button highlighted as default (Enter activates it).
+   *  Convention: rightmost button for affirmative actions. */
+  defaultId?: number
+  /** Index of the button mapped to Esc / outside-click / sheet
+   *  dismissal. Convention: leftmost (Cancel). */
+  cancelId?: number
+  /** macOS sheet icon — affects the symbol shown to the left of the
+   *  text. Use 'warning' for destructive confirms, 'info' for purely
+   *  informational dialogs. */
+  type?: 'info' | 'warning' | 'error' | 'question'
+}
+
+export interface DialogConfirmResult {
+  /** The index of the button the user clicked. Maps to the buttons
+   *  array passed in. */
+  response: number
+}
+
 // ── IPC channel names (renderer ↔ main) ─────────────────────────────────────
 
 export const IPC = {
@@ -975,6 +1046,18 @@ export const IPC = {
   FILES_WATCH_UPDATE: 'files:watch-update',
   FILES_WATCH_STOP: 'files:watch-stop',
   FILES_CHANGED: 'files:changed',        // main → renderer push
+
+  // ENH-050 (v0.6.3) — native NSMenu + system sheet dialogs to retire
+  // the WCV-mute pattern for renderer-DOM context menus + confirm
+  // modals. See `docs/DECISIONS.md § WCV-occlusion remediation`.
+  // MENU_POPUP: renderer sends a flat item template + click coords;
+  //   main builds Menu.buildFromTemplate([...]) and pops; the chosen
+  //   item's `id` returns to the renderer (or null on dismiss).
+  // DIALOG_CONFIRM: renderer sends sheet config; main calls
+  //   dialog.showMessageBox(window, opts) and returns the response
+  //   button index (with checkboxChecked when applicable).
+  MENU_POPUP: 'menu:popup',
+  DIALOG_CONFIRM: 'dialog:confirm',
 
   // Stage 10 Phase 6 — navigator state + agent-facing commands
   NAV_STATE_PUSH: 'nav:state-push',      // renderer → main (cache state for CLI)

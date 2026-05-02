@@ -474,6 +474,18 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.PASTE_PLAIN_REQUEST, handler)
       return () => ipcRenderer.removeListener(IPC.PASTE_PLAIN_REQUEST, handler)
     }
+  },
+
+  // ENH-050 — native NSMenu (menu.popup) + system sheet dialog
+  // (dialog.confirm) primitives. Replace the in-renderer ContextMenu
+  // and the trash / pinned-close confirm modals so the WCV's native
+  // subview compositing rule stops occluding them. See
+  // `docs/DECISIONS.md § WCV-occlusion remediation`.
+  menu: {
+    popup: (req) => ipcRenderer.invoke(IPC.MENU_POPUP, req)
+  },
+  dialog: {
+    confirm: (req) => ipcRenderer.invoke(IPC.DIALOG_CONFIRM, req)
   }
 }
 

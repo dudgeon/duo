@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
-import { PinnedCloseConfirm } from './components/PinnedCloseConfirm'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
@@ -287,7 +286,9 @@ export function App() {
   // when the active working tab is pinned). Strip-side close-button
   // path uses its own local state in WorkingTabStrip — both render
   // the same modal component.
-  const [pendingClosePinned, setPendingClosePinned] = useState<{ kind: 'file'; id: string; label: string } | { kind: 'browser'; id: number; label: string } | null>(null)
+  // pendingClosePinned (the in-renderer modal state) retired v0.6.3 in
+  // favor of inline async dialog.confirm calls in the closeTab keymap
+  // below. ENH-050 — system sheet composes correctly above WCV.
 
   // Stage 21c Phase 2 — session state restored across Duo relaunches
   // (issue #24). Hydrate `tabs` / `fileTabs` / `activeTabId` /
@@ -1270,11 +1271,24 @@ export function App() {
     closeTab: () => {
       if (focusedColumn === 'working') {
         // § D29 — close whichever working-pane tab is currently active.
-        // Stage 24 — gate pinned tabs behind a confirm modal.
+        // Stage 24 — gate pinned tabs behind a confirm. ENH-050 (v0.6.3)
+        // — confirm via system sheet instead of in-renderer modal so it
+        // composites natively above the WCV (the in-renderer modal was
+        // sibling-occluded by the WebContentsView for browser tabs).
         if (activeWorking.kind === 'file') {
           const ft = fileTabs.find(f => f.id === activeWorking.id)
           if (ft && pins.some(p => p.kind === 'file' && p.ref === ft.path)) {
-            setPendingClosePinned({ kind: 'file', id: ft.id, label: ft.title })
+            void (async () => {
+              const result = await window.electron.dialog.confirm({
+                title: `Close pinned tab "${ft.title}"?`,
+                message: 'This tab is pinned. Closing it removes the pin and the tab.',
+                buttons: ['Cancel', 'Close tab'],
+                defaultId: 1,
+                cancelId: 0,
+                type: 'warning'
+              })
+              if (result.response === 1) closeFileTab(ft.id)
+            })()
             return
           }
           closeFileTab(activeWorking.id)
@@ -1284,7 +1298,18 @@ export function App() {
             const active = btabs.find(t => t.isActive)
             if (!active) return
             if (active.url && pins.some(p => p.kind === 'browser' && p.ref === active.url)) {
-              setPendingClosePinned({ kind: 'browser', id: active.id, label: active.title || active.url })
+              const label = active.title || active.url
+              const result = await window.electron.dialog.confirm({
+                title: `Close pinned tab "${label}"?`,
+                message: 'This tab is pinned. Closing it removes the pin and the tab.',
+                buttons: ['Cancel', 'Close tab'],
+                defaultId: 1,
+                cancelId: 0,
+                type: 'warning'
+              })
+              if (result.response === 1) {
+                await window.electron.browser.closeTab(active.id)
+              }
               return
             }
             await window.electron.browser.closeTab(active.id)
@@ -1785,21 +1810,6 @@ export function App() {
           </div>
         </div>
       </div>
-      {pendingClosePinned && (
-        <PinnedCloseConfirm
-          label={pendingClosePinned.label}
-          onConfirm={() => {
-            const target = pendingClosePinned
-            setPendingClosePinned(null)
-            if (target.kind === 'file') {
-              closeFileTab(target.id)
-            } else {
-              void window.electron.browser.closeTab(target.id)
-            }
-          }}
-          onCancel={() => setPendingClosePinned(null)}
-        />
-      )}
     </div>
   )
 }

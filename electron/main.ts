@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, nativeTheme, shell, webContents, clipboard } from 'electron'
+import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions } from 'electron'
 // electron-context-menu v4 is ESM-only; main bundles as CJS, so we
 // load it via dynamic import inside app.whenReady. The lazy import
@@ -703,6 +703,51 @@ function setupIPC(): void {
     // window someday) sees the change live.
     mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, next)
     return next
+  })
+
+  // ENH-050 (v0.6.3) — native NSMenu + system sheet primitives that
+  // replace the renderer-DOM ContextMenu / PinnedCloseConfirm /
+  // trash-confirm modals. macOS draws these at the window-server
+  // level, composing correctly above the WebContentsView regardless
+  // of z-index — eliminates the WCV-mute pattern's flicker. See
+  // `docs/DECISIONS.md § WCV-occlusion remediation` for rationale.
+  ipcMain.handle(IPC.MENU_POPUP, async (_event, req: import('../shared/types').MenuPopupRequest): Promise<import('../shared/types').MenuPopupResult> => {
+    return new Promise((resolve) => {
+      let chosenId: string | null = null
+      const template: MenuItemConstructorOptions[] = req.items.map(item => {
+        if (item.type === 'separator') return { type: 'separator' }
+        return {
+          label: item.label ?? '',
+          accelerator: item.accelerator,
+          enabled: item.enabled !== false,
+          click: () => { chosenId = item.id ?? null }
+        }
+      })
+      const menu = Menu.buildFromTemplate(template)
+      const win = mainWindow ?? undefined
+      const popupOpts: { window?: BrowserWindow; x?: number; y?: number; callback?: () => void } = {
+        callback: () => resolve({ chosenId })
+      }
+      if (win) popupOpts.window = win
+      if (typeof req.x === 'number') popupOpts.x = Math.round(req.x)
+      if (typeof req.y === 'number') popupOpts.y = Math.round(req.y)
+      menu.popup(popupOpts)
+    })
+  })
+
+  ipcMain.handle(IPC.DIALOG_CONFIRM, async (_event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
+    if (!mainWindow) return { response: req.cancelId ?? 0 }
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: req.type ?? 'warning',
+      title: req.title,
+      message: req.title,
+      detail: req.message,
+      buttons: req.buttons,
+      defaultId: req.defaultId ?? 0,
+      cancelId: req.cancelId ?? 0,
+      noLink: true
+    })
+    return { response: result.response }
   })
 
   // Stage 21c Phase 2 — session state restored across relaunches.

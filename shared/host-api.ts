@@ -610,6 +610,20 @@ export interface ElectronAppMenuAPI {
   onPastePlainRequest: (cb: () => void) => () => void
 }
 
+// ENH-050 (v0.6.3) — native NSMenu + system sheet primitives.
+// `menu.popup()` builds Menu.buildFromTemplate from the items
+// template + pops on the active BrowserWindow; the chosen id (or
+// null on dismiss) returns to the renderer. `dialog.confirm()`
+// calls dialog.showMessageBox with sheet semantics; the response
+// button index returns. See `docs/DECISIONS.md § WCV-occlusion
+// remediation` for the full rationale.
+export interface ElectronMenuAPI {
+  popup: (req: import('./types').MenuPopupRequest) => Promise<import('./types').MenuPopupResult>
+}
+export interface ElectronDialogAPI {
+  confirm: (req: import('./types').DialogConfirmRequest) => Promise<import('./types').DialogConfirmResult>
+}
+
 // Stage 21c — session state restored across Duo relaunches.
 // ~/.claude/duo/session-state.json. Renderer pulls on mount,
 // debounce-saves on every state change.
@@ -643,6 +657,9 @@ export interface ElectronAPI {
   update: ElectronUpdateAPI
   external: ElectronExternalAPI
   appMenu: ElectronAppMenuAPI
+  // ENH-050 — native menu / sheet primitives.
+  menu: ElectronMenuAPI
+  dialog: ElectronDialogAPI
   sessionState: ElectronSessionStateAPI
   events: ElectronEventsAPI
 }

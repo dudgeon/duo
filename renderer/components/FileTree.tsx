@@ -18,10 +18,9 @@
 // `duo file rename / trash`.
 
 import { useEffect, useRef, useState } from 'react'
-import type { DirEntry, NavPinEntry } from '@shared/types'
+import type { DirEntry, MenuTemplateItem, NavPinEntry } from '@shared/types'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 
 /** Return the parent directory of an absolute POSIX-style path. */
 function parentDir(absPath: string): string {
@@ -91,9 +90,9 @@ interface FileTreeProps {
 
 export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: FileTreeProps) {
   const rootEntries = rootEntriesOverride !== undefined ? rootEntriesOverride : state.listings.get(state.cwd)
-  // Shared context-menu state — only one menu open at a time across the whole
-  // tree. `target` carries the entry the user right-clicked.
-  const [menu, setMenu] = useState<{ x: number; y: number; target: DirEntry } | null>(null)
+  // ENH-050 (v0.6.3) — context menu now opens via window.electron.menu.popup
+  // (native NSMenu) instead of the in-renderer <ContextMenu>. No menu state
+  // here; we await the popup result inline from the right-click handlers.
   // Stage 26 item 6 — inline rename. Holds the path of the row currently
   // in rename mode; null means no row is being renamed. Local to the tree
   // because rename is a transient renderer-side state (no IPC mirror).
@@ -142,8 +141,23 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   }
 
   const onTrashEntry = async (entry: DirEntry): Promise<void> => {
-    const label = entry.kind === 'directory' ? `Move folder "${entry.name}" and all of its contents to the Trash?` : `Move "${entry.name}" to the Trash?`
-    if (!window.confirm(label)) return
+    // ENH-050 — native sheet via dialog.showMessageBox (was window.confirm,
+    // a basic blocking JS prompt). Composes natively above the WCV with
+    // backdrop dimming + sheet-drop animation.
+    const isFolder = entry.kind === 'directory'
+    const result = await window.electron.dialog.confirm({
+      title: isFolder
+        ? `Move folder "${entry.name}" to the Trash?`
+        : `Move "${entry.name}" to the Trash?`,
+      message: isFolder
+        ? 'The folder and all of its contents will be moved to the macOS Trash. You can restore them from there.'
+        : 'The file will be moved to the macOS Trash. You can restore it from there.',
+      buttons: ['Cancel', 'Move to Trash'],
+      defaultId: 1,
+      cancelId: 0,
+      type: 'warning'
+    })
+    if (result.response !== 1) return
     try {
       await window.electron.files.trash(entry.path)
       actions.refresh(parentDir(entry.path))
@@ -162,22 +176,115 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     path: state.cwd,
     kind: 'directory'
   }
+  // ENH-050 — file actions, factored so both the row right-click and
+  // the whitespace right-click can share them. Each action takes the
+  // target entry; the menu chooses which actions to surface based on
+  // the entry kind + whitespace mode (see buildTreeMenuTemplate below).
+  const handleNewFile = async (parentPath: string) => {
+    // ENH-016 v2 (2026-04-30 hotfix) — create `untitled.md` (or
+    // `untitled-N.md` if it exists), then put the new row into rename
+    // mode so the user names it.
+    const target = await pickUniquePath(parentPath, 'untitled', '.md')
+    try {
+      await window.electron.files.write(target, new Uint8Array(0))
+      if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
+        actions.toggleExpand(parentPath)
+      }
+      actions.refresh(parentPath)
+      requestAnimationFrame(() => setRenamingPath(target))
+    } catch (err) {
+      console.error('[ENH-016] new file failed:', err)
+      window.alert(`Couldn't create file: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+  const handleNewFolder = async (parentPath: string) => {
+    const target = await pickUniquePath(parentPath, 'untitled-folder', '')
+    try {
+      await window.electron.files.mkdir(target)
+      if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
+        actions.toggleExpand(parentPath)
+      }
+      actions.refresh(parentPath)
+      requestAnimationFrame(() => setRenamingPath(target))
+    } catch (err) {
+      console.error('[ENH-016] new folder failed:', err)
+      window.alert(`Couldn't create folder: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
+
+  // ENH-050 — central handler that maps a chosen menu id back to an
+  // action against the given target entry. Stable ids keep the menu
+  // template a pure data structure (no closures riding through IPC).
+  const handleMenuChoice = async (chosenId: string, target: DirEntry) => {
+    const isFolder = target.kind === 'directory'
+    const newTargetDir = isFolder ? target.path : parentDir(target.path)
+    switch (chosenId) {
+      case 'new-file':
+        await handleNewFile(newTargetDir)
+        return
+      case 'new-folder':
+        await handleNewFolder(newTargetDir)
+        return
+      case 'open-terminal-here':
+        if (isFolder) onOpenTerminalHere(target.path)
+        return
+      case 'open-in-editor':
+        if (!isFolder) onOpenFile(target)
+        return
+      case 'reveal-in-finder':
+        await window.electron.files.revealInFinder(target.path)
+        return
+      case 'copy-path':
+        try { await navigator.clipboard.writeText(target.path) } catch { /* permission denied */ }
+        return
+      case 'open-with-default':
+        await window.electron.files.openExternal(target.path)
+        return
+      case 'pin':
+        if (navPins) {
+          void navPins.toggle({
+            path: target.path,
+            kind: isFolder ? 'folder' : 'file',
+            title: target.name
+          })
+        }
+        return
+      case 'rename':
+        setRenamingPath(target.path)
+        return
+      case 'trash':
+        await onTrashEntry(target)
+        return
+    }
+  }
+
+  // ENH-050 — fire native menu on right-click (rows + whitespace). The
+  // popup awaits the user's choice; we then dispatch via handleMenuChoice.
+  const popupMenu = async (e: React.MouseEvent, target: DirEntry, whitespaceMode: boolean) => {
+    e.preventDefault()
+    const items = buildTreeMenuTemplate({
+      target,
+      whitespaceMode,
+      navPins
+    })
+    if (items.length === 0) return
+    const result = await window.electron.menu.popup({
+      items,
+      x: e.clientX,
+      y: e.clientY
+    })
+    if (!result.chosenId) return
+    void handleMenuChoice(result.chosenId, target)
+  }
+
   const onWhitespaceContextMenu = (e: React.MouseEvent) => {
     // Only handle clicks that landed directly on this wrapper (i.e.
     // whitespace below the rows). Row clicks already preventDefault
-    // in TreeNode's onContextMenu, so they never reach here. Belt &
-    // braces: also bail when the immediate target is anything but
-    // this div, to avoid grabbing right-clicks on possible future
-    // wrapper-level descendants.
+    // in TreeNode's onContextMenu, so they never reach here.
     if (e.target !== e.currentTarget) return
-    e.preventDefault()
-    setMenu({ x: e.clientX, y: e.clientY, target: rootEntry })
+    void popupMenu(e, rootEntry, true)
   }
 
-  // The menu reads `menu.target` to decide which items to show. When
-  // the target is the synthesized root (path === state.cwd), enable
-  // whitespaceMode so we serve the trimmed item set.
-  const isWhitespaceMenu = menu !== null && menu.target.path === state.cwd
   return (
     <div
       className="flex-1 overflow-auto scrollbar-none py-1"
@@ -189,10 +296,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         state={state}
         actions={actions}
         onOpenFile={onOpenFile}
-        onContextMenu={(e, entry) => {
-          e.preventDefault()
-          setMenu({ x: e.clientX, y: e.clientY, target: entry })
-        }}
+        onContextMenu={(e, entry) => { void popupMenu(e, entry, false) }}
         renamingPath={renamingPath}
         onCommitRename={onCommitRename}
         onCancelRename={() => setRenamingPath(null)}
@@ -201,172 +305,68 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         openFilePaths={openFilePaths}
         activeFilePath={activeFilePath}
       />
-      {menu && (
-        <ContextMenu
-          position={{ x: menu.x, y: menu.y }}
-          items={buildMenuItems(menu.target, {
-            onOpenTerminalHere,
-            onOpenFile,
-            onRevealInFinder: (p) => window.electron.files.revealInFinder(p),
-            onCopyPath: async (p) => {
-              try { await navigator.clipboard.writeText(p) } catch { /* permission denied */ }
-            },
-            onOpenWithDefault: (p) => window.electron.files.openExternal(p),
-            onNewFile: async (parentPath) => {
-              // ENH-016 v2 (2026-04-30 hotfix) — replaced
-              // `window.prompt` with the create-default-name +
-              // auto-rename pattern. Electron renderer silently
-              // returns null from window.prompt(), so the original v1
-              // implementation's "name" was always empty and nothing
-              // happened. Now: create `untitled.md` (or `untitled-N.md`
-              // if it exists), then immediately put the new row into
-              // rename mode so the user names it.
-              const target = await pickUniquePath(parentPath, 'untitled', '.md')
-              try {
-                await window.electron.files.write(target, new Uint8Array(0))
-                if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
-                  actions.toggleExpand(parentPath)
-                }
-                actions.refresh(parentPath)
-                // Wait one frame so the tree has the new row before we
-                // try to put it into rename mode.
-                requestAnimationFrame(() => setRenamingPath(target))
-              } catch (err) {
-                console.error('[ENH-016] new file failed:', err)
-                window.alert(`Couldn't create file: ${err instanceof Error ? err.message : String(err)}`)
-              }
-            },
-            onNewFolder: async (parentPath) => {
-              const target = await pickUniquePath(parentPath, 'untitled-folder', '')
-              try {
-                await window.electron.files.mkdir(target)
-                if (!state.expanded.has(parentPath) && parentPath !== state.cwd) {
-                  actions.toggleExpand(parentPath)
-                }
-                actions.refresh(parentPath)
-                requestAnimationFrame(() => setRenamingPath(target))
-              } catch (err) {
-                console.error('[ENH-016] new folder failed:', err)
-                window.alert(`Couldn't create folder: ${err instanceof Error ? err.message : String(err)}`)
-              }
-            },
-            onStartRename: () => setRenamingPath(menu.target.path),
-            onTrash: () => { void onTrashEntry(menu.target) },
-            navPins,
-            onTogglePin: navPins
-              ? (entry) => {
-                  void navPins.toggle({
-                    path: entry.path,
-                    kind: entry.kind === 'directory' ? 'folder' : 'file',
-                    title: entry.name
-                  })
-                }
-              : undefined,
-            whitespaceMode: isWhitespaceMenu
-          })}
-          onClose={() => setMenu(null)}
-        />
-      )}
     </div>
   )
 }
 
-// Menu item factory — keeps the permutations (folder vs file) in one place
-// so the rules map directly onto PRD § D11. Stage 26 item 6 adds Rename
-// + Move to Trash, gated behind the same handlers as the `duo file *`
-// CLI verbs so the agent and human use the same code paths.
-function buildMenuItems(
-  entry: DirEntry,
-  handlers: {
-    onOpenTerminalHere: (path: string) => void
-    onOpenFile: (entry: DirEntry) => void
-    onRevealInFinder: (path: string) => void | Promise<void>
-    onCopyPath: (path: string) => void | Promise<void>
-    onOpenWithDefault: (path: string) => void | Promise<void>
-    onStartRename: () => void
-    onTrash: () => void
-    /** ENH-016 — "New file…" / "New folder…" prompts. Target folder
-     *  is the entry itself if it's a folder, otherwise the entry's
-     *  parent. */
-    onNewFile: (parentDirPath: string) => void | Promise<void>
-    onNewFolder: (parentDirPath: string) => void | Promise<void>
-    /** Stage 26 PR 2 (ENH-010) — present only when the host pane wires
-     *  navPins (project tree does; user-claude pane does not). */
-    navPins?: NavPinsApi
-    onTogglePin?: (entry: DirEntry) => void
-    /** BUG-041 — when the user right-clicks whitespace below the file
-     *  rows, we synthesize a "root" target (the project cwd) and
-     *  trim the menu down to the actions that make sense without a
-     *  specific row: New file, New folder, Open terminal here,
-     *  Reveal in Finder. Rename / Trash / Open with default app /
-     *  Copy path / Pin would all act on the project root, which is
-     *  almost always destructive or irrelevant — suppress them. */
-    whitespaceMode?: boolean
-  }
-): ContextMenuItem[] {
-  const isFolder = entry.kind === 'directory'
-  const items: ContextMenuItem[] = []
-  const whitespace = handlers.whitespaceMode ?? false
+// ENH-050 — pure-data menu template. Returns MenuTemplateItem[] for
+// window.electron.menu.popup; click handlers live in handleMenuChoice
+// in the parent component, mapped by stable `id`. Keeps the IPC
+// boundary clean (no closures riding through serialization) and the
+// menu logic testable.
+//
+// Item permutations follow PRD § D11 with Stage 26 item 6's Rename +
+// Move to Trash and ENH-010's navigator pin. BUG-041 — when called
+// in `whitespaceMode`, the synthesized root target gets a trimmed
+// item set (no Rename / Trash / Open-with-default / Copy path / Pin —
+// those would act on the project cwd, which is almost always
+// destructive or irrelevant).
+function buildTreeMenuTemplate(opts: {
+  target: DirEntry
+  whitespaceMode: boolean
+  navPins?: NavPinsApi
+}): MenuTemplateItem[] {
+  const { target, whitespaceMode, navPins } = opts
+  const isFolder = target.kind === 'directory'
+  const items: MenuTemplateItem[] = []
 
   // ENH-016 — "New file…" / "New folder…" at the top of the menu.
   // Target folder = entry itself for folder rows, parent dir for
   // file rows. Mirrors VS Code / Finder convention.
-  const newTargetDir = isFolder ? entry.path : parentDir(entry.path)
   const newSuffix = isFolder ? '' : ' here'
-  items.push({
-    label: `New file${newSuffix}…`,
-    onClick: () => { void handlers.onNewFile(newTargetDir) }
-  })
-  items.push({
-    label: `New folder${newSuffix}…`,
-    onClick: () => { void handlers.onNewFolder(newTargetDir) }
-  })
+  items.push({ id: 'new-file', label: `New file${newSuffix}…` })
+  items.push({ id: 'new-folder', label: `New folder${newSuffix}…` })
 
+  items.push({ type: 'separator' })
   if (isFolder) {
-    items.push({
-      label: 'Open terminal here',
-      separatorBefore: true,
-      onClick: () => handlers.onOpenTerminalHere(entry.path)
-    })
+    items.push({ id: 'open-terminal-here', label: 'Open terminal here' })
   } else {
-    items.push({
-      label: 'Open in Duo editor',
-      separatorBefore: true,
-      onClick: () => handlers.onOpenFile(entry)
-    })
+    items.push({ id: 'open-in-editor', label: 'Open in Duo editor' })
   }
-  items.push({
-    label: 'Reveal in Finder',
-    onClick: () => { void handlers.onRevealInFinder(entry.path) }
-  })
-  if (!whitespace) {
-    items.push({
-      label: 'Copy path',
-      onClick: () => { void handlers.onCopyPath(entry.path) }
-    })
-    items.push({
-      label: 'Open with default app',
-      separatorBefore: true,
-      onClick: () => { void handlers.onOpenWithDefault(entry.path) }
-    })
-    // Stage 26 PR 2 (ENH-010) — Pin / Unpin from navigator. Visible when
-    // the host pane wires navPins; suppressed otherwise (user-claude pane).
-    if (handlers.navPins && handlers.onTogglePin) {
-      const pinned = handlers.navPins.isPinned(entry.path)
+  items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
+
+  if (!whitespaceMode) {
+    items.push({ id: 'copy-path', label: 'Copy path' })
+
+    items.push({ type: 'separator' })
+    items.push({ id: 'open-with-default', label: 'Open with default app' })
+
+    // Stage 26 PR 2 (ENH-010) — Pin / Unpin from navigator. Visible
+    // when the host pane wires navPins; suppressed otherwise.
+    if (navPins) {
+      const pinned = navPins.isPinned(target.path)
+      items.push({ type: 'separator' })
       items.push({
-        label: pinned ? 'Unpin from navigator' : 'Pin to navigator',
-        separatorBefore: true,
-        onClick: () => handlers.onTogglePin!(entry)
+        id: 'pin',
+        label: pinned ? 'Unpin from navigator' : 'Pin to navigator'
       })
     }
+
+    items.push({ type: 'separator' })
+    items.push({ id: 'rename', label: 'Rename…' })
     items.push({
-      label: 'Rename…',
-      separatorBefore: true,
-      onClick: handlers.onStartRename
-    })
-    items.push({
-      label: isFolder ? 'Move folder to Trash…' : 'Move to Trash…',
-      onClick: handlers.onTrash
+      id: 'trash',
+      label: isFolder ? 'Move folder to Trash…' : 'Move to Trash…'
     })
   }
 

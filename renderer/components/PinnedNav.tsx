@@ -24,8 +24,7 @@
 // truncate the middle with `…`.
 
 import { useState } from 'react'
-import type { NavPinEntry } from '@shared/types'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import type { MenuTemplateItem, NavPinEntry } from '@shared/types'
 
 interface PinnedNavProps {
   pins: NavPinEntry[]
@@ -51,9 +50,49 @@ export function PinnedNav({
   onUnpin
 }: PinnedNavProps) {
   const [collapsed, setCollapsed] = useState(false)
-  const [menu, setMenu] = useState<{ x: number; y: number; target: NavPinEntry } | null>(null)
+  // ENH-050 — context menu via window.electron.menu.popup. No state.
 
   if (pins.length === 0) return null
+
+  const handleMenuChoice = async (chosenId: string, target: NavPinEntry) => {
+    switch (chosenId) {
+      case 'open-here':
+        if (target.kind === 'folder') onOpenFolder(target)
+        return
+      case 'open-terminal-here':
+        if (target.kind === 'folder') onOpenTerminalHere(target.path)
+        return
+      case 'open-in-editor':
+        if (target.kind === 'file') onOpenFile(target)
+        return
+      case 'reveal-in-finder':
+        await onRevealInFinder(target.path)
+        return
+      case 'unpin':
+        await onUnpin(target)
+        return
+    }
+  }
+
+  const popupMenu = async (e: React.MouseEvent, target: NavPinEntry) => {
+    e.preventDefault()
+    const items: MenuTemplateItem[] = []
+    if (target.kind === 'folder') {
+      items.push({ id: 'open-here', label: 'Open here' })
+      items.push({ id: 'open-terminal-here', label: 'Open terminal here' })
+    } else {
+      items.push({ id: 'open-in-editor', label: 'Open in Duo editor' })
+    }
+    items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
+    items.push({ type: 'separator' })
+    items.push({ id: 'unpin', label: 'Unpin from navigator' })
+    const result = await window.electron.menu.popup({
+      items,
+      x: e.clientX,
+      y: e.clientY
+    })
+    if (result.chosenId) void handleMenuChoice(result.chosenId, target)
+  }
 
   // Group by parent directory. Stable sort preserves insertion order
   // within each group (matches user's pin-order intuition: recently
@@ -90,29 +129,12 @@ export function PinnedNav({
                     if (entry.kind === 'folder') onOpenFolder(entry)
                     else onOpenFile(entry)
                   }}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    setMenu({ x: e.clientX, y: e.clientY, target: entry })
-                  }}
+                  onContextMenu={(e) => { void popupMenu(e, entry) }}
                 />
               ))}
             </div>
           ))}
         </div>
-      )}
-
-      {menu && (
-        <ContextMenu
-          position={{ x: menu.x, y: menu.y }}
-          items={buildMenuItems(menu.target, {
-            onOpenFile,
-            onOpenFolder,
-            onOpenTerminalHere,
-            onRevealInFinder,
-            onUnpin
-          })}
-          onClose={() => setMenu(null)}
-        />
       )}
     </div>
   )
@@ -146,32 +168,6 @@ function PinnedRow({ entry, isSelected, onSingleClick, onDoubleClick, onContextM
       <span className="truncate">{entry.title ?? basename(entry.path)}</span>
     </button>
   )
-}
-
-function buildMenuItems(
-  entry: NavPinEntry,
-  handlers: {
-    onOpenFile: (entry: NavPinEntry) => void
-    onOpenFolder: (entry: NavPinEntry) => void
-    onOpenTerminalHere: (path: string) => void
-    onRevealInFinder: (path: string) => void | Promise<void>
-    onUnpin: (entry: NavPinEntry) => Promise<void>
-  }
-): ContextMenuItem[] {
-  const items: ContextMenuItem[] = []
-  if (entry.kind === 'folder') {
-    items.push({ label: 'Open here', onClick: () => handlers.onOpenFolder(entry) })
-    items.push({ label: 'Open terminal here', onClick: () => handlers.onOpenTerminalHere(entry.path) })
-  } else {
-    items.push({ label: 'Open in Duo editor', onClick: () => handlers.onOpenFile(entry) })
-  }
-  items.push({ label: 'Reveal in Finder', onClick: () => { void handlers.onRevealInFinder(entry.path) } })
-  items.push({
-    label: 'Unpin from navigator',
-    separatorBefore: true,
-    onClick: () => { void handlers.onUnpin(entry) }
-  })
-  return items
 }
 
 interface Group {

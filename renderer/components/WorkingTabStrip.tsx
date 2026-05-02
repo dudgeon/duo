@@ -4,18 +4,25 @@
 // `type`; each chip shows a small leading icon indicating the type so a
 // browser page, a markdown preview, and an image preview can sit side by
 // side without visual ambiguity (Stage 10 § D26).
+//
+// ENH-050 (v0.6.3) — context menu + confirmation modals migrated to
+// native primitives (Menu.popup + dialog.showMessageBox via the new
+// `window.electron.menu` + `window.electron.dialog` IPC surfaces).
+// macOS draws these at the window-server level, composing correctly
+// above the WebContentsView regardless of z-index — eliminates the
+// BUG-058 WCV-mute flicker entirely. The in-renderer <ContextMenu>
+// and <PinnedCloseConfirm> components are no longer used here. See
+// `docs/DECISIONS.md § WCV-occlusion remediation` for rationale.
 
 import { useEffect, useRef, useState } from 'react'
-import type { WorkingTab, WorkingTabType } from '@shared/types'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
-import { PinnedCloseConfirm } from './PinnedCloseConfirm'
+import type { MenuTemplateItem, WorkingTab, WorkingTabType } from '@shared/types'
 
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
   onSelect: (id: string) => void
   /** ENH-006 — split-button new affordance, mirrors TabBar (terminal).
    *  `+` (left, primary, wider) opens the new-file interstitial (⌘N).
-   *  `>` (right, secondary, narrow) opens a new browser tab (⌘T). */
+   *  Globe (right, secondary, narrow) opens a new browser tab (⌘T). */
   onNewFile: () => void
   onNewBrowserTab: () => void
   onClose: (id: string) => void
@@ -32,8 +39,8 @@ interface WorkingTabStripProps {
    *  tabs, not browser tabs). */
   onRevealInNavigator?: (path: string) => void
   /** ENH-026 — Move the tab's file to the Trash AND close the tab.
-   *  App.tsx confirms the action, calls `files.trash`, and closes
-   *  the tab. */
+   *  Strip handles confirmation via system sheet (ENH-050) before
+   *  invoking. */
   onTrashFile?: (id: string, path: string) => void
   /** ENH-026 — Reveal the tab's file in the navigator AND put the
    *  tree row into rename mode. Custom-event-driven so we don't
@@ -51,6 +58,13 @@ interface WorkingTabStripProps {
 // TabBar (terminal). Differentiator: strip bg = paper-deep here vs
 // paper-edge for the terminal strip. Mock reference:
 // docs/design/atelier/project/duo-components.jsx ~L286.
+//
+// BUG-068 (v0.6.3) — restructure: tabs render inside a `flex-1
+// overflow-x-auto` scroller; the new-tab split-button cluster is a
+// sibling OUTSIDE that scroller so it stays sticky at the right edge
+// regardless of how many tabs / how far the user has panned. Mirrors
+// TabBar.tsx's pattern. Pre-fix the cluster was inside the scroller
+// and would scroll off-screen with the tabs.
 export function WorkingTabStrip({
   tabs,
   onSelect,
@@ -90,66 +104,110 @@ export function WorkingTabStrip({
     if (!source || !target || source.pinned !== target.pinned) return
     onReorderTab(sourceId, targetId)
   }
-  // Stage 24 — context menu state (which tab + position) and pinned-tab
-  // close-confirm modal state.
-  // ENH-026 — extended ctxMenu to carry the tab's path (or null) so we
-  // can decide which items are applicable without re-finding the tab.
-  const [ctxMenu, setCtxMenu] = useState<
-    | { tabId: string; pinned: boolean; path: string | null; x: number; y: number }
-    | null
-  >(null)
-  const [confirmClose, setConfirmClose] = useState<{ tabId: string; label: string } | null>(null)
-  // ENH-026 — separate confirm dialog for trash (different copy +
-  // different action than the pinned-close confirm).
-  const [confirmTrash, setConfirmTrash] = useState<{ tabId: string; path: string; label: string } | null>(null)
 
-  const handleContextMenu = (e: React.MouseEvent, tab: WorkingTab) => {
+  // ENH-050 — right-click → native NSMenu via the main process. The
+  // renderer fires `menu.popup({ items })` and awaits the chosen id;
+  // the corresponding handler runs locally. No state in the strip
+  // for menu position / open / close — the OS owns the lifecycle.
+  // BUG-058's setOverlayMuted calls REMOVED — native menus composite
+  // correctly above the WCV without any mute pattern.
+  const handleContextMenu = async (e: React.MouseEvent, tab: WorkingTab) => {
     e.preventDefault()
-    setCtxMenu({
+    // BUG-045 — when a browser tab points at a local file (file://
+    // URL), expose the same file-management menu as file tabs. Lets
+    // the user Reveal / Rename / Trash the underlying file even when
+    // they explicitly chose to open it in the browser pane (smoke-
+    // walk pages, agent-generated dashboards, local previews). Falls
+    // through to null for remote URLs.
+    const path = tab.path ?? pathFromFileUrl(tab.url)
+    const items = buildTabMenuTemplate({
       tabId: tab.id,
       pinned: !!tab.pinned,
-      // BUG-045 — when a browser tab points at a local file
-      // (file:// URL), expose the same file-management menu as
-      // file tabs. Lets the user Reveal / Rename / Trash the
-      // underlying file even when they explicitly chose to open
-      // it in the browser pane (smoke-walk pages, agent-generated
-      // dashboards, local previews). Falls through to null for
-      // remote URLs.
-      path: tab.path ?? pathFromFileUrl(tab.url),
+      path,
+      tabs,
+      onTogglePin,
+      onRevealInNavigator,
+      onStartRenameFromTab,
+      onMoveTab: onReorderTab ? moveTabBy : undefined
+    })
+    if (items.length === 0) return
+    const result = await window.electron.menu.popup({
+      items,
       x: e.clientX,
       y: e.clientY
     })
-    // BUG-047 / BUG-058 — when the working pane currently shows a
-    // browser tab, the WebContentsView occludes the area below the
-    // strip+address-bar zone. The context menu opens at the click
-    // point and its lower rows extend INTO the WCV's area where
-    // browser content shows through (renderer-DOM portal can't beat
-    // a native subview at the macOS compositor layer).
-    //
-    // Walk-2 BUG-058 narrowed this: the original BUG-047 fix only
-    // muted when the user right-clicked a browser tab. But the
-    // occlusion depends on what's CURRENTLY VISIBLE in the working
-    // pane, not on what tab was right-clicked. If a browser tab is
-    // the active working tab and the user right-clicks ANY tab in
-    // the strip (file, canvas, browser), the menu still gets
-    // occluded by the visible WCV. Fix: mute whenever any tab in
-    // the strip is active AND of kind 'browser'.
-    const activeIsBrowser = tabs.some(t => t.isActive && t.type === 'browser')
-    if (activeIsBrowser) {
-      window.electron.browser.setOverlayMuted(true)
+    if (!result.chosenId) return
+    // Map the chosen id to its action. Centralized here so the menu
+    // template stays a pure data structure without click-handler
+    // closures riding through the IPC boundary.
+    handleMenuChoice(result.chosenId, { tab, path })
+  }
+
+  // ENH-050 — sheet-confirmation for destructive actions. Replaces
+  // the in-renderer PinnedCloseConfirm modal that was getting
+  // occluded by the WCV (BUG-064). dialog.showMessageBox composites
+  // natively above the WCV; no mute pattern needed.
+  const handleMenuChoice = async (
+    chosenId: string,
+    ctx: { tab: WorkingTab; path: string | null }
+  ) => {
+    const { tab, path } = ctx
+    switch (chosenId) {
+      case 'reveal':
+        if (path && onRevealInNavigator) onRevealInNavigator(path)
+        return
+      case 'rename':
+        if (path && onStartRenameFromTab) onStartRenameFromTab(path)
+        return
+      case 'move-left':
+        moveTabBy(tab.id, -1)
+        return
+      case 'move-right':
+        moveTabBy(tab.id, 1)
+        return
+      case 'pin':
+        onTogglePin?.(tab.id)
+        return
+      case 'trash': {
+        if (!path || !onTrashFile) return
+        const result = await window.electron.dialog.confirm({
+          title: `Move "${tabLabel(tab)}" to the Trash?`,
+          message: 'The file will be moved to the macOS Trash. You can restore it from there. Open tabs on this file will close.',
+          buttons: ['Cancel', 'Move to Trash'],
+          defaultId: 1,
+          cancelId: 0,
+          type: 'warning'
+        })
+        if (result.response === 1) {
+          onTrashFile(tab.id, path)
+        }
+        return
+      }
     }
   }
 
-  const handleClose = (tab: WorkingTab) => {
+  // ENH-050 — pinned-close confirm via system sheet. Same migration
+  // as the trash confirm above.
+  const handleClose = async (tab: WorkingTab) => {
     if (tab.pinned) {
-      setConfirmClose({ tabId: tab.id, label: tabLabel(tab) })
+      const result = await window.electron.dialog.confirm({
+        title: `Close pinned tab "${tabLabel(tab)}"?`,
+        message: 'This tab is pinned. Closing it removes the pin and the tab.',
+        buttons: ['Cancel', 'Close tab'],
+        defaultId: 1,
+        cancelId: 0,
+        type: 'warning'
+      })
+      if (result.response === 1) {
+        onClose(tab.id)
+      }
       return
     }
     onClose(tab.id)
   }
 
   // ENH-024 — when the active tab changes (click, ⌃Tab, ⌘1–9, CLI),
-  // scroll it into view inside the overflow-x-auto strip. `inline:
+  // scroll it into view inside the overflow-x-auto scroller. `inline:
   // 'nearest'` + `block: 'nearest'` only scrolls when the tab is
   // actually clipped — clicking an already-visible tab is a no-op.
   const activeTabRef = useRef<HTMLButtonElement | null>(null)
@@ -161,67 +219,66 @@ export function WorkingTabStrip({
   return (
     <div
       className={[
-        'flex items-end h-9 px-2 gap-0.5 border-b shrink-0 overflow-x-auto scrollbar-none transition-colors',
+        'flex items-end h-9 border-b shrink-0 px-2 gap-0.5 transition-colors',
         focused ? 'bg-accent-soft border-accent' : 'bg-surface-1 border-border'
       ].join(' ')}
     >
-      {tabs.map(tab => (
-        <WorkingTabItem
-          key={tab.id}
-          tab={tab}
-          onSelect={() => onSelect(tab.id)}
-          onClose={(e) => {
-            e.stopPropagation()
-            handleClose(tab)
-          }}
-          onContextMenu={(e) => handleContextMenu(e, tab)}
-          canClose={tabs.length > 1}
-          // ENH-024 — only the active tab gets the ref so the
-          // useEffect above can scroll it into view.
-          buttonRef={tab.isActive ? activeTabRef : undefined}
-          // ENH-042 — HTML5 drag-and-drop reorder. Each tab is
-          // draggable; dropTargetId paints the accent cue on the
-          // hovered tab. Disabled when no parent reorder callback
-          // (defensive — every consumer wires one in v0.6.3+).
-          draggable={!!onReorderTab}
-          isDropTarget={dropTargetId === tab.id}
-          onDragStart={(e) => {
-            e.dataTransfer.effectAllowed = 'move'
-            e.dataTransfer.setData('application/x-duo-tab-id', tab.id)
-          }}
-          onDragOver={(e) => {
-            const sourceId = e.dataTransfer.types.includes('application/x-duo-tab-id')
-              ? null  // we can't read data on dragover, but the type set is enough
-              : null
-            // Allow drop only if the dragged source is a Duo tab id
-            // (other drag-drop pastes — e.g. text from the editor —
-            // shouldn't claim the tab strip).
-            if (e.dataTransfer.types.includes('application/x-duo-tab-id')) {
+      {/* BUG-068 — tabs render inside a flex-1 overflow-x-auto scroller
+          so they pan independently. New-tab cluster lives OUTSIDE this
+          div so it stays pinned at the right edge no matter how many
+          tabs are open / how far the user has panned. Pattern mirrors
+          TabBar.tsx (terminal strip). */}
+      <div className="flex items-end flex-1 overflow-x-auto scrollbar-none gap-0.5">
+        {tabs.map(tab => (
+          <WorkingTabItem
+            key={tab.id}
+            tab={tab}
+            onSelect={() => onSelect(tab.id)}
+            onClose={(e) => {
+              e.stopPropagation()
+              void handleClose(tab)
+            }}
+            onContextMenu={(e) => { void handleContextMenu(e, tab) }}
+            canClose={tabs.length > 1}
+            // ENH-024 — only the active tab gets the ref so the
+            // useEffect above can scroll it into view.
+            buttonRef={tab.isActive ? activeTabRef : undefined}
+            // ENH-042 — HTML5 drag-and-drop reorder. Each tab is
+            // draggable; dropTargetId paints the accent cue on the
+            // hovered tab. Disabled when no parent reorder callback
+            // (defensive — every consumer wires one in v0.6.3+).
+            draggable={!!onReorderTab}
+            isDropTarget={dropTargetId === tab.id}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move'
+              e.dataTransfer.setData('application/x-duo-tab-id', tab.id)
+            }}
+            onDragOver={(e) => {
+              if (e.dataTransfer.types.includes('application/x-duo-tab-id')) {
+                e.preventDefault()
+                setDropTargetId(tab.id)
+              }
+            }}
+            onDragLeave={() => {
+              // Only clear if we're the current target; multiple tabs
+              // race their leave/over events on adjacent moves.
+              setDropTargetId(prev => (prev === tab.id ? null : prev))
+            }}
+            onDrop={(e) => {
               e.preventDefault()
-              setDropTargetId(tab.id)
-            }
-            void sourceId
-          }}
-          onDragLeave={() => {
-            // Only clear if we're the current target; multiple tabs
-            // race their leave/over events on adjacent moves.
-            setDropTargetId(prev => (prev === tab.id ? null : prev))
-          }}
-          onDrop={(e) => {
-            e.preventDefault()
-            const sourceId = e.dataTransfer.getData('application/x-duo-tab-id')
-            setDropTargetId(null)
-            if (sourceId) tryReorderDrop(sourceId, tab.id)
-          }}
-          onDragEnd={() => setDropTargetId(null)}
-        />
-      ))}
+              const sourceId = e.dataTransfer.getData('application/x-duo-tab-id')
+              setDropTargetId(null)
+              if (sourceId) tryReorderDrop(sourceId, tab.id)
+            }}
+            onDragEnd={() => setDropTargetId(null)}
+          />
+        ))}
+      </div>
 
-      {/* ENH-006 — split button: + new file (primary) | > new browser
-          tab (secondary). Mirrors TabBar's terminal-strip split: the
-          opinionated default keeps the existing "click the +" muscle
-          memory (⌘N file flow), the secondary half exposes the browser-
-          tab path that used to require ⌥-click. */}
+      {/* ENH-006 + ENH-068 — split button: + new file (primary) | globe new
+          browser tab (secondary). Mirrors TabBar's terminal-strip split.
+          BUG-068 — sibling of the scroller above, so this cluster stays
+          pinned to the right edge regardless of tab count / pan position. */}
       <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
         <button
           onClick={onNewFile}
@@ -236,76 +293,13 @@ export function WorkingTabStrip({
         <span aria-hidden="true" className="w-px h-3 bg-paper-rule" />
         <button
           onClick={onNewBrowserTab}
-          className="w-5 h-6 flex items-center justify-center text-ink-ghost hover:text-ink hover:bg-surface-3 transition-colors"
+          className="w-6 h-6 flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
           title="New browser tab (⌘T)"
           aria-label="New browser tab"
         >
-          <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
-            <path d="M2.5 2.5l3 2.5-3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
+          <BrowserGlobeGlyph />
         </button>
       </div>
-
-      {ctxMenu && (
-        <ContextMenu
-          position={{ x: ctxMenu.x, y: ctxMenu.y }}
-          items={buildTabContextMenuItems({
-            ctxMenu,
-            tabs,
-            onTogglePin,
-            onRevealInNavigator,
-            onStartRenameFromTab,
-            onTrashRequest: (tabId, path, label) => {
-              setConfirmTrash({ tabId, path, label })
-            },
-            onMoveTab: onReorderTab ? moveTabBy : undefined,
-            onClose: () => {
-              setCtxMenu(null)
-              // BUG-047 — unmute the WebContentsView when the menu
-              // closes (mirror the mute on open in handleContextMenu).
-              window.electron.browser.setOverlayMuted(false)
-            }
-          })}
-          onClose={() => {
-            setCtxMenu(null)
-            // BUG-047 — also unmute when the user dismisses via
-            // outside-click / Escape (ContextMenu calls onClose).
-            window.electron.browser.setOverlayMuted(false)
-          }}
-        />
-      )}
-
-      {confirmClose && (
-        <PinnedCloseConfirm
-          label={confirmClose.label}
-          onConfirm={() => {
-            onClose(confirmClose.tabId)
-            setConfirmClose(null)
-          }}
-          onCancel={() => setConfirmClose(null)}
-        />
-      )}
-
-      {confirmTrash && (
-        <PinnedCloseConfirm
-          // BUG-049 — explicit title/body (was reusing the
-          // pinned-close `label` prop, which sandwiched the trash
-          // copy between hardcoded "Close pinned tab?" / "is pinned.
-          // Close it anyway?" strings).
-          title="Move to Trash?"
-          body={
-            <>
-              <span className="text-ink">{confirmTrash.label}</span> will be moved to the Trash. The tab will close.
-            </>
-          }
-          confirmLabel="Move to Trash"
-          onConfirm={() => {
-            onTrashFile?.(confirmTrash.tabId, confirmTrash.path)
-            setConfirmTrash(null)
-          }}
-          onCancel={() => setConfirmTrash(null)}
-        />
-      )}
     </div>
   )
 }
@@ -425,96 +419,68 @@ function pathFromFileUrl(url: string | undefined): string | null {
   }
 }
 
-// ENH-026 — assemble the right-click context menu items for a working
-// tab. File-bearing tabs (path != null) get Reveal in navigator /
+// ENH-050 — assemble the menu template for the right-click context
+// menu. File-bearing tabs (path != null) get Reveal in navigator /
 // Rename / Move to Trash; browser tabs only get Pin/Unpin. Pin is
 // also shown for file tabs for symmetry with the navigator pins.
-function buildTabContextMenuItems(opts: {
-  ctxMenu: { tabId: string; pinned: boolean; path: string | null }
+//
+// The template is pure data — no click handlers. Each item carries
+// a stable `id` that the parent's handleMenuChoice maps back to an
+// action after `menu.popup` returns. This keeps the IPC boundary
+// clean (no closures riding through serialization) and keeps the
+// menu logic testable in isolation.
+function buildTabMenuTemplate(opts: {
+  tabId: string
+  pinned: boolean
+  path: string | null
   tabs: WorkingTab[]
   onTogglePin?: (id: string) => void
   onRevealInNavigator?: (path: string) => void
   onStartRenameFromTab?: (path: string) => void
-  onTrashRequest: (tabId: string, path: string, label: string) => void
   onMoveTab?: (id: string, delta: -1 | 1) => void
-  onClose: () => void
-}): ContextMenuItem[] {
-  const { ctxMenu, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onTrashRequest, onMoveTab, onClose } = opts
-  const items: ContextMenuItem[] = []
-  const tab = tabs.find(t => t.id === ctxMenu.tabId)
-  const path = ctxMenu.path
+}): MenuTemplateItem[] {
+  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab } = opts
+  const tab = tabs.find(t => t.id === tabId)
+  const items: MenuTemplateItem[] = []
 
   if (path) {
     if (onRevealInNavigator) {
-      items.push({
-        label: 'Reveal in navigator',
-        onClick: () => {
-          onRevealInNavigator(path)
-          onClose()
-        }
-      })
+      items.push({ id: 'reveal', label: 'Reveal in navigator' })
     }
     if (onStartRenameFromTab) {
-      items.push({
-        label: 'Rename…',
-        onClick: () => {
-          onStartRenameFromTab(path)
-          onClose()
-        }
-      })
+      items.push({ id: 'rename', label: 'Rename…' })
     }
   }
 
   // ENH-042 — Move left / Move right. Disabled when the tab is at
   // the edge of its zone (pinned-leftmost or unpinned-rightmost).
-  // Computed from the strip's current order via tabs[] indices.
   if (onMoveTab && tab) {
     const zone = tabs.filter(t => t.pinned === tab.pinned)
-    const zoneIdx = zone.findIndex(t => t.id === ctxMenu.tabId)
+    const zoneIdx = zone.findIndex(t => t.id === tabId)
     const canMoveLeft = zoneIdx > 0
     const canMoveRight = zoneIdx >= 0 && zoneIdx < zone.length - 1
+    if (items.length > 0 && (canMoveLeft || canMoveRight)) {
+      items.push({ type: 'separator' })
+    }
     if (canMoveLeft) {
-      items.push({
-        label: 'Move tab left',
-        separatorBefore: items.length > 0,
-        onClick: () => {
-          onMoveTab(ctxMenu.tabId, -1)
-          onClose()
-        }
-      })
+      items.push({ id: 'move-left', label: 'Move tab left' })
     }
     if (canMoveRight) {
-      items.push({
-        label: 'Move tab right',
-        separatorBefore: items.length > 0 && !canMoveLeft,
-        onClick: () => {
-          onMoveTab(ctxMenu.tabId, 1)
-          onClose()
-        }
-      })
+      items.push({ id: 'move-right', label: 'Move tab right' })
     }
   }
 
   if (onTogglePin) {
+    if (items.length > 0) items.push({ type: 'separator' })
     items.push({
-      label: ctxMenu.pinned ? 'Unpin tab' : 'Pin tab',
-      separatorBefore: items.length > 0,
-      onClick: () => {
-        onTogglePin(ctxMenu.tabId)
-        onClose()
-      }
+      id: 'pin',
+      label: pinned ? 'Unpin tab' : 'Pin tab'
     })
   }
 
   if (path && tab) {
-    items.push({
-      label: 'Move to Trash…',
-      separatorBefore: items.length > 0,
-      onClick: () => {
-        onTrashRequest(ctxMenu.tabId, path, tabLabel(tab))
-        onClose()
-      }
-    })
+    if (items.length > 0) items.push({ type: 'separator' })
+    items.push({ id: 'trash', label: 'Move to Trash…' })
   }
 
   return items
@@ -551,43 +517,59 @@ function TypeIcon({ type, active }: { type: WorkingTabType; active: boolean }) {
       case 'editor':
         return (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-            <path d="M1.5 1.5h5l2 2v5h-7v-7Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-            <path d="M6.5 1.5v2h2" stroke="currentColor" strokeWidth="1" />
-            <path d="M3 5h3M3 6.5h3M3 8h2" stroke="currentColor" strokeWidth="0.9" strokeLinecap="round" />
+            <path d="M2 1.5h4l2 2v5h-6Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+            <path d="M3.5 5h3M3.5 6.5h3M3.5 8h2" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
           </svg>
         )
-      case 'markdown-preview':
+      case 'html-canvas':
         return (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-            <path d="M1.5 1.5h5l2 2v5h-7v-7Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-            <path d="M6.5 1.5v2h2" stroke="currentColor" strokeWidth="1" />
-            <path d="M3 6.5l1-1 1 1 1-1 1 1" stroke="currentColor" strokeWidth="0.9" />
+            <rect x="1" y="2" width="8" height="6" rx="0.5" stroke="currentColor" strokeWidth="1" />
+            <path d="M2.5 4l1.2 1.5L2.5 7M5 7h2.5" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )
       case 'image':
         return (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-            <rect x="1.3" y="1.5" width="7.4" height="7" rx="1" stroke="currentColor" strokeWidth="1" />
-            <circle cx="3.5" cy="4" r="0.8" stroke="currentColor" strokeWidth="0.8" />
-            <path d="M8 6.5L6 4.5l-1.5 2L3 5l-1.5 1.5" stroke="currentColor" strokeWidth="0.9" />
+            <rect x="1" y="2" width="8" height="6" rx="0.5" stroke="currentColor" strokeWidth="1" />
+            <circle cx="3" cy="4.2" r="0.6" fill="currentColor" />
+            <path d="M2 7l2-2 2 2 1.5-1.5L9 7" stroke="currentColor" strokeWidth="0.8" strokeLinejoin="round" />
           </svg>
         )
       case 'pdf':
         return (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-            <path d="M1.5 1.5h5l2 2v5h-7v-7Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-            <path d="M6.5 1.5v2h2" stroke="currentColor" strokeWidth="1" />
-            <text x="3.5" y="7.5" fontSize="2.8" fill="currentColor" fontFamily="system-ui">pdf</text>
+            <path d="M2 1.5h4l2 2v5h-6Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+            <path d="M3 5.5h0.8M4 5.5q0.7 0 0.7 0.7V8M5.5 5.5h1q0.7 0 0.7 0.7v0.6q0 0.7 -0.7 0.7h-1Z" stroke="currentColor" strokeWidth="0.6" fill="none" />
           </svg>
         )
       default:
         return (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-            <path d="M1.5 1.5h5l2 2v5h-7v-7Z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
-            <path d="M6.5 1.5v2h2" stroke="currentColor" strokeWidth="1" />
+            <rect x="1" y="1" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1" />
           </svg>
         )
     }
   })()
   return <span className={cls}>{inner}</span>
+}
+
+// ENH-068 (v0.6.3) — globe glyph for the new-browser-tab split-button.
+// Replaces the previous `>` chevron, which didn't visually suggest
+// "browser." Owner observation walk-1: "current button for new browser
+// tab is `>`, should be something more obviously browser like — like a
+// globe image or something." Mirrors the TerminalIcon's globe-line
+// pattern (circle + meridians) so the strip's visual language stays
+// coherent. currentColor follows the button's text-ink-mute → text-ink.
+function BrowserGlobeGlyph() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+      <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1" />
+      <path
+        d="M1.5 5.5h8M5.5 1.5C6.8 2.9 7.5 4.6 7.5 5.5S6.8 8.1 5.5 9.5C4.2 8.1 3.5 6.4 3.5 5.5S4.2 2.9 5.5 1.5Z"
+        stroke="currentColor"
+        strokeWidth="0.8"
+      />
+    </svg>
+  )
 }

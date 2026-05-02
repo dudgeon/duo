@@ -3827,9 +3827,17 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### ENH-050: Replace WCV-mute pattern with native NSMenu (b) + system sheet dialogs (d)
 
-**Status:** 🆕 Filed (direction locked 2026-05-02; queued for v0.6.4)
-**Priority:** Medium-high — fixes BUG-058 jankiness + BUG-064 modal occlusion; retires the entire WCV-mute pattern.
+**Status:** ✅ Shipped v0.6.3 (full migration in single sprint — all 5 implementation steps landed)
+**Priority:** Medium-high — fixes BUG-058 jankiness + BUG-064 modal occlusion; retires the entire WCV-mute pattern for menus + modals.
 **Filed:** 2026-05-02 (walk-3 W3-V8 PASS notes; **superseded** the original "snapshot overlay" direction on 2026-05-02 per walk-1 owner review of mockups)
+**Shipped:** 2026-05-02 — all 5 steps of the locked implementation order completed in one sprint:
+1. **IPC plumbing** — `MENU_POPUP` + `DIALOG_CONFIRM` channels in `shared/types.ts`; `MenuTemplateItem` / `MenuPopupRequest` / `MenuPopupResult` / `DialogConfirmRequest` / `DialogConfirmResult` types. Preload exposes `window.electron.menu.popup({ items, x?, y? })` and `window.electron.dialog.confirm({ title, message, buttons, defaultId, cancelId, type })`. Main handlers in `electron/main.ts` build `Menu.buildFromTemplate([...])` + `menu.popup({ window, x, y, callback })` for menus and `dialog.showMessageBox(window, opts)` for sheets.
+2. **WorkingTabStrip migration** — right-click → `window.electron.menu.popup`; trash + pinned-close confirms → `window.electron.dialog.confirm`. Removed BUG-058's `setOverlayMuted(true/false)` calls from `handleContextMenu` (no longer needed). Pure-data menu template (`buildTabMenuTemplate`) with stable `id`s; `handleMenuChoice(id, ctx)` maps ids to actions.
+3. **App.tsx pinned-close confirm migration** — the ⌘W close-pinned-tab path now fires `window.electron.dialog.confirm` inline and acts on the response. `pendingClosePinned` state retired.
+4. **FileTree migration** — file-row + whitespace right-clicks → `window.electron.menu.popup` via shared `popupMenu(e, target, whitespaceMode)`. `buildTreeMenuTemplate` returns pure data; `handleMenuChoice(id, target)` dispatches actions. `onTrashEntry` migrated from `window.confirm` → `window.electron.dialog.confirm`.
+5. **PinnedNav migration** — pinned-row right-click → native menu via `popupMenu(e, target)`. Local handler in same component.
+
+**Components retired:** `renderer/components/ContextMenu.tsx` and `renderer/components/PinnedCloseConfirm.tsx` deleted (no remaining imports). The `setOverlayMuted` BrowserManager API is preserved — BUG-006's in-page pill still uses it (different problem class).
 
 **Decision locked.** See `docs/DECISIONS.md § WCV-occlusion remediation: native NSMenu + system sheets, not WCV-mute` for the full rationale + trade-offs. Two surfaces, two native primitives:
 
@@ -3916,9 +3924,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-064: Trash + pinned-close confirmation modals occluded by WCV when a browser tab is active
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3 (resolved by ENH-050's full migration)
 **Priority:** Medium-high (visible during v0.6.3 walk-1; blocks completing the "delete a tab" path while smoke-walk page is up)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner observation)
+**Shipped:** 2026-05-02 — fixed automatically when ENH-050 retired the in-renderer `<PinnedCloseConfirm>` modal in favor of `dialog.showMessageBox` (system sheets compose natively above the WCV; backdrop dimming is uniform across the viewport). The trash confirm modal in `WorkingTabStrip.tsx`, the pinned-close confirm in `App.tsx`'s ⌘W keymap, and the FileTree's `onTrashEntry` (was `window.confirm`) all now fire as native sheets. No clipping, no occluded buttons, no janky mute-and-restore.
 
 **Owner observation (verbatim):** "tried to context click delete a markdown editor tab while smoke walk html was active; strange confirmation occlusion and inconsistent viewport dimming"
 
@@ -4249,9 +4258,10 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### BUG-068: New-tab buttons in working-pane tab strip get hidden when panned far / many tabs (terminal strip is sticky)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium (workflow paper-cut — when you have many tabs you most need the new-tab button, but it scrolls off)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+**Shipped:** 2026-05-02 — `WorkingTabStrip.tsx` restructured to mirror `TabBar.tsx`'s sticky pattern. Tabs now render inside a `flex-1 overflow-x-auto` scroller; the new-tab split-button cluster (`+` for new file + globe for new browser tab) sits as a sibling OUTSIDE that scroller. Pre-fix the cluster was inside the scroller and would scroll off-screen with the tabs. Now the new-tab cluster stays pinned to the right edge regardless of how many tabs / how far the user pans. Folded in as part of the ENH-050 WorkingTabStrip rewrite.
 
 **Owner observation (verbatim):** "current handling of new tab buttons is inconsistent -- for terminal pane, buttons for new claude session/new vanilla terminal are sticky/always visible; for new canvas tab, they are not and can be hidden when we are panned too far left/have many tabs; prefer sticky"
 
@@ -4303,9 +4313,10 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### ENH-068: Browser-tab `>` glyph should be a globe (or browser-like icon)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Low (cosmetic)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+**Shipped:** 2026-05-02 — `WorkingTabStrip.tsx`'s `BrowserGlobeGlyph` component replaces the prior `>` chevron in the new-browser-tab split-button half. Globe (circle + meridians via two SVG paths) at viewBox `0 0 11 11`, currentColor for theming. Mirrors the visual language of TerminalIcon's globe-line treatment. The `>` chevron stays in `TabBar.tsx` (terminal strip) where its semantic — "secondary, lesser-used shell-tab option" — is correct.
 
 **Owner observation (verbatim):** "current button for new browser tab is `>`, should be something more obviously browser like -- like a globe image or something"
 
