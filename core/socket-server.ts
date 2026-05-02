@@ -18,6 +18,7 @@ import type { BrowserManager } from '../electron/browser-manager'
 import type { FilesService } from '../electron/files-service'
 import type { NavPinsService } from './nav-pins-service'
 import type { EventBus, DuoEvent } from './event-bus'
+import type { PackLoader } from './pack-loader'
 import type {
   DuoRequest,
   DuoResponse,
@@ -139,7 +140,8 @@ export class SocketServer {
     private readonly files: FilesService,
     private readonly nav: NavBridge,
     private readonly navPins: NavPinsService,
-    private readonly events: EventBus
+    private readonly events: EventBus,
+    private readonly packs: PackLoader
   ) {}
 
   /** Stage 12 close — install a renderer-push callback. */
@@ -814,6 +816,23 @@ export class SocketServer {
             limit = Math.floor(limitRaw)
           }
           result = { events: this.events.listSince(since, limit) }
+          break
+        }
+        case 'packs': {
+          // Stage 18b — list every distro pack discovered at app
+          // boot. Returns the cached registry without re-scanning;
+          // hot-reload is out of scope for v1. Errors per pack are
+          // surfaced so authoring agents can see manifest validation
+          // failures without crawling the filesystem.
+          const registry = this.packs.get()
+          result = {
+            packs: registry.packs.map(p => ({
+              dirName: p.dirName,
+              rootDir: p.rootDir,
+              manifest: p.manifest,
+              errors: p.errors,
+            })),
+          }
           break
         }
         default:

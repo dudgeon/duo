@@ -519,6 +519,17 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'packs': {
+        // Stage 18b \u2014 `duo packs` lists every discovered distro pack
+        // as JSON. Pretty-prints by default (single-shot output, not
+        // a stream). Pack registry is cached at boot; restart Duo
+        // to refresh after installing a new pack.
+        const result = await send('packs', {}) as {
+          packs: Array<{ dirName: string; rootDir: string; manifest: unknown; errors: string[] }>
+        }
+        out(result)
+        break
+      }
       case 'events': {
         // Stage 27 \u2014 `duo events [--follow] [--since <cursor>] [--limit N]`
         // streams structured events from the bus. Pulls in issue #19.
@@ -1335,6 +1346,14 @@ COMMANDS
                                   prior event line). Producers: canvas
                                   \`duo:event\` action verb (Stage 27);
                                   more sources land as Stage 27.5.
+  packs                           Stage 18b — list every discovered
+                                  distro pack at
+                                  \`~/.claude/duo/packs/<name>/\` as
+                                  JSON. Each row carries the parsed
+                                  PACK.json manifest (or null on
+                                  parse failure) plus per-pack errors[].
+                                  Registry is cached at app boot;
+                                  restart Duo to refresh.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.

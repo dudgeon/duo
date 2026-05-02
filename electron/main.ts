@@ -264,7 +264,7 @@ async function createWindow(): Promise<void> {
     pushNavPinsChanged: (pins) => {
       mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
     }
-  }, navPinsService, eventBus)
+  }, navPinsService, eventBus, packLoader)
   // Stage 12 close — wire the renderer event sink so the socket
   // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
   // the agent calls `duo selection`). Same one-liner adapter as
