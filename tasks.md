@@ -3089,26 +3089,23 @@ The smoke walk page now emits `<meta name="duo-open-in" content="browser">` (v0.
 
 ### BUG-051: Read-only toggle stuck — toggle off → on → off leaves canvas editable
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.0.** Fix in `renderer/components/HtmlCanvas/RenderedCanvas.tsx § wire()` — added an explicit `else` branch that clears `contenteditable` / `spellcheck` / `data-duo-canvas-runtime` attributes from `doc.body` and blurs the active element on re-mount under `readOnly: true`. Without this branch, the effect's `wired` flag was reset every effect-run but `wire()` only ADDED edit-mode attributes; it never removed them when `readOnly` flipped back to true.
 **Priority:** **High — interferes with smoke walk + any read-only canvas the user tries to interact with after temporarily editing**
 **Filed:** 2026-05-02 (Stage 27 smoke-walk in flight; user reported the toggle ratchets the wrong way)
 
-**Repro:**
+**Repro (pre-fix):**
 1. Open a canvas with `<meta name="duo-default-editable" content="false">` (e.g. `~/.claude/duo/stage-27-walk.html`). Mounts read-only as expected.
 2. Click "Edit" in the toolbar strip → flips into editable mode (toolbar appears, cursor lands on click). Correct.
-3. Click "Back to read-only" → label goes away (UI says read-only), BUT the canvas body remains editable. Click anywhere → cursor lands.
+3. Click "Back to read-only" → label goes away (UI says read-only), BUT the canvas body remained editable. Click anywhere → cursor landed. **Bug.**
 
 **Expected:** flipping to "read-only" should fully revert the canvas to read-only state — no cursor placement, no contentEditable, identical to first-mount behavior.
 
-**Suspected cause:** in `renderer/components/HtmlCanvas/CanvasTab.tsx`, the `readOnly` state and the iframe document's `contentEditable` setting may not be re-synced after the second toggle. Possibilities to check:
-- The `useEffect` that wires `installCanvasActions(doc, ...)` and the `installMarkdownShortcuts(doc)` setup may set contentEditable on first mount and never re-toggle on `readOnly` state changes.
-- The `RenderedCanvas` component's `readOnly` prop may not propagate `contentEditable` flips after a state-driven re-render.
-- The `localStorage` override read may be stuck on the first persisted value (e.g. flipped to `true` once and never re-read).
+**Root cause:** `RenderedCanvas`'s wiring effect has `readOnly` in its dep array, so it re-fires on every toggle. Cleanup correctly disconnects the MutationObserver and removes keydown/mousedown listeners. But `wire()` ONLY sets edit-mode attributes (`contenteditable="true"`, `spellcheck="true"`, `data-duo-canvas-runtime="1"`) inside the `if (!readOnly)` branch — it never removes them. So a `false → true → false → true` cycle:
+- First mount under `readOnly: false` → attributes set on body. Body is editable.
+- Toggle `false → true` → effect re-runs. Cleanup removes listeners. New `wire()` skips the `!readOnly` block. **Body stays `contenteditable="true"`.** UI says read-only; reality says editable.
+- Toggle `true → false` → re-runs `wire()`'s `!readOnly` block, no-ops because attributes are already set. Looks fine, but the canvas was never actually read-only in step 2.
 
-**Where to look:**
-- `renderer/components/HtmlCanvas/CanvasTab.tsx § toggleReadOnly` + the `readOnly` `useEffect` chain
-- `renderer/components/HtmlCanvas/RenderedCanvas.tsx` (whatever consumes the `readOnly` prop and applies it to the iframe doc)
-- Verify: `doc.body.contentEditable` flips correctly on each toggle via the visible toolbar
+**Fix:** explicit `else` branch in `wire()` removes the three runtime attributes from body and blurs the active element so any leftover cursor placement clears. The runtime `<style data-duo-canvas-runtime>` (containing the goto-flash keyframes) stays — it's needed in both modes for `duo doc goto --anchor X` to flash on read-only canvases.
 
 **Smoke walk impact:** owner hit this mid-walk; the canvas they were trying to drive (smoke-walk page itself, in canvas mode) became uneditable-but-not-actually after a flip cycle. Can interfere with click handlers when contentEditable traps clicks as cursor placement.
 

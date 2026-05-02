@@ -221,6 +221,32 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           if (shouldStealFocusRef.current) {
             try { doc.body.focus() } catch { /* ignore */ }
           }
+        } else {
+          // BUG-051 — re-mount under `readOnly: true` after a prior
+          // mount with `readOnly: false`. The effect re-runs because
+          // `readOnly` is in the dep list, but `wire()` only ADDS
+          // edit-mode attributes (in the `!readOnly` branch above) and
+          // never removes them. Without this branch, toggling
+          // off → on → off leaves body with `contenteditable="true"`
+          // forever, so the canvas looks read-only (toolbar says so)
+          // but clicks still place a cursor and typing still mutates.
+          // Explicit revert: drop the attributes, blur the body so a
+          // stuck cursor doesn't linger, and the goto-flash <style>
+          // (also marked data-duo-canvas-runtime) can stay — the
+          // keyframe is harmless when no goto fires.
+          if (doc.body.hasAttribute('contenteditable')) {
+            doc.body.removeAttribute('contenteditable')
+          }
+          if (doc.body.hasAttribute('spellcheck')) {
+            doc.body.removeAttribute('spellcheck')
+          }
+          if (doc.body.getAttribute('data-duo-canvas-runtime') === '1') {
+            doc.body.removeAttribute('data-duo-canvas-runtime')
+          }
+          try {
+            const active = doc.activeElement as HTMLElement | null
+            if (active && typeof active.blur === 'function') active.blur()
+          } catch { /* ignore */ }
         }
 
         // Fire onReady AFTER the body is populated. CanvasTab mounts
