@@ -307,7 +307,12 @@ keyboard-touching change.
 
 ### BUG-006: Send → Duo pill on the browser pane doesn't render visibly
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.5 (v2)** — Path b (in-page injection via CDP) + race fix. Walk-2 verified PASS (2026-05-01).
+
+- **v1 (smoke walk FAIL):** Pill rendered visibly (IIFE injection works), but click was a no-op. Root cause: the click flow was page-pill → `window.duoSendToDuoClick()` (binding) → CDP roundtrip → main → IPC → renderer's `handleSendToDuoClick` reads `browserSelection.snapshot` from cached state. The cache is populated by the async `duoSelectionPush` observer; by the time the click roundtrip completed, `selectionchange` had fired (page-side) and pushed `null` to clear the cache. Renderer's snapshot was null at read time → handler short-circuits on `if (!snap) return`.
+- **v2:** Page-side IIFE captures the selection snapshot **synchronously at mousedown time**, before the round-trip starts. Snapshot travels through the binding payload → CDP → IPC → renderer. Renderer uses the payload-passed snapshot directly instead of reading cache. Eliminates the race entirely.
+
+Renderer-DOM `SendToDuoPill` portal stays mounted but pillAnchor is hardcoded to null; structural fallback only. ⌘D keyboard shortcut still works through the cached snapshot path (synchronous renderer-side handler — no race).
 **Priority:** Medium (Stage 15.2 ships the data plane; visual chrome is the UX gate)
 **Filed:** 2026-04-26 late-evening, after Stage 15.2 ship
 
@@ -1419,7 +1424,7 @@ Plus a sweep of inline jargon — "skill", "subagent", "priming shim", "SessionS
 
 ### BUG-028: Escape doesn't dismiss inline rename in navigator
 
-**Status:** 🟡 Fix shipped v0.5.1 (PR 1, 2026-04-28) · live verification owed — computer-use harness can't send Escape keystrokes to Electron, so smoke walk left to owner. Code-side fix: Escape branch now calls `e.stopPropagation()` + sets a `cancelledRef` + explicitly calls `inputRef.current?.blur()` before `onCancel()`, with the blur handler short-circuiting when the cancel ref is set. Belt-and-suspenders against any React-18 batching path that could swallow the keydown's setState.
+**Status:** ✅ **Shipped v0.5.1, owner-verified v0.5.5** (walk-1, 2026-05-01) — code fix held under live testing. Code-side fix: Escape branch in inline-rename calls `e.stopPropagation()` + sets a `cancelledRef` + explicitly calls `inputRef.current?.blur()` before `onCancel()`, with the blur handler short-circuiting when the cancel ref is set. Belt-and-suspenders against any React-18 batching path that could swallow the keydown's setState.
 **Priority:** Medium
 **Filed:** 2026-04-28 (referenced in roadmap + session log; never had a tasks.md entry)
 
@@ -2857,7 +2862,14 @@ The lag is most visible when both tabs are markdown editors because each tab get
 
 ### BUG-047: WebContentsView occludes renderer-DOM overlays (BUG-006 / BUG-045 class)
 
-**Status:** 🟡 **First fix landed 2026-05-01** — `BrowserManager.setOverlayMuted(boolean)` collapses the WCV to 1×1 while a renderer-DOM overlay is open. WorkingTabStrip uses it for browser-tab right-click (BUG-045 v2). BUG-006 (Send → Duo pill) and ENH-028 (find-bar) still need their own integrations of the same primitive. Filed for follow-up — keep open as a class summary until BUG-006 is closed.
+**Status:** ✅ **Class closed v0.5.5** — all three child symptoms now have their own fix paths:
+- **BUG-045** (file:// browser tab context menu) → fixed via Path B (`setOverlayMuted` mute) in v0.5.4. Menu is brief; mute is acceptable UX.
+- **ENH-028** (browser ⌘F find bar) → fixed via Path A (renderer-DOM placement above the WCV bounds) in v0.5.4. Find bar pushes the WCV's content area down via the existing ResizeObserver — no occlusion possible.
+- **BUG-006** (Send → Duo pill) → fixed via Path D (CDP injection into the page DOM) in v0.5.5. Pill is part of the page; compositor stacking is moot.
+
+The class summary stays useful as a "if you build a new renderer-DOM overlay over the browser pane, here's the menu of fix paths" reference — the four options (A/B/C/D) above are all still valid for whichever symptom matches.
+
+**Was 🟡 (First fix landed 2026-05-01):** `BrowserManager.setOverlayMuted(boolean)` collapses the WCV to 1×1 while a renderer-DOM overlay is open. WorkingTabStrip uses it for browser-tab right-click (BUG-045 v2). BUG-006 (Send → Duo pill) and ENH-028 (find-bar) still need their own integrations of the same primitive. Filed for follow-up — keep open as a class summary until BUG-006 is closed.
 **Priority:** Medium-High (blocks the FIX path for BUG-006 + ENH-028; structural)
 **Filed:** 2026-05-01 (v0.5.3-rev2 smoke walk FAIL on BUG-045)
 
@@ -2975,7 +2987,7 @@ Right-click on any WorkingPane tab → context menu with:
 
 ### ENH-032: Document terminal-locale requirement in install / onboarding
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.5.5** — two surfaces. (1) New FAQ entry "Why do special characters look broken when I paste into the terminal?" — diagnostic command + fix recipe (export LANG/LC_ALL after conda init). (2) `duo doctor` now includes a Locale section that probes `$LC_ALL`/`$LC_CTYPE`/`$LANG` and prints a fix recipe if none look UTF-8. Cross-references the FAQ entry. Walk-1 verified PASS — owner's `(base)` shell triggered the warning correctly (2026-05-01).
 **Priority:** Medium (silent paper-cut for users with conda or non-UTF-8-default shells)
 **Filed:** 2026-05-01 (v0.5.4-rev3 walk — ENH-030 PASS-with-question)
 
@@ -3005,6 +3017,123 @@ Right-click on any WorkingPane tab → context menu with:
 **What shipped:** Glanceable badge at the top-right of the titlebar (left of the theme toggle) showing `<version>` with a `·dev` suffix in accent color when `!app.isPackaged`. Reads from `app.getVersion()` in main → passed to renderer via `webPreferences.additionalArguments` (`--duo-app-version=…`, `--duo-is-dev=…`) which the preload parses out of `process.argv` and exposes as `window.electron.env.appVersion` / `.isDev`. Hover tooltip shows the full label (e.g. `Duo 0.5.4 (dev)`).
 
 **Cross-ref:** Smoke-walk skill SKILL.md § Step 2 precondition (verify package.json matches manifest version). Cut-version skill § Step 7 (post-cut bump, added in same sprint to keep the badge and walk filenames aligned).
+
+---
+
+### BUG-050: ContextMenu occluded by editor canvas (renderer-DOM stacking)
+
+**Status:** ✅ **Shipped v0.5.5** — `ContextMenu` now portals to `document.body` (was rendered inline at the call site, which inherited any ancestor stacking context — `overflow-x-auto` strip, TipTap editor's own context, etc.). z-index bumped to 1000 for safety. Different root cause from BUG-047 (WCV native subview): this one is renderer-DOM-only and would have shown on any element that creates a local stacking context above the menu's call site. Walk-2 verified PASS (2026-05-01).
+**Priority:** Medium (visible UX bug — context menu was unusable on markdown editor tabs)
+**Filed:** 2026-05-01 (v0.5.5 smoke walk — BUG-049 PASS note)
+
+**Repro:** Right-click a markdown editor tab in the working pane strip. Context menu items render in the strip area but the lower portion drops behind the editor canvas. Same visual symptom as BUG-045 / BUG-047 (browser pane right-click) but a totally different root cause — no WCV is involved here, just renderer-DOM z-index / stacking-context layering.
+
+**Why this slipped past v0.5.4 BUG-045 fix:** BUG-045's fix was the `setOverlayMuted` WCV-collapse trick, which only addresses native-subview occlusion. The markdown editor isn't a WCV — it's TipTap, renderer-DOM. So the BUG-045 fix didn't cover this case, and the smoke walks for v0.5.4 / earlier didn't exercise right-click on markdown tabs (we tested browser tab right-click but not editor tab).
+
+**Cross-ref:** BUG-047 (class summary — closed v0.5.5 for browser-pane occlusions; BUG-050 is the renderer-DOM analog and stays separate).
+
+---
+
+### ENH-034: Canvas edit-mode toggle + `<meta name="duo-default-editable">` convention
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX gap — canvas is currently always-editable, which traps button clicks as cursor placements on interactive HTML)
+**Filed:** 2026-05-01 (v0.5.5 walk-2 — smoke walk page Copy-results button trapped by contenteditable)
+
+**Two distinct conventions in flight, neither sufficient on its own:**
+
+1. **`<meta name="duo-open-in" content="browser|canvas">`** (already shipped) — routing-only: which surface should render this file. Used by `App.tsx § openFileSmart` and `files-service.ts § getHtmlMeta`. Solves the smoke walk problem (force browser routing for any HTML page that has interactive buttons but isn't meant to be edited).
+
+2. **`<meta name="duo-default-editable" content="true|false">`** (this ENH) — within-canvas mode: should the canvas open in edit mode or read-only mode? Default: `true` (matches today's behavior for backward compat).
+
+**Why both are needed:**
+- `duo-open-in` is binary routing — browser pane (no rich Duo affordances, just a webview) vs canvas pane (rich rendering + comment rail + Send → Duo + agent ops + autosave on edit).
+- `default_editable` is internal canvas state — you might *want* a file in canvas (for the rich affordances) but *not want* it editable on first load (read-only review of a peer's HTML draft, agent-generated dashboard you want to interact with click-wise but not accidentally type into, templates / reference docs).
+
+**Scope (this ENH):**
+1. Read `<meta name="duo-default-editable">` in `getHtmlMeta` → extend `HtmlFileMeta` shape with the field.
+2. CanvasTab: extend `readOnly` state to take initial value from the meta hint (today: only path-untrusted files are read-only).
+3. Toolbar button: edit-mode toggle (pencil icon → eye icon when locked). Persists locally via `localStorage` per file path so the user's choice sticks across sessions but doesn't write back to disk.
+4. Skill update (`skill/SKILL.md` + `agents/duo.md` cheat-sheet): document both conventions side-by-side so agents know which to emit:
+   - `duo-open-in` for routing
+   - `duo-default-editable` for canvas-mode
+
+**Out of scope (smoke-walk piece — solved by `duo-open-in`):**
+The smoke walk page now emits `<meta name="duo-open-in" content="browser">` (v0.5.5 generator patch) so the Copy-results button works regardless of how the user opens the file. ENH-034 is no longer needed for that workflow.
+
+**Cross-ref:** `duo-open-in` (already shipped — see `files-service.ts § getHtmlMeta`); FEATURE_AUTO_INJECT_IDS in `shared/feature-flags.ts` (related — both are about gating canvas-mode auto-behaviors that don't fit every file).
+
+---
+
+### ENH-035: "Copy path" on working-pane tab right-click context menu
+
+**Status:** 🆕 Filed
+**Priority:** Medium (small UX paper-cut, but compounds: the agent + the user both regularly need the path of the active tab to drop into a CLI command, a chat, a file reference)
+**Filed:** 2026-05-02 (Stage 27 smoke walk — owner asked for it after right-clicking a tab and not finding "Copy path")
+
+**Repro:** Right-click any working-pane tab (file or browser) → no "Copy path" option appears. The current right-click menu has Pin / Unpin / Reveal / Rename / Trash for file tabs and Pin / Unpin / Reveal / Trash for `file://` browser tabs. To get the absolute path today the user has to either (a) read it from the navigator after Reveal-In-Navigator, (b) copy from the browser's URL bar (browser tabs only), or (c) hover the tab and read the tooltip — all friction.
+
+**Scope:**
+1. Add a "Copy path" menu item to the right-click context menu for ALL working-pane tabs (file tabs + browser tabs whose URL is `file://...`).
+2. For browser tabs whose URL is `http(s)://...`, the entry reads "Copy URL" instead.
+3. Click writes to the system clipboard via `clipboard.writeText` — same path as ENH-030 ("Copy as Plain Text").
+4. Optional: a one-shot toast confirmation ("Path copied"). Defer if the menu's silent-on-success pattern matches everything else.
+
+**Why both files + URLs:** unifies the "tab → identifier on clipboard" gesture. Any tab right-click → top-of-menu "Copy <thing>" works.
+
+**Files:** `renderer/components/WorkingTabStrip.tsx` (where the per-tab menu is built — see existing Pin / Reveal / Trash entries).
+
+**Cross-ref:** ENH-030 (Copy as Plain Text in browser context menu — same `clipboard.writeText` pattern); the file-tab Reveal entry already gives access to the underlying path so the data is already known per-tab.
+
+---
+
+### ENH-036: `duo open <url>` should bring the working pane to focus on the new tab
+
+**Status:** 🆕 Filed
+**Priority:** Medium (functional: `duo open` is broken-by-default for the most common "show the user this URL" intent; user has to manually click the new browser tab to actually see it)
+**Filed:** 2026-05-02 (Stage 27 smoke walk — `duo open` of the smoke-walk HTML created the browser tab but the working pane stayed on the canvas surface; user couldn't see the page until they manually clicked the new tab in the strip)
+
+**Repro:**
+1. Have a canvas / file tab active in the working pane (any non-browser working-pane state).
+2. Run `duo open <some-url>` from a terminal.
+3. **Expected:** the new browser tab is immediately visible — the working pane flips to browser mode AND the new tab is the active browser tab.
+4. **Actual:** the browser tab is added (visible in `duo tabs`, `isActive: true`) but the working pane stays on whatever it was. User has to scroll the tab strip and click the browser tab to see the page they just opened.
+
+**Why this matters:** `duo open` is the canonical CLI verb for "show the user this URL." Every other interpretation (just queue it without showing it) is a footgun. An agent helping a PM saying "open this thing" expects Duo to actually display it.
+
+**Same root cause might apply to:**
+- `duo edit <path>` for file tabs (does it auto-switch the working pane to file mode if a browser was active?) — needs verification.
+- `duo navigate <url>` against a hidden browser pane — does it surface the URL change?
+
+**Scope:**
+1. `duo open` (browser.addTab path): main process should trigger the same `setActiveWorking({kind:'browser'})` + activate-tab side effect that the canvas-action `browser:open` verb does in App.tsx's handleCanvasAction.
+2. `duo edit` (file open path): symmetric check — if the working pane is currently on browser, the new file tab should bring the working pane to file mode.
+3. Audit `duo open --background` style flag for callers who explicitly want to queue without focus (rare; defer to a v2 follow-up if it surfaces).
+
+**Files:** `core/socket-server.ts` § `case 'open'`, `electron/browser-manager.ts § addTab`, `renderer/App.tsx` (whichever surface flips activeWorking).
+
+**Cross-ref:** Stage 23 canvas-action `browser:open` already does the right thing (App.tsx handleCanvasAction sets activeWorking + setFocusedColumn). That's the model — extend the same effect to the CLI path.
+
+---
+
+### BUG-049: "Move to Trash" confirm dialog renders pinned-close copy
+
+**Status:** ✅ **Shipped v0.5.5** — `PinnedCloseConfirm` parameterized to take explicit title/body/confirmLabel; trash branch in `WorkingTabStrip.tsx` now passes its own copy ("Move to Trash?" / "<file> will be moved to the Trash. The tab will close." / "Move to Trash" button). Walk-1 verified PASS (2026-05-01).
+**Priority:** Medium (visible UX bug — text is incoherent)
+**Filed:** 2026-05-01 (post-v0.5.4 owner report)
+
+**Repro:** Right-click an unpinned local-HTML browser tab → choose **Move to Trash…** → the confirm dialog reads:
+
+> **Close pinned tab?**
+> Move "Smoke walk v0.5.4-rev3" to the Trash? The tab will close and the file will be moved. is pinned. Close it anyway?
+
+**Root cause:** `WorkingTabStrip.tsx` reuses the `PinnedCloseConfirm` component for the trash flow (lines 211-220), passing the trash copy as `label`. But `PinnedCloseConfirm` hardcodes:
+- Title: `"Close pinned tab?"`
+- Body: `<span>{label}</span> is pinned. Close it anyway?`
+
+So the trash copy gets sandwiched between the pinned-close title and the "is pinned" suffix. The two flows share a UI primitive but only the pinned-close copy lives inside it.
+
+**Fix path:** Parameterize `PinnedCloseConfirm` to accept `title` + `body` props (defaulting to today's pinned-close copy for backward compat), and pass explicit strings from the trash branch. Alternative: split into a generic `ConfirmModal` primitive and have the pinned-close + trash flows compose their own copy. Going with the simpler title/body parameterization — it's a confirm modal in two places, doesn't justify a base primitive yet.
 
 ---
 

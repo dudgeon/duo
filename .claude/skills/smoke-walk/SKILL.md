@@ -163,7 +163,7 @@ server's stderr to the user — something else is wrong (port in
 use, missing dependency, sandbox refusal). Don't keep silently
 retrying.
 
-### 5. Open the smoke walk page in Duo's browser pane
+### 5. Open the smoke walk page in Duo's browser pane AND bring focus to it
 
 ```bash
 duo open docs/dev/smoke-walks/v<VERSION>.html
@@ -175,13 +175,39 @@ it as a browser tab. **Browser pane is required** — the page uses
 sandboxes (no `allow-scripts`). Browser tabs are full Chromium,
 which has clipboard access on user-gesture click events.
 
+**Important — until ENH-036 lands:** `duo open` adds the browser
+tab and marks it `isActive: true` in the browser-tab list, but it
+does NOT flip the WorkingPane's `activeWorking.kind` to `'browser'`
+when the user is currently on a canvas / file tab. The new tab
+will be present-but-hidden behind the canvas surface, and the user
+sees no change after running the command.
+
+Mitigation while ENH-036 is open: explicitly tell the user where
+to click, with the tab title verbatim:
+
+> The smoke walk page is open as a browser tab titled
+> **"Smoke walk v<VERSION>"**. Click that tab in the working-pane
+> tab strip — it may be at the right end of the strip and require
+> scrolling — to bring it forward. Then mark each item Pass / Fail
+> and click "Copy results" at the bottom.
+
+Don't merely say "open in the browser pane." A user on the canvas
+side gets a confused-no-op feel; "the smoke walk tab is **named
+Smoke walk v<VERSION>** — click it" is what removes the ambiguity.
+
+When ENH-036 ships (CLI verbs auto-focus the new tab), drop the
+hand-off paragraph from this skill — the `duo open` will bring
+the page forward by itself.
+
 ### 6. Hand off to the user
 
-Say (briefly):
+Say (briefly), incorporating the focus-the-tab nudge from Step 5:
 
-> Smoke walk page is open in the browser pane. For each item:
-> mark Pass or Fail, add notes if anything's off. When done, click
-> "Copy results" at the bottom and paste back here.
+> Smoke walk page is open as a browser tab titled **"Smoke walk
+> v<VERSION>"**. Click it in the working-pane tab strip if the
+> page isn't already showing. For each item: mark Pass or Fail,
+> add notes if anything's off. When done, click "Copy results"
+> at the bottom and paste back here.
 
 **Don't elaborate.** The page itself is the spec. If the user has
 questions they'll ask.
