@@ -70,6 +70,10 @@ const AGENTS_DIR = path.join(HOME, '.claude', 'agents')
 const INSTALLED_PATH = path.join(DUO_DIR, 'installed.json')
 const EXTERNAL_DOMAINS_PATH = path.join(DUO_DIR, 'external-domains.json')
 const HELP_DEST_DIR = path.join(DUO_DIR, 'help')
+// Stage 28 — distro lesson packs install at ~/.claude/duo/packs/.
+// PackLoader scans this on app boot; first-launch defaults open
+// declared canvases the first time a pack@version is encountered.
+const PACKS_DEST_DIR = path.join(DUO_DIR, 'packs')
 const CLI_DEST_DIR = path.join(HOME, '.local', 'bin')
 const CLI_DEST_PATH = path.join(CLI_DEST_DIR, 'duo')
 const PRIMING_PATH = path.join(DUO_DIR, 'priming.md')
@@ -269,6 +273,21 @@ export class InstallService {
       await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'help'),
         HELP_DEST_DIR,
+        prevShas,
+        fileResults
+      )
+
+      // Stage 28 — distro lesson packs at packs/<name>/ in the repo
+      // mirror to ~/.claude/duo/packs/<name>/ on disk. Recurses into
+      // each pack so canvases/ + lesson-skill/ tag along. PackLoader
+      // scans the destination on every app boot; the Stage 18b
+      // first-launch defaults hook fires per-pack-version.
+      // Customization preservation: same `safeOverwriteFile` path the
+      // help/*.html copy uses, so a user-edited canvas survives an
+      // upgrade with a `preserved-conflict` outcome.
+      await this.safeOverwriteDirContents(
+        path.join(sourceRoot, 'packs'),
+        PACKS_DEST_DIR,
         prevShas,
         fileResults
       )

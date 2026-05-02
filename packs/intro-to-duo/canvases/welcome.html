@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome to Duo</title>
+
+  <!--
+    intro-to-duo welcome canvas (Stage 28 — Pack A).
+
+    The FTUX entry point. Auto-opens on first launch via Stage 18b's
+    first-launch defaults hook. The user clicks "Start lesson"; that
+    spawns a Claude tab in their home directory with a data-cmd that
+    asks Claude to read the accompanying lesson skill at
+    ~/.claude/duo/packs/intro-to-duo/lesson-skill/SKILL.md and walk
+    them through. The agent paints subsequent step content into
+    `data-duo-pane="lesson-body"` via `duo html update --selector`.
+
+    Anti-pattern dodge: the canvas does NOT script the lesson —
+    Claude does. The canvas is a paint surface + click-event source.
+    This keeps the iframe sandboxed (no allow-scripts) and makes the
+    lesson agent-driven, not config-driven.
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-soft: #F2D9B8;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 48px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.6;
+      font-size: 15px;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+    header {
+      border-bottom: 1px solid var(--paper-edge);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+    }
+    h1 { margin: 0 0 6px; font-size: 28px; font-weight: 700; }
+    .lead { margin: 0; color: var(--ink-soft); font-size: 15px; }
+    .body {
+      min-height: 280px;
+      padding: 28px;
+      background: var(--paper-deep);
+      border-radius: 8px;
+      margin-bottom: 24px;
+    }
+    .body h2 { margin: 0 0 12px; font-size: 19px; }
+    .body p { margin: 0 0 14px; color: var(--ink-soft); }
+    .body code {
+      background: var(--paper-edge);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+    }
+    .pill-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 12px 0 0;
+      padding: 0;
+      list-style: none;
+    }
+    .pill-list li {
+      padding: 4px 10px;
+      background: var(--paper-edge);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--ink-soft);
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .cta {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 12px 26px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .cta:hover { background: var(--accent-ink); }
+    .secondary {
+      background: transparent;
+      color: var(--ink-mute);
+      border: 1px solid var(--paper-edge);
+      padding: 11px 18px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .secondary:hover { color: var(--ink-soft); border-color: var(--ink-mute); }
+    footer {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--paper-edge);
+      font-size: 13px;
+      color: var(--ink-mute);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    footer a:hover { text-decoration: underline; }
+    .step-counter {
+      font-size: 12px;
+      color: var(--ink-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>👋 Welcome to Duo</h1>
+      <p class="lead">A pair of windows for you and Claude. Five
+      minutes to learn the surfaces.</p>
+    </header>
+
+    <section class="body" data-duo-pane="lesson-body">
+      <div class="step-counter" data-duo-pane="step-counter">Step 0 — before we begin</div>
+      <h2 style="margin-top: 6px;">What is Duo?</h2>
+      <p>Duo is a desktop app pairing terminal sessions (where Claude
+      runs) with an embedded browser, a markdown editor, and an
+      interactive HTML canvas. A small CLI bridge — <code>duo</code> —
+      lets Claude drive everything you can see.</p>
+      <p>Click <strong>Start lesson</strong> below. Duo will open a
+      fresh Claude tab in your home directory and ask Claude to walk
+      you through the primitives one at a time. You'll click buttons
+      here; Claude will respond by painting the next step into this
+      pane.</p>
+      <ul class="pill-list">
+        <li>Terminal</li>
+        <li>File navigator</li>
+        <li>Browser pane</li>
+        <li>Markdown editor</li>
+        <li>HTML canvas</li>
+        <li>Agent loop</li>
+      </ul>
+    </section>
+
+    <div class="actions">
+      <button class="cta"
+              data-duo-action="claude:spawn"
+              data-cwd="~/"
+              data-cmd="Read ~/.claude/duo/packs/intro-to-duo/lesson-skill/SKILL.md and walk me through the lesson. I'm at step 1."
+              data-duo-id="start-lesson-cta">
+        Start lesson
+      </button>
+      <button class="secondary"
+              data-duo-action="duo:event"
+              data-event="lesson-skip"
+              data-payload='{"pack":"intro-to-duo"}'
+              data-duo-id="skip-lesson-cta">
+        I'll explore on my own
+      </button>
+    </div>
+
+    <footer>
+      <span>Pack: intro-to-duo · v1.0.0</span>
+      <a href="#" data-duo-action="editor:open"
+                  data-path="~/.claude/duo/help/faq.html">
+        Open the FAQ
+      </a>
+    </footer>
+  </main>
+</body>
+</html>

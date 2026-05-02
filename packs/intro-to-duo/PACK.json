@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "intro-to-duo",
+  "version": "1.0.0",
+  "title": "Introduction to Duo",
+  "description": "A 5-minute interactive walkthrough of Duo's primitives — terminal, file navigator, browser pane, and HTML canvas — for users new to Claude Code.",
+  "defaults": [
+    {
+      "kind": "canvas",
+      "path": "canvases/welcome.html",
+      "openOnFirstLaunch": true
+    }
+  ]
+}
