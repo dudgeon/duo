@@ -16,28 +16,30 @@
 
 ## Current state — last updated 2026-05-01
 
-**Active sprint:** Sprint B — Stage 18b (distro skill packs).
-**Active commit:** Sprint B Commit 1 (PACK.json schema + format spec).
+**Active sprint:** Sprint B complete (Stage 18b v1 minimums).
+**Active commit:** Sprint C Commit 1 (Stage 28 — intro-to-duo pack).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Sprint A complete. Six commits (c11d999 → 11d484c).
-Smoke-walk page authored at
-`docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html` (gitignored). The
-autonomous walk attempt was **blocked-on-visual-walk** — dev-app
-restart left the BrowserWindow not visible to computer-use after
-the prior orphaned Electron got cleaned up. CLI surface verified
-(events command recognized, ring empty, snapshot mode parses); UI
-verbs need a human walker before any cut. Walk + manifest stay in
-`docs/dev/smoke-walks/` for that pickup.
+**Status:** Sprints A + B complete. Sprint A landed Stage 27
+primitives in six commits (c11d999 → 11d484c). Sprint B landed
+Stage 18b's v1 minimum scope in five commits (2646f62 → b04ce8e):
+PACK.json schema, PackLoader, first-launch defaults hook + atomic
+state file, `duo packs` CLI verb. The CLI walk passed end-to-end —
+test-pack discovered, malformed bad-pack errored without crashing,
+first-launch fired, second boot stayed quiet, version bump re-fired.
+V9 trust-gate verification deferred (inherited from Stage 23).
 
-## Sprint B — Stage 18b plan
+## Sprint C — Stage 28 plan
+
+Two lesson packs that ship as part of v0.6.0:
 
 | # | Commit | Files |
 |---|---|---|
-| 1 | `PACK.json` schema spec — `name`, `version`, `defaults[]` (FTUX tabs), `pins[]` (pre-pinned navigator entries), `extra-skills/` directory convention | `docs/prd/stage-18b-distro-packs.md` (NEW), `shared/types.ts` (PackManifest), `core/pack-loader.ts` (NEW) |
-| 2 | Pack discovery + parse — scan `~/.claude/duo/packs/<name>/PACK.json`; build registry | `core/pack-loader.ts`, `electron/main.ts` (wire into install hooks), `~/.claude/duo/installed-packs.json` provenance |
-| 3 | First-launch defaults hook — open each `defaults[].path` as a tab on first boot per pack; never re-open if user closed | `electron/main.ts`, `core/session-state-service.ts` (per-pack first-launch flag), `electron/install-service.ts` |
-| 4 | Pack install via `cp -r` — manual install for v1 (Stage 18b proper machinery deferred); document at `docs/prd/stage-18b-distro-packs.md § Install` | docs only |
-| 5 | Smoke-walk for Stage 18b primitives (FTUX defaults open, dismiss persists, pack registry visible to `duo` CLI) | `docs/dev/smoke-walks/v0.6.0-stage-18b-rev1.{html,json}` |
+| 1 | `intro-to-duo` pack scaffold (PACK.json + canvases/welcome.html + canvases/step-{1..N}.html using lesson-scaffold template) | `~/.claude/duo/packs/intro-to-duo/` (synthesized into the repo for distro), `docs/prd/stage-28-lesson-packs.md` updates |
+| 2 | `intro-to-duo-lesson` skill (markdown reference for the agent that runs `duo events --follow` + `duo html update --selector` to advance the lesson) | `~/.claude/skills/intro-to-duo-lesson/SKILL.md` (synthesized into the repo) |
+| 3 | `claude-code-basics` pack — multi-canvas derived from `untitled-folder/claude-code-basics-temp.md`. One canvas per Family / 30-min spine module | similar shape to intro-to-duo; references the source curriculum |
+| 4 | `claude-code-basics-lesson` skill — same agent-side pattern as intro-to-duo; tracks state for the multi-canvas user flow | mirrors Commit 2 shape |
+| 5 | End-of-Sprint-C smoke walk — boot fresh, both packs first-launch, dismiss patterns work, lesson advances on click | `docs/dev/smoke-walks/v0.6.0-stage-28-rev1.{html,json}` |
+| 6 | v0.6.0 cut — fold in v0.5.5 carry-overs (BUG-006/049/050/047/028, ENH-032), Sprints A+B+C, smoke pass | `docs/RELEASES.md`, `CHANGELOG.md`, `package.json`, `cli/duo`, signed DMG |
 
 ## Big-picture initiative
 

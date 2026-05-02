@@ -136,7 +136,7 @@ Layer 2 — New surfaces (built against Layer 1)
 
 Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
    18    First-launch self-install (no cert needed)                    ← FTUX trio leg
-   18b   Distro skill packs (extra-skills/ + PACK.json + per-conflict UI) 🔄 Sprint B in flight (PRD 2026-05-01)
+   18b   Distro skill packs (extra-skills/ + PACK.json + per-conflict UI) 🔄 Sprint B v1 minimums shipped 2026-05-01 (extra-skills/ merge + UI deferred to 18c)
    19a   Env signals (DUO_SESSION etc.)                                ✓ shipped
    19c   Default-to-claude tabs + split-button + duo new-tab           ✓ shipped + merged
    19b   Passive priming (SessionStart hook + PATH shim)               ✓ shipped v0.3.0
