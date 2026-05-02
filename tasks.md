@@ -3355,7 +3355,7 @@ So the trash copy gets sandwiched between the pinned-close title and the "is pin
 
 ### BUG-052: Stage 27 V2 — `editor:open` with `data-mode="canvas"` opens but toolbar / read-only strip missing
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `c010ef9`).**
 **Priority:** **High — regression in Stage 27 verb. v0.6.0 release-blocker.**
 **Filed:** 2026-05-02 (walk-2 result)
 
@@ -3381,7 +3381,7 @@ So the trash copy gets sandwiched between the pinned-close title and the "is pin
 
 ### BUG-053: Stage 27 V3 — `nav:reveal` opens parent folder but doesn't highlight the file
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `660f092`).**
 **Priority:** **High — regression in Stage 27 verb. v0.6.0 release-blocker.**
 **Filed:** 2026-05-02 (walk-2 result)
 
@@ -3414,7 +3414,7 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-054: Stage 27 V7 — `terminal:focus` flips visual focus indicator but cursor is not active in the terminal
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `9d4bc5e`).**
 **Priority:** **High — regression. v0.6.0 release-blocker.**
 **Filed:** 2026-05-02 (walk-2 result)
 
@@ -3441,7 +3441,7 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-055: HTML canvas click should focus the working pane (BUG-037 regression / sibling)
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `11b3417`).**
 **Priority:** **High — release-blocker for v0.6.0.** Breaks the basic "click into the canvas to begin typing" flow that BUG-037 fixed.
 **Filed:** 2026-05-02 (walk-2 owner observation)
 
@@ -3469,7 +3469,7 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-056: Send → Duo pill on browser pane fires without an active Claude session
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `70fd53a`).**
 **Priority:** **High — recurring regression. Owner has called it out repeatedly: "we have discussed before; please update the docs and regression tests to ensure this does not happen again."**
 **Filed:** 2026-05-02 (walk-2; user explicit "STILL getting" feedback)
 
@@ -3502,7 +3502,7 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-057: Pinned working-pane tabs lost across sessions / app upgrades
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `21b8c35`).**
 **Priority:** **High — release-blocker for v0.6.0.** Owner's framing: "pinned files should stay pinned and NEVER be lost between sessions or after app updates/upgrades; that's the whole point of the feature."
 **Filed:** 2026-05-02 (walk-2 owner report)
 
@@ -3533,7 +3533,7 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-058: Browser pane (WebContentsView) still occludes the working-pane tab context menu (BUG-050 partial fix)
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped post-v0.5.6 (commit `d9cd6c0`).**
 **Priority:** **🚨 URGENT — release-blocking for v0.6.0.** Owner explicit: "STILL getting issue where browser occludes tab context menu, see screenshot — this is an urgent, release-blocking bug."
 **Filed:** 2026-05-02 (walk-2)
 
