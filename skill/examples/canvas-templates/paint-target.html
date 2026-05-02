@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Paint target demo</title>
+
+  <!--
+    paint-target.html — Stage 27 reference template (2 of 5).
+
+    What it demonstrates: a layout with one or more `data-duo-pane`
+    regions an agent can repaint via:
+
+      duo html update --selector '[data-duo-pane="result"]' \
+                      --html '<p>Whatever the agent computed</p>'
+
+    Why this template: lesson result panels, agent computation
+    output, "show me what you found" surfaces. The key idea is the
+    region's selector is STABLE — agents don't have to re-derive it
+    after each interaction. A button below kicks off the agent action
+    by emitting a duo:event the agent's --follow loop reacts to.
+
+    Customize:
+      - data-duo-pane="result" → rename if you want multiple regions
+      - data-event on the button → the event name your agent loop
+        listens for
+      - the placeholder paragraph inside the region → seed content
+
+    Pair the button click with an agent loop:
+
+      duo events --follow | while IFS= read -r line; do
+        case "$(jq -r '.event.name // empty' <<< "$line")" in
+          "compute-balance")
+            duo html update --selector '[data-duo-pane="result"]' \
+              --html '<strong>$1,234.56</strong>'
+            ;;
+        esac
+      done
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 48px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    .lead { color: var(--ink-soft); margin: 0 0 24px; font-size: 14px; }
+    .pane {
+      padding: 20px;
+      border: 1px dashed var(--paper-edge);
+      border-radius: 6px;
+      background: var(--paper-deep);
+      min-height: 60px;
+      margin-bottom: 16px;
+    }
+    .pane-title { font-size: 12px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .cta {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .cta:hover { background: var(--accent-ink); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Latest balance</h1>
+    <p class="lead">Click the refresh button below. The agent (subscribed via
+    <code>duo events --follow</code>) repaints the result pane.</p>
+
+    <div class="pane" data-duo-pane="result">
+      <div class="pane-title">Result</div>
+      <p>Click <strong>Compute</strong> to populate.</p>
+    </div>
+
+    <button class="cta"
+            data-duo-action="duo:event"
+            data-event="compute-balance"
+            data-duo-id="compute-cta">
+      Compute
+    </button>
+  </main>
+</body>
+</html>

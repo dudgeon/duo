@@ -17,13 +17,22 @@
 ## Current state — last updated 2026-05-01
 
 **Active sprint:** Stage 27 — Canvas authoring vocabulary + skill.
-**Active commit:** Commit 6 (five reference templates).
+**Active commit:** Sprint A complete (Commit 6 just landed).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Commits 1–5 landed. Commit 5 = `skill/canvas-authoring.md`
-(full reference: vocabulary, paint regions, form bindings, agent-side
-events, anti-patterns, worked tutorial example) + `sync:claude` and
-`InstallService.installSkillsAndAgents()` updated to copy it. Cross-
-linked from `skill/SKILL.md`. Typecheck clean.
+**Status:** All six commits landed. Sprint A primitives shipped.
+Commit 6 = five reference templates at
+`skill/examples/canvas-templates/`: button-card, paint-target,
+form-input, lesson-scaffold, dashboard. Each ~120 lines, valid
+HTML5, Atelier palette tokens with prefers-color-scheme dark
+fallbacks, `<meta name="duo-default-editable" content="false">`,
+"How this works" comment header. `sync:claude` and InstallService
+both copy the new directory recursively. Typecheck clean.
+
+## Next: end-of-sprint smoke walk
+
+Per CLAUDE.md § 7b, build a hand-built test canvas + smoke walk
+manifest at `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html`. Walk
+through V1–V17 verification items in PRD § 14.
 
 ## Big-picture initiative
 

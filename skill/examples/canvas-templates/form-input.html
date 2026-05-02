@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Tell me about yourself</title>
+
+  <!--
+    form-input.html — Stage 27 reference template (3 of 5).
+
+    What it demonstrates: a form with a textarea (or any input) plus
+    a submit button. The button uses `data-payload-from` to capture
+    the input's `.value` and ship it as part of an emitted duo:event:
+
+      <input id="user-name" type="text" />
+      <button data-duo-action="duo:event"
+              data-event="user-introduced"
+              data-payload-from="#user-name">Submit</button>
+
+    The agent receives:
+      {"event":{"source":"canvas","name":"user-introduced",
+                "payload":{"value":"Geoff"}}}
+
+    Why this template: tutorial canvases need to ASK the user
+    something — their name, their experience level, what they want
+    out of this lesson — and route the answer back to the agent
+    without bespoke JS.
+
+    Supported inputs: <input> (`.checked` for checkbox/radio,
+    `.value` otherwise), <textarea>, <select> (multi-selects return
+    a string array). See skill/canvas-authoring.md § "Form inputs".
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 48px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    main {
+      max-width: 540px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 24px; margin: 0 0 8px; }
+    .lead { color: var(--ink-soft); margin: 0 0 24px; font-size: 14px; }
+    label {
+      display: block;
+      font-size: 13px;
+      color: var(--ink-soft);
+      margin: 16px 0 4px;
+    }
+    input, textarea, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      font-size: 14px;
+      border: 1px solid var(--paper-edge);
+      border-radius: 4px;
+      background: var(--paper-deep);
+      color: var(--ink);
+      font-family: inherit;
+    }
+    textarea { min-height: 80px; resize: vertical; }
+    input:focus, textarea:focus, select:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
+    }
+    .cta {
+      margin-top: 20px;
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 10px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .cta:hover { background: var(--accent-ink); }
+    .ack {
+      margin-top: 16px;
+      padding: 12px;
+      background: var(--paper-deep);
+      border-left: 3px solid var(--accent);
+      font-size: 13px;
+      color: var(--ink-soft);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Tell me about yourself</h1>
+    <p class="lead">The agent will read your answers via
+    <code>duo events --follow</code> and tailor the lesson.</p>
+
+    <label for="user-name">Your name</label>
+    <input id="user-name" type="text" placeholder="e.g. Alex" />
+
+    <label for="experience">Comfort level with Claude Code</label>
+    <select id="experience">
+      <option value="new">First time using it</option>
+      <option value="some">Used it a handful of times</option>
+      <option value="comfortable">Comfortable; want to go deeper</option>
+    </select>
+
+    <label for="goals">What do you want out of this lesson?</label>
+    <textarea id="goals" placeholder="Anything specific, or leave blank for a general intro"></textarea>
+
+    <button class="cta"
+            data-duo-action="duo:event"
+            data-event="user-introduced"
+            data-payload-from="#user-name"
+            data-duo-id="introduce-cta">
+      Submit
+    </button>
+
+    <div class="ack" data-duo-pane="ack">
+      The agent paints an acknowledgment here once it sees your event.
+    </div>
+  </main>
+</body>
+</html>

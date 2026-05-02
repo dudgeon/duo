@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Personal home</title>
+
+  <!--
+    dashboard.html — Stage 27 reference template (5 of 5).
+
+    What it demonstrates: a multi-pane layout where each pane is a
+    stable `data-duo-pane` region the agent can refresh independently.
+    Refresh buttons fire scoped duo:event verbs the agent loop can
+    react to per-pane.
+
+    Why this template: a "Trailblazer's home page" pinned in the user's
+    workspace — at-a-glance views of their open work, the agent's
+    recent suggestions, helpful next-step links. Each pane refreshes
+    on its own cadence (user click here OR agent push there) without
+    re-rendering the whole page.
+
+    Customize per pane:
+      - data-duo-pane=<name>   stable selector
+      - data-event=<name>      what the agent listens for on refresh
+
+    Example agent loop:
+
+      duo events --follow | while IFS= read -r line; do
+        case "$(jq -r '.event.name // empty' <<< "$line")" in
+          "refresh-todays-priorities")
+            duo html update --selector '[data-duo-pane="priorities"]' \
+              --html "$(generate_priorities_html)"
+            ;;
+          "refresh-notifications")
+            duo html update --selector '[data-duo-pane="notifications"]' \
+              --html "$(generate_notifications_html)"
+            ;;
+        esac
+      done
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+    main { max-width: 980px; margin: 0 auto; }
+    header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 26px; }
+    .greeting { color: var(--ink-mute); font-size: 14px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .pane {
+      background: var(--paper-deep);
+      border: 1px solid var(--paper-edge);
+      border-radius: 8px;
+      padding: 20px;
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+    }
+    .pane-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .pane h2 { margin: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--ink-mute); }
+    .pane-content { flex: 1; color: var(--ink-soft); font-size: 14px; }
+    .pane-content ul { margin: 0; padding-left: 20px; }
+    .pane-content li { margin-bottom: 4px; }
+    .refresh {
+      background: transparent;
+      color: var(--ink-mute);
+      border: 1px solid var(--paper-edge);
+      padding: 4px 10px;
+      font-size: 11px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .refresh:hover { color: var(--accent); border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Welcome back</h1>
+      <div class="greeting" data-duo-pane="greeting">Pinned to your workspace</div>
+    </header>
+
+    <div class="grid">
+      <section class="pane">
+        <div class="pane-header">
+          <h2>Today's priorities</h2>
+          <button class="refresh"
+                  data-duo-action="duo:event"
+                  data-event="refresh-todays-priorities"
+                  data-duo-id="refresh-priorities">
+            Refresh
+          </button>
+        </div>
+        <div class="pane-content" data-duo-pane="priorities">
+          <p>Click <strong>Refresh</strong> for the agent to summarize.</p>
+        </div>
+      </section>
+
+      <section class="pane">
+        <div class="pane-header">
+          <h2>Recent notifications</h2>
+          <button class="refresh"
+                  data-duo-action="duo:event"
+                  data-event="refresh-notifications"
+                  data-duo-id="refresh-notifications">
+            Refresh
+          </button>
+        </div>
+        <div class="pane-content" data-duo-pane="notifications">
+          <p>The agent paints recent inbox / Slack snippets here.</p>
+        </div>
+      </section>
+
+      <section class="pane">
+        <div class="pane-header">
+          <h2>Suggested next steps</h2>
+          <button class="refresh"
+                  data-duo-action="duo:event"
+                  data-event="refresh-suggestions"
+                  data-duo-id="refresh-suggestions">
+            Refresh
+          </button>
+        </div>
+        <div class="pane-content" data-duo-pane="suggestions">
+          <ul>
+            <li>Open today's notes</li>
+            <li>Review the lesson pack</li>
+            <li>Run <code>duo doctor</code></li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="pane">
+        <div class="pane-header">
+          <h2>Quick actions</h2>
+        </div>
+        <div class="pane-content">
+          <button class="refresh"
+                  data-duo-action="claude:spawn"
+                  data-duo-id="quick-claude">
+            New Claude tab
+          </button>
+          <button class="refresh"
+                  data-duo-action="theme:set"
+                  data-theme="dark"
+                  style="margin-left: 6px;">
+            Dark mode
+          </button>
+          <button class="refresh"
+                  data-duo-action="theme:set"
+                  data-theme="light"
+                  style="margin-left: 6px;">
+            Light mode
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

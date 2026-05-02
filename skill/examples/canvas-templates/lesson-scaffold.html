@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lesson — Saving a markdown file</title>
+
+  <!--
+    lesson-scaffold.html — Stage 27 reference template (4 of 5).
+
+    What it demonstrates: a multi-step lesson layout with a header
+    pane that tracks step counter, a body pane that holds the active
+    step's content, and a "Next" button that emits a duo:event so the
+    agent's --follow loop can advance the lesson.
+
+    Why this template: this is the canonical interactive-lesson shape
+    — Stage 28 Pack A (intro-to-duo) and Pack B (claude-code-basics)
+    both build on it. Two stable panes (`step-counter`, `body`) that
+    the agent repaints on each step transition; one anchored Next
+    button that emits a step-complete event.
+
+    Stage 28's lesson skill listens to events like:
+      lesson-step-1-done, lesson-step-2-done, …
+    and on each, calls:
+      duo html update --selector '[data-duo-pane="body"]'        --html '<the next step content>'
+      duo html update --selector '[data-duo-pane="step-counter"]' --html 'Step N of M'
+
+    The "Next" button below ALWAYS uses `data-event="lesson-step-N-done"`
+    where N is the current step. The agent's loop keeps state for
+    which step the user is on; the canvas just emits "I clicked Next."
+
+    Customize:
+      - h1, header copy → lesson title
+      - data-event on the Next button → match your agent's loop
+      - body content → the first step's instructions
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 48px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    header {
+      border-bottom: 1px solid var(--paper-edge);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    .step-counter {
+      font-size: 12px;
+      color: var(--ink-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .body {
+      min-height: 240px;
+      padding: 24px;
+      background: var(--paper-deep);
+      border-radius: 6px;
+      margin-bottom: 24px;
+    }
+    .body h2 { margin: 0 0 12px; font-size: 18px; }
+    .body p { margin: 0 0 12px; color: var(--ink-soft); }
+    .body code {
+      background: var(--paper-edge);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+    .actions { display: flex; gap: 8px; align-items: center; }
+    .cta {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 10px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .cta:hover { background: var(--accent-ink); }
+    .secondary {
+      background: transparent;
+      color: var(--ink-mute);
+      border: 1px solid var(--paper-edge);
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Lesson — Saving a markdown file</h1>
+      <div class="step-counter" data-duo-pane="step-counter">Step 1 of 3</div>
+    </header>
+
+    <section class="body" data-duo-pane="body">
+      <h2>Open today's notes</h2>
+      <p>Click the button below to open <code>~/notes/today.md</code> in
+      Duo's markdown editor. If the file doesn't exist yet, Duo creates
+      a blank one.</p>
+      <p>When the editor pane focuses, return here and click
+      <strong>Next step</strong>.</p>
+      <p style="margin-top: 16px;">
+        <button class="cta"
+                data-duo-action="editor:open"
+                data-path="~/notes/today.md"
+                style="font-size: 13px; padding: 6px 14px;">
+          Open notes
+        </button>
+      </p>
+    </section>
+
+    <div class="actions">
+      <button class="cta"
+              data-duo-action="duo:event"
+              data-event="lesson-step-1-done"
+              data-duo-id="next-step-cta">
+        Next step
+      </button>
+      <button class="secondary"
+              data-duo-action="duo:event"
+              data-event="lesson-restart"
+              data-duo-id="restart-cta">
+        Restart
+      </button>
+    </div>
+  </main>
+</body>
+</html>
