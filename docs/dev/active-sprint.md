@@ -16,23 +16,28 @@
 
 ## Current state — last updated 2026-05-01
 
-**Active sprint:** Stage 27 — Canvas authoring vocabulary + skill.
-**Active commit:** Sprint A complete (Commit 6 just landed).
+**Active sprint:** Sprint B — Stage 18b (distro skill packs).
+**Active commit:** Sprint B Commit 1 (PACK.json schema + format spec).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** All six commits landed. Sprint A primitives shipped.
-Commit 6 = five reference templates at
-`skill/examples/canvas-templates/`: button-card, paint-target,
-form-input, lesson-scaffold, dashboard. Each ~120 lines, valid
-HTML5, Atelier palette tokens with prefers-color-scheme dark
-fallbacks, `<meta name="duo-default-editable" content="false">`,
-"How this works" comment header. `sync:claude` and InstallService
-both copy the new directory recursively. Typecheck clean.
+**Status:** Sprint A complete. Six commits (c11d999 → 11d484c).
+Smoke-walk page authored at
+`docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html` (gitignored). The
+autonomous walk attempt was **blocked-on-visual-walk** — dev-app
+restart left the BrowserWindow not visible to computer-use after
+the prior orphaned Electron got cleaned up. CLI surface verified
+(events command recognized, ring empty, snapshot mode parses); UI
+verbs need a human walker before any cut. Walk + manifest stay in
+`docs/dev/smoke-walks/` for that pickup.
 
-## Next: end-of-sprint smoke walk
+## Sprint B — Stage 18b plan
 
-Per CLAUDE.md § 7b, build a hand-built test canvas + smoke walk
-manifest at `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html`. Walk
-through V1–V17 verification items in PRD § 14.
+| # | Commit | Files |
+|---|---|---|
+| 1 | `PACK.json` schema spec — `name`, `version`, `defaults[]` (FTUX tabs), `pins[]` (pre-pinned navigator entries), `extra-skills/` directory convention | `docs/prd/stage-18b-distro-packs.md` (NEW), `shared/types.ts` (PackManifest), `core/pack-loader.ts` (NEW) |
+| 2 | Pack discovery + parse — scan `~/.claude/duo/packs/<name>/PACK.json`; build registry | `core/pack-loader.ts`, `electron/main.ts` (wire into install hooks), `~/.claude/duo/installed-packs.json` provenance |
+| 3 | First-launch defaults hook — open each `defaults[].path` as a tab on first boot per pack; never re-open if user closed | `electron/main.ts`, `core/session-state-service.ts` (per-pack first-launch flag), `electron/install-service.ts` |
+| 4 | Pack install via `cp -r` — manual install for v1 (Stage 18b proper machinery deferred); document at `docs/prd/stage-18b-distro-packs.md § Install` | docs only |
+| 5 | Smoke-walk for Stage 18b primitives (FTUX defaults open, dismiss persists, pack registry visible to `duo` CLI) | `docs/dev/smoke-walks/v0.6.0-stage-18b-rev1.{html,json}` |
 
 ## Big-picture initiative
 
