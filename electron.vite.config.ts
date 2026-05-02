@@ -29,6 +29,9 @@ interface ForkConfig {
   productName: string
   publish: { provider: string; owner: string; repo: string }
   bootstrap: { externalDomains: string[]; helpPinnedFiles: string[] }
+  /** ENH-051 — optional. Lists pack directory names this fork
+   *  opts out of. Empty / missing = ship all upstream packs. */
+  packs?: { disabled?: string[] }
 }
 
 function loadForkConfigForBuild(): ForkConfig {
@@ -48,6 +51,9 @@ const FORK_DEFINES = {
   __DUO_PUBLISH_REPO__: JSON.stringify(fork.publish.repo),
   __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__: JSON.stringify(fork.bootstrap.externalDomains),
   __DUO_BOOTSTRAP_HELP_PINNED__: JSON.stringify(fork.bootstrap.helpPinnedFiles),
+  // ENH-051 — pack disabled list. Empty array if fork.config.json
+  // doesn't define packs.disabled (most forks; ship-all-packs default).
+  __DUO_PACKS_DISABLED__: JSON.stringify(fork.packs?.disabled ?? []),
 }
 
 export default defineConfig({

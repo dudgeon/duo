@@ -186,12 +186,28 @@ export class PackLoader {
       return this.cached
     }
 
+    // ENH-051 — fork-config disabled-packs filter. Vite-injected
+    // compile-time constant from fork.config.json's `packs.disabled`
+    // (declared in shared/fork-config.d.ts as __DUO_PACKS_DISABLED__,
+    // substituted by electron.vite.config.ts's `define:` block). Empty
+    // array when no fork override is set — most installs; ship all
+    // upstream packs unchanged. Disabled packs are NOT loaded at all:
+    // `errors[]` doesn't get an entry, the directory just isn't seen
+    // by the registry, the first-launch defaults hook doesn't fire
+    // NAV_EDIT for them, and `duo packs` doesn't list them. This is
+    // the runtime half of the fix; install-service is the install-
+    // time half (skips the directory copy so disabled packs don't
+    // exist on disk for fresh installs).
+    const disabled = new Set(__DUO_PACKS_DISABLED__)
+
     const packs: LoadedPack[] = []
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
       // Skip dotfiles + the special installed-packs.json file's
       // sibling state if any.
       if (entry.name.startsWith('.')) continue
+      // ENH-051 — skip fork-disabled packs.
+      if (disabled.has(entry.name)) continue
       const rootDir = path.join(PACKS_DIR, entry.name)
       packs.push(await this.loadOne(rootDir, entry.name))
     }

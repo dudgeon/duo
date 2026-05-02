@@ -24,5 +24,9 @@
       "*.microsoftonline.com"
     ],
     "helpPinnedFiles": ["faq.html", "what-duo-does.html"]
+  },
+  "packs": {
+    "$comment": "ENH-051 — Stage 18b/28 distro pack toggle. Lists pack DIRECTORY NAMES (not display titles) that this fork wants to opt out of. Skipped packs are NOT copied into ~/.claude/duo/packs/ on first launch (install-service filters before safeOverwriteDirContents) AND NOT scanned at runtime by PackLoader (filtered before manifest classification). Empty list = ship all upstream packs (today's behavior). Forks override this via fork.config.json (gitignored). v1 supports disabled-list only; v2 will add extraDirs for fork-private pack sources.",
+    "disabled": []
   }
 }

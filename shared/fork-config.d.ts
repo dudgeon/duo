@@ -37,3 +37,12 @@ declare const __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__: string[]
 /** Default pinned help files for ~/.claude/duo/pins.json on first
  *  install. Each entry is a basename like `'faq.html'`. */
 declare const __DUO_BOOTSTRAP_HELP_PINNED__: string[]
+
+/** ENH-051 — pack directory names this fork has opted out of.
+ *  Stage 18b's PackLoader filters these before classification;
+ *  install-service skips them when copying upstream packs/* into
+ *  ~/.claude/duo/packs/. Empty array (default) = ship all upstream
+ *  packs. Forks edit fork.config.json's `packs.disabled` to opt out
+ *  of upstream FTUX content (e.g. an enterprise distro that has
+ *  its own onboarding suppresses `intro-to-duo`). */
+declare const __DUO_PACKS_DISABLED__: string[]

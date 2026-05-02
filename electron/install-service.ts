@@ -296,11 +296,25 @@ export class InstallService {
       // Customization preservation: same `safeOverwriteFile` path the
       // help/*.html copy uses, so a user-edited canvas survives an
       // upgrade with a `preserved-conflict` outcome.
+      //
+      // ENH-051 — fork-config opt-out. fork.config.json's
+      // `packs.disabled` lists pack DIRECTORY NAMES this fork wants
+      // to skip entirely. The Vite-injected __DUO_PACKS_DISABLED__
+      // constant carries that list at runtime. We pass it as
+      // `excludeTopLevel` so the recursive copy skips those root-
+      // level entries — disabled packs never make it to
+      // ~/.claude/duo/packs/ for fresh installs. Existing on-disk
+      // packs (e.g. a user added then disabled) are NOT auto-deleted
+      // — that's the user's data; an upgrade adding to
+      // packs.disabled doesn't remove their files. PackLoader's
+      // runtime filter catches the case where the dir exists but
+      // is disabled.
       await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'packs'),
         PACKS_DEST_DIR,
         prevShas,
-        fileResults
+        fileResults,
+        new Set(__DUO_PACKS_DISABLED__)
       )
 
       // external-domains.json — bootstrap-or-additive-merge.
@@ -869,7 +883,8 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
     srcDir: string,
     destDir: string,
     prevShas: Record<string, string> | undefined,
-    results: FileInstallResult[]
+    results: FileInstallResult[],
+    excludeTopLevel?: Set<string>
   ): Promise<void> {
     let resolved = srcDir
     try {
@@ -887,6 +902,12 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
     await fs.mkdir(destDir, { recursive: true })
     const entries = await fs.readdir(resolved, { withFileTypes: true })
     for (const e of entries) {
+      // ENH-051 — `excludeTopLevel` is consulted ONLY for entries at
+      // this top level (the recursive call below doesn't propagate
+      // it). Used by the packs/ copy to skip fork-disabled packs at
+      // the root without affecting the recursion into kept packs'
+      // canvases/ + lesson-skill/ subdirs.
+      if (excludeTopLevel?.has(e.name)) continue
       const s = path.join(resolved, e.name)
       const d = path.join(destDir, e.name)
       if (e.isDirectory()) {
