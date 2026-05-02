@@ -3234,9 +3234,10 @@ The smoke-walk page renders in BROWSER mode (`<meta duo-open-in="browser">` so t
 
 ### ENH-040: Collapse-pane button — quick toggle to hide terminal column or canvas (right pane)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium (workflow leverage — when you're in deep on either side, you want the other side fully collapsed for screen real estate)
 **Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
+**Shipped:** 2026-05-02 — two titlebar buttons next to ThemeToggle, each a toggle for one pane. Click "Hide terminal" → splitPct snaps to 0 (canvas takes full width); click again → restores to `prevSplitPct` (the last drag-set value, or 55% on first launch). Same toggle pattern for "Hide canvas" → 100. Active state inverts to a filled accent-bg pill so it's obvious which pane is currently hidden. New `prevSplitPct` state caches the last in-range value (20–80) via a useEffect that watches splitPct; on collapse we don't write through, so the cache survives to power restore. Programmatic toggle bypasses the drag handler's 20–80 clamp; the divider stays draggable at the edge for users who'd rather drag back. Keyboard chord left for a follow-up — owner's task notes mentioned graduating ⌘⌥0/9 from 20/80 to 0/100 OR adding a new ⌘⌥⇧0/9; either is a one-liner once the chord question is settled.
 
 **Terminology note (per owner clarification 2026-05-02):** the right column of Duo's main split is called **"the canvas"** in user vocabulary, REGARDLESS of which tab kind is currently rendering inside it (markdown editor, HTML canvas tab, browser tab, image viewer, PDF viewer, future modalities like a JSON viewer or table view). "The canvas" is the SLOT, not the rendering surface. Internally we call it `WorkingPane` / `activeWorking`; user-facing copy and ENH discussions use "canvas" as shorthand for the right pane. Documented in CLAUDE.md.
 

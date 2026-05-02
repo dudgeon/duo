@@ -204,6 +204,12 @@ export function App() {
   const [lastTabKind, setLastTabKind] = useState<TerminalTabKind>(loadLastTabKind)
 
   const [splitPct, setSplitPct] = useState(55)
+  // ENH-040 — prevSplitPct caches the last "real" split (clamped
+  // 20–80) so collapse → restore returns the user to where they were
+  // mid-conversation, not to the 55% default. Updated whenever
+  // setSplitPct lands a non-collapsed value (via drag, View → Pane
+  // size menu, `duo split <n>`, or restore here).
+  const [prevSplitPct, setPrevSplitPct] = useState(55)
   const splitContainerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   // BUG-031 — re-render trigger for the drag overlay. The overlay
@@ -1404,6 +1410,33 @@ export function App() {
     })
   }, [])
 
+  // ENH-040 — cache the previous non-collapsed split for restore.
+  // Whenever splitPct is in the user's drag range (20–80), remember
+  // it so a future collapse → restore returns there. Keeps the
+  // collapse buttons feeling like "hide / show" rather than "snap
+  // to default."
+  useEffect(() => {
+    if (splitPct >= 20 && splitPct <= 80) {
+      setPrevSplitPct(splitPct)
+    }
+  }, [splitPct])
+
+  // ENH-040 — collapse-pane toggles. Each side is its own toggle:
+  // first click hides that pane (snaps splitPct to 0 or 100); second
+  // click restores to prevSplitPct (the last user-set drag value, or
+  // 55 on first launch). The titlebar buttons drive these; the
+  // keyboard analog rides on existing ⌘⌥0 / ⌘⌥9 (20/80 today —
+  // future enhancement to graduate them to 0/100, or wire a new
+  // ⌘⌥⇧0/9 chord; documented but not in this commit).
+  const isTerminalCollapsed = splitPct === 0
+  const isCanvasCollapsed = splitPct === 100
+  const toggleCollapseTerminal = useCallback(() => {
+    setSplitPct(isTerminalCollapsed ? prevSplitPct : 0)
+  }, [isTerminalCollapsed, prevSplitPct])
+  const toggleCollapseCanvas = useCallback(() => {
+    setSplitPct(isCanvasCollapsed ? prevSplitPct : 100)
+  }, [isCanvasCollapsed, prevSplitPct])
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1433,6 +1466,50 @@ export function App() {
             titlebar-nodrag so the dot itself isn't a drag affordance. */}
         <div className="titlebar-nodrag">
           <ClaudePresenceDot active={claudeLive} />
+        </div>
+        {/* ENH-040 — collapse-pane buttons. Two toggles, one per pane,
+            with the active state inverted to a filled-bg pill so it's
+            obvious which pane is currently hidden. Click to collapse;
+            click again to restore the previous drag percentage. */}
+        <div className="titlebar-nodrag flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={toggleCollapseTerminal}
+            title={isTerminalCollapsed
+              ? 'Show terminal column'
+              : 'Hide terminal column (canvas takes full width)'}
+            aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
+            className={[
+              'h-6 px-1.5 rounded text-[11px] flex items-center justify-center transition-colors',
+              isTerminalCollapsed
+                ? 'bg-accent text-white'
+                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+            ].join(' ')}
+          >
+            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+              <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
+              <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={toggleCollapseCanvas}
+            title={isCanvasCollapsed
+              ? 'Show canvas (right pane)'
+              : 'Hide canvas (terminal takes full width)'}
+            aria-label={isCanvasCollapsed ? 'Show canvas' : 'Hide canvas'}
+            className={[
+              'h-6 px-1.5 rounded text-[11px] flex items-center justify-center transition-colors',
+              isCanvasCollapsed
+                ? 'bg-accent text-white'
+                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+            ].join(' ')}
+          >
+            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+              <rect x="1" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+              <rect x="8" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isCanvasCollapsed ? 'currentColor' : 'none'} />
+            </svg>
+          </button>
         </div>
         <ThemeToggle mode={theme.mode} onCycle={theme.cycleMode} />
       </div>
