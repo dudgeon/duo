@@ -172,6 +172,33 @@ display-oriented pages the user might occasionally want to annotate.
 
 ---
 
+## Copy buttons on `<pre>` blocks (auto-injected)
+
+**Any `<pre>` block in a canvas page automatically gets a Copy button.**
+The renderer scans the document for `<pre>` elements on mount + on any
+HTML mutation, and appends a small "Copy" affordance that copies the
+inner `<code>` text (or `<pre>` text if there's no inner `<code>`) to
+the clipboard.
+
+This is auto-mode — you don't opt in, you don't add a class. Just
+write `<pre><code>your runnable text</code></pre>` and the user gets
+a one-click copy. Use it for:
+
+- Shell commands the user is expected to run (`npm install`, `duo open …`, etc.)
+- File paths the user will paste into their navigator
+- Multi-line snippets that are awkward to triple-click-select
+
+If you specifically DON'T want a Copy button on a `<pre>` block (very
+short literals, decorative ASCII art), inline it as `<code>` instead
+of `<pre>` — copy buttons attach to `<pre>` only.
+
+The same auto-injection runs in the smoke-walk page generator, the
+canvas templates (`lesson-template/canvases/playground.html` etc.),
+and any agent-emitted page that uses `<pre>` blocks. One contract,
+one renderer-side implementation, no per-page wiring needed.
+
+---
+
 ## Anti-patterns
 
 **Don't ship a page with scripts that need network.** Pages are

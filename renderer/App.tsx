@@ -671,7 +671,21 @@ export function App() {
         const meta = await window.electron.files.getHtmlMeta(path)
         if (meta?.openIn === 'browser') {
           const fileUrl = `file://${encodeURI(path)}`
-          await window.electron.browser.addTab(fileUrl)
+          // BUG-059 — de-dupe local files routed to the browser pane via
+          // `<meta duo-open-in="browser">`. file:// URLs ARE local files
+          // (FAQ, What Duo Does, user-authored HTML opened in browser
+          // mode); opening one twice should activate the existing tab.
+          // Web URLs (http/https) stay duplicate-allowed — multiple
+          // tabs on the same site is a legitimate browser pattern. The
+          // file://-only filter is intentional (and the only case
+          // openFileSmart can produce).
+          const existing = (await window.electron.browser.getTabs())
+            .find(t => t.url === fileUrl)
+          if (existing) {
+            await window.electron.browser.switchTab(existing.id)
+          } else {
+            await window.electron.browser.addTab(fileUrl)
+          }
           setActiveWorking({ kind: 'browser' })
           setFocusedColumn('working')
           return

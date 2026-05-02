@@ -3566,9 +3566,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-059: Multiple working-pane tabs can open for the same local file path (should de-dupe)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium (UX paper-cut + memory waste). Owner observation 2026-05-02.
 **Filed:** 2026-05-02 (idle-thoughts.md item)
+**Shipped:** 2026-05-02 — fix scoped to `renderer/App.tsx § openFileSmart` for browser-routed local files. The canvas-side `openFile` was already de-duping correctly (existing `prev.find(t => t.path === path)` check). The leak was on the browser-route path: when a file with `<meta duo-open-in="browser">` was opened twice (FAQ, What Duo Does, user-authored HTML routed via meta), `browser.addTab(fileUrl)` was called unconditionally. Fix: before adding, scan `browser.getTabs()` for an existing tab whose URL matches the constructed `file://` URL; switch to it via `browser.switchTab(id)` if found. file:// URLs only — `http(s)://` URLs stay duplicate-allowed (multiple tabs for the same site is a legitimate browser pattern). The cross-kind case (foo.html opened once as canvas + once as browser) stays accepted; only within-kind dedup applies.
 
 **Repro:**
 1. Open `~/some/file.md` via `duo edit`.
@@ -3717,9 +3718,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### ENH-046: Smoke-walk page + canvas templates — code blocks with copy buttons for any user-runnable code
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3 (final piece — docs)
 **Priority:** **High — owner explicit ask: "this smoke walk included a few places where I needed to copy and run code -- please update the user smoke walk prep to place these in code blocks with a copy button; and generally, when duo makes canvases for users (eg via the templates we are working on) that include code/text to copy, it should do the same."**
 **Filed:** 2026-05-02 (walk-2 owner request)
+**Shipped:** Items 1 + 2 already shipped earlier (smoke-walk `generate.mjs § renderStepHtml` pulls trailing cmds into `<pre><code>` Copy blocks; renderer-side `injectCodeBlockCopyButtons` auto-injects on every `<pre>` inside a canvas via `CanvasTab.tsx`). Item 3 (the docs piece) shipped 2026-05-02 in `skill/make-page.md § Copy buttons on <pre> blocks (auto-injected)` — documents the auto-mode contract: any `<pre>` in a canvas gets a Copy button, no opt-in needed; inline as `<code>` instead of `<pre>` to skip. The same convention applies in the smoke-walk page (auto-injected by generator), in canvas templates, and in any agent-emitted page using `<pre>`.
 
 **What's wanted:**
 1. **Smoke-walk skill (`.claude/skills/smoke-walk/generate.mjs`):** for any V-step that includes a copy-paste command, render the command in a `<pre>` / `<code>` block with a Copy button alongside (similar to the ENH-005 pattern that already injects copy buttons into canvas `<pre>` blocks via `injectCodeBlockCopyButtons`).
