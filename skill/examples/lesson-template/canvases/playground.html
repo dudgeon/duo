@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lesson — TODO: your lesson title</title>
+
+  <!--
+    Canonical lesson playground template.
+
+    Filed as ENH-053. Copy this directory into a new pack
+    (~/.claude/duo/packs/<pack-name>/) and customize:
+
+      - <title>                                  — your lesson's title
+      - the heading inside <header>              — same
+      - the initial step-body content            — first step the user sees
+      - the data-event names on the buttons      — must match what your
+                                                   lesson-skill/SKILL.md
+                                                   listens for
+      - PACK.json § defaults[].openOnFirstLaunch — if you want this to
+                                                   be a start tab
+                                                   (auto-opens on first
+                                                   Duo launch for users
+                                                   who installed your fork)
+
+    The three stable paint regions are required:
+      [data-duo-pane="step-counter"]   — small text above the body
+      [data-duo-pane="step-body"]      — the main content area
+      [data-duo-pane="step-controls"]  — the button row at the bottom
+
+    The lesson skill (../lesson-skill/SKILL.md) repaints these on
+    every step transition via:
+      duo html update --selector '[data-duo-pane="step-body"]' --html '<...>'
+      duo html update --selector '[data-duo-pane="step-counter"]' --html 'Step N of M'
+      duo html update --selector '[data-duo-pane="step-controls"]' --html '<...>'
+
+    See ../../lesson-runtime.md for the full event-loop convention,
+    sidecar state pattern, and anti-patterns.
+  -->
+
+  <!-- Lessons mount read-only by default — the user is reading +
+       clicking, not editing. The lesson skill repaints panes via
+       duo html update so they don't need an editable surface. -->
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 48px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    header {
+      border-bottom: 1px solid var(--paper-edge);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 24px; }
+    .step-counter {
+      font-size: 12px;
+      color: var(--ink-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .step-body {
+      min-height: 240px;
+      padding: 24px;
+      background: var(--paper-deep);
+      border-radius: 6px;
+      margin-bottom: 24px;
+    }
+    .step-body h2 { margin: 0 0 12px; font-size: 18px; }
+    .step-body p { margin: 0 0 12px; color: var(--ink-soft); }
+    .step-body code {
+      background: var(--paper-edge);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+    .step-controls { display: flex; gap: 8px; align-items: center; }
+    .cta {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 10px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .cta:hover { background: var(--accent-ink); }
+    .cta[disabled] { opacity: 0.4; cursor: not-allowed; }
+    .secondary {
+      background: transparent;
+      color: var(--ink-mute);
+      border: 1px solid var(--paper-edge);
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <!-- TODO: replace with your lesson title -->
+      <h1>Lesson — TODO: your lesson title</h1>
+      <div class="step-counter" data-duo-pane="step-counter">Step 1 of TODO</div>
+    </header>
+
+    <!-- The body region is what the lesson skill repaints on every
+         step transition. Initial content = step 1. The skill takes
+         over from step 2 onward (or earlier if step 1 itself has
+         dynamic content). -->
+    <section class="step-body" data-duo-pane="step-body">
+      <h2>TODO: step 1 heading</h2>
+      <p>TODO: step 1 instructions. Keep it short — 3-6 short
+         paragraphs max. If you need more, that's two steps.</p>
+      <p>End each step with ONE clear next action the user can
+         take in Duo (open a file, click a thing, run a command),
+         and ONE button below to advance the lesson.</p>
+    </section>
+
+    <!-- The controls region holds the lesson's primary CTA. The
+         lesson skill can repaint this row to swap CTAs per step
+         (e.g. add a "Skip" button on later steps, change the
+         primary button label, disable Next until a condition is met).
+
+         The data-event MUST be `lesson:step-N-done` where N is the
+         current step number — this is the canonical event name the
+         lesson runtime listens for. See ../../lesson-runtime.md
+         § Canonical event names. -->
+    <section class="step-controls" data-duo-pane="step-controls">
+      <button class="cta"
+              data-duo-action="duo:event"
+              data-event="lesson:step-1-done"
+              data-duo-id="next-cta">
+        Next step
+      </button>
+      <button class="secondary"
+              data-duo-action="duo:event"
+              data-event="lesson:restart"
+              data-duo-id="restart-cta">
+        Restart
+      </button>
+    </section>
+  </main>
+</body>
+</html>

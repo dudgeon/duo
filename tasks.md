@@ -3981,7 +3981,13 @@ The INTERNAL surface still uses "canvas":
 
 ### ENH-053: Canonical lesson template + runtime helper skill (closes meta-goal gaps 2 + 3)
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.1.** Three new artifacts:
+- `skill/examples/lesson-template/` — paired playground.html + lesson-skill/SKILL.md skeleton + README. Copy-and-customize entry point for new lessons. Three stable paint regions (`step-counter` / `step-body` / `step-controls`); canonical event names (`lesson:step-N-done` / `lesson:restart` / `lesson:done`); TODO markers throughout.
+- `skill/lesson-runtime.md` — the canonical event-loop pattern. Documents the playground↔skill conversation contract, sidecar state schema (`~/.claude/duo/lesson-state/<pack>.json` with cursor for resume), the foreground-polling vs. subagent-watch patterns, anti-patterns. Read this BEFORE writing a lesson skill.
+- `skill/playground-authoring.md § Lessons specifically` — new section that points authoring agents at the template + runtime, with explicit "don't invent a new structure each time" framing.
+
+The existing intro-to-duo and claude-code-basics packs are NOT yet refactored to use the canonical pattern — they were authored before this template existed. Refactoring them is queued (when ENH-054 / ENH-055 land they'll need the canonical shape too).
+
 **Priority:** **High — load-bearing for the meta-goal.** Without this, every lesson is a snowflake.
 **Filed:** 2026-05-02 (post-v0.6.0 meta-goal gap analysis)
 

@@ -319,6 +319,54 @@ won't follow.
 
 ---
 
+## Lessons specifically — the canonical pattern
+
+When the user asks for "a training," "a guide," "an onboarding flow,"
+or "a way to teach my team X," they want a **lesson**: a playground
++ a paired guide skill that Claude reads to drive the user through.
+
+**Don't invent a new structure each time.** Lessons share a canonical
+shape that buys cross-pack consistency, mid-lesson resume, and (when
+ENH-055 ships) automated fly-through validation:
+
+1. **Start from the template.**
+   ```bash
+   cp -r ~/.claude/skills/duo/examples/lesson-template/ \
+         ~/.claude/duo/packs/<pack-name>/
+   ```
+   This gives you a `canvases/playground.html` with the three stable
+   paint regions (`step-counter` / `step-body` / `step-controls`) and
+   a `lesson-skill/SKILL.md` with the canonical step-state outline.
+2. **Read `lesson-runtime.md`** before writing skill logic. It
+   defines the canonical event names (`lesson:step-N-done`,
+   `lesson:restart`, `lesson:done`), the sidecar state schema at
+   `~/.claude/duo/lesson-state/<pack-name>.json`, and the
+   cursor-resumption pattern that makes mid-lesson Duo restarts
+   recoverable.
+3. **Customize content, not structure.** Replace step content,
+   step count, step transitions — but keep the three paint regions
+   + the event-name convention. The convention IS the contract.
+
+**Lesson vs. plain playground.** A playground without a paired
+lesson-skill is fine for many cases (dashboards, agent-emitted
+reports, the smoke-walk page). The lesson template adds:
+- A guide skill that drives the user step-by-step
+- Sidecar state for resume
+- Cursor-based event subscription (one canonical loop)
+
+If the playground is a one-shot interaction (click button, see
+result, done), skip the lesson template — author the playground
+alone using `playground-authoring.md` patterns. Reach for the
+lesson template when there's a TEACHING ARC the agent has to drive.
+
+**Cross-references:**
+- `~/.claude/skills/duo/examples/lesson-template/` — copy this
+- `~/.claude/skills/duo/lesson-runtime.md` — the runtime contract
+- `~/.claude/duo/packs/intro-to-duo/` — current example (note: pre-template;
+  refactor to canonical pattern queued)
+
+---
+
 ## Worked example: a click-through tutorial canvas
 
 The `lesson-scaffold.html` template at `skill/examples/canvas-templates/`
