@@ -1635,15 +1635,26 @@ export function App() {
               // INSTEAD of the regular tab strip + xterm. The rail is a
               // clickable vertical bar with a terminal glyph; click
               // restores the prior split. Mirrors the CollapsedRail
-              // pattern in FilesPane.tsx for the navigator's collapsed
-              // state.
+              // pattern in FilesPane.tsx.
+              //
+              // ENH-066 layout note: when EITHER pane is collapsed, the
+              // OTHER pane needs to fill the remaining space — using a
+              // fixed % width on terminal AND a 36px width on canvas
+              // overflows the parent (both shrink-0). So when canvas is
+              // collapsed, terminal flips to flex-1 (no width prop);
+              // canvas keeps its 36px rail. When terminal is collapsed,
+              // canvas keeps flex-1 and terminal is the 36px rail.
               'flex flex-col h-full bg-surface-1 border-r transition-colors min-w-0 overflow-hidden',
-              focusedColumn === 'terminal' ? 'border-accent' : 'border-border'
+              focusedColumn === 'terminal' ? 'border-accent' : 'border-border',
+              isCanvasCollapsed ? 'flex-1' : ''
             ].join(' ')}
-            style={{
-              width: isTerminalCollapsed ? '36px' : `${splitPct}%`,
-              flexShrink: 0
-            }}
+            style={
+              isTerminalCollapsed
+                ? { width: '36px', flexShrink: 0 }
+                : isCanvasCollapsed
+                  ? undefined
+                  : { width: `${splitPct}%`, flexShrink: 0 }
+            }
             onMouseDown={() => setFocusedColumn('terminal')}
             aria-label="Terminal column"
           >
