@@ -23,6 +23,7 @@ import { ClaudePresenceProbe } from '../core/claude-presence'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
+import { PackLoader } from '../core/pack-loader'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -156,6 +157,11 @@ let externalDomainsService: ExternalDomainsService | null = null
 // (canvas-action `duo:event`, future renderer / browser hooks) calls
 // `eventBus.emit(...)`. The CLI streams via `duo events --follow`.
 const eventBus = new EventBus()
+
+// Stage 18b — distro pack loader. Singleton. scan() runs on app
+// boot to populate the registry; first-launch defaults + the
+// `duo packs` CLI both consume it. Hot-reload deferred to Stage 18c.
+const packLoader = new PackLoader()
 
 // Stage 9 — the menu's Cozy mode checkmark tracks the active tab.
 // The renderer is the source of truth; main caches the last pushed value
@@ -386,6 +392,15 @@ app.whenReady().then(async () => {
     console.warn('[main] failed to install context menu:', err)
   }
   void createWindow()
+
+  // Stage 18b — scan distro packs once on boot. Loader is defensive
+  // (missing dir = empty registry; malformed manifests surface as
+  // per-pack errors; never throws). The first-launch defaults hook
+  // (Sprint B Commit 3) consumes the cached registry; the `duo
+  // packs` CLI does too.
+  void packLoader.scan().catch((err) => {
+    console.warn('[main] PackLoader.scan failed:', err)
+  })
 
   // Stage 21c — fire-and-forget auto-update check. No-ops in dev.
   // Uses Electron's native dialogs for v1 ("Update available — Download?"

@@ -26,6 +26,18 @@ export const SKILL_INSTALL_DIR = join(homedir(), '.claude', 'skills', 'duo')
 // one place.
 export const SHIM_DIR = join(homedir(), '.claude', 'duo', 'bin')
 
+// Stage 18b — Distro skill packs live under ~/.claude/duo/packs/.
+// Each subdirectory is one pack, identified by a PACK.json manifest
+// at its root. The pack directory's basename is the canonical pack
+// name; the loader rejects packs whose `name` field disagrees.
+export const PACKS_DIR = join(homedir(), '.claude', 'duo', 'packs')
+
+// Stage 18b — Per-pack first-launch state. Keyed on `<name>@<version>`
+// so a pack version bump re-fires the first-launch defaults. Atomic
+// tmp-rename writes; missing/corrupt = treat all packs as not-yet-
+// first-launched (defaults fire on next boot).
+export const INSTALLED_PACKS_PATH = join(homedir(), '.claude', 'duo', 'installed-packs.json')
+
 export const BROWSER_SESSION_PARTITION = 'persist:duo-browser'
 export const BROWSER_SESSION_PATH = join(DUO_DIR, 'browser-session')
 
