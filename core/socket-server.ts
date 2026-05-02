@@ -352,14 +352,45 @@ export class SocketServer {
           // resolved to https:// by the CLI's resolveOpenTarget()
           // before we ever see them, so this branch is purely about
           // file:// inputs. See BUG-067 in tasks.md.
+          // BUG-067 follow-up — the response's `routedTo` label needs
+          // to match where the file ACTUALLY lands. The renderer's
+          // openFileSmart routes .html files with `<meta duo-open-in=
+          // "browser">` to the browser pane and everything else to
+          // the editor. To label accurately without an IPC round-trip
+          // back from the renderer, pre-flight the HTML meta here in
+          // main using `filesService.getHtmlMeta` (the SAME function
+          // openFileSmart calls). For non-HTML files the meta lookup
+          // is skipped — they always go to the editor. The renderer
+          // path is unchanged; only the label-on-the-wire is now
+          // accurate.
           let routedToEditor = false
           if (url.startsWith('file://')) {
             try {
               const localPath = decodeURI(url.slice('file://'.length))
               if (fs.existsSync(localPath)) {
+                // Determine where openFileSmart will route this:
+                // .html files with duo-open-in=browser → browser pane;
+                // everything else (.md, .html without meta, .png, etc.)
+                // → editor. Pre-flighted here so the response label
+                // mirrors the actual destination.
+                const lower = localPath.toLowerCase()
+                let willRouteToBrowser = false
+                if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+                  try {
+                    const meta = await this.files.getHtmlMeta(localPath)
+                    willRouteToBrowser = meta?.openIn === 'browser'
+                  } catch {
+                    // getHtmlMeta failure → assume editor (matches the
+                    // renderer's openFileSmart fallback in App.tsx).
+                  }
+                }
                 const editResult = this.nav.edit(localPath)
                 if (editResult.ok) {
-                  result = { ok: true, url, routedTo: 'editor' }
+                  result = {
+                    ok: true,
+                    url,
+                    routedTo: willRouteToBrowser ? 'browser' : 'editor'
+                  }
                   routedToEditor = true
                 }
               }
@@ -368,7 +399,10 @@ export class SocketServer {
             }
           }
           if (!routedToEditor) {
-            result = await this.browser.openTab(url)
+            // http(s) URLs + bare hostnames (already https://-prefixed by
+            // resolveOpenTarget on the CLI side) all land here.
+            const browserResult = await this.browser.openTab(url)
+            result = { ...browserResult, routedTo: 'browser' }
           }
           // BUG-048 v2 — explicit BROWSER_FOCUS_GAINED push.
           // BrowserManager.openTab calls webContents.focus() on the new
