@@ -3352,3 +3352,455 @@ So the trash copy gets sandwiched between the pinned-close title and the "is pin
 **Cross-ref:** ENH-017 (PATH-mod for shell rc — partial overlap; that lands the export, this catches the case where the user hasn't run that yet). The `Act, Don't Ask` rule lives in Geoff's `~/.claude/CLAUDE.md` and is unchanged.
 
 ---
+
+### BUG-052: Stage 27 V2 — `editor:open` with `data-mode="canvas"` opens but toolbar / read-only strip missing
+
+**Status:** 🆕 Filed
+**Priority:** **High — regression in Stage 27 verb. v0.6.0 release-blocker.**
+**Filed:** 2026-05-02 (walk-2 result)
+
+**Repro (from V2 row of `~/.claude/duo/stage-27-walk.html`):**
+1. Click 'Open faq.html (canvas)'.
+2. faq.html opens. No URL bar (good — proves canvas routing won).
+3. **No "Read-only / Edit" strip and no editor toolbar visible at top of the canvas.** The body just renders.
+
+**Expected:** Either the read-only strip (when `<meta duo-default-editable="false">` would have been present in faq.html — it isn't) OR the full editor toolbar (Heading 1, B, I, etc.) at top.
+
+**Likely cause:** faq.html doesn't have `<meta duo-default-editable="false">`, so it should mount in EDIT mode by default. CanvasTab's toolbar visibility logic (`{!readOnly && (` on line ~1290 of CanvasTab.tsx) gates the toolbar on `!readOnly`. With `readOnly=false`, the toolbar block should render. Two possible failure modes to check:
+- Some recent refactor wrapped the toolbar in a condition that excludes faq.html's path or canvas kind.
+- The data-mode='canvas' code path in `editor:open` lands the file as a canvas tab but somehow forces readOnly without the strip — race between mount and the localStorage override read.
+
+**Where to look:**
+- `renderer/components/HtmlCanvas/CanvasTab.tsx` lines 1280-1340 (toolbar render branches)
+- `renderer/App.tsx` `case 'editor:open'` with data-mode handling — does it set initial readOnly state correctly?
+- `renderer/components/fileClassifier.ts` — does faq.html classify as something different from a canvas?
+
+**Cross-ref:** Stage 27 walk-2 (2026-05-02). The smoke walk PRD (`docs/prd/stage-27-canvas-authoring.md`) must regress-test this verb during v0.6.0 cut verification. Add a smoke item to walk that the toolbar IS visible after a `data-mode="canvas"` open.
+
+---
+
+### BUG-053: Stage 27 V3 — `nav:reveal` opens parent folder but doesn't highlight the file
+
+**Status:** 🆕 Filed
+**Priority:** **High — regression in Stage 27 verb. v0.6.0 release-blocker.**
+**Filed:** 2026-05-02 (walk-2 result)
+
+**Repro:**
+1. From the stage-27-walk canvas, click 'Reveal priming.md' on the V3 row.
+2. **Observed:** The navigator switches to ~/.claude/duo/ (correct). But priming.md is NOT highlighted / selected.
+
+**Expected:** priming.md is selected (visible highlight) and scrolled into view (if needed), matching the file-tab context-menu's "Reveal in Navigator" entry behavior.
+
+**Suspected cause:** in `renderer/App.tsx § 'nav:reveal'` (lines 721-730), three calls fire:
+```ts
+nav.actions.navigateTo(dir)
+nav.actions.selectItem(absPath, 'file')
+setFocusedColumn('files')
+```
+The likely bug: `navigateTo(dir)` is async (loads the directory listing). `selectItem(absPath, 'file')` runs immediately AFTER, but the FileTree may only highlight items that are CURRENTLY rendered. If the new directory's contents haven't been fetched + rendered yet, selectItem on a path that's not in the rendered tree silently no-ops (or sets a selection state that the FileTree never reconciles to).
+
+The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbing or works around the async ordering somehow. Check whichever path it uses — the `nav:reveal` verb should mirror it exactly.
+
+**Where to look:**
+- `renderer/hooks/useNavigator.ts` (or wherever `nav.actions.navigateTo` lives)
+- `renderer/components/FileTree.tsx` — how does selection render? Is it driven by the path matching, or by an item-id that may not exist yet for a not-yet-loaded directory?
+- The file-tab context-menu's 'Reveal in Navigator' entry (likely in WorkingTabStrip.tsx or ContextMenu callback) — what does it actually call?
+
+**Likely fix:** await navigateTo (or chain selectItem on the next tick / via an effect), OR pass the path to a single combined action that ensures selection is applied AFTER the directory load finishes.
+
+**Cross-ref:** Stage 27 walk-2.
+
+---
+
+### BUG-054: Stage 27 V7 — `terminal:focus` flips visual focus indicator but cursor is not active in the terminal
+
+**Status:** 🆕 Filed
+**Priority:** **High — regression. v0.6.0 release-blocker.**
+**Filed:** 2026-05-02 (walk-2 result)
+
+**Repro:**
+1. From the stage-27-walk canvas, click 'Focus terminal' on the V7 row.
+2. **Observed:** The terminal pane gets the orange focus glow (the focusedColumn='terminal' state flipped). But typing a key does NOT land in the terminal — the user has to manually click into the terminal first.
+
+**Expected:** After the verb fires, keystrokes go straight to the active xterm. No re-click needed.
+
+**Why this matters:** the whole point of `terminal:focus` is that the agent can "hand off keyboard focus to the terminal" so a user-driven flow can continue with typing. If the user has to click anyway, the verb has no value over a UI nudge.
+
+**Suspected cause:** `setFocusedColumn('terminal')` updates the React state for the focus INDICATOR, but doesn't actually call `term.focus()` on the xterm instance. The cursor in xterm requires a `term.focus()` call (or the underlying textarea to be focused) — the focus column state is a separate concept.
+
+**Where to look:**
+- `renderer/App.tsx § case 'terminal:focus'` (lines 750-760)
+- `renderer/components/TerminalPane.tsx` (or wherever xterm is mounted) — does it react to focusedColumn changing AND call term.focus()?
+- The ⌘\` "go to terminal" handler — same surface; check whether it ALSO has this bug or whether it's a more direct path.
+
+**Likely fix:** in the `case 'terminal:focus'` branch, after `setFocusedColumn('terminal')`, also dispatch a CustomEvent or call into the terminal pane's imperative API to actually focus the xterm. Alternative: the TerminalPane component's effect on focusedColumn change should call `term.focus()` directly when transitioning to 'terminal'.
+
+**Cross-ref:** Stage 27 walk-2; ⌘\` toggle behavior (which may have the same latent bug — verify).
+
+---
+
+### BUG-055: HTML canvas click should focus the working pane (BUG-037 regression / sibling)
+
+**Status:** 🆕 Filed
+**Priority:** **High — release-blocker for v0.6.0.** Breaks the basic "click into the canvas to begin typing" flow that BUG-037 fixed.
+**Filed:** 2026-05-02 (walk-2 owner observation)
+
+**Repro:**
+1. `duo edit ~/.claude/duo/packs/intro-to-duo/canvases/welcome.html` (or any html canvas).
+2. Click anywhere inside the canvas body.
+3. **Observed:** Focus does NOT move to the working pane. The focus indicator (orange glow) stays on whichever pane was focused before.
+
+**Expected:** Clicking anywhere in the canvas brings focus to the working pane (focusedColumn='working') — exactly what BUG-037 fixed.
+
+**Why this is a regression:** BUG-037 added a `mousedown` capture-phase listener to the iframe document in `RenderedCanvas.tsx § wire()` (the `mouseHandler`). That handler calls `onUserInteractRef.current?.()` which is wired to flip `focusedColumn` to 'working'. The fix is gated INSIDE the `if (!readOnly)` branch — meaning a read-only canvas wouldn't have it. But the welcome.html canvas mounts in edit mode (no `duo-default-editable="false"`), so it SHOULD have the listener. Possible regressions:
+
+1. The BUG-051 fix (commit `28b6eca`) added an `else` branch that explicitly does NOT install the mousedown listener. That's the new path on read-only re-mount but on the FIRST mount of an edit-mode canvas, the `!readOnly` branch should still install. Double-check that fix didn't accidentally relocate the listener install.
+2. The mousedown handler installs `onUserInteractRef.current?.()` but the ref may not be wired in the welcome.html mounting path — check the host setup in CanvasTab.
+3. CanvasTab's `handleReady` may have changed the order of installs and the mousedown forwarder is in `RenderedCanvas` while the focus-flip is in CanvasTab — race or wiring break.
+
+**Where to look:**
+- `renderer/components/HtmlCanvas/RenderedCanvas.tsx` lines 196-207 (the mousedown handler)
+- `renderer/components/HtmlCanvas/CanvasTab.tsx` (where onUserInteract is wired)
+- The recent BUG-051 fix (`28b6eca`) — verify the else branch didn't disrupt the mousedown install path
+
+**Cross-ref:** BUG-037 (original mousedown forwarder fix), BUG-051 (read-only toggle fix — possible regression vector).
+
+---
+
+### BUG-056: Send → Duo pill on browser pane fires without an active Claude session
+
+**Status:** 🆕 Filed
+**Priority:** **High — recurring regression. Owner has called it out repeatedly: "we have discussed before; please update the docs and regression tests to ensure this does not happen again."**
+**Filed:** 2026-05-02 (walk-2; user explicit "STILL getting" feedback)
+
+**Repro:**
+1. Open Duo with no Claude session running (no `claude` process in any terminal tab).
+2. Open any browser tab, e.g. file:///Users/.../v0.6.0-stage-27-rev1.html.
+3. Select text in the page body.
+4. **Observed:** the in-page Send → Duo pill (BUG-006 v2 fix) appears.
+
+**Expected:** the pill should NOT render unless there's an active Claude session to send TO. Without a Claude tab, clicking "Send → Duo" has no destination — the action is dead, and the pill becomes UI noise that the user has to ignore.
+
+**Why this is recurring:** the original Send → Duo pill design assumed at least one Claude session was always running (the FTUX flow). When that became optional, the pill's presence-gate was supposed to become "any active Claude session in the terminal pane". The check was never wired, OR was wired and got removed in a refactor. Either way, the user has reported this multiple times.
+
+**Mandatory: regression test.** Owner explicitly requested: "please update the docs and regression tests to ensure this does not happen again." Add either:
+1. A vitest/playwright test that mounts the browser pane with no active Claude session, simulates a text selection, and asserts the pill isn't injected.
+2. A smoke-walk item in EVERY future release walk: "browser pane with no Claude session — selecting text should NOT show the Send → Duo pill."
+
+**Suggested fix (renderer side first):**
+- `renderer/components/BrowserRenderer.tsx` — guard the `handleSendToDuoClick` subscription on `activeClaudeSessionExists` (or similar from the terminal-pane state).
+- `electron/cdp-bridge.ts § SELECTION_OBSERVER_IIFE` — alternative: gate the in-page pill creation on a flag pushed from main when a Claude session is detected. Heavier (page-side state push) but more correct since the renderer-side guard could miss timing-edge cases on selection during a tab navigation.
+
+**Where to look:**
+- `renderer/components/BrowserRenderer.tsx` § handleSendToDuoClick + its useEffect subscribe block (lines 90-110)
+- The terminal pane's "is there an active claude process" detector (used for tab strip badging)
+- The original Send → Duo design doc (if any) — was the gate ever specified?
+
+**Cross-ref:** BUG-006 (Send → Duo pill render path); ENH-006 / sponsor doc for FTUX flow assumptions.
+
+---
+
+### BUG-057: Pinned working-pane tabs lost across sessions / app upgrades
+
+**Status:** 🆕 Filed
+**Priority:** **High — release-blocker for v0.6.0.** Owner's framing: "pinned files should stay pinned and NEVER be lost between sessions or after app updates/upgrades; that's the whole point of the feature."
+**Filed:** 2026-05-02 (walk-2 owner report)
+
+**Repro:**
+1. Pin three tabs in the working pane (Stage 24 pin gating — right-click → Pin, or pin button if any).
+2. Quit Duo (⌘Q) or restart.
+3. Reopen Duo.
+4. **Observed:** the pinned tabs are gone.
+
+**Expected:** pinned tabs survive every session boundary AND every app upgrade. The pin metadata must persist, AND the file paths the pins reference must reopen as their original tab kinds.
+
+**Suspected cause:** session-state-service (Stage 21c Phase 2) restores OPEN tabs but may not persist the PINNED flag separately. OR: pin state is stored in localStorage which gets cleared on Electron upgrade if the user-data dir is migrated. OR: the install-service migration step on app upgrade (Stage 18) wipes the relevant config.
+
+**Where to look:**
+- `renderer/services/session-state-service.ts` (or similar) — does it serialize pinned[]?
+- `electron/install-service.ts` — does the upgrade path touch pin storage?
+- `renderer/hooks/useTabsState.ts` (or wherever WorkingTabStrip tabs[] state is persisted)
+- localStorage keys related to pinning — are they cleared on app version bump?
+
+**Mandatory in this fix:**
+1. Schema-version the pin storage so future upgrades migrate cleanly.
+2. Add a smoke-walk item EVERY release: pin three tabs, quit, reopen — confirm all three return.
+3. Add a regression test (jsdom or e2e) that exercises the pin → quit → restore flow.
+
+**Cross-ref:** Stage 24 (pin gating PRD); Stage 21c Phase 2 (session restore).
+
+---
+
+### BUG-058: Browser pane (WebContentsView) still occludes the working-pane tab context menu (BUG-050 partial fix)
+
+**Status:** 🆕 Filed
+**Priority:** **🚨 URGENT — release-blocking for v0.6.0.** Owner explicit: "STILL getting issue where browser occludes tab context menu, see screenshot — this is an urgent, release-blocking bug."
+**Filed:** 2026-05-02 (walk-2)
+
+**Repro:**
+1. Have a browser working tab active in the working pane (so the WebContentsView is visible below the tab strip).
+2. Right-click any working-pane tab.
+3. **Observed:** the context menu opens BUT extends down into the browser pane area, where the WebContentsView (a native subview composited above all renderer DOM) is rendered. The menu items at the top are visible; items lower in the menu show browser content peeking through.
+
+**Expected:** the context menu fully renders above all surrounding chrome regardless of which working tab kind is active.
+
+**Why BUG-050 didn't close this fully:** the BUG-050 fix portaled `ContextMenu` to `document.body` with z-index:1000. That escapes RENDERER-DOM stacking contexts (the original symptom: ContextMenu inheriting the strip's overflow:auto stacking). But the WebContentsView is a NATIVE subview rendered ABOVE the entire renderer DOM at the macOS compositor level — z-index can't reach it. Same root cause as BUG-006 / BUG-047 (the in-page Send → Duo pill needed to be injected INTO the page, not painted on top via renderer DOM, for exactly this reason).
+
+**Fix paths (rank in implementation order):**
+
+1. **WCV-mute pattern** (proven, used elsewhere in BUG-045/047 family). When the context menu opens, set the WebContentsView's bounds to `{x:0,y:0,width:0,height:0}` for the duration. Restore on close. The menu still renders in renderer DOM; the WCV is gone for that moment so the menu has clear airspace. Implementation cost: low; performance impact: imperceptible (closing/reopening WCV is instant). Risk: any in-progress browser playback (audio, video) cuts out for the menu's lifetime.
+
+2. **Native popup menu** via Electron's `Menu.popup()`. Instead of rendering the context menu in renderer DOM, build a native menu and pop it. Pros: native menu always paints above WCV (it's a real OS menu). Cons: loses the styled appearance + Tailwind look that the renderer-DOM ContextMenu has; would need to match macOS/Windows look. Larger refactor.
+
+3. **Position-aware avoidance.** Detect WCV bounds and render the menu only in the strip-row Y range (above the WCV). Works only if the menu fits in the strip height (~28px), which it doesn't — most menus are 4+ items.
+
+**Recommended:** path 1 (WCV-mute) — it's the proven pattern, fastest to ship, and the audio/video tradeoff is acceptable for the brief menu lifetime.
+
+**Mandatory in this fix:**
+- Add a smoke-walk item EVERY release: with a browser working tab active, right-click any working-pane tab — confirm the entire context menu (all rows) renders above the browser pane.
+- Document the WCV-mute pattern in `docs/DECISIONS.md` if not already there — this class of bug has now hit Send → Duo pill, file-tab context menu, browser ⌘F, AND WorkingTabStrip context menu.
+
+**Cross-ref:** BUG-050 (renderer-DOM portal fix — necessary but insufficient), BUG-047 (parent class), BUG-006 (in-page injection alternative), BUG-045 (file context menu sibling).
+
+---
+
+### BUG-059: Multiple working-pane tabs can open for the same local file path (should de-dupe)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX paper-cut + memory waste). Owner observation 2026-05-02.
+**Filed:** 2026-05-02 (idle-thoughts.md item)
+
+**Repro:**
+1. Open `~/some/file.md` via `duo edit`.
+2. Open it again (via the navigator click or another `duo edit`).
+3. **Observed:** Two tabs in the strip, both pointing at the same path.
+
+**Expected:** for LOCAL FILES, opening a path that already has an open tab should activate the existing tab (and bring focus to it). For BROWSER URLs (web), allow duplicates — multiple tabs for the same site is a legitimate browser pattern.
+
+**Owner framing:** "there should never be multiple tabs open for the same local file (same not true for websites)."
+
+**Suggested fix:**
+- `renderer/App.tsx § openFileSmart` (or wherever `duo edit` / nav-click routes through) — before creating a new tab, scan tabs[] for one with the same `path`. If found, set it as active.
+- Distinct tab kinds for the same path (e.g. opening `foo.html` once as canvas and once as browser via `data-mode`) is acceptable — only de-dupe within the same kind.
+- Browser tabs (kind='browser') are exempt — multiple browser tabs for the same URL stays allowed.
+
+**Mandatory in this fix:** smoke-walk item every release: open the same file twice, confirm only one tab opens (and the existing tab gets focus).
+
+---
+
+### BUG-060: Markdown editor does not parse \`\`\`fenced\`\`\` code blocks (should AskUser if ambiguous)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (fundamental markdown feature missing).
+**Filed:** 2026-05-02 (idle-thoughts.md item)
+
+**Repro:**
+1. In a markdown editor tab, type:
+   ```
+   ​```javascript
+   console.log('hi')
+   ​```
+   ```
+2. **Observed:** the editor renders the triple-backticks as literal text, not a code block.
+
+**Expected:** the editor recognizes \`\`\`lang ... \`\`\` as a code block on Enter (when the closing fence is typed) AND on paste (when pasted markdown contains a fenced code block).
+
+**Owner note:** "should AUQ if ambiguous how to handle" — i.e. for cases the parser can't disambiguate (e.g. a trailing line without a closing fence), the editor could surface a prompt.
+
+**Where to look:**
+- `renderer/components/editor/MarkdownEditor.tsx` (TipTap config)
+- TipTap CodeBlockLowlight extension or similar — is it configured for the editor's schema?
+- The Markdown ↔ TipTap serialization round-trip — does `serializeToMarkdown` emit \`\`\`fences\`\`\` correctly when reading back?
+
+**Cross-ref:** BUG-061 (sibling bug in HTML canvas — both surfaces have markdown-parsing gaps; the components aren't fully harmonized).
+
+---
+
+### BUG-061: Markdown parsing broken in HTML canvas — bullets, indent / outdent missing (canvas vs. md editor parity gap)
+
+**Status:** 🆕 Filed
+**Priority:** Medium-high (parity gap; HTML canvas was meant to be a "lighter" markdown surface but missing bullet handling makes it materially worse).
+**Filed:** 2026-05-02 (idle-thoughts.md item)
+
+**Repro:** open an html canvas in edit mode. Type `- bullet` and press Enter. The canvas renders the literal `-` character; no list element forms. Tab does not indent; Shift-Tab does not outdent.
+
+**Expected:** parity with the markdown editor's bullet handling — `- ` or `* ` at line start triggers a `<ul><li>`. Tab inside a `<li>` indents (nests under the previous `<li>`). Shift-Tab outdents.
+
+**Owner framing:** "have we failed to merge the components between md vs html canvases?"
+
+**Architecture question that this surfaces:** the markdown editor (TipTap-backed, Stage 11) and the HTML canvas (contentEditable iframe, Stage 17) currently have separate input-handling code. Markdown-shortcut behavior (autocomplete patterns like `- ` → `<ul>`) lives in `renderer/components/HtmlCanvas/markdownShortcuts.ts` for the canvas surface. The md editor uses TipTap's built-in input rules. Drift between the two is inevitable as long as they're separate codebases.
+
+**Two paths forward:**
+1. **Bring HTML canvas up to parity** — extend `markdownShortcuts.ts` with bullet input rules, Tab/Shift-Tab indent handling, and any other md-editor features that the canvas currently lacks. Cheaper to ship; doesn't unify the codebases.
+2. **Unify** — embed TipTap inside the HTML canvas iframe (or use the canvas's contentEditable as a TipTap mount point). Heavier; architectural decision required (the canvas's "the canvas IS the page" PRD-H1 principle says we DON'T want a wrapping editor framework).
+
+**Recommended:** path 1 for v0.6.x — bring `markdownShortcuts.ts` to bullet/indent parity. Decision on path 2 (unify) goes to an ADR before any larger refactor.
+
+**Where to look:**
+- `renderer/components/HtmlCanvas/markdownShortcuts.ts` — current shortcut catalogue
+- `renderer/components/editor/MarkdownEditor.tsx` — TipTap input-rule config (for parity reference)
+
+**Cross-ref:** BUG-060 (md editor's own parsing gap on fenced code blocks); Stage 11 (md editor PRD); Stage 17 (HTML canvas PRD H1 — "the canvas IS the page").
+
+---
+
+### ENH-043: The smoke-walk skill should be re-buildable via canvas / template primitives
+
+**Status:** 🆕 Filed
+**Priority:** Medium (meta-improvement — the smoke-walk skill is itself a "template-driven canvas generator" that should eat its own dogfood).
+**Filed:** 2026-05-02 (idle-thoughts.md item)
+
+**What this means:** the smoke-walk skill (`.claude/skills/smoke-walk/`) currently has its own bespoke HTML generator (`generate.mjs`) that emits the per-release walk page from a JSON manifest. Stage 27 (`canvas-authoring`) shipped a primitive set: declarative `<button data-action="..." data-...>` verbs, `data-payload-from`, `data-anchor`, etc. The smoke-walk page SHOULD be expressible as one of those canvases — using `canvas-authoring.md` patterns and the canvas-templates set (`lesson-scaffold.html`, etc.).
+
+**What's wanted:**
+1. Identify which primitives the smoke-walk page needs that we don't yet have (e.g. a "Pass / Fail / Skip" toggle button trio, a textarea with localStorage persistence, a Copy-to-clipboard button, etc.).
+2. EITHER edit existing canvas-authoring primitives to cover those, OR add new canvas-templates entries (e.g. `walk-checklist.html`) that demonstrate the pattern.
+3. Refactor `generate.mjs` to emit canvases that use those primitives — so the smoke walk skill becomes "a template + a JSON manifest" rather than "a bespoke HTML factory."
+
+**Why this matters:** the smoke walk's structure (checklist + notes + copy results button) is exactly the shape of many user-driven workflows. Making it expressible in canvas primitives means:
+- The same primitive set powers user lesson canvases, agent-generated dashboards, AND the smoke-walk pages.
+- The smoke-walk skill becomes a load-bearing example of canvas-authoring best practices.
+- Cross-skill drift is reduced — canvas-authoring docs and the smoke-walk skill stay aligned because they share primitives.
+
+**Sequencing:** depends on completing canvas-authoring's primitive set (Stage 27) which is shipped; this ENH is the next-stage "make the skill express the workflow" follow-up.
+
+**Cross-ref:** Stage 27 PRD (canvas-authoring); `skill/canvas-authoring.md`; ENH-046 (code-block + copy-button primitive — a sub-component this ENH would need).
+
+---
+
+### ENH-044: New-claude-terminal button needs a custom icon — `clawd.svg` available
+
+**Status:** 🆕 Filed
+**Priority:** Low (cosmetic).
+**Filed:** 2026-05-02 (idle-thoughts.md item)
+
+**What's wanted:** the "New Claude terminal" button in the terminal-tab strip's `+` affordance currently uses a generic terminal icon (or no icon — owner observation pending). Owner has provided a custom icon: `/Users/geoffreydudgeon/Desktop/clawd.svg`.
+
+**Action:**
+1. Move `clawd.svg` into the repo (e.g. `renderer/assets/icons/clawd.svg`).
+2. Update the new-claude-terminal button to use it as its icon.
+3. Sanity-check sizing / contrast in both light + dark themes.
+
+**Cross-ref:** `renderer/components/TerminalTabStrip.tsx` (or wherever the `+` affordance lives).
+
+---
+
+### ENH-045: Navigator — "Project Claude Context" improvements (collapsible, dynamic name, project detection, gh integration)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (meaningful UX upgrade with downstream ENH branches).
+**Filed:** 2026-05-02 (idle-thoughts.md item — multi-bullet)
+
+**Owner's full feature set:**
+1. **"Project Claude Context" should be collapsible**, default to collapsed.
+2. Renamed to **"{project-name} Claude Context"** where `{project-name}` is the current project's name (folder name, repo name, or `name` from package.json — define precedence).
+3. **Auto-detect projects:** any folder containing a `.claude/` OR being the root of a git/github repo IS a project.
+4. **Github status visible** (per project — pull state, branch, etc.).
+5. **Easy github actions** from the navigator (later — this is downstream).
+6. **Promote a file to be a project** via CLI or context-click.
+7. **Sync a folder to github** even if not yet linked.
+8. **Project assets / new-project skill:** explore creating default per-project assets (project overview HTML, lesson skill that interviews the user about goals, etc.).
+9. **Project templates** for the enterprise-distro story (ties to Stage 18b).
+
+**Sequencing:** this ENH is a parent of multiple sub-ENHs. Items 1-3 are the v1 (collapsible, naming, auto-detect) and unblock most of the experience. Items 4-5 are gh-integration (Stage 21d-ish — depends on socket-auth + agent-driven-nav-notifications). Items 6-9 are subsequent expansions.
+
+**Recommended carve-up:**
+- ENH-045a — collapsible + dynamic naming + .claude/ detection (cheap; v1)
+- ENH-045b — gh status visibility (depends on a `git`/`gh` background prober)
+- ENH-045c — promote-to-project + sync-to-github actions
+- ENH-045d — new-project skill (interview flow + templates)
+
+**Cross-ref:** Stage 18b (pack distribution — project templates fold here); existing `useNavigator` hook + `FileTree.tsx` for the rendering.
+
+---
+
+### ENH-046: Smoke-walk page + canvas templates — code blocks with copy buttons for any user-runnable code
+
+**Status:** 🆕 Filed
+**Priority:** **High — owner explicit ask: "this smoke walk included a few places where I needed to copy and run code -- please update the user smoke walk prep to place these in code blocks with a copy button; and generally, when duo makes canvases for users (eg via the templates we are working on) that include code/text to copy, it should do the same."**
+**Filed:** 2026-05-02 (walk-2 owner request)
+
+**What's wanted:**
+1. **Smoke-walk skill (`.claude/skills/smoke-walk/generate.mjs`):** for any V-step that includes a copy-paste command, render the command in a `<pre>` / `<code>` block with a Copy button alongside (similar to the ENH-005 pattern that already injects copy buttons into canvas `<pre>` blocks via `injectCodeBlockCopyButtons`).
+2. **General Duo canvas templates** (`skill/examples/canvas-templates/*.html` and any agent-generated canvas via `canvas-authoring`): any code block that contains user-runnable content should use the same Copy-button affordance. This becomes a primitive in `canvas-authoring.md` — e.g. a `<pre data-copy="true">` opt-in convention.
+3. **Documented contract** in `canvas-authoring.md` section: "When your canvas includes code the user is expected to run, mark the `<pre>` block with `data-copy='true'` (or use the helper script). The host injects a Copy-to-clipboard button."
+
+**Implementation paths:**
+- The renderer already has `injectCodeBlockCopyButtons(doc)` in `renderer/components/HtmlCanvas/codeBlockCopy.ts` (or similar — ENH-005 lineage). Today it injects into EVERY `<pre>` in a canvas. Two options:
+  - **Auto-mode (current):** all `<pre>` blocks get a copy button. Simplest — just need to ensure the smoke-walk page's commands ARE in `<pre>` blocks (currently they're not).
+  - **Opt-in mode (richer):** `data-copy='true'` opt-in attribute, with sane defaults (terminal-style code blocks default true, prose code defaults false).
+
+**Recommended:** keep the current auto-mode; UPDATE `generate.mjs` to wrap V8/V14/V17/etc commands in `<pre>` blocks. That alone fixes the user's smoke-walk pain. Document in `canvas-authoring.md` as part of the convention.
+
+**Cross-ref:** ENH-005 (initial code-block copy-button injection); ENH-043 (smoke-walk skill rebuilt on canvas primitives — this is one such primitive); the V8 / V14 walk-2 instructions specifically (the cases the user hit).
+
+---
+
+### ENH-047: Smoke walk V8 / "duo events" listener should auto-spawn — don't ask user to copy/paste a command
+
+**Status:** 🆕 Filed
+**Priority:** Medium (process improvement to smoke-walk skill).
+**Filed:** 2026-05-02 (walk-2 owner feedback on V8)
+
+**Owner observation:** "this is a fine smoke test, but we cannot rely on the user to copy/paste commands into the terminal to put duo in listening mode; you will need to figure out how to automate this."
+
+**What's wanted:** when a smoke-walk step requires a background process (currently `duo events --follow` for V8/V13), the skill should spawn that process FOR the user — either by:
+1. Using `duo new-tab --cmd "duo events --follow"` to open a new terminal tab with the command pre-running, OR
+2. Capturing events programmatically in main and surfacing them via a renderer-side panel within the smoke-walk page itself, OR
+3. Spawning a hidden background process and writing its stream into a localStorage-backed log that the smoke-walk page polls + displays.
+
+**Recommended:** path 1 (auto-spawn via `duo new-tab`) — simplest, lowest delta from today, keeps the user in control of the process.
+
+**Sequencing:** depends on ENH-046 (the walk page emitting code blocks with copy buttons) — this ENH is the "now also auto-launch where possible" upgrade.
+
+**Cross-ref:** ENH-046; smoke-walk skill PRD (`docs/dev/smoke-walks/`); V8 / V13 walk items.
+
+---
+
+### ENH-048: Smoke walk V14 — clearer instructions for "use a new terminal session?"
+
+**Status:** 🆕 Filed
+**Priority:** Low (smoke-walk usability).
+**Filed:** 2026-05-02 (walk-2 owner feedback on V14)
+
+**Owner feedback (verbatim):** "no idea how to follow this instruction; please be clearer. is this in a new terminal session?"
+
+**What's wanted:** V14 instructions ("Run `duo events --limit 10` and copy the cursor of an OLDER event...") need explicit context:
+- Which terminal? A new one, or the same one as V8's `--follow`?
+- Should the V8 `--follow` listener still be running, or stopped?
+- "Cursor format `<unix-ms>-<seq>`" — what's the exact copy-paste shape?
+
+**Action:** rewrite the V14 step list with:
+1. Explicit terminal hand-off ("In a SECOND terminal, separate from V8's listener").
+2. A worked example with sample output ("you should see lines like `{cursor: '1777725725181-0', ...}` — copy the `cursor` value verbatim including quotes").
+3. The `duo events --since '<cursor>'` invocation in a code block with a Copy button (ties to ENH-046).
+
+**Cross-ref:** ENH-046; ENH-047; V14 walk item.
+
+---
+
+### ENH-049: 28-Pack-A "Start lesson" button should gate on / spawn a Claude session (and be unclickable otherwise)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX correctness for FTUX).
+**Filed:** 2026-05-02 (walk-2 owner observation on 28-Pack-A)
+
+**Owner framing:** "Click 'Start lesson' >> this should either: start a new claude session, or not be clickable without an active claude session."
+
+**Repro:**
+1. Open `~/.claude/duo/packs/intro-to-duo/canvases/welcome.html`.
+2. Click "Start lesson".
+3. **Observed:** the canvas fires the `claude:spawn` action but if there's no active terminal pane / claude tab, the spawn lands silently with nothing visible to the user.
+
+**Expected (two valid behaviors):**
+- (a) Button is gated: disabled when no terminal is active; enabled when a terminal is open. Tooltip explains why.
+- (b) Button fires unconditionally and Duo creates a new terminal tab with `claude` running in it (which is what `claude:spawn` is supposed to do, but the user observation suggests this didn't happen visibly — investigate).
+
+**Recommended:** option (b). The whole point of `claude:spawn` is to create a terminal+claude session if one doesn't exist. If it's failing silently, that's a bug in the action handler, not a UX issue with the button.
+
+**Action:**
+1. Verify `claude:spawn` actually creates a terminal tab when none exists (or when the claude tab is closed). If it's missing this fallback, fix the handler.
+2. Add a smoke-walk item: "with no Claude tab open, click 'Start lesson' on welcome.html — confirm a new terminal tab opens AND `claude` is launched inside it."
+
+**Cross-ref:** Stage 27 (claude:spawn verb); Stage 28 Pack A (welcome.html); `renderer/App.tsx § case 'claude:spawn'`.
+

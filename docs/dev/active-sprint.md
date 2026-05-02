@@ -76,10 +76,62 @@ bugs / ENHs queued.
 | 28-Pack-A | PASS (renders) | welcome.html rendered |
 | 28-Pack-B | PASS (renders) | orientation rendered, sanitized |
 
-**User-side walk status:** in flight; user lost ~20min of typed
-notes when ⌘W collapsed the window mid-walk (root cause: ENH-037,
-since shipped). User restarted, reopened the smoke-walk page, and
-queued five new tasks before re-attempting the walk.
+**User-side walk status — walk-2 (2026-05-02) results pasted back:**
+**13 PASS, 4 FAIL, 4 SKIP** (21 total).
+
+| ID | Result | Note |
+|---|---|---|
+| 27-V1 | PASS | priming.md opens as editable markdown |
+| **27-V2** | **FAIL → BUG-052** | faq.html opens in canvas mode, but no toolbar AND no read-only strip |
+| **27-V3** | **FAIL → BUG-053** | Navigator opens parent folder, but priming.md is NOT highlighted/selected |
+| 27-V4 | PASS | "Duo" highlighted in editor |
+| 27-V5 | PASS | Canvas scrolled + flashed |
+| 27-V6 | PASS | Theme flips |
+| **27-V7** | **FAIL → BUG-054** | Focus visual flips (orange glow) but cursor not active in terminal — needs re-click |
+| 27-V8 | PASS | events stream works (note: V8/V13 setup needs auto-spawn — ENH-047) |
+| 27-V9 | PASS | text-input value captured (cross-realm fix `b28ec13` confirmed) |
+| 27-V10 | PASS | checkbox value captured |
+| 27-V11 | PASS | meta duo-default-editable="false" mounts read-only |
+| 27-V12 | PASS | Edit / Back-to-read-only toggle works (BUG-051 fix `28b6eca` confirmed) |
+| 27-V13 | PASS | events --follow streams within ~50ms |
+| 27-V14 | SKIP | "no idea how to follow this instruction" — instructions unclear; ENH-048 to clarify |
+| 27-V15 | PASS | templates render with Atelier palette |
+| 27-V16 | PASS | trust gate honors ~/.claude/duo/; user noted future ENH on whether path scope is right + suggested a "JS blocked" hint |
+| 27-V17 | PASS | Both skill files exist at correct paths (16k + 10k bytes) |
+| 18B-V1 | SKIP | (didn't run) |
+| 18B-V4 | SKIP | "will perform after sending notes; remind me" — pending |
+| 28-Pack-A | PASS (renders) | welcome.html renders + Start lesson spawns; spawn behavior needs gating (ENH-049) |
+| 28-Pack-B | SKIP | (didn't run) |
+
+**Plus 4 separate BUG/REGRESSIONs reported during walk (filed in tasks.md):**
+
+| ID | Severity | Title |
+|---|---|---|
+| **BUG-055** | High (release-blocker) | HTML canvas click should focus working pane (BUG-037 sibling/regression) |
+| **BUG-056** | High (recurring; needs regression test) | Send → Duo pill on browser fires without active Claude session |
+| **BUG-057** | High (release-blocker) | Pinned working-pane tabs lost across sessions / app upgrades |
+| **BUG-058** | 🚨 URGENT (release-blocker) | Browser pane (WCV) STILL occludes tab context menu — BUG-050 partial fix; needs WCV-mute pattern |
+
+**Plus 7 idle-thoughts.md items processed (BUG-059/060/061, ENH-043/044/045) — see tasks.md, idle-thoughts.md.**
+
+## Release-blocker queue for v0.6.0 cut
+
+Blockers that MUST land before the cut, in suggested fix order:
+
+1. **BUG-058** — context menu WCV occlusion. WCV-mute pattern (proven; matches BUG-045/047 lineage).
+2. **BUG-056** — Send → Duo pill gating + regression test (owner explicit ask).
+3. **BUG-057** — pinned tabs persistence + schema-version + smoke-walk item every release.
+4. **BUG-053** — `nav:reveal` selectItem ordering fix (likely await navigateTo).
+5. **BUG-052** — `editor:open data-mode='canvas'` toolbar/strip missing.
+6. **BUG-054** — `terminal:focus` should call term.focus() on the xterm instance.
+7. **BUG-055** — canvas click focus regression.
+
+Process improvements that should land BEFORE the next walk:
+- **ENH-046** — code blocks + copy buttons in smoke-walk page (owner explicit; quick win in `generate.mjs`).
+- **ENH-047** — auto-spawn `duo events --follow` for V8/V13.
+- **ENH-048** — clearer V14 instructions.
+
+Likely outcome: this cut will not happen on a single walk. Plan for a walk-3 after blockers 1-7 land.
 
 ## Bugs + ENHs filed during this walk session (2026-05-02)
 
