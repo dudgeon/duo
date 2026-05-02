@@ -789,7 +789,30 @@ export function App() {
           // BUG-053 — single atomic action; previous two-call pattern
           // (navigateTo + selectItem) had a window where selected
           // was null in between, leaving the row un-highlighted.
-          nav.actions.revealAndSelect(absPath)
+          //
+          // BUG-053 v2 (post-walk-3) — route to the correct navigator
+          // pane based on whether the path is inside ~/.claude/
+          // (user-claude pane) or elsewhere (project pane). Walk-3
+          // FAIL was: target was ~/.claude/duo/priming.md but the
+          // handler called `nav.actions.revealAndSelect` which is the
+          // PROJECT navigator. Project-nav set its selected correctly
+          // (verified via `duo nav-state`), but the visible tree was
+          // showing project-root contents, so no row matched. The
+          // visible USER-CLAUDE pane (showing ~/.claude/duo/) had its
+          // own `selected` state untouched, so no highlight rendered.
+          //
+          // Fix: prefix-match against ~/.claude/ and dispatch to the
+          // appropriate pane's `revealAndSelect`. The user-claude pane
+          // is a fixed-root navigator (its navigateTo is a no-op), so
+          // its revealAndSelect just sets selected — sufficient when
+          // the file is already visible in the always-rooted-at-
+          // ~/.claude tree.
+          const claudeRoot = `${home}/.claude/`
+          if (absPath.startsWith(claudeRoot)) {
+            userClaudeNav.actions.revealAndSelect(absPath)
+          } else {
+            nav.actions.revealAndSelect(absPath)
+          }
           setFocusedColumn('files')
           return { ok: true }
         }
