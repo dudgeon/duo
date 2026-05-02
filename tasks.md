@@ -3381,7 +3381,7 @@ So the trash copy gets sandwiched between the pinned-close title and the "is pin
 
 ### BUG-053: Stage 27 V3 — `nav:reveal` opens parent folder but doesn't highlight the file
 
-**Status:** ✅ **Shipped post-v0.5.6 (commit `660f092`).**
+**Status:** ✅ **Shipped post-v0.5.6 — v1 fix `660f092` (atomic revealAndSelect), v2 fix `354ca2e` (route to user-claude pane for ~/.claude paths). Walk-3 surfaced that v1 set selected on the wrong navigator instance — the path lived in the USER-CLAUDE pane's subtree but `nav.actions.revealAndSelect` targets the PROJECT pane. v2 prefix-matches against ~/.claude/ and dispatches to userClaudeNav for those paths. Walk-4 re-test queued.**
 **Priority:** **High — regression in Stage 27 verb. v0.6.0 release-blocker.**
 **Filed:** 2026-05-02 (walk-2 result)
 
@@ -3803,4 +3803,80 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 2. Add a smoke-walk item: "with no Claude tab open, click 'Start lesson' on welcome.html — confirm a new terminal tab opens AND `claude` is launched inside it."
 
 **Cross-ref:** Stage 27 (claude:spawn verb); Stage 28 Pack A (welcome.html); `renderer/App.tsx § case 'claude:spawn'`.
+
+
+### ENH-050: Smoother WCV mute/restore on context-menu open (BUG-058 follow-up)
+
+**Status:** 🆕 Filed
+**Priority:** Low-medium (UX polish; the bug it follows is fixed)
+**Filed:** 2026-05-02 (walk-3 W3-V8 PASS notes)
+
+**Owner observation:** "I don't like that the browser contents disappear, so log that as a future enhancement."
+
+**Context:** BUG-058 fix (commit `d9cd6c0`) mutes the WebContentsView (sets bounds to 1×1) when the WorkingTabStrip context menu opens, then restores on close. The mute is necessary because the macOS native subview compositor paints WCV above all renderer DOM regardless of z-index, so the menu would be clipped without the mute. But the visual effect is jarring: the entire browser pane goes blank for the menu's lifetime, then snaps back when it closes.
+
+**What's wanted:** smoother handoff — ideally the browser pane stays visually present (perhaps faded, perhaps with a subtle dim overlay) while the menu is up. Not a render-correctness problem (the menu paints fine now); a perceived-stability problem (the page "disappears" and returns).
+
+**Possible directions:**
+1. **Snapshot before mute:** capture a `webContents.capturePage()` PNG of the WCV before muting; render the snapshot in a positioned `<img>` underneath the menu; on menu close, hide the image and restore WCV bounds. The snapshot is static (the page can't scroll / play video / animate during the menu) but the user perceives continuity. Cost: ~50ms capture latency on menu open.
+2. **Native popup menu** via Electron's `Menu.popup()` — bypasses renderer DOM entirely so no mute is needed. Loses the styled appearance + Tailwind look; needs platform-specific styling.
+3. **Position-aware avoidance:** detect WCV bounds and clamp menu to the strip-row area only. Doesn't work for menus with > 2 items (strip is ~28px tall).
+
+**Recommended:** path 1 (snapshot) — preserves the styled menu, keeps the visual continuity, lowest delta. Implementation: extend the `setOverlayMuted` path in BrowserManager to optionally call `capturePage()` first, send the PNG to renderer, render it in a `<div>` overlay that the ContextMenu portals OVER. Hide the overlay on close.
+
+**Cross-ref:** BUG-058 (the parent bug — WCV occluded context menu); BUG-045/047 (related WCV-occlusion family); ContextMenu component + BrowserManager.setOverlayMuted in cdp-bridge.ts.
+
+---
+
+### BUG-062: Update banner shows wrong "currently from vX.Y.Z" version
+
+**Status:** 🆕 Filed
+**Priority:** Medium (visible UX confusion)
+**Filed:** 2026-05-02 (walk-3 screenshot)
+
+**Repro (visible in walk-3 screenshot 2026-05-02):**
+1. Running dev build at v0.5.7 (titlebar reads `0.5.7 ·dev`).
+2. Update banner reads: "Duo update available. Refresh the agent files in `~/.claude/` (currently from **v0.6.0**)."
+3. The banner is offering an update FROM v0.6.0 — but the running build is v0.5.7 (post-cut bump from v0.6.0 → v0.5.6 → v0.5.7-dev).
+
+**Expected:** the banner should read "currently from v0.5.7" (or the actual installed version), OR "an updated version is available" without a wrong version string.
+
+**Suspected cause:** the install service tracks the version of the agent files installed in `~/.claude/duo/` (or similar) — likely from a JSON receipt file. That receipt was written when v0.6.0's package.json was active, and the receipt isn't being refreshed when the user re-installs. The dev build's version label (from `app.getVersion()`) shows 0.5.7, but the install receipt is stale at 0.6.0.
+
+**Where to look:**
+- `electron/install-service.ts` — the receipt-write path; check whether it reads from `app.getVersion()` or from a captured-at-install-time snapshot
+- `~/.claude/duo/installed.json` (or whatever receipt file) — verify its version field vs. running app version
+- The "Refresh the agent files" banner UI — its source of the "currently from" string
+
+**Mandatory in this fix:** confirm the banner refreshes its source-of-truth on every dev launch, OR is suppressed entirely when the dev build's version is OLDER than the installed receipt (going backwards on dev is fine; the banner shouldn't suggest "update" in that direction).
+
+**Cross-ref:** Stage 18 install service; the v0.6.0 → v0.5.6 → v0.5.7 version bump that surfaced this.
+
+---
+
+### BUG-063: Walk-3 manifest renders escaped HTML attribute incorrectly (`<meta ...>` vanishes from step text)
+
+**Status:** 🆕 Filed
+**Priority:** Low (smoke-walk doc rendering bug only)
+**Filed:** 2026-05-02 (walk-3 owner notes — "Other notes: missing characters/span?")
+
+**Owner observation (verbatim):** "'Open the stage-27-walk canvas (which has so it mounts read-only with a toggle)' missing characters/span?"
+
+**Repro:** in the walk-3 page (`docs/dev/smoke-walks/v0.5.7-walk-3.html`), the W3-V5 step text shows: "Open the stage-27-walk canvas (which has  so it mounts read-only with a toggle)." — there's a visible gap where `<meta name="duo-default-editable" content="false">` should appear.
+
+**Source (manifest JSON):** `"Open the stage-27-walk canvas (which has \`<meta name=\"duo-default-editable\" content=\"false\">\` so it mounts read-only with a toggle)."` — the backtick-wrapped `<meta>` literal.
+
+**Suspected cause:** in `generate.mjs § renderStepHtml`, the backtick-parsing splits the step into prose / inline-code / cmd parts. The `<meta>` literal IS classified as cmd (has whitespace + > 25 chars). It gets pulled into a separate `<pre>` block AFTER the step text — leaving the prose portion with a gap. The cmd block IS rendered (with a Copy button). But:
+
+1. The `<pre>` content is escaped via `esc()` so the angle brackets become `&lt;` / `&gt;` — that part works.
+2. **HOWEVER**, the prose-side flow shows a gap because the CMD was originally inline in the prose (between "has" and "so it mounts"). When pulled out, no replacement marker is left in the prose — it just becomes `"...has  so it mounts..."` with a double-space.
+
+**Fix paths:**
+1. Leave the CMD inline as a small code-styled inline element AND show the pulled-out copy block below — the user sees the command in two places (inline for context, copyable below). Slightly redundant but unambiguous.
+2. Replace the inline backticks with a placeholder like `[cmd 1 ↓]` or just `(see below)` linking to the pull-out block. Cleaner but adds a click for context.
+3. Don't pull out cmds that appear MID-SENTENCE — only pull out ones that appear at the END of a sentence ("...run: `cmd`"). Mid-sentence cmds stay inline.
+
+**Recommended:** path 3 — preserves prose readability for mid-sentence cmd literals (like `<meta>` tags being referenced as documentation, not as runnable commands), and still pulls out end-of-sentence runnable commands (the original intent).
+
+**Cross-ref:** ENH-046 (smoke-walk Copy buttons); the W3-V5 step that surfaced this.
 
