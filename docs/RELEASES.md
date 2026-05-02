@@ -21,7 +21,35 @@
 
 ## Pending — not yet cut
 
-_Empty._
+> Drafted 2026-05-01 after the v0.5.5 walk passed; deferred at the
+> owner's call. The shipped fixes don't constitute a meaningful
+> release on their own — the next release will be anchored on the
+> canvas-authoring + tutorial-content + FTUX initiative scoped
+> below. These notes will fold into that cut.
+
+### Carry-over from the v0.5.5 sprint (not yet cut)
+
+**Fixed**
+
+- **Send → Duo pill on the browser pane is visible AND clickable** (BUG-006, Path b). Renderer-DOM portal pill was occluded by the WebContentsView at the macOS compositor level (z-index can't beat a native subview). Pill now renders INSIDE the page DOM via the existing CDP selection-observer IIFE; clicks route via a new `duoSendToDuoClick` binding → `IPC.BROWSER_SEND_TO_DUO_CLICK` → renderer's `handleSendToDuoClick`. v2 sub-fix: snapshot is captured synchronously at mousedown and passed through the binding payload so the click round-trip doesn't race with selectionchange clearing the renderer's cached snapshot.
+- **Right-click on a markdown editor tab now shows the full context menu** (BUG-050). `ContextMenu` portaled to `document.body` with `z-index: 1000` (was rendered inline at the call site, inheriting the strip's `overflow-x-auto` stacking context). Different root cause from BUG-047 (native subview compositing); both classes now have their own fix paths.
+- **"Move to Trash" confirm dialog reads coherently** (BUG-049). `PinnedCloseConfirm` parameterized to take explicit `title` / `body` / `confirmLabel` props. Trash branch passes its own copy ("Move to Trash?" / "<file> will be moved to the Trash. The tab will close.").
+- **BUG-047 class — closed.** All three child symptoms (BUG-045 file-tab right-click, BUG-006 Send → Duo pill, ENH-028 browser ⌘F) now have working fix paths via three different strategies (mute, in-page injection, above-WCV placement).
+
+**Added**
+
+- **Locale section in `duo doctor`** (ENH-032). Probes `$LC_ALL`/`$LC_CTYPE`/`$LANG`; flags non-UTF-8 values with the fix recipe inline.
+- **FAQ entry — "Why do special characters look broken when I paste into the terminal?"** (ENH-032). Diagnostic command + fix recipe (export LANG/LC_ALL after conda init).
+- **`shared/feature-flags.ts`** — small constants module for kill-switching features that aren't ready to be on-by-default. First user: `FEATURE_AUTO_INJECT_IDS` (off — see Changed below).
+
+**Changed**
+
+- **HTML canvas no longer auto-prompts to inject `data-duo-id` attributes** (gated behind `FEATURE_AUTO_INJECT_IDS`; default off). Banner was firing on every fresh canvas open, surfacing on local HTML files that don't need or benefit from anchors. Existing files with IDs continue to work.
+- **Smoke-walk generator emits `<meta name="duo-open-in" content="browser">`.** Forces walk pages to route to the browser pane regardless of how they're opened.
+
+**Verified live**
+
+- **BUG-028 (Escape dismisses inline rename in navigator).** Code fix shipped v0.5.1; live verification deferred (computer-use can't send Escape to Electron). Walk-1 of v0.5.5 confirmed the fix holds.
 
 ---
 

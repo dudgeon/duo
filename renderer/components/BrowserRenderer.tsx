@@ -53,37 +53,59 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
     }
   }, [])
 
-  // Stage 15.2 — translate the page-side selection rect into renderer-
-  // window coordinates so the pill anchors over the WebContentsView.
-  // The contentRef div is the placeholder that the view's bounds
-  // mirror; its screen rect plus the page's viewport-relative rect
-  // gives the pill's anchor.
+  // BUG-006 (v0.5.5) — the in-page injected pill (rendered via CDP in
+  // SELECTION_OBSERVER_IIFE) is now the visible Send → Duo affordance
+  // on the browser surface. Renderer-DOM pill stays mounted as a
+  // structural fallback (e.g. if CDP injection ever fails) but with
+  // pillAnchor === null it's not painted. Keeping the renderer-DOM
+  // computation commented out for posterity; restore if we ever fix
+  // the WCV occlusion at the compositor layer.
   const pillAnchor = useMemo<PillAnchorRect | null>(() => {
-    if (!browserSelection.snapshot || !browserSelection.rect) return null
-    if (!onSendToDuo) return null
-    const host = contentRef.current
-    if (!host) return null
-    const hostRect = host.getBoundingClientRect()
-    const pageRect = browserSelection.rect
-    const top = hostRect.top + pageRect.y
-    const right = hostRect.left + pageRect.x + pageRect.width
-    const bottom = top + pageRect.height
-    return { top, right, bottom }
-  }, [browserSelection, onSendToDuo])
+    // Always null: WCV occludes the renderer-DOM pill regardless of
+    // z-index. The in-page pill (CdpBridge SELECTION_OBSERVER_IIFE)
+    // owns the visual chrome on the browser surface.
+    return null
+  }, [])
 
   // Pill click — same formatter contract as the editor side, kind:
   // 'browser'. The page title for the provenance line comes from
   // BrowserState (the address bar already tracks it); falls back to
   // the URL alone when the title hasn't propagated yet.
-  const handleSendToDuoClick = useCallback(() => {
+  //
+  // BUG-006 v2 — accepts an optional snapshot arg (provided by the
+  // in-page pill via the binding payload). When omitted, falls back
+  // to the renderer's cached snapshot — that's the path used by the
+  // ⌘D keyboard shortcut and the (currently disabled) renderer-DOM
+  // pill, which both run synchronously inside the renderer.
+  const handleSendToDuoClick = useCallback((overrideSnap?: import('@shared/types').BrowserSelectionSnapshot | null) => {
     if (!onSendToDuo) return
-    const snap = browserSelection.snapshot
+    const snap = overrideSnap ?? browserSelection.snapshot
     if (!snap) return
     const payload = formatBrowserSendPayload(snap, selectionFormat, {
       pageTitle: state.title
     })
     onSendToDuo(payload)
   }, [onSendToDuo, browserSelection, selectionFormat, state.title])
+
+  // BUG-006 — subscribe to in-page pill clicks. The page-injected pill
+  // posts via the duoSendToDuoClick CDP binding → BrowserManager IPC →
+  // here. v2 carries the selection snapshot in the IPC message so we
+  // don't race with selectionchange clearing the renderer's cache.
+  //
+  // Defensive: tolerate a stale preload (preload doesn't HMR — if the
+  // renderer reloaded my changes but Electron wasn't restarted, this
+  // function is still undefined). Without the guard the renderer
+  // throws on mount and the whole window goes blank.
+  useEffect(() => {
+    const subscribe = window.electron.browser.onSendToDuoClick
+    if (typeof subscribe !== 'function') {
+      console.warn('[BrowserRenderer] window.electron.browser.onSendToDuoClick missing — preload likely stale; restart Electron to enable in-page pill clicks.')
+      return
+    }
+    return subscribe((snapshot) => {
+      handleSendToDuoClick(snapshot)
+    })
+  }, [handleSendToDuoClick])
 
   // Stage 15.3 — ⌘D listener. Same shape as MarkdownEditor + CanvasTab.
   // Browser pane is mounted whenever activeWorking.kind === 'browser';

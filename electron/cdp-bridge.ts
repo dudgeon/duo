@@ -30,11 +30,126 @@ const NETWORK_RING_SIZE = 300
 // Coordinates in `rect` are page-viewport-relative (matches
 // `range.getBoundingClientRect()`). The renderer translates them to
 // screen space using the WebContentsView's bounds.
+//
+// BUG-006 (v0.5.5) — also renders an in-page Send → Duo pill anchored
+// to the selection's bounding rect. The renderer-DOM pill is invisible
+// on the browser surface (WebContentsView is composited above renderer
+// DOM at the macOS native-subview level — z-index doesn't reach), so
+// we render the pill INSIDE the page itself where compositor stacking
+// is irrelevant. Click handler calls `window.duoSendToDuoClick()`
+// (a separate binding) which the renderer wires to its existing
+// `handleSendToDuoClick` callback. Fix path (b) per the BUG-006 entry.
 const SELECTION_OBSERVER_IIFE = `(function () {
   if (window.__duoSelectionObserver) return;
   window.__duoSelectionObserver = true;
   var lastText = '';
   var timer = null;
+
+  // BUG-006 — in-page pill DOM. Lazily created on first emit() with a
+  // selection. position:fixed; very high z-index so it sits above page
+  // chrome. Pointer events are mousedown (matches the renderer-DOM
+  // pill's behavior — keeps the selection alive long enough for the
+  // binding to fire). Self-styled — page CSS shouldn't override (we
+  // use !important on every property).
+  var pill = null;
+  function ensurePill() {
+    if (pill) return pill;
+    pill = document.createElement('button');
+    pill.setAttribute('aria-label', 'Send → Duo');
+    pill.setAttribute('data-duo-send-pill', '1');
+    pill.textContent = 'Send → Duo ↗';
+    var s = pill.style;
+    s.setProperty('position', 'fixed', 'important');
+    s.setProperty('z-index', '2147483647', 'important');
+    s.setProperty('display', 'none', 'important');
+    s.setProperty('top', '0px', 'important');
+    s.setProperty('left', '0px', 'important');
+    s.setProperty('padding', '4px 10px', 'important');
+    s.setProperty('font', "500 12px/1 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", 'important');
+    s.setProperty('color', '#ffffff', 'important');
+    s.setProperty('background', '#7c3aed', 'important');
+    s.setProperty('border', 'none', 'important');
+    s.setProperty('border-radius', '999px', 'important');
+    s.setProperty('cursor', 'pointer', 'important');
+    s.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.25)', 'important');
+    s.setProperty('user-select', 'none', 'important');
+    s.setProperty('-webkit-user-select', 'none', 'important');
+    s.setProperty('pointer-events', 'auto', 'important');
+    // mousedown — not click — to fire BEFORE the page's selectionchange
+    // collapses the selection on focus shift. preventDefault on the
+    // mousedown also keeps the selection alive visually until the
+    // binding round-trips.
+    //
+    // BUG-006 v2 — capture the selection synchronously and pass it
+    // through the binding payload. The original v1 relied on the
+    // renderer's cached snapshot (from the duoSelectionPush observer),
+    // but the binding round-trip (page → CDP → main → IPC → renderer)
+    // is async, and selectionchange could fire and clear the cache
+    // before the renderer's handler reads it. Sending the snapshot in
+    // the payload eliminates the race.
+    pill.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var sel = window.getSelection && window.getSelection();
+      var payload = null;
+      if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        var text = String(sel.toString());
+        if (text) {
+          var range = sel.getRangeAt(0);
+          var focus = sel.focusNode || range.commonAncestorContainer;
+          if (focus && focus.nodeType === 3) focus = focus.parentNode;
+          var block = focus;
+          while (block && block !== document.body && block.nodeType === 1) {
+            var cs = window.getComputedStyle(block);
+            if (cs.display === 'block' || cs.display === 'list-item' ||
+                cs.display === 'flex' || cs.display === 'grid' ||
+                cs.display === 'table' || cs.display === 'table-cell') break;
+            block = block.parentNode;
+          }
+          var surrounding = '';
+          if (block && block.innerText) surrounding = String(block.innerText).slice(0, 1000);
+          payload = {
+            url: location.href,
+            text: text,
+            surrounding: surrounding,
+            // selector_path omitted — not needed for the send-payload
+            // formatter, and re-computing here would duplicate the
+            // observer's selectorFor() helper. Renderer's cached
+            // snapshot still has the path if anything downstream
+            // wants it.
+            selector_path: ''
+          };
+        }
+      }
+      try { window.duoSendToDuoClick(JSON.stringify(payload)); } catch (err) {}
+    }, true);
+    document.documentElement.appendChild(pill);
+    return pill;
+  }
+  function hidePill() {
+    if (pill) pill.style.setProperty('display', 'none', 'important');
+  }
+  function showPillFor(rect) {
+    var el = ensurePill();
+    // Make pill visible to measure its size, then position relative to
+    // the selection's viewport-relative rect. Place above the selection
+    // when there's room; below otherwise. Right-align to selection's
+    // right edge; clamp to viewport (8px padding).
+    el.style.setProperty('display', 'inline-flex', 'important');
+    var pw = el.offsetWidth || 96;
+    var ph = el.offsetHeight || 24;
+    var pad = 8;
+    var gap = 6;
+    var top = rect.y - ph - gap;
+    if (top < pad) top = rect.y + rect.height + gap;
+    var left = rect.x + rect.width - pw;
+    if (left < pad) left = pad;
+    var maxLeft = window.innerWidth - pw - pad;
+    if (left > maxLeft) left = maxLeft;
+    el.style.setProperty('top', top + 'px', 'important');
+    el.style.setProperty('left', left + 'px', 'important');
+  }
+
   function emit() {
     timer = null;
     var sel = window.getSelection && window.getSelection();
@@ -43,6 +158,7 @@ const SELECTION_OBSERVER_IIFE = `(function () {
         lastText = '';
         try { window.duoSelectionPush(JSON.stringify(null)); } catch (e) {}
       }
+      hidePill();
       return;
     }
     var text = String(sel.toString());
@@ -51,13 +167,21 @@ const SELECTION_OBSERVER_IIFE = `(function () {
         lastText = '';
         try { window.duoSelectionPush(JSON.stringify(null)); } catch (e) {}
       }
+      hidePill();
       return;
     }
     var range = sel.getRangeAt(0);
     var r = range.getBoundingClientRect();
-    if (r.width === 0 && r.height === 0) return;
+    if (r.width === 0 && r.height === 0) { hidePill(); return; }
     var focus = sel.focusNode || range.commonAncestorContainer;
     if (focus && focus.nodeType === 3) focus = focus.parentNode;
+    // BUG-006 — don't show the in-page pill when the selection is
+    // INSIDE the pill itself (the user clicked the pill; we just
+    // collapsed the selection mid-click, but the click handler is
+    // already firing). Defensive guard.
+    if (focus && focus.closest && focus.closest('[data-duo-send-pill]')) {
+      return;
+    }
     var block = focus;
     while (block && block !== document.body && block.nodeType === 1) {
       var cs = window.getComputedStyle(block);
@@ -101,6 +225,7 @@ const SELECTION_OBSERVER_IIFE = `(function () {
         rect: { x: r.x, y: r.y, width: r.width, height: r.height }
       }));
     } catch (e) {}
+    showPillFor(r);
   }
   function schedule() {
     if (timer) clearTimeout(timer);
@@ -128,12 +253,24 @@ export class CdpBridge {
   // doesn't show a stale pill.
   private latestBrowserSelection: BrowserSelectionPush = { snapshot: null, rect: null }
   private browserSelectionListener: ((push: BrowserSelectionPush) => void) | null = null
+  // BUG-006 — click handler for the in-page Send → Duo pill. Page
+  // calls window.duoSendToDuoClick(payloadJson); we surface as
+  // Runtime.bindingCalled and emit to whoever's subscribed.
+  private browserSendToDuoListener: ((snapshot: BrowserSelectionSnapshot | null) => void) | null = null
 
   /** Stage 15.2 — register a single subscriber for live browser-
    *  selection pushes. BrowserManager calls this once on construction
    *  to forward pushes to the renderer over IPC. */
   onBrowserSelection(cb: (push: BrowserSelectionPush) => void): void {
     this.browserSelectionListener = cb
+  }
+
+  /** BUG-006 — register a single subscriber for in-page Send → Duo
+   *  pill clicks. The snapshot is captured synchronously by the page
+   *  side at mousedown time (passed through the binding payload) so
+   *  there's no race with selectionchange clearing the cache. */
+  onBrowserSendToDuoClick(cb: (snapshot: BrowserSelectionSnapshot | null) => void): void {
+    this.browserSendToDuoListener = cb
   }
 
   /** Stage 15.2 — emit the current selection state to whoever is
@@ -211,6 +348,16 @@ export class CdpBridge {
       // cases; we tolerate failure here so console / network / etc.
       // still work even when the binding can't be installed.
       console.warn('[CdpBridge] Runtime.addBinding(duoSelectionPush) failed:', (err as Error).message)
+    }
+    // BUG-006 — second binding for the in-page Send → Duo pill click.
+    // The pill DOM is part of the SELECTION_OBSERVER_IIFE; this binding
+    // is what its mousedown handler calls.
+    try {
+      await webContents.debugger.sendCommand('Runtime.addBinding', {
+        name: 'duoSendToDuoClick'
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] Runtime.addBinding(duoSendToDuoClick) failed:', (err as Error).message)
     }
     // Tab switch resets the pill — the new tab's selection state is
     // unknown until its observer reports.
@@ -599,6 +746,29 @@ export class CdpBridge {
     } else if (method === 'Runtime.bindingCalled') {
       // Stage 15.2 — page-side observer posting a selection snapshot.
       const p = params as { name?: string; payload?: string }
+      if (p.name === 'duoSendToDuoClick') {
+        // BUG-006 v2 — in-page pill clicked. Payload contains the
+        // selection snapshot captured synchronously at mousedown time
+        // (page-side IIFE) so the renderer doesn't have to read from
+        // its async-pushed cache. Falls back to null when the page
+        // had no selection at click time (shouldn't happen — pill
+        // hides when there's no selection — but defensive).
+        let snapshot: BrowserSelectionSnapshot | null = null
+        try {
+          const body = JSON.parse(p.payload ?? 'null') as
+            | null
+            | Omit<BrowserSelectionSnapshot, 'kind'>
+          if (body && body.text) {
+            snapshot = { kind: 'browser', ...body }
+          }
+        } catch {
+          // Bad payload — drop. Listener still fires with null so the
+          // renderer can log a "click happened but no selection" event
+          // if it wants.
+        }
+        this.browserSendToDuoListener?.(snapshot)
+        return
+      }
       if (p.name === 'duoSelectionPush') {
         let parsed: BrowserSelectionPush | null = null
         try {

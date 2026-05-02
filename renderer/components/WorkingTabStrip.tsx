@@ -210,7 +210,17 @@ export function WorkingTabStrip({
 
       {confirmTrash && (
         <PinnedCloseConfirm
-          label={`Move "${confirmTrash.label}" to the Trash? The tab will close and the file will be moved.`}
+          // BUG-049 — explicit title/body (was reusing the
+          // pinned-close `label` prop, which sandwiched the trash
+          // copy between hardcoded "Close pinned tab?" / "is pinned.
+          // Close it anyway?" strings).
+          title="Move to Trash?"
+          body={
+            <>
+              <span className="text-ink">{confirmTrash.label}</span> will be moved to the Trash. The tab will close.
+            </>
+          }
+          confirmLabel="Move to Trash"
           onConfirm={() => {
             onTrashFile?.(confirmTrash.tabId, confirmTrash.path)
             setConfirmTrash(null)

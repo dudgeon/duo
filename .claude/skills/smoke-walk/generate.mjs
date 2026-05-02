@@ -146,6 +146,12 @@ const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- ENH-034 / smoke-walk usability — force browser routing in Duo so
+     the page renders interactively (canvas mode would put the body in
+     contenteditable, which traps the "Copy results" button click as a
+     cursor placement). The duo-open-in convention is honored by
+     openFileSmart in App.tsx + getHtmlMeta in files-service.ts. -->
+<meta name="duo-open-in" content="browser">
 <title>Smoke walk v${esc(version)}</title>
 <style>
   /* Atelier-adjacent palette — paper bg, ink text, soft accent.

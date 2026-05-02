@@ -1,7 +1,14 @@
 // Tiny reusable context menu. Absolutely-positioned fixed to the viewport
 // at `position`, closes on outside click / Escape / any item activation.
-// Portal-free (just renders in place) — consumers should render it
-// conditionally based on their own open/closed state.
+//
+// BUG-050 (v0.5.5) — portaled to document.body. Was previously rendered
+// inline at the call site, which meant it inherited any ancestor stacking
+// context (e.g. an `overflow-x-auto` strip or a TipTap editor's internal
+// stacking context). Inline rendering caused right-click on a markdown
+// editor tab to drop the menu BEHIND the editor canvas — same visual
+// failure as BUG-045 / BUG-047 but a different root cause (renderer-DOM
+// stacking, not WCV native subview compositing). Portal escapes all
+// ancestor stacking contexts.
 //
 // BUG-029 — flip-aware positioning: after first paint, measure the menu's
 // natural size and adjust the position upward / leftward if it would
@@ -11,6 +18,7 @@
 // avoids a hidden-measure pre-pass and keeps the component synchronous.
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface ContextMenuItem {
   label: string
@@ -74,11 +82,14 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [position.x, position.y, items.length])
 
-  return (
+  // BUG-050 — portal to document.body so the menu escapes all ancestor
+  // stacking contexts (overflow:auto strips, TipTap editor regions, etc.)
+  // and reliably layers above the rest of renderer-DOM.
+  return createPortal(
     <div
       ref={ref}
       role="menu"
-      className="fixed z-50 min-w-[180px] py-1 rounded bg-surface-2 border border-border shadow-xl text-[12px] text-zinc-200"
+      className="fixed z-[1000] min-w-[180px] py-1 rounded bg-surface-2 border border-border shadow-xl text-[12px] text-zinc-200"
       style={{ left: adjusted.x, top: adjusted.y }}
     >
       {items.map((item, i) => (
@@ -100,6 +111,7 @@ export function ContextMenu({ position, items, onClose }: ContextMenuProps) {
           </button>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }

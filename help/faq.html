@@ -453,6 +453,19 @@
   </div>
 </details>
 
+<details class="qa" data-keys="paste terminal locale utf-8 special characters em-dash garbled bytes conda lc_all lang">
+  <summary>Why do special characters look broken when I paste into the terminal?</summary>
+  <div class="body">
+    <p>Multi-byte Unicode characters (em-dash, ⌘⌥, ñ, emoji, etc.) come out as raw bytes when your shell's locale isn't UTF-8. Most common cause: <strong>conda's <code>(base)</code> activator</strong> sets <code>LC_ALL=C</code>, which strips UTF-8 awareness from anything that runs after it.</p>
+    <p>Quick check from any terminal:</p>
+    <pre style="background: var(--paper-deep); padding: 8px 12px; border-radius: 4px; font-family: var(--mono); font-size: 12px;">locale | grep -E 'LC_ALL|LC_CTYPE|LANG'</pre>
+    <p>If you see <code>C</code> or <code>POSIX</code> in any of those, fix it by adding this to your <code>~/.zshrc</code> (or <code>~/.bashrc</code>) — <strong>after</strong> the conda <code>conda init</code> block, not before:</p>
+    <pre style="background: var(--paper-deep); padding: 8px 12px; border-radius: 4px; font-family: var(--mono); font-size: 12px;">export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8</pre>
+    <p>Open a fresh terminal. The locale gotcha affects every terminal paste on your machine, not just Duo's — TextEdit and other GUI apps round-trip multi-byte characters fine because they don't go through a shell.</p>
+  </div>
+</details>
+
 <footer>
   <p>This is Duo v0.1.0. Last updated 2026-04-26. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find a question that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>

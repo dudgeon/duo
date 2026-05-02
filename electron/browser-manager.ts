@@ -120,6 +120,15 @@ export class BrowserManager {
       if (this.window.isDestroyed()) return
       this.window.webContents.send(IPC.BROWSER_SELECTION, push)
     })
+    // BUG-006 — forward in-page Send → Duo pill clicks to the renderer.
+    // The page-injected pill captures the selection snapshot synchronously
+    // at mousedown time and passes it through the binding payload (BUG-006
+    // v2 — the previous round-trip-then-read-cache flow raced with the
+    // selection observer's null-push on collapse).
+    this.cdp.onBrowserSendToDuoClick((snapshot) => {
+      if (this.window.isDestroyed()) return
+      this.window.webContents.send(IPC.BROWSER_SEND_TO_DUO_CLICK, snapshot)
+    })
 
     this.addTab()  // open the first tab
   }
