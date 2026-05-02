@@ -416,6 +416,23 @@ reloads in place — no new tabs accumulate.
 file, about, data, etc.), plus local file paths with `~/` or relative
 paths — path resolution happens client-side.
 
+### Author a canvas the user can interact with
+
+When you need to ship an *interactive* HTML — a tutorial, a dashboard,
+a quiz flow, a click-through form — read **`skill/canvas-authoring.md`**
+first. It covers the full Stage 27 vocabulary: nine action verbs
+(`claude:spawn` / `terminal:send` / `browser:open` / `editor:open` /
+`nav:reveal` / `selection:set` / `theme:set` / `terminal:focus` /
+`duo:event`), `data-duo-pane` repaint regions, `data-payload-from`
+form-input bindings, agent-side subscription via `duo events --follow`,
+and the `<meta name="duo-default-editable">` routing convention for
+read-only-by-default interactive canvases. Five copy-paste templates
+live at `skill/examples/canvas-templates/`.
+
+The drive-by cheat sheet at `skill/examples/canvas-actions.md` is the
+right tab when you need ONE verb's signature; the canvas-authoring
+skill is the right tab when you're designing the canvas as a whole.
+
 ### Diagnose a failing interaction with the page
 
 If a `duo click` or `duo eval` doesn't produce the expected result, the

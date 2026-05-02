@@ -233,6 +233,12 @@ export class InstallService {
         path.join(SKILLS_DUO_DIR, 'SKILL.md'),
         prevShas
       ))
+      // Stage 27 — skill/canvas-authoring.md → ~/.claude/skills/duo/canvas-authoring.md
+      fileResults.push(await this.safeOverwriteFile(
+        path.join(sourceRoot, 'skill', 'canvas-authoring.md'),
+        path.join(SKILLS_DUO_DIR, 'canvas-authoring.md'),
+        prevShas
+      ))
       await this.safeOverwriteDirContents(
         path.join(sourceRoot, 'skill', 'examples'),
         path.join(SKILLS_DUO_DIR, 'examples'),

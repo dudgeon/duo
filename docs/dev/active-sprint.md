@@ -17,13 +17,13 @@
 ## Current state — last updated 2026-05-01
 
 **Active sprint:** Stage 27 — Canvas authoring vocabulary + skill.
-**Active commit:** Commit 5 (canvas authoring skill).
+**Active commit:** Commit 6 (five reference templates).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Commits 1–4 landed. Commit 4 = ENH-034 (soft default-
-editable). Distinct from existing `duo-editable: false` hard lock —
-toolbar toggle stays available so a user can flip into edit mode
-on a tutorial canvas. Override persists at `duo-canvas-editable-
-override:<absPath>` in localStorage. Typecheck clean.
+**Status:** Commits 1–5 landed. Commit 5 = `skill/canvas-authoring.md`
+(full reference: vocabulary, paint regions, form bindings, agent-side
+events, anti-patterns, worked tutorial example) + `sync:claude` and
+`InstallService.installSkillsAndAgents()` updated to copy it. Cross-
+linked from `skill/SKILL.md`. Typecheck clean.
 
 ## Big-picture initiative
 
