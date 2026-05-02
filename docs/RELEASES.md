@@ -25,6 +25,39 @@ _Empty._
 
 ---
 
+## v0.6.2 — 2026-05-02 — The lesson template ecosystem completes
+
+The closing chapter of the canvas-authoring → lesson-template arc that began in v0.6.0. The linear lesson template shipped in v0.6.1; v0.6.2 lands its sibling (the curriculum template, for multi-canvas packs) AND the fly-through harness (the validation tool that closes the loop on "did the lesson actually work?"). Plus a small punch list of post-walk-3 cleanups and one cosmetic addition.
+
+**The fly-through harness (ENH-055) is the most load-bearing change.** Without it, every lesson modification needed a manual walkthrough — the user clicks each step, watches the agent paint, decides if anything broke. With it, the agent walks itself through any lesson built on the canonical template and reports pass/fail. The harness is a skill (auto-loaded on "fly through this lesson," "test my new lesson," etc.) that combines two primitives: `duo events --follow --since` (cursor-resumable event subscription, already shipped) plus the new `duo html click` verb. The harness is generic — it doesn't know about specific lessons; it walks step events and clicks the next-step button as each `step:N-done` event fires.
+
+**The curriculum template (ENH-056) is filed-and-shipped on the same day.** v0.6.1 left it filed because the multi-canvas case wasn't blocking. While verifying the lesson-template story, it became clear that the existing `claude-code-basics` pack (which IS multi-canvas) had no canonical structure to compare against; building the template removed the "we'll figure that out later" caveat from the lesson story. The template ships as a sibling of the linear lesson-template at `~/.claude/skills/duo/examples/curriculum-template/` — orientation launcher with module cards, a copy-once-per-module skeleton, an orchestrator skill skeleton, README. Canonical events follow the `lesson:module-<id>-launch` / `-done` / `-abandon` shape that the runtime helper skill already documents.
+
+**Why three things in one cut:** the harness needed the click verb, the click verb needed the action-vocabulary plumbing, and the curriculum template completes the lesson story. Cutting any one in isolation would have been smaller, less complete. The walk-3 punch list (BUG-062 banner copy + BUG-063 inline literals) and the clawd glyph fold in cleanly — none of these are large enough to deserve a cut on their own.
+
+**Two design decisions baked in:**
+
+1. **Clicks are primitives, not events.** `duo html click` synthesizes a click on an iframe element. The element fires its own click handler — which may emit a `data-duo-action` event, may invoke an in-page handler, or may do nothing. The harness doesn't need to know what the button does, just that pressing it advances the lesson. This generalizes to any future "agent walks an interactive page" workflow. The verb is intentionally narrow: it doesn't simulate hover, key press, or focus — those would each need their own primitive when the use case arises.
+2. **Skill-description recognition replaces ad-hoc CLI verbs.** The fly-through harness is a skill, not a `duo lesson fly-through` verb. Same logic that v0.6.1 applied to "build a lesson" → make-playground skill rather than `duo lesson new`. Pattern lock: structured workflows that benefit from reading natural language live as skills (auto-loaded by description); CLI verbs are reserved for atomic primitives the agent composes. This keeps the CLI surface small (and easier to teach) while keeping the agent-discovery surface broad.
+
+**Two small UX corrections that punched up:**
+
+- **Update banner version copy** (BUG-062). Walk-3 surfaced that "(currently from v0.6.0)" was reading as "Duo itself is at v0.6.0." Rewritten to spell out both versions in the same sentence: "Agent files in `~/.claude/` are from Duo v{installedVersion}. You're running v{appVersion}. Refresh to update." The receipt-vs-running-version data was always correct; only the rendering needed the fix.
+- **Smoke-walk inline backtick literals** (BUG-063). Mid-sentence `<meta>` references in walk manifests were getting pulled out into separate Copy blocks, leaving prose gaps. New `isTrailingCmd()` helper in `generate.mjs` only pulls cmds out when they're at the end of a sentence; mid-sentence literals stay inline as `<code>`. Pure documentation-rendering polish but visible enough to deserve mention.
+
+**The clawd glyph (ENH-044)** replaces the generic `+` plus glyph in TabBar.tsx's new-Claude split-button half. The icon is owner-authored (Inkscape) — a small orange-on-paper monster ("clawd") that's intentionally unmistakable as the "Claude" semantic. Color stays fixed at `#c15f3c` (Atelier accent family) in both themes; the SVG lives at `renderer/assets/icons/clawd.svg` for provenance and is inlined in TabBar.tsx as `ClawdGlyph` to match the existing `ClaudeIcon` / `TerminalIcon` pattern.
+
+**What this is and isn't:**
+
+- **IT IS** the lesson-template ecosystem closing — both shapes (linear + curriculum) have canonical templates, and the validation primitive (fly-through) makes them confidently authorable.
+- **IT IS** the validation primitive that lets agents author lessons without manual user testing on every iteration.
+- **IT IS** a small UX polish — clawd glyph + clearer banner copy + inline literal rendering.
+- **IT IS NOT** a refactor of `claude-code-basics` to use the new curriculum template (queued; the pack works as a one-off).
+- **IT IS NOT** the textarea-persistence / file-tab dedup / md-canvas parity work — those are filed but not yet in scope.
+- **IT IS NOT** ENH-052 (the mechanical internal rename of `'html-canvas'` → `'page'`) — that touches 50+ files and gets one focused PR when prioritized.
+
+---
+
 ## v0.6.1 — 2026-05-02 — Canvas authoring vocabulary, sharper
 
 The unglamorous-sounding follow-up to v0.6.0 that turns "canvas authoring exists" into "canvas authoring is reachable by users who don't yet know what canvas means." Five threads pulled together at once: the `claude:spawn` semantic that made v0.6.0's lesson buttons silently fail is fixed; a fork-config knob lets enterprise distros pick which packs to ship; the canvas/page/playground/lesson hierarchy is locked into the glossary; a canonical lesson template + runtime helper skill ships so future lessons stop being snowflakes; and the authoring skill split (make-page / make-playground / playground-interaction / lesson-runtime) is tuned so Claude reaches for the right skill on natural-language prompts.

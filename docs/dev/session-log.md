@@ -18,6 +18,28 @@
 
 ---
 
+## 2026-05-02 — v0.6.2 cut (the lesson template ecosystem completes)
+
+Released **v0.6.2** — the closing chapter of the canvas-authoring → lesson-template arc that started in v0.6.0. The linear lesson template shipped in v0.6.1; v0.6.2 lands its sibling (the curriculum template, for multi-canvas packs) AND the fly-through harness (the validation tool that closes "did the lesson actually work?"). Plus walk-3 cleanup and one cosmetic upgrade.
+
+What shipped (4 commits since v0.6.1 — `1a5c4dc`, `cdaa4d6`, `bc2137e`, `b6ad64e`, plus the cut commit):
+
+- **ENH-055 — `duo html click` + lesson fly-through harness skill.** New canvas-action primitive that synthesizes a click on an iframe element by ID or selector. Read-only op (no `recentEdits` entry). The fly-through skill at `skill/lesson-flythrough.md` auto-loads on natural-language prompts ("fly through this lesson", "test my new lesson", "preview the lesson", "validate the lesson runs", "smoke-test this playground") and pairs `duo events --follow --since` with `duo html click` to walk every step of any lesson built on the canonical template — no manual interaction required. Generic: doesn't know about specific lessons; walks step events and clicks the next-step button as each `step:N-done` event fires.
+- **ENH-056 — curriculum template** (sibling of lesson-template) at `skill/examples/curriculum-template/`. Multi-canvas shape: `orientation.html` (launcher with module cards), `module-template.html` (copy-once-per-module skeleton), `lesson-skill/SKILL.md` (orchestrator skill skeleton), README. Canonical events follow `lesson:module-<id>-launch` / `-done` / `-abandon`. Used when the next multi-canvas pack lands; today `claude-code-basics` works as a one-off but is queued for migration. Lesson-runtime helper skill extended with § Curriculum case covering the multi-canvas event names + state schema.
+- **BUG-062 — update banner copy clarifies which version is which** (walk-3). Old wording "(currently from v{X})" read as "Duo itself is at v{X}." New copy spells out both versions in the same sentence: "Agent files in `~/.claude/` are from Duo v{installedVersion}. You're running v{appVersion}. Refresh to update."
+- **BUG-063 — smoke-walk mid-sentence backtick literals stay inline** (walk-3). New `isTrailingCmd()` helper in `.claude/skills/smoke-walk/generate.mjs § renderStepHtml` only pulls cmds out into Copy blocks when they're at the end of a sentence; mid-sentence literals like `` `<meta name="duo-default-editable" content="false">` `` stay inline as `<code>`.
+- **ENH-044 — clawd glyph for the new-Claude split-button.** Owner-authored Inkscape mascot (`renderer/assets/icons/clawd.svg`) inlined as `ClawdGlyph` in TabBar.tsx, replacing the generic `+` plus glyph. Color stays fixed at `#c15f3c` (Atelier accent family) in both themes — reads as "Claude" regardless of currentColor.
+
+Two design decisions documented in RELEASES.md prose:
+1. **Clicks are primitives, not events.** `duo html click` is intentionally narrow — doesn't simulate hover, key press, or focus. Those each get their own primitive when the use case arises.
+2. **Skill-description recognition replaces ad-hoc CLI verbs.** Fly-through is a skill, not a `duo lesson fly-through` verb. Same logic v0.6.1 applied to "build a lesson." Pattern lock: structured workflows live as skills (auto-loaded by description); CLI verbs are reserved for atomic primitives.
+
+No formal smoke walk this cut — the user-visible delta is small (clawd glyph + banner copy when it fires) and the bigger ENH-055/056 work is author-side. The fly-through harness is itself the validation primitive that future cuts will use to walk lessons; we'll dog-food it the next time a lesson regression needs catching.
+
+DMG: arm64-only signed + notarized via `bash scripts/dist-signed.sh`.
+
+---
+
 ## 2026-05-02 — v0.6.1 cut (canvas authoring vocabulary, sharper)
 
 Released **v0.6.1** — the follow-up cut that turns "canvas authoring exists" into "canvas authoring is reachable by users who don't yet know what canvas means." Closes meta-goal gaps 1–3 from the post-v0.6.0 zoom-out.

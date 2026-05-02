@@ -462,6 +462,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="duo html click button canvas press tap fly-through harness lesson preview agent walk validate">
+  <div class="num">30b</div>
+  <div>
+    <h3>Have Claude click a canvas button</h3>
+    <p class="why">Synthesizes a click on any canvas element by ID or CSS selector. The element fires its own click handler — which may emit a <code>data-duo-action</code> event, may invoke an in-page handler, or may do nothing. Used by the lesson fly-through harness to walk every step of a lesson without manual interaction. Read-only op (doesn't generate a <code>recentEdits</code> entry). Pairs with <code>duo events --follow --since</code>: agent subscribes to the lesson's event stream, clicks the next-step button as each <code>step:N-done</code> event fires, advances through the lesson autonomously.</p>
+    <p class="how"><strong>CLI</strong><code>duo html click --id &lt;duo-id&gt;</code> · <code>duo html click --selector "button.advance"</code></p>
+  </div>
+</article>
+
 <h2 class="cat">Subagent</h2>
 <p class="cat-tagline">A specialized Haiku-powered agent for mechanical Duo work, so Claude doesn't burn its working memory on plumbing.</p>
 

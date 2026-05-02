@@ -19,6 +19,22 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-05-02
+
+The lesson-template ecosystem completes. Curriculum template (sibling of lesson-template) ships for multi-canvas packs; lesson fly-through harness lets agents validate any lesson without manual clicking; new `duo html click` CLI verb makes button presses a primitive of the canvas action vocabulary. Plus walk-3 cleanup (banner copy + smoke-walk inline literals) and the clawd glyph for the new-Claude split-button.
+
+### Added
+
+- **`duo html click --id <id> | --selector <css>`** (ENH-055). Programmatically dispatch a click on a canvas element. Used by the fly-through harness to walk lessons without manual interaction. Read-only op — doesn't generate a `recentEdits` entry.
+- **Lesson fly-through harness** at `~/.claude/skills/duo/lesson-flythrough.md` (ENH-055). Auto-loads on natural-language prompts: "fly through this lesson", "test my new lesson", "preview the lesson", "validate the lesson runs", "smoke-test this playground". Pairs `duo events --follow --since` (cursor resume) with `duo html click` to walk every step of any lesson built on the canonical lesson template.
+- **Curriculum template** at `~/.claude/skills/duo/examples/curriculum-template/` (ENH-056). Multi-canvas sibling of the linear lesson-template: `canvases/orientation.html` (launcher with module cards), `canvases/module-template.html` (copy-once-per-module skeleton), `lesson-skill/SKILL.md` (orchestrator skill skeleton), README. Canonical events: `lesson:module-<id>-launch`, `lesson:module-<id>-done`, `lesson:module-<id>-abandon`.
+- **Clawd glyph for the new-Claude split-button** (ENH-044). Owner-authored Inkscape mascot replaces the generic `+` plus glyph in TabBar.tsx's new-Claude half. Color `#c15f3c` (Atelier accent family) reads as "Claude" in both themes. Source SVG tracked at `renderer/assets/icons/clawd.svg`.
+
+### Fixed
+
+- **Update banner copy clarifies which version is which** (BUG-062, walk-3). Old wording "(currently from v{X})" read as "Duo itself is at v{X}." New copy: "Agent files in `~/.claude/` are from Duo v{installedVersion}. You're running v{appVersion}. Refresh to update." Both versions visible in the same sentence.
+- **Smoke-walk mid-sentence backtick literals stay inline** (BUG-063, walk-3). The `<pre>` Copy-block pull-out now only fires for end-of-sentence cmds; mid-sentence literals like `<meta name="duo-default-editable" content="false">` stay inline as `<code>`. New `isTrailingCmd()` helper in `.claude/skills/smoke-walk/generate.mjs § renderStepHtml`.
+
 ## [0.6.1] — 2026-05-02
 
 The "make Duo's canvas authoring usable by anyone" cut. Five intertwined improvements: a fixed `claude:spawn` semantic so lesson buttons actually work, a fork-config toggle so enterprise distros can pick which packs ship, a locked terminology hierarchy (canvas / page / playground / lesson), a canonical lesson template + runtime helper skill, and a skill split (make-page / make-playground / playground-interaction / lesson-runtime) tuned so Claude reaches for the right skill on natural-language prompts. The two existing packs (intro-to-duo, claude-code-basics) adopt the canonical event-name convention.
