@@ -722,9 +722,10 @@ export function App() {
           const trimmed = action.path.trim()
           if (!trimmed) return { ok: false, error: 'nav:reveal requires a non-empty data-path' }
           const absPath = trimmed.startsWith('~/') ? `${home}/${trimmed.slice(2)}` : trimmed
-          const dir = absPath.slice(0, absPath.lastIndexOf('/')) || '/'
-          nav.actions.navigateTo(dir)
-          nav.actions.selectItem(absPath, 'file')
+          // BUG-053 — single atomic action; previous two-call pattern
+          // (navigateTo + selectItem) had a window where selected
+          // was null in between, leaving the row un-highlighted.
+          nav.actions.revealAndSelect(absPath)
           setFocusedColumn('files')
           return { ok: true }
         }
@@ -1532,9 +1533,9 @@ export function App() {
               // FileTree listens to, transitioning the row to
               // rename mode without lifting state.
               onRevealInNavigator={(filePath) => {
-                const dir = filePath.slice(0, filePath.lastIndexOf('/')) || '/'
-                nav.actions.navigateTo(dir)
-                nav.actions.selectItem(filePath, 'file')
+                // BUG-053 — atomic reveal (single state update);
+                // see nav.actions.revealAndSelect for the rationale.
+                nav.actions.revealAndSelect(filePath)
                 setFocusedColumn('files')
               }}
               onTrashTabFile={async (id, filePath) => {

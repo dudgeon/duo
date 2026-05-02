@@ -39,6 +39,14 @@ export interface NavigatorActions {
   toggleShowDotfiles: () => void
   /** Force a re-list of a folder (e.g. after the agent writes a file). */
   refresh: (path: string) => void
+  /** BUG-053 — atomic "reveal a file in the navigator": switch the
+   *  tree's cwd to the file's parent dir AND set the file as selected
+   *  in one update, without the navigateTo-then-selectItem race
+   *  (navigateTo nulls selection; selectItem then re-sets it; relying
+   *  on React 18 auto-batching to make the second win). Use this from
+   *  any "reveal X" callsite (`nav:reveal` action verb, file-tab
+   *  context-menu "Reveal in navigator"). */
+  revealAndSelect: (filePath: string) => void
 }
 
 export function useNavigator(initialCwd: string) {
@@ -176,6 +184,23 @@ export function useNavigator(initialCwd: string) {
     setSelected({ path, kind })
   }, [])
 
+  const revealAndSelect = useCallback((filePath: string) => {
+    // BUG-053 — atomic reveal. Computes the parent dir from filePath,
+    // sets cwd + selected in the same render so there's no window
+    // where selected is null. Fixes nav:reveal action AND file-tab
+    // right-click "Reveal in navigator" — both used to do
+    // `navigateTo(dir); selectItem(filePath)` and rely on React 18
+    // auto-batching to make the final selected state stick. That
+    // works MOST of the time but the listing-load async cycle could
+    // re-render with selected=null peeking through (the navigateTo
+    // sets selected=null immediately; selectItem sets it back; if
+    // anything between the two reads the state, it sees null).
+    // Single-action update eliminates the race.
+    const dir = filePath.slice(0, filePath.lastIndexOf('/')) || '/'
+    setCwd(dir)
+    setSelected({ path: filePath, kind: 'file' })
+  }, [])
+
   const clearSelection = useCallback(() => setSelected(null), [])
 
   const toggleExpand = useCallback((path: string) => {
@@ -203,6 +228,7 @@ export function useNavigator(initialCwd: string) {
   const actions: NavigatorActions = {
     navigateTo,
     selectItem,
+    revealAndSelect,
     clearSelection,
     toggleExpand,
     togglePinned,

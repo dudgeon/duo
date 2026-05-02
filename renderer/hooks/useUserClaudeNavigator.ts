@@ -182,6 +182,14 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   // claude pane. We satisfy the NavigatorActions contract with
   // no-ops so <TreeNodes> can still call into them safely.
   const navigateTo = useCallback((_path: string) => { /* fixed root */ }, [])
+  // BUG-053 — revealAndSelect on the user-claude pane is also a no-op
+  // for the navigation half (this pane has a fixed root); we still
+  // honor the selection part so the row highlights if `nav:reveal`
+  // ever points into ~/.claude (cross-pane reveal isn't supported in
+  // v1 — file would be rendered in the project pane only).
+  const revealAndSelect = useCallback((filePath: string) => {
+    setSelected({ path: filePath, kind: 'file' })
+  }, [])
   const togglePinned = useCallback(() => { /* always pinned */ }, [])
   const toggleShowDotfiles = useCallback(() => { /* always visible */ }, [])
 
@@ -196,6 +204,7 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   const actions: NavigatorActions = {
     navigateTo,
     selectItem,
+    revealAndSelect,
     clearSelection,
     toggleExpand,
     togglePinned,
