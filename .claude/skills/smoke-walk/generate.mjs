@@ -98,13 +98,83 @@ function esc(s) {
     .replace(/'/g, '&#39;')
 }
 
+// ENH-046 — render a step's prose into HTML, splitting out
+// backtick-enclosed commands as separate `<pre>` blocks with a
+// "Copy" button. Short inline backticks (e.g. \`false\`, \`PASS\`)
+// stay inline as `<code>`. Anything that looks like a command —
+// has whitespace OR starts with a recognized verb (`duo`, `node`,
+// `ls`, `pkill`, `bash`, `npm`, `cd`, `mkdir`, `rm`, `mv`, `cp`,
+// `cat`, `git`, `grep`, `find`, `which`, `chmod`, `export`,
+// `source`) — gets pulled into a copyable code block.
+//
+// Why this matters (owner walk-2 feedback): "this smoke walk
+// included a few places where I needed to copy and run code —
+// please update the user smoke walk prep to place these in code
+// blocks with a copy button." A separate Copy button per command
+// means the user clicks once to clipboard the exact text instead
+// of triple-clicking + copying around backtick characters.
+const COMMAND_VERB_RE = /^(?:duo|node|ls|pkill|bash|sh|zsh|npm|cd|mkdir|rmdir|rm|mv|cp|cat|git|grep|find|which|chmod|export|source|sudo|brew|open|killall|head|tail|wc|awk|sed|jq|defaults)\b/
+
+function looksLikeCommand(s) {
+  if (s.length > 25) return true               // long enough to be hard to manually copy
+  if (/\s/.test(s)) return true                // multi-word → command-shaped
+  if (COMMAND_VERB_RE.test(s)) return true     // canonical shell verbs
+  return false
+}
+
+function renderStepHtml(step) {
+  const parts = []
+  let buf = ''
+  let inCode = false
+  for (let i = 0; i < step.length; i++) {
+    const ch = step[i]
+    if (ch === '`') {
+      if (inCode) {
+        // Closing backtick — emit the captured code chunk.
+        if (looksLikeCommand(buf)) {
+          parts.push({ kind: 'cmd', text: buf })
+        } else {
+          parts.push({ kind: 'inline-code', text: buf })
+        }
+        buf = ''
+        inCode = false
+      } else {
+        // Opening backtick — flush the prose buffer.
+        if (buf) parts.push({ kind: 'prose', text: buf })
+        buf = ''
+        inCode = true
+      }
+      continue
+    }
+    buf += ch
+  }
+  // Trailing buffer (unclosed backticks fall through as prose).
+  if (buf) parts.push({ kind: inCode ? 'prose' : 'prose', text: (inCode ? '`' : '') + buf })
+
+  // Render. Prose + inline-code goes inline; command blocks get
+  // pulled out into a `<pre>` AFTER the inline run with a Copy
+  // button — keeps the prose readable while making the command
+  // a one-click copy.
+  const inlineHtml = parts
+    .filter(p => p.kind !== 'cmd')
+    .map(p => p.kind === 'inline-code'
+      ? `<code class="step-inline">${esc(p.text)}</code>`
+      : esc(p.text))
+    .join('')
+  const cmdBlocks = parts
+    .filter(p => p.kind === 'cmd')
+    .map(p => `<div class="step-cmd"><pre><code>${esc(p.text)}</code></pre><button class="copy-cmd btn-copy" data-cmd="${esc(p.text)}" type="button">Copy</button></div>`)
+    .join('')
+  return `${inlineHtml}${cmdBlocks}`
+}
+
 const itemsHtml = items.map((item, i) => {
   if (!item.id || !item.title) {
     console.error(`Item ${i} missing required id/title field`)
     process.exit(2)
   }
   const stepsHtml = (item.steps ?? [])
-    .map((step) => `<li>${esc(step)}</li>`)
+    .map((step) => `<li>${renderStepHtml(step)}</li>`)
     .join('\n        ')
   const whatFixesHtml = item.what_fixes
     ? `<p class="what-fixes">${esc(item.what_fixes)}</p>`
@@ -402,6 +472,62 @@ const html = `<!DOCTYPE html>
     border-color: var(--pass);
   }
   button.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+  /* ENH-046 — inline code + copyable command blocks inside step
+     prose. Inline code is short tokens (e.g. \`PASS\`, \`false\`)
+     that stay flowing with the surrounding text. Command blocks
+     are pulled out below the step text into a styled <pre> with
+     a Copy button to the right. */
+  code.step-inline {
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 3px;
+    padding: 1px 5px;
+    color: var(--ink);
+  }
+  div.step-cmd {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    margin: 6px 0 2px;
+    max-width: 720px;
+  }
+  div.step-cmd pre {
+    flex: 1;
+    margin: 0;
+    padding: 7px 10px;
+    background: var(--ink-soft);
+    color: #fff8e8;
+    border-radius: 4px;
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  div.step-cmd pre code { font-family: inherit; color: inherit; }
+  button.copy-cmd {
+    appearance: none;
+    border: 1px solid var(--paper-rule);
+    background: white;
+    color: var(--ink);
+    padding: 0 12px;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    align-self: stretch;
+    transition: background 0.1s, color 0.1s, border-color 0.1s;
+    flex-shrink: 0;
+  }
+  button.copy-cmd:hover { background: var(--paper-deep); }
+  button.copy-cmd.is-copied {
+    background: var(--pass);
+    border-color: var(--pass);
+    color: white;
+  }
 </style>
 </head>
 <body>
@@ -477,6 +603,53 @@ ${itemsHtml}
   document.getElementById('items').addEventListener('change', tally);
   document.getElementById('items').addEventListener('input', tally);
   tally();
+
+  // ENH-046 — wire up the per-command Copy buttons inside step
+  // prose. Reads the command from data-cmd, writes it to the
+  // clipboard, and flashes the button green for ~1.2s. Event
+  // delegation on document.body so dynamically-rendered items
+  // (none today, but cheap insurance) also get covered.
+  document.body.addEventListener('click', async (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLButtonElement)) return;
+    if (!target.classList.contains('copy-cmd')) return;
+    const cmd = target.getAttribute('data-cmd') ?? '';
+    try {
+      await navigator.clipboard.writeText(cmd);
+      const original = target.textContent;
+      target.textContent = 'Copied';
+      target.classList.add('is-copied');
+      setTimeout(() => {
+        target.textContent = original;
+        target.classList.remove('is-copied');
+      }, 1200);
+    } catch (err) {
+      // Clipboard API failed (rare — file:// pages with permissions
+      // disabled, or pre-Chrome-66 browsers). Fall back to a
+      // legacy execCommand path. Best-effort; we don't fight if
+      // it also fails.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = cmd;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        target.textContent = 'Copied';
+        target.classList.add('is-copied');
+        setTimeout(() => {
+          target.textContent = 'Copy';
+          target.classList.remove('is-copied');
+        }, 1200);
+      } catch {
+        target.textContent = 'Copy failed';
+        setTimeout(() => { target.textContent = 'Copy'; }, 1500);
+      }
+    }
+  });
 
   markAllBtn.addEventListener('click', () => {
     for (const it of items) {

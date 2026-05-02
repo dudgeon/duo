@@ -338,6 +338,41 @@ distinct step in the same item — not a separate item.
 the top so they get attention while the user is fresh. Scope-creep
 ENHs at the bottom.
 
+**Code blocks + Copy buttons (ENH-046 — 2026-05-02 walk-2).** Any
+shell command, code snippet, or file path the user is expected to
+COPY-AND-RUN must be wrapped in single backticks in its step
+string. The generator (`generate.mjs § renderStepHtml`) splits on
+backticks and pulls out anything that:
+- has whitespace, OR
+- is longer than 25 characters, OR
+- starts with a recognized shell verb (`duo`, `node`, `ls`, `pkill`,
+  `bash`, `npm`, `cd`, `mkdir`, `rm`, `git`, `grep`, `find`, etc.)
+
+…into a styled `<pre>` with a Copy button alongside. Short tokens
+like `\`PASS\`` or `\`false\`` stay inline as `<code>` (no Copy
+button — user wouldn't click to copy a single word).
+
+Why this matters: walk-2 found the user pasting bare commands into
+their terminal by hand because the smoke-walk page was rendering
+them as inline code with surrounding prose — forcing a triple-click
++ careful selection. Wrapping in backticks gets you a one-click
+copy.
+
+Bad (forces hand-typing):
+```
+"From any terminal, run: ls -la ~/.claude/skills/duo/canvas-authoring.md"
+```
+
+Good (gets a Copy button):
+```
+"From any terminal, run: \`ls -la ~/.claude/skills/duo/canvas-authoring.md\`"
+```
+
+This convention also propagates beyond the smoke walk: any canvas
+template (`skill/canvas-templates/*.html`) that includes a runnable
+command should expose a Copy button via the same `<pre data-copy>`
+shape. ENH-043 / ENH-046 in tasks.md have the carve-up.
+
 ---
 
 ## Files
