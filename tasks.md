@@ -3087,6 +3087,44 @@ The smoke walk page now emits `<meta name="duo-open-in" content="browser">` (v0.
 
 ---
 
+### ENH-037: `⌘W` should NEVER close the parent window — only the focused tab
+
+**Status:** ✅ **Shipped v0.6.0 (this ENH).** Window menu's `{role: 'close'}` had its default `CmdOrCtrl+W` accelerator overridden to `CmdOrCtrl+Shift+W` (matching Chrome's convention). Plain `⌘W` is now reserved entirely for the renderer's `closeTab` action in `renderer/keyboard/globalShortcuts.ts § 'closeTab'`.
+**Priority:** **High — data loss bug.** Owner lost ~20 minutes of smoke-walk notes typed into the smoke-walk page's textareas when ⌘W on a tab triggered window close instead of tab close. Form data was DOM state, never persisted; browser-tab close took it with it.
+**Filed + shipped:** 2026-05-02 (mid-Stage 27 smoke walk)
+
+**Repro (pre-fix):**
+1. Open Duo, get into a state with multiple working-pane tabs
+2. Click into a focused tab (say a browser tab with form data typed in)
+3. Press `⌘W`
+4. **Expected:** the focused tab closes; the window stays
+5. **Actual:** Both Electron's `BrowserWindow.close()` (auto-bound to ⌘W via `Window > Close` menu role) AND the renderer's `closeTab` shortcut fire. Result: window closes, all working-pane tabs gone, all form data lost.
+
+**Root cause:** Electron's `{role: 'close'}` menu item has a default accelerator of `CmdOrCtrl+W`. When the renderer's keydown handler matches and runs `closeTab`, it doesn't preventDefault all the way to the OS-menu accelerator path — both fire.
+
+**Fix:** explicit accelerator override in `electron/main.ts § installAppMenu`:
+
+```ts
+{ role: 'close', label: 'Close Window', accelerator: 'CmdOrCtrl+Shift+W' }
+```
+
+Three things this earns us:
+- ⌘W is now exclusive to tab-close (renderer-handled).
+- ⌘⇧W matches Chrome's "close window" convention (familiar muscle memory).
+- Users who want to close the whole window still can — just on the new key combo.
+
+**Edge cases verified:**
+- ⌘W with no tabs: renderer's closeTab is a no-op; window stays.
+- ⌘W on a pinned tab: renderer's PinnedCloseConfirm dialog still fires (its existing logic).
+- ⌘Q for "Quit Duo" remains unchanged in App menu.
+- Multiple windows: ⌘⇧W closes the currently-focused window only (Electron `role: 'close'` semantics).
+
+**Why we got bitten by this:** the bug was always present — the renderer's closeTab handler was added in Stage 24 (pin gating) on the assumption that it was the only ⌘W binding. Nobody hit it during dev because nobody ⌘W'd a tab while having unsaved form state in another tab. The smoke-walk page (with its textareas full of pasted-back walk notes) was the first surface where the data loss became visible.
+
+**Cross-ref:** Stage 24 (pin gating + tab-close confirm); `renderer/keyboard/globalShortcuts.ts § 'closeTab'` (where ⌘W is matched on the renderer side); `electron/main.ts § installAppMenu` (where the menu accelerator override lives now).
+
+---
+
 ### ENH-036: `duo open <url>` should bring the working pane to focus on the new tab
 
 **Status:** 🆕 Filed

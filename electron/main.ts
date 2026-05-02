@@ -1014,7 +1014,17 @@ function installAppMenu(): void {
       label: 'Window',
       submenu: [
         { role: 'minimize' },
-        { role: 'close' }
+        // Move "Close Window" to ⌘⇧W so plain ⌘W is reserved entirely
+        // for closing the FOCUSED TAB via the renderer's globalShortcuts
+        // matcher (see renderer/keyboard/globalShortcuts.ts § 'closeTab').
+        // Chrome uses the same convention. Without this, the default
+        // role-assigned ⌘W accelerator ALSO fires BrowserWindow.close()
+        // alongside the renderer's tab-close — losing every working
+        // tab + form data when the user just meant to dismiss one.
+        // Discovered 2026-05-02 mid-smoke-walk (user lost ~20 min of
+        // walk notes typed into smoke-walk-page textareas because the
+        // window close took the form data with it).
+        { role: 'close', label: 'Close Window', accelerator: 'CmdOrCtrl+Shift+W' }
       ]
     }
   ]
