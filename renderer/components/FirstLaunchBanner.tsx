@@ -155,8 +155,14 @@ export function FirstLaunchBanner() {
               <strong>Install failed:</strong> {error}
             </>
           ) : status.needsUpdate ? (
+            // BUG-062 — be explicit about which version is which.
+            // Old wording "(currently from v{X})" was ambiguous —
+            // sounded like Duo itself was at v{X}. The accurate
+            // framing: agent files in ~/.claude/ were installed by
+            // an older Duo; the running Duo is newer; Refresh
+            // to bring the agent files forward.
             <>
-              <strong>Duo update available.</strong> Refresh the agent files in <code className="font-mono text-[12px]">~/.claude/</code> (currently from v{status.version}).
+              <strong>Agent files in <code className="font-mono text-[12px]">~/.claude/</code> are from Duo v{status.version}.</strong> You're running v{window.electron.env.appVersion}. Refresh to update.
             </>
           ) : (
             <>

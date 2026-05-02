@@ -3830,9 +3830,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-062: Update banner shows wrong "currently from vX.Y.Z" version
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.2
 **Priority:** Medium (visible UX confusion)
 **Filed:** 2026-05-02 (walk-3 screenshot)
+**Shipped:** 2026-05-02 — `renderer/components/FirstLaunchBanner.tsx` rewrote the banner copy. The old phrasing "(currently from v{X})" was ambiguous — it sounded like Duo itself was at v{X}. The new copy is explicit about which version is which: "Agent files in `~/.claude/` are from Duo v{installedVersion}. You're running v{appVersion}. Refresh to update." Both versions are now visible in the same sentence so the user can see "the files I have are from version A, but I'm running version B" at a glance. The receipt-vs-running-version data was already correct — only the rendering needed the fix.
 
 **Repro (visible in walk-3 screenshot 2026-05-02):**
 1. Running dev build at v0.5.7 (titlebar reads `0.5.7 ·dev`).
@@ -3856,9 +3857,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-063: Walk-3 manifest renders escaped HTML attribute incorrectly (`<meta ...>` vanishes from step text)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.2
 **Priority:** Low (smoke-walk doc rendering bug only)
 **Filed:** 2026-05-02 (walk-3 owner notes — "Other notes: missing characters/span?")
+**Shipped:** 2026-05-02 — `.claude/skills/smoke-walk/generate.mjs § renderStepHtml` adopted recommended path 3 (mid-sentence cmds stay inline). Added `isTrailingCmd(idx)` helper that scans forward from a `cmd` part: if every subsequent part is either trivial trailing prose (whitespace + `.,;:!?)]"`) or another part, it counts as trailing and gets pulled into the Copy block; otherwise the cmd is reclassified to `inline-code` and renders inline as `<code>` in the prose flow. End-of-sentence runnable commands still get the Copy treatment (original intent preserved); mid-sentence literals like `` `<meta name="duo-default-editable" content="false">` `` now render in flow without leaving prose gaps.
 
 **Owner observation (verbatim):** "'Open the stage-27-walk canvas (which has so it mounts read-only with a toggle)' missing characters/span?"
 

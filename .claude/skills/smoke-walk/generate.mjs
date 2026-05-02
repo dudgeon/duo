@@ -151,6 +151,38 @@ function renderStepHtml(step) {
   // Trailing buffer (unclosed backticks fall through as prose).
   if (buf) parts.push({ kind: inCode ? 'prose' : 'prose', text: (inCode ? '`' : '') + buf })
 
+  // BUG-063 — only pull a cmd into a Copy block when it's at the
+  // END of the prose (preceded by "run:" / "do this:" / etc.,
+  // followed by sentence-terminator + nothing material). Mid-
+  // sentence cmds like ``"This canvas has \`<meta name='X'>\` so
+  // it mounts read-only"`` should stay INLINE — pulling them out
+  // leaves a prose gap ("which has  so it mounts...") which is
+  // confusing to read. Heuristic: a cmd is "trailing" if every
+  // subsequent part is either (a) prose with no non-whitespace /
+  // non-punctuation characters, or (b) doesn't exist (cmd is
+  // truly last).
+  function isTrivialTrailingProse(text) {
+    return /^[\s.,;:!?)\]"]*$/.test(text)
+  }
+  function isTrailingCmd(idx) {
+    for (let j = idx + 1; j < parts.length; j++) {
+      const p = parts[j]
+      if (p.kind === 'prose' && isTrivialTrailingProse(p.text)) continue
+      // Anything else (more cmds, inline-code, real prose) means
+      // this cmd is NOT trailing — keep it inline.
+      return false
+    }
+    return true
+  }
+
+  // Reclassify mid-sentence cmds back to inline-code so they
+  // render in flow rather than getting pulled out.
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].kind === 'cmd' && !isTrailingCmd(i)) {
+      parts[i] = { kind: 'inline-code', text: parts[i].text }
+    }
+  }
+
   // Render. Prose + inline-code goes inline; command blocks get
   // pulled out into a `<pre>` AFTER the inline run with a Copy
   // button — keeps the prose readable while making the command
