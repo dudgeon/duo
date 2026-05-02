@@ -134,6 +134,110 @@ export type DuoCommandName =
   // each fresh event as a JSON line until interrupted. Subscribers
   // resume across reconnects via --since <cursor>. Pulls in issue #19.
   | 'events'
+  // Stage 18b — `duo packs` lists every distro pack discovered at
+  // `~/.claude/duo/packs/<name>/PACK.json`. Returns the loaded
+  // registry as JSON; errors per pack surface in the response so an
+  // agent can diagnose a malformed manifest without crawling the
+  // filesystem.
+  | 'packs'
+
+// ── Stage 18b — Distro skill packs ───────────────────────────────────────────
+// A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
+// PACK.json manifest, optional canvases, and (Stage 18c) extra skills.
+// v1 minimum: defaults[] declares tabs to open on first launch after
+// the pack lands. Stage 27's primitives are the language packs are
+// authored in; Stage 28 is the first content built on this format.
+//
+// Why this lives in shared/types: both the renderer (future pack-
+// browser UI) and the main process (loader + first-launch hook +
+// `duo packs` CLI) consume the manifest shape. Shared types keep both
+// sides honest.
+
+export interface PackManifest {
+  /** Always 1 in v1. Future schema changes bump this; older pack
+   *  loaders see the version mismatch and surface an error rather
+   *  than mis-parsing. */
+  schemaVersion: 1
+  /** Stable identifier. Lowercase + kebab-case. The loader rejects
+   *  packs whose `name` field doesn't match the directory name on
+   *  disk — keeps the registry single-sourced from the filesystem. */
+  name: string
+  /** Semver-style. Bumping a pack's version re-fires its
+   *  first-launch defaults (per-pack-version flag in
+   *  installed-packs.json). */
+  version: string
+  /** Human-readable title. Surfaced by `duo packs` and the future
+   *  pack-browser UI. */
+  title: string
+  /** Optional one-line description. */
+  description?: string
+  /** Tabs to auto-open on first launch after the pack lands.
+   *  Empty / missing = "skill pack only" (no default tabs). */
+  defaults?: PackDefault[]
+  /** Pre-pinned navigator entries. v1 stub: read but not enforced.
+   *  Stage 18c wires this into the existing nav-pins service. */
+  navPins?: PackNavPin[]
+}
+
+export interface PackDefault {
+  /** v1 ships only `canvas`; `editor` / `browser` reserved for v2. */
+  kind: 'canvas'
+  /** Path relative to the pack root. */
+  path: string
+  /** When false, the default is informational only — the loader
+   *  catalogs it but doesn't auto-open. Useful for "manually
+   *  installable" defaults the user opts into via a pack browser. */
+  openOnFirstLaunch: boolean
+  /** When true, after auto-open the tab gets pinned via the
+   *  existing pins service. v1 honors this on a best-effort basis;
+   *  if the pin fails (path resolution issue, etc.) the open still
+   *  succeeds. */
+  pin?: boolean
+}
+
+export interface PackNavPin {
+  /** Path relative to the pack root. */
+  path: string
+  /** Hint for the navigator. */
+  kind?: 'file' | 'folder'
+}
+
+/** Result of parsing one pack directory. `manifest` is null when the
+ *  manifest is missing, malformed, or schema-mismatched. `errors`
+ *  carries human-readable diagnostics so `duo packs` can surface
+ *  what went wrong without crashing the loader. */
+export interface LoadedPack {
+  /** Directory basename (the canonical name). May differ from
+   *  `manifest.name` when the manifest is malformed. */
+  dirName: string
+  /** Absolute path to the pack directory. */
+  rootDir: string
+  /** Parsed manifest, or null when parse failed. */
+  manifest: PackManifest | null
+  /** Non-fatal errors encountered. A pack with errors still appears
+   *  in the registry; defaults won't fire when manifest is null. */
+  errors: string[]
+}
+
+export interface PackRegistry {
+  /** All packs found under `~/.claude/duo/packs/` at the last scan,
+   *  in directory-name sort order for stable iteration. */
+  packs: LoadedPack[]
+}
+
+/** Per-pack first-launch state stored at
+ *  `~/.claude/duo/installed-packs.json`. Keyed by `<name>@<version>`
+ *  so a version bump re-fires defaults. Schema-versioned for future
+ *  format evolution. */
+export interface InstalledPacksState {
+  schemaVersion: 1
+  packs: Record<string, InstalledPackEntry>
+}
+
+export interface InstalledPackEntry {
+  /** ISO 8601 timestamp of first launch with this pack@version. */
+  firstLaunchedAt: string
+}
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
