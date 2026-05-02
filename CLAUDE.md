@@ -92,6 +92,24 @@ communicating with main via contextBridge IPC. The `duo` CLI
 both the browser and the renderer surfaces from inside any terminal
 tab.
 
+## Glossary — terms the user uses vs. internal names
+
+| User says | What they mean | Internal name |
+|---|---|---|
+| **the canvas** | The right pane (slot that hosts whatever tab is active) | `WorkingPane` / `activeWorking` |
+| **a canvas** | A single tab inside the right pane (any kind: markdown editor, HTML canvas tab, browser tab, image viewer, PDF viewer, future modalities like JSON viewer) | `WorkingTab` (kinds: `editor`, `html-canvas`, `browser`, `image`, `pdf`, ...) |
+| **the navigator** / **the tree** / **the file pane** | The left column with the dual-pane file tree | `FileTree` / `useNavigator` |
+| **the terminal** | The middle column (xterm host) | `TerminalPane` / `tabs[]` |
+| **a tab** (no qualifier) | A working-pane tab (right pane) | `WorkingTab` |
+| **a terminal tab** | One of the xterm sessions in the middle column | `TabSession` |
+
+When user-facing copy or ENH discussions say **"canvas"**, that
+means the right pane — the slot — independent of what's currently
+rendering inside. Don't confuse "the canvas" (slot) with "an HTML
+canvas" (Stage 17 tab kind). Internal code can be precise
+(`activeWorking.kind === 'html-canvas'`); user-facing language uses
+"canvas" as the slot.
+
 ## Build commands
 
 ```bash

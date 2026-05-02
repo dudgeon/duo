@@ -3087,6 +3087,33 @@ The smoke walk page now emits `<meta name="duo-open-in" content="browser">` (v0.
 
 ---
 
+### BUG-051: Read-only toggle stuck — toggle off → on → off leaves canvas editable
+
+**Status:** 🆕 Filed
+**Priority:** **High — interferes with smoke walk + any read-only canvas the user tries to interact with after temporarily editing**
+**Filed:** 2026-05-02 (Stage 27 smoke-walk in flight; user reported the toggle ratchets the wrong way)
+
+**Repro:**
+1. Open a canvas with `<meta name="duo-default-editable" content="false">` (e.g. `~/.claude/duo/stage-27-walk.html`). Mounts read-only as expected.
+2. Click "Edit" in the toolbar strip → flips into editable mode (toolbar appears, cursor lands on click). Correct.
+3. Click "Back to read-only" → label goes away (UI says read-only), BUT the canvas body remains editable. Click anywhere → cursor lands.
+
+**Expected:** flipping to "read-only" should fully revert the canvas to read-only state — no cursor placement, no contentEditable, identical to first-mount behavior.
+
+**Suspected cause:** in `renderer/components/HtmlCanvas/CanvasTab.tsx`, the `readOnly` state and the iframe document's `contentEditable` setting may not be re-synced after the second toggle. Possibilities to check:
+- The `useEffect` that wires `installCanvasActions(doc, ...)` and the `installMarkdownShortcuts(doc)` setup may set contentEditable on first mount and never re-toggle on `readOnly` state changes.
+- The `RenderedCanvas` component's `readOnly` prop may not propagate `contentEditable` flips after a state-driven re-render.
+- The `localStorage` override read may be stuck on the first persisted value (e.g. flipped to `true` once and never re-read).
+
+**Where to look:**
+- `renderer/components/HtmlCanvas/CanvasTab.tsx § toggleReadOnly` + the `readOnly` `useEffect` chain
+- `renderer/components/HtmlCanvas/RenderedCanvas.tsx` (whatever consumes the `readOnly` prop and applies it to the iframe doc)
+- Verify: `doc.body.contentEditable` flips correctly on each toggle via the visible toolbar
+
+**Smoke walk impact:** owner hit this mid-walk; the canvas they were trying to drive (smoke-walk page itself, in canvas mode) became uneditable-but-not-actually after a flip cycle. Can interfere with click handlers when contentEditable traps clicks as cursor placement.
+
+---
+
 ### ENH-037: `⌘W` should NEVER close the parent window — only the focused tab
 
 **Status:** ✅ **Shipped v0.6.0 (this ENH).** Window menu's `{role: 'close'}` had its default `CmdOrCtrl+W` accelerator overridden to `CmdOrCtrl+Shift+W` (matching Chrome's convention). Plain `⌘W` is now reserved entirely for the renderer's `closeTab` action in `renderer/keyboard/globalShortcuts.ts § 'closeTab'`.
@@ -3151,6 +3178,142 @@ Three things this earns us:
 **Files:** `core/socket-server.ts` § `case 'open'`, `electron/browser-manager.ts § addTab`, `renderer/App.tsx` (whichever surface flips activeWorking).
 
 **Cross-ref:** Stage 23 canvas-action `browser:open` already does the right thing (App.tsx handleCanvasAction sets activeWorking + setFocusedColumn). That's the model — extend the same effect to the CLI path.
+
+---
+
+### ENH-038: Smoke-walk page should localStorage-persist textarea contents while walk is in progress
+
+**Status:** 🆕 Filed
+**Priority:** **High — data-loss-defense.** Owner just lost ~20 min of typed walk notes when ⌘W collapsed the window (root cause was ENH-037; THIS ENH is the defense-in-depth so the next mishap doesn't lose data either).
+**Filed:** 2026-05-02 (mid-Stage 27 walk-2)
+
+**Why both ENH-037 + this:** ENH-037 plugs the specific cmd+W bug. But the smoke-walk page is the surface where the user types many minutes of structured feedback into many textareas. Any unanticipated mishap — accidental refresh, dev-server crash, OS sleep + lid-close interruption, the page being closed and reopened to test something — will lose that work. The page is meant to ferry walk results; losing them mid-walk is the failure mode.
+
+**Scope:**
+1. Each textarea (per-item notes + the misc-notes block at the bottom) writes its current value to `localStorage` on every input event (debounced ~250ms to avoid storage churn).
+2. Pass/Fail/Skip toggle state for each item also persists.
+3. On page load, restore from `localStorage` if present (the page's URL plus the manifest version is the storage key — so stage-27-rev1 walk doesn't restore stage-28-rev1's state).
+4. "Copy results" button has a sibling "Clear saved walk" affordance (small, less-prominent button next to it) the user clicks AFTER pasting back to me, to reset state for the next walk.
+5. After a successful copy, the page can show a toast: "Saved walk persisted in localStorage. Click 'Clear saved walk' when you've pasted into your agent's chat."
+
+**Where this lands:** `.claude/skills/smoke-walk/generate.mjs` — embed the persistence JS into the generated HTML. Self-contained; no Duo wiring needed (browser-tab JS works).
+
+**Edge cases:**
+- localStorage quota: a single smoke-walk page's textareas easily fit under 5MB. Don't need eviction logic.
+- Multiple smoke walks in flight (different versions): per-version storage keys keep them isolated.
+- Cross-Duo-restart: localStorage in browser tabs IS persisted by Electron's session, so a Duo restart preserves the state — exactly the property we want.
+
+**Cross-ref:** ENH-037 (root cause of THIS instance of data loss); the smoke-walk skill at `.claude/skills/smoke-walk/SKILL.md` (where we should add a "warning: in-flight notes are localStorage-persisted; click Clear after copy" line once this ships).
+
+---
+
+### ENH-039: Smoke-walk page paths should be clickable links — open the file in editor or reveal in navigator
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX paper-cut — paths in walk steps are currently `<code>` decorative; the user has to retype them into a terminal to actually use them)
+**Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
+
+**What's wanted:** any `~/.claude/duo/whatever.md`, `~/notes/...`, or absolute path that appears in a walk step's text should render as a clickable link. Click → either opens the file in Duo's working pane (preferred default for files the user wants to inspect / edit), or reveals it in the navigator (alternative when the user wants to see WHERE it is, not the contents).
+
+**Discovery — the implementation can't be obvious:**
+The smoke-walk page renders in BROWSER mode (`<meta duo-open-in="browser">` so the Copy button's `navigator.clipboard.writeText` works). Browser tabs do NOT carry the canvas-action `data-duo-action` delegation. So a click on a `<a data-duo-action="editor:open" data-path="...">` is inert in browser mode.
+
+**Three implementation options to choose from when this is fleshed out:**
+
+1. **`duo://` URL scheme handler.** Register a custom protocol in Electron main (`protocol.handle('duo', ...)`) that parses `duo://open?path=...` / `duo://reveal?path=...` and dispatches via existing `sendEdit` / `sendReveal` helpers. Cleanest semantically; requires careful permission scoping (any browser tab — including arbitrary websites the user has open in Duo's browser pane — could in theory click a `duo://...` link, so the protocol handler MUST validate origin or restrict to file:// pages). Highest setup cost.
+
+2. **Local HTTP endpoint.** Main process opens a localhost HTTP server bound to 127.0.0.1 + per-launch token (mirrors the existing TCP fallback for the CLI). Smoke-walk page does `fetch('http://localhost:<port>/duo-cli', { body: { cmd: 'edit', path: '...' } })`. Reuses existing socket-server protocol. Adds a 4th bound port to the app — manageable but real.
+
+3. **Browser-pane CDP injection.** The renderer's `BrowserManager` already attaches CDP. It could inject a small `window.duo` JS object into pages that match a Duo-trusted origin (e.g. file:// paths under `~/.claude/duo/`). Smoke-walk page calls `window.duo.openPath('...')`. Like the canvas-action trust gate but for browser-pane pages. Most consistent with Duo's existing trust model.
+
+**Lean toward Option 3 (CDP injection)** — it parallels Stage 15.2's existing `Runtime.addBinding` selection-observer injection and Stage 27's BUG-006 in-page pill. Same tooling, same trust gate, same domain. New `window.duo.openPath(path)` / `window.duo.revealPath(path)` API.
+
+**Generator change:** `.claude/skills/smoke-walk/generate.mjs` — when emitting a step's text, regex-match `~/...` or `/Users/...` style paths and wrap each in `<a class="duo-path-link" data-path="...">`. The injected `window.duo` object listens for clicks on `[data-path]` elements and dispatches.
+
+**Cross-ref:** ENH-038 (the other smoke-walk-page enhancement queued); Stage 23 trust gate (model for the in-page injection's trust scope); BUG-006 in-page pill (existing pattern of CDP-side JS injection into trusted pages).
+
+---
+
+### ENH-040: Collapse-pane button — quick toggle to hide terminal column or canvas (right pane)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (workflow leverage — when you're in deep on either side, you want the other side fully collapsed for screen real estate)
+**Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
+
+**Terminology note (per owner clarification 2026-05-02):** the right column of Duo's main split is called **"the canvas"** in user vocabulary, REGARDLESS of which tab kind is currently rendering inside it (markdown editor, HTML canvas tab, browser tab, image viewer, PDF viewer, future modalities like a JSON viewer or table view). "The canvas" is the SLOT, not the rendering surface. Internally we call it `WorkingPane` / `activeWorking`; user-facing copy and ENH discussions use "canvas" as shorthand for the right pane. Documented in CLAUDE.md.
+
+**What's wanted:** a one-click affordance to collapse either the terminal column OR the canvas (right pane) all the way, giving the other full window width. A second click restores the previous split.
+
+**Why ENH-014 (split set) isn't sufficient:** `duo split <pct>` and the View → Pane size menu can drive the split percentage, including the existing presets `terminal` (80) and `canvas` (20). But:
+- Those presets aren't full-collapse — the other pane stays visible in a thin strip.
+- They're keyboard-accelerator-driven, no visual button. Users don't reach for menu commands at the rate they reach for a click.
+- The user's mental model is "hide the other pane while I focus" — a binary collapse, not a continuum.
+
+**Scope (rough — flesh out when this is picked up):**
+1. Two buttons in the titlebar (or in each pane's chrome): "Collapse terminal" / "Collapse canvas". Or one toggle that flips based on which pane has focus.
+2. Click → animate split to 100/0 (or 0/100) with a smooth transition.
+3. Click again → restore to last user-set split percentage (cache previous value).
+4. Keyboard parity: ⌘⌥0 collapses to canvas-only (terminal hidden); ⌘⌥9 collapses to terminal-only. (Currently those bindings drive ENH-014 presets to 20 and 80; this ENH would extend to 0 / 100 OR remap to a new chord.)
+5. While collapsed: a thin "expand" handle along the edge so the user can drag the divider back manually if they don't remember the keyboard shortcut.
+
+**Cross-ref:** ENH-014 (split-pane percentage — this is the binary-collapse variant); WorkingPane terminology in CLAUDE.md (`canvas` = right pane in user vocabulary).
+
+---
+
+### ENH-041: Split the canvas (right pane) into side-by-side panels
+
+**Status:** 🆕 Filed
+**Priority:** Low-medium (long-tail leverage; not blocking any current sprint but enables compelling workflows)
+**Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
+
+**Terminology:** see ENH-040 — "canvas" = right pane in user vocabulary (the slot that hosts a markdown editor, HTML canvas, browser tab, etc.).
+
+**What's wanted:** the ability to split the canvas (right pane) into two side-by-side sub-panels, so the user can have e.g. a markdown editor on the left of the canvas + a browser tab on the right of the canvas, viewable simultaneously. Each sub-panel has its own active tab + tab strip.
+
+**Why this is interesting:**
+- Compare-and-edit: open the source markdown in the left sub-panel + a generated HTML preview in the right sub-panel; edits on left, watch right repaint.
+- Reference-while-authoring: docs in left, code editor in right.
+- Multi-canvas lessons: a Stage 28 lesson canvas in left + the HTML the user is creating in right.
+
+**Existing precedent:** the main split (terminal | canvas) is already a horizontal divider. This ENH extends the model to a SUB-divider inside the canvas. The same `react-split-pane` / equivalent primitive should drive both.
+
+**Scope (rough — for later flesh-out):**
+1. New "Split canvas" menu item / right-click on the canvas's empty space.
+2. Two sub-panels, each owning its own `activeWorking` state independently. Tab strip is per-sub-panel.
+3. Drag-to-move-tab-between-sub-panels (UX detail; bound up with ENH-042 reorder).
+4. The terminal column stays unchanged — split is purely within the right pane.
+5. Persistence: layout state (one or two panels) is part of session-restore.
+
+**Sequencing concern:** depends on us having stable session-restore semantics for multi-pane state (Stage 21c Phase 2 covers single-canvas restore today; multi-sub-panel needs schema extension).
+
+**Cross-ref:** ENH-040 (collapse — a related but orthogonal pane-management feature); session-state-service (where restore schema would extend).
+
+---
+
+### ENH-042: Tab reordering — move a working-pane tab left / right
+
+**Status:** 🆕 Filed
+**Priority:** Medium (small but high-frequency UX paper-cut — users reach for "put this tab next to that one" at workflow-level rates)
+**Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
+
+**What's wanted:** a way to reorder working-pane tabs. Two interaction patterns to choose from (or both):
+1. **Drag-to-reorder** — pointer-down on a tab, drag horizontally, tab moves between siblings, drop commits.
+2. **Keyboard / context-menu reorder** — right-click → "Move tab left" / "Move tab right". Or a chord like ⌘⌥← / ⌘⌥→ when a tab has focus.
+
+**Why this matters:** today, tab order is creation order. A user who opens a reference file 10 minutes ago and a working file just now finds them in opposite ends of a long strip. Reordering lets the user co-locate related tabs.
+
+**Existing context:**
+- Pinned tabs (Stage 24) sort to leftmost automatically. So pinning is one workaround for "I want this tab near the start."
+- `WorkingTabStrip.tsx` is where the strip rendering + per-tab right-click menu live; the tabs[] array is owned by App.tsx and ordered by insertion.
+
+**Scope (rough — for later flesh-out):**
+1. Drag-and-drop on `WorkingTabStrip.tsx` — `react-dnd` or HTML5 native drag events. Within-strip only for v1; cross-pane drag (when ENH-041 lands) is a v2 concern.
+2. New right-click entries: "Move left" / "Move right" (gated when the tab is already at start / end).
+3. Keyboard: ⌘⌥← / ⌘⌥→ on a focused tab.
+4. Order persists across sessions via session-state-service (existing schema extension).
+5. Pinned tabs stay pinned-leftmost; reorder applies within their respective sort-zones (pinned-zone | unpinned-zone).
+
+**Cross-ref:** Stage 24 (pinning, which today is the only way to influence tab order); ENH-041 (split canvas — drag-between-sub-panels would extend this primitive).
 
 ---
 

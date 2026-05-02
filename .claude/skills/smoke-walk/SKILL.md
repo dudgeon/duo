@@ -129,13 +129,43 @@ The generator reads the JSON, embeds the items into a self-contained
 HTML page (Atelier-styled, scriptless dependencies, inline JS for
 the copy button), and writes the output file.
 
-### 4. Run `npm run dev` yourself — DO NOT ASK
+### 4. Run `npm run dev` yourself — DO NOT ASK, AND **never restart Duo while a walk is in progress**
 
 This is the first thing the skill must do. Geoff has been
 explicit: *"run the dev server yourself."* Do not ask permission.
 Do not offer options. Do not propose alternatives. The skill's
 whole point is to remove the "should I?" friction from sprint-end
 verification.
+
+> **CRITICAL — never restart Duo (or kill the dev process tree)
+> AFTER the user has started clicking through the smoke walk page.**
+> Until ENH-038 (textarea persistence) ships, the user's typed walk
+> notes are DOM state in the browser-tab textareas. A Duo restart
+> closes those tabs and **the textarea contents are lost**. If you
+> realize a restart is required mid-walk:
+>
+> 1. STOP. Do not kill anything.
+> 2. Tell the user verbatim: "I need to restart Duo to apply <X>,
+>    but doing so will lose the walk notes you've typed so far. You
+>    have three options: (a) Copy results NOW with what you have,
+>    paste back, then I restart and we continue with the remaining
+>    items, (b) finish the walk first and I restart after, (c) I
+>    leave Duo alone and we proceed with whatever <X> would have
+>    fixed unfixed."
+> 3. Wait for their answer. Do NOT proceed without explicit
+>    "yes restart" if option (a) or (b).
+>
+> Once ENH-038 ships, the page localStorage-persists textarea
+> contents on every keystroke and a restart is recoverable —
+> remove this warning at that point.
+
+**Pre-flight (before starting the dev that the walk will run
+against): identify any main-process changes that need to land
+before the user starts walking.** Renderer-only changes HMR live;
+preload + main need a restart. If you've made main-process changes
+that are NOT yet running in the dev, do all the restarts BEFORE
+calling Step 4 done. The user's first click on the smoke walk
+page is the cutoff.
 
 ```bash
 ps aux | grep -i "[D]uo.app/Contents/MacOS/Duo\|[e]lectron" | head -3

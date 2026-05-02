@@ -1,76 +1,131 @@
-# Active sprint state — Stage 27 (Sprint A)
+# Active sprint state — v0.6.0 in flight (Stages 27 + 18b + 28)
 
-> **What this file is.** Running scratchpad for the active sprint.
-> Updated as work progresses. Other doc files (`ROADMAP.md`,
-> `docs/prd/stage-27-canvas-authoring.md`, `docs/prd/stage-28-lesson-packs.md`)
+> **What this file is.** Running scratchpad for the active sprint
+> arc. Other doc files (`ROADMAP.md`, `docs/prd/stage-27-canvas-authoring.md`,
+> `docs/prd/stage-18b-distro-packs.md`, `docs/prd/stage-28-lesson-packs.md`)
 > are the formal record. This file is the "where am I right now" file.
 >
 > **For future Claude instances:** if you're picking up after a context
-> compaction, READ THIS FILE FIRST. It points at the formal plan
-> + says exactly what's been done and what's next.
+> compaction, READ THIS FILE FIRST. It points at the formal plan + says
+> exactly what's been done, what's owed, and what bugs / ENHs were filed
+> in the most recent walk session.
 >
 > **Update cadence:** at the end of each commit (mark the row done,
 > note any deviations, update "next" pointer).
 
 ---
 
-## Current state — last updated 2026-05-01
+## Current state — last updated 2026-05-02
 
-**Active sprint:** Sprint C complete (Stage 28 packs shipped).
-**Next move:** v0.6.0 cut OR human-walked smoke-walk pickup.
+**Active arc:** v0.6.0 — Stages 27 + 18b + 28 all land together at
+the next cut.
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Three sprints, sixteen commits.
+**Status:** Three sprints + smoke walk in flight + a dozen filed
+bugs / ENHs queued.
+
+### Sprint commit chain
 
 | Sprint | Stage | Commits | Outcome |
 |---|---|---|---|
-| A | 27 — canvas authoring vocabulary | 6 (c11d999 → 11d484c) | All shipped. Smoke walk blocked-on-visual-walk; CLI surface verified. |
-| B | 18b — distro skill packs (v1 minimums) | 5 (2646f62 → 78ae208) | All shipped. CLI walk passed end-to-end. extra-skills/ merge + UI deferred to Stage 18c. |
-| C | 28 — lesson packs | 3 (f709ddf, … this commit) | Both packs shipped: `intro-to-duo` + `claude-code-basics`. CLI walk passed; visual lesson walks need a human. |
+| A | 27 — canvas authoring vocabulary | 6 (`c11d999` → `11d484c`) | Shipped. Smoke-walked V1–V8 + V11–V17 PASS; V9/V10 hit a cross-realm `instanceof` bug that's now fixed (`b28ec13`). |
+| B | 18b — distro skill packs (v1 minimums) | 5 (`2646f62` → `78ae208`) | Shipped. CLI walk passed. extra-skills/ merge + UI deferred to Stage 18c. |
+| C | 28 — lesson packs (`intro-to-duo` + `claude-code-basics`) | 3 (`f709ddf` → `b73b631`) | Shipped. Sanitized of all Capital One / AIP / Trailblazer references (`c36ed1e`). |
 
-## Sprint C smoke walk results
+### Post-Sprint follow-ups already committed
 
-Manifest at `docs/dev/smoke-walks/v0.6.0-stage-28-rev1.json`
-(gitignored). V1–V5 + V8 + V9 pass; V6/V7 (visual lesson walks)
-deferred to a human walker before any cut.
+| Commit | What |
+|---|---|
+| `c36ed1e` | Sanitize Capital One / AIP / Trailblazer references across Sprint C content |
+| `30e1650` | Split `canvas-authoring.md` → `canvas-authoring.md` + `canvas-interaction.md` (single-responsibility per Anthropic skill best practices). Added WebMCP evaluation note. |
+| `705a84f` | ENH-035 (Copy path) + ENH-036 (`duo open` focus) filed; smoke-walk skill updated with "click the named tab" hand-off. |
+| `b28ec13` | **fix(stage-27)** cross-realm `instanceof` bug — V9/V10 form-input capture. |
+| `322d540` | Bump `package.json` 0.5.5 → 0.6.0 for the active arc. |
+| `4bae62e` | **fix(menu) ENH-037** — ⌘W only closes tabs, never the parent window. (Filed AND shipped same commit.) |
 
-**Authoring stress-test outcome:** every interaction in both packs
-uses only Sprint A primitives. No primitive gaps surfaced — that's
-the validation goal of Sprint C met.
+## Smoke walk status
+
+**Walk file:** `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.{json,html}`
+(JSON manifest + generated HTML page; both gitignored).
+
+**Pre-walk verifications I did (in-session, before user takeover):**
+
+| Item | Result | Note |
+|---|---|---|
+| 27-V1 | PASS | priming.md tab opened |
+| 27-V2 | PASS | faq.html opened in canvas mode |
+| 27-V3 | PASS | nav switched + priming.md highlighted |
+| 27-V4 | PASS | "Duo" highlighted in editor |
+| 27-V5 | PASS | Canvas scrolled to anchor + flash |
+| 27-V6 | PASS | Theme dark → system |
+| 27-V7 | PASS | Terminal got focus |
+| 27-V8 | PASS | smoke-v8 with `{sample:42}` streamed |
+| 27-V9 | **FAIL → fix shipped (`b28ec13`); needs re-test** | Cross-realm `instanceof` bug |
+| 27-V10 | **FAIL → fix shipped; needs re-test** | Same cross-realm bug |
+| 27-V11 | PASS | Read-only strip visible at mount |
+| 27-V12 | PASS | Edit toggle flipped to editable |
+| 27-V13 | PASS | streaming v13 line landed live |
+| 27-V14 | PASS | --since cursor returned all-1 events |
+| 27-V15 | PASS | lesson-scaffold renders cleanly |
+| 27-V16 | PASS | /tmp/ canvas click no-opped (trust gate held) |
+| 27-V17 | PASS | both skill files installed |
+| 18B-V1 | PASS | duo packs returns both manifests |
+| 18B-V4 | PASS | first-launch-defaults populated installed-packs.json |
+| 28-Pack-A | PASS (renders) | welcome.html rendered |
+| 28-Pack-B | PASS (renders) | orientation rendered, sanitized |
+
+**User-side walk status:** in flight; user lost ~20min of typed
+notes when ⌘W collapsed the window mid-walk (root cause: ENH-037,
+since shipped). User restarted, reopened the smoke-walk page, and
+queued five new tasks before re-attempting the walk.
+
+## Bugs + ENHs filed during this walk session (2026-05-02)
+
+| ID | Status | Title |
+|---|---|---|
+| ENH-035 | Filed | Copy path on right-click of working-pane tab |
+| ENH-036 | Filed | `duo open <url>` should auto-focus the new tab in the working pane |
+| **ENH-037** | **✅ Shipped (`4bae62e`)** | ⌘W only closes tabs — never the parent window |
+| ENH-038 | Filed | Smoke-walk page should localStorage-persist textarea contents (in-progress walk-notes survive) |
+| ENH-039 | Filed | Smoke-walk page paths should render as clickable links (open in editor / reveal in navigator). Lean toward Option 3: CDP-injected `window.duo.openPath` for trusted file:// pages. |
+| ENH-040 | Filed | Collapse-pane button — hide terminal column or canvas (right pane) |
+| ENH-041 | Filed | Split the canvas (right pane) into side-by-side panels |
+| ENH-042 | Filed | Tab reordering — move a tab left / right |
+| **BUG-051** | **Filed (high priority)** | Read-only canvas toggle stuck after toggle off → on → off. Interferes with the smoke walk; suspect `RenderedCanvas` `readOnly` prop not propagating to `contentEditable` flips. |
+
+**Terminology clarification (folded into CLAUDE.md glossary):** when
+the user says **"the canvas"** they mean the right pane (slot),
+regardless of which tab kind is rendering inside (markdown editor,
+HTML canvas tab, browser tab, image viewer, PDF viewer, future
+modalities). The HTML canvas surface (Stage 17) is just one of those
+tab kinds — confusingly named. ENHs 040 and 041 use "canvas" in the
+slot sense; CLAUDE.md § Glossary documents.
 
 ## What's owed before v0.6.0 cut
 
-1. **Human visual walk** of intro-to-duo + claude-code-basics
-   (V6/V7 above). Confirms the lesson agent's paint cycle works
-   end-to-end with a real user clicking through.
-2. **Sprint A V1–V16 visual walks** at
-   `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html`. Same blocker
-   as before — needs UI clicks to verify each verb.
+1. **Finish the user-side smoke walk.** Manifest `v0.6.0-stage-27-rev1.json`
+   is in `docs/dev/smoke-walks/`. User clicks Pass/Fail/Skip + notes,
+   pastes back, I parse and update statuses. **Re-test V9 + V10
+   specifically** — those should now PASS after `b28ec13`.
+2. **Fix BUG-051 (read-only stuck)** — owner hit it during the walk;
+   directly user-visible. High priority before cut.
 3. **v0.5.5 carry-over fixes** still in working tree
    (BUG-006/049/050/047/028, ENH-032 + auto-inject feature flag,
-   smoke-walk generator duo-open-in change). Not committed yet
-   but mostly self-contained — fold into the v0.6.0 cut.
-4. **CHANGELOG / RELEASES.md drafting** for v0.6.0 covering
-   Stages 27 + 18b + 28 + the v0.5.5 carry-overs.
-
-## Big-picture initiative
-
-Three sprints, all anchored on the next cut **v0.6.0**:
-
-- **Sprint A — Stage 27** (now): the primitives (action verbs, event
-  bus, form bindings, default-editable, skill, templates).
-- **Sprint B — Stage 18b** (next): distro pack format + install
-  machinery + first-launch defaults hook.
-- **Sprint C — Stage 28** (after): the two lesson packs
-  (intro-to-duo + claude-code-basics).
+   smoke-walk generator `duo-open-in` change). Not yet committed —
+   need their own clean commit before the cut.
+4. **CHANGELOG / RELEASES.md drafting** for v0.6.0 covering Stages
+   27 + 18b + 28 + the carry-overs + ENH-037 + the fix commits.
 
 ## Where the formal plan lives
 
 | Document | Purpose |
 |---|---|
-| `docs/prd/stage-27-canvas-authoring.md` | Sprint A PRD — full commit-by-commit sequence, decisions, verification punch list |
+| `docs/prd/stage-27-canvas-authoring.md` | Sprint A PRD — full commit-by-commit sequence + verification punch list |
+| `docs/prd/stage-18b-distro-packs.md` | Sprint B PRD — pack format + first-launch hook |
 | `docs/prd/stage-28-lesson-packs.md` | Sprint C PRD — both lesson packs + FTUX surfacing |
-| `ROADMAP.md` lines 184-185 | One-line stage entries |
-| `docs/roadmap.html#s27` and `#s28` | Stage cards (matching ROADMAP.md content) |
+| `ROADMAP.md` lines 134-135 + 184-186 | One-line stage entries (Stages 27/28 flipped to ✓ shipped) |
+| `docs/roadmap.html#s27`, `#s28` | Stage cards |
+| `tasks.md` | All filed bugs + ENHs |
+| `CLAUDE.md § Glossary` | "canvas" = right pane (user vocabulary) |
 
 ## Pending v0.5.5 fixes — folded into v0.6.0 at next cut
 
@@ -86,47 +141,21 @@ The drafted v0.5.5 release notes are stashed in
 - Smoke-walk generator emits `<meta name="duo-open-in" content="browser">`
 
 These all shipped in code but were not version-cut. They fold into the
-v0.6.0 cut at the end of the three-sprint arc.
-
-## Stage 27 commit checklist
-
-| # | Commit | Status | Notes |
-|---|---|---|---|
-| 1 | Six new action verbs in canvasActions.ts | ⬜ Pending | Start here. See PRD § 4 + § 10 |
-| 2 | `core/event-bus.ts` + `duo events --follow` | ⬜ Pending | See PRD § 5 |
-| 3 | `data-payload-from` form-input binding | ⬜ Pending | See PRD § 6 |
-| 4 | `<meta name="duo-default-editable">` (ENH-034) | ⬜ Pending | See PRD § 7 |
-| 5 | Authoring skill at `skill/canvas-authoring.md` | ⬜ Pending | See PRD § 8 |
-| 6 | Five reference templates | ⬜ Pending | See PRD § 9 |
-
-## Sprint A end-of-sprint deliverable
-
-A hand-built test canvas at `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html`
-that exercises every primitive. Smoke walk on real hardware. Any gaps
-surface as Stage 27.5 follow-ups before Sprint B starts.
-
-## Pre-flight before starting Commit 1
-
-- [x] PRD written (`docs/prd/stage-27-canvas-authoring.md`)
-- [x] Roadmap entry (`ROADMAP.md` line 184)
-- [x] Roadmap card (`docs/roadmap.html#s27`)
-- [ ] CLAUDE.md "Where to look" updated with PRD + this active-sprint pointer
-- [ ] Read `docs/prd/stage-23-canvas-actions.md` (if exists) before touching `canvasActions.ts`
-- [ ] Read `renderer/components/HtmlCanvas/canvasActions.ts` to confirm dispatcher shape
-- [ ] Confirm Stage 23's `claude:spawn` / `terminal:send` / `browser:open` are in the same file (not split)
-
-## Decisions log (additions in-flight)
-
-(empty — additions during work get appended here with date and rationale)
-
-## Open questions to resolve in-flight
-
-(see PRD § 15 for Stage 27 + PRD § 9 for Stage 28)
+v0.6.0 cut alongside Stages 27 + 18b + 28.
 
 ## How to resume after compaction
 
 1. Read this file first.
-2. Read `docs/prd/stage-27-canvas-authoring.md`.
-3. `git status` + `git log --oneline -10` to see what's actually committed.
-4. Cross-check against the commit checklist above.
-5. Continue from the next ⬜ row.
+2. Read `tasks.md` § BUG-051, ENH-035, ENH-036, ENH-038, ENH-039,
+   ENH-040, ENH-041, ENH-042 (all filed during the most recent
+   walk session, all queued for after the v0.6.0 cut).
+3. Read `CLAUDE.md § Glossary` so terminology in any of the above
+   makes sense ("canvas" = right pane in user vocab).
+4. `git status` + `git log --oneline -20` — confirm the commit
+   chain matches the table above.
+5. **Most likely next action:** continue the user-side smoke walk
+   (the manifest at `docs/dev/smoke-walks/v0.6.0-stage-27-rev1.html`
+   is still open in Duo's browser pane). User has typed Pass/Fail
+   + notes; when they paste the result back, parse and flip
+   statuses, fix any failures (especially BUG-051), then propose
+   the v0.6.0 cut via the cut-version skill.
