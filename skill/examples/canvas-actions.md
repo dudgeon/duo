@@ -146,8 +146,32 @@ without needing scripts. All inherit the same trust gate as Stage 23.
   e.g. `lesson-step-1-done`.
 - `data-payload="<json-object>"` (optional) — JSON object literal merged
   into the emitted event payload.
-- Subscribers stream events via `duo events --follow` (Sprint A
-  Commit 2 wires the bus + CLI).
+- `data-payload-from="<css-selector>"` (optional) — read `.value` (or
+  `.checked` for `type="checkbox"|"radio"`) of the selected form
+  element and add it as `payload.value`. Static `data-payload` keys
+  win on collision. Supported elements: `<input>`, `<textarea>`,
+  `<select>` (multi-selects return an array).
+- Subscribers stream events via `duo events --follow`.
+
+#### Form-input pattern (Stage 27)
+
+A "submit name" button that ships the user's typed value as part of
+the emitted event:
+
+```html
+<input id="user-name" type="text" placeholder="Your name" />
+<button data-duo-action="duo:event"
+        data-event="user-introduced"
+        data-payload-from="#user-name">
+  Submit
+</button>
+```
+
+The agent (subscribed via `duo events --follow`) sees:
+
+```json
+{"cursor":"…","ts":"…","source":"canvas","name":"user-introduced","payload":{"value":"Geoff"}}
+```
 
 ## Patterns
 

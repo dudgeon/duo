@@ -197,6 +197,51 @@ function parseAction(el: HTMLElement): { action: CanvasAction } | { error: strin
 }
 
 /**
+ * Stage 27 — read `.value` (or `.checked` for boolean inputs) from a
+ * form element addressed by CSS selector. Used by the `duo:event`
+ * action verb's `data-payload-from` attribute so a "submit name"
+ * button can ship the user's typed value as part of the emitted
+ * event's payload without bespoke JS. Returns `undefined` when the
+ * selector is missing, doesn't match, or the element type isn't a
+ * known form input — the caller treats that as "no value to attach"
+ * and emits the static payload alone.
+ *
+ * Supported element types:
+ *  - `<input type="checkbox|radio">` → boolean `.checked`
+ *  - any other `<input>` (text, number, date, etc.) → string `.value`
+ *  - `<textarea>` → string `.value`
+ *  - `<select>` (single + multi) → string for single, string[] for multi
+ *
+ * Lives at module scope (not hidden inside the dispatcher) so the
+ * authoring skill can document the exact lookup semantics + tests
+ * can hit it directly.
+ */
+export function captureFormValue(doc: Document, selector: string | undefined): unknown {
+  if (!selector) return undefined
+  let el: Element | null = null
+  try {
+    el = doc.querySelector(selector)
+  } catch {
+    // Bad CSS selector — surface as undefined rather than throwing the
+    // whole click handler.
+    return undefined
+  }
+  if (!el) return undefined
+  if (el instanceof HTMLInputElement) {
+    if (el.type === 'checkbox' || el.type === 'radio') return el.checked
+    return el.value
+  }
+  if (el instanceof HTMLTextAreaElement) return el.value
+  if (el instanceof HTMLSelectElement) {
+    if (el.multiple) {
+      return Array.from(el.selectedOptions).map(opt => opt.value)
+    }
+    return el.value
+  }
+  return undefined
+}
+
+/**
  * Brief visual feedback so users see their click registered.
  * Renders a 1px outline that fades over 600ms. Marked
  * data-duo-canvas-runtime so the serializer scrubs it from saves.
@@ -256,18 +301,40 @@ export function installCanvasActions(doc: Document, opts: CanvasActionsOptions):
       return
     }
 
+    // Stage 27 — `duo:event` data-payload-from binding. The parser
+    // doesn't have access to the iframe document; capture happens
+    // here, after parseAction has constructed the static payload.
+    // Captured form value lands at payload.value (matching the PRD §
+    // 6 contract). Static `data-payload` JSON wins on key collision —
+    // an author who explicitly set `value: "x"` in data-payload meant
+    // it; we don't clobber.
+    let action = parsed.action
+    if (action.kind === 'duo:event') {
+      const payloadFromSel = el.getAttribute('data-payload-from') ?? undefined
+      const captured = captureFormValue(doc, payloadFromSel)
+      if (captured !== undefined) {
+        const staticPayload = action.payload ?? {}
+        action = {
+          ...action,
+          payload: 'value' in staticPayload
+            ? staticPayload
+            : { ...staticPayload, value: captured }
+        }
+      }
+    }
+
     if (!opts.trusted) {
-      opts.onUntrusted?.(parsed.action)
+      opts.onUntrusted?.(action)
       return
     }
 
     flashFeedback(el, doc)
-    void opts.onAction(parsed.action).then((result) => {
+    void opts.onAction(action).then((result) => {
       if (!result.ok && result.error) {
-        console.warn('[duo-canvas-action] dispatch failed:', result.error, parsed.action)
+        console.warn('[duo-canvas-action] dispatch failed:', result.error, action)
       }
     }).catch((err) => {
-      console.error('[duo-canvas-action] dispatch threw:', err, parsed.action)
+      console.error('[duo-canvas-action] dispatch threw:', err, action)
     })
   }
 

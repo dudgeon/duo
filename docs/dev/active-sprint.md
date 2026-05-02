@@ -17,13 +17,12 @@
 ## Current state — last updated 2026-05-01
 
 **Active sprint:** Stage 27 — Canvas authoring vocabulary + skill.
-**Active commit:** Commit 3 (`data-payload-from` form-input binding).
+**Active commit:** Commit 4 (`<meta name="duo-default-editable">` —
+ENH-034).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Commits 1 + 2 landed. Commit 1 = six new action verbs.
-Commit 2 = event bus (`core/event-bus.ts`) + `duo events
-[--follow] [--since] [--limit]` streaming CLI verb wired through
-SocketServer + new IPC.DUO_EVENT_EMIT. Typecheck clean both passes;
-CLI rebuilt + sync:claude run. UI smoke deferred to end-of-sprint walk.
+**Status:** Commits 1–3 landed. Commit 3 = `data-payload-from`
+form-input binding inside the canvas-action click handler;
+`captureFormValue(doc, selector)` is the helper. Typecheck clean.
 
 ## Big-picture initiative
 
