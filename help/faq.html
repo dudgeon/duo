@@ -101,6 +101,21 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.6.1 release canvas page playground lesson terminology hierarchy make-page make-playground lesson-runtime lesson-template skill split fork.config packs.disabled enterprise distro toggle claude:spawn data-cmd first message pty stage-28 intro-to-duo claude-code-basics canonical event names paint regions enh-049 enh-051 enh-053 enh-054 enh-055 enh-056">
+  <h3>v0.6.1 — Canvas authoring vocabulary, sharper <span class="date">2026-05-02</span></h3>
+  <p>The follow-up to v0.6.0 that turns "canvas authoring exists" into "canvas authoring is reachable by users who don't yet know what canvas means." Five threads pulled together: the lesson-button bug fix, an enterprise-distro pack toggle, a locked terminology hierarchy, a canonical lesson template, and a skill split tuned for natural-language entry.</p>
+  <ul>
+    <li><strong>Vocabulary locked.</strong> <em>Canvas</em> = the right pane (slot, type-agnostic). <em>Page</em> = a basic HTML tab inside the canvas. <em>Playground</em> = a page with interactivity (buttons that drive Duo, form inputs, events). <em>Lesson</em> = a playground paired with a guide skill. <em>Start tab</em> = a playground that auto-opens on first launch. The same <code>WorkingTab</code> kind powers both pages and playgrounds — what makes one a playground is whether it has interactivity baked in.</li>
+    <li><strong>Skill split tuned for natural-language entry.</strong> The previous one big <code>playground-authoring.md</code> is now three skills: <code>make-page.md</code> (basic HTML), <code>make-playground.md</code> (extends with interactivity — broad description fires on "build a training", "make a guide", "create a lesson", "tutorial for X", "interactive demo", "dashboard with action buttons", anything with a hint of "user clicks, Duo reacts"), <code>lesson-runtime.md</code> (the runtime contract). Plus <code>playground-interaction.md</code> for driving an existing one.</li>
+    <li><strong>Canonical lesson template at <code>~/.claude/skills/duo/examples/lesson-template/</code>.</strong> Copy-and-customize entry point: a <code>playground.html</code> with three stable paint regions (<code>step-counter</code>, <code>step-body</code>, <code>step-controls</code>) and a <code>lesson-skill/SKILL.md</code> with the canonical step-state outline. Replaces "every lesson author invents their own structure" with a shared shape that buys mid-lesson resume + cross-pack consistency.</li>
+    <li><strong>Lesson runtime contract documented.</strong> <code>lesson-runtime.md</code> defines canonical event names (<code>lesson:step-N-done</code>, <code>lesson:done</code>, <code>lesson:restart</code>), sidecar state at <code>~/.claude/duo/lesson-state/&lt;pack&gt;.json</code> (cursor for resume), foreground-vs-subagent watch patterns. The two existing packs (<code>intro-to-duo</code>, <code>claude-code-basics</code>) adopted the canonical event names + paint regions in this cut.</li>
+    <li><strong><code>claude:spawn data-cmd</code> now lands as Claude's first user message, not a shell command.</strong> Pre-fix, the cmd was being typed into zsh, so prose like "Read X and walk me through it" errored. Same fix benefits <code>duo new-tab --claude --cmd "&lt;msg&gt;"</code>. This was the silent bug behind v0.6.0's intro-to-duo "Start lesson" appearing to do nothing.</li>
+    <li><strong>Enterprise distro pack toggle.</strong> <code>fork.config.json § packs.disabled</code> lists pack directory names this distro opts out of. PackLoader filters at boot; install-service skips at copy time. Forks with their own onboarding suppress <code>intro-to-duo</code> without forking the pack itself. Empty list (default) ships all upstream packs unchanged.</li>
+  </ul>
+  <p><strong>What this means in practice:</strong> a future Claude session sees a "build me a training" prompt, loads <code>make-playground</code> automatically (skill description fires), finds the "Lessons specifically" section, copies the template, customizes per-step content, references the runtime contract for event handling. End-to-end clear path. The meta-goal gap from the v0.6.0 zoom-out (user-without-canvas-literacy → working lesson) is closed.</p>
+  <p><strong>Queued for v0.6.2:</strong> ENH-055 (lesson preview / fly-through harness — the canonical packs now give it a stable contract to assert against), ENH-056 (multi-canvas curriculum template — sibling of lesson-template for the <code>claude-code-basics</code> shape).</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.6.0 release canvas authoring vocabulary stage-27 stage-18b stage-28 lesson packs ftux intro-to-duo claude-code-basics editor:open nav:reveal selection:set theme:set terminal:focus duo:event events follow data-payload-from duo-default-editable canvas templates send-to-duo pill claude session pinned tabs auto-open wcv mute context-menu read-only locked indicator bug-052 bug-053 bug-054 bug-055 bug-056 bug-057 bug-058">
   <h3>v0.6.0 — Canvas authoring + lesson packs (the FTUX-tutorial trio lands) <span class="date">2026-05-02</span></h3>
   <p>The three-stage initiative that's been in flight since the v0.5.5 walk lands. Duo now has a complete vocabulary for interactive canvas content (Stage 27), a distro mechanism for skill packs (Stage 18b), and two FTUX lesson packs that auto-open on first launch (Stage 28). All 7 release-blockers from the previous walk attempt are fixed.</p>
@@ -503,7 +518,7 @@ export LC_ALL=en_US.UTF-8</pre>
 </details>
 
 <footer>
-  <p>This is Duo v0.6.0. Last updated 2026-05-02. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p>This is Duo v0.6.1. Last updated 2026-05-02. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find a question that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

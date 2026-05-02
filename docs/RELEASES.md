@@ -25,6 +25,48 @@ _Empty._
 
 ---
 
+## v0.6.1 — 2026-05-02 — Canvas authoring vocabulary, sharper
+
+The unglamorous-sounding follow-up to v0.6.0 that turns "canvas authoring exists" into "canvas authoring is reachable by users who don't yet know what canvas means." Five threads pulled together at once: the `claude:spawn` semantic that made v0.6.0's lesson buttons silently fail is fixed; a fork-config knob lets enterprise distros pick which packs to ship; the canvas/page/playground/lesson hierarchy is locked into the glossary; a canonical lesson template + runtime helper skill ships so future lessons stop being snowflakes; and the authoring skill split (make-page / make-playground / playground-interaction / lesson-runtime) is tuned so Claude reaches for the right skill on natural-language prompts.
+
+### Why this version is the more important one
+
+v0.6.0 shipped the canvas-authoring TOOLBOX. v0.6.1 ships the KIT — the things a non-expert user actually needs for the meta-goal to work ("user says 'I want to make a training/guide' and Duo/Claude takes it from there").
+
+Concretely:
+
+- The skill descriptions are now broad enough that natural-language prompts auto-load the right authoring skill. The owner direction was explicit: "Playground front matter should be pretty open and include any time the user wants interactivity in their page." `make-playground.md`'s frontmatter description fires on "build a training" / "make a guide" / "create a lesson" / "tutorial for X" / "interactive demo" / "dashboard with action buttons" / "page that does things" — any hint of "user clicks, Duo reacts."
+- Once the skill loads, it walks the agent through copying `~/.claude/skills/duo/examples/lesson-template/` and customizing TODO markers. The template's three stable paint regions (`step-counter` / `step-body` / `step-controls`) and canonical event names (`lesson:step-N-done`, `lesson:done`, `lesson:restart`) become the convention every new lesson follows.
+- The runtime helper skill (`lesson-runtime.md`) explains the canonical event-loop, sidecar state schema (`~/.claude/duo/lesson-state/<pack-name>.json` with cursor for resume), foreground-vs-subagent watch patterns. This is the doc Claude reads when it's mid-implementing a lesson and needs the runtime contract.
+
+The result: a future Claude session sees a "build me a training" prompt, loads `make-playground` automatically, finds the "Lessons specifically" section, copies the template, customizes per-step content, references the runtime contract for event handling. End-to-end clear path. The toolbox-to-kit gap from the post-v0.6.0 zoom-out (gaps 1, 2, 3 of the five) is closed.
+
+### Three design decisions baked in
+
+**(1) `claude:spawn` `data-cmd` is a Claude prompt, not a shell command.** The runtime now sends `claude\n${cmd}\n` to the new PTY: shell launches Claude, Claude reads cmd as its first user message via the queued PTY input. This is the fix for ENH-049 (Stage 28 Pack A's "Start lesson" was silently failing in v0.6.0 because the cmd was being typed into zsh). Same fix benefits `duo new-tab --claude --cmd` from the CLI. The semantic is documented in `make-playground.md § Anti-patterns` as a load-bearing convention: prose into `data-cmd`; if you need a shell command in the new tab, follow up with a `terminal:send` button.
+
+**(2) The vocabulary hierarchy is content-level, not kind-level.** Pages and playgrounds share the same `WorkingTab` kind (`'html-canvas'` until ENH-052 mechanically renames). What makes a page a playground is whether it has interactivity baked in. This matters because: (a) a page can graduate to a playground without changing tabs or routing; (b) the trust gate, sandbox, and paint primitives apply uniformly; (c) authoring agents don't have to pick the kind upfront — they pick the content level (basic/interactive) and the skill split (`make-page` / `make-playground`) routes accordingly. The hierarchy: canvas (slot) → page (basic HTML) → playground (page + interactivity) → lesson (playground + guide skill) → start tab (playground that auto-opens on first launch).
+
+**(3) Skill recognition replaces a CLI verb for "build a lesson."** Owner pushback on the proposed `duo lesson new` CLI: "A cli verb for lesson seems like overkill" — and the FTUX user (the meta-goal target) doesn't yet know `duo` is a CLI. The right primitive is skill description tuning. `make-playground.md`'s frontmatter is deliberately broad. No CLI verb; the natural-language prompt is the trigger.
+
+### What this is and isn't
+
+This IS the cut that closes meta-goal gaps 1 (entry point), 2 (lesson-skill canonical pattern), and 3 (runtime helper). A user with no canvas literacy can now ask Claude for a training and get one — the agent has the skills + template + conventions to do it.
+
+This is NOT the cut that closes gap 4 (smoke-walk page rebuilt on canvas primitives — ENH-043) or gap 5 (lesson preview / fly-through harness — ENH-055). Those are the dogfooding pieces that prove the kit works under load. ENH-055 in particular wants the canonical packs to assert against — the v0.6.1 pack refactor (intro-to-duo + claude-code-basics adopting `lesson:` event names) gives it a stable contract.
+
+### Walk arc
+
+No formal smoke walk this cut — the changes are skill-content + docs + a small runtime fix (ENH-049's `claude:spawn` semantic). Typecheck clean; signed DMG launch-validated; `make-playground.md` skill description sanity-checked manually for trigger phrase coverage. Walk-3-equivalent for v0.6.1 deferred until ENH-055's harness exists to drive it.
+
+### Queued next
+
+- **v0.6.2 candidates:** ENH-055 (fly-through harness), ENH-056 (multi-canvas curriculum template), ENH-038 (smoke-walk textarea persistence), ENH-039 (clickable smoke-walk paths), ENH-043 (smoke-walk on canvas primitives — closes gap 4 from the v0.6.0 zoom-out), refactor of `claude-code-basics` to ENH-056's curriculum template once it exists.
+- **Indefinite:** ENH-052 (mechanical internal rename `'html-canvas'` → `'page'`); UX-neutral; do as one focused PR when other v0.6.x work settles. ENH-040 / ENH-041 / ENH-042 (collapse / split-canvas / tab-reorder) — UX polish, queued. ENH-044 (clawd icon).
+- **v0.7+:** Stage 13 (just-added highlight + warn-before-overwrite), Stage 14 (track changes + comment rail), ENH-045 navigator improvements.
+
+---
+
 ## v0.6.0 — 2026-05-02 — Canvas authoring vocabulary + lesson packs (the FTUX-tutorial trio lands)
 
 The cut that v0.5.6 deferred. Walk-2 of "v0.6.0 attempt #1" surfaced 7 release-blockers in the Stage 27 / 18b / 28 surface and adjacent regressions (BUG-052..058); rather than ship through them, we descoped to v0.5.6 and held the FTUX-tutorial trio out of the formal cut. This version closes the loop: all 7 blockers fixed, walk-3 passed (with one v2 fix on BUG-053 surfacing the project-vs-user-claude navigator distinction), and Stages 27 + 18b + 28 graduate from "internal preview" to officially shipped.

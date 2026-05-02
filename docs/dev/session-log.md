@@ -18,6 +18,33 @@
 
 ---
 
+## 2026-05-02 — v0.6.1 cut (canvas authoring vocabulary, sharper)
+
+Released **v0.6.1** — the follow-up cut that turns "canvas authoring exists" into "canvas authoring is reachable by users who don't yet know what canvas means." Closes meta-goal gaps 1–3 from the post-v0.6.0 zoom-out.
+
+What shipped (8 commits since v0.6.0 — `d1b92a3`, `2a2ab61`, `1aa4d12`, `04cd9b5`, `f01559b`, `3a90c7b`, `54ae3a2`, plus the cut commit):
+
+- **ENH-049 — `claude:spawn` `data-cmd` lands as Claude's first user message.** Runtime now sends `claude\n${cmd}\n`; same fix benefits `duo new-tab --claude --cmd`.
+- **ENH-051 — `fork.config.json § packs.disabled`** — enterprise distro pack toggle. Vite-injected `__DUO_PACKS_DISABLED__` filters at PackLoader scan + install-service copy.
+- **Terminology lock** — canvas (slot) / page (basic HTML in slot) / playground (page + interactivity) / lesson (playground + guide skill) / start tab (playground auto-opens on first launch). Hierarchy is content-level, not kind-level — both pages and playgrounds share `WorkingTab.kind === 'html-canvas'`.
+- **ENH-053 — canonical lesson template + lesson-runtime helper skill.** Copy-and-customize entry point at `skill/examples/lesson-template/`; runtime contract documented in `skill/lesson-runtime.md`.
+- **Skill split** — `make-page.md` (basic) + `make-playground.md` (extends; broad frontmatter trigger description per owner direction "Playground front matter should be pretty open and include any time the user wants interactivity in their page"). Replaced the overloaded `playground-authoring.md`.
+- **Pack canonicalization** — `intro-to-duo` welcome.html: `lesson-body` pane → `step-body`, new `step-controls` wrapper, events use `lesson:` prefix. `claude-code-basics`: events renamed with `lesson:` prefix. Filenames + multi-canvas structure stay (claude-code-basics's curriculum shape is a different topology than lesson-template's linear shape; ENH-056 filed for the curriculum template).
+- **ENH-054 resolved** via skill-description tuning (no CLI verb — owner: "A cli verb for lesson seems like overkill").
+- **ENH-055 deferred to v0.6.2** (~2-3 hours of harness coding; canonical packs now give it a stable contract).
+- **ENH-056 filed** (multi-canvas curriculum template, sibling of lesson-template).
+
+DMG built arm64-only via `bash scripts/dist-signed.sh` (the script's `DUO_DMG_ARCH` override from earlier didn't actually skip x64; manually deleted the x64 DMG before GitHub release. Filing the script fix as a v0.6.x follow-up if it bites again).
+
+Three design decisions documented in RELEASES.md prose:
+1. `claude:spawn data-cmd` is a Claude prompt, not a shell command (anti-pattern preventer)
+2. Vocabulary hierarchy is content-level, not kind-level (lets pages graduate to playgrounds without changing tabs)
+3. Skill recognition replaces a CLI verb for "build a lesson" (FTUX-friendly entry)
+
+Walk arc: no formal smoke walk this cut — the changes are skill-content + docs + a small runtime fix. Walk-3-equivalent for v0.6.1 deferred until ENH-055's harness exists to drive it.
+
+---
+
 ## 2026-05-02 — v0.6.0 cut (canvas authoring + lesson packs land)
 
 Released **v0.6.0** — the cut that v0.5.6 deferred. All 7 walk-2 release-blockers (BUG-052..058) fixed, walk-3 caught one v2 follow-up on BUG-053 (route nav:reveal to user-claude pane for ~/.claude paths), 3 follow-ups filed (ENH-050, BUG-062, BUG-063 — none release-blocking).

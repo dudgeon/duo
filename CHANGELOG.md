@@ -19,6 +19,36 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-05-02
+
+The "make Duo's canvas authoring usable by anyone" cut. Five intertwined improvements: a fixed `claude:spawn` semantic so lesson buttons actually work, a fork-config toggle so enterprise distros can pick which packs ship, a locked terminology hierarchy (canvas / page / playground / lesson), a canonical lesson template + runtime helper skill, and a skill split (make-page / make-playground / playground-interaction / lesson-runtime) tuned so Claude reaches for the right skill on natural-language prompts. The two existing packs (intro-to-duo, claude-code-basics) adopt the canonical event-name convention.
+
+### Fixed
+
+- **`claude:spawn` `data-cmd` lands as Claude's first user message, not a shell command** (ENH-049). Pre-fix, the runtime sent the cmd directly to the PTY when claude:spawn included `data-cmd`, so prose like "Read X and walk me through it" got typed into zsh and errored. Fix: the runtime now sends `claude\n${cmd}\n` — the shell launches Claude, then Claude reads the cmd as its first user message via the queued PTY input. Same fix benefits `duo new-tab --claude --cmd "<msg>"` from the CLI.
+
+### Added
+
+- **Canonical lesson template** at `~/.claude/skills/duo/examples/lesson-template/` (ENH-053). Copy-and-customize entry point for new lessons: `canvases/playground.html` with three stable paint regions (`step-counter` / `step-body` / `step-controls`), `lesson-skill/SKILL.md` with the canonical step-state outline, README explaining how to use it. Replaces "every lesson author invents their own structure" with a shared shape that buys cross-pack consistency, mid-lesson resume, and (when ENH-055 ships) automated fly-through validation.
+- **Lesson runtime skill** at `~/.claude/skills/duo/lesson-runtime.md` (ENH-053). Documents the canonical event-loop pattern: the playground↔skill conversation contract, canonical event names (`lesson:step-N-done`, `lesson:done`, `lesson:restart`), sidecar state schema at `~/.claude/duo/lesson-state/<pack-name>.json` with cursor for resume, foreground-polling vs. subagent-watch implementation patterns.
+- **Skill split: `make-page` (basic HTML in canvas) + `make-playground` (page + interactivity)**. Replaces the overloaded `playground-authoring.md`. Frontmatter descriptions tuned so Claude's harness auto-loads `make-playground` on natural-language prompts: "build a training", "make a guide", "create a lesson", "tutorial for X", "interactive demo", "dashboard with action buttons", "page that does things" — any hint of "user clicks, Duo reacts" fires it.
+- **`fork.config.json` `packs.disabled` toggle** (ENH-051). Per-fork, gitignored list of pack directory names this distro opts out of. PackLoader filters at boot; install-service skips at copy time. Enterprise distros with their own onboarding suppress `intro-to-duo` without forking the pack itself.
+
+### Changed
+
+- **Terminology locked.** "Canvas" used to mean both the right pane (slot) AND the interactive HTML thing inside (Stage 17). The new hierarchy (per CLAUDE.md § Glossary): **canvas** = the right pane (slot, type-agnostic) · **page** = a basic HTML tab inside the canvas · **playground** = a page with interactivity · **lesson** = a playground paired with a guide skill · **start tab** = a playground that auto-opens on first launch. Skill files renamed (`canvas-authoring.md` → `make-playground.md` after the intermediate `playground-authoring.md`); internal code names (`WorkingTab.kind === 'html-canvas'`) lag the external vocabulary and are queued for ENH-052's mechanical rename.
+- **Existing lesson packs adopt canonical event names + paint regions.** `intro-to-duo` welcome.html: `data-duo-pane="lesson-body"` → `"step-body"`, new `data-duo-pane="step-controls"` wrapper, events use `lesson:` prefix (`lesson-step-1-done` → `lesson:step-1-done`). `claude-code-basics` (multi-canvas curriculum): events renamed with `lesson:` prefix (`curriculum-skip` → `lesson:curriculum-skip`, `family-A-done` → `lesson:family-A-done`, etc.). The structures aren't mass-renamed (filenames and curriculum-vs-linear topology stay); ENH-056 filed for the multi-canvas curriculum template that claude-code-basics will eventually migrate to.
+
+### Resolved (no code; clarification entries)
+
+- **ENH-054** ("user entry point for 'I want to make a training/guide'"). Owner pushback on the proposed `duo lesson new` CLI verb: "A cli verb for lesson seems like overkill" — and the FTUX user (the meta-goal target) doesn't yet know `duo` is a CLI. The right primitive is **skill recognition**: when a user says "build me a training" / etc., Claude's harness auto-loads `make-playground.md` from its YAML frontmatter description matcher. The skill walks the agent through copying the lesson template. No new CLI verb; resolved via the v0.6.1 skill-description tuning.
+
+### Deferred / queued
+
+- **ENH-055** (lesson preview / fly-through harness) deferred to v0.6.2. The canonical packs now give a stable contract to assert against; harness implementation is ~2-3 hours of focused coding that's not blocking this cut.
+- **ENH-052** (mechanical internal rename `'html-canvas'` → `'page'` etc.) still queued. Touches 50+ files; do as one focused PR. UX-neutral; no urgency.
+- **ENH-056** (multi-canvas curriculum template, sibling of lesson-template) filed. Needed when the next multi-canvas pack lands; for now, claude-code-basics' shape is a one-off.
+
 ## [0.6.0] — 2026-05-02
 
 The cut that v0.5.6 deferred. All 7 walk-2 release-blockers (BUG-052..058) now have shipped fixes; the BUG-053 v2 fix routes nav:reveal to the correct navigator pane (project vs. user-claude). **Stages 27 / 18b / 28 graduate from "internal preview" to ✅ shipped** — the canvas-authoring vocabulary, distro skill packs, and lesson packs are now officially supported.
@@ -589,7 +619,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/dudgeon/duo/releases/tag/v0.6.1
 [0.6.0]: https://github.com/dudgeon/duo/releases/tag/v0.6.0
 [0.5.6]: https://github.com/dudgeon/duo/releases/tag/v0.5.6
 [0.5.4]: https://github.com/dudgeon/duo/releases/tag/v0.5.4
