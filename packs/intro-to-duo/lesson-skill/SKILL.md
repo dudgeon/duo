@@ -248,7 +248,7 @@ duo html update --selector '[data-duo-pane="lesson-body"]' --html '
   pane (browser / editor / canvas), the agent loop, and a few small
   verbs for theme + focus.</p>
   <p>Next stop: the <strong>claude-code-basics</strong> pack —
-  Capital One PM curriculum on Claude Code itself, organized into
+  a 30-minute curriculum on Claude Code itself, organized into
   seven concept families. Ask me to "open the claude-code-basics
   orientation" any time.</p>
   <p>You can close this tab whenever — it won''t reopen on the next

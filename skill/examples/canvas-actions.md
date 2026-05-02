@@ -192,7 +192,7 @@ to the canvas.
 the agent supports; each row is
 `<button data-duo-action="claude:spawn" data-cmd="Tell me about …">`.
 Clicking opens a fresh Claude tab with the question pre-typed —
-useful for "starting points" pages a Trailblazer can keep pinned.
+useful for a "starting points" page that a power user can pin.
 
 ## Error surfacing
 

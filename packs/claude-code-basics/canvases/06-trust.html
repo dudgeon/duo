@@ -50,7 +50,7 @@
       <li><strong>acceptEdits</strong> — auto-approves file edits in your workspace, still asks for shell. Good for productive sessions.</li>
       <li><strong>plan</strong> — read-only; Claude analyzes and proposes a plan, can't modify anything. Best for exploration.</li>
       <li><strong>auto</strong> — Claude executes without prompts, with a safety classifier blocking risky actions. Available on Team/Enterprise; admins can disable. (Research preview as of early 2026.)</li>
-      <li><strong>bypassPermissions</strong> (<code>--dangerously-skip-permissions</code>) — no checks, no prompts. <em>Don't use it on a Capital One laptop.</em> Anthropic chose the word "dangerously" deliberately. Capital One almost certainly has this disabled via managed settings.</li>
+      <li><strong>bypassPermissions</strong> (<code>--dangerously-skip-permissions</code>) — no checks, no prompts. <em>Don't use it on a managed enterprise laptop.</em> Anthropic chose the word "dangerously" deliberately. Most enterprise distributions disable this via managed settings.</li>
     </ul>
     <div class="row">Cycle modes mid-session with <strong>Shift+Tab</strong>.</div>
     <div class="row"><strong>Analogy.</strong> Five postures for a contractor: "ask me before every nail" / "you can hammer, but ask before plumbing" / "look, don't touch" / "work autonomously, with a safety inspector watching" / "no oversight at all." You choose based on the day.</div>
@@ -60,7 +60,7 @@
   <article class="block" data-duo-id="block-f2">
     <h2>F2 · Trust boundaries</h2>
     <div class="row"><strong>Why for a PM.</strong> Reduces the "what could go wrong" anxiety that often paralyzes first-time use.</div>
-    <div class="row"><strong>MVE.</strong> "Even in auto-mode, certain things are never silently approved: writing to your <code>.claude/</code> configuration, your shell config, your SSH keys, force-pushes to git main. Capital One's managed settings add to this list."</div>
+    <div class="row"><strong>MVE.</strong> "Even in auto-mode, certain things are never silently approved: writing to your <code>.claude/</code> configuration, your shell config, your SSH keys, force-pushes to git main. Your organization's managed settings typically add to this list."</div>
     <div class="misconception"><strong>Misconception to preempt:</strong> "Claude can wreck my machine if I'm not watching." It's possible but unlikely under default settings; the harness has multiple layers.</div>
   </article>
 

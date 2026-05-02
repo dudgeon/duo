@@ -1,6 +1,6 @@
-# Claude Code 101 for Capital One PMs: Curriculum Design & Birdhouse Catalog
+# Claude Code 101 for PMs: Curriculum Design & Birdhouse Catalog
 
-A research-backed scaffold for Geoff's GA "AI in Product" track. Designed for a ~30-minute self-paced experience that picks up after onboarding/GitHub basics and lands the *principles* before the procedures — then sends PMs into a graduated set of "birdhouse" projects that compound into a personal Claude Code working environment.
+A research-backed scaffold for a GA "AI in Product" track. Designed for a ~30-minute self-paced experience that picks up after onboarding/GitHub basics and lands the *principles* before the procedures — then sends PMs into a graduated set of "birdhouse" projects that compound into a personal Claude Code working environment.
 
 ---
 
@@ -10,10 +10,10 @@ Before the curriculum itself, six framing assumptions worth making explicit beca
 
 1. **"Claude Code is an agent harness, not a chatbot."** Anthropic itself reframed the SDK as the "Claude Agent SDK" because the harness — terminal access, file I/O, shell, tool use, permission gating, memory — is the durable abstraction; the coding use case is just one application. PMs need this mental model on minute one. Treating Claude Code as "ChatGPT in a black window" is the single biggest predictor of failure.
 2. **The general-population PM is *not* afraid of complexity; they're afraid of opacity.** A non-technical PM can absorb file paths, YAML frontmatter, and a permissions hierarchy if you tell them *what each artifact is for and where it lives*. They cannot absorb hand-wavy phrases like "just point Claude at it."
-3. **Capital One's enterprise constraints (Bedrock-backed, managed `managed-settings.json`, network restrictions, sensitive data) shrink the design space.** Plug-ins, MCP servers, web fetch, and arbitrary `npm install` may be locked or governed. The curriculum should bias toward primitives that work *inside the sandbox the platform team has already approved*: CLAUDE.md, local skills, file-based artifacts, and slash commands. Treat plugins/MCP as preview material, not core.
+3. **Enterprise constraints (managed `managed-settings.json`, network restrictions, sensitive data) shrink the design space.** Plug-ins, MCP servers, web fetch, and arbitrary `npm install` may be locked or governed. The curriculum should bias toward primitives that work *inside the sandbox the platform team has already approved*: CLAUDE.md, local skills, file-based artifacts, and slash commands. Treat plugins/MCP as preview material, not core.
 4. **The 30-minute budget is for *concepts plus a lit-fuse first project.*** Reaching mastery in 30 minutes is impossible; provoking the right *next session* is achievable. The course's success metric is "did the PM open Claude Code again in the next 48 hours and feel oriented?"
 5. **Birdhouses must compound.** Each project should leave behind durable assets in `~/.claude/` or a notes folder, so session N+1 starts smarter than session N. This is the signature of the curriculum and what differentiates it from generic "10 PM prompts" content.
-6. **PM-shaped, not engineer-shaped, exemplars.** Most public Claude Code education is engineer-coded (PR review, refactors, test gen). Capital One PMs need analogues drawn from PRDs, customer feedback, exec readouts, Jira hygiene, stakeholder maps, and OKR check-ins. Reusing engineering examples by analogy fails — the cognitive load is too high in 30 minutes.
+6. **PM-shaped, not engineer-shaped, exemplars.** Most public Claude Code education is engineer-coded (PR review, refactors, test gen). PMs need analogues drawn from PRDs, customer feedback, exec readouts, Jira hygiene, stakeholder maps, and OKR check-ins. Reusing engineering examples by analogy fails — the cognitive load is too high in 30 minutes.
 
 ---
 
@@ -21,7 +21,7 @@ Before the curriculum itself, six framing assumptions worth making explicit beca
 
 Below is a full inventory of the conceptual building blocks, ranked by leverage. Each block has: **Why it matters for a PM**, **Minimum viable explanation**, **Working analogy**, and **Misconception to preempt**. The expected delivery is a written micro-module with a one-screen explainer and a 1-minute video, not a deep dive — depth lives in the birdhouses.
 
-I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-module shape inside the 30-minute envelope. A reasonable cut: pick one block from each family for the core path, link the rest as "Going deeper" appendices.
+I have grouped them into seven *concept families* so a course author can choose a 6-to-8-module shape inside the 30-minute envelope. A reasonable cut: pick one block from each family for the core path, link the rest as "Going deeper" appendices.
 
 ## Family A — Mental model (the thing that breaks if you skip it)
 
@@ -65,7 +65,7 @@ I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-m
 ### C1. Current Working Directory (CWD) as the "where am I standing" question
 - **Why for a PM:** This is the user's own example, and it deserves its own module. Where you launch Claude shapes what it sees by default. Launch from a repo root and Claude can read code; launch from `~/Documents/notes/` and Claude can read your meeting notes; launch from `~/` and Claude has the broadest view but loses focus.
 - **MVE:** "When you type `claude` in your terminal, the folder you're in becomes Claude's home base. It auto-loads any `CLAUDE.md` in that folder, can read files relative to it, and bounds what it considers 'this project.' Choose the folder deliberately, the same way you'd choose which conference room to hold a meeting in."
-- **Analogy:** *Where you enter the building.* If you walk into Capital One via the McLean lobby, you see McLean people. Walk in via the Plano office and you see Plano people. Same building, different field of view.
+- **Analogy:** *Where you enter the building.* If you walk in via the lobby on the east side, you see the people who work near that lobby. Walk in via the loading dock and you see warehouse staff. Same building, different field of view.
 - **Misconception:** "I can just point Claude at a file later." You can with `--add-dir`, but that doesn't auto-load the CLAUDE.md in that directory. Where you start matters most.
 
 ### C2. Project boundaries and the three-folder pattern
@@ -73,7 +73,7 @@ I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-m
 - **MVE:** Recommend three default invocation points:
   1. **`~/`** (your home directory) — for general "thinking partner" sessions; loads your *user-level* CLAUDE.md and skills.
   2. **`~/notes/`** (or an Obsidian vault) — for personal knowledge work, customer synthesis, weekly reviews.
-  3. **A specific repo** (e.g., the Conversational Servicing repo) — for code-aware work, where the team's project-level CLAUDE.md guides Claude.
+  3. **A specific repo** (e.g., a specific product repo) — for code-aware work, where the team's project-level CLAUDE.md guides Claude.
 - **Analogy:** Three desks. Personal desk for journaling, library desk for research, team conference room for project work. You choose the desk, and the desk shapes the work.
 - **Misconception:** "There's one right place." Different work, different CWD. The skill is *deciding*, not memorizing.
 
@@ -84,7 +84,7 @@ I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-m
 - **MVE:** "CLAUDE.md is a markdown file Claude auto-loads at the start of every session. Two scopes that matter to you:
   - `~/.claude/CLAUDE.md` (user-level): loaded into *every* session on your laptop. Put your role, your team, your terminology, your writing style, your "always do / never do" rules.
   - `./CLAUDE.md` in any project folder (project-level): loaded only when you launch Claude in that folder. Put project-specific terminology, repo conventions, stakeholder lists for *that* effort.
-  Higher specificity wins on conflict. Capital One may also deploy a *managed* organization-level CLAUDE.md that takes precedence over both — that's expected."
+  Higher specificity wins on conflict. your organization may also deploy a *managed* organization-level CLAUDE.md that takes precedence over both — that's expected."
 - **Analogy:** Your standing instructions to a contract analyst (user level) plus a project-specific brief (project level) plus your manager's policy memo (managed/enterprise level).
 - **Misconception:** "Longer is better." Wrong — Anthropic's own guidance and the HumanLayer research show LLMs follow fewer instructions more reliably than many. Aim for 50–200 lines, prefer pointers to other files over inline copies, and use *progressive disclosure* (CLAUDE.md as a "map" pointing to detail files).
 
@@ -114,7 +114,7 @@ I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-m
 - **MVE:**
   - **User/global skills** (`~/.claude/skills/`) — your personal toolkit; available in every session.
   - **Project/local skills** (`.claude/skills/` in a repo) — team-shared; committed to git.
-  - **Managed/enterprise skills** — deployed by Capital One platform team; can't be overridden.
+  - **Managed/enterprise skills** — deployed by your organization platform team; can't be overridden.
   - **Plugins** — bundles that include skills + commands + subagents + MCP server config, installable from a marketplace. *Note: enterprise policy may restrict marketplaces; treat plugins as advanced.*
 - **Analogy:** Your personal cookbook (user) vs. the team recipe binder in the office (project) vs. the corporate-issued recipe binder you can't write in (managed) vs. ordering a recipe pack from a publisher (plugin).
 - **Misconception:** "Plugins are required." They're not — most of the value for a PM comes from a handful of well-authored local skills.
@@ -126,8 +126,8 @@ I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-m
 - **Misconception:** "More subagents = better." Subagents add coordination cost. Reach for them when output volume would otherwise drown the main session.
 
 ### E4. MCP servers (conceptually only, given enterprise context)
-- **Why for a PM:** Worth knowing the *category* exists even if Capital One restricts which MCP servers are approved. PMs hear about Jira MCPs, Figma MCPs, etc., from outside content.
-- **MVE:** "MCP (Model Context Protocol) is how Claude Code can talk to outside systems — Jira, GitHub, a database — beyond your local files. Each connection is an 'MCP server.' At Capital One, the platform team controls which servers are approved; you'll get a list, not a free-for-all. Until then, paste-driven workflows (copy a Jira ticket into a file, point Claude at the file) get you 80% of the value."
+- **Why for a PM:** Worth knowing the *category* exists even if your organization restricts which MCP servers are approved. PMs hear about Jira MCPs, Figma MCPs, etc., from outside content.
+- **MVE:** "MCP (Model Context Protocol) is how Claude Code can talk to outside systems — Jira, GitHub, a database — beyond your local files. Each connection is an 'MCP server.' At your organization, the platform team controls which servers are approved; you'll get a list, not a free-for-all. Until then, paste-driven workflows (copy a Jira ticket into a file, point Claude at the file) get you 80% of the value."
 - **Analogy:** A network of phones that let your contractor call other vendors. Useful but governed; you don't get to wire arbitrary phones in.
 - **Misconception:** "I need MCP servers to be productive." False — file-based workflows are the dominant pattern, and several Anthropic case studies (legal, marketing) ran entirely on local files.
 
@@ -140,14 +140,14 @@ I have grouped them into seven *concept families* so Geoff can choose a 6-to-8-m
   - **acceptEdits** — auto-approves file edits in your workspace, still asks for shell. Good for productive sessions.
   - **plan** — read-only; Claude analyzes and proposes a plan, can't modify anything. Best for exploration.
   - **auto** — Claude executes without prompts, with a safety classifier blocking risky actions. Available on Team/Enterprise; admins can disable. (Note: this is a research preview as of early 2026.)
-  - **bypassPermissions** (`--dangerously-skip-permissions`) — no checks, no prompts. *Don't use it on a Capital One laptop.* Anthropic chose the word "dangerously" deliberately. Capital One almost certainly has this disabled via managed settings.
+  - **bypassPermissions** (`--dangerously-skip-permissions`) — no checks, no prompts. *Don't use it on a your organization laptop.* Anthropic chose the word "dangerously" deliberately. your organization almost certainly has this disabled via managed settings.
   - Cycle modes mid-session with **Shift+Tab**.
 - **Analogy:** Five postures for a contractor: "ask me before every nail" / "you can hammer, but ask before plumbing" / "look, don't touch" / "work autonomously, with a safety inspector watching" / "no oversight at all." You choose based on the day.
 - **Misconception:** "Plan mode means Claude is doing the work safely." Plan mode means Claude is *not* doing the work — it's planning. Many PMs confuse "planning" with "executing carefully."
 
 ### F2. Trust boundaries — what's never auto-approved
 - **Why for a PM:** Reduces the "what could go wrong" anxiety that often paralyzes first-time use.
-- **MVE:** "Even in auto-mode, certain things are never silently approved: writing to your `.claude/` configuration, your shell config, your SSH keys, force-pushes to git main. Capital One's managed settings add to this list."
+- **MVE:** "Even in auto-mode, certain things are never silently approved: writing to your `.claude/` configuration, your shell config, your SSH keys, force-pushes to git main. your organization's managed settings add to this list."
 - **Misconception:** "Claude can wreck my machine if I'm not watching." It's possible but unlikely under default settings; the harness has multiple layers.
 
 ### F3. Plan-then-execute as the default rhythm
@@ -218,7 +218,7 @@ Each birdhouse is a small, tractable project that solves a real PM problem and *
 - **Pedagogical role:** Demonstrates plan-then-execute, file writing, progressive disclosure, and the concept of "Claude knowing me" all in one project.
 
 ### Birdhouse #2 — Internal Acronym & Glossary File
-- **Functional purpose:** Capital One has a *deep* internal vocabulary (servicing flows, regulatory acronyms, product nicknames). Claude doesn't know any of it.
+- **Functional purpose:** your organization has a *deep* internal vocabulary (servicing flows, regulatory acronyms, product nicknames). Claude doesn't know any of it.
 - **Why a PM wants it:** Eliminates the "what does CLR mean again?" tax in every output Claude produces, and prevents Claude from inventing wrong expansions.
 - **Principles reinforced:** B3 materials, D1 user-level CLAUDE.md, E1 progressive disclosure (referenced, not inlined).
 - **Local assets created:** `~/.claude/context/glossary.md` — a markdown table of acronyms and their expansions, plus a "preferred terminology" section ("call it 'cardholder', not 'customer', in all written outputs").
@@ -321,7 +321,7 @@ Each birdhouse is a small, tractable project that solves a real PM problem and *
 - **Branch:** Strategy-leaning PMs.
 - **Compounds via:** Each new input updates the profile; quarterly Claude can compare profiles to draft a competitive update.
 
-### Birdhouse #12 — Domain Glossary for Conversational Servicing (or any technical domain)
+### Birdhouse #12 — Domain Glossary for any technical domain
 - **Functional purpose:** Beyond acronyms — capture domain *concepts* (intents, slot types, IVR flows, regulatory requirements) with definitions and examples.
 - **Local assets:** `~/notes/domain/<domain>/glossary.md`, `~/notes/domain/<domain>/concepts/<concept>.md` per major concept.
 - **Shareable artifact:** Rendered HTML domain primer.
@@ -418,7 +418,7 @@ In all tracks, the foundation tier (Birdhouses 1–5) is non-negotiable. Everyth
 
 1. **Two delivery modes per concept.** A 60-second video (mental model) + a 1-screen explainer with a concrete example. PMs who learn by watching and PMs who learn by reading both get served.
 2. **Show the failure mode.** For every concept, show what it looks like when the PM doesn't understand it. The "oh, *that's* what was happening" moment is the durable learning. E.g., for CWD: show two side-by-side terminals running the same prompt from different directories, producing dramatically different results.
-3. **Defer plugins and MCP.** They're fascinating but enterprise-restricted. Mention as preview material; teach the file-and-skill-based primitives that *will* work in the Capital One environment from day one.
+3. **Defer plugins and MCP.** They're fascinating but enterprise-restricted. Mention as preview material; teach the file-and-skill-based primitives that *will* work in the your organization environment from day one.
 4. **Anchor every concept to the persistent artifact.** "Where does this live? When does it load? When does it stop loading?" — make those three questions the spine of every module.
 5. **Lean on Anthropic's own framing where possible.** "Onboarding Claude Code like a new developer" and "Effective context engineering" are framings the PMs will hear from their engineer counterparts. Using the same vocabulary builds shared language.
 6. **Course-internal CLAUDE.md.** The course itself should ship with a `CLAUDE.md` that PMs `cd` into during the lesson — they should *experience* a well-authored CLAUDE.md before they author one.
@@ -433,7 +433,7 @@ In all tracks, the foundation tier (Birdhouses 1–5) is non-negotiable. Everyth
 | Long-running session decay | "It used to work, now it's confused" | Module B1/B2 + the "new task = new session" rule. |
 | Re-explaining the team every session | Friction; PM gives up | Birdhouse #1, prioritized as project-zero. |
 | Not knowing about plan mode | Either over-cautious (one prompt at a time) or over-aggressive (skipping permissions) | Module F1/F3 + an explicit "if it's research, plan mode; if it's iteration, acceptEdits" rule. |
-| `--dangerously-skip-permissions` curiosity | A PM Googles it and tries it | Address head-on; reinforce that Capital One managed settings likely block it; explain *why* the word "dangerously" is in the flag name (Anthropic chose it deliberately as a safety signal). |
+| `--dangerously-skip-permissions` curiosity | A PM Googles it and tries it | Address head-on; reinforce that your organization managed settings likely block it; explain *why* the word "dangerously" is in the flag name (Anthropic chose it deliberately as a safety signal). |
 | Conflating chat memory with file memory | "Why doesn't Claude remember what we talked about yesterday?" | Module D2/D3 + Birdhouse #1's user-level CLAUDE.md as the corrective. |
 | "It hallucinated" complaints | Almost always a context problem, not a model problem | The "give Claude the materials" mantra + show before/after with a stakeholders.md file. |
 
@@ -456,7 +456,7 @@ A 30-minute self-paced course can't have a real exam, but you can build in three
 
 ### Enterprise-specific guardrails to call out in the course
 
-- **Authentication:** Capital One almost certainly routes Claude Code through Bedrock with OIDC federation (Okta or similar). PMs should expect a one-time SSO flow, not API key management.
+- **Authentication:** Your organization almost certainly routes Claude Code through a managed LLM gateway with SSO (OIDC federation). PMs should expect a one-time SSO flow, not API key management.
 - **Data sensitivity:** *Tell PMs explicitly* what's safe to put in CLAUDE.md and notes (general team context, public product names, role descriptions) and what isn't (PII, NPI, customer data, internal financials, model parameters). Better one explicit list than a vague warning.
 - **Managed settings precedence:** Tell PMs about it so they're not confused when their `disableBypassPermissionsMode` setting won't override; explain that this is *expected* and protective.
 - **Approved MCP servers:** Maintain a Capital-One-specific page listing the currently approved MCP servers. Don't let PMs go fishing.
@@ -476,9 +476,9 @@ These are real and valuable but will swamp the budget and increase early-stage f
 
 ### Pacing recommendation across the six "AI in Product" tracks
 
-If Geoff's six tracks are sequenced, this Claude Code 101 should land *after* a generic "AI literacy for PMs" track (covering chatbots, hallucinations, prompt basics) and *before* tracks on "AI feature design," "Evals for PM-owned AI features," and "AI roadmap & risk." Claude Code is the *tool track*; it's the one that gives PMs a daily-driver craft tool, which then makes the strategic tracks more concrete.
+If your six-track training program are sequenced, this Claude Code 101 should land *after* a generic "AI literacy for PMs" track (covering chatbots, hallucinations, prompt basics) and *before* tracks on "AI feature design," "Evals for PM-owned AI features," and "AI roadmap & risk." Claude Code is the *tool track*; it's the one that gives PMs a daily-driver craft tool, which then makes the strategic tracks more concrete.
 
-The "Trailblazers → GA" handoff should explicitly leverage Trailblazer alumni as in-channel office-hours hosts and as the source of canonical CLAUDE.md and skill examples. The single biggest predictor of GA success is whether a general-population PM can see a Trailblazer's `~/.claude/` structure and steal from it on day one.
+The "early-adopter cohort → GA" handoff should explicitly leverage early-adopter alumni as in-channel office-hours hosts and as the source of canonical CLAUDE.md and skill examples. The single biggest predictor of GA success is whether a general-population PM can see a early adopter's `~/.claude/` structure and steal from it on day one.
 
 ---
 
@@ -498,8 +498,8 @@ The richest source documents to draw from when authoring the actual modules:
 - **Anthropic — *How Anthropic teams use Claude Code*** (PDF and blog). Cross-functional case studies including non-engineering teams (legal, marketing).
 - **HumanLayer blog — *Writing a good CLAUDE.md***. The best-argued external piece on the *brevity* and *progressive disclosure* discipline. Particularly useful for a PM audience because it quantifies why long CLAUDE.md files degrade behavior.
 - **Anthropic resources — *The Complete Guide to Building Skills for Claude*** (PDF). Long-form companion for the skills module.
-- **Carl Vellotti — *Claude Code for Product Managers* (`ccforpms.com`)** and **Sachin Rekhi — *Claude Code for Product Managers***. Two of the better-quality PM-shaped public courses; useful for borrowing examples and *not* for borrowing curriculum structure (both are aimed at curious-and-forward-leaning audiences, not Capital One's general-population PM).
+- **Carl Vellotti — *Claude Code for Product Managers* (`ccforpms.com`)** and **Sachin Rekhi — *Claude Code for Product Managers***. Two of the better-quality PM-shaped public courses; useful for borrowing examples and *not* for borrowing curriculum structure (both are aimed at curious-and-forward-leaning audiences, not your organization's general-population PM).
 - **Teresa Torres on Lenny's podcast — *Claude Code for product managers: research, writing, context libraries***. The single best demonstration of file-based PM workflows by a non-engineer; useful as a "this is what mature use looks like" reference.
 - **Andrej Karpathy / MindStudio — *LLM Wiki* pattern**. The intellectual foundation for the "files-as-memory, folder-as-knowledge-base" approach that underpins most of the birdhouses.
 
-These sources, plus internal Capital One context (the actual `managed-settings.json`, the actual approved MCP server list, the actual SSO flow), are the input pile. Geoff's job at this stage is to pick the *one* sentence per concept that lands for a general-population PM, and the *one* concrete artifact per birdhouse that they can show their manager on Friday.
+These sources, plus internal organization context (the actual `managed-settings.json`, the actual approved MCP server list, the actual SSO flow), are the input pile. the course author's job at this stage is to pick the *one* sentence per concept that lands for a general-population PM, and the *one* concrete artifact per birdhouse that they can show their manager on Friday.

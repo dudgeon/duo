@@ -58,9 +58,8 @@ there).
 When `curriculum-complete` lands, ask the user one-line:
 
 > "Quick question for the birdhouse — are you closer to a
-> general-purpose PM (PRDs, customer research, OKRs), an AIP
-> platform PM (sandbox / managed-settings work), or somewhere
-> else?"
+> general-purpose PM (PRDs, customer research, OKRs), a platform
+> PM (sandbox / managed-settings work), or somewhere else?"
 
 Based on the answer, paint a birdhouse seed into the completion
 pane. Examples:

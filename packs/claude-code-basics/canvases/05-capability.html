@@ -57,7 +57,7 @@
     <ul>
       <li><strong>User/global skills</strong> (<code>~/.claude/skills/</code>) — your personal toolkit; available in every session.</li>
       <li><strong>Project/local skills</strong> (<code>.claude/skills/</code> in a repo) — team-shared; committed to git.</li>
-      <li><strong>Managed/enterprise skills</strong> — deployed by Capital One platform team; can't be overridden.</li>
+      <li><strong>Managed/enterprise skills</strong> — deployed by your organization's platform team; can't be overridden.</li>
       <li><strong>Plugins</strong> — bundles that include skills + commands + subagents + MCP server config, installable from a marketplace. <em>Note: enterprise policy may restrict marketplaces; treat plugins as advanced.</em></li>
     </ul>
     <div class="row"><strong>Analogy.</strong> Your personal cookbook (user) vs. the team recipe binder in the office (project) vs. the corporate-issued recipe binder you can't write in (managed) vs. ordering a recipe pack from a publisher (plugin).</div>
@@ -74,8 +74,8 @@
 
   <article class="block" data-duo-id="block-e4">
     <h2>E4 · MCP servers (concept only)</h2>
-    <div class="row"><strong>Why for a PM.</strong> Worth knowing the <em>category</em> exists even if Capital One restricts which MCP servers are approved. PMs hear about Jira MCPs, Figma MCPs, etc., from outside content.</div>
-    <div class="row"><strong>MVE.</strong> "MCP (Model Context Protocol) is how Claude Code can talk to outside systems — Jira, GitHub, a database — beyond your local files. Each connection is an 'MCP server.' At Capital One, the platform team controls which servers are approved; you'll get a list, not a free-for-all. Until then, paste-driven workflows (copy a Jira ticket into a file, point Claude at the file) get you 80% of the value."</div>
+    <div class="row"><strong>Why for a PM.</strong> Worth knowing the <em>category</em> exists even if your organization restricts which MCP servers are approved. PMs hear about Jira MCPs, Figma MCPs, etc., from outside content.</div>
+    <div class="row"><strong>MVE.</strong> "MCP (Model Context Protocol) is how Claude Code can talk to outside systems — Jira, GitHub, a database — beyond your local files. Each connection is an 'MCP server.' In an enterprise environment, your platform team typically controls which servers are approved; you'll get a list, not a free-for-all. Until then, paste-driven workflows (copy a Jira ticket into a file, point Claude at the file) get you 80% of the value."</div>
     <div class="row"><strong>Analogy.</strong> A network of phones that let your contractor call other vendors. Useful but governed; you don't get to wire arbitrary phones in.</div>
     <div class="misconception"><strong>Misconception to preempt:</strong> "I need MCP servers to be productive." False — file-based workflows are the dominant pattern, and several Anthropic case studies (legal, marketing) ran entirely on local files.</div>
   </article>
