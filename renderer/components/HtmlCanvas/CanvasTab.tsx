@@ -1309,6 +1309,21 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
           </button>
         </div>
       )}
+      {/* BUG-052 — locked-read-only canvases (`<meta duo-editable="false">`)
+          previously showed NO chrome at all: no toolbar, no strip, no
+          indicator. Walk-2 V2 surfaced this as confusing — the user
+          opened faq.html with `data-mode="canvas"` and couldn't tell
+          canvas mode was active vs. some other rendering. Now we
+          render a minimal "Read-only · locked" indicator (no Edit
+          button — preserves the lock). Distinguishes locked-read-only
+          from toggleable read-only above. */}
+      {readOnly && lockedReadOnly && (
+        <div className="shrink-0 flex items-center justify-end gap-2 border-b border-stroke px-3 py-1.5 bg-surface-1">
+          <span className="text-xs text-ink-soft" title="This file is locked read-only via &lt;meta name='duo-editable' content='false'&gt;">
+            Read-only · locked
+          </span>
+        </div>
+      )}
       {!readOnly && !lockedReadOnly && parseDefaultReadOnlyFromHtml(initialHtml) && (
         // Stage 27 — when the file's meta hint is `default-editable: false`
         // but the user has flipped to edit, surface a discreet "back to
