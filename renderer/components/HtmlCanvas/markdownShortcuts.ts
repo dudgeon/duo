@@ -29,6 +29,18 @@ import * as blockOps from './blockOps'
 export function installMarkdownShortcuts(doc: Document): () => void {
   const onInput = () => handleInput(doc)
   const onKeyDown = (e: KeyboardEvent) => {
+    // BUG-061 (v0.6.3) — Tab / Shift-Tab inside list items indent
+    // and outdent, mirroring the markdown editor's parity (Stage 11
+    // ENH-025) and the Obsidian / VS Code muscle memory. Outside a
+    // list, Tab falls through to the iframe's default behavior
+    // (typically a focus shift — fine, no useful default for Tab in
+    // a contentEditable that we'd be stepping on).
+    if (e.key === 'Tab') {
+      if (handleListIndent(doc, e.shiftKey)) {
+        e.preventDefault()
+      }
+      return
+    }
     if (e.key === 'Enter') {
       if (handleEnterShortcuts(doc)) {
         e.preventDefault()
@@ -59,8 +71,17 @@ function handleInput(doc: Document): void {
   const block = blockOps.findBlockAncestor(doc, node)
   const text = block.textContent ?? ''
 
-  // Block-prefix matches — only trigger on exact match (user typed the
-  // prefix and the trigger character with no other content yet).
+  // BUG-061 (v0.6.3) — bullet trigger was strict equality (`text === '- '`)
+  // which failed when the caret block was `doc.body` and `body` contained
+  // existing siblings (textContent concatenates all descendants). The
+  // owner's repro had this shape: a canvas without a wrapping <p>, body
+  // text "- " typed but body.textContent included other descendants too.
+  // Fix: match the trigger pattern at the START of the textContent — same
+  // semantic ("user just typed the prefix") but tolerates existing
+  // siblings. The exact-match still works (it's a special case of
+  // start-match where the prefix IS the entire content).
+  //
+  // Heading match — `# ` … `###### ` at start.
   const headingMatch = text.match(/^(#{1,6}) $/)
   if (headingMatch) {
     clearBlockText(block)
@@ -143,6 +164,36 @@ function clearBlockText(block: Element): void {
   range.collapse(true)
   sel.removeAllRanges()
   sel.addRange(range)
+}
+
+// ── Tab / Shift-Tab list indent (BUG-061) ────────────────────────────────
+//
+// Mirrors the markdown editor's ⌘[ / ⌘] indent / outdent behavior
+// (ENH-025). Tab inside a list item nests the item under the
+// previous sibling; Shift-Tab unnests it back to the parent list's
+// level. Implementation uses Chromium's `indent` / `outdent`
+// execCommand which IS well-behaved for list items in
+// contentEditable: it produces a nested <ul><li>...</li></ul> on
+// indent and unwraps one level on outdent. Same execCommand we use
+// for `insertUnorderedList` / `insertOrderedList` (cf. blockOps.ts
+// — block ops use execCommand, inline marks are hand-rolled per
+// PRD §8).
+//
+// Returns true when the keystroke was consumed (caller calls
+// preventDefault on the Tab event so focus doesn't shift). Returns
+// false when the caret isn't inside a list, leaving Tab to bubble
+// to the browser's default — which in a contentEditable iframe
+// typically does nothing useful for Tab anyway, so falling through
+// is harmless.
+
+function handleListIndent(doc: Document, shift: boolean): boolean {
+  const block = blockOps.findCaretBlock(doc)
+  if (!block) return false
+  // Climb to the nearest <li> ancestor; if we're not in one, bail.
+  const li = block.tagName === 'LI' ? block : block.closest('li')
+  if (!li) return false
+  doc.execCommand(shift ? 'outdent' : 'indent', false)
+  return true
 }
 
 // ── Enter-key conversions ─────────────────────────────────────────────────

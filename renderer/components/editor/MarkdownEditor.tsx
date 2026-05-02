@@ -119,6 +119,25 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // `open` for any callers that need to gate behavior on it (e.g.
   // hiding the comment rail while find is up).
   const [findOpen, setFindOpen] = useState(false)
+  // ENH-069 (v0.6.3) — toggleable line numbers. Global per-user
+  // preference (NOT per-tab) — when set, every markdown editor on
+  // every launch shows numbers. Persisted to localStorage. The CSS
+  // counter-based v1 numbers BLOCKS (paragraphs / headings / list
+  // items / blockquotes) — not visual wrapped lines. "True" visual
+  // line numbering would need a ProseMirror plugin with reflow
+  // detection; queued as v2 if v1 doesn't solve the user's need.
+  const [lineNumbers, setLineNumbers] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('duo:editor-line-numbers') === '1'
+    } catch {
+      return false
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('duo:editor-line-numbers', lineNumbers ? '1' : '0')
+    } catch { /* private mode / quota — best-effort */ }
+  }, [lineNumbers])
 
   const hostRef = useRef<HTMLDivElement | null>(null)
 
@@ -1193,9 +1212,37 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           editor.commands.focus()
         }}
       >
-        <div className="mx-auto max-w-[760px] px-10 py-10">
+        <div
+          className="mx-auto max-w-[760px] px-10 py-10"
+          // ENH-069 — line-number toggle. The CSS in globals.css
+          // hangs counter rules off `[data-line-numbers="true"]`.
+          data-line-numbers={lineNumbers ? 'true' : undefined}
+        >
           <EditorContent editor={editor} />
         </div>
+        {/* ENH-069 — small floating toggle in the bottom-right of
+            the scroll-host. Discreet (low contrast, small) so it
+            doesn't compete with content; visible enough to find.
+            Click flips the persistent preference. */}
+        <button
+          type="button"
+          onClick={() => setLineNumbers(v => !v)}
+          title={lineNumbers ? 'Hide line numbers' : 'Show line numbers'}
+          aria-label={lineNumbers ? 'Hide line numbers' : 'Show line numbers'}
+          className={[
+            'sticky bottom-3 ml-3 px-2 h-6 rounded text-[11px] flex items-center gap-1.5 transition-colors shrink-0',
+            lineNumbers
+              ? 'bg-accent text-white hover:bg-accent-ink'
+              : 'text-ink-mute hover:text-ink hover:bg-surface-2'
+          ].join(' ')}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+            <text x="2" y="5" fontFamily="monospace" fontSize="3.6" fill="currentColor">1</text>
+            <text x="2" y="9" fontFamily="monospace" fontSize="3.6" fill="currentColor">2</text>
+            <path d="M6 4h5M6 8h5" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
+          </svg>
+          <span>Lines</span>
+        </button>
       </div>
       {/* Stage 15.1 — floating Send → Duo pill, portaled to body. */}
       {onSendToDuo && (

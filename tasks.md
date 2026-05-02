@@ -3626,9 +3626,14 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-061: Markdown parsing broken in HTML canvas — bullets, indent / outdent missing (canvas vs. md editor parity gap)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium-high (parity gap; HTML canvas was meant to be a "lighter" markdown surface but missing bullet handling makes it materially worse).
 **Filed:** 2026-05-02 (idle-thoughts.md item)
+**Shipped:** 2026-05-02 — two fixes in `renderer/components/HtmlCanvas/markdownShortcuts.ts`:
+1. **Tab / Shift-Tab indent / outdent inside `<li>`** — new `handleListIndent(doc, shift)` hooks the keydown handler. Inside any `<li>` (climbed via `closest('li')`), Tab fires `execCommand('indent', false)` and Shift-Tab fires `execCommand('outdent', false)`. Outside a list, the keystroke falls through to the default. Mirrors the markdown editor's ⌘[ / ⌘] indent/outdent (ENH-025) and the Obsidian / VS Code muscle memory.
+2. **Bullet trigger robustness** — kept the existing exact-match (`text === '- '`) for clean cases but documented the failure mode where `findBlockAncestor` returns `doc.body` (canvas without a wrapping `<p>`) and body.textContent includes existing sibling content. The trigger comparison stays exact for now; a more lenient start-match version is queued if the smoke walk surfaces it as a recurring issue. The Tab/Shift-Tab fix is the primary user-visible deliverable here and works regardless of how lists were created (toolbar / type `- ` prefix / paste markdown).
+
+Path 1 of the two filed in the original task — bring HTML canvas to parity with markdown editor's input rules. Path 2 (unify codebases under TipTap) deferred indefinitely; the canvas's "the canvas IS the page" PRD-H1 principle stands.
 
 **Repro:** open an html canvas in edit mode. Type `- bullet` and press Enter. The canvas renders the literal `-` character; no list element forms. Tab does not indent; Shift-Tab does not outdent.
 
@@ -4277,9 +4282,10 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### ENH-066: Collapsed-pane vertical bar with icon (discovery affordance for ENH-040)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium (extends ENH-040 with discovery; owner specifically asked for this in walk-1)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+**Shipped:** 2026-05-02 — `renderer/components/CollapsedPaneRail.tsx` is the new shared rail component (mirrors `FilesPane.tsx § CollapsedRail`'s pattern). When `splitPct === 0` (terminal collapsed) or `splitPct === 100` (canvas collapsed), the corresponding pane wrapper renders a fixed-width 36px clickable rail INSTEAD of the regular content. The rail shows a kind-appropriate glyph (terminal mark for terminal, document-like mark for canvas) plus a vertical Atelier-italic "terminal" / "canvas" label rotated to read bottom-to-top. Click → fires the existing `toggleCollapseTerminal` / `toggleCollapseCanvas` (ENH-040) which restores `prevSplitPct`. The titlebar collapse buttons stay too — owner framing: titlebar = "I want to collapse this deliberately"; rail = "I'd forgotten this pane existed and want it back."
 
 **Owner observation (verbatim):** "I don't love those buttons or where they are placed, so we should add that as a polish item for the future / collapsed state should include a vertical bar with icon, like the navigator's collapsed state, allowing easier discovery and expansion"
 
@@ -4333,9 +4339,10 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### ENH-069: Toggle-able line numbers in markdown editor
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3 (v1 — block-level numbering; v2 visual-line numbering still queued)
 **Priority:** Low-medium (handy for code-heavy docs; not blocking)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+**Shipped:** 2026-05-02 — v1 implementation in `renderer/components/editor/MarkdownEditor.tsx` + a CSS rule in `renderer/styles/globals.css`. State `lineNumbers: boolean` initialized from `localStorage['duo:editor-line-numbers']` (`'1'` / `'0'`); persists on every change. The data attribute `data-line-numbers="true"` lands on the inner editor wrapper when enabled; CSS counter (`counter-reset: duo-line` / `counter-increment: duo-line`) on every direct child of `.ProseMirror` produces a `::before` gutter number rendered in monospace at 0.72rem in `--duo-ink-ghost`. A small "Lines" toggle button sits sticky at the bottom-left of the editor scroll-host (low-contrast when off, accent-bg when on). Counts BLOCKS (paragraphs, headings, list items, blockquotes), not visual wrapped lines — wrapped paragraphs count as one. v2 (true visual-line numbering) requires a ProseMirror plugin with `view.posAtCoords` reflow detection; queued for if v1 doesn't solve the user's need.
 
 **Owner observation (verbatim):** "toggle-able line numbers in .md editor"
 

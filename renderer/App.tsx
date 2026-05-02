@@ -8,6 +8,7 @@ import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
+import { CollapsedPaneRail } from './components/CollapsedPaneRail'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ClaudePresenceDot } from './components/ClaudePresenceDot'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -1628,53 +1629,73 @@ export function App() {
               // occluded, unlike the column wrapper which xterm canvas
               // paints over. Seam border still flips to full-opacity
               // accent as a secondary cue.
+              //
+              // ENH-066 (v0.6.3) — when isTerminalCollapsed (split = 0%),
+              // the wrapper renders a fixed-width CollapsedPaneRail
+              // INSTEAD of the regular tab strip + xterm. The rail is a
+              // clickable vertical bar with a terminal glyph; click
+              // restores the prior split. Mirrors the CollapsedRail
+              // pattern in FilesPane.tsx for the navigator's collapsed
+              // state.
               'flex flex-col h-full bg-surface-1 border-r transition-colors min-w-0 overflow-hidden',
               focusedColumn === 'terminal' ? 'border-accent' : 'border-border'
             ].join(' ')}
-            style={{ width: `${splitPct}%` }}
+            style={{
+              width: isTerminalCollapsed ? '36px' : `${splitPct}%`,
+              flexShrink: 0
+            }}
             onMouseDown={() => setFocusedColumn('terminal')}
             aria-label="Terminal column"
           >
-            <TabBar
-              tabs={tabs}
-              activeTabId={activeTabId}
-              onSelect={setActiveTabId}
-              // Stage 19c D17 — split button. `+` = claude (primary,
-              // opinionated); `>` = shell. Both update the persisted
-              // last-kind so `duo new-tab` without --kind follows the
-              // user's most recent manual selection (D28).
-              onNewClaude={() => {
-                newTab('claude')
-                setLastTabKind('claude')
-                saveLastTabKind('claude')
-              }}
-              onNewShell={() => {
-                newTab('shell')
-                setLastTabKind('shell')
-                saveLastTabKind('shell')
-              }}
-              onClose={closeTab}
-              pendingCwd={pendingCwd}
-              focused={focusedColumn === 'terminal'}
-            />
-            <div className="flex-1 overflow-hidden">
-              <TerminalPane
-                tabs={tabs}
-                activeTabId={activeTabId}
-                onTitleChange={updateTabTitle}
-                cozyByTab={cozyByTab}
-                cozyDefault={cozyDefault}
-                fontBumpByTab={fontBumpByTab}
-                fontBumpDefault={fontBumpDefault}
-                themeEffective={theme.effective}
-                // BUG-038 — xterm focus events flip focusedColumn so
-                // ⌃Tab cycles terminal tabs (not whatever pane the
-                // synthetic-event path last touched). xterm manages
-                // its own DOM heavily and clicks on it sometimes
-                // miss the column wrapper's onMouseDown.
-                onTerminalFocus={() => setFocusedColumnSilent('terminal')}
+            {isTerminalCollapsed ? (
+              <CollapsedPaneRail
+                kind="terminal"
+                onExpand={toggleCollapseTerminal}
               />
-            </div>
+            ) : (
+              <>
+                <TabBar
+                  tabs={tabs}
+                  activeTabId={activeTabId}
+                  onSelect={setActiveTabId}
+                  // Stage 19c D17 — split button. `+` = claude (primary,
+                  // opinionated); `>` = shell. Both update the persisted
+                  // last-kind so `duo new-tab` without --kind follows the
+                  // user's most recent manual selection (D28).
+                  onNewClaude={() => {
+                    newTab('claude')
+                    setLastTabKind('claude')
+                    saveLastTabKind('claude')
+                  }}
+                  onNewShell={() => {
+                    newTab('shell')
+                    setLastTabKind('shell')
+                    saveLastTabKind('shell')
+                  }}
+                  onClose={closeTab}
+                  pendingCwd={pendingCwd}
+                  focused={focusedColumn === 'terminal'}
+                />
+                <div className="flex-1 overflow-hidden">
+                  <TerminalPane
+                    tabs={tabs}
+                    activeTabId={activeTabId}
+                    onTitleChange={updateTabTitle}
+                    cozyByTab={cozyByTab}
+                    cozyDefault={cozyDefault}
+                    fontBumpByTab={fontBumpByTab}
+                    fontBumpDefault={fontBumpDefault}
+                    themeEffective={theme.effective}
+                    // BUG-038 — xterm focus events flip focusedColumn so
+                    // ⌃Tab cycles terminal tabs (not whatever pane the
+                    // synthetic-event path last touched). xterm manages
+                    // its own DOM heavily and clicks on it sometimes
+                    // miss the column wrapper's onMouseDown.
+                    onTerminalFocus={() => setFocusedColumnSilent('terminal')}
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <div
@@ -1701,13 +1722,25 @@ export function App() {
               // the ring was misleading. Focus indicator is now inside
               // WorkingTabStrip (renderer DOM, never covered by the
               // WebContentsView).
-              'flex-1 overflow-hidden border-l transition-colors min-w-0',
+              //
+              // ENH-066 (v0.6.3) — when isCanvasCollapsed (split = 100%),
+              // render a fixed-width CollapsedPaneRail INSTEAD of the
+              // WorkingPane. The rail is a clickable vertical bar with a
+              // canvas glyph; click restores the prior split.
+              isCanvasCollapsed ? 'overflow-hidden border-l transition-colors shrink-0' : 'flex-1 overflow-hidden border-l transition-colors min-w-0',
               focusedColumn === 'working' ? 'border-accent' : 'border-transparent'
             ].join(' ')}
+            style={isCanvasCollapsed ? { width: '36px' } : undefined}
             onMouseDown={() => setFocusedColumn('working')}
             aria-label="Working pane"
             data-pane="working"
           >
+            {isCanvasCollapsed ? (
+              <CollapsedPaneRail
+                kind="canvas"
+                onExpand={toggleCollapseCanvas}
+              />
+            ) : (
             <WorkingPane
               fileTabs={fileTabs}
               activeWorking={activeWorking}
@@ -1807,6 +1840,7 @@ export function App() {
                 })
               }}
             />
+            )}
           </div>
         </div>
       </div>

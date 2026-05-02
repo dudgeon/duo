@@ -184,6 +184,38 @@ html.dark {
   .duo-editor-prose th { background: var(--duo-paper-deep); }
   .duo-editor-prose hr { border-color: var(--duo-paper-rule); }
 
+  /* ENH-069 (v0.6.3) — toggleable line numbers. The wrapper element
+     gets `data-line-numbers="true"` when enabled; CSS counters on the
+     ProseMirror's top-level block children render gutter numbers via
+     `::before`. v1 counts BLOCKS (paragraphs, headings, list items,
+     blockquotes), not visual lines — wrapped paragraphs count as one.
+     "True" visual line numbers (counting wrapped lines) would need a
+     ProseMirror plugin with `view.posAtCoords` walking; queued as a
+     v2 if v1 doesn't solve the user's need. */
+  [data-line-numbers="true"] .ProseMirror {
+    counter-reset: duo-line;
+    padding-left: 3rem;
+    position: relative;
+  }
+  [data-line-numbers="true"] .ProseMirror > * {
+    counter-increment: duo-line;
+    position: relative;
+  }
+  [data-line-numbers="true"] .ProseMirror > *::before {
+    content: counter(duo-line);
+    position: absolute;
+    left: -2.75rem;
+    top: 0.15em;
+    width: 2rem;
+    text-align: right;
+    font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    line-height: 1.4em;
+    color: var(--duo-ink-ghost);
+    user-select: none;
+    pointer-events: none;
+  }
+
   /* Titlebar drag region */
   .titlebar-drag {
     -webkit-app-region: drag;
