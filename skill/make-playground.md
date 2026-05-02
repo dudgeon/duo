@@ -193,26 +193,51 @@ a playground + a paired guide skill that Claude reads to drive the
 user through step-by-step.
 
 **Don't invent a new structure each time.** Lessons share a canonical
-shape that buys cross-pack consistency, mid-lesson resume, and (when
-ENH-055 ships) automated fly-through validation:
+shape that buys cross-pack consistency, mid-lesson resume, and
+automated fly-through validation:
+
+**Two shapes, two templates:**
+
+| Shape | Template | When |
+|---|---|---|
+| **Linear lesson** — single playground, N steps | `~/.claude/skills/duo/examples/lesson-template/` | One topic, ~5-15 min, user works through linearly. Most common. |
+| **Curriculum** — orientation + multiple module canvases | `~/.claude/skills/duo/examples/curriculum-template/` | Multi-topic, ~20-60+ min, user picks order or follows prerequisites. |
+
+**Workflow (either template):**
 
 1. **Start from the template.**
    ```bash
+   # For linear lessons:
    cp -r ~/.claude/skills/duo/examples/lesson-template/ \
          ~/.claude/duo/packs/<pack-name>/
+   # For curricula:
+   cp -r ~/.claude/skills/duo/examples/curriculum-template/ \
+         ~/.claude/duo/packs/<pack-name>/
    ```
-   This gives you a `canvases/playground.html` with the three stable
-   paint regions (`step-counter` / `step-body` / `step-controls`) and
-   a `lesson-skill/SKILL.md` with the canonical step-state outline.
+   The linear template gives you a single `canvases/playground.html`
+   with three stable paint regions (`step-counter` / `step-body` /
+   `step-controls`) plus a `lesson-skill/SKILL.md` skeleton. The
+   curriculum template gives you an `orientation.html` launcher +
+   one `module-template.html` to copy per module + an orchestrator
+   skill skeleton.
 2. **Read `~/.claude/skills/duo/lesson-runtime.md`** before writing
    skill logic. It defines the canonical event names
-   (`lesson:step-N-done`, `lesson:restart`, `lesson:done`), the
-   sidecar state schema at `~/.claude/duo/lesson-state/<pack>.json`,
-   and the cursor-resumption pattern that makes mid-lesson Duo
-   restarts recoverable.
+   (`lesson:step-N-done`, `lesson:restart`, `lesson:done`,
+   `lesson:module-<id>-launch`/`-done`/`-abandon`), the sidecar
+   state schema at `~/.claude/duo/lesson-state/<pack>.json`, and
+   the cursor-resumption pattern that makes mid-lesson Duo restarts
+   recoverable. § Curriculum case covers the multi-canvas
+   extension.
 3. **Customize content, not structure.** Replace step content,
-   step count, step transitions — but keep the three paint regions
-   + the event-name convention. The convention IS the contract.
+   step count, step transitions, module ids, prerequisites — but
+   keep the canonical paint regions + event-name conventions.
+   The convention IS the contract.
+
+**To test what you build, fly through it:** the
+`~/.claude/skills/duo/lesson-flythrough.md` skill (auto-loads on
+"fly through this lesson", "test my new lesson", "preview the
+lesson") walks the lesson end-to-end without manual clicking.
+Linear lessons today; multi-canvas curricula extension is queued.
 
 **Lesson vs. plain playground.** A playground without a paired
 lesson-skill is fine for many cases (dashboards, agent-emitted

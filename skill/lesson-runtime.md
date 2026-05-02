@@ -245,6 +245,88 @@ lessons were started + dropped.
 
 ---
 
+## Curriculum case (multi-canvas, ENH-056)
+
+The runtime contract above assumes a SINGLE-CANVAS LINEAR LESSON —
+one playground.html with N steps. For curricula that span multiple
+canvases (orientation launcher + module canvases), the same
+primitives apply with three extensions:
+
+### Extended event names
+
+| Event | When | Emitted from |
+|---|---|---|
+| `lesson:module-<id>-launch` | User clicks "Start module X" on the orientation | `orientation.html` |
+| `lesson:module-<id>-done` | User clicks final "Done with module" CTA | `module-<id>.html` |
+| `lesson:module-<id>-abandon` | User clicks "Back to overview" mid-module | `module-<id>.html` |
+| `lesson:curriculum-complete` | All modules complete | Orchestrator skill (synthetic) |
+
+In-module step transitions still use `lesson:step-N-done` — the
+orchestrator scopes them to the current module by tracking which
+module canvas is active.
+
+### Extended sidecar state schema
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "curriculum",                 // distinguishes from "lesson"
+  "packName": "claude-code-basics",
+  "currentModule": "B",                 // null when between modules
+  "modules": {
+    "A": { "completed": true, "completedAt": "2026-..." },
+    "B": { "completed": false, "currentStep": 3, "stepsTotal": 5 },
+    "C": { "completed": false }
+  },
+  "completed": false,
+  "startedAt": "2026-...",
+  "lastEventCursor": "...-..."
+}
+```
+
+`currentModule` is the active module id (null when the user is on
+orientation or has abandoned). Per-module `currentStep` lets
+mid-module restarts resume at the right step.
+
+### Extended orchestrator flow
+
+The skill that drives a curriculum is structurally similar to a
+linear lesson skill, with:
+
+1. **Tab switching.** On `lesson:module-X-launch`, dispatch
+   `editor:open` to switch the working tab to `module-X.html`. On
+   `lesson:module-X-done` (or `-abandon`), switch back to
+   orientation.
+2. **Prerequisite checks.** Before dispatching `editor:open` for a
+   module, verify its prereqs are met (see the curriculum-template
+   SKILL.md). Locked modules paint "Complete X first" messaging
+   into the orientation card without switching tabs.
+3. **Cross-canvas paint coordination.** The orchestrator paints
+   into the ACTIVE canvas (module N's step regions while the user
+   is in module N), and into the BACKGROUND canvas (orientation's
+   progress region) only on module-done / -abandon transitions
+   when the user is about to see orientation again.
+
+See `skill/examples/curriculum-template/lesson-skill/SKILL.md` for
+the worked-example orchestrator skeleton.
+
+### When to use which template
+
+- **Linear lesson** (`lesson-template/`) — single playground, N steps,
+  ~5-15 min. Author copies one HTML + one SKILL.md. The most common case.
+- **Curriculum** (`curriculum-template/`) — orientation + multiple
+  modules, ~20-60+ min, user picks order or follows prerequisites.
+  Author copies orientation.html + N module-X.html files + an
+  orchestrator SKILL.md.
+
+If the modules are small enough to fit in one playground's N-step
+shape, prefer the linear template — fewer files, simpler
+orchestration. If they're large enough to deserve their own
+canvases (think: 7 distinct topics, each with internal steps),
+the curriculum template is right.
+
+---
+
 ## Anti-patterns
 
 - **Don't omit the cursor.** The whole resumption pattern relies

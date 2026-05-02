@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Module — TODO: module title</title>
+
+  <!--
+    Canonical curriculum module playground (ENH-056).
+
+    A SINGLE module within a multi-module curriculum. The user got
+    here by clicking "Start module" on the orientation playground;
+    the lesson skill switched the working tab here via `editor:open`.
+
+    Each module is structurally similar to a single-canvas lesson
+    (3 stable paint regions, lesson:step-N-done events for in-
+    module steps), but ALSO emits one `lesson:module-<id>-done`
+    event when the user clicks the final "Done with module" button.
+    The skill orchestrating the curriculum listens for that event,
+    marks the module complete in the sidecar, and switches the
+    working tab back to orientation so the user sees their progress.
+
+    Customize:
+      - <title>                  → module title
+      - h1                       → same
+      - data-event suffix        → replace "A" with your module id
+                                   (matches the orientation's launch
+                                   event suffix)
+      - body content             → first step the user sees on
+                                   entering this module
+
+    Same canonical paint regions as lesson-template/playground.html:
+      [data-duo-pane="step-counter"]   — small text above body
+      [data-duo-pane="step-body"]      — the main content area
+      [data-duo-pane="step-controls"]  — button row at bottom
+
+    For modules with multiple internal steps, the skill repaints
+    these regions per step within the module, fires
+    `lesson:step-N-done` events as usual, and finally fires
+    `lesson:module-<id>-done` on the last step's CTA.
+
+    For single-step modules (just "read this and click Done"),
+    the orientation's launch event takes the user straight here,
+    the user reads, clicks "Done with module", lesson:module-X-done
+    fires, skill marks complete + switches back to orientation.
+  -->
+
+  <meta name="duo-default-editable" content="false">
+
+  <style>
+    :root {
+      --paper: #FBF8EE;
+      --paper-deep: #F0E9D6;
+      --paper-edge: #E5DCC1;
+      --ink: #1A1410;
+      --ink-soft: #3D352A;
+      --ink-mute: #7B6F58;
+      --accent: #C66A2E;
+      --accent-ink: #7A3E1A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: #1A1611;
+        --paper-deep: #13100C;
+        --paper-edge: #26201A;
+        --ink: #F0E9D6;
+        --ink-soft: #C8BFA3;
+        --ink-mute: #8A7E60;
+      }
+    }
+    body {
+      margin: 0;
+      padding: 48px 32px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    main { max-width: 680px; margin: 0 auto; }
+    header {
+      border-bottom: 1px solid var(--paper-edge);
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .module-id {
+      font-size: 12px;
+      color: var(--ink-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .step-counter {
+      font-size: 12px;
+      color: var(--ink-mute);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-top: 8px;
+    }
+    .step-body {
+      min-height: 200px;
+      padding: 24px;
+      background: var(--paper-deep);
+      border-radius: 6px;
+      margin-bottom: 24px;
+    }
+    .step-body h2 { margin: 0 0 12px; font-size: 18px; }
+    .step-body p { margin: 0 0 12px; color: var(--ink-soft); }
+    .step-controls { display: flex; gap: 8px; align-items: center; }
+    .cta {
+      background: var(--accent);
+      color: white;
+      border: 0;
+      padding: 10px 22px;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .cta:hover { background: var(--accent-ink); }
+    .secondary {
+      background: transparent;
+      color: var(--ink-mute);
+      border: 1px solid var(--paper-edge);
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="module-id">Module A — TODO</div>
+      <h1>TODO: module title</h1>
+      <div class="step-counter" data-duo-pane="step-counter">Step 1 of TODO</div>
+    </header>
+
+    <section class="step-body" data-duo-pane="step-body">
+      <h2>TODO: step 1 heading</h2>
+      <p>TODO: step 1 instructions for this module.</p>
+      <p>End each step with a clear next action + the "Next step"
+         button below to advance within the module.</p>
+    </section>
+
+    <section class="step-controls" data-duo-pane="step-controls">
+      <!--
+        For multi-step modules, the FIRST step fires
+        `lesson:step-1-done`. The lesson skill paints step 2 by
+        repainting step-body + step-controls, with the controls
+        row's button updated to fire `lesson:step-2-done`.
+
+        For the FINAL step of a module, the skill should swap the
+        button to fire `lesson:module-A-done` (replacing A with
+        your module id) — this is the event the curriculum
+        orchestrator listens for to mark the module complete.
+
+        For single-step modules (just "read + click Done"), put
+        `data-event="lesson:module-A-done"` on the button below
+        directly — no intermediate step events.
+      -->
+      <button class="cta"
+              data-duo-action="duo:event"
+              data-event="lesson:step-1-done"
+              data-duo-id="next-cta">
+        Next step
+      </button>
+      <button class="secondary"
+              data-duo-action="duo:event"
+              data-event="lesson:module-A-abandon"
+              data-payload='{"module":"A"}'
+              data-duo-id="abandon-cta">
+        Back to overview
+      </button>
+    </section>
+  </main>
+</body>
+</html>

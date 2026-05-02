@@ -4075,7 +4075,16 @@ Closes meta-goal gap 5 from the v0.6.0 zoom-out. Combined with ENH-053 (canonica
 
 ### ENH-056: Multi-canvas curriculum template (sibling of lesson-template)
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.2.** Three artifacts at `skill/examples/curriculum-template/`:
+- `canvases/orientation.html` — the launcher. Lists modules with status (locked / available / completed); each module card has a "Start module" CTA emitting `lesson:module-<id>-launch`. Stable paint regions: `[data-duo-pane="curriculum-progress"]` (overall), `[data-duo-pane="module-<id>"]` (per module).
+- `canvases/module-template.html` — copy per-module (rename to `module-A.html`, `module-B.html`, ...). Same canonical step regions as `lesson-template/playground.html` (`step-counter` / `step-body` / `step-controls`); final step's CTA fires `lesson:module-<id>-done` instead of `lesson:step-N-done`.
+- `lesson-skill/SKILL.md` — orchestrator skeleton. Documents the cross-canvas event flow (launch → editor:open switch → in-module steps → done → editor:open back to orientation), prerequisite checks, sidecar state extension (per-module completion tracking + `currentModule`).
+- `README.md` — how to use the template + the linear-vs-curriculum decision matrix.
+
+`lesson-runtime.md § Curriculum case` extended to cover the multi-canvas case alongside the linear case (event names, sidecar schema, orchestrator flow). `make-playground.md § Lessons specifically` updated with the two-shapes table pointing at both templates.
+
+The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT yet refactored to the canonical curriculum template — its event names were updated to `lesson:` prefix in v0.6.1 but its structure stays as authored. Refactoring is queued for the next time someone touches that pack content.
+
 **Priority:** Medium (downstream of ENH-053; needed when the next multi-canvas pack lands).
 **Filed:** 2026-05-02 (post-v0.6.1 — surfaced while refactoring claude-code-basics)
 
