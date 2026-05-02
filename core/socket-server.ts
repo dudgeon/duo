@@ -17,6 +17,7 @@ import type { CdpBridge } from '../electron/cdp-bridge'
 import type { BrowserManager } from '../electron/browser-manager'
 import type { FilesService } from '../electron/files-service'
 import type { NavPinsService } from './nav-pins-service'
+import type { EventBus, DuoEvent } from './event-bus'
 import type {
   DuoRequest,
   DuoResponse,
@@ -137,7 +138,8 @@ export class SocketServer {
     private readonly browser: BrowserManager,
     private readonly files: FilesService,
     private readonly nav: NavBridge,
-    private readonly navPins: NavPinsService
+    private readonly navPins: NavPinsService,
+    private readonly events: EventBus
   ) {}
 
   /** Stage 12 close — install a renderer-push callback. */
@@ -227,6 +229,12 @@ export class SocketServer {
   private attachConnection(socket: net.Socket, requireToken: string | null): void {
     let buf = ''
     let authed = requireToken == null
+    // Stage 27 — `events --follow` keeps the socket open and writes
+    // multiple JSON lines per request, breaking the request/response
+    // contract that `handle()` returns a single Promise<DuoResponse> for.
+    // The unsubscribe lives here so socket close cleans up the bus
+    // subscriber and any pending stream.
+    let eventsUnsub: (() => void) | null = null
 
     socket.on('data', (chunk) => {
       buf += chunk.toString()
@@ -250,6 +258,15 @@ export class SocketServer {
         }
         let req: DuoRequest
         try { req = JSON.parse(line) } catch { continue }
+        // Stage 27 — `events --follow` is the only streaming command.
+        // Branch BEFORE handle() so we can write multiple JSON lines
+        // and skip the standard {id, ok, result} envelope. Snapshot
+        // mode (`events` without --follow) flows through the standard
+        // path below.
+        if (req.cmd === 'events' && (req.args as { follow?: unknown } | undefined)?.follow === true) {
+          this.handleEventsFollow(req, socket, (unsub) => { eventsUnsub = unsub })
+          continue
+        }
         this.handle(req)
           .then(res => { if (!socket.destroyed) socket.write(JSON.stringify(res) + '\n') })
           .catch(err => {
@@ -259,7 +276,42 @@ export class SocketServer {
       }
     })
 
-    socket.on('error', () => { /* client disconnected mid-flight — ignore */ })
+    const cleanup = () => {
+      if (eventsUnsub) {
+        try { eventsUnsub() } catch { /* bus subscriber already gone */ }
+        eventsUnsub = null
+      }
+    }
+    socket.on('error', cleanup)
+    socket.on('close', cleanup)
+    socket.on('end', cleanup)
+  }
+
+  /**
+   * Streaming response handler for `duo events --follow`. Writes an
+   * initial `{id, ok:true, result:{subscribed, since}}` ack, replays
+   * any events on the ring with cursor > since (oldest first), then
+   * attaches a live subscriber that writes each new event as a bare
+   * `{event: DuoEvent}` JSON line. The CLI's parse loop knows the
+   * convention: an `id` envelope is the ack; an `event` payload is a
+   * streamed event. Socket close = unsubscribe.
+   */
+  private handleEventsFollow(
+    req: DuoRequest,
+    socket: net.Socket,
+    onUnsub: (fn: () => void) => void
+  ): void {
+    const args = (req.args ?? {}) as { since?: unknown; limit?: unknown }
+    const since = typeof args.since === 'string' ? args.since : undefined
+    const writeLine = (obj: unknown) => {
+      if (!socket.destroyed) socket.write(JSON.stringify(obj) + '\n')
+    }
+    // Initial ack so the CLI knows the subscription is live and can
+    // start parsing event lines.
+    writeLine({ id: req.id, ok: true, result: { subscribed: true, since: since ?? null } })
+    const writeEvent = (event: DuoEvent) => writeLine({ event })
+    const unsub = this.events.subscribe(writeEvent, since !== undefined ? { since } : undefined)
+    onUnsub(unsub)
   }
 
   private async handle(req: DuoRequest): Promise<DuoResponse> {
@@ -748,6 +800,20 @@ export class SocketServer {
             cwd: ntResult.cwd,
             title: ntResult.title
           }
+          break
+        }
+        case 'events': {
+          // Stage 27 — snapshot mode. `--follow` is handled in
+          // attachConnection BEFORE we land here (streaming response
+          // doesn't fit the {id, ok, result} envelope). This case
+          // covers `duo events [--since <cursor>] [--limit N]`.
+          const since = typeof args['since'] === 'string' ? (args['since'] as string) : undefined
+          const limitRaw = args['limit']
+          let limit: number | undefined
+          if (typeof limitRaw === 'number' && Number.isFinite(limitRaw) && limitRaw > 0) {
+            limit = Math.floor(limitRaw)
+          }
+          result = { events: this.events.listSince(since, limit) }
           break
         }
         default:

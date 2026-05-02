@@ -161,6 +161,16 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, push: Parameters<typeof cb>[0]) => cb(push)
       ipcRenderer.on(IPC.BROWSER_SELECTION, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_SELECTION, handler)
+    },
+
+    // BUG-006 — in-page pill click from the page-injected Send → Duo
+    // button. v2 carries the selection snapshot in the payload (captured
+    // synchronously page-side at mousedown time) so the renderer doesn't
+    // race with the async selectionchange clearing the cache.
+    onSendToDuoClick: (cb) => {
+      const handler = (_: IpcRendererEvent, snapshot: Parameters<typeof cb>[0]) => cb(snapshot)
+      ipcRenderer.on(IPC.BROWSER_SEND_TO_DUO_CLICK, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_SEND_TO_DUO_CLICK, handler)
     }
   },
 
@@ -347,6 +357,16 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, pct: number) => cb(pct)
       ipcRenderer.on(IPC.SPLIT_SET, handler)
       return () => ipcRenderer.removeListener(IPC.SPLIT_SET, handler)
+    }
+  },
+
+  // Stage 27 — DuoEvent emit hook. Renderer-side surfaces (currently
+  // the canvas-action `duo:event` handler in App.tsx; later: editor /
+  // browser hooks) call this to push a structured event into main's
+  // EventBus. Subscribers stream via `duo events --follow`.
+  events: {
+    emit: (input: { source?: 'canvas' | 'editor' | 'cli' | 'main' | 'renderer'; name: string; payload?: Record<string, unknown> }) => {
+      ipcRenderer.send(IPC.DUO_EVENT_EMIT, input)
     }
   },
 

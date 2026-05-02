@@ -167,6 +167,92 @@ async function send(
   )
 }
 
+/**
+ * Stage 27 — streaming variant of `send()` for `duo events --follow`.
+ * Same transport logic (Unix first, TCP fallback with auth). The
+ * server protocol: first line back is `{id, ok:true, result:{...}}`
+ * (the ack); each subsequent line is `{event: DuoEvent}` until the
+ * socket closes. `onAck` fires once when the ack lands; `onEvent`
+ * fires per streamed event. Returns a Promise that resolves on clean
+ * socket close, rejects on unrecoverable error or non-ok ack.
+ */
+function sendStreamed(
+  cmd: string,
+  args: Record<string, unknown>,
+  onAck: (result: unknown) => void,
+  onEvent: (event: unknown) => void
+): Promise<void> {
+  const factory: TransportFactory = () => {
+    if (process.env.DUO_TCP_ONLY !== '1' && fs.existsSync(SOCKET_PATH)) {
+      return { socket: net.createConnection(SOCKET_PATH) }
+    }
+    const portInfo = readPortFile()
+    if (!portInfo) {
+      throw new Error('Cannot connect: Unix socket failed and no TCP fallback available.')
+    }
+    const socket = net.createConnection({ host: '127.0.0.1', port: portInfo.port })
+    return { socket, preamble: JSON.stringify({ token: portInfo.token }) + '\n' }
+  }
+
+  return new Promise((resolve, reject) => {
+    let socket: net.Socket
+    let preamble: string | undefined
+    try {
+      const made = factory()
+      socket = made.socket
+      preamble = made.preamble
+    } catch (err) {
+      reject(err)
+      return
+    }
+    const id = randomUUID()
+    let buf = ''
+    let acked = false
+
+    socket.on('connect', () => {
+      if (preamble) socket.write(preamble)
+      const req: DuoRequest = { id, cmd: cmd as DuoRequest['cmd'], args }
+      socket.write(JSON.stringify(req) + '\n')
+    })
+
+    socket.on('data', (chunk) => {
+      buf += chunk.toString()
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (!line.trim()) continue
+        let parsed: unknown
+        try { parsed = JSON.parse(line) } catch { continue }
+        // Streamed event line: { event: DuoEvent }.
+        if (parsed && typeof parsed === 'object' && 'event' in parsed) {
+          onEvent((parsed as { event: unknown }).event)
+          continue
+        }
+        // Ack line: { id, ok, result }.
+        if (parsed && typeof parsed === 'object' && 'id' in parsed) {
+          const res = parsed as DuoResponse
+          if (res.id !== id) continue
+          if (!res.ok) {
+            socket.destroy()
+            reject(new Error(res.error ?? 'Unknown error'))
+            return
+          }
+          acked = true
+          onAck(res.result)
+        }
+      }
+    })
+
+    socket.on('close', () => {
+      if (acked) resolve()
+      else reject(new Error('Socket closed before ack'))
+    })
+    socket.on('error', (err) => {
+      reject(err)
+    })
+  })
+}
+
 // ── Output helpers ────────────────────────────────────────────────────────────
 
 function out(value: unknown): void {
@@ -430,6 +516,45 @@ async function main(): Promise<void> {
             die('Usage: duo theme [system|light|dark]')
           }
           out(await send('theme', { mode }))
+        }
+        break
+      }
+      case 'events': {
+        // Stage 27 \u2014 `duo events [--follow] [--since <cursor>] [--limit N]`
+        // streams structured events from the bus. Pulls in issue #19.
+        // Snapshot mode: prints one JSON line per event from the ring.
+        // Follow mode: prints the snapshot first, then each new event
+        // as it lands; runs until interrupted (^C).
+        const follow = rest.includes('--follow')
+        const since = flagValue(rest, '--since')
+        const limitRaw = flagValue(rest, '--limit')
+        let limit: number | undefined
+        if (limitRaw !== undefined) {
+          const parsed = Number(limitRaw)
+          if (!Number.isFinite(parsed) || parsed < 1) {
+            die('Usage: duo events [--follow] [--since <cursor>] [--limit N]')
+          }
+          limit = Math.floor(parsed)
+        }
+        const args: Record<string, unknown> = {}
+        if (since !== undefined) args['since'] = since
+        if (limit !== undefined) args['limit'] = limit
+        const printEventLine = (event: unknown): void => {
+          process.stdout.write(JSON.stringify(event) + '\n')
+        }
+        if (!follow) {
+          // Snapshot \u2014 single response.
+          const result = await send('events', args) as { events: unknown[] }
+          for (const event of result.events ?? []) printEventLine(event)
+        } else {
+          // Follow \u2014 streaming. Server emits the replay (events with
+          // cursor > since) BEFORE attaching the live subscriber, so
+          // we print every line we receive in order.
+          args['follow'] = true
+          await sendStreamed('events', args,
+            () => { /* ack \u2014 nothing to print */ },
+            (event) => printEventLine(event)
+          )
         }
         break
       }
@@ -1042,6 +1167,43 @@ async function runDoctor(): Promise<void> {
   const agentFile = path.join(os.homedir(), '.claude', 'agents', 'duo.md')
   lines.push(`  ${fs.existsSync(skillFile) ? '✓' : '✗'} ${skillFile}`)
   lines.push(`  ${fs.existsSync(agentFile) ? '✓' : '✗'} ${agentFile}`)
+  lines.push('')
+
+  // ENH-032 — terminal locale check. Multi-byte UTF-8 paste into the
+  // terminal renders as raw bytes when LC_ALL/LC_CTYPE/LANG aren't
+  // UTF-8. Most common cause: conda's `(base)` activator setting
+  // LC_ALL=C. Diagnostic-only (we can't fix the user's shell rc); a
+  // warning here points to the FAQ entry with the fix.
+  lines.push('Locale')
+  const localeVars = ['LC_ALL', 'LC_CTYPE', 'LANG'] as const
+  const looksUtf8 = (v: string | undefined): boolean => {
+    if (!v) return false
+    return /utf-?8/i.test(v)
+  }
+  let utf8Found = false
+  for (const v of localeVars) {
+    const value = process.env[v]
+    if (!value) {
+      lines.push(`  · $${v} not set`)
+      continue
+    }
+    if (looksUtf8(value)) {
+      lines.push(`  ✓ $${v} = ${value}`)
+      utf8Found = true
+    } else {
+      lines.push(`  ⚠ $${v} = ${value}  (not UTF-8 — multi-byte paste will render as raw bytes)`)
+    }
+  }
+  if (!utf8Found) {
+    lines.push('')
+    lines.push('  → Pasting characters like em-dash, emoji, or accented letters')
+    lines.push('    into this terminal will produce garbled output.')
+    lines.push('    Fix: add to your ~/.zshrc (after any conda init block):')
+    lines.push('      export LANG=en_US.UTF-8')
+    lines.push('      export LC_ALL=en_US.UTF-8')
+    lines.push('    Then open a fresh terminal. See FAQ → "Why do special')
+    lines.push('    characters look broken when I paste into the terminal?"')
+  }
 
   process.stdout.write(lines.join('\n') + '\n')
   // Exit non-zero only when neither transport works; surface to scripts.
@@ -1160,6 +1322,19 @@ COMMANDS
                                   terminal (80, full-terminal), canvas
                                   (20, full-canvas). Mirrors View →
                                   Pane size menu and ⌘⌥1/2/3/0/9.
+  events [--follow] [--since      Stage 27 — stream structured events
+    <cursor>] [--limit N]         from the bus. Snapshot mode prints
+                                  one JSON line per event from the
+                                  ring (most-recent N when --limit is
+                                  supplied; entire ring when not).
+                                  --follow keeps the connection open
+                                  and prints each new event as it
+                                  lands. --since <cursor> resumes from
+                                  a known cursor (cursor format is
+                                  \`<unix-ms>-<seq>\`; copy it from a
+                                  prior event line). Producers: canvas
+                                  \`duo:event\` action verb (Stage 27);
+                                  more sources land as Stage 27.5.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.

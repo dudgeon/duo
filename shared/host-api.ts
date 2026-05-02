@@ -272,6 +272,19 @@ export interface ElectronThemeAPI {
   onSet: (cb: (mode: ThemeMode) => void) => () => void
 }
 
+// Stage 27 — DuoEvent producer surface for the renderer. Main owns
+// the EventBus singleton; renderer is a producer-only client. Used by
+// the canvas-action `duo:event` verb; future renderer hooks (editor
+// selection-changed, browser navigation, etc.) can plug in here without
+// growing the API shape.
+export interface ElectronEventsAPI {
+  emit: (input: {
+    source?: 'canvas' | 'editor' | 'cli' | 'main' | 'renderer'
+    name: string
+    payload?: Record<string, unknown>
+  }) => void
+}
+
 export interface ElectronSelectionFormatAPI {
   /** Renderer pushes the Send → Duo payload format so `duo
    *  selection-format` reads without a renderer round-trip. */
@@ -620,6 +633,7 @@ export interface ElectronAPI {
   external: ElectronExternalAPI
   appMenu: ElectronAppMenuAPI
   sessionState: ElectronSessionStateAPI
+  events: ElectronEventsAPI
 }
 
 declare global {

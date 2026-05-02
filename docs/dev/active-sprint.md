@@ -17,11 +17,13 @@
 ## Current state — last updated 2026-05-01
 
 **Active sprint:** Stage 27 — Canvas authoring vocabulary + skill.
-**Active commit:** Commit 2 (event bus + `duo events --follow`).
+**Active commit:** Commit 3 (`data-payload-from` form-input binding).
 **Branch:** `main` (all work on main; no worktree).
-**Status:** Commit 1 landed (six new action verbs + parser + handlers
-+ skill/examples doc update + sync:claude). Typecheck clean. UI smoke
-deferred to end-of-sprint walk per § 7b. Ready to begin Commit 2.
+**Status:** Commits 1 + 2 landed. Commit 1 = six new action verbs.
+Commit 2 = event bus (`core/event-bus.ts`) + `duo events
+[--follow] [--since] [--limit]` streaming CLI verb wired through
+SocketServer + new IPC.DUO_EVENT_EMIT. Typecheck clean both passes;
+CLI rebuilt + sync:claude run. UI smoke deferred to end-of-sprint walk.
 
 ## Big-picture initiative
 

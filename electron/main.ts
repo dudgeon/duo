@@ -22,6 +22,7 @@ import { SessionStateService } from '../core/session-state-service'
 import { ClaudePresenceProbe } from '../core/claude-presence'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
+import { EventBus, type DuoEventSource } from '../core/event-bus'
 import { IPC } from '../shared/types'
 import { htmlBoilerplate } from '../shared/html-boilerplate'
 import type {
@@ -150,6 +151,12 @@ let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 let externalDomainsService: ExternalDomainsService | null = null
 
+// Stage 27 — process-wide event bus. Singleton; lives forever. Any
+// subsystem that wants to surface a structured event to subscribers
+// (canvas-action `duo:event`, future renderer / browser hooks) calls
+// `eventBus.emit(...)`. The CLI streams via `duo events --follow`.
+const eventBus = new EventBus()
+
 // Stage 9 — the menu's Cozy mode checkmark tracks the active tab.
 // The renderer is the source of truth; main caches the last pushed value
 // so the menu rebuild logic can read it synchronously.
@@ -249,7 +256,7 @@ async function createWindow(): Promise<void> {
     pushNavPinsChanged: (pins) => {
       mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
     }
-  }, navPinsService)
+  }, navPinsService, eventBus)
   // Stage 12 close — wire the renderer event sink so the socket
   // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
   // the agent calls `duo selection`). Same one-liner adapter as
@@ -454,6 +461,24 @@ function setupIPC(): void {
   // the split moves or the window resizes. We reposition the WebContentsView.
   ipcMain.on(IPC.BROWSER_BOUNDS, (_event, bounds: BrowserBounds) => {
     browserManager?.setBounds(bounds)
+  })
+
+  // Stage 27 — renderer → main: emit a DuoEvent into the bus. Powers
+  // the canvas-action `duo:event` verb. Sender is always the renderer
+  // (canvas iframes have no allow-scripts, so canvas action handler
+  // is the only producer); we accept the source field but defensively
+  // clamp it to a known DuoEventSource.
+  ipcMain.on(IPC.DUO_EVENT_EMIT, (_event, payload: {
+    source?: DuoEventSource
+    name?: string
+    payload?: Record<string, unknown>
+  }) => {
+    if (!payload || typeof payload.name !== 'string' || !payload.name) return
+    const validSources: DuoEventSource[] = ['canvas', 'editor', 'cli', 'main', 'renderer']
+    const source: DuoEventSource = payload.source && validSources.includes(payload.source)
+      ? payload.source
+      : 'renderer'
+    eventBus.emit({ source, name: payload.name, payload: payload.payload })
   })
 
   // BUG-047 — overlay-mute toggle. Renderer sends `{ muted: true }` when

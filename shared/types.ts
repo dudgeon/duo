@@ -126,6 +126,14 @@ export type DuoCommandName =
   // the View → Pane size menu and ⌘⌥1/2/3 keyboard accelerators.
   // Clamps to the 20–80 range the divider drag uses.
   | 'split'
+  // Stage 27 — `duo events [--follow] [--since <cursor>] [--limit N]`
+  // streams structured events emitted via the canvas-action `duo:event`
+  // verb (and any future renderer / main subsystem that calls
+  // EventBus.emit). Snapshot mode prints the requested ring slice as
+  // JSON lines and exits; --follow keeps the socket open and pushes
+  // each fresh event as a JSON line until interrupted. Subscribers
+  // resume across reconnects via --since <cursor>. Pulls in issue #19.
+  | 'events'
 
 // ── Console capture ──────────────────────────────────────────────────────────
 
@@ -765,6 +773,16 @@ export const IPC = {
   BROWSER_TABS: 'browser:tabs',
   // Stage 15.2 — live selection push from the page-side observer
   BROWSER_SELECTION: 'browser:selection',
+  // BUG-006 (v0.5.5) — in-page Send → Duo pill click. Page-side IIFE
+  // renders a pill anchored to the selection (renderer-DOM portal is
+  // occluded by the WCV at compositor level). Click → CDP binding →
+  // this channel → renderer's existing handleSendToDuoClick.
+  BROWSER_SEND_TO_DUO_CLICK: 'browser:send-to-duo-click',
+
+  // Stage 27 — renderer → main: emit a DuoEvent into the bus. Powers
+  // the canvas-action `duo:event` verb. Main owns the EventBus
+  // singleton; renderer is a producer only.
+  DUO_EVENT_EMIT: 'duo:event-emit',
 
   SKILLS_SCAN: 'skills:scan',
   SKILLS_RESULT: 'skills:result',

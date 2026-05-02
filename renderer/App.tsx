@@ -758,15 +758,15 @@ export function App() {
           setFocusedColumn('terminal')
           return { ok: true }
         }
-        // Stage 27 — emit a named event into the duo event bus. Commit 2
-        // wires the bus + `duo events --follow` streaming socket case;
-        // Commit 1 keeps the dispatch surface so authored canvases can
-        // already encode their click handlers. Until the bus lands the
-        // emit is a console log so authors can verify their wiring
-        // shows up at all.
+        // Stage 27 — emit a named event into the duo event bus. Main
+        // owns the bus; we push via `window.electron.events.emit`. The
+        // CLI streams subscribers (`duo events --follow`).
         case 'duo:event': {
-          // eslint-disable-next-line no-console
-          console.log('[duo:event]', action.event, action.payload ?? {})
+          window.electron.events.emit({
+            source: 'canvas',
+            name: action.event,
+            payload: action.payload
+          })
           return { ok: true }
         }
       }

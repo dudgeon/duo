@@ -132,6 +132,75 @@ async function send(cmd, args = {}, opts = {}) {
     timeoutMs
   );
 }
+function sendStreamed(cmd, args, onAck, onEvent) {
+  const factory = () => {
+    if (process.env.DUO_TCP_ONLY !== "1" && fs.existsSync(SOCKET_PATH)) {
+      return { socket: net.createConnection(SOCKET_PATH) };
+    }
+    const portInfo = readPortFile();
+    if (!portInfo) {
+      throw new Error("Cannot connect: Unix socket failed and no TCP fallback available.");
+    }
+    const socket = net.createConnection({ host: "127.0.0.1", port: portInfo.port });
+    return { socket, preamble: JSON.stringify({ token: portInfo.token }) + "\n" };
+  };
+  return new Promise((resolve2, reject) => {
+    let socket;
+    let preamble;
+    try {
+      const made = factory();
+      socket = made.socket;
+      preamble = made.preamble;
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    const id = (0, import_crypto.randomUUID)();
+    let buf = "";
+    let acked = false;
+    socket.on("connect", () => {
+      if (preamble) socket.write(preamble);
+      const req = { id, cmd, args };
+      socket.write(JSON.stringify(req) + "\n");
+    });
+    socket.on("data", (chunk) => {
+      buf += chunk.toString();
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (parsed && typeof parsed === "object" && "event" in parsed) {
+          onEvent(parsed.event);
+          continue;
+        }
+        if (parsed && typeof parsed === "object" && "id" in parsed) {
+          const res = parsed;
+          if (res.id !== id) continue;
+          if (!res.ok) {
+            socket.destroy();
+            reject(new Error(res.error ?? "Unknown error"));
+            return;
+          }
+          acked = true;
+          onAck(res.result);
+        }
+      }
+    });
+    socket.on("close", () => {
+      if (acked) resolve2();
+      else reject(new Error("Socket closed before ack"));
+    });
+    socket.on("error", (err) => {
+      reject(err);
+    });
+  });
+}
 function out(value) {
   if (typeof value === "string") process.stdout.write(value + "\n");
   else console.log(JSON.stringify(value, null, 2));
@@ -341,6 +410,39 @@ async function main() {
             die("Usage: duo theme [system|light|dark]");
           }
           out(await send("theme", { mode }));
+        }
+        break;
+      }
+      case "events": {
+        const follow = rest.includes("--follow");
+        const since = flagValue(rest, "--since");
+        const limitRaw = flagValue(rest, "--limit");
+        let limit;
+        if (limitRaw !== void 0) {
+          const parsed = Number(limitRaw);
+          if (!Number.isFinite(parsed) || parsed < 1) {
+            die("Usage: duo events [--follow] [--since <cursor>] [--limit N]");
+          }
+          limit = Math.floor(parsed);
+        }
+        const args = {};
+        if (since !== void 0) args["since"] = since;
+        if (limit !== void 0) args["limit"] = limit;
+        const printEventLine = (event) => {
+          process.stdout.write(JSON.stringify(event) + "\n");
+        };
+        if (!follow) {
+          const result = await send("events", args);
+          for (const event of result.events ?? []) printEventLine(event);
+        } else {
+          args["follow"] = true;
+          await sendStreamed(
+            "events",
+            args,
+            () => {
+            },
+            (event) => printEventLine(event)
+          );
         }
         break;
       }
@@ -842,6 +944,37 @@ async function runDoctor() {
   const agentFile = path.join(os.homedir(), ".claude", "agents", "duo.md");
   lines.push(`  ${fs.existsSync(skillFile) ? "\u2713" : "\u2717"} ${skillFile}`);
   lines.push(`  ${fs.existsSync(agentFile) ? "\u2713" : "\u2717"} ${agentFile}`);
+  lines.push("");
+  lines.push("Locale");
+  const localeVars = ["LC_ALL", "LC_CTYPE", "LANG"];
+  const looksUtf8 = (v) => {
+    if (!v) return false;
+    return /utf-?8/i.test(v);
+  };
+  let utf8Found = false;
+  for (const v of localeVars) {
+    const value = process.env[v];
+    if (!value) {
+      lines.push(`  \xB7 $${v} not set`);
+      continue;
+    }
+    if (looksUtf8(value)) {
+      lines.push(`  \u2713 $${v} = ${value}`);
+      utf8Found = true;
+    } else {
+      lines.push(`  \u26A0 $${v} = ${value}  (not UTF-8 \u2014 multi-byte paste will render as raw bytes)`);
+    }
+  }
+  if (!utf8Found) {
+    lines.push("");
+    lines.push("  \u2192 Pasting characters like em-dash, emoji, or accented letters");
+    lines.push("    into this terminal will produce garbled output.");
+    lines.push("    Fix: add to your ~/.zshrc (after any conda init block):");
+    lines.push("      export LANG=en_US.UTF-8");
+    lines.push("      export LC_ALL=en_US.UTF-8");
+    lines.push('    Then open a fresh terminal. See FAQ \u2192 "Why do special');
+    lines.push('    characters look broken when I paste into the terminal?"');
+  }
   process.stdout.write(lines.join("\n") + "\n");
   process.exit(unixOk || tcpOk ? 0 : 1);
 }
@@ -957,6 +1090,19 @@ COMMANDS
                                   terminal (80, full-terminal), canvas
                                   (20, full-canvas). Mirrors View \u2192
                                   Pane size menu and \u2318\u23251/2/3/0/9.
+  events [--follow] [--since      Stage 27 \u2014 stream structured events
+    <cursor>] [--limit N]         from the bus. Snapshot mode prints
+                                  one JSON line per event from the
+                                  ring (most-recent N when --limit is
+                                  supplied; entire ring when not).
+                                  --follow keeps the connection open
+                                  and prints each new event as it
+                                  lands. --since <cursor> resumes from
+                                  a known cursor (cursor format is
+                                  \`<unix-ms>-<seq>\`; copy it from a
+                                  prior event line). Producers: canvas
+                                  \`duo:event\` action verb (Stage 27);
+                                  more sources land as Stage 27.5.
   reveal <path>                   Move the file navigator to <path> and
                                   surface a dismissible chip so the user
                                   knows you moved their tree.
