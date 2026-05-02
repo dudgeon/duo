@@ -1,6 +1,6 @@
 ---
 name: lesson-runtime
-description: The canonical event-loop and state-persistence pattern that every Duo lesson uses. Read this BEFORE writing a lesson skill — it explains what playgrounds emit, how the lesson skill reacts, where persistent state lives, and the resumption pattern that survives a Duo restart mid-lesson. Companion to playground-authoring.md (which covers the playground side) and to the canonical lesson template at skill/examples/lesson-template/.
+description: The canonical event-loop and state-persistence pattern that every Duo lesson uses. Read this BEFORE writing a lesson skill — it explains what playgrounds emit, how the lesson skill reacts, where persistent state lives, and the resumption pattern that survives a Duo restart mid-lesson. Companion to make-playground.md (which covers the playground side) and to the canonical lesson template at skill/examples/lesson-template/.
 ---
 
 # Duo lesson runtime — the canonical event-loop pattern
@@ -271,7 +271,7 @@ lessons were started + dropped.
 
 - **Canonical template:** `~/.claude/skills/duo/examples/lesson-template/`
   (playground.html + lesson-skill/SKILL.md skeleton — copy + customize)
-- **Authoring playgrounds:** `~/.claude/skills/duo/playground-authoring.md`
+- **Authoring playgrounds:** `~/.claude/skills/duo/make-playground.md`
 - **Driving an existing playground:** `~/.claude/skills/duo/playground-interaction.md`
 - **CLI verbs:** `duo events --follow`, `duo events --since <cursor>`,
   `duo html update --selector <sel> --html <html>`,

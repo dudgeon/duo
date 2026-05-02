@@ -152,6 +152,6 @@ two steps.
 
 - **Playground:** `~/.claude/duo/packs/TODO-pack-name/canvases/playground.html`
 - **Runtime helper skill:** `~/.claude/skills/duo/lesson-runtime.md`
-- **Authoring skill (read for canvas-action verbs):** `~/.claude/skills/duo/playground-authoring.md`
+- **Authoring skill (read for canvas-action verbs):** `~/.claude/skills/duo/make-playground.md`
 - **Sidecar state file:** `~/.claude/duo/lesson-state/TODO-pack-name.json`
 - **Pack manifest:** `~/.claude/duo/packs/TODO-pack-name/PACK.json`

@@ -3,21 +3,21 @@
 > **Stage 27 — `skill/playground-interaction.md`.** How to OPEN a
 > local HTML file in Duo, READ what's on a page or playground, and
 > DRIVE a running playground (paint into it, query its DOM, react
-> to user clicks). Companion to `skill/playground-authoring.md`,
+> to user clicks). Companion to `skill/make-playground.md`,
 > which covers CREATING pages and playgrounds.
 >
 > **Vocabulary lock (v0.6.1).** "Canvas" is the right pane (slot,
 > type-agnostic). What you author and read here is a **page**
 > (basic HTML tab) or a **playground** (page with interactivity —
 > action verbs, events, form bindings). A **lesson** is a playground
-> + a guide skill. See `playground-authoring.md` § Vocabulary lock
+> + a guide skill. See `make-playground.md` § Vocabulary lock
 > for the full breakdown.
 >
 > **Reach for this file when** the user asks you to: open an HTML
 > file they have, read what's on a page they're looking at, repaint
 > a region of a playground in response to something, debug why a
 > playground button isn't firing, or subscribe to playground-driven
-> events. **Reach for `playground-authoring.md` when** they ask you
+> events. **Reach for `make-playground.md` when** they ask you
 > to CREATE a page or playground from scratch or from a template.
 
 ---

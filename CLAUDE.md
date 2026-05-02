@@ -100,7 +100,7 @@ tab.
 > (type-agnostic), page = a basic HTML tab inside the slot,
 > playground = a page with interactivity (verbs / events / page-
 > agent feedback), lesson = a playground paired with a guide skill
-> (~/.claude/skills/duo/playground-authoring.md). The internal
+> (~/.claude/skills/duo/make-playground.md). The internal
 > code names (`WorkingTab.kind === 'html-canvas'`) lag the
 > external vocabulary; ENH-052 tracks the mechanical rename.
 

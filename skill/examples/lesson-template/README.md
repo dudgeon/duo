@@ -54,7 +54,7 @@ You'll also want a `PACK.json` at the pack root — see
 
 - `~/.claude/skills/duo/lesson-runtime.md` — the canonical event-
   loop pattern. The lesson skill's logic depends on this.
-- `~/.claude/skills/duo/playground-authoring.md` — the action verb
+- `~/.claude/skills/duo/make-playground.md` — the action verb
   vocabulary, paint regions, anti-patterns. Reach for this when you
   want to change the playground itself (more buttons, forms, etc.).
 
