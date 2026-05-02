@@ -340,7 +340,36 @@ export class SocketServer {
         case 'open': {
           const url = args['url'] as string
           if (!url) throw new Error('open requires a url arg')
-          result = await this.browser.openTab(url)
+          // BUG-067 — for LOCAL FILE paths (file:// URLs pointing at an
+          // existing file on disk), route through the renderer's
+          // openFileSmart via NavBridge.edit instead of unconditionally
+          // landing in the browser pane. The renderer's smart router
+          // already does the right thing per file kind: .md / non-HTML
+          // → markdown editor (canvas tab), .html WITHOUT
+          // `<meta duo-open-in="browser">` → editor, .html WITH the
+          // meta → browser pane. Web URLs (http/https/etc.) keep the
+          // existing browser-tab behavior. Bare hostnames are pre-
+          // resolved to https:// by the CLI's resolveOpenTarget()
+          // before we ever see them, so this branch is purely about
+          // file:// inputs. See BUG-067 in tasks.md.
+          let routedToEditor = false
+          if (url.startsWith('file://')) {
+            try {
+              const localPath = decodeURI(url.slice('file://'.length))
+              if (fs.existsSync(localPath)) {
+                const editResult = this.nav.edit(localPath)
+                if (editResult.ok) {
+                  result = { ok: true, url, routedTo: 'editor' }
+                  routedToEditor = true
+                }
+              }
+            } catch {
+              // Fall through to the browser path on decode / fs failure.
+            }
+          }
+          if (!routedToEditor) {
+            result = await this.browser.openTab(url)
+          }
           // BUG-048 v2 — explicit BROWSER_FOCUS_GAINED push.
           // BrowserManager.openTab calls webContents.focus() on the new
           // view, which SHOULD fire `webContents.on('focus')` and route
@@ -353,7 +382,11 @@ export class SocketServer {
           // unconditionally here aligns the renderer's tracking with
           // user intent ("the page just opened, attention is here now")
           // independent of OS-focus mechanics.
-          if (this.eventSink) {
+          //
+          // BUG-067 — only fire when the URL actually went to the
+          // browser. Editor-routed opens get their own focus push from
+          // the renderer's NAV_EDIT handler.
+          if (!routedToEditor && this.eventSink) {
             this.eventSink('browser:focus-gained', null)
           }
           break

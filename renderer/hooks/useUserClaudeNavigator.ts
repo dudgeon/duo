@@ -111,7 +111,7 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
       setCuratedRootEntries(null)
       return
     }
-    const wanted = ['CLAUDE.md', 'skills', 'agents']
+    const wanted = ['CLAUDE.md', 'skills', 'agents', 'duo']
     const entries: DirEntry[] = []
     for (const name of wanted) {
       const found = root.find(e => e.name === name)

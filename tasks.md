@@ -4224,9 +4224,10 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### BUG-067: `duo open <path.md>` opens in browser instead of editor
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** Medium (UX mismatch — verb name doesn't match expectation)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+**Shipped:** 2026-05-02 — fix scoped to `core/socket-server.ts § case 'open'`. `duo open` now detects `file://` URLs (the form `cli/duo.ts § resolveOpenTarget` produces for local paths), decodes them to a local path, confirms the file exists on disk, and routes through `NavBridge.edit` — the same path `duo edit` uses, which fans out to the renderer's `openFileSmart`. That smart router already has the per-kind logic: .md / non-HTML → markdown editor (canvas tab), .html WITHOUT `<meta duo-open-in="browser">` → editor, .html WITH the meta → browser pane (BUG-059's dedup applies). Web URLs (http / https / chrome / data / etc.) and unresolvable file:// paths fall through to the original `BrowserManager.openTab` behavior. The `browser:focus-gained` event sink push (BUG-048 v2) is now gated on the browser path only — editor-routed opens get their own focus push via `NAV_EDIT` in the renderer. No CLI-surface change; `duo open` semantics now match user expectation ("do the right thing for the kind of thing I'm pointing at").
 
 **Owner observation (verbatim):** "attempted to open a markdown file via CLI -- failed to perform as expected: `duo open ~/.claude/skills/duo/make-page.md` --> opened in browser; expected behavior -- command would have opened in duo editor"
 
@@ -4285,7 +4286,8 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### ENH-067: "Your Claude settings" section should include `~/.claude/duo/`
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
+**Shipped:** 2026-05-02 — added `'duo'` to the curated entries list in `renderer/components/UserClaudePane.tsx`. Existing render logic already handles missing entries gracefully (the entry hides when `~/.claude/duo/` doesn't exist). One-file change.
 **Priority:** Medium (closes the "Duo's own files are user-Claude context too" framing)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
 
