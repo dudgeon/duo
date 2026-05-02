@@ -11,7 +11,7 @@ sessions with an embedded Chrome browser, connected by a local CLI
 bridge (`duo`) so Claude Code can read and drive the browser as
 naturally as it runs shell commands.
 
-Owner: Geoff (Capital One, AI in Product program).
+Owner: Geoff.
 
 ## Where to look
 
@@ -304,13 +304,13 @@ routed around ad hoc.
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes (project + home) |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
-| Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture). Still ⬜: 21b DMG background image · 21d Trailblazers cohort (socket auth + agent-driven-nav notifications + README). |
+| Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture). Still ⬜: 21b DMG background image · 21d early-adopter cohort (socket auth + agent-driven-nav notifications + README). |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Distribution timeline (Trailblazers cohort) | Before Stage 21d (socket auth + Trailblazers README) |
+| Distribution timeline (early-adopter cohort) | Before Stage 21d (socket auth + early-adopter README) |
 | Socket auth approach for cross-machine cohort distribution | Before Stage 21d |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |
