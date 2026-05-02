@@ -3180,9 +3180,10 @@ Three things this earns us:
 
 ### ENH-038: Smoke-walk page should localStorage-persist textarea contents while walk is in progress
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.3
 **Priority:** **High — data-loss-defense.** Owner just lost ~20 min of typed walk notes when ⌘W collapsed the window (root cause was ENH-037; THIS ENH is the defense-in-depth so the next mishap doesn't lose data either).
 **Filed:** 2026-05-02 (mid-Stage 27 walk-2)
+**Shipped:** 2026-05-02 — `.claude/skills/smoke-walk/generate.mjs` now injects per-version localStorage persistence (`smoke-walk:${version}` key). `captureState()` serializes per-item radio + notes textarea + the misc-notes block; debounced `saveSoon()` (250ms) writes on every input/change anywhere in the page. `applyState()` restores on load — silently no-ops on corrupt JSON. New "Clear saved walk" `btn-ghost` button next to "Copy results" wipes the storage key + resets the form (with confirm to prevent accidental nuke). Storage key is per-version so different walks don't restore each other's state. Cross-Duo-restart-safe because Electron persists localStorage in browser tabs by default. Verified by generating a test manifest — 13 references to STORAGE_KEY/btn-ghost/saveSoon/applyState/clear-saved present in output.
 
 **Why both ENH-037 + this:** ENH-037 plugs the specific cmd+W bug. But the smoke-walk page is the surface where the user types many minutes of structured feedback into many textareas. Any unanticipated mishap — accidental refresh, dev-server crash, OS sleep + lid-close interruption, the page being closed and reopened to test something — will lose that work. The page is meant to ferry walk results; losing them mid-walk is the failure mode.
 

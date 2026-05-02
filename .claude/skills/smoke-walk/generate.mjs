@@ -504,6 +504,17 @@ const html = `<!DOCTYPE html>
     border-color: var(--pass);
   }
   button.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  /* ENH-038 — "Clear saved walk" sits in the footer next to Copy.
+     Lower visual weight so the user reaches for Copy first. */
+  button.btn-ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-mute);
+  }
+  button.btn-ghost:hover {
+    background: var(--paper-deep);
+    color: var(--ink-soft);
+  }
 
   /* ENH-046 — inline code + copyable command blocks inside step
      prose. Inline code is short tokens (e.g. \`PASS\`, \`false\`)
@@ -601,6 +612,7 @@ ${itemsHtml}
   <div class="summary" id="summary"></div>
   <button class="btn" id="mark-all-pass" type="button">Mark all Pass</button>
   <button class="btn btn-primary" id="copy" type="button">Copy results</button>
+  <button class="btn btn-ghost" id="clear-saved" type="button" title="Wipe localStorage state for this walk (use after pasting back to Claude)">Clear saved walk</button>
 </footer>
 
 <script>
@@ -635,6 +647,101 @@ ${itemsHtml}
   document.getElementById('items').addEventListener('change', tally);
   document.getElementById('items').addEventListener('input', tally);
   tally();
+
+  // ENH-038 — persist walk state to localStorage so accidental page
+  // closes / refreshes / unexpected ⌘W collapses (cf. ENH-037) don't
+  // wipe the user's typed notes mid-walk. The storage key is
+  // per-version so different walks (v0.5.7-walk-3 vs v0.6.3-walk-1)
+  // don't restore each other's state.
+  const STORAGE_KEY = 'smoke-walk:' + VERSION;
+
+  function captureState() {
+    const state = { items: {}, misc: '' };
+    for (const it of items) {
+      const id = it.dataset.id;
+      const radio = it.querySelector('input[type=radio]:checked');
+      const notes = it.querySelector('textarea.notes');
+      state.items[id] = {
+        result: radio ? radio.value : null,
+        notes: notes ? notes.value : ''
+      };
+    }
+    const miscEl = document.getElementById('misc-notes');
+    state.misc = miscEl ? miscEl.value : '';
+    return state;
+  }
+
+  function applyState(state) {
+    if (!state || typeof state !== 'object') return;
+    for (const it of items) {
+      const id = it.dataset.id;
+      const slot = (state.items || {})[id];
+      if (!slot) continue;
+      if (slot.result) {
+        const radio = it.querySelector(\`input[type=radio][value="\${slot.result}"]\`);
+        if (radio) radio.checked = true;
+      }
+      if (slot.notes) {
+        const ta = it.querySelector('textarea.notes');
+        if (ta) ta.value = slot.notes;
+      }
+    }
+    if (state.misc) {
+      const miscEl = document.getElementById('misc-notes');
+      if (miscEl) miscEl.value = state.misc;
+    }
+  }
+
+  let saveTimer = null;
+  function saveSoon() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(captureState()));
+      } catch (err) {
+        // localStorage full / disabled / quota exceeded — best-effort.
+        // Walk still works; persistence just won't kick in.
+      }
+    }, 250);
+  }
+
+  // Restore on load. Wrap in try/catch so corrupt JSON (or a future
+  // schema change) doesn't break the page — the worst case is the
+  // user starts from blank.
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      applyState(JSON.parse(raw));
+      tally();
+    }
+  } catch (err) {
+    // ignore
+  }
+
+  // Auto-save on every input or change anywhere on the page. Delegated
+  // listener catches per-item radios, per-item textareas, and the
+  // misc-notes textarea in one go.
+  document.body.addEventListener('input', saveSoon);
+  document.body.addEventListener('change', saveSoon);
+
+  // Clear-saved button — wipes localStorage AND resets the form,
+  // since the user typically clicks this AFTER pasting back to Claude
+  // and wants a clean slate. Confirms first to avoid accidental wipe.
+  document.getElementById('clear-saved').addEventListener('click', () => {
+    if (!confirm('Clear saved walk state and reset the form? This cannot be undone.')) return;
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (err) { /* ignore */ }
+    for (const it of items) {
+      const checked = it.querySelector('input[type=radio]:checked');
+      if (checked) checked.checked = false;
+      const ta = it.querySelector('textarea.notes');
+      if (ta) ta.value = '';
+    }
+    const miscEl = document.getElementById('misc-notes');
+    if (miscEl) miscEl.value = '';
+    tally();
+  });
 
   // ENH-046 — wire up the per-command Copy buttons inside step
   // prose. Reads the command from data-cmd, writes it to the
