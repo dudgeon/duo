@@ -227,16 +227,28 @@ export function captureFormValue(doc: Document, selector: string | undefined): u
     return undefined
   }
   if (!el) return undefined
-  if (el instanceof HTMLInputElement) {
-    if (el.type === 'checkbox' || el.type === 'radio') return el.checked
-    return el.value
+  // Cross-realm safety: the doc is the iframe's Document, which has its
+  // OWN HTMLInputElement / HTMLTextAreaElement / HTMLSelectElement
+  // constructors distinct from the parent renderer's. `el instanceof
+  // HTMLInputElement` evaluates `instanceof` against the PARENT's
+  // constructor and returns false even when the element IS an input —
+  // a classic same-origin-different-realm gotcha. Tag-name checks side-
+  // step the issue entirely. Discovered during the Stage 27 smoke walk
+  // (V9/V10 emitted but with empty payload because the instanceof
+  // check fell through).
+  const tag = el.tagName
+  if (tag === 'INPUT') {
+    const input = el as HTMLInputElement
+    if (input.type === 'checkbox' || input.type === 'radio') return input.checked
+    return input.value
   }
-  if (el instanceof HTMLTextAreaElement) return el.value
-  if (el instanceof HTMLSelectElement) {
-    if (el.multiple) {
-      return Array.from(el.selectedOptions).map(opt => opt.value)
+  if (tag === 'TEXTAREA') return (el as HTMLTextAreaElement).value
+  if (tag === 'SELECT') {
+    const sel = el as HTMLSelectElement
+    if (sel.multiple) {
+      return Array.from(sel.selectedOptions).map(opt => opt.value)
     }
-    return el.value
+    return sel.value
   }
   return undefined
 }
