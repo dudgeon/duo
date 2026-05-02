@@ -338,6 +338,23 @@ distinct step in the same item — not a separate item.
 the top so they get attention while the user is fresh. Scope-creep
 ENHs at the bottom.
 
+**Mandatory regression items (every release).** These are bugs
+that have recurred multiple times across walks. Each release's
+manifest MUST include them, with explicit verification steps.
+
+- **BUG-056** — Send → Duo pill on browser pane should NOT appear
+  when there's no active Claude session. Steps: (a) close ALL
+  Claude tabs in the terminal pane (only shell tabs left); (b)
+  open ANY browser tab (faq.html, smoke walk page, anything);
+  (c) select text in the page; (d) confirm the in-page pill does
+  NOT render. Owner has reported this recurringly across walks;
+  the gating is in `cdp-bridge.ts § showPillFor` reading
+  `window.__duoClaudeLive` which `setClaudeLive(state)` flips
+  from main when claude-presence changes. Re-test on every cut.
+
+(Add new mandatory items here when a bug recurs across two
+releases — that's the smell.)
+
 **Code blocks + Copy buttons (ENH-046 — 2026-05-02 walk-2).** Any
 shell command, code snippet, or file path the user is expected to
 COPY-AND-RUN must be wrapped in single backticks in its step
