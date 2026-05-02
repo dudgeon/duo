@@ -222,6 +222,31 @@ export class BrowserManager {
   }
 
   async openTab(url = newTabUrl()): Promise<{ ok: true; id: number; url: string; title: string }> {
+    // BUG-059 (carryover from walk-1) — `duo open` goes through this
+    // method, NOT through the renderer's openFileSmart. The renderer-
+    // side dedup (App.tsx) catches user-initiated opens (clicking a
+    // file in the navigator), but it never sees CLI calls. Dedup here
+    // for file:// URLs so repeated `duo open <path>` calls switch to
+    // the existing tab instead of stacking duplicates. http(s)://
+    // URLs stay duplicate-allowed (multiple tabs for the same site is
+    // a legitimate browser pattern; only file:// represents a single
+    // canonical local file). The walk-1 owner observation was two
+    // smoke-walk pages and two FAQ tabs after repeated `duo open`s
+    // across Duo restarts — every restart's session-restore brought
+    // back the prior tab, then the next `duo open` added another.
+    if (url.startsWith('file://')) {
+      const existing = this.tabs.find(t => t.view.webContents.getURL() === url)
+      if (existing) {
+        await this.switchTab(existing.id)
+        existing.view.webContents.focus()
+        return {
+          ok: true,
+          id: existing.id,
+          url: existing.view.webContents.getURL() || url,
+          title: existing.view.webContents.getTitle() || ''
+        }
+      }
+    }
     const entry = this.addTab(url)
     await this.switchTab(entry.id)
     // BUG-048 — pull OS-level keyboard focus to the new tab so the

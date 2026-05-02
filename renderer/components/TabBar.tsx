@@ -96,7 +96,7 @@ export function TabBar({
       <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
         <button
           onClick={onNewClaude}
-          className="w-7 h-6 flex items-center justify-center hover:bg-surface-3 transition-colors"
+          className="w-7 h-6 flex items-center justify-center text-ink-mute hover:text-ink hover:bg-surface-3 transition-colors"
           title={claudeTip}
           aria-label={claudeTip}
         >
@@ -232,24 +232,31 @@ function ClaudeIcon({ active }: { active: boolean }) {
 // ENH-044 — clawd glyph for the new-Claude split-button affordance.
 // Source: Inkscape canvas authored by Geoff (`renderer/assets/icons/clawd.svg`).
 // Cropped from the original 210mm × 297mm A4 canvas to the creature's
-// bounding box. The fixed `#c15f3c` body color (Atelier accent family)
-// is preserved as the icon's visual identity — this is intentional;
-// clawd reads as "Claude" in both themes regardless of currentColor.
-// If a button hover wants to tint, do it via a wrapper opacity, not
-// by switching fills. Eyes are pure white pixels (96×96 each in the
-// original coord system).
+// bounding box.
+//
+// v0.6.3 follow-up — two fixes from walk-1 owner notes:
+//   1. The previous viewBox (y=38.2, h=22.4) cut off the top ~3 units
+//      of the creature — the body's MIN y is 1122.52 (transformed:
+//      35.05), not 1218 as I'd misread. Corrected to (27 35 39 26)
+//      so the full silhouette renders with no clipping.
+//   2. Switched body fill from fixed #c15f3c to currentColor so the
+//      glyph follows the button's text color (text-ink-mute → text-ink
+//      on hover) — matches the Atelier convention used by every other
+//      icon in the strip (Plus, Right Caret, ClaudeIcon, TerminalIcon).
+//      The owner note: "should not be orange — should match rest of
+//      atelier buttons." Eyes stay white as visual cutouts.
 function ClawdGlyph() {
   return (
     <svg
-      width="16"
+      width="14"
       height="9"
-      viewBox="27.4 38.2 38.3 22.4"
+      viewBox="27 35 39 26"
       aria-hidden="true"
     >
       <g transform="matrix(0.03329941,0,0,0.03329941,60.408867,-2.3441801)">
         <path
           d="m -31.782336,1890.5197 v -384 H 160.21767 v -192 H -31.782336 v -192 H -799.78233 v 192 h -192.00002 v 192 h 192.00002 v 384 h 96 v -192 h 96 v 192 h 96 v -192 h 192 v 192 h 96 v -192 h 96 v 192 z"
-          fill="#c15f3c"
+          fill="currentColor"
         />
         <path d="m -223.78233,1314.5197 v -96 h 96 v 96 z" fill="#ffffff" />
         <path d="m -607.78233,1218.5197 v 96 h -96 v -96 z" fill="#ffffff" />

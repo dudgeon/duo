@@ -36,6 +36,34 @@ export const Breadcrumb = forwardRef<BreadcrumbHandle, BreadcrumbProps>(
     const [error, setError] = useState<string | null>(null)
     const inputRef = useRef<HTMLInputElement | null>(null)
 
+    // BUG-065 fix — these two hooks USED to live below the
+    // `if (editing) return ...` early-return guard. That violated
+    // React's Rules of Hooks: when `editing` flipped false → true,
+    // the hook count dropped from 7 to 5, and React threw "Rendered
+    // fewer hooks than expected" — collapsing the entire React tree
+    // to a blank window (no ErrorBoundary in the renderer until
+    // v0.6.3). The bug had been latent since Stage 26 PR 3 (v0.5.4)
+    // when ⌘⇧G shipped — every press silently blanked the app.
+    // ALL hooks must be declared at the top of the component, in
+    // the same order on every render. The scrollerRef + useEffect
+    // are now safe to read here even when `editing` is true: the
+    // effect's `if (!el) return` guard handles the case where the
+    // editing-branch JSX doesn't render the ref'd <div>.
+    const scrollerRef = useRef<HTMLDivElement | null>(null)
+    useEffect(() => {
+      const el = scrollerRef.current
+      if (!el) return
+      // Two rAFs — first lets layout settle after the segment array
+      // mounts, second commits the scroll. Single rAF was racing the
+      // truncation/measurement on first paint for some paths.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!scrollerRef.current) return
+          scrollerRef.current.scrollLeft = scrollerRef.current.scrollWidth
+        })
+      })
+    }, [cwd])
+
     useImperativeHandle(ref, () => ({
       focusEdit: () => {
         startEdit()
@@ -132,26 +160,14 @@ export const Breadcrumb = forwardRef<BreadcrumbHandle, BreadcrumbProps>(
       )
     }
 
-    const segments = breadcrumbSegments(cwd, home)
     // ENH-029 — pan the breadcrumb all the way right on mount and on
     // every cwd change so the active (last) segment is visible by
     // default. Without this, deep paths show "~/Documents/..." with
     // the user's actual current folder scrolled off the right edge.
     // Pairs with the bolder weight on the last segment below.
-    const scrollerRef = useRef<HTMLDivElement | null>(null)
-    useEffect(() => {
-      const el = scrollerRef.current
-      if (!el) return
-      // Two rAFs — first lets layout settle after the segment array
-      // mounts, second commits the scroll. Single rAF was racing the
-      // truncation/measurement on first paint for some paths.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (!scrollerRef.current) return
-          scrollerRef.current.scrollLeft = scrollerRef.current.scrollWidth
-        })
-      })
-    }, [cwd])
+    // (scrollerRef + useEffect lifted to the top of the component
+    //  for BUG-065; see comment above.)
+    const segments = breadcrumbSegments(cwd, home)
     return (
       <div
         ref={scrollerRef}

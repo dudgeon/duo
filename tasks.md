@@ -3569,10 +3569,12 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-059: Multiple working-pane tabs can open for the same local file path (should de-dupe)
 
-**Status:** ✅ Shipped v0.6.3
+**Status:** ✅ Shipped v0.6.3 (renderer-side + CLI-side carryover both fixed)
 **Priority:** Medium (UX paper-cut + memory waste). Owner observation 2026-05-02.
 **Filed:** 2026-05-02 (idle-thoughts.md item)
-**Shipped:** 2026-05-02 — fix scoped to `renderer/App.tsx § openFileSmart` for browser-routed local files. The canvas-side `openFile` was already de-duping correctly (existing `prev.find(t => t.path === path)` check). The leak was on the browser-route path: when a file with `<meta duo-open-in="browser">` was opened twice (FAQ, What Duo Does, user-authored HTML routed via meta), `browser.addTab(fileUrl)` was called unconditionally. Fix: before adding, scan `browser.getTabs()` for an existing tab whose URL matches the constructed `file://` URL; switch to it via `browser.switchTab(id)` if found. file:// URLs only — `http(s)://` URLs stay duplicate-allowed (multiple tabs for the same site is a legitimate browser pattern). The cross-kind case (foo.html opened once as canvas + once as browser) stays accepted; only within-kind dedup applies.
+**Shipped (rev1):** 2026-05-02 — fix scoped to `renderer/App.tsx § openFileSmart` for browser-routed local files. The canvas-side `openFile` was already de-duping correctly (existing `prev.find(t => t.path === path)` check). The leak was on the browser-route path: when a file with `<meta duo-open-in="browser">` was opened twice (FAQ, What Duo Does, user-authored HTML routed via meta), `browser.addTab(fileUrl)` was called unconditionally. Fix: before adding, scan `browser.getTabs()` for an existing tab whose URL matches the constructed `file://` URL; switch to it via `browser.switchTab(id)` if found.
+**Shipped (rev2 — walk-1 carryover):** 2026-05-02 — walk-1 surfaced that `duo open` from the CLI was STILL stacking duplicates (owner saw two smoke-walk tabs and two FAQ tabs after repeated opens across Duo restarts). Root cause: rev1 only deduped at `renderer/App.tsx § openFileSmart`, which handles user-initiated opens (clicking a file in the navigator). The CLI verb `duo open <path>` routes through `core/socket-server.ts § case 'open'` → `BrowserManager.openTab`, which never sees the renderer-side dedup. Rev2 ports the same dedup into `BrowserManager.openTab`: before `addTab`, scan `this.tabs` for an existing entry with matching `file://` URL; if found, `switchTab` + `webContents.focus()` instead of stacking. http(s):// URLs stay duplicate-allowed.
+**Note (separate concern from this BUG):** walk-1 also surfaced "two FAQs" — `~/.claude/duo/help/faq.html` (installed copy) and `~/Documents/GitHub/duo/help/faq.html` (source repo). These are two DIFFERENT files at two different paths; the dedup fix is per-path so they correctly count as distinct. The "we should not be maintaining two FAQs" complaint is a structural issue (install service writing source duplicates instead of symlinks) — filed separately as ENH-070 below.
 
 **Repro:**
 1. Open `~/some/file.md` via `duo edit`.
@@ -3899,6 +3901,68 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 **Cross-ref:** ENH-046 (smoke-walk Copy buttons); the W3-V5 step that surfaced this.
 
+---
+
+### BUG-064: Trash + pinned-close confirmation modals occluded by WCV when a browser tab is active
+
+**Status:** 🆕 Filed
+**Priority:** Medium-high (visible during v0.6.3 walk-1; blocks completing the "delete a tab" path while smoke-walk page is up)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner observation)
+
+**Owner observation (verbatim):** "tried to context click delete a markdown editor tab while smoke walk html was active; strange confirmation occlusion and inconsistent viewport dimming"
+
+**Repro (from walk-1 screenshot):**
+1. Open the smoke-walk page (or any browser-pane tab) and have it as the active working tab.
+2. Right-click any file tab → "Move to Trash…".
+3. **Observed:** the confirmation dialog appears centered, but the right portion is clipped. The visible text reads "Move to T" and "delete-me / will close." with no Cancel / Trash buttons reachable. The viewport dimming is also patchy — fully present on parts of the screen, missing where the WCV is visible.
+
+**Expected:** the confirmation dialog renders fully on top of all panes (terminal, navigator, working pane regardless of kind) with consistent dimming behind it.
+
+**Root cause:** same WCV-occlusion family as BUG-058 (WorkingTabStrip context menu), BUG-047 (right-click context menu), BUG-006 (Send → Duo pill). The macOS native subview compositor paints `WebContentsView` above all renderer DOM regardless of z-index, so any portal-rendered modal that intersects the WCV's bounds gets clipped where they overlap.
+
+**Where it lives:**
+- `WorkingTabStrip.tsx § confirmTrash` state — opens `<PinnedCloseConfirm>`-style modal (or the nearby trash-confirm component) via portal. Need to verify which component file actually renders the trash confirm modal — there are two: `PinnedCloseConfirm.tsx` (for ⌘W on a pinned tab) and likely a similar one for `Move to Trash…`.
+- `BrowserManager.setOverlayMuted(muted)` — already exists, used by BUG-058's context-menu fix.
+
+**Fix path (same pattern as BUG-058):**
+1. When the trash confirm modal opens AND any active working tab is `kind: 'browser'`, call `window.electron.browser.setOverlayMuted(true)` to shrink the WCV bounds to 1×1 so it doesn't paint over the modal area.
+2. On modal close (Confirm OR Cancel OR Escape OR outside-click), call `setOverlayMuted(false)` to restore.
+3. Same treatment for the pinned-close confirm modal — both have the same occlusion risk and ought to share the mute pattern.
+
+**Mandatory in this fix:** the existing `handleContextMenu` mute (BUG-058) already fires on right-click; the menu item "Move to Trash…" then opens the modal AFTER the menu closes. So the mute may already be active when the modal opens — verify this. If it is, the issue is that the menu's `onClose` handler unmutes BEFORE the modal opens, leaving a window during which the WCV is back over the renderer DOM. Sequence to verify:
+   - Right-click → menu opens → mute fires
+   - Click "Move to Trash…" → menu's onClose fires → unmute fires (WCV back)
+   - confirmTrash state set → modal renders → BUG visible
+
+If that's the sequence, the fix is to skip the unmute on outcomes that immediately spawn another modal — pass a "next-step" hint through the click handler, or have the modal itself fire the mute on mount.
+
+**Cross-ref:** BUG-058 (parent of WCV-mute-on-modal pattern), BUG-006 (in-page pill — different but same family), ENH-050 (capturePage snapshot overlay — would supersede the mute pattern entirely if it lands first).
+
+---
+
+### BUG-065: ⌘⇧G in navigator triggers blank screen (Rules-of-Hooks violation in Breadcrumb)
+
+**Status:** ✅ Shipped v0.6.3 (root cause identified + fixed; ErrorBoundary stays as defense-in-depth)
+**Priority:** **High — blank screen was a hard stop; user couldn't continue any task.**
+**Filed:** 2026-05-02 (Sprint 1 walk-1, mid-walk; recurred after the dual-instance blank earlier)
+**Shipped:** 2026-05-02 — root cause: classic Rules-of-Hooks violation in `renderer/components/Breadcrumb.tsx`. Two hooks (`scrollerRef = useRef(...)` and the `useEffect([cwd])` that pans the breadcrumb on cwd change) lived BELOW the `if (editing) return <input>...` early-return guard. When `editing` flipped false → true (via ⌘⇧G or clicking the empty area of the breadcrumb), those two hooks stopped being called and React threw "Rendered fewer hooks than expected. This may be caused by an accidental early return statement." The thrown error collapsed the entire React tree to its root — manifested as a blank window because there was no ErrorBoundary anywhere in the renderer until earlier in this same sprint. Fix: lifted both hooks to the top of the component above the conditional return; the useEffect's existing `if (!el) return` guard handles the case where the editing-branch JSX doesn't render the ref'd `<div>`. **Latent since v0.5.4** — every prior ⌘⇧G press has been silently blanking the app; users likely just relaunched without noting the cause. The ErrorBoundary (also shipped v0.6.3) made it visible by surfacing the actual error message instead of a blank window, which is what unblocked the diagnosis.
+
+**Owner observation (verbatim):** "new blanking issue: entered navigator, hit cmd-shift-g, and triggered blank screen (same as prior)" / [after ErrorBoundary made it visible] "cmd shift g cause another crash -- you need to figure this out; cmd-shift-g is a normal, instinctive way to get to a file path, especially when my smoke walks contain paths that are not clickable"
+
+**Captured error from the boundary** (the diagnostic that unblocked the fix):
+```
+Error: Rendered fewer hooks than expected. This may be caused by an accidental early return statement.
+  at Breadcrumb (http://localhost:5173/components/Breadcrumb.tsx:21:28)
+  at FilesPane (http://localhost:5173/components/FilesPane.tsx:25:3)
+  at App (http://localhost:5173/App.tsx:142:15)
+  at ErrorBoundary (http://localhost:5173/components/ErrorBoundary.tsx:7:5)
+```
+
+**Mitigation kept as defense-in-depth:** the new `ErrorBoundary` component at `renderer/components/ErrorBoundary.tsx` wraps the React root in `main.tsx`. Future render errors of any class will surface as visible fallback panels (with message + stack + Reload button) instead of blanking the window. The window-level `error` / `unhandledrejection` listeners stay too. This is the new floor — any future "blank screen" report should now have a captured error message instead of being a black box.
+
+**Cross-ref:** dual-instance blank earlier in the same walk (different cause, same symptom — both surfaced the vulnerability that the boundary now plugs).
+
+---
 
 ### ENH-051: Enterprise distro setting to toggle which packs auto-install + auto-open
 
@@ -4139,4 +4203,170 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 **v1 scope:** template + runtime helper section in `lesson-runtime.md` describing the curriculum case alongside the linear case. Update `make-playground.md § Lessons specifically` to mention "two shapes — linear (use lesson-template) or curriculum (use curriculum-template)."
 
 **Cross-ref:** ENH-053 (linear lesson template that this extends); `packs/claude-code-basics/` (the existing multi-canvas pack that prompted this — its events are now `lesson:`-prefixed in v0.6.1, but its structure should migrate to this template once it exists).
+
+---
+
+### BUG-066: Clawd glyph clipped on top edge + uses fixed orange instead of currentColor
+
+**Status:** ✅ Shipped v0.6.3
+**Priority:** Low (cosmetic; visible in walk-1)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+**Shipped:** 2026-05-02 — two issues in `renderer/components/TabBar.tsx § ClawdGlyph` from ENH-044's initial pass:
+1. **Top clipping** — the original SVG path's MIN y is 1122.52 (transformed: 35.05), not 1218 as I'd misread when computing the cropped viewBox. The viewBox `27.4 38.2 38.3 22.4` cut off ~3 units at the top of the creature. Corrected to `27 35 39 26` so the full silhouette renders.
+2. **Fixed orange** — the body fill was hardcoded `#c15f3c`, ignoring the button's text color. Owner: "should not be orange — should match rest of atelier buttons." Fix: switched body to `fill="currentColor"`. The button now has the standard `text-ink-mute hover:text-ink` class so the glyph follows that pattern (matches Plus, Right Caret, ClaudeIcon, TerminalIcon all in the same strip). Eyes stay `#ffffff` as visual cutouts that read against any body color.
+
+---
+
+### BUG-067: `duo open <path.md>` opens in browser instead of editor
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX mismatch — verb name doesn't match expectation)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "attempted to open a markdown file via CLI -- failed to perform as expected: `duo open ~/.claude/skills/duo/make-page.md` --> opened in browser; expected behavior -- command would have opened in duo editor"
+
+**Repro:**
+1. Run `duo open ~/.claude/skills/duo/make-page.md` from a terminal.
+2. **Observed:** the .md file opens as a browser tab (file:// URL).
+3. **Expected:** opens in the markdown editor (a canvas tab on the working pane), the way clicking the file in the navigator would.
+
+**Root cause:** `core/socket-server.ts § case 'open'` routes unconditionally to `BrowserManager.openTab(url)`, which always lands the URL in the browser pane. The CLI verb `duo open` is currently semantically "open URL in browser pane." There's a separate `duo edit <path>` verb that opens in the editor — but the user's mental model is "open does the right thing for the file kind."
+
+**Three fix paths:**
+1. **Make `duo open` smart** — for local file paths, route through the same logic as `openFileSmart` (HTML files honor `<meta duo-open-in>`, .md files open in editor, etc.). For URLs (http/https), keep the browser-pane semantics. **Recommended.** Matches the renderer-side UX one-to-one.
+2. **Add a new `duo show <path>` verb** that's the smart one; keep `duo open` as browser-only. Makes the semantics explicit but adds another verb to learn.
+3. **Document `duo edit <path>` as the editor-routing verb.** No code change. Fragile — relies on muscle memory of two verbs.
+
+**Cross-ref:** BUG-059 (renderer + CLI dedup; same path-handling family); `core/socket-server.ts § case 'open'`; `App.tsx § openFileSmart` (the renderer-side smart routing).
+
+---
+
+### BUG-068: New-tab buttons in working-pane tab strip get hidden when panned far / many tabs (terminal strip is sticky)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (workflow paper-cut — when you have many tabs you most need the new-tab button, but it scrolls off)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "current handling of new tab buttons is inconsistent -- for terminal pane, buttons for new claude session/new vanilla terminal are sticky/always visible; for new canvas tab, they are not and can be hidden when we are panned too far left/have many tabs; prefer sticky"
+
+**Where it lives:**
+- `renderer/components/TabBar.tsx` (terminal strip) — split-button (`[clawd]` + `[>]`) sits OUTSIDE the `overflow-x-auto` scroller, so it's pinned to the right edge of the strip regardless of how many tabs / how far the user pans. ✓ Correct behavior.
+- `renderer/components/WorkingTabStrip.tsx` (working pane strip) — the new-tab split button (`[+]` + `[>]`) is INSIDE the `overflow-x-auto` scroller, so when there are enough tabs to overflow horizontally, the buttons disappear off-screen as the user scrolls.
+
+**Fix:** restructure `WorkingTabStrip.tsx` to mirror TabBar's pattern — separate the scrolling tab list from the right-edge new-tab cluster. Wrap the tab map in a `flex-1 overflow-x-auto` div, then place the new-tab cluster as a sibling outside that overflow container. The cluster stays pinned regardless of scroll position.
+
+**Cross-ref:** TabBar.tsx (the reference implementation that does this correctly); ENH-024 (active-tab scroll-into-view, which already handles the "active tab visible" half of strip ergonomics).
+
+---
+
+### ENH-066: Collapsed-pane vertical bar with icon (discovery affordance for ENH-040)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (extends ENH-040 with discovery; owner specifically asked for this in walk-1)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "I don't love those buttons or where they are placed, so we should add that as a polish item for the future / collapsed state should include a vertical bar with icon, like the navigator's collapsed state, allowing easier discovery and expansion"
+
+**What's wanted:** when a pane is fully collapsed (terminal at 0% or canvas at 0%), the seam should NOT be a 0-width nothing — it should be a thin vertical bar (~24-44px) with an icon hint indicating the collapsed pane. Click the bar OR drag it to restore. Mirrors the `CollapsedRail` pattern that the file navigator already uses for its collapsed state (see `FilesPane.tsx § CollapsedRail`).
+
+**Scope (rough):**
+1. When `splitPct === 0` OR `splitPct === 100`, render a `CollapsedRail`-style vertical bar in the collapsed pane's slot instead of an actual 0-width column.
+2. Bar contains a small icon (terminal mark for the collapsed terminal; canvas mark for the collapsed canvas) and acts as a click target → calls `toggleCollapseTerminal` / `toggleCollapseCanvas`.
+3. The titlebar buttons from ENH-040 stay (different mental model: "I want to deliberately collapse this" vs. the bar's "I'd forgotten this pane existed; let me get it back"). Owner's framing: "I don't love those buttons or where they are placed" — when the bar lands, we may also rethink the titlebar buttons (drop or move them — separate decision).
+
+**Cross-ref:** ENH-040 (the parent collapse mechanism this extends); `FilesPane.tsx § CollapsedRail` (the visual / interaction pattern to mirror).
+
+---
+
+### ENH-067: "Your Claude settings" section should include `~/.claude/duo/`
+
+**Status:** 🆕 Filed
+**Priority:** Medium (closes the "Duo's own files are user-Claude context too" framing)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "your claude settings section should include duo/"
+
+**Context:** `UserClaudePane.tsx` (top of the navigator) curates `~/.claude/` showing CLAUDE.md, skills/, agents/. Today it does NOT show `~/.claude/duo/` — but Duo's pack files, external-domains config, priming.md, lesson state, install receipts, and help HTMLs all live under `~/.claude/duo/`. Surfacing it makes the "Duo is part of your user-level Claude context" story complete and gives the user a navigator-side path to the help files / packs / priming customization.
+
+**Implementation:** add `'duo'` to the curated entry list in `UserClaudePane.tsx` (alongside `CLAUDE.md`, `skills`, `agents`). Same tree-row interaction model. Test: opens at `~/.claude/duo/` if it exists; hidden if absent (e.g. for users who haven't run the install).
+
+**Cross-ref:** Stage 22 (UserClaudePane initial implementation); `~/.claude/duo/` ownership (Stage 18 install service); ENH-045a (sibling navigator polish — the "Project Claude context" section).
+
+---
+
+### ENH-068: Browser-tab `>` glyph should be a globe (or browser-like icon)
+
+**Status:** 🆕 Filed
+**Priority:** Low (cosmetic)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "current button for new browser tab is `>`, should be something more obviously browser like -- like a globe image or something"
+
+**Context:** `WorkingTabStrip.tsx` and `TabBar.tsx` both have a `>` chevron as the secondary half of their split-button. In TabBar the `>` opens a vanilla shell tab — meaning is "secondary, less-default." In WorkingTabStrip the `>` opens a NEW BROWSER TAB — but `>` doesn't suggest "browser." A globe / world icon would be clearer.
+
+**Scope:**
+1. New `BrowserGlyph` component (sibling of `ClawdGlyph`) — small globe SVG.
+2. Replace the `>` in `WorkingTabStrip.tsx`'s secondary half. Keep `>` in TabBar.tsx (semantically correct there: "the lesser-used shell-tab option").
+3. Sizing + currentColor + Atelier convention same as the rest.
+
+**Cross-ref:** ENH-044 (clawd glyph for the Claude side); BUG-066 (clawd glyph corrections — same convention).
+
+---
+
+### ENH-069: Toggle-able line numbers in markdown editor
+
+**Status:** 🆕 Filed
+**Priority:** Low-medium (handy for code-heavy docs; not blocking)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "toggle-able line numbers in .md editor"
+
+**Context:** TipTap-backed markdown editor doesn't show line numbers today. For docs that lean code-heavy (or just for orientation while editing long files), a toggleable line-number gutter would be useful. Some users prefer it on, others off — a per-tab or global toggle (View menu? Editor settings?) lets users pick.
+
+**Scope (rough):**
+1. Decide global vs per-tab toggle. Lean global (consistent across tabs).
+2. Persistence: localStorage, key like `duo:editor-line-numbers`.
+3. Implementation: TipTap doesn't have a built-in line-number plugin; need to either author a ProseMirror plugin (similar to `FindHighlight`) that paints decorations with line numbers in the gutter, OR use a CSS pseudo-element approach.
+4. UI: View menu item "Show line numbers" with a checkmark when on. Keyboard chord (e.g. ⌘⇧L) optional v2.
+
+**Cross-ref:** Stage 11 (markdown editor PRD); existing TipTap extensions in `renderer/components/editor/extensions/`.
+
+---
+
+### ENH-070: Avoid maintaining two FAQs — symlink or single-source the install copy
+
+**Status:** 🆕 Filed
+**Priority:** Medium (drift risk — the source-repo and installed-copy FAQs WILL diverge over time)
+**Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
+
+**Owner observation (verbatim):** "we should not be maintaining two FAQs"
+
+**Context:** Walk-1 surfaced that the user has TWO FAQ files visible:
+- `~/Documents/GitHub/duo/help/faq.html` (source repo, edited during dev)
+- `~/.claude/duo/help/faq.html` (installed copy, written by `electron/install-service.ts` on first launch / Refresh)
+
+These are two distinct files at two distinct paths. The cut-version skill's Step 4 lists `help/faq.html (in repo, NOT the ~/.claude/duo/help/ copy)` as the canonical edit target; the install service then copies it to the user's `~/.claude/duo/help/` on next launch. So the "two files" pattern is intentional — but easy to forget mid-edit (edit the installed copy, lose changes on next install) and confusing to see both in the navigator.
+
+**Three fix paths:**
+1. **Symlink** `~/.claude/duo/help/faq.html` → source repo's `help/faq.html` IN DEV ONLY. Production users still get a real copy from the install bundle. Cleanest dev story; production unchanged.
+2. **Hide the installed copy from the navigator** when running in dev mode (when both paths exist and are byte-identical). Doesn't fix the divergence risk, just hides the symptom.
+3. **Reverse the source-of-truth direction** — ship the FAQ as a build artifact (write it to `~/.claude/duo/help/` only) and have dev mode `npm run dev` open it from the user's home. Removes the in-repo copy entirely. Pure but requires more lifecycle wiring.
+
+**Recommended:** path 1 — dev-only symlink during install. The user's two-FAQ visibility goes away in dev (they edit one file, the symlink reflects it everywhere); production users still get a packaged copy. `electron/install-service.ts` § install path: when `app.isPackaged === false` AND the source repo is detectable, symlink instead of copy.
+
+**Cross-ref:** Stage 18 install service; `cut-version` skill Step 4 (the manual edit-the-source-not-the-copy convention this would obviate); BUG-059 (the symptom that exposed this — dedup is per-path, so two-files-same-content reads as two distinct things).
+
+---
+
+### Discussion-only: location of `agents/duo.md` (project root vs `.claude/agents/`)
+
+**Owner observation (verbatim):** "why is the duo agent definition here `/Users/geoffreydudgeon/Documents/GitHub/duo/agents/duo.md` and not in here `/Users/geoffreydudgeon/Documents/GitHub/duo/.claude` ?"
+
+**Answer:** `agents/duo.md` at the project root is the SOURCE-OF-TRUTH that the install service ships. On `npm run sync:claude` (dev) and on the Stage 18 install banner (production), it's copied to `~/.claude/agents/duo.md` — which IS where Claude Code reads agent definitions from. So the user-Claude-side "where Claude reads it" is `.claude/agents/`, but the in-repo source is `agents/`.
+
+**Could it move to `.claude/agents/duo.md` in the repo?** Yes — `.claude/` at the project root is itself a valid Claude-Code-recognized location, and the install service could pick it up from there. Pros: consistency with the user-level layout. Cons: project-root `.claude/` is currently for project-specific Claude config (settings, hooks, etc.), and mixing distributable agent-definitions with project-config is conceptually muddled. The repo's current layout (`agents/`, `skill/`, `packs/` all at root) treats those as "things Duo ships TO users" — a clean ship-source layout.
+
+Filed as a discussion item, not a task. No code change unless the owner picks a direction.
+
+---
 
