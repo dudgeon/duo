@@ -41,6 +41,9 @@ bugs / ENHs queued.
 | `b28ec13` | **fix(stage-27)** cross-realm `instanceof` bug — V9/V10 form-input capture. |
 | `322d540` | Bump `package.json` 0.5.5 → 0.6.0 for the active arc. |
 | `4bae62e` | **fix(menu) ENH-037** — ⌘W only closes tabs, never the parent window. (Filed AND shipped same commit.) |
+| `a46ec23` | docs: BUG-051 + ENH-038/039/040/041/042 filed; "canvas" terminology in CLAUDE.md; smoke-walk skill restart warning |
+| `aede644` | **fix(v0.5.5-carryover)** — BUG-006/049/050 + ENH-032 + `shared/feature-flags.ts` + smoke-walk generator `duo-open-in` meta. Folds the v0.5.5 sprint into v0.6.0 cut. |
+| `28b6eca` | **fix(stage-17) BUG-051** — read-only canvas toggle now actually reverts. `RenderedCanvas § wire()` explicit `else` branch clears edit-mode body attributes on re-mount under `readOnly: true`. |
 
 ## Smoke walk status
 
@@ -90,7 +93,7 @@ queued five new tasks before re-attempting the walk.
 | ENH-040 | Filed | Collapse-pane button — hide terminal column or canvas (right pane) |
 | ENH-041 | Filed | Split the canvas (right pane) into side-by-side panels |
 | ENH-042 | Filed | Tab reordering — move a tab left / right |
-| **BUG-051** | **Filed (high priority)** | Read-only canvas toggle stuck after toggle off → on → off. Interferes with the smoke walk; suspect `RenderedCanvas` `readOnly` prop not propagating to `contentEditable` flips. |
+| **BUG-051** | **✅ Shipped (`28b6eca`)** | Read-only canvas toggle stuck after toggle off → on → off. Root cause: `RenderedCanvas § wire()` only ADDED edit-mode body attributes; never removed them on flip-back. Fix: explicit `else` branch clears `contenteditable` / `spellcheck` / `data-duo-canvas-runtime` and blurs active element. |
 
 **Terminology clarification (folded into CLAUDE.md glossary):** when
 the user says **"the canvas"** they mean the right pane (slot),
@@ -105,15 +108,13 @@ slot sense; CLAUDE.md § Glossary documents.
 1. **Finish the user-side smoke walk.** Manifest `v0.6.0-stage-27-rev1.json`
    is in `docs/dev/smoke-walks/`. User clicks Pass/Fail/Skip + notes,
    pastes back, I parse and update statuses. **Re-test V9 + V10
-   specifically** — those should now PASS after `b28ec13`.
-2. **Fix BUG-051 (read-only stuck)** — owner hit it during the walk;
-   directly user-visible. High priority before cut.
-3. **v0.5.5 carry-over fixes** still in working tree
-   (BUG-006/049/050/047/028, ENH-032 + auto-inject feature flag,
-   smoke-walk generator `duo-open-in` change). Not yet committed —
-   need their own clean commit before the cut.
+   specifically** — those should now PASS after `b28ec13`. Also
+   re-test the read-only toggle on V11/V12 — `28b6eca` should make
+   the off → on → off flow behave correctly now.
+2. ~~**Fix BUG-051 (read-only stuck)**~~ — ✅ Shipped (`28b6eca`).
+3. ~~**v0.5.5 carry-over fixes**~~ — ✅ Committed (`aede644`).
 4. **CHANGELOG / RELEASES.md drafting** for v0.6.0 covering Stages
-   27 + 18b + 28 + the carry-overs + ENH-037 + the fix commits.
+   27 + 18b + 28 + the carry-overs + ENH-037 + BUG-051 + the fix commits.
 
 ## Where the formal plan lives
 
@@ -127,10 +128,11 @@ slot sense; CLAUDE.md § Glossary documents.
 | `tasks.md` | All filed bugs + ENHs |
 | `CLAUDE.md § Glossary` | "canvas" = right pane (user vocabulary) |
 
-## Pending v0.5.5 fixes — folded into v0.6.0 at next cut
+## v0.5.5 carry-over fixes — committed `aede644`, fold into v0.6.0 cut
 
-The drafted v0.5.5 release notes are stashed in
-`docs/RELEASES.md § Pending — not yet cut`. Includes:
+Now committed; release notes still stashed in
+`docs/RELEASES.md § Pending — not yet cut` until folded into the
+v0.6.0 cut entry. Includes:
 - BUG-006 (Send → Duo pill on browser pane — Path b CDP injection + v2 race fix)
 - BUG-049 (trash dialog wording fix)
 - BUG-050 (markdown editor tab context menu portal-to-body)
@@ -140,8 +142,8 @@ The drafted v0.5.5 release notes are stashed in
 - `shared/feature-flags.ts` + `FEATURE_AUTO_INJECT_IDS = false`
 - Smoke-walk generator emits `<meta name="duo-open-in" content="browser">`
 
-These all shipped in code but were not version-cut. They fold into the
-v0.6.0 cut alongside Stages 27 + 18b + 28.
+When drafting the v0.6.0 cut, fold these notes into the cut entry
+and clear the `Pending — not yet cut` stash.
 
 ## How to resume after compaction
 
