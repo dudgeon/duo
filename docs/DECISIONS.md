@@ -617,6 +617,52 @@ machine: `'no-pty' | 'shell' | 'claude' | 'starting'`. Renderer hook:
   need `pgrep -P <pid>` recursion or `/proc` parsing. Out of scope
   pre-1.0 (Duo is macOS-only per the framework decision above).
 
+### WCV-occlusion remediation: native NSMenu + system sheets, not WCV-mute
+
+**Status:** 🟢 Locked 2026-05-02 (v0.6.3 walk-1 follow-up; supersedes ENH-050's prior capturePage-overlay direction).
+**Raised:** 2026-04-26 — BUG-058 originally surfaced WorkingTabStrip context-menu occlusion when a browser tab was the active working pane; walk-3 reported the WCV-mute fix as "jarring" (the entire browser pane visibly disappears for the menu's lifetime). Walk-1 of v0.6.3 doubled down: BUG-064 reported the same family of issue on the trash-confirm modal (modal clipped at the WCV boundary, dimming inconsistent across the viewport).
+**Resolves:** "how do we render renderer-DOM elements ABOVE a `WebContentsView` without flicker, given WCV is a macOS native subview that paints above renderer DOM regardless of z-index?"
+
+**Decision.** Two surfaces, two native primitives, one-to-one with the WCV-occlusion problem class:
+
+1. **Right-click context menus → `Menu.popup()` from the main process.** macOS draws the menu at the window-server level, which composites correctly above the WebContentsView without any mute. Renderer fires an IPC verb (e.g. `menu:popup-tab`) with item template + click coordinates; main builds `Menu.buildFromTemplate([...])` and pops it; click handlers IPC back to the renderer to fire the existing actions. Covers WorkingTabStrip's tab menu, navigator's right-click menu, any future right-click surface.
+
+2. **Destructive confirmation modals → `dialog.showMessageBox` (window-modal sheet).** Sheets drop from below the titlebar, dim the window body uniformly, and composite natively above the WCV. Covers the Trash confirm modal (BUG-064), pinned-close confirm, ⌘W close-unsaved confirm, the first-launch self-install consent, and any future "are you sure?" tier interaction.
+
+**Atelier styling stays for everything else** — canvas-action verbs, comment threads, info popovers, the Send → Duo pill, banners, the working tab strip itself. The dichotomy is "OS-tier surfaces use OS chrome; in-pane surfaces use Atelier chrome." Aligns with macOS HIG conventions: users already expect right-click menus and destructive-action confirms to look like the rest of the OS, not like the app.
+
+**Why this option won.**
+
+- **Eliminates the WCV-mute pattern entirely.** No `setOverlayMuted` calls, no flicker, no race between menu close → modal open → mute lifecycle handoff (the BUG-064 sequence).
+- **Native composition is correct by construction.** The WCV's macOS subview compositing rule that makes z-index futile in renderer-DOM is what makes native menus / sheets paint cleanly above. We're using the same OS mechanism that breaks us in the other direction.
+- **Free affordances.** Native menus get keyboard-shortcut display, arrow-key navigation, Esc-to-dismiss, dark-mode adaptation, and submenu support without any code. Native dialogs get default-button focus, Enter-to-confirm, Esc-to-cancel, sheet-drop animation.
+- **Lower maintenance surface.** The in-renderer `<ContextMenu>`, `<PinnedCloseConfirm>`, and any future destructive-confirm components retire. WCV-occlusion bugs (BUG-006, BUG-045, BUG-047, BUG-058, BUG-064 family) stop multiplying.
+- **Mockups validated 2026-05-02** — both surfaces rendered as static HTML (`/tmp/wcv-mute-option-b-mockup.html`, `/tmp/wcv-mute-option-d-mockup.html`) and reviewed by owner; the "Atelier loss" was bounded enough to ship.
+
+**Why not the alternatives.**
+
+- **`capturePage()` snapshot overlay (the prior ENH-050 direction).** Take a PNG of the WCV, render as `<img>` in the menu's slot, mute the WCV behind it. Owner read this as architecturally weird ("we take a picture and then hold it up?"). It's a known pattern (VS Code uses it), but adds ~50ms latency to menu open and conceptually fights the platform: we're working around macOS compositing instead of using it. Also doesn't help with modal-occlusion (would need a separate mechanism for sheets).
+- **Position-aware avoidance.** Clamp the menu's bounds to the strip-row area only, never extending into the WCV. Doesn't work for menus with > 2 items (strip is ~28px tall). Hostile to layout.
+- **Replace `WebContentsView` with `<webview>` tags.** Renderer-DOM `<webview>` doesn't have the same compositing rules — z-index would just work. But this is a heavyweight rewrite touching every BrowserManager method, the CDP attach plumbing, find-in-page, focus tracking. Loses isolation guarantees that WebContentsView gives the renderer process. Filed as a v1.0+ architectural exploration, not blocking.
+- **Custom-styled NSMenu / sheet.** Not really possible — both are OS-rendered and accept label / shortcut / enabled state plus minimal system icons. The "danger button red" you'd want for the Move-to-Trash confirm requires accepting system styling and setting `defaultId` + the destructive action's confirmed state from `response`. Acceptable trade-off for the bounded surface.
+
+**Trade-offs accepted.**
+
+- **Atelier styling lost on these specific surfaces.** Translucent system gray instead of paper-cream, system blue hover instead of accent orange, system font instead of italic serif for danger-confirm titles. Bounded to right-click menus + destructive confirms only.
+- **Light/dark mode follows OS, not Duo's theme toggle.** A user with macOS in light mode and Duo themed dark would see a light menu / sheet. Existing inconsistency we're accepting; mitigations would require a custom-rendered menu primitive (which puts us back at the WCV-occlusion problem).
+- **Custom decorations on menu items aren't possible.** Can't bold the active tab's row, can't put colored dots before destructive items, can't style separators with paper-rule color. NSMenu items are label + accelerator + enabled state. If we ever need rich item rendering, we revisit.
+- **Custom keybinding display strings constrained.** Electron's accelerator format renders via macOS's standard glyphs (`⌘⌥←` etc.). Our keyboard-shortcuts hint surfaces (FAQ, what-duo-does, and any future cheat-sheet) need to match Electron's strings to stay aligned with what the menu shows.
+
+**Implementation order.**
+
+1. **Renderer-side IPC plumbing** — add `menu:popup-tab` (working-pane) and `menu:popup-tree-row` (navigator) verbs; preload exposes a single `window.electron.menu.popup({ x, y, items })` returning the chosen `id`.
+2. **Migrate WorkingTabStrip's right-click first** — single highest-frequency case, BUG-058 trigger. Validate the IPC pattern + click-to-action flow.
+3. **Migrate the trash + pinned-close + ⌘W-unsaved confirms to `dialog.showMessageBox`** — three calls, mostly mechanical.
+4. **Migrate the navigator's right-click menu** — same `menu.popup()` plumbing, different item list.
+5. **Retire `<ContextMenu>` and `<PinnedCloseConfirm>`** — components delete, BUG-058's `setOverlayMuted` mute pattern reverts in `WorkingTabStrip.tsx § handleContextMenu`. The `BrowserManager.setOverlayMuted` API stays (BUG-006's pill suppression still uses it) but no longer fires for menus / modals.
+
+Cross-references: BUG-058 (parent menu-occlusion bug, originally fixed via WCV-mute — now re-fixed via this decision), BUG-064 (modal-occlusion sibling — fixed by item 3 of the implementation order), ENH-050 (originally filed as snapshot-overlay direction; this decision supersedes), `core/socket-server.ts` (where the IPC verbs are wired), `electron/main.ts` § `dialog.showMessageBox` (the API), `electron/menu.ts` (new file — menu builder).
+
 ---
 
 ## Open ADRs (pending decision)

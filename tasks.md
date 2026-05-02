@@ -3536,9 +3536,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-058: Browser pane (WebContentsView) still occludes the working-pane tab context menu (BUG-050 partial fix)
 
-**Status:** ✅ **Shipped post-v0.5.6 (commit `d9cd6c0`).**
+**Status:** ✅ **Shipped post-v0.5.6 (commit `d9cd6c0`).** **Mute pattern superseded 2026-05-02 — see ENH-050 for the locked replacement direction (native NSMenu, retires `setOverlayMuted` for menus entirely).**
 **Priority:** **🚨 URGENT — release-blocking for v0.6.0.** Owner explicit: "STILL getting issue where browser occludes tab context menu, see screenshot — this is an urgent, release-blocking bug."
 **Filed:** 2026-05-02 (walk-2)
+**Direction superseded 2026-05-02:** Walk-3 + walk-1 owner feedback ("I don't like that the browser contents disappear" / "the flicker is too obtrusive") drove a re-architecture. ENH-050's locked decision (`docs/DECISIONS.md § WCV-occlusion remediation`) replaces the WCV-mute pattern with native `Menu.popup()` for context menus and `dialog.showMessageBox` for destructive confirms. When ENH-050 lands, this BUG's fix in `WorkingTabStrip.tsx § handleContextMenu` (the `setOverlayMuted(true)` call that mutes-on-open) reverts; the menu becomes native instead. The mute pattern itself stays alive for BUG-006's in-page pill suppression (different problem class, native composition isn't applicable there).
 
 **Repro:**
 1. Have a browser working tab active in the working pane (so the WebContentsView is visible below the tab strip).
@@ -3824,26 +3825,36 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 **Cross-ref:** Stage 27 (claude:spawn verb); Stage 28 Pack A (welcome.html); `renderer/App.tsx § case 'claude:spawn'`.
 
 
-### ENH-050: Smoother WCV mute/restore on context-menu open (BUG-058 follow-up)
+### ENH-050: Replace WCV-mute pattern with native NSMenu (b) + system sheet dialogs (d)
 
-**Status:** 🆕 Filed
-**Priority:** Low-medium (UX polish; the bug it follows is fixed)
-**Filed:** 2026-05-02 (walk-3 W3-V8 PASS notes)
+**Status:** 🆕 Filed (direction locked 2026-05-02; queued for v0.6.4)
+**Priority:** Medium-high — fixes BUG-058 jankiness + BUG-064 modal occlusion; retires the entire WCV-mute pattern.
+**Filed:** 2026-05-02 (walk-3 W3-V8 PASS notes; **superseded** the original "snapshot overlay" direction on 2026-05-02 per walk-1 owner review of mockups)
 
-**Owner observation:** "I don't like that the browser contents disappear, so log that as a future enhancement."
+**Decision locked.** See `docs/DECISIONS.md § WCV-occlusion remediation: native NSMenu + system sheets, not WCV-mute` for the full rationale + trade-offs. Two surfaces, two native primitives:
 
-**Context:** BUG-058 fix (commit `d9cd6c0`) mutes the WebContentsView (sets bounds to 1×1) when the WorkingTabStrip context menu opens, then restores on close. The mute is necessary because the macOS native subview compositor paints WCV above all renderer DOM regardless of z-index, so the menu would be clipped without the mute. But the visual effect is jarring: the entire browser pane goes blank for the menu's lifetime, then snaps back when it closes.
+1. **Right-click context menus** (BUG-058 family) → `Menu.popup()` from main process. Renderer fires `menu:popup-tab` (or `menu:popup-tree-row`) with item template + click coords; main builds + pops + IPCs the chosen id back. Covers WorkingTabStrip's tab menu, navigator's right-click menu, future right-click surfaces.
+2. **Destructive confirmation modals** (BUG-064 family) → `dialog.showMessageBox` (window-modal sheet). Sheets drop from below the titlebar, dim the window body uniformly, composite natively above the WCV. Covers the trash confirm modal, pinned-close confirm, ⌘W close-unsaved confirm, future "are you sure?" tier interactions.
 
-**What's wanted:** smoother handoff — ideally the browser pane stays visually present (perhaps faded, perhaps with a subtle dim overlay) while the menu is up. Not a render-correctness problem (the menu paints fine now); a perceived-stability problem (the page "disappears" and returns).
+**Atelier styling stays for everything else** — canvas-action verbs, comment threads, info popovers, the Send → Duo pill, banners, tab strips. Dichotomy: "OS-tier surfaces use OS chrome; in-pane surfaces use Atelier chrome."
 
-**Possible directions:**
-1. **Snapshot before mute:** capture a `webContents.capturePage()` PNG of the WCV before muting; render the snapshot in a positioned `<img>` underneath the menu; on menu close, hide the image and restore WCV bounds. The snapshot is static (the page can't scroll / play video / animate during the menu) but the user perceives continuity. Cost: ~50ms capture latency on menu open.
-2. **Native popup menu** via Electron's `Menu.popup()` — bypasses renderer DOM entirely so no mute is needed. Loses the styled appearance + Tailwind look; needs platform-specific styling.
-3. **Position-aware avoidance:** detect WCV bounds and clamp menu to the strip-row area only. Doesn't work for menus with > 2 items (strip is ~28px tall).
+**Why this superseded the prior `capturePage()` snapshot-overlay direction:**
+- Owner review of mockups 2026-05-02 — snapshot-overlay read as "architecturally weird" ("we take a picture and then hold it up?"). Native primitives (b)+(d) align with macOS HIG conventions AND the WCV's compositing rules instead of fighting them.
+- Eliminates the WCV-mute pattern entirely (no `setOverlayMuted` calls for menus/modals). The mute API stays for BUG-006's pill suppression, but stops firing on menu/modal interactions.
+- Free affordances — keyboard shortcuts in menus, arrow-key navigation, Esc-to-dismiss, dark-mode adaptation, sheet-drop animation — without code.
 
-**Recommended:** path 1 (snapshot) — preserves the styled menu, keeps the visual continuity, lowest delta. Implementation: extend the `setOverlayMuted` path in BrowserManager to optionally call `capturePage()` first, send the PNG to renderer, render it in a `<div>` overlay that the ContextMenu portals OVER. Hide the overlay on close.
+**Implementation order (per the locked decision):**
+1. Renderer-side IPC plumbing: add `menu:popup-tab` + `menu:popup-tree-row` verbs; preload exposes `window.electron.menu.popup({ x, y, items })` returning chosen `id`.
+2. Migrate `WorkingTabStrip.tsx`'s right-click first (BUG-058 trigger; highest-frequency case).
+3. Migrate trash + pinned-close + ⌘W-unsaved confirms to `dialog.showMessageBox`.
+4. Migrate navigator's right-click menu (`FileTree.tsx`) — same plumbing, different items.
+5. Retire `<ContextMenu>` and `<PinnedCloseConfirm>` components; revert BUG-058's `setOverlayMuted` mute pattern in `WorkingTabStrip.tsx § handleContextMenu`.
 
-**Cross-ref:** BUG-058 (the parent bug — WCV occluded context menu); BUG-045/047 (related WCV-occlusion family); ContextMenu component + BrowserManager.setOverlayMuted in cdp-bridge.ts.
+**Trade-offs accepted:** Atelier styling lost on menus + destructive sheets specifically (translucent system gray, system blue hover, system font). Light/dark follows OS theme not Duo's. Custom decorations on menu items (bold rows, colored dots) not possible. Custom keybinding display strings constrained to Electron's accelerator format.
+
+**Mockup artifacts (decision evidence):** `/tmp/wcv-mute-option-b-mockup.html` (native menu) + `/tmp/wcv-mute-option-d-mockup.html` (system sheet) — owner-reviewed 2026-05-02; not committed to repo (decision-time artifacts only).
+
+**Cross-ref:** `docs/DECISIONS.md § WCV-occlusion remediation` (locked); BUG-058 (item 5 above retires its mute pattern); BUG-064 (item 3 above fixes the modal-occlusion sibling); BUG-006 (pill suppression — mute API stays for this case); BUG-045/047 (related WCV-occlusion family that informs the architecture).
 
 ---
 
@@ -3924,19 +3935,13 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 - `WorkingTabStrip.tsx § confirmTrash` state — opens `<PinnedCloseConfirm>`-style modal (or the nearby trash-confirm component) via portal. Need to verify which component file actually renders the trash confirm modal — there are two: `PinnedCloseConfirm.tsx` (for ⌘W on a pinned tab) and likely a similar one for `Move to Trash…`.
 - `BrowserManager.setOverlayMuted(muted)` — already exists, used by BUG-058's context-menu fix.
 
-**Fix path (same pattern as BUG-058):**
-1. When the trash confirm modal opens AND any active working tab is `kind: 'browser'`, call `window.electron.browser.setOverlayMuted(true)` to shrink the WCV bounds to 1×1 so it doesn't paint over the modal area.
-2. On modal close (Confirm OR Cancel OR Escape OR outside-click), call `setOverlayMuted(false)` to restore.
-3. Same treatment for the pinned-close confirm modal — both have the same occlusion risk and ought to share the mute pattern.
+**Fix path (per locked direction in `docs/DECISIONS.md § WCV-occlusion remediation`):**
+- Migrate the trash + pinned-close + ⌘W-unsaved confirmation modals to `dialog.showMessageBox` (window-modal sheets that composite natively above the WCV). No `setOverlayMuted` call needed; the OS handles the occlusion correctly via window-server-level rendering.
+- Tracked as item 3 of ENH-050's implementation order. When ENH-050 lands, this BUG resolves automatically along with BUG-058's underlying mute jankiness.
 
-**Mandatory in this fix:** the existing `handleContextMenu` mute (BUG-058) already fires on right-click; the menu item "Move to Trash…" then opens the modal AFTER the menu closes. So the mute may already be active when the modal opens — verify this. If it is, the issue is that the menu's `onClose` handler unmutes BEFORE the modal opens, leaving a window during which the WCV is back over the renderer DOM. Sequence to verify:
-   - Right-click → menu opens → mute fires
-   - Click "Move to Trash…" → menu's onClose fires → unmute fires (WCV back)
-   - confirmTrash state set → modal renders → BUG visible
+**Why NOT extend the mute pattern (the prior direction):** ENH-050's locked decision retires the entire `setOverlayMuted` path for menus/modals — it's the wrong tool for this problem class. Adding more mute logic here would be technical debt that we'd then have to unwind once ENH-050 ships. Hold this BUG for ENH-050's implementation.
 
-If that's the sequence, the fix is to skip the unmute on outcomes that immediately spawn another modal — pass a "next-step" hint through the click handler, or have the modal itself fire the mute on mount.
-
-**Cross-ref:** BUG-058 (parent of WCV-mute-on-modal pattern), BUG-006 (in-page pill — different but same family), ENH-050 (capturePage snapshot overlay — would supersede the mute pattern entirely if it lands first).
+**Cross-ref:** ENH-050 (locked direction — replaces this with system sheets); BUG-058 (sibling — same WCV-occlusion family, fixed by the SAME migration); BUG-006 (in-page pill — keeps the `setOverlayMuted` API for itself, not affected); `docs/DECISIONS.md § WCV-occlusion remediation` (full rationale).
 
 ---
 
