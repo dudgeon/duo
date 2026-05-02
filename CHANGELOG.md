@@ -19,6 +19,42 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-02
+
+The cut that v0.5.6 deferred. All 7 walk-2 release-blockers (BUG-052..058) now have shipped fixes; the BUG-053 v2 fix routes nav:reveal to the correct navigator pane (project vs. user-claude). **Stages 27 / 18b / 28 graduate from "internal preview" to ✅ shipped** — the canvas-authoring vocabulary, distro skill packs, and lesson packs are now officially supported.
+
+### Added
+
+- **Stage 27 — Canvas authoring vocabulary + skill** (full release; was internal-preview in v0.5.6).
+  - **Six new canvas-action verbs**: `editor:open` (opens an arbitrary file in the surface that fits, honoring `<meta name="duo-open-in">`; `data-mode` overrides), `nav:reveal` (atomic file-tree reveal — switches cwd + selects + scrolls into view, routed to the correct navigator pane based on path), `selection:set` (find/scroll/anchor an editor or canvas), `theme:set` (light / dark / system), `terminal:focus` (now actually puts cursor in the xterm — see Fixed below), `duo:event` (emits a named event into the agent event stream).
+  - **`duo events --follow`** streaming CLI verb (closes [issue #19](https://github.com/dudgeon/duo/issues/19)) — streams JSON-line events from the EventBus to a subscriber. Cursor format `<unix-ms>-<seq>`; `--since <cursor>` resumes from a snapshot point.
+  - **`data-payload-from`** form-input binding — `<button data-action="duo:event" data-event="step-done" data-payload-from="#name-input">` reads the input's value into the event payload (now cross-realm safe — works inside iframe canvases).
+  - **`<meta name="duo-default-editable">`** routing convention — `false` mounts the canvas read-only with a toggleable Edit strip; `true` (default) mounts editable. Distinct from the older `duo-editable` hard lock which now renders a "Read-only · locked" indicator.
+  - **Canvas authoring skill split** into `canvas-authoring.md` + `canvas-interaction.md` (single-responsibility per Anthropic skill best practices).
+  - **Five reference templates** at `~/.claude/skills/duo/examples/canvas-templates/` — `button-card.html`, `paint-target.html`, `form-input.html`, `lesson-scaffold.html`, `dashboard.html`. Self-contained Atelier palette with prefers-color-scheme dark fallback.
+- **Stage 18b — Distro skill packs** (full release; was internal-preview in v0.5.6). Pack format spec, `PackLoader` boot scan, `~/.claude/duo/installed-packs.json` per-pack-version flag, first-launch defaults hook (`PACK.json § defaults[].openOnFirstLaunch`), `duo packs` CLI verb (returns parsed manifests + per-pack errors).
+- **Stage 28 — Lesson packs** (full release; was internal-preview in v0.5.6). Two FTUX skill packs that ship via the install bundle: **`intro-to-duo`** (single-canvas FTUX with a "Start lesson" button that uses `claude:spawn` to open a fresh Claude tab with a lesson skill auto-invoked) and **`claude-code-basics`** (multi-canvas pack — orientation + 7 family canvases — derived from a generic Claude Code curriculum, sanitized of all employer-specific references). Both packs auto-open as canvas tabs on first launch.
+
+### Fixed
+
+- **`editor:open data-mode='canvas'` on hard-locked files now shows a "Read-only · locked" indicator** (BUG-052, walk-2). Locked-read-only canvases (those with `<meta name="duo-editable" content="false">`) previously rendered with NO chrome at all — no toolbar, no read-only/edit strip — leaving the user unsure canvas mode was even active. New minimal indicator distinguishes locked from toggleable read-only.
+- **`nav:reveal` highlights the target file in the right pane** (BUG-053, walk-2 + walk-3). Two-part fix: v1 added an atomic `revealAndSelect(filePath)` action so cwd + selected update in a single render (was a two-call race); v2 prefix-matches against `~/.claude/` to dispatch to the user-claude navigator pane vs. the project pane. Walk-3 W3-V1 surfaced that v1 was setting selected on the wrong navigator instance for paths under `~/.claude/`.
+- **`terminal:focus` actually puts the cursor in the xterm** (BUG-054, walk-2). Was only flipping the React focus indicator; now dispatches a `duo-terminal-focus` CustomEvent that the active TerminalPane catches and uses to call `term.focus()`. Matches the find-open / find-next CustomEvent pattern.
+- **Clicking inside a read-only canvas focuses the working pane** (BUG-055, walk-2). The BUG-037 mousedown forwarder lived inside `if (!readOnly)` so canvases mounted with `<meta duo-default-editable="false">` (welcome.html, lesson packs, smoke-walk page in canvas mode) didn't get the listener. Moved out of the readOnly gate; it now fires unconditionally.
+- **Send → Duo pill suppressed on browser pane when no Claude session is live** (BUG-056, walk-2 — recurring; mandatory regression check now). The renderer-side click handler already gated on `onSendToDuo` being null, but the in-page pill DOM was injected via CDP regardless, so the user saw a pill with no destination. Page-side `showPillFor` now reads `window.__duoClaudeLive` (set by main via `Runtime.evaluate` whenever claude-presence flips) and bails out when false.
+- **Pinned tabs auto-open on boot** (BUG-057, walk-2). pins.json is now AUTHORITATIVE for "always reopen these tabs"; main iterates browser pins after `restoreFromSession`, opens any whose URL isn't in restored session-state. Renderer does the same for file pins after `sessionHydrated`. Matches Chrome / Safari pinned-tab convention.
+- **Browser pane (WCV) no longer occludes the WorkingTabStrip context menu** (BUG-058, walk-2). The BUG-047 mute fix only fired when the user right-clicked a browser tab; the occlusion is about what's currently visible in the working pane, not what was right-clicked. Now mutes whenever ANY tab in the strip is active AND of kind 'browser'. Owner walk-3 noted the mute is jarring (the browser pane visibly disappears for the menu lifetime); a smoother capturePage-overlay fix is filed as ENH-050.
+
+### Internal preview (gone — promoted to fully shipped)
+
+The "Internal preview" caveat from v0.5.6 lifts entirely with this cut. Stages 27 + 18b + 28 are officially shipped, and the lesson packs are recommended FTUX defaults.
+
+### Known issues
+
+- **BUG-062** — Update banner reads "currently from v0.6.0" while the dev build is v0.5.7 (post-cut bump from the v0.5.6 cut). Install-receipt vs. `app.getVersion` mismatch. Visible only in the dev environment.
+- **BUG-063** — Smoke-walk manifest mid-sentence backtick literals (e.g. ``` `<meta ...>` ```) get pulled out into separate Copy blocks, leaving a gap in the prose. Fix: only pull out end-of-sentence cmds.
+- **ENH-050** — Smoother WCV mute/restore on context-menu open (capturePage snapshot overlay) — UX polish on the BUG-058 fix.
+
 ## [0.5.6] — 2026-05-02
 
 A focused stability cut: the carry-over fixes from the v0.5.5 sprint (Send → Duo pill on the browser pane, trash dialog wording, context-menu portal-stacking, terminal-locale FAQ) + the read-only canvas toggle that ratcheted the wrong way + the ⌘W data-loss bug + smoke-walk page Copy buttons. **Stages 27 / 18b / 28 (canvas-authoring vocabulary, distro skill packs, lesson packs) are present in the binary as initial preview but stay 🔄 In progress on the roadmap — full validation lands in v0.6.0.**
@@ -553,7 +589,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.5.6...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/dudgeon/duo/releases/tag/v0.6.0
 [0.5.6]: https://github.com/dudgeon/duo/releases/tag/v0.5.6
 [0.5.4]: https://github.com/dudgeon/duo/releases/tag/v0.5.4
 [0.5.3]: https://github.com/dudgeon/duo/releases/tag/v0.5.3

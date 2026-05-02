@@ -21,7 +21,42 @@
 
 ## Pending — not yet cut
 
-_Empty._ Carry-over stash folded into v0.5.6 (2026-05-02).
+_Empty._
+
+---
+
+## v0.6.0 — 2026-05-02 — Canvas authoring vocabulary + lesson packs (the FTUX-tutorial trio lands)
+
+The cut that v0.5.6 deferred. Walk-2 of "v0.6.0 attempt #1" surfaced 7 release-blockers in the Stage 27 / 18b / 28 surface and adjacent regressions (BUG-052..058); rather than ship through them, we descoped to v0.5.6 and held the FTUX-tutorial trio out of the formal cut. This version closes the loop: all 7 blockers fixed, walk-3 passed (with one v2 fix on BUG-053 surfacing the project-vs-user-claude navigator distinction), and Stages 27 + 18b + 28 graduate from "internal preview" to officially shipped.
+
+### Why this version is meaningful
+
+Stage 27 ships the *primitives* for interactive canvas content: six new action verbs (`editor:open`, `nav:reveal`, `selection:set`, `theme:set`, `terminal:focus`, `duo:event`), a streaming agent event bus (`duo events --follow`), form-input bindings (`data-payload-from`), per-tab edit-mode routing (`<meta name="duo-default-editable">`), and five reference templates. Stage 28 then *uses* those primitives to ship two FTUX skill packs (`intro-to-duo` and `claude-code-basics`) that auto-open on first launch. Stage 18b is the distro mechanism that makes pack-shipping work. The three together are the "interactive lessons live in Duo" story — the agent can drive a lesson, the user can click around, the lesson tracks progress via events. That story has been in flight since the v0.5.5 walk first surfaced it (2026-05-01); v0.6.0 is when it actually lands.
+
+### Three design decisions baked in
+
+**(1) Canvas-action verbs are *renderer-side dispatch*, not main-process IPC.** Every verb is a delegated capture-phase listener on the iframe document — no `allow-scripts` on the iframe, no main-process round-trip. The trust gate (path-restricted to `~/.claude/duo/`) is enforced by `isCanvasPathTrusted` in `canvasActions.ts` before dispatching. This keeps the surface area tight: a malicious canvas at `/tmp/whatever.html` can't fire `claude:spawn` because the gate refuses to dispatch, regardless of what the page-side code attempts.
+
+**(2) `duo events --follow` shares the cursor format with `--since`.** Cursor is `<unix-ms>-<seq>` — re-resumable across reconnects, sortable lexicographically, and human-readable enough to copy off a smoke-walk page (which V14 of walk-2 actually had the user do). The 200-event ring buffer is in-memory only; consumers that need durability should `--follow` with a cursor and persist the latest one themselves. This ships issue [#19](https://github.com/dudgeon/duo/issues/19) from the v0.3 backlog.
+
+**(3) `nav:reveal` routes to the navigator pane that owns the path.** Walk-2 caught this as BUG-053; walk-3 caught the v1 fix's residual problem (it set `selected` on the project nav for paths inside `~/.claude/`, where the user-claude pane is the visible one). v2 prefix-matches against `~/.claude/` and dispatches to `userClaudeNav.actions.revealAndSelect` for those paths. The general lesson: when a renderer has multiple navigator instances with different roots, route by-path-prefix rather than by-default-pane.
+
+### Walk arc (walk-2 → v0.5.6 → walk-3 → v0.6.0)
+
+Walk-2 (2026-05-02 morning): 13 PASS, 4 FAIL, 4 SKIP, plus 4 separately-reported BUG/REGRESSIONs in adjacent surfaces. Decision: descope to v0.5.6 (carry-overs + BUG-051 + ENH-037 + ENH-046 only); hold 27/18b/28 as internal-preview. Cut + ship.
+
+Walk-3 (2026-05-02 evening): 6 PASS, 1 FAIL, 1 SKIP. The single FAIL was BUG-053 v1 — the navigator-pane routing issue. v2 fix shipped, three follow-ups filed (ENH-050 smoother WCV mute, BUG-062 update banner version mismatch, BUG-063 mid-sentence Copy-block extraction). Decision: skip walk-4 (the v2 fix is a one-line route condition; the rest of walk-3 settled cleanly), proceed to cut.
+
+### What this is and isn't
+
+This IS the FTUX-tutorial cut: Stages 27 + 18b + 28 officially shipped, lesson packs are recommended FTUX defaults, the canvas-authoring skill is a load-bearing surface for any Claude session that needs to author tutorial / dashboard / agent-driven canvases. It IS a meaningful version-bump from v0.5.6 — three new stages closing, six new agent-surfacable verbs, two distro packs, a new event-streaming CLI verb.
+
+This is NOT the "canvas authoring is feature-complete" cut. The smoke-walk skill ENH-046 / ENH-048 surfaced that the canvas-templates set itself wants extension (ENH-043 — smoke-walk page rebuilt on canvas primitives), and the lesson packs' "Start lesson" gating (ENH-049) is an obvious follow-up. Those queue for v0.6.x.
+
+### Queued next
+
+- v0.6.x: ENH-038 (textarea persistence — closes the smoke-walk-mid-restart vulnerability), ENH-039 (clickable smoke-walk paths), ENH-040 / ENH-041 / ENH-042 (collapse / split-canvas / tab-reorder), ENH-043 (smoke-walk via canvas primitives), ENH-044 (clawd icon), ENH-045 (Project Claude Context navigator), ENH-049 (28-Pack-A "Start lesson" gating), ENH-050 (smoother WCV mute via capturePage overlay), BUG-059 (de-dupe local-file tabs), BUG-060/061 (markdown editor + canvas parsing parity), BUG-062 (update banner version), BUG-063 (smoke-walk mid-sentence Copy-block).
+- v0.7+: Stage 13 (just-added highlight + warn-before-overwrite), Stage 14 (track changes + comment rail).
 
 ---
 

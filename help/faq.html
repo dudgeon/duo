@@ -101,6 +101,25 @@
 
 <h2 class="cat">What's new</h2>
 
+<article class="whatsnew" data-keys="v0.6.0 release canvas authoring vocabulary stage-27 stage-18b stage-28 lesson packs ftux intro-to-duo claude-code-basics editor:open nav:reveal selection:set theme:set terminal:focus duo:event events follow data-payload-from duo-default-editable canvas templates send-to-duo pill claude session pinned tabs auto-open wcv mute context-menu read-only locked indicator bug-052 bug-053 bug-054 bug-055 bug-056 bug-057 bug-058">
+  <h3>v0.6.0 — Canvas authoring + lesson packs (the FTUX-tutorial trio lands) <span class="date">2026-05-02</span></h3>
+  <p>The three-stage initiative that's been in flight since the v0.5.5 walk lands. Duo now has a complete vocabulary for interactive canvas content (Stage 27), a distro mechanism for skill packs (Stage 18b), and two FTUX lesson packs that auto-open on first launch (Stage 28). All 7 release-blockers from the previous walk attempt are fixed.</p>
+  <ul>
+    <li><strong>Six new canvas-action verbs</strong> let interactive canvases drive Duo without a Claude session in the loop: <code>editor:open</code> (opens any file with smart routing), <code>nav:reveal</code> (highlights a file in the right navigator pane), <code>selection:set</code> (find/scroll/anchor in editor or canvas), <code>theme:set</code> (light/dark/system), <code>terminal:focus</code> (puts the cursor IN the xterm), <code>duo:event</code> (emits an event that Claude can stream).</li>
+    <li><strong><code>duo events --follow</code></strong> — new CLI verb that streams a JSON-line event log from any canvas firing <code>duo:event</code> clicks. Cursor format <code>&lt;unix-ms&gt;-&lt;seq&gt;</code>; <code>--since</code> resumes from a snapshot point. Closes <a href="https://github.com/dudgeon/duo/issues/19">issue #19</a>.</li>
+    <li><strong><code>data-payload-from</code></strong> form binding — a button can read a text input or checkbox value into its event payload. Cross-realm safe (works inside iframe canvases).</li>
+    <li><strong>HTML canvas edit-mode toggle</strong> via <code>&lt;meta name="duo-default-editable" content="false"&gt;</code>. Mounts the canvas read-only with a discreet "Edit" toggle in the toolbar. Distinct from the older <code>duo-editable</code> hard lock, which now renders a "Read-only · locked" indicator at the top.</li>
+    <li><strong>Five reference templates</strong> at <code>~/.claude/skills/duo/examples/canvas-templates/</code> — button-card, paint-target, form-input, lesson-scaffold, dashboard. Each is self-contained Atelier styling (works without Duo's stylesheet). Use as starting points for your own canvases.</li>
+    <li><strong>Two FTUX lesson packs</strong> — <code>intro-to-duo</code> (a single welcome canvas with a "Start lesson" button that spawns a Claude tab walking you through Duo) and <code>claude-code-basics</code> (a 7-canvas curriculum on Claude Code fundamentals). Both auto-open on first launch from <code>~/.claude/duo/packs/</code> via the new pack format. Dismiss them and they don't re-open on subsequent launches.</li>
+    <li><strong><code>duo packs</code></strong> CLI verb returns the parsed manifests of installed packs + per-pack errors. Useful when you want to audit what's installed or debug why a pack isn't loading.</li>
+    <li><strong>Pinned tabs auto-open on boot.</strong> If you pin a tab and quit, that tab returns next launch — even if you closed it before quitting. Matches Chrome / Safari pinned-tab convention. Both browser tabs and file tabs.</li>
+    <li><strong>Send → Duo pill on the browser pane suppressed when no Claude session is live.</strong> Was rendering even when there's no Claude tab to send TO. Now gated on <code>window.__duoClaudeLive</code> (set by main when claude-presence flips). Re-test on every release — this one's recurring.</li>
+    <li><strong>Tab right-click context menu fully visible over a browser pane.</strong> The browser's WebContentsView used to clip the lower rows of the menu (a native subview compositor issue). Menu now mutes the WCV for the duration. (UX critique noted: the browser pane visibly disappears for the menu — a smoother snapshot-overlay fix is queued as ENH-050.)</li>
+  </ul>
+  <p><strong>Three known issues at this cut:</strong> the dev-build update banner reads "currently from v0.6.0" while the running build is the post-cut bump (BUG-062, dev-only); smoke-walk page mid-sentence backtick literals get pulled out into separate Copy blocks leaving prose gaps (BUG-063, smoke-walk-page only); the WCV-mute described above is jarring (ENH-050).</p>
+  <p>Walk arc that produced this cut: walk-2 surfaced 7 release-blockers → descope to v0.5.6 → fix all 7 → walk-3 caught one v2 follow-up → cut v0.6.0. The discipline that fell out: "internal preview" sections of the changelog mean "code is in the binary but not yet validated." It worked.</p>
+</article>
+
 <article class="whatsnew" data-keys="v0.5.6 release stability cut send-to-duo browser pane in-page injection cdp binding read-only canvas toggle ratchet cmd-w close window data loss feature-flags auto-inject ids smoke-walk copy buttons restart warning trash dialog wording context-menu portal terminal locale conda lc_all bug-006 bug-049 bug-050 bug-051 enh-032 enh-037 enh-046 stage-27 stage-18b stage-28 internal preview">
   <h3>v0.5.6 — Stability cut: carry-overs + read-only fix + ⌘W safety <span class="date">2026-05-02</span></h3>
   <p>A focused stability cut that lands the v0.5.5 carry-over fixes alongside the new read-only canvas fix, the ⌘W data-loss patch, and the smoke-walk page Copy buttons. <strong>Stages 27 / 18b / 28 (canvas-authoring vocabulary, distro skill packs, lesson packs) ride along as initial preview but are not yet validated</strong> — full release lands in v0.6.0 once their walk-2 regressions are fixed.</p>
@@ -484,7 +503,7 @@ export LC_ALL=en_US.UTF-8</pre>
 </details>
 
 <footer>
-  <p>This is Duo v0.5.6. Last updated 2026-05-02. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
+  <p>This is Duo v0.6.0. Last updated 2026-05-02. <a href="what-duo-does.html">What Duo does</a> · <a href="https://github.com/dudgeon/duo">Source</a> (when public).</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find a question that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

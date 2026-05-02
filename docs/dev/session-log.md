@@ -18,6 +18,29 @@
 
 ---
 
+## 2026-05-02 — v0.6.0 cut (canvas authoring + lesson packs land)
+
+Released **v0.6.0** — the cut that v0.5.6 deferred. All 7 walk-2 release-blockers (BUG-052..058) fixed, walk-3 caught one v2 follow-up on BUG-053 (route nav:reveal to user-claude pane for ~/.claude paths), 3 follow-ups filed (ENH-050, BUG-062, BUG-063 — none release-blocking).
+
+Stages 27 / 18b / 28 graduate from "internal preview" (where they sat since v0.5.6) to ✅ shipped on the roadmap. The FTUX-tutorial trio is the headline:
+- Stage 27 — six new canvas-action verbs, `duo events --follow` (closes issue #19), `data-payload-from` form binding, `<meta duo-default-editable>` routing, canvas-authoring + canvas-interaction skills, five reference templates.
+- Stage 18b — pack format spec, PackLoader, installed-packs.json, first-launch hook, `duo packs` CLI verb.
+- Stage 28 — `intro-to-duo` (single-canvas FTUX) + `claude-code-basics` (7-canvas curriculum).
+
+Walk arc that produced this cut:
+- walk-2 (this morning): 13/4/4 + 4 separate regressions → descope to v0.5.6 (carry-overs + BUG-051 + ENH-037 + ENH-046 only); 27/18b/28 stay 🔄 as internal preview
+- v0.5.6 cut (this afternoon): clean ship; carry-overs + smaller fixes
+- BUG-052..058 fix sprint (this afternoon): 7 commits closing all walk-2 blockers
+- walk-3 (this evening): 6/1/1; the 1 FAIL was BUG-053 — routes selected to wrong nav pane for ~/.claude paths
+- BUG-053 v2 fix (this evening): prefix-match against ~/.claude/ to dispatch to userClaudeNav
+- v0.6.0 cut (now): canvas-trash bug verified working (likely fixed coincidentally by BUG-058 WCV-mute); 3 follow-ups filed; cut.
+
+DMG built arm64-only via `DUO_DMG_ARCH=arm64 bash scripts/dist-signed.sh` (new override added in this cut to skip x64 — saves ~3 min on each cut whose audience doesn't need both arches).
+
+Three design decisions documented in RELEASES.md prose: (1) canvas-action verbs are renderer-side dispatch (no allow-scripts on the iframe; trust gate enforced by `isCanvasPathTrusted`); (2) `duo events --follow` cursor format `<unix-ms>-<seq>` is shared with `--since`; (3) `nav:reveal` routes by-path-prefix when there are multiple navigator instances with different roots.
+
+---
+
 ## 2026-05-02 — v0.5.6 cut (descope from v0.6.0)
 
 Released **v0.5.6** — a stability cut that descopes from the originally-planned v0.6.0. The v0.6.0 mental model was "Stages 27 + 18b + 28 land together"; walk-2 of v0.6.0 (this morning) yielded 13 PASS / 4 FAIL / 4 SKIP plus 4 separately-reported BUG/REGRESSIONs in adjacent surfaces. Holding the cut hostage to those 7 release-blockers would push next-ship 2-3 sessions out, with more regressions likely. Instead: cut v0.5.6 with the FIXED-and-VERIFIED work (v0.5.5 carry-overs + BUG-051 read-only + ENH-037 ⌘W safety + ENH-046 smoke-walk Copy buttons), keep Stage 27/18b/28 code in the binary as "internal preview" (NOT ✅ on the roadmap), and re-target v0.6.0 for when those features clear walk-3.
