@@ -943,27 +943,32 @@
 
   <h2 id="sec-questions">5. Open questions — resolution status</h2>
 
-  <p style="font-size: 13px; color: var(--ink-mute);">Four of eight resolved by AUQ on 2026-05-02. Four still open; defer to a second AUQ pass before code work begins.</p>
+  <p style="font-size: 13px; color: var(--ink-mute);">Seven of eight resolved across two AUQ passes (2026-05-02). One non-blocking question deferred — doesn't gate code work.</p>
 
   <div class="questions">
-    <h4>✅ Resolved (AUQ 2026-05-02)</h4>
+    <h4>✅ Resolved (AUQ pass 1)</h4>
     <ol>
-      <li><strong>Invocation gesture.</strong> Right-click context menu on (a) active tab, (b) file in navigator, (c) `&lt;a href&gt;` link to local path in page; PLUS `duo split open / close` CLI verbs. Keyboard shortcut TBD (see open questions below).</li>
+      <li><strong>Invocation gesture.</strong> Right-click context menu on (a) active tab, (b) file in navigator, (c) <code>&lt;a href&gt;</code> link to local path in page; PLUS <code>duo split open / close</code> CLI verbs.</li>
       <li><strong>Replacement confirm.</strong> Silent replace if split is clean; native dialog (Save / Discard / Cancel) if dirty. Mirrors ENH-050's destructive-confirm pattern.</li>
       <li><strong>B-readiness.</strong> Internal state shape multi-tab from day one (<code>aux: { tabs: WorkingTab[], activeIndex: number, splitPct: number }</code>). UI strictly single-slot in v1.</li>
-      <li><strong>Page-link surface.</strong> ANY local-path <code>&lt;a href&gt;</code> in a canvas page gets the Split View right-click affordance. Auto-detect; no author opt-in attribute needed.</li>
+      <li><strong>Page-link surface.</strong> ANY local-path <code>&lt;a href&gt;</code> in a canvas page gets the Split View right-click affordance. Auto-detect; no author opt-in attribute needed. Filter non-file hrefs (mailto:, http(s)://, fragments).</li>
+    </ol>
+  </div>
+
+  <div class="questions">
+    <h4>✅ Resolved (AUQ pass 2)</h4>
+    <ol start="5">
+      <li><strong>Empty-main behavior.</strong> Close last main tab while split open → <em>promote split to main</em>. The aux tab moves to main; split closes; main width grows back. Preserves work without leaving an empty-main + populated-split state.</li>
+      <li><strong>Persistence story.</strong> Persist BOTH <code>splitPct</code> AND aux's <code>tabs[]</code> to <code>~/.claude/duo/session-state.json</code>. User reopens Duo to find their split exactly as they left it. Mirrors Stage 21c Phase 2 (terminal + main tabs already persist this way).</li>
+      <li><strong>Pin behavior.</strong> No pinning in v1. Split = "transient companion"; pinning fights replacement semantics. Right-click on a split tab does NOT show Pin/Unpin. Revisit if/when Option B (multi-tab aux) ships.</li>
+      <li><strong>Keyboard shortcuts.</strong> Ship <code>⌘\</code> (open/move active tab to split) + <code>⌘⇧\</code> (close split). Backslash is unbound today and reads as "split." Routed through <code>globalShortcuts.ts</code> for free coverage across all surfaces.</li>
     </ol>
   </div>
 
   <div class="questions" style="background: var(--paper-deep); border-left-color: var(--ink-mute);">
-    <h4 style="color: var(--ink-mute);">⏳ Still open — second AUQ pass needed</h4>
-    <ol>
-      <li><strong>Aux when no main.</strong> If the user closes their last main tab while split is open, do we (a) promote split to main, (b) keep split open with empty main, or (c) close split too? Recommend (a) — promotion preserves work.</li>
-      <li><strong>Width persistence.</strong> Per-session (resets on restart) or persistent (saved to <code>~/.claude/duo/session-state.json</code>)? Recommend persistent.</li>
-      <li><strong>Split on session-restore.</strong> If the user had split content open on quit, restore it on relaunch? Recommend yes.</li>
-      <li><strong>Pin behavior.</strong> Can a split tab be pinned? Recommend NO pinning in v1 (split is conceptually "transient companion"; pinning fights replacement).</li>
-      <li><strong>Default split content for FTUX.</strong> Auto-split welcome.html / intro-to-duo on first launch? Recommend yes — first launch only, user-controlled afterward.</li>
-      <li><strong>Keyboard shortcut.</strong> Add a chord for "Move/Open in Split View" (e.g. <code>⌘\</code>) AND "Close Split" (e.g. <code>⌘⇧\</code>)? Or skip the keyboard for v1? Recommend ship the chords; muscle memory matters.</li>
+    <h4 style="color: var(--ink-mute);">⏳ Deferred — does NOT gate code work</h4>
+    <ol start="9">
+      <li><strong>FTUX default split content.</strong> Auto-split welcome.html / intro-to-duo on first launch? Pick after dogfooding the feature in subsequent sprints — easy to retrofit, doesn't affect core architecture. Default for now: NO auto-split (user discovers Split View via right-click). Revisit before the cohort cut.</li>
     </ol>
   </div>
 
