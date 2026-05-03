@@ -548,13 +548,18 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
         className={[
           'group/row relative w-full flex items-center gap-1.5 pr-2 py-0.5 text-[12px] leading-tight transition-colors',
           // ENH-078 (v0.6.4) + BUG-074 (v0.6.5) — Finder-style
-          // selection: solid accent fill + white text + medium weight.
-          // `bg-accent/85` softens the saturation slightly so the row
-          // doesn't shout — owner refinement after the v3 (full
-          // saturation) landed correctly. No row corner-radii: macOS
-          // Finder selection is square, edge-to-edge.
+          // selection: SOLID accent fill + white text + medium weight.
+          // Square corners (no `rounded`) — macOS Finder selection is
+          // edge-to-edge. The earlier `bg-accent/85` polish ATTEMPT
+          // turned out to break the fill entirely: this codebase's
+          // tailwind config defines accent as a raw `var(--duo-accent)`
+          // (no `<alpha-value>` placeholder), so opacity modifiers like
+          // `/85` synthesize invalid CSS and produce zero fill. Solid
+          // bg-accent is what works. The "slightly less obtrusive"
+          // refinement is queued behind the wider alpha-value migration
+          // (separate follow-up — see tasks.md FOLLOWUP-008).
           isSelected
-            ? 'bg-accent/85 text-white font-medium'
+            ? 'bg-accent text-white font-medium'
             // Stage 26 PR 3 item 3 — open file rows render with
             // brighter text than unopened rows. Distinct from
             // selection (full-row tint), this is just text color.

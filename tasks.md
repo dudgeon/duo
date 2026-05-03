@@ -4801,9 +4801,20 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### BUG-074: ENH-078 navigator selection prominence — white text on light-mode paper background is illegible
 
-**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 2 — took TWO attempts after the owner had already given the direction THREE times). Final fix in `renderer/components/FileTree.tsx` § TreeNode selected branch: `bg-accent text-white font-medium` (Finder-style: SOLID accent fill, white text, medium weight). Earlier attempts shipped `bg-accent/30 text-ink font-medium` which read as "barely a few shades different from the row bg" because 30% accent over `bg-surface-1` (paper-deep) is a faint warm tint, not the full-row accent fill macOS Finder uses. The mockup in the ENH-087 worksheet showed the same `/30` styling but rendered against pure paper, where the contrast registered; in the live navigator it sat against the project-tree surface and washed out. Solid accent + white text reads unambiguously in both light and dark modes.
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 2 — took THREE attempts and a polish-revert before it stuck). Final fix in `renderer/components/FileTree.tsx` § TreeNode selected branch: `bg-accent text-white font-medium` (Finder-style: SOLID accent fill, white text, medium weight). No `rounded` on the row wrapper so the fill is square and edge-to-edge.
 
-**Lesson for future Claude instances reading this entry:** when the owner says "like Finder does" — Finder does **solid** accent fill with light text on top, not a translucent tint. Don't ship a 30% opacity version and hope it reads.
+**The journey** (preserved as a lesson):
+1. v1 (commit 440d876) — Tried `bg-accent/30 text-ink font-medium`. The `text-zinc-50 → text-ink` was correct; the `/30` was supposed to read as Finder-tinted. Looked right in the worksheet mockup against pure paper but washed out on the live navigator's `paper-deep` surface.
+2. v2 (commit 3e4b796) — Reorder + dot glyph (separate items); didn't touch BUG-074.
+3. v3 (commit b9a4c69) — Owner pushed back: "use a background color for the selected item, like Finder does." Switched to solid `bg-accent text-white font-medium`. Owner: "good; we're there. you can make the orange slightly less obtrusive and remove the corner radii."
+4. v4 (commit 9a27845) — Added `bg-accent/85` for the "less obtrusive" polish + removed `rounded`. Looked fine to me in the diff, but the live render showed NO bg fill — just illegible white text on cream paper. Owner: "selection indicator regression still present in reloaded duo."
+5. v5 (this commit) — Reverted to solid `bg-accent text-white font-medium` (same as v3). The `/85` opacity modifier silently produced broken CSS because the tailwind config defines accent as a raw `var(--duo-accent)` without an `<alpha-value>` placeholder. Filed FOLLOWUP-008 to migrate the accent token to RGB-triplets + `<alpha-value>` so opacity modifiers work — the "slightly less obtrusive" polish is queued behind that migration.
+
+**Lessons for future Claude instances reading this entry:**
+- When the owner says "like Finder does" — Finder does **solid** accent fill with light text on top, not a translucent tint.
+- `bg-accent/N` opacity modifiers DON'T currently work in this codebase (silent failure → no fill). FOLLOWUP-008 has the fix path. Until then, use solid accent for any selection / strong-state treatment.
+- Mockups validating selection state must render against the SAME surface the live render sits on (`paper-deep`, not `paper`) — opacity-on-paper can register fine while opacity-on-paper-deep washes out.
+- If a polish attempt regresses the original fix, the owner's frustration is not just "I'm bothered" — it's signal that the test loop is broken. Don't ship visual polish without checking the live render.
 **Priority:** **High** — light-mode users see the selected file row's name as nearly-invisible white text on the cream paper background. ENH-078 was filed as "shipped v0.6.4" but the smoke walk surfaced the contrast issue.
 **Filed:** 2026-05-03 (owner smoke walk note).
 
@@ -5156,6 +5167,75 @@ The page-side Promise resolves when `duoSendResult` returns. We could additional
 **Why this is a follow-up rather than a blocker.** The worksheet primitive is shippable today via copy-paste; the Send button just provides a smoother path when the binding lands. Filing as 🆕 so it surfaces in the next sprint plan.
 
 **Cross-ref:** ENH-039 (`duoOpenPath` / `duoOpenPathSplit` CDP binding — the parallel path); Stage 27 canvas-action vocabulary (`terminal:send` action verb is the same plumbing target on the canvas-pane side). The worksheet's HTML lives in the BROWSER pane, so the canvas-action verbs don't apply directly — this binding is a new injection target.
+
+---
+
+### FOLLOWUP-008: Migrate accent (and other CSS-var-backed Tailwind colors) to RGB-triplet + `<alpha-value>` placeholder
+
+**Status:** 🆕 Filed
+**Filed:** 2026-05-04 (BUG-074 v3 polish attempt — `bg-accent/85` produced zero fill, traced to this root cause)
+
+**The problem.** The Tailwind config defines accent / surface / paper / ink tokens like:
+
+```js
+accent: {
+  DEFAULT: 'var(--duo-accent)',
+  ...
+}
+```
+
+with the underlying CSS var holding a literal hex string:
+
+```css
+--duo-accent: #C66A2E;
+```
+
+When the consumer uses an opacity modifier like `bg-accent/85`, Tailwind 3 attempts to synthesize the alpha into the color expression, but with a raw `var(--duo-accent)` (no `<alpha-value>` placeholder + no RGB-triplet form) the synthesis silently produces broken / no-fill CSS. The class APPEARS in the DOM but renders as if no background was set.
+
+**Symptom we hit (BUG-074 v3 polish):** `bg-accent/85 text-white font-medium` rendered with white text on the parent's surface (paper-deep cream in light mode), no visible fill — looked exactly like the original BUG-074 illegible-white-text regression. The fix was to revert to solid `bg-accent`. Geoff's "slightly less obtrusive" refinement is queued behind this migration.
+
+**Likely also-broken usages already in the codebase** (silent — they fall back to no-tint or full-saturation):
+- `renderer/components/WorkingPane.tsx:650` — `hover:bg-accent/40` on the SplitViewDivider hover state
+- `renderer/components/FilesPane.tsx:264` — `bg-accent/15` on a modal/banner
+- `renderer/components/PinnedNav.tsx:174` — `bg-accent/15` on selected pin row
+- `renderer/components/FileRenderers.tsx:70` — `bg-accent/90` on a CTA button
+- `renderer/components/Page/IdInjectionBanner.tsx:51` — `hover:bg-accent/85`
+- `renderer/components/editor/MarkdownEditor.tsx:1354` — `hover:bg-accent/85`
+
+These haven't surfaced as bugs because they're either hover-states (transient, less visually critical) or fallback-to-solid renders that look "OK" without the intended dimming. Worth a sweep once the migration lands.
+
+**The fix (proper):**
+
+1. **Update CSS vars to RGB-triplet form** — `globals.css`:
+   ```css
+   --duo-accent: 198 106 46;          /* was: #C66A2E */
+   --duo-paper: 251 248 238;          /* was: #FBF8EE */
+   /* ...etc for accent-soft, accent-ink, paper-deep, paper-edge, paper-rule, ink, ink-soft, ink-mute, ink-ghost, mark */
+   ```
+
+2. **Update Tailwind config to wrap in rgb() + `<alpha-value>`** — `tailwind.config.mjs`:
+   ```js
+   accent: {
+     DEFAULT: 'rgb(var(--duo-accent) / <alpha-value>)',
+     ...
+   }
+   ```
+
+3. **Sweep all `var(--duo-*)` usage in CSS** to wrap in `rgb()`:
+   ```css
+   color: rgb(var(--duo-accent));    /* was: var(--duo-accent) */
+   background: rgb(var(--duo-paper));
+   ```
+
+4. **Re-test all `bg-accent/N` usages** to confirm they now produce the intended dimming (not just `/85` for selection — every callsite listed above).
+
+5. **Documentation note** in `docs/design/atelier/README.md` flagging the convention so future tokens follow the same pattern.
+
+**Risk profile:** mechanical sweep across CSS files + tailwind config. Low logic risk; high blast radius if a `var()` reference is missed (renders as "string" — invalid color = no style applied). Smoke walk should validate every accented surface (selection, hover states, banners, dividers) in both light + dark mode.
+
+**Why this is a follow-up rather than a Sprint 4 blocker.** The selection state works correctly with solid `bg-accent`. The "less obtrusive" polish is real but not blocking the v0.6.5 cut — it can land as a focused PR in v0.6.6. Filing now so the next sprint plan surfaces it.
+
+**Cross-ref:** BUG-074 (the v3 polish attempt that surfaced this); Atelier token system (the wider design system this fix slots into); commit b9a4c69 (where the workaround — solid bg-accent + white text — landed).
 
 ---
 
