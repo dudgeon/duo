@@ -21,9 +21,37 @@
 
 ## Pending — not yet cut
 
-### v0.6.3 (in-progress) — Native menus + collapse panes + line numbers
+### v0.6.4 (in-progress) — Split View + idle-thoughts sweep + first regression tests
 
-Substantive cut-in-waiting. Owner explicit "no cut yet" — accumulating until the chapter feels closed. v0.6.3 shipped two real architectural / feature wins plus a punch list of long-overdue UX paper-cuts. Walks: walk-1 surfaced 4 fixes that landed mid-sprint (BUG-064 trash modal occlusion, BUG-065 ⌘⇧G blank screen, BUG-066 clawd glyph clipped, BUG-068 sticky new-tab cluster); walk-2 returned 13/13 PASS with a polish punch list that landed inline (ENH-071/072/073/074).
+The v0.6.3 chapter never cut — owner direction was "no cut yet, accumulate until the chapter feels closed." Sprint 3 expanded that chapter with the **Split View** capability (the canvas can hold two files side-by-side), an idle-thoughts sweep that closed eight smaller items at once, and the first **Vitest** regression-test suite to lock in the BUG-061 markdown-trigger class. The combined release is v0.6.4. The detailed v0.6.3 work below stays (it all ships under v0.6.4); Sprint 3 highlights summarized first.
+
+**Sprint 3 — Split View + sweep + tests (added 2026-05-03):**
+
+1. **Split View v1** (ENH-041 — Phase 3a + 3b + 3c-i). The canvas (right pane) can host two files side-by-side: a "main" pane on the left with the existing tab strip, plus an "aux" pane on the right with a single file (multi-tab aux is queued for v2). Open via `duo split-view open <path>`, the right-click "Move to Split View" / "Open in Split View" entries on tabs/FileTree/PinnedNav, the `⌘\` chord (move active main tab → aux), or the per-page `<meta name="duo-path-target" content="split">` opt-in for path links in browser-pane pages. Close with `⌘⇧\` or the aux header's ✕. Promote aux → main with the ⇤ button. Drag the divider to resize (clamped 20-80%); double-click to reset to 50/50. State persists across launch (paths + activeIndex + splitPct survive a restart). Locked behaviors per the AUQ pass: agents always open in main unless trigger words ("in split / alongside / side by side / as a companion / in the side panel") are used; ⌃Tab is focused-pane only; never two tabs for the same path across panes (move semantics on tab right-click; open semantics on file/link right-click). Phase 3c-iii (dirty-replace dialog) and Phase 3c-iv (browser-in-aux) deferred to v0.6.5.
+
+2. **Idle-thoughts sweep** — eight items closed in a single batch:
+   - **ENH-076** — `⌘[` / `⌘]` indent / outdent in HTML canvas (parity with the markdown editor's ListIndentShortcuts).
+   - **ENH-078** — Navigator selection prominence (heavier accent fill + font-medium, reads like Finder) plus three deselect paths (re-click selected row, click whitespace below rows, Escape).
+   - **ENH-079** — Collapsed Navigator shows a vertical "Navigator: {project_name}" label, mirroring the terminal/canvas collapse rails.
+   - **ENH-081** — Duo registers as a macOS Open With candidate for `.md` and `.html` files (post-DMG verify owed).
+   - **ENH-070** — Dev-mode FAQ files become symlinks to the source repo (no drift between `~/Documents/GitHub/duo/help/faq.html` and `~/.claude/duo/help/faq.html`). Production unchanged.
+   - **BUG-071** — `⌃Tab` is responsive immediately after a smoke-walk path-link click (one-line `mainWindow.webContents.focus()` after `sendEdit` in main.ts; inverse of BUG-042's wireKeyForwarding pattern).
+   - **ENH-036** — `duo open <url>` makes the new browser tab visible immediately (BROWSER_FOCUS_GAINED handler now also flips activeWorking, mirroring Stage 23 canvas-action `browser:open`).
+   - Plus Stage 4 dead-code removal (orphaned SkillsPanel + useSkillsContext + scanSkills, ~146 lines) and the orphaned `@deprecated EditorSelectionTagged` alias.
+
+3. **Vitest regression-test framework** (commit `c822139`). 41 tests covering the BUG-061 markdown-trigger regex (heading/ul/ol/blockquote with both U+0020 and U+00A0 trailing whitespace — Chromium auto-converts trailing literal spaces to nbsp), the BUG-067/ENH-039 tilde expansion helper, and edge cases (start-match, not strict-equality). Closes the "recurring regressions need durable test coverage" memory feedback. `markdownShortcuts.ts` was refactored to extract the trigger-matching as a pure `matchBlockTrigger()` function for testability; `expandTilde()` was extracted to `core/path-utils.ts` (replaced two inlined copies in main.ts). Run via `npm run test:run` (one-shot) or `npm run test` (watch).
+
+4. **Filed-only (queued for v0.6.5):** ENH-080 (`⌘⇧A` open-tab search palette), MISSING-001 (markdown editor CommentRail binding — Stage 14a), ENH-052 (mechanical `'html-canvas'` → `'page'` rename, deferred until other v0.6.x work settles), Phase 3c-iii (dirty-replace dialog — needs aux dirty-by-path registry refactor), Phase 3c-iv (browser-in-aux — needs BrowserManager bounds tracking for two WebContentsViews).
+
+5. **Architectural** — Phase 2 ADR locked **editor / canvas convergence Path A** (mirror, not unify). PRD-H1 ("the canvas IS the page") is load-bearing; unifying would break it. CLAUDE.md plumbing checklist now requires explicit (a) Mirrored / (b) Skipped surface-specific / (c) Deferred annotation on every editor PR. See `docs/DECISIONS.md § Editor / canvas convergence`.
+
+**Locked decisions this arc** (full list in `docs/dev/active-sprint.md`): `⌘\`` cycle is 2-way (terminal ↔ working pane); `⌃Tab` is focused-pane only; capability deltas main↔aux are NONE in v1; agent default is ALWAYS main unless trigger words; user-facing label is "Split View"; no pinning in v1; styling option A locked (current/shipped slim symmetric chrome).
+
+---
+
+**Carried-over v0.6.3 chapter (still ships under v0.6.4 — never cut as 0.6.3):**
+
+The v0.6.3 work below shipped + verified before Sprint 3 expanded the chapter. It's all part of v0.6.4 now. Walks: walk-1 surfaced 4 fixes that landed mid-sprint (BUG-064 trash modal occlusion, BUG-065 ⌘⇧G blank screen, BUG-066 clawd glyph clipped, BUG-068 sticky new-tab cluster); walk-2 returned 13/13 PASS with a polish punch list that landed inline (ENH-071/072/073/074).
 
 **The headline (architectural):** ENH-050 — native NSMenu (`Menu.popup`) replaces the in-renderer ContextMenu, and system sheets (`dialog.showMessageBox`) replace the in-renderer PinnedCloseConfirm + trash-confirm modals. The migration retires the entire WCV-mute pattern for menus and modals: the macOS native subview compositor renders these at the window-server level, so they composite correctly above the WebContentsView with no flicker, no race, no occlusion. Closes BUG-058 (originally fixed via WCV-mute, now properly retired) and BUG-064 (sibling modal occlusion). The `setOverlayMuted` API stays — BUG-006's in-page Send→Duo pill still uses it; different problem class, native composition isn't applicable to in-page CDP-injected DOM.
 
@@ -54,9 +82,9 @@ The locked decision lives in `docs/DECISIONS.md § WCV-occlusion remediation: na
 
 **Plus 9 bug fixes**: BUG-058 retired via ENH-050; BUG-059 rev1 (renderer dedup) + rev2 (CLI dedup); BUG-060 (fenced code blocks materialize on Enter); BUG-064 retired via ENH-050; BUG-065 (Rules-of-Hooks blank screen — latent since v0.5.4) + ErrorBoundary defensive guard; BUG-066 (clawd glyph clip + currentColor); BUG-067 (CLI smart routing) + accuracy follow-up; BUG-068 (sticky new-tab cluster).
 
-**Why this isn't cut yet:** owner direction. Accumulating until the next "chapter ends" signal — likely after a Sprint 3 sweep through v0.6.4 candidates (ENH-039 clickable smoke-walk paths, BUG-061 bullet-trigger Chromium fix, BUG-070 cursor-doesn't-land in fresh canvas, ENH-076 ⌘[ / ⌘] in canvas). The work above is done and stable; the cut just waits for company.
+**Why this didn't cut as v0.6.3:** owner direction was "no cut yet, accumulate until the chapter feels closed." Sprint 3 absorbed the chapter into v0.6.4 above. The v0.6.3 work below is part of the v0.6.4 cut.
 
-**Filed for v0.6.4 (no code yet):** ENH-039, ENH-052 (mechanical 'html-canvas' → 'page' rename), ENH-070 (FAQ drift), ENH-075/076/077, BUG-070, BUG-061 bullet-trigger Chromium quirk; claude-code-basics curriculum-template refactor.
+**Items that were filed-for-v0.6.4 at v0.6.3 close and have now shipped in Sprint 3:** ENH-039 ✅, ENH-070 ✅, ENH-076 ✅, BUG-070 ✅, BUG-061 v3 (bullet/ordered/blockquote triggers — final fix) ✅. Still queued for v0.6.5: ENH-052 (mechanical rename), ENH-075 (canvas glyph design), ENH-077 (system dialog icon — DMG-verify owed); claude-code-basics curriculum-template refactor.
 
 ---
 

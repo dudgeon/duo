@@ -18,6 +18,50 @@
 
 ---
 
+## 2026-05-03 (afternoon) — Sprint 3 wraps: idle-thoughts sweep + Vitest + Phase 3b + 3c-i; v0.6.4 cut-ready
+
+**Status: ready for cut after smoke walk.** All Phase 3b + Phase 3c-i work landed; Phase 3c-iii (dirty-replace dialog) and Phase 3c-iv (browser-in-aux) explicitly deferred to v0.6.5 (both need refactors larger than this sweep). Package bumped to 0.6.4. Smoke-walk manifest at `docs/dev/smoke-walks/v0.6.4.json`; HTML at `docs/dev/smoke-walks/v0.6.4.html`; opened in Duo's browser pane. Owner is constrained on time; smoke walk waits for them.
+
+**Afternoon commit chain (10 commits, `4ec0742` → `1bce0f4`):**
+
+| Commit | Wave | Bullet |
+|---|---|---|
+| `4ec0742` | 1 | Idle-thoughts sweep — ENH-076 (⌘[/] in canvas), ENH-078 (navigator selection), ENH-079 (collapsed nav label), ENH-081 (macOS Open With), BUG-071 (focus-after-path-link), filed ENH-080 + enterprise distro discussion |
+| `104231a` | 2 | ENH-036 (`duo open` brings browser into view) + status hygiene flips (ENH-039, BUG-071, ENH-077) |
+| `94d0ee9` | 3 | Stage 4 dead-code removal (~146 lines: SkillsPanel, useSkillsContext, scanSkills, SkillEntry, SKILLS_SCAN/RESULT IPC) |
+| `e3424b6` | 4 | Removed orphaned `@deprecated EditorSelectionTagged` alias |
+| `dbc94fd` | 5 | **ENH-070** dev-only FAQ symlink (Path 1) — `~/.claude/duo/help/*.html` becomes a symlink to repo source in dev mode; production unchanged |
+| `c822139` | 6 | **Vitest** framework + 41 regression tests (BUG-061 v3 nbsp regex × 33 tests; BUG-067/ENH-039 tilde × 8 tests). Refactored `markdownShortcuts.ts` to extract `matchBlockTrigger` and `main.ts` to use a shared `expandTilde` helper at `core/path-utils.ts` |
+| `ed4d097` | 7 | **Phase 3b** Split View invocation surfaces — ⌘\\ / ⌘⇧\\ chords + 3 right-click "Open in Split View" menus (WorkingTabStrip, FileTree, PinnedNav). Page-link surface was already shipped in `f7ff1fe` Phase 3a polish |
+| `e5c8eb7` | 8 | **Phase 3c-i** Split View session persistence — additive `aux` field on SessionState; renderer save serializes auxState; restore runs fs.exists existence-check (drops dangling refs) and rehydrates with clamped activeIndex + splitPct |
+| `1bce0f4` | — | `package.json` 0.6.3 → 0.6.4 (per smoke-walk skill precondition) |
+| (this entry) | — | Docs: RELEASES.md § Pending, CHANGELOG [Unreleased], session log, smoke-walk manifest + HTML |
+
+**Locked Phase 3c scope:**
+- ✅ 3c-i (persistence) — shipped
+- ✅ 3c-ii (empty-main promotion) — already wired in Phase 3a's onPromote
+- 🔜 **3c-iii (dirty-replace dialog)** deferred to v0.6.5 — needs a dirty-by-path registry + save-by-path dispatch (aux tab IDs diverge from main fileTabs IDs, so `onTabDirtyChange` can't see aux dirtiness without a refactor). Real data-loss surface in v1, but the v1 alternative — silent replace — is acceptable while there are no production users.
+- 🔜 **3c-iv (browser-in-aux)** deferred to v0.6.5 — needs BrowserManager bounds tracking for two WebContentsViews + focus mirroring + per-view zoom locks. ~½ sprint of its own.
+
+**v0.6.4 chapter shape (everything since v0.6.2 cut, since v0.6.3 never released):**
+- Architectural: ENH-050 native NSMenu/sheets · Phase 2 editor/canvas convergence ADR (Path A — mirror, not unify)
+- Capabilities: Split View · ⌘[/] in canvas · `duo open` brings browser into view · macOS Finder Open With · navigator selection prominence + deselect · collapsed-nav vertical label · dev-only FAQ symlink
+- Process: Vitest framework + first 41 regression tests
+- Bug fixes: BUG-070 v3 (about:blank guard) · BUG-061 v3 (nbsp regex × all 4 trigger families) · BUG-071 (focus transfer after path-link click) · plus the v0.6.3 in-flight fixes (BUG-058/059/060/064/065/066/067/068)
+- Polish: ENH-067/068/071/072/073/074 plus the v0.6.3 carry-overs
+
+**Smoke walk:** 15 items in `docs/dev/smoke-walks/v0.6.4.json`. Re-confirms BUG-070 v3 + BUG-061 v3 + ENH-039 (passed live in the prior session but main-process-only changes shipped after, so a fresh restart is owed). New items cover Phase 3a polish per-page meta, Phase 3b chords + 3 right-click surfaces, Phase 3c-i persistence (including the "open split, restart Duo, split is restored" path), the idle-thoughts sweep items (ENH-076/078/079), ENH-036, BUG-071, ENH-070 (after Refresh banner), Vitest. ENH-077 + ENH-081 fold into the post-DMG smoke at cut time.
+
+**Two deferred verifies (to v0.6.4 DMG smoke, not the dev-mode walk):**
+- **ENH-077** dialog icon — `dialog.showMessageBox` in a packaged + signed build should show Duo's clawd glyph; if yes → close as no-op.
+- **ENH-081** Finder Open With — install the v0.6.4 DMG, right-click an `.md` file in Finder → confirm Duo appears in the Open With submenu (run `lsregister -kill -r -domain local -domain user` if not auto-listed).
+
+**HEAD when this entry was written:** `1bce0f4` (v0.6.4 version bump). Docs commit follows.
+
+**Owner constraint going into the cut:** "I will not be able to smoke walk soon." Autonomous work continues in the meantime — extending Vitest coverage and starting v0.6.5 opener work that's self-validatable (Phase 3c-iii dirty-by-path registry refactor is a candidate; MISSING-001 markdown comments is the larger v0.6.5 piece).
+
+---
+
 ## 2026-05-03 — Sprint 3 closes the v0.6.3 chapter (Phase 2 ADR + Phase 3a Split View end-to-end + walk-3 v3 fixes)
 
 **Status: not cut.** Same posture as 2026-05-02 entry — accumulating until Sprint 3 wraps Phase 3b + 3c + a fresh smoke walk. The big delta this session: **Split View v1 is functional end-to-end from CLI** with visible UI; the walk-3 fail items now PASS in a live smoke; Phase 2 convergence ADR is locked; and Phase 3a polish (per-page split routing + agent trigger language) landed. Owner is picking a styling option before Phase 3b starts. Read `docs/dev/active-sprint.md` for the full state.

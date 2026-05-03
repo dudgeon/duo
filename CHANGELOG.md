@@ -19,10 +19,17 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-The shape of the next cut — owner direction "no cut yet" until the chapter feels closed. Walks 1+2 done (13/13 PASS on walk-2); polish landed inline. See `docs/RELEASES.md § Pending — not yet cut` for the prose narrative.
+The shape of the next cut — owner direction "no cut yet" until Phase 3b + 3c land + a fresh smoke walk passes. The v0.6.3 chapter never cut; Sprint 3 absorbed it into v0.6.4 (Split View, idle-thoughts sweep, first regression-test framework). See `docs/RELEASES.md § Pending — not yet cut` for the prose narrative.
 
 ### Added
 
+- **Split View** (ENH-041) — the canvas (right pane) can host two files side-by-side. Open via `duo split-view open <path>`, the right-click "Move to Split View" / "Open in Split View" entries on tabs/FileTree/PinnedNav, the `⌘\` chord (move active main tab → aux), or the per-page `<meta name="duo-path-target" content="split">` opt-in for path links in browser-pane pages. Close with `⌘⇧\` or the aux header's ✕. Promote aux → main with the ⇤ button. Drag the divider to resize (clamped 20-80%); double-click to reset to 50/50. State persists across launch (paths + activeIndex + splitPct survive a restart).
+- **`⌘[` / `⌘]` indent / outdent in HTML canvas** (ENH-076) — parity with the markdown editor's ListIndentShortcuts.
+- **Navigator selection more prominent + click-to-deselect** (ENH-078) — heavier accent fill + font-medium reads like Finder. Three deselect paths: re-click selected row, click whitespace below rows, Escape.
+- **Collapsed Navigator label** (ENH-079) — vertical "Navigator: {project_name}" italic label mirroring the terminal/canvas collapse rails.
+- **macOS Open With for `.md` and `.html`** (ENH-081) — Duo registers as a Finder Open-With candidate. Production-only (verifies post-DMG).
+- **Dev-only FAQ symlink** (ENH-070) — `~/.claude/duo/help/*.html` becomes a symlink to the source repo's `help/` files in dev mode (no drift). Production unchanged.
+- **Vitest regression-test framework** — `npm run test` (watch) / `npm run test:run` (one-shot). 41 tests covering BUG-061 markdown-trigger regex (incl. Chromium nbsp-conversion edge cases) + BUG-067/ENH-039 tilde expansion. Closes the "recurring regressions need durable test coverage" memory feedback.
 - **Native NSMenu + system sheet dialogs** (ENH-050) — right-click context menus on tabs, file tree rows, and pinned-nav rows now pop a native macOS NSMenu via `Menu.popup()`. Trash + pinned-close + ⌘W-unsaved confirms now drop as native sheets via `dialog.showMessageBox`. Retires the in-renderer `<ContextMenu>` + `<PinnedCloseConfirm>` components and the WCV-mute pattern that came with them — native composition handles WebContentsView occlusion correctly at the window-server level. Decision locked in `docs/DECISIONS.md § WCV-occlusion remediation`.
 - **Collapse-pane buttons + vertical rails** (ENH-040 + ENH-066). Two titlebar buttons hide the terminal or the canvas all the way; the collapsed slot becomes a 36px clickable rail with glyph + serif-italic label. Click restores to `prevSplitPct` (the last drag-set value).
 - **Tab reordering** (ENH-042). Drag tabs horizontally to reposition; right-click → "Move tab left" / "Move tab right". Pinned-leftmost preserved; cross-zone drags silently rejected; zone-edge gating hides irrelevant menu items.
@@ -30,9 +37,12 @@ The shape of the next cut — owner direction "no cut yet" until the chapter fee
 - **Smart `duo open` for local files** (BUG-067). `.md` files now open in the editor instead of the browser pane; HTML respects `<meta duo-open-in="browser">`; http(s) URLs unchanged. CLI response carries accurate `routedTo` label.
 - **Smoke-walk page persists in-flight state** (ENH-038) — Pass/Fail + notes restore on reload. New "Clear saved walk" button wipes after copy-back.
 - **Collapsible "Project Claude Context"** (ENH-045a) — navigator section is now collapsible (default collapsed); auto-titled with `package.json` `name` or folder name.
+- **Clickable smoke-walk path links** (ENH-039) — `~/...` and absolute paths in walk-step text become clickable; `[data-duo-path]` clicks route through a CDP-injected forwarder gated on `location.protocol === 'file:'`.
 
 ### Changed
 
+- **Editor / canvas convergence — Path A locked** (Phase 2 ADR, `docs/DECISIONS.md § Editor / canvas convergence`). The markdown editor (TipTap) and HTML canvas (raw contentEditable iframe) stay parallel codebases. Every editor PR must declare its disposition for the OTHER surface — (a) Mirrored / (b) Skipped surface-specific / (c) Deferred. CLAUDE.md plumbing checklist updated.
+- **`duo open <url>` brings the new browser tab into view** (ENH-036) — BROWSER_FOCUS_GAINED handler now also flips `activeWorking` so the working pane shows the new tab immediately, not just adds it to the strip.
 - **`duo/` shows in "Your Claude settings" navigator** (ENH-067) alongside CLAUDE.md / skills / agents.
 - **Browser-tab `>` chevron → globe glyph** (ENH-068) on the new-browser-tab button. Reads as "browser" by every macOS user's prior expectation.
 - **Tab right-click menu adds "Copy path"** (ENH-074) — mirrors the FileTree menu entry.
@@ -42,6 +52,9 @@ The shape of the next cut — owner direction "no cut yet" until the chapter fee
 
 ### Fixed
 
+- **BUG-070 — cursor lands in a fresh HTML canvas on first click** (no tab-away workaround). srcdoc iframes pass through an `about:blank` doc phase before the parser swaps in the real srcdoc body; the v3 fix bails in `wire()` when `doc.URL === 'about:blank'` so the RAF poll keeps retrying until the real body arrives. Locked in by Vitest tests.
+- **BUG-061 — markdown triggers fire reliably** in the HTML canvas. v3 fix: regex matches `\s` (covers both U+0020 literal space AND U+00A0 nbsp that Chromium auto-converts trailing literal spaces to in contentEditable). Applied to heading / unordered-list / ordered-list / blockquote triggers. 33 Vitest tests lock the v3 shape.
+- **BUG-071 — `⌃Tab` is responsive immediately after a path-link click** (no canvas-body re-click required). One-line `mainWindow.webContents.focus()` after `sendEdit` in the cdpBridge handler — inverse of BUG-042's wireKeyForwarding pattern.
 - **BUG-058 (originally WCV-muted) properly retired** by the ENH-050 migration. Native menus composite above the WebContentsView without any mute call.
 - **BUG-059 — local files de-duplicate** in both renderer-side `openFileSmart` (rev1) and CLI-side `BrowserManager.openTab` (rev2). file:// URLs only; web URLs stay duplicate-allowed.
 - **BUG-060 — fenced code blocks materialize on Enter** in markdown editor (was: only on trailing space). New `FencedCodeBlockEnter` extension.
@@ -51,9 +64,14 @@ The shape of the next cut — owner direction "no cut yet" until the chapter fee
 - **BUG-068 — new-tab cluster scrolls off-screen** under heavy panning. Restructured WorkingTabStrip to mirror TabBar's sticky pattern (cluster sibling outside the overflow scroller).
 - **`duo open <path.md>`'s `routedTo` label is accurate** when the file actually lands in the browser via `<meta duo-open-in>`.
 
-### Filed for v0.6.4 (no code yet)
+### Removed
 
-ENH-039 (clickable smoke-walk paths via CDP), ENH-052 (mechanical `'html-canvas'` → `'page'` rename), ENH-070 (avoid two-FAQ drift via dev-mode symlink), ENH-075 (canvas glyph design exploration), ENH-076 (⌘[ / ⌘] in canvas), ENH-077 (system dialog icon — likely no-op once verified in production build), BUG-070 (cursor doesn't land in fresh canvas until tab-away+back), BUG-061 bullet-trigger Chromium quirk (only the Tab/Shift-Tab half of BUG-061 shipped — bullet trigger needs hand-rolled `<ul>` creation in v0.6.4); plus claude-code-basics curriculum-template refactor.
+- **Stage 4 dead code** — `SkillsPanel`, `useSkillsContext`, `scanSkills`, plus `SkillEntry` interface and `SKILLS_SCAN`/`SKILLS_RESULT` IPC channel constants. The Skills panel was explicitly excluded per CLAUDE.md ("Brainstem / MCP — Not included") but the orphaned code stayed in the tree. ~146 lines.
+- **Orphaned `@deprecated EditorSelectionTagged` alias** — migration to `MarkdownSelectionSnapshot` completed; no remaining importers.
+
+### Filed for v0.6.5 (no code yet)
+
+ENH-080 (`⌘⇧A` open-tab search palette), MISSING-001 (markdown editor CommentRail binding — Stage 14a), ENH-052 (mechanical `'html-canvas'` → `'page'`/`playground` rename, deferred until other v0.6.x work settles), ENH-075 (canvas glyph design exploration), ENH-077 (system dialog icon — DMG-verify owed), Phase 3c-iii (Split View dirty-replace dialog — needs aux dirty-by-path registry refactor), Phase 3c-iv (browser-in-aux — needs BrowserManager bounds tracking for two WebContentsViews), `claude-code-basics` curriculum-template refactor.
 
 ## [0.6.2] — 2026-05-02
 
