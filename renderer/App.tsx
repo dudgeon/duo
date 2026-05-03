@@ -1833,50 +1833,15 @@ export function App() {
         <div className="titlebar-nodrag">
           <ClaudePresenceDot active={claudeLive} />
         </div>
-        {/* ENH-040 — collapse-pane buttons. Two toggles, one per pane,
-            with the active state inverted to a filled-bg pill so it's
-            obvious which pane is currently hidden. Click to collapse;
-            click again to restore the previous drag percentage. */}
-        <div className="titlebar-nodrag flex items-center gap-0.5">
-          <button
-            type="button"
-            onClick={toggleCollapseTerminal}
-            title={isTerminalCollapsed
-              ? 'Show terminal column'
-              : 'Hide terminal column (canvas takes full width)'}
-            aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
-            className={[
-              'h-6 px-1.5 rounded text-[11px] flex items-center justify-center transition-colors',
-              isTerminalCollapsed
-                ? 'bg-accent text-white'
-                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
-            ].join(' ')}
-          >
-            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
-              <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            onClick={toggleCollapseCanvas}
-            title={isCanvasCollapsed
-              ? 'Show canvas (right pane)'
-              : 'Hide canvas (terminal takes full width)'}
-            aria-label={isCanvasCollapsed ? 'Show canvas' : 'Hide canvas'}
-            className={[
-              'h-6 px-1.5 rounded text-[11px] flex items-center justify-center transition-colors',
-              isCanvasCollapsed
-                ? 'bg-accent text-white'
-                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
-            ].join(' ')}
-          >
-            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
-              <rect x="8" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isCanvasCollapsed ? 'currentColor' : 'none'} />
-            </svg>
-          </button>
-        </div>
+        {/* ENH-083 (v0.6.5) — the two collapse-pane buttons (terminal +
+            canvas) moved out of the titlebar and into each surface's
+            new-tab cluster (TabBar + WorkingTabStrip). Titlebar now
+            holds version badge + Claude presence + theme toggle only,
+            keeping the chrome focused on session-wide state.
+            Underlying state (splitPct, isTerminalCollapsed,
+            isCanvasCollapsed, toggleCollapseTerminal,
+            toggleCollapseCanvas) is unchanged — only the button
+            location changed. */}
         <ThemeToggle mode={theme.mode} onCycle={theme.cycleMode} />
       </div>
 
@@ -2027,6 +1992,10 @@ export function App() {
                   onClose={closeTab}
                   pendingCwd={pendingCwd}
                   focused={focusedColumn === 'terminal'}
+                  // ENH-083 (v0.6.5) — collapse-pane button moved
+                  // from titlebar into the new-tab cluster.
+                  isTerminalCollapsed={isTerminalCollapsed}
+                  onToggleTerminalCollapsed={toggleCollapseTerminal}
                 />
                 <div className="flex-1 overflow-hidden">
                   <TerminalPane
@@ -2215,6 +2184,24 @@ export function App() {
                 setAuxState(prev => prev ? { ...prev, splitPct: pct } : null)
               }}
               onMoveTabToSplit={splitViewMoveTabByPath}
+              // ENH-083 (v0.6.5) — collapse-canvas button moved from
+              // titlebar into the new-tab cluster.
+              isCanvasCollapsed={isCanvasCollapsed}
+              onToggleCanvasCollapsed={toggleCollapseCanvas}
+              // ENH-085 (v0.6.5) — Move to Trash from aux header
+              // right-click. AuxHeader handles confirmation; this
+              // callback runs the actual file operation + clears the
+              // aux state. No need to close a tab (the aux's only
+              // path IS the file we just trashed, so dropping
+              // auxState completes the workflow).
+              onAuxTrash={async (filePath) => {
+                try {
+                  await window.electron.files.trash(filePath)
+                  setAuxState(null)
+                } catch (err) {
+                  window.alert(`Move to Trash failed: ${err instanceof Error ? err.message : String(err)}`)
+                }
+              }}
             />
             )}
           </div>

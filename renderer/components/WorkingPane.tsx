@@ -118,6 +118,18 @@ interface WorkingPaneProps {
    *  slot. Threaded through to WorkingTabStrip's right-click menu;
    *  surfaces only on file tabs (browser-in-aux is Phase 3c). */
   onMoveTabToSplit?: (path: string) => void
+  /** ENH-083 (v0.6.5) — collapse-canvas pane control, moved from
+   *  titlebar to the new-tab cluster. App.tsx owns the splitPct state
+   *  and the collapse semantics; WorkingPane just threads the props
+   *  through to WorkingTabStrip. */
+  isCanvasCollapsed?: boolean
+  onToggleCanvasCollapsed?: () => void
+  /** ENH-085 (v0.6.5) — destructive trash from the aux header right-
+   *  click menu. App.tsx implements: confirm via system dialog →
+   *  files.trash(path) → setAuxState(null). The strip pattern
+   *  (WorkingTabStrip) keeps the confirm INSIDE the strip; we mirror
+   *  that here so AuxHeader stays self-contained. */
+  onAuxTrash?: (path: string) => void
 }
 
 export function WorkingPane({
@@ -143,7 +155,10 @@ export function WorkingPane({
   onAuxClose,
   onAuxPromote,
   onAuxResize,
-  onMoveTabToSplit
+  onMoveTabToSplit,
+  isCanvasCollapsed = false,
+  onToggleCanvasCollapsed,
+  onAuxTrash
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -210,6 +225,20 @@ export function WorkingPane({
   // no anchor to map to. Session-local is enough; the user re-orders
   // tabs they've just opened, not tabs from yesterday.
   const [tabOrder, setTabOrder] = useState<string[]>([])
+
+  // ENH-084 (v0.6.5) — subpane-aware focus. When Split View is open,
+  // the working pane has TWO surfaces (main + aux). focusedSubpane
+  // tracks which one the user last interacted with so the aux header
+  // can paint the accent treatment when its column has focus
+  // (mirroring how the main strip already lights up via the existing
+  // `focused` prop). Default 'main' — until the user clicks aux,
+  // main wins.
+  const [focusedSubpane, setFocusedSubpane] = useState<'main' | 'aux'>('main')
+  // When the split closes, snap back to main so the next time aux
+  // opens, the indicator state is sane.
+  useEffect(() => {
+    if (!auxState) setFocusedSubpane('main')
+  }, [auxState])
   // Keep tabOrder reconciled with current strip ids: append unknown
   // ids in their insertion order, drop ids no longer present. The
   // join is the dep — string identity is fine here, list is short.
@@ -430,11 +459,16 @@ export function WorkingPane({
         onNewBrowserTab={handleNewBrowserTab}
         onClose={handleClose}
         onTogglePin={handleTogglePin}
-        focused={focused}
+        // ENH-084 (v0.6.5) — when Split View is open, the strip lights
+        // up only when the MAIN subpane has focus. If user is working
+        // in aux, main strip dims, aux header lights up.
+        focused={focused && focusedSubpane === 'main'}
         onRevealInNavigator={onRevealInNavigator}
         onTrashFile={onTrashTabFile}
         onStartRenameFromTab={onStartRenameFromTab}
         onMoveToSplit={onMoveTabToSplit}
+        isCanvasCollapsed={isCanvasCollapsed}
+        onToggleCanvasCollapsed={onToggleCanvasCollapsed}
       />
       {/* BUG-046 — each file tab renders inside an absolutely-
           positioned wrapper with display gated on activity. All
@@ -475,10 +509,14 @@ export function WorkingPane({
     // horizontal flex with main + divider + aux columns.
     <div className={`w-full h-full bg-surface-0 ${splitOpen ? 'flex' : 'flex flex-col'}`}>
       {/* Main column. min-w-0 lets the flex child shrink past its
-          intrinsic content width when the user drags the divider. */}
+          intrinsic content width when the user drags the divider.
+          ENH-084 — clicking anywhere in this column flips the subpane
+          to 'main' so the strip lights up. Capture-phase mousedown so
+          it fires before TipTap / iframe etc. consume the event. */}
       <div
         className="flex flex-col min-w-0"
         style={splitOpen ? { flex: `${(1 - auxState!.splitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
+        onMouseDownCapture={splitOpen ? () => setFocusedSubpane('main') : undefined}
       >
         {mainPaneFragment}
       </div>
@@ -491,12 +529,26 @@ export function WorkingPane({
           <div
             className="flex flex-col min-w-0 border-l border-paper-rule"
             style={{ flex: `${auxState!.splitPct * 100} 0 0%` }}
+            // ENH-084 — clicking in aux flips the subpane to 'aux'.
+            // Capture-phase so iframe / contentEditable inside don't
+            // swallow the event before we see it.
+            onMouseDownCapture={() => setFocusedSubpane('aux')}
           >
             <AuxHeader
               path={auxFileTab.path}
               title={auxFileTab.title}
               onClose={onAuxClose}
               onPromote={onAuxPromote}
+              // ENH-084 — focus glow on aux header when the aux
+              // subpane has focus.
+              focused={focused && focusedSubpane === 'aux'}
+              // ENH-085 (v0.6.5) — right-click parity with main canvas
+              // tab. The reveal/rename/trash callbacks already exist
+              // on WorkingPane for the main strip; thread them through
+              // to AuxHeader's handleContextMenu.
+              onRevealInNavigator={onRevealInNavigator}
+              onStartRenameFromTab={onStartRenameFromTab}
+              onAuxTrash={onAuxTrash}
             />
             <div className="flex-1 min-h-0 relative">
               <div className="absolute inset-0 flex flex-col">
@@ -536,24 +588,111 @@ function buildAuxFileTab(path: string): FileTab {
  *  reads as one product. v1: no aux tab strip (single-slot); only
  *  active path + chrome.
  *
+ *  ENH-085 (v0.6.5) — right-click parity with main canvas tab.
+ *  Menu items: Reveal in navigator / Rename / Copy path / Move
+ *  back to main / Move to Trash. Same NSMenu-via-IPC pattern as
+ *  WorkingTabStrip § handleContextMenu (ENH-050).
+ *
  *  No focus tracking yet — Phase 3b layers in pane-aware ⌘W /
  *  ⌃Tab routing. v1 buttons fire prop callbacks directly.
  */
 function AuxHeader({
   path,
   title,
+  focused = false,
   onClose,
-  onPromote
+  onPromote,
+  onRevealInNavigator,
+  onStartRenameFromTab,
+  onAuxTrash
 }: {
   path: string
   title: string
+  /** ENH-084 (v0.6.5) — when the aux subpane has focus, paint the
+   *  header with the same accent-soft treatment WorkingTabStrip uses
+   *  for its focused-strip indicator. WorkingPane decides via its
+   *  internal `focusedSubpane` state. */
+  focused?: boolean
   onClose?: () => void
   onPromote?: () => void
+  onRevealInNavigator?: (path: string) => void
+  onStartRenameFromTab?: (path: string) => void
+  /** ENH-085 (v0.6.5) — destructive trash from aux header right-click.
+   *  App.tsx implements: confirm via system dialog → files.trash(path)
+   *  → setAuxState(null). The strip pattern (WorkingTabStrip) confirms
+   *  inside the strip; we keep that pattern here for parity. */
+  onAuxTrash?: (path: string) => void
 }): JSX.Element {
+  // ENH-085 — right-click → native NSMenu via main process. Same
+  // pattern as WorkingTabStrip § handleContextMenu (ENH-050). The
+  // renderer fires `menu.popup({items})` and dispatches by chosen id.
+  const handleContextMenu = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    const items: import('@shared/types').MenuTemplateItem[] = []
+    if (onRevealInNavigator) {
+      items.push({ id: 'aux-reveal', label: 'Reveal in navigator' })
+    }
+    if (onStartRenameFromTab) {
+      items.push({ id: 'aux-rename', label: 'Rename…' })
+    }
+    items.push({ id: 'aux-copy-path', label: 'Copy path' })
+    if (onPromote) {
+      if (items.length > 0) items.push({ id: 'aux-sep-1', type: 'separator' })
+      items.push({ id: 'aux-promote', label: 'Move back to main' })
+    }
+    if (onAuxTrash) {
+      if (items.length > 0) items.push({ id: 'aux-sep-2', type: 'separator' })
+      items.push({ id: 'aux-trash', label: 'Move to Trash…' })
+    }
+    if (items.length === 0) return
+    const result = await window.electron.menu.popup({
+      items,
+      x: e.clientX,
+      y: e.clientY
+    })
+    if (!result.chosenId) return
+    switch (result.chosenId) {
+      case 'aux-reveal':
+        onRevealInNavigator?.(path)
+        return
+      case 'aux-rename':
+        onStartRenameFromTab?.(path)
+        return
+      case 'aux-copy-path':
+        try { await navigator.clipboard.writeText(path) } catch { /* perm denied */ }
+        return
+      case 'aux-promote':
+        onPromote?.()
+        return
+      case 'aux-trash': {
+        if (!onAuxTrash) return
+        const confirm = await window.electron.dialog.confirm({
+          title: `Move "${title}" to the Trash?`,
+          message: 'The file will be moved to the macOS Trash. You can restore it from there. The Split View will close.',
+          buttons: ['Cancel', 'Move to Trash'],
+          defaultId: 1,
+          cancelId: 0,
+          type: 'warning'
+        })
+        if (confirm.response === 1) onAuxTrash(path)
+        return
+      }
+    }
+  }
+
   return (
     <div
-      className="flex items-center gap-2 h-9 px-3 bg-paper-deep border-b border-paper-rule text-ink-soft"
+      className={[
+        'flex items-center gap-2 h-9 px-3 border-b transition-colors',
+        // ENH-084 — focused state mirrors WorkingTabStrip's accent-soft
+        // treatment so the user sees which subpane will receive ⌃Tab,
+        // ⌘W, etc. when the working column has focus.
+        focused
+          ? 'bg-accent-soft border-accent text-ink'
+          : 'bg-paper-deep border-paper-rule text-ink-soft'
+      ].join(' ')}
       title={path}
+      onContextMenu={(e) => { void handleContextMenu(e) }}
     >
       <span className="text-[11px] uppercase tracking-wide text-ink-mute">Split</span>
       <span className="text-sm truncate flex-1 text-ink">{title}</span>

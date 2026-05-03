@@ -4829,7 +4829,8 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### BUG-075: Phase 3b ⌘\\ + ⌘⇧\\ Split View keyboard chords are ignored (regression — right-click + CLI paths still work)
 
-**Status:** 🆕 Filed · **regression in Phase 3b**.
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 3). Root cause was in `renderer/keyboard/globalShortcuts.ts § matchGlobalShortcut`: the `splitViewPromote` branch checked `e.key === '\\'` AND `shift === true` — physically impossible on US keyboards because Shift+\ produces `e.key === '|'` (the shifted character), not `'\\'`. Both Split View branches now use `e.code === 'Backslash'` (the modifier-independent physical-key API). Locked with regression coverage at `renderer/keyboard/globalShortcuts.test.ts` (5 tests covering both chords + the negative cases) per the "Recurring regressions need durable test coverage" memory.
+**Status (original):** 🆕 Filed · **regression in Phase 3b**.
 **Priority:** **High** — keyboard chords are a load-bearing entry point per the v0.6.4 PRD; right-click and CLI work, but the keyboard parity gap is a feature regression.
 **Filed:** 2026-05-03 (owner smoke walk note).
 
@@ -4969,7 +4970,8 @@ Bar visual:
 
 ### ENH-083: Move collapse-pane buttons from titlebar into the new-tab clusters
 
-**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 3). Collapse-terminal button now lives next to TabBar's claude/shell new-tab cluster; collapse-canvas button lives next to WorkingTabStrip's new-file/new-browser cluster. Glyphs unchanged (the two-rectangle box-icons from ENH-040). Active-state inversion unchanged (accent fill when the pane is collapsed). Titlebar now hosts only version badge + Claude presence dot + theme toggle.
+**Status (original):** 🆕 Filed (v0.6.4 smoke walk owner note).
 **Priority:** Medium (UX coherence — controls cluster with the surface they affect).
 **Filed:** 2026-05-03.
 
@@ -4995,7 +4997,8 @@ Visual benefit: the control sits with the surface; users find it intuitively whe
 
 ### ENH-084: Aux pane focus indicator — orange glow when active in side pane (parity with main)
 
-**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 3). `WorkingPane` now tracks a `focusedSubpane: 'main' | 'aux'` state. `onMouseDownCapture` on each column wrapper flips it (capture phase so iframe / contentEditable surfaces can't swallow the event). When the working column has focus AND `focusedSubpane === 'aux'`, the AuxHeader applies the same `bg-accent-soft border-accent text-ink` treatment WorkingTabStrip uses — symmetric indicator across the two surfaces. When aux closes, subpane resets to 'main'.
+**Status (original):** 🆕 Filed (v0.6.4 smoke walk owner note).
 **Priority:** Medium (a11y / discoverability — focus state should always be visually obvious).
 **Filed:** 2026-05-03.
 
@@ -5016,7 +5019,8 @@ Visual benefit: the control sits with the surface; users find it intuitively whe
 
 ### ENH-085: Split View aux header right-click menu parity with main canvas tab
 
-**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 3). AuxHeader gains `onContextMenu` handler that mirrors WorkingTabStrip § handleContextMenu (ENH-050 NSMenu-via-IPC pattern). Menu items: Reveal in navigator / Rename… / Copy path / Move back to main / Move to Trash… Trash uses the same system-sheet confirm pattern as the main strip; on confirm, App.tsx runs `files.trash(path) + setAuxState(null)`.
+**Status (original):** 🆕 Filed (v0.6.4 smoke walk owner note).
 **Priority:** Medium (right-click parity between main and aux closes a real gap — without it, an aux file is harder to act on).
 **Filed:** 2026-05-03.
 

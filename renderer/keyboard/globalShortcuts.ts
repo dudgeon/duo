@@ -215,14 +215,19 @@ export function matchGlobalShortcut(
   // ⌘\ below, per "first match wins" ordering rule. For pure-close
   // (discard the split entirely without promoting), the aux header's
   // ✕ button is the affordance.
-  if (meta && shift && !alt && !ctrl && e.key === '\\') {
+  // BUG-075 (v0.6.5) — must use `e.code === 'Backslash'`, not
+  // `e.key === '\\'`. On US keyboards, Shift+\ produces `e.key === '|'`
+  // (the shifted character), so the original `e.key === '\\'` check
+  // could NEVER match when shift was held — chord was silently dropped.
+  // `e.code` is the physical-key API and is modifier-independent.
+  if (meta && shift && !alt && !ctrl && e.code === 'Backslash') {
     return { id: 'splitViewPromote' }
   }
   // Sprint 3 Phase 3b — ⌘\ moves the active main tab into the aux
   // slot, or no-ops if the active tab is already in aux. Routed
   // through App.tsx's splitViewOpen IPC; same destination the CLI
   // verb `duo split-view open <path>` uses.
-  if (meta && !shift && !alt && !ctrl && e.key === '\\') {
+  if (meta && !shift && !alt && !ctrl && e.code === 'Backslash') {
     return { id: 'splitViewToggle' }
   }
 

@@ -19,6 +19,11 @@ interface TabBarProps {
    *  Works because the strip is renderer DOM (unlike the xterm canvas /
    *  WebContentsView which occlude inset shadows on the column wrapper). */
   focused?: boolean
+  /** ENH-083 (v0.6.5) — collapse-pane button moved from titlebar to
+   *  the new-tab cluster. Shows the terminal-collapse glyph; click
+   *  toggles. Active (collapsed) state inverts to the accent fill. */
+  isTerminalCollapsed?: boolean
+  onToggleTerminalCollapsed?: () => void
 }
 
 // Stage 12 Phase 3 — tab-strip rhyme.
@@ -45,7 +50,9 @@ export function TabBar({
   onNewShell,
   onClose,
   pendingCwd,
-  focused = false
+  focused = false,
+  isTerminalCollapsed = false,
+  onToggleTerminalCollapsed
 }: TabBarProps) {
   const cwdSuffix = pendingCwd ? ` in ${pendingCwd}` : ''
   const claudeTip = `New Claude session (⌘T from terminal focus)${cwdSuffix}`
@@ -120,6 +127,30 @@ export function TabBar({
           </svg>
         </button>
       </div>
+
+      {/* ENH-083 (v0.6.5) — collapse-terminal button. Lives next to
+          the new-tab cluster (was in titlebar in v0.6.4). Active state
+          (terminal collapsed) inverts to accent fill so it's obvious
+          which pane is hidden. */}
+      {onToggleTerminalCollapsed && (
+        <button
+          type="button"
+          onClick={onToggleTerminalCollapsed}
+          title={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column (canvas takes full width)'}
+          aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
+          className={[
+            'shrink-0 ml-1 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
+            isTerminalCollapsed
+              ? 'bg-accent text-white'
+              : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+          ].join(' ')}
+        >
+          <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+            <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
+            <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 }

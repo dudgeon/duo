@@ -77,24 +77,32 @@ Closes out the navigator-prominence work that started in v0.6.4
   filename for open-but-not-active rows; active-file dot still wins
   priority (single accent dot, no double glyph).
 
-### Phase 3 — Split View Phase 3 close-out · WorkingPane / aux chrome
+### Phase 3 — Split View Phase 3 close-out · ✅ DONE (incl. BUG-075 bonus)
 
-Closes out the work queued from Sprint 3 Phase 3b/c. All touch
-WorkingPane / WorkingTabStrip / aux chrome:
+All four items closed in this phase. Touched: `App.tsx`, `TabBar.tsx`,
+`WorkingPane.tsx`, `WorkingTabStrip.tsx`, `globalShortcuts.ts` (+ new
+regression test file).
 
-- **ENH-083** (P0) — Move collapse-pane buttons from titlebar to the
-  new-tab clusters (terminal cluster gets terminal-collapse; canvas
-  cluster gets canvas-collapse).
-- **ENH-085** (P0) — Split pane title bar context-click parity. Same
-  right-click verbs as the main canvas tab: Move to Trash, Reveal in
-  navigator, Rename, Copy path, Move back to main.
-- **ENH-084** (P1) — Aux pane focus indicator parity. Orange glow
-  when active; matches main pane's accent treatment.
-- **BUG-075** (P2 bonus) — Phase 3b ⌘\\ + ⌘⇧\\ chord regression.
-  Likely a callback ref dropped in commit `511d8b8`'s
-  `splitViewClose → splitViewPromote` rename. Cheap restoration if it
-  surfaces during Phase 3 work; carry over to v0.6.6 P2 if it
-  doesn't.
+- **ENH-083** (P0) ✅ **Shipped** — Collapse-terminal button moved to
+  TabBar's new-tab cluster; collapse-canvas to WorkingTabStrip's.
+  Titlebar now holds version badge / Claude presence / theme toggle
+  only.
+- **ENH-085** (P0) ✅ **Shipped** — AuxHeader gains right-click menu
+  with: Reveal in navigator / Rename / Copy path / Move back to
+  main / Move to Trash. Same NSMenu-via-IPC pattern as
+  WorkingTabStrip (ENH-050). Trash uses system-sheet confirm; on
+  confirm, runs `files.trash(path)` + `setAuxState(null)`.
+- **ENH-084** (P1) ✅ **Shipped** — `WorkingPane` tracks
+  `focusedSubpane: 'main' | 'aux'` via `onMouseDownCapture` on each
+  column wrapper. AuxHeader renders the same `bg-accent-soft
+  border-accent` treatment as the main strip when subpane focus is
+  on it. State resets to 'main' when aux closes.
+- **BUG-075** (P2 bonus) ✅ **Fixed** — Root cause was `e.key === '\\'`
+  AND `shift === true` in `globalShortcuts.ts § matchGlobalShortcut` —
+  impossible on US keyboards because Shift+\ produces `e.key === '|'`.
+  Switched both Split View branches to `e.code === 'Backslash'`
+  (modifier-independent physical-key API). Locked with 5 regression
+  tests in `renderer/keyboard/globalShortcuts.test.ts`.
 
 ### Phase 4 — Tab cycling / focus fix · BUG-076
 
