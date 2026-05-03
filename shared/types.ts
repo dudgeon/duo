@@ -523,14 +523,6 @@ export interface BrowserFindResult {
   finalUpdate: boolean
 }
 
-// ── Skills panel ─────────────────────────────────────────────────────────────
-
-export interface SkillEntry {
-  name: string
-  path: string
-  source: 'SKILL.md' | 'CLAUDE.md' | '.claude/skills'
-}
-
 // ── Files / navigator (Stage 10) ─────────────────────────────────────────────
 
 export interface DirEntry {
@@ -1018,9 +1010,6 @@ export const IPC = {
   // the canvas-action `duo:event` verb. Main owns the EventBus
   // singleton; renderer is a producer only.
   DUO_EVENT_EMIT: 'duo:event-emit',
-
-  SKILLS_SCAN: 'skills:scan',
-  SKILLS_RESULT: 'skills:result',
 
   // Stage 10 — file navigator + previewers
   FILES_LIST: 'files:list',
