@@ -4385,7 +4385,16 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 ### ENH-070: Avoid maintaining two FAQs — symlink or single-source the install copy
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.4** (Sprint 3 sweep wave 5, 2026-05-03). Owner picked **Path 1** (dev-only symlink). New private method `InstallService.maintainHelpSymlinksInDev(sourceHelpDir)` walks the source's `help/` flat dir, and for each `.html` file:
+- If dest is a symlink to the right path → no-op.
+- If dest is a stale symlink → unlink + recreate.
+- If dest is a regular file byte-identical to source → unlink + create symlink (safe; not customized).
+- If dest is a regular file with different bytes → leave alone (preserves user customization).
+- If dest doesn't exist → create symlink.
+
+Integration: in `run()`, the existing `safeOverwriteDirContents(sourceRoot/help, HELP_DEST_DIR, ...)` call is now gated on `app.isPackaged`. When packaged, real copies (with prevShas tracking) like before. In dev, calls `maintainHelpSymlinksInDev` instead. Production path entirely unchanged. Help dir today is 3 flat `.html` files (faq.html, what-duo-does.html, canvas-actions-demo.html) — no recursion needed; comment notes the helper would need extending if subdirs are ever added.
+
+**Verification owed in v0.6.4 smoke:** with dev mode running and the install banner refreshed, navigate to `~/.claude/duo/help/faq.html` in Finder + check that it's a symlink (`ls -la` shows the `->` target), and editing the repo source updates the user's installed view immediately.
 **Priority:** Medium (drift risk — the source-repo and installed-copy FAQs WILL diverge over time)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
 

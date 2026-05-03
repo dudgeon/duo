@@ -281,12 +281,28 @@ export class InstallService {
       // unconditionally on version-bump). Conflict surfaces as
       // `preserved-conflict` outcome → reported in InstallResult
       // for the banner UX.
-      await this.safeOverwriteDirContents(
-        path.join(sourceRoot, 'help'),
-        HELP_DEST_DIR,
-        prevShas,
-        fileResults
-      )
+      //
+      // ENH-070 (v0.6.4) — dev-only symlink path. In dev (`npm run
+      // dev`), the source and destination would otherwise be two
+      // distinct files at two distinct paths, drifting apart over
+      // time (the cut-version skill's Step 4 enforces "edit the
+      // source repo, not the installed copy" precisely because of
+      // this). Replacing the destination with a symlink to the
+      // source eliminates the drift risk in dev, while production
+      // users still get a real copy from the install bundle.
+      // Customization preservation: if a user has somehow customized
+      // the installed copy in dev, the symlink helper detects the
+      // byte mismatch and leaves their file alone.
+      if (app.isPackaged) {
+        await this.safeOverwriteDirContents(
+          path.join(sourceRoot, 'help'),
+          HELP_DEST_DIR,
+          prevShas,
+          fileResults
+        )
+      } else {
+        await this.maintainHelpSymlinksInDev(path.join(sourceRoot, 'help'))
+      }
 
       // Stage 28 — distro lesson packs at packs/<name>/ in the repo
       // mirror to ~/.claude/duo/packs/<name>/ on disk. Recurses into
@@ -874,6 +890,86 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
       relPath,
       outcome: destExists ? 'overwritten' : 'created',
       sha: newSha
+    }
+  }
+
+  /** ENH-070 (v0.6.4) — dev-only: replace `~/.claude/duo/help/*.html`
+   *  files with symlinks pointing back at the source repo's `help/`,
+   *  so editing the repo file is reflected immediately in the
+   *  installed copy with zero drift.
+   *
+   *  Customization preservation: if the destination file's bytes
+   *  differ from the source, leave it alone — that's a user
+   *  customization (rare in dev but possible) and we don't want to
+   *  trample it. If the destination is already a symlink to the
+   *  right path, no-op. If it's a symlink to a stale path (e.g.
+   *  user moved the repo), recreate. If it's a regular file
+   *  byte-identical to source, replace with a symlink.
+   *
+   *  Production path is unchanged — `safeOverwriteDirContents`
+   *  still copies real files when `app.isPackaged === true`.
+   *
+   *  Single-level only — `help/` has no subdirectories today (3
+   *  flat .html files: faq.html, what-duo-does.html,
+   *  canvas-actions-demo.html). If that changes, this helper needs
+   *  to recurse. */
+  private async maintainHelpSymlinksInDev(sourceHelpDir: string): Promise<void> {
+    try {
+      await fs.access(sourceHelpDir)
+    } catch {
+      // Source dir doesn't exist (weird env). Skip silently — the
+      // app should still launch even if help/ is unmaintained.
+      return
+    }
+    await fs.mkdir(HELP_DEST_DIR, { recursive: true })
+    const entries = await fs.readdir(sourceHelpDir, { withFileTypes: true })
+    for (const e of entries) {
+      if (!e.isFile()) continue
+      const sourcePath = path.join(sourceHelpDir, e.name)
+      const destPath = path.join(HELP_DEST_DIR, e.name)
+      let shouldSymlink = true
+      try {
+        const stat = await fs.lstat(destPath)
+        if (stat.isSymbolicLink()) {
+          const linkTarget = await fs.readlink(destPath)
+          if (linkTarget === sourcePath) {
+            // Already correct — nothing to do.
+            shouldSymlink = false
+          } else {
+            // Stale symlink (e.g. repo moved). Replace.
+            await fs.unlink(destPath)
+          }
+        } else if (stat.isFile()) {
+          const sourceBuf = await fs.readFile(sourcePath)
+          const destBuf = await fs.readFile(destPath)
+          if (!sourceBuf.equals(destBuf)) {
+            // User customized the installed copy (uncommon in dev).
+            // Leave alone — don't trample their edits.
+            shouldSymlink = false
+          } else {
+            // Byte-identical — safe to replace with a symlink.
+            await fs.unlink(destPath)
+          }
+        } else {
+          // Directory or other — leave alone.
+          shouldSymlink = false
+        }
+      } catch {
+        // Destination didn't exist — fall through to create symlink.
+      }
+      if (shouldSymlink) {
+        try {
+          await fs.symlink(sourcePath, destPath)
+        } catch (err) {
+          // Best-effort. Symlink creation can fail on read-only
+          // file systems or weird perms; falling back means the
+          // user sees the stale (but still readable) help file.
+          console.warn(
+            `[install] dev-symlink ${destPath} -> ${sourcePath} failed:`,
+            (err as Error)?.message ?? err
+          )
+        }
+      }
     }
   }
 
