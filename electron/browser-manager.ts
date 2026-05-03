@@ -287,6 +287,20 @@ export class BrowserManager {
     this.activeIndex = idx
     this.tabs[idx].view.setBounds(this.currentBounds)
 
+    // BUG-076 (v0.6.5) — focus the new active view's webContents.
+    // Without this, OS focus stays on the previous (now-shrunk-to-1×1)
+    // view, which silently routes subsequent keystrokes (notably the
+    // ⌃Tab cycle continuation) to a hidden web contents. The cycle
+    // appeared to "stop responding" once it landed on a tab opened by
+    // `duo open` because every callee of switchTab EXCEPT this bare API
+    // path used to call view.webContents.focus() manually after — the
+    // cycle path didn't, so focus drift accumulated. Centralizing the
+    // focus call here means every switchTab caller (renderer cycle,
+    // CLI tab verb, click-to-switch) gets the correct OS-focus
+    // transfer for free. Earlier inline focus() calls at addTab /
+    // openExisting sites are now redundant but harmless.
+    this.tabs[idx].view.webContents.focus()
+
     // Emit UI updates first — CDP attach is best-effort and must not block
     // the state/tab-strip updates the renderer needs.
     this.emitState()

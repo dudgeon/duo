@@ -4860,7 +4860,8 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 
 ### BUG-076: ⌃⇧\` tab-cycle doesn't reach faq.html after `duo open` switches focus to a new browser tab
 
-**Status:** 🆕 Filed (surfaced in v0.6.4 smoke walk, ENH-036 row).
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 4). Root cause: `BrowserManager.switchTab()` activated the new view's bounds + emitted state but never called `webContents.focus()` on it. OS-level keyboard focus stayed on the PREVIOUS (now-shrunk-to-1×1) view. The first cycle press worked because the focused-but-shrunk view's `before-input-event` handler still forwarded ⌃Tab; subsequent keystrokes drifted because every other call site of switchTab (addTab / openExisting / etc.) had been calling `webContents.focus()` manually — but the bare `switchTab(n)` API path that the renderer cycle uses didn't. Fix: centralize the focus call inside `switchTab` itself in `electron/browser-manager.ts § switchTab` after activating the new view. Existing inline `webContents.focus()` calls at sibling call sites become redundant but harmless.
+**Status (original):** 🆕 Filed (surfaced in v0.6.4 smoke walk, ENH-036 row).
 **Priority:** Medium (sibling of the BUG-038 / BUG-042 / BUG-071 wrong-pane-focus family).
 **Filed:** 2026-05-03 (owner smoke walk note).
 

@@ -104,12 +104,18 @@ regression test file).
   (modifier-independent physical-key API). Locked with 5 regression
   tests in `renderer/keyboard/globalShortcuts.test.ts`.
 
-### Phase 4 — Tab cycling / focus fix · BUG-076
+### Phase 4 — Tab cycling / focus fix · ✅ DONE
 
-- **BUG-076** (P1) — `⌃⇧\`` tab-cycle doesn't reach faq.html after
-  `duo open` switches focus to a new browser tab. Adjacent to
-  ENH-036 (the duo-open-into-view fix that landed in v0.6.4); same
-  cycle code in `cycleNext` / the keyboard registry.
+- **BUG-076** (P1) ✅ **Fixed** — Root cause was *not* in `cycleNext`
+  / the keyboard registry but in `BrowserManager.switchTab()`: it
+  activated the new view's bounds but didn't call `webContents.focus()`
+  on it, so OS focus stayed on the previous (now-shrunk-to-1×1) view.
+  Other switchTab call sites (addTab / openExisting) had been calling
+  focus manually after; the bare API path used by the renderer cycle
+  didn't. Fix: centralized the focus call inside `switchTab`
+  (`electron/browser-manager.ts`). Every callee — renderer cycle, CLI
+  tab verb, click-to-switch, openOrFocus — now gets correct OS focus
+  transfer for free.
 
 ### Phase 5 — Markdown trigger family · single commit
 
