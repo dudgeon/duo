@@ -88,14 +88,24 @@ function handleInput(doc: Document): void {
     blockOps.setBlock(doc, (`h${headingMatch[1].length}`) as 'h1')
     return
   }
+  // BUG-061 (v0.6.4) — hand-roll the `<ul>` / `<ol>` creation instead
+  // of trusting `execCommand('insertUnorderedList')` /
+  // `'insertOrderedList'` after `clearBlockText` empties the block.
+  // The Chromium quirk: those execCommand verbs return true on an
+  // empty contentEditable block but produce no list element — the
+  // paragraph stays a paragraph, the trigger fires invisibly, and
+  // the user (who typed `- `) sees nothing happen except the literal
+  // characters disappearing. Same root reason `blockOps.toggleTaskList`
+  // is hand-rolled (execCommand has no insertTaskList; for the empty-
+  // block case here, execCommand's bullet/ordered verbs are no better).
   if (text === '- ' || text === '* ') {
     clearBlockText(block)
-    blockOps.toggleBulletList(doc)
+    convertEmptyBlockToList(doc, block, 'ul')
     return
   }
   if (text === '1. ') {
     clearBlockText(block)
-    blockOps.toggleOrderedList(doc)
+    convertEmptyBlockToList(doc, block, 'ol')
     return
   }
   if (text === '> ') {
@@ -144,6 +154,38 @@ function applyInlineCompletion(
   after.collapse(true)
   sel.removeAllRanges()
   sel.addRange(after)
+}
+
+/** BUG-061 — hand-rolled `<ul>` / `<ol>` builder for the empty-block
+ *  case. Caller (handleInput) has already run clearBlockText so the
+ *  block has no children; we replace it wholesale with a fresh
+ *  single-item list and park the caret inside the new `<li>`.
+ *
+ *  The empty `<li>` has no filler (no `<br>`, no `&nbsp;`) — Chromium
+ *  renders zero height for the brief instant before the user's first
+ *  keystroke, after which the typed character expands the item and
+ *  the caret becomes visible naturally. Filler placeholders would
+ *  serialize to disk and leak our editing chrome into the saved file.
+ *  The mirror pattern in `blockOps.toggleTaskList` (which IS hand-
+ *  rolled for the same execCommand-can't-do-this reason) takes the
+ *  same approach with the move-existing-children variant. */
+function convertEmptyBlockToList(
+  doc: Document,
+  block: Element,
+  listTag: 'ul' | 'ol'
+): void {
+  const list = doc.createElement(listTag)
+  const li = doc.createElement('li')
+  list.appendChild(li)
+  block.parentNode?.replaceChild(list, block)
+
+  const sel = doc.getSelection()
+  if (!sel) return
+  const range = doc.createRange()
+  range.selectNodeContents(li)
+  range.collapse(true)
+  sel.removeAllRanges()
+  sel.addRange(range)
 }
 
 /** Strips the matched markdown prefix from a block (used right before

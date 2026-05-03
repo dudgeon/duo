@@ -31,6 +31,14 @@ If the result is `not_in_duo`, **stop immediately** and return exactly:
 > terminal isn't a Duo session (`$DUO_SESSION` is unset), so I can't help here.
 > Fall back to non-Duo tooling for this task.
 
+If you **cannot run** the check at all (the Bash call comes back permission-denied,
+errors with "command not found", or otherwise fails to execute the bracket / echo
+binaries), treat that the same as `not_in_duo` — refuse and stop with the same
+message. Never run a `duo` verb without first confirming `$DUO_SESSION` is set.
+A user with a tight Bash allowlist (e.g. `--allowedTools "Bash(duo *)"`) can
+deny the guard without denying the verbs themselves; falling through in that
+case would let you operate against an app you can't actually reach.
+
 Do **not** run any `duo` verb from a non-Duo terminal. They will fail with
 `Cannot connect: Duo app is not running` and burn turns for no reason. The
 `DUO_SESSION` env var is exported by Duo's PtyManager for every PTY launched

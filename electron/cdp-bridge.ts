@@ -249,6 +249,46 @@ const SELECTION_OBSERVER_IIFE = `(function () {
   window.addEventListener('resize', schedule);
 })();`
 
+// ENH-039 — page-side click forwarder for `[data-duo-path]` elements.
+// The smoke-walk generator (and any future Duo-authored page emitting
+// path links) wraps `~/...` / `/Users/...` / `/tmp/...` style paths in
+// `<a class="duo-path-link" data-duo-path="...">…</a>`. This IIFE
+// installs a delegated click listener on `document`; when a click hits
+// any descendant of an element carrying `data-duo-path`, it preventDefaults
+// the link follow-through and calls `window.duoOpenPath(JSON.stringify({path}))`.
+// The binding routes through the CDP bindingCalled handler to main, which
+// dispatches to `sendEdit(path)` (the same path `duo open` uses).
+//
+// Trust gate: we ONLY wire the listener on `file://` pages. An arbitrary
+// http(s) site that happens to contain `[data-duo-path]` markup stays
+// inert — the binding is never called. Smoke-walk pages live at
+// file:// URLs (under the source repo's docs/dev/smoke-walks/ or
+// under ~/.claude/duo/), so they get the affordance; the wider browser
+// pane doesn't.
+//
+// Re-injection guard via `__duoPathLinkForwarder` so subsequent
+// frame-navigated events on the same file:// page are no-ops.
+const PATH_LINK_FORWARDER_IIFE = `(function () {
+  if (window.__duoPathLinkForwarder) return;
+  window.__duoPathLinkForwarder = true;
+  if (location.protocol !== 'file:') return;
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    while (t && t !== document.body && t.nodeType === 1) {
+      if (t.hasAttribute && t.hasAttribute('data-duo-path')) {
+        var path = t.getAttribute('data-duo-path');
+        if (path) {
+          e.preventDefault();
+          e.stopPropagation();
+          try { window.duoOpenPath(JSON.stringify({ path: path })); } catch (err) {}
+        }
+        return;
+      }
+      t = t.parentNode;
+    }
+  }, true);
+})();`
+
 export class CdpBridge {
   private wc: WebContents | null = null
   private consoleRing: ConsoleEntry[] = []
@@ -270,6 +310,12 @@ export class CdpBridge {
   // calls window.duoSendToDuoClick(payloadJson); we surface as
   // Runtime.bindingCalled and emit to whoever's subscribed.
   private browserSendToDuoListener: ((snapshot: BrowserSelectionSnapshot | null) => void) | null = null
+  // ENH-039 — click handler for in-page `[data-duo-path]` links (the
+  // smoke-walk page is the first consumer). Page-side IIFE calls
+  // window.duoOpenPath(JSON.stringify({path}));  we surface that as
+  // Runtime.bindingCalled and emit the resolved path to whoever
+  // subscribes (main.ts wires this to sendEdit).
+  private browserOpenPathListener: ((path: string) => void) | null = null
 
   /** Stage 15.2 — register a single subscriber for live browser-
    *  selection pushes. BrowserManager calls this once on construction
@@ -284,6 +330,14 @@ export class CdpBridge {
    *  there's no race with selectionchange clearing the cache. */
   onBrowserSendToDuoClick(cb: (snapshot: BrowserSelectionSnapshot | null) => void): void {
     this.browserSendToDuoListener = cb
+  }
+
+  /** ENH-039 — register a single subscriber for in-page `[data-duo-path]`
+   *  link clicks. main.ts wires this to `sendEdit(path)` — clicking a
+   *  path-shaped string in a smoke-walk step opens the file in Duo's
+   *  working pane via the same routing as `duo open`. */
+  onBrowserOpenPath(cb: (path: string) => void): void {
+    this.browserOpenPathListener = cb
   }
 
   /** Stage 15.2 — emit the current selection state to whoever is
@@ -364,6 +418,22 @@ export class CdpBridge {
     }
   }
 
+  /** ENH-039 — inject (or re-inject) the path-link click forwarder
+   *  into the active page's main world. Idempotent thanks to the
+   *  IIFE's `__duoPathLinkForwarder` guard; cheap to call on every
+   *  page nav. The IIFE itself self-skips on non-file:// pages. */
+  private async injectPathLinkForwarder(): Promise<void> {
+    try {
+      await this.dbg().sendCommand('Runtime.evaluate', {
+        expression: PATH_LINK_FORWARDER_IIFE,
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] path-link forwarder inject failed:', (err as Error).message)
+    }
+  }
+
   async attach(webContents: WebContents): Promise<void> {
     if (this.wc && this.wc !== webContents) {
       try { this.wc.debugger.detach() } catch { /* already detached */ }
@@ -421,12 +491,25 @@ export class CdpBridge {
     } catch (err) {
       console.warn('[CdpBridge] Runtime.addBinding(duoSendToDuoClick) failed:', (err as Error).message)
     }
+    // ENH-039 — third binding for in-page `[data-duo-path]` link clicks.
+    // PATH_LINK_FORWARDER_IIFE installs a delegated click listener on
+    // file:// pages; this binding is its receiving end.
+    try {
+      await webContents.debugger.sendCommand('Runtime.addBinding', {
+        name: 'duoOpenPath'
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] Runtime.addBinding(duoOpenPath) failed:', (err as Error).message)
+    }
     // Tab switch resets the pill — the new tab's selection state is
     // unknown until its observer reports.
     this.emitBrowserSelection({ snapshot: null, rect: null })
     // Inject the observer for the current document. Page.frameNavigated
     // re-injects on subsequent navigations.
     await this.injectSelectionObserver()
+    // ENH-039 — same lifecycle: inject the path-link forwarder for the
+    // current document; frame-navigated handler re-injects on nav.
+    await this.injectPathLinkForwarder()
   }
 
   detach(): void {
@@ -808,6 +891,20 @@ export class CdpBridge {
     } else if (method === 'Runtime.bindingCalled') {
       // Stage 15.2 — page-side observer posting a selection snapshot.
       const p = params as { name?: string; payload?: string }
+      if (p.name === 'duoOpenPath') {
+        // ENH-039 — page-side path-link click forwarder fired. Payload
+        // is `{path: string}`. Surface to the listener (main.ts wires
+        // this to sendEdit). Defensive: drop empty / malformed payloads
+        // silently rather than passing them through to sendEdit.
+        try {
+          const body = JSON.parse(p.payload ?? 'null') as { path?: unknown } | null
+          const path = body && typeof body.path === 'string' ? body.path : ''
+          if (path) this.browserOpenPathListener?.(path)
+        } catch {
+          // Bad payload — drop.
+        }
+        return
+      }
       if (p.name === 'duoSendToDuoClick') {
         // BUG-006 v2 — in-page pill clicked. Payload contains the
         // selection snapshot captured synchronously at mousedown time

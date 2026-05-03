@@ -270,10 +270,35 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
       // srcdoc + load timing: try immediately (handles HMR re-mounts
       // where the load event already fired) and listen for load (handles
       // first mount).
-      if (iframe.contentDocument && iframe.contentDocument.readyState !== 'loading') {
-        wire()
-      }
+      //
+      // BUG-070 (v0.6.4) — between "iframe element mounted" and "load
+      // event fires" there's a window where contentDocument.body may
+      // not yet exist. If the user clicks the canvas during that gap,
+      // wire() hasn't run, contenteditable hasn't been set, and the
+      // click lands inertly: no cursor, no keypresses register. The
+      // workaround was tab-away+back, which forces a re-mount that
+      // gets lucky on timing. Fix: poll wire() with requestAnimationFrame
+      // until the body is available (capped at ~30 frames / ~500ms),
+      // so the editing affordances come up the moment the parser
+      // makes the body real — well before any human can click.
+      wire()
       iframe.addEventListener('load', wire)
+      let pollFrames = 0
+      const POLL_FRAMES_MAX = 30
+      let pollHandle: number | null = null
+      const pollWire = () => {
+        if (cancelled || wired) {
+          pollHandle = null
+          return
+        }
+        wire()
+        if (!wired && pollFrames++ < POLL_FRAMES_MAX) {
+          pollHandle = requestAnimationFrame(pollWire)
+        } else {
+          pollHandle = null
+        }
+      }
+      pollHandle = requestAnimationFrame(pollWire)
 
       return () => {
         cancelled = true
@@ -283,6 +308,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         if (doc && keyHandler) doc.removeEventListener('keydown', keyHandler, true)
         if (doc && mouseHandler) doc.removeEventListener('mousedown', mouseHandler, true)
         iframe.removeEventListener('load', wire)
+        if (pollHandle !== null) cancelAnimationFrame(pollHandle)
       }
     }, [onChange, onShortcut, onReady, readOnly])
 

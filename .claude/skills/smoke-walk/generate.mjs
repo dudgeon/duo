@@ -122,6 +122,29 @@ function looksLikeCommand(s) {
   return false
 }
 
+// ENH-039 — wrap absolute-ish paths in step prose with a clickable
+// `<a>` carrying `data-duo-path`. The CDP-injected page-side handler
+// (cdp-bridge.ts § PATH_LINK_FORWARDER_IIFE) catches clicks on these
+// elements and dispatches through `window.duoOpenPath` → main →
+// `sendEdit(path)` → renderer's `openFileSmart`. Same routing as
+// `duo open` from the CLI.
+//
+// Path patterns matched:
+//   ~/...                          (home-relative — most common)
+//   /Users/<name>/...              (full home path — error messages)
+//   /tmp/...                       (test fixtures)
+// Paths must end in a word-char or hyphen so trailing punctuation
+// (period, comma, semicolon) doesn't get included in the wrapped
+// text — important for sentences like "Open `~/foo.md`." where the
+// period after the path is grammatical, not part of the path.
+const PATH_RE = /(?:~\/[\w./~-]*[\w-]|\/(?:Users|tmp)\/[\w./-]*[\w-])/g
+
+function wrapPaths(escapedHtml) {
+  return escapedHtml.replace(PATH_RE, (match) =>
+    `<a class="duo-path-link" data-duo-path="${match}" href="#" tabindex="0">${match}</a>`
+  )
+}
+
 function renderStepHtml(step) {
   const parts = []
   let buf = ''
@@ -187,11 +210,18 @@ function renderStepHtml(step) {
   // pulled out into a `<pre>` AFTER the inline run with a Copy
   // button — keeps the prose readable while making the command
   // a one-click copy.
+  //
+  // ENH-039 — wrap path-shaped substrings in prose AND inline-code
+  // chunks with `<a class="duo-path-link" data-duo-path="...">` so
+  // the page-side click forwarder can route a click to `sendEdit`.
+  // Cmd blocks are intentionally NOT wrapped — the user's expected
+  // gesture there is "Copy", not "open the path inside the
+  // command."
   const inlineHtml = parts
     .filter(p => p.kind !== 'cmd')
     .map(p => p.kind === 'inline-code'
-      ? `<code class="step-inline">${esc(p.text)}</code>`
-      : esc(p.text))
+      ? `<code class="step-inline">${wrapPaths(esc(p.text))}</code>`
+      : wrapPaths(esc(p.text)))
     .join('')
   const cmdBlocks = parts
     .filter(p => p.kind === 'cmd')
@@ -529,6 +559,37 @@ const html = `<!DOCTYPE html>
     border-radius: 3px;
     padding: 1px 5px;
     color: var(--ink);
+  }
+  /* ENH-039 — clickable path links. The page-side forwarder
+     (cdp-bridge.ts § PATH_LINK_FORWARDER_IIFE) catches clicks on
+     anything carrying [data-duo-path] and routes through sendEdit.
+     Styled to read as a path that's interactive without screaming
+     "link" — matches the typographic register of the rest of the
+     page (paper / ink / accent palette). Inside a step-inline
+     <code>, the rule below preserves the monospace look + drops
+     the bottom-border visual since the code box already signals
+     "literal text". */
+  a.duo-path-link {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--accent);
+    cursor: pointer;
+  }
+  a.duo-path-link:hover,
+  a.duo-path-link:focus {
+    border-bottom-style: solid;
+    outline: none;
+  }
+  code.step-inline a.duo-path-link {
+    color: inherit;
+    border-bottom: none;
+    text-decoration: underline dotted;
+    text-decoration-color: var(--accent);
+    text-underline-offset: 2px;
+  }
+  code.step-inline a.duo-path-link:hover,
+  code.step-inline a.duo-path-link:focus {
+    text-decoration-style: solid;
   }
   div.step-cmd {
     display: flex;

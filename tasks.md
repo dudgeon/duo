@@ -3067,7 +3067,7 @@ The smoke walk page now emits `<meta name="duo-open-in" content="browser">` (v0.
 
 ### ENH-035: "Copy path" on working-pane tab right-click context menu
 
-**Status:** 🆕 Filed
+**Status:** ✅ Closed as duplicate of ENH-074 — shipped v0.6.3 (commit during walk-2 polish in `fb51b46`). The "Copy path" menu item landed via ENH-074's tab-context-menu addition; this earlier ENH-035 tracker stayed open by accident. Any future iteration on the gesture (e.g. "Copy URL" branch for http(s) browser tabs) gets a fresh entry.
 **Priority:** Medium (small UX paper-cut, but compounds: the agent + the user both regularly need the path of the active tab to drop into a CLI command, a chat, a file reference)
 **Filed:** 2026-05-02 (Stage 27 smoke walk — owner asked for it after right-clicking a tab and not finding "Copy path")
 
@@ -3991,7 +3991,7 @@ Error: Rendered fewer hooks than expected. This may be caused by an accidental e
 
 ### ENH-051: Enterprise distro setting to toggle which packs auto-install + auto-open
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.1 — `fork.config.json § packs.disabled` array filters at PackLoader scan + install-service copy via Vite-injected `__DUO_PACKS_DISABLED__`. Status was stale ("🆕 Filed") in tasks.md until the v0.6.4 sprint triage caught it; the implementation matched the v1 plan below.
 **Priority:** Medium (unblocks "many demo lessons in the repo" — the user's framing).
 **Filed:** 2026-05-02 (post-v0.6.0 owner request)
 

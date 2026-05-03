@@ -236,6 +236,15 @@ async function createWindow(): Promise<void> {
     externalDomainsService
   )
 
+  // ENH-039 — page-side `[data-duo-path]` link clicks (smoke-walk page,
+  // future Duo-authored pages) route through the CDP binding here and
+  // dispatch via sendEdit, the same path `duo open` uses. The PATH_LINK_
+  // FORWARDER_IIFE in cdp-bridge.ts gates on `location.protocol === 'file:'`
+  // so arbitrary http(s) sites containing [data-duo-path] markup stay inert.
+  cdpBridge.onBrowserOpenPath((path) => {
+    void sendEdit(path)
+  })
+
   // Socket server starts listening; CLI connects here
   ensureSocketDir()
   socketServer = new SocketServer(cdpBridge, browserManager, filesService, {
