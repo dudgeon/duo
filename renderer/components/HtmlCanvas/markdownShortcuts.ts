@@ -82,7 +82,9 @@ function handleInput(doc: Document): void {
   // start-match where the prefix IS the entire content).
   //
   // Heading match — `# ` … `###### ` at start.
-  const headingMatch = text.match(/^(#{1,6}) $/)
+  // BUG-061 v3 — `\s` matches both U+0020 and U+00A0; see regex
+  // change comment below for context.
+  const headingMatch = text.match(/^(#{1,6})\s$/)
   if (headingMatch) {
     clearBlockText(block)
     blockOps.setBlock(doc, (`h${headingMatch[1].length}`) as 'h1')
@@ -114,17 +116,25 @@ function handleInput(doc: Document): void {
   //
   // `+` joins `-` and `*` for CommonMark parity (the markdown editor's
   // ENH-018 supports all three; the canvas should match).
-  if (/^[-*+] $/.test(text)) {
+  //
+  // BUG-061 v3 — match `\s` instead of literal space. Chromium's
+  // contentEditable converts trailing literal spaces (U+0020) to
+  // non-breaking spaces (U+00A0, `&nbsp;`) to preserve them in the
+  // rendered HTML; a literal-space regex misses the converted form
+  // and the trigger silently fails. `\s` (per ECMAScript spec)
+  // matches both U+0020 and U+00A0 (plus other Unicode whitespace —
+  // harmless here).
+  if (/^[-*+]\s$/.test(text)) {
     clearBlockText(block)
     convertEmptyBlockToList(doc, block, 'ul')
     return
   }
-  if (/^1\. $/.test(text)) {
+  if (/^1\.\s$/.test(text)) {
     clearBlockText(block)
     convertEmptyBlockToList(doc, block, 'ol')
     return
   }
-  if (text === '> ') {
+  if (/^>\s$/.test(text)) {
     clearBlockText(block)
     blockOps.toggleBlockquote(doc)
     return

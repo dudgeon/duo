@@ -134,10 +134,23 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         // 'loading', the parser may overwrite our injections when it
         // finishes building the body. The poll below keeps retrying
         // wire() each frame until readyState transitions out of
-        // 'loading' AND body is non-null. Mirrors the original guard
-        // (`readyState !== 'loading'`) that gated the immediate
-        // wire() call before the BUG-070 v1 attempt removed it.
+        // 'loading' AND body is non-null.
         if (doc.readyState === 'loading') return
+        // BUG-070 v3 — srcdoc iframes pass through an about:blank
+        // document phase BEFORE the parser swaps in the real srcdoc
+        // doc. about:blank's readyState is 'complete' immediately,
+        // so v2's readyState guard didn't catch this case: the poll
+        // would run wire() against about:blank, set
+        // contenteditable on its disposable body, lock `wired=true`,
+        // and never re-run against the real srcdoc body when the
+        // parser swapped it in. Symptom: fresh canvas, first click
+        // doesn't land — the contenteditable attribute lives on a
+        // body that no longer exists. Tab-switch-back triggered a
+        // React re-mount, resetting `wired`, and the second wire()
+        // hit the real srcdoc body (URL 'about:srcdoc') correctly.
+        // Fix: bail when URL is about:blank; let the poll keep
+        // retrying until the srcdoc doc takes over.
+        if (doc.URL === 'about:blank') return
         wired = true
 
         // Preventative kb-shortcut architecture (BUG-012 et al). Install
