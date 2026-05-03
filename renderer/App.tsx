@@ -263,6 +263,12 @@ export function App() {
   // Stage 10 Phase 5 — working-pane file tabs live in App-level state so
   // the navigator can push into them from FilesPane.onOpenFile.
   const [fileTabs, setFileTabs] = useState<FileTab[]>([])
+  // Sprint 3 Phase 3c-iii foundation (v0.6.5 prep) — path-keyed dirty
+  // tracking that bridges main fileTabs and the aux pane (whose
+  // synthesized `aux:${path}` IDs aren't in fileTabs). Populated by
+  // onTabDirtyChange below. Consumed by the upcoming dirty-replace
+  // dialog logic in splitViewMoveTabByPath.
+  const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(() => new Set())
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
 
   // ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
@@ -780,12 +786,47 @@ export function App() {
 
   // Stage 11 — editor tabs push their dirty state up so the strip can show
   // the unsaved dot. No-op if the tab is already at the requested state.
+  //
+  // Sprint 3 Phase 3c-iii foundation (v0.6.5 prep) — also mirror the dirty
+  // state into a path-keyed Set. The existing fileTabs[i].dirty is fine
+  // for main tabs (the strip's unsaved dot reads from there), but aux
+  // tabs (synthesized id `aux:${path}`) aren't in fileTabs, so the
+  // existing flow silently drops their dirty signal. dirtyPaths is the
+  // canonical "is this PATH dirty across all surfaces?" lookup the
+  // upcoming dirty-replace dialog will consult before silent-replacing
+  // aux content. Both surfaces converge on path as the key (forward-
+  // compatible with browser-in-aux too — file:// URLs land in the same
+  // Set).
   const onTabDirtyChange = useCallback((id: string, dirty: boolean) => {
+    // Resolve id → path. Main fileTabs use random uuids; aux tabs use
+    // the `aux:${path}` synthesized form (see WorkingPane § buildAuxFileTab).
+    let resolvedPath: string | null = null
+    if (id.startsWith('aux:')) {
+      resolvedPath = id.slice(4)
+    }
+    // For main tabs, find the path via fileTabs lookup. We also still
+    // need to update fileTabs[i].dirty for the strip's unsaved dot, so
+    // the lookup happens inside the setFileTabs setter to avoid a
+    // stale-closure read on fileTabs.
     setFileTabs(prev => {
       const tab = prev.find(t => t.id === id)
+      if (tab && resolvedPath === null) resolvedPath = tab.path
       if (!tab || (tab.dirty ?? false) === dirty) return prev
       return prev.map(t => t.id === id ? { ...t, dirty } : t)
     })
+    // Mirror to the path-keyed Set. Aux tabs (no fileTabs entry) still
+    // land here via the 'aux:' prefix path resolution above. Idempotent
+    // adds/deletes mean redundant signals don't churn the Set.
+    if (resolvedPath !== null) {
+      setDirtyPaths(prev => {
+        const isDirty = prev.has(resolvedPath!)
+        if (isDirty === dirty) return prev
+        const next = new Set(prev)
+        if (dirty) next.add(resolvedPath!)
+        else next.delete(resolvedPath!)
+        return next
+      })
+    }
   }, [])
 
   // Stage 23 — host-side dispatcher for canvas data-duo-action clicks.
@@ -1217,7 +1258,7 @@ export function App() {
     })
   }, [activeWorking, setFocusedColumn])
 
-  // Sprint 3 Phase 3b — Split View entry points.
+  // Sprint 3 Phase 3b + 3c-iii — Split View entry points.
   //
   // splitViewMoveTabByPath is the inner mutation primitive shared by
   // every "move/open in split view" surface (chord, right-click on
@@ -1225,14 +1266,46 @@ export function App() {
   // Mirrors the workingAux.onOpen IPC handler — drop the path from
   // main fileTabs (single-source-of-truth: never two tabs for the
   // same path across panes), clear active main if the moved tab was
-  // active, set aux's paths to [path]. Silent replacement of any
-  // existing aux content in v1; dirty-replace dialog is Phase 3c.
+  // active, set aux's paths to [path].
   //
-  // Phase 3c will also add: cycle to next available main file tab
-  // instead of falling back to browser kind when the active tab moves
-  // out (preserves user attention on file work).
-  const splitViewMoveTabByPath = useCallback((path: string) => {
+  // Phase 3c-iii (v0.6.5 prep, this commit): if the aux pane already
+  // holds a DIFFERENT dirty file, fire a native confirm dialog before
+  // replacing. v1 dialog has Discard / Cancel — no Save button (saves
+  // are per-editor + async; the user can save manually first if they
+  // want to keep the work). Discard → proceed (loses unsaved aux work);
+  // Cancel → bail. Same path being moved INTO aux is a no-op below.
+  const splitViewMoveTabByPath = useCallback(async (path: string) => {
     if (auxState && auxState.paths.includes(path)) return
+    // Phase 3c-iii — dirty-replace gate. Only fires when aux is
+    // currently holding a DIFFERENT path AND that path is dirty.
+    // Empty aux (paths.length === 0 / null) goes straight to silent
+    // open. Same-path is a no-op above.
+    if (auxState && auxState.paths.length > 0) {
+      const currentAuxPath = auxState.paths[auxState.activeIndex] ?? auxState.paths[0]
+      if (dirtyPaths.has(currentAuxPath)) {
+        const filename = currentAuxPath.split('/').pop() ?? currentAuxPath
+        const result = await window.electron.dialog.confirm({
+          title: `"${filename}" has unsaved changes`,
+          message: `The aux pane is showing "${filename}" with unsaved changes. Replacing it will discard those changes. Save the file first if you want to keep them.`,
+          buttons: ['Cancel', 'Discard changes'],
+          defaultId: 0,
+          cancelId: 0,
+          type: 'warning'
+        })
+        if (result.response !== 1) return
+        // Discard chosen — clear the dirty flag for the replaced path
+        // so a future "is dirty?" query doesn't think it still is.
+        // The actual buffer state is owned by the editor; once we
+        // unmount it (by replacing aux content), its dirty signal
+        // becomes irrelevant.
+        setDirtyPaths(prev => {
+          if (!prev.has(currentAuxPath)) return prev
+          const next = new Set(prev)
+          next.delete(currentAuxPath)
+          return next
+        })
+      }
+    }
     setFileTabs(prev => prev.filter(t => t.path !== path))
     setActiveWorking(prev => {
       if (prev.kind === 'file') {
@@ -1246,7 +1319,7 @@ export function App() {
       activeIndex: 0,
       splitPct: prev?.splitPct ?? 0.5
     }))
-  }, [auxState, fileTabs])
+  }, [auxState, fileTabs, dirtyPaths])
 
   // ⌘\ — move the ACTIVE main file tab into the aux slot. Resolves the
   // active tab's path then routes through splitViewMoveTabByPath so the
@@ -1260,7 +1333,10 @@ export function App() {
     if (activeWorking.kind !== 'file') return
     const active = fileTabs.find(t => t.id === activeWorking.id)
     if (!active) return
-    splitViewMoveTabByPath(active.path)
+    // Phase 3c-iii — splitViewMoveTabByPath is now async (may show a
+    // dirty-replace dialog). Fire-and-forget; the chord handler returns
+    // immediately and the user interacts with the dialog if it surfaces.
+    void splitViewMoveTabByPath(active.path)
   }, [activeWorking, fileTabs, splitViewMoveTabByPath])
 
   // ⌘⇧\ — close the split view. Mirrors workingAux.onClose handler.
@@ -1579,24 +1655,23 @@ export function App() {
   //   - onClose: setAuxState(null); main pane reclaims width.
   //   - onPromote: aux's active tab moves back to main; aux closes.
   //   - onResize: clamp pct to [0.20, 0.80] (mirror divider drag).
+  // Sprint 3 Phase 3c-iii (v0.6.5 prep) — keep splitViewMoveTabByPath
+  // accessible from the workingAux.onOpen handler below WITHOUT making
+  // the useEffect re-subscribe on every fileTabs/auxState/dirtyPaths
+  // change (which would defeat the deliberate `[]` deps below). The
+  // ref always reads the latest implementation; calls from inside
+  // the IPC handler get the dirty-replace gate for free.
+  const splitViewMoveTabByPathRef = useRef(splitViewMoveTabByPath)
+  splitViewMoveTabByPathRef.current = splitViewMoveTabByPath
+
   useEffect(() => {
     const offOpen = window.electron.workingAux?.onOpen?.((path) => {
-      // Drop from main if present (single-source-of-truth rule).
-      setFileTabs(prev => prev.filter(t => t.path !== path))
-      // If the moved tab was the active main tab, clear active.
-      setActiveWorking(prev => {
-        if (prev.kind === 'file') {
-          const wasActive = fileTabs.find(t => t.id === prev.id && t.path === path)
-          if (wasActive) return { kind: 'browser' }
-        }
-        return prev
-      })
-      // Open / replace in aux. v1: silent replace (no dirty-prompt yet).
-      setAuxState(prev => ({
-        paths: [path],
-        activeIndex: 0,
-        splitPct: prev?.splitPct ?? 0.5
-      }))
+      // Sprint 3 Phase 3b + 3c-iii — delegate to the shared mutation
+      // primitive so the CLI / page-link / chord / right-click paths
+      // all converge on identical state mutations AND the same dirty-
+      // replace dialog gate. Async-fire-and-forget: the IPC handler
+      // doesn't need to await the dialog response.
+      void splitViewMoveTabByPathRef.current(path)
     })
     const offClose = window.electron.workingAux?.onClose?.(() => {
       setAuxState(null)

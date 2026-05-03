@@ -115,25 +115,30 @@ manifest via `.claude/skills/smoke-walk/` when the user is ready
 to walk.
 
 **Phase 3c scope decision (2026-05-03 afternoon):** Phase 3c
-includes session persistence (3c-i) and confirms Phase 3a's
-already-wired empty-main promotion (3c-ii). Phase 3c-iii (dirty-
-replace dialog) and Phase 3c-iv (browser-in-aux) are deferred to
-v0.6.5 — both need refactors larger than a sweep:
-- 3c-iii needs a dirty-by-path registry + save-by-path dispatch
-  to coordinate aux-tab dirty state with the existing
-  onTabDirtyChange (which is keyed by tab id, and aux tab IDs
-  diverge from main fileTabs IDs). Real data-loss surface in v1
-  ("silent replace if clean, dialog if dirty" was locked behavior),
-  but the v1 alternative — silent replace ALWAYS — is acceptable
-  while the surface is small (no production users yet; the
-  workaround is "save before moving the tab").
-- 3c-iv needs BrowserManager bounds tracking for two
-  WebContentsViews with focus mirroring + per-view zoom locks. ~
-  half a sprint.
+includes session persistence (3c-i), confirms Phase 3a's
+already-wired empty-main promotion (3c-ii), AND ships the
+foundation of 3c-iii (dirty-replace dialog). Phase 3c-iv
+(browser-in-aux) is deferred to v0.6.5.
 
-The v0.6.4 chapter still feels coherent: Split View core + visible
-UI + invocation surfaces + persistence. The two deferred items get
-a v0.6.5 follow-up sprint.
+**3c-iii foundation shipped (2026-05-03):** dirty-by-path Set in
+App.tsx, populated alongside the existing fileTabs[i].dirty by
+onTabDirtyChange. The aux pane's `aux:${path}` synthesized IDs are
+detected by the prefix and routed to the same Set. All five Split
+View entry points (chord, three right-click menus, CLI/page-link
+IPC) now converge on splitViewMoveTabByPath, which fires a native
+confirm dialog (Discard / Cancel) before silent-replacing a dirty
+aux. v1 has no Save button (saves are per-editor + async; the
+"save it manually first if you want to keep it" flow is the
+intended escape valve until a save-by-path dispatch exists).
+
+**3c-iv (browser-in-aux) still deferred to v0.6.5:** needs
+BrowserManager bounds tracking for two WebContentsViews with focus
+mirroring + per-view zoom locks. ~half a sprint of its own.
+
+The v0.6.4 chapter feels complete: Split View core + visible UI +
+invocation surfaces + persistence + dirty-replace dialog. The
+single remaining deferred item (browser-in-aux) gets a v0.6.5
+follow-up sprint.
 
 **Editor-canvas parity rule disposition (for ENH-076):** **(a)
 Mirrored** — same chord, same handler shape, same no-op-outside-
