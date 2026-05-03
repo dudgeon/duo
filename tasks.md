@@ -4507,13 +4507,15 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 ### ENH-076: ⌘[ / ⌘] indent/outdent in HTML canvas (parity with markdown editor's ENH-025)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.4 (2026-05-03)
 **Priority:** Medium (parity gap — Tab/Shift-Tab now work after BUG-061's v0.6.3 partial fix; ⌘[ / ⌘] are owner muscle memory from the markdown editor)
 **Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V11 owner notes)
 
 **Owner observation (verbatim):** "still need cmd [ / ] to indent/outdent"
 
-**Where it lives:** `renderer/components/HtmlCanvas/markdownShortcuts.ts`'s keydown handler — extend the existing `handleListIndent(doc, shift)` invocation to also fire on `⌘[` / `⌘]` (Mac chord). Keep Tab/Shift-Tab behavior unchanged. Mirrors `renderer/components/editor/extensions/ListIndentShortcuts.ts` which already wires those chords for the TipTap markdown editor.
+**What changed:** `renderer/components/HtmlCanvas/markdownShortcuts.ts § installMarkdownShortcuts → onKeyDown` — added a `⌘[` / `⌘]` branch above the existing Tab branch. Same `handleListIndent(doc, shift)` helper, with `shift = (e.key === '[')` so `⌘]` indents (sink) and `⌘[` outdents (lift). Modifier guard rejects ⌘⇧[ / ⌘⇧] (those are global-shortcut territory per `ListIndentShortcuts.ts` comment). Tab / Shift-Tab behavior unchanged.
+
+**Editor-canvas parity disposition (per CLAUDE.md § 4 rule):** **(a) Mirrored** — the canvas behavior matches `renderer/components/editor/extensions/ListIndentShortcuts.ts`'s TipTap chord registration for the markdown editor. Both surfaces respond to ⌘[ / ⌘] when the caret is in a list item; both no-op outside a list.
 
 ---
 
@@ -4559,7 +4561,7 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 **Cross-ref:** ENH-039 (the new path-link surface that triggered this); BUG-038 (working-pane focus ⌃Tab cycle); BUG-042 (browser focus push); BUG-055 (canvas mousedown forwarder — addresses iframe-side, not WebContentsView-side).
 
-**Won't fix this sprint** — Phase 1 of Sprint 3 was focused on the in-scope bugs the user picked. This new bug is documented; pull into a future sprint when the wrong-pane-focus family gets a coordinated pass.
+**Status update (2026-05-03):** ✅ Shipped v0.6.4 — the fix is one line in `electron/main.ts § cdpBridge.onBrowserOpenPath` (and the symmetric `onBrowserOpenPathSplit`): after `void sendEdit(expanded)` (or `splitViewOpen(expanded)`), call `mainWindow?.webContents.focus()` to pull keyboard focus off the WebContentsView and back onto the renderer's content view. This is the inverse of BUG-042's wireKeyForwarding focus-pushed-to-renderer pattern, applied at the CDP listener level. After the fix, `⌃Tab` is responsive immediately after the canvas opens; no canvas-body re-click required.
 
 ---
 
@@ -4572,6 +4574,116 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 **Could it move to `.claude/agents/duo.md` in the repo?** Yes — `.claude/` at the project root is itself a valid Claude-Code-recognized location, and the install service could pick it up from there. Pros: consistency with the user-level layout. Cons: project-root `.claude/` is currently for project-specific Claude config (settings, hooks, etc.), and mixing distributable agent-definitions with project-config is conceptually muddled. The repo's current layout (`agents/`, `skill/`, `packs/` all at root) treats those as "things Duo ships TO users" — a clean ship-source layout.
 
 Filed as a discussion item, not a task. No code change unless the owner picks a direction.
+
+---
+
+### ENH-078: Navigator selection state too subtle + needs easier deselection
+
+**Status:** ✅ Shipped v0.6.4 (this sprint — 2026-05-03).
+**Priority:** Medium (everyday navigator UX paper-cut).
+**Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
+
+**Owner observation (verbatim):** "'selection' status in file navigator is too subtle; hard to see which item is selected; needs to be more prominent, eg name background fill, like in finder; still atelier, but more obvious; AND it needs to be easier to deselect something/bring selection state back to the navigator parent folder, eg by clicking on navigator whitespace (currently ignored), clicking on selected item a second time, and other methods"
+
+**What changed:**
+1. **Selection prominence (`renderer/components/FileTree.tsx § TreeNode`):** the selected row className stepped up from `bg-accent/15 text-zinc-100` to `bg-accent/30 text-zinc-50 font-medium`. Still atelier — same `accent` token, no new color — just a stronger fill + heavier weight so the row reads like Finder's selection at a glance.
+2. **Click-on-selected-row to deselect (`onSingleClickRow`):** when the row clicked is already `isSelected`, the handler routes to `actions.clearSelection()` instead of re-running `actions.selectItem()`. Re-clicking the same row twice toggles selection off.
+3. **Click-on-whitespace to deselect (`FileTree`'s overflow wrapper):** added `onClick` matching the existing `onContextMenu` whitespace guard (`e.target !== e.currentTarget` returns early). Whitespace click clears selection without opening a menu.
+4. **Escape already worked (line ~497).** No change there.
+
+**Cross-ref:** Stage 26 item 1 (single-click selects, double-click opens — same code path); BUG-025 (chevron is a separate hit target from the row — unaffected); ENH-016 (whitespace right-click for New file / New folder — same wrapper, both handlers coexist).
+
+---
+
+### ENH-079: Collapsed Navigator should display "Navigator: {project_name}" label
+
+**Status:** ✅ Shipped v0.6.4 (this sprint — 2026-05-03).
+**Priority:** Low (parity / discoverability).
+**Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
+
+**Owner observation (verbatim):** "when navigator is collapsed, it should say 'Navigator: {project_name}', in the same style as the text on the terminal and canvas collapse rails."
+
+**What changed:**
+- `renderer/components/FilesPane.tsx § CollapsedRail`: added a vertical-rl serif italic label below the folder glyph, mirroring `CollapsedPaneRail.tsx`'s pattern. Label reads `Navigator: {project_name}` where `project_name` is the basename of `state.cwd` (matching `rootEntry.name` synthesis at line ~175 — `state.cwd.split('/').filter(Boolean).pop() ?? '/'`). Threaded through as a new `projectName` prop.
+- Style matches the existing terminal/canvas rail labels: `font-serif italic text-[13px] text-ink-mute mt-1 tracking-wide` + `writing-mode: vertical-rl; transform: rotate(180deg)`.
+- The terminal/canvas rails (`CollapsedPaneRail.tsx`) stay unchanged — they don't have a project-context analog so no label change there.
+
+**Cross-ref:** ENH-066 (CollapsedPaneRail introduction); ENH-072 (font-size bump on the rail labels — kept consistent here).
+
+---
+
+### ENH-080: ⌘⇧A — search open tabs (working pane + browser tab strip)
+
+**Status:** 🆕 Filed.
+**Priority:** Medium (the user has many tabs open across the working pane and browser pane; opening a "where is X tab?" picker is a real gap).
+**Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
+
+**Owner observation (verbatim):** "need cmd+shift+a to search open tabs"
+
+**What's wanted:** a `⌘⇧A` chord that opens a small floating command-palette-style picker listing every open tab across the working pane (markdown editor, canvas, browser-in-aux future, etc.) AND the browser tab strip. Type to filter; arrow keys to move; Enter activates that tab; Escape dismisses.
+
+**Implementation sketch (rough — needs design pass before code):**
+1. New chord row in `renderer/keyboard/globalShortcuts.ts`: `Mod-Shift-A` → `openTabSearch`.
+2. Wire through `useKeyboardShortcuts` in App.tsx → flips a `tabSearchOpen` state.
+3. New component `renderer/components/TabSearch.tsx` — floating panel (similar to `Breadcrumb`'s edit interstitial), gathers all open tabs from:
+   - `App.tsx`'s `tabs[]` (working pane)
+   - `App.tsx`'s `browserTabs[]` (browser pane)
+   - Future: aux pane tabs (Phase 3c).
+4. Activate by:
+   - Working pane tab → `onActivate(tabId)` (same path the tab strip click uses).
+   - Browser tab → `browserManager.activateTab(tabId)`.
+5. Visual: cream paper bg + accent border, lives center-screen, dimmed backdrop. Type-as-filter against `title` + `path`. Group by surface (working / browser).
+
+**Out of scope for v0.6.4** — this is its own ENH, not a sweep candidate. File only.
+
+**Cross-ref:** Phase 3b (`⌘\` open/move chord — same family of "tab navigation chords"); ENH-024 (tab strip pans/shifts — partial overlap, but ENH-024 is about visual access, not jump-by-name).
+
+---
+
+### ENH-081: Register Duo as a macOS Open-With candidate for `.md` and `.html`
+
+**Status:** ✅ Shipped v0.6.4 (this sprint — 2026-05-03; verification pending v0.6.4 DMG).
+**Priority:** Medium (Finder is most users' file-discovery surface; Duo currently doesn't appear in Open With → choices).
+**Filed:** 2026-05-03 (in-session ask).
+
+**Owner observation (verbatim):** "can we set duo as eligible/compatible to open md, html from the finder?"
+
+**What changed:**
+1. **`electron-builder.yml`** — added top-level `fileAssociations` block with `ext: md` (Markdown) + `ext: html` (HTML), both `role: Editor`. electron-builder generates the `CFBundleDocumentTypes` Info.plist entries automatically; macOS picks them up on next install / `lsregister` re-scan.
+2. **`electron/main.ts`** — added an `app.on('open-file', (event, path) => { event.preventDefault(); … })` handler. If the main window already exists, route through `sendEdit(path)` (same path `duo open` and the navigator double-click use, which goes through `openFileSmart` → file-classifier → editor-or-canvas-or-browser routing). If the window doesn't exist yet (cold-start "double-click an .md to launch Duo"), stash the path in a `pendingOpenFilePath` variable and flush after `app.whenReady()` resolves and the window is created.
+
+**Verification:** the registration only takes effect in a packaged + installed build (macOS won't notice an Info.plist change in dev). Smoke at v0.6.4 cut: install the DMG, right-click an `.md` file in Finder → Open With, confirm Duo appears in the list. If it doesn't auto-appear, run `lsregister -kill -r -domain local -domain user` and re-check. (`role: Editor` means Duo CAN be picked but isn't the OS-default unless the user manually sets it via Get Info → Open With → Change All.)
+
+**Same constraint family as ENH-077** (system dialog icon — verifiable only post-package). Both fold into the v0.6.4 cut smoke walk.
+
+**Cross-ref:** ENH-077 (other post-package-only verification); BUG-067 (`duo open <path.md>` smart routing — `openFileSmart` is the shared destination for Finder + CLI opens, so the routing matches what users get from Duo internally).
+
+---
+
+### Discussion: Enterprise distro is a downloaded ZIP that becomes a submodule, NOT a fork
+
+**Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
+
+**Owner observation (verbatim):** "when we ship the enterprise distribution module or whatever it's called, should anticipate that the bundle (at the client site) will be a GH repo that is submoduled, or similar, into whatever version of the duo app is pulled down from github.com/dudgeon/duo; duo will not be cloned/forked, it will be literally downloaded as a zip file and then uploaded to the enterprise GH"
+
+**Why this matters:** the prior Stage 21e "fork-friendly architecture" work assumed enterprise instances would clone or fork `dudgeon/duo`, edit `fork.config.json` + add their own packs, and run their own `dist-signed.sh`. The owner is clarifying that the ACTUAL enterprise pattern is:
+
+1. Enterprise downloads `dudgeon/duo` as a ZIP (not via git).
+2. Uploads the unzipped tree to their internal GitHub.
+3. Adds their own enterprise pack(s) — likely as a **git submodule** under (e.g.) `packs/enterprise-name/` — pointing at a separate enterprise-only repo.
+4. Builds Duo locally on enterprise infra. The submodule's pack ships in the resulting DMG.
+
+**Implications for the architecture (v0.6.5+ / Stage 18b+):**
+
+- **`packs/` directory must tolerate submodules.** electron-builder's `extraResources` glob already covers `packs/**/*`, but submodule contents are pulled in at `git submodule update`, not at clone time. The build script needs to ensure submodules are checked out before `electron-builder` runs. Add `git submodule update --init --recursive` to `scripts/dist.sh` and `scripts/dist-signed.sh` (already done? check).
+- **`PACK.json` discovery** must continue to work for submodule-shaped packs (path-walk, not git-aware).
+- **`fork.config.json`** — the existing layered identity overrides (productName / appId / publish coordinates) are still the right pattern; nothing about ZIP-download breaks them.
+- **Update channel** — enterprise builds set `publish.provider` to their internal release host (GHEC, S3, internal Sparkle feed). The fork-config injection at CLI override time already supports this.
+- **Doc work owed:** `docs/HOW-TO-FORK.md` should add an "Enterprise distro" section spelling out the ZIP+submodule pattern explicitly. Currently the doc implies `git clone fork`, which doesn't match the realized enterprise workflow.
+
+**Filed as a discussion item.** No code change required RIGHT NOW — the existing Stage 21e architecture supports this pattern fine. The work owed is documentation + a sanity check that `dist-signed.sh` runs `git submodule update --init` before `electron-builder` (small addition if missing). Pull into a Stage 18b enterprise-distro sprint when that work surfaces.
+
+**Cross-ref:** Stage 21e (fork-friendly architecture, shipped v0.5.0); `docs/HOW-TO-FORK.md`; `fork.config.default.json`; `electron-builder.yml § extraResources`.
 
 ---
 

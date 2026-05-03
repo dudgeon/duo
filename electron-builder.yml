@@ -48,6 +48,27 @@ files:
   # `Cannot find module 'node-pty'`.
   - node_modules/**/*
 
+# ENH-081 (v0.6.4) — register Duo as an Open-With candidate for .md and
+# .html files in macOS Finder. role: Editor means Duo CAN be picked
+# from Finder's "Open With" submenu; the OS default for these
+# extensions is unaffected unless a user opts in via Get Info → Open
+# With → Change All. electron-builder synthesizes the matching
+# CFBundleDocumentTypes entries in the packaged Info.plist; combined
+# with the `app.on('open-file')` handler in electron/main.ts, double-
+# clicking an .md/.html file in Finder routes through openFileSmart
+# (the same destination as `duo open <path>` and FileTree double-
+# clicks), so Finder opens land on the right surface (markdown ->
+# editor; .html with `duo-open-in=browser` -> browser pane; otherwise
+# canvas). Verification only takes effect post-package + post-install
+# (lsregister scans Info.plist on app install, not in dev).
+fileAssociations:
+  - ext: md
+    name: Markdown
+    role: Editor
+  - ext: html
+    name: HTML
+    role: Editor
+
 extraResources:
   # skill/ is copied to app bundle so first-launch postinstall can copy it to ~/.claude/skills/duo/
   - from: skill/

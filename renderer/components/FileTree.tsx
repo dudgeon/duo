@@ -285,10 +285,22 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     void popupMenu(e, rootEntry, true)
   }
 
+  // ENH-078 (v0.6.4) — left-click on whitespace clears selection.
+  // Same e.target !== e.currentTarget guard as the right-click menu
+  // above so row clicks stay routed to TreeNode's own onClick. Pairs
+  // with the same-row-second-click toggle and ⎋ in onRowKey so users
+  // have three deselect paths (whitespace click / re-click selected /
+  // Escape).
+  const onWhitespaceClick = (e: React.MouseEvent) => {
+    if (e.target !== e.currentTarget) return
+    actions.clearSelection()
+  }
+
   return (
     <div
       className="flex-1 overflow-auto scrollbar-none py-1"
       onContextMenu={onWhitespaceContextMenu}
+      onClick={onWhitespaceClick}
     >
       <TreeNodes
         entries={rootEntries}
@@ -467,8 +479,17 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
   // Stage 26 item 1 — single-click selects, double-click opens.
   // Stage 26 item 1b (BUG-025) — chevron is a discrete hit target;
   // toggling expansion does NOT change selection or re-root the tree.
+  // ENH-078 (v0.6.4) — clicking the row that's ALREADY selected
+  // toggles selection off, mirroring Finder. Pairs with the
+  // whitespace-click deselect handler at the FileTree wrapper level
+  // (see onWhitespaceClick) so users have multiple ways to clear
+  // selection without keyboard (⎋ already worked, see onRowKey).
   const onSingleClickRow = () => {
-    actions.selectItem(entry.path, isFolder ? 'folder' : 'file')
+    if (isSelected) {
+      actions.clearSelection()
+    } else {
+      actions.selectItem(entry.path, isFolder ? 'folder' : 'file')
+    }
   }
 
   const onDoubleClickRow = () => {
@@ -509,8 +530,14 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
       <div
         className={[
           'group/row relative w-full flex items-center gap-1.5 pr-2 py-0.5 text-[12px] leading-tight rounded transition-colors',
+          // ENH-078 (v0.6.4) — selection prominence bumped from
+          // bg-accent/15 + text-zinc-100 to bg-accent/30 + text-zinc-50
+          // + font-medium so selection reads like Finder's at a glance.
+          // Owner observation: prior selection state was "too subtle;
+          // hard to see which item is selected." Same accent token
+          // (still atelier), heavier fill + heavier weight.
           isSelected
-            ? 'bg-accent/15 text-zinc-100'
+            ? 'bg-accent/30 text-zinc-50 font-medium'
             // Stage 26 PR 3 item 3 — open file rows render with
             // brighter text than unopened rows. Distinct from
             // selection (full-row tint), this is just text color.

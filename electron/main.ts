@@ -144,6 +144,33 @@ const newTabPending = new Map<string, (res: NewTabResult) => void>()
 nativeTheme.themeSource = 'light'
 
 let mainWindow: BrowserWindow | null = null
+// ENH-081 (v0.6.4) — Finder double-click / drag-onto-Dock landing
+// strip. macOS fires `app.on('open-file')` for paths the user opened
+// via the OS shell. On cold start the event can fire before
+// createWindow() resolves and the renderer registers IPC listeners,
+// so we stash the path and replay it from `did-finish-load`. On
+// warm-start (Duo already running) the send happens immediately.
+// Single-pending-path is sufficient: macOS coalesces multi-file opens
+// into separate event firings, but the cold-start window before
+// did-finish-load is short and a user opening N files at boot is the
+// edge case to come back to (file as a follow-up if it surfaces).
+let pendingOpenFilePath: string | null = null
+app.on('open-file', (event, path) => {
+  event.preventDefault()
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    // Warm path — Duo is already running. Route through sendEdit (the
+    // same destination FileTree double-click and `duo open` use), so
+    // the Finder open lands on the right surface (markdown -> editor;
+    // .html -> canvas, or browser if the file's `duo-open-in` meta
+    // says so).
+    sendEdit(path)
+    mainWindow.focus()
+  } else {
+    // Cold path — stash and let the createWindow() did-finish-load
+    // hook flush after the renderer is ready to receive NAV_EDIT.
+    pendingOpenFilePath = path
+  }
+})
 const ptyManager = new PtyManager(app.getVersion())
 const filesService = new FilesService()
 const pinsService = new PinsService()
@@ -266,6 +293,13 @@ async function createWindow(): Promise<void> {
       expanded = join(homedir(), expanded.slice(2))
     }
     void sendEdit(expanded)
+    // BUG-071 (v0.6.4) — pull keyboard focus off the WebContentsView
+    // and back onto the renderer's content view after the path-link
+    // click. Without this, ⌃Tab is unresponsive until the user re-
+    // clicks into the canvas because the WCV is still the native
+    // first-responder even though React's focusedColumn flipped to
+    // 'working'. Inverse of BUG-042's wireKeyForwarding pattern.
+    mainWindow?.webContents.focus()
   })
 
   // Sprint 3 Phase 3a polish — split-targeted path-link clicks. Fires
@@ -283,6 +317,11 @@ async function createWindow(): Promise<void> {
       expanded = join(homedir(), expanded.slice(2))
     }
     void splitViewOpen(expanded)
+    // BUG-071 (v0.6.4) — same focus transfer as the main-pane path.
+    // The WCV is still the keyboard first-responder until we tell the
+    // renderer to take it back, regardless of which pane the open
+    // landed in.
+    mainWindow?.webContents.focus()
   })
 
   // Socket server starts listening; CLI connects here
@@ -431,6 +470,16 @@ async function createWindow(): Promise<void> {
       }
     } catch (err) {
       console.warn('[main] first-launch defaults hook failed:', (err as Error)?.message ?? err)
+    }
+
+    // ENH-081 (v0.6.4) — flush a pending Finder open-file (cold start).
+    // Done AFTER the first-launch defaults hook so a user-initiated
+    // open wins focus over default tabs; sendEdit's NAV_EDIT activates
+    // the new tab and supersedes any tab the defaults just opened.
+    if (pendingOpenFilePath) {
+      const p = pendingOpenFilePath
+      pendingOpenFilePath = null
+      sendEdit(p)
     }
   })
 

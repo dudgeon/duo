@@ -29,6 +29,18 @@ import * as blockOps from './blockOps'
 export function installMarkdownShortcuts(doc: Document): () => void {
   const onInput = () => handleInput(doc)
   const onKeyDown = (e: KeyboardEvent) => {
+    // ENH-076 (v0.6.4) — ⌘[ / ⌘] indent/outdent inside list items,
+    // mirroring the markdown editor's ListIndentShortcuts.ts (ENH-025).
+    // Editor-canvas parity rule (CLAUDE.md § 4) disposition: (a) Mirrored
+    // — same chord, same handler shape, same no-op-outside-list semantics.
+    // ⌘⇧[ / ⌘⇧] are claimed globally per ListIndentShortcuts comments;
+    // the !shiftKey guard keeps us from shadowing those.
+    if (e.metaKey && !e.shiftKey && !e.ctrlKey && !e.altKey && (e.key === '[' || e.key === ']')) {
+      if (handleListIndent(doc, e.key === '[')) {
+        e.preventDefault()
+      }
+      return
+    }
     // BUG-061 (v0.6.3) — Tab / Shift-Tab inside list items indent
     // and outdent, mirroring the markdown editor's parity (Stage 11
     // ENH-025) and the Obsidian / VS Code muscle memory. Outside a

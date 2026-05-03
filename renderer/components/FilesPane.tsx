@@ -119,7 +119,10 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
       aria-label="Files"
     >
       {collapsed ? (
-        <CollapsedRail onExpand={onToggleCollapsed} />
+        <CollapsedRail
+          onExpand={onToggleCollapsed}
+          projectName={state.cwd.split('/').filter(Boolean).pop() ?? '/'}
+        />
       ) : (
         <div className="flex flex-col h-full min-w-0">
           {/* Stage 22 — top pane "Your Claude settings". Renders the
@@ -214,13 +217,13 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
   )
 })
 
-function CollapsedRail({ onExpand }: { onExpand: () => void }) {
+function CollapsedRail({ onExpand, projectName }: { onExpand: () => void; projectName: string }) {
   return (
     <button
       onClick={onExpand}
-      title="Show files (\u2318B)"
-      aria-label="Show files column"
-      className="h-full w-full flex flex-col items-center pt-3 gap-2 text-zinc-500 hover:text-zinc-200 hover:bg-surface-2 transition-colors cursor-pointer"
+      title={`Show navigator: ${projectName} (\u2318B)`}
+      aria-label={`Show navigator: ${projectName}`}
+      className="h-full w-full flex flex-col items-center pt-3 gap-2 text-ink-mute hover:text-ink hover:bg-surface-2 transition-colors cursor-pointer"
     >
       <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path
@@ -230,6 +233,17 @@ function CollapsedRail({ onExpand }: { onExpand: () => void }) {
           strokeLinejoin="round"
         />
       </svg>
+      {/* ENH-079 (v0.6.4) \u2014 vertical "Navigator: {project}" label,
+          mirroring CollapsedPaneRail's terminal/canvas labels (font /
+          size / writing-mode / rotation match exactly). Shows the
+          basename of the project's cwd so a user with multiple Duo
+          windows knows at a glance which one this rail belongs to. */}
+      <span
+        className="font-serif italic text-[13px] text-ink-mute mt-1 tracking-wide"
+        style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
+      >
+        {`Navigator: ${projectName}`}
+      </span>
     </button>
   )
 }

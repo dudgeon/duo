@@ -18,18 +18,36 @@
 
 ---
 
-## Current state — last updated 2026-05-03
+## Current state — last updated 2026-05-03 (afternoon — idle-thoughts sweep)
 
 **Active arc:** Sprint 3 — closes the v0.6.3 chapter into a v0.6.4 cut.
-Five things in flight: BUG-070/061 walk-3 fixes (DONE), Phase 2
-convergence ADR (DONE), Phase 3 Split View (3a CORE DONE; 3b/3c queued),
-ENH-039 polish (DONE), styling pick (BLOCKED on owner).
+Now widened beyond Split View to absorb the queued idle-thoughts
+items + adjacent small-scope wins, since the user explicitly asked
+for an ambitious self-validatable sweep ("Please prioritize things
+you can validate yourself without me needing to approve computer
+control; please be ambitious in scope sweeping in as many small,
+testable, defined things as you can").
+
+**Phase status:**
+- Phase 1 (walk-3 v3 fixes): ✅ DONE
+- Phase 2 (convergence ADR): ✅ DONE
+- Phase 3a (Split View core + UI + per-page meta + agent trigger
+  language): ✅ DONE
+- Phase 3a polish (styling pick): ✅ Owner picked **option A**
+  (current/shipped slim symmetric chrome). No further chrome work
+  for v0.6.4.
+- Phase 3b (right-click invocation surfaces + ⌘\ chords): ⏸ Queued.
+  Doesn't block the cut; ships in the next sprint.
+- Phase 3c (persistence + edge cases): ⏸ Queued.
+- **Idle-thoughts sweep (NEW):** ✅ DONE (2026-05-03 afternoon).
+  Six items shipped, two filed-only, one discussion item. Detail
+  below.
 
 **Branch:** `main` (all work on main; no worktree).
 
 **Package version:** `package.json` is `0.6.3`. The cut hasn't happened
-yet — accumulating until the chapter feels closed. Expected to bump to
-`0.6.4` when Phase 3b + 3c land + a fresh smoke walk passes.
+yet — accumulating until a fresh smoke walk passes. Expected to bump
+to `0.6.4` once the user smokes the sweep items.
 
 ---
 
@@ -46,7 +64,63 @@ yet — accumulating until the chapter feels closed. Expected to bump to
 | `56e986b` | **BUG-070/061 v3** | Walk-3 fail root causes diagnosed live: (1) BUG-070 v3: srcdoc iframes pass through an `about:blank` phase before the parser swaps in the real srcdoc doc; v2 wired against the disposable about:blank body, locked `wired=true`, never re-ran. Fix: bail in `wire()` when `doc.URL === 'about:blank'`. (2) BUG-061 v3: Chromium converts trailing literal space (U+0020) to `&nbsp;` (U+00A0) — DOM inspection confirmed `<h1>-&nbsp;</h1>`. Fix: `\s` regex matches both. Applied to heading, bullet, ordered, blockquote triggers. **Both verified PASS in live smoke this session.** |
 | `f7ff1fe` | **Phase 3a polish code** | Per-page `<meta name="duo-path-target" content="split">` support so pages can default their `[data-duo-path]` clicks to Split View. Wiring: cdp-bridge.ts PATH_LINK_FORWARDER_IIFE reads the meta + per-link `data-duo-target` override; new `duoOpenPathSplit` CDP binding; main.ts dispatches to `splitViewOpen` (with same tilde expansion). Smoke-walk generator emits the meta. agents/duo.md `duo split-view` cheat-sheet now documents trigger language ("in split / alongside / side by side / see these side by side / as a companion / in the side panel" → split; default ALWAYS main). |
 
-**Total commits this arc:** 8 (`1b3b132` → `f7ff1fe`).
+**Total commits this arc:** 8 (`1b3b132` → `f7ff1fe`) — plus the
+2026-05-03 afternoon idle-thoughts sweep, uncommitted at time of
+writing (next commit will land a single batch).
+
+---
+
+## Idle-thoughts sweep (2026-05-03 afternoon — self-validatable batch)
+
+User asked for an ambitious sweep of small, testable, well-defined
+items I could fully implement + typecheck + build without needing
+computer-control approval. Walked the idle-thoughts.md doc + the
+queued tasks.md candidates and shipped the eight items below as a
+single batch.
+
+| Item | Status | Files touched |
+|---|---|---|
+| **ENH-076** — ⌘[ / ⌘] indent/outdent in HTML canvas | ✅ Shipped | `renderer/components/HtmlCanvas/markdownShortcuts.ts` |
+| **ENH-078** — Navigator selection prominence + click-to-deselect | ✅ Shipped | `renderer/components/FileTree.tsx` |
+| **ENH-079** — Collapsed Navigator "Navigator: {project_name}" label | ✅ Shipped | `renderer/components/FilesPane.tsx` |
+| **ENH-081** — Finder file-association registration for .md/.html | ✅ Shipped (verify post-DMG) | `electron-builder.yml`, `electron/main.ts` |
+| **BUG-071** — Focus limbo after smoke-walk path-link click | ✅ Shipped | `electron/main.ts` |
+| Idle thought #2 — `⌘⇧A` tab search | 📁 Filed only (ENH-080) | `tasks.md` |
+| Idle thought #3 — Enterprise distro = ZIP+submodule architecture | 📁 Filed (discussion) | `tasks.md` |
+| Idle-thoughts.md hygiene — move all 4 unprocessed → Processed | ✅ Done | `idle-thoughts.md` |
+
+**Validation walked self-side:**
+- `npm run typecheck` — clean (no errors).
+- `npm run build` — clean (out/main + out/preload + out/renderer
+  build successfully; bundle sizes unchanged from baseline).
+- Static review of every edit against the existing parity / pattern
+  it claims to mirror (ENH-076 ↔ ListIndentShortcuts.ts; ENH-079 ↔
+  CollapsedPaneRail.tsx; ENH-078 ↔ existing whitespace right-click
+  handler; BUG-071 ↔ BUG-042 wireKeyForwarding inverse).
+
+**What needs the user (for v0.6.4 cut to qualify as 'shipped'):**
+
+The smoke walk for v0.6.4 should add rows for all six newly-shipped
+items above, plus the still-pending Phase 3a polish verify (the
+per-page split-routing meta from `f7ff1fe`, which needs a main-
+process restart to live-test). I'll generate a fresh smoke-walk
+manifest via `.claude/skills/smoke-walk/` when the user is ready
+to walk.
+
+**Editor-canvas parity rule disposition (for ENH-076):** **(a)
+Mirrored** — same chord, same handler shape, same no-op-outside-
+list semantics as `editor/extensions/ListIndentShortcuts.ts`. No
+deferrals owed to the markdown editor.
+
+**Post-DMG verification owed:**
+- **ENH-081** — install v0.6.4 DMG, right-click an `.md` in Finder,
+  confirm Duo appears in the Open With submenu. If not auto-listed,
+  run `lsregister -kill -r -domain local -domain user`. (Same class
+  of post-package-only verify as ENH-077; both fold into v0.6.4
+  smoke.)
+- **ENH-077** — open a packaged Duo, trigger any `dialog.confirm`,
+  confirm the icon in the dialog is Duo's clawd glyph, not
+  Electron's default. Likely no-op; closes if confirmed.
 
 ---
 
@@ -95,9 +169,25 @@ Walked against fresh dev rebuilt with all Phase 1/2/3 commits + the v3 fixes. Al
 
 ## What's blocked on owner
 
-1. **Pick a styling option** for the Split View chrome. Canvas at `docs/prd/canvas-split-view-styling.html` (open in Duo). Options: A (current/shipped) · B (recommended; ~30 min CSS to switch) · C (minimal floating) · D (full tab strip in aux) · E (drawer/sheet). Need this before Phase 3b starts so the new menu items / keyboard chords land against the final chrome.
+1. ~~**Pick a styling option** for the Split View chrome.~~ ✅
+   Resolved 2026-05-03 afternoon — owner picked **option A**
+   (current/shipped slim symmetric chrome). No further chrome work
+   for v0.6.4.
 
-2. **(Soft)** Whether to dev-restart now to live-verify the per-page split-routing meta from `f7ff1fe`. Renderer fixes are HMR-live; main.ts changes need a restart. Could batch with the styling-pick rebuild.
+2. **(Soft)** Dev-restart to live-verify the per-page split-routing
+   meta from `f7ff1fe` AND the idle-thoughts-sweep main-process
+   changes (BUG-071 focus transfer, ENH-081 open-file handler).
+   Renderer-only items from the sweep (ENH-076, ENH-078, ENH-079)
+   are HMR-live in the running dev. Main-process items + the
+   styling-pick canvas's path-routing meta need a single restart
+   to live-test as a batch.
+
+3. **Smoke walk** — after the dev restart, I'll generate a
+   smoke-walk manifest covering: BUG-070 v3 (re-confirm), BUG-061
+   v3 (re-confirm), ENH-039 (re-confirm), Phase 3a Split View
+   end-to-end (re-confirm), Phase 3a polish per-page meta (NEW —
+   needs the restart), ENH-076, ENH-078, ENH-079, BUG-071 (NEW —
+   needs the restart).
 
 ---
 
