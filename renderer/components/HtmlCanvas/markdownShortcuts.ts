@@ -26,6 +26,48 @@
 
 import * as blockOps from './blockOps'
 
+// ── Pure trigger matcher (extracted v0.6.4 for unit testing) ────────────────
+//
+// The block-prefix conversion regexes are extracted into a single
+// pure function so they can be locked in by Vitest unit tests
+// (`renderer/components/HtmlCanvas/markdownShortcuts.test.ts`).
+// BUG-061 has cycled through three implementations (v1 strict eq →
+// v2 start-match → v3 nbsp-tolerant `\s`); a small test surface
+// captures the precise regex shape so a fourth iteration can be
+// caught at unit-test time, not at smoke-walk time.
+//
+// Inputs: text content of the caret block (typically `block.textContent`
+// from `findBlockAncestor`).
+// Outputs: a tagged trigger descriptor or null.
+//
+// Regexes use `\s` (not literal U+0020) to match both standard
+// space and the nbsp (U+00A0) Chromium auto-converts trailing
+// literal spaces to in contentEditable. See BUG-061 v3 commit
+// `56e986b` for the live-DOM diagnosis.
+//
+// Start-match (`^...`), not exact equality, because when the caret
+// block resolves to `<body>` (canvas with no wrapping `<p>`),
+// body.textContent concatenates all descendants — strict equality
+// fails when other content sits below the prefix line. See BUG-061
+// v2 commit `4baba8b`.
+
+export type BlockTrigger =
+  | { kind: 'heading'; level: 1 | 2 | 3 | 4 | 5 | 6 }
+  | { kind: 'ul' }
+  | { kind: 'ol' }
+  | { kind: 'blockquote' }
+
+export function matchBlockTrigger(text: string): BlockTrigger | null {
+  const headingMatch = text.match(/^(#{1,6})\s$/)
+  if (headingMatch) {
+    return { kind: 'heading', level: headingMatch[1].length as 1 | 2 | 3 | 4 | 5 | 6 }
+  }
+  if (/^[-*+]\s$/.test(text)) return { kind: 'ul' }
+  if (/^1\.\s$/.test(text)) return { kind: 'ol' }
+  if (/^>\s$/.test(text)) return { kind: 'blockquote' }
+  return null
+}
+
 export function installMarkdownShortcuts(doc: Document): () => void {
   const onInput = () => handleInput(doc)
   const onKeyDown = (e: KeyboardEvent) => {
@@ -83,72 +125,32 @@ function handleInput(doc: Document): void {
   const block = blockOps.findBlockAncestor(doc, node)
   const text = block.textContent ?? ''
 
-  // BUG-061 (v0.6.3) — bullet trigger was strict equality (`text === '- '`)
-  // which failed when the caret block was `doc.body` and `body` contained
-  // existing siblings (textContent concatenates all descendants). The
-  // owner's repro had this shape: a canvas without a wrapping <p>, body
-  // text "- " typed but body.textContent included other descendants too.
-  // Fix: match the trigger pattern at the START of the textContent — same
-  // semantic ("user just typed the prefix") but tolerates existing
-  // siblings. The exact-match still works (it's a special case of
-  // start-match where the prefix IS the entire content).
-  //
-  // Heading match — `# ` … `###### ` at start.
-  // BUG-061 v3 — `\s` matches both U+0020 and U+00A0; see regex
-  // change comment below for context.
-  const headingMatch = text.match(/^(#{1,6})\s$/)
-  if (headingMatch) {
+  // BUG-061 — block-trigger matcher (extracted v0.6.4 to a pure
+  // function `matchBlockTrigger` so the regex shape is locked in by
+  // unit tests in `markdownShortcuts.test.ts`). Three iterations of
+  // this fix landed (v1 strict-equality → v2 start-match → v3
+  // nbsp-tolerant `\s`); the test surface captures the BUG-061 v3
+  // shape so v4 won't regress the same Chromium quirks. See the
+  // matchBlockTrigger comment header for the full regex rationale
+  // (start-match for body-as-block; `\s` for nbsp-converted trailing
+  // spaces). Conversion path stays here (DOM ops, not portable to
+  // unit tests).
+  const trigger = matchBlockTrigger(text)
+  if (trigger) {
     clearBlockText(block)
-    blockOps.setBlock(doc, (`h${headingMatch[1].length}`) as 'h1')
-    return
-  }
-  // BUG-061 (v0.6.4) — TWO fixes layered on top of v0.6.3's partial:
-  //
-  // (1) Trigger detection — switched from strict equality
-  //     (`text === '- '`) to start-match regex. The strict form fails
-  //     when the caret block resolves to `body` (the canvas has no
-  //     wrapping `<p>`), because body.textContent concatenates all
-  //     descendants and isn't equal to the typed prefix alone. The
-  //     heading match was already converted to start-match in v0.6.3;
-  //     bullet/ordered stayed strict by oversight. Start-match
-  //     subsumes both shapes (strict equality is a special case of
-  //     start-match where prefix IS the whole content).
-  //
-  // (2) Conversion — hand-roll the `<ul>` / `<ol>` creation instead
-  //     of trusting `execCommand('insertUnorderedList')` /
-  //     `'insertOrderedList'` after `clearBlockText` empties the block.
-  //     The Chromium quirk: those execCommand verbs return true on an
-  //     empty contentEditable block but produce no list element — the
-  //     paragraph stays a paragraph, the trigger fires invisibly, and
-  //     the user (who typed `- `) sees nothing happen except the literal
-  //     characters disappearing. Same root reason
-  //     `blockOps.toggleTaskList` is hand-rolled (execCommand has no
-  //     insertTaskList; for the empty-block case here, execCommand's
-  //     bullet/ordered verbs are no better).
-  //
-  // `+` joins `-` and `*` for CommonMark parity (the markdown editor's
-  // ENH-018 supports all three; the canvas should match).
-  //
-  // BUG-061 v3 — match `\s` instead of literal space. Chromium's
-  // contentEditable converts trailing literal spaces (U+0020) to
-  // non-breaking spaces (U+00A0, `&nbsp;`) to preserve them in the
-  // rendered HTML; a literal-space regex misses the converted form
-  // and the trigger silently fails. `\s` (per ECMAScript spec)
-  // matches both U+0020 and U+00A0 (plus other Unicode whitespace —
-  // harmless here).
-  if (/^[-*+]\s$/.test(text)) {
-    clearBlockText(block)
-    convertEmptyBlockToList(doc, block, 'ul')
-    return
-  }
-  if (/^1\.\s$/.test(text)) {
-    clearBlockText(block)
-    convertEmptyBlockToList(doc, block, 'ol')
-    return
-  }
-  if (/^>\s$/.test(text)) {
-    clearBlockText(block)
-    blockOps.toggleBlockquote(doc)
+    if (trigger.kind === 'heading') {
+      blockOps.setBlock(doc, `h${trigger.level}` as 'h1')
+    } else if (trigger.kind === 'ul') {
+      // Hand-roll `<ul>` creation rather than execCommand because
+      // `insertUnorderedList` returns true on an empty contentEditable
+      // block but produces no list element (Chromium quirk; same
+      // reason `blockOps.toggleTaskList` is hand-rolled).
+      convertEmptyBlockToList(doc, block, 'ul')
+    } else if (trigger.kind === 'ol') {
+      convertEmptyBlockToList(doc, block, 'ol')
+    } else if (trigger.kind === 'blockquote') {
+      blockOps.toggleBlockquote(doc)
+    }
     return
   }
 

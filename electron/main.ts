@@ -9,6 +9,7 @@ import type { Options as ContextMenuOptions } from 'electron-context-menu'
 import { join } from 'path'
 import { homedir } from 'os'
 import { resolveClaudeBinary } from '../core/resolve-claude'
+import { expandTilde } from '../core/path-utils'
 import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
 import { CdpBridge } from './cdp-bridge'
@@ -286,12 +287,7 @@ async function createWindow(): Promise<void> {
   // (other-user home) is rare in this context — defer until a real
   // ask shows up.
   cdpBridge.onBrowserOpenPath((path) => {
-    let expanded = path
-    if (expanded === '~') {
-      expanded = homedir()
-    } else if (expanded.startsWith('~/')) {
-      expanded = join(homedir(), expanded.slice(2))
-    }
+    const expanded = expandTilde(path, homedir())
     void sendEdit(expanded)
     // BUG-071 (v0.6.4) — pull keyboard focus off the WebContentsView
     // and back onto the renderer's content view after the path-link
@@ -310,12 +306,7 @@ async function createWindow(): Promise<void> {
   // so smoke-walk steps' path links open in the side without losing
   // the walk doc itself. Same tilde expansion as the main path above.
   cdpBridge.onBrowserOpenPathSplit((path) => {
-    let expanded = path
-    if (expanded === '~') {
-      expanded = homedir()
-    } else if (expanded.startsWith('~/')) {
-      expanded = join(homedir(), expanded.slice(2))
-    }
+    const expanded = expandTilde(path, homedir())
     void splitViewOpen(expanded)
     // BUG-071 (v0.6.4) — same focus transfer as the main-pane path.
     // The WCV is still the keyboard first-responder until we tell the

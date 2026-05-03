@@ -92,6 +92,9 @@ single batch.
 | Idle thought #3 — Enterprise distro = ZIP+submodule architecture | 📁 Filed (discussion) | `tasks.md` |
 | Idle-thoughts.md hygiene — move all 4 unprocessed → Processed | ✅ Done | `idle-thoughts.md` |
 | **Stage 4 dead-code cleanup** — orphaned `SkillsPanel`/`useSkillsContext`/`scanSkills` (no callers; explicitly excluded per CLAUDE.md "Brainstem / MCP — Not included") | ✅ Shipped (wave 3) | `renderer/components/SkillsPanel.tsx`, `renderer/hooks/useSkillsContext.ts`, `core/skills-scanner.ts` (all deleted), `shared/types.ts` (removed `SkillEntry` + 2 unused IPC channels) |
+| **Wave 4** — orphaned deprecated alias (`EditorSelectionTagged`) | ✅ Shipped | `shared/types.ts` |
+| **Wave 5** — ENH-070 dev-only FAQ symlink (Path 1) | ✅ Shipped | `electron/install-service.ts` |
+| **Wave 6** — Vitest framework + first regression tests | ✅ Shipped | `package.json`, `vitest.config.ts`, `core/path-utils.ts` (extracted `expandTilde`), `core/path-utils.test.ts`, `renderer/components/HtmlCanvas/markdownShortcuts.ts` (extracted `matchBlockTrigger`), `renderer/components/HtmlCanvas/markdownShortcuts.test.ts`, `electron/main.ts` (uses `expandTilde`). 41 tests pass; locks BUG-061 v3 nbsp-tolerant trigger regex behavior + BUG-067/ENH-039 tilde expansion. |
 
 **Validation walked self-side:**
 - `npm run typecheck` — clean (no errors).

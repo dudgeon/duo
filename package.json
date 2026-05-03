@@ -18,7 +18,9 @@
     "pack": "bash scripts/dist.sh --dir",
     "dist": "bash scripts/dist.sh",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "dependencies": {
     "@tiptap/extension-code-block-lowlight": "^2.27.2",
@@ -64,6 +66,7 @@
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "tailwindcss": "^3.4.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.4"
   }
 }
