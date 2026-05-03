@@ -854,13 +854,6 @@ export interface HtmlCanvasSelectionSnapshot {
   surrounding?: string
 }
 
-/**
- * @deprecated Renamed to `MarkdownSelectionSnapshot` 2026-04-26 for symmetry
- * with `BrowserSelectionSnapshot` and `HtmlCanvasSelectionSnapshot`. Existing
- * call sites can keep using this alias until they're migrated.
- */
-export type EditorSelectionTagged = MarkdownSelectionSnapshot
-
 export type DuoSelection =
   | MarkdownSelectionSnapshot
   | BrowserSelectionSnapshot
