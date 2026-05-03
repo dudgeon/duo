@@ -165,6 +165,16 @@ export function WorkingTabStrip({
       case 'move-right':
         moveTabBy(tab.id, 1)
         return
+      case 'copy-path': {
+        // ENH-074 (v0.6.3) — copy path item mirrors the navigator's
+        // FileTree right-click. Visible only when the tab has a
+        // resolvable path (file tabs always; browser tabs only when
+        // their URL is a file:// pointing at a local artifact —
+        // see pathFromFileUrl above).
+        if (!path) return
+        try { await navigator.clipboard.writeText(path) } catch { /* permission denied */ }
+        return
+      }
       case 'pin':
         onTogglePin?.(tab.id)
         return
@@ -274,6 +284,14 @@ export function WorkingTabStrip({
           />
         ))}
       </div>
+
+      {/* ENH-073 (v0.6.3) — visible paper-rule separator between the
+          tab list and the new-tab cluster. Owner walk-2: "there
+          should be a more visible line that separates the buttons
+          from the tab section." Slightly taller + more prominent
+          than the in-cluster divider between the two split-button
+          halves. */}
+      <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
 
       {/* ENH-006 + ENH-068 — split button: + new file (primary) | globe new
           browser tab (secondary). Mirrors TabBar's terminal-strip split.
@@ -450,6 +468,10 @@ function buildTabMenuTemplate(opts: {
     if (onStartRenameFromTab) {
       items.push({ id: 'rename', label: 'Rename…' })
     }
+    // ENH-074 — Copy path. Mirrors the FileTree right-click menu.
+    // Always shown when path is resolvable; clipboard write happens
+    // in handleMenuChoice (renderer-side, no IPC needed).
+    items.push({ id: 'copy-path', label: 'Copy path' })
   }
 
   // ENH-042 — Move left / Move right. Disabled when the tab is at

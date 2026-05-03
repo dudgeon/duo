@@ -1241,7 +1241,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             <text x="2" y="9" fontFamily="monospace" fontSize="3.6" fill="currentColor">2</text>
             <path d="M6 4h5M6 8h5" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
           </svg>
-          <span>Lines</span>
+          {/* ENH-071 (v0.6.3) — text changed from "Lines" to `#`
+              per owner walk-2 note. Glyph stays. */}
+          <span className="font-mono">#</span>
         </button>
       </div>
       {/* Stage 15.1 — floating Send → Duo pill, portaled to body. */}

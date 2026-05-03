@@ -89,6 +89,12 @@ export function TabBar({
         ))}
       </div>
 
+      {/* ENH-073 (v0.6.3) — visible paper-rule separator between the
+          tab list and the new-tab cluster. Owner walk-2: "there
+          should be a more visible line that separates the buttons
+          from the tab section." */}
+      <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
+
       {/* Split button: + claude (primary) | > shell (secondary). Both
           halves sit on the strip baseline like the chips. The 1px
           divider is paper-rule so it reads as the same material as

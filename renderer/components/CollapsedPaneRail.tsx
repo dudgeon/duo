@@ -33,7 +33,11 @@ export function CollapsedPaneRail({ kind, onExpand }: CollapsedPaneRailProps) {
           language of the active tab (and the titlebar version
           badge style). */}
       <span
-        className="font-serif italic text-[11px] text-ink-ghost mt-1"
+        // ENH-072 (v0.6.3) — bumped from 11px to 13px per owner walk-2
+        // note ("the text label on the terminal and canvas collapse
+        // rails should be larger"). Stays serif italic to match the
+        // tab-strip's active-tab style.
+        className="font-serif italic text-[13px] text-ink-mute mt-1 tracking-wide"
         style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
       >
         {kind === 'terminal' ? 'terminal' : 'canvas'}

@@ -4389,6 +4389,127 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 ---
 
+### ENH-071: Replace "Lines" text in line-numbers toggle with `#`
+
+**Status:** ✅ Shipped v0.6.3
+**Priority:** Low (cosmetic)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V10 owner notes)
+**Shipped:** 2026-05-02 — `renderer/components/editor/MarkdownEditor.tsx` toggle button text changed from `<span>Lines</span>` to `<span className="font-mono">#</span>`. SVG glyph kept.
+
+**Owner observation (verbatim):** "please replace the word 'numbers' with the character `#`; keep the line number icon"
+
+**Where it lives:** `renderer/components/editor/MarkdownEditor.tsx` — the sticky toggle button at the bottom-left of the editor scroll-host. Currently renders: `<svg>...</svg> <span>Lines</span>`. Replace `Lines` with `#` and keep the SVG glyph.
+
+---
+
+### ENH-072: Larger label text on collapsed-pane rails
+
+**Status:** ✅ Shipped v0.6.3
+**Priority:** Low (visual polish)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V6 owner notes)
+**Shipped:** 2026-05-02 — `renderer/components/CollapsedPaneRail.tsx` label bumped from `text-[11px]` → `text-[13px]` plus `tracking-wide` and lifted color from `--ink-ghost` to `--ink-mute` for better legibility. Stays serif italic to match the active-tab style.
+
+**Owner observation (verbatim):** "the text label on the terminal and canvas collapse rails should be larger"
+
+**Where it lives:** `renderer/components/CollapsedPaneRail.tsx` — currently the vertical "terminal" / "canvas" label is `text-[11px]`. Bump to a larger size (e.g. `text-[13px]` or `text-sm`) and re-evaluate weight / contrast.
+
+---
+
+### ENH-073: Visible separator between working-tab strip and new-tab cluster
+
+**Status:** ✅ Shipped v0.6.3
+**Priority:** Low-medium (visual hierarchy)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V8 owner notes)
+**Shipped:** 2026-05-02 — added a paper-rule vertical divider between the `flex-1 overflow-x-auto` tab scroller and the sticky new-tab cluster in BOTH `renderer/components/WorkingTabStrip.tsx` and `renderer/components/TabBar.tsx`. The divider is `w-px h-5 bg-paper-rule mb-1 mx-1.5` — taller (h-5 vs h-3 used between the two split-button halves) so it reads as a section seam rather than an intra-cluster separator.
+
+**Owner observation (verbatim):** "for both the terminal and canvas tab rail buttons, there should be a more visible line that separates the buttons from the tab section"
+
+**Context:** the new-tab cluster (clawd-glyph + globe in WorkingTabStrip; clawd-glyph + chevron in TabBar) sits immediately adjacent to the rightmost tab without any visual divider. Owner wants a clearer visual seam — a small vertical paper-rule divider between the scrolling tab list and the sticky new-tab buttons.
+
+**Where it lives:** `renderer/components/WorkingTabStrip.tsx` and `renderer/components/TabBar.tsx`. Add a `<span aria-hidden="true" className="w-px h-3 bg-paper-rule mx-1" />` between the `flex-1 overflow-x-auto` scroller and the new-tab cluster. Same pattern as the existing intra-cluster divider (between clawd and chevron) but slightly more prominent.
+
+---
+
+### ENH-074: Tab context menu — add "Copy path" item
+
+**Status:** ✅ Shipped v0.6.3
+**Priority:** Medium (workflow paper-cut — Copy path exists in FileTree's right-click menu but not the tab context menu)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 owner notes — "did we log the ENH to add an action to tab context click: copy file path?")
+**Shipped:** 2026-05-02 — `renderer/components/WorkingTabStrip.tsx § buildTabMenuTemplate` adds `{ id: 'copy-path', label: 'Copy path' }` after `Rename…` (gated on `path != null`); `handleMenuChoice` adds `case 'copy-path'` that writes the path to `navigator.clipboard.writeText`. Visible for file tabs and for browser tabs whose URL is a `file://` pointing at a local artifact.
+
+**What's wanted:** the WorkingTabStrip's right-click menu already has Reveal in navigator / Rename / Move tab left/right / Pin / Move to Trash. Add `Copy path` for tabs that have a `path` (file tabs + browser tabs that point at a `file://` URL). Mirrors the FileTree's Copy path entry.
+
+**Where it lives:** `renderer/components/WorkingTabStrip.tsx § buildTabMenuTemplate`. Add `{ id: 'copy-path', label: 'Copy path' }` (gated on `path != null`); add `case 'copy-path'` to `handleMenuChoice` that writes path to `navigator.clipboard.writeText(path)`.
+
+---
+
+### ENH-075: Canvas glyph alternative options (collapse rail + canvas-tab type icon)
+
+**Status:** 🆕 Filed
+**Priority:** Low (design exploration)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V6 owner notes)
+
+**Owner observation (verbatim):** "I want to see some different icon options for the canvas"
+
+**Context:** the canvas glyph used by the collapse rail (`renderer/components/CollapsedPaneRail.tsx § CanvasGlyph`) is a generic rectangle-with-lines stand-in. The same family includes the per-tab TypeIcon for `html-canvas` kind in `WorkingTabStrip.tsx`. Owner wants design exploration — possibly something more distinctive to the "playground / page" hierarchy (per the v0.6.1 vocabulary lock).
+
+**Out of scope today:** design itself. Filed as a discovery task — when picked up, sketch 3-5 candidates and let owner choose.
+
+---
+
+### BUG-070: Cursor doesn't land in fresh HTML canvas until tab-away-and-back
+
+**Status:** 🆕 Filed
+**Priority:** Medium (UX paper-cut — workaround exists but unintuitive)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V11 owner observation)
+
+**Owner observation (verbatim):** "duo created new html page with heading.... could not edit file / clicked in many places, incl on the text itself, but no cursor landed / tabbed away from tab, came back / then was able to get cursor to land / made bullets"
+
+**Repro:**
+1. Run `duo html new /tmp/test.html`.
+2. Click the new tab in the WorkingTabStrip to make it active.
+3. Click ANYWHERE inside the canvas body — heading text, paragraph, whitespace.
+4. **Observed:** no cursor lands. The canvas doesn't focus.
+5. Switch to a different working tab.
+6. Switch back to the canvas tab.
+7. Click again — cursor lands correctly.
+
+**Suspected cause:** the canvas iframe's contentEditable focus chain isn't firing on first mount. The BUG-037 mousedown forwarder lives in `RenderedCanvas.tsx` (out-of-iframe → flips focusedColumn). For the iframe's contentEditable focus, `installCanvasFocusForwarder` may not yet have been wired by the time the user clicks — or the focus call to body races with the iframe's own ready-state initialization.
+
+**Where to look:** `renderer/components/HtmlCanvas/CanvasTab.tsx` (canvas mount); `RenderedCanvas.tsx` (iframe wiring); the BUG-055 mousedown forwarder pattern (already moved out of `if (!readOnly)` gate). Possible: `BUG-037 mousedown forwarder` registers on iframe load; if the user clicks BEFORE load completes, the listener isn't attached yet.
+
+**Workaround until fixed:** tab away + back forces a re-mount or a fresh focus pass.
+
+---
+
+### ENH-076: ⌘[ / ⌘] indent/outdent in HTML canvas (parity with markdown editor's ENH-025)
+
+**Status:** 🆕 Filed
+**Priority:** Medium (parity gap — Tab/Shift-Tab now work after BUG-061's v0.6.3 partial fix; ⌘[ / ⌘] are owner muscle memory from the markdown editor)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V11 owner notes)
+
+**Owner observation (verbatim):** "still need cmd [ / ] to indent/outdent"
+
+**Where it lives:** `renderer/components/HtmlCanvas/markdownShortcuts.ts`'s keydown handler — extend the existing `handleListIndent(doc, shift)` invocation to also fire on `⌘[` / `⌘]` (Mac chord). Keep Tab/Shift-Tab behavior unchanged. Mirrors `renderer/components/editor/extensions/ListIndentShortcuts.ts` which already wires those chords for the TipTap markdown editor.
+
+---
+
+### ENH-077: System dialog icon — verify production behavior, file polish if dev-only
+
+**Status:** 🆕 Filed (likely a no-op once verified — production builds use Duo.app's icon naturally)
+**Priority:** Low (cosmetic; only visible in dev)
+**Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V4 owner notes)
+
+**Owner observation (verbatim):** "can we update the icon that displays in system dialogs?"
+
+**Context:** `dialog.showMessageBox` on macOS uses the parent BrowserWindow's app icon by default. In a packaged + signed Duo build, that icon is Duo's clawd glyph (Stage 21b). In dev (`npm run dev`), the parent is Electron's default app icon — which is what owner saw. So the dev display is "wrong-looking" but production should already be correct.
+
+**v1 verification:** confirm in a packaged build (e.g. v0.6.3 DMG) that `dialog.showMessageBox` shows Duo's clawd icon. If it does, this ENH closes as no-op. If it doesn't, look at `electron-builder.yml § mac.icon` and `BrowserWindow` constructor's icon parameter.
+
+**v2 (only if v1 confirms a real issue):** custom icon argument to `dialog.showMessageBox` per-call. macOS supports `icon: NativeImage` on `MessageBoxOptions` — pass Duo's clawd PNG explicitly. Fragile (needs path resolution at runtime); verify before going there.
+
+---
+
 ### Discussion-only: location of `agents/duo.md` (project root vs `.claude/agents/`)
 
 **Owner observation (verbatim):** "why is the duo agent definition here `/Users/geoffreydudgeon/Documents/GitHub/duo/agents/duo.md` and not in here `/Users/geoffreydudgeon/Documents/GitHub/duo/.claude` ?"
