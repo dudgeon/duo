@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Canvas split-view research — Slack-style, one aux pane</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-default-editable" content="false">
+<style>
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-edge: #E5DEBE;
+    --paper-rule: #D9CEA8;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --ink-ghost: #A89E84;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --good: #2E7D52;
+    --warn: #B65A2A;
+    --bad: #B13E3A;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1A1611;
+      --paper-deep: #221D17;
+      --paper-edge: #2D2820;
+      --paper-rule: #3D352A;
+      --ink: #F0E9D6;
+      --ink-soft: #C8BD9E;
+      --ink-mute: #8A7E66;
+      --ink-ghost: #6E6452;
+      --accent: #E08F4A;
+      --accent-soft: #3F2A18;
+      --accent-ink: #F2D2A8;
+      --good: #6BBF8F;
+      --warn: #D88A4F;
+      --bad: #D86A65;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+  .subtitle {
+    color: var(--ink-mute);
+    font-style: italic;
+    font-size: 14px;
+    margin: 0 0 32px;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 22px;
+    margin: 40px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--paper-rule);
+    color: var(--accent-ink);
+  }
+  h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 17px;
+    margin: 24px 0 8px;
+    color: var(--ink);
+  }
+  h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 18px 0 6px;
+    letter-spacing: 0.2px;
+    color: var(--ink);
+  }
+  p { margin: 0 0 12px; color: var(--ink-soft); }
+  ul, ol { margin: 0 0 14px 22px; padding: 0; color: var(--ink-soft); }
+  ul li, ol li { margin-bottom: 4px; }
+  strong { color: var(--ink); font-weight: 600; }
+  em { color: var(--ink-soft); }
+  code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--paper-rule);
+    margin: 32px 0;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 32px;
+    font-size: 13px;
+  }
+  .toc h4 {
+    margin: 0 0 8px;
+    color: var(--ink-mute);
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .toc ol {
+    margin: 0 0 0 18px;
+    padding: 0;
+    color: var(--ink-soft);
+  }
+  .toc ol li { margin-bottom: 2px; }
+  .toc a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Layout mock — illustrative app frame */
+  .mock {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0 8px;
+  }
+  .mock-frame {
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    height: 280px;
+    display: flex;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    .mock-frame {
+      background: var(--paper-edge);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+    }
+  }
+  .mock-titlebar {
+    background: var(--paper-edge);
+    border-bottom: 1px solid var(--paper-rule);
+    height: 22px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--ink-mute);
+    flex-shrink: 0;
+  }
+  .traffic-light {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--paper-rule);
+  }
+  .mock-row { display: flex; flex: 1; }
+  .pane {
+    border-right: 1px solid var(--paper-rule);
+    padding: 10px;
+    font-size: 11px;
+    color: var(--ink-mute);
+    overflow: hidden;
+    line-height: 1.4;
+  }
+  .pane:last-child { border-right: none; }
+  .pane-label {
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .pane-content {
+    color: var(--ink-soft);
+    font-size: 11px;
+  }
+  .pane-tab {
+    display: inline-block;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-bottom: 2px solid var(--paper-rule);
+    border-radius: 3px 3px 0 0;
+    padding: 2px 8px;
+    margin-right: 3px;
+    font-size: 10px;
+    color: var(--ink-mute);
+  }
+  .pane-tab.active {
+    background: var(--paper);
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+  @media (prefers-color-scheme: dark) {
+    .pane-tab { background: var(--paper-edge); }
+    .pane-tab.active { background: var(--paper); }
+  }
+
+  /* Slack-specific palette overrides for the Slack mock */
+  .mock.slack .mock-frame { background: #f8f8f8; }
+  .mock.slack .pane.workspace {
+    background: #3F0E40;
+    color: #ddd;
+    flex-basis: 64px;
+    flex-shrink: 0;
+    text-align: center;
+    border-right-color: #2A0029;
+  }
+  .mock.slack .pane.sidebar {
+    background: #481349;
+    color: #d3c8d3;
+    flex-basis: 200px;
+    flex-shrink: 0;
+    border-right-color: #2A0029;
+  }
+  .mock.slack .pane.sidebar .pane-label,
+  .mock.slack .pane.workspace .pane-label { color: white; }
+  .mock.slack .pane.main { flex: 1; background: #fff; color: var(--ink-soft); }
+  .mock.slack .pane.aux {
+    background: #fff;
+    flex-basis: 280px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--paper-rule);
+    color: var(--ink-soft);
+  }
+
+  .pane.terminal {
+    background: var(--paper-edge);
+    flex-basis: 200px;
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink);
+  }
+  .pane.canvas {
+    flex: 1;
+    background: var(--paper);
+  }
+  .pane.aux {
+    flex-basis: 240px;
+    flex-shrink: 0;
+    background: var(--paper);
+    border-left: 2px solid var(--accent);
+  }
+  .pane.aux .pane-label::before {
+    content: "AUX · ";
+    color: var(--accent);
+  }
+  .pane.aux-tabs .pane-label::before { content: "AUX (tabs) · "; }
+
+  /* Caption under each mock */
+  .caption {
+    margin: 0 0 24px;
+    font-size: 12px;
+    color: var(--ink-mute);
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* Pros/cons table */
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 12px 0;
+  }
+  .pros, .cons {
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--paper-rule);
+    font-size: 13px;
+  }
+  .pros { background: rgba(46, 125, 82, 0.06); border-color: var(--good); }
+  .cons { background: rgba(177, 62, 58, 0.06); border-color: var(--bad); }
+  .pros h5, .cons h5 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .pros h5 { color: var(--good); }
+  .cons h5 { color: var(--bad); }
+  .pros ul, .cons ul {
+    margin: 0 0 0 18px;
+    padding: 0;
+    color: var(--ink-soft);
+  }
+  .pros ul li, .cons ul li { margin-bottom: 3px; }
+
+  /* Option card */
+  .option-card {
+    margin: 28px 0;
+    padding: 18px 20px;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 8px;
+    position: relative;
+  }
+  @media (prefers-color-scheme: dark) {
+    .option-card { background: var(--paper-edge); }
+  }
+  .option-card.recommended {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .option-card.recommended::before {
+    content: "RECOMMENDED";
+    position: absolute;
+    top: -10px;
+    left: 18px;
+    background: var(--accent);
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.5px;
+  }
+  .option-card.rejected {
+    opacity: 0.85;
+    border-color: var(--bad);
+  }
+  .option-card.rejected::before {
+    content: "REJECTED";
+    position: absolute;
+    top: -10px;
+    left: 18px;
+    background: var(--bad);
+    color: white;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.5px;
+  }
+  .option-title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--ink);
+    margin: 0 0 8px;
+  }
+  .option-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    background: var(--paper-deep);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+
+  /* Use case table */
+  table.uc {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+  }
+  table.uc th, table.uc td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--paper-rule);
+    vertical-align: top;
+  }
+  table.uc th {
+    background: var(--paper-deep);
+    color: var(--ink-mute);
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  table.uc td.use-case { color: var(--ink); font-weight: 500; }
+  table.uc td.aux { color: var(--ink-soft); font-style: italic; }
+
+  /* Open questions */
+  .questions {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 4px;
+    margin: 16px 0;
+  }
+  .questions h4 {
+    margin-top: 0;
+    color: var(--accent);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .questions ol { margin: 0 0 0 22px; padding: 0; }
+  .questions ol li {
+    margin-bottom: 6px;
+    color: var(--ink-soft);
+  }
+
+  /* Constraint list */
+  .constraints { margin: 12px 0; }
+  .constraint {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+  }
+  .constraint-num {
+    color: var(--accent);
+    font-weight: 700;
+    font-family: var(--mono);
+  }
+
+  /* Block quote — owner framing */
+  .owner-framing {
+    border-left: 3px solid var(--ink-mute);
+    padding: 6px 14px;
+    margin: 14px 0;
+    color: var(--ink-soft);
+    background: var(--paper-deep);
+    font-size: 13px;
+  }
+  .owner-framing::before {
+    content: "Owner: ";
+    color: var(--ink-mute);
+    font-weight: 600;
+  }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--paper-rule);
+    color: var(--ink-mute);
+    font-size: 12px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Canvas split-view research</h1>
+  <p class="subtitle">Slack-style, one aux pane, no inception. Sprint 3 (Phase 4) — pulled in 2026-05-02.</p>
+
+  <div class="owner-framing">
+    "Pull into this sprint: research on how slack handles sidebar/split view — does not allow infinite split view inception, just one aux sidebar, iirc; I want to do something like this in canvas; this sprint you do the research and spec it out."
+  </div>
+
+  <div class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#sec-slack">Slack reference — how it works today</a></li>
+      <li><a href="#sec-duo-today">Duo canvas today</a></li>
+      <li><a href="#sec-options">Design options for Duo</a></li>
+      <li><a href="#sec-use-cases">Use cases / capabilities / limitations</a></li>
+      <li><a href="#sec-questions">Open questions for owner</a></li>
+      <li><a href="#sec-recommendation">Recommendation</a></li>
+      <li><a href="#sec-impl">Implementation sketch (if Option A locked)</a></li>
+    </ol>
+  </div>
+
+  <h2 id="sec-slack">1. Slack reference — how it works today</h2>
+
+  <h3>1.1 Layout overview</h3>
+
+  <div class="mock slack">
+    <div class="mock-frame">
+      <div class="pane workspace">
+        <span class="pane-label">WS</span>
+        <div class="pane-content">
+          ◆<br>◇<br>◇<br>+
+        </div>
+      </div>
+      <div class="pane sidebar">
+        <span class="pane-label">Sidebar</span>
+        <div class="pane-content">
+          # general<br>
+          # design<br>
+          # eng<br>
+          ▸ Threads<br>
+          ▸ DMs<br>
+          ▸ Apps
+        </div>
+      </div>
+      <div class="pane main">
+        <span class="pane-label">Main · #design</span>
+        <div class="pane-content">
+          message…<br>
+          message…<br>
+          [thread reply →]<br>
+          message…<br>
+          ─────────<br>
+          [ Compose ]
+        </div>
+      </div>
+      <div class="pane aux">
+        <span class="pane-label">Aux · Thread</span>
+        <div class="pane-content">
+          parent message<br>
+          ↳ reply 1<br>
+          ↳ reply 2<br>
+          ─────────<br>
+          [ Reply ]<br>
+          <span style="color: var(--ink-ghost); font-size: 9px;">×&nbsp;close</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">Slack desktop: workspace switcher · channel sidebar · main conversation · ONE optional aux pane on the right.</p>
+
+  <p>The aux pane is a single slot — the right-side workspace. Opening a new aux content type <strong>replaces</strong> the current one. There's never a second aux. No nesting.</p>
+
+  <h3>1.2 Aux pane content types</h3>
+
+  <p>What can fill the aux slot in Slack:</p>
+
+  <ul>
+    <li><strong>Thread replies</strong> — clicking a "Reply in thread" link opens the thread in aux. Most common.</li>
+    <li><strong>Channel details</strong> — pinned items, files, members, integrations.</li>
+    <li><strong>Search results</strong> — search panel slides into aux.</li>
+    <li><strong>Files / Bookmarks lists</strong> — channel-scoped artifact browsers.</li>
+    <li><strong>Slack Canvas</strong> — Slack's native doc-like artifact (confusingly also called "canvas") opens in aux.</li>
+    <li><strong>Huddle</strong> — voice/video chrome docks into aux when active.</li>
+    <li><strong>Workflow Builder</strong> — workflow forms.</li>
+    <li><strong>Apps</strong> — third-party integrations that present a panel.</li>
+  </ul>
+
+  <h3>1.3 Behavioral rules — the constraints that matter</h3>
+
+  <div class="constraints">
+    <div class="constraint">
+      <span class="constraint-num">1.</span>
+      <span><strong>One aux only.</strong> No nesting. Opening a new aux replaces the current one. There is never a "second aux pane."</span>
+    </div>
+    <div class="constraint">
+      <span class="constraint-num">2.</span>
+      <span><strong>Right-side only.</strong> The aux is always on the right edge of the conversation column. No top, bottom, or left aux.</span>
+    </div>
+    <div class="constraint">
+      <span class="constraint-num">3.</span>
+      <span><strong>Single-slot, no aux tab strip.</strong> Slack does not have a "tab strip" within the aux. Replacing aux content closes the previous one.</span>
+    </div>
+    <div class="constraint">
+      <span class="constraint-num">4.</span>
+      <span><strong>Persistent across nav (mostly).</strong> An open thread aux stays open as the user clicks between channels in the main pane. Some content types (e.g. channel details) auto-close when the channel changes; threads don't.</span>
+    </div>
+    <div class="constraint">
+      <span class="constraint-num">5.</span>
+      <span><strong>Resizable horizontally.</strong> The divider drags. Aux can also be temporarily expanded to "full screen" (replaces the main pane visually) and back.</span>
+    </div>
+    <div class="constraint">
+      <span class="constraint-num">6.</span>
+      <span><strong>Visible close affordance.</strong> Every aux content type ships with an "✕" button at the top-right of the aux. One click closes; main reclaims the width.</span>
+    </div>
+  </div>
+
+  <h3>1.4 Why Slack chose these constraints</h3>
+
+  <ul>
+    <li><strong>Cognitive ceiling.</strong> Two columns of conversation context (main + aux) is the most a user can attend to without losing orientation. A third would compete.</li>
+    <li><strong>Decision reduction.</strong> "Where does this thread go?" → always right. No drag-target ambiguity, no remembering which split has what.</li>
+    <li><strong>Single reset gesture.</strong> Closing the aux is one click in a known location. No hunting through nested splits.</li>
+    <li><strong>Smaller-screen graceful degradation.</strong> The aux collapses to an overlay/modal on narrow viewports. Mobile-friendly.</li>
+    <li><strong>Author-time predictability.</strong> Slack apps and integrations know their content goes "in the aux." They don't need to negotiate which split they land in.</li>
+  </ul>
+
+  <h2 id="sec-duo-today">2. Duo canvas today</h2>
+
+  <div class="mock">
+    <div class="mock-frame">
+      <div class="pane terminal">
+        <span class="pane-label">Terminal</span>
+        <div class="pane-content">
+          $ duo open foo.md<br>
+          $ duo selection<br>
+          $ <span style="opacity: 0.5">_</span>
+        </div>
+      </div>
+      <div class="pane canvas">
+        <span class="pane-label">Canvas (working pane)</span>
+        <div style="margin-bottom: 6px;">
+          <span class="pane-tab active">foo.md</span>
+          <span class="pane-tab">faq.html</span>
+          <span class="pane-tab">page.html</span>
+          <span class="pane-tab">+</span>
+        </div>
+        <div class="pane-content">
+          # foo.md<br><br>
+          The active tab\'s content renders here.<br>
+          One tab kind at a time. No split.
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="caption">Duo today: terminal column on the left, canvas (working pane) on the right. The canvas holds a tab strip; one tab is "active" and fills the pane. No split.</p>
+
+  <p>The canvas slot is type-agnostic — it can host any <code>WorkingTab.kind</code> (markdown editor, page, browser, image, pdf). But there's only ever one tab on screen.</p>
+
+  <p>The owner has been thinking about splitting this slot. <code>ENH-041</code> ("Split the canvas (right pane) into side-by-side panels") was filed during the v0.6.3 walks but left as "Filed — no v1 design yet." This research is the v1 design.</p>
+
+  <h2 id="sec-options">3. Design options for Duo</h2>
+
+  <p>Four options on the table, ordered roughly from simplest to richest.</p>
+
+  <div class="option-card recommended">
+    <h3 class="option-title">Option A — Slack-style: one aux pane, single slot, right-only<span class="option-tag">v1</span></h3>
+
+    <div class="mock">
+      <div class="mock-frame">
+        <div class="pane terminal">
+          <span class="pane-label">Terminal</span>
+          <div class="pane-content">$ <span style="opacity: 0.5">_</span></div>
+        </div>
+        <div class="pane canvas">
+          <span class="pane-label">Canvas · main</span>
+          <div style="margin-bottom: 6px;">
+            <span class="pane-tab active">foo.md</span>
+            <span class="pane-tab">faq.html</span>
+            <span class="pane-tab">+</span>
+          </div>
+          <div class="pane-content"># foo.md<br><br>main content…</div>
+        </div>
+        <div class="pane aux">
+          <span class="pane-label">aux</span>
+          <div class="pane-content">
+            <strong>preview.html</strong> <span style="float: right; opacity: 0.5;">×</span><br><br>
+            preview content…
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option A: terminal · canvas (with tab strip) · aux (single slot, no aux tab strip). New aux content replaces existing aux content.</p>
+
+    <h4>Behavior</h4>
+    <ul>
+      <li><strong>Single aux slot, no aux tab strip.</strong> The aux holds one tab at a time. Opening new aux content closes the current one (with optional confirm if the current is dirty).</li>
+      <li><strong>Right-side only.</strong> The split divider lives between canvas (main) and aux. No top/bottom/left aux.</li>
+      <li><strong>Open via</strong>: right-click on a canvas tab → "Open in aux" / "Move to aux"; or `⌘\` shortcut on the active tab; or `duo split <path>` CLI.</li>
+      <li><strong>Close via</strong>: ✕ button in aux header; or `⌘\` again; or `duo split close`.</li>
+      <li><strong>Promote</strong>: drag aux's tab back to main, OR right-click aux tab → "Move to main."</li>
+      <li><strong>Tab kinds in aux</strong>: ANY working-pane tab kind (markdown, page, browser, image, pdf). Same set as main.</li>
+      <li><strong>Pin storage</strong>: aux's open path is persisted in session-state-service alongside main's tabs.</li>
+      <li><strong>Keyboard focus</strong>: ⌘W targets focused pane's active tab. ⌃Tab cycles within focused pane (main has tabs to cycle; aux has only one, so ⌃Tab is no-op there).</li>
+      <li><strong>No nesting.</strong> Aux cannot have its own aux. The "Open in aux" affordance is only available in main; aux's tab-context-menu doesn't expose it.</li>
+    </ul>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Matches owner's explicit ask.</li>
+          <li>Simplest to implement (one new pane, one divider, one slot).</li>
+          <li>Easy mental model: "main + companion."</li>
+          <li>Reversible: if v2 wants tabs in aux, that's an extension, not a redesign.</li>
+          <li>Honors the cognitive-ceiling argument (no third pane to attend to).</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Power users may want multiple companions side-by-side (e.g. preview + comments + diff). Forces close-and-reopen.</li>
+          <li>Aux tab can't be "pinned" semantically the way main tabs can — replacement model fights pin gating.</li>
+          <li>Drag-from-main → aux requires a UX gesture that doesn't exist today.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card">
+    <h3 class="option-title">Option B — Slack-extended: aux pane with its own tab strip<span class="option-tag">v2 candidate</span></h3>
+
+    <div class="mock">
+      <div class="mock-frame">
+        <div class="pane terminal">
+          <span class="pane-label">Terminal</span>
+          <div class="pane-content">$ <span style="opacity: 0.5">_</span></div>
+        </div>
+        <div class="pane canvas">
+          <span class="pane-label">Canvas · main</span>
+          <div style="margin-bottom: 6px;">
+            <span class="pane-tab active">foo.md</span>
+            <span class="pane-tab">+</span>
+          </div>
+          <div class="pane-content">main content…</div>
+        </div>
+        <div class="pane aux aux-tabs">
+          <span class="pane-label">aux</span>
+          <div style="margin-bottom: 6px;">
+            <span class="pane-tab active">preview</span>
+            <span class="pane-tab">notes</span>
+            <span class="pane-tab">+</span>
+          </div>
+          <div class="pane-content">aux active tab…</div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option B: same shape as A but the aux has its own tab strip. Multiple aux tabs at once.</p>
+
+    <h4>Behavior delta vs. A</h4>
+    <ul>
+      <li>Aux gets its own tab strip with the full main-pane verb set (Pin, Trash, Reveal, Copy path, etc.).</li>
+      <li>Adding new aux content adds a tab (doesn't replace).</li>
+      <li>Aux pin set is independent from main pin set.</li>
+      <li>⌃Tab within aux cycles aux's tabs.</li>
+    </ul>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>More flexible — aux can hold multiple companions (preview + comments + diff).</li>
+          <li>Familiar gesture (each pane has a tab strip — symmetric).</li>
+          <li>Better fit for long-running aux content (e.g. "always have my scratch.md open in aux").</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Doubles tab-strip complexity: two strips, two pin sets, two ⌘W targets.</li>
+          <li>Aux tabs are easy to forget (out-of-sight in a sidebar).</li>
+          <li>Promotes "open everything in aux just because" — defeats the cognitive-ceiling intent.</li>
+          <li>Owner explicitly framed "one aux sidebar" — Option B drifts toward "two main panes," which is closer to Option C.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card rejected">
+    <h3 class="option-title">Option C — VS Code-style: n-way recursive split<span class="option-tag">explicitly rejected</span></h3>
+
+    <div class="mock">
+      <div class="mock-frame">
+        <div class="pane terminal">
+          <span class="pane-label">Term</span>
+          <div class="pane-content">$ <span style="opacity: 0.5">_</span></div>
+        </div>
+        <div class="pane canvas" style="display: flex; flex-direction: column; padding: 0;">
+          <div class="pane" style="flex: 1; border-right: none; border-bottom: 1px solid var(--paper-rule); padding: 10px;">
+            <span class="pane-label">canvas A</span>
+            <div class="pane-content">tab content</div>
+          </div>
+          <div class="pane" style="flex: 1; border-right: none; padding: 10px; display: flex;">
+            <div style="flex: 1; padding-right: 6px;">
+              <span class="pane-label">B</span>
+              <div class="pane-content">…</div>
+            </div>
+            <div style="flex: 1; border-left: 1px solid var(--paper-rule); padding-left: 6px;">
+              <span class="pane-label">C</span>
+              <div class="pane-content">…</div>
+            </div>
+          </div>
+        </div>
+        <div class="pane aux">
+          <span class="pane-label">aux D</span>
+          <div class="pane-content">…</div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option C (rejected): any pane can split itself, recursively. Quickly produces 3-, 4-, 5-pane layouts. Owner has called this out by name as the thing to avoid.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Maximum flexibility for power users.</li>
+          <li>Familiar to VS Code / IntelliJ / vim users.</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li><strong>Explicitly rejected by owner</strong> — "does not allow infinite split view inception."</li>
+          <li>Cognitive overhead grows fast.</li>
+          <li>Drag-target ambiguity is real — every divider is a potential drop site.</li>
+          <li>Layout state to persist gets tree-shaped (vs. flat for A/B).</li>
+          <li>Defeats Duo's "tools you reach for, not tools you configure" ethos.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card">
+    <h3 class="option-title">Option D — Linked twin views (paired tab kinds, no general split)<span class="option-tag">complement</span></h3>
+
+    <div class="mock">
+      <div class="mock-frame">
+        <div class="pane terminal">
+          <span class="pane-label">Terminal</span>
+          <div class="pane-content">$ <span style="opacity: 0.5">_</span></div>
+        </div>
+        <div class="pane canvas" style="display: flex; padding: 0;">
+          <div class="pane" style="flex: 1; border-right: 1px dashed var(--accent); padding: 10px;">
+            <span class="pane-label" style="color: var(--accent);">linked · source</span>
+            <div class="pane-content"># foo.md<br><br>The **content** here…</div>
+          </div>
+          <div class="pane" style="flex: 1; padding: 10px; border-right: none;">
+            <span class="pane-label" style="color: var(--accent);">linked · preview</span>
+            <div class="pane-content">
+              <h4 style="margin: 0 0 4px; color: var(--accent-ink);">foo.md</h4>
+              <p style="margin: 0;">The <strong>content</strong> here…</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option D: instead of a general split, ship specific paired-view tab kinds (markdown source ↔ preview, .json ↔ form, .html ↔ rendered). Each is a single tab that internally splits.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Easy to design and implement per kind.</li>
+          <li>No new "split" verb to learn.</li>
+          <li>Each twin-view tab knows its semantic pairing (no cross-pane state to coordinate).</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Limited to predefined view-pairs — can't split arbitrary tabs.</li>
+          <li>Doesn't cover the "tutorial in main, lesson playground in aux" use case.</li>
+          <li>N pair-types = N implementations.</li>
+          <li>Doesn't satisfy the Slack-style ask directly.</li>
+        </ul>
+      </div>
+    </div>
+
+    <p style="font-size: 13px; color: var(--ink-soft);"><strong>Note:</strong> Option D is <em>not mutually exclusive</em> with A. A general split (A) plus a markdown-source-↔-preview twin-view tab kind (D) can both ship; they solve different problems.</p>
+  </div>
+
+  <h2 id="sec-use-cases">4. Use cases / capabilities / limitations (Option A)</h2>
+
+  <h3>4.1 Use cases</h3>
+
+  <table class="uc">
+    <thead>
+      <tr>
+        <th style="width: 38%;">Workflow</th>
+        <th style="width: 30%;">Main pane</th>
+        <th style="width: 32%;">Aux pane</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="use-case">Edit markdown with live preview</td>
+        <td class="aux">foo.md (editor)</td>
+        <td class="aux">foo.md preview (page kind, regenerated on save)</td>
+      </tr>
+      <tr>
+        <td class="use-case">Take notes on what you're reading</td>
+        <td class="aux">a long article (browser tab or page)</td>
+        <td class="aux">scratch.md (editor)</td>
+      </tr>
+      <tr>
+        <td class="use-case">Compare two versions</td>
+        <td class="aux">v1.md</td>
+        <td class="aux">v2.md (or a diff tab kind, if/when D ships)</td>
+      </tr>
+      <tr>
+        <td class="use-case">Lesson + playground</td>
+        <td class="aux">lesson skill instructions (page)</td>
+        <td class="aux">interactive playground (page kind with action buttons)</td>
+      </tr>
+      <tr>
+        <td class="use-case">Reference doc + working file</td>
+        <td class="aux">project tasks.md (editor)</td>
+        <td class="aux">~/.claude/duo/help/faq.html (page)</td>
+      </tr>
+      <tr>
+        <td class="use-case">Comments rail (future ENH-007)</td>
+        <td class="aux">canvas with comment threads</td>
+        <td class="aux">comments rail (resolved + open lists)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>4.2 Capabilities (what Option A enables)</h3>
+
+  <ul>
+    <li><strong>Side-by-side reading + writing.</strong> The most-asked pattern — a doc on the left, a workspace on the right.</li>
+    <li><strong>Persistent companion.</strong> An aux page can stay open while the user cycles through main pane tabs.</li>
+    <li><strong>Type-agnostic aux.</strong> Aux can hold any tab kind, not just preview/diff. Browser tabs in aux, images in aux, PDFs in aux — all valid.</li>
+    <li><strong>Agent-driven companion.</strong> CLI verbs (`duo split <path>`, `duo split close`) let an agent open / close aux content for the user — useful for FTUX flows ("welcome.html in main, walkthrough in aux").</li>
+    <li><strong>Resizable.</strong> Divider drag adjusts main↔aux split. Memory of last drag position (per existing `prevSplitPct` pattern).</li>
+  </ul>
+
+  <h3>4.3 Limitations (deliberate, by design)</h3>
+
+  <ul>
+    <li><strong>No nesting.</strong> Aux can't have its own aux. (If two-tier nesting matters later, that's a v3 conversation.)</li>
+    <li><strong>No left/top/bottom aux.</strong> Right-only. (Top/bottom would compete with the existing tab strip; left would reorder the visual hierarchy.)</li>
+    <li><strong>Single-slot in aux.</strong> No aux tab strip in v1. (Option B keeps this on the table for v2.)</li>
+    <li><strong>No drag from terminal column.</strong> Aux is a CANVAS-side companion, not a terminal-side one. Terminal stays single-column.</li>
+    <li><strong>Aux replaces, doesn't queue.</strong> If the user opens aux content B while A is in aux, A is replaced. (No "stack of recently-aux'd things" — `⌘⇧T` for browser-tab-reopen has different semantics; this isn't that.)</li>
+  </ul>
+
+  <h2 id="sec-questions">5. Open questions for owner</h2>
+
+  <div class="questions">
+    <h4>Decisions needed before code</h4>
+    <ol>
+      <li><strong>Open gesture.</strong> Right-click → "Open in aux" only? Or also a keyboard shortcut (e.g. `⌘\`)? Or also a CLI verb (`duo split <path>`)? Recommend all three; confirm.</li>
+      <li><strong>Replacement confirm.</strong> If aux is dirty (unsaved markdown / canvas edits) and the user opens new aux content, do we (a) auto-save and replace, (b) prompt with the existing pinned-close confirm pattern, or (c) refuse to replace until the current is closed? Recommend (b) — matches existing destructive-confirm UX.</li>
+      <li><strong>Aux when no main.</strong> If the user closes their last main tab while aux is open, do we (a) promote aux to main, (b) keep aux open with empty main, or (c) close aux too? Recommend (a) — promotion preserves work.</li>
+      <li><strong>Width persistence.</strong> Per-session (resets on restart) or persistent (saved to <code>~/.claude/duo/session-state.json</code>)? Recommend persistent.</li>
+      <li><strong>Aux on session-restore.</strong> If the user had aux content open on quit, restore it on relaunch? Recommend yes.</li>
+      <li><strong>Pin behavior.</strong> Can an aux tab be pinned? If yes, where does the pin metadata live (shared with main pin set, or aux-specific)? Recommend: NO pinning in v1 (aux is conceptually "transient companion"; pinning fights replacement).</li>
+      <li><strong>Same path in main + aux.</strong> Allow opening the same file in both panes simultaneously, or de-dupe (BUG-059 logic)? Recommend ALLOW for v1 (split-view is the explicit reason). De-dupe rule applies within a single pane.</li>
+      <li><strong>Default aux content for FTUX.</strong> When a fresh user opens Duo, should the welcome canvas auto-split into "welcome.html in main, intro-to-duo lesson in aux" (per Stage 28)? Recommend yes — but only on first launch; user-controlled afterward.</li>
+    </ol>
+  </div>
+
+  <h2 id="sec-recommendation">6. Recommendation</h2>
+
+  <p><strong>Option A — Slack-style, single aux slot, right-only.</strong></p>
+
+  <p>It's what the owner asked for verbatim, it has the lowest implementation risk, and it's the most easily extended (Option B adds tabs later if v1 demand surfaces; Option D pairs with it for specific kinds; Option C remains rejected indefinitely).</p>
+
+  <p>The cognitive-ceiling argument from Slack's design is also Duo's argument: one terminal column + one canvas pane + one aux pane is three columns of attention, which is at the edge of what most users can hold. A fourth would compete.</p>
+
+  <h2 id="sec-impl">7. Implementation sketch (if Option A is locked)</h2>
+
+  <p><em>Stub — fleshed out in a follow-up PRD if owner picks Option A. Captured here so the path is visible.</em></p>
+
+  <h4>Plumbing checklist (per CLAUDE.md § 4)</h4>
+
+  <ol>
+    <li><code>shared/types.ts</code> — extend <code>WorkingPaneState</code> with an optional <code>aux: { tab: WorkingTab | null, splitPct: number } | null</code> field. New IPC channels for aux open / close.</li>
+    <li><code>electron/preload.ts</code> — expose <code>window.electron.workingPane.openAux(path)</code> + <code>closeAux()</code>.</li>
+    <li><code>electron/main.ts</code> — IPC handler dispatches to renderer's working-pane logic.</li>
+    <li><code>core/socket-server.ts</code> — new <code>case 'split'</code> handling <code>open</code> / <code>close</code> / <code>get</code> sub-verbs.</li>
+    <li><code>cli/duo.ts</code> — <code>duo split &lt;path&gt;</code>, <code>duo split close</code>, <code>duo split</code> (gets state). Rebuild binary.</li>
+    <li><code>skill/SKILL.md</code> + <code>agents/duo.md</code> — verb cheat-sheet entries; sync via <code>npm run sync:claude</code>.</li>
+    <li><code>docs/CLI-COVERAGE.md</code> — inventory.</li>
+    <li><code>renderer/components/WorkingPane.tsx</code> — split into <code>WorkingPaneMain</code> (existing) + <code>WorkingPaneAux</code> (new). Divider component between them. Memory of last <code>splitPct</code>.</li>
+    <li><code>renderer/components/WorkingTabStrip.tsx</code> — add "Open in aux" to the tab context menu (only visible when in main pane and aux is closed; or "Replace aux" when aux is open).</li>
+    <li>Session state: extend <code>~/.claude/duo/session-state.json</code> with aux fields. Migration is additive (missing aux field treated as no aux).</li>
+    <li>Smoke-walk item every release: open a file, split it to aux, drag the divider, close aux — confirm survives session restart.</li>
+  </ol>
+
+  <h4>Cross-references</h4>
+  <ul>
+    <li><code>ENH-041</code> (Split the canvas — the original ask this PRD answers).</li>
+    <li><code>ENH-040</code> + <code>ENH-066</code> (collapse-pane + rail — divider/persistence patterns to mirror).</li>
+    <li><code>ENH-014</code> (View menu preset pane sizes — extend with main-aux preset row).</li>
+    <li>Stage 24 (pin gating — interaction with the "no pin in aux v1" decision).</li>
+    <li>Stage 28 (lesson packs — FTUX use case in §4.1, decision in §5 question 8).</li>
+  </ul>
+
+  <footer>
+    Drafted 2026-05-02 by Claude during Sprint 3 (Phase 4). Authored as a Duo page (display-only; <code>duo-default-editable=false</code>). Open in Duo's canvas to read. Owner-locked direction goes into <code>docs/DECISIONS.md</code> after the open-questions in §5 are answered.
+  </footer>
+
+</main>
+</body>
+</html>

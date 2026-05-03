@@ -4510,6 +4510,36 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 ---
 
+### BUG-071: Focus left in limbo after smoke-walk path-link click — ⌃Tab unresponsive until canvas re-clicked
+
+**Status:** 🆕 Filed
+**Priority:** Medium (sibling of BUG-038 / BUG-042 family — wrong-pane-focus → wrong-shortcut-routing).
+**Filed:** 2026-05-02 (v0.6.3-walk-3 ENH-039 notes)
+
+**Owner observation (verbatim):** "for `/tmp/bug070-test.html` pass, but other issue, could not ctrl-tab away initially; had to click into canvas to make ctrl-tab responsive"
+
+**Repro:**
+1. Open the smoke-walk page in Duo (browser pane).
+2. Click a `data-duo-path` link that resolves to a canvas-routed file (e.g. `/tmp/bug070-test.html`).
+3. The path opens in the working pane as a new canvas tab. Focus appears to land in the canvas.
+4. Try `⌃Tab` to cycle working-pane tabs.
+5. **Observed:** `⌃Tab` is unresponsive. Must first click into the canvas body, THEN `⌃Tab` cycles correctly.
+
+**Suspected cause:** ENH-039's path-link click runs INSIDE the smoke-walk browser tab's WebContentsView. The page-side click handler calls `e.preventDefault()` then `window.duoOpenPath(...)` which routes through CDP → main → `sendEdit(path)` → renderer's `openFileSmart` → adds a canvas tab + activates it. But the keyboard focus likely stays on the WebContentsView (browser pane) at the macOS native-subview level, even though the renderer's `focusedColumn` may have flipped to 'working'. The native-subview keyboard focus is what determines where keystrokes route — not React state. Same family as BUG-038 / BUG-042 (browser pane click doesn't update focus), this time triggered by an in-page path click rather than a direct mousedown.
+
+**Where to look:**
+- `electron/main.ts` — the `cdpBridge.onBrowserOpenPath` listener that calls `sendEdit(path)`. Could potentially also call `mainWindow.webContents.focus()` to pull keyboard focus off the WebContentsView and back to the renderer.
+- `renderer/App.tsx § onNavEdit` (or wherever the IPC handler lives) — does it call `setFocusedColumn('working')` AND focus the working pane's container?
+- BUG-042's fix in `BrowserManager.wireKeyForwarding` — `webContents.on('focus', ...)` flips focusedColumn TO 'working' when the browser GAINS focus. The inverse is what's needed here: when navigating AWAY from the browser, transfer keyboard focus to the working pane's React tree.
+
+**Workaround until fixed:** click into the canvas body after the path-link nav, before using `⌃Tab`.
+
+**Cross-ref:** ENH-039 (the new path-link surface that triggered this); BUG-038 (working-pane focus ⌃Tab cycle); BUG-042 (browser focus push); BUG-055 (canvas mousedown forwarder — addresses iframe-side, not WebContentsView-side).
+
+**Won't fix this sprint** — Phase 1 of Sprint 3 was focused on the in-scope bugs the user picked. This new bug is documented; pull into a future sprint when the wrong-pane-focus family gets a coordinated pass.
+
+---
+
 ### Discussion-only: location of `agents/duo.md` (project root vs `.claude/agents/`)
 
 **Owner observation (verbatim):** "why is the duo agent definition here `/Users/geoffreydudgeon/Documents/GitHub/duo/agents/duo.md` and not in here `/Users/geoffreydudgeon/Documents/GitHub/duo/.claude` ?"
