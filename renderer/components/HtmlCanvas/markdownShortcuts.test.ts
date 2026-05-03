@@ -20,7 +20,7 @@
 // at unit-test time, not at smoke-walk time.
 
 import { describe, it, expect } from 'vitest'
-import { matchBlockTrigger } from './markdownShortcuts'
+import { matchBlockTrigger, matchEnterTrigger } from './markdownShortcuts'
 
 const NBSP = ' '  // U+00A0 — what Chromium converts trailing literal spaces to
 const SPACE = ' '       // U+0020 — what the user actually types
@@ -123,6 +123,89 @@ describe('matchBlockTrigger', () => {
       // siblings concatenates into textContent; if the trigger
       // doesn't sit at the START, no match.
       expect(matchBlockTrigger(`some prefix\n#${SPACE}`)).toBeNull()
+    })
+  })
+})
+
+describe('matchEnterTrigger', () => {
+  describe('horizontal-rule trigger', () => {
+    it('matches `---` exactly → hr', () => {
+      expect(matchEnterTrigger('---')).toEqual({ kind: 'hr' })
+    })
+
+    it('matches `***` exactly → hr', () => {
+      expect(matchEnterTrigger('***')).toEqual({ kind: 'hr' })
+    })
+
+    it('does NOT match `--` (only two dashes)', () => {
+      expect(matchEnterTrigger('--')).toBeNull()
+    })
+
+    it('does NOT match `----` (more than three dashes)', () => {
+      // Strict equality match: only `---` exactly. Four-dashes don't
+      // become hr; the user typed something else.
+      expect(matchEnterTrigger('----')).toBeNull()
+    })
+
+    it('does NOT match `--- ` with trailing space (caller pre-trims, so trim removes it; raw with space here would also miss)', () => {
+      // Document the strict-equality contract — no fuzzy whitespace.
+      // The handler trims before calling, so trailing whitespace is
+      // already gone by the time matchEnterTrigger runs.
+      expect(matchEnterTrigger('--- ')).toBeNull()
+    })
+  })
+
+  describe('code-block trigger', () => {
+    it('matches bare ``` → code with lang=null', () => {
+      expect(matchEnterTrigger('```')).toEqual({ kind: 'code', lang: null })
+    })
+
+    it('matches ```ts → code with lang=ts', () => {
+      expect(matchEnterTrigger('```ts')).toEqual({ kind: 'code', lang: 'ts' })
+    })
+
+    it('matches ```javascript → code with lang=javascript', () => {
+      expect(matchEnterTrigger('```javascript')).toEqual({ kind: 'code', lang: 'javascript' })
+    })
+
+    it('matches ```python → code with lang=python', () => {
+      expect(matchEnterTrigger('```python')).toEqual({ kind: 'code', lang: 'python' })
+    })
+
+    it('does NOT match ``` (only two backticks)', () => {
+      expect(matchEnterTrigger('``')).toBeNull()
+    })
+
+    it('does NOT match ```` (four backticks — raw text past the fence regex)', () => {
+      // The regex is `^```(\w*)$`. Four backticks would parse as
+      // ``` followed by ` (a non-word char), which `\w*` rejects.
+      expect(matchEnterTrigger('````')).toBeNull()
+    })
+
+    it('does NOT match ```ts more (text after the language)', () => {
+      // Caller pre-trims, but trim only removes leading/trailing
+      // whitespace. An interior space-then-word breaks the strict
+      // `^```(\w*)$` shape.
+      expect(matchEnterTrigger('```ts more')).toBeNull()
+    })
+  })
+
+  describe('non-trigger inputs return null', () => {
+    it('empty string', () => {
+      expect(matchEnterTrigger('')).toBeNull()
+    })
+
+    it('plain prose', () => {
+      expect(matchEnterTrigger('Some normal text the user typed')).toBeNull()
+    })
+
+    it('block triggers (those fire on space, not Enter)', () => {
+      // Important boundary: `# heading` should NOT fire as an Enter
+      // trigger — that's matchBlockTrigger's territory and fires on
+      // the trailing space typed BEFORE Enter.
+      expect(matchEnterTrigger('# ')).toBeNull()
+      expect(matchEnterTrigger('- ')).toBeNull()
+      expect(matchEnterTrigger('> ')).toBeNull()
     })
   })
 })

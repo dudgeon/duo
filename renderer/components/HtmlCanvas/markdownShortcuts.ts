@@ -68,6 +68,34 @@ export function matchBlockTrigger(text: string): BlockTrigger | null {
   return null
 }
 
+/** Pure matcher for the Enter-key conversions in handleEnterShortcuts.
+ *  Operates on the trimmed textContent of the caret block (handler
+ *  trims before calling). Returns:
+ *  - { kind: 'hr' } when the block is exactly `---` or `***`
+ *  - { kind: 'code', lang: '...' | null } when the block matches
+ *    ``` followed by an optional fence-language word and end-of-string.
+ *    `lang` is the captured language identifier (e.g. 'ts', 'python')
+ *    or null when the user typed bare ``` with no language.
+ *  - null otherwise.
+ *
+ *  Extracted v0.6.4 as a pure function so the regex shape is locked
+ *  in by Vitest tests. Same rationale as matchBlockTrigger above:
+ *  Enter triggers are user-facing entry points whose subtle regex
+ *  changes can break editor muscle memory in non-obvious ways.
+ */
+export type EnterTrigger =
+  | { kind: 'hr' }
+  | { kind: 'code'; lang: string | null }
+
+export function matchEnterTrigger(text: string): EnterTrigger | null {
+  if (text === '---' || text === '***') return { kind: 'hr' }
+  const codeMatch = text.match(/^```(\w*)$/)
+  if (codeMatch) {
+    return { kind: 'code', lang: codeMatch[1] || null }
+  }
+  return null
+}
+
 export function installMarkdownShortcuts(doc: Document): () => void {
   const onInput = () => handleInput(doc)
   const onKeyDown = (e: KeyboardEvent) => {
@@ -284,8 +312,10 @@ function handleEnterShortcuts(doc: Document): boolean {
   const block = blockOps.findCaretBlock(doc)
   if (!block) return false
   const text = (block.textContent ?? '').trim()
+  const trigger = matchEnterTrigger(text)
+  if (!trigger) return false
 
-  if (text === '---' || text === '***') {
+  if (trigger.kind === 'hr') {
     // Replace the block with <hr> + a fresh empty paragraph.
     const hr = doc.createElement('hr')
     const p = doc.createElement('p')
@@ -296,19 +326,14 @@ function handleEnterShortcuts(doc: Document): boolean {
     return true
   }
 
-  // ```<Enter> or ```lang<Enter> → code block.
-  const codeMatch = text.match(/^```(\w*)$/)
-  if (codeMatch) {
-    const pre = doc.createElement('pre')
-    const code = doc.createElement('code')
-    if (codeMatch[1]) code.setAttribute('data-lang', codeMatch[1])
-    pre.appendChild(code)
-    block.parentNode?.replaceChild(pre, block)
-    placeCaretIn(doc, code)
-    return true
-  }
-
-  return false
+  // trigger.kind === 'code'
+  const pre = doc.createElement('pre')
+  const code = doc.createElement('code')
+  if (trigger.lang) code.setAttribute('data-lang', trigger.lang)
+  pre.appendChild(code)
+  block.parentNode?.replaceChild(pre, block)
+  placeCaretIn(doc, code)
+  return true
 }
 
 function placeCaretIn(doc: Document, el: Element): void {
