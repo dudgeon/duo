@@ -4801,7 +4801,9 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### BUG-074: ENH-078 navigator selection prominence — white text on light-mode paper background is illegible
 
-**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 2). One-line change in `renderer/components/FileTree.tsx` § TreeNode: `text-zinc-50` → `text-ink` for the selected branch. The Atelier `text-ink` token is theme-aware (resolves to dark on cream paper in light mode, light on dark surface in dark mode), so the selection now has legible contrast in both themes while keeping the Finder-style `bg-accent/30 font-medium` fill direction.
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 2 — took TWO attempts after the owner had already given the direction THREE times). Final fix in `renderer/components/FileTree.tsx` § TreeNode selected branch: `bg-accent text-white font-medium` (Finder-style: SOLID accent fill, white text, medium weight). Earlier attempts shipped `bg-accent/30 text-ink font-medium` which read as "barely a few shades different from the row bg" because 30% accent over `bg-surface-1` (paper-deep) is a faint warm tint, not the full-row accent fill macOS Finder uses. The mockup in the ENH-087 worksheet showed the same `/30` styling but rendered against pure paper, where the contrast registered; in the live navigator it sat against the project-tree surface and washed out. Solid accent + white text reads unambiguously in both light and dark modes.
+
+**Lesson for future Claude instances reading this entry:** when the owner says "like Finder does" — Finder does **solid** accent fill with light text on top, not a translucent tint. Don't ship a 30% opacity version and hope it reads.
 **Priority:** **High** — light-mode users see the selected file row's name as nearly-invisible white text on the cream paper background. ENH-078 was filed as "shipped v0.6.4" but the smoke walk surfaced the contrast issue.
 **Filed:** 2026-05-03 (owner smoke walk note).
 

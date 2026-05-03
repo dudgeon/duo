@@ -547,13 +547,19 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
       <div
         className={[
           'group/row relative w-full flex items-center gap-1.5 pr-2 py-0.5 text-[12px] leading-tight rounded transition-colors',
-          // ENH-078 (v0.6.4) + BUG-074 (v0.6.5) — selection prominence
-          // is Finder-style background fill + heavier weight. Text uses
-          // the theme-aware `text-ink` token (dark on cream paper in
-          // light, light on dark in dark) instead of the always-near-
-          // white `text-zinc-50`, which was illegible in light mode.
+          // ENH-078 (v0.6.4) + BUG-074 (v0.6.5) — Finder-style
+          // selection: SOLID accent fill + white text + medium weight.
+          // Owner gave this direction three times before it stuck:
+          // 30% opacity (`bg-accent/30`) was too subtle when sitting
+          // on `bg-surface-1` (paper-deep, already a tinted surface)
+          // — it was a few shades different from the row bg, not the
+          // unambiguous full-row accent fill that macOS Finder uses.
+          // Solid accent + white text reads correctly in both light
+          // and dark modes; the saturated orange against either
+          // paper-deep (light) or dark surface (dark) is unmistakably
+          // a selection state.
           isSelected
-            ? 'bg-accent/30 text-ink font-medium'
+            ? 'bg-accent text-white font-medium'
             // Stage 26 PR 3 item 3 — open file rows render with
             // brighter text than unopened rows. Distinct from
             // selection (full-row tint), this is just text color.
