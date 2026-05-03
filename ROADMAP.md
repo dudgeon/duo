@@ -141,6 +141,7 @@ Layer 3 — Distribution-readiness (parallel track, runs alongside L0–L2)
    19c   Default-to-claude tabs + split-button + duo new-tab           ✓ shipped + merged
    19b   Passive priming (SessionStart hook + PATH shim)               ✓ shipped v0.3.0
    19d   Mid-tab launch-claude banner                                  ← new 2026-04-26 night
+   19e   User-context onboarding hardening (managed CLAUDE.md block + glossary lift + enterprise reference) ← filed 2026-05-03 (Stage 19e PRD)
    20    Interaction polish: duo doctor + TCP fallback + pane-aware shortcuts
    24    Pin WorkingPane tabs                                          ✓ shipped 2026-04-26 (c1c4ea9)
 

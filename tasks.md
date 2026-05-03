@@ -5239,3 +5239,105 @@ These haven't surfaced as bugs because they're either hover-states (transient, l
 
 ---
 
+### ENH-088: Install a managed Duo block in `~/.claude/CLAUDE.md` on first launch
+
+**Status:** 🆕 Filed — sprint candidate (Stage 19e Phase 1)
+**Priority:** Medium-High (closes the "Claude Code outside Duo terminals has no Duo awareness" gap; complements existing PATH-shim + SessionStart-hook priming which fire only inside `DUO_SESSION=1` PTYs)
+**Filed:** 2026-05-03
+
+**Problem.** The installer (`electron/install-service.ts`) lands skill, agent, `priming.md`, PATH shim, and a SessionStart hook — but never touches the user's global `~/.claude/CLAUDE.md`. So a Claude Code session started from any non-Duo terminal (Terminal.app, iTerm, VS Code's integrated terminal, an agent worktree that wasn't spawned by Duo's `PtyManager`) has no signal that Duo exists at all. The skill description triggers on phrases like "the browser pane" or "what's selected," but the discovery problem stays open for prompts that don't match those keywords (e.g., "why does `duo selection` keep hanging?" — sandbox troubleshooting lore is gated behind a trigger that the broken state prevents from firing).
+
+**Hook-independence (load-bearing design property).** This block must remain the primary mechanism for Duo awareness in non-`DUO_SESSION` Claude Code sessions. It must NOT depend on Claude Code's hook runtime or any `settings.json` configuration — those are commonly disabled by enterprise policy. CLAUDE.md is loaded by Claude Code's core context loader and works regardless of hook/permission policy. The existing SessionStart hook (Stage 19b) remains the redundant safety net for in-Duo sessions only; this block is the load-bearing path for everything else.
+
+**Design.** Auto-insert a thin managed block. CLAUDE.md best-practice ceiling is hard — bloat = ignored — so the block stays ~5 lines and points at load-on-demand resources rather than inlining content.
+
+Block contents (draft):
+
+```markdown
+<!-- duo:managed-vX.Y.Z — installed by Duo. Edit freely; remove this block to opt out. -->
+## Duo workspace integration
+
+Duo (https://duo.app) is installed on this machine — a desktop app pairing Claude Code terminals with an embedded browser, file tree, markdown editor, and HTML canvas. When the user references Duo's surfaces ("the browser pane", "the editor", "what's selected", a `duo` CLI verb), reach for the **`duo` skill** at `~/.claude/skills/duo/SKILL.md` or delegate multi-step CLI sequences to the **`duo` subagent**. If a `duo` command hangs or returns `ECONNREFUSED`, see `~/.claude/skills/duo/references/sandbox-troubleshooting.md`.
+<!-- duo:end -->
+```
+
+**Mechanism.** Mirror `mergeSessionStartHook` in `electron/install-service.ts`:
+
+1. If `~/.claude/CLAUDE.md` doesn't exist → create with block + trailing newline.
+2. If file exists with `<!-- duo:managed-* -->` marker → version-aware replace (so version bump refreshes the block).
+3. If file exists without marker AND `installed.json.claudeMdManaged !== true` → append (preceded by `\n\n` if file doesn't end with `\n`).
+4. If file exists without marker AND `claudeMdManaged === true` → user removed it; **respect that**; never re-add. (Set the flag on every successful insert/replace.)
+
+**Test plan.** Three install scenarios on a clean home dir:
+- (a) no CLAUDE.md → file created with block.
+- (b) CLAUDE.md exists with unrelated content → block appended; original content untouched.
+- (c) CLAUDE.md has older `duo:managed-` block → block replaced in place; surrounding content untouched.
+
+Plus one regression: user removes block manually, runs install again → block stays gone (`claudeMdManaged` flag in `installed.json` enforces).
+
+**Affected files (estimated):**
+- `electron/install-service.ts` (new `mergeUserClaudeMd` function; called alongside `mergeSessionStartHook`)
+- `core/installed-packs-service.ts` or wherever `installed.json` is written (add `claudeMdManaged` boolean)
+- New unit test for the merge function (covers the four scenarios)
+
+**Cross-ref:** Stage 19b (priming.md mechanism — this is the cousin that covers non-DUO_SESSION terminals). PRD: `docs/prd/stage-19e-user-context-onboarding.md`. Pairs with ENH-089 (vocabulary lift) and ENH-090 (enterprise-deployments reference) under the same PRD.
+
+---
+
+### ENH-089: Lift user-facing glossary out of project CLAUDE.md into a shipped skill reference
+
+**Status:** 🆕 Filed — sprint candidate (Stage 19e Phase 2)
+**Priority:** Medium (single-source-of-truth fix; closes a broken cross-reference)
+**Filed:** 2026-05-03
+
+**Problem.** The page/playground/lesson vocabulary is canonically sourced from project `CLAUDE.md § Glossary`. Both shipped skills point to it as the source of truth:
+
+- `skill/make-page.md:9` — "Vocabulary lock (see CLAUDE.md § Glossary)"
+- `skill/make-playground.md:9` — "Vocabulary lock (see CLAUDE.md § Glossary)"
+
+End users don't have CLAUDE.md. The pointer goes to a doc that ships only with the source repo. Today this works because `make-page.md` and `make-playground.md` inline a short copy of the vocabulary, but those copies will drift from the canonical version over time.
+
+**Design.** Lift the user-facing glossary into `skill/references/vocabulary.md` (synced to `~/.claude/skills/duo/references/vocabulary.md` via `sync:claude` and the installer):
+
+- The "User says vs internal name" table (user-facing column only — internal names like `WorkingTab.kind === 'page'` stay in project CLAUDE.md, since they only matter to maintainers).
+- The "page/playground distinction is content-level, not kind-level" paragraphs.
+- The "When to reach for which" decision tree.
+
+Update both shipped skills to reference `references/vocabulary.md` instead of `CLAUDE.md § Glossary`. Update project CLAUDE.md's glossary section to point at the shipped reference as canonical for user-facing terms, with a short note that the internal naming column lives here as contributor lore.
+
+**Affected files:**
+- `skill/references/vocabulary.md` (new — content lifted from CLAUDE.md)
+- `skill/make-page.md` and `skill/make-playground.md` (update pointers)
+- `CLAUDE.md` (replace user-facing glossary content with a pointer; keep internal-name notes)
+- `package.json` `sync:claude` (already syncs `skill/references/*.md` — no change needed; verify on smoke walk)
+- `electron/install-service.ts` — verify `references/` tree is copied (it is per `installed.json`)
+
+**Cross-ref:** ENH-088 (the user CLAUDE.md block ALSO points at `references/sandbox-troubleshooting.md` — same single-source-of-truth pattern). PRD: `docs/prd/stage-19e-user-context-onboarding.md`.
+
+---
+
+### ENH-090: Enterprise-deployments reference for hook-disabled / permission-restricted Claude Code installs
+
+**Status:** 🆕 Filed — sprint candidate (Stage 19e Phase 3)
+**Priority:** Medium (documentation; unblocks enterprise users hitting policy-driven failures)
+**Filed:** 2026-05-03
+
+**Problem.** Enterprise Claude Code installs commonly: disable hooks, lock down `settings.json` to managed templates, restrict `permissions.deny` policies (which can block `Bash(duo:*)` patterns), and occasionally manage `~/.claude/skills/` from a central location. Today, Duo has no consolidated reference explaining which Duo features work hook-free, what may be policy-restricted, and what to do about it. Users hitting a policy-driven block have to piece it together from `sandbox-troubleshooting.md`, the install banner output, and trial-and-error.
+
+**Design.** New file `skill/references/enterprise-deployments.md`, ~150-200 lines, with four sections:
+
+1. **Mechanism dependency map.** Table of Duo's user-context mechanisms classified by hook-dependence and settings.json-dependence. Pulled from Stage 19e PRD § 2.
+2. **Common enterprise restrictions and impact.** Hooks disabled (SessionStart hook silently skipped → no impact on in-Duo priming because the PATH shim is load-bearing). Restrictive `permissions.deny` (e.g. `Bash(duo:*)` may need explicit allowlist additions in the org's settings — directs users to their admin if blocked). Managed `~/.claude/skills/` (rare; Duo's installer would fail at write time with a clear error message).
+3. **What still works in restrictive environments.** PATH shim priming (no hook needed), skill discovery, subagent discovery, the user CLAUDE.md managed block from ENH-088.
+4. **Reporting checklist.** What logs to capture, what to share with the user's IT/admin, what to send upstream as a Duo issue.
+
+**Affected files:**
+- `skill/references/enterprise-deployments.md` (new)
+- `skill/references/sandbox-troubleshooting.md` (one-line cross-reference for users hitting policy-driven blockers)
+
+**Cross-ref:** Stage 19b (the SessionStart hook explicitly designed as redundant safety net for this reason). ENH-088 (managed block points at `references/` directory; this doc joins that surface). PRD: `docs/prd/stage-19e-user-context-onboarding.md`.
+
+---
+
+---
+
