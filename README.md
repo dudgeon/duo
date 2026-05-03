@@ -55,20 +55,38 @@ What's shipped today:
 
 - **Three-column workspace:** files on the left, terminal in the middle,
   a **polymorphic Viewer/Editor column** on the right with one unified
-  tab strip for browser tabs, markdown-editor tabs, and file previews.
+  tab strip for browser tabs, markdown-editor tabs, HTML canvases, and
+  file previews. Each side is collapsible; the canvas can split into
+  two files side-by-side ("Split View", v0.6.4).
 - **Terminal tabs** (xterm.js + node-pty) with reader typography
-  ("cozy mode", Stage 9).
+  ("cozy mode", Stage 9), pin / reorder / drag-to-rearrange, and
+  pane-aware ⌃Tab cycling.
 - **Real Chromium browser pane** (Electron `WebContentsView`) with
-  **persistent Google SSO** — sign in once, stay signed in across relaunches.
-- **Rich markdown editor** (Stage 11a): Google-Docs-like typography,
+  **persistent Google SSO** — sign in once, stay signed in across
+  relaunches. URL-bar autocomplete from history (v0.5.1+); ⌘F
+  find-in-page (v0.5.4+).
+- **Rich markdown editor** (Stage 11): Google-Docs-like typography,
   TipTap/ProseMirror under the hood, GFM + task lists + tables + syntax-
   highlighted code. YAML frontmatter preserved. Autosave + `⌘S`.
-  CriticMarkup-based comments and track-changes land in 11b–d.
+  Find-in-document (v0.5.3+); toggleable line numbers (v0.6.3+).
+- **HTML canvas** (Stage 17): edit raw HTML with the same toolbar +
+  markdown shortcuts as the editor; `<pre>` blocks auto-get a Copy
+  button; comment-rail annotations; per-file edit-mode toggle.
+- **Lesson packs** (Stage 28, v0.6.0+): single-canvas FTUX tutorials
+  and multi-canvas curricula that ship as defaults; "Start lesson"
+  buttons spawn a Claude session pre-loaded with a guide skill.
 - **Light / dark / system theme** with macOS appearance follow.
+- **macOS Finder integration** (v0.6.4): Duo registers as an Open With
+  candidate for `.md` and `.html` files; double-clicking from Finder
+  routes through the same smart-open path as the in-app navigator.
+- **Auto-update + session restore** (v0.4.2+): updates land via
+  GitHub Releases; on relaunch the terminal tabs, browser tabs, file
+  tabs, and Split View state come back where you left them.
 - A `duo` **CLI** on your PATH. Any terminal process — including
   Claude Code running inside a Duo tab — can call it. Under the hood
   it's a Unix socket at `~/Library/Application Support/duo/duo.sock`
-  (mode 0700). See [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).
+  (mode 0700) with a TCP fallback for sandboxed environments. See
+  [docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md).
 - Bundled **`duo` Claude Code skill** + **`duo` subagent** (Haiku 4.5) so
   a fresh Claude Code session launched inside a Duo terminal
   auto-discovers them and can drive the browser + editor without priming.
@@ -99,13 +117,15 @@ The fastest path: grab the latest **signed + notarized** DMG from
 and drop the `Duo.app` it mounts into `/Applications`. Pick the
 `-arm64` build for Apple Silicon and the unsuffixed build for Intel.
 
-Direct links to the most recent release:
+For the latest signed + notarized DMG, browse
+[**GitHub Releases**](https://github.com/dudgeon/duo/releases/latest)
+and pick the asset that matches your CPU (`-arm64` for Apple Silicon
+Macs, the unsuffixed build for Intel). Direct-download URLs are
+versioned per cut, so the canonical link to the latest is the
+Releases page itself.
 
-- **arm64 (Apple Silicon):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.4.1-arm64.dmg>
-- **x64 (Intel):** <https://github.com/dudgeon/duo/releases/latest/download/Duo-0.4.1.dmg>
-
-> **No Gatekeeper warning** as of v0.4.1. The DMGs are signed with
-> Apple Developer ID and notarized — first launch is a clean
+> **No Gatekeeper warning** since v0.4.1 — the DMGs are signed with
+> Apple Developer ID and notarized, so first launch is a clean
 > double-click. (Pre-v0.4.1 builds were unsigned and required a
 > right-click → Open workaround; that's gone.)
 
@@ -452,19 +472,24 @@ Full stage-by-stage tracking lives in **[ROADMAP.md](ROADMAP.md)** /
 in **[CHANGELOG.md](CHANGELOG.md)** with prose context in
 **[docs/RELEASES.md](docs/RELEASES.md)**.
 
-Most recent release: see the top of [CHANGELOG.md](CHANGELOG.md). At
-v0.4.1 (post-Stage-21-cut) the headlines worth pulling forward in this
-README are:
+Most recent release: see the top of [CHANGELOG.md](CHANGELOG.md). The
+release headlines worth pulling forward in this README:
 
 - **Foundation shipped** — Stages 1–3, 5 (+ 5 v2), 8, 9 (cozy mode).
 - **Editor surfaces shipped** — Stage 11 (markdown editor), Stage 17 (HTML canvas with comments rail), Stage 12 (Atelier visual identity).
-- **Agent ergonomics shipped** — `duo` CLI + skill + Haiku 4.5 subagent (Stage 5/5 v2), Send → Duo selection pill (Stage 15.1/15.2).
+- **Agent ergonomics shipped** — `duo` CLI + skill + Haiku 4.5 subagent (Stage 5/5 v2), Send → Duo selection pill (Stage 15.1/15.2), `duo events --follow` event bus (Stage 27, v0.6.0+).
 - **First-launch + workspace polish shipped** — Stage 18 (welcome banner installs skill / subagent / CLI binary + priming shim + SessionStart hook into `~/.claude/`), Stage 24 (pin WorkingPane tabs).
 - **Duo-aware Claude shipped (v0.3.0)** — Stage 19b passive priming via PATH shim + hook; Stage 23 canvas actions (`data-duo-action` Claude↔HTML loop); preventative kb-shortcut architecture.
-- **Context pedagogy shipped (v0.4.0)** — Stage 22 navigator dual-pane ("Your Claude settings" + "Project Claude context"); GitHub Releases auto-update banner; Stage 25 post-redirect chrome banner with `*.capitalone.com` defaulted in the off-host list; Edit-menu "Paste and Match Style".
-- **Sandbox resilience shipped (v0.4.1)** — Stage 20's TCP fallback transport (Capital One Seatbelt blocks Unix-domain sockets; CLI now falls through to `127.0.0.1` with a per-launch auth token), `duo doctor` diagnostic that names the failure mode, sandbox-writable install path (`~/.claude/bin/duo`).
-- **Signed + notarized DMG shipped (v0.4.1, Stage 21a)** — first launch is a clean double-click; Gatekeeper accepts as Notarized Developer ID. Toolchain in `scripts/dist-signed.sh` (env-driven, iCloud-aware, builds outside `~/Documents/` to dodge the File Provider xattrs that block codesign).
-- **Coming next** — Stage 14 (markdown editor track-changes / CommentRail binding), Stage 16 (external-write reconciliation), Stage 18b (distro skill packs), Stage 21c (electron-updater + session restore on relaunch), the rest of the Stage 20 polish cluster (tab numbers, terminal selection, `duo reload`, pane-aware `⌘+/-`).
+- **Context pedagogy shipped (v0.4.0)** — Stage 22 navigator dual-pane ("Your Claude settings" + "Project Claude context"); GitHub Releases auto-update banner; Stage 25 post-redirect chrome banner with off-host blocklist; Edit-menu "Paste and Match Style".
+- **Sandbox resilience shipped (v0.4.1)** — Stage 20's TCP fallback transport (some enterprise sandboxes block Unix-domain sockets; CLI falls through to `127.0.0.1` with a per-launch auth token), `duo doctor` diagnostic that names the failure mode, sandbox-writable install path (`~/.claude/bin/duo`).
+- **Signed + notarized DMG shipped (v0.4.1, Stage 21a)** — first launch is a clean double-click; Gatekeeper accepts as Notarized Developer ID. Toolchain in `scripts/dist-signed.sh` (env-driven, iCloud-aware, builds outside `~/Documents/` to dodge File Provider xattrs that block codesign).
+- **Auto-update + session continuity shipped (v0.4.2 / v0.5.1)** — Stage 21c Phase 1+2 (electron-updater + session restore: terminal tabs, browser tabs, file tabs, navigator path); Phase 3 browser-history persistence with URL-bar autocomplete (closes [issue #27](https://github.com/dudgeon/duo/issues/27)).
+- **Fork-friendly architecture shipped (v0.5.0, Stage 21e)** — build-time fork config + Vite runtime injection + provenance-aware install. See [docs/HOW-TO-FORK.md](docs/HOW-TO-FORK.md) for the five layered fork modes.
+- **Canvas authoring + lesson packs shipped (v0.6.0)** — Stage 27 canvas action vocabulary (`data-duo-action` Claude↔HTML verbs), Stage 28 first-launch lesson packs (single-canvas + multi-canvas curricula), `duo events --follow` streaming.
+- **Native menus + workspace polish shipped (v0.6.3 work, ships in v0.6.4)** — ENH-050 native NSMenu / system sheet dialogs (retires the WCV-mute pattern), ENH-040/066 collapse-pane buttons + vertical rails, ENH-042 tab reorder via drag-and-drop, ENH-069 toggleable line numbers, BUG-067 smart `duo open` routing.
+- **Split View shipped (v0.6.4)** — the canvas (right pane) can host two files side-by-side. Open via `duo split-view open <path>`, the right-click "Move/Open in Split View" entries on tabs/FileTree/PinnedNav, the `⌘\` chord, or per-page `<meta name="duo-path-target" content="split">` opt-in. Persists across launch (paths + activeIndex + splitPct).
+- **Vitest regression-test framework shipped (v0.6.4)** — first 100+ tests covering BUG-061 markdown-trigger regex, fileClassifier extension routing, cycleNext, pathFromFileUrl, expandTilde, and `matchEnterTrigger` / `matchBlockTrigger` pure helpers. Run via `npm run test` (watch) or `npm run test:run`.
+- **Coming next** — Phase 3c-iv browser-in-aux (BrowserManager bounds tracking for two WebContentsViews; v0.6.5), MISSING-001 markdown editor CommentRail binding (Stage 14a), ENH-080 `⌘⇧A` open-tab search palette, ENH-052 mechanical canvas → page rename, the `claude-code-basics` curriculum-template refactor.
 
 ---
 

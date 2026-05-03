@@ -2292,7 +2292,7 @@ The terminal tab strip (`renderer/components/TabBar.tsx`) and the WorkingPane ta
 
 ### ENH-020: Skill — "Building effective HTML canvases" (templates + ID conventions + agent-event buttons)
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.0+ — superseded by Stage 27's canvas-authoring skill split. The original ask landed as `skill/canvas-authoring.md` (Stage 27), then expanded into the v0.6.1 vocabulary-lock series: `skill/make-page.md` (basic HTML pages), `skill/make-playground.md` (interactive playgrounds with action verbs + events), `skill/playground-interaction.md` (driving / reading existing playgrounds), `skill/lesson-runtime.md` (lesson runtime), `skill/lesson-flythrough.md` (validation harness). Templates live at `skill/examples/canvas-templates/*.html` (5 seed templates) and `skill/examples/lesson-template/` (linear lesson) + `skill/examples/curriculum-template/` (multi-canvas curriculum). All discoverable via `skill/SKILL.md` + `agents/duo.md` cheat-sheet entries; deployed to user systems via `npm run sync:claude` and Stage 18 install banner.
 **Priority:** Medium (canvas authoring is the most-used Stage 17 surface; structured guidance turns ad-hoc canvas builds into reproducible patterns)
 **Filed:** 2026-04-30 (`20260430-improvement-notes.md` item 10)
 
@@ -3036,7 +3036,7 @@ Right-click on any WorkingPane tab → context menu with:
 
 ### ENH-034: Canvas edit-mode toggle + `<meta name="duo-default-editable">` convention
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.0 (Stage 27). `<meta name="duo-default-editable" content="true|false">` parsed in `files-service.ts § getHtmlMeta`; `CanvasTab` reads the meta hint to seed initial `readOnly` state; per-tab toolbar pencil/eye toggle persists locally via localStorage per file path; skill docs updated alongside the routing meta. Walk-2 V11 + V12 PASSed against `~/.claude/duo/stage-27-walk.html` which sets the meta to `false`.
 **Priority:** Medium (UX gap — canvas is currently always-editable, which traps button clicks as cursor placements on interactive HTML)
 **Filed:** 2026-05-01 (v0.5.5 walk-2 — smoke walk page Copy-results button trapped by contenteditable)
 
