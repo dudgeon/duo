@@ -479,6 +479,20 @@
     "Pull into this sprint: research on how slack handles sidebar/split view — does not allow infinite split view inception, just one aux sidebar, iirc; I want to do something like this in canvas; this sprint you do the research and spec it out."
   </div>
 
+  <div style="background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 4px; margin: 16px 0 32px;">
+    <h4 style="margin: 0 0 10px; color: var(--accent); font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;">Locked direction (2026-05-02)</h4>
+    <p style="margin: 0 0 10px;"><strong>Option A — Slack-style, single aux slot, right-only.</strong> Option B kept on the table for v2 (architectural seams baked in now); Option C explicitly rejected; Option D considered complementary.</p>
+    <p style="margin: 0 0 10px; font-size: 12px; color: var(--ink-mute);"><strong>User-facing label:</strong> "Split View" — used in right-click menus and CLI verb names. Internal code can keep "aux" as a shorter handle.</p>
+    <ul style="margin: 0 0 0 18px; font-size: 13px;">
+      <li><strong>Move semantics on tab context.</strong> Right-clicking an active main-pane tab → "Move to Split View" closes it in main and reopens in split. Single source of truth per file.</li>
+      <li><strong>Open semantics on file/link context.</strong> Right-clicking a file in navigator or any local-path <code>&lt;a href&gt;</code> in a page → "Open in Split View" opens it in split. If the same file is already open in main, the existing tab moves to split (consistent with the move rule above — never two tabs for the same path across panes).</li>
+      <li><strong>Replacement when split is occupied.</strong> Silent replace if aux is clean; native dialog (Save / Discard / Cancel) if aux has unsaved edits. Mirrors existing pinned-close confirm pattern (ENH-050 family).</li>
+      <li><strong>B-ready internals.</strong> State shape is <code>aux: { tabs: WorkingTab[], activeIndex: number, splitPct: number } | null</code> — multi-tab capable from day one. v1 UI is single-slot (replacement gesture instead of strip); v2 just turns the strip on. Near-zero migration cost when/if Option B ships.</li>
+      <li><strong>Page-link gesture.</strong> ANY local-path <code>&lt;a href&gt;</code> in a canvas page gets a Split View affordance. The CDP-injected page-side handler from ENH-039 extends to expose right-click → "Open in Split View" on these. Filter out non-file href values (mailto:, http(s)://, fragments, etc.) before the gesture surfaces.</li>
+      <li><strong>Invocation surfaces (locked):</strong> tab context menu · file context menu in navigator · `&lt;a href&gt;` context menu in pages · `duo split open &lt;path&gt;` / `duo split close` / `duo split` CLI · keyboard shortcut TBD.</li>
+    </ul>
+  </div>
+
   <div class="toc">
     <h4>Contents</h4>
     <ol>
@@ -927,19 +941,29 @@
     <li><strong>Aux replaces, doesn't queue.</strong> If the user opens aux content B while A is in aux, A is replaced. (No "stack of recently-aux'd things" — `⌘⇧T` for browser-tab-reopen has different semantics; this isn't that.)</li>
   </ul>
 
-  <h2 id="sec-questions">5. Open questions for owner</h2>
+  <h2 id="sec-questions">5. Open questions — resolution status</h2>
+
+  <p style="font-size: 13px; color: var(--ink-mute);">Four of eight resolved by AUQ on 2026-05-02. Four still open; defer to a second AUQ pass before code work begins.</p>
 
   <div class="questions">
-    <h4>Decisions needed before code</h4>
+    <h4>✅ Resolved (AUQ 2026-05-02)</h4>
     <ol>
-      <li><strong>Open gesture.</strong> Right-click → "Open in aux" only? Or also a keyboard shortcut (e.g. `⌘\`)? Or also a CLI verb (`duo split <path>`)? Recommend all three; confirm.</li>
-      <li><strong>Replacement confirm.</strong> If aux is dirty (unsaved markdown / canvas edits) and the user opens new aux content, do we (a) auto-save and replace, (b) prompt with the existing pinned-close confirm pattern, or (c) refuse to replace until the current is closed? Recommend (b) — matches existing destructive-confirm UX.</li>
-      <li><strong>Aux when no main.</strong> If the user closes their last main tab while aux is open, do we (a) promote aux to main, (b) keep aux open with empty main, or (c) close aux too? Recommend (a) — promotion preserves work.</li>
+      <li><strong>Invocation gesture.</strong> Right-click context menu on (a) active tab, (b) file in navigator, (c) `&lt;a href&gt;` link to local path in page; PLUS `duo split open / close` CLI verbs. Keyboard shortcut TBD (see open questions below).</li>
+      <li><strong>Replacement confirm.</strong> Silent replace if split is clean; native dialog (Save / Discard / Cancel) if dirty. Mirrors ENH-050's destructive-confirm pattern.</li>
+      <li><strong>B-readiness.</strong> Internal state shape multi-tab from day one (<code>aux: { tabs: WorkingTab[], activeIndex: number, splitPct: number }</code>). UI strictly single-slot in v1.</li>
+      <li><strong>Page-link surface.</strong> ANY local-path <code>&lt;a href&gt;</code> in a canvas page gets the Split View right-click affordance. Auto-detect; no author opt-in attribute needed.</li>
+    </ol>
+  </div>
+
+  <div class="questions" style="background: var(--paper-deep); border-left-color: var(--ink-mute);">
+    <h4 style="color: var(--ink-mute);">⏳ Still open — second AUQ pass needed</h4>
+    <ol>
+      <li><strong>Aux when no main.</strong> If the user closes their last main tab while split is open, do we (a) promote split to main, (b) keep split open with empty main, or (c) close split too? Recommend (a) — promotion preserves work.</li>
       <li><strong>Width persistence.</strong> Per-session (resets on restart) or persistent (saved to <code>~/.claude/duo/session-state.json</code>)? Recommend persistent.</li>
-      <li><strong>Aux on session-restore.</strong> If the user had aux content open on quit, restore it on relaunch? Recommend yes.</li>
-      <li><strong>Pin behavior.</strong> Can an aux tab be pinned? If yes, where does the pin metadata live (shared with main pin set, or aux-specific)? Recommend: NO pinning in v1 (aux is conceptually "transient companion"; pinning fights replacement).</li>
-      <li><strong>Same path in main + aux.</strong> Allow opening the same file in both panes simultaneously, or de-dupe (BUG-059 logic)? Recommend ALLOW for v1 (split-view is the explicit reason). De-dupe rule applies within a single pane.</li>
-      <li><strong>Default aux content for FTUX.</strong> When a fresh user opens Duo, should the welcome canvas auto-split into "welcome.html in main, intro-to-duo lesson in aux" (per Stage 28)? Recommend yes — but only on first launch; user-controlled afterward.</li>
+      <li><strong>Split on session-restore.</strong> If the user had split content open on quit, restore it on relaunch? Recommend yes.</li>
+      <li><strong>Pin behavior.</strong> Can a split tab be pinned? Recommend NO pinning in v1 (split is conceptually "transient companion"; pinning fights replacement).</li>
+      <li><strong>Default split content for FTUX.</strong> Auto-split welcome.html / intro-to-duo on first launch? Recommend yes — first launch only, user-controlled afterward.</li>
+      <li><strong>Keyboard shortcut.</strong> Add a chord for "Move/Open in Split View" (e.g. <code>⌘\</code>) AND "Close Split" (e.g. <code>⌘⇧\</code>)? Or skip the keyboard for v1? Recommend ship the chords; muscle memory matters.</li>
     </ol>
   </div>
 
@@ -951,25 +975,51 @@
 
   <p>The cognitive-ceiling argument from Slack's design is also Duo's argument: one terminal column + one canvas pane + one aux pane is three columns of attention, which is at the edge of what most users can hold. A fourth would compete.</p>
 
-  <h2 id="sec-impl">7. Implementation sketch (if Option A is locked)</h2>
+  <h2 id="sec-impl">7. Implementation sketch — Option A locked</h2>
 
-  <p><em>Stub — fleshed out in a follow-up PRD if owner picks Option A. Captured here so the path is visible.</em></p>
+  <p>Locked direction. Fleshed out below; ready to start implementation after the remaining six open questions in §5 are answered.</p>
+
+  <h4>State shape (B-ready)</h4>
+
+  <p>Multi-tab capable from day one. v1 UI keeps <code>tabs.length === 1</code>; v2 just turns the strip on.</p>
+
+  <pre><code>// shared/types.ts
+interface WorkingPaneState {
+  main: { tabs: WorkingTab[], activeIndex: number }
+  aux: {
+    tabs: WorkingTab[]      // v1: always length 0 or 1
+    activeIndex: number
+    splitPct: number        // 0..1 main share; 0.5 default
+  } | null                  // null when split is closed
+}</code></pre>
 
   <h4>Plumbing checklist (per CLAUDE.md § 4)</h4>
 
   <ol>
-    <li><code>shared/types.ts</code> — extend <code>WorkingPaneState</code> with an optional <code>aux: { tab: WorkingTab | null, splitPct: number } | null</code> field. New IPC channels for aux open / close.</li>
-    <li><code>electron/preload.ts</code> — expose <code>window.electron.workingPane.openAux(path)</code> + <code>closeAux()</code>.</li>
-    <li><code>electron/main.ts</code> — IPC handler dispatches to renderer's working-pane logic.</li>
-    <li><code>core/socket-server.ts</code> — new <code>case 'split'</code> handling <code>open</code> / <code>close</code> / <code>get</code> sub-verbs.</li>
-    <li><code>cli/duo.ts</code> — <code>duo split &lt;path&gt;</code>, <code>duo split close</code>, <code>duo split</code> (gets state). Rebuild binary.</li>
-    <li><code>skill/SKILL.md</code> + <code>agents/duo.md</code> — verb cheat-sheet entries; sync via <code>npm run sync:claude</code>.</li>
-    <li><code>docs/CLI-COVERAGE.md</code> — inventory.</li>
-    <li><code>renderer/components/WorkingPane.tsx</code> — split into <code>WorkingPaneMain</code> (existing) + <code>WorkingPaneAux</code> (new). Divider component between them. Memory of last <code>splitPct</code>.</li>
-    <li><code>renderer/components/WorkingTabStrip.tsx</code> — add "Open in aux" to the tab context menu (only visible when in main pane and aux is closed; or "Replace aux" when aux is open).</li>
-    <li>Session state: extend <code>~/.claude/duo/session-state.json</code> with aux fields. Migration is additive (missing aux field treated as no aux).</li>
-    <li>Smoke-walk item every release: open a file, split it to aux, drag the divider, close aux — confirm survives session restart.</li>
+    <li><code>shared/types.ts</code> — extend <code>WorkingPaneState</code> with the multi-tab-capable <code>aux</code> field above. New IPC channels: <code>WORKING_AUX_OPEN</code>, <code>WORKING_AUX_CLOSE</code>, <code>WORKING_AUX_MOVE_TO_MAIN</code>, <code>WORKING_AUX_RESIZE</code>. Add <code>'split open' | 'split close' | 'split get'</code> to <code>DuoCommandName</code>.</li>
+    <li><code>electron/preload.ts</code> — <code>window.electron.workingPane.openAux(path)</code>, <code>closeAux()</code>, <code>moveAuxToMain()</code>, <code>resizeSplit(pct)</code>.</li>
+    <li><code>electron/main.ts</code> — IPC handlers; dispatch helpers for renderer.</li>
+    <li><code>core/socket-server.ts</code> — new <code>case 'split'</code> with <code>open</code> / <code>close</code> / <code>get</code> sub-verbs. Reuses NavBridge.</li>
+    <li><code>cli/duo.ts</code> — <code>duo split open &lt;path&gt;</code>, <code>duo split close</code>, <code>duo split [--json]</code>. Rebuild + commit binary.</li>
+    <li><code>skill/SKILL.md</code> § Verb cheat-sheet — entries for the new verbs. Sync via <code>npm run sync:claude</code>.</li>
+    <li><code>agents/duo.md</code> § Verb cheat-sheet — entries for the new verbs.</li>
+    <li><code>docs/CLI-COVERAGE.md</code> — inventory update.</li>
+    <li><code>renderer/components/WorkingPane.tsx</code> — split into <code>WorkingPaneMain</code> (existing single-pane logic, repurposed) + <code>WorkingPaneAux</code> (new, single-tab in v1). Add a <code>SplitDivider</code> between them with drag-to-resize + double-click-to-reset (50/50 default). Memory of last <code>splitPct</code> via session-state-service.</li>
+    <li><code>renderer/components/WorkingTabStrip.tsx</code> — add "Move to Split View" entry to the tab right-click menu (only visible on main-pane tabs). When invoked, removes the tab from main and inserts into aux's <code>tabs[]</code> at <code>activeIndex = 0</code>; if aux had existing content, fire the dirty-prompt-or-silent-replace flow.</li>
+    <li><code>renderer/components/FileTree.tsx</code> — add "Open in Split View" entry to the file row right-click menu. Same backend as the CLI's <code>duo split open</code>.</li>
+    <li><code>renderer/components/PinnedNav.tsx</code> — same Split View entry on pinned-row right-click.</li>
+    <li><code>electron/cdp-bridge.ts</code> — extend the page-side click forwarder to surface a context menu on local-path <code>&lt;a href&gt;</code> elements (filter out non-file href values). Right-click → "Open in Split View." New CDP binding <code>duoOpenPathSplit</code> mirroring <code>duoOpenPath</code> from ENH-039.</li>
+    <li><code>renderer/services/session-state-service.ts</code> — persist <code>aux</code> state. Migration is additive (missing field = no split).</li>
+    <li>Smoke-walk item every release: open a file in main, Split View it, drag the divider, close split, confirm pre-split-pct restored on next open. Plus session-restore test.</li>
   </ol>
+
+  <h4>Out of scope for v1 (queued for v2)</h4>
+  <ul>
+    <li>Aux tab strip / multi-tab UI (Option B). State shape supports it; UI doesn't expose it.</li>
+    <li>Drag-to-split (drag a tab from main onto the canvas right edge to create the split). Right-click + CLI cover invocation in v1.</li>
+    <li>Aux-side "expand to fullscreen" (Slack's secondary affordance). Not needed for v1.</li>
+    <li>Pin behavior in aux (decided NO for v1; revisit if/when Option B ships).</li>
+  </ul>
 
   <h4>Cross-references</h4>
   <ul>
