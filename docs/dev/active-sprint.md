@@ -80,11 +80,14 @@ single batch.
 
 | Item | Status | Files touched |
 |---|---|---|
-| **ENH-076** — ⌘[ / ⌘] indent/outdent in HTML canvas | ✅ Shipped | `renderer/components/HtmlCanvas/markdownShortcuts.ts` |
-| **ENH-078** — Navigator selection prominence + click-to-deselect | ✅ Shipped | `renderer/components/FileTree.tsx` |
-| **ENH-079** — Collapsed Navigator "Navigator: {project_name}" label | ✅ Shipped | `renderer/components/FilesPane.tsx` |
-| **ENH-081** — Finder file-association registration for .md/.html | ✅ Shipped (verify post-DMG) | `electron-builder.yml`, `electron/main.ts` |
-| **BUG-071** — Focus limbo after smoke-walk path-link click | ✅ Shipped | `electron/main.ts` |
+| **ENH-076** — ⌘[ / ⌘] indent/outdent in HTML canvas | ✅ Shipped (wave 1) | `renderer/components/HtmlCanvas/markdownShortcuts.ts` |
+| **ENH-078** — Navigator selection prominence + click-to-deselect | ✅ Shipped (wave 1) | `renderer/components/FileTree.tsx` |
+| **ENH-079** — Collapsed Navigator "Navigator: {project_name}" label | ✅ Shipped (wave 1) | `renderer/components/FilesPane.tsx` |
+| **ENH-081** — Finder file-association registration for .md/.html | ✅ Shipped (wave 1, verify post-DMG) | `electron-builder.yml`, `electron/main.ts` |
+| **BUG-071** — Focus limbo after smoke-walk path-link click | ✅ Shipped (wave 1) | `electron/main.ts` |
+| **ENH-036** — `duo open <url>` brings new browser tab into view | ✅ Shipped (wave 2) | `renderer/App.tsx` |
+| **ENH-039** — clickable smoke-walk paths | ✅ Status flipped (was mistracked — shipped earlier this sprint via `4baba8b` + `f7ff1fe`) | `tasks.md` |
+| **ENH-077** — system dialog icon | 🟡 Code-path verified clean; DMG smoke-verify owed | `tasks.md` |
 | Idle thought #2 — `⌘⇧A` tab search | 📁 Filed only (ENH-080) | `tasks.md` |
 | Idle thought #3 — Enterprise distro = ZIP+submodule architecture | 📁 Filed (discussion) | `tasks.md` |
 | Idle-thoughts.md hygiene — move all 4 unprocessed → Processed | ✅ Done | `idle-thoughts.md` |

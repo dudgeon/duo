@@ -3151,7 +3151,7 @@ Three things this earns us:
 
 ### ENH-036: `duo open <url>` should bring the working pane to focus on the new tab
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.4** (Sprint 3 sweep wave 2, 2026-05-03). One-line fix in `renderer/App.tsx`: the existing `BROWSER_FOCUS_GAINED` IPC handler (which fires when `duo open` lands on a browser-routed URL OR when the user clicks into the browser pane) was only flipping `setFocusedColumn('working')` — the column flag — but NOT the `activeWorking` slot. So if the working pane was showing a canvas/editor tab, the new browser tab landed in the strip but the working pane kept rendering the previous kind. Added `setActiveWorking({ kind: 'browser' })` alongside the focus flip; idempotent on click-into-browser (BUG-042 source — already 'browser' there). Mirrors Stage 23 canvas-action `browser:open`'s effect (lines 827-828, 804-805) which already does the right thing.
 **Priority:** Medium (functional: `duo open` is broken-by-default for the most common "show the user this URL" intent; user has to manually click the new browser tab to actually see it)
 **Filed:** 2026-05-02 (Stage 27 smoke walk — `duo open` of the smoke-walk HTML created the browser tab but the working pane stayed on the canvas surface; user couldn't see the page until they manually clicked the new tab in the strip)
 
@@ -3207,7 +3207,7 @@ Three things this earns us:
 
 ### ENH-039: Smoke-walk page paths should be clickable links — open the file in editor or reveal in navigator
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.4** (Sprint 3 Phase 1, commits `4baba8b` for tilde expansion and `f7ff1fe` for per-page split-routing meta). Picked **Option 3 (CDP injection)** — the `BrowserManager`'s CDP bridge installs a `PATH_LINK_FORWARDER_IIFE` that gates on `location.protocol === 'file:'`, dispatches `[data-duo-path]` clicks via a `duoOpenPath` / `duoOpenPathSplit` binding back to main, and main routes through `sendEdit` / `splitViewOpen` (the same destinations the navigator double-click and `duo open` use). Tilde paths (`~/.claude/duo/...`) are expanded in main before the routing call. Smoke-walk pages opt into split-pane routing via `<meta name="duo-path-target" content="split">` (or per-link `data-duo-target="split"` override) so walk steps' link clicks land in the aux pane while the walk itself stays in the main pane. Live-verified PASS in Sprint 3 walk (2026-05-03). Generator updated in `.claude/skills/smoke-walk/generate.mjs` to emit the meta + wrap paths in path-links.
 **Priority:** Medium (UX paper-cut — paths in walk steps are currently `<code>` decorative; the user has to retype them into a terminal to actually use them)
 **Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
 
@@ -4521,7 +4521,7 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 ### ENH-077: System dialog icon — verify production behavior, file polish if dev-only
 
-**Status:** 🆕 Filed (likely a no-op once verified — production builds use Duo.app's icon naturally)
+**Status:** 🟡 Code-path verified clean (2026-05-03 — Sprint 3 sweep). DMG smoke-verify owed in v0.6.4 cut to formally close.
 **Priority:** Low (cosmetic; only visible in dev)
 **Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V4 owner notes)
 
@@ -4529,15 +4529,21 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 **Context:** `dialog.showMessageBox` on macOS uses the parent BrowserWindow's app icon by default. In a packaged + signed Duo build, that icon is Duo's clawd glyph (Stage 21b). In dev (`npm run dev`), the parent is Electron's default app icon — which is what owner saw. So the dev display is "wrong-looking" but production should already be correct.
 
-**v1 verification:** confirm in a packaged build (e.g. v0.6.3 DMG) that `dialog.showMessageBox` shows Duo's clawd icon. If it does, this ENH closes as no-op. If it doesn't, look at `electron-builder.yml § mac.icon` and `BrowserWindow` constructor's icon parameter.
+**Code-path verification (2026-05-03):**
+- `electron-builder.yml § mac.icon: build/icon.icns` ✅ correct (Stage 21b multi-resolution icon, generated from `build/icon.png`).
+- `electron/main.ts § new BrowserWindow({ ... })` constructor ✅ does NOT override `icon:` — the bundle's Info.plist icon governs.
+- `build/icon.icns` ✅ exists in the repo.
+- No `dialog.showMessageBox` call in the codebase passes a custom `icon:` argument that would short-circuit the bundle icon.
 
-**v2 (only if v1 confirms a real issue):** custom icon argument to `dialog.showMessageBox` per-call. macOS supports `icon: NativeImage` on `MessageBoxOptions` — pass Duo's clawd PNG explicitly. Fragile (needs path resolution at runtime); verify before going there.
+**Conclusion:** production behavior should be correct without any code change. The dev-mode "wrong icon" is an artifact of running in unpackaged Electron and is not a defect worth shipping a dev-only override for (would add complexity for cosmetic-only polish).
+
+**v0.6.4 DMG verify step:** open a packaged + signed Duo, trigger any `dialog.confirm` (e.g. right-click a navigator entry → Move to Trash), confirm the dialog shows Duo's clawd glyph. If yes → close ENH as no-op. If no → re-open and look at `electron-builder.yml § mac.icon` resolution + the .app bundle's `Resources/icon.icns` path.
 
 ---
 
 ### BUG-071: Focus left in limbo after smoke-walk path-link click — ⌃Tab unresponsive until canvas re-clicked
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.4** (Sprint 3 idle-thoughts sweep, commit `4ec0742`, 2026-05-03). One-line fix in `electron/main.ts § cdpBridge.onBrowserOpenPath` (and the symmetric `onBrowserOpenPathSplit`): after `void sendEdit(expanded)` / `void splitViewOpen(expanded)`, call `mainWindow?.webContents.focus()` to pull keyboard focus off the WebContentsView and back onto the renderer's content view. This is the inverse of BUG-042's wireKeyForwarding focus-pushed-to-renderer pattern, applied at the CDP listener level. After the fix, `⌃Tab` is responsive immediately after the canvas opens; no canvas-body re-click required. Smoke-walk verification owed in the v0.6.4 walk.
 **Priority:** Medium (sibling of BUG-038 / BUG-042 family — wrong-pane-focus → wrong-shortcut-routing).
 **Filed:** 2026-05-02 (v0.6.3-walk-3 ENH-039 notes)
 
@@ -4561,7 +4567,7 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 **Cross-ref:** ENH-039 (the new path-link surface that triggered this); BUG-038 (working-pane focus ⌃Tab cycle); BUG-042 (browser focus push); BUG-055 (canvas mousedown forwarder — addresses iframe-side, not WebContentsView-side).
 
-**Status update (2026-05-03):** ✅ Shipped v0.6.4 — the fix is one line in `electron/main.ts § cdpBridge.onBrowserOpenPath` (and the symmetric `onBrowserOpenPathSplit`): after `void sendEdit(expanded)` (or `splitViewOpen(expanded)`), call `mainWindow?.webContents.focus()` to pull keyboard focus off the WebContentsView and back onto the renderer's content view. This is the inverse of BUG-042's wireKeyForwarding focus-pushed-to-renderer pattern, applied at the CDP listener level. After the fix, `⌃Tab` is responsive immediately after the canvas opens; no canvas-body re-click required.
+**Status update (2026-05-03):** Status flipped to ✅ Shipped — see top of entry. Implementation detail moved into the Status block to keep the entry self-contained.
 
 ---
 

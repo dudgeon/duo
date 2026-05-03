@@ -1408,6 +1408,17 @@ export function App() {
   // routing to the wrong pane because focus tracking was stuck).
   useEffect(() => {
     return window.electron.keyboard?.onBrowserFocusGained?.(() => {
+      // ENH-036 (v0.6.4) — when `duo open <url>` lands on the browser
+      // path (i.e. URL went to BrowserManager.openTab, NOT smart-routed
+      // to the editor), the working pane needs to flip to browser kind
+      // OR the new tab is added invisibly (it's in the browser strip
+      // but the working pane is still showing a canvas/editor tab).
+      // socket-server.ts's `case 'open'` already pushes browser:focus-
+      // gained for browser-routed opens; mirror Stage 23 canvas-action
+      // browser:open's effect by setting activeWorking too. Idempotent
+      // on click-into-browser (BUG-042 source) — activeWorking is
+      // already 'browser' when the user clicks the browser pane.
+      setActiveWorking({ kind: 'browser' })
       setFocusedColumn('working')
     })
   }, [])
