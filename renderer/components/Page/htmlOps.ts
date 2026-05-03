@@ -1,11 +1,11 @@
 // Stage 17b Phase C — `duo html *` op executor.
 // PRD docs/prd/stage-17-html-canvas.md H37, H38.
 //
-// All ops operate on the iframe's contentDocument. CanvasTab subscribes
-// to `IPC.CANVAS_HTML_OP`, calls `executeHtmlOp(doc, req)`, replies via
-// `IPC.CANVAS_HTML_OP_RESULT`. Each op is pure DOM manipulation — no
+// All ops operate on the iframe's contentDocument. PageTab subscribes
+// to `IPC.PAGE_HTML_OP`, calls `executeHtmlOp(doc, req)`, replies via
+// `IPC.PAGE_HTML_OP_RESULT`. Each op is pure DOM manipulation — no
 // React, no MutationObserver wiring (the existing observer in
-// RenderedCanvas catches every mutation and fires the dirty/autosave
+// RenderedPage catches every mutation and fires the dirty/autosave
 // path automatically).
 //
 // Targeting: ops support either `--id <duo-id>` (preferred — addresses

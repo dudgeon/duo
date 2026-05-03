@@ -20,7 +20,7 @@
 // Returns a cleanup function. Safe to call multiple times across
 // mounts; each call wires its own listeners with isolated cleanup.
 
-export function installCanvasPasteHandlers(doc: Document): () => void {
+export function installPagePasteHandlers(doc: Document): () => void {
   const onPaste = (e: ClipboardEvent) => {
     if (!e.clipboardData) return
     const html = e.clipboardData.getData('text/html')

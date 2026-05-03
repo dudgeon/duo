@@ -130,7 +130,7 @@ c. **Did the visual focus indicator update?** (BUG-003 class).
       - `renderer/hooks/useKeyboardShortcuts.ts`
       - `renderer/components/TerminalPane.tsx` (xterm key handler —
         consults `matchGlobalShortcut`)
-      - `renderer/components/HtmlCanvas/RenderedCanvas.tsx`
+      - `renderer/components/Page/RenderedPage.tsx`
         (installs the iframe forwarder)
       - `renderer/components/editor/MarkdownEditor.tsx`
         (`editorProps.handleKeyDown` consults the matcher)
@@ -190,8 +190,8 @@ each cell, verify ALL of:
      `keyboard.onBrowserKey` callback then routes through the matcher.
    - **Editor:** `editorProps.handleKeyDown` in `MarkdownEditor.tsx`
      must call the matcher and return `true` when it matches.
-   - **Canvas:** `installGlobalShortcutForwarder` in
-     `RenderedCanvas.tsx` must be installed unconditionally on the
+   - **Page:** `installGlobalShortcutForwarder` in
+     `RenderedPage.tsx` must be installed unconditionally on the
      iframe doc; check the `cleanForwarder` ref isn't null.
 3. Does `useKeyboardShortcuts.ts` see the keydown? (Add a `console.log`
    in the document capture handler to confirm.)

@@ -1,6 +1,6 @@
 // Stage 17b — first-open prompt for `data-duo-id` injection (PRD H14).
 //
-// Mounts in CanvasTab between the toolbar and the iframe when the open
+// Mounts in PageTab between the toolbar and the iframe when the open
 // file has zero duo-ids AND there's no persisted choice for the file's
 // parent directory. The user picks Yes / No; the choice can optionally
 // be remembered for future files in the same directory ("Don't ask

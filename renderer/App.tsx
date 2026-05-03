@@ -18,7 +18,7 @@ import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
 import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
-import { htmlBoilerplate } from './components/HtmlCanvas/htmlBoilerplate'
+import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab } from '@shared/types'
 
@@ -830,7 +830,7 @@ export function App() {
   }, [])
 
   // Stage 23 — host-side dispatcher for canvas data-duo-action clicks.
-  // CanvasTab installs the listener, parses the action verb + args, and
+  // PageTab installs the listener, parses the action verb + args, and
   // calls back here. We translate to existing infrastructure:
   //   - claude:spawn   → mirror the `duo new-tab --claude` flow used by
   //                      the CLI route (makeTab + setTabs +
@@ -844,8 +844,8 @@ export function App() {
   //
   // Trust gating happens canvas-side in canvasActions.ts; this handler
   // is only called for trusted canvases (path under ~/.claude/duo/).
-  const handleCanvasAction = useCallback(async (
-    action: import('@shared/types').CanvasAction
+  const handlePlaygroundAction = useCallback(async (
+    action: import('@shared/types').PlaygroundAction
   ): Promise<{ ok: boolean; error?: string }> => {
     try {
       switch (action.kind) {
@@ -1050,7 +1050,7 @@ export function App() {
   // expect bytes on disk so an empty seed is fine.
   const onCommitNewFile = useCallback(async (id: string, resolvedPath: string, title: string) => {
     const { type, mime } = classifyFile(resolvedPath)
-    const seed = type === 'html-canvas'
+    const seed = type === 'page'
       ? encodeUtf8(htmlBoilerplate(title.replace(/\.[^.]+$/, '')))
       : new Uint8Array()
     try {
@@ -1650,10 +1650,10 @@ export function App() {
       // working pane → flash the working column; browser also lives
       // in working but the WebContentsView occludes the inner DOM,
       // so the column-level halo is what reads visually.
-      const paneAttr = e.pane === 'editor' || e.pane === 'html-canvas' ? 'working' : 'working-browser'
+      const paneAttr = e.pane === 'editor' || e.pane === 'page' ? 'working' : 'working-browser'
       // Both kinds collapse to the working pane wrapper for v1.
       // (Editor lives there when MarkdownEditor is the active
-      // renderer; canvas there when CanvasTab is active; browser
+      // renderer; canvas there when PageTab is active; browser
       // there when BrowserRenderer is active.) A future polish
       // could glow only the active sub-surface.
       void paneAttr
@@ -2108,7 +2108,7 @@ export function App() {
               // the canvas explicitly tells us when the user has
               // chosen it. Flips focusedColumn → 'working' so
               // subsequent ⌃Tab / ⌘T fire against the right pane.
-              onCanvasFocusGained={() => setFocusedColumn('working')}
+              onPageFocusGained={() => setFocusedColumn('working')}
               // Stage 15.1 — Send → Duo pill: pipe the formatted payload
               // into the active terminal's PTY. PRD G11: no Enter
               // appended — the user confirms by pressing Enter
@@ -2140,7 +2140,7 @@ export function App() {
               }
               pins={pins}
               onTogglePin={togglePin}
-              onCanvasAction={handleCanvasAction}
+              onPlaygroundAction={handlePlaygroundAction}
               homeDir={home}
               // ENH-026 — right-click on WorkingPane tab. Reveal
               // navigates the tree to the file's parent dir + selects

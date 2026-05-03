@@ -47,7 +47,7 @@ const ATTR_PRIORITY: Record<string, number> = {
   'data-duo-id': 2
 }
 
-// Runtime-only attributes / sentinels Stage 17a's RenderedCanvas adds to
+// Runtime-only attributes / sentinels Stage 17a's RenderedPage adds to
 // the iframe body for editing UX (contentEditable, spellcheck, our own
 // <style data-duo-canvas-runtime>). These should NEVER persist to disk —
 // the saved file should look like a normal HTML document a user can open
@@ -97,7 +97,7 @@ function doctypeString(doc: Document): string {
 }
 
 function serializeElement(el: Element, depth: number): string {
-  // Skip runtime-only injected elements (RenderedCanvas's <style>,
+  // Skip runtime-only injected elements (RenderedPage's <style>,
   // placeholder overlay, etc.). Body has the same sentinel so we can
   // strip its runtime attrs in attrString — but we don't skip body
   // itself, which is identified by the BODY tag plus the sentinel.

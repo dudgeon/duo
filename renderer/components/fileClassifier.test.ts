@@ -39,14 +39,14 @@ describe('classifyFile', () => {
   describe('html — Stage 17a default to canvas', () => {
     it('classifies .html as html-canvas', () => {
       expect(classifyFile('/tmp/page.html')).toEqual({
-        type: 'html-canvas',
+        type: 'page',
         mime: 'text/html'
       })
     })
 
     it('classifies .htm as html-canvas (same as .html)', () => {
       expect(classifyFile('/tmp/page.htm')).toEqual({
-        type: 'html-canvas',
+        type: 'page',
         mime: 'text/html'
       })
     })

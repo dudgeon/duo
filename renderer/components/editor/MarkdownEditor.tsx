@@ -893,7 +893,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [editor])
 
   // Stage 27 — `selection:set` editor-target listener. Companion to
-  // CanvasTab's same-named effect: a canvas action button that wants
+  // PageTab's same-named effect: a canvas action button that wants
   // to drop the cursor into the active markdown editor (typically to
   // direct the user's attention) fires `duo-canvas-selection-set` from
   // App.tsx; we listen for the editor-targeted variant. v1 supports
@@ -1126,7 +1126,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // ── Render ───────────────────────────────────────────────────────────────
   // Stage 17a — extension-based dispatch. The interstitial accepts any
   // typed extension; classifyFile in App.tsx decides which canvas mounts
-  // (.md → MarkdownEditor, .html → CanvasTab, others → preview tabs).
+  // (.md → MarkdownEditor, .html → PageTab, others → preview tabs).
   // No-extension input still defaults to .md so muscle memory survives.
   const handleCommitName = useCallback((filename: string) => {
     const trimmed = filename.trim()

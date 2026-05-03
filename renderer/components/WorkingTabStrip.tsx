@@ -558,7 +558,7 @@ function TypeIcon({ type, active }: { type: WorkingTabType; active: boolean }) {
             <path d="M3.5 5h3M3.5 6.5h3M3.5 8h2" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
           </svg>
         )
-      case 'html-canvas':
+      case 'page':
         return (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <rect x="1" y="2" width="8" height="6" rx="0.5" stroke="currentColor" strokeWidth="1" />

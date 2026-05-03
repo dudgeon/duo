@@ -110,23 +110,26 @@ tab.
 > playground = a page with interactivity (verbs / events / page-
 > agent feedback), lesson = a playground paired with a guide skill
 > (~/.claude/skills/duo/make-playground.md). The internal
-> code names (`WorkingTab.kind === 'html-canvas'`) lag the
-> external vocabulary; ENH-052 tracks the mechanical rename.
+> code names (`WorkingTab.kind === 'page'`, `renderer/components/Page/`)
+> match the external vocabulary as of v0.6.5 (ENH-052 mechanical
+> rename). Pack subdirectories (`packs/<name>/canvases/`) and
+> skill/examples paths (`canvas-templates/`, `canvas-actions.md`)
+> are intentionally deferred — they're external API surfaces
+> with backwards-compat implications.
 
 | User says | What they mean | Internal name |
 |---|---|---|
 | **the canvas** | The right pane (slot that hosts whatever tab is active) — type-agnostic | `WorkingPane` / `activeWorking` |
-| **a tab** (no qualifier) | A single tab inside the right pane (any kind: markdown editor, page, browser tab, image viewer, PDF viewer, future modalities) | `WorkingTab` (kinds: `editor`, `html-canvas`, `browser`, `image`, `pdf`, ...) |
-| **a page** | A basic HTML tab inside the canvas — static or lightly-styled. Read-only by default; no actions, no events. | `WorkingTab` with `kind: 'html-canvas'` (rename to `kind: 'page'` queued — ENH-052) |
-| **a playground** | A page with interactivity — fires canvas-action verbs (`claude:spawn` / `editor:open` / `nav:reveal` / `selection:set` / `theme:set` / `terminal:focus` / `duo:event` / `terminal:send` / `browser:open`), reads form inputs via `data-payload-from`, emits events that an agent can stream via `duo events --follow`. The interactive tier of a page. Same `kind` internally; the distinction is what's IN the HTML. | `WorkingTab` with `kind: 'html-canvas'` (no internal split — same code path; difference is content) |
-| **a lesson** | A playground paired with an accompanying guide skill (a `.md` Claude reads to drive the user through). The most common consumer of playground primitives. Distributed via Stage 18b packs. | Stage 28 lesson packs at `packs/<name>/{canvases/, lesson-skill/}` |
+| **a tab** (no qualifier) | A single tab inside the right pane (any kind: markdown editor, page, browser tab, image viewer, PDF viewer, future modalities) | `WorkingTab` (kinds: `editor`, `page`, `browser`, `image`, `pdf`, ...) |
+| **a page** | A basic HTML tab inside the canvas — static or lightly-styled. Read-only by default; no actions, no events. | `WorkingTab` with `kind: 'page'` (component: `PageTab` in `renderer/components/Page/`) |
+| **a playground** | A page with interactivity — fires playground-action verbs (`claude:spawn` / `editor:open` / `nav:reveal` / `selection:set` / `theme:set` / `terminal:focus` / `duo:event` / `terminal:send` / `browser:open`), reads form inputs via `data-payload-from`, emits events that an agent can stream via `duo events --follow`. The interactive tier of a page. Same `kind` internally; the distinction is what's IN the HTML. | Same `WorkingTab.kind === 'page'` — no kind-level split. Action runtime: `playgroundActions.ts`; type: `PlaygroundAction` (in `shared/host-api.ts`) |
+| **a lesson** | A playground paired with an accompanying guide skill (a `.md` Claude reads to drive the user through). The most common consumer of playground primitives. Distributed via Stage 18b packs. | Stage 28 lesson packs at `packs/<name>/{canvases/, lesson-skill/}` (pack subdir name kept as `canvases/` for backwards-compat with installed packs) |
 | **the navigator** / **the tree** / **the file pane** | The left column with the dual-pane file tree | `FileTree` / `useNavigator` |
 | **the terminal** | The middle column (xterm host) | `TerminalPane` / `tabs[]` |
 | **a terminal tab** | One of the xterm sessions in the middle column | `TabSession` |
 
 **The page/playground distinction is content-level, not kind-level.**
-Both are the same `WorkingTab` kind (`'html-canvas'` until ENH-052
-mechanically renames). What makes a page a playground is whether
+Both are the same `WorkingTab` kind (`'page'`). What makes a page a playground is whether
 it has interactivity baked in. A user asking "build me a
 playground" is asking for an HTML page with action verbs and
 events; "build me a lesson" adds a paired `lesson-skill/SKILL.md`
@@ -200,10 +203,10 @@ break Duo's pair-work premise. Patterns:
    effectively invisible to the Haiku-driven subagent.
 8. `docs/CLI-COVERAGE.md` — keep the inventory current.
 
-#### Plumbing checklist for a new canvas op (`duo html *`)
+#### Plumbing checklist for a new page op (`duo html *`)
 
 1. `shared/types.ts` — extend `HtmlOpRequest` discriminated union.
-2. `renderer/components/HtmlCanvas/htmlOps.ts` — add a case in
+2. `renderer/components/Page/htmlOps.ts` — add a case in
    `executeHtmlOp` + a `runX` function. Reuse `resolveTarget` /
    `resolveAppendTarget` for `--id` / `--selector` resolution.
 3. `cli/duo.ts` — subcommand parser inside `case 'html'`. Reuse
@@ -212,9 +215,9 @@ break Duo's pair-work premise. Patterns:
    via `'html-op'`. Only non-`html-op` verbs (e.g. sidecar field
    toggles) need a new `socket-server.ts` case.
 5. `skill/SKILL.md` + `agents/duo.md` cheat-sheet entries (mandatory).
-6. CanvasTab auto-appends a `recentEdits` entry for any op that's
+6. PageTab auto-appends a `recentEdits` entry for any op that's
    not `query` / `get`. Read-only ops should NOT generate edit log
-   entries — list them in CanvasTab's reply handler.
+   entries — list them in PageTab's reply handler.
 
 #### Editor-canvas parity rule
 
@@ -244,7 +247,7 @@ surfaces is acceptable but must be deliberate.
    extensions → type + mime. Wires FileTree click + `duo edit` /
    `duo view` automatically.
 3. `renderer/components/<NewType>/` — host package, sibling to
-   `editor/` and `HtmlCanvas/`.
+   `editor/` and `Page/`.
 4. `renderer/components/WorkingPane.tsx` — dispatch branch with
    `key={tab.id}` so the tab fully re-mounts on path change.
 5. `renderer/App.tsx § onCommitNewFile` — if `⌘N` should create

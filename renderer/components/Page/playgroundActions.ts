@@ -3,8 +3,8 @@
 // A canvas can carry interactive elements (buttons, links, anything
 // clickable) tagged with `data-duo-action="<verb>"` plus per-verb
 // `data-*` siblings carrying the args. Clicking such an element
-// dispatches a structured `CanvasAction` to the host (App.tsx via
-// CanvasTab → WorkingPane → onCanvasAction), which routes it through
+// dispatches a structured `PlaygroundAction` to the host (App.tsx via
+// PageTab → WorkingPane → onPlaygroundAction), which routes it through
 // existing infra (`pty.write` for terminal:send, `browser.addTab`
 // for browser:open, App.tsx's claude-tab spawn for claude:spawn).
 //
@@ -25,18 +25,18 @@
 // ~/.claude/duo/"). User-marked-trusted folders deferred to a
 // follow-up — small JSON allowlist at ~/.claude/duo/trusted-folders.json.
 
-import type { CanvasAction } from '@shared/types'
+import type { PlaygroundAction } from '@shared/types'
 
-export interface CanvasActionsOptions {
+export interface PlaygroundActionsOptions {
   /** True when the canvas file lives under a trusted root
    *  (~/.claude/duo/ for v1). When false, action clicks call
    *  `onUntrusted` instead of `onAction`. */
   trusted: boolean
   /** Dispatch a structured action. Host owns the side effect. */
-  onAction: (action: CanvasAction) => Promise<{ ok: boolean; error?: string }>
+  onAction: (action: PlaygroundAction) => Promise<{ ok: boolean; error?: string }>
   /** Called when an action is attempted on an untrusted canvas. The
    *  raw action is passed for diagnostic display. */
-  onUntrusted?: (action: CanvasAction) => void
+  onUntrusted?: (action: PlaygroundAction) => void
   /** Called for malformed `data-duo-action` markup so the host can
    *  surface a developer-friendly hint. Optional — defaults to
    *  console.warn. */
@@ -75,9 +75,9 @@ function findActionElement(target: EventTarget | null): HTMLElement | null {
 
 /**
  * Parse `data-*` attributes on the action element into a typed
- * `CanvasAction`. Returns null + a reason on malformed input.
+ * `PlaygroundAction`. Returns null + a reason on malformed input.
  */
-function parseAction(el: HTMLElement): { action: CanvasAction } | { error: string } {
+function parseAction(el: HTMLElement): { action: PlaygroundAction } | { error: string } {
   const verb = (el.getAttribute('data-duo-action') ?? '').trim()
   if (!verb) return { error: 'data-duo-action attribute is empty' }
   if (!(KNOWN_VERBS as readonly string[]).includes(verb)) {
@@ -129,7 +129,7 @@ function parseAction(el: HTMLElement): { action: CanvasAction } | { error: strin
     // Stage 27 — scroll-to-and-select inside the editor or canvas. v1
     // ships text-search for editor + anchor (data-duo-id) for canvas;
     // `data-line` is best-effort (clamps to last line in editor; coarse
-    // top-level-child index in canvas — see CanvasTab onDocGoto).
+    // top-level-child index in canvas — see PageTab onDocGoto).
     case 'selection:set': {
       const target = el.getAttribute('data-target')
       if (target !== 'editor' && target !== 'canvas') {
@@ -259,18 +259,18 @@ export function captureFormValue(doc: Document, selector: string | undefined): u
  * data-duo-canvas-runtime so the serializer scrubs it from saves.
  */
 function flashFeedback(el: HTMLElement, doc: Document): void {
-  const styleId = 'duo-canvas-action-flash'
+  const styleId = 'duo-playground-flash'
   if (!doc.getElementById(styleId)) {
     const style = doc.createElement('style')
     style.id = styleId
     style.setAttribute('data-duo-canvas-runtime', '1')
     style.textContent = `
-      @keyframes duo-canvas-action-flash {
+      @keyframes duo-playground-flash {
         0%   { outline: 2px solid rgba(207, 102, 121, 0.85); outline-offset: 2px; }
         100% { outline: 2px solid rgba(207, 102, 121, 0);    outline-offset: 2px; }
       }
       [data-duo-canvas-runtime-flash] {
-        animation: duo-canvas-action-flash 600ms ease-out;
+        animation: duo-playground-flash 600ms ease-out;
       }
     `
     doc.head?.appendChild(style)
@@ -288,9 +288,9 @@ function flashFeedback(el: HTMLElement, doc: Document): void {
  * mounts — each call installs an isolated listener with its own
  * cleanup.
  */
-export function installCanvasActions(doc: Document, opts: CanvasActionsOptions): () => void {
+export function installPlaygroundActions(doc: Document, opts: PlaygroundActionsOptions): () => void {
   const malformed = opts.onMalformed ?? ((reason, el) => {
-    console.warn('[duo-canvas-action]', reason, el)
+    console.warn('[duo-playground]', reason, el)
   })
 
   const onClick = (e: MouseEvent) => {
@@ -343,10 +343,10 @@ export function installCanvasActions(doc: Document, opts: CanvasActionsOptions):
     flashFeedback(el, doc)
     void opts.onAction(action).then((result) => {
       if (!result.ok && result.error) {
-        console.warn('[duo-canvas-action] dispatch failed:', result.error, action)
+        console.warn('[duo-playground] dispatch failed:', result.error, action)
       }
     }).catch((err) => {
-      console.error('[duo-canvas-action] dispatch threw:', err, action)
+      console.error('[duo-playground] dispatch threw:', err, action)
     })
   }
 
@@ -366,7 +366,7 @@ export function installCanvasActions(doc: Document, opts: CanvasActionsOptions):
  * + future "user-marked trusted folders" extension where the caller
  * passes additional roots.
  */
-export function isCanvasPathTrusted(absolutePath: string, home: string): boolean {
+export function isPagePathTrusted(absolutePath: string, home: string): boolean {
   if (!absolutePath || !home) return false
   // Normalize trailing slash on the trust root so /Users/foo/.claude/duo
   // doesn't accidentally trust /Users/foo/.claude/duo-bar/.

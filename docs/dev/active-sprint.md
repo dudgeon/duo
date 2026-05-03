@@ -35,22 +35,24 @@ v0.6.5 directly. Package.json bumps to `0.6.5` at cut time per
 
 ## Phase plan (ordered for path-dependency + clustering)
 
-### Phase 1 — Foundation refactor · ENH-052
+### Phase 1 — Foundation refactor · ENH-052 · ✅ DONE
 
 **Single self-contained commit BEFORE any UI work.** Every other
 phase touches identifiers about to be renamed; doing this first
 prevents conflicts.
 
-- **ENH-052** (owner P1, sprint P0-sequenced) — Mechanical canvas →
-  page/playground rename of internal identifiers. `WorkingTab.kind ===
-  'html-canvas'` → `'page'`; `CanvasTab` component → `PageTab` (or
-  similar); CSS class names; type names; references in skill / agent
-  docs.
+- **ENH-052** ✅ **Shipped** — Mechanical canvas → page/playground
+  rename of internal identifiers. 177 edits across 32 files in one
+  commit. `WorkingTab.kind === 'page'`; `PageTab` component;
+  `playgroundActions.ts`/`PlaygroundAction` for action runtime; IPC
+  channels `'page:*'`; CLAUDE.md glossary updated; active-surface
+  skill/agent docs updated.
   - **Editor/canvas parity:** N/A (identifier-only; no behavior delta).
-  - **Scope expectation:** ~50–100 file touches; typecheck passes;
-    Vitest stays green.
-  - **Risk:** wide blast radius; do NOT mix with feature work in the
-    same commit.
+  - **Verification:** typecheck clean, Vitest 104/104 pass, production
+    build succeeds.
+  - **Deferred (separate follow-up):** `skill/examples/canvas-*` rename
+    + pack `canvases/` subdir rename — both external API surfaces with
+    backwards-compat implications. Tracked in tasks.md ENH-052 entry.
 
 ### Phase 2 — Navigator close-out · single FileTree.tsx session
 

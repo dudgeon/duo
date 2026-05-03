@@ -17,7 +17,7 @@ import type {
   DocReadRequest, DocReadResult,
   DocGotoRequest, DocGotoResult,
   DocFindRequest, DocFindResult,
-  HtmlOpRequest, HtmlOpResult, HtmlCanvasSelectionSnapshot,
+  HtmlOpRequest, HtmlOpResult, PageSelectionSnapshot,
   HtmlCommentRequest, HtmlCommentResult,
   HtmlCommentsListRequest, HtmlCommentsListResult,
   ThemeMode, ThemeStateSnapshot,
@@ -217,7 +217,7 @@ export interface ElectronCanvasAPI {
   /** Stage 17c — push the active canvas tab's selection snapshot so
    *  `duo selection --pane canvas` can return it without a renderer
    *  round-trip. `null` clears the cache (collapse, blur, unmount). */
-  pushSelection: (snapshot: HtmlCanvasSelectionSnapshot | null) => void
+  pushSelection: (snapshot: PageSelectionSnapshot | null) => void
   /** Stage 17d — agent comment write. Renderer resolves the anchor,
    *  appends to the sidecar, and replies. */
   onHtmlComment: (cb: (req: HtmlCommentRequest) => void) => () => void
@@ -250,7 +250,7 @@ export interface ElectronKeyboardAPI {
    *  Carries which pane the resolved selection came from so the
    *  renderer can paint a transient accent glow on the right surface.
    *  No selection content (the agent already has it). */
-  onClaudeReadSelection: (cb: (e: { pane: 'editor' | 'browser' | 'html-canvas' }) => void) => () => void
+  onClaudeReadSelection: (cb: (e: { pane: 'editor' | 'browser' | 'page' }) => void) => () => void
 }
 
 export interface ForwardedKeyEvent {
@@ -459,9 +459,9 @@ export interface CliInstallStatus {
 // tab — uses the existing duo-open / external routing logic so
 // off-host hosts in external-domains.json punt to the system
 // browser). Trust gating + feedback ribbons live in the canvas-side
-// runtime module (renderer/components/HtmlCanvas/canvasActions.ts);
-// host-side dispatch lives in App.tsx via WorkingPane → CanvasTab's
-// onCanvasAction prop.
+// runtime module (renderer/components/Page/playgroundActions.ts);
+// host-side dispatch lives in App.tsx via WorkingPane → PageTab's
+// onPlaygroundAction prop.
 //
 // Stage 27 — Canvas authoring vocabulary expansion. Six additional
 // verbs let an authored canvas drive the wider Duo surface (open a
@@ -471,7 +471,7 @@ export interface CliInstallStatus {
 // These power the lesson packs that ship in Stage 28; the primitives
 // land here so tutorial canvases never need bespoke renderer code.
 // All verbs inherit the path-restricted trust gate from Stage 23.
-export type CanvasAction =
+export type PlaygroundAction =
   | { kind: 'claude:spawn'; cwd?: string; cmd?: string }
   | { kind: 'terminal:send'; text: string; enter?: boolean }
   | { kind: 'browser:open'; url: string }

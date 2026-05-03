@@ -30,7 +30,7 @@ import * as blockOps from './blockOps'
 //
 // The block-prefix conversion regexes are extracted into a single
 // pure function so they can be locked in by Vitest unit tests
-// (`renderer/components/HtmlCanvas/markdownShortcuts.test.ts`).
+// (`renderer/components/Page/markdownShortcuts.test.ts`).
 // BUG-061 has cycled through three implementations (v1 strict eq →
 // v2 start-match → v3 nbsp-tolerant `\s`); a small test surface
 // captures the precise regex shape so a fourth iteration can be

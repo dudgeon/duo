@@ -10,7 +10,7 @@ import { cycleNext } from '../keyboard/tabCycle'
 import { BrowserRenderer } from './BrowserRenderer'
 import { MarkdownPreview } from './MarkdownPreview'
 import { MarkdownEditor } from './editor/MarkdownEditor'
-import { CanvasTab } from './HtmlCanvas/CanvasTab'
+import { PageTab } from './Page/PageTab'
 import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
@@ -81,9 +81,9 @@ interface WorkingPaneProps {
   onTogglePin: (entry: PinEntry) => Promise<void>
   /** Stage 23 — host-supplied dispatcher for canvas `data-duo-action`
    *  clicks. App.tsx owns the active-tab id, the tab spawn, and the
-   *  browser routing logic, so dispatch lives there and CanvasTab
+   *  browser routing logic, so dispatch lives there and PageTab
    *  just calls back. */
-  onCanvasAction?: (action: import('@shared/types').CanvasAction) => Promise<{ ok: boolean; error?: string }>
+  onPlaygroundAction?: (action: import('@shared/types').PlaygroundAction) => Promise<{ ok: boolean; error?: string }>
   /** Stage 23 — user $HOME for the canvas trust check (only canvas
    *  files under ~/.claude/duo/ may dispatch actions in v1). */
   homeDir?: string
@@ -93,7 +93,7 @@ interface WorkingPaneProps {
    *  non-iframe surfaces (markdown editor, image preview, etc.) but
    *  iframe events don't bubble out, so the canvas needs an
    *  explicit forwarder. */
-  onCanvasFocusGained?: () => void
+  onPageFocusGained?: () => void
   /** ENH-026 — Reveal a tab's underlying file in the navigator
    *  (selects + scrolls + expands). App.tsx owns the navigator. */
   onRevealInNavigator?: (path: string) => void
@@ -133,9 +133,9 @@ export function WorkingPane({
   onNewFile,
   pins,
   onTogglePin,
-  onCanvasAction,
+  onPlaygroundAction,
   homeDir,
-  onCanvasFocusGained,
+  onPageFocusGained,
   onRevealInNavigator,
   onTrashTabFile,
   onStartRenameFromTab,
@@ -370,16 +370,16 @@ export function WorkingPane({
         />
       )
     }
-    if (tab.type === 'html-canvas') {
+    if (tab.type === 'page') {
       // Stage 17a + 17c — rendered + editable .html with Send → Duo,
       // just-added highlight on agent edits, and warn-before-overwrite
       // banner. Comments + CriticMarkup track-changes land in 17d/14.
       return (
-        <CanvasTab
+        <PageTab
           path={tab.path}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onSendToDuo={onSendToDuo}
-          onCanvasAction={onCanvasAction}
+          onPlaygroundAction={onPlaygroundAction}
           homeDir={homeDir}
           // BUG-032 + BUG-046 — only let the iframe steal focus when
           // the user has chosen the working pane AND this tab is the
@@ -390,7 +390,7 @@ export function WorkingPane({
           // can flip focusedColumn to 'working'. Otherwise clicks
           // into the canvas while terminal had focus leave the
           // pane-focus signal stuck.
-          onUserInteract={onCanvasFocusGained}
+          onUserInteract={onPageFocusGained}
         />
       )
     }

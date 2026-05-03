@@ -1,6 +1,6 @@
 // Stage 17a — HTML canvas tab. Owns load / save / dirty / autosave;
 // composes the shared <EditorToolbar> (Stage 17a polish item 3 — same
-// component the markdown editor uses) and <RenderedCanvas>.
+// component the markdown editor uses) and <RenderedPage>.
 //
 // 17a polish wiring:
 //   - item 3: shared EditorToolbar via canvasEditorActions adapter
@@ -14,8 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorToolbar } from '../editor/EditorToolbar'
-import { RenderedCanvas, type RenderedCanvasHandle } from './RenderedCanvas'
-import { buildCanvasEditorActions } from './canvasEditorActions'
+import { RenderedPage, type RenderedPageHandle } from './RenderedPage'
+import { buildPageEditorActions } from './pageEditorActions'
 import { installMarkdownShortcuts } from './markdownShortcuts'
 // BUG-034 — `installPlaceholder` import removed. Module kept in tree at
 // `./placeholder` as a starting point for the Stage 17a.5 rebuild (the
@@ -45,11 +45,11 @@ import {
   type SidecarComment
 } from './sidecar'
 import { executeHtmlOp } from './htmlOps'
-import { installJustAddedStyles, markJustAdded, REPAINT_FRESHNESS_MS } from './justAddedCanvas'
+import { installJustAddedStyles, markJustAdded, REPAINT_FRESHNESS_MS } from './justAddedPage'
 import { installBlurredSelection } from './blurredSelection'
-import { installCanvasSelection, computeCanvasSnapshot } from './canvasSelection'
-import { installCanvasActions, isCanvasPathTrusted } from './canvasActions'
-import { installCanvasPasteHandlers } from './canvasPaste'
+import { installPageSelection, computePageSnapshot } from './pageSelection'
+import { installPlaygroundActions, isPagePathTrusted } from './playgroundActions'
+import { installPagePasteHandlers } from './pagePaste'
 import {
   paintAnchors,
   clearAnchors,
@@ -63,11 +63,11 @@ import { formatCanvasSendPayload } from '../editor/sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
 import type {
-  HtmlCanvasSelectionSnapshot,
+  PageSelectionSnapshot,
   HtmlOpRequest,
   HtmlCommentRequest,
   HtmlCommentResult,
-  CanvasAction
+  PlaygroundAction
 } from '@shared/types'
 
 interface Props {
@@ -84,14 +84,14 @@ interface Props {
    *  inside the canvas. Resolves with `{ ok, error? }`; canvasActions
    *  surfaces dispatch failures to the dev console. Omit to disable
    *  canvas actions (the listener won't be installed). */
-  onCanvasAction?: (action: CanvasAction) => Promise<{ ok: boolean; error?: string }>
+  onPlaygroundAction?: (action: PlaygroundAction) => Promise<{ ok: boolean; error?: string }>
   /** Stage 23 — user $HOME. Used by the trust gate (canvas files
    *  under ~/.claude/duo/ are trusted; others are inert). Required
-   *  whenever onCanvasAction is supplied; otherwise the trust check
+   *  whenever onPlaygroundAction is supplied; otherwise the trust check
    *  returns false and actions never fire. */
   homeDir?: string
   /** BUG-032 — `focusedColumn === 'working'` from the host. Threaded
-   *  into RenderedCanvas's `shouldStealFocus` so an iframe load event
+   *  into RenderedPage's `shouldStealFocus` so an iframe load event
    *  fired while the user has the terminal focused doesn't yank the
    *  cursor mid-typing. */
   focused?: boolean
@@ -114,7 +114,7 @@ const AUTOSAVE_DEBOUNCE_MS = 800
  * iframe's own viewport. Returns null when either side is unavailable.
  */
 function translateToPillRect(
-  handle: RenderedCanvasHandle | null,
+  handle: RenderedPageHandle | null,
   iframeRect: DOMRect | null
 ): PillAnchorRect | null {
   if (!iframeRect) return null
@@ -298,7 +298,7 @@ function writeReadOnlyOverride(absPath: string, readOnly: boolean): void {
   } catch { /* private browsing / storage quota — drop silently */ }
 }
 
-export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, homeDir, focused = false, onUserInteract }: Props) {
+export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, homeDir, focused = false, onUserInteract }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -338,7 +338,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     })
   }, [lockedReadOnly, path])
 
-  const canvasRef = useRef<RenderedCanvasHandle | null>(null)
+  const canvasRef = useRef<RenderedPageHandle | null>(null)
   // The serialized HTML as it was on disk after the last successful read
   // or write. Diff against this to compute `dirty`.
   const lastSavedRef = useRef<string>('')
@@ -374,7 +374,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
   // 17c — pill state, latest selection snapshot, format preference.
   // Mirrors MarkdownEditor's pillRect / lastSelectionRef pattern.
   const [pillRect, setPillRect] = useState<PillAnchorRect | null>(null)
-  const lastCanvasSelectionRef = useRef<HtmlCanvasSelectionSnapshot | null>(null)
+  const lastCanvasSelectionRef = useRef<PageSelectionSnapshot | null>(null)
   const { format: selectionFormat } = useSelectionFormat()
 
   // 17c — pending agent write awaiting the user's accept/decline. While
@@ -418,7 +418,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
 
   // Build EditorActions once — it's a thin closure over `getDoc`, so it
   // never needs to rebuild. Toolbar reactivity is driven by selectionVersion.
-  const editorActions = useMemo(() => buildCanvasEditorActions(getDoc), [getDoc])
+  const editorActions = useMemo(() => buildPageEditorActions(getDoc), [getDoc])
 
   // Banner handlers (17b Phase A). Injection on accept marks the
   // buffer dirty so the IDs land on disk via the existing autosave
@@ -550,7 +550,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     }
   }, [])
 
-  // Wire iframe-side hooks via RenderedCanvas's `onReady` callback —
+  // Wire iframe-side hooks via RenderedPage's `onReady` callback —
   // fires AFTER the iframe has finished parsing srcdoc and the body is
   // populated. Wiring at the previous earlier moment (an effect keyed
   // on `initialHtml`) was racy: the parser would wipe our placeholder
@@ -588,7 +588,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     // inline color / background from regular paste (so dark-mode
     // bold pastes inherit the canvas ink token instead of the
     // source's brown), and adds ⌘⇧V → paste-as-plain-text.
-    const cleanPaste = readOnly ? () => {} : installCanvasPasteHandlers(doc)
+    const cleanPaste = readOnly ? () => {} : installPagePasteHandlers(doc)
 
     // 17c — install the just-added keyframe + class into the iframe
     // stylesheet. Must happen before any markJustAdded call (the
@@ -600,17 +600,17 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     // (which would mean the trust check can't run — we'd rather
     // disable than mis-trust). Trust check uses the canvas file's
     // path; v1 trusts only ~/.claude/duo/ and below.
-    const cleanCanvasActions = (onCanvasAction && homeDir)
-      ? installCanvasActions(doc, {
-          trusted: isCanvasPathTrusted(path, homeDir),
-          onAction: onCanvasAction,
+    const cleanPlaygroundActions = (onPlaygroundAction && homeDir)
+      ? installPlaygroundActions(doc, {
+          trusted: isPagePathTrusted(path, homeDir),
+          onAction: onPlaygroundAction,
           onUntrusted: (action) => {
             // Surface a one-line console hint until 23a-follow-up
             // ships an in-canvas toast or a "trust this folder?"
             // dialog. The user knows clicking did something but
             // didn't fire — better than silent.
             console.info(
-              `[duo-canvas-action] ignored ${action.kind} — canvas not under ~/.claude/duo/ (path: ${path})`
+              `[duo-playground] ignored ${action.kind} — canvas not under ~/.claude/duo/ (path: ${path})`
             )
           }
         })
@@ -625,7 +625,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
     // 17c (PRD H25) — selection observer pushes snapshots to main
     // (caches `duo selection --pane canvas`) AND drives the pill rect
     // (translated to viewport coords below).
-    const sel = installCanvasSelection({
+    const sel = installPageSelection({
       doc,
       path,
       onPush: (snap) => {
@@ -705,7 +705,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       doc.removeEventListener('selectionchange', onSelChange)
       cleanShortcuts()
       cleanPlaceholder()
-      cleanCanvasActions()
+      cleanPlaygroundActions()
       cleanPaste()
       blurred.dispose()
       sel.dispose()
@@ -716,9 +716,9 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       setNewCommentAt(null)
       lastCanvasSelectionRef.current = null
     }
-  }, [path, bumpVersion, readOnly, onCanvasAction, homeDir])
+  }, [path, bumpVersion, readOnly, onPlaygroundAction, homeDir])
 
-  // Tear down iframe-side wiring on unmount (CanvasTab is unmounted via
+  // Tear down iframe-side wiring on unmount (PageTab is unmounted via
   // the React `key={tab.id}` on path change in WorkingPane).
   useEffect(() => {
     return () => {
@@ -1369,7 +1369,7 @@ export function CanvasTab({ path, onDirtyChange, onSendToDuo, onCanvasAction, ho
       )}
       <div className="flex-1 min-h-0 flex">
         {initialHtml !== null ? (
-          <RenderedCanvas
+          <RenderedPage
             ref={canvasRef}
             initialHtml={initialHtml}
             onChange={handleChange}

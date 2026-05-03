@@ -1340,7 +1340,7 @@ COMMANDS
                                     paragraph, heading_trail, start, end }
                                   - browser: { kind: 'browser', url, text,
                                     surrounding, selector_path }
-                                  - canvas: { kind: 'html-canvas', path,
+                                  - canvas: { kind: 'page', path,
                                     text, html, anchorId, anchorPath,
                                     range, surrounding }
   doc read [path]                 Print the active editor's live buffer

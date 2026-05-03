@@ -141,7 +141,7 @@ empty.
 | `duo wait <selector> [--timeout ms]` | Block until element appears |
 | `duo nav state` | `{ cwd, selected, expanded, pinned }` |
 | `duo ls [path]` | List directory (defaults to nav cwd) |
-| `duo view <path>` | Open file in Viewer/Editor column (markdown / html-canvas / image / pdf) |
+| `duo view <path>` | Open file in Viewer/Editor column (markdown / page / image / pdf) |
 | `duo edit <path>` | Open `.md` in rich editor; `.html` in HTML canvas (Stage 17a) |
 | `duo html new <path.html> [--title "…"]` | Stage 17a — create new HTML file from boilerplate + open in canvas |
 | `duo html query <css>` | Stage 17b — list elements in the active canvas (id, tag, text, classes) |
@@ -155,7 +155,7 @@ empty.
 | `duo html comment --id <duo-id> --body "…"` | Stage 17d — add a sidecar comment anchored to the matched element's nearest `data-duo-id` ancestor. Anchor via `--id`, `--selector <css>`, or `--text "<substring>"`. Body via flag or stdin. Stored in `<file>.duo.json § comments[]`; never modifies the `.html`. Returns `{ok, commentId, anchorId}`. |
 | `duo html comments [--filter all\|open\|resolved]` | Stage 17d — list comment threads on the active canvas, sorted in document order. Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. |
 | `duo reveal <path>` | Move file navigator to path; flash chip |
-| `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'html-canvas', path, text, html, anchorId, anchorPath, range, surrounding}` for the active HTML canvas tab. |
+| `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'page', path, text, html, anchorId, anchorPath, range, surrounding}` for the active page tab. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
 | `duo doc write [--replace-selection\|--replace-all]` | Apply text to active editor (stdin or `--text`) |
 | `duo doc goto [<path>] --heading "X" \| --line N \| --anchor "Y"` | ENH-022 — scroll editor to a target. `--heading` markdown-only (case-insensitive substring). `--line` 1-indexed. `--anchor` = markdown heading slug OR canvas/HTML element id (`data-duo-id` first, then `id`). Returns `{ok, path, line?, anchor?}` |

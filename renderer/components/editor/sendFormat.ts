@@ -13,13 +13,13 @@
 // confirms by pressing Enter themselves).
 //
 // Stage 15.1 ships the `kind: 'editor'` formatter; Stage 15.2 adds the
-// `kind: 'browser'` formatter. `kind: 'html-canvas'` selections will
+// `kind: 'browser'` formatter. `kind: 'page'` selections will
 // use the same shape when Stage 17c lands; defer until then.
 
 import type {
   MarkdownSelectionSnapshot,
   BrowserSelectionSnapshot,
-  HtmlCanvasSelectionSnapshot,
+  PageSelectionSnapshot,
   SelectionFormat
 } from '@shared/types'
 
@@ -216,7 +216,7 @@ export function formatBrowserSendPayload(
  * but for the agent it's the canonical addressing primitive (matches
  * `--id` flags in `duo html *`).
  */
-function canvasProvenance(snapshot: HtmlCanvasSelectionSnapshot): string {
+function canvasProvenance(snapshot: PageSelectionSnapshot): string {
   const path = shortenPath(snapshot.path)
   if (!snapshot.anchorPath || snapshot.anchorPath.length === 0) return path
   return `${path} · ${snapshot.anchorPath.join(' > ')}`
@@ -232,14 +232,14 @@ function canvasProvenance(snapshot: HtmlCanvasSelectionSnapshot): string {
  * already strips images naturally on plain-text snapshots, so this
  * branch only kicks in for the canvas-with-html case.
  */
-function canvasSelectionText(snapshot: HtmlCanvasSelectionSnapshot): string {
+function canvasSelectionText(snapshot: PageSelectionSnapshot): string {
   if (snapshot.html && snapshot.html.length > 0) {
     return flattenImagesInHtml(snapshot.html)
   }
   return snapshot.text || snapshot.surrounding || ''
 }
 
-function formatCanvasA(snapshot: HtmlCanvasSelectionSnapshot): string {
+function formatCanvasA(snapshot: PageSelectionSnapshot): string {
   const text = canvasSelectionText(snapshot)
   const quoted = text
     .split('\n')
@@ -248,12 +248,12 @@ function formatCanvasA(snapshot: HtmlCanvasSelectionSnapshot): string {
   return `${quoted}\n> (${canvasProvenance(snapshot)})\n`
 }
 
-function formatCanvasB(snapshot: HtmlCanvasSelectionSnapshot): string {
+function formatCanvasB(snapshot: PageSelectionSnapshot): string {
   return canvasSelectionText(snapshot) + ' '
 }
 
 export function formatCanvasSendPayload(
-  snapshot: HtmlCanvasSelectionSnapshot,
+  snapshot: PageSelectionSnapshot,
   format: SelectionFormat
 ): string {
   switch (format) {

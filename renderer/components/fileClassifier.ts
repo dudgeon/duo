@@ -18,7 +18,7 @@ export function classifyFile(path: string): {
       // Stage 17a — .html opens in the rendered canvas instead of the
       // unknown-file preview. Routes the same way for `duo edit`, `duo
       // view`, FileTree clicks, and the new-file commit's extension dispatch.
-      return { type: 'html-canvas', mime: 'text/html' }
+      return { type: 'page', mime: 'text/html' }
     case 'png':
       return { type: 'image', mime: 'image/png' }
     case 'jpg': case 'jpeg':

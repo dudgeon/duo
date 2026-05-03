@@ -112,7 +112,7 @@ duo html get --selector "[data-duo-pane=result]"
 ### `duo selection`
 
 What the user has selected in the active surface. The canvas variant
-returns `{kind:'html-canvas', path, text, html, anchorId, anchorPath, range, surrounding}`
+returns `{kind:'page', path, text, html, anchorId, anchorPath, range, surrounding}`
 — `anchorId` is the nearest `data-duo-id` ancestor of the selection,
 which makes "extend the section the user has highlighted" trivial.
 
@@ -294,4 +294,4 @@ canvas, you're in interaction.
 - `skill/examples/canvas-actions.md` — drive-by cheat sheet for
   every action verb
 - `agents/duo.md` — `duo events --follow` cheat-sheet entry
-- Stage 23 trust gate — `renderer/components/HtmlCanvas/canvasActions.ts § isCanvasPathTrusted`
+- Stage 23 trust gate — `renderer/components/Page/playgroundActions.ts § isPagePathTrusted`

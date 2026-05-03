@@ -8,7 +8,7 @@
 // What we test here:
 // - Pure utility functions (tilde expansion, file classification)
 // - Pure regex matchers extracted from the markdown-trigger machinery
-//   in renderer/components/HtmlCanvas/markdownShortcuts.ts (the
+//   in renderer/components/Page/markdownShortcuts.ts (the
 //   recurring-regression class — BUG-061 v1/v2/v3 — needed durable
 //   coverage so future iterations don't regress what's been fixed)
 //

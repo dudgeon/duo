@@ -4064,7 +4064,31 @@ The user's framing — "many demo lessons in the repo, toggle them on/off in ent
 
 ### ENH-052: Mechanical rename of internal "canvas" → "page"/"playground" identifiers
 
-**Status:** 🆕 Filed
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 1, single self-contained commit). 177 edits across 32 files. Renamed:
+- `WorkingTab.kind === 'html-canvas'` → `'page'` (type-system level)
+- `renderer/components/HtmlCanvas/` → `renderer/components/Page/` (directory)
+- `CanvasTab` → `PageTab`, `RenderedCanvas` → `RenderedPage` (components)
+- `installCanvasActions` → `installPlaygroundActions`, `installCanvasSelection` → `installPageSelection`, `installCanvasPasteHandlers` → `installPagePasteHandlers` (listeners — `Playground` for action verbs, `Page` for surface-level features that apply to both pages and playgrounds)
+- `CanvasAction` → `PlaygroundAction` (in `shared/host-api.ts`)
+- `HtmlCanvasSelectionSnapshot` → `PageSelectionSnapshot`
+- `IPC.CANVAS_*` → `IPC.PAGE_*` and channel strings `'canvas:*'` → `'page:*'`
+- File names: `canvasActions.ts` → `playgroundActions.ts`, `canvasSelection.ts` → `pageSelection.ts`, `canvasPaste.ts` → `pagePaste.ts`, `canvasEditorActions.ts` → `pageEditorActions.ts`, `justAddedCanvas.ts` → `justAddedPage.ts`
+- CSS keyframe `duo-canvas-action-flash` → `duo-playground-flash`; console prefix `[duo-canvas-action]` → `[duo-playground]`
+- Active-surface markdown updated: `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`, `skill/playground-interaction.md`, `docs/dev/smoke-checklist.md`, `CLAUDE.md` glossary
+
+**Intentionally deferred (separate follow-up):**
+- `skill/examples/canvas-templates/` rename → external API surface; users may have authored skills referencing this path
+- `skill/examples/canvas-actions.md` → same reason
+- `skill/examples/html-canvas-authoring.md` → same reason
+- `~/.claude/duo/packs/<name>/canvases/` subdirectory rename → would break installed user packs without migration logic
+- Historical references in `tasks.md`, `ROADMAP.md` (Stage 17 cards), `docs/DECISIONS.md`, `CHANGELOG.md`, `RELEASES.md`, `docs/research/` — leave as historical record per task entry
+
+**Verification:** typecheck clean, Vitest 104/104 pass, `npm run build` succeeds.
+
+---
+
+**Original spec (preserved for context):**
+
 **Priority:** Low (UX-neutral; internal hygiene). Defer until other v0.6.x work settles.
 **Filed:** 2026-05-02 (post-v0.6.0 — terminology lock)
 

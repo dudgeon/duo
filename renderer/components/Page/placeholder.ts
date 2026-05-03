@@ -1,5 +1,5 @@
 // TODO (BUG-034 / Stage 17a.5 D, 2026-04-29) — installPlaceholder is
-// currently NOT called from CanvasTab. The bug: refresh() ran at install
+// currently NOT called from PageTab. The bug: refresh() ran at install
 // time without an `isJustBoilerplate(doc)` check, so the onboarding card
 // rendered on EVERY canvas open and occluded real content on populated
 // files. The MutationObserver-driven dismiss only fires on the next

@@ -2,7 +2,7 @@
 //
 // Renders a sandboxed iframe whose body is contentEditable. We watch
 // the iframe's DOM with MutationObserver and surface "did-change"
-// signals to the parent CanvasTab; the parent owns dirty state, save,
+// signals to the parent PageTab; the parent owns dirty state, save,
 // and external-write reconciliation (deferred to 17e).
 //
 // Sandbox attributes follow PRD H4: `allow-same-origin allow-popups
@@ -22,7 +22,7 @@ import { installGlobalShortcutForwarder } from '../../keyboard/iframeForwarder'
 
 interface Props {
   /** Initial HTML the iframe should render. Set on mount; the iframe
-   *  is then re-keyed only when the path changes (CanvasTab handles
+   *  is then re-keyed only when the path changes (PageTab handles
    *  that via React `key`). */
   initialHtml: string
   /** Fires after each batched DOM mutation inside the iframe (debounced
@@ -34,7 +34,7 @@ interface Props {
    *  the event (preventDefault is applied inside the iframe). */
   onShortcut: (e: KeyboardEvent) => boolean
   /** Fires once the iframe has finished parsing srcdoc and the body is
-   *  fully populated. CanvasTab uses this to wire iframe-side hooks
+   *  fully populated. PageTab uses this to wire iframe-side hooks
    *  (selectionchange listener, markdown shortcuts, placeholder
    *  overlay, ID-injection probe) after the body content is real —
    *  setting up against an empty / pre-parse body causes the parser
@@ -51,7 +51,7 @@ interface Props {
    *  first mount). The iframe load event re-fires on srcdoc changes,
    *  HMR re-mounts, and post-doc-write reloads — letting `wire()`
    *  re-grab focus then steals the cursor from a terminal the user
-   *  has clicked into. The host (CanvasTab) gates this on
+   *  has clicked into. The host (PageTab) gates this on
    *  `focusedColumn === 'working'` so the canvas only steals focus
    *  when the user has clearly chosen the working pane. */
   shouldStealFocus?: boolean
@@ -64,7 +64,7 @@ interface Props {
   onUserInteract?: () => void
 }
 
-export interface RenderedCanvasHandle {
+export interface RenderedPageHandle {
   /** Returns the iframe's contentDocument, or null if not yet mounted /
    *  cross-origin (shouldn't happen with srcdoc). */
   getDocument: () => Document | null
@@ -78,8 +78,8 @@ export interface RenderedCanvasHandle {
   getIframeElement: () => HTMLIFrameElement | null
 }
 
-export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
-  function RenderedCanvas({ initialHtml, onChange, onShortcut, onReady, readOnly = false, shouldStealFocus = true, onUserInteract }, ref) {
+export const RenderedPage = forwardRef<RenderedPageHandle, Props>(
+  function RenderedPage({ initialHtml, onChange, onShortcut, onReady, readOnly = false, shouldStealFocus = true, onUserInteract }, ref) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null)
     // BUG-032 — read shouldStealFocus through a ref inside `wire()` so
     // toggling focus on/off doesn't tear down the iframe effect. Without
@@ -203,7 +203,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
             style.setAttribute('data-duo-canvas-runtime', '1')
             // ENH-022 — `.duo-goto-flash` highlight applied for ~1.5s
             // when `duo doc goto --anchor X` lands. Class is added by
-            // CanvasTab; this rule keeps the flash inside the iframe
+            // PageTab; this rule keeps the flash inside the iframe
             // scope where parent stylesheets don't reach.
             style.textContent = `
               body { outline: none; }
@@ -249,7 +249,7 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           // initial mount, srcdoc changes, HMR re-mounts, post-doc-
           // write reloads. Without a focus gate, those re-fires steal
           // the cursor from a terminal the user has clicked into. The
-          // host (CanvasTab) sets `shouldStealFocus = focusedColumn ===
+          // host (PageTab) sets `shouldStealFocus = focusedColumn ===
           // 'working'`, so a re-mount under terminal focus stays put.
           if (shouldStealFocusRef.current) {
             try { doc.body.focus() } catch { /* ignore */ }
@@ -282,12 +282,12 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
           } catch { /* ignore */ }
         }
 
-        // Fire onReady AFTER the body is populated. CanvasTab mounts
+        // Fire onReady AFTER the body is populated. PageTab mounts
         // iframe-side hooks (selectionchange, markdown shortcuts,
         // placeholder overlay, ID-injection probe) here — earlier
         // mounting risks the srcdoc parser wiping our injections.
-        // CanvasTab's own readOnly check gates which hooks it installs.
-        try { onReady?.(doc) } catch (e) { console.error('[RenderedCanvas] onReady threw:', e) }
+        // PageTab's own readOnly check gates which hooks it installs.
+        try { onReady?.(doc) } catch (e) { console.error('[RenderedPage] onReady threw:', e) }
       }
 
       // srcdoc + load timing: try immediately (handles HMR re-mounts

@@ -309,7 +309,7 @@ export interface BrowserTab {
 export type WorkingTabType =
   | 'browser'
   | 'editor'             // Stage 11 — rich-text markdown editor
-  | 'html-canvas'        // Stage 17a — rendered + editable .html
+  | 'page'               // Stage 17a — rendered + editable .html (basic = page; interactive = playground; same kind)
   | 'markdown-preview'   // Stage 10 v1 read-only .md (kept as a fallback)
   | 'image'
   | 'pdf'
@@ -430,7 +430,7 @@ export interface SessionStateFileTab {
    *  v1 (would need an autosave layer). */
   path: string
   /** WorkingTabType minus 'browser'. Mirrors the FileTab.type field. */
-  type: 'editor' | 'html-canvas' | 'markdown-preview' | 'image' | 'pdf' | 'unknown'
+  type: 'editor' | 'page' | 'markdown-preview' | 'image' | 'pdf' | 'unknown'
   mime: string
 }
 
@@ -682,7 +682,7 @@ export interface DocFindResult {
 
 // ── Stage 17b Phase C — `duo html *` op surface ────────────────────────────
 // Single discriminated request shape so the IPC channel + main-process
-// pairing logic stays simple. Renderer's CanvasTab dispatches each op
+// pairing logic stays simple. Renderer's PageTab dispatches each op
 // to `htmlOps.ts § executeHtmlOp(doc, req)` and replies via
 // `replyHtmlOp(result)`. PRD H37, H38.
 
@@ -728,7 +728,7 @@ export interface HtmlGetResult {
 
 // ── Stage 17d — `duo html comment` op surface ──────────────────────────────
 // Separate from HtmlOpRequest because comments mutate the SIDECAR, not the
-// HTML document. Renderer's CanvasTab subscribes to a dedicated channel so
+// HTML document. Renderer's PageTab subscribes to a dedicated channel so
 // the html-op subscription stays focused on DOM manipulation. PRD H24.
 
 export interface HtmlCommentRequest {
@@ -816,7 +816,7 @@ export interface DocReadResult {
 // ── Surface selection union (Stage 15g unified shape) ───────────────────────
 // `duo selection` returns the active surface's selection. The shape is a
 // discriminated union so the agent can branch on `kind`. Three surface
-// kinds today, with a fourth (`html-canvas`) reserved for Stage 17.
+// kinds today, with a fourth (`page`) reserved for Stage 17.
 //
 // Stage 13 Phase 0 lock (2026-04-26): the HTML canvas snapshot is
 // declared NOW as a placeholder so Stage 15 (Send → Duo) can ship
@@ -859,11 +859,11 @@ export interface BrowserSelectionPush {
 /** Markdown editor (Stage 11) selection — TipTap/ProseMirror-backed. */
 export type MarkdownSelectionSnapshot = EditorSelectionSnapshot & { kind: 'editor' }
 
-/** HTML canvas (Stage 17 H25) selection — iframe contentEditable + DOM
+/** Page (Stage 17 H25) selection — iframe contentEditable + DOM
  *  observer. Reserved 2026-04-26 in Stage 13 Phase 0 so the union shape
  *  is locked before Stage 15 ships. No producer until Stage 17. */
-export interface HtmlCanvasSelectionSnapshot {
-  kind: 'html-canvas'
+export interface PageSelectionSnapshot {
+  kind: 'page'
   /** Absolute path of the .html file. */
   path: string
   /** Selected text (empty if collapsed). */
@@ -883,7 +883,7 @@ export interface HtmlCanvasSelectionSnapshot {
 export type DuoSelection =
   | MarkdownSelectionSnapshot
   | BrowserSelectionSnapshot
-  | HtmlCanvasSelectionSnapshot
+  | PageSelectionSnapshot
   | null
 
 // Stage 11 § D33d — theme state mirrored between renderer (owner) and main
@@ -1139,22 +1139,22 @@ export const IPC = {
   EDITOR_DOC_FIND: 'editor:doc-find',
   EDITOR_DOC_FIND_RESULT: 'editor:doc-find-result',
 
-  // Stage 17b Phase C — agent ops against the active HTML canvas.
-  CANVAS_HTML_OP: 'canvas:html-op',               // main → renderer (apply / read)
-  CANVAS_HTML_OP_RESULT: 'canvas:html-op-result', // renderer → main (reply)
+  // Stage 17b Phase C — agent ops against the active page.
+  PAGE_HTML_OP: 'page:html-op',               // main → renderer (apply / read)
+  PAGE_HTML_OP_RESULT: 'page:html-op-result', // renderer → main (reply)
 
-  // Stage 17c — canvas selection snapshot push from the renderer. Mirrors
-  // `EDITOR_SELECTION_PUSH` for the html-canvas surface so `duo selection
+  // Stage 17c — page selection snapshot push from the renderer. Mirrors
+  // `EDITOR_SELECTION_PUSH` for the page surface so `duo selection
   // --pane canvas` can read without a renderer round-trip.
-  CANVAS_SELECTION_PUSH: 'canvas:selection-push', // renderer → main (cache)
+  PAGE_SELECTION_PUSH: 'page:selection-push', // renderer → main (cache)
 
   // Stage 17d — `duo html comment` (write) + `duo html comments` (read).
   // Comments live in the sidecar JSON; renderer is the only authoritative
   // source. Mirror the html-op channel pair pattern.
-  CANVAS_HTML_COMMENT: 'canvas:html-comment',                 // main → renderer
-  CANVAS_HTML_COMMENT_RESULT: 'canvas:html-comment-result',   // renderer → main
-  CANVAS_HTML_COMMENTS_LIST: 'canvas:html-comments-list',     // main → renderer
-  CANVAS_HTML_COMMENTS_LIST_RESULT: 'canvas:html-comments-list-result', // renderer → main
+  PAGE_HTML_COMMENT: 'page:html-comment',                 // main → renderer
+  PAGE_HTML_COMMENT_RESULT: 'page:html-comment-result',   // renderer → main
+  PAGE_HTML_COMMENTS_LIST: 'page:html-comments-list',     // main → renderer
+  PAGE_HTML_COMMENTS_LIST_RESULT: 'page:html-comments-list-result', // renderer → main
 
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)

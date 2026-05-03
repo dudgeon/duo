@@ -25,7 +25,7 @@ import type {
   ConsoleLevel,
   NavStateSnapshot,
   EditorSelectionSnapshot,
-  HtmlCanvasSelectionSnapshot,
+  PageSelectionSnapshot,
   DocWriteRequest,
   DocWriteResult,
   DocReadRequest,
@@ -65,7 +65,7 @@ export interface NavBridge {
   /** Stage 11 § D29a — return the active editor's selection snapshot. */
   getSelection: () => EditorSelectionSnapshot | null
   /** Stage 17c — return the active canvas's selection snapshot. */
-  getCanvasSelection: () => HtmlCanvasSelectionSnapshot | null
+  getCanvasSelection: () => PageSelectionSnapshot | null
   /** Stage 11 § D27 — apply a doc-write to the active editor. */
   docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
   /** Read the live editor buffer (active or specified path). */
@@ -105,7 +105,7 @@ export interface NavBridge {
    *  classifier routes .html → html-canvas). */
   htmlNew: (path: string, title?: string) => Promise<{ ok: boolean; path?: string; error?: string }>
   /** Stage 17b Phase C — dispatch a `duo html *` op to the active
-   *  canvas. Single discriminated request shape; renderer's CanvasTab
+   *  canvas. Single discriminated request shape; renderer's PageTab
    *  applies it via htmlOps.executeHtmlOp and replies. */
   htmlOp: (req: Omit<HtmlOpRequest, 'reqId'>) => Promise<HtmlOpResult>
   /** Stage 17d — dispatch a `duo html comment` write. Anchor resolution
@@ -782,7 +782,7 @@ export class SocketServer {
         case 'html-op': {
           // Stage 17b Phase C — request shape comes through `args` as the
           // discriminated HtmlOpRequest minus `reqId` (main mints that).
-          // We dispatch via NavBridge → main → renderer → CanvasTab.
+          // We dispatch via NavBridge → main → renderer → PageTab.
           const op = args['op'] as HtmlOpRequest['op'] | undefined
           if (!op) throw new Error('html-op requires an `op` field')
           const validOps: HtmlOpRequest['op'][] = [

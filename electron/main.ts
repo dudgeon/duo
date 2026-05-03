@@ -49,7 +49,7 @@ import type {
   HtmlCommentResult,
   HtmlCommentsListRequest,
   HtmlCommentsListResult,
-  HtmlCanvasSelectionSnapshot,
+  PageSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -77,7 +77,7 @@ let editorSelection: EditorSelectionSnapshot | null = null
 // Stage 17c — most recent selection snapshot from the active HTML canvas.
 // `null` means no canvas tab is active or no element is selected. Drives
 // `duo selection --pane canvas`.
-let canvasSelection: HtmlCanvasSelectionSnapshot | null = null
+let canvasSelection: PageSelectionSnapshot | null = null
 
 // Pending doc-write requests awaiting a renderer reply.
 const docWritePending = new Map<string, (res: DocWriteResult) => void>()
@@ -895,7 +895,7 @@ function setupIPC(): void {
   })
 
   // Stage 17c — canvas selection snapshot push from the active canvas.
-  ipcMain.on(IPC.CANVAS_SELECTION_PUSH, (_event, snapshot: HtmlCanvasSelectionSnapshot | null) => {
+  ipcMain.on(IPC.PAGE_SELECTION_PUSH, (_event, snapshot: PageSelectionSnapshot | null) => {
     canvasSelection = snapshot
   })
 
@@ -936,7 +936,7 @@ function setupIPC(): void {
   })
 
   // Stage 17b Phase C — renderer's reply to a `duo html *` op.
-  ipcMain.on(IPC.CANVAS_HTML_OP_RESULT, (_event, result: HtmlOpResult) => {
+  ipcMain.on(IPC.PAGE_HTML_OP_RESULT, (_event, result: HtmlOpResult) => {
     const resolver = htmlOpPending.get(result.reqId)
     if (resolver) {
       htmlOpPending.delete(result.reqId)
@@ -945,14 +945,14 @@ function setupIPC(): void {
   })
 
   // Stage 17d — renderer's reply to a `duo html comment` / `duo html comments`.
-  ipcMain.on(IPC.CANVAS_HTML_COMMENT_RESULT, (_event, result: HtmlCommentResult) => {
+  ipcMain.on(IPC.PAGE_HTML_COMMENT_RESULT, (_event, result: HtmlCommentResult) => {
     const resolver = htmlCommentPending.get(result.reqId)
     if (resolver) {
       htmlCommentPending.delete(result.reqId)
       resolver(result)
     }
   })
-  ipcMain.on(IPC.CANVAS_HTML_COMMENTS_LIST_RESULT, (_event, result: HtmlCommentsListResult) => {
+  ipcMain.on(IPC.PAGE_HTML_COMMENTS_LIST_RESULT, (_event, result: HtmlCommentsListResult) => {
     const resolver = htmlCommentsListPending.get(result.reqId)
     if (resolver) {
       htmlCommentsListPending.delete(result.reqId)
@@ -1252,7 +1252,7 @@ export function getEditorSelection(): EditorSelectionSnapshot | null {
 
 // Stage 17c — drives `duo selection --pane canvas` and the auto-select
 // path's html-canvas branch.
-export function getCanvasSelection(): HtmlCanvasSelectionSnapshot | null {
+export function getCanvasSelection(): PageSelectionSnapshot | null {
   return canvasSelection
 }
 
@@ -1460,7 +1460,7 @@ export function dispatchDocFind(req: Omit<DocFindRequest, 'reqId'>): Promise<Doc
 // Stage 17b Phase C — dispatch a `duo html *` op to the active canvas
 // tab and await its reply. 30s timeout: ample for any single DOM op
 // (queries are sub-ms; writes are milliseconds at worst). If no canvas
-// is active, the renderer's CanvasTab subscription doesn't fire and
+// is active, the renderer's PageTab subscription doesn't fire and
 // the timeout returns the error.
 const HTML_OP_TIMEOUT_MS = 30_000
 
@@ -1478,7 +1478,7 @@ export function dispatchHtmlOp(req: Omit<HtmlOpRequest, 'reqId'>): Promise<HtmlO
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.CANVAS_HTML_OP, { ...req, reqId })
+    mainWindow!.webContents.send(IPC.PAGE_HTML_OP, { ...req, reqId })
   })
 }
 
@@ -1499,7 +1499,7 @@ export function dispatchHtmlComment(req: Omit<HtmlCommentRequest, 'reqId'>): Pro
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.CANVAS_HTML_COMMENT, { ...req, reqId })
+    mainWindow!.webContents.send(IPC.PAGE_HTML_COMMENT, { ...req, reqId })
   })
 }
 
@@ -1517,7 +1517,7 @@ export function dispatchHtmlCommentsList(req: Omit<HtmlCommentsListRequest, 'req
       clearTimeout(timer)
       resolve(res)
     })
-    mainWindow!.webContents.send(IPC.CANVAS_HTML_COMMENTS_LIST, { ...req, reqId })
+    mainWindow!.webContents.send(IPC.PAGE_HTML_COMMENTS_LIST, { ...req, reqId })
   })
 }
 

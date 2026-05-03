@@ -22,7 +22,7 @@ import type {
   HtmlCommentResult,
   HtmlCommentsListRequest,
   HtmlCommentsListResult,
-  HtmlCanvasSelectionSnapshot,
+  PageSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
   SelectionFormat,
@@ -296,36 +296,36 @@ const api: ElectronAPI = {
   canvas: {
     onHtmlOp: (cb) => {
       const handler = (_: IpcRendererEvent, req: HtmlOpRequest) => cb(req)
-      ipcRenderer.on(IPC.CANVAS_HTML_OP, handler)
-      return () => ipcRenderer.removeListener(IPC.CANVAS_HTML_OP, handler)
+      ipcRenderer.on(IPC.PAGE_HTML_OP, handler)
+      return () => ipcRenderer.removeListener(IPC.PAGE_HTML_OP, handler)
     },
 
     replyHtmlOp: (result: HtmlOpResult) => {
-      ipcRenderer.send(IPC.CANVAS_HTML_OP_RESULT, result)
+      ipcRenderer.send(IPC.PAGE_HTML_OP_RESULT, result)
     },
 
-    pushSelection: (snapshot: HtmlCanvasSelectionSnapshot | null) => {
-      ipcRenderer.send(IPC.CANVAS_SELECTION_PUSH, snapshot)
+    pushSelection: (snapshot: PageSelectionSnapshot | null) => {
+      ipcRenderer.send(IPC.PAGE_SELECTION_PUSH, snapshot)
     },
 
     onHtmlComment: (cb) => {
       const handler = (_: IpcRendererEvent, req: HtmlCommentRequest) => cb(req)
-      ipcRenderer.on(IPC.CANVAS_HTML_COMMENT, handler)
-      return () => ipcRenderer.removeListener(IPC.CANVAS_HTML_COMMENT, handler)
+      ipcRenderer.on(IPC.PAGE_HTML_COMMENT, handler)
+      return () => ipcRenderer.removeListener(IPC.PAGE_HTML_COMMENT, handler)
     },
 
     replyHtmlComment: (result: HtmlCommentResult) => {
-      ipcRenderer.send(IPC.CANVAS_HTML_COMMENT_RESULT, result)
+      ipcRenderer.send(IPC.PAGE_HTML_COMMENT_RESULT, result)
     },
 
     onHtmlCommentsList: (cb) => {
       const handler = (_: IpcRendererEvent, req: HtmlCommentsListRequest) => cb(req)
-      ipcRenderer.on(IPC.CANVAS_HTML_COMMENTS_LIST, handler)
-      return () => ipcRenderer.removeListener(IPC.CANVAS_HTML_COMMENTS_LIST, handler)
+      ipcRenderer.on(IPC.PAGE_HTML_COMMENTS_LIST, handler)
+      return () => ipcRenderer.removeListener(IPC.PAGE_HTML_COMMENTS_LIST, handler)
     },
 
     replyHtmlCommentsList: (result: HtmlCommentsListResult) => {
-      ipcRenderer.send(IPC.CANVAS_HTML_COMMENTS_LIST_RESULT, result)
+      ipcRenderer.send(IPC.PAGE_HTML_COMMENTS_LIST_RESULT, result)
     }
   },
 
@@ -456,7 +456,7 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.BROWSER_FOCUS_GAINED, handler)
     },
     onClaudeReadSelection: (cb) => {
-      const handler = (_: IpcRendererEvent, e: { pane: 'editor' | 'browser' | 'html-canvas' }) => cb(e)
+      const handler = (_: IpcRendererEvent, e: { pane: 'editor' | 'browser' | 'page' }) => cb(e)
       ipcRenderer.on(IPC.CLAUDE_READ_SELECTION, handler)
       return () => ipcRenderer.removeListener(IPC.CLAUDE_READ_SELECTION, handler)
     }

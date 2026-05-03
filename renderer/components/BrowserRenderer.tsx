@@ -107,7 +107,7 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
     })
   }, [handleSendToDuoClick])
 
-  // Stage 15.3 — ⌘D listener. Same shape as MarkdownEditor + CanvasTab.
+  // Stage 15.3 — ⌘D listener. Same shape as MarkdownEditor + PageTab.
   // Browser pane is mounted whenever activeWorking.kind === 'browser';
   // multiple browser tabs share one BrowserRenderer mount, so the
   // single listener is correct. Gates on a non-null selection snapshot

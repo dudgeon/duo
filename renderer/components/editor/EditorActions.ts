@@ -1,6 +1,6 @@
 // Stage 17a polish item 3 — surface-agnostic action interface for the
 // shared editor toolbar. Stage 11's MarkdownEditor builds an
-// `EditorActions` from its TipTap editor; Stage 17a's CanvasTab builds
+// `EditorActions` from its TipTap editor; Stage 17a's PageTab builds
 // one from iframe DOM-mutation primitives. The toolbar imports neither
 // — it's pure presentation, dispatching through this interface.
 //

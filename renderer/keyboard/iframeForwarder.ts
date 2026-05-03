@@ -12,7 +12,7 @@
 //      capture listener then runs the dispatch as if the keystroke had
 //      originated outside the iframe.
 //   3. If no, does nothing — the iframe's bubble-phase handlers
-//      (CanvasTab's local ⌘S/⌘B/⌘I/⌘U/⌘K, contentEditable's text input)
+//      (PageTab's local ⌘S/⌘B/⌘I/⌘U/⌘K, contentEditable's text input)
 //      run unchanged.
 //
 // One installer per iframe. Adding new global shortcuts to the registry

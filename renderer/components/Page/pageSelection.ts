@@ -1,12 +1,12 @@
 // Stage 17c — Canvas selection observer (PRD H25).
 //
 // Watches `selectionchange` inside the iframe and computes the
-// `HtmlCanvasSelectionSnapshot` shape used by `duo selection`. Mirrors
+// `PageSelectionSnapshot` shape used by `duo selection`. Mirrors
 // the markdown editor's `pushSelection` pattern but operates against
 // the iframe's contentDocument instead of a ProseMirror state.
 //
 // Caller wires:
-//   const obs = installCanvasSelection({ doc, path, onPush, onRect })
+//   const obs = installPageSelection({ doc, path, onPush, onRect })
 //   ...
 //   obs.dispose()
 //
@@ -16,7 +16,7 @@
 // translates iframe-coords → screen-coords by adding the iframe element's
 // own bounding rect.
 
-import type { HtmlCanvasSelectionSnapshot } from '@shared/types'
+import type { PageSelectionSnapshot } from '@shared/types'
 
 const SURROUNDING_LIMIT = 1000
 
@@ -25,28 +25,28 @@ interface InstallOptions {
   path: string
   /** Fires whenever the selection shape changes. `null` clears any
    *  cached selection (collapse, focus loss, body unmounted). */
-  onPush: (snap: HtmlCanvasSelectionSnapshot | null) => void
+  onPush: (snap: PageSelectionSnapshot | null) => void
   /** Fires with the selection's bounding rect in iframe-content
    *  coordinates. The host translates this to screen coordinates for
    *  the Send → Duo pill. `null` hides the pill. */
   onRect: (rect: DOMRect | null) => void
 }
 
-export interface CanvasSelectionHandle {
+export interface PageSelectionHandle {
   dispose: () => void
 }
 
-export function installCanvasSelection({
+export function installPageSelection({
   doc,
   path,
   onPush,
   onRect
-}: InstallOptions): CanvasSelectionHandle {
+}: InstallOptions): PageSelectionHandle {
   const win = doc.defaultView
   if (!win) return { dispose: () => {} }
 
   const compute = () => {
-    const snap = computeCanvasSnapshot(doc, path)
+    const snap = computePageSnapshot(doc, path)
     onPush(snap)
     onRect(computeSelectionRect(doc))
   }
@@ -84,10 +84,10 @@ export function installCanvasSelection({
 
 // ── Snapshot computation ──────────────────────────────────────────────────
 
-export function computeCanvasSnapshot(
+export function computePageSnapshot(
   doc: Document,
   path: string
-): HtmlCanvasSelectionSnapshot | null {
+): PageSelectionSnapshot | null {
   const sel = doc.getSelection()
   if (!sel || sel.rangeCount === 0) return null
 
@@ -139,7 +139,7 @@ export function computeCanvasSnapshot(
       : undefined
 
   return {
-    kind: 'html-canvas',
+    kind: 'page',
     path,
     text,
     html,

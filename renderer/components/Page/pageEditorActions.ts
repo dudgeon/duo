@@ -27,7 +27,7 @@ const MARK_TO_TAG: Record<'bold' | 'italic' | 'underline' | 'strike' | 'code', I
  *  because the iframe's contentDocument can technically change across
  *  navigation; reading it lazily means we never operate on a stale
  *  reference. */
-export function buildCanvasEditorActions(getDoc: () => Document | null): EditorActions {
+export function buildPageEditorActions(getDoc: () => Document | null): EditorActions {
   const withDoc = (fn: (doc: Document) => void): void => {
     const doc = getDoc()
     if (!doc) return

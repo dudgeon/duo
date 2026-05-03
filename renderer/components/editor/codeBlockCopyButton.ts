@@ -9,7 +9,7 @@
 //
 // Persistence:
 //   - Canvas: mark the injected button with `data-duo-canvas-runtime`.
-//     The serializer (renderer/components/HtmlCanvas/serialize.ts)
+//     The serializer (renderer/components/Page/serialize.ts)
 //     strips elements with that attribute on save, so the button never
 //     lands on disk.
 //   - Markdown editor: TipTap's serializer renders from the doc model,
