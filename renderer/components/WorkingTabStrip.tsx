@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { MenuTemplateItem, WorkingTab, WorkingTabType } from '@shared/types'
+import { pathFromFileUrl } from './urlUtils'
 
 interface WorkingTabStripProps {
   tabs: WorkingTab[]
@@ -440,15 +441,6 @@ function tabLabel(tab: WorkingTab): string {
 // Rename / Trash menu items as a file tab. Returns null for any
 // non-file URL or malformed input — caller falls through to the
 // existing "browser tab → Pin/Unpin only" branch.
-function pathFromFileUrl(url: string | undefined): string | null {
-  if (!url || !url.startsWith('file://')) return null
-  try {
-    return decodeURIComponent(new URL(url).pathname)
-  } catch {
-    return null
-  }
-}
-
 // ENH-050 — assemble the menu template for the right-click context
 // menu. File-bearing tabs (path != null) get Reveal in navigator /
 // Rename / Move to Trash; browser tabs only get Pin/Unpin. Pin is
