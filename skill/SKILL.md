@@ -418,6 +418,50 @@ reloads in place — no new tabs accumulate.
 file, about, data, etc.), plus local file paths with `~/` or relative
 paths — path resolution happens client-side.
 
+### Generate a worksheet for structured user feedback
+
+When you need the user to respond to **N items** with **a structured
+per-item answer + free notes**, and you want the response back in a
+parseable form, reach for the **worksheet** primitive. The smoke-walk
+and sprint-plan skills are both consumers; future retros / triage /
+prioritization forms become JSON manifests, not new HTML generators.
+
+```bash
+# 1. Author a manifest (see .claude/skills/worksheet/SKILL.md for
+#    the schema — items + radio options + textarea + result format).
+node .claude/skills/worksheet/generate.mjs \
+  docs/dev/worksheets/<name>.json \
+  docs/dev/worksheets/<name>.html
+
+# 2. Open in the browser pane (clipboard.writeText needs full Chromium;
+#    canvas mode would trap the Copy button click as a cursor placement).
+duo open docs/dev/worksheets/<name>.html
+
+# 3. Hand off — the user fills it in, hits "Send to Claude" or
+#    "Copy results", you parse the response.
+```
+
+The worksheet HTML emits BOTH a "Copy results" button (clipboard) AND
+a "Send to Claude" button. The Send path calls
+`window.duoSendResult(text, { worksheet })`, a CDP-injected binding
+parallel to `window.duoOpenPath`. When the binding is wired (Duo
+build supporting it), the result lands directly in the active Claude
+terminal — no paste step. When it isn't, the Send button falls back
+to clipboard + tells the user to paste.
+
+The worksheet sub-skill at `.claude/skills/worksheet/SKILL.md` has
+the full manifest schema, the result-format spec for parsing, and
+authoring tips. Two consumers ship today:
+
+- **`.claude/skills/smoke-walk/`** — pass/fail/skip per shipped item.
+- **`.claude/skills/sprint-plan/`** — P0/P1/P2/skip per backlog
+  candidate, fed by a gatherer that harvests tasks.md +
+  active-sprint.md + roadmap.html.
+
+When you'd otherwise build a long bullet-list in chat asking the
+user "which of these…", consider whether a worksheet is the right
+shape. ~5 items is too few; ~30 is enough.
+
 ### Author or interact with an HTML canvas
 
 Two companion skills cover the canvas surface, split on a single

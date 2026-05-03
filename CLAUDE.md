@@ -60,6 +60,15 @@ domain names that appear in the browser blocklist.
   live in the roadmap cards); reach for these only when you need
   the "why was this chosen?" context behind a stage's design.
   See the directory's `README.md` for the lifecycle convention.
+- **`.claude/skills/worksheet/`** — schema-driven primitive for
+  generating interactive HTML pages where the user fills out
+  per-item radios + notes and hits Send-to-Claude / Copy results.
+  Reach for it whenever you'd otherwise hand-build a long
+  bullet list in chat asking "which of these…". Two consumers
+  ship today: `.claude/skills/smoke-walk/` (sprint validation)
+  and `.claude/skills/sprint-plan/` (next-sprint prioritization,
+  fed by a gatherer that harvests tasks.md + active-sprint.md +
+  roadmap.html).
 - **`docs/design/atelier/`** — visual source-of-truth. Read its
   README before any UI-touching work.
 - **`docs/VISION.md`** — product north star.

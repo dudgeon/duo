@@ -5089,3 +5089,35 @@ That's two steps for what should be one.
 
 ---
 
+### FOLLOWUP-007: Wire `window.duoSendResult(text, opts)` CDP binding so worksheet "Send to Claude" lands in the active terminal directly
+
+**Status:** 🆕 Filed
+**Filed:** 2026-05-03 (sprint-plan worksheet spike — primitive ships with the contract; binding plumbing comes next).
+
+**What's needed.** The new `worksheet` skill (`.claude/skills/worksheet/`) generates pages with a "Send to Claude" footer button alongside "Copy results." The button calls `window.duoSendResult(text, { worksheet: NAME })` and falls back to clipboard.writeText when the binding isn't present. Today, every Duo build is in the fallback state — the binding doesn't exist. Worksheets work via copy-paste, but the high-leverage Send-to-Claude path is unwired.
+
+**The contract worksheets commit to:**
+```javascript
+window.duoSendResult(text: string, opts?: { worksheet: string })
+// Resolves when the text has been delivered to the active Claude terminal.
+// Rejects if no Claude session is active (worksheet falls back to clipboard).
+```
+
+**Plumbing checklist** (touches CLAUDE.md item 4 plumbing rules):
+1. **`electron/cdp-bridge.ts`** — new `DUO_SEND_RESULT_FORWARDER_IIFE` injected alongside the existing `PATH_LINK_FORWARDER_IIFE`. Exposes `window.duoSendResult` as a `Runtime.bindingCalled`-routed function. Page-side wrapper marshals `(text, opts)` → JSON, returns a Promise.
+2. **`electron/main.ts`** — `cdpBridge.onSendResult(text, opts)` handler. Resolves: find the active Claude terminal tab (the same `claude-presence` signal `cdp-bridge.ts § showPillFor` already reads); if none, reject. If yes, call `terminalPane.sendText(activeClaudeTabId, text)` (or extend `socket-server.ts § terminal-send` if a new path is cleaner) and resolve.
+3. **`electron/socket-server.ts`** — likely no change; the binding routes through main, not the CLI socket. But if we want a CLI parity verb (`duo worksheet send-result`), this is where the case lands.
+4. **`shared/types.ts`** — minor: extend the IPC channel set if main needs to push a "delivered" signal back to the renderer for visualization (probably not v1).
+5. **`cli/duo.ts`** — no new verb required v1; the binding is page-side, not CLI-side. Could add `duo worksheet send-result --text <...>` if we want symmetry. Defer until a use case demands it.
+6. **No `skill/SKILL.md` change needed** — the existing Worksheets section already documents the contract and notes the fallback.
+7. **Smoke-walk regression** — once shipped, the Send-to-Claude button on the next smoke walk worksheet should land directly in the Claude terminal. That's the validation.
+
+**Open question — should we also send a confirmation event back?**
+The page-side Promise resolves when `duoSendResult` returns. We could additionally fire a `duo:event` with `{ name: 'worksheet-sent', payload: { worksheet, text_length } }` for any agent listening with `duo events --follow`. Worth doing if we expect agent-side smoke walk auto-driving (Stage 28 lesson harness already follows this pattern).
+
+**Why this is a follow-up rather than a blocker.** The worksheet primitive is shippable today via copy-paste; the Send button just provides a smoother path when the binding lands. Filing as 🆕 so it surfaces in the next sprint plan.
+
+**Cross-ref:** ENH-039 (`duoOpenPath` / `duoOpenPathSplit` CDP binding — the parallel path); Stage 27 canvas-action vocabulary (`terminal:send` action verb is the same plumbing target on the canvas-pane side). The worksheet's HTML lives in the BROWSER pane, so the canvas-action verbs don't apply directly — this binding is a new injection target.
+
+---
+

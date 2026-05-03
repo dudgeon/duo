@@ -18,6 +18,21 @@
 
 ---
 
+## 2026-05-03 (evening) — v0.6.4 smoke walk results + worksheet primitive spike + v0.6.5 sprint planned
+
+**Status: v0.6.4 rolls forward into v0.6.5 cut.** Sprint 3's afternoon entry called v0.6.4 "cut-ready"; the owner-side smoke walk (`docs/dev/smoke-walks/v0.6.4.html`, 18 items) flipped that — 10 PASS · 4 FAIL · 4 SKIP. Two regressions blocked the cut: **BUG-074** (ENH-078 light-mode contrast — `text-zinc-50` on cream paper background is illegible) and **BUG-075** (Phase 3b ⌘\\ + ⌘⇧\\ chord regression — likely a callback ref dropped in commit `511d8b8`'s `splitViewClose → splitViewPromote` rename). Right-click + CLI Split View paths work; only the keyboard chord is broken. After sprint planning (below), the owner downgraded BUG-075 P0 → P2 (chord is non-blocking when CLI + right-click work) and kept BUG-074 P0; we roll forward and cut as v0.6.5 once both land. Other FAILs (BUG-072 blockquote-exit parity, BUG-073 dashed-bullet style) are cosmetic; SKIPs were test-tooling gaps (Phase 3c-iii needs FOLLOWUP-006 autosave-delay knob; ENH-070 verified separately by filesystem inspection).
+
+**Worksheet primitive spike — shipped this evening.** The smoke-walk skill's HTML-roundtrip pattern (manifest → interactive HTML page → user fills it in → Copy/Send → parseable text → Claude reacts) was extracted into a reusable primitive at [.claude/skills/worksheet/](/.claude/skills/worksheet/). Smoke-walk's generator refactored to a thin transformer that delegates to it (validation: v0.6.4 manifest regenerates cleanly). New consumer skill at [.claude/skills/sprint-plan/](/.claude/skills/sprint-plan/) — `gather.mjs` harvests candidates from tasks.md (open status), active-sprint.md (FAIL + "Other notes for next sprint"), and roadmap.html (🟡 stages); generates a worksheet manifest; the worksheet generator produces the page. Skill + agent files updated with worksheet awareness ([skill/SKILL.md](skill/SKILL.md) "Generate a worksheet for structured user feedback" section; [agents/duo.md](agents/duo.md) pattern #6). Sync ran clean. Send-to-Claude footer button is in the page but unwired — filed as **FOLLOWUP-007** with full plumbing checklist; copy-paste fallback works today. Why this matters: any future structured-feedback gather (retros, triage, prioritization, design A/B, "which of these N options should I pick") is now a JSON manifest, not a parallel ~700-line HTML generator. CLAUDE.md "Where to look" gained a worksheet entry so post-compaction sessions find it.
+
+**v0.6.5 sprint planned.** Owner walked the sprint-plan worksheet (25 candidates from the gatherer) — 3 P0 / 10 P1 / 8 P2 / 4 SKIP. Owner's instruction was explicit on top of the priorities: *"please think about path dependency, natural clustering of work, and the value of closing out roadmap phases as you do your sprint planning — don't just blindly follow my p0, 1, 2."* Resulting plan in active-sprint.md is 7 phases ordered for path-dependency + clustering, not pure P0 → P1 → P2. Notable repositionings:
+- **ENH-052** (mechanical canvas → page/playground identifier rename): owner P1, sprint P0-sequenced — every UI change this sprint touches identifiers about to be renamed; doing it first keeps everything else clean.
+- **ENH-078 + BUG-074 collapsed** to a single P0 item per owner note ("not sure why there are two items for this") — they're the same regression.
+- **BUG-075** P2 stays P2; included as a Phase 3 bonus if cheap (it's likely a 1-line callback restoration).
+
+**HEAD when this entry was written:** `9546d55` (v0.6.4 smoke walk results doc). Worksheet spike + this entry uncommitted at write time; will land as a single sprint-prep commit before Sprint 4 begins.
+
+---
+
 ## 2026-05-03 (afternoon) — Sprint 3 wraps: idle-thoughts sweep + Vitest + Phase 3b + 3c-i; v0.6.4 cut-ready
 
 **Status: ready for cut after smoke walk.** All Phase 3b + Phase 3c-i work landed; Phase 3c-iii (dirty-replace dialog) and Phase 3c-iv (browser-in-aux) explicitly deferred to v0.6.5 (both need refactors larger than this sweep). Package bumped to 0.6.4. Smoke-walk manifest at `docs/dev/smoke-walks/v0.6.4.json`; HTML at `docs/dev/smoke-walks/v0.6.4.html`; opened in Duo's browser pane. Owner is constrained on time; smoke walk waits for them.

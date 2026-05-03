@@ -266,6 +266,41 @@ duo selection                                          # the new range now refle
 The selection overlay stays visible while the terminal has focus, so the user
 can see exactly what range was operated on. Just-added highlight confirms.
 
+### 6. Generate a worksheet for structured user feedback
+
+Goal: "Get pass/fail/priority/triage decisions on N items, with notes,
+in a parseable form."
+
+The orchestrator owns the manifest authoring (the items are the
+spec — see `.claude/skills/worksheet/SKILL.md` for the JSON schema).
+The agent's job is the mechanical sequence:
+
+```bash
+# Generate the page (manifest already authored by orchestrator).
+node .claude/skills/worksheet/generate.mjs \
+  docs/dev/worksheets/<name>.json \
+  docs/dev/worksheets/<name>.html
+
+# Open in browser pane (clipboard + Send-to-Claude need full Chromium;
+# the worksheet declares <meta name="duo-open-in" content="browser">
+# but duo open accepts the file path either way).
+duo open docs/dev/worksheets/<name>.html
+```
+
+Smoke-walk and sprint-plan are the two consumers in-tree today:
+
+- `.claude/skills/smoke-walk/generate.mjs` — wraps worksheet with
+  PASS/FAIL/SKIP defaults.
+- `.claude/skills/sprint-plan/gather.mjs` — harvests candidates from
+  tasks.md + active-sprint.md + roadmap.html, writes the manifest,
+  then orchestrator calls the worksheet generator.
+
+The page emits a "Send to Claude" button alongside "Copy results."
+Send tries `window.duoSendResult(text, { worksheet })` — a CDP binding
+parallel to `window.duoOpenPath`. When wired, results land in the
+active Claude terminal directly. When not (older Duo build, page
+opened outside Duo), it falls back to clipboard.
+
 ## Failure protocol
 
 - **Socket missing / `Cannot connect: Duo app is not running`** → return one

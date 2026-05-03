@@ -408,10 +408,15 @@ shape. ENH-043 / ENH-046 in tasks.md have the carve-up.
 ## Files
 
 - `.claude/skills/smoke-walk/SKILL.md` — this file (procedure).
-- `.claude/skills/smoke-walk/generate.mjs` — Node.js HTML
-  generator. Reads JSON manifest, writes self-contained HTML.
-- `.claude/skills/smoke-walk/template.html` — HTML scaffold
-  embedded in the generator (kept inline for portability).
+- `.claude/skills/smoke-walk/generate.mjs` — thin transformer that
+  adds smoke-walk specific defaults (PASS / FAIL / SKIP controls,
+  "Mark all Pass" button, package.json version cross-check) and
+  delegates to the **worksheet** generator. The HTML page chrome
+  (Atelier styling, persistence, backtick → Copy-button rendering,
+  path-link forwarding, Send-to-Claude footer) all live in the
+  worksheet primitive — see `.claude/skills/worksheet/SKILL.md` for
+  the rendering reference. This skill is the PROCEDURE doc (when
+  to walk, what items to include, how to react to results).
 - `docs/dev/smoke-walks/v<VERSION>.json` — generated manifest.
 - `docs/dev/smoke-walks/v<VERSION>.html` — generated page (open
   via `duo open`).

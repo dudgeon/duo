@@ -66,6 +66,7 @@ fork.config.local.json
 # hierarchy out of git unless someone explicitly wants to commit a
 # manifest as a release receipt (rare).
 docs/dev/smoke-walks/*
+docs/dev/worksheets/*
 
 # Owner's idle-thoughts scratchpad — personal working file the
 # `agent` reads + processes per the convention at the top of the
