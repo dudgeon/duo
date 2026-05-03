@@ -1263,54 +1263,83 @@ export function App() {
   // splitViewMoveTabByPath is the inner mutation primitive shared by
   // every "move/open in split view" surface (chord, right-click on
   // tab, right-click on FileTree row, right-click on PinnedNav row).
-  // Mirrors the workingAux.onOpen IPC handler — drop the path from
-  // main fileTabs (single-source-of-truth: never two tabs for the
-  // same path across panes), clear active main if the moved tab was
-  // active, set aux's paths to [path].
+  // Mirrors the workingAux.onOpen IPC handler.
   //
-  // Phase 3c-iii (v0.6.5 prep, this commit): if the aux pane already
-  // holds a DIFFERENT dirty file, fire a native confirm dialog before
-  // replacing. v1 dialog has Discard / Cancel — no Save button (saves
-  // are per-editor + async; the user can save manually first if they
-  // want to keep the work). Discard → proceed (loses unsaved aux work);
+  // SWAP semantics (Sprint 3 Phase 3b owner clarification, 2026-05-03
+  // afternoon): when aux already holds a DIFFERENT path, that existing
+  // aux content is PROMOTED back to main as a new file tab — NOT
+  // discarded. The new path takes the aux slot. Single-source-of-truth
+  // still holds (the new path drops from main fileTabs before landing
+  // in aux), but the OLD aux path doesn't disappear; it lives on in
+  // main. This is the natural "swap" gesture: aux ↔ main exchange,
+  // not aux replace + main untouched.
+  //
+  // Phase 3c-iii dirty-replace gate (v0.6.4): when the swap would
+  // promote a dirty aux back to main, the editor unmounts in aux
+  // and remounts as a fresh main tab — losing unsaved edits during
+  // the pane move (the editor reloads from disk on remount). v1
+  // dialog has Discard / Cancel — no Save button (saves are per-
+  // editor + async; the user can save manually first if they want
+  // to keep the work). Discard → proceed (loses unsaved aux work);
   // Cancel → bail. Same path being moved INTO aux is a no-op below.
+  // Empty aux (paths.length === 0 / null) goes straight to silent
+  // open with no swap (no existing aux to promote).
   const splitViewMoveTabByPath = useCallback(async (path: string) => {
     if (auxState && auxState.paths.includes(path)) return
-    // Phase 3c-iii — dirty-replace gate. Only fires when aux is
-    // currently holding a DIFFERENT path AND that path is dirty.
-    // Empty aux (paths.length === 0 / null) goes straight to silent
-    // open. Same-path is a no-op above.
-    if (auxState && auxState.paths.length > 0) {
-      const currentAuxPath = auxState.paths[auxState.activeIndex] ?? auxState.paths[0]
-      if (dirtyPaths.has(currentAuxPath)) {
-        const filename = currentAuxPath.split('/').pop() ?? currentAuxPath
-        const result = await window.electron.dialog.confirm({
-          title: `"${filename}" has unsaved changes`,
-          message: `The aux pane is showing "${filename}" with unsaved changes. Replacing it will discard those changes. Save the file first if you want to keep them.`,
-          buttons: ['Cancel', 'Discard changes'],
-          defaultId: 0,
-          cancelId: 0,
-          type: 'warning'
-        })
-        if (result.response !== 1) return
-        // Discard chosen — clear the dirty flag for the replaced path
-        // so a future "is dirty?" query doesn't think it still is.
-        // The actual buffer state is owned by the editor; once we
-        // unmount it (by replacing aux content), its dirty signal
-        // becomes irrelevant.
-        setDirtyPaths(prev => {
-          if (!prev.has(currentAuxPath)) return prev
-          const next = new Set(prev)
-          next.delete(currentAuxPath)
-          return next
-        })
-      }
+    // Capture the existing aux path BEFORE any mutations so the swap
+    // logic below can promote it back to main.
+    const existingAuxPath = auxState && auxState.paths.length > 0
+      ? (auxState.paths[auxState.activeIndex] ?? auxState.paths[0])
+      : null
+    // Phase 3c-iii dirty-replace gate. Fires when aux is currently
+    // holding a different path AND that path is dirty (the swap will
+    // unmount its editor, losing unsaved edits during the pane move).
+    if (existingAuxPath && dirtyPaths.has(existingAuxPath)) {
+      const filename = existingAuxPath.split('/').pop() ?? existingAuxPath
+      const newFilename = path.split('/').pop() ?? path
+      const result = await window.electron.dialog.confirm({
+        title: `"${filename}" has unsaved changes`,
+        message: `Moving "${newFilename}" into Split View will swap "${filename}" back into main, but the editor unmounts during the pane swap and unsaved edits will be lost. Save "${filename}" first if you want to keep them.`,
+        buttons: ['Cancel', 'Discard changes'],
+        defaultId: 0,
+        cancelId: 0,
+        type: 'warning'
+      })
+      if (result.response !== 1) return
+      // Discard chosen — clear the dirty flag for the path being
+      // remounted as a fresh main tab. The editor's in-memory dirty
+      // state resets to clean on the unmount/remount cycle anyway;
+      // this just keeps the renderer's path-keyed dirty registry in
+      // sync.
+      setDirtyPaths(prev => {
+        if (!prev.has(existingAuxPath)) return prev
+        const next = new Set(prev)
+        next.delete(existingAuxPath)
+        return next
+      })
     }
+    // Drop the new path from main fileTabs (single-source-of-truth).
     setFileTabs(prev => prev.filter(t => t.path !== path))
+    // Promote the existing aux path back to main as a new file tab
+    // (the swap's other half). Skip when aux was empty.
+    let promotedId: string | null = null
+    if (existingAuxPath) {
+      const { type, mime } = classifyFile(existingAuxPath)
+      promotedId = `f:${crypto.randomUUID()}`
+      const title = existingAuxPath.split('/').pop() ?? existingAuxPath
+      setFileTabs(curr => [...curr, { id: promotedId!, type, path: existingAuxPath, title, mime }])
+    }
+    // If the moved-IN path was the active main tab, swap activeWorking
+    // to the newly-promoted main tab (keeps focus on file work — falling
+    // back to browser would be surprising when there's literally a fresh
+    // file tab right there). When aux was empty there's no promote, so
+    // fall back to browser as before.
     setActiveWorking(prev => {
       if (prev.kind === 'file') {
         const wasMoved = fileTabs.find(t => t.id === prev.id && t.path === path)
-        if (wasMoved) return { kind: 'browser' }
+        if (wasMoved) {
+          return promotedId ? { kind: 'file', id: promotedId } : { kind: 'browser' }
+        }
       }
       return prev
     })
@@ -1339,11 +1368,23 @@ export function App() {
     void splitViewMoveTabByPath(active.path)
   }, [activeWorking, fileTabs, splitViewMoveTabByPath])
 
-  // ⌘⇧\ — close the split view. Mirrors workingAux.onClose handler.
-  // No-op if no split is open. Phase 3c may add a dirty-prompt before
-  // closing if the aux tab has unsaved changes.
-  const splitViewClose = useCallback(() => {
-    setAuxState(null)
+  // ⌘⇧\ — promote aux back to main (close the split AND keep the
+  // file open). Mirrors the aux header's ⇤ button (workingAux.onPromote
+  // handler). Same state mutation: aux's active path becomes a fresh
+  // main file tab; auxState clears to null. No-op if no split is open.
+  // For pure-close (discard the split entirely), the aux header's ✕
+  // button is the affordance.
+  const splitViewPromote = useCallback(() => {
+    setAuxState(prev => {
+      if (!prev || prev.paths.length === 0) return null
+      const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
+      const { type, mime } = classifyFile(path)
+      const newId = `f:${crypto.randomUUID()}`
+      const title = path.split('/').pop() ?? path
+      setFileTabs(curr => [...curr, { id: newId, type, path, title, mime }])
+      setActiveWorking({ kind: 'file', id: newId })
+      return null
+    })
   }, [])
 
   // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
@@ -1520,11 +1561,12 @@ export function App() {
     // before this handler sees it; see `onPaneToggleFocus` below.
     togglePaneFocus,
     // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
-    // aux slot; ⌘⇧\ closes the split. Both delegate to the same state
-    // mutations the CLI verbs (`duo split-view open` / `close`) and
-    // the upcoming right-click menus produce.
+    // aux slot; ⌘⇧\ promotes aux back to main (closes the split AND
+    // keeps the file open — mirrors the ⇤ button in the aux header).
+    // Both delegate to the same state mutations the CLI verbs and the
+    // right-click menus produce.
     splitViewToggle,
-    splitViewClose,
+    splitViewPromote,
     // BUG-001 fix — pane-aware ⌃Tab routing. Without this, ⌃Tab from
     // terminal focus cycles browser tabs instead of terminal tabs.
     activePaneFocus: focusedColumn,

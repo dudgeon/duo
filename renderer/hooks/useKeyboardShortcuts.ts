@@ -50,9 +50,12 @@ interface Options {
   findNext?: () => void
   findPrev?: () => void
   /** Sprint 3 Phase 3b — Split View chord handlers. ⌘\ moves the
-   *  active main tab into the aux slot; ⌘⇧\ closes the split. */
+   *  active main tab into the aux slot; ⌘⇧\ promotes aux back to
+   *  main (closes the split AND keeps the file open). For pure-close
+   *  (discard the split entirely without promoting the aux file),
+   *  use the ✕ button in the aux header. */
   splitViewToggle?: () => void
-  splitViewClose?: () => void
+  splitViewPromote?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -215,8 +218,8 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'splitViewToggle':
           opts.splitViewToggle?.()
           return
-        case 'splitViewClose':
-          opts.splitViewClose?.()
+        case 'splitViewPromote':
+          opts.splitViewPromote?.()
           return
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
@@ -297,7 +300,7 @@ export function useKeyboardShortcuts(opts: Options) {
     opts.toggleFilesColumn,
     opts.togglePaneFocus,
     opts.splitViewToggle,
-    opts.splitViewClose,
+    opts.splitViewPromote,
     opts.adjustTerminalFontBump,
     opts.activePaneFocus
   ])

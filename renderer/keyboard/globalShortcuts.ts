@@ -69,14 +69,17 @@ export type ShortcutId =
   // canvas / browser pane). Each surface listens for the
   // duo-send-to-duo CustomEvent and runs its own pill click.
   | 'sendToDuo'
-  // Sprint 3 Phase 3b — Split View open/move + close chords. ⌘\
+  // Sprint 3 Phase 3b — Split View open/move + promote chords. ⌘\
   // moves the active main tab into the aux slot (or, if the
-  // active tab is already in aux, no-op). ⌘⇧\ closes the split
-  // view. Slack reference: cmd+shift+. opens the split, but
-  // ⌘\ is more discoverable for Duo's "open in split" gesture
-  // (and matches the visual divider character).
+  // active tab is already in aux, no-op). ⌘⇧\ promotes aux back
+  // to main (closes the split AND keeps the file open). Slack
+  // reference: cmd+shift+. opens the split, but ⌘\ is more
+  // discoverable for Duo's "open in split" gesture (and matches
+  // the visual divider character). For pure-close (discard split
+  // entirely without promoting the aux file), use the ✕ button
+  // in the aux header.
   | 'splitViewToggle'
-  | 'splitViewClose'
+  | 'splitViewPromote'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -207,10 +210,13 @@ export function matchGlobalShortcut(
     return { id: 'nextTerminalTab' }
   }
 
-  // Sprint 3 Phase 3b — ⌘⇧\ closes the split (specific combo before
-  // generic ⌘\ below, per "first match wins" ordering rule).
+  // Sprint 3 Phase 3b — ⌘⇧\ promotes aux back to main (closes the
+  // split AND keeps the file open). Specific combo before generic
+  // ⌘\ below, per "first match wins" ordering rule. For pure-close
+  // (discard the split entirely without promoting), the aux header's
+  // ✕ button is the affordance.
   if (meta && shift && !alt && !ctrl && e.key === '\\') {
-    return { id: 'splitViewClose' }
+    return { id: 'splitViewPromote' }
   }
   // Sprint 3 Phase 3b — ⌘\ moves the active main tab into the aux
   // slot, or no-ops if the active tab is already in aux. Routed

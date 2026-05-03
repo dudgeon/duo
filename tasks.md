@@ -4629,29 +4629,40 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### ENH-080: ⌘⇧A — search open tabs (working pane + browser tab strip)
 
-**Status:** 🆕 Filed.
+**Status:** 🆕 Filed · **research-doc owed before code**.
 **Priority:** Medium (the user has many tabs open across the working pane and browser pane; opening a "where is X tab?" picker is a real gap).
 **Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
 
 **Owner observation (verbatim):** "need cmd+shift+a to search open tabs"
 
-**What's wanted:** a `⌘⇧A` chord that opens a small floating command-palette-style picker listing every open tab across the working pane (markdown editor, canvas, browser-in-aux future, etc.) AND the browser tab strip. Type to filter; arrow keys to move; Enter activates that tab; Escape dismisses.
+**Owner constraint flagged for v0.6.5 (2026-05-03 evening):** *"think hard about the menu occlusion issues we've had to make sure we get this one right."* This palette is renderer DOM and would have the SAME WebContentsView-occlusion class as BUG-006 (in-page Send → Duo pill), BUG-045 (file:// browser tabs context menu), BUG-047 (the broader class summary), BUG-050 (ContextMenu occluded by editor canvas), BUG-058 (context menu occluded by browser), BUG-064 (trash + pinned-close modal occlusion). ENH-050's resolution was "native NSMenu + system sheets, NOT WCV-mute" — but a tab-search palette is interactive (typeahead-filterable list, arrow-key navigation, Enter to activate) which an NSMenu doesn't fit cleanly.
 
-**Implementation sketch (rough — needs design pass before code):**
+**Required before code: research doc** at `docs/prd/canvas-tab-search-research.html` (mirror of `canvas-split-view-research.html`'s structure) enumerating:
+
+1. **Native child window** — Electron child `BrowserWindow` with transparent borderless chrome, dismiss on blur, parent = main window. Composes above WCV at the window-server level (same as `dialog.showMessageBox`). Cleanest option if the visual styling can match Atelier; tradeoff is the IPC wire between parent and child for the tabs list + activate callback.
+2. **WCV mute pattern (BUG-058 v2 lineage)** — `browser.setOverlayMuted(true)` collapses every WCV to 1×1 while the palette is open; restores on close. Already retired for menus + sheets per ENH-050 ADR; resurrecting for the palette is acceptable IF (1) is impractical. Visual flicker risk on open/close.
+3. **Renderer-DOM palette + dynamic WCV bounds** — palette is React, but the renderer dynamically shrinks the active WCV bounds while the palette is visible. Trickier than mute (animation, re-layout, restore edge cases, layout-during-resize).
+4. **Extension-style CDP overlay** — render the palette into the active WCV via CDP injection (mirror BUG-006's in-page Send → Duo pill pattern). Unifies behavior across browser and renderer surfaces but introduces a CDP dependency for a feature that should work even when no browser is active. Probably wrong fit.
+
+**Recommendation seed** (research doc to verify): option (1) is the cleanest if `BrowserWindow` can hit the right visual styling — transparent + borderless + dismiss-on-blur is well-trodden Electron territory. Option (2) is the safe fallback if (1) doesn't compose. Research doc should prototype (1) first and document why if it doesn't work.
+
+**Implementation sketch (rough — research doc finalizes the architecture):**
 1. New chord row in `renderer/keyboard/globalShortcuts.ts`: `Mod-Shift-A` → `openTabSearch`.
-2. Wire through `useKeyboardShortcuts` in App.tsx → flips a `tabSearchOpen` state.
-3. New component `renderer/components/TabSearch.tsx` — floating panel (similar to `Breadcrumb`'s edit interstitial), gathers all open tabs from:
-   - `App.tsx`'s `tabs[]` (working pane)
-   - `App.tsx`'s `browserTabs[]` (browser pane)
-   - Future: aux pane tabs (Phase 3c).
+2. Wire through `useKeyboardShortcuts` in App.tsx → flips a `tabSearchOpen` state OR opens the child window (per research-doc decision).
+3. New component `renderer/components/TabSearch.tsx` (or a separate child-window renderer entry — research-doc decision) — floating panel (similar to `Breadcrumb`'s edit interstitial), gathers all open tabs from:
+   - `App.tsx`'s `fileTabs[]` (working pane file tabs)
+   - `useBrowserState`'s `browserTabs[]` (browser pane)
+   - `auxState.paths[]` if Split View is open
 4. Activate by:
-   - Working pane tab → `onActivate(tabId)` (same path the tab strip click uses).
+   - Working pane tab → `setActiveWorking({kind:'file', id})` (same path the tab strip click uses).
    - Browser tab → `browserManager.activateTab(tabId)`.
-5. Visual: cream paper bg + accent border, lives center-screen, dimmed backdrop. Type-as-filter against `title` + `path`. Group by surface (working / browser).
+   - Aux tab → bring focus to aux + setActiveIndex (Phase 3c follow-up).
+5. Visual: cream paper bg + accent border (Atelier), lives center-screen, dimmed backdrop. Type-as-filter against `title` + `path` + `url`. Group by surface (working / browser / aux). Arrow keys to navigate; Enter to activate; Escape to dismiss.
+6. CLI parity: `duo tab-search [--query <q>]` returns the filtered tab list as JSON for agent inspection. Even if the agent doesn't actively pick from the palette, having the CLI verb means agents have the same "where is X tab?" lookup the user does.
 
-**Out of scope for v0.6.4** — this is its own ENH, not a sweep candidate. File only.
+**Cross-ref:** Phase 3b (`⌘\` open/move chord — same family of "tab navigation chords"); ENH-024 (tab strip pans/shifts — partial overlap, but ENH-024 is about visual access, not jump-by-name); ENH-050 ADR (`docs/DECISIONS.md § WCV-occlusion remediation`); BUG-006 / BUG-045 / BUG-047 / BUG-050 / BUG-058 / BUG-064 (the WCV-occlusion class this design must navigate).
 
-**Cross-ref:** Phase 3b (`⌘\` open/move chord — same family of "tab navigation chords"); ENH-024 (tab strip pans/shifts — partial overlap, but ENH-024 is about visual access, not jump-by-name).
+**Out of scope for v0.6.4.** Filed for v0.6.5 with research-doc as the entry gate.
 
 ---
 
@@ -4699,6 +4710,87 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 **Filed as a discussion item.** No code change required RIGHT NOW — the existing Stage 21e architecture supports this pattern fine. The work owed is documentation + a sanity check that `dist-signed.sh` runs `git submodule update --init` before `electron-builder` (small addition if missing). Pull into a Stage 18b enterprise-distro sprint when that work surfaces.
 
 **Cross-ref:** Stage 21e (fork-friendly architecture, shipped v0.5.0); `docs/HOW-TO-FORK.md`; `fork.config.default.json`; `electron-builder.yml § extraResources`.
+
+---
+
+### ENH-082: Terminal Context Bar — collapsible UI surface below terminal tabs for job + docs + skills shared between user and agent
+
+**Status:** 🆕 Filed · **research-doc owed before code (medium-sized feature)**.
+**Priority:** Medium-High (closes a real coordination gap between user and agent — today neither can express "what is THIS terminal focused on?" except via in-band conversation; a structured surface would make terminal context inspectable, persistent, and clickable).
+**Filed:** 2026-05-03 (owner ask — flagged "want to think hard about this one").
+
+**Owner ask (verbatim):** *"a terminal context bar: a collapsable ui element below the terminal tabs, where both user and duo can indicate the job that a given terminal is focused, the documents it is working with (with links to focus them in canvas), skills being used, etc -- will want to think hard about this one"*
+
+**Problem this closes.** Today, terminal context is invisible:
+
+- The user has multiple terminals (one per task) and forgets which is which after an hour. Tab titles are just `claude · <basename>` or `shell · <cwd>` — no semantic info.
+- The agent in a given terminal has working memory about the current job, files in scope, skills in use — but none of that is surfaced to the user.
+- When the user moves between terminals or comes back after lunch, they have to ask the agent "what was I doing here?" — a recurring re-orientation tax.
+- Files the agent has been editing in this terminal don't have a linked surface; the user can't click to focus them in canvas without remembering paths.
+
+**What's wanted (v1 sketch):**
+
+A collapsible UI element rendered below the terminal tab strip (above the active terminal pane). Per-terminal-tab; collapsed by default; click the strip to expand. Shows:
+
+1. **Job statement** — one-line plain text describing what this terminal is focused on. Both user-editable (text input) and agent-writable (`duo terminal job <text>` or canvas-action `terminal:set-job`). e.g. "v0.6.5 markdown CommentRail (MISSING-001)" or "writing this week's stakeholder update."
+2. **Documents in scope** — list of file paths the terminal is working with. Each path is a clickable link that focuses it in the canvas (via `sendEdit` / `openFileSmart`). Both user-editable (right-click "Add to terminal context" on file/tab) and agent-writable (`duo terminal docs add <path>`). Auto-population candidates: files the agent has read or written via `duo` verbs in this terminal session.
+3. **Skills in use** — list of Claude Code skill names active in this terminal session (from `~/.claude/skills/` discovery). Possibly auto-populated from skill-discovery output; user can pin / unpin.
+4. **(Optional v2) Recent activity** — last 5 `duo` verbs invoked from this terminal (read from `duo events` ring buffer scoped to `DUO_SESSION`). Read-only; mostly for the agent to summarize "what did we just do here?"
+
+Bar visual:
+
+- Collapsed = a thin (~24px) strip with a chevron + the job statement (truncated). Click anywhere on it to expand.
+- Expanded = ~120-180px tall section with three sub-sections (Job / Docs / Skills), each with inline-edit affordances + an agent-emit indicator (a small clawd glyph next to fields the agent recently wrote, fading like the just-added wash on edits).
+- Theme: same Atelier paper-cream / ochre palette; serif italic for the job statement (matches the active-tab serif).
+
+**Architecture sketch (research doc finalizes):**
+
+- **State location:** per-terminal-tab metadata, persisted in `~/.claude/duo/session-state.json` alongside the terminal's `cwd` + `kind` (extend `SessionStateTerminal` shape — additive field, same pattern as Phase 3c-i `aux`).
+- **Per-tab state shape:**
+  ```ts
+  interface TerminalContext {
+    job: string                  // user/agent-writable one-liner
+    docs: { path: string; addedBy: 'user' | 'agent' }[]
+    skills: string[]             // skill names; reserved for v2 auto-discovery
+    expanded: boolean            // collapsed/expanded UI state
+    recentEdits?: { field: 'job' | 'docs' | 'skills'; ts: number; author: 'user' | 'agent' }[]
+                                 // for the just-added wash (max 10)
+  }
+  ```
+- **CLI surface (new verbs, full plumbing checklist per CLAUDE.md § 4):**
+  - `duo terminal job [<text>]` — read or set the active terminal's job statement.
+  - `duo terminal docs [add|remove|list] [<path>]` — manage the docs list.
+  - `duo terminal skills [add|remove|list] [<name>]` — manage the skills list (v2 may auto-populate from skill discovery).
+  - `duo terminal expand|collapse` — UI state.
+  - `duo terminal context [--json]` — read everything for the active terminal.
+  - All scoped by `DUO_SESSION` env so verbs run from inside a terminal target THAT terminal automatically; `--terminal <id>` flag for cross-terminal writes from outside (rare).
+- **Skill update:** new entry in `skill/SKILL.md` documenting the convention — agents should set the job statement at session start and update the docs list as they touch files. Eventually this becomes part of the priming flow (Stage 19b).
+- **UI components:** new `renderer/components/TerminalContextBar.tsx` that consumes per-tab context state from `useTerminalContext` hook (mirror of `useNavigator` shape).
+
+**Edge cases the research doc should resolve:**
+
+1. **Initial state.** When a new terminal spawns, what's the default? Probably empty context, collapsed. But if the spawn was via `duo new-tab --claude --cmd "work on X"`, can the spawn pre-populate the job statement?
+2. **Multi-tab ↔ single context.** What if the same skill or doc is referenced from multiple terminals? Probably each terminal has its own list (terminal-scoped); a separate "global" context surface (Stage 22's "Project Claude Context" panel) is the global view.
+3. **Doc click → canvas focus.** Clicking a doc link should focus it via `sendEdit` (markdown → editor; HTML → canvas; etc.) but should NOT clear the user's current canvas selection or scroll position. Pattern reuses ENH-039's path-link click flow.
+4. **Agent-write rate limiting.** If the agent updates the docs list on every file touch, the bar churns visually. Recommend: debounce the agent-write side; only flash the just-added wash on first-write-in-N-seconds.
+5. **Persistence vs. ephemerality.** Should the context survive across launches (like other session state)? Probably yes — the user wants to come back and remember what they were doing. But should it persist across `duo doctor` clean restart? Probably yes (it's user data, not transient state).
+6. **Privacy / sensitivity.** If the agent writes free-text job statements, what guardrails prevent it from accidentally writing user-private text into a context bar that gets stored on disk? Probably none needed (the user IS the audience), but worth a sentence in the research doc.
+7. **Discoverability.** First-time users won't know the bar exists if it's collapsed by default. Pattern: expanded by default for the first terminal of a fresh install (FTUX); collapsed by default after that.
+
+**Required before code: research doc** at `docs/prd/terminal-context-bar-research.html` (mirror of `canvas-split-view-research.html`'s structure) covering:
+
+- The seven edge cases above
+- Visual mockups (Atelier-styled, paper-cream + ochre, two states — collapsed + expanded)
+- Per-state prop contracts and IPC channel shape
+- CLI verb signatures + plumbing-checklist file list
+- A locked decision on default-collapsed vs. default-expanded for FTUX
+- Sequencing / phase plan (probably 17a/17b style — first the data plane + CLI + persistence, then the UI surface, then the agent-side conventions)
+
+**Why this matters strategically.** Today Duo's user-agent-pair surface is rich on the canvas side (Stage 17 family) and rich on the navigator side (Stage 22's "Your Claude settings" + "Project Claude context"). The terminal is the third leg of the pair surface and currently has zero structured shared context. Closing this gap makes the terminal a first-class participant: the user can SEE what the agent is working on, the agent can SAY what it's working on, and both can drop into the same docs in canvas with one click.
+
+**Sequencing:** medium-sized feature. Doesn't gate anything in v0.6.5 directly. Reasonable home is post-MISSING-001 (markdown CommentRail) once Stage 14a closes — the markdown editor's annotation work is conceptually adjacent (both are "structured shared surface for user-agent communication"). Owner-driven priority, not architectural.
+
+**Cross-ref:** Stage 22 (Your Claude settings + Project Claude context — global-scope shared context, this is its terminal-scope sibling); Stage 19b (priming — terminal context bar's job statement is a natural fit for the priming text); ENH-013 (Send → Duo enabled-only-when-active-Claude — uses the same per-terminal Claude-presence signal that this bar's "is the agent live?" affordance would use); Stage 27 canvas-action verbs (`terminal:focus`, `terminal:send` — same plumbing layer the new `terminal:set-job` etc. would extend).
 
 ---
 

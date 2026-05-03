@@ -136,9 +136,72 @@ BrowserManager bounds tracking for two WebContentsViews with focus
 mirroring + per-view zoom locks. ~half a sprint of its own.
 
 The v0.6.4 chapter feels complete: Split View core + visible UI +
-invocation surfaces + persistence + dirty-replace dialog. The
-single remaining deferred item (browser-in-aux) gets a v0.6.5
-follow-up sprint.
+invocation surfaces + persistence + swap semantics + dirty-replace
+dialog. The single remaining deferred item (browser-in-aux) gets a
+v0.6.5 follow-up sprint.
+
+**Sprint 3 owner-clarification refinements (2026-05-03 evening):**
+
+1. **`⌘⇧\` rewired close → promote.** Originally specified as "close
+   the split"; refined to "promote aux back to main" (closes the
+   split AND keeps the file open). Pure-discard close stays
+   reserved for the ✕ button in the aux header. Mirrors the ⇤
+   button's existing behavior. Updated in `globalShortcuts.ts`,
+   `useKeyboardShortcuts.ts`, `App.tsx` (new `splitViewPromote`
+   handler), and `canvas-split-view-research.html` PRD.
+
+2. **`splitViewMoveTabByPath`: replace → swap semantics.** When
+   moving a new file into Split View while aux already holds a
+   different file, the existing aux file is now PROMOTED back to
+   main as a new file tab — not discarded. Net effect: aux ↔ main
+   exchange. Single-source-of-truth still holds. activeWorking
+   flips to the newly-promoted main tab when the moved-in file
+   was active (keeps focus on file work; falling back to browser
+   would be surprising when there's literally a fresh file tab
+   right there). Phase 3c-iii dirty-replace dialog still fires
+   on the swap when the displaced aux is dirty (the editor
+   unmounts during the pane move, losing unsaved edits). PRD
+   updated with the new contract.
+
+**Next-sprint research-doc owed (filed in v0.6.5 backlog):**
+
+- **ENH-080 (`⌘⇧A` open-tab search palette) needs a research
+  document before code work starts.** The palette is renderer
+  DOM and would have the SAME WCV-occlusion class as BUG-006
+  (in-page Send → Duo pill), BUG-045 (file:// browser tabs
+  context menu), BUG-047 (the broader class summary), BUG-050
+  (ContextMenu occluded by editor canvas), BUG-058 (context
+  menu occluded by browser), and BUG-064 (trash + pinned-close
+  modal occlusion). ENH-050's resolution was "native NSMenu +
+  system sheets, NOT WCV-mute" — but the tab-search palette
+  is interactive (typeahead-filterable list, arrow-key
+  navigation), which an NSMenu doesn't fit cleanly. Research
+  options to enumerate:
+  - **(a) Native window** — Electron child `BrowserWindow` with
+    transparent borderless chrome, dismiss on blur. Composes
+    above WCV at the window-server level (same as
+    `dialog.showMessageBox`).
+  - **(b) WCV mute pattern (BUG-058 v2 lineage)** —
+    `setOverlayMuted(true)` collapses every WCV to 1×1 while
+    the palette is open; restores on close. Already retired
+    for menus + sheets per ENH-050 ADR; resurrecting for the
+    palette is acceptable IF (a) is impractical.
+  - **(c) Renderer-DOM palette + WCV bounds adjust** — palette
+    is React, but the renderer dynamically shrinks the WCV
+    bounds while the palette is visible. Trickier than mute
+    (animation, re-layout, restore edge cases).
+  - **(d) Extension-style overlay** — render the palette into
+    the active WCV via CDP injection (mirror BUG-006's in-page
+    Send → Duo pill pattern). Unifies behavior across browser
+    and renderer surfaces but introduces a CDP dependency for
+    a feature that should work even when no browser is active.
+  Recommendation seed: (a) is the cleanest answer if
+  `BrowserWindow` can hit the right visual styling. (d) is the
+  most novel; (b) is the safe fallback. Research doc should
+  prototype (a) first and document why if it doesn't work.
+  Owner-flagged constraint: "think hard about the menu
+  occlusion issues we've had to make sure we get this one
+  right." Filed in `tasks.md § ENH-080`.
 
 **Editor-canvas parity rule disposition (for ENH-076):** **(a)
 Mirrored** — same chord, same handler shape, same no-op-outside-
