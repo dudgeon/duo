@@ -228,16 +228,44 @@ export function WorkingPane({
 
   // ENH-084 (v0.6.5) — subpane-aware focus. When Split View is open,
   // the working pane has TWO surfaces (main + aux). focusedSubpane
-  // tracks which one the user last interacted with so the aux header
-  // can paint the accent treatment when its column has focus
-  // (mirroring how the main strip already lights up via the existing
-  // `focused` prop). Default 'main' — until the user clicks aux,
-  // main wins.
+  // tracks which one the user last interacted with so each surface
+  // can paint the accent treatment ONLY when it has focus
+  // (exclusive — owner ask: clicking main should remove the aux
+  // glow and vice versa). Default 'main' — until the user clicks
+  // aux, main wins.
   const [focusedSubpane, setFocusedSubpane] = useState<'main' | 'aux'>('main')
+  const mainColRef = useRef<HTMLDivElement>(null)
+  const auxColRef = useRef<HTMLDivElement>(null)
   // When the split closes, snap back to main so the next time aux
   // opens, the indicator state is sane.
   useEffect(() => {
     if (!auxState) setFocusedSubpane('main')
+  }, [auxState])
+  // ENH-084 v2 (v0.6.5) — detect subpane focus via `focusin` events
+  // on the document. mousedownCapture missed iframe clicks because
+  // events inside an iframe don't bubble out to the parent doc;
+  // when an iframe (PageTab) gains focus, the parent doc DOES see
+  // a `focusin` with the iframe element as target. Walking up from
+  // event.target through parentNode chains via `Element.contains`
+  // covers all surfaces: TipTap (contentEditable in main doc),
+  // page iframes, image previews, the strip itself. Capture phase
+  // so it sees the focus before any local handler.
+  useEffect(() => {
+    if (!auxState) return  // No aux pane = no exclusivity needed.
+    const handler = (e: FocusEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (mainColRef.current?.contains(target)) {
+        setFocusedSubpane('main')
+      } else if (auxColRef.current?.contains(target)) {
+        setFocusedSubpane('aux')
+      }
+      // Anything else (terminal, files column) — leave subpane alone;
+      // working-column focus dropping is App.tsx's `focusedColumn`
+      // job, which gates the parent `focused` prop.
+    }
+    document.addEventListener('focusin', handler, true)
+    return () => document.removeEventListener('focusin', handler, true)
   }, [auxState])
   // Keep tabOrder reconciled with current strip ids: append unknown
   // ids in their insertion order, drop ids no longer present. The
@@ -473,14 +501,13 @@ export function WorkingPane({
         onNewBrowserTab={handleNewBrowserTab}
         onClose={handleClose}
         onTogglePin={handleTogglePin}
-        // ENH-084 (v0.6.5) — main strip glows whenever the working
-        // column has focus, regardless of subpane. The earlier gate
-        // (`focused && focusedSubpane === 'main'`) caused a regression
-        // where the main strip stopped glowing in some flows. The
-        // aux-specific glow signal is on AuxHeader; both can glow
-        // simultaneously when aux has focus, which reads as "the
-        // working column is active, and aux is the live subpane."
-        focused={focused}
+        // ENH-084 v2 (v0.6.5) — exclusive subpane glow. Main strip
+        // glows ONLY when working column has focus AND main is the
+        // active subpane. focusedSubpane is updated via the document-
+        // level focusin listener above, which sees iframe focus
+        // events that mousedownCapture missed. When split is closed,
+        // focusedSubpane is always 'main' (default + reset effect).
+        focused={focused && focusedSubpane === 'main'}
         onRevealInNavigator={onRevealInNavigator}
         onTrashFile={onTrashTabFile}
         onStartRenameFromTab={onStartRenameFromTab}
@@ -528,13 +555,16 @@ export function WorkingPane({
     <div className={`w-full h-full bg-surface-0 ${splitOpen ? 'flex' : 'flex flex-col'}`}>
       {/* Main column. min-w-0 lets the flex child shrink past its
           intrinsic content width when the user drags the divider.
-          ENH-084 — clicking anywhere in this column flips the subpane
-          to 'main' so the strip lights up. Capture-phase mousedown so
-          it fires before TipTap / iframe etc. consume the event. */}
+          ENH-084 v2 — focus tracking lives at the document level
+          (the focusin effect above) using mainColRef as a containment
+          check. Iframe focus events fire on the parent doc as
+          focusin with target=iframe element, which IS contained in
+          this ref — so PageTab clicks are caught even though
+          mousedown doesn't bubble out of the iframe. */}
       <div
+        ref={mainColRef}
         className="flex flex-col min-w-0"
         style={splitOpen ? { flex: `${(1 - auxState!.splitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
-        onMouseDownCapture={splitOpen ? () => setFocusedSubpane('main') : undefined}
       >
         {mainPaneFragment}
       </div>
@@ -545,12 +575,9 @@ export function WorkingPane({
             onResize={onAuxResize}
           />
           <div
+            ref={auxColRef}
             className="flex flex-col min-w-0 border-l border-paper-rule"
             style={{ flex: `${auxState!.splitPct * 100} 0 0%` }}
-            // ENH-084 — clicking in aux flips the subpane to 'aux'.
-            // Capture-phase so iframe / contentEditable inside don't
-            // swallow the event before we see it.
-            onMouseDownCapture={() => setFocusedSubpane('aux')}
           >
             <AuxHeader
               path={auxFileTab.path}

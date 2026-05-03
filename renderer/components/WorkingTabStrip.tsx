@@ -313,10 +313,13 @@ export function WorkingTabStrip({
           halves. */}
       <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
 
-      {/* ENH-006 + ENH-068 — split button: + new file (primary) | globe new
-          browser tab (secondary). Mirrors TabBar's terminal-strip split.
-          BUG-068 — sibling of the scroller above, so this cluster stays
-          pinned to the right edge regardless of tab count / pan position. */}
+      {/* ENH-006 + ENH-068 + ENH-083 — split button: + new file | globe
+          new browser tab | collapse-canvas. Three buttons in one rounded
+          cluster, in-cluster h-3 paper-rule dividers between each, all
+          sharing the same baseline (mirrors TabBar's terminal-strip
+          three-button cluster). BUG-068 — sibling of the scroller
+          above, so this cluster stays pinned to the right edge
+          regardless of tab count / pan position. */}
       <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
         <button
           onClick={onNewFile}
@@ -337,37 +340,29 @@ export function WorkingTabStrip({
         >
           <BrowserGlobeGlyph />
         </button>
+        {onToggleCanvasCollapsed && (
+          <>
+            <span aria-hidden="true" className="w-px h-3 bg-paper-rule" />
+            <button
+              type="button"
+              onClick={onToggleCanvasCollapsed}
+              title={isCanvasCollapsed ? 'Show canvas (right pane)' : 'Hide canvas (terminal takes full width)'}
+              aria-label={isCanvasCollapsed ? 'Show canvas' : 'Hide canvas'}
+              className={[
+                'w-6 h-6 flex items-center justify-center transition-colors',
+                isCanvasCollapsed
+                  ? 'bg-accent text-white'
+                  : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+              ].join(' ')}
+            >
+              <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+                <rect x="1" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+                <rect x="8" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isCanvasCollapsed ? 'currentColor' : 'none'} />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
-
-      {/* ENH-083 (v0.6.5) — collapse-canvas button. Lives next to the
-          new-tab cluster (was in titlebar in v0.6.4). Active state
-          (canvas collapsed) inverts to accent fill so it's obvious
-          which pane is hidden. Glyph mirrors TabBar's terminal-
-          collapse variant: same shape, opposite-side fill.
-          Owner-asked divider between this and the new-file/globe
-          cluster (matches TabBar's terminal side). */}
-      {onToggleCanvasCollapsed && (
-        <>
-          <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
-          <button
-            type="button"
-            onClick={onToggleCanvasCollapsed}
-            title={isCanvasCollapsed ? 'Show canvas (right pane)' : 'Hide canvas (terminal takes full width)'}
-            aria-label={isCanvasCollapsed ? 'Show canvas' : 'Hide canvas'}
-            className={[
-              'shrink-0 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
-              isCanvasCollapsed
-                ? 'bg-accent text-white'
-                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
-            ].join(' ')}
-          >
-            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
-              <rect x="8" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isCanvasCollapsed ? 'currentColor' : 'none'} />
-            </svg>
-          </button>
-        </>
-      )}
     </div>
   )
 }

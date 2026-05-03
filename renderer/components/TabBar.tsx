@@ -102,10 +102,14 @@ export function TabBar({
           from the tab section." */}
       <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
 
-      {/* Split button: + claude (primary) | > shell (secondary). Both
-          halves sit on the strip baseline like the chips. The 1px
-          divider is paper-rule so it reads as the same material as
-          the chip outlines. */}
+      {/* Split button: + claude (primary) | > shell (secondary) | collapse.
+          Three buttons in one rounded cluster, separated by the same
+          h-3 paper-rule hairline. ENH-083 (v0.6.5) — collapse-terminal
+          button moved here from the titlebar; lives WITH the new-tab
+          cluster (owner: "they should be with the new terminal button
+          cluster") with the in-cluster divider style for visual
+          consistency. Active state (terminal collapsed) inverts to
+          accent fill so it's obvious which pane is hidden. */}
       <div className="shrink-0 flex items-center mb-1 rounded overflow-hidden">
         <button
           onClick={onNewClaude}
@@ -126,37 +130,29 @@ export function TabBar({
             <path d="M2.5 2.5l3 2.5-3 2.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
+        {onToggleTerminalCollapsed && (
+          <>
+            <span aria-hidden="true" className="w-px h-3 bg-paper-rule" />
+            <button
+              type="button"
+              onClick={onToggleTerminalCollapsed}
+              title={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column (canvas takes full width)'}
+              aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
+              className={[
+                'w-6 h-6 flex items-center justify-center transition-colors',
+                isTerminalCollapsed
+                  ? 'bg-accent text-white'
+                  : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+              ].join(' ')}
+            >
+              <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+                <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
+                <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+              </svg>
+            </button>
+          </>
+        )}
       </div>
-
-      {/* ENH-083 (v0.6.5) — collapse-terminal button. Lives next to
-          the new-tab cluster (was in titlebar in v0.6.4). Active state
-          (terminal collapsed) inverts to accent fill so it's obvious
-          which pane is hidden. Owner-asked divider between this and
-          the claude/shell cluster — same paper-rule hairline pattern
-          as the in-cluster divider so the two button-groups read as
-          related-but-distinct. */}
-      {onToggleTerminalCollapsed && (
-        <>
-          <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
-          <button
-            type="button"
-            onClick={onToggleTerminalCollapsed}
-            title={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column (canvas takes full width)'}
-            aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
-            className={[
-              'shrink-0 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
-              isTerminalCollapsed
-                ? 'bg-accent text-white'
-                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
-            ].join(' ')}
-          >
-            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
-              <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
-              <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
-            </svg>
-          </button>
-        </>
-      )}
     </div>
   )
 }
