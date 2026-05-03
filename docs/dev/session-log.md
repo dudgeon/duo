@@ -18,6 +18,52 @@
 
 ---
 
+## 2026-05-03 — Sprint 3 closes the v0.6.3 chapter (Phase 2 ADR + Phase 3a Split View end-to-end + walk-3 v3 fixes)
+
+**Status: not cut.** Same posture as 2026-05-02 entry — accumulating until Sprint 3 wraps Phase 3b + 3c + a fresh smoke walk. The big delta this session: **Split View v1 is functional end-to-end from CLI** with visible UI; the walk-3 fail items now PASS in a live smoke; Phase 2 convergence ADR is locked; and Phase 3a polish (per-page split routing + agent trigger language) landed. Owner is picking a styling option before Phase 3b starts. Read `docs/dev/active-sprint.md` for the full state.
+
+**Sprint 3 commit chain (8 commits this arc):**
+
+| Commit | Phase | Bullet |
+|---|---|---|
+| `1b3b132` | Phase 1 v1 (yesterday) | First-pass walk-3 prep — INSUFFICIENT, owner walk-3 reported 5/6 FAIL |
+| `4baba8b` | Phase 1 v2 (yesterday) | RAF poll + start-match regex + tilde expansion + agent model alias |
+| `f7f6891` | **Phase 2** | Editor/canvas convergence ADR — Path A (mirror, not unify); CLAUDE.md gets parity rule requiring (a)/(b)/(c) annotation on every editor PR |
+| `40c9951` | **Phase 3a-i** | Split View end-to-end PLUMBING (types + CLI + IPC + main + preload + renderer state hook). No UI yet. |
+| `a0c144c` | **Phase 3a-ii** | Split View VISIBLE UI — WorkingPane horizontal split, AuxHeader (`SPLIT` label + filename + ⇤ promote + ✕ close), SplitViewDivider (drag + double-click reset). |
+| `5506f06` | Phase 3a polish (docs) | Styling-options canvas with 5 options + CSS-driven mocks; **owner pick still pending** |
+| `56e986b` | **BUG-070/061 v3** | Live-diagnosed root causes: srcdoc `about:blank` phase + Chromium nbsp-conversion. Fixes verified PASS in same session. |
+| `f7ff1fe` | Phase 3a polish (code) | Per-page `<meta duo-path-target="split">` so smoke walks default their path-link clicks to Split View. New `duoOpenPathSplit` CDP binding + agent trigger-language docs. |
+
+**Live smoke walk (this session, 5/5 PASS):** BUG-070 v3 (fresh-canvas first-click cursor lands), BUG-061 v3 bullet (`- ` → `<ul>`), BUG-061 v3 ordered (`1. ` → `<ol>`), ENH-039 tilde-expanded path-link click, Phase 3 Split View end-to-end (state/open/resize via CLI/promote/close).
+
+**Two BUG-070/061 fix iterations this session:** v2 (yesterday's commit `4baba8b`) was insufficient. Walk-3 failed 5/6. v3 (this session's `56e986b`) diagnosed the actual root causes via DevTools inspection of the live iframe DOM:
+
+1. **BUG-070 v3 — srcdoc `about:blank` phase.** Chromium srcdoc iframes pass through `about:blank` (readyState 'complete' immediately) before the parser swaps in the real srcdoc doc. v2's RAF poll wired against the disposable about:blank body, set contenteditable on it, locked `wired=true`, never re-ran when the real srcdoc body arrived. Fix: `if (doc.URL === 'about:blank') return` inside `wire()`.
+
+2. **BUG-061 v3 — `&nbsp;` conversion.** Chromium's contentEditable converts trailing literal spaces (U+0020) to `&nbsp;` (U+00A0) to preserve them. DOM inspection confirmed `<h1>-&nbsp;</h1>`. v2's `/^[-*+] $/` regex matched only U+0020. Fix: `\s` matches both per ECMAScript spec. Applied to heading, bullet, ordered, blockquote triggers.
+
+**Locked behaviors this arc** (full list in `docs/dev/active-sprint.md § Locked decisions`):
+- `⌘\`` cycle is 2-way (terminal ↔ working pane), not 3-way
+- `⌃Tab` is focused-pane only (no cross-pane cycling)
+- Capability deltas main↔aux: NONE in v1
+- Agent always opens in main unless trigger words ("in split / alongside / side by side / see these side by side / as a companion / in the side panel") are used
+- User-facing label "Split View" stays
+- Per-page meta `duo-path-target=split` lets pages default their links to split (smoke-walk uses this so links open in side while walk stays in main)
+
+**Owner-pending: styling pick.** Canvas at `docs/prd/canvas-split-view-styling.html`. Five options ranked. Recommendation: **B (Slack-faithful subordinate)** — accent left rule + italic serif filename + drop the all-caps "SPLIT" label. ~30 min CSS edit.
+
+**Owner-pending: dev restart for the per-page split-routing meta.** Renderer-only changes from this session HMR'd into the running dev. Main-process changes (`f7ff1fe`'s cdp-bridge.ts + main.ts) need a full restart before live verify.
+
+**What's queued for the v0.6.4 cut:**
+- Phase 3b — invocation surfaces (right-click menus on tabs/file-tree/pinned/page-links + `⌘\` / `⌘⇧\` keyboard chords)
+- Phase 3c — persistence (aux + splitPct in session-state) + edge cases (dirty-replace dialog, browser-in-aux)
+- Cut: CHANGELOG, RELEASES.md, faq.html "What's New," what-duo-does.html, then `cut-version` skill.
+
+**Filed but not actioned this session:** divider drag from synthetic mouse drag didn't trigger — UX-tuning followup, doesn't block sprint.
+
+---
+
 ## 2026-05-02 (evening) — v0.6.3 in-progress (cut waiting on owner direction)
 
 **Status: not cut.** Owner direction "no cut yet" — accumulating until the chapter feels closed. All the work below is shipped + verified + on `main`; the cut commit / tag / DMG / GitHub release simply hasn't happened. Re-read this entry first when picking up next session.

@@ -3261,7 +3261,23 @@ The smoke-walk page renders in BROWSER mode (`<meta duo-open-in="browser">` so t
 
 ### ENH-041: Split the canvas (right pane) into side-by-side panels
 
-**Status:** 🆕 Filed
+**Status:** 🚧 v1 (Slack-style single aux slot) actively building in Sprint 3 (v0.6.3 → v0.6.4 arc). Locked spec: `docs/prd/canvas-split-view-research.html`. As of 2026-05-03:
+- ✅ **Phase 3a-i** (`40c9951`): plumbing end-to-end — types, IPC channels, NavBridge methods, CLI `duo split-view {state, open, close, promote, resize}`, App.tsx state hook + IPC subscribers. Verified via CLI.
+- ✅ **Phase 3a-ii** (`a0c144c`): visible UI — WorkingPane horizontal split, AuxHeader, SplitViewDivider. Verified live.
+- ✅ **Phase 3a polish** (`f7ff1fe`): per-page `<meta duo-path-target="split">` so pages can default their `[data-duo-path]` clicks to Split View; smoke-walk generator opts in; agent docs document trigger language ("in split / alongside / side by side / as a companion / in the side panel").
+- ⏳ **Phase 3a styling** (`5506f06` canvas drafted): 5 options (A current/shipped, B recommended, C–E alternatives) at `docs/prd/canvas-split-view-styling.html`. **Owner pick pending.**
+- ⏳ **Phase 3b** (queued): right-click "Move to Split View" on tabs / file-tree / pinned / page-link; `⌘\` open + `⌘⇧\` close keyboard chords.
+- ⏳ **Phase 3c** (queued): session-state persistence (aux + splitPct survive launch); empty-main → promote (already wired; needs integration test); dirty-replace native dialog; browser-tabs-in-aux.
+- 🔵 **Deferred non-blocker:** FTUX default split content (auto-split welcome on first launch?) — pick after dogfooding.
+
+**Locked spec deltas from the original "side-by-side panels" framing:**
+- v1 is single-slot (one aux tab); Option B (multi-tab aux) kept on table for v2 with B-ready internals (`tabs[]` shape) from day one.
+- Aux is right-side-only; no top/bottom/left aux; no recursive splits (Option C explicitly rejected).
+- Capability deltas main↔aux: NONE in v1 (same TipTap/canvas surfaces, dirty/save/Send→Duo all work the same; three things deferred: browser-tabs-in-aux, pinning, multi-tab).
+- Move semantics on tab right-click; Open semantics on file/link right-click. Single source of truth: never two tabs for the same path across panes.
+- `⌘\`` cycle is 2-way (terminal ↔ working pane, last-focused side); `⌃Tab` is focused-pane only.
+- User-facing label "Split View" (CLI verb `duo split-view`).
+
 **Priority:** Low-medium (long-tail leverage; not blocking any current sprint but enables compelling workflows)
 **Filed:** 2026-05-02 (Stage 27 walk-2 owner request)
 
@@ -3626,10 +3642,13 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-061: Markdown parsing broken in HTML canvas — bullets, indent / outdent missing (canvas vs. md editor parity gap)
 
-**Status:** ✅ Shipped v0.6.3
+**Status:** ✅ Shipped v0.6.4 — bullet/ordered triggers now fire correctly. Three iterations in the v0.6.3 → v0.6.4 arc:
+- v1 (`1b3b132`, 2026-05-02): hand-rolled `convertEmptyBlockToList` replacing the failing `execCommand('insertUnorderedList')`. Walk-3 reported FAIL.
+- v2 (`4baba8b`, 2026-05-02): start-match regex `/^[-*+] $/` + added `+` for CommonMark parity. Walk-3 still FAIL.
+- **v3 (`56e986b`, 2026-05-03):** root cause found via DOM inspection: Chromium converts trailing literal space (U+0020) to `&nbsp;` (U+00A0), so `^[-*+] $` never matched. Switched all space-trigger regexes from literal ` ` to `\s` (per ECMAScript spec, `\s` matches both U+0020 and U+00A0). Applied to heading, bullet, ordered, blockquote triggers. Verified PASS in live smoke (typed `- bullet trigger v3` → rendered as `• bullet trigger v3`; `1. ordered` → numbered list). Tab/Shift-Tab indent (v0.6.3) still works.
+
 **Priority:** Medium-high (parity gap; HTML canvas was meant to be a "lighter" markdown surface but missing bullet handling makes it materially worse).
 **Filed:** 2026-05-02 (idle-thoughts.md item)
-**Shipped (partial):** 2026-05-02 — Tab/Shift-Tab indent/outdent shipped; bullet trigger still has a deeper issue not addressed by this commit.
 
 **What's IN this fix:**
 - **Tab / Shift-Tab indent / outdent inside `<li>`** — new `handleListIndent(doc, shift)` in `renderer/components/HtmlCanvas/markdownShortcuts.ts` hooks the keydown handler. Inside any `<li>` (climbed via `closest('li')`), Tab fires `execCommand('indent', false)` and Shift-Tab fires `execCommand('outdent', false)`. Outside a list, the keystroke falls through. Mirrors the markdown editor's ⌘[ / ⌘] indent/outdent (ENH-025).
@@ -4459,7 +4478,11 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 ### BUG-070: Cursor doesn't land in fresh HTML canvas until tab-away-and-back
 
-**Status:** 🆕 Filed
+**Status:** ✅ Shipped v0.6.4 — three iterations:
+- v1 (`1b3b132`, 2026-05-02): added a RAF poll around `wire()` to retry until body exists. Walk-3 reported FAIL.
+- v2 (`4baba8b`, 2026-05-02): added `if (doc.readyState === 'loading') return` guard inside `wire()`. Walk-3 still FAIL.
+- **v3 (`56e986b`, 2026-05-03):** root cause found — srcdoc iframes pass through an `about:blank` document phase BEFORE the parser swaps in the real srcdoc doc. about:blank's readyState is 'complete' immediately, so v2's readyState guard didn't catch it. The RAF poll wired against the disposable about:blank body, set contenteditable on it, locked `wired=true`, and never re-ran when the parser swapped in the real srcdoc body. Fix: bail in `wire()` when `doc.URL === 'about:blank'`. The poll keeps retrying until URL becomes 'about:srcdoc'; wire() runs against the real body. Verified PASS in live smoke (fresh `duo html new` canvas; first click in body landed cursor immediately).
+
 **Priority:** Medium (UX paper-cut — workaround exists but unintuitive)
 **Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V11 owner observation)
 
