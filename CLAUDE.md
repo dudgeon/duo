@@ -207,6 +207,26 @@ break Duo's pair-work premise. Patterns:
    not `query` / `get`. Read-only ops should NOT generate edit log
    entries — list them in CanvasTab's reply handler.
 
+#### Editor-canvas parity rule
+
+Locked 2026-05-02 — see `docs/DECISIONS.md § Editor / canvas convergence`.
+The markdown editor (TipTap, Stage 11) and the HTML canvas (raw
+contentEditable iframe, Stage 17) are intentionally parallel
+codebases. Every editor feature added to ONE surface must explicitly
+declare its disposition for the OTHER. PR descriptions must include
+one of:
+
+- **(a) Mirrored** — same feature also ships in the other surface,
+  same PR or paired PR within the sprint.
+- **(b) Skipped — surface-specific** — feature has no analog on the
+  other surface; one-line reason (e.g. "bullet-marker round-trip is a
+  markdown-source concept; canvas hand-writes `list-style`").
+- **(c) Deferred** — feature ships to one surface for v1; mirror-port
+  queued as a tracked ENH/BUG with cross-reference back to this PR.
+
+Skipping the disposition is a review-block. Drift between the two
+surfaces is acceptable but must be deliberate.
+
 #### Plumbing checklist for a new WorkingPane tab type
 
 1. `shared/types.ts` — add to `WorkingTabType`; audit discriminated

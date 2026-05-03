@@ -617,6 +617,56 @@ machine: `'no-pty' | 'shell' | 'claude' | 'starting'`. Renderer hook:
   need `pgrep -P <pid>` recursion or `/proc` parsing. Out of scope
   pre-1.0 (Duo is macOS-only per the framework decision above).
 
+### Editor / canvas convergence: parallel codebases with explicit parity rule, not unification
+
+**Status:** 🟢 Locked 2026-05-02 (Sprint 3 Phase 2 — closes the convergence question raised by BUG-061's "have we failed to merge the components between md vs html canvases?").
+**Raised:** 2026-05-02 — three consecutive editor features shipped to one surface but not the other (ENH-018 bullet markers shipped only for the markdown editor; ENH-025 ⌘[ / ⌘] indent shipped only for the markdown editor; BUG-061 then surfaced the asymmetric bullet trigger gap on the canvas surface). The accumulating "this exists in editor but not canvas" backlog made the question explicit: **do we keep the two surfaces separate and accept that drift, or unify them?**
+**Resolves:** "Should the markdown editor (TipTap-backed, Stage 11) and the HTML canvas (raw `contentEditable` iframe, Stage 17) converge into a single editing primitive, or stay as parallel codebases that mirror features explicitly?"
+
+**Decision.** Keep them parallel. Mirror features explicitly. Add a parity-tracking rule to the plumbing checklist so drift becomes deliberate, not accidental.
+
+The two surfaces have fundamentally different contracts that justify the duplication:
+
+- **Markdown editor (TipTap):** the document is *what TipTap renders.* The on-disk file is the markdown serialization of TipTap's ProseMirror tree. Schema-strict; rich input rules; structured paste; tracked-changes-ready (Stage 14). The user is editing **a document** through an editor.
+- **HTML canvas (contentEditable iframe):** the document IS the page (Stage 17 PRD H1). The on-disk HTML is exactly what the user authored — no virtual DOM, no schema rewrite, no serializer. Hand-authored CSS survives untouched; arbitrary HTML structures are honored verbatim. The user is editing **a page** that happens to be live.
+
+Unifying them requires picking which contract wins. Either we wrap canvas in TipTap (loses the "the canvas IS the page" guarantee — TipTap's schema doesn't preserve arbitrary HTML), or we extract a shared text-editing primitive that's neither TipTap nor raw contentEditable (a multi-month rewrite of two mature surfaces). Neither pays back the cost of the parallel-features tax we accept by mirroring.
+
+**Why this option won.**
+
+- **PRD-H1 is load-bearing.** "The canvas IS the page" is what makes the canvas attractive for HTML-first authoring (lessons, dashboards, agent-emitted artifacts). Wrapping it in TipTap would force authored HTML through a schema-roundtrip; the canvas would no longer be a valid place to author arbitrary HTML.
+- **Drift is bounded, not unbounded.** The two surfaces have ~6 features in common today (block formatting, inline marks, list operations, indent/outdent, headings, code blocks). Each new feature is one mirror-port of work, not a doubling of the codebase. The parity-checklist rule (added below) catches drift at PR review time rather than at smoke-walk time.
+- **Different surfaces, different contracts.** When the user opens a markdown file, they expect markdown semantics (input rules, paste rewrite, schema enforcement). When they open an HTML canvas, they expect HTML semantics (whatever you wrote stays). A unified primitive would have to negotiate those differing expectations every keystroke.
+- **Reversibility.** If a future use case demands unification, the parity-tracking rule means we know exactly which features to preserve. The split-codebase state is a strict superset of any unified state — we can collapse later, we can't easily un-collapse.
+
+**Why not the alternatives.**
+
+- **Path B1 — embed TipTap inside the canvas iframe.** Solves drift; breaks PRD-H1 (TipTap's schema rewrites arbitrary HTML on parse, so hand-authored layouts would round-trip incorrectly). Also loses the "agents author canvases by writing HTML, not by learning TipTap's schema" promise that Stage 27 codified.
+- **Path B2 — extract a shared `<TextEditingPrimitive>` that both surfaces compose.** Multi-month refactor of two stable surfaces. The shared primitive would have to handle two different contracts (schema-strict vs HTML-pass-through), making it the most complex thing in the codebase. The bug surface would grow, not shrink. Doesn't pay for itself.
+- **Path B3 — replace canvas with TipTap-with-raw-HTML mode.** TipTap doesn't have a "preserve arbitrary HTML" mode in any robust form. Hacks exist (HTML-as-codeblock, schema escape hatches), but they re-introduce schema-roundtrip surprises that break PRD-H1.
+
+**Trade-offs accepted.**
+
+- **Each new editor feature = two implementations.** ENH-076 (⌘[ / ⌘] in canvas, parity with ENH-025 in editor) is the canonical example: ~10 lines mirroring ENH-025's handler. Across the v0.6.x → v1.0 horizon, ~5–10 such mirror-ports expected. Cost is bounded.
+- **Drift between surfaces is deliberate where it occurs.** Bullet markers (`*` vs `-` round-trip per source character) are an editor-only feature; the canvas is HTML-first and doesn't have a markdown-marker concept to round-trip. Documented in the relevant ENH. The parity rule below requires explicit "skip — surface-specific" annotation in PR descriptions for non-mirrored features.
+- **Bug-fix work is per-surface.** BUG-061 (canvas bullet trigger) and the prior BUG-018 (editor bullet markers) had different fixes. Each surface gets its own bug tracker entry; cross-references encouraged.
+
+**The parity rule (now part of CLAUDE.md plumbing checklist).** Whenever a new editor feature ships to ONE of the two surfaces, the PR description must explicitly state one of:
+- (a) **Mirrored:** the same feature also ships in the other surface in the same PR (or a paired PR landing within the same sprint).
+- (b) **Skipped — surface-specific:** the feature has no analog on the other surface, with a one-line reason (e.g. "bullet-marker round-trip is a markdown-source concept; canvas authors hand-write CSS list-style, no equivalent").
+- (c) **Deferred — parity gap accepted:** the feature ships to one surface for v1; mirror-port queued as a tracked ENH/BUG with cross-reference back to this PR.
+
+**Implementation order.**
+
+1. **No code change required to lock the decision.** Two surfaces continue as today.
+2. **CLAUDE.md plumbing checklist gets a new "Editor-canvas parity rule" section** — codifies the (a)/(b)/(c) annotation requirement above.
+3. **Existing parity gaps tracked.** ENH-076 (canvas ⌘[ / ⌘] indent) is in Sprint 3 Phase 3; will close one of the open gaps. MISSING-001 (markdown editor add-comment affordance) is the inverse direction — comments live in canvas via Stage 17d's CommentRail; the markdown editor needs equivalent surfacing. Tracked under Phase 3 of this sprint.
+4. **No active rewrite work** — the decision is to keep the parallel codebases, so there's nothing to refactor proactively. Future feature work follows the parity rule.
+
+Cross-references: BUG-061 (the bug that raised the convergence question), ENH-018 (markdown editor bullet markers — an example of a deliberate non-mirror), ENH-025 (markdown editor ⌘[/⌘] indent — paired with canvas-side ENH-076), MISSING-001 (markdown editor needs comment-add affordance — inverse-direction parity gap), Stage 11 PRD (markdown editor), Stage 17 PRD H1 ("the canvas IS the page" — the load-bearing principle that drove this decision), CLAUDE.md § Plumbing checklists (where the parity rule now lives).
+
+---
+
 ### WCV-occlusion remediation: native NSMenu + system sheets, not WCV-mute
 
 **Status:** 🟢 Locked 2026-05-02 (v0.6.3 walk-1 follow-up; supersedes ENH-050's prior capturePage-overlay direction).
