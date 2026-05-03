@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Split View styling — five options</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-default-editable" content="false">
+<style>
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F0E9D6;
+    --paper-edge: #E5DEBE;
+    --paper-rule: #D9CEA8;
+    --ink: #1A1410;
+    --ink-soft: #3D352A;
+    --ink-mute: #7B6F58;
+    --ink-ghost: #A89E84;
+    --accent: #C66A2E;
+    --accent-soft: #F2D9B8;
+    --accent-ink: #7A3E1A;
+    --good: #2E7D52;
+    --warn: #B65A2A;
+    --bad: #B13E3A;
+    --serif: ui-serif, "New York", "Iowan Old Style", Charter, Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1A1611;
+      --paper-deep: #221D17;
+      --paper-edge: #2D2820;
+      --paper-rule: #3D352A;
+      --ink: #F0E9D6;
+      --ink-soft: #C8BD9E;
+      --ink-mute: #8A7E66;
+      --ink-ghost: #6E6452;
+      --accent: #E08F4A;
+      --accent-soft: #3F2A18;
+      --accent-ink: #F2D2A8;
+      --good: #6BBF8F;
+      --warn: #D88A4F;
+      --bad: #D86A65;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    font-size: 14px;
+  }
+  main { max-width: 920px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 30px;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+    color: var(--ink);
+  }
+  .subtitle {
+    color: var(--ink-mute);
+    font-style: italic;
+    font-size: 14px;
+    margin: 0 0 32px;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 22px;
+    margin: 40px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--paper-rule);
+    color: var(--accent-ink);
+  }
+  h3 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 17px;
+    margin: 24px 0 8px;
+    color: var(--ink);
+  }
+  h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 14px 0 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  p { margin: 0 0 12px; color: var(--ink-soft); }
+  strong { color: var(--ink); font-weight: 600; }
+  em { color: var(--ink-soft); }
+  code {
+    font-family: var(--mono);
+    font-size: 12px;
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  hr {
+    border: none;
+    border-top: 1px solid var(--paper-rule);
+    margin: 32px 0;
+  }
+
+  .toc {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 32px;
+    font-size: 13px;
+  }
+  .toc h4 {
+    margin: 0 0 8px;
+    color: var(--ink-mute);
+    font-size: 11px;
+  }
+  .toc ol {
+    margin: 0 0 0 18px;
+    padding: 0;
+    color: var(--ink-soft);
+  }
+  .toc ol li { margin-bottom: 2px; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Mock frame — represents the working pane area (main + aux) */
+  .mock {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 12px 0 8px;
+  }
+  .frame {
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    height: 220px;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+  @media (prefers-color-scheme: dark) {
+    .frame { background: var(--paper-edge); }
+  }
+
+  .pane-main, .pane-aux {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .pane-main { flex: 1.0 0 0%; }
+  .pane-aux { flex: 0.8 0 0%; }
+
+  /* Tab strip on main */
+  .strip {
+    background: var(--paper-deep);
+    border-bottom: 1px solid var(--paper-rule);
+    display: flex;
+    height: 28px;
+    padding: 4px 4px 0;
+    gap: 2px;
+    align-items: end;
+    flex-shrink: 0;
+  }
+  .strip .tab {
+    height: 22px;
+    padding: 2px 10px;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-bottom: 1px solid white;
+    border-radius: 3px 3px 0 0;
+    font-size: 10.5px;
+    color: var(--ink);
+    line-height: 18px;
+    white-space: nowrap;
+  }
+  .strip .tab.inactive {
+    background: var(--paper-deep);
+    color: var(--ink-mute);
+    border-bottom-color: var(--paper-rule);
+  }
+  @media (prefers-color-scheme: dark) {
+    .strip .tab { background: var(--paper-edge); border-bottom-color: var(--paper-edge); }
+    .strip .tab.inactive { background: var(--paper-deep); }
+  }
+
+  .body {
+    flex: 1;
+    padding: 12px 14px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    overflow: hidden;
+    line-height: 1.5;
+  }
+  .body h1.demo {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 16px;
+    margin: 0 0 6px;
+    color: var(--ink);
+    border: none;
+    padding: 0;
+  }
+  .body p { margin: 0 0 6px; font-size: 11px; }
+  .body .li { font-size: 11px; padding-left: 12px; position: relative; }
+  .body .li::before { content: "•"; position: absolute; left: 0; color: var(--ink-mute); }
+
+  /* The thin divider between main and aux */
+  .divider {
+    width: 4px;
+    background: var(--paper-rule);
+    flex-shrink: 0;
+  }
+  .divider.accent { background: var(--accent); opacity: 0.4; }
+  .divider.dotted { background: repeating-linear-gradient(0deg, var(--paper-rule) 0, var(--paper-rule) 3px, transparent 3px, transparent 6px); }
+  .divider.handle {
+    position: relative;
+    background: var(--paper-edge);
+    width: 7px;
+  }
+  .divider.handle::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 1px;
+    height: 24px;
+    background: var(--ink-mute);
+    opacity: 0.4;
+  }
+
+  /* Aux header variants — each option shows a different pattern */
+
+  /* Option A: current — slim symmetric */
+  .aux-A {
+    height: 28px;
+    background: var(--paper-deep);
+    border-bottom: 1px solid var(--paper-rule);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    color: var(--ink-soft);
+    font-size: 10.5px;
+    flex-shrink: 0;
+  }
+  .aux-A .label {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ink-mute);
+  }
+  .aux-A .name {
+    flex: 1;
+    color: var(--ink);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .aux-A .btn {
+    color: var(--ink-mute);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+
+  /* Option B: subordinate — accent left-rule, italic filename, smaller chrome */
+  .pane-aux.B { border-left: 3px solid var(--accent); }
+  .aux-B {
+    height: 26px;
+    background: transparent;
+    border-bottom: 1px solid var(--paper-rule);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    color: var(--ink-mute);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .aux-B .name {
+    font-family: var(--serif);
+    font-style: italic;
+    flex: 1;
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .aux-B .btn {
+    color: var(--ink-mute);
+    cursor: pointer;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+
+  /* Option C: minimal — no header, floating close button */
+  .aux-C-floating {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 18px;
+    height: 18px;
+    background: rgba(255,255,255,0.85);
+    border: 1px solid var(--paper-rule);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--ink-mute);
+    cursor: pointer;
+    z-index: 10;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    .aux-C-floating { background: rgba(45,40,32,0.9); }
+  }
+
+  /* Option D: aux with own tab strip (v2-ready) */
+  .aux-D-strip {
+    background: var(--paper-deep);
+    border-bottom: 1px solid var(--paper-rule);
+    display: flex;
+    height: 28px;
+    padding: 4px 4px 0;
+    gap: 2px;
+    align-items: end;
+    flex-shrink: 0;
+  }
+  .aux-D-strip .tab {
+    height: 22px;
+    padding: 2px 8px;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-bottom: 1px solid white;
+    border-radius: 3px 3px 0 0;
+    font-size: 10.5px;
+    color: var(--ink);
+    line-height: 18px;
+    white-space: nowrap;
+  }
+  .aux-D-strip .tab.split-hint {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    font-size: 9.5px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .aux-D-strip .tab { background: var(--paper-edge); border-bottom-color: var(--paper-edge); }
+  }
+
+  /* Option E: drawer/sheet — left shadow, no border, slight overlay feel */
+  .pane-aux.E {
+    box-shadow: -8px 0 16px -8px rgba(0,0,0,0.18);
+    background: var(--paper);
+    z-index: 2;
+  }
+  @media (prefers-color-scheme: dark) {
+    .pane-aux.E {
+      background: var(--paper-edge);
+      box-shadow: -8px 0 16px -8px rgba(0,0,0,0.6);
+    }
+  }
+  .aux-E {
+    height: 32px;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    flex-shrink: 0;
+    border-bottom: 1px dashed var(--paper-rule);
+  }
+  .aux-E .badge {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    padding: 1px 6px;
+    border-radius: 999px;
+  }
+  .aux-E .name {
+    flex: 1;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .aux-E .btn { color: var(--ink-mute); cursor: pointer; padding: 0 4px; font-size: 10px; }
+  /* No structural divider when drawer-style — the shadow IS the boundary */
+  .frame.E .divider { display: none; }
+
+  .caption {
+    margin: 0 0 24px;
+    font-size: 12px;
+    color: var(--ink-mute);
+    font-style: italic;
+    text-align: center;
+  }
+
+  /* Pros/cons cards */
+  .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .pros, .cons {
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--paper-rule);
+    font-size: 12.5px;
+  }
+  .pros { background: rgba(46, 125, 82, 0.06); border-color: var(--good); }
+  .cons { background: rgba(177, 62, 58, 0.06); border-color: var(--bad); }
+  .pros h5, .cons h5 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .pros h5 { color: var(--good); }
+  .cons h5 { color: var(--bad); }
+  .pros ul, .cons ul {
+    margin: 0 0 0 18px;
+    padding: 0;
+    color: var(--ink-soft);
+  }
+  .pros ul li, .cons ul li { margin-bottom: 3px; }
+
+  /* Option card */
+  .option-card {
+    margin: 28px 0;
+    padding: 18px 20px;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 8px;
+    position: relative;
+  }
+  @media (prefers-color-scheme: dark) {
+    .option-card { background: var(--paper-edge); }
+  }
+  .option-card.recommended {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .option-card.recommended::before {
+    content: "RECOMMENDED";
+    position: absolute;
+    top: -10px;
+    left: 18px;
+    background: var(--accent);
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.5px;
+  }
+  .option-card.shipped::after {
+    content: "SHIPPED IN a0c144c";
+    position: absolute;
+    top: -10px;
+    right: 18px;
+    background: var(--ink-mute);
+    color: var(--paper);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.5px;
+  }
+  .option-title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--ink);
+    margin: 0 0 8px;
+  }
+  .option-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-mute);
+    background: var(--paper-deep);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+
+  /* Comparison table */
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    margin: 12px 0 24px;
+  }
+  table.compare th, table.compare td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--paper-rule);
+    vertical-align: top;
+  }
+  table.compare th {
+    background: var(--paper-deep);
+    color: var(--ink-mute);
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  table.compare td.opt {
+    color: var(--ink);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  table.compare td.dim {
+    color: var(--ink-mute);
+  }
+  table.compare td.rec {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* Recommendation block */
+  .rec {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 4px;
+    margin-top: 16px;
+  }
+  .rec h3 {
+    color: var(--accent);
+    margin: 0 0 8px;
+    font-family: var(--sans);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+
+  /* Owner choice block */
+  .choice {
+    margin: 32px 0 16px;
+    padding: 16px 20px;
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+  }
+  .choice h3 {
+    margin: 0 0 8px;
+    color: var(--accent-ink);
+    font-size: 14px;
+  }
+  .choice ul { margin: 0 0 0 18px; }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 18px;
+    border-top: 1px solid var(--paper-rule);
+    color: var(--ink-mute);
+    font-size: 12px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <h1>Split View styling — five options</h1>
+  <p class="subtitle">Sprint 3 follow-up. The plumbing + locked spec are done; this canvas is about how the visual chrome should read. Pick one and I'll align <code>WorkingPane.tsx</code> to it.</p>
+
+  <div class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#what">What we're styling — the surfaces in question</a></li>
+      <li><a href="#options">Five styling options, with mocks</a></li>
+      <li><a href="#compare">Side-by-side comparison</a></li>
+      <li><a href="#rec">My recommendation</a></li>
+      <li><a href="#pick">Pick one to lock in</a></li>
+    </ol>
+  </div>
+
+  <h2 id="what">1. What we're styling — the surfaces in question</h2>
+
+  <p>Three visible elements compose the Split View:</p>
+
+  <ol>
+    <li><strong>Aux header</strong> — the chrome bar above the aux content. Holds the file name, a "promote to main" button, and a close button. Optional in some options.</li>
+    <li><strong>Divider</strong> — the visual affordance between main and aux. Drag-to-resize. Affects how "permeable" the boundary feels.</li>
+    <li><strong>Aux container</strong> — background, border, shadow. Determines whether aux reads as a peer pane or as a subordinate companion.</li>
+  </ol>
+
+  <p>Each option below makes different choices on these three axes. The mocks are CSS-driven; what you see is approximately what would render in the live app, scaled down.</p>
+
+  <h2 id="options">2. Five styling options</h2>
+
+  <div class="option-card shipped">
+    <h3 class="option-title">Option A — Symmetric slim<span class="option-tag">current</span></h3>
+    <p>What I built in commit <code>a0c144c</code>. Aux gets a slim 28px header in <code>paper-deep</code> background — visually identical to the main tab strip's register. Filename in regular weight, "SPLIT" all-caps label, ⇤ + ✕ buttons.</p>
+
+    <div class="mock">
+      <div class="frame">
+        <div class="pane-main">
+          <div class="strip">
+            <div class="tab">foo.md</div>
+            <div class="tab inactive">bar.html</div>
+            <div class="tab inactive">+</div>
+          </div>
+          <div class="body">
+            <h1 class="demo">foo.md</h1>
+            <p>Main pane content. Active tab is <em>foo.md</em>; the strip carries the user's full set of working tabs.</p>
+            <p>Aux is the column on the right.</p>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="pane-aux A">
+          <div class="aux-A">
+            <span class="label">SPLIT</span>
+            <span class="name">tasks.md</span>
+            <span class="btn">⇤ to main</span>
+            <span class="btn">✕</span>
+          </div>
+          <div class="body">
+            <h1 class="demo">tasks.md</h1>
+            <p>Aux content. The header above signals it's the split slot but doesn't push the visual hierarchy.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option A — symmetric slim header, paper-deep background, peer to main.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Already built; no further work.</li>
+          <li>Reads as a peer pane — the user can treat aux as "another doc I'm editing."</li>
+          <li>Simple structure; easy for v2 (Option B per spec) to add a tab strip.</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Doesn't visually signal "companion / transient" — feels like a permanent split.</li>
+          <li>"SPLIT" all-caps is utilitarian, not Atelier; reads as engineery.</li>
+          <li>Drift away from Slack's "subordinate aux" metaphor — but that's a UX intent question, not a constraint.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card">
+    <h3 class="option-title">Option B — Subordinate companion (Slack-faithful)<span class="option-tag">v1</span></h3>
+    <p>Aux gets a 3px <code>--accent</code> left rule (like Slack's thread sidebar). Header is transparent — no fill — with the filename in <em>italic serif</em>. Smaller chrome height (26px). The accent rule is the visual signal that this is companion content, not a peer.</p>
+
+    <div class="mock">
+      <div class="frame">
+        <div class="pane-main">
+          <div class="strip">
+            <div class="tab">foo.md</div>
+            <div class="tab inactive">bar.html</div>
+            <div class="tab inactive">+</div>
+          </div>
+          <div class="body">
+            <h1 class="demo">foo.md</h1>
+            <p>Main pane content. The accent rule on the right makes the aux read as visually subordinate.</p>
+          </div>
+        </div>
+        <div class="divider accent"></div>
+        <div class="pane-aux B">
+          <div class="aux-B">
+            <span class="name">tasks.md</span>
+            <span class="btn">⇤</span>
+            <span class="btn">✕</span>
+          </div>
+          <div class="body">
+            <h1 class="demo">tasks.md</h1>
+            <p>Aux content. Italic serif filename, accent left-rule, no separator background.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option B — accent left rule, italic serif filename, transparent header.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Faithful to the locked Slack-style intent ("transient companion").</li>
+          <li>Atelier-coherent — italic serif matches the rest of the typographic register.</li>
+          <li>Minimal chrome height; max content area.</li>
+          <li>Accent rule signals split-view boundary even when aux header would scroll out.</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Italic serif on a tab name might read as "this is special" rather than "this is a working tab."</li>
+          <li>No "SPLIT" label means the user has to recognize the accent rule as the signal — slightly less explicit.</li>
+          <li>Transparent header could blend with the canvas content underneath if the aux file has heavy top decoration.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card">
+    <h3 class="option-title">Option C — Minimal floating chrome<span class="option-tag">contrarian</span></h3>
+    <p>Aux has <em>no header bar at all</em>. The aux content fills the column. The close button is a small floating circle in the top-right corner of the aux pane. Promote is moved to a right-click affordance. Maximizes content area; trades discoverability for cleanliness.</p>
+
+    <div class="mock">
+      <div class="frame">
+        <div class="pane-main">
+          <div class="strip">
+            <div class="tab">foo.md</div>
+            <div class="tab inactive">bar.html</div>
+            <div class="tab inactive">+</div>
+          </div>
+          <div class="body">
+            <h1 class="demo">foo.md</h1>
+            <p>Main pane content.</p>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="pane-aux" style="position: relative;">
+          <div class="aux-C-floating">✕</div>
+          <div class="body" style="padding-top: 12px;">
+            <h1 class="demo">tasks.md</h1>
+            <p>Aux content fills the entire column — no header bar. The floating circle in the top-right is the close affordance. Promote moves to a right-click menu.</p>
+            <p>Maximum content area; minimum visible chrome.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option C — no header, floating close circle, right-click for promote.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Most content space — every pixel goes to the file.</li>
+          <li>Cleanest visual register; least "chrome."</li>
+          <li>Clear differentiation from main — the absence of a header is itself a signal.</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>No filename visible — user has to infer what's in aux from content.</li>
+          <li>Promote is hidden in right-click — discoverability problem.</li>
+          <li>Floating button can be confusing on dark canvases; needs careful contrast handling.</li>
+          <li>If aux content scrolls, close button stays put — but loses the "this is the aux" anchor.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card">
+    <h3 class="option-title">Option D — Aux with own tab strip (v2-ready)<span class="option-tag">B-ready</span></h3>
+    <p>Aux gets a full tab strip identical to main's, but with a single tab + a small "SPLIT" indicator on the leftmost edge. Visually consistent with main; sets up cleanly for v2 (multi-tab aux per Option B in the locked spec) where the strip just gets more tabs.</p>
+
+    <div class="mock">
+      <div class="frame">
+        <div class="pane-main">
+          <div class="strip">
+            <div class="tab">foo.md</div>
+            <div class="tab inactive">bar.html</div>
+            <div class="tab inactive">+</div>
+          </div>
+          <div class="body">
+            <h1 class="demo">foo.md</h1>
+            <p>Main pane content.</p>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="pane-aux">
+          <div class="aux-D-strip">
+            <div class="tab split-hint">SPLIT</div>
+            <div class="tab">tasks.md</div>
+          </div>
+          <div class="body">
+            <h1 class="demo">tasks.md</h1>
+            <p>Aux content. The aux has its own tab strip — when v2 lifts the single-slot cap, more tabs just appear here.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option D — full tab strip in aux with a "SPLIT" indicator. Identical structure to main; ready for v2 multi-tab.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Symmetric structure — both panes have tab strips, easy to learn.</li>
+          <li>Zero migration cost when v2 (multi-tab aux, locked spec § 5.3) ships.</li>
+          <li>Promote/close fit naturally as right-click menu items on the single tab.</li>
+          <li>The "SPLIT" indicator pill is a small but visible badge.</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Doubles tab-strip cognitive cost in v1 — two strips to attend to even though aux has one tab.</li>
+          <li>Pre-pays UI complexity for v2 that may never ship.</li>
+          <li>Reads as "two separate working areas" rather than "main + companion."</li>
+          <li>"SPLIT" indicator doubles up with the file tab — feels redundant.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="option-card">
+    <h3 class="option-title">Option E — Drawer / sheet style<span class="option-tag">overlay-feel</span></h3>
+    <p>Aux feels like a drawer that slid in from the right. No border between main and aux; instead, a soft left-shadow. Aux background is <code>--paper</code> (slightly different from main's surface). Header has an accent pill badge ("SPLIT") and a close button. Divider is hidden — the shadow is the boundary.</p>
+
+    <div class="mock">
+      <div class="frame E">
+        <div class="pane-main">
+          <div class="strip">
+            <div class="tab">foo.md</div>
+            <div class="tab inactive">bar.html</div>
+            <div class="tab inactive">+</div>
+          </div>
+          <div class="body">
+            <h1 class="demo">foo.md</h1>
+            <p>Main pane content. The aux pane to the right reads as a drawer that slid out — soft left-shadow signals "lifted layer."</p>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="pane-aux E">
+          <div class="aux-E">
+            <span class="badge">SPLIT</span>
+            <span class="name">tasks.md</span>
+            <span class="btn">⇤</span>
+            <span class="btn">✕</span>
+          </div>
+          <div class="body">
+            <h1 class="demo">tasks.md</h1>
+            <p>Aux content. Subtle dashed underline below the header signals "boundary," but the main visual anchor is the drawer-shadow on the left.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Option E — drawer shadow, accent pill badge, no structural divider.</p>
+
+    <div class="pros-cons">
+      <div class="pros">
+        <h5>Pros</h5>
+        <ul>
+          <li>Strongest "transient companion" signal — feels temporary, removable.</li>
+          <li>Matches a familiar UX pattern (sheets, drawers in iOS / Material).</li>
+          <li>Accent pill is more decorative than the all-caps "SPLIT" label.</li>
+          <li>No drag-divider on the boundary; resize is a hover-only handle that appears on the shadow.</li>
+        </ul>
+      </div>
+      <div class="cons">
+        <h5>Cons</h5>
+        <ul>
+          <li>Most visually "different" from current Atelier — adds a shadow, which the rest of Duo doesn't use heavily.</li>
+          <li>Resize handle is harder to find (shadow isn't a clear drag affordance).</li>
+          <li>Dark-mode shadow needs careful handling — shadows on dark are tricky.</li>
+          <li>Most implementation work — shadow + handle + boundary detection.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2 id="compare">3. Side-by-side comparison</h2>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th>Axis</th>
+        <th>A — Symmetric (current)</th>
+        <th>B — Subordinate</th>
+        <th>C — Minimal</th>
+        <th>D — Tab strip</th>
+        <th>E — Drawer</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="opt">Header chrome</td>
+        <td>Slim 28px paper-deep bar</td>
+        <td>26px transparent</td>
+        <td class="dim">None</td>
+        <td>Full tab strip (28px)</td>
+        <td>32px transparent + dashed rule</td>
+      </tr>
+      <tr>
+        <td class="opt">Filename style</td>
+        <td>Sans, regular</td>
+        <td>Italic serif</td>
+        <td class="dim">Hidden</td>
+        <td>Sans (in tab)</td>
+        <td>Sans, regular</td>
+      </tr>
+      <tr>
+        <td class="opt">Boundary signal</td>
+        <td>Paper-rule divider</td>
+        <td>Accent left rule (3px)</td>
+        <td>Paper-rule divider</td>
+        <td>Paper-rule divider</td>
+        <td>Soft left shadow</td>
+      </tr>
+      <tr>
+        <td class="opt">Promote / close</td>
+        <td>Inline buttons</td>
+        <td>Inline buttons</td>
+        <td>Floating ✕ + right-click</td>
+        <td>Right-click on tab</td>
+        <td>Inline buttons</td>
+      </tr>
+      <tr>
+        <td class="opt">v2 (Option B multi-tab) cost</td>
+        <td>Add strip</td>
+        <td>Add strip</td>
+        <td>Add strip + reconcile floating chrome</td>
+        <td class="rec">Already there</td>
+        <td>Add strip</td>
+      </tr>
+      <tr>
+        <td class="opt">"Companion vs peer" feel</td>
+        <td>Peer</td>
+        <td class="rec">Companion</td>
+        <td>Companion (extreme)</td>
+        <td>Peer</td>
+        <td>Companion (extreme)</td>
+      </tr>
+      <tr>
+        <td class="opt">Atelier coherence</td>
+        <td>Coherent</td>
+        <td class="rec">Most coherent</td>
+        <td>Neutral</td>
+        <td>Coherent</td>
+        <td>Slightly off-brand</td>
+      </tr>
+      <tr>
+        <td class="opt">Implementation work from current</td>
+        <td class="rec">None — already shipped</td>
+        <td>~30 min CSS edit</td>
+        <td>~1 hour (move chrome out)</td>
+        <td>~3 hours (real tab strip)</td>
+        <td>~2 hours (shadow + handle)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="rec">4. My recommendation</h2>
+
+  <div class="rec">
+    <h3>Option B — Subordinate companion</h3>
+    <p>Pivot from the current Option A by adding a 3px accent left rule to the aux pane and switching the filename to italic serif. Drop the all-caps "SPLIT" label. ~30 min of CSS work.</p>
+    <p><strong>Why B over A (current):</strong> the locked Slack-style spec calls aux a "transient companion" — Option A's symmetric register doesn't carry that signal. The accent rule is the cheapest way to add it without spending the v2 tab-strip implementation cost up front.</p>
+    <p><strong>Why B over D (tab strip):</strong> v2 (multi-tab aux) is queued but not committed. Building the tab-strip-in-aux now pre-pays UI complexity for a feature that may never ship. When/if v2 lands, adding a strip is ~3 hours — not enough to justify shipping that complexity now.</p>
+    <p><strong>Why not C or E:</strong> C hides the filename, which I think is too aggressive — users want to know what's in their split. E adds a shadow that doesn't fit Duo's flat-paper Atelier register. Both are "extreme companion" patterns; B is the moderate companion signal that still keeps everything visible and discoverable.</p>
+  </div>
+
+  <h2 id="pick">5. Pick one to lock in</h2>
+
+  <div class="choice">
+    <h3>Reply with one of:</h3>
+    <ul>
+      <li><strong>"Keep A"</strong> — leave the current symmetric slim header. No further work; move to Phase 3b (invocation surfaces).</li>
+      <li><strong>"Switch to B"</strong> (recommended) — accent left rule + italic serif filename + drop "SPLIT" label. ~30 min CSS edit.</li>
+      <li><strong>"C"</strong> — minimal floating chrome. ~1 hour rework.</li>
+      <li><strong>"D"</strong> — full tab strip in aux. ~3 hours; pre-pays v2 cost.</li>
+      <li><strong>"E"</strong> — drawer / sheet feel. ~2 hours; introduces shadow to the design system.</li>
+      <li><strong>Mix</strong> — e.g. "A's header chrome with B's accent left rule" — call out the combo.</li>
+    </ul>
+  </div>
+
+  <footer>
+    Drafted 2026-05-03 by Claude during Sprint 3 Phase 3a polish. Authored as a Duo page (display-only; <code>duo-default-editable=false</code>). Once an option is locked, I'll align <code>WorkingPane.tsx § AuxHeader</code> + the column class names + commit before moving to Phase 3b.
+  </footer>
+
+</main>
+</body>
+</html>
