@@ -343,25 +343,30 @@ export function WorkingTabStrip({
           new-tab cluster (was in titlebar in v0.6.4). Active state
           (canvas collapsed) inverts to accent fill so it's obvious
           which pane is hidden. Glyph mirrors TabBar's terminal-
-          collapse variant: same shape, opposite-side fill. */}
+          collapse variant: same shape, opposite-side fill.
+          Owner-asked divider between this and the new-file/globe
+          cluster (matches TabBar's terminal side). */}
       {onToggleCanvasCollapsed && (
-        <button
-          type="button"
-          onClick={onToggleCanvasCollapsed}
-          title={isCanvasCollapsed ? 'Show canvas (right pane)' : 'Hide canvas (terminal takes full width)'}
-          aria-label={isCanvasCollapsed ? 'Show canvas' : 'Hide canvas'}
-          className={[
-            'shrink-0 ml-1 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
-            isCanvasCollapsed
-              ? 'bg-accent text-white'
-              : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
-          ].join(' ')}
-        >
-          <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
-            <rect x="1" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
-            <rect x="8" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isCanvasCollapsed ? 'currentColor' : 'none'} />
-          </svg>
-        </button>
+        <>
+          <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
+          <button
+            type="button"
+            onClick={onToggleCanvasCollapsed}
+            title={isCanvasCollapsed ? 'Show canvas (right pane)' : 'Hide canvas (terminal takes full width)'}
+            aria-label={isCanvasCollapsed ? 'Show canvas' : 'Hide canvas'}
+            className={[
+              'shrink-0 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
+              isCanvasCollapsed
+                ? 'bg-accent text-white'
+                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+            ].join(' ')}
+          >
+            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+              <rect x="1" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+              <rect x="8" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isCanvasCollapsed ? 'currentColor' : 'none'} />
+            </svg>
+          </button>
+        </>
       )}
     </div>
   )

@@ -131,25 +131,31 @@ export function TabBar({
       {/* ENH-083 (v0.6.5) — collapse-terminal button. Lives next to
           the new-tab cluster (was in titlebar in v0.6.4). Active state
           (terminal collapsed) inverts to accent fill so it's obvious
-          which pane is hidden. */}
+          which pane is hidden. Owner-asked divider between this and
+          the claude/shell cluster — same paper-rule hairline pattern
+          as the in-cluster divider so the two button-groups read as
+          related-but-distinct. */}
       {onToggleTerminalCollapsed && (
-        <button
-          type="button"
-          onClick={onToggleTerminalCollapsed}
-          title={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column (canvas takes full width)'}
-          aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
-          className={[
-            'shrink-0 ml-1 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
-            isTerminalCollapsed
-              ? 'bg-accent text-white'
-              : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
-          ].join(' ')}
-        >
-          <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
-            <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
-            <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
-          </svg>
-        </button>
+        <>
+          <span aria-hidden="true" className="shrink-0 w-px h-5 bg-paper-rule mb-1 mx-1.5" />
+          <button
+            type="button"
+            onClick={onToggleTerminalCollapsed}
+            title={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column (canvas takes full width)'}
+            aria-label={isTerminalCollapsed ? 'Show terminal column' : 'Hide terminal column'}
+            className={[
+              'shrink-0 mb-1 w-6 h-6 rounded flex items-center justify-center transition-colors',
+              isTerminalCollapsed
+                ? 'bg-accent text-white'
+                : 'text-ink-mute hover:bg-surface-3 hover:text-ink'
+            ].join(' ')}
+          >
+            <svg width="13" height="11" viewBox="0 0 13 11" fill="none" aria-hidden="true">
+              <rect x="1" y="1" width="4" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill={isTerminalCollapsed ? 'currentColor' : 'none'} />
+              <rect x="6" y="1" width="6" height="9" rx="0.5" stroke="currentColor" strokeWidth="1" fill="none" />
+            </svg>
+          </button>
+        </>
       )}
     </div>
   )

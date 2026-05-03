@@ -367,6 +367,20 @@ export function generateWorksheet(manifest) {
   section.item.is-answered { border-color: var(--accent); }
   section.item.is-skip { opacity: 0.7; }
 
+  /* Per-option card tint — when an item is answered, the whole card
+     adopts a soft tint of the chosen option's color. Restored at owner
+     request after the smoke-walk → worksheet primitive extraction
+     dropped it. The `is-opt-<value>` class is set in tally() based on
+     the checked radio. Scoped to known PASS/FAIL/SKIP and P0/P1/P2
+     conventions; consumers using custom values inherit only the
+     border-color treatment. */
+  section.item.is-opt-pass { background: color-mix(in srgb, var(--pass) 8%, white); border-color: color-mix(in srgb, var(--pass) 50%, var(--paper-rule)); }
+  section.item.is-opt-fail { background: color-mix(in srgb, var(--fail) 10%, white); border-color: color-mix(in srgb, var(--fail) 55%, var(--paper-rule)); }
+  section.item.is-opt-skip { background: color-mix(in srgb, var(--skip) 6%, white); border-color: var(--paper-rule); }
+  section.item.is-opt-p0 { background: color-mix(in srgb, var(--fail) 10%, white); border-color: color-mix(in srgb, var(--fail) 55%, var(--paper-rule)); }
+  section.item.is-opt-p1 { background: color-mix(in srgb, var(--accent) 10%, white); border-color: color-mix(in srgb, var(--accent) 55%, var(--paper-rule)); }
+  section.item.is-opt-p2 { background: color-mix(in srgb, var(--pass) 8%, white); border-color: color-mix(in srgb, var(--pass) 50%, var(--paper-rule)); }
+
   .item-head {
     display: flex;
     align-items: baseline;
@@ -642,10 +656,15 @@ ${miscHtml}
     const counts = Object.fromEntries(PRIMARY_OPTIONS.map(v => [v, 0]));
     for (const it of itemEls) {
       const v = (it.querySelector('input[type=radio]:checked') || {}).value;
+      // Strip every is-opt-* class before re-applying the active one
+      // so toggling between options doesn't accumulate stale tints.
+      const stale = Array.from(it.classList).filter(c => c.startsWith('is-opt-'));
+      stale.forEach(c => it.classList.remove(c));
       it.classList.remove('is-answered', 'is-skip');
       if (v) {
         counts[v] = (counts[v] || 0) + 1;
         it.classList.add('is-answered');
+        it.classList.add('is-opt-' + v.toLowerCase());
         if (v === 'SKIP' || v === 'Skip' || v === 'skip') it.classList.add('is-skip');
       }
     }

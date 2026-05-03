@@ -679,7 +679,14 @@ export class BrowserManager {
         // forwarding, Chromium would let the keystroke fall through to
         // the page. The renderer's splitViewToggle / splitViewClose
         // handler reads activeWorking off App.tsx state.
-        key === '\\' ||
+        // BUG-075 v2 (v0.6.5) — must check `input.code === 'Backslash'`,
+        // not `key === '\\'`. On US keyboards, Shift+\ produces
+        // input.key === '|' (the shifted character), so the original
+        // check could NEVER match when shift was held — chord was
+        // silently dropped at the FORWARDER level (before reaching
+        // the renderer matcher we already fixed). Same root cause as
+        // globalShortcuts.ts § matchGlobalShortcut.
+        input.code === 'Backslash' ||
         (key >= '1' && key <= '9')
       // NOTE: ⌘` is intentionally NOT in this list. It's handled by the
       // app-menu accelerator (which beats macOS's system shortcut) and

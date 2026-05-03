@@ -325,7 +325,21 @@ export function WorkingPane({
       const tabs = mergedTabsRef.current
       if (tabs.length === 0) return
       const nextId = cycleNext(tabs, activeIdRef.current, delta)
-      if (nextId) handleSelect(nextId)
+      if (nextId) {
+        // BUG-076 v2 (v0.6.5) — optimistically update activeIdRef
+        // BEFORE the React re-render lands. handleSelect dispatches
+        // setActiveWorking + switchTab(id), but switchTab's tabs-
+        // change IPC is async (main → renderer). If the user presses
+        // ⌃Tab faster than the round-trip, the next press reads stale
+        // activeIdRef.current (still the previous id), cycleNext
+        // returns the SAME nextId again, and switchTab short-circuits
+        // because idx === activeIndex. Cycle silently drops. Updating
+        // the ref synchronously means subsequent presses see the
+        // user's intent immediately; React state catches up on the
+        // next render.
+        activeIdRef.current = nextId
+        handleSelect(nextId)
+      }
     }
     window.addEventListener('duo-cycle-working-tab', handler)
     return () => window.removeEventListener('duo-cycle-working-tab', handler)
@@ -459,10 +473,14 @@ export function WorkingPane({
         onNewBrowserTab={handleNewBrowserTab}
         onClose={handleClose}
         onTogglePin={handleTogglePin}
-        // ENH-084 (v0.6.5) — when Split View is open, the strip lights
-        // up only when the MAIN subpane has focus. If user is working
-        // in aux, main strip dims, aux header lights up.
-        focused={focused && focusedSubpane === 'main'}
+        // ENH-084 (v0.6.5) — main strip glows whenever the working
+        // column has focus, regardless of subpane. The earlier gate
+        // (`focused && focusedSubpane === 'main'`) caused a regression
+        // where the main strip stopped glowing in some flows. The
+        // aux-specific glow signal is on AuxHeader; both can glow
+        // simultaneously when aux has focus, which reads as "the
+        // working column is active, and aux is the live subpane."
+        focused={focused}
         onRevealInNavigator={onRevealInNavigator}
         onTrashFile={onTrashTabFile}
         onStartRenameFromTab={onStartRenameFromTab}
