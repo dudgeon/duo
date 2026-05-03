@@ -88,22 +88,38 @@ function handleInput(doc: Document): void {
     blockOps.setBlock(doc, (`h${headingMatch[1].length}`) as 'h1')
     return
   }
-  // BUG-061 (v0.6.4) — hand-roll the `<ul>` / `<ol>` creation instead
-  // of trusting `execCommand('insertUnorderedList')` /
-  // `'insertOrderedList'` after `clearBlockText` empties the block.
-  // The Chromium quirk: those execCommand verbs return true on an
-  // empty contentEditable block but produce no list element — the
-  // paragraph stays a paragraph, the trigger fires invisibly, and
-  // the user (who typed `- `) sees nothing happen except the literal
-  // characters disappearing. Same root reason `blockOps.toggleTaskList`
-  // is hand-rolled (execCommand has no insertTaskList; for the empty-
-  // block case here, execCommand's bullet/ordered verbs are no better).
-  if (text === '- ' || text === '* ') {
+  // BUG-061 (v0.6.4) — TWO fixes layered on top of v0.6.3's partial:
+  //
+  // (1) Trigger detection — switched from strict equality
+  //     (`text === '- '`) to start-match regex. The strict form fails
+  //     when the caret block resolves to `body` (the canvas has no
+  //     wrapping `<p>`), because body.textContent concatenates all
+  //     descendants and isn't equal to the typed prefix alone. The
+  //     heading match was already converted to start-match in v0.6.3;
+  //     bullet/ordered stayed strict by oversight. Start-match
+  //     subsumes both shapes (strict equality is a special case of
+  //     start-match where prefix IS the whole content).
+  //
+  // (2) Conversion — hand-roll the `<ul>` / `<ol>` creation instead
+  //     of trusting `execCommand('insertUnorderedList')` /
+  //     `'insertOrderedList'` after `clearBlockText` empties the block.
+  //     The Chromium quirk: those execCommand verbs return true on an
+  //     empty contentEditable block but produce no list element — the
+  //     paragraph stays a paragraph, the trigger fires invisibly, and
+  //     the user (who typed `- `) sees nothing happen except the literal
+  //     characters disappearing. Same root reason
+  //     `blockOps.toggleTaskList` is hand-rolled (execCommand has no
+  //     insertTaskList; for the empty-block case here, execCommand's
+  //     bullet/ordered verbs are no better).
+  //
+  // `+` joins `-` and `*` for CommonMark parity (the markdown editor's
+  // ENH-018 supports all three; the canvas should match).
+  if (/^[-*+] $/.test(text)) {
     clearBlockText(block)
     convertEmptyBlockToList(doc, block, 'ul')
     return
   }
-  if (text === '1. ') {
+  if (/^1\. $/.test(text)) {
     clearBlockText(block)
     convertEmptyBlockToList(doc, block, 'ol')
     return

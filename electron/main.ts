@@ -7,6 +7,7 @@ import type { MenuItemConstructorOptions } from 'electron'
 // below.
 import type { Options as ContextMenuOptions } from 'electron-context-menu'
 import { join } from 'path'
+import { homedir } from 'os'
 import { resolveClaudeBinary } from '../core/resolve-claude'
 import { PtyManager } from '../core/pty-manager'
 import { BrowserManager } from './browser-manager'
@@ -241,8 +242,22 @@ async function createWindow(): Promise<void> {
   // dispatch via sendEdit, the same path `duo open` uses. The PATH_LINK_
   // FORWARDER_IIFE in cdp-bridge.ts gates on `location.protocol === 'file:'`
   // so arbitrary http(s) sites containing [data-duo-path] markup stay inert.
+  //
+  // Tilde expansion: page-emitted paths commonly use `~/...` shorthand
+  // (smoke-walk steps render `~/.claude/duo/help/faq.html` verbatim from
+  // the manifest). The renderer's openFileSmart calls fs.stat against
+  // the literal string, which yields ENOENT on `~`. Expand here, before
+  // sendEdit, so the renderer always sees absolute paths. `~user/...`
+  // (other-user home) is rare in this context — defer until a real
+  // ask shows up.
   cdpBridge.onBrowserOpenPath((path) => {
-    void sendEdit(path)
+    let expanded = path
+    if (expanded === '~') {
+      expanded = homedir()
+    } else if (expanded.startsWith('~/')) {
+      expanded = join(homedir(), expanded.slice(2))
+    }
+    void sendEdit(expanded)
   })
 
   // Socket server starts listening; CLI connects here

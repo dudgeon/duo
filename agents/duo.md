@@ -8,7 +8,7 @@ description: |
   "click the Sign in button", "list markdown files in /tmp/test/ and tell me which
   ones mention 'risk'". Returns a markdown summary of what was applied and what to
   do next; never a transcript of CLI calls.
-model: claude-haiku-4-5
+model: haiku
 tools: Bash
 ---
 

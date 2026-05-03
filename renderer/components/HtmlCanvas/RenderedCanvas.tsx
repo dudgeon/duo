@@ -128,6 +128,16 @@ export const RenderedCanvas = forwardRef<RenderedCanvasHandle, Props>(
         if (cancelled || wired) return
         const doc = iframe.contentDocument
         if (!doc || !doc.body) return
+        // BUG-070 v2 — wait until the srcdoc parser has finished
+        // before injecting `contenteditable` / runtime style /
+        // mutation observer. If we wire while readyState is
+        // 'loading', the parser may overwrite our injections when it
+        // finishes building the body. The poll below keeps retrying
+        // wire() each frame until readyState transitions out of
+        // 'loading' AND body is non-null. Mirrors the original guard
+        // (`readyState !== 'loading'`) that gated the immediate
+        // wire() call before the BUG-070 v1 attempt removed it.
+        if (doc.readyState === 'loading') return
         wired = true
 
         // Preventative kb-shortcut architecture (BUG-012 et al). Install
