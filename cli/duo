@@ -451,6 +451,37 @@ async function main() {
         }
         break;
       }
+      case "split-view": {
+        const sub = rest[0];
+        if (sub === void 0 || sub === "state") {
+          out(await send("split-view", {}));
+          break;
+        }
+        if (sub === "open") {
+          const p = rest[1];
+          if (!p) die("Usage: duo split-view open <path>");
+          const resolved = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);
+          out(await send("split-view", { op: "open", path: resolved }));
+          break;
+        }
+        if (sub === "close") {
+          out(await send("split-view", { op: "close" }));
+          break;
+        }
+        if (sub === "promote") {
+          out(await send("split-view", { op: "promote" }));
+          break;
+        }
+        if (sub === "resize") {
+          const pctArg = rest[1];
+          if (pctArg === void 0) die("Usage: duo split-view resize <pct>");
+          const parsed = Number(pctArg);
+          if (!Number.isFinite(parsed)) die("Usage: duo split-view resize <pct>");
+          out(await send("split-view", { op: "resize", pct: parsed }));
+          break;
+        }
+        die(`Unknown split-view sub-verb: ${sub}. Expected: open|close|promote|resize|state`);
+      }
       case "split": {
         const arg = rest[0];
         if (arg === void 0) {
@@ -1100,6 +1131,23 @@ COMMANDS
                                   terminal (80, full-terminal), canvas
                                   (20, full-canvas). Mirrors View \u2192
                                   Pane size menu and \u2318\u23251/2/3/0/9.
+  split-view <op> [args]          ENH-041 / Sprint 3 \u2014 Split View aux
+                                  pane (the canvas's right-hand
+                                  companion slot). Sub-verbs:
+                                    open <path>   open path in aux
+                                                  (moves from main if
+                                                  already there \u2014 single
+                                                  source of truth)
+                                    close         close the aux pane
+                                    promote       move aux's active tab
+                                                  to main, close aux
+                                    resize <pct>  set splitPct (0.20\u2013
+                                                  0.80, percent or
+                                                  decimal). Clamped.
+                                    state         (or no sub-verb)
+                                                  print current snapshot
+                                  See docs/prd/canvas-split-view-
+                                  research.html for the locked spec.
   events [--follow] [--since      Stage 27 \u2014 stream structured events
     <cursor>] [--limit N]         from the bus. Snapshot mode prints
                                   one JSON line per event from the

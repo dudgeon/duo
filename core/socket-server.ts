@@ -48,7 +48,8 @@ import type {
   NewTabRequest,
   NewTabResult,
   TerminalTabKind,
-  NavPinEntry
+  NavPinEntry,
+  WorkingAuxSnapshot
 } from '../shared/types'
 import { SOCKET_PATH, PORT_FILE, APP_VERSION } from './constants'
 
@@ -79,6 +80,15 @@ export interface NavBridge {
   setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
   /** ENH-014 — CLI-driven split-pane percentage (clamped 20–80). */
   setSplit: (pct: number) => { ok: boolean; pct?: number; error?: string }
+  /** ENH-041 / Sprint 3 — Split View aux pane. CLI-driven open/close/
+   *  promote/resize + state query. State is renderer-authoritative;
+   *  the no-arg getter returns main's cached snapshot pushed by the
+   *  renderer on every aux state change. */
+  splitViewOpen: (path: string) => { ok: boolean; error?: string }
+  splitViewClose: () => { ok: boolean; error?: string }
+  splitViewPromote: () => { ok: boolean; error?: string }
+  splitViewResize: (pct: number) => { ok: boolean; pct?: number; error?: string }
+  getSplitViewState: () => WorkingAuxSnapshot
   /** Stage 5 v2 A24 — open a URL in the macOS default browser via
    *  Electron's `shell.openExternal`. Used by the duo subagent for
    *  hostnames listed in `~/.claude/duo/external-domains.json`. */
@@ -693,6 +703,50 @@ export class SocketServer {
           if (!setResult.ok) throw new Error(setResult.error ?? 'split set failed')
           result = { pct: setResult.pct }
           break
+        }
+        case 'split-view': {
+          // ENH-041 / Sprint 3 — Split View aux pane.
+          //   duo split-view open <path>  →  open path in aux
+          //   duo split-view close        →  close aux
+          //   duo split-view promote      →  move aux's tab to main, close aux
+          //   duo split-view resize <pct> →  set splitPct (0.0–1.0)
+          //   duo split-view              →  state snapshot (no op)
+          const op = args['op'] as string | undefined
+          if (op === undefined || op === 'state') {
+            result = this.nav.getSplitViewState()
+            break
+          }
+          if (op === 'open') {
+            const p = args['path'] as string
+            if (!p) throw new Error('split-view open requires a path arg')
+            const r = this.nav.splitViewOpen(p)
+            if (!r.ok) throw new Error(r.error ?? 'split-view open failed')
+            result = { ok: true }
+            break
+          }
+          if (op === 'close') {
+            const r = this.nav.splitViewClose()
+            if (!r.ok) throw new Error(r.error ?? 'split-view close failed')
+            result = { ok: true }
+            break
+          }
+          if (op === 'promote') {
+            const r = this.nav.splitViewPromote()
+            if (!r.ok) throw new Error(r.error ?? 'split-view promote failed')
+            result = { ok: true }
+            break
+          }
+          if (op === 'resize') {
+            const pct = args['pct']
+            if (typeof pct !== 'number' || !Number.isFinite(pct)) {
+              throw new Error('split-view resize requires a numeric pct (0.0–1.0)')
+            }
+            const r = this.nav.splitViewResize(pct)
+            if (!r.ok) throw new Error(r.error ?? 'split-view resize failed')
+            result = { pct: r.pct }
+            break
+          }
+          throw new Error(`split-view: unknown op '${op}' (expected open|close|promote|resize|state)`)
         }
         case 'selection-format': {
           const format = args['format'] as string | undefined

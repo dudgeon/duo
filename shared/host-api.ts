@@ -275,6 +275,30 @@ export interface ElectronLayoutAPI {
   onSplitSet: (cb: (pct: number) => void) => () => void
 }
 
+// ENH-041 / Sprint 3 — Split View ("aux") API. Renderer is the
+// source of truth for aux state; main pushes verbs via the four
+// `on*` listeners and caches the renderer's pushed snapshot for the
+// CLI's no-arg `duo split-view` state query.
+export interface ElectronWorkingAuxAPI {
+  /** Renderer pushes the current aux snapshot whenever it changes
+   *  (open / close / promote / resize / activeTab change). Main
+   *  caches this for the CLI state query. Default `null` (split
+   *  closed) until first push. */
+  pushState: (snapshot: import('./types').WorkingAuxSnapshot) => void
+  /** Subscribe to `duo split-view open <path>` from the CLI. The
+   *  path arg is already tilde-expanded by main. */
+  onOpen: (cb: (path: string) => void) => () => void
+  /** Subscribe to `duo split-view close` from the CLI. */
+  onClose: (cb: () => void) => () => void
+  /** Subscribe to `duo split-view promote` — move aux's tab to main
+   *  and close the split. Mirrors the empty-main edge case (locked
+   *  spec § 5.5). */
+  onPromote: (cb: () => void) => () => void
+  /** Subscribe to `duo split-view resize <pct>` from the CLI. Pct
+   *  is a fraction in [0.20, 0.80] (clamped main-side). */
+  onResize: (cb: (pct: number) => void) => () => void
+}
+
 export interface ElectronThemeAPI {
   /** Renderer pushes the current theme state so `duo theme` can return
    *  it without a renderer round-trip. */
@@ -647,6 +671,7 @@ export interface ElectronAPI {
   canvas: ElectronCanvasAPI
   cozy: ElectronCozyAPI
   layout: ElectronLayoutAPI
+  workingAux: ElectronWorkingAuxAPI
   theme: ElectronThemeAPI
   selectionFormat: ElectronSelectionFormatAPI
   terminal: ElectronTerminalAPI

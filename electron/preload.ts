@@ -27,6 +27,7 @@ import type {
   ThemeStateSnapshot,
   SelectionFormat,
   SelectionFormatStateSnapshot,
+  WorkingAuxSnapshot,
   NewTabRequest,
   NewTabResult,
   PinEntry,
@@ -357,6 +358,37 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, pct: number) => cb(pct)
       ipcRenderer.on(IPC.SPLIT_SET, handler)
       return () => ipcRenderer.removeListener(IPC.SPLIT_SET, handler)
+    }
+  },
+
+  // ENH-041 / Sprint 3 — Split View ("aux") bridge. Renderer is the
+  // source of truth for aux state; main pushes verbs via the four
+  // `on*` listeners and the renderer pushes its current snapshot back
+  // via `pushState` so the CLI's no-arg `duo split-view` query has a
+  // cache to read.
+  workingAux: {
+    pushState: (snapshot: WorkingAuxSnapshot) => {
+      ipcRenderer.send(IPC.WORKING_AUX_STATE_PUSH, snapshot)
+    },
+    onOpen: (cb) => {
+      const handler = (_: IpcRendererEvent, path: string) => cb(path)
+      ipcRenderer.on(IPC.WORKING_AUX_OPEN, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKING_AUX_OPEN, handler)
+    },
+    onClose: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.WORKING_AUX_CLOSE, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKING_AUX_CLOSE, handler)
+    },
+    onPromote: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.WORKING_AUX_PROMOTE, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKING_AUX_PROMOTE, handler)
+    },
+    onResize: (cb) => {
+      const handler = (_: IpcRendererEvent, pct: number) => cb(pct)
+      ipcRenderer.on(IPC.WORKING_AUX_RESIZE, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKING_AUX_RESIZE, handler)
     }
   },
 

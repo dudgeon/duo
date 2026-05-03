@@ -569,6 +569,46 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'split-view': {
+        // ENH-041 / Sprint 3 \u2014 Split View aux pane. User-facing label
+        // matches the right-click menu items ("Move to Split View",
+        // "Open in Split View"). Sub-verbs:
+        //   duo split-view open <path>   \u2014 open path in aux (move from
+        //                                   main if already there)
+        //   duo split-view close          \u2014 close aux
+        //   duo split-view promote        \u2014 move aux's tab to main, close aux
+        //   duo split-view resize <pct>   \u2014 set splitPct (0.0\u20131.0)
+        //   duo split-view                \u2014 print current state
+        const sub = rest[0]
+        if (sub === undefined || sub === 'state') {
+          out(await send('split-view', {}))
+          break
+        }
+        if (sub === 'open') {
+          const p = rest[1]
+          if (!p) die('Usage: duo split-view open <path>')
+          const resolved = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p)
+          out(await send('split-view', { op: 'open', path: resolved }))
+          break
+        }
+        if (sub === 'close') {
+          out(await send('split-view', { op: 'close' }))
+          break
+        }
+        if (sub === 'promote') {
+          out(await send('split-view', { op: 'promote' }))
+          break
+        }
+        if (sub === 'resize') {
+          const pctArg = rest[1]
+          if (pctArg === undefined) die('Usage: duo split-view resize <pct>')
+          const parsed = Number(pctArg)
+          if (!Number.isFinite(parsed)) die('Usage: duo split-view resize <pct>')
+          out(await send('split-view', { op: 'resize', pct: parsed }))
+          break
+        }
+        die(`Unknown split-view sub-verb: ${sub}. Expected: open|close|promote|resize|state`)
+      }
       case 'split': {
         // ENH-014 \u2014 `duo split <pct>` sets the split-pane percentage
         // (terminal column width as % of the split container). Clamps
@@ -1343,6 +1383,23 @@ COMMANDS
                                   terminal (80, full-terminal), canvas
                                   (20, full-canvas). Mirrors View →
                                   Pane size menu and ⌘⌥1/2/3/0/9.
+  split-view <op> [args]          ENH-041 / Sprint 3 — Split View aux
+                                  pane (the canvas's right-hand
+                                  companion slot). Sub-verbs:
+                                    open <path>   open path in aux
+                                                  (moves from main if
+                                                  already there — single
+                                                  source of truth)
+                                    close         close the aux pane
+                                    promote       move aux's active tab
+                                                  to main, close aux
+                                    resize <pct>  set splitPct (0.20–
+                                                  0.80, percent or
+                                                  decimal). Clamped.
+                                    state         (or no sub-verb)
+                                                  print current snapshot
+                                  See docs/prd/canvas-split-view-
+                                  research.html for the locked spec.
   events [--follow] [--since      Stage 27 — stream structured events
     <cursor>] [--limit N]         from the bus. Snapshot mode prints
                                   one JSON line per event from the

@@ -126,6 +126,12 @@ export type DuoCommandName =
   // the View → Pane size menu and ⌘⌥1/2/3 keyboard accelerators.
   // Clamps to the 20–80 range the divider drag uses.
   | 'split'
+  // ENH-041 / Sprint 3 — Split View (one-aux companion pane in the
+  // canvas). User-facing label is "Split View"; CLI verb is
+  // `duo split-view open <path>` / `duo split-view close` /
+  // `duo split-view` (state). Sub-verb in args.op. See
+  // docs/prd/canvas-split-view-research.html for the locked spec.
+  | 'split-view'
   // Stage 27 — `duo events [--follow] [--since <cursor>] [--limit N]`
   // streams structured events emitted via the canvas-action `duo:event`
   // verb (and any future renderer / main subsystem that calls
@@ -330,6 +336,53 @@ export interface WorkingTab {
   // pins.json each render.
   pinned?: boolean
 }
+
+// ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
+// docs/prd/canvas-split-view-research.html § 7.
+//
+// B-ready shape: `tabs[]` is multi-tab capable from day one even
+// though v1 UI is strictly single-slot (tabs.length is 0 or 1).
+// v2 (Option B per the research) just turns a tab strip on; the
+// state shape doesn't migrate.
+//
+// Identity-bearing IDs (tab UUIDs, BrowserTab numeric ids) match
+// the regular `WorkingTab.id` convention — `f:<uuid>` for file tabs,
+// `b:<numericId>` for browser tabs.
+//
+// Persistence: aux state survives launch via session-state-service
+// (Phase 3c work); v1 first launch starts with `null`.
+export interface WorkingAuxState {
+  /** v1: length is 0 or 1. v2 (multi-tab Option B) lifts the cap. */
+  tabs: WorkingTab[]
+  /** Index into `tabs`. -1 when tabs is empty (split is "open" but
+   *  has no content yet — transient state during open/close). */
+  activeIndex: number
+  /** Main-pane width as fraction of total working area. 0.5 default;
+   *  drag-divider persists per-session via session-state-service. */
+  splitPct: number
+}
+
+/** Snapshot the renderer pushes to main on every aux state change.
+ *  Mirrors the SessionStateActiveWorking pattern — durable refs only,
+ *  no session-local IDs (the CLI consumer uses paths/URLs). */
+export interface WorkingAuxSnapshot {
+  /** When null, split is closed (no aux pane visible). */
+  aux: {
+    /** Active tab's path (file tabs) or url (browser tabs); empty
+     *  string when tabs is empty. */
+    activePath: string
+    activeKind: WorkingTabType
+    splitPct: number
+  } | null
+}
+
+/** Sub-verb shape for `duo split-view <op>`. */
+export type WorkingAuxOp =
+  | { op: 'open'; path: string }
+  | { op: 'close' }
+  | { op: 'promote' }
+  | { op: 'resize'; pct: number }
+  | { op: 'state' }
 
 // Stage 24 — persisted pin entry. Browser tabs identify by URL; file
 // tabs by absolute path. Title is captured for the distro pre-pin
@@ -1172,7 +1225,19 @@ export const IPC = {
   // ENH-014 (v0.5.2 sprint) — split-pane percentage push. Driven by
   // View → Pane size menu, ⌘⌥1/2/3/0/9 accelerators, and `duo split
   // <pct>`. Renderer clamps to 20–80 (same range as divider drag).
-  SPLIT_SET: 'split:set'
+  SPLIT_SET: 'split:set',
+
+  // ENH-041 / Sprint 3 — Split View (one-aux companion in the canvas).
+  // CLI verb `duo split-view open <path>` / `duo split-view close` /
+  // `duo split-view` (state) routes through main → renderer via these
+  // channels. State is renderer-authoritative (App.tsx owns the aux
+  // useState); main caches the latest snapshot so the CLI's no-arg
+  // state query can answer without a renderer round-trip.
+  WORKING_AUX_OPEN: 'working:aux-open',          // main → renderer
+  WORKING_AUX_CLOSE: 'working:aux-close',        // main → renderer
+  WORKING_AUX_PROMOTE: 'working:aux-promote',    // main → renderer (move to main)
+  WORKING_AUX_RESIZE: 'working:aux-resize',      // main → renderer (CLI-driven splitPct)
+  WORKING_AUX_STATE_PUSH: 'working:aux-state-push' // renderer → main (cache snapshot)
 } as const
 
 

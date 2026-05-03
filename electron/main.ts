@@ -55,7 +55,8 @@ import type {
   SelectionFormatStateSnapshot,
   NewTabRequest,
   NewTabResult,
-  ExternalRedirectedPush
+  ExternalRedirectedPush,
+  WorkingAuxSnapshot
 } from '../shared/types'
 
 // Last nav state snapshot the renderer pushed. Drives `duo nav state`.
@@ -104,6 +105,13 @@ let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
 // truth (persisted in localStorage); main caches the latest snapshot
 // for `duo selection-format` reads. Default 'a' (quote + provenance).
 let selectionFormatState: SelectionFormatStateSnapshot = { format: 'a' }
+
+// ENH-041 / Sprint 3 — Split View aux pane snapshot cache. Renderer
+// is the source of truth (App.tsx owns the aux useState); main caches
+// the latest snapshot pushed via WORKING_AUX_STATE_PUSH so the no-arg
+// `duo split-view` state query can answer without a renderer round-
+// trip. Defaults to closed (aux: null) until first push.
+let workingAuxSnapshot: WorkingAuxSnapshot = { aux: null }
 
 // Stage 15 G17 — most recent active terminal-tab id pushed by the
 // renderer. `duo send` writes payloads into this terminal's PTY.
@@ -276,6 +284,11 @@ async function createWindow(): Promise<void> {
     getTheme: getThemeState,
     setTheme: setThemeMode,
     setSplit: setSplit,
+    splitViewOpen: splitViewOpen,
+    splitViewClose: splitViewClose,
+    splitViewPromote: splitViewPromote,
+    splitViewResize: splitViewResize,
+    getSplitViewState: getSplitViewState,
     openExternal: openExternalUrl,
     getSelectionFormat: getSelectionFormatState,
     setSelectionFormat: setSelectionFormat,
@@ -914,6 +927,17 @@ function setupIPC(): void {
     selectionFormatState = snapshot
   })
 
+  // ENH-041 / Sprint 3 \u2014 Split View aux state push. Renderer (App.tsx)
+  // is the source of truth; main caches the latest snapshot for the
+  // CLI's no-arg state query (`duo split-view`). Defensive shape check
+  // because the renderer may push during boot before persistence
+  // hydrates fully.
+  ipcMain.on(IPC.WORKING_AUX_STATE_PUSH, (_event, snapshot: WorkingAuxSnapshot) => {
+    if (snapshot && (snapshot.aux === null || (snapshot.aux && typeof snapshot.aux.activePath === 'string'))) {
+      workingAuxSnapshot = snapshot
+    }
+  })
+
   // Stage 15 G17 \u2014 active terminal-tab id push from the renderer.
   // ENH-013 \u2014 the payload also carries `kind` so the claude-presence
   // probe can arm its starting-grace window for kind=='claude' tabs.
@@ -1209,6 +1233,67 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
   }
   mainWindow.webContents.send(IPC.SPLIT_SET, clamped)
   return { ok: true, pct: clamped }
+}
+
+// ENH-041 / Sprint 3 — Split View aux pane CLI handlers. Renderer
+// (App.tsx) owns the aux useState; these helpers dispatch a verb via
+// IPC and rely on the renderer to push state back via
+// WORKING_AUX_STATE_PUSH. The CLI's no-arg state query reads
+// `workingAuxSnapshot` directly (renderer-pushed cache).
+
+export function splitViewOpen(path: string): { ok: boolean; error?: string } {
+  if (typeof path !== 'string' || !path) {
+    return { ok: false, error: 'split-view open requires a path' }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  // Tilde expansion for parity with sendEdit (path-link clicks via
+  // ENH-039 already expand tildes; CLI callers may pass `~/...` too).
+  let expanded = path
+  if (expanded === '~') {
+    expanded = homedir()
+  } else if (expanded.startsWith('~/')) {
+    expanded = join(homedir(), expanded.slice(2))
+  }
+  mainWindow.webContents.send(IPC.WORKING_AUX_OPEN, expanded)
+  return { ok: true }
+}
+
+export function splitViewClose(): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.WORKING_AUX_CLOSE, null)
+  return { ok: true }
+}
+
+export function splitViewPromote(): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.WORKING_AUX_PROMOTE, null)
+  return { ok: true }
+}
+
+export function splitViewResize(pct: number): { ok: boolean; pct?: number; error?: string } {
+  if (typeof pct !== 'number' || !Number.isFinite(pct)) {
+    return { ok: false, error: 'split-view resize requires a finite numeric pct (0.0–1.0)' }
+  }
+  // Clamp to the same 20–80 range the existing terminal/canvas
+  // divider uses — locked spec § 7. Accept either decimal (0.20–0.80)
+  // or percent (20–80) for caller convenience; > 1 is treated as %.
+  const decimal = pct > 1 ? pct / 100 : pct
+  const clamped = Math.min(Math.max(decimal, 0.20), 0.80)
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.WORKING_AUX_RESIZE, clamped)
+  return { ok: true, pct: clamped }
+}
+
+export function getSplitViewState(): WorkingAuxSnapshot {
+  return workingAuxSnapshot
 }
 
 // Stage 15 G19 — `duo selection-format` reads the cache; `duo

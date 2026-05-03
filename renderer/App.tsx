@@ -265,6 +265,28 @@ export function App() {
   const [fileTabs, setFileTabs] = useState<FileTab[]>([])
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
 
+  // ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
+  // docs/prd/canvas-split-view-research.html. v1 is single-slot
+  // (paths.length 0 or 1); state shape is multi-tab capable so
+  // Option B (multi-tab aux) can ship by just turning the strip on.
+  //
+  // v1 scope: aux holds FILE TABS only (no browser tabs). Browser-
+  // tabs-in-aux is queued for v2 — would require BrowserManager
+  // coordination and a bigger plumbing pass than this phase covers.
+  //
+  // Phase 3a-i: state is tracked + IPC-driven + pushed to main, but
+  // the WorkingPane.tsx layout split (visible UI) lands in 3a-ii.
+  // The CLI verbs (`duo split-view *`) work end-to-end against this
+  // state today; the user just doesn't see anything until 3a-ii.
+  const [auxState, setAuxState] = useState<{
+    /** v1: 0 or 1. v2 lifts the cap. */
+    paths: string[]
+    /** Index into `paths`. -1 when empty. */
+    activeIndex: number
+    /** Main pane width as fraction of total working area. 0.5 default. */
+    splitPct: number
+  } | null>(null)
+
   // Stage 24 — pinned WorkingPane tabs. Owned at App level so the ⌘W
   // keyboard handler can gate close-of-pinned-tab behind a confirm
   // modal. Persisted via the pins service in main; loaded once on
@@ -1435,6 +1457,101 @@ export function App() {
       setSplitPct(Math.min(Math.max(pct, 20), 80))
     })
   }, [])
+
+  // ENH-041 / Sprint 3 — Split View IPC subscribers. CLI verbs `duo
+  // split-view open|close|promote|resize` route through main →
+  // preload → here. App.tsx is the source of truth for aux state;
+  // every change pushes a snapshot back to main via the
+  // `pushState` effect below so the CLI's no-arg state query has
+  // a cache to read.
+  //
+  // v1 single-slot semantics (locked spec § 5):
+  //   - onOpen: if path is in main fileTabs, MOVE it (drop from main,
+  //     set as aux's only tab). Else just open in aux. Replacement
+  //     of existing aux content is silent in v1; dirty-prompt is
+  //     Phase 3c.
+  //   - onClose: setAuxState(null); main pane reclaims width.
+  //   - onPromote: aux's active tab moves back to main; aux closes.
+  //   - onResize: clamp pct to [0.20, 0.80] (mirror divider drag).
+  useEffect(() => {
+    const offOpen = window.electron.workingAux?.onOpen?.((path) => {
+      // Drop from main if present (single-source-of-truth rule).
+      setFileTabs(prev => prev.filter(t => t.path !== path))
+      // If the moved tab was the active main tab, clear active.
+      setActiveWorking(prev => {
+        if (prev.kind === 'file') {
+          const wasActive = fileTabs.find(t => t.id === prev.id && t.path === path)
+          if (wasActive) return { kind: 'browser' }
+        }
+        return prev
+      })
+      // Open / replace in aux. v1: silent replace (no dirty-prompt yet).
+      setAuxState(prev => ({
+        paths: [path],
+        activeIndex: 0,
+        splitPct: prev?.splitPct ?? 0.5
+      }))
+    })
+    const offClose = window.electron.workingAux?.onClose?.(() => {
+      setAuxState(null)
+    })
+    const offPromote = window.electron.workingAux?.onPromote?.(() => {
+      setAuxState(prev => {
+        if (!prev || prev.paths.length === 0) return null
+        const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
+        // Re-add to main as a new file tab. classifyFile derives type
+        // + mime from extension; the navigator-click path uses the
+        // same helper.
+        const { type, mime } = classifyFile(path)
+        const newId = `f:${crypto.randomUUID()}`
+        const title = path.split('/').pop() ?? path
+        setFileTabs(curr => [...curr, { id: newId, type, path, title, mime }])
+        setActiveWorking({ kind: 'file', id: newId })
+        return null
+      })
+    })
+    const offResize = window.electron.workingAux?.onResize?.((pct) => {
+      setAuxState(prev => {
+        const clamped = Math.min(Math.max(pct, 0.20), 0.80)
+        if (!prev) {
+          // Resize on closed split is a no-op (clamping a non-existent
+          // splitPct). Could also choose to "remember the size for
+          // next open" but that's pre-optimization; defer.
+          return null
+        }
+        return { ...prev, splitPct: clamped }
+      })
+    })
+    return () => {
+      offOpen?.()
+      offClose?.()
+      offPromote?.()
+      offResize?.()
+    }
+    // fileTabs is read inside the onOpen handler; intentionally NOT
+    // a dep so we don't re-subscribe on every fileTabs change. The
+    // closure captures the latest fileTabs via the stale-closure
+    // pattern + functional setState. setFileTabs's prev arg gives
+    // us the current value at fire time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ENH-041 / Sprint 3 — push aux snapshot to main on every change.
+  // Main caches the latest snapshot (workingAuxSnapshot in main.ts)
+  // so the CLI's no-arg `duo split-view` state query can answer
+  // without a renderer round-trip.
+  useEffect(() => {
+    const snapshot = auxState && auxState.paths.length > 0
+      ? {
+          aux: {
+            activePath: auxState.paths[auxState.activeIndex] ?? auxState.paths[0],
+            activeKind: classifyFile(auxState.paths[auxState.activeIndex] ?? auxState.paths[0]).type,
+            splitPct: auxState.splitPct
+          }
+        }
+      : { aux: null }
+    window.electron.workingAux?.pushState?.(snapshot)
+  }, [auxState])
 
   // ENH-040 — cache the previous non-collapsed split for restore.
   // Whenever splitPct is in the user's drag range (20–80), remember
