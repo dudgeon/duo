@@ -97,12 +97,23 @@ regression test file).
   column wrapper. AuxHeader renders the same `bg-accent-soft
   border-accent` treatment as the main strip when subpane focus is
   on it. State resets to 'main' when aux closes.
-- **BUG-075** (P2 bonus) ✅ **Fixed** — Root cause was `e.key === '\\'`
-  AND `shift === true` in `globalShortcuts.ts § matchGlobalShortcut` —
-  impossible on US keyboards because Shift+\ produces `e.key === '|'`.
-  Switched both Split View branches to `e.code === 'Backslash'`
-  (modifier-independent physical-key API). Locked with 5 regression
-  tests in `renderer/keyboard/globalShortcuts.test.ts`.
+- **BUG-075** (P2 bonus) ✅ **Fixed (after re-pick)** — TWO root
+  causes: (1) the matcher used `e.key === '\\'` instead of
+  `e.code === 'Backslash'`, breaking the shifted form; (2) 1Password's
+  system-level Cmd+\ autofill grab intercepted the chord before
+  Duo saw it (most macOS users have this). Owner re-picked the
+  chord: **⌘/ open + ⌘⇧/ promote**. Both forwarder
+  (`browser-manager.ts`) and matcher (`globalShortcuts.ts`) now use
+  `e.code === 'Slash'`. 6 regression tests in
+  `renderer/keyboard/globalShortcuts.test.ts` (added a negative
+  test for the old ⌘\ chord).
+- **ENH-084** (P1) 🔴 **DEFECT — deferred to v0.6.6 Sprint 5.** Three
+  attempts in Sprint 4 all failed (mousedownCapture missed iframe
+  clicks; gate-removal sacrificed exclusivity; focusin listener
+  didn't reach iframe focus events as expected). See tasks.md
+  § ENH-084 for the full attempt history + hypotheses for v4. Owner
+  direction: log + move on; instrument event sources before
+  designing v4.
 
 ### Phase 4 — Tab cycling / focus fix · ✅ DONE
 

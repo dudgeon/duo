@@ -4838,9 +4838,22 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ---
 
-### BUG-075: Phase 3b ⌘\\ + ⌘⇧\\ Split View keyboard chords are ignored (regression — right-click + CLI paths still work)
+### BUG-075: Phase 3b Split View keyboard chords are ignored (regression — right-click + CLI paths still work)
 
-**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 3). Root cause was in `renderer/keyboard/globalShortcuts.ts § matchGlobalShortcut`: the `splitViewPromote` branch checked `e.key === '\\'` AND `shift === true` — physically impossible on US keyboards because Shift+\ produces `e.key === '|'` (the shifted character), not `'\\'`. Both Split View branches now use `e.code === 'Backslash'` (the modifier-independent physical-key API). Locked with regression coverage at `renderer/keyboard/globalShortcuts.test.ts` (5 tests covering both chords + the negative cases) per the "Recurring regressions need durable test coverage" memory.
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 3+4 — TWO root causes, two fixes). The chord that ships in v0.6.5 is **⌘/ open + ⌘⇧/ promote**, NOT the original ⌘\ pair.
+
+**Root cause 1: e.key vs e.code on shift-modified keys.** The matcher checked `e.key === '\\'` AND `shift === true` — physically impossible on US keyboards because Shift+\ produces `e.key === '|'`. Both Split View branches now use `e.code === 'Slash'` (and previously `'Backslash'`) — modifier-independent physical-key API.
+
+**Root cause 2: 1Password's system-level Cmd+\ grab.** Even after the e.code fix landed, the chord still didn't fire on the owner's machine because 1Password intercepts Cmd+\ for password autofill at the OS level — Chromium / Duo never see the keystroke. Owner picked ⌘/ as the replacement chord (free in Duo's registry, no system-level conflict, mnemonic preserved).
+
+**Fix scope (v3):**
+- `renderer/keyboard/globalShortcuts.ts § matchGlobalShortcut` — both branches use `e.code === 'Slash'`.
+- `electron/browser-manager.ts § wireKeyForwarding` — duo-shortcut allowlist now matches `input.code === 'Slash'` (was `'Backslash'`).
+- `renderer/keyboard/globalShortcuts.test.ts` — 6 regression tests covering ⌘/ unshifted, ⌘⇧/ shifted (with `e.key === '?'`), specificity ordering, modifier exclusion, AND a negative test that ⌘\ no longer matches (so a regression back to the old chord surfaces as a test failure, not a silent breakage).
+
+**Lessons saved to memory:**
+- Use `e.code` (physical-key API), not `e.key`, for chord checks involving shift-modified characters.
+- macOS users with 1Password installed lose Cmd+\ to autofill at the OS level. Don't pick chord pairs that conflict with common system-level grabs without verifying.
 **Status (original):** 🆕 Filed · **regression in Phase 3b**.
 **Priority:** **High** — keyboard chords are a load-bearing entry point per the v0.6.4 PRD; right-click and CLI work, but the keyboard parity gap is a feature regression.
 **Filed:** 2026-05-03 (owner smoke walk note).
@@ -5009,7 +5022,34 @@ Visual benefit: the control sits with the surface; users find it intuitively whe
 
 ### ENH-084: Aux pane focus indicator — orange glow when active in side pane (parity with main)
 
-**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 3). `WorkingPane` now tracks a `focusedSubpane: 'main' | 'aux'` state. `onMouseDownCapture` on each column wrapper flips it (capture phase so iframe / contentEditable surfaces can't swallow the event). When the working column has focus AND `focusedSubpane === 'aux'`, the AuxHeader applies the same `bg-accent-soft border-accent text-ink` treatment WorkingTabStrip uses — symmetric indicator across the two surfaces. When aux closes, subpane resets to 'main'.
+**Status:** 🔴 **DEFECT — three attempts in v0.6.5 all failed; deferred to v0.6.6 Sprint 5.** Owner direction (2026-05-04, Phase 3 re-walk #2): *"glow never moves to split view -- please log the defect, incl failed attempts to fix it, then move on; this has wasted too much time this sprint."* Logging here as the canonical reference for the next attempt; do NOT ship a v4 without first studying these failures.
+
+**Failed attempts:**
+
+1. **v1 — `onMouseDownCapture` on column wrappers (commit 8ac1507).** Tracked `focusedSubpane: 'main' | 'aux'` in WorkingPane state. Each column wrapper got an `onMouseDownCapture` that set the subpane on click. Gated WorkingTabStrip's `focused` on `focused && focusedSubpane === 'main'`, AuxHeader on `focused && focusedSubpane === 'aux'`.
+   - **Result:** PASSED on aux side (clicking aux glows the aux header). FAILED on main: "canvas main pane (left) does not glow when you click in to it, type in it, etc (regression)."
+   - **Why:** clicks INSIDE iframes (PageTab) don't bubble out to the parent doc, so the `onMouseDownCapture` never fires when the user clicks inside a page tab. focusedSubpane stays at whatever the last non-iframe click set it to. Once aux had been clicked, main never won focus back unless the user clicked on the strip chrome.
+
+2. **v2 — Remove the gate (commit f089048).** Backed out the gate from WorkingTabStrip entirely, leaving only the AuxHeader gate. Main strip ALWAYS glowed on column focus.
+   - **Result:** Fixed v1's main-pane regression. FAILED for the actual semantic intent: "inactive canvas pane still glow; whole point is for glow to show focus; when I click back from split view to main pane, split view should lose focus; and vice versa."
+   - **Why:** removing the gate sacrificed exclusivity. Both surfaces glowed simultaneously when aux had focus, defeating the purpose of glow as a focus indicator.
+
+3. **v3 — Document-level `focusin` listener (commit 48d4cbd).** Replaced `onMouseDownCapture` with a capture-phase `document.addEventListener('focusin', ...)` listener registered when `auxState` is non-null. Used `mainColRef` / `auxColRef` and `Element.contains(target)` to determine which subpane gained focus. Reasoning: parent doc DOES see `focusin` with target=iframe element when an iframe gains focus.
+   - **Result:** owner verdict — "glow never moves to split view." Glow stays on main; clicking aux doesn't flip it.
+   - **Why (hypotheses — NOT yet verified, would need diagnostic logging in the live app):** several plausible culprits, any combo:
+     - PageTab uses sandboxed iframes; on macOS, sandboxed iframe focus events may not propagate as expected to the parent doc's `focusin` listener.
+     - The `mainColRef`/`auxColRef` containment check might be wrong if column wrappers re-mount on auxState changes (refs briefly null).
+     - The `auxState` dep on the useEffect may have a stale-closure issue — when `auxState` mutates, the listener re-registers against potentially-stale refs.
+     - There may be a different focus-related WorkingPane mechanism (BUG-037, BUG-042 lineage) that's already fighting our subpane signal.
+
+**Why the next attempt should NOT just iterate on these patterns:**
+
+The three fixes all assumed a single "subpane focus signal" architecture would suffice. The repeated failures suggest the underlying surface model is more complex than that — there are at least three distinct focus-event sources (parent-doc click, iframe-internal focus, programmatic focus from CDP / IPC) and they don't all reliably reach a single listener. **A v4 should start by INSTRUMENTING the live app** before writing any fix: add `console.log` in EVERY event source (mousedown on column, mousedown on body, focusin, blur, click, mouseup, the BUG-037 `onPageFocusGained` callback, the iframe `contentDocument`'s own listeners) and have the owner click around for 60 seconds while we capture the actual event stream. Design the fix from data, not theory.
+
+**Workaround until v4:** the AuxHeader has a ⇤ "to main" button + ✕ close button + right-click menu (ENH-085). Aux files are trivially manageable; only the visual focus indicator is missing.
+
+**Cross-ref:** BUG-037 (canvas iframe click → focusedColumn flip — same iframe-events-don't-propagate family); BUG-042 (browser pane click doesn't update focus); BUG-071 (focus limbo after path-link click). The next attempt should first confirm whether the existing `onPageFocusGained` signal could be repurposed to ALSO carry subpane info, since it's known to fire correctly for iframe focus events (unlike our `focusin` listener).
+
 **Status (original):** 🆕 Filed (v0.6.4 smoke walk owner note).
 **Priority:** Medium (a11y / discoverability — focus state should always be visually obvious).
 **Filed:** 2026-05-03.

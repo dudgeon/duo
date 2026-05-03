@@ -226,47 +226,19 @@ export function WorkingPane({
   // tabs they've just opened, not tabs from yesterday.
   const [tabOrder, setTabOrder] = useState<string[]>([])
 
-  // ENH-084 (v0.6.5) — subpane-aware focus. When Split View is open,
-  // the working pane has TWO surfaces (main + aux). focusedSubpane
-  // tracks which one the user last interacted with so each surface
-  // can paint the accent treatment ONLY when it has focus
-  // (exclusive — owner ask: clicking main should remove the aux
-  // glow and vice versa). Default 'main' — until the user clicks
-  // aux, main wins.
-  const [focusedSubpane, setFocusedSubpane] = useState<'main' | 'aux'>('main')
-  const mainColRef = useRef<HTMLDivElement>(null)
-  const auxColRef = useRef<HTMLDivElement>(null)
-  // When the split closes, snap back to main so the next time aux
-  // opens, the indicator state is sane.
-  useEffect(() => {
-    if (!auxState) setFocusedSubpane('main')
-  }, [auxState])
-  // ENH-084 v2 (v0.6.5) — detect subpane focus via `focusin` events
-  // on the document. mousedownCapture missed iframe clicks because
-  // events inside an iframe don't bubble out to the parent doc;
-  // when an iframe (PageTab) gains focus, the parent doc DOES see
-  // a `focusin` with the iframe element as target. Walking up from
-  // event.target through parentNode chains via `Element.contains`
-  // covers all surfaces: TipTap (contentEditable in main doc),
-  // page iframes, image previews, the strip itself. Capture phase
-  // so it sees the focus before any local handler.
-  useEffect(() => {
-    if (!auxState) return  // No aux pane = no exclusivity needed.
-    const handler = (e: FocusEvent) => {
-      const target = e.target as Node | null
-      if (!target) return
-      if (mainColRef.current?.contains(target)) {
-        setFocusedSubpane('main')
-      } else if (auxColRef.current?.contains(target)) {
-        setFocusedSubpane('aux')
-      }
-      // Anything else (terminal, files column) — leave subpane alone;
-      // working-column focus dropping is App.tsx's `focusedColumn`
-      // job, which gates the parent `focused` prop.
-    }
-    document.addEventListener('focusin', handler, true)
-    return () => document.removeEventListener('focusin', handler, true)
-  }, [auxState])
+  // ENH-084 (v0.6.5) — DEFECT, deferred to v0.6.6. Three attempts at
+  // exclusive subpane focus all failed; see tasks.md § ENH-084 for the
+  // full history. The state + refs are kept (no harm; they're cheap)
+  // so a v4 attempt can pick up where v3 left off WITHOUT first
+  // reverting + re-adding scaffolding. The gate on WorkingTabStrip is
+  // restored to plain `focused` so the main strip glows correctly
+  // (v3's gate-on-stale-state caused the symptom owner reported:
+  // "glow never moves to split view"). AuxHeader keeps its gate but
+  // since focusedSubpane never updates, aux header simply never
+  // glows in v0.6.5 — accepted regression vs. v1 (where aux DID glow
+  // on click but main was broken). v4 must instrument the event
+  // sources before designing the fix.
+  const [focusedSubpane] = useState<'main' | 'aux'>('main')
   // Keep tabOrder reconciled with current strip ids: append unknown
   // ids in their insertion order, drop ids no longer present. The
   // join is the dep — string identity is fine here, list is short.
@@ -555,14 +527,11 @@ export function WorkingPane({
     <div className={`w-full h-full bg-surface-0 ${splitOpen ? 'flex' : 'flex flex-col'}`}>
       {/* Main column. min-w-0 lets the flex child shrink past its
           intrinsic content width when the user drags the divider.
-          ENH-084 v2 — focus tracking lives at the document level
-          (the focusin effect above) using mainColRef as a containment
-          check. Iframe focus events fire on the parent doc as
-          focusin with target=iframe element, which IS contained in
-          this ref — so PageTab clicks are caught even though
-          mousedown doesn't bubble out of the iframe. */}
+          ENH-084 deferred to v0.6.6 — see tasks.md for the v1/v2/v3
+          attempt history. The column wrapper has no focus signal
+          plumbed in v0.6.5; revisit in Sprint 5 with diagnostic
+          instrumentation BEFORE writing the v4 fix. */}
       <div
-        ref={mainColRef}
         className="flex flex-col min-w-0"
         style={splitOpen ? { flex: `${(1 - auxState!.splitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
       >
@@ -575,7 +544,6 @@ export function WorkingPane({
             onResize={onAuxResize}
           />
           <div
-            ref={auxColRef}
             className="flex flex-col min-w-0 border-l border-paper-rule"
             style={{ flex: `${auxState!.splitPct * 100} 0 0%` }}
           >

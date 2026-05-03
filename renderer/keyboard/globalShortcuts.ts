@@ -210,24 +210,26 @@ export function matchGlobalShortcut(
     return { id: 'nextTerminalTab' }
   }
 
-  // Sprint 3 Phase 3b — ⌘⇧\ promotes aux back to main (closes the
-  // split AND keeps the file open). Specific combo before generic
-  // ⌘\ below, per "first match wins" ordering rule. For pure-close
-  // (discard the split entirely without promoting), the aux header's
-  // ✕ button is the affordance.
-  // BUG-075 (v0.6.5) — must use `e.code === 'Backslash'`, not
-  // `e.key === '\\'`. On US keyboards, Shift+\ produces `e.key === '|'`
-  // (the shifted character), so the original `e.key === '\\'` check
-  // could NEVER match when shift was held — chord was silently dropped.
-  // `e.code` is the physical-key API and is modifier-independent.
-  if (meta && shift && !alt && !ctrl && e.code === 'Backslash') {
+  // Sprint 3 Phase 3b — ⌘/ opens / moves into Split View; ⌘⇧/
+  // promotes aux back to main (closes the split AND keeps the file
+  // open). Specific combo before generic, per "first match wins."
+  // For pure-close (discard the split entirely without promoting),
+  // the aux header's ✕ button is the affordance.
+  //
+  // BUG-075 (v0.6.5) — chord re-pick. Originally ⌘\ / ⌘⇧\ but those
+  // conflict with 1Password's system-level Cmd+\ autofill grab on
+  // most macOS users' machines (1P intercepts before Chromium / Duo
+  // ever sees the keystroke). ⌘/ + ⌘⇧/ chosen as the replacement —
+  // free in Duo's registry, no system-level conflict, and ⌘? (the
+  // shifted form) is only an issue if Duo's app menu has a Help
+  // item (it doesn't in v0.6.5). Uses `e.code === 'Slash'` for the
+  // same reason BUG-075 v1 needed Backslash: the shifted form
+  // produces a different `e.key` ('?') so e.key checks would have
+  // missed the shift case.
+  if (meta && shift && !alt && !ctrl && e.code === 'Slash') {
     return { id: 'splitViewPromote' }
   }
-  // Sprint 3 Phase 3b — ⌘\ moves the active main tab into the aux
-  // slot, or no-ops if the active tab is already in aux. Routed
-  // through App.tsx's splitViewOpen IPC; same destination the CLI
-  // verb `duo split-view open <path>` uses.
-  if (meta && !shift && !alt && !ctrl && e.code === 'Backslash') {
+  if (meta && !shift && !alt && !ctrl && e.code === 'Slash') {
     return { id: 'splitViewToggle' }
   }
 

@@ -675,18 +675,18 @@ export class BrowserManager {
         key === 'g' ||
         key === '[' ||
         key === ']' ||
-        // Sprint 3 Phase 3b — ⌘\ / ⌘⇧\ open / close Split View. Without
-        // forwarding, Chromium would let the keystroke fall through to
-        // the page. The renderer's splitViewToggle / splitViewClose
-        // handler reads activeWorking off App.tsx state.
-        // BUG-075 v2 (v0.6.5) — must check `input.code === 'Backslash'`,
-        // not `key === '\\'`. On US keyboards, Shift+\ produces
-        // input.key === '|' (the shifted character), so the original
-        // check could NEVER match when shift was held — chord was
-        // silently dropped at the FORWARDER level (before reaching
-        // the renderer matcher we already fixed). Same root cause as
-        // globalShortcuts.ts § matchGlobalShortcut.
-        input.code === 'Backslash' ||
+        // Sprint 3 Phase 3b — ⌘/ / ⌘⇧/ open / close Split View.
+        // Without forwarding, Chromium would consume the keystroke
+        // (or let it fall through to the page). The renderer's
+        // splitViewToggle / splitViewPromote handler reads
+        // activeWorking off App.tsx state.
+        // BUG-075 v3 (v0.6.5) — chord re-pick from ⌘\ to ⌘/ because
+        // 1Password's system-level Cmd+\ grab intercepts the original
+        // before Chromium / Duo can see it. `input.code === 'Slash'`
+        // is modifier-independent (Shift+/ produces input.key === '?'
+        // but input.code === 'Slash' regardless). Same code-vs-key
+        // lesson as the previous chord — see globalShortcuts.ts.
+        input.code === 'Slash' ||
         (key >= '1' && key <= '9')
       // NOTE: ⌘` is intentionally NOT in this list. It's handled by the
       // app-menu accelerator (which beats macOS's system shortcut) and

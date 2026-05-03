@@ -1,11 +1,21 @@
 // Regression coverage for the global-shortcut matcher.
 //
-// Why this file exists: BUG-075 (v0.6.4 smoke walk) — the ⌘⇧\
-// chord for splitViewPromote was silently dropped because the matcher
-// checked `e.key === '\\'` AND `shift === true`. On US keyboards
-// pressing Shift+\ produces `e.key === '|'` (the shifted character),
-// so the AND condition was physically impossible. The fix switches
-// to `e.code === 'Backslash'` (modifier-independent physical-key API).
+// Why this file exists: BUG-075 (v0.6.4 + v0.6.5 smoke walks) — Split
+// View chords kept failing for two distinct reasons:
+//   (1) The original ⌘\ / ⌘⇧\ chords used `e.key === '\\'` checks,
+//       but Shift+\ produces e.key === '|' (the shifted character),
+//       so the matcher could NEVER hit the shifted branch. Fix: use
+//       `e.code === 'Backslash'` (modifier-independent physical-key
+//       API). v1 of this file tested THAT fix.
+//   (2) v0.6.5 owner walk: 1Password's system-level Cmd+\ autofill
+//       grab intercepted the chord BEFORE Chromium / Duo could see
+//       it. Re-pick: ⌘/ + ⌘⇧/. Same `e.code` lesson — Shift+/
+//       produces e.key === '?', so the matcher uses
+//       `e.code === 'Slash'`.
+//
+// These tests now anchor BOTH lessons: the chord is on `Slash`, and
+// the shifted case is asserted to keep matching even when e.key
+// changes to the shifted character.
 //
 // The "Recurring regressions need durable test coverage" memory
 // (Duo) says regressions need a test, not just a smoke-checklist
@@ -24,7 +34,7 @@ const ctx = { inEditableSurface: false }
  * Vitest's default Node environment (no JSDOM dependency).
  *
  * The `key` and `code` fields differ in shift-modified cases
- * (`Shift+\` → key='|', code='Backslash') — we model both correctly
+ * (`Shift+/` → key='?', code='Slash') — we model both correctly
  * so the test can catch a regression that confuses the two.
  */
 function chord(opts: {
@@ -46,41 +56,52 @@ function chord(opts: {
 }
 
 describe('matchGlobalShortcut — Split View chords (BUG-075 regression)', () => {
-  it('matches ⌘\\ → splitViewToggle (unshifted, key === code === Backslash)', () => {
-    const m = matchGlobalShortcut(chord({ key: '\\', code: 'Backslash', meta: true }), ctx)
+  it('matches ⌘/ → splitViewToggle (unshifted, key === "/", code === "Slash")', () => {
+    const m = matchGlobalShortcut(chord({ key: '/', code: 'Slash', meta: true }), ctx)
     expect(m).toEqual({ id: 'splitViewToggle' })
   })
 
-  it('matches ⌘⇧\\ → splitViewPromote (shifted: key === "|", code === "Backslash")', () => {
-    // BUG-075 anchor: this is the case that the old `e.key === "\\"`
-    // matcher could NEVER hit, because Shift+\ produces "|", not "\".
-    // Switching to `e.code === "Backslash"` fixes it.
-    const m = matchGlobalShortcut(chord({ key: '|', code: 'Backslash', meta: true, shift: true }), ctx)
+  it('matches ⌘⇧/ → splitViewPromote (shifted: key === "?", code === "Slash")', () => {
+    // BUG-075 anchor: the shifted form produces e.key === '?', NOT
+    // '/'. Using e.code === 'Slash' catches both shifted + unshifted
+    // forms uniformly. A regression to e.key checks would skip this
+    // case and the chord would silently drop on shift.
+    const m = matchGlobalShortcut(chord({ key: '?', code: 'Slash', meta: true, shift: true }), ctx)
     expect(m).toEqual({ id: 'splitViewPromote' })
   })
 
-  it('does not match ⌘| (e.key === "|" but no shift) — should fall through', () => {
-    // Defensive: a synthetic ⌘| WITHOUT shift shouldn't match either
+  it('does not match ⌘? (e.key === "?" but no shift) — should fall through', () => {
+    // Defensive: a synthetic ⌘? WITHOUT shift shouldn't match either
     // chord. (Real keyboards can't produce this — but test the matcher
     // shape, not just the most-likely path.)
-    const m = matchGlobalShortcut(chord({ key: '|', code: 'IntlBackslash', meta: true, shift: false }), ctx)
+    const m = matchGlobalShortcut(chord({ key: '?', code: 'IntlBackslash', meta: true, shift: false }), ctx)
     expect(m).toBeNull()
   })
 
-  it('does not match plain ⌘\\ when alt or ctrl is also held', () => {
-    const withAlt = matchGlobalShortcut(chord({ key: '\\', code: 'Backslash', meta: true, alt: true }), ctx)
-    const withCtrl = matchGlobalShortcut(chord({ key: '\\', code: 'Backslash', meta: true, ctrl: true }), ctx)
+  it('does not match plain ⌘/ when alt or ctrl is also held', () => {
+    const withAlt = matchGlobalShortcut(chord({ key: '/', code: 'Slash', meta: true, alt: true }), ctx)
+    const withCtrl = matchGlobalShortcut(chord({ key: '/', code: 'Slash', meta: true, ctrl: true }), ctx)
     expect(withAlt).toBeNull()
     expect(withCtrl).toBeNull()
   })
 
-  it('shift-modifier specificity: ⌘⇧\\ matches splitViewPromote, NOT splitViewToggle', () => {
+  it('shift-modifier specificity: ⌘⇧/ matches splitViewPromote, NOT splitViewToggle', () => {
     // The matcher uses first-match-wins ordering — splitViewPromote
     // (shift) is declared before splitViewToggle (no-shift). Confirm
     // the shifted case never accidentally falls through to the
     // unshifted branch.
-    const m = matchGlobalShortcut(chord({ key: '|', code: 'Backslash', meta: true, shift: true }), ctx)
+    const m = matchGlobalShortcut(chord({ key: '?', code: 'Slash', meta: true, shift: true }), ctx)
     expect(m?.id).not.toBe('splitViewToggle')
     expect(m?.id).toBe('splitViewPromote')
+  })
+
+  it('does NOT match ⌘\\ — the old chord is no longer wired (BUG-075 v3 re-pick)', () => {
+    // 1Password grabs Cmd+\ at the system level on most macOS users'
+    // machines, so the chord couldn't fire even with the e.code fix.
+    // Confirms the chord changed AND that any future regression to
+    // ⌘\ would surface as a test failure (not just a silent broken
+    // chord like BUG-075 v1).
+    const m = matchGlobalShortcut(chord({ key: '\\', code: 'Backslash', meta: true }), ctx)
+    expect(m).toBeNull()
   })
 })
