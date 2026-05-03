@@ -282,15 +282,29 @@ generated as worksheets so they round-trip cleanly:
 
 ## How to resume after compaction
 
-1. **Read this file FIRST.** Phase 1 is the next action — ENH-052
-   mechanical rename, single commit, before any other UI work.
-2. **Check `git log --oneline -10`** — confirm where we are in the
-   phase sequence.
-3. **Check `docs/dev/worksheets/sprint-plan-v0.6.5.html`** — the
-   walked priorities are the source of truth.
-4. **If a phase is mid-flight,** check this file's "Phase plan" rows
-   for status flips and the latest commit's message for what just
-   landed.
+**Sprint state (as of 2026-05-04, post Phase 4 chord verify):**
+Phases 1, 2, 3, 4 are ✅ DONE. **Phase 5 is the next action.** Three
+items remain in the v0.6.5 plan (Phase 5, 6, 7) plus the cut-readiness
+gate. ENH-084 was deferred to v0.6.6 with a full defect log in
+tasks.md.
+
+**Resume recipe:**
+1. **Read this file FIRST.** Walk down the Phase plan; the next
+   `in_progress` row is the entry point.
+2. **`git log --oneline -15`** — confirm the most recent commit. If
+   the head is `d063b47` (chord re-pick) or later, Phase 1–4 + the
+   chord re-pick are committed and the next move is Phase 5.
+3. **Phase 5 = markdown trigger family.** Three items, all in
+   `markdownShortcuts.ts` / canvas trigger detection: BUG-061 +
+   BUG-073 (combined — bullet-marker passthrough), BUG-072 (blockquote
+   double-Enter exit). Single commit; tests in
+   `Page/markdownShortcuts.test.ts` should be extended.
+4. **Reload Duo before any smoke walk** — main-process changes from
+   Phase 4 + the chord re-pick require Electron restart, NOT just
+   renderer HMR. (Memory entry: `feedback_main_process_changes_need_restart`.)
+5. **Open worksheets in the browser pane** via `duo open <path>` so
+   they're focused. Don't leave stale ones up — generate a fresh
+   worksheet for each verification round.
 
 ---
 

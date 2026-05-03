@@ -18,6 +18,78 @@
 
 ---
 
+## 2026-05-04 — Sprint 4 Phases 1–4 shipped; ENH-084 deferred; ready for compaction
+
+**Status: 4 of 7 sprint phases done.** Phase 1 (ENH-052 mechanical
+rename), Phase 2 (BUG-074 + ENH-078 + ENH-086 + ENH-087), Phase 3
+(ENH-083 + ENH-085 + BUG-075), Phase 4 (BUG-076) all closed. Phase 5
+(markdown trigger family — BUG-061/072/073), Phase 6 (worksheet
+ecosystem — ENH-043/080/075), Phase 7 (FOLLOWUP-004/003) remain
+before the cut. **ENH-084** (aux pane focus glow) — three v0.6.5
+attempts all failed; deferred to v0.6.6 Sprint 5 with full defect
+log in tasks.md (v1 mousedownCapture missed iframe clicks; v2
+gate-removal sacrificed exclusivity; v3 focusin listener didn't
+reach iframe focus). Owner direction: *"please log the defect, incl
+failed attempts to fix it, then move on; this has wasted too much
+time this sprint."*
+
+**Sprint 4 commit chain (15 commits, `929061f` → `d063b47`):**
+
+| Commit | Item | One-liner |
+|---|---|---|
+| `c57c39a` | Phase 1 | ENH-052 mechanical rename — `WorkingTab.kind = 'page'`, `Page/` directory, `PlaygroundAction`, `IPC.PAGE_*`. 177 edits / 32 files / 0 behavior changes. |
+| `440d876` | Phase 2a | BUG-074 v1 (text-ink) + ENH-086 v1 (stronger separation) + ENH-087 worksheet queued. |
+| `3e4b796` | Phase 2b | ENH-086 v2 (reorder user-claude → bottom of nav) + ENH-087 OPT-B (open-file dot glyph). |
+| `b9a4c69` | Phase 2c | BUG-074 v3 — Finder-style SOLID accent fill + white text (took 3 attempts to land; owner had said "like Finder" 3×). |
+| `9a27845` | Phase 2d | BUG-074 polish — softer accent + square corners. |
+| `8ac1507` | Phase 3 | ENH-083 collapse-button relocation + ENH-084 v1 (later failed) + ENH-085 right-click parity + BUG-075 chord matcher fix. |
+| `eb953eb` | Phase 4 | BUG-076 — switchTab focus drift fix in BrowserManager. |
+| `dc10564` | docs | Stage 19e PRD (ENH-088/089/090 user-context onboarding) — owner authored separately. |
+| `4cdb5e4` | Phase 2e | BUG-074 v5 — revert `bg-accent/85` polish (Tailwind opacity-modifier silently broken on raw CSS-var-backed accent token; FOLLOWUP-008 filed for the proper migration). |
+| `f089048` | re-walk #1 fallout | Chord forwarder fix (browser-manager `input.code === 'Backslash'`) + cycle race fix (optimistic `activeIdRef` update) + ENH-084 v2 (gate removed) + dividers v1 + worksheet card-color tints. |
+| `ae1a6d8` | template fix | Worksheet generate.mjs — backticks in CSS comment broke the JS template literal; replaced with plain text. |
+| `48d4cbd` | re-walk #2 fallout | ENH-084 v3 (focusin listener — later failed) + ENH-083 v2 (collapse INSIDE existing cluster with in-cluster divider). |
+| `d063b47` | re-walk #3 fallout | BUG-075 chord re-pick to ⌘/ + ⌘⇧/ (1Password grabs Cmd+\ at OS level — chord COULD never fire even with the e.code fix), ENH-084 v3 backed out (deferred to v0.6.6), render-crash from dangling refs fixed. 6 regression tests including a negative test against the old ⌘\ chord. |
+
+**Lessons saved as memory entries this session:**
+1. *"Finder-style" means SOLID, not translucent.* Three attempts on
+   BUG-074 before the owner finally got the saturated orange + white
+   text he'd been asking for. `bg-accent/N` with this codebase's CSS
+   var setup silently fails (FOLLOWUP-008 has the migration path).
+2. *Main-process changes need a full Electron restart, not HMR.*
+   electron-vite only HMRs the renderer; `electron/`, `core/`,
+   `shared/host-api.ts` edits require killing + restarting `npm run dev`.
+   Burned an entire smoke-walk round believing my chord forwarder fix
+   was live when it wasn't.
+
+**Carry-overs out of this sprint:**
+- **ENH-084** → v0.6.6 Sprint 5 P0; defect log in tasks.md is the
+  starting point (instrument event sources before designing v4).
+- **FOLLOWUP-008** → migrate accent / paper / ink CSS vars to
+  RGB-triplets + `<alpha-value>` placeholder so opacity modifiers
+  work. Unblocks the "slightly less obtrusive" selection polish AND
+  ~6 other `bg-accent/N` usages currently silently rendering as
+  no-tint.
+- **BUG-077-equivalent** (not yet filed) — owner observed cycle
+  lagginess on rapid presses ("close for now"). My optimistic ref
+  update helps the silent-drop case but not the IPC round-trip
+  latency. Defer to v0.6.6 if it persists.
+
+**Worksheet ecosystem proven this session.** Smoke walk after smoke
+walk after smoke walk — the worksheet primitive (built last session)
+was the test loop. Owner pasted results, Claude parsed, fixed,
+regenerated, owner re-walked. Only friction point: I left a stale
+worksheet up between rounds twice; owner caught it ("the whole point
+of regenerating the smoke walk file is to keep you focused on only
+those things that are not passing"). The skill is right; the agent
+operating it needs discipline. Card pass/fail tinting was lost in
+the primitive extraction and restored mid-session per owner ask.
+
+**HEAD when this entry was written:** `d063b47`. This entry +
+active-sprint.md updates ship in the next commit before compaction.
+
+---
+
 ## 2026-05-03 (evening) — v0.6.4 smoke walk results + worksheet primitive spike + v0.6.5 sprint planned
 
 **Status: v0.6.4 rolls forward into v0.6.5 cut.** Sprint 3's afternoon entry called v0.6.4 "cut-ready"; the owner-side smoke walk (`docs/dev/smoke-walks/v0.6.4.html`, 18 items) flipped that — 10 PASS · 4 FAIL · 4 SKIP. Two regressions blocked the cut: **BUG-074** (ENH-078 light-mode contrast — `text-zinc-50` on cream paper background is illegible) and **BUG-075** (Phase 3b ⌘\\ + ⌘⇧\\ chord regression — likely a callback ref dropped in commit `511d8b8`'s `splitViewClose → splitViewPromote` rename). Right-click + CLI Split View paths work; only the keyboard chord is broken. After sprint planning (below), the owner downgraded BUG-075 P0 → P2 (chord is non-blocking when CLI + right-click work) and kept BUG-074 P0; we roll forward and cut as v0.6.5 once both land. Other FAILs (BUG-072 blockquote-exit parity, BUG-073 dashed-bullet style) are cosmetic; SKIPs were test-tooling gaps (Phase 3c-iii needs FOLLOWUP-006 autosave-delay knob; ENH-070 verified separately by filesystem inspection).
