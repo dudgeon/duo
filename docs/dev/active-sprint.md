@@ -54,7 +54,7 @@ prevents conflicts.
     + pack `canvases/` subdir rename — both external API surfaces with
     backwards-compat implications. Tracked in tasks.md ENH-052 entry.
 
-### Phase 2 — Navigator close-out · ✅ MOSTLY DONE (ENH-087 awaiting owner pick)
+### Phase 2 — Navigator close-out · ✅ DONE
 
 Closes out the navigator-prominence work that started in v0.6.4
 (ENH-078 / ENH-079).
@@ -63,17 +63,19 @@ Closes out the navigator-prominence work that started in v0.6.4
   selected branch swapped `text-zinc-50` → `text-ink` (theme-aware).
   Dark text on cream paper in light mode; light text on dark surface
   in dark mode. Background fill `bg-accent/30 font-medium` unchanged.
-- **ENH-086** (P1) ✅ **Shipped** — `UserClaudePane.tsx` now sits on
-  `bg-paper-edge` (vs. project tree's `bg-surface-1`/paper-deep) and
-  divider bumped from `border-paper-edge` → `border-paper-rule`
-  (one step darker so it doesn't blend with the new bg). Two panes
-  read as distinct surfaces.
-- **ENH-087** (P2) 🟡 **Awaiting owner pick** — Per the active-sprint
-  instruction, generated a planning worksheet (5 visual options:
-  tooltip + FAQ / dot glyph / italics / faint accent tint / drop the
-  signal) at [docs/dev/worksheets/enh-087-open-file-indicator.html](worksheets/enh-087-open-file-indicator.html).
-  Owner walks, sends results back; implementation lands in a
-  follow-up commit within Sprint 4 (still Phase 2 close-out).
+- **ENH-086** (P1) ✅ **Shipped (direction pivot)** — Owner walk
+  flagged the original "stronger separation of stacked panes" as
+  insufficient and asked for a layout reorder: move "Your Claude
+  settings" to the BOTTOM of the navigator (with pinned files above
+  it). Implemented: `FilesPane.tsx` reorders UserClaudePane to render
+  after PinnedNav; `UserClaudePane.tsx` flips `border-b-2` →
+  `border-t-2` so the divider sits above the pane. Surface tint
+  `bg-paper-edge` retained.
+- **ENH-087** (P2) ✅ **Shipped** — Owner picked OPT-B (small
+  filled-dot glyph) from the planning worksheet. Implementation:
+  `FileTree.tsx` renders a 6px `bg-ink-mute` dot inline with the
+  filename for open-but-not-active rows; active-file dot still wins
+  priority (single accent dot, no double glyph).
 
 ### Phase 3 — Split View Phase 3 close-out · WorkingPane / aux chrome
 

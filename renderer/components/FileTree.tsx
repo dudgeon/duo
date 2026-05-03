@@ -613,14 +613,25 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
             )}
             {/* Stage 26 PR 3 item 3 — symmetric "front-most" signal
                 for files: the active WorkingPane file tab gets the
-                same dot the active-CWD folder gets above. Open files
-                (in any tab, not necessarily front-most) render with
-                brighter text — see the row's className. */}
-            {isActiveFile && (
+                same accent dot the active-CWD folder gets above.
+                ENH-087 (v0.6.5, OPT-B) — open-but-not-active files
+                get a softer ink-mute dot so the user can tell at
+                glance which files have a tab somewhere. The bolder
+                row text (Stage 26 PR 3 item 3) is now reinforced by
+                an explicit glyph; owner walk surfaced "I don't know
+                what this means" before the dot landed. Active file
+                wins the dot priority — accent only, no double dot. */}
+            {isActiveFile ? (
               <span
                 aria-label="Active file tab"
                 title="This file is the active WorkingPane tab"
                 className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent"
+              />
+            ) : isOpenFile && (
+              <span
+                aria-label="Open in working pane"
+                title="Open in a working pane tab"
+                className="shrink-0 w-1.5 h-1.5 rounded-full bg-ink-mute"
               />
             )}
           </button>

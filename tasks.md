@@ -5044,9 +5044,9 @@ That's two steps for what should be one.
 
 ### ENH-086: Increase visual separation between "Your Claude Settings" and project files in the navigator
 
-**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 2). Two-part fix in `renderer/components/UserClaudePane.tsx`:
-- Added `bg-paper-edge` to the user-claude pane wrapper so it sits on a tone two steps darker than the project tree's `bg-surface-1` (paper-deep). The two panes now read as distinct surfaces.
-- Bumped the divider from `border-paper-edge` (would blend with the new bg) to `border-paper-rule` (one step darker still). Kept the 2px thickness from Stage 26 PR 3 item 10.
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 2 — direction pivot mid-walk). Original v1: stronger separation of stacked panes (top: user-claude, bottom: project). Owner smoke-walk feedback: *"new plan: move 'user claude settings' to the bottom of the navigator (pinned files will appear above it)"*. v2 fix:
+- `renderer/components/FilesPane.tsx` — UserClaudePane reordered to render AFTER PinnedNav, at the bottom of the navigator column. Project tree + breadcrumb are now the top of the navigator (the everyday work surface).
+- `renderer/components/UserClaudePane.tsx` — divider flipped from `border-b-2` (was below) to `border-t-2` (now above the pane, separating it from PinnedNav / project tree). Surface tint `bg-paper-edge` retained — anchors the "different scope: global, not project-local" cue.
 
 **Priority:** Low-Medium (UX clarity — Stage 22's two navigator panes need a stronger boundary).
 **Filed:** 2026-05-03.
@@ -5072,7 +5072,11 @@ That's two steps for what should be one.
 
 ### ENH-087: Discoverability for "open file" bold-text styling in navigator
 
-**Status:** 🟡 **Awaiting owner pick (Sprint 4 Phase 2).** Per the active-sprint plan, a planning worksheet was generated at `docs/dev/worksheets/enh-087-open-file-indicator.{json,html}` showing five visual options (tooltip + FAQ / dot glyph / italics / faint accent tint / drop the signal entirely). Owner walks, marks PASS on the chosen option, sends results back; implementation lands in a follow-up commit within Sprint 4.
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 2). Owner picked OPT-B (small filled-dot glyph) from the planning worksheet at `docs/dev/worksheets/enh-087-open-file-indicator.{json,html}`. Implementation in `renderer/components/FileTree.tsx`:
+- Open-but-not-active files render a 6px ink-mute dot inline with the filename (`bg-ink-mute` Atelier token; theme-aware).
+- Active-file rows keep their existing accent dot (priority — only one dot renders, never both).
+- The bolder row text (Stage 26 PR 3 item 3) is preserved; the glyph reinforces the meaning so the owner's "what does this bold text mean?" observation has an explicit answer.
+
 **Priority:** Low-Medium (one of the user's smoke-walk observations was "what does this bold text mean?" — the implicit signal isn't carrying its meaning).
 **Filed:** 2026-05-03.
 

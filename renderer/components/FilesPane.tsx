@@ -130,22 +130,11 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
         />
       ) : (
         <div className="flex flex-col h-full min-w-0">
-          {/* Stage 22 — top pane "Your Claude settings". Renders the
-              user-level context (~/.claude/) above the project tree
-              so non-technical PMs see at a glance that the agent
-              reads from BOTH user-level and project-level context.
-              Collapsible; defaults expanded. */}
-          <UserClaudePane
-            nav={userClaudeNav}
-            onOpenFile={onOpenFile}
-            onOpenTerminalHere={onOpenTerminalHere}
-            focused={focused}
-          />
-
-          {/* Bottom pane — "This project". Existing breadcrumb +
-              tree, with a new "Project Claude context" group above
-              the tree that surfaces ./CLAUDE.md / ./.claude/ /
-              ./tasks.md / ./AGENTS.md when they exist. */}
+          {/* ENH-086 (v0.6.5) — project tree + breadcrumb is now the
+              top of the navigator. The "Your Claude settings" pane
+              moved to the bottom (after PinnedNav) since users live
+              in the project tree day-to-day; user-level context is a
+              global anchor, more naturally placed below. */}
           <div
             className={[
               'flex items-center border-b shrink-0 transition-colors',
@@ -217,6 +206,18 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
             onRevealInFinder={(p) => window.electron.files.revealInFinder(p)}
             onUnpin={(entry) => navPins.toggle(entry)}
             onOpenInSplit={onOpenInSplit}
+          />
+
+          {/* ENH-086 (v0.6.5) — "Your Claude settings" pane at the
+              BOTTOM of the navigator. User-level context (~/.claude/)
+              is a global anchor; the project tree above is the
+              everyday work surface. Pinned files (PinnedNav) sit
+              above this pane. Collapsible; defaults collapsed. */}
+          <UserClaudePane
+            nav={userClaudeNav}
+            onOpenFile={onOpenFile}
+            onOpenTerminalHere={onOpenTerminalHere}
+            focused={focused}
           />
         </div>
       )}
