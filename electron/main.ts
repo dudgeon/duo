@@ -268,6 +268,23 @@ async function createWindow(): Promise<void> {
     void sendEdit(expanded)
   })
 
+  // Sprint 3 Phase 3a polish — split-targeted path-link clicks. Fires
+  // when a page sets <meta name="duo-path-target" content="split"> or
+  // a specific `<a>` carries data-duo-target="split". Routes through
+  // splitViewOpen so the linked file lands in aux while the source
+  // page stays visible in main. Smoke-walk pages opt in via the meta
+  // so smoke-walk steps' path links open in the side without losing
+  // the walk doc itself. Same tilde expansion as the main path above.
+  cdpBridge.onBrowserOpenPathSplit((path) => {
+    let expanded = path
+    if (expanded === '~') {
+      expanded = homedir()
+    } else if (expanded.startsWith('~/')) {
+      expanded = join(homedir(), expanded.slice(2))
+    }
+    void splitViewOpen(expanded)
+  })
+
   // Socket server starts listening; CLI connects here
   ensureSocketDir()
   socketServer = new SocketServer(cdpBridge, browserManager, filesService, {

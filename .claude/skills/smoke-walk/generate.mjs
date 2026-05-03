@@ -284,6 +284,14 @@ const html = `<!DOCTYPE html>
      cursor placement). The duo-open-in convention is honored by
      openFileSmart in App.tsx + getHtmlMeta in files-service.ts. -->
 <meta name="duo-open-in" content="browser">
+<!-- Sprint 3 Phase 3a polish — path links in smoke-walk steps default to
+     opening in Split View so the smoke-walk doc itself stays visible
+     in main while the user inspects each linked file in aux. The
+     CDP-injected page-side click forwarder reads this meta and calls
+     duoOpenPathSplit instead of duoOpenPath. Per-link override:
+     <a data-duo-path="..." data-duo-target="main"> on a specific
+     link pulls back to main routing. -->
+<meta name="duo-path-target" content="split">
 <title>Smoke walk v${esc(version)}</title>
 <style>
   /* Atelier-adjacent palette — paper bg, ink text, soft accent.

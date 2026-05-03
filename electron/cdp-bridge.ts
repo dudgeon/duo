@@ -272,6 +272,19 @@ const PATH_LINK_FORWARDER_IIFE = `(function () {
   if (window.__duoPathLinkForwarder) return;
   window.__duoPathLinkForwarder = true;
   if (location.protocol !== 'file:') return;
+  // Per-page default routing target: 'main' (default) or 'split'.
+  // Set via <meta name="duo-path-target" content="split"> in the page
+  // <head>. Smoke-walk pages opt into 'split' so their path links
+  // open in the aux pane while the smoke-walk doc stays visible in
+  // main. Re-read on each click in case the agent mutates the meta
+  // mid-session.
+  function readDefaultTarget() {
+    try {
+      var m = document.querySelector('meta[name="duo-path-target"]');
+      if (m && m.getAttribute('content') === 'split') return 'split';
+    } catch (e) {}
+    return 'main';
+  }
   document.addEventListener('click', function (e) {
     var t = e.target;
     while (t && t !== document.body && t.nodeType === 1) {
@@ -280,7 +293,17 @@ const PATH_LINK_FORWARDER_IIFE = `(function () {
         if (path) {
           e.preventDefault();
           e.stopPropagation();
-          try { window.duoOpenPath(JSON.stringify({ path: path })); } catch (err) {}
+          // Per-link override beats per-page default:
+          // <a data-duo-path="..." data-duo-target="main|split">.
+          var target = (t.getAttribute && t.getAttribute('data-duo-target')) || readDefaultTarget();
+          var payload = JSON.stringify({ path: path });
+          try {
+            if (target === 'split') {
+              window.duoOpenPathSplit(payload);
+            } else {
+              window.duoOpenPath(payload);
+            }
+          } catch (err) {}
         }
         return;
       }
@@ -316,6 +339,13 @@ export class CdpBridge {
   // Runtime.bindingCalled and emit the resolved path to whoever
   // subscribes (main.ts wires this to sendEdit).
   private browserOpenPathListener: ((path: string) => void) | null = null
+  // ENH-039 + Sprint 3 Phase 3a polish — split-targeted path-link
+  // clicks. When the page sets <meta name="duo-path-target" content="split">
+  // OR a specific link carries data-duo-target="split", clicks call
+  // window.duoOpenPathSplit instead. Routes through main to
+  // splitViewOpen so the linked file lands in aux while the source
+  // page stays in main. Smoke-walk pages are the first consumer.
+  private browserOpenPathSplitListener: ((path: string) => void) | null = null
 
   /** Stage 15.2 — register a single subscriber for live browser-
    *  selection pushes. BrowserManager calls this once on construction
@@ -338,6 +368,15 @@ export class CdpBridge {
    *  working pane via the same routing as `duo open`. */
   onBrowserOpenPath(cb: (path: string) => void): void {
     this.browserOpenPathListener = cb
+  }
+
+  /** Sprint 3 Phase 3a polish — register a single subscriber for split-
+   *  targeted `[data-duo-path]` clicks. Fired when the page sets
+   *  `<meta name="duo-path-target" content="split">` or the link itself
+   *  has `data-duo-target="split"`. main.ts routes this to
+   *  `splitViewOpen(path)`. */
+  onBrowserOpenPathSplit(cb: (path: string) => void): void {
+    this.browserOpenPathSplitListener = cb
   }
 
   /** Stage 15.2 — emit the current selection state to whoever is
@@ -500,6 +539,18 @@ export class CdpBridge {
       })
     } catch (err) {
       console.warn('[CdpBridge] Runtime.addBinding(duoOpenPath) failed:', (err as Error).message)
+    }
+    // Sprint 3 Phase 3a polish — fourth binding for split-targeted
+    // path-link clicks. Same IIFE chooses between this and
+    // duoOpenPath based on the page's <meta duo-path-target> or the
+    // link's data-duo-target attribute. Smoke-walk pages set the meta
+    // so their links open in aux while the smoke walk stays in main.
+    try {
+      await webContents.debugger.sendCommand('Runtime.addBinding', {
+        name: 'duoOpenPathSplit'
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] Runtime.addBinding(duoOpenPathSplit) failed:', (err as Error).message)
     }
     // Tab switch resets the pill — the new tab's selection state is
     // unknown until its observer reports.
@@ -900,6 +951,19 @@ export class CdpBridge {
           const body = JSON.parse(p.payload ?? 'null') as { path?: unknown } | null
           const path = body && typeof body.path === 'string' ? body.path : ''
           if (path) this.browserOpenPathListener?.(path)
+        } catch {
+          // Bad payload — drop.
+        }
+        return
+      }
+      if (p.name === 'duoOpenPathSplit') {
+        // Sprint 3 Phase 3a polish — split-targeted path-link click.
+        // Same payload shape as duoOpenPath; main routes to
+        // splitViewOpen instead of sendEdit.
+        try {
+          const body = JSON.parse(p.payload ?? 'null') as { path?: unknown } | null
+          const path = body && typeof body.path === 'string' ? body.path : ''
+          if (path) this.browserOpenPathSplitListener?.(path)
         } catch {
           // Bad payload — drop.
         }
