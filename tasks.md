@@ -4628,7 +4628,7 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### ENH-078: Navigator selection state too subtle + needs easier deselection
 
-**Status:** 🟡 **Partial — light-mode contrast regression (BUG-074).** Dark mode shipped + smoke-walk PASS. Light mode FAILED smoke walk: `text-zinc-50` (near-white) on `bg-accent/30` over the cream paper background is illegible. The Finder-style background-fill direction is right; the text color needs to be theme-aware. See **BUG-074** for the light-mode fix.
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 2). Dark mode shipped in v0.6.4. Light-mode contrast regression (BUG-074) fixed by replacing `text-zinc-50` with the theme-aware `text-ink` token in `FileTree.tsx`. Selected row now reads `bg-accent/30 text-ink font-medium` — dark text on cream paper in light mode, light text on dark surface in dark mode.
 **Priority:** Medium (everyday navigator UX paper-cut).
 **Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
 
@@ -4801,7 +4801,7 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### BUG-074: ENH-078 navigator selection prominence — white text on light-mode paper background is illegible
 
-**Status:** 🆕 Filed · **partially regresses ENH-078**.
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 2). One-line change in `renderer/components/FileTree.tsx` § TreeNode: `text-zinc-50` → `text-ink` for the selected branch. The Atelier `text-ink` token is theme-aware (resolves to dark on cream paper in light mode, light on dark surface in dark mode), so the selection now has legible contrast in both themes while keeping the Finder-style `bg-accent/30 font-medium` fill direction.
 **Priority:** **High** — light-mode users see the selected file row's name as nearly-invisible white text on the cream paper background. ENH-078 was filed as "shipped v0.6.4" but the smoke walk surfaced the contrast issue.
 **Filed:** 2026-05-03 (owner smoke walk note).
 
@@ -5044,7 +5044,10 @@ That's two steps for what should be one.
 
 ### ENH-086: Increase visual separation between "Your Claude Settings" and project files in the navigator
 
-**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Status:** ✅ **Shipped v0.6.5** (Sprint 4 Phase 2). Two-part fix in `renderer/components/UserClaudePane.tsx`:
+- Added `bg-paper-edge` to the user-claude pane wrapper so it sits on a tone two steps darker than the project tree's `bg-surface-1` (paper-deep). The two panes now read as distinct surfaces.
+- Bumped the divider from `border-paper-edge` (would blend with the new bg) to `border-paper-rule` (one step darker still). Kept the 2px thickness from Stage 26 PR 3 item 10.
+
 **Priority:** Low-Medium (UX clarity — Stage 22's two navigator panes need a stronger boundary).
 **Filed:** 2026-05-03.
 
@@ -5069,7 +5072,7 @@ That's two steps for what should be one.
 
 ### ENH-087: Discoverability for "open file" bold-text styling in navigator
 
-**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Status:** 🟡 **Awaiting owner pick (Sprint 4 Phase 2).** Per the active-sprint plan, a planning worksheet was generated at `docs/dev/worksheets/enh-087-open-file-indicator.{json,html}` showing five visual options (tooltip + FAQ / dot glyph / italics / faint accent tint / drop the signal entirely). Owner walks, marks PASS on the chosen option, sends results back; implementation lands in a follow-up commit within Sprint 4.
 **Priority:** Low-Medium (one of the user's smoke-walk observations was "what does this bold text mean?" — the implicit signal isn't carrying its meaning).
 **Filed:** 2026-05-03.
 

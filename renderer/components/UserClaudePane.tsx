@@ -60,12 +60,16 @@ export function UserClaudePane({
     <div
       className={[
         // The pane sits above ProjectPane; bottom border separates them.
-        // Stage 26 PR 3 item 10 — bump the divider from 1px subtle to a
-        // more emphatic 2px so the boundary between "Your Claude
-        // settings" (user-level / global) and the project tree
-        // (project-local) reads as two distinct surfaces, not one
-        // continuous column.
-        'flex flex-col border-b-2 border-paper-edge shrink-0 transition-colors',
+        // ENH-086 (v0.6.5) — surface-level differentiation between
+        // user-level (~/.claude/) and project-local context. The
+        // user-claude pane sits on `bg-paper-edge` while the project
+        // tree below stays on the parent's `bg-surface-1` (paper-deep),
+        // so they read as two distinct surfaces. The divider bumps from
+        // `border-paper-edge` to `border-paper-rule` (one step darker)
+        // since the bg-edge would otherwise blend with the surface tone.
+        // Stage 26 PR 3 item 10 first added the 2px thickness; ENH-086
+        // adds the surface tint.
+        'flex flex-col border-b-2 border-paper-rule shrink-0 bg-paper-edge transition-colors',
         focused ? 'bg-accent-soft' : ''
       ].join(' ')}
       aria-label="Your Claude settings"

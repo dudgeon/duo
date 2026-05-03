@@ -54,26 +54,26 @@ prevents conflicts.
     + pack `canvases/` subdir rename — both external API surfaces with
     backwards-compat implications. Tracked in tasks.md ENH-052 entry.
 
-### Phase 2 — Navigator close-out · single FileTree.tsx session
+### Phase 2 — Navigator close-out · ✅ MOSTLY DONE (ENH-087 awaiting owner pick)
 
 Closes out the navigator-prominence work that started in v0.6.4
-(ENH-078 / ENH-079). Three items, one cluster:
+(ENH-078 / ENH-079).
 
-- **ENH-078 / BUG-074** (collapsed → P0) — Light-mode text contrast
-  in selected-row treatment. `text-zinc-50` (near-white) on
-  `bg-accent/30` over the cream-paper background is illegible. Fix:
-  theme-aware text color in `FileTree.tsx`'s selected branch — reads
-  on cream in light, on dark bg in dark.
-- **ENH-086** (P1) — Visual separation between user-claude (top) and
-  project-files (bottom) sections of the navigator. Likely a divider
-  style change.
-- **ENH-087** (P2) — "Open file" bold-text styling discoverability
-  (tooltip + FAQ entry).
-  - **BEFORE writing code:** generate a /tmp planning artifact at
-    `/tmp/enh-087-open-file-indicator-options.html` showing 3–4
-    visual options (current bold vs. dot indicator vs. small glyph
-    vs. color tint vs. italics). Get the owner's pick before
-    implementing. *(Owner explicit ask in the sprint walk notes.)*
+- **ENH-078 / BUG-074** (collapsed → P0) ✅ **Shipped** — `FileTree.tsx`
+  selected branch swapped `text-zinc-50` → `text-ink` (theme-aware).
+  Dark text on cream paper in light mode; light text on dark surface
+  in dark mode. Background fill `bg-accent/30 font-medium` unchanged.
+- **ENH-086** (P1) ✅ **Shipped** — `UserClaudePane.tsx` now sits on
+  `bg-paper-edge` (vs. project tree's `bg-surface-1`/paper-deep) and
+  divider bumped from `border-paper-edge` → `border-paper-rule`
+  (one step darker so it doesn't blend with the new bg). Two panes
+  read as distinct surfaces.
+- **ENH-087** (P2) 🟡 **Awaiting owner pick** — Per the active-sprint
+  instruction, generated a planning worksheet (5 visual options:
+  tooltip + FAQ / dot glyph / italics / faint accent tint / drop the
+  signal) at [docs/dev/worksheets/enh-087-open-file-indicator.html](worksheets/enh-087-open-file-indicator.html).
+  Owner walks, sends results back; implementation lands in a
+  follow-up commit within Sprint 4 (still Phase 2 close-out).
 
 ### Phase 3 — Split View Phase 3 close-out · WorkingPane / aux chrome
 

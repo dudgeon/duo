@@ -547,14 +547,13 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
       <div
         className={[
           'group/row relative w-full flex items-center gap-1.5 pr-2 py-0.5 text-[12px] leading-tight rounded transition-colors',
-          // ENH-078 (v0.6.4) — selection prominence bumped from
-          // bg-accent/15 + text-zinc-100 to bg-accent/30 + text-zinc-50
-          // + font-medium so selection reads like Finder's at a glance.
-          // Owner observation: prior selection state was "too subtle;
-          // hard to see which item is selected." Same accent token
-          // (still atelier), heavier fill + heavier weight.
+          // ENH-078 (v0.6.4) + BUG-074 (v0.6.5) — selection prominence
+          // is Finder-style background fill + heavier weight. Text uses
+          // the theme-aware `text-ink` token (dark on cream paper in
+          // light, light on dark in dark) instead of the always-near-
+          // white `text-zinc-50`, which was illegible in light mode.
           isSelected
-            ? 'bg-accent/30 text-zinc-50 font-medium'
+            ? 'bg-accent/30 text-ink font-medium'
             // Stage 26 PR 3 item 3 — open file rows render with
             // brighter text than unopened rows. Distinct from
             // selection (full-row tint), this is just text color.
