@@ -114,6 +114,27 @@ process restart to live-test). I'll generate a fresh smoke-walk
 manifest via `.claude/skills/smoke-walk/` when the user is ready
 to walk.
 
+**Phase 3c scope decision (2026-05-03 afternoon):** Phase 3c
+includes session persistence (3c-i) and confirms Phase 3a's
+already-wired empty-main promotion (3c-ii). Phase 3c-iii (dirty-
+replace dialog) and Phase 3c-iv (browser-in-aux) are deferred to
+v0.6.5 — both need refactors larger than a sweep:
+- 3c-iii needs a dirty-by-path registry + save-by-path dispatch
+  to coordinate aux-tab dirty state with the existing
+  onTabDirtyChange (which is keyed by tab id, and aux tab IDs
+  diverge from main fileTabs IDs). Real data-loss surface in v1
+  ("silent replace if clean, dialog if dirty" was locked behavior),
+  but the v1 alternative — silent replace ALWAYS — is acceptable
+  while the surface is small (no production users yet; the
+  workaround is "save before moving the tab").
+- 3c-iv needs BrowserManager bounds tracking for two
+  WebContentsViews with focus mirroring + per-view zoom locks. ~
+  half a sprint.
+
+The v0.6.4 chapter still feels coherent: Split View core + visible
+UI + invocation surfaces + persistence. The two deferred items get
+a v0.6.5 follow-up sprint.
+
 **Editor-canvas parity rule disposition (for ENH-076):** **(a)
 Mirrored** — same chord, same handler shape, same no-op-outside-
 list semantics as `editor/extensions/ListIndentShortcuts.ts`. No

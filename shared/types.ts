@@ -444,6 +444,26 @@ export type SessionStateActiveWorking =
   | { kind: 'file'; path: string }
   | null
 
+/** Sprint 3 Phase 3c — Split View aux state persistence. Captures the
+ *  aux pane's open paths + active selection + divider position so a
+ *  relaunch can restore the split exactly as it was. Additive to the
+ *  v1 SessionState schema (aux=null on load when missing) — old
+ *  saves stay valid without a schema bump. v1 paths.length ≤ 1 (no
+ *  multi-tab aux yet); the array shape is forward-compatible with
+ *  future Phase 3c+ multi-tab. */
+export interface SessionStateAux {
+  /** Absolute file paths in the aux strip. v1: length 0 or 1.
+   *  Browser-in-aux paths land here as file:// URLs once Phase 3c
+   *  supports them; until then this is file paths only. */
+  paths: string[]
+  /** Index of the active aux tab. -1 / out-of-range → restore picks 0
+   *  (or no-op if paths is empty). */
+  activeIndex: number
+  /** Divider position as a fraction in [0.20, 0.80]. Restored as the
+   *  aux's splitPct so the user's chosen ratio survives. */
+  splitPct: number
+}
+
 export interface SessionState {
   /** Schema version. Bumped on breaking changes; old schemas return
    *  empty state so a fresh launch isn't confused by stale data. */
@@ -471,6 +491,11 @@ export interface SessionState {
   /** The path that the file navigator was rooted at. Empty string =
    *  fall back to home dir on next launch. */
   navigatorPath: string
+
+  /** Sprint 3 Phase 3c — Split View aux state. Optional + null-able
+   *  for backward compatibility: pre-Phase-3c saves don't include
+   *  this field, and load() defaults to null in that case. */
+  aux?: SessionStateAux | null
 }
 
 /** Empty/default state for first launches and corrupt-file recovery. */
@@ -485,6 +510,7 @@ export const EMPTY_SESSION_STATE: SessionState = {
   fileTabs: [],
   activeWorking: null,
   navigatorPath: '',
+  aux: null,
 }
 
 export interface BrowserState {

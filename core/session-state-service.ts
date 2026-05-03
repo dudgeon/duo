@@ -107,6 +107,7 @@ export class SessionStateService {
           : [],
         activeWorking: this.validateActiveWorking(parsed.activeWorking ?? null),
         navigatorPath: typeof parsed.navigatorPath === 'string' ? parsed.navigatorPath : '',
+        aux: this.validateAux(parsed.aux ?? null),
       }
     } catch (err) {
       // ENOENT on first launch is the normal path; log other errors
@@ -171,5 +172,26 @@ export class SessionStateService {
       return { kind: 'file', path: raw.path }
     }
     return null
+  }
+
+  /** Sprint 3 Phase 3c — defensively coerce the optional aux field.
+   *  Old saves without the field arrive as null. Bad shapes (non-array
+   *  paths, NaN splitPct) coerce to null so a single bad field doesn't
+   *  poison the rest of the restore. splitPct is clamped to the divider
+   *  drag range [0.20, 0.80] (matches WorkingPane's clamp). */
+  private validateAux(
+    raw: SessionState['aux'] | null | undefined,
+  ): SessionState['aux'] {
+    if (!raw) return null
+    if (!Array.isArray(raw.paths)) return null
+    const paths = raw.paths.filter((p): p is string => typeof p === 'string')
+    if (paths.length === 0) return null
+    const activeIndex =
+      Number.isInteger(raw.activeIndex) && raw.activeIndex >= 0 && raw.activeIndex < paths.length
+        ? raw.activeIndex
+        : 0
+    const rawPct = typeof raw.splitPct === 'number' && Number.isFinite(raw.splitPct) ? raw.splitPct : 0.5
+    const splitPct = Math.min(Math.max(rawPct, 0.20), 0.80)
+    return { paths, activeIndex, splitPct }
   }
 }

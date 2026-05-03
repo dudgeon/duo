@@ -393,6 +393,32 @@ export function App() {
       }
       // 'browser' is the default initial state, no-op.
 
+      // Sprint 3 Phase 3c — restore Split View aux state. Same
+      // existence-check pattern as fileTabs (BUG-039 lineage): if the
+      // persisted aux paths no longer exist on disk, drop them (split
+      // closes silently) rather than rehydrating dangling refs.
+      if (state.aux && state.aux.paths.length > 0) {
+        const auxExists = await Promise.all(
+          state.aux.paths.map(async p => ({ path: p, exists: await window.electron.files.exists(p) }))
+        )
+        const survivingPaths = auxExists.filter(c => c.exists).map(c => c.path)
+        const droppedAux = auxExists.filter(c => !c.exists).map(c => c.path)
+        if (droppedAux.length > 0) {
+          console.warn(`[session-restore] dropped ${droppedAux.length} aux file(s) (no longer on disk):`, droppedAux)
+        }
+        if (survivingPaths.length > 0) {
+          const desiredIndex = state.aux.activeIndex
+          const activeIndex = desiredIndex >= 0 && desiredIndex < survivingPaths.length
+            ? desiredIndex
+            : 0
+          setAuxState({
+            paths: survivingPaths,
+            activeIndex,
+            splitPct: state.aux.splitPct
+          })
+        }
+      }
+
       setSessionHydrated(true)
     }).catch(err => {
       console.warn('[session-state] load failed (using defaults):', err)
@@ -488,14 +514,24 @@ export function App() {
         activeWorking: activeWorking.kind === 'browser'
           ? { kind: 'browser', index: activeBrowserIndex >= 0 ? activeBrowserIndex : 0 }
           : (activeFileTab ? { kind: 'file', path: activeFileTab.path } : null),
-        navigatorPath: ''  // useNavigator owns this via localStorage (Stage 10 Phase 4)
+        navigatorPath: '',  // useNavigator owns this via localStorage (Stage 10 Phase 4)
+        // Sprint 3 Phase 3c — Split View persistence. Mirrors the
+        // additive aux field on SessionState. null when the split is
+        // closed; populated with the local auxState shape otherwise.
+        aux: auxState && auxState.paths.length > 0
+          ? {
+              paths: [...auxState.paths],
+              activeIndex: auxState.activeIndex,
+              splitPct: auxState.splitPct
+            }
+          : null
       }
       void window.electron.sessionState.save(state)
     }, 500)
     return () => {
       if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
     }
-  }, [sessionHydrated, tabs, activeTabId, fileTabs, activeWorking, browserTabs])
+  }, [sessionHydrated, tabs, activeTabId, fileTabs, activeWorking, browserTabs, auxState])
 
   // Stage 10 Phase 6 § D16 — dismissible chip when the agent drives the
   // navigator via `duo reveal`. Cleared after ~4s or by user dismiss.
