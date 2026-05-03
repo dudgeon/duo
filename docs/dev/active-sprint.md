@@ -18,6 +18,67 @@
 
 ---
 
+## Smoke walk v0.6.4 — results 2026-05-03 evening
+
+Owner walked all 18 items in `docs/dev/smoke-walks/v0.6.4.html`. Final tally: **10 PASS · 4 FAIL · 4 SKIP**.
+
+**Cut posture:** ⛔ **NOT cut-ready as-is.** The v0.6.4 cut waits on a follow-up sprint to address BUG-074 (light-mode contrast regression in ENH-078 — high priority, user-visible regression) and BUG-075 (Phase 3b ⌘\ + ⌘⇧\ chord regression — keyboard chords are a load-bearing entry point per the PRD). Right-click + CLI paths into Split View work fine, so the chord regression isn't a hard block on USING Split View, but cutting v0.6.4 with a documented "⌘\ doesn't fire" is below the bar. Fresh session resumes to fix; do not begin new work autonomously per owner instruction.
+
+### PASS (10)
+
+| # | Item | Note |
+|---|---|---|
+| 1 | BUG-070 | Cursor lands in fresh HTML canvas on first click (no tab-away workaround). |
+| 2 | ENH-039 + Phase 3a polish | Path links route to canvas / split per per-page meta opt-in. |
+| 3 | ENH-076 | ⌘[ / ⌘] indent + outdent in HTML canvas (parity with markdown editor). |
+| 4 | ENH-079 | Collapsed Navigator shows "Navigator: {project_name}" label. |
+| 5 | ENH-036 | `duo open <url>` makes new browser tab visible immediately. <br>**Owner note:** new bug case spotted post-test — ⌃⇧\` doesn't reach faq.html on cycle-back. Filed as **BUG-076**. |
+| 6 | Sprint 3 evening — swap semantics | Moving a new file into Split View while aux is occupied SWAPS them (existing aux → main); existing aux content preserved. |
+| 7 | Phase 3b — tab right-click | "Move to Split View" on file tabs in WorkingTabStrip. <br>**Owner note:** add browser support in next sprint. Captured in Phase 3c-iv tracker. |
+| 8 | Phase 3b — FileTree right-click | "Open in Split View" on file rows. |
+| 9 | Phase 3b — PinnedNav right-click | "Open in Split View" on file pins. |
+| 10 | Vitest | `npm run test:run` runs 41 (now 104) regression tests, all passing. |
+
+### FAIL (4)
+
+| # | Item | Failure |
+|---|---|---|
+| 1 | BUG-061 | Partial: trigger detection works for all 6 families, but `-` renders as round bullet (should be dashed marker style). PLUS: blockquote double-Enter doesn't exit (parity with bullet exit gesture). Filed as **BUG-073** (dashed-bullet style) and **BUG-072** (blockquote-exit) for v0.6.5. |
+| 2 | ENH-078 | Light-mode regression — `bg-accent/30 + text-zinc-50` gives near-white text on cream-paper background. Dark mode works; light mode is illegible. Filed as **BUG-074**. ENH-078 status flipped from ✅ Shipped → 🟡 Partial. |
+| 3 | Phase 3b — ⌘\\ chord | Keyboard chord ignored — right-click + CLI paths work, but ⌘\\ doesn't fire. Filed as **BUG-075**. Likely culprit: the `splitViewClose` → `splitViewPromote` rename in commit `511d8b8` may have left a callback ref dangling. |
+| 4 | Phase 3b — ⌘⇧\\ chord (revised) | Same regression as #3 above — ⌘⇧\\ also ignored. Same root cause; same BUG-075. |
+
+### SKIP (4)
+
+| # | Item | Reason |
+|---|---|---|
+| 1 | BUG-071 | Couldn't test — the smoke-walk page now opts into Split View routing per ENH-039, so path link clicks land in aux instead of triggering the focus-transfer path BUG-071 fixed. **Action:** add a separate smoke item that uses a non-split path-link (or temporarily strip the meta) to exercise BUG-071 specifically. |
+| 2 | Phase 3c-iii (revised) | Couldn't test — autosave fires too quickly (~800ms) for the smoke-walker to dirty + swap fast enough. Filed as **FOLLOWUP-006** (add a `duo dev autosave-delay` knob for testing). |
+| 3 | Phase 3a + 3c-i | Owner deferred — will test on a future DMG restart so the smoke walk wasn't interrupted by a Duo relaunch. Add to the post-DMG smoke list. |
+| 4 | ENH-070 | **Verified by Claude post-walk via `ls -la ~/.claude/duo/help/`:** `canvas-actions-demo.html` is correctly a symlink to the source repo. `faq.html` and `what-duo-does.html` are regular files because their bytes diverged from the source (the helper preserves user customizations as designed). Symlink mechanism works; edge case noted for v0.6.5 — when an agent edits the source repo's help/*.html, the installed copy doesn't auto-resync. Filed at the bottom of the ENH-070 entry. |
+
+### Other notes for next sprint
+
+| # | Note | Tracker |
+|---|---|---|
+| 1 | Move collapse-pane buttons from titlebar to the new-tab clusters (terminal cluster gets the collapse-terminal button; canvas cluster gets the collapse-canvas button). | **ENH-083** |
+| 2 | Aux pane focus indicator parity — orange glow when active in side pane (matches main's accent treatment). | **ENH-084** |
+| 3 | Split pane title bar should support same context-click verbs as main canvas tab (Move to Trash, Reveal in navigator, Rename, Copy path, Move back to main). | **ENH-085** |
+| 4 | Increase visual separation in the navigator between user-claude (top) and project-files (bottom) sections. | **ENH-086** |
+| 5 | "Open file" bold-text styling in navigator isn't self-explanatory — add tooltip + FAQ entry. | **ENH-087** |
+
+### v0.6.4 cut readiness gate
+
+Before cutting v0.6.4, the following must land:
+1. **BUG-075** — Phase 3b chords fire correctly (right-click + CLI paths fall back gracefully but the keyboard chord is documented + advertised as a Split View entry point).
+2. **BUG-074** — ENH-078 light-mode contrast (high-priority user-visible regression of a v0.6.4 deliverable).
+
+The other FAILs (BUG-072 / BUG-073) are cosmetic / parity gaps that don't block the cut. The SKIPs are deferral / test-tooling gaps, not regressions.
+
+**Recommended next-session sequence:** investigate BUG-075 first (likely a 1-line ref restoration — the `splitViewClose → splitViewPromote` rename probably missed a wiring point); then BUG-074 (text color theme-awareness in `FileTree.tsx`); re-smoke just those two items via a fresh manifest; then propose the cut.
+
+---
+
 ## Current state — last updated 2026-05-03 (afternoon — idle-thoughts sweep)
 
 **Active arc:** Sprint 3 — closes the v0.6.3 chapter into a v0.6.4 cut.

@@ -3642,6 +3642,9 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-061: Markdown parsing broken in HTML canvas — bullets, indent / outdent missing (canvas vs. md editor parity gap)
 
+**Smoke-walk note (2026-05-03):** v3 trigger-detection fix (regex + nbsp-tolerance) verified via 33 Vitest tests + smoke-walk PASS for `# `, `* `, `+ `, `1. `, `> `. **However**, two related gaps surfaced as separate items: **BUG-073** — `-` should produce a *dashed* bullet style (visually marker-aware), not the default round bullet; **BUG-072** — blockquote double-Enter should exit the blockquote (parity with bullet/ordered-list double-Enter exit). Neither blocks BUG-061's v3 fix; both are filed for v0.6.5.
+
+
 **Status:** ✅ Shipped v0.6.4 — bullet/ordered triggers now fire correctly. Three iterations in the v0.6.3 → v0.6.4 arc:
 - v1 (`1b3b132`, 2026-05-02): hand-rolled `convertEmptyBlockToList` replacing the failing `execCommand('insertUnorderedList')`. Walk-3 reported FAIL.
 - v2 (`4baba8b`, 2026-05-02): start-match regex `/^[-*+] $/` + added `+` for CommonMark parity. Walk-3 still FAIL.
@@ -4394,7 +4397,14 @@ The existing `claude-code-basics` pack (which prompted filing this ENH) is NOT y
 
 Integration: in `run()`, the existing `safeOverwriteDirContents(sourceRoot/help, HELP_DEST_DIR, ...)` call is now gated on `app.isPackaged`. When packaged, real copies (with prevShas tracking) like before. In dev, calls `maintainHelpSymlinksInDev` instead. Production path entirely unchanged. Help dir today is 3 flat `.html` files (faq.html, what-duo-does.html, canvas-actions-demo.html) — no recursion needed; comment notes the helper would need extending if subdirs are ever added.
 
-**Verification owed in v0.6.4 smoke:** with dev mode running and the install banner refreshed, navigate to `~/.claude/duo/help/faq.html` in Finder + check that it's a symlink (`ls -la` shows the `->` target), and editing the repo source updates the user's installed view immediately.
+**Smoke-walk verification (2026-05-03, post-walk filesystem inspection):**
+```
+~/.claude/duo/help/
+  canvas-actions-demo.html -> /Users/geoffreydudgeon/Documents/GitHub/duo/help/canvas-actions-demo.html  ✅ symlink
+  faq.html                  (regular file, byte-divergent from source)                                   🟡 preserved
+  what-duo-does.html        (regular file, byte-divergent from source)                                   🟡 preserved
+```
+The mechanism works correctly — `canvas-actions-demo.html` had byte-identical content in both places and got swapped to a symlink. `faq.html` and `what-duo-does.html` differed (the source repo got v0.6.4-content edits earlier in the day; the installed copies were the older v0.6.3-era cuts), so the helper preserved them as designed (don't trample user customizations). **Edge case worth a follow-up:** in the dev workflow, when an agent edits the source repo's help/*.html, the installed copy doesn't auto-update via this helper. The user must either (a) `rm` the diverged file and click Refresh (drops customizations + creates the symlink), or (b) manually re-sync via a different mechanism. **Filed**: a small fix would be a `duo dev resync-help` CLI verb that force-symlinks (with confirmation prompt about lost customizations). Out of scope for v0.6.4 cut; queued for v0.6.5.
 **Priority:** Medium (drift risk — the source-repo and installed-copy FAQs WILL diverge over time)
 **Filed:** 2026-05-02 (Sprint 1 walk-1 owner notes)
 
@@ -4594,7 +4604,7 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### ENH-078: Navigator selection state too subtle + needs easier deselection
 
-**Status:** ✅ Shipped v0.6.4 (this sprint — 2026-05-03).
+**Status:** 🟡 **Partial — light-mode contrast regression (BUG-074).** Dark mode shipped + smoke-walk PASS. Light mode FAILED smoke walk: `text-zinc-50` (near-white) on `bg-accent/30` over the cream paper background is illegible. The Finder-style background-fill direction is right; the text color needs to be theme-aware. See **BUG-074** for the light-mode fix.
 **Priority:** Medium (everyday navigator UX paper-cut).
 **Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
 
@@ -4713,6 +4723,143 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ---
 
+### BUG-072: Blockquote double-Enter doesn't exit blockquote (parity gap with bullet/ordered-list behavior)
+
+**Status:** 🆕 Filed (surfaced in v0.6.4 smoke walk, BUG-061 row).
+**Priority:** Medium (small UX inconsistency; bullets exit on double-Enter, blockquote should match).
+**Filed:** 2026-05-03 (owner smoke walk note).
+
+**Owner observation (verbatim):** *"small issue with block quote: double line break continues block quote, unlike bullet handling; in bullets, you can enter twice to stop creating new bullets; blockquote should do the same"*
+
+**Repro:**
+1. In a fresh HTML canvas (or markdown editor — verify both surfaces), type `> something` then Enter.
+2. Caret stays inside the blockquote on a new blank line. Type Enter again.
+3. **Expected:** caret exits the blockquote; new line is a regular `<p>` paragraph (matches bullet/ordered-list "double Enter to escape").
+4. **Actual:** the second Enter inserts another blank line *inside* the blockquote.
+
+**Where to look:**
+- `renderer/components/HtmlCanvas/markdownShortcuts.ts` — currently has Enter-key conversions for `---` / `***` (hr) and ```` ``` ```` (code), but no "Enter on empty blockquote child = exit blockquote" handler.
+- TipTap markdown editor: should already have this for `<ul>` / `<ol>` via StarterKit; verify whether the same StarterKit extension does the right thing for `<blockquote>`. If not, this is a parallel fix on both surfaces.
+
+**Editor-canvas parity disposition (per CLAUDE.md § 4):** **(a) Mirrored** when implemented — both surfaces should behave the same on double-Enter-in-blockquote.
+
+**Cross-ref:** BUG-061 (the markdown-trigger family this lives in); ENH-076 (the indent/outdent parity chord that spawned the surface-parity discussion).
+
+---
+
+### BUG-073: HTML canvas bullet rendering — `-` should produce a dashed bullet style, not the default round bullet
+
+**Status:** 🆕 Filed (surfaced in v0.6.4 smoke walk, BUG-061 row).
+**Priority:** Low-Medium (cosmetic; functionality is fine — list creation triggers correctly. The marker character should hint at the visual style the way Markdown previewers (GitHub, Bear, Notion) do.)
+**Filed:** 2026-05-03 (owner smoke walk note).
+
+**Owner observation (verbatim):** *"partial pass; '-' should render as dashed bullet, not round bullet; all other cases pass"*
+
+**Today:** All three unordered-list markers (`-`, `*`, `+`) trigger an `<ul>` with default browser styling — the default `list-style-type: disc` (round bullet). Functionally correct (BUG-061 v3 ships); cosmetically the marker character is lost on conversion.
+
+**What's wanted:** preserve the visual hint of the typed marker character.
+- `- ` → `list-style-type: '–  '` or similar (dashed marker)
+- `* ` → asterisk or default disc (round)
+- `+ ` → plus marker
+
+**Implementation candidates:**
+1. **Per-item `data-list-marker` attr.** When `convertEmptyBlockToList` fires, stamp the `<li>` (or its parent `<ul>`) with `data-list-marker="dash"` / `"asterisk"` / `"plus"`. CSS (in the canvas's `<head>` boilerplate or via the renderer's atelier overlay) maps to the right `list-style-type`. Survives a save → reopen round-trip cleanly.
+2. **Inline `style="list-style-type: ..."`.** Simpler but pollutes the saved HTML with style attributes; inconsistent with the rest of the canvas's class-based styling pattern.
+3. **CSS class.** `<ul class="duo-list-dash">` etc.; pretty-printer needs to whitelist them.
+
+**Recommended:** option (1) — `data-` attrs are cheap, pretty-printer-stable, and easy to read in saved HTML.
+
+**Editor-canvas parity disposition (per CLAUDE.md § 4):** **(c) Deferred** — markdown editor has this concept too (TipTap's BulletList extension supports per-item marker), but a separate ENH should carry that parity once this canvas-side ENH ships.
+
+**Cross-ref:** BUG-061 (parent — markdown-trigger family); `markdownShortcuts.ts § convertEmptyBlockToList` (the function that needs to know which marker character was typed).
+
+---
+
+### BUG-074: ENH-078 navigator selection prominence — white text on light-mode paper background is illegible
+
+**Status:** 🆕 Filed · **partially regresses ENH-078**.
+**Priority:** **High** — light-mode users see the selected file row's name as nearly-invisible white text on the cream paper background. ENH-078 was filed as "shipped v0.6.4" but the smoke walk surfaced the contrast issue.
+**Filed:** 2026-05-03 (owner smoke walk note).
+
+**Owner observation (verbatim):** *"somehow worse than before; on system/light, the white text (see screenshot) is super illegible; item is more prominent in dark mode, but you ignored the very specific direction I gave you: use a background color for the selected item to indicate selection, like how finder treats it"*
+
+**Today (the regression):** v0.6.4's ENH-078 changed the selected file row's class from `bg-accent/15 text-zinc-100` to `bg-accent/30 text-zinc-50 font-medium`. The intent was Finder-style stronger fill + heavier weight. But:
+- `bg-accent/30` = ochre overlay at 30% opacity → in light mode this is a faint warm tint over cream paper.
+- `text-zinc-50` = near-white. On a faint warm tint over cream paper, near-white text has near-zero contrast in light mode.
+- In dark mode: the dark surface + light text + ochre overlay reads correctly (and was the only mode tested before shipping).
+
+**What's wanted:** keep the Finder-style background-fill direction (prominent, heavier), but theme-aware text color.
+- Light mode: dark text on accent-tinted background. Probably `text-ink` (the project's dark-on-paper token) or even keep it near-black for max contrast.
+- Dark mode: light text. `text-zinc-50` or `text-ink` (which inverts in dark mode if Atelier tokens are wired correctly).
+- Background fill: keep `bg-accent/30` or bump to a fully-opaque accent for Finder-true behavior. Worth experimenting with `bg-accent/40` light mode + `bg-accent/30` dark mode to keep contrast equivalent.
+
+**Affected files:**
+- `renderer/components/FileTree.tsx § TreeNode` row className (the `isSelected` branch).
+- Possibly the Atelier token definitions if a new "selected text" token is introduced.
+
+**Cross-ref:** ENH-078 (the parent enhancement — needs to be re-flagged from "shipped" to "🟡 partial: dark mode shipped, light mode owed"); BUG-016 (canvas dark-mode pasted-bold contrast — same family of "dark-mode-only-tested theme-aware contrast bug").
+
+---
+
+### BUG-075: Phase 3b ⌘\\ + ⌘⇧\\ Split View keyboard chords are ignored (regression — right-click + CLI paths still work)
+
+**Status:** 🆕 Filed · **regression in Phase 3b**.
+**Priority:** **High** — keyboard chords are a load-bearing entry point per the v0.6.4 PRD; right-click and CLI work, but the keyboard parity gap is a feature regression.
+**Filed:** 2026-05-03 (owner smoke walk note).
+
+**Owner observation (verbatim):** *"kb shortcut just ignored"* (on both ⌘\\ and ⌘⇧\\ smoke items)
+
+**Repro:**
+1. Have an active main file tab in the working pane.
+2. Press `⌘\\`.
+3. **Expected:** the active tab moves into the Split View aux slot.
+4. **Actual:** nothing happens.
+
+Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
+
+**What still works:** the right-click "Move to Split View" / "Open in Split View" entries on tabs / FileTree / PinnedNav all PASS (per the smoke walk). CLI `duo split-view open` was not explicitly tested but its plumbing is identical and there's no reason to suspect a regression there.
+
+**Suspected diagnostic threads to pull:**
+1. **Did the chord registration actually wire?** Check `globalShortcuts.ts § matchGlobalShortcut` — confirm `Mod-\\` and `Mod-Shift-\\` branches return `splitViewToggle` / `splitViewPromote` IDs respectively.
+2. **Did the dispatch wire?** Check `useKeyboardShortcuts.ts § dispatch` — confirm `case 'splitViewToggle'` and `case 'splitViewPromote'` invoke the corresponding opts callbacks.
+3. **Did the App.tsx callback wire?** Check the `useKeyboardShortcuts({ splitViewToggle, splitViewPromote, ... })` call — confirm both are in the opts object.
+4. **Renderer-side surface eats the chord?** TipTap, canvas iframe, xterm — any of these may consume `\\` before the global matcher sees it. Capture-phase document listener should fire FIRST, but check (BUG-012/013/014 family lessons).
+5. **WCV before-input-event forwarder includes `\\`?** Confirmed in commit `ed4d097` — `electron/browser-manager.ts` adds `key === '\\'` to the `isDuoShortcut` list. But is it being forwarded correctly when browser pane has focus?
+6. **Owner-clarification refinement** (`511d8b8`) renamed `splitViewClose` → `splitViewPromote`. Check that ALL references were updated (was the rename complete?). Specifically: `useKeyboardShortcuts.ts` opts type, dispatch case, deps array, and App.tsx wiring all need to use the new name. Suspected source of the regression.
+
+**Cross-ref:** Phase 3b (commit `ed4d097` introduced the chords); commit `511d8b8` (the close → promote rename — most likely culprit if a callback ref dropped); BUG-001 / BUG-021 / BUG-038 lineage (closure-staleness in the keyboard dispatcher — though chord-was-never-seen is a different failure mode).
+
+---
+
+### BUG-076: ⌃⇧\` tab-cycle doesn't reach faq.html after `duo open` switches focus to a new browser tab
+
+**Status:** 🆕 Filed (surfaced in v0.6.4 smoke walk, ENH-036 row).
+**Priority:** Medium (sibling of the BUG-038 / BUG-042 / BUG-071 wrong-pane-focus family).
+**Filed:** 2026-05-03 (owner smoke walk note).
+
+**Owner observation (verbatim):** *"worked -- but something strange happened: when I want to ctrl+shift+~ back to the smoke walk tab (from [..., smoke walk, faq.html, new:anthropic.com,...]), the faq.html did not respond to the ctrl+shift+~"*
+
+**Repro:**
+1. Open the smoke walk page (browser pane).
+2. Run `duo open https://anthropic.com` from a terminal (ENH-036 — the new browser tab becomes visible immediately).
+3. Tab strip now reads: smoke walk · faq.html · anthropic.com (right-most active).
+4. Press `⌃⇧\`` to cycle backwards.
+5. **Expected:** focus moves to the previous tab. Repeat to reach the smoke walk.
+6. **Actual:** the cycle hits faq.html but seems to stop responding there — pressing ⌃⇧\` again doesn't move further to the smoke walk tab.
+
+**Suspected cause:** ENH-036's `BROWSER_FOCUS_GAINED` handler now flips both `focusedColumn = 'working'` AND `activeWorking = { kind: 'browser' }`. There may be a race or a stale state somewhere that leaves `faq.html` in a "selected but not focus-receiving" state when ⌃⇧\` lands on it. Same family as BUG-038 (cycle skips tabs after session restore), BUG-042 (browser pane click doesn't update focus), BUG-071 (focus limbo after path-link click).
+
+**Where to look:**
+- `useKeyboardShortcuts.ts § cycleTabsForward / cycleTabsBackward` — does the cycle correctly enumerate `browserTabs[]`?
+- `useBrowserState` — does `switchTab` correctly fire on the cycle hit, and does the resulting `webContents.focus()` happen reliably on the just-activated tab?
+- The faq.html WCV specifically — does it have any state (e.g. lingering from a previous load) that swallows the activation IPC?
+
+**Workaround until fixed:** click the smoke walk tab directly to bypass the cycle.
+
+**Cross-ref:** BUG-038 (parent family — wrong-pane-focus → wrong-shortcut-routing); BUG-042 (browser focus push); BUG-071 (focus transfer after path-link click — fix from this morning); ENH-036 (the activeWorking flip that may have introduced this).
+
+---
+
 ### ENH-082: Terminal Context Bar — collapsible UI surface below terminal tabs for job + docs + skills shared between user and agent
 
 **Status:** 🆕 Filed · **research-doc owed before code (medium-sized feature)**.
@@ -4791,6 +4938,154 @@ Bar visual:
 **Sequencing:** medium-sized feature. Doesn't gate anything in v0.6.5 directly. Reasonable home is post-MISSING-001 (markdown CommentRail) once Stage 14a closes — the markdown editor's annotation work is conceptually adjacent (both are "structured shared surface for user-agent communication"). Owner-driven priority, not architectural.
 
 **Cross-ref:** Stage 22 (Your Claude settings + Project Claude context — global-scope shared context, this is its terminal-scope sibling); Stage 19b (priming — terminal context bar's job statement is a natural fit for the priming text); ENH-013 (Send → Duo enabled-only-when-active-Claude — uses the same per-terminal Claude-presence signal that this bar's "is the agent live?" affordance would use); Stage 27 canvas-action verbs (`terminal:focus`, `terminal:send` — same plumbing layer the new `terminal:set-job` etc. would extend).
+
+---
+
+### ENH-083: Move collapse-pane buttons from titlebar into the new-tab clusters
+
+**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Priority:** Medium (UX coherence — controls cluster with the surface they affect).
+**Filed:** 2026-05-03.
+
+**Owner observation (verbatim):** *"we need to move the collapse terminal, collapse canvas buttons -- they should be with the new terminal button cluster and the new canvas tab cluster respectively"*
+
+**Today (ENH-040 v1):** the two collapse-pane buttons live in the titlebar next to the theme toggle. Far from the surfaces they affect.
+
+**What's wanted:** relocate each collapse button next to the new-tab cluster of its owning surface.
+- Collapse-terminal button → next to TabBar's `+` (new shell) / clawd (new claude) cluster on the terminal tab strip.
+- Collapse-canvas button → next to WorkingTabStrip's `+` / globe cluster.
+
+Visual benefit: the control sits with the surface; users find it intuitively when they're focused on that surface. Titlebar declutters back to just the theme toggle.
+
+**Affected files:**
+- `renderer/components/Titlebar.tsx` (or wherever the buttons live today) — remove the two collapse buttons.
+- `renderer/components/TabBar.tsx` — add a collapse-pane button to the new-tab cluster.
+- `renderer/components/WorkingTabStrip.tsx` — same for the working-pane new-tab cluster.
+- Symbol design — pick a glyph that reads as "collapse this column" without competing with the existing `+` / globe glyphs.
+
+**Cross-ref:** ENH-040 (collapse-pane v1 — buttons in titlebar); ENH-066 (vertical rail when collapsed — the rail is the EXPAND affordance; this ENH adjusts the COLLAPSE affordance's location).
+
+---
+
+### ENH-084: Aux pane focus indicator — orange glow when active in side pane (parity with main)
+
+**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Priority:** Medium (a11y / discoverability — focus state should always be visually obvious).
+**Filed:** 2026-05-03.
+
+**Owner observation (verbatim):** *"canvas sub pan focus needs to be improved; if I am active in the side pane, the sidepane should have the orange glow"*
+
+**Today:** when the user clicks into the aux pane (Phase 3a Split View), the renderer's `focusedColumn` may not flip correctly — or even if it does, the visual indicator (the column's accent-tinted left-edge stripe + tinted header) may be tied to the main pane only.
+
+**What's wanted:** when keyboard or mouse focus is on the aux pane, the aux header + left-edge stripe paint with the same accent treatment the main pane uses today (BUG-003 v2 + Stage 26 PR 3 item 11 lineage).
+
+**Affected files:**
+- `renderer/components/WorkingPane.tsx § AuxHeader` — add focused-state accent treatment.
+- `renderer/App.tsx` — extend `focusedColumn` to differentiate `working-main` vs `working-aux` (or add a separate `auxFocused: boolean` signal).
+- Possibly the existing `focusedColumn` semantics need refinement — today it's `'files' | 'terminal' | 'working'`; the working surface is now bipartite.
+
+**Cross-ref:** BUG-003 (focus indicator visual lineage); Phase 3a Split View; ENH-085 (the aux header right-click parity ENH — same surface, different concern).
+
+---
+
+### ENH-085: Split View aux header right-click menu parity with main canvas tab
+
+**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Priority:** Medium (right-click parity between main and aux closes a real gap — without it, an aux file is harder to act on).
+**Filed:** 2026-05-03.
+
+**Owner observation (verbatim):** *"split plane title bar should have same context click verbs as main canvas tab; eg I should be able to move the file in split view to trash via context click"*
+
+**Today:** the aux header (Phase 3a `AuxHeader` component in `WorkingPane.tsx`) has only the SPLIT label, filename, ⇤ promote button, and ✕ close button. No right-click context menu. To trash an aux file, the user has to:
+1. Promote aux → main.
+2. Right-click the resulting main tab → Move to Trash.
+
+That's two steps for what should be one.
+
+**What's wanted:** right-click on the aux header (or the aux's filename text) → same context menu the main `WorkingTabStrip` shows for file tabs:
+- Reveal in navigator
+- Rename…
+- Copy path
+- Move to Trash…
+- (Skip "Move to Split View" — already there; instead show "Move back to main" which mirrors the ⇤ button.)
+
+**Implementation sketch:**
+- Extract `WorkingTabStrip.tsx`'s `buildTabMenuTemplate` / `handleMenuChoice` into a shared helper, or duplicate the relevant items into a `buildAuxMenuTemplate` in `WorkingPane.tsx`.
+- Hook `onContextMenu` on the aux header.
+- Plumbing: pass `onTrashTabFile` / `onRevealInNavigator` / `onStartRenameFromTab` props (already exist) down to the AuxHeader.
+
+**Cross-ref:** Phase 3a (AuxHeader component); ENH-074 (Copy path in tab right-click — the parity reference); BUG-024 / ENH-050 (the right-click menu plumbing pattern).
+
+---
+
+### ENH-086: Increase visual separation between "Your Claude Settings" and project files in the navigator
+
+**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Priority:** Low-Medium (UX clarity — Stage 22's two navigator panes need a stronger boundary).
+**Filed:** 2026-05-03.
+
+**Owner observation (verbatim):** *"we need to increase the visual separation in the navigator between user settings section and project files/settings section"*
+
+**Today (Stage 22):** the navigator has two stacked panes — `UserClaudePane` (`~/.claude/`) at the top, and the project tree (cwd) below. They're visually adjacent with a thin border between them. From the smoke-walk screenshots, the boundary is too subtle — the user has to read carefully to know which file lives where.
+
+**What's wanted:** more deliberate visual separation. Candidates:
+- Thicker / more contrasted border between the two panes.
+- Different bg tint for the user-claude pane (e.g. `bg-paper-deep` on top, `bg-surface-1` below) so they read as distinct surfaces.
+- A small inset shadow or vertical bar to imply "this is a different scope."
+- A clearer collapsible header (already exists, but maybe larger / more emphasized).
+
+**Affected files:**
+- `renderer/components/FilesPane.tsx` — host of both panes.
+- `renderer/components/UserClaudePane.tsx` — the top pane.
+- Atelier tokens — possibly a new "scope-divider" token.
+
+**Cross-ref:** Stage 22 (the dual-pane navigator that filed this gap); Atelier visual design system.
+
+---
+
+### ENH-087: Discoverability for "open file" bold-text styling in navigator
+
+**Status:** 🆕 Filed (v0.6.4 smoke walk owner note).
+**Priority:** Low-Medium (one of the user's smoke-walk observations was "what does this bold text mean?" — the implicit signal isn't carrying its meaning).
+**Filed:** 2026-05-03.
+
+**Owner observation (verbatim):** *"in the file navigator (see second screenshot), multiple files show with bolder text (changelog, idle-thoughts, tasks); I don't know what this means; are they open? rendering error?"*
+
+**Today (Stage 26 PR 3 item 3):** file rows whose path is open in any WorkingPane tab render with brighter / heavier text than unopened rows (`text-zinc-200` vs `text-zinc-400` in dark mode; weight difference in light mode). Active file gets an additional accent-dot glyph.
+
+**The gap:** the styling exists but its meaning isn't discoverable. A user seeing "CHANGELOG, idle-thoughts, tasks" all bold can't infer "these are the three files I have open in the working pane."
+
+**What's wanted:** make the meaning legible. Options:
+- **Tooltip on hover** — bold rows get a `title="Open in working pane"` tooltip. Cheap; discoverable on hover.
+- **Sidebar legend / help item** — small help link or `?` glyph in the navigator that opens a panel explaining the visual conventions (selected, open, active, pinned, dotfile-hidden, etc.). Bigger but better long-term.
+- **Add a glyph next to the filename** — e.g. a small open-door or document icon when the file is open. More obvious at a glance, no hover needed. Risk: visual noise.
+- **What-Duo-Does FAQ entry** — document the convention there. Doesn't help in-context.
+
+**Recommended:** combine tooltip + a what-duo-does FAQ entry — discoverability without UI cost. A glyph could come later if the tooltip isn't enough.
+
+**Cross-ref:** Stage 26 PR 3 item 3 (where the open-file bold styling shipped); ENH-079 (collapsed-nav label — same FTUX/discoverability theme); what-duo-does.html "Files & navigation" section (host of any FAQ entry).
+
+---
+
+### FOLLOWUP-006: Increase the autosave delay (or add a "test mode" knob) so the dirty-replace dialog can be smoke-tested
+
+**Status:** ⏳ Open (low-priority test-tooling improvement).
+**Filed:** 2026-05-03 (owner v0.6.4 smoke walk skipped Phase 3c-iii because saves are too fast).
+
+**Owner observation (verbatim):** *"saving is too fast to test; please make a todo for a separate session (this is not urgent) to increase autosave delay to allow testing"*
+
+**Today:** the canvas / markdown editor autosave debounce is ~800ms (`MarkdownEditor` and `CanvasTab`). When the smoke-walker types a few chars to dirty the buffer and immediately tries to swap split content, the autosave has already fired and the buffer is clean again — Phase 3c-iii's dirty-replace dialog never appears because the dirty signal cleared.
+
+**What's wanted:** a deterministic way to keep a buffer dirty for the smoke walk window (a few seconds), so the dirty-replace flow can be exercised.
+
+**Options:**
+1. **Test-mode env var** — `DUO_AUTOSAVE_DELAY_MS=10000` env override (read by main.ts at boot, passed to renderer via `additionalArguments`). Production unchanged at 800ms; test runs bump to 10s.
+2. **Per-buffer debounce knob via duo CLI** — `duo dev autosave-delay <ms>` agent-tunable runtime setting, persisted in localStorage. Useful beyond smoke walks (e.g. agents wanting to make multi-file edits without intermediate saves churning the disk).
+3. **A "no-autosave" mode for smoke walks** — explicitly disable autosave; user has to ⌘S to save. Cleaner test isolation but riskier (forgetting to re-enable could surface as a v0.6.5 user-side regression).
+
+**Recommended:** option (2) — `duo dev autosave-delay [<ms>]` (read or set). The `dev` namespace is for agent / tester ergonomics; production users never reach for it. v1: localStorage'd globally. Touches the new-CLI-verb plumbing checklist.
+
+**Cross-ref:** Phase 3c-iii (the smoke walk skip that filed this); BUG-033 (autosave races with `duo doc-write` / `duo html *` mid-edit — same autosave-timing-is-relevant family).
 
 ---
 

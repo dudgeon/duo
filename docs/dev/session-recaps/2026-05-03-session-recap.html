@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-open-in" content="browser">
+<title>Session recap — 2026-05-03 (Sprint 3 wraps; v0.6.4 cut-ready)</title>
+<style>
+  :root {
+    --paper: #FBF8EE;
+    --paper-deep: #F5F0DE;
+    --paper-edge: #EDE6CB;
+    --paper-rule: #D9D0AC;
+    --ink: #2A2724;
+    --ink-soft: #4A453F;
+    --ink-mute: #76706A;
+    --ink-ghost: #A89F94;
+    --accent: #A8511C;
+    --accent-soft: rgba(168, 81, 28, 0.10);
+    --accent-edge: rgba(168, 81, 28, 0.35);
+    --shipped: #5C7C2A;
+    --pending: #9C7A1F;
+    --deferred: #76706A;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #1F1B17;
+      --paper-deep: #181410;
+      --paper-edge: #2A2521;
+      --paper-rule: #3A332C;
+      --ink: #EAE3D3;
+      --ink-soft: #C8C0AE;
+      --ink-mute: #968E80;
+      --ink-ghost: #6B6357;
+      --accent: #D17A3F;
+      --accent-soft: rgba(209, 122, 63, 0.14);
+      --accent-edge: rgba(209, 122, 63, 0.45);
+      --shipped: #9CB55F;
+      --pending: #D5B662;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14.5px;
+    line-height: 1.55;
+  }
+  body { min-height: 100vh; padding: 32px 24px 80px; }
+  main { max-width: 760px; margin: 0 auto; }
+  header {
+    border-bottom: 1px solid var(--paper-rule);
+    padding-bottom: 22px;
+    margin-bottom: 28px;
+  }
+  .eyebrow {
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  h1 {
+    margin: 0 0 6px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+  h1 em {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 400;
+  }
+  .subtitle {
+    color: var(--ink-soft);
+    font-size: 14px;
+    margin-top: 8px;
+    font-style: italic;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+
+  /* Section structure */
+  h2 {
+    margin: 36px 0 14px;
+    font-size: 19px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--paper-rule);
+    padding-bottom: 6px;
+  }
+  h2 .anchor {
+    color: var(--ink-ghost);
+    font-weight: 400;
+    font-size: 13px;
+    margin-left: 8px;
+    font-family: Georgia, serif;
+    font-style: italic;
+  }
+  h3 {
+    margin: 22px 0 10px;
+    font-size: 15.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  h3 .num {
+    color: var(--accent);
+    font-family: Georgia, serif;
+    font-style: italic;
+    font-weight: 400;
+    margin-right: 6px;
+  }
+  p { margin: 0 0 11px; }
+  code {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 12.5px;
+    background: var(--paper-edge);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  strong { font-weight: 600; }
+  em {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+  }
+
+  /* Snapshot card */
+  .snapshot {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin: 0 0 30px;
+  }
+  .snapshot .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 14px;
+  }
+  .stat {
+    border-left: 2px solid var(--paper-rule);
+    padding-left: 10px;
+  }
+  .stat .num {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--accent);
+    font-family: Georgia, serif;
+    font-style: italic;
+    line-height: 1;
+  }
+  .stat .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-mute);
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+
+  /* Item cards */
+  .item {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 14px;
+    border-bottom: 1px solid var(--paper-rule);
+    padding: 14px 0;
+  }
+  .item:last-child { border-bottom: none; }
+  .item .id {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    padding-top: 2px;
+  }
+  .item .body { min-width: 0; }
+  .item h4 {
+    margin: 0 0 6px;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+  .item .what {
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    margin: 4px 0;
+  }
+  .item .meta {
+    color: var(--ink-mute);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  .item .meta strong { color: var(--ink-soft); font-weight: 600; }
+
+  /* Status pills */
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid;
+    vertical-align: 1px;
+  }
+  .pill.shipped {
+    color: var(--shipped);
+    border-color: var(--shipped);
+    background: rgba(92, 124, 42, 0.06);
+  }
+  .pill.pending {
+    color: var(--pending);
+    border-color: var(--pending);
+    background: rgba(156, 122, 31, 0.07);
+  }
+  .pill.deferred {
+    color: var(--deferred);
+    border-color: var(--paper-rule);
+    background: var(--paper-edge);
+  }
+
+  /* Owner-actions section */
+  .owner-actions {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-edge);
+    border-radius: 4px;
+    padding: 18px 22px;
+    margin: 0 0 24px;
+  }
+  .owner-actions h2 {
+    margin-top: 0;
+    border: none;
+    padding: 0;
+    color: var(--accent);
+  }
+  .owner-actions ol {
+    margin: 8px 0 0;
+    padding-left: 22px;
+  }
+  .owner-actions li {
+    margin: 10px 0;
+    color: var(--ink);
+  }
+  .owner-actions li strong { color: var(--ink); }
+  .owner-actions li code {
+    background: var(--paper);
+    border: 1px solid var(--paper-rule);
+  }
+
+  /* Commit log */
+  .commits {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 4px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.65;
+  }
+  .commits .commit { display: grid; grid-template-columns: 70px 1fr; gap: 10px; }
+  .commits .sha {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .commits .msg { color: var(--ink-soft); }
+
+  /* Tags / chips */
+  .chip-row { margin: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--paper-rule);
+    border-radius: 12px;
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    background: var(--paper);
+  }
+
+  /* Section taglines */
+  .tagline {
+    font-family: Georgia, serif;
+    font-style: italic;
+    color: var(--ink-mute);
+    font-size: 13.5px;
+    margin: -8px 0 14px;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 50px;
+    padding-top: 18px;
+    border-top: 1px solid var(--paper-rule);
+    color: var(--ink-mute);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  /* Inline file paths */
+  .path {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    background: var(--paper-edge);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Tables (used for the test framework summary) */
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0 14px;
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left;
+    padding: 7px 12px 7px 0;
+    border-bottom: 1px solid var(--paper-rule);
+    vertical-align: top;
+  }
+  th {
+    font-weight: 600;
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  td.num {
+    font-family: Georgia, serif;
+    font-style: italic;
+    color: var(--accent);
+    font-weight: 600;
+    width: 60px;
+  }
+  td .file {
+    font-family: "SF Mono", Monaco, Consolas, monospace;
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    body { padding: 22px 16px; }
+    h1 { font-size: 22px; }
+    .snapshot .stats { grid-template-columns: repeat(2, 1fr); }
+    .item { grid-template-columns: 1fr; }
+    .item .id { padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="eyebrow">Session recap · 2026-05-03</div>
+  <h1>Sprint 3 wraps. <em>v0.6.4 is feature-complete pending smoke walk.</em></h1>
+  <p class="subtitle">A long autonomous session — 14 commits, 100+ regression tests, the entire Split View arc, an idle-thoughts sweep, and a docs refresh that catches the public-facing docs back up to v0.6.4.</p>
+</header>
+
+<div class="snapshot">
+  <p style="margin: 0; color: var(--ink-soft); font-size: 13.5px;">
+    The session opened with the owner picking <strong>option A</strong> for the Split View styling (the slim symmetric chrome that had already shipped) and asking what else could be folded into the sprint. What followed: an idle-thoughts sweep that closed eight smaller items, the foundation of a real regression-test framework, the entire Phase 3b/3c Split View work that was originally queued for v0.6.5, a docs refresh that brought README + roadmap.html + what-duo-does.html + RELEASES.md + CHANGELOG.md back in sync with what's actually shipping, and an orphan-file cleanup that removed eleven untracked dead files lying around since prior refactors.
+  </p>
+  <div class="stats">
+    <div class="stat">
+      <div class="num">14</div>
+      <div class="label">Commits this session</div>
+    </div>
+    <div class="stat">
+      <div class="num">+2.5K</div>
+      <div class="label">Lines changed (+2,533 / −408 across 36 files)</div>
+    </div>
+    <div class="stat">
+      <div class="num">104</div>
+      <div class="label">Regression tests passing across 5 files (Vitest, brand new this session)</div>
+    </div>
+    <div class="stat">
+      <div class="num">16</div>
+      <div class="label">Smoke-walk items ready when you are at <code>v0.6.4.html</code></div>
+    </div>
+  </div>
+</div>
+
+<div class="owner-actions">
+  <h2 style="margin-top: 0;">What still needs you</h2>
+  <ol>
+    <li>
+      <strong>Smoke walk the v0.6.4 build.</strong> Page is open in Duo's browser pane right now —
+      <span class="path">docs/dev/smoke-walks/v0.6.4.html</span>.
+      Sixteen items covering <em>everything</em> shipped this session plus the live-verifies of BUG-070 v3 / BUG-061 v3 / ENH-039 (which were re-validated post-restart). Click Pass/Fail/Skip on each, paste back when done; I'll parse + flip statuses + propose the cut.
+    </li>
+    <li>
+      <strong>Click the install banner's "Refresh / Install" button</strong> at some point during the walk. The banner runs <code>InstallService.run()</code>, which is what materializes ENH-070's dev-only symlinks for <span class="path">~/.claude/duo/help/*.html</span>. Without that one click, the symlinks stay as regular files and the smoke step for ENH-070 won't pass.
+    </li>
+    <li>
+      <strong>Cut v0.6.4</strong> via the <code>cut-version</code> skill once the smoke walk passes.
+      Release-notes draft is already pre-written in <span class="path">docs/RELEASES.md § Pending</span>; CHANGELOG <code>[Unreleased]</code> is up to date; <span class="path">package.json</span> already reads <code>0.6.4</code>; the smoke-walk page exists. The cut commit should be mostly mechanical.
+    </li>
+    <li>
+      <strong>Post-DMG verifies</strong> (fold into the v0.6.4 cut DMG smoke):
+      <ul style="margin: 6px 0 0;">
+        <li><strong>ENH-077</strong> — open a packaged Duo, fire any <code>dialog.confirm</code> (right-click → Move to Trash works), confirm the dialog shows Duo's clawd glyph not Electron's default.</li>
+        <li><strong>ENH-081</strong> — install the DMG, right-click an <code>.md</code> file in Finder → Open With → confirm Duo appears. If not, run <code>lsregister -kill -r -domain local -domain user</code> and re-check.</li>
+      </ul>
+    </li>
+    <li>
+      <strong>Decide on v0.6.5 priorities.</strong> The v0.6.5 queue (filed-only, ready when you are): Phase 3c-iv (browser-in-aux), MISSING-001 (markdown editor CommentRail / Stage 14a), ENH-080 (⌘⇧A open-tab search palette), ENH-052 (mechanical canvas → page rename), ENH-075 (canvas glyph design exploration), the <code>claude-code-basics</code> curriculum-template refactor.
+    </li>
+  </ol>
+</div>
+
+<h2>Split View — Phases 3b + 3c land <span class="anchor">v0.6.4 headline · ENH-041</span></h2>
+<p class="tagline">The canvas can host two files side-by-side, with all the invocation surfaces, persistence, and the dirty-replace dialog wired up.</p>
+
+<p>
+  Phase 3a (the core + visible UI) had already shipped before the session. This session closed the chapter: every entry point, persistence across launch, and the dirty-replace dialog that was originally deferred to v0.6.5.
+</p>
+
+<div class="item">
+  <div class="id">Phase 3b<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>Invocation surfaces</h4>
+    <p class="what">Five paths now converge on a single state-mutation primitive (<code>splitViewMoveTabByPath</code> in App.tsx). Pick whichever feels natural in the moment.</p>
+    <ul style="margin: 6px 0; padding-left: 22px; font-size: 13.5px; color: var(--ink-soft);">
+      <li><code>⌘\</code> chord — moves the active main file tab into aux.</li>
+      <li><code>⌘⇧\</code> chord — closes the split.</li>
+      <li>Right-click a tab in the WorkingTabStrip → <em>Move to Split View</em> (file tabs only; browser tabs gated until 3c-iv).</li>
+      <li>Right-click any file in the navigator (FileTree) → <em>Open in Split View</em>.</li>
+      <li>Right-click any file pin in PinnedNav → <em>Open in Split View</em>.</li>
+      <li>(Already shipped pre-session) Per-page <code>&lt;meta name="duo-path-target" content="split"&gt;</code> + per-link <code>data-duo-target="split"</code> for browser-pane page links.</li>
+    </ul>
+    <p class="meta"><strong>Touched:</strong> <span class="path">globalShortcuts.ts</span>, <span class="path">useKeyboardShortcuts.ts</span>, <span class="path">browser-manager.ts</span> (added <code>\</code> to the WCV before-input-event forwarder so the chord works from browser focus too), <span class="path">App.tsx</span>, <span class="path">WorkingPane.tsx</span>, <span class="path">WorkingTabStrip.tsx</span>, <span class="path">FileTree.tsx</span>, <span class="path">FilesPane.tsx</span>, <span class="path">PinnedNav.tsx</span>. Commit <code>ed4d097</code>.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">Phase 3c-i<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>Session persistence</h4>
+    <p class="what">Aux state survives a Duo relaunch. Quit Duo with a Split View open, relaunch, and the same files are in the same panes at the same divider position. Implemented as an <em>additive</em> field on <code>SessionState</code> (no schema-version bump; old saves stay valid). Renderer save serializes <code>auxState</code>; restore runs the same <code>fs.exists</code> existence-check pattern as <code>fileTabs</code> (BUG-039 lineage) — drops paths that no longer exist on disk; rehydrates with clamped <code>activeIndex</code> + <code>splitPct</code>.</p>
+    <p class="meta"><strong>Touched:</strong> <span class="path">shared/types.ts</span> (new <code>SessionStateAux</code> interface + optional <code>aux</code> field), <span class="path">core/session-state-service.ts</span> (defensive <code>validateAux</code> helper), <span class="path">App.tsx</span> (save + restore wiring). Commit <code>e5c8eb7</code>.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">Phase 3c-iii<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>Dirty-replace dialog</h4>
+    <p class="what">When the aux pane is showing a file with unsaved changes and you (or the agent) try to open a different file in aux, Duo fires a native macOS <code>dialog.confirm</code>: <em>Cancel</em> (default — preserves the current aux) or <em>Discard changes</em> (replaces, losing the unsaved edits). Clean aux files replace silently with no dialog. Same gate fires across all five entry points — chord, three right-click menus, CLI / page-link IPC.</p>
+    <p class="what">Foundation: a path-keyed <code>dirtyPaths: Set&lt;string&gt;</code> in App.tsx that bridges main <code>fileTabs</code> (random uuids) and aux tabs (synthesized <code>aux:${path}</code> ids). The existing <code>onTabDirtyChange</code> resolves both id flavors back to canonical paths and mirrors into the Set. v1 dialog has no Save button — saves are per-editor + async; the "save manually first" flow is the intended escape valve until a save-by-path dispatch exists.</p>
+    <p class="meta"><strong>Originally deferred to v0.6.5</strong> in the AUQ session — pulled forward here because the foundation was small enough to fit. Commit <code>e54eb3b</code>.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">3c-iv<br><span class="pill deferred">v0.6.5</span></div>
+  <div class="body">
+    <h4>Browser-in-aux <span class="pill deferred">deferred</span></h4>
+    <p class="what">Aux holding a <code>kind: 'browser'</code> tab. Needs BrowserManager bounds tracking for two WebContentsViews + focus mirroring + per-view zoom locks (~half a sprint of its own). Browser tabs are excluded from the Phase 3b right-click menus until this lands.</p>
+  </div>
+</div>
+
+<h2>Idle-thoughts sweep <span class="anchor">eight items in one batch</span></h2>
+<p class="tagline">All four bullets in <code>idle-thoughts.md</code> processed; six shipped, two filed.</p>
+
+<div class="item">
+  <div class="id">ENH-076<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>⌘[ / ⌘] indent + outdent in HTML canvas</h4>
+    <p class="what">Parity with the markdown editor's <code>ListIndentShortcuts.ts</code> (which has shipped since v0.5.3). Same <code>handleListIndent</code> helper Tab/Shift-Tab uses; no-op when caret is outside a list. Gates the modifier check (<code>!shiftKey</code>) so it doesn't shadow ⌘⇧[ / ⌘⇧] which are claimed globally.</p>
+    <p class="meta"><strong>Editor-canvas parity rule disposition:</strong> <em>(a) Mirrored</em> — same chord, same handler shape on both surfaces.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">ENH-078<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>Navigator selection prominence + 3 deselect paths</h4>
+    <p class="what">Selected row's className stepped from <code>bg-accent/15 text-zinc-100</code> to <code>bg-accent/30 text-zinc-50 font-medium</code>. Same accent token (still atelier), heavier fill + heavier weight — reads like Finder's selection at a glance. Three deselect paths: re-click the selected row, click the whitespace below the row list, or press Escape.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">ENH-079<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>Collapsed Navigator vertical label</h4>
+    <p class="what">When the file column is collapsed to its 44px rail, it now shows a vertical-rl serif italic label reading <code>Navigator: {project_name}</code> beneath the folder glyph. Mirrors the terminal/canvas collapse-rail labels exactly. Project name = basename of <code>state.cwd</code>. Useful when you have multiple Duo windows open and want to know which project is hiding behind which rail.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">ENH-081<br><span class="pill pending">Shipped (verify post-DMG)</span></div>
+  <div class="body">
+    <h4>macOS Finder Open With for <code>.md</code> and <code>.html</code></h4>
+    <p class="what">Duo registers as a Finder Open-With candidate via <code>electron-builder.yml</code>'s <code>fileAssociations</code>. Runtime handler in <code>main.ts</code> hooks <code>app.on('open-file')</code>; cold-start launches stash the path until <code>did-finish-load</code> fires, then route through the same smart-routing path as <code>duo open</code>. Verification owed in the v0.6.4 cut DMG (the registration only takes effect in a packaged + installed build; <code>lsregister</code> scans Info.plist on app install).</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">BUG-071<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>⌃Tab responsive immediately after a path-link click</h4>
+    <p class="what">When a smoke-walk page's <code>data-duo-path</code> link click opens a canvas, <code>⌃Tab</code> used to be unresponsive until you re-clicked into the canvas — the WebContentsView still owned native keyboard focus. One-line fix: <code>mainWindow.webContents.focus()</code> in <code>cdpBridge.onBrowserOpenPath</code> (and the symmetric <code>onBrowserOpenPathSplit</code>) after <code>sendEdit</code>. Inverse of BUG-042's wireKeyForwarding pattern, applied at the CDP listener level.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">ENH-036<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4><code>duo open &lt;url&gt;</code> brings the new browser tab into view</h4>
+    <p class="what">If a canvas / editor tab was active, <code>duo open https://anthropic.com</code> would add the browser tab but leave the working pane on the previous kind — the new tab landed invisibly in the strip. The existing <code>BROWSER_FOCUS_GAINED</code> handler was only flipping <code>focusedColumn</code>; now it also flips <code>activeWorking = { kind: 'browser' }</code>, mirroring Stage 23 canvas-action <code>browser:open</code>'s effect. Idempotent on click-into-browser (already 'browser' there).</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">ENH-080<br><span class="pill deferred">Filed only · v0.6.5</span></div>
+  <div class="body">
+    <h4>⌘⇧A open-tab search palette</h4>
+    <p class="what">A new chord that opens a small floating picker listing every open tab across the working pane and the browser tab strip. Type to filter, arrows to navigate, Enter activates. Bigger than a sweep item — needs a new <code>TabSearch.tsx</code> component + globalShortcut registration + UI design pass. Filed; queued for v0.6.5.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">discussion<br><span class="pill deferred">Filed only</span></div>
+  <div class="body">
+    <h4>Enterprise distro pattern: ZIP-download + submodule, not git fork</h4>
+    <p class="what">Owner clarified the Stage 21e fork-friendly architecture's actual deployment shape: enterprise teams download <code>dudgeon/duo</code> as a ZIP, upload to their internal GitHub, add their own pack(s) as a git submodule under <code>packs/&lt;name&gt;/</code>, build locally on enterprise infra. The existing architecture supports this fine — the doc work owed is updating <code>docs/HOW-TO-FORK.md</code> with an "Enterprise distro" section that spells out the ZIP+submodule pattern explicitly (today the doc implies <code>git clone fork</code>, which doesn't match the realized enterprise workflow). Plus a sanity check that <code>scripts/dist-signed.sh</code> runs <code>git submodule update --init --recursive</code> before <code>electron-builder</code>.</p>
+  </div>
+</div>
+
+<h2>Vitest framework + first 100+ regression tests <span class="anchor">brand new this session</span></h2>
+<p class="tagline">Closes the "recurring regressions need durable test coverage" memory feedback. The BUG-061 markdown-trigger class cycled through three implementations (v1 strict-eq → v2 start-match → v3 nbsp-tolerant) — without tests, a v4 iteration would have to re-discover the Chromium nbsp quirk at smoke-walk time. With these tests, regression is caught at unit-test time.</p>
+
+<table>
+  <thead>
+    <tr><th>Tests</th><th>File</th><th>What it covers</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="num">8</td>
+      <td>
+        <strong>expandTilde</strong>
+        <span class="file">core/path-utils.test.ts</span>
+      </td>
+      <td>Tilde expansion (BUG-067 / ENH-039 lineage). Bare <code>~</code>, <code>~/path</code>, absolute paths, http/file URLs, the <code>~user/...</code> intentionally-unsupported case, mid-path <code>~</code> staying literal.</td>
+    </tr>
+    <tr>
+      <td class="num">33</td>
+      <td>
+        <strong>matchBlockTrigger</strong>
+        <span class="file">renderer/components/HtmlCanvas/markdownShortcuts.test.ts</span>
+      </td>
+      <td>BUG-061 markdown-trigger regex — heading levels 1-6, ul triggers (<code>-</code> / <code>*</code> / <code>+</code>), ol trigger (<code>1.</code>), blockquote (<code>&gt;</code>) — each with both U+0020 literal space AND U+00A0 nbsp. Locks the v3 Chromium-nbsp-tolerant shape.</td>
+    </tr>
+    <tr>
+      <td class="num">15</td>
+      <td>
+        <strong>matchEnterTrigger</strong>
+        <span class="file">renderer/components/HtmlCanvas/markdownShortcuts.test.ts</span>
+      </td>
+      <td>Horizontal-rule (<code>---</code> / <code>***</code>) + code-block (<code>```</code> / <code>```lang</code>) Enter conversions, with cross-trigger-family null cases.</td>
+    </tr>
+    <tr>
+      <td class="num">19</td>
+      <td>
+        <strong>classifyFile</strong>
+        <span class="file">renderer/components/fileClassifier.test.ts</span>
+      </td>
+      <td>Extension → WorkingTabType + mime mapping. Markdown editor routing (.md, .markdown, case-insensitive), HTML canvas routing (.html, .htm), images (5 formats), pdf, the unknown fallback, multi-dot filenames.</td>
+    </tr>
+    <tr>
+      <td class="num">15</td>
+      <td>
+        <strong>cycleNext</strong>
+        <span class="file">renderer/keyboard/tabCycle.test.ts</span>
+      </td>
+      <td>BUG-001 / BUG-021 / BUG-038 lineage's pure tab-cycle math. Forward/backward, wrap-around, asymmetric -1-idx fallback (forward → first, backward → last), structural-typing contract.</td>
+    </tr>
+    <tr>
+      <td class="num">14</td>
+      <td>
+        <strong>pathFromFileUrl</strong>
+        <span class="file">renderer/components/urlUtils.test.ts</span>
+      </td>
+      <td>BUG-045 lineage. URI-encoded round-trips (spaces, unicode, special chars), non-file protocol guards (http/https/about/chrome/data), falsy/malformed input fallbacks.</td>
+    </tr>
+    <tr style="border-top: 2px solid var(--ink-mute);">
+      <td class="num">104</td>
+      <td><strong>Total</strong> across 5 files</td>
+      <td>All passing. <code>npm run test</code> (watch) / <code>npm run test:run</code> (one-shot for CI).</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  Setup: Vitest <code>3.2.4</code> (pinned to 3.x because Vitest 4 requires Node 20+ and the toolchain is Node 18). Dev-dep only. <span class="path">vitest.config.ts</span> at the repo root mirrors the <code>@shared</code> alias from <code>electron-vite.config.ts</code> + <code>tsconfig.web.json</code>. Node environment (no jsdom needed for the pure-helper tests).
+</p>
+<p>
+  Two refactors made room for these tests:
+</p>
+<ul>
+  <li><strong><code>expandTilde</code></strong> extracted to <span class="path">core/path-utils.ts</span> (was inlined twice in <code>main.ts</code>'s <code>cdpBridge.onBrowserOpenPath</code> + <code>onBrowserOpenPathSplit</code> handlers).</li>
+  <li><strong><code>matchBlockTrigger</code> + <code>matchEnterTrigger</code></strong> extracted as pure functions in <span class="path">markdownShortcuts.ts</span>; <code>handleInput</code> + <code>handleEnterShortcuts</code> now call them instead of inlining the regexes.</li>
+  <li><strong><code>pathFromFileUrl</code></strong> moved from <span class="path">WorkingTabStrip.tsx</span> to a sibling <span class="path">urlUtils.ts</span>. Fast Refresh requires React-component files NOT export plain utilities.</li>
+</ul>
+<p>
+  Behavior unchanged across all three refactors; the test suite locks the contracts going forward.
+</p>
+
+<h2>Polish &amp; cleanup <span class="anchor">smaller fixes that fit in the same chapter</span></h2>
+
+<div class="item">
+  <div class="id">ENH-070<br><span class="pill pending">Shipped (one click owed)</span></div>
+  <div class="body">
+    <h4>Dev-only FAQ symlink (Path 1)</h4>
+    <p class="what">In dev (<code>npm run dev</code>), <code>~/.claude/duo/help/*.html</code> is now a symlink back to the source repo's <span class="path">help/</span> files — no drift between the two FAQs. Production users still get a real copy from the install bundle. New <code>maintainHelpSymlinksInDev</code> helper in <span class="path">install-service.ts</span>: replaces byte-identical files with symlinks; preserves user customizations (mismatched bytes); fixes stale symlinks; idempotent.</p>
+    <p class="meta"><strong>Owed:</strong> click "Refresh / Install" on the install banner once during the smoke walk so the symlinks materialize. Verify with <code>ls -la ~/.claude/duo/help/</code> — the three files should show <code>-&gt;</code> targets.</p>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id">cleanup<br><span class="pill shipped">Shipped</span></div>
+  <div class="body">
+    <h4>Stage 4 dead code + deprecated alias + 11 orphan files</h4>
+    <p class="what">Three rounds of dead-code removal:</p>
+    <ul style="margin: 6px 0; padding-left: 22px; font-size: 13.5px; color: var(--ink-soft);">
+      <li><strong>Stage 4 Skills panel</strong> — <code>SkillsPanel</code>, <code>useSkillsContext</code>, <code>scanSkills</code>, <code>SkillEntry</code> interface, <code>SKILLS_SCAN</code>/<code>SKILLS_RESULT</code> IPC channels. ~146 lines. Explicitly excluded per CLAUDE.md ("Brainstem / MCP — Not included") but the orphaned code stayed in the tree. Commit <code>94d0ee9</code>.</li>
+      <li><strong>Deprecated <code>EditorSelectionTagged</code> alias</strong> — migration to <code>MarkdownSelectionSnapshot</code> completed; no remaining importers. Commit <code>e3424b6</code>.</li>
+      <li><strong>11 orphan files</strong> — left over from prior <code>git rm</code> refactors that didn't remove from disk (Stage A extract-services-to-core/, ENH-050 retired in-renderer ContextMenu+PinnedCloseConfirm, dead Stage 4 skills-scanner duplicate, an electron-builder afterPack stub). Surfaced when commit <code>94d0ee9</code> deleted <code>SkillEntry</code> and broke the import in the orphaned <code>electron/skills-scanner.ts</code>. Folded into commit <code>17866f6</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Documentation refresh <span class="anchor">user-facing + agent-facing docs caught up</span></h2>
+<p class="tagline">The docs were lagging by ~2 chapters. v0.6.0 + v0.6.1 + v0.6.2 + the Sprint 3 work weren't reflected in README / roadmap.html / what-duo-does.html.</p>
+
+<div class="item">
+  <div class="id"><span class="path" style="font-size: 11px;">README.md</span><br><span class="pill shipped">Refreshed</span></div>
+  <div class="body">
+    <h4>README.md</h4>
+    <ul style="margin: 6px 0; padding-left: 22px; font-size: 13.5px; color: var(--ink-soft);">
+      <li>DMG download links: hardcoded <code>v0.4.1</code> URLs → versionless pointer to <a href="https://github.com/dudgeon/duo/releases/latest">/releases/latest</a>.</li>
+      <li>"What's shipped today" refreshed with Split View, HTML canvas, lesson packs, Finder integration, auto-update + session restore, browser-history autocomplete, line numbers.</li>
+      <li>"Most recent release" headlines now span v0.4.2 → v0.6.4 (was: stuck at v0.4.1).</li>
+      <li>Removed the company-name violation per CLAUDE.md "no employer names": "Capital One Seatbelt blocks Unix-domain sockets" → "some enterprise sandboxes block Unix-domain sockets".</li>
+      <li>"Coming next" updated — Stage 21c, Stage 18b are done; pending = Phase 3c-iv, MISSING-001, ENH-080, ENH-052.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id"><span class="path" style="font-size: 11px;">roadmap.html</span><br><span class="pill shipped">Refreshed</span></div>
+  <div class="body">
+    <h4>docs/roadmap.html</h4>
+    <ul style="margin: 6px 0; padding-left: 22px; font-size: 13.5px; color: var(--ink-soft);">
+      <li>Snapshot subtitle bumped from <em>2026-05-01 / v0.5.4</em> → <em>2026-05-03 / v0.6.4 in-progress</em>; lineage now spans v0.6.0..v0.6.4 with brief per-cut bullets.</li>
+      <li>New top-of-list <code>&lt;details class="recent" open&gt;</code> block for v0.6.4 in-progress covering Split View + idle-thoughts sweep + Vitest framework + Phase 2 ADR + dead-code removal + deferred-to-v0.6.5 items.</li>
+      <li>New blocks for v0.6.2 (lesson template ecosystem completes) and v0.6.0 + v0.6.1 (canvas authoring vocabulary + lesson packs).</li>
+      <li>"Last cut" line bumped v0.5.4 → v0.6.2 with v0.6.4 in-progress note.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id"><span class="path" style="font-size: 11px;">what-duo-does.html</span><br><span class="pill shipped">Refreshed</span></div>
+  <div class="body">
+    <h4>help/what-duo-does.html</h4>
+    <ul style="margin: 6px 0; padding-left: 22px; font-size: 13.5px; color: var(--ink-soft);">
+      <li><strong>Item 56 (NEW)</strong> — Open two files side-by-side in Split View. Covers all four invocation surfaces, persistence, locked behaviors, per-page meta opt-in.</li>
+      <li><strong>Item 57 (NEW)</strong> — Split View dirty-replace dialog.</li>
+      <li><strong>Item 4d updated</strong> — ⌘[/⌘] indent now noted as working in BOTH the markdown editor (since v0.5.3) and the HTML canvas (new in v0.6.4 via ENH-076 mirror).</li>
+      <li><strong>Item 17 updated</strong> — collapsed file column rail now shows "Navigator: {project_name}" (ENH-079).</li>
+      <li><strong>Item 17a (NEW)</strong> — selection prominence + 3 deselect paths (ENH-078).</li>
+      <li><strong>Item 17b (NEW)</strong> — macOS Finder Open With for <code>.md</code> / <code>.html</code> (ENH-081, post-DMG only).</li>
+    </ul>
+  </div>
+</div>
+
+<div class="item">
+  <div class="id"><span class="path" style="font-size: 11px;">RELEASES.md<br>CHANGELOG.md<br>session-log.md<br>tasks.md</span><br><span class="pill shipped">Refreshed</span></div>
+  <div class="body">
+    <h4>Release-prep documentation</h4>
+    <ul style="margin: 6px 0; padding-left: 22px; font-size: 13.5px; color: var(--ink-soft);">
+      <li><strong><span class="path">docs/RELEASES.md § Pending</span></strong> — retitled v0.6.3 (in-progress) → v0.6.4 (in-progress); prepended Sprint 3 highlights covering Split View (Phase 3a + 3b + 3c-i + 3c-iii), the idle-thoughts sweep, Vitest framework + first 100+ regression tests, the locked Phase 2 editor/canvas convergence ADR. Carried-over v0.6.3 chapter detail kept verbatim.</li>
+      <li><strong><span class="path">CHANGELOG.md</span> [Unreleased]</strong> — added Sprint 3 entries to Added / Changed / Fixed sections; new Removed section for Stage 4 dead code + deprecated alias; reorganized "Filed for v0.6.4" → "Filed for v0.6.5".</li>
+      <li><strong><span class="path">docs/dev/session-log.md</span></strong> — new top-of-file entry covering the 14-commit afternoon arc with commit table, Phase 3c scope decisions, smoke-walk plan, and post-DMG verifies.</li>
+      <li><strong><span class="path">tasks.md</span></strong> — ENH-020 + ENH-034 status flipped 🆕 Filed → ✅ Shipped (both landed in v0.6.0+). Other 🆕 Filed entries (ENH-027, ENH-043, ENH-047/048, ENH-052, ENH-075, ENH-080, MISSING-001) all accurately filed for v0.6.5 / Stage 17e dependency / design-needed / manifest-specific work.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>v0.6.5 queue <span class="anchor">filed-only items, ready when you are</span></h2>
+<p class="tagline">Everything below is filed in <span class="path">tasks.md</span> with implementation sketches and cross-refs. Pick whichever feels next.</p>
+
+<div class="chip-row">
+  <span class="chip">Phase 3c-iv — browser-in-aux</span>
+  <span class="chip">MISSING-001 — markdown editor CommentRail (Stage 14a)</span>
+  <span class="chip">ENH-080 — ⌘⇧A open-tab search palette</span>
+  <span class="chip">ENH-052 — mechanical canvas → page rename</span>
+  <span class="chip">ENH-075 — canvas glyph design exploration</span>
+  <span class="chip">ENH-077 — system dialog icon (post-DMG verify)</span>
+  <span class="chip">ENH-043 — smoke-walk skill rebuilt on canvas primitives</span>
+  <span class="chip">ENH-047 / ENH-048 — smoke-walk page improvements</span>
+  <span class="chip"><code>claude-code-basics</code> curriculum-template refactor</span>
+  <span class="chip">Enterprise distro doc (HOW-TO-FORK ZIP+submodule)</span>
+</div>
+
+<h2>Commit log <span class="anchor">14 commits this session</span></h2>
+
+<div class="commits">
+  <div class="commit"><span class="sha">17866f6</span><span class="msg">docs(v0.6.4): refresh README + roadmap + what-duo-does + tasks status</span></div>
+  <div class="commit"><span class="sha">e54eb3b</span><span class="msg">feat(v0.6.4): Sprint 3 Phase 3c-iii — Split View dirty-replace dialog</span></div>
+  <div class="commit"><span class="sha">b3f5422</span><span class="msg">test(v0.6.4): add cycleNext + pathFromFileUrl regression tests</span></div>
+  <div class="commit"><span class="sha">58a0d4b</span><span class="msg">test(v0.6.4): extend Vitest coverage to fileClassifier + matchEnterTrigger</span></div>
+  <div class="commit"><span class="sha">ac59e8f</span><span class="msg">docs(v0.6.4): release notes draft + session log</span></div>
+  <div class="commit"><span class="sha">1bce0f4</span><span class="msg">chore: bump to v0.6.4 for next sprint smoke walk</span></div>
+  <div class="commit"><span class="sha">e5c8eb7</span><span class="msg">feat(v0.6.4): Sprint 3 Phase 3c-i — Split View session persistence</span></div>
+  <div class="commit"><span class="sha">ed4d097</span><span class="msg">feat(v0.6.4): Sprint 3 Phase 3b — Split View invocation surfaces</span></div>
+  <div class="commit"><span class="sha">c822139</span><span class="msg">test(v0.6.4): add Vitest + first regression tests for BUG-061/067/039</span></div>
+  <div class="commit"><span class="sha">dbc94fd</span><span class="msg">feat(v0.6.4): ENH-070 — dev-only FAQ symlink (Path 1)</span></div>
+  <div class="commit"><span class="sha">e3424b6</span><span class="msg">chore(v0.6.4): remove orphaned @deprecated EditorSelectionTagged alias</span></div>
+  <div class="commit"><span class="sha">94d0ee9</span><span class="msg">chore(v0.6.4): remove dead Stage 4 Skills-panel code</span></div>
+  <div class="commit"><span class="sha">104231a</span><span class="msg">fix(v0.6.4): ENH-036 — duo open brings browser tab into view</span></div>
+  <div class="commit"><span class="sha">4ec0742</span><span class="msg">feat(v0.6.4): Sprint 3 idle-thoughts sweep — selection UX, canvas keymaps, file-associations, focus fix</span></div>
+</div>
+
+<h2>References <span class="anchor">where to look next</span></h2>
+
+<ul>
+  <li><strong>Smoke walk:</strong> <span class="path">docs/dev/smoke-walks/v0.6.4.html</span> — 16 items, open in Duo's browser pane right now.</li>
+  <li><strong>Active sprint scratchpad:</strong> <span class="path">docs/dev/active-sprint.md</span> — full state including Phase 3c scope decisions and blockers.</li>
+  <li><strong>Release notes draft:</strong> <span class="path">docs/RELEASES.md § Pending</span> — substantive prose, ready for the cut.</li>
+  <li><strong>CHANGELOG:</strong> <span class="path">CHANGELOG.md</span> [Unreleased].</li>
+  <li><strong>Session log:</strong> <span class="path">docs/dev/session-log.md</span> — running session-by-session prose log; this session's entry is at the top.</li>
+  <li><strong>v0.6.4 backlog:</strong> <span class="path">tasks.md</span> — ENH-080, MISSING-001, Phase 3c-iv, etc.</li>
+  <li><strong>Refreshed user-facing docs:</strong> <a href="../../../../README.md">README.md</a>, <a href="../../roadmap.html">docs/roadmap.html</a>, <a href="../../../help/what-duo-does.html">help/what-duo-does.html</a>.</li>
+</ul>
+
+<footer>
+  <p>Generated 2026-05-03 · session arc <code>4b0236f</code> → <code>17866f6</code> · 14 commits · 36 files · +2,533 / −408 lines · 104 unit tests passing</p>
+  <p>This file is rendered HTML, not interactive. Open <span class="path">docs/dev/smoke-walks/v0.6.4.html</span> for the smoke-walk page (Pass/Fail toggles, Copy results button, localStorage persistence per ENH-038).</p>
+</footer>
+
+</main>
+</body>
+</html>
