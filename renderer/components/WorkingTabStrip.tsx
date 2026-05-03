@@ -52,6 +52,13 @@ interface WorkingTabStripProps {
    *  moves are gated here in the strip (we have pin info on tabs)
    *  before reaching the parent. */
   onReorderTab?: (sourceId: string, targetId: string) => void
+  /** Sprint 3 Phase 3b — Move tab into the Split View aux slot.
+   *  Surfaced in the right-click menu for file tabs (browser tabs
+   *  excluded — browser-in-aux is Phase 3c). Called with the tab's
+   *  absolute path; App.tsx routes through the same state mutations
+   *  the workingAux.onOpen handler applies (drop from main, set as
+   *  aux's only path). */
+  onMoveToSplit?: (path: string) => void
 }
 
 // Stage 12 Phase 3 — tab-strip rhyme. Strip + chip language matches
@@ -76,7 +83,8 @@ export function WorkingTabStrip({
   onRevealInNavigator,
   onTrashFile,
   onStartRenameFromTab,
-  onReorderTab
+  onReorderTab,
+  onMoveToSplit
 }: WorkingTabStripProps) {
   // ENH-042 — drag visual state. While a tab is being dragged, the
   // tab being hovered shows an accent-colored insertion cue. Cleared
@@ -128,7 +136,8 @@ export function WorkingTabStrip({
       onTogglePin,
       onRevealInNavigator,
       onStartRenameFromTab,
-      onMoveTab: onReorderTab ? moveTabBy : undefined
+      onMoveTab: onReorderTab ? moveTabBy : undefined,
+      onMoveToSplit
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -177,6 +186,9 @@ export function WorkingTabStrip({
       }
       case 'pin':
         onTogglePin?.(tab.id)
+        return
+      case 'move-to-split':
+        if (path) onMoveToSplit?.(path)
         return
       case 'trash': {
         if (!path || !onTrashFile) return
@@ -456,8 +468,9 @@ function buildTabMenuTemplate(opts: {
   onRevealInNavigator?: (path: string) => void
   onStartRenameFromTab?: (path: string) => void
   onMoveTab?: (id: string, delta: -1 | 1) => void
+  onMoveToSplit?: (path: string) => void
 }): MenuTemplateItem[] {
-  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab } = opts
+  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit } = opts
   const tab = tabs.find(t => t.id === tabId)
   const items: MenuTemplateItem[] = []
 
@@ -498,6 +511,16 @@ function buildTabMenuTemplate(opts: {
       id: 'pin',
       label: pinned ? 'Unpin tab' : 'Pin tab'
     })
+  }
+
+  // Sprint 3 Phase 3b — Move to Split View. File tabs only (browser-
+  // in-aux is Phase 3c). Path-bearing requirement screens out browser
+  // tabs without a file:// URL (i.e. http(s) tabs); local-file
+  // browser tabs DO have a path via pathFromFileUrl(tab.url) but
+  // they're still kind 'browser' so we exclude them by tab.type.
+  if (onMoveToSplit && path && tab && tab.type !== 'browser') {
+    if (items.length > 0) items.push({ type: 'separator' })
+    items.push({ id: 'move-to-split', label: 'Move to Split View' })
   }
 
   if (path && tab) {

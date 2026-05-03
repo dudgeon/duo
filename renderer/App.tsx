@@ -1181,6 +1181,59 @@ export function App() {
     })
   }, [activeWorking, setFocusedColumn])
 
+  // Sprint 3 Phase 3b — Split View entry points.
+  //
+  // splitViewMoveTabByPath is the inner mutation primitive shared by
+  // every "move/open in split view" surface (chord, right-click on
+  // tab, right-click on FileTree row, right-click on PinnedNav row).
+  // Mirrors the workingAux.onOpen IPC handler — drop the path from
+  // main fileTabs (single-source-of-truth: never two tabs for the
+  // same path across panes), clear active main if the moved tab was
+  // active, set aux's paths to [path]. Silent replacement of any
+  // existing aux content in v1; dirty-replace dialog is Phase 3c.
+  //
+  // Phase 3c will also add: cycle to next available main file tab
+  // instead of falling back to browser kind when the active tab moves
+  // out (preserves user attention on file work).
+  const splitViewMoveTabByPath = useCallback((path: string) => {
+    if (auxState && auxState.paths.includes(path)) return
+    setFileTabs(prev => prev.filter(t => t.path !== path))
+    setActiveWorking(prev => {
+      if (prev.kind === 'file') {
+        const wasMoved = fileTabs.find(t => t.id === prev.id && t.path === path)
+        if (wasMoved) return { kind: 'browser' }
+      }
+      return prev
+    })
+    setAuxState(prev => ({
+      paths: [path],
+      activeIndex: 0,
+      splitPct: prev?.splitPct ?? 0.5
+    }))
+  }, [auxState, fileTabs])
+
+  // ⌘\ — move the ACTIVE main file tab into the aux slot. Resolves the
+  // active tab's path then routes through splitViewMoveTabByPath so the
+  // chord and the right-click menus converge on identical state.
+  //
+  // No-ops (don't fire if):
+  // - Active surface isn't a file tab (browser-in-aux is Phase 3c)
+  // - Active file tab's path is already the aux's only path (already
+  //   in split — nothing to move)
+  const splitViewToggle = useCallback(() => {
+    if (activeWorking.kind !== 'file') return
+    const active = fileTabs.find(t => t.id === activeWorking.id)
+    if (!active) return
+    splitViewMoveTabByPath(active.path)
+  }, [activeWorking, fileTabs, splitViewMoveTabByPath])
+
+  // ⌘⇧\ — close the split view. Mirrors workingAux.onClose handler.
+  // No-op if no split is open. Phase 3c may add a dirty-prompt before
+  // closing if the aux tab has unsaved changes.
+  const splitViewClose = useCallback(() => {
+    setAuxState(null)
+  }, [])
+
   // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
   // bump value, updates the "remember last choice" default (so new tabs
   // inherit the user's preferred size), and persists both.
@@ -1354,6 +1407,12 @@ export function App() {
     // a menu accelerator. On macOS the system shortcut intercepts ⌘`
     // before this handler sees it; see `onPaneToggleFocus` below.
     togglePaneFocus,
+    // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
+    // aux slot; ⌘⇧\ closes the split. Both delegate to the same state
+    // mutations the CLI verbs (`duo split-view open` / `close`) and
+    // the upcoming right-click menus produce.
+    splitViewToggle,
+    splitViewClose,
     // BUG-001 fix — pane-aware ⌃Tab routing. Without this, ⌃Tab from
     // terminal focus cycles browser tabs instead of terminal tabs.
     activePaneFocus: focusedColumn,
@@ -1738,6 +1797,7 @@ export function App() {
                 path
               })
             }}
+            onOpenInSplit={splitViewMoveTabByPath}
           />
         </div>
 
@@ -2001,6 +2061,7 @@ export function App() {
               onAuxResize={(pct) => {
                 setAuxState(prev => prev ? { ...prev, splitPct: pct } : null)
               }}
+              onMoveTabToSplit={splitViewMoveTabByPath}
             />
             )}
           </div>

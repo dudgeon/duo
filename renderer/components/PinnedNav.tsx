@@ -36,6 +36,10 @@ interface PinnedNavProps {
   onOpenTerminalHere: (folderPath: string) => void
   onRevealInFinder: (path: string) => void | Promise<void>
   onUnpin: (entry: NavPinEntry) => Promise<void>
+  /** Sprint 3 Phase 3b — surface "Open in Split View" entry in the
+   *  right-click menu for FILE pins. Folders excluded (split view
+   *  hosts a single file tab in v1). */
+  onOpenInSplit?: (path: string) => void
 }
 
 export function PinnedNav({
@@ -47,7 +51,8 @@ export function PinnedNav({
   onOpenFolder,
   onOpenTerminalHere,
   onRevealInFinder,
-  onUnpin
+  onUnpin,
+  onOpenInSplit
 }: PinnedNavProps) {
   const [collapsed, setCollapsed] = useState(false)
   // ENH-050 — context menu via window.electron.menu.popup. No state.
@@ -71,6 +76,9 @@ export function PinnedNav({
       case 'unpin':
         await onUnpin(target)
         return
+      case 'open-in-split':
+        if (target.kind === 'file' && onOpenInSplit) onOpenInSplit(target.path)
+        return
     }
   }
 
@@ -82,6 +90,10 @@ export function PinnedNav({
       items.push({ id: 'open-terminal-here', label: 'Open terminal here' })
     } else {
       items.push({ id: 'open-in-editor', label: 'Open in Duo editor' })
+      // Sprint 3 Phase 3b — Open in Split View on file pins.
+      if (onOpenInSplit) {
+        items.push({ id: 'open-in-split', label: 'Open in Split View' })
+      }
     }
     items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
     items.push({ type: 'separator' })

@@ -114,6 +114,10 @@ interface WorkingPaneProps {
   onAuxPromote?: () => void
   /** ENH-041 — divider drag updates splitPct (clamped [0.20, 0.80]). */
   onAuxResize?: (pct: number) => void
+  /** Sprint 3 Phase 3b — move a tab's file into the Split View aux
+   *  slot. Threaded through to WorkingTabStrip's right-click menu;
+   *  surfaces only on file tabs (browser-in-aux is Phase 3c). */
+  onMoveTabToSplit?: (path: string) => void
 }
 
 export function WorkingPane({
@@ -138,7 +142,8 @@ export function WorkingPane({
   auxState,
   onAuxClose,
   onAuxPromote,
-  onAuxResize
+  onAuxResize,
+  onMoveTabToSplit
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -429,6 +434,7 @@ export function WorkingPane({
         onRevealInNavigator={onRevealInNavigator}
         onTrashFile={onTrashTabFile}
         onStartRenameFromTab={onStartRenameFromTab}
+        onMoveToSplit={onMoveTabToSplit}
       />
       {/* BUG-046 — each file tab renders inside an absolutely-
           positioned wrapper with display gated on activity. All

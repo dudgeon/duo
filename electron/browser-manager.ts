@@ -661,6 +661,11 @@ export class BrowserManager {
         key === 'g' ||
         key === '[' ||
         key === ']' ||
+        // Sprint 3 Phase 3b — ⌘\ / ⌘⇧\ open / close Split View. Without
+        // forwarding, Chromium would let the keystroke fall through to
+        // the page. The renderer's splitViewToggle / splitViewClose
+        // handler reads activeWorking off App.tsx state.
+        key === '\\' ||
         (key >= '1' && key <= '9')
       // NOTE: ⌘` is intentionally NOT in this list. It's handled by the
       // app-menu accelerator (which beats macOS's system shortcut) and

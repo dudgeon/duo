@@ -53,6 +53,10 @@ interface FilesPaneProps {
    *  resolves to a file. Host (App.tsx) routes to "navigate to
    *  parent + open file." */
   onRevealFile?: (path: string) => void
+  /** Sprint 3 Phase 3b \u2014 fired when a FileTree row's right-click
+   *  menu picks "Open in Split View". App.tsx routes to
+   *  splitViewMoveTabByPath. */
+  onOpenInSplit?: (path: string) => void
 }
 
 export interface FilesPaneHandle {
@@ -78,7 +82,8 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
   activeTerminalCwd = null,
   openFilePaths,
   activeFilePath = null,
-  onRevealFile
+  onRevealFile,
+  onOpenInSplit
 }: FilesPaneProps, ref) {
   const breadcrumbRef = useRef<BreadcrumbHandle | null>(null)
   useImperativeHandle(ref, () => ({
@@ -187,6 +192,7 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
             activeTerminalCwd={activeTerminalCwd}
             openFilePaths={openFilePaths}
             activeFilePath={activeFilePath}
+            onOpenInSplit={onOpenInSplit}
           />
 
           {/* Stage 26 PR 2 (ENH-010) — Pinned files & folders.
@@ -210,6 +216,7 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
             onOpenTerminalHere={onOpenTerminalHere}
             onRevealInFinder={(p) => window.electron.files.revealInFinder(p)}
             onUnpin={(entry) => navPins.toggle(entry)}
+            onOpenInSplit={onOpenInSplit}
           />
         </div>
       )}

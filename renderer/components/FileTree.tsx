@@ -86,9 +86,14 @@ interface FileTreeProps {
    *  (mirrors `activeTerminalCwd` on folders — symmetric "what's
    *  front-most" signal across files + folders). */
   activeFilePath?: string | null
+  /** Sprint 3 Phase 3b — surface "Open in Split View" entry in the
+   *  right-click menu for FILE rows. Folders excluded (split view
+   *  hosts a single tab in v1, not a directory). Wired by App.tsx
+   *  to splitViewMoveTabByPath. */
+  onOpenInSplit?: (path: string) => void
 }
 
-export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: FileTreeProps) {
+export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpenClaudeIn, navPins, rootEntriesOverride, activeTerminalCwd = null, openFilePaths, activeFilePath = null, onOpenInSplit }: FileTreeProps) {
   const rootEntries = rootEntriesOverride !== undefined ? rootEntriesOverride : state.listings.get(state.cwd)
   // ENH-050 (v0.6.3) — context menu now opens via window.electron.menu.popup
   // (native NSMenu) instead of the in-renderer <ContextMenu>. No menu state
@@ -255,6 +260,9 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       case 'trash':
         await onTrashEntry(target)
         return
+      case 'open-in-split':
+        if (!isFolder && onOpenInSplit) onOpenInSplit(target.path)
+        return
     }
   }
 
@@ -265,7 +273,8 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     const items = buildTreeMenuTemplate({
       target,
       whitespaceMode,
-      navPins
+      navPins,
+      onOpenInSplit
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -337,8 +346,9 @@ function buildTreeMenuTemplate(opts: {
   target: DirEntry
   whitespaceMode: boolean
   navPins?: NavPinsApi
+  onOpenInSplit?: (path: string) => void
 }): MenuTemplateItem[] {
-  const { target, whitespaceMode, navPins } = opts
+  const { target, whitespaceMode, navPins, onOpenInSplit } = opts
   const isFolder = target.kind === 'directory'
   const items: MenuTemplateItem[] = []
 
@@ -354,6 +364,13 @@ function buildTreeMenuTemplate(opts: {
     items.push({ id: 'open-terminal-here', label: 'Open terminal here' })
   } else {
     items.push({ id: 'open-in-editor', label: 'Open in Duo editor' })
+    // Sprint 3 Phase 3b — Open in Split View. Files only (split view
+    // hosts a single tab in v1; opening a folder isn't meaningful).
+    // Same destination as `duo split-view open <path>` and the
+    // ⌘\ chord on the active main tab.
+    if (onOpenInSplit) {
+      items.push({ id: 'open-in-split', label: 'Open in Split View' })
+    }
   }
   items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
 

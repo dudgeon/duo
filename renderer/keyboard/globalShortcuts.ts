@@ -69,6 +69,14 @@ export type ShortcutId =
   // canvas / browser pane). Each surface listens for the
   // duo-send-to-duo CustomEvent and runs its own pill click.
   | 'sendToDuo'
+  // Sprint 3 Phase 3b — Split View open/move + close chords. ⌘\
+  // moves the active main tab into the aux slot (or, if the
+  // active tab is already in aux, no-op). ⌘⇧\ closes the split
+  // view. Slack reference: cmd+shift+. opens the split, but
+  // ⌘\ is more discoverable for Duo's "open in split" gesture
+  // (and matches the visual divider character).
+  | 'splitViewToggle'
+  | 'splitViewClose'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -197,6 +205,19 @@ export function matchGlobalShortcut(
   }
   if (meta && shift && !alt && !ctrl && e.key === ']') {
     return { id: 'nextTerminalTab' }
+  }
+
+  // Sprint 3 Phase 3b — ⌘⇧\ closes the split (specific combo before
+  // generic ⌘\ below, per "first match wins" ordering rule).
+  if (meta && shift && !alt && !ctrl && e.key === '\\') {
+    return { id: 'splitViewClose' }
+  }
+  // Sprint 3 Phase 3b — ⌘\ moves the active main tab into the aux
+  // slot, or no-ops if the active tab is already in aux. Routed
+  // through App.tsx's splitViewOpen IPC; same destination the CLI
+  // verb `duo split-view open <path>` uses.
+  if (meta && !shift && !alt && !ctrl && e.key === '\\') {
+    return { id: 'splitViewToggle' }
   }
 
   return null
