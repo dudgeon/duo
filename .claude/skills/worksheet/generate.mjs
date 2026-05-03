@@ -368,10 +368,10 @@ export function generateWorksheet(manifest) {
   section.item.is-skip { opacity: 0.7; }
 
   /* Per-option card tint — when an item is answered, the whole card
-     adopts a soft tint of the chosen option's color. Restored at owner
-     request after the smoke-walk → worksheet primitive extraction
-     dropped it. The `is-opt-<value>` class is set in tally() based on
-     the checked radio. Scoped to known PASS/FAIL/SKIP and P0/P1/P2
+     adopts a soft tint of the chosen option color. Restored at owner
+     request after the smoke-walk to worksheet primitive extraction
+     dropped it. The is-opt-VALUE class is set in tally() based on the
+     checked radio. Scoped to known PASS/FAIL/SKIP and P0/P1/P2
      conventions; consumers using custom values inherit only the
      border-color treatment. */
   section.item.is-opt-pass { background: color-mix(in srgb, var(--pass) 8%, white); border-color: color-mix(in srgb, var(--pass) 50%, var(--paper-rule)); }
