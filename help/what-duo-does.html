@@ -495,6 +495,42 @@
   </div>
 </article>
 
+<article class="item" data-keys="collapse pane button rail terminal canvas hide show full width discovery">
+  <div class="num">52</div>
+  <div>
+    <h3>Collapse a pane all the way (terminal or canvas)</h3>
+    <p class="why">Two buttons in the titlebar (next to the theme toggle) hide the terminal column or the canvas (right pane) all the way. The collapsed slot becomes a clickable 36px vertical bar with a glyph + serif-italic "terminal" / "canvas" label. Click the bar to restore — Duo remembers your previous split percentage so you don't snap back to 50/50. Distinct from the <code>duo split</code> presets above (which clamp to 20–80%); this is "hide entirely + restore on demand."</p>
+    <p class="how"><strong>UI</strong>Click the left collapse-pill button to hide the terminal; the right one to hide the canvas. Click the resulting vertical rail to restore. The active button paints with an accent-orange fill while collapsed.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="tab reorder drag rearrange move tab left right pinned working pane menu context">
+  <div class="num">53</div>
+  <div>
+    <h3>Reorder tabs in the working pane</h3>
+    <p class="why">Drag a tab horizontally onto another to swap positions, or right-click any tab → "Move tab left" / "Move tab right" for keyboard-friendly access. Pinned tabs stay leftmost (cross-zone drags silently rejected); the menu hides options at zone edges so you can't try to move a tab right when it's already rightmost.</p>
+    <p class="how"><strong>UI</strong>Drag-and-drop within the working-pane tab strip, OR right-click → Move tab left / Move tab right.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="line numbers markdown editor toggle gutter # hash counter prosemirror block">
+  <div class="num">54</div>
+  <div>
+    <h3>Toggle line numbers in the markdown editor</h3>
+    <p class="why">Small <code>#</code> button in the bottom-left of the editor scroll-host. Click to render line numbers in the left gutter; click again to hide. Counts top-level blocks (paragraphs, headings, list items, blockquotes), one number per block — wrapped paragraphs count as one. Persists per-user across sessions; the same setting applies to every markdown tab.</p>
+    <p class="how"><strong>UI</strong>Click the <code>#</code> toggle in the bottom-left of any markdown editor tab.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo open smart routing markdown md html browser editor file:// path">
+  <div class="num">55</div>
+  <div>
+    <h3>Smart <code>duo open</code> for local files</h3>
+    <p class="why"><code>duo open ~/path/to/file.md</code> now opens in the markdown editor (was: always the browser pane). HTML files with <code>&lt;meta name="duo-open-in" content="browser"&gt;</code> still open in the browser; HTML without that meta opens in the editor. Web URLs (http/https) unchanged. The CLI response includes a <code>routedTo</code> field (<code>"editor"</code> or <code>"browser"</code>) so agents know where the file landed.</p>
+    <p class="how"><strong>CLI</strong><code>duo open &lt;path-or-url&gt;</code></p>
+  </div>
+</article>
+
 <article class="item" data-keys="theme system light dark mode appearance">
   <div class="num">32</div>
   <div>

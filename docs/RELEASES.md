@@ -21,7 +21,42 @@
 
 ## Pending — not yet cut
 
-_Empty._
+### v0.6.3 (in-progress) — Native menus + collapse panes + line numbers
+
+Substantive cut-in-waiting. Owner explicit "no cut yet" — accumulating until the chapter feels closed. v0.6.3 shipped two real architectural / feature wins plus a punch list of long-overdue UX paper-cuts. Walks: walk-1 surfaced 4 fixes that landed mid-sprint (BUG-064 trash modal occlusion, BUG-065 ⌘⇧G blank screen, BUG-066 clawd glyph clipped, BUG-068 sticky new-tab cluster); walk-2 returned 13/13 PASS with a polish punch list that landed inline (ENH-071/072/073/074).
+
+**The headline (architectural):** ENH-050 — native NSMenu (`Menu.popup`) replaces the in-renderer ContextMenu, and system sheets (`dialog.showMessageBox`) replace the in-renderer PinnedCloseConfirm + trash-confirm modals. The migration retires the entire WCV-mute pattern for menus and modals: the macOS native subview compositor renders these at the window-server level, so they composite correctly above the WebContentsView with no flicker, no race, no occlusion. Closes BUG-058 (originally fixed via WCV-mute, now properly retired) and BUG-064 (sibling modal occlusion). The `setOverlayMuted` API stays — BUG-006's in-page Send→Duo pill still uses it; different problem class, native composition isn't applicable to in-page CDP-injected DOM.
+
+The locked decision lives in `docs/DECISIONS.md § WCV-occlusion remediation: native NSMenu + system sheets, not WCV-mute`. Trade-offs accepted: lose Atelier styling on menus + destructive sheets specifically (translucent system gray, system blue hover, system font); light/dark follows OS theme not Duo's; custom decorations on menu items not possible. Owner reviewed mockups + signed off 2026-05-02.
+
+**The features (what users can DO new):**
+
+1. **Collapse panes** (ENH-040 + ENH-066). Two titlebar buttons next to the theme toggle hide the terminal column or the canvas (right pane). The collapsed slot becomes a clickable 36px vertical rail with glyph + serif-italic label; click restores to the previous drag-set split percentage. Owner ENH-066 specifically asked for the rail (the buttons-only first cut wasn't discoverable enough). Pairs cleanly with `prevSplitPct` memory — collapse → expand returns to where you were, not to a default 50/50.
+
+2. **Tab reorder** (ENH-042). Drag any working-pane tab horizontally onto another to reposition; right-click → "Move tab left" / "Move tab right" for keyboard-friendly access. Pinned-leftmost preserved (cross-zone drags silently rejected); zone-edge gating hides the irrelevant menu item. Reorder is session-local — file-tab IDs are uuids, so cross-launch persistence has no anchor to map to.
+
+3. **Toggleable line numbers in markdown editor** (ENH-069 + ENH-071). Sticky `#` button in the bottom-left of the editor scroll-host; click toggles a CSS-counter gutter that numbers each top-level block child of the ProseMirror tree (paragraphs, headings, list items, blockquotes). Wrapped paragraphs count as one (true visual-line numbering would need a PM plugin with reflow detection — queued as v2 only if v1 isn't enough). Persists globally via localStorage.
+
+4. **Smart `duo open`** (BUG-067). `.md` files open in the editor; HTML files with `<meta duo-open-in="browser">` open in the browser pane; HTML without that meta opens in the editor; http(s) URLs unchanged. The CLI response carries an accurate `routedTo` label after the follow-up that fixed the misleading default.
+
+5. **Smoke-walk page persists in-flight state** (ENH-038). Walk pages now write Pass/Fail toggles + per-item notes textareas to localStorage on every input (debounced 250ms); restore on every load. "Clear saved walk" button wipes after the user has copied results back. Per-version storage key so different walks (v0.5.7-walk-3 vs v0.6.3-walk-1) don't restore each other's state.
+
+6. **Collapsible Project Claude Context** (ENH-045a). The navigator's project pane gets a collapsible header that defaults to collapsed; auto-titled with the project's `package.json` `name` or the folder name. Toggle persists per-user.
+
+**Polish that punched up:**
+
+- Globe glyph replaces the `>` chevron on the new-browser-tab button (ENH-068)
+- `duo/` lives in "Your Claude settings" alongside CLAUDE.md / skills / agents (ENH-067)
+- "Copy path" item in tab right-click menu mirrors the FileTree menu (ENH-074)
+- Visible paper-rule separator between tab strip and the sticky new-tab cluster (ENH-073)
+- Larger collapse-rail label text + `#` toggle text (ENH-071/072)
+- Copy-button auto-injection on canvas `<pre>` blocks documented in `make-page.md` (ENH-046)
+
+**Plus 9 bug fixes**: BUG-058 retired via ENH-050; BUG-059 rev1 (renderer dedup) + rev2 (CLI dedup); BUG-060 (fenced code blocks materialize on Enter); BUG-064 retired via ENH-050; BUG-065 (Rules-of-Hooks blank screen — latent since v0.5.4) + ErrorBoundary defensive guard; BUG-066 (clawd glyph clip + currentColor); BUG-067 (CLI smart routing) + accuracy follow-up; BUG-068 (sticky new-tab cluster).
+
+**Why this isn't cut yet:** owner direction. Accumulating until the next "chapter ends" signal — likely after a Sprint 3 sweep through v0.6.4 candidates (ENH-039 clickable smoke-walk paths, BUG-061 bullet-trigger Chromium fix, BUG-070 cursor-doesn't-land in fresh canvas, ENH-076 ⌘[ / ⌘] in canvas). The work above is done and stable; the cut just waits for company.
+
+**Filed for v0.6.4 (no code yet):** ENH-039, ENH-052 (mechanical 'html-canvas' → 'page' rename), ENH-070 (FAQ drift), ENH-075/076/077, BUG-070, BUG-061 bullet-trigger Chromium quirk; claude-code-basics curriculum-template refactor.
 
 ---
 

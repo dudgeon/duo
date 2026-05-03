@@ -19,6 +19,42 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
+The shape of the next cut — owner direction "no cut yet" until the chapter feels closed. Walks 1+2 done (13/13 PASS on walk-2); polish landed inline. See `docs/RELEASES.md § Pending — not yet cut` for the prose narrative.
+
+### Added
+
+- **Native NSMenu + system sheet dialogs** (ENH-050) — right-click context menus on tabs, file tree rows, and pinned-nav rows now pop a native macOS NSMenu via `Menu.popup()`. Trash + pinned-close + ⌘W-unsaved confirms now drop as native sheets via `dialog.showMessageBox`. Retires the in-renderer `<ContextMenu>` + `<PinnedCloseConfirm>` components and the WCV-mute pattern that came with them — native composition handles WebContentsView occlusion correctly at the window-server level. Decision locked in `docs/DECISIONS.md § WCV-occlusion remediation`.
+- **Collapse-pane buttons + vertical rails** (ENH-040 + ENH-066). Two titlebar buttons hide the terminal or the canvas all the way; the collapsed slot becomes a 36px clickable rail with glyph + serif-italic label. Click restores to `prevSplitPct` (the last drag-set value).
+- **Tab reordering** (ENH-042). Drag tabs horizontally to reposition; right-click → "Move tab left" / "Move tab right". Pinned-leftmost preserved; cross-zone drags silently rejected; zone-edge gating hides irrelevant menu items.
+- **Toggleable line numbers in markdown editor** (ENH-069). Sticky `#` button in bottom-left of the editor; CSS-counter gutter on top-level block children. Persists per-user via localStorage. v1 counts BLOCKS, not visual wrapped lines (v2 PM plugin queued if needed).
+- **Smart `duo open` for local files** (BUG-067). `.md` files now open in the editor instead of the browser pane; HTML respects `<meta duo-open-in="browser">`; http(s) URLs unchanged. CLI response carries accurate `routedTo` label.
+- **Smoke-walk page persists in-flight state** (ENH-038) — Pass/Fail + notes restore on reload. New "Clear saved walk" button wipes after copy-back.
+- **Collapsible "Project Claude Context"** (ENH-045a) — navigator section is now collapsible (default collapsed); auto-titled with `package.json` `name` or folder name.
+
+### Changed
+
+- **`duo/` shows in "Your Claude settings" navigator** (ENH-067) alongside CLAUDE.md / skills / agents.
+- **Browser-tab `>` chevron → globe glyph** (ENH-068) on the new-browser-tab button. Reads as "browser" by every macOS user's prior expectation.
+- **Tab right-click menu adds "Copy path"** (ENH-074) — mirrors the FileTree menu entry.
+- **Visible separator between tab strip and new-tab cluster** (ENH-073) on both terminal + working strips.
+- **Larger collapse-rail label + `#` line-numbers toggle text** (ENH-071 + ENH-072).
+- **Copy buttons on `<pre>` documented for canvas authors** (ENH-046) in `skill/make-page.md`.
+
+### Fixed
+
+- **BUG-058 (originally WCV-muted) properly retired** by the ENH-050 migration. Native menus composite above the WebContentsView without any mute call.
+- **BUG-059 — local files de-duplicate** in both renderer-side `openFileSmart` (rev1) and CLI-side `BrowserManager.openTab` (rev2). file:// URLs only; web URLs stay duplicate-allowed.
+- **BUG-060 — fenced code blocks materialize on Enter** in markdown editor (was: only on trailing space). New `FencedCodeBlockEnter` extension.
+- **BUG-064 — trash + pinned-close confirm modal occlusion** retired via ENH-050's system-sheet migration.
+- **BUG-065 — ⌘⇧G blanks the entire app** (Rules-of-Hooks violation in Breadcrumb.tsx; latent since v0.5.4). Lifted two hooks above an early return. **Plus**: new `ErrorBoundary` at the React root surfaces future render errors as a fallback panel + Reload button instead of blank-window.
+- **BUG-066 — clawd glyph clipped + fixed-orange** corrected viewBox + switched to `currentColor`.
+- **BUG-068 — new-tab cluster scrolls off-screen** under heavy panning. Restructured WorkingTabStrip to mirror TabBar's sticky pattern (cluster sibling outside the overflow scroller).
+- **`duo open <path.md>`'s `routedTo` label is accurate** when the file actually lands in the browser via `<meta duo-open-in>`.
+
+### Filed for v0.6.4 (no code yet)
+
+ENH-039 (clickable smoke-walk paths via CDP), ENH-052 (mechanical `'html-canvas'` → `'page'` rename), ENH-070 (avoid two-FAQ drift via dev-mode symlink), ENH-075 (canvas glyph design exploration), ENH-076 (⌘[ / ⌘] in canvas), ENH-077 (system dialog icon — likely no-op once verified in production build), BUG-070 (cursor doesn't land in fresh canvas until tab-away+back), BUG-061 bullet-trigger Chromium quirk (only the Tab/Shift-Tab half of BUG-061 shipped — bullet trigger needs hand-rolled `<ul>` creation in v0.6.4); plus claude-code-basics curriculum-template refactor.
+
 ## [0.6.2] — 2026-05-02
 
 The lesson-template ecosystem completes. Curriculum template (sibling of lesson-template) ships for multi-canvas packs; lesson fly-through harness lets agents validate any lesson without manual clicking; new `duo html click` CLI verb makes button presses a primitive of the canvas action vocabulary. Plus walk-3 cleanup (banner copy + smoke-walk inline literals) and the clawd glyph for the new-Claude split-button.

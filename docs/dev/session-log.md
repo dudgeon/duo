@@ -18,6 +18,55 @@
 
 ---
 
+## 2026-05-02 (evening) — v0.6.3 in-progress (cut waiting on owner direction)
+
+**Status: not cut.** Owner direction "no cut yet" — accumulating until the chapter feels closed. All the work below is shipped + verified + on `main`; the cut commit / tag / DMG / GitHub release simply hasn't happened. Re-read this entry first when picking up next session.
+
+**Walks completed (2):**
+- **walk-1** (`docs/dev/smoke-walks/v0.6.3-walk-1.html`) — surfaced 4 new bugs (BUG-064 trash modal occlusion, BUG-065 ⌘⇧G blank screen + Rules of Hooks violation latent since v0.5.4, BUG-066 clawd glyph clipped, BUG-068 new-tab cluster not sticky); all fixed mid-sprint.
+- **walk-2** (`docs/dev/smoke-walks/v0.6.3-walk-2.html`) — 13 items / 13 PASS. Polish notes turned into ENH-071/072/073/074 which landed inline before this entry.
+
+**The architectural item:** ENH-050 — full migration from in-renderer ContextMenu + PinnedCloseConfirm to native `Menu.popup()` + `dialog.showMessageBox`. Five-step plan executed in one sprint:
+1. IPC plumbing (`shared/types.ts` adds `MENU_POPUP` / `DIALOG_CONFIRM` channels + `MenuTemplateItem` / `MenuPopupRequest` / `DialogConfirmRequest` types; preload exposes `window.electron.menu.popup` + `window.electron.dialog.confirm`; `electron/main.ts` registers handlers).
+2. WorkingTabStrip migration (right-click → `menu.popup`; trash + pinned-close confirms → `dialog.confirm`; folded in BUG-068 sticky cluster restructure + ENH-068 globe glyph at the same time).
+3. App.tsx ⌘W close-pinned-tab migration to `dialog.confirm`.
+4. FileTree migration — right-click menu + onTrashEntry switch from `window.confirm` to `dialog.confirm`.
+5. PinnedNav migration.
+6. Retired `renderer/components/ContextMenu.tsx` and `renderer/components/PinnedCloseConfirm.tsx` (both deleted via `git rm`).
+
+The `setOverlayMuted` API stays — BUG-006's in-page Send→Duo pill still uses it (different problem class; native composition not applicable to in-page CDP-injected DOM).
+
+**The features (capabilities users gain):**
+- Collapse panes from titlebar buttons + collapsed-pane vertical rails (ENH-040 + ENH-066). `prevSplitPct` memory means restore goes to the user's last drag-set value, not 50/50.
+- Tab reordering via drag + right-click menu (ENH-042). Pinned-leftmost preserved; cross-zone drags silently rejected.
+- Toggleable line numbers in markdown editor (ENH-069 + ENH-071). v1 counts blocks, not visual wrapped lines. Persists in localStorage. Toggle is now `#`.
+- Smart `duo open` (BUG-067 + accuracy follow-up). `.md` → editor; HTML respects `duo-open-in` meta; CLI's `routedTo` response now accurate.
+- Smoke-walk page localStorage persistence (ENH-038) — survives accidental refresh / blank-screen recovery / Duo restart.
+- Collapsible Project Claude context with dynamic project name (ENH-045a).
+
+**Polish items shipped inline:** ENH-067 (duo/ in user-claude pane), ENH-068 (globe glyph), ENH-073 (visible cluster separator), ENH-074 (Copy path tab menu), ENH-071/072 (toggle text + rail label sizing), ENH-046 (Copy-button docs).
+
+**Bug fixes shipped:** BUG-058 retired via ENH-050; BUG-059 rev1+rev2 (de-dup); BUG-060 (fenced code on Enter); BUG-064 retired via ENH-050; BUG-065 + ErrorBoundary (Rules of Hooks); BUG-066 (clawd glyph); BUG-067 + accuracy fix (`duo open` smart routing); BUG-068 (sticky new-tab cluster).
+
+**Decision locked:** `docs/DECISIONS.md § WCV-occlusion remediation` — native NSMenu + system sheets, NOT the prior `capturePage` snapshot-overlay direction. Owner-reviewed mockups 2026-05-02. Tradeoffs: lose Atelier styling on menus + destructive sheets specifically; light/dark follows OS theme; no custom decorations on menu items.
+
+**Filed for v0.6.4 (no code yet):**
+- ENH-039 (clickable smoke-walk paths via CDP injection)
+- ENH-052 (mechanical `'html-canvas'` → `'page'` internal rename — single-PR scope)
+- ENH-070 (dev-mode FAQ symlink to avoid drift)
+- ENH-075 (canvas glyph design exploration)
+- ENH-076 (⌘[ / ⌘] indent/outdent in HTML canvas; parity with markdown editor's ENH-025)
+- ENH-077 (system dialog icon — likely no-op once verified in production build)
+- BUG-070 (cursor doesn't land in fresh HTML canvas until tab-away+back)
+- BUG-061 bullet-trigger Chromium quirk — only the Tab/Shift-Tab half shipped in v0.6.3; bullet trigger needs hand-rolled `<ul>` creation in v0.6.4 (mirror `toggleTaskList` in `blockOps.ts`)
+- claude-code-basics → curriculum-template refactor
+
+**HEAD when this entry was written:** `fb51b46` (walk-2 polish + filed items). Pushed to origin.
+
+**Smoke-walk skill protocol (owner standing rule, "always do this"):** at handoff, ensure (1) only correct instance running, (2) bring focus to smoke-walk page, (3) tell owner ready. Documented as part of the smoke-walk skill's expected behavior.
+
+---
+
 ## 2026-05-02 — v0.6.2 cut (the lesson template ecosystem completes)
 
 Released **v0.6.2** — the closing chapter of the canvas-authoring → lesson-template arc that started in v0.6.0. The linear lesson template shipped in v0.6.1; v0.6.2 lands its sibling (the curriculum template, for multi-canvas packs) AND the fly-through harness (the validation tool that closes "did the lesson actually work?"). Plus walk-3 cleanup and one cosmetic upgrade.
