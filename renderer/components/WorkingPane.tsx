@@ -14,6 +14,7 @@ import { CanvasTab } from './HtmlCanvas/CanvasTab'
 import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
+import { classifyFile } from './fileClassifier'
 import type { WorkingTab, WorkingTabType, PinEntry } from '@shared/types'
 
 export interface FileTab {
@@ -33,6 +34,15 @@ export interface FileTab {
 export type ActiveWorking =
   | { kind: 'browser' }
   | { kind: 'file'; id: string }
+
+/** ENH-041 / Sprint 3 — Split View aux state. v1 single-slot
+ *  (paths.length always 0 or 1). Owned by App.tsx; passed in for
+ *  rendering. State shape is multi-tab capable for v2 (Option B). */
+export interface WorkingAuxLocalState {
+  paths: string[]
+  activeIndex: number
+  splitPct: number
+}
 
 interface WorkingPaneProps {
   fileTabs: FileTab[]
@@ -94,6 +104,16 @@ interface WorkingPaneProps {
   /** ENH-026 — Reveal a tab's file in the navigator AND start
    *  rename mode on its row. */
   onStartRenameFromTab?: (path: string) => void
+  /** ENH-041 / Sprint 3 — Split View aux state. null = closed
+   *  (single-column layout); non-null = render side-by-side with
+   *  splitPct controlling the main:aux ratio. v1 paths.length ≤ 1. */
+  auxState?: WorkingAuxLocalState | null
+  /** ENH-041 — close the aux pane (✕ button in AuxHeader). */
+  onAuxClose?: () => void
+  /** ENH-041 — promote aux's active tab back to main + close aux. */
+  onAuxPromote?: () => void
+  /** ENH-041 — divider drag updates splitPct (clamped [0.20, 0.80]). */
+  onAuxResize?: (pct: number) => void
 }
 
 export function WorkingPane({
@@ -114,7 +134,11 @@ export function WorkingPane({
   onCanvasFocusGained,
   onRevealInNavigator,
   onTrashTabFile,
-  onStartRenameFromTab
+  onStartRenameFromTab,
+  auxState,
+  onAuxClose,
+  onAuxPromote,
+  onAuxResize
 }: WorkingPaneProps) {
   const { tabs: browserTabs, addTab, switchTab, closeTab: closeBrowserTab } = useBrowserState()
 
@@ -378,12 +402,21 @@ export function WorkingPane({
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }
 
-  return (
-    // Stage 12 Phase 3 — working pane sits on `paper` (surface-0) so the
-    // active tab in WorkingTabStrip (also paper) reads as continuous with
-    // the content below. Strip itself is paper-deep (surface-1) for
-    // contrast. See docs/design/atelier/project/duo-components.jsx ~L286.
-    <div className="flex flex-col w-full h-full bg-surface-0">
+  // ENH-041 / Sprint 3 — Split View. When auxState is non-null and
+  // has at least one path, render side-by-side: main on the left at
+  // (1 - splitPct) width, aux on the right at splitPct width, with
+  // a draggable divider between. v1 single-slot aux holds file tabs
+  // only (no browser kinds in aux — Phase 3c work).
+  const splitOpen = !!(auxState && auxState.paths.length > 0)
+  const auxPath = splitOpen ? (auxState!.paths[auxState!.activeIndex] ?? auxState!.paths[0]) : null
+  const auxFileTab: FileTab | null = auxPath ? buildAuxFileTab(auxPath) : null
+
+  // Main pane — owned by App.tsx, never persists across session
+  // unmount; the existing WorkingTabStrip + render logic. Wrapped so
+  // the layout can compose main + aux side-by-side when split is
+  // open.
+  const mainPaneFragment = (
+    <>
       <WorkingTabStrip
         onReorderTab={reorderTab}
         tabs={mergedTabs}
@@ -422,7 +455,196 @@ export function WorkingPane({
           </div>
         )}
       </div>
+    </>
+  )
+
+  return (
+    // Stage 12 Phase 3 — working pane sits on `paper` (surface-0) so the
+    // active tab in WorkingTabStrip (also paper) reads as continuous with
+    // the content below. Strip itself is paper-deep (surface-1) for
+    // contrast. See docs/design/atelier/project/duo-components.jsx ~L286.
+    //
+    // ENH-041 — when splitOpen is false, the working pane is a single
+    // column (the historical layout). When true, switches to a
+    // horizontal flex with main + divider + aux columns.
+    <div className={`w-full h-full bg-surface-0 ${splitOpen ? 'flex' : 'flex flex-col'}`}>
+      {/* Main column. min-w-0 lets the flex child shrink past its
+          intrinsic content width when the user drags the divider. */}
+      <div
+        className="flex flex-col min-w-0"
+        style={splitOpen ? { flex: `${(1 - auxState!.splitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
+      >
+        {mainPaneFragment}
+      </div>
+      {splitOpen && auxFileTab && (
+        <>
+          <SplitViewDivider
+            splitPct={auxState!.splitPct}
+            onResize={onAuxResize}
+          />
+          <div
+            className="flex flex-col min-w-0 border-l border-paper-rule"
+            style={{ flex: `${auxState!.splitPct * 100} 0 0%` }}
+          >
+            <AuxHeader
+              path={auxFileTab.path}
+              title={auxFileTab.title}
+              onClose={onAuxClose}
+              onPromote={onAuxPromote}
+            />
+            <div className="flex-1 min-h-0 relative">
+              <div className="absolute inset-0 flex flex-col">
+                {renderFileTab(auxFileTab)}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
+  )
+}
+
+/** ENH-041 — construct a FileTab from a path. Used by aux to render
+ *  the aux's active path through the same renderFileTab helper main
+ *  uses. The id is path-derived (stable) so re-renders don't churn
+ *  React keys. dirty/isNew aren't tracked for aux in v1 (Phase 3c
+ *  promotes that). */
+function buildAuxFileTab(path: string): FileTab {
+  // classifyFile returns a non-'browser' subset of WorkingTabType for
+  // local file paths — exactly what FileTab.type requires. Aux v1
+  // doesn't support browser kinds anyway (no http(s):// URLs in aux);
+  // Phase 3c handles browser-in-aux properly.
+  const { type, mime } = classifyFile(path)
+  return {
+    id: `aux:${path}`,
+    type,
+    path,
+    title: path.split('/').pop() ?? path,
+    mime
+  }
+}
+
+/** ENH-041 — slim aux header. Shows the aux file's basename + a
+ *  promote button + a close button. Mirrors the WorkingTabStrip's
+ *  visual register (paper-deep background, ink text) so the split
+ *  reads as one product. v1: no aux tab strip (single-slot); only
+ *  active path + chrome.
+ *
+ *  No focus tracking yet — Phase 3b layers in pane-aware ⌘W /
+ *  ⌃Tab routing. v1 buttons fire prop callbacks directly.
+ */
+function AuxHeader({
+  path,
+  title,
+  onClose,
+  onPromote
+}: {
+  path: string
+  title: string
+  onClose?: () => void
+  onPromote?: () => void
+}): JSX.Element {
+  return (
+    <div
+      className="flex items-center gap-2 h-9 px-3 bg-paper-deep border-b border-paper-rule text-ink-soft"
+      title={path}
+    >
+      <span className="text-[11px] uppercase tracking-wide text-ink-mute">Split</span>
+      <span className="text-sm truncate flex-1 text-ink">{title}</span>
+      {onPromote && (
+        <button
+          type="button"
+          onClick={onPromote}
+          className="text-[11px] text-ink-mute hover:text-accent px-1.5 py-0.5 rounded"
+          title="Move to main"
+          aria-label="Move split tab to main"
+        >
+          ⇤ to main
+        </button>
+      )}
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-ink-mute hover:text-ink px-1.5 py-0.5 rounded"
+          title="Close split (⌘⇧\\)"
+          aria-label="Close Split View"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** ENH-041 — vertical drag-divider between main + aux columns.
+ *  Mirrors the existing terminal/canvas split-divider behavior
+ *  (BUG-031's overlay-during-drag pattern). v1: drag to resize
+ *  with [0.20, 0.80] clamp matching the locked spec. Double-click
+ *  resets to 50/50. */
+function SplitViewDivider({
+  splitPct,
+  onResize
+}: {
+  splitPct: number
+  onResize?: (pct: number) => void
+}): JSX.Element {
+  const draggingRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+
+  const onMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    draggingRef.current = true
+    // Cache the parent flex row so we can compute pct against its
+    // bounding rect in onMouseMove. The divider lives between two
+    // flex children inside that parent.
+    containerRef.current = (e.currentTarget.parentElement as HTMLDivElement | null)
+    // BUG-031 — install a transparent overlay during drag so iframe /
+    // WebContentsView surfaces don't trap mousemove events.
+    const overlay = document.createElement('div')
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;cursor:col-resize;'
+    overlay.dataset.duoSplitDragOverlay = '1'
+    document.body.appendChild(overlay)
+
+    const onMove = (ev: MouseEvent) => {
+      if (!draggingRef.current) return
+      const c = containerRef.current
+      if (!c) return
+      const r = c.getBoundingClientRect()
+      if (r.width <= 0) return
+      // splitPct is the AUX width fraction (right column). x increases
+      // L→R; aux is on the right so as we drag RIGHT (increasing x),
+      // aux gets SMALLER, main grows. So splitPct = (right edge - x) / width.
+      const auxFrac = (r.right - ev.clientX) / r.width
+      const clamped = Math.min(Math.max(auxFrac, 0.20), 0.80)
+      onResize?.(clamped)
+    }
+    const onUp = () => {
+      draggingRef.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      const existing = document.querySelector<HTMLDivElement>('[data-duo-split-drag-overlay]')
+      existing?.parentNode?.removeChild(existing)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [onResize])
+
+  const onDoubleClick = useCallback(() => {
+    onResize?.(0.5)
+  }, [onResize])
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Split View divider"
+      onMouseDown={onMouseDown}
+      onDoubleClick={onDoubleClick}
+      className="w-1 cursor-col-resize bg-paper-rule hover:bg-accent/40 transition-colors flex-shrink-0"
+      style={{ flex: '0 0 4px' }}
+      title={`Split: ${Math.round(splitPct * 100)}% aux · drag to resize · double-click to reset`}
+    />
   )
 }
 

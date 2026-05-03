@@ -1967,6 +1967,29 @@ export function App() {
                   )
                 })
               }}
+              // ENH-041 / Sprint 3 — Split View aux state. CLI verbs
+              // (`duo split-view *`) drive auxState via IPC subscribers
+              // earlier in this file; the in-renderer ✕ / promote
+              // buttons + divider drag flow through these prop
+              // callbacks (no IPC round-trip needed when the user
+              // clicks a button in their own renderer).
+              auxState={auxState}
+              onAuxClose={() => setAuxState(null)}
+              onAuxPromote={() => {
+                setAuxState(prev => {
+                  if (!prev || prev.paths.length === 0) return null
+                  const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
+                  const { type, mime } = classifyFile(path)
+                  const newId = `f:${crypto.randomUUID()}`
+                  const title = path.split('/').pop() ?? path
+                  setFileTabs(curr => [...curr, { id: newId, type, path, title, mime }])
+                  setActiveWorking({ kind: 'file', id: newId })
+                  return null
+                })
+              }}
+              onAuxResize={(pct) => {
+                setAuxState(prev => prev ? { ...prev, splitPct: pct } : null)
+              }}
             />
             )}
           </div>
