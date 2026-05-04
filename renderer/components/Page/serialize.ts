@@ -69,6 +69,18 @@ const RUNTIME_CLASSES_TO_STRIP = new Set([
   'duo-just-added'
 ])
 
+// Sprint 6 BUG-083 — runtime data-attributes the canvas binding
+// stamps on USER-authored elements (the actual anchor with the
+// comment, NOT the sibling badge which has the canvas-runtime
+// sentinel). Saved HTML must never carry these or the file would
+// re-open with stale highlighting until the rail rebuilds. Stripped
+// on EVERY element regardless of the runtime sentinel — same logic
+// as RUNTIME_CLASSES_TO_STRIP.
+const RUNTIME_ATTRS_TO_ALWAYS_STRIP = new Set([
+  'data-duo-has-comment',
+  'data-duo-comment-active'
+])
+
 // ── Public API ────────────────────────────────────────────────────────────
 
 /** Serialize the full document — doctype + <html>…</html> + trailing newline. */
@@ -205,6 +217,8 @@ function attrString(el: Element): string {
   if (isRuntime) {
     names = names.filter(n => !RUNTIME_ATTRS_TO_STRIP.has(n))
   }
+  // Always-strip set runs on every element (BUG-083 anchor markers).
+  names = names.filter(n => !RUNTIME_ATTRS_TO_ALWAYS_STRIP.has(n))
   names = names.slice().sort(compareAttrs)
   if (names.length === 0) return ''
   return names.map(n => {

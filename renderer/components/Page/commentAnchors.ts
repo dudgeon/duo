@@ -19,6 +19,159 @@ import type { SidecarComment, SidecarV1 } from './sidecar'
 const BADGE_CLASS = 'duo-comment-anchor'
 const BADGE_DATA = 'data-duo-comment-anchor'
 
+/** Sprint 6 BUG-083 — attribute on the anchor element itself (NOT the
+ *  badge) marking that it has a comment thread. CSS in
+ *  `installCommentAnchorStyles` styles these for the visual
+ *  association between rail and body. */
+const HAS_COMMENT_DATA = 'data-duo-has-comment'
+/** Sprint 6 BUG-083 — set on the anchor element whose thread is
+ *  currently focused in the rail. Stronger highlight than has-comment. */
+const COMMENT_ACTIVE_DATA = 'data-duo-comment-active'
+
+/**
+ * Sprint 6 BUG-083 — install the iframe-side stylesheet for comment
+ * anchors. Same pattern as `installJustAddedStyles`: parent-document
+ * `globals.css` rules don't reach the iframe's `srcdoc` document, so
+ * we inline a minimal stylesheet at iframe-ready time. Idempotent —
+ * subsequent calls no-op via the data-attribute sentinel. Tagged with
+ * `data-duo-canvas-runtime` so the serializer strips it from saved
+ * HTML alongside the other runtime decorations.
+ *
+ * Three concerns covered:
+ *
+ *   1. The numbered badge (`.duo-comment-anchor`). Previously styled
+ *      ONLY in `renderer/styles/globals.css`, which doesn't reach the
+ *      iframe — the badge rendered as plain text "1" inside canvases.
+ *      Mirrors the parent declaration verbatim, with hard-coded color
+ *      tokens (iframes don't inherit CSS custom properties).
+ *
+ *   2. The anchor-decoration on the commented element itself
+ *      (`[data-duo-has-comment]`). Subtle bottom-border using the
+ *      accent-soft tone so the user can see WHICH text the comment
+ *      attaches to. Google Docs parity (yellow highlight there;
+ *      Atelier accent-soft here for tonal consistency).
+ *
+ *   3. The active-thread emphasis (`[data-duo-comment-active]`). When
+ *      a thread is focused in the rail (or its anchor is clicked in
+ *      the body), the corresponding anchor swaps from the soft tint
+ *      to a stronger background — Google Docs' "this is the one
+ *      we're looking at" affordance.
+ */
+export function installCommentAnchorStyles(doc: Document): void {
+  if (doc.head?.querySelector('style[data-duo-comment-anchor]')) return
+  const style = doc.createElement('style')
+  style.setAttribute('data-duo-canvas-runtime', '1')
+  style.setAttribute('data-duo-comment-anchor', '1')
+  // Atelier tokens hard-coded; iframe documents don't inherit CSS
+  // custom properties from the parent, so referencing
+  // `var(--duo-accent)` from inside an `srcdoc` doc would fall back
+  // to nothing. Light + dark variants honored via @media. If the
+  // tokens shift, update both this file AND globals.css.
+  style.textContent = `
+.${BADGE_CLASS} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #C66A2E;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 4px;
+  vertical-align: super;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 80ms ease-out, box-shadow 80ms ease-out;
+}
+.${BADGE_CLASS}:hover {
+  transform: translateY(-0.5px);
+  box-shadow: 0 1px 4px rgba(20, 14, 8, 0.16);
+}
+.${BADGE_CLASS}--active {
+  box-shadow: 0 0 0 2px #F2D9B8;
+}
+.${BADGE_CLASS}--resolved {
+  background: #E5DFCE;
+  color: #7B6F58;
+}
+[${HAS_COMMENT_DATA}] {
+  background: rgba(198, 106, 46, 0.08);
+  border-bottom: 1px solid rgba(198, 106, 46, 0.45);
+  cursor: pointer;
+  transition: background 100ms ease-out, border-color 100ms ease-out;
+}
+[${HAS_COMMENT_DATA}]:hover {
+  background: rgba(198, 106, 46, 0.16);
+}
+[${COMMENT_ACTIVE_DATA}] {
+  background: rgba(198, 106, 46, 0.22);
+  border-bottom-color: #C66A2E;
+}
+@media (prefers-color-scheme: dark) {
+  .${BADGE_CLASS} {
+    background: #E08F4A;
+  }
+  .${BADGE_CLASS}--active {
+    box-shadow: 0 0 0 2px #3F2A18;
+  }
+  .${BADGE_CLASS}--resolved {
+    background: #2A2218;
+    color: #8A7E66;
+  }
+  [${HAS_COMMENT_DATA}] {
+    background: rgba(224, 143, 74, 0.12);
+    border-bottom-color: rgba(224, 143, 74, 0.55);
+  }
+  [${HAS_COMMENT_DATA}]:hover {
+    background: rgba(224, 143, 74, 0.22);
+  }
+  [${COMMENT_ACTIVE_DATA}] {
+    background: rgba(224, 143, 74, 0.32);
+    border-bottom-color: #E08F4A;
+  }
+}
+`.trim()
+  doc.head?.appendChild(style)
+}
+
+/**
+ * Sprint 6 BUG-083 — delegated click handler on the iframe body that
+ * catches clicks on commented anchor elements (NOT the badge sibling,
+ * which has its own listener). Lets the user click directly on the
+ * highlighted text to focus the corresponding rail thread — Google
+ * Docs parity, completing the bidirectional click-to-focus.
+ *
+ * Returns a cleanup function. Caller (PageTab) wires this in
+ * handleReady alongside the other selection / paste listeners.
+ */
+export function installAnchorClickListener(
+  doc: Document,
+  onClick: (threadId: string) => void
+): () => void {
+  const handler = (e: MouseEvent) => {
+    const target = e.target as Element | null
+    if (!target) return
+    // Walk up to the nearest [data-duo-has-comment] element (or stop
+    // at body). The user might have clicked a child node (e.g. a
+    // <strong> inside the commented <p>) — we still want the click
+    // to count as "click on the commented element".
+    const commented = target.closest(`[${HAS_COMMENT_DATA}]`) as HTMLElement | null
+    if (!commented) return
+    const tid = commented.getAttribute('data-duo-id')
+    if (!tid) return
+    // Don't preventDefault — the user may be placing a caret as part
+    // of a normal edit. Just fire the focus signal as a side effect.
+    onClick(tid)
+  }
+  doc.body.addEventListener('click', handler)
+  return () => doc.body.removeEventListener('click', handler)
+}
+
 export interface AnchorBadge {
   /** The thread id (canvas: anchor's `data-duo-id`). */
   threadId: string
@@ -74,6 +227,33 @@ export function paintAnchors({ doc, badges, activeThreadId, onClick }: PaintAnch
     const node = createBadge(doc, badge, badge.threadId === activeThreadId, onClick)
     anchor.insertAdjacentElement('afterend', node)
   }
+
+  // Sprint 6 BUG-083 — stamp / unstamp the anchor-decoration markers
+  // on the anchor ELEMENTS (separate from the sibling badges). We
+  // walk every [data-duo-id] in the body so we also remove markers
+  // from elements that USED to have a comment thread but no longer do
+  // (resolved + last-comment-deleted, or the file was edited
+  // externally). Saved HTML never carries these attributes — the
+  // serializer strips data-duo-* runtime markers via the canvas-
+  // runtime sentinel pathway.
+  doc.body.querySelectorAll<HTMLElement>('[data-duo-id]').forEach((el) => {
+    const id = el.getAttribute('data-duo-id')
+    if (!id) return
+    if (expected.has(id)) {
+      el.setAttribute(HAS_COMMENT_DATA, '1')
+      // Don't decorate the anchor for resolved-only threads — once
+      // the user resolves a thread, the visual association becomes
+      // noise. Resolved threads still appear in the rail but the
+      // body-side highlight goes away.
+      const meta = expected.get(id)
+      if (meta && meta.resolved) el.removeAttribute(HAS_COMMENT_DATA)
+      if (id === activeThreadId) el.setAttribute(COMMENT_ACTIVE_DATA, '1')
+      else el.removeAttribute(COMMENT_ACTIVE_DATA)
+    } else {
+      el.removeAttribute(HAS_COMMENT_DATA)
+      el.removeAttribute(COMMENT_ACTIVE_DATA)
+    }
+  })
 }
 
 /**
@@ -83,6 +263,12 @@ export function paintAnchors({ doc, badges, activeThreadId, onClick }: PaintAnch
  */
 export function clearAnchors(doc: Document): void {
   doc.body.querySelectorAll<HTMLElement>(`[${BADGE_DATA}]`).forEach((el) => el.remove())
+  // Sprint 6 BUG-083 — also strip the anchor-decoration markers so
+  // an unmount / save handoff doesn't leave them on the DOM.
+  doc.body.querySelectorAll<HTMLElement>(`[${HAS_COMMENT_DATA}]`).forEach((el) => {
+    el.removeAttribute(HAS_COMMENT_DATA)
+    el.removeAttribute(COMMENT_ACTIVE_DATA)
+  })
 }
 
 export interface BuiltThread {

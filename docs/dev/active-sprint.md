@@ -68,7 +68,7 @@ Steps:
 
 Verified live: triple-click heading → toolbar button enabled, click opens composer; ⌘⌥M with selection opens composer; right-click → "Comment" opens composer; submitted a comment via right-click and the rail mounted with the badge anchored to the heading.
 
-### Phase 3 — BUG-083 (visual association) · ⬜
+### Phase 3 — BUG-083 (visual association) · ✅ 2026-05-04
 
 **Make comments visibly attach to their anchored text.** Three sub-pieces:
 
@@ -77,6 +77,15 @@ Verified live: triple-click heading → toolbar button enabled, click opens comp
 3. **Active-thread indication.** When a thread is focused (rail-side or canvas-side), the linked anchor highlights more strongly. Mirrors Google Docs' "this is the one we're looking at" affordance.
 
 **Acceptance:** add a comment to a span. The span renders with a visible highlight. Click the span → rail thread highlights. Click the rail thread → canvas scrolls to span + span highlights more strongly.
+
+**Resolution.** All three concerns shipped + a bonus fix:
+- New attributes `data-duo-has-comment` (decoration target) and `data-duo-comment-active` (active emphasis) stamped by `paintAnchors` on the anchor element ITSELF (not the badge sibling). Resolved threads don't get decorated.
+- New `installCommentAnchorStyles(doc)` injects an iframe-side `<style>` with the badge styles AND the new `[data-duo-has-comment]` / `[data-duo-comment-active]` rules. Light + dark mode honored. Mirrors `installJustAddedStyles` pattern.
+- New `installAnchorClickListener(doc, onClick)` adds a delegated click on the iframe body that catches clicks on commented anchors (walks up via `closest()`) and calls `setActiveThreadId`. Cleanup wired in PageTab's wireCleanupRef.
+- **Bonus:** the existing badge `.duo-comment-anchor` rules lived only in `globals.css` (parent doc) which doesn't reach the iframe. Badges had been rendering as plain "1" text inside canvases. The new stylesheet install fixes that too — circle badges with proper accent fill now render correctly.
+- **Serializer:** new `RUNTIME_ATTRS_TO_ALWAYS_STRIP` set (parallel to `RUNTIME_CLASSES_TO_STRIP`) covers both new attributes. Strips on every element regardless of the runtime sentinel since these live on user-authored elements.
+
+Verified live: opened a canvas with one anchored comment; the heading rendered with the soft accent decoration; clicking the rail thread strengthened the anchor's background AND added the rail-side border; close + reopen + clicking the heading text focused the rail thread (canvas → rail direction). Bidirectional click-to-focus works.
 
 ### Phase 4 — MISSING-001 / Stage 14a (markdown editor comments) · ⬜
 

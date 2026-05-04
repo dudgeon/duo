@@ -5050,7 +5050,17 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ### BUG-083: Comments in rail have no visual association with the text they comment on
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6, BUG-081 family)
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 Phase 3, 2026-05-04). Three concerns addressed:
+- **Anchor decoration in canvas body.** New `data-duo-has-comment` attribute stamped on the anchor element (separate from the existing badge sibling) by `paintAnchors`. CSS rule (in the iframe-side stylesheet — see below) applies a subtle accent-soft background tint + bottom border so the user sees which text the comment attaches to. Resolved threads don't decorate (the visual would be noise).
+- **Bidirectional click-to-focus.** Rail → anchor was already wired via `handleJumpToThread → scrollToAnchor`. New `installAnchorClickListener` adds the reverse: a delegated click on the iframe body catches clicks on `[data-duo-has-comment]` (or any descendant) and calls `setActiveThreadId(threadId)`. Walks up via `closest()` so clicking inline text inside a commented `<p>` still focuses the thread.
+- **Active-thread emphasis.** New `data-duo-comment-active` attribute stamped on the active anchor (same pass as `data-duo-has-comment`). Stronger background — Google Docs' "this is the one we're looking at" affordance. Rail-side active styling was already wired in `CommentRail` via `duo-comment-thread--active`.
+
+**Bonus fix (related miss).** The existing `.duo-comment-anchor` badge styles lived ONLY in `renderer/styles/globals.css` which doesn't reach the iframe (srcdoc documents are isolated). Badges rendered as plain text "1" inside canvases. New `installCommentAnchorStyles(doc)` installs the iframe-side stylesheet (idempotent, sentinel-tagged for serializer strip) at handleReady time, mirroring the `installJustAddedStyles` pattern. Light + dark mode honored via `@media (prefers-color-scheme: dark)`.
+
+**Serializer strip.** Both new attributes added to `RUNTIME_ATTRS_TO_ALWAYS_STRIP` (parallel to the existing `RUNTIME_CLASSES_TO_STRIP`) so saved HTML never carries them — strips on every element regardless of the runtime sentinel since these live on user-authored elements.
+
+**Priority:** **High** (UX cohesion — a comment that doesn't visibly attach to its anchor is barely a comment; doc readers don't know what's being commented on without clicking each thread).
+**Filed:** 2026-05-04 evening (owner observation: "comments in the rail land with no association with the text that they are a comment _for_").
 **Priority:** **High** (UX cohesion — a comment that doesn't visibly attach to its anchor is barely a comment; doc readers don't know what's being commented on without clicking each thread).
 **Filed:** 2026-05-04 evening (owner observation: "comments in the rail land with no association with the text that they are a comment _for_").
 

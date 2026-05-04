@@ -55,6 +55,8 @@ import {
   clearAnchors,
   buildThreads,
   scrollToAnchor,
+  installCommentAnchorStyles,
+  installAnchorClickListener,
   type BuiltThread
 } from './commentAnchors'
 import { CommentRail, type CommentThread } from '../editor/primitives/CommentRail'
@@ -641,6 +643,22 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // recentEdits repaint pass below or the html-op handler later).
     installJustAddedStyles(doc)
 
+    // Sprint 6 BUG-083 — install the iframe-side comment-anchor
+    // stylesheet (badge styles + the new anchor-decoration rules
+    // for [data-duo-has-comment] / [data-duo-comment-active]). Was
+    // previously declared only in `renderer/styles/globals.css`
+    // which doesn't reach the iframe — badges rendered as plain
+    // unstyled "1" text. Idempotent.
+    installCommentAnchorStyles(doc)
+    // Sprint 6 BUG-083 — delegated click listener that catches
+    // clicks on commented anchor elements (not the badge sibling)
+    // and focuses the corresponding rail thread. Completes
+    // bidirectional click-to-focus (rail → anchor was already
+    // wired via handleJumpToThread).
+    const cleanAnchorClick = readOnly
+      ? () => {}
+      : installAnchorClickListener(doc, (threadId) => setActiveThreadId(threadId))
+
     // Stage 23 — install the canvas-action delegated click listener.
     // Skipped if no host dispatcher is wired or no homeDir was passed
     // (which would mean the trust check can't run — we'd rather
@@ -759,6 +777,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       cleanPlaceholder()
       cleanPlaygroundActions()
       cleanPaste()
+      cleanAnchorClick()
       blurred.dispose()
       sel.dispose()
       clearAnchors(doc)
