@@ -719,15 +719,20 @@ Audit the theme service. The css `@media (prefers-color-scheme: dark)` blocks ar
 
 ### MISSING-001: Markdown editor — no way to add a comment
 
-**Status:** 🆕 Filed
-**Priority:** Medium (feature gap; HTML canvas has comments via Stage 17d-A)
-**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke)
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6) — promoted 2026-05-04 after owner asked "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app." Stage 14a was deferred sprint after sprint; this is the cycle that ships it. Pairs with BUG-081 (canvas comments regression — file together as the "comments are real and visible" sprint).
+**Priority:** **High** (was Medium — feature gap that the owner recently re-discovered; the comments capability was always communicated as "shipped on canvas, coming to markdown next" but Stage 14a never landed).
+**Filed:** 2026-04-26 (v0.3.0 pre-cut smoke). Re-prioritized 2026-05-04.
 
 **Context:**
-Stage 14a (CommentRail binding for the markdown editor) is the planned home for this — currently labeled "next" on the roadmap, with the visual primitive (`<CommentRail>`) already built in 17d-A and reused by the canvas. The markdown half hasn't shipped.
+Stage 14a (CommentRail binding for the markdown editor) is the planned home for this — currently labeled "next" on the roadmap, with the visual primitive (`<CommentRail>`) already built in 17d-A and reused by the canvas. The markdown half hasn't shipped. `MarkdownEditor.tsx` has zero comment imports; the entire comment data plane (TipTap mark + decoration + anchor reconciliation across edits) is the unbuilt half.
 
 **Suggested next step:**
-Promote Stage 14a in the v0.3.0 / v0.4.0 sequencing once the kb-shortcut family lands. The CommentRail primitive + new-comment composer pattern are already solved canvas-side; binding them to TipTap is mostly data-plane work.
+Pair with BUG-081 fix in v0.6.7. Sprint shape:
+1. Fix BUG-081 first (canvas regression; smaller scope, restores known-good behavior).
+2. Stage 14a — TipTap mark for `data-duo-comment-id` anchors, decoration to render the floating Comment pill on selection, anchor-reconciliation across edits (the hard part — when the user edits text mid-comment, the anchor should follow), CommentRail data-plane wire-up. The visual primitive + new-comment composer pattern are already solved canvas-side and reused.
+3. Smoke walk to validate both surfaces end-to-end before next cut.
+
+**Cross-ref:** BUG-081 (the canvas-side regression discovered in the same investigation). Stage 14 / 14a on `docs/roadmap.html`. Stage 17d-A (where the canvas-side first shipped).
 
 ---
 
@@ -4967,6 +4972,32 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 **Verified:** opened `~/.claude/CLAUDE.md` in dark mode after the CSS landed; owner confirmed bold emphasis renders correctly.
 
 **Cross-ref:** Stage 12 (Atelier palette / dark-mode rollout). Same class of issue as BUG-044 (paper-* classes silently falling through).
+
+---
+
+### BUG-081: HTML canvas Comment button no longer appears on text selection (regression)
+
+**Status:** 🔴 **Regression — IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 first item)
+**Priority:** **High** (regresses Stage 17d-A shipped ~v0.3.1; comments on canvas are a documented capability per `help/what-duo-does.html § Have Claude leave or list comments` and `make-page.md`. Owner couldn't find them in the app 2026-05-04.)
+**Filed:** 2026-05-04 (v0.6.6 pre-cut investigation; owner asked "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app; what happened?" Confirmed: canvas regressed; markdown editor never shipped — see MISSING-001).
+
+**Symptom.** Open any HTML canvas (e.g. `duo html new /tmp/test.html`), select some text, expect a "💬 Comment" floating pill anchored to the selection. **It does not appear.** The Send → Duo pill DOES appear (selection-pill infrastructure is healthy); only the Comment pill is missing.
+
+**Where the wire-up should be.** [`renderer/components/Page/PageTab.tsx:1433-1437`](renderer/components/Page/PageTab.tsx:1433) has a comment block referencing the Stage 17d Comment button: *"floating Send → Duo pill + Stage 17d comment button. The '💬 Comment' button only shows when the user's selection has an anchor (live `data-duo-id` ancestor)."* Need to verify whether the gating (`pillRect && !newCommentAt`) condition still holds, whether the button render itself was removed, or whether some upstream prop (anchor detection / `data-duo-id` resolution) silently stopped firing.
+
+**Hypotheses to probe:**
+1. **Anchor detection regressed.** The button only appears when the selection's anchor element has a live `data-duo-id`. If the v0.6.5 ENH-052 mechanical canvas → page rename touched `commentAnchors.ts` or the anchor-resolution pipeline (`renderer/components/Page/commentAnchors.ts`), it may have silently broken. Check whether `data-duo-id` is still being injected on canvas content via `idInjector.ts`.
+2. **Button render conditional changed.** PageTab.tsx line 1437 reads `{onSendToDuo && pillRect && !newCommentAt && (...)}` — visible to me as the Send→Duo render. The Comment button render needs verification — may have been accidentally gated on a stale prop / removed during a sweep.
+3. **Selection-anchor-id resolution.** `pageSelection.ts` resolves the selection to an anchor id; if the page kind got renamed (`'html-canvas'` → `'page'`) but the anchor-resolver's checks still reference the old kind anywhere, it could silently return null.
+
+**Where to look:**
+- `renderer/components/Page/PageTab.tsx` — the pill render block; verify Comment button still renders and what conditions gate it.
+- `renderer/components/Page/commentAnchors.ts` — anchor-detection logic.
+- `renderer/components/Page/pageSelection.ts` — selection → anchor resolution.
+- `renderer/components/Page/idInjector.ts` — `data-duo-id` injection on canvas content.
+- Recent commits since Stage 17d-A — bisect across the canvas → page rename (ENH-052) and any subsequent canvas refactor.
+
+**Cross-ref:** MISSING-001 (markdown editor never shipped — separate but related); ENH-052 (the mechanical rename that's a likely regression suspect); BUG-024 (the Comment-occludes-Send→Duo fix from v0.4.3 — may have a stacking-order rule that hides the Comment button if some condition is wrong).
 
 ---
 
