@@ -1138,6 +1138,20 @@ export function App() {
     })
   }, [])
 
+  // Sprint 6 BUG-084 — ⌘R reloads the active browser tab when the
+  // working pane shows a browser tab. Gated here (rather than at the
+  // matcher) so terminal / editor / canvas focus → ⌘R still no-ops.
+  // No reload chord on editor / canvas — that would lose unsaved
+  // local-file state.
+  useEffect(() => {
+    const handler = () => {
+      if (activeWorking.kind !== 'browser') return
+      window.electron.browser.reload()
+    }
+    window.addEventListener('duo-reload-active-browser', handler)
+    return () => window.removeEventListener('duo-reload-active-browser', handler)
+  }, [activeWorking.kind])
+
   // Stage 19c D27 — `duo new-tab` from the CLI. The renderer is the
   // authoritative tab state, so we add the tab here and reply with
   // {id, kind, cwd, title} for the socket to return. Defaults: kind →

@@ -741,6 +741,11 @@ export class BrowserManager {
         // Stage 15.3 — ⌘D = Send → Duo (chord works from browser focus
         // when the user has selected text in the page).
         key === 'd' ||
+        // Sprint 6 BUG-084 — ⌘R = reload the active browser tab. Must
+        // be forwarded so the renderer matcher fires (rather than
+        // letting Chromium do its default reload, which previously
+        // also nuked terminal sessions when the menu role was bound).
+        key === 'r' ||
         // ENH-028 — ⌘F / ⌘G / ⌘⇧F = find-in-page. Without forwarding,
         // Chromium would consume these inside the page (its built-in
         // find UI doesn't render in WebContentsView, so ⌘F was a

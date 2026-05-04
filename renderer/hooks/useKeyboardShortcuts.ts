@@ -182,6 +182,16 @@ export function useKeyboardShortcuts(opts: Options) {
           window.dispatchEvent(new CustomEvent('duo-start-comment', { detail: { pane } }))
           return
         }
+        case 'reloadBrowserTab': {
+          // Sprint 6 BUG-084 — ⌘R reloads the active browser tab when
+          // the working pane has a browser tab focused; otherwise
+          // no-op (keeps editor / canvas / terminal panes intact).
+          // Same CustomEvent indirection as sendToDuo — App.tsx
+          // listens, checks `activeWorking.kind === 'browser'`, and
+          // calls window.electron.browser.reload() if so.
+          window.dispatchEvent(new CustomEvent('duo-reload-active-browser', { detail: { pane } }))
+          return
+        }
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()
           return

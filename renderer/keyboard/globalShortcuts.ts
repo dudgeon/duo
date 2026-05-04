@@ -75,6 +75,12 @@ export type ShortcutId =
   // CustomEvent — same indirection as sendToDuo so the global hook
   // stays free of surface-specific state.
   | 'startComment'
+  // Sprint 6 BUG-084 — ⌘R reloads the active BROWSER tab (Chrome
+  // parity). Gated to browser tabs in dispatch — does NOT reload
+  // markdown editor / canvas / terminal panes (no "reload" concept
+  // makes sense there). Replaced the prior Electron-default ⌘R
+  // behavior of reloading the entire app + killing all sessions.
+  | 'reloadBrowserTab'
   // Sprint 3 Phase 3b — Split View open/move + promote chords. ⌘\
   // moves the active main tab into the aux slot (or, if the
   // active tab is already in aux, no-op). ⌘⇧\ promotes aux back
@@ -196,6 +202,19 @@ export function matchGlobalShortcut(
   // for the splitView shortcuts (Slash vs '?').
   if (meta && alt && !shift && !ctrl && e.code === 'KeyM') {
     return { id: 'startComment' }
+  }
+
+  // Sprint 6 BUG-084 — ⌘R reloads the active BROWSER tab (Chrome
+  // parity). Without this matcher, ⌘R either did nothing (after the
+  // menu-role removal) or — worse, before the fix — reloaded the
+  // entire app and killed every terminal session. Now: matched
+  // unconditionally; dispatch decides whether to fire based on the
+  // active working tab. If the user is on a browser tab, reload it.
+  // Otherwise no-op (we explicitly do NOT reload editor / canvas
+  // tabs — those represent unsaved local file state). Always claim
+  // the keystroke so any Chromium fallback also gets consumed.
+  if (meta && !shift && !alt && !ctrl && key === 'r') {
+    return { id: 'reloadBrowserTab' }
   }
 
   // ⌘` — cycle pane focus.
