@@ -262,7 +262,19 @@ async function createWindow(): Promise<void> {
   await externalDomainsService.load()
   externalDomainsService.watch()
 
-  // Browser manager owns WebContentsViews and forwards state to renderer
+  // Browser manager owns WebContentsViews and forwards state to renderer.
+  //
+  // BUG-078 (v0.6.5 Phase 5 walk) — peek the persisted session BEFORE
+  // construction so we can decide whether the constructor should open
+  // its boot-default FAQ tab. If a session exists, suppress the boot
+  // tab — `restoreFromSession` (called from did-finish-load below) will
+  // populate from saved state. Without this peek the constructor opens
+  // FAQ unconditionally; saved tabs then layer on top, and BUG-057's
+  // default-pin restore re-adds the FAQ even when the user closed it
+  // last session. Net was "FAQ tab opens on every launch."
+  const persistedAtBoot = await sessionStateService.load().catch(() => ({ browserTabs: [], activeBrowserIndex: 0 } as { browserTabs: { url: string; title: string }[]; activeBrowserIndex: number }))
+  const hasPersistedSession = persistedAtBoot.browserTabs.length > 0
+
   const cdpBridge = new CdpBridge()
   browserManager = new BrowserManager(
     mainWindow,
@@ -270,7 +282,8 @@ async function createWindow(): Promise<void> {
     (state: BrowserState) => mainWindow?.webContents.send(IPC.BROWSER_STATE, state),
     (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs),
     browserHistory,
-    externalDomainsService
+    externalDomainsService,
+    { bootDefaultTab: !hasPersistedSession }
   )
 
   // ENH-039 — page-side `[data-duo-path]` link clicks (smoke-walk page,
@@ -390,12 +403,13 @@ async function createWindow(): Promise<void> {
     // Stage 21c Phase 2 — restore browser tabs from persisted session.
     // Done after did-finish-load so the renderer is mounted to receive
     // the resulting BROWSER_TABS broadcast. Best-effort; failure
-    // doesn't block app startup.
+    // doesn't block app startup. Re-uses the `persistedAtBoot` snapshot
+    // captured pre-construction (BUG-078 fix) so the boot-default-tab
+    // decision and the actual restore use the same data.
     if (browserManager) {
       try {
-        const persisted = await sessionStateService.load()
-        if (persisted.browserTabs.length > 0) {
-          await browserManager.restoreFromSession(persisted.browserTabs, persisted.activeBrowserIndex)
+        if (hasPersistedSession) {
+          await browserManager.restoreFromSession(persistedAtBoot.browserTabs, persistedAtBoot.activeBrowserIndex)
         }
       } catch (err) {
         console.warn('[main] browser-tab restore failed:', (err as Error)?.message ?? err)
@@ -410,20 +424,35 @@ async function createWindow(): Promise<void> {
       // sessions or after app updates/upgrades — that's the whole
       // point of the feature." Browsers (Chrome, Safari) auto-reopen
       // pinned tabs on restart; matching that convention here.
-      try {
-        const pinnedEntries = await pinsService.list()
-        const browserPins = pinnedEntries.filter(p => p.kind === 'browser')
-        if (browserPins.length > 0) {
-          // Snapshot what's currently open after session restore.
-          const currentUrls = new Set(browserManager.getTabs().map(t => t.url))
-          for (const pin of browserPins) {
-            if (!currentUrls.has(pin.ref)) {
-              browserManager.addTab(pin.ref)
+      //
+      // BUG-078 (v0.6.5 Phase 5 walk) — gated on `!hasPersistedSession`.
+      // The original BUG-057 design predates session-state restore
+      // working reliably; with restore in place, the persisted session
+      // is the authoritative source of "what tabs were open." Auto-
+      // restoring default-pinned tabs (FAQ, What Duo Does — both
+      // default-pinned per ENH-003) on top of the restored session
+      // resurrects tabs the user explicitly closed. New rule (owner-
+      // stated): "boot load only on fresh app; skip if prev tabs
+      // persisted." User-explicit pins still survive across upgrades
+      // because session-state survives upgrades too. This trims the
+      // BUG-057 mechanism to fresh-app-only — which is when it
+      // actually matters.
+      if (!hasPersistedSession) {
+        try {
+          const pinnedEntries = await pinsService.list()
+          const browserPins = pinnedEntries.filter(p => p.kind === 'browser')
+          if (browserPins.length > 0) {
+            // Snapshot what's currently open after session restore.
+            const currentUrls = new Set(browserManager.getTabs().map(t => t.url))
+            for (const pin of browserPins) {
+              if (!currentUrls.has(pin.ref)) {
+                browserManager.addTab(pin.ref)
+              }
             }
           }
+        } catch (err) {
+          console.warn('[main] pinned browser tab auto-open failed:', (err as Error)?.message ?? err)
         }
-      } catch (err) {
-        console.warn('[main] pinned browser tab auto-open failed:', (err as Error)?.message ?? err)
       }
     }
 

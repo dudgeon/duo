@@ -3,7 +3,7 @@
 > Historical "what shipped when" detail moved here 2026-04-26 to keep
 > CLAUDE.md slim per Claude Code best practices ("Bloated CLAUDE.md
 > files cause Claude to ignore your actual instructions"). The
-> roadmap (`docs/roadmap.html` canonical, `ROADMAP.md` synced view)
+> roadmap (`docs/roadmap.html` canonical, `roadmap.html` synced view)
 > is the authoritative source for stage status; this file is the
 > running session-by-session prose log of what landed, why, and
 > what's owed.
@@ -15,6 +15,182 @@
 >
 > Older sessions can be pruned freely once the lessons make it into
 > ROADMAP / DECISIONS / smoke-checklist.
+
+---
+
+## 2026-05-04 (night) — Sprint 4 closed · v0.6.5 cut · playground architecture initiative filed for v0.6.6
+
+**Status: v0.6.5 cut + tagged + pushed. Sprint 4 closed.** All five
+core phases shipped, two queued worksheets walked (ENH-043 result
+reframed the architecture; ENH-075 result captured for v0.6.6 swap),
+playground architecture decomposition filed (ENH-092/093/094) as the
+big v0.6.6 sprint candidate. ROADMAP.md retired in favor of canonical
+HTML; preserved-history extracted to `docs/dev/roadmap-history.md`.
+
+**Sprint 4 commit chain (extends the earlier 2026-05-04 entry below;
+single mega-commit captured the bulk of the post-Phase-4 work because
+the changeset spanned Phase 5 + BUG-072 root-cause + BUG-078 + ROADMAP
+retirement + roadmap audit + ENH-091/092/093/094 filings + breadcrumb
+updates):**
+
+| Commit | One-liner |
+|---|---|
+| (today's mega-commit) | v0.6.5 sprint close-out: BUG-072 v3 (`<br>` filler) + BUG-078 FAQ-on-launch + 134 vitest tests + roadmap audit + ROADMAP.md retired → docs/roadmap.html canonical + ENH-080 research doc + ENH-092/093/094 playground architecture decomposition + breadcrumbs |
+| (cut commit, follows) | v0.6.5 release — package.json bump + CHANGELOG + RELEASES + faq.html "What's new" + roadmap status flips + tag v0.6.5 |
+
+**Key items shipped this sprint (full detail in the per-stage tasks.md
+entries):**
+
+- **Phase 1: ENH-052** mechanical canvas → page rename (177 edits / 32
+  files / zero behavior change). `WorkingTab.kind === 'page'`,
+  `renderer/components/Page/`, `PlaygroundAction`, `IPC.PAGE_*`.
+- **Phase 2: navigator close-out.** BUG-074 v3 Finder-style solid
+  selection (took 3 attempts) · ENH-078 selection prominence · ENH-086
+  v2 user-claude pane reordered to bottom · ENH-087 open-file dot
+  glyph. FOLLOWUP-008 filed for accent token RGB-triplet migration.
+- **Phase 3: Split View Phase 3 close-out.** ENH-083 collapse-rail
+  dividers + new-tab/globe/collapse-canvas cluster · ENH-085 aux
+  header right-click menu · BUG-075 chord re-pick from `⌘\` to `⌘/` +
+  `⌘⇧/` (1Password autofill conflict) · ENH-084 deferred to v0.6.6
+  with full defect log.
+- **Phase 4: BUG-076.** `BrowserManager.switchTab()` now calls
+  `view.webContents.focus()` — fixes ⌃Tab cycle continuation after
+  `duo open` drift.
+- **Phase 5: markdown trigger family + root-cause + BUG-078.**
+  BUG-061+073 marker passthrough (dash/asterisk/plus) · BUG-072 v3
+  blockquote double-Enter exit (3 iterations: v1 wrong shape → v2
+  caret-snap quirk → v3 `<br>` filler — landed clean) · BUG-072 root
+  cause #1: MAIN/ARTICLE/SECTION added to `BLOCK_TAGS` · BUG-072 root
+  cause #2: `defaultParagraphSeparator='p'` on canvas init · BUG-078
+  FAQ-on-every-launch fix (constructor opt-out + BUG-057 default-pin
+  restore both gated on `!hasPersistedSession`).
+- **Phase 6a: ENH-080 research doc** at
+  `docs/prd/canvas-tab-search-research.md` — 4 architecture options
+  for `⌘⇧A` tab-search palette vs WCV-occlusion class.
+- **Phase 6b: ENH-043 walk → architecture reframe.** Owner pushed back
+  on my "close as scope-evolved" recommendation. Real intent: the
+  smoke-walk skill MUST be expressible via playground primitives;
+  current implementation can't do that, which means the playground
+  vocabulary needs new verbs + the runtime needs to extend to
+  browser-pane pages. Filed as ENH-092/093/094 (decomposition);
+  ENH-043 reframed as the meta-tracker.
+- **Phase 6c: ENH-075 walk** — owner picked [TBD — pending walk
+  result before commit].
+
+**Sprint hygiene + dev infra (Phase 5 side-shipments, not in original
+sprint plan):**
+
+- **24 new regression tests** in `blockOps.test.ts` for BUG-072 root
+  cause. Total 134/134 vitest green (was 110).
+- **Smoke-walk skill hardening.** HARD RULE for the pre-flight
+  Electron probe (never spawn a duplicate `npm run dev`); HARD RULE
+  for focus verification after `duo open` (`duo url` + `duo title`
+  before handoff). Both rules tagged with the 2026-05-04 violations
+  that prompted them. Synced via `npm run sync:claude`.
+- **Roadmap audit.** Four stage-class corrections (s11/12/15/17a-polish
+  were stale `inprog`/`pending` while their own status-lines said
+  ✅ shipped). All flipped to `done`.
+- **ROADMAP.md retired** (the synced-markdown view drifted from
+  canonical HTML in practice; maintenance tax exceeded value). Three
+  unique sections extracted to
+  [`docs/dev/roadmap-history.md`](roadmap-history.md): Number history
+  (2026-04-26 renumber), Layout commitment (three-column ADR), Open
+  issue → stage mapping. 25 file references rewritten via batch sed;
+  ROADMAP.md deleted via `git rm`. CLAUDE.md updated to reflect
+  single-source-of-truth.
+- **Stage 19e PRD landed** (mid-flight merge from
+  `claude/upbeat-shaw-00e3b1`): ENH-088/089/090 — managed Duo block in
+  `~/.claude/CLAUDE.md` + glossary lift + enterprise-deployments
+  reference. Sprint candidate for v0.6.6+.
+
+**Memory entries saved this sprint:**
+- `feedback_finder_style_means_solid` — Finder-style ALWAYS means
+  solid bg + light text, never `bg-accent/30`.
+- `feedback_main_process_changes_need_restart` — electron-vite HMR is
+  renderer-only; main-process changes need a full restart.
+- `feedback_no_backticks_in_template_literals` — CSS/HTML/comments
+  inside JS template literals: never use backticks for emphasis;
+  terminates the string early. Hit twice this sprint.
+
+**v0.6.6 sprint candidates (the next plan starts here):**
+
+The big initiative is the **playground architecture decomposition**:
+ENH-092 (state + DOM-reactivity) → ENH-093 (composition + clipboard) →
+ENH-094 (browser-pane CDP runtime injection) → ENH-043 (refactor
+worksheet generator). Likely 2–3 sprints; may warrant a dedicated
+Sprint 5 = playground primitives.
+
+Plus: ENH-084 (aux focus glow defect log), ENH-091 (caret placement
+on new canvas), BUG-079 (⌃⇧` cycle latency), FOLLOWUP-007/008,
+Stage 19e implementation, ENH-080 implementation, ENH-075 swap,
+Phase 7 carry-overs (FOLLOWUP-003/004).
+
+See [`active-sprint.md` § How to resume after compaction](active-sprint.md)
+for the full carry-over list and resume recipe.
+
+---
+
+## 2026-05-04 (evening) — Sprint 4 Phase 5 shipped + BUG-072 root cause uncovered + BUG-078 FAQ-on-launch fixed + ENH-080 research doc
+
+**Status: Phase 5 code complete; smoke-walk re-walk in progress.**
+Picked up post-compaction with Phases 1–4 closed. Reviewed an
+in-flight merge from `claude/upbeat-shaw-00e3b1` (commit `dc10564` —
+docs-only Stage 19e PRD covering ENH-088/089/090, sprint candidate
+for v0.6.6 — accepted as-is). Then implemented Phase 5 (markdown
+trigger family) + two consequential discoveries during owner's smoke
+walk.
+
+**Phase 5 + discoveries — uncommitted at write time, mid re-walk:**
+
+| Surface | Item | Disposition |
+|---|---|---|
+| `renderer/components/Page/markdownShortcuts.ts` | BUG-061 + BUG-073 — bullet marker passthrough | `BlockTrigger.kind === 'ul'` now carries `marker: 'dash' \| 'asterisk' \| 'plus'`; `convertEmptyBlockToList` stamps `data-list-marker` on the `<ul>`. Asterisk falls through to default disc. |
+| `renderer/components/Page/markdownShortcuts.ts` | BUG-072 — blockquote double-Enter exit | New `isEmptyTrailingBlockquoteChild` helper. Empty-trailing-blockquote-child Enter lifts the empty block out, removes the husk if blockquote becomes empty (handles `> `+immediate-Enter edge case). |
+| `shared/html-boilerplate.ts` | BUG-073 CSS | `ul[data-list-marker="dash"] { list-style-type: '\\2013\\00a0\\00a0' }` for en-dash; `plus` for plus marker. (Hit the no-backticks-in-template-literals bug AGAIN — saved as memory entry.) |
+| `renderer/components/Page/blockOps.ts` | **BUG-072 root cause #1** | Added `MAIN`, `ARTICLE`, `SECTION` to BLOCK_TAGS. Owner's smoke walk surfaced that `findBlockAncestor` walked past `<main>` to `<body>` when content sat in a span-in-main, and the matcher tested the WHOLE document text. Bug pre-dated Phase 5; only manifested at BUG-072 because of how the user's editing flow created the orphan span. |
+| `renderer/components/Page/PageTab.tsx` | **BUG-072 root cause #2** | `doc.execCommand('defaultParagraphSeparator', false, 'p')` on canvas init. Chromium's default `<div>`-paragraph-separator created new `<main>` siblings (each inheriting 144px boilerplate padding) when the user typed Enter outside the lone boilerplate `<p>`. That's where the "huge paragraph spacing started halfway through the test" came from. |
+| `renderer/components/Page/blockOps.test.ts` (new) | BUG-072 regression anchor | 24 tests — MAIN/ARTICLE/SECTION present, established tags preserved, inline tags rejected, case sensitivity. Per durable-test-coverage memory rule. |
+| `electron/browser-manager.ts` + `electron/main.ts` | **BUG-078** — FAQ tab opens on every launch | Constructor opt-out (`bootDefaultTab: false`) + BUG-057 default-pin restore gated on `!hasPersistedSession`. Owner's stated rule: *"boot load only on fresh app; skip if prev tabs persisted."* Applied to both mechanisms that were re-introducing the FAQ. |
+
+**Skill update — `.claude/skills/smoke-walk/SKILL.md`** (synced via
+`npm run sync:claude`):
+- HARD RULE for the pre-flight Electron probe — `ps -ef | grep
+  "MacOS/Electron \."` before any `npm run dev` decision; three
+  branches (zero / one / two-or-more matches). Violated 2026-05-04
+  by spawning a duplicate; rule prevents recurrence.
+- Socket-cleanup gotcha — when killing one of two Electrons, the
+  surviving one's socket may go dead too; restart is faster than
+  rescue.
+- Step 5 focus verification — `duo url` + `duo title` after
+  `duo open` to confirm the worksheet is the active visible tab
+  BEFORE the handoff. (Initial draft used a non-existent verb
+  `duo browser current`; fixed.)
+
+**ENH-080 research doc** —
+[`docs/prd/canvas-tab-search-research.md`](../prd/canvas-tab-search-research.md)
+landed (~340 lines, 4 architecture options compared vs. WCV-occlusion
+class). Recommended Option A (native child window with pre-creation
+at boot); fast-fallback Option B (WCV mute pattern). Implementation
+sketch + CLI parity + open questions. Sprint-entry gate for v0.6.6.
+
+**Memory entries saved:**
+- `feedback_no_backticks_in_template_literals` — CSS/HTML/comments
+  inside JS template literals: use single quotes for emphasis,
+  never backticks (terminates string early). Hit twice this session.
+- `feedback_finder_style_means_solid` (already saved) reinforced.
+- `feedback_main_process_changes_need_restart` (already saved)
+  reinforced — used twice when restarting for BUG-078 fix.
+
+**Tests at session end:** 134/134 (was 110 — added 24 in
+`blockOps.test.ts` for the BUG-072 regression anchor).
+
+**Carry-overs to next compaction (if it happens before commit):**
+- Active-sprint.md "How to resume" recipe rewritten to point at the
+  in-flight Phase 5 commit + Phase 5 re-walk worksheet.
+- `git status` will show: 7 modified files (renderer/Page/, shared/,
+  electron/, tasks.md, active-sprint.md, session-log.md, smoke-walk
+  skill) + 3 new files (blockOps.test.ts, canvas-tab-search-research.md,
+  re-walk worksheet HTML+JSON).
 
 ---
 
@@ -1285,7 +1461,7 @@ DMGs re-uploaded as signed" callout above the original release notes
 so any reader of the published GH release sees the swap.
 
 **Doc refresh after the ship** (this commit). `docs/roadmap.html` +
-`ROADMAP.md` flipped Stage 21 to 🟡 21a ✅ (with 21b/c/d still ⬜),
+`roadmap.html` flipped Stage 21 to 🟡 21a ✅ (with 21b/c/d still ⬜),
 flipped Stage 20 to 🟡 (sandbox-resilience cluster shipped, polish
 items still pending), refreshed the snapshot bar to "post-v0.4.1,
 post-Stage-21", and added a v0.4.1 cut entry to the cut history.
@@ -1876,7 +2052,7 @@ sequence.
   Idea 6 (post-redirect banner) toward consistent solution shapes:
   small visual surfaces with plain-English labels.
 
-**Deliverables this turn:** roadmap.html + ROADMAP.md updated with
+**Deliverables this turn:** roadmap.html + the roadmap updated with
 the six new/modified stage cards; layered build order ASCII diagram
 extended; sidebar status counts updated; `docs/dev/intent-pause.md`
 deleted (one-shot file; conversation has resolved). PRDs deferred to
@@ -1961,7 +2137,7 @@ for the full write-up. Major items: **Stage 13 shipped end-to-end**
 and line-jumped before Stage 15 — full PRD with 26 decisions
 covering identity, contract, session guard, web routing, install,
 validation; **canonical flip** of the roadmap (`docs/roadmap.html`
-is now canonical, `ROADMAP.md` is the synced markdown view); editor-
+is now canonical, `roadmap.html` is the synced markdown view); editor-
 agnostic primitive contract locked in
 [DECISIONS.md](docs/DECISIONS.md); BUG-003 v1→v2 history captured
 (inset-shadow ring → chrome-strip tint).
@@ -2011,7 +2187,7 @@ move), and Stage 12 Phase 3 (tab-strip rhyme + cozy-mode visual).
   working-column wrapper. See `tasks.md` for the full trace.
 - **Layered build-order renumber** — stage numbers now reflect
   actual build order, not chronology of planning. See
-  [ROADMAP.md § Number history](ROADMAP.md). Commit messages from
+  [the roadmap § Number history](the roadmap). Commit messages from
   before the renumber use old numbers; the map translates them.
 - **Stage 12 Phase 1 shipped** (commit `585d4ee`) — Atelier token
   swap, light-as-default, serif voice. Atelier rendering live

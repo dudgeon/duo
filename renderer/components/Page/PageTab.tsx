@@ -572,6 +572,31 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     const onSelChange = () => bumpVersion()
     doc.addEventListener('selectionchange', onSelChange)
 
+    // BUG-072 root cause (v0.6.5 Phase 5 walk) — Chromium's default
+    // contentEditable Enter behavior creates `<div>` siblings (the
+    // `defaultParagraphSeparator` default in Chromium). When the
+    // caret sits in a `<span>` directly inside `<main>` with no
+    // wrapping `<p>` (e.g. after a list-exit, blockquote toggle, or
+    // any of the various ways the boilerplate's lone `<p>` gets
+    // sidestepped), pressing Enter creates a sibling block at
+    // `<main>` level — Chromium ends up creating ANOTHER `<main>`
+    // sibling. Each new `<main>` inherits the boilerplate's
+    // `padding: 48px 24px 96px`, producing the ~144px-per-Enter
+    // huge-spacing artifact owner observed during the walk.
+    //
+    // Setting `defaultParagraphSeparator = 'p'` forces Enter to wrap
+    // new content in `<p>` elements — which `findBlockAncestor`
+    // already finds, which markdown shortcuts already operate on,
+    // and which the boilerplate's `p { margin: 0 0 14px }` styles
+    // to a sane height. Pairs with the `MAIN` addition to
+    // `BLOCK_TAGS` (blockOps.ts) so even if content does end up
+    // directly inside `<main>`, the matcher operates on the right
+    // text scope. Editing-only: read-only canvases don't accept
+    // typing so the separator doesn't matter.
+    if (!readOnly) {
+      try { doc.execCommand('defaultParagraphSeparator', false, 'p') } catch { /* not supported in this DOM — degrade gracefully */ }
+    }
+
     // Markdown shortcuts are editing-only. Skip in read-only mode so a
     // system reference HTML (FAQ etc.) doesn't wire keyboard mutations.
     const cleanShortcuts = readOnly ? () => {} : installMarkdownShortcuts(doc)

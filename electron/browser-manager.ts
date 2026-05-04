@@ -103,7 +103,8 @@ export class BrowserManager {
     onStateChange: StateCallback,
     onTabsChange: TabsCallback,
     history?: BrowserHistoryService,
-    externalDomains?: ExternalDomainsService
+    externalDomains?: ExternalDomainsService,
+    options: { bootDefaultTab?: boolean } = {}
   ) {
     this.window = window
     this.cdp = cdp
@@ -130,7 +131,22 @@ export class BrowserManager {
       this.window.webContents.send(IPC.BROWSER_SEND_TO_DUO_CLICK, snapshot)
     })
 
-    this.addTab()  // open the first tab
+    // BUG-078 (v0.6.5 Phase 5 walk) — Owner asked: "why does a new tab
+    // of duo faq open on every app launch?" Root cause: the constructor
+    // unconditionally opened the FAQ as tab[0]. When a persisted session
+    // existed, `restoreFromSession` later navigated tab[0] AWAY from the
+    // FAQ to the saved URL — but the FAQ is in pins.json as a default
+    // pin (ENH-003), so BUG-057's pin-restore loop re-added it as a
+    // fresh tab. Net: closing the FAQ never sticks; it comes back every
+    // launch. Owner's rule: "boot load only on fresh app; skip if prev
+    // tabs persisted." Implementation: main.ts decides at boot whether
+    // a session exists and passes `bootDefaultTab: false` to suppress
+    // the constructor's auto-open. Session restore (or BUG-057 pinning)
+    // owns the post-construction tab-add. Default stays `true` so other
+    // call sites (tests, future entry points) keep current behavior.
+    if (options.bootDefaultTab ?? true) {
+      this.addTab()  // open the first tab (FAQ landing)
+    }
   }
 
   // ── Tab management ─────────────────────────────────────────────────────────
@@ -143,23 +159,35 @@ export class BrowserManager {
   async restoreFromSession(savedTabs: { url: string; title: string }[], activeIndex: number): Promise<void> {
     if (savedTabs.length === 0) return
 
-    // Repurpose the constructor's default tab as the first restored tab.
-    // BUG-040 hole-fix: gate the restored URL through the off-host
-    // matcher so a session containing capitalone.com (or any matched
-    // host) bounces to the system browser instead of resurrecting an
-    // SSO-broken embedded session on relaunch.
-    const firstTab = this.tabs[0]
-    if (firstTab) {
+    // BUG-078 (v0.6.5 Phase 5 walk) — handle the case where the
+    // constructor was told `bootDefaultTab: false` and `this.tabs` is
+    // empty. The legacy path repurposed the boot tab via `loadURL`;
+    // when there's no boot tab, just `addTab(savedTabs[0].url)` —
+    // which goes through the same off-host gating path (`addTab`
+    // delegates to `routeOffHostIfMatched` internally for the loaded
+    // URL).
+    let startIndex: number
+    if (this.tabs.length === 0) {
+      this.addTab(savedTabs[0].url)
+      startIndex = 1
+    } else {
+      // Repurpose the constructor's default tab as the first restored tab.
+      // BUG-040 hole-fix: gate the restored URL through the off-host
+      // matcher so a session containing capitalone.com (or any matched
+      // host) bounces to the system browser instead of resurrecting an
+      // SSO-broken embedded session on relaunch.
+      const firstTab = this.tabs[0]
       const restored = savedTabs[0].url
       if (this.routeOffHostIfMatched(restored)) {
         try { await firstTab.view.webContents.loadURL('about:blank') } catch { /* ignore */ }
       } else {
         try { await firstTab.view.webContents.loadURL(restored) } catch { /* page-load errors are user-visible already */ }
       }
+      startIndex = 1
     }
 
     // Add the rest
-    for (let i = 1; i < savedTabs.length; i++) {
+    for (let i = startIndex; i < savedTabs.length; i++) {
       this.addTab(savedTabs[i].url)
     }
 

@@ -4,7 +4,7 @@
 research project's three reference docs into a single
 do-this-then-this sequence: refactor, build, test, evolve.
 
-> **Relationship to the main Duo roadmap** ([`/ROADMAP.md`](../../../ROADMAP.md) /
+> **Relationship to the main Duo roadmap** ([`/the roadmap`](../../roadmap.html) /
 > [`docs/roadmap.html`](../../roadmap.html)) — read first, then the
 > rest of this document.
 >

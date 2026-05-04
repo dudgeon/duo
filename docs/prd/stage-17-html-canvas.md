@@ -3,7 +3,7 @@
 > **Status:** spec drafted 2026-04-25. Renumbered twice on 2026-04-26:
 > first from draft Stage 13 → Stage 19 to avoid colliding with the
 > existing Stage 13 (interaction polish), then to **Stage 17** as
-> part of the layered build-order rationalization. See ROADMAP.md
+> part of the layered build-order rationalization. See the roadmap
 > § Number history for the full old↔new map.
 > Originated from a design conversation captured in
 > `docs/conversations/html-canvas-kickoff.md` — three of four scoping

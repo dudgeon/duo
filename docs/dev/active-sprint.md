@@ -282,29 +282,75 @@ generated as worksheets so they round-trip cleanly:
 
 ## How to resume after compaction
 
-**Sprint state (as of 2026-05-04, post Phase 4 chord verify):**
-Phases 1, 2, 3, 4 are ✅ DONE. **Phase 5 is the next action.** Three
-items remain in the v0.6.5 plan (Phase 5, 6, 7) plus the cut-readiness
-gate. ENH-084 was deferred to v0.6.6 with a full defect log in
-tasks.md.
+**Sprint state (as of 2026-05-04 night, post v0.6.5 cut):**
+Sprint 4 closed. v0.6.5 cut + tagged + pushed. All five core phases
+shipped (Phase 1 ENH-052 rename · Phase 2 navigator close-out · Phase
+3 Split View Phase 3 · Phase 4 BUG-076 cycle fix · Phase 5 markdown
+trigger family + BUG-072 root-cause + BUG-078 FAQ-on-launch). Phase
+6a research doc shipped. Phase 6b/c worksheets walked (ENH-043 result
+folded into the playground architecture initiative below; ENH-075
+result captured per owner pick). Phase 7 deferred to v0.6.6.
 
-**Resume recipe:**
-1. **Read this file FIRST.** Walk down the Phase plan; the next
-   `in_progress` row is the entry point.
-2. **`git log --oneline -15`** — confirm the most recent commit. If
-   the head is `d063b47` (chord re-pick) or later, Phase 1–4 + the
-   chord re-pick are committed and the next move is Phase 5.
-3. **Phase 5 = markdown trigger family.** Three items, all in
-   `markdownShortcuts.ts` / canvas trigger detection: BUG-061 +
-   BUG-073 (combined — bullet-marker passthrough), BUG-072 (blockquote
-   double-Enter exit). Single commit; tests in
-   `Page/markdownShortcuts.test.ts` should be extended.
-4. **Reload Duo before any smoke walk** — main-process changes from
-   Phase 4 + the chord re-pick require Electron restart, NOT just
-   renderer HMR. (Memory entry: `feedback_main_process_changes_need_restart`.)
-5. **Open worksheets in the browser pane** via `duo open <path>` so
-   they're focused. Don't leave stale ones up — generate a fresh
-   worksheet for each verification round.
+**Carry-overs to v0.6.6 (the next sprint plan starts here):**
+
+The big one — **playground architecture initiative.** Owner direction
+2026-05-04 night, post-cut: *"if the smoke walk using playground
+primitives is not possible, then our playground implementation is
+fucked and we need to fix it."* Three new ENHs filed as the
+decomposition; ENH-043 reframed as the meta-tracker:
+
+- **ENH-092** — Playground state + DOM-reactivity primitives
+  (`state:save/restore/set/get/wipe`, `data-bind-class`,
+  `data-bind-text`, `data-bulk-set`).
+- **ENH-093** — Playground composition + clipboard (`compose:result`,
+  `compose:json`, `clipboard:copy`, `host:send-to-claude`).
+- **ENH-094** — Inject the playground runtime into browser-pane pages
+  via CDP (`PLAYGROUND_RUNTIME_IIFE`, parallel to existing
+  Send→Duo / path-link injections).
+- **ENH-043 (reframed)** — refactor `worksheet/generate.mjs` to emit
+  pure declarative HTML using the new playground vocabulary. No inline
+  JS. Closes when 092+093+094 land + the refactor ships.
+
+Other v0.6.6 candidates already filed:
+- **ENH-084** (aux focus glow defect log — three failed attempts
+  documented)
+- **ENH-091** (caret placement on new canvas — owner ask 2026-05-04)
+- **BUG-079** (⌃⇧` cycle latency — recurring class)
+- **FOLLOWUP-008** (accent token RGB-triplet migration — unblocks
+  bg-accent/N opacity modifiers)
+- **FOLLOWUP-007** (`duoSendResult` CDP binding — pre-req for ENH-093's
+  `host:send-to-claude`)
+- **Stage 19e** (ENH-088/089/090 — managed CLAUDE.md block + glossary
+  lift + enterprise reference; PRD shipped v0.6.5)
+- **ENH-080** (`⌘⇧A` tab-search palette — research doc shipped v0.6.5,
+  implementation queued)
+- **ENH-075** (canvas glyph alternatives — owner pick from worksheet
+  result, simple SVG swap)
+- **Phase 7 carry-overs**: FOLLOWUP-003 (perf re-measure),
+  FOLLOWUP-004 (visual smoke via computer-use)
+
+**Resume recipe (v0.6.6 sprint planning):**
+1. **Read this file FIRST.** The carry-overs list above is the v0.6.6
+   sprint candidate pool.
+2. **`git log --oneline -15`** — head should be the v0.6.5 cut commit
+   (with the `v0.6.5` tag at HEAD or HEAD~1). Working tree clean.
+3. **Run the `sprint-plan` skill** to harvest candidates from
+   tasks.md / active-sprint.md / session-log.md / roadmap.html and
+   generate a worksheet for the owner to prioritize. The carry-overs
+   list above is the seed; the skill auto-rediscovers anything else
+   that opened since.
+4. **Smoke-walk skill rules (still in effect):**
+   - Probe FIRST: `ps -ef | grep "MacOS/Electron \."` before any
+     `npm run dev` — never spawn a duplicate.
+   - Verify focus AFTER `duo open`: `duo url` + `duo title` to
+     confirm the worksheet is the active visible tab BEFORE handoff.
+   - Generate a fresh worksheet for each verification round.
+5. **Reload Duo before any smoke walk** — main-process changes
+   require Electron restart, NOT just renderer HMR.
+6. **The playground initiative (ENH-092/093/094 → ENH-043) is high
+   priority but big.** Likely 2–3 sprints. Prioritize alongside other
+   v0.6.6 candidates per owner walk. May warrant its own dedicated
+   sprint (Sprint 5 = playground primitives).
 
 ---
 

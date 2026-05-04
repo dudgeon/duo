@@ -1,7 +1,7 @@
 # Stage 18b PRD — Distro skill packs (minimum viable)
 
 > **Status:** spec drafted 2026-05-01. Sprint B of the FTUX-tutorial
-> initiative. Filed in `ROADMAP.md` and `docs/roadmap.html#s18`.
+> initiative. Filed in `roadmap.html` and `docs/roadmap.html#s18`.
 >
 > **Why this stage exists.** Stage 27 shipped the canvas-authoring
 > primitives. Stage 28 (Sprint C) builds *content* on those
@@ -268,7 +268,7 @@ Plumbing checklist (CLAUDE.md item 4):
 
 | # | Commit | Files touched | Verifies |
 |---|---|---|---|
-| 1 | `PackManifest` schema spec + this PRD | `docs/prd/stage-18b-distro-packs.md` (new), `shared/types.ts` (PackManifest interface), `ROADMAP.md` + `docs/roadmap.html` Stage 18b card flip to "Sprint B in flight" | typecheck clean |
+| 1 | `PackManifest` schema spec + this PRD | `docs/prd/stage-18b-distro-packs.md` (new), `shared/types.ts` (PackManifest interface), `roadmap.html` + `docs/roadmap.html` Stage 18b card flip to "Sprint B in flight" | typecheck clean |
 | 2 | `core/pack-loader.ts` + scan/parse | `core/pack-loader.ts` (new), `electron/main.ts` (construct loader on app ready), `shared/types.ts` (LoadedPack / PackRegistry) | typecheck; loader handles missing dir gracefully |
 | 3 | First-launch defaults hook + `installed-packs.json` | `core/installed-packs-service.ts` (new), `electron/main.ts` (hook after session restore) | hand-build a mock pack at `~/.claude/duo/packs/test-pack/`; first launch opens; second doesn't |
 | 4 | `duo packs` CLI verb | `shared/types.ts`, `core/socket-server.ts`, `cli/duo.ts`, `cli/duo` rebuild, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` | `duo packs` returns JSON array |
@@ -291,7 +291,7 @@ Plumbing checklist (CLAUDE.md item 4):
 
 ## 9. Cross-refs
 
-- `ROADMAP.md` lines 138–139 — Stage 18b entry
+- `roadmap.html` lines 138–139 — Stage 18b entry
 - `docs/prd/stage-27-canvas-authoring.md` — primitive surface
 - `docs/prd/stage-28-lesson-packs.md` — Sprint C consumer
 - Stage 24 (pin convention; `defaults[].pin` reuses the pins service)

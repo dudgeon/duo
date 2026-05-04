@@ -52,12 +52,24 @@ describe('matchBlockTrigger', () => {
   })
 
   describe('unordered list triggers (`-`, `*`, `+` followed by a space)', () => {
-    for (const marker of ['-', '*', '+']) {
-      it(`matches \`${marker} \` with literal space`, () => {
-        expect(matchBlockTrigger(`${marker}${SPACE}`)).toEqual({ kind: 'ul' })
+    // BUG-073 — the marker character now rides on the trigger so the
+    // converter can stamp `data-list-marker` for marker-aware list-
+    // style rendering (`-` → dash, `+` → plus, `*` → default disc).
+    // Pre-BUG-073 the trigger was just `{ kind: 'ul' }`; the regex
+    // matched `[-*+]` but discarded which character fired. These
+    // tests lock the new shape so a future regression to character-
+    // discarding behavior is caught at unit-test time.
+    const cases: Array<[string, 'dash' | 'asterisk' | 'plus']> = [
+      ['-', 'dash'],
+      ['*', 'asterisk'],
+      ['+', 'plus']
+    ]
+    for (const [marker, expected] of cases) {
+      it(`matches \`${marker} \` with literal space → marker=${expected}`, () => {
+        expect(matchBlockTrigger(`${marker}${SPACE}`)).toEqual({ kind: 'ul', marker: expected })
       })
-      it(`matches \`${marker} \` with nbsp — BUG-061 v3`, () => {
-        expect(matchBlockTrigger(`${marker}${NBSP}`)).toEqual({ kind: 'ul' })
+      it(`matches \`${marker} \` with nbsp — BUG-061 v3 → marker=${expected}`, () => {
+        expect(matchBlockTrigger(`${marker}${NBSP}`)).toEqual({ kind: 'ul', marker: expected })
       })
     }
 

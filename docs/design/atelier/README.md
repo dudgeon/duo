@@ -7,7 +7,7 @@
 > (track-changes Suggesting / Accepted modes), and **Stage 15** (Send
 > → Duo pill).
 >
-> See ROADMAP.md § Stage 12 for sequencing + scope.
+> See the roadmap § Stage 12 for sequencing + scope.
 
 ---
 
@@ -84,7 +84,7 @@ The chat transcript (`chats/chat1.md`) is the source of intent. Highlights:
 ## Status
 
 - 2026-04-26 — bundle imported; Stage 12 (Atelier visual) created in
-  ROADMAP.md (was briefly Stage 17 same morning); cross-references
+  the roadmap (was briefly Stage 17 same morning); cross-references
   added to host stages.
 - ⬜ Implementation: not started; **recommended as the L0 next ship**
   per the layered build-order rationalization same day. Stage 12 is

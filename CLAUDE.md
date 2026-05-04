@@ -26,12 +26,14 @@ domain names that appear in the browser blocklist.
 
 ## Where to look
 
-- **`docs/roadmap.html`** — canonical roadmap (status, layered build
-  order, per-stage cards, owner-side comments). Served at
-  `http://localhost:8765/roadmap.html` via `.claude/launch.json`. Edit
-  this as the primary surface for any roadmap change.
-- **`ROADMAP.md`** — synced markdown view of the HTML. Same content,
-  grep-able, but the HTML wins when they diverge.
+- **`docs/roadmap.html`** — **canonical roadmap, single source of
+  truth** (status, layered build order, per-stage cards, owner-side
+  comments). Served at `http://localhost:8765/roadmap.html` via
+  `.claude/launch.json`. Edit this as the primary (and only) surface
+  for roadmap changes. The retired `ROADMAP.md` markdown view was
+  removed 2026-05-04 — preserved historical fragments (Number history,
+  Layout commitment, GitHub-issue mapping) live at
+  [`docs/dev/roadmap-history.md`](docs/dev/roadmap-history.md).
 - **`docs/DECISIONS.md`** — locked architectural decisions + open
   ADRs (notably the sandbox-tolerant-transport ADR).
 - **`docs/CLI-COVERAGE.md`** — authoritative CLI verb inventory +

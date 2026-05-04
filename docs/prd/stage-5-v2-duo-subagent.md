@@ -4,7 +4,7 @@
 > validated the orchestrator-context savings hypothesis (~85% token
 > reduction; ~50% wall-clock).
 > **Slot in roadmap:** sequenced **before Stage 15** in the layered
-> build order — see ROADMAP.md § Layered build order. Treated as a
+> build order — see the roadmap § Layered build order. Treated as a
 > v2 of the original Stage 5 ship (skill + `duo-browser` subagent),
 > not a new stage number, because the renumber on 2026-04-26 was
 > explicit about the build-order semantics and inserting a new
@@ -400,7 +400,7 @@ subagent. They should pass identically through the new agent.
 10. **Update `docs/dev/smoke-checklist.md`** with the new agent
     section. Include C5 outside-Duo walk and a quick web-routing
     walk (one Duo URL + one listed external URL).
-11. **Ship.** Cross-link from CLAUDE.md, ROADMAP.md, roadmap.html.
+11. **Ship.** Cross-link from CLAUDE.md, the roadmap, roadmap.html.
 
 Estimated total: ~1.5 dev days (added the new CLI verb + list
 bootstrap). Lands before Stage 15 starts.

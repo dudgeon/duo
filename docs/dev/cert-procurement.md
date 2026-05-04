@@ -366,4 +366,4 @@ keys revoked through the portal. Keep the `.p8` backed up in 1Password.
 - Electron-builder code signing: <https://www.electron.build/code-signing>
 - Apple — Notarizing macOS software before distribution: <https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution>
 - Apple — Creating App Store Connect API keys: <https://developer.apple.com/help/app-store-connect/manage-your-team/create-app-store-connect-api-keys-for-your-team>
-- ROADMAP.md § Owner pre-work — cross-references this doc.
+- the roadmap § Owner pre-work — cross-references this doc.

@@ -67,7 +67,7 @@ Pull from these sources, in order:
 
 1. `docs/dev/session-log.md` — most recent sessions since the last cut. The prose-y narrative; mine for "what shipped + why."
 2. `git log --oneline <last-tag>..HEAD` — actual commits. The auditable inventory.
-3. `docs/roadmap.html` (or `ROADMAP.md`) — stages that flipped to ✅ since the last cut.
+3. `docs/roadmap.html` — canonical roadmap; stages that flipped to ✅ since the last cut.
 4. `tasks.md` — bugs that flipped to ✅ Fixed since the last cut.
 5. The `Pending — not yet cut` stash at the top of `docs/RELEASES.md` — accumulated draft notes from prior rejected cuts.
 
@@ -142,7 +142,7 @@ Order:
 3. `docs/RELEASES.md` — prepend the new prose entry above prior entries (most-recent-first). Clear the `Pending — not yet cut` stash if any of it folded into this cut.
 4. `help/faq.html` (in repo, NOT the `~/.claude/duo/help/` copy) — add a "What's new in vX.Y.Z" entry to the FAQ's "What's new" section. Plain-English, 2–4 lines per major item.
 5. `help/what-duo-does.html` (in repo, NOT the `~/.claude/duo/help/` copy) — for any newly-added capability, insert a numbered entry in the relevant category (Editor / Browser / Canvas / Files / Terminal / Capture-Send / Sessions / etc.). Use plain-English voice with the CLI invocation listed alongside as the "how." Logical ordering, NOT chronological.
-6. `docs/roadmap.html` (and `ROADMAP.md` for parity) — flip stage statuses for anything that landed in this cut. Update the sidebar status counts.
+6. `docs/roadmap.html` — flip stage statuses for anything that landed in this cut. Update the sidebar status counts. (Canonical roadmap; the prior synced-markdown view at `ROADMAP.md` was retired 2026-05-04.)
 7. `docs/dev/session-log.md` — add a one-paragraph entry referencing the cut, the version, and what landed.
 
 ### Step 4.5 — Build the distributable DMG
@@ -339,7 +339,7 @@ distributed manually (or via Stage 21's eventual upload step).
 ### Step 6 — Commit + tag
 
 ```bash
-git add CHANGELOG.md docs/RELEASES.md docs/roadmap.html ROADMAP.md \
+git add CHANGELOG.md docs/RELEASES.md docs/roadmap.html \
         docs/dev/session-log.md package.json cli/duo \
         ~/.claude/duo/help/faq.html ~/.claude/duo/help/what-duo-does.html
         # Note: ~/.claude/ is outside the repo — those files are committed
@@ -475,7 +475,7 @@ Show the user:
 - `docs/RELEASES.md` — the prose log + pending stash.
 - `docs/dev/session-log.md` — the running session-by-session log; mine for prose during Step 1.
 - `tasks.md` — bugs / FOLLOWUPs; mine for fixes during Step 1.
-- `docs/roadmap.html` / `ROADMAP.md` — stage status; mine for "what flipped" during Step 1.
+- `docs/roadmap.html` — stage status; mine for "what flipped" during Step 1. (Canonical roadmap; the prior synced-markdown view at `ROADMAP.md` was retired 2026-05-04 — preserved historical fragments live at `docs/dev/roadmap-history.md`.)
 - `~/.claude/duo/help/faq.html` — FAQ surface; update during Step 4.5.
 - `~/.claude/duo/help/what-duo-does.html` — capability reference; update during Step 4.6.
 - `CLAUDE.md` — project conventions, including the trigger rule that primes Claude to use this skill.

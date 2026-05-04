@@ -459,7 +459,6 @@ duo/
 │   └── ux/
 ├── duo-brief.md           # original brief (Stages 1–5; product framing
 │                          #   superseded by docs/VISION.md)
-├── ROADMAP.md             # stage-by-stage status + backlog
 └── CLAUDE.md              # guidance for AI working on the project
 ```
 
@@ -467,10 +466,14 @@ duo/
 
 ## Status
 
-Full stage-by-stage tracking lives in **[ROADMAP.md](ROADMAP.md)** /
-[docs/roadmap.html](docs/roadmap.html). Versioned releases are tracked
-in **[CHANGELOG.md](CHANGELOG.md)** with prose context in
-**[docs/RELEASES.md](docs/RELEASES.md)**.
+Full stage-by-stage tracking lives in
+**[docs/roadmap.html](docs/roadmap.html)** — the canonical roadmap
+with status, layered build order, per-stage cards, and owner-side
+comments. Versioned releases are tracked in
+**[CHANGELOG.md](CHANGELOG.md)** with prose context in
+**[docs/RELEASES.md](docs/RELEASES.md)**. Pre-renumber stage history
++ Layout ADR + GitHub-issue mapping live at
+**[docs/dev/roadmap-history.md](docs/dev/roadmap-history.md)**.
 
 Most recent release: see the top of [CHANGELOG.md](CHANGELOG.md). The
 release headlines worth pulling forward in this README:
@@ -506,8 +509,9 @@ release headlines worth pulling forward in this README:
   Duo distro.
 - **[docs/CLI-COVERAGE.md](docs/CLI-COVERAGE.md)** — exhaustive CLI
   inventory + priority-tagged gap roadmap. Updated as verbs ship.
-- **[ROADMAP.md](ROADMAP.md)** — current status, per stage, plus the
-  unscheduled backlog.
+- **[docs/roadmap.html](docs/roadmap.html)** — current status, per
+  stage, plus the unscheduled backlog. Canonical roadmap (single
+  source of truth as of 2026-05-04).
 - **[docs/DECISIONS.md](docs/DECISIONS.md)** — locked architectural
   choices and rationale, plus the open ADR on transport / sandbox.
 - **[docs/prd/](docs/prd/)** — per-stage PRDs (Stages 9, 10, 11). Each

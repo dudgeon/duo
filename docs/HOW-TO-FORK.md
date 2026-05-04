@@ -6,7 +6,7 @@ It exists to give would-be forkers — internal enterprise teams, individuals,
 other organizations — a clear-eyed picture of *what's possible today*, *what's
 coming*, and *how the layers compose*.
 
-> **For context** see also [`ROADMAP.md`](../ROADMAP.md) for the canonical
+> **For context** see also [the roadmap](roadmap.html) for the canonical
 > stage-by-stage tracking, [`docs/roadmap.html`](roadmap.html) for the
 > read-friendly version, and [Stage 21e](roadmap.html#s21) for the work
 > that lights up the fork-friendly architecture below.
@@ -308,7 +308,7 @@ This file (`docs/HOW-TO-FORK.md`) lands now with "coming soon" markers
 on Layers 2–5. When 21e-i/ii/iii ship, the markers come off and a
 "Verified working" snapshot date goes on.
 
-`README.md` gets a new section pointing here. ROADMAP.md
+`README.md` gets a new section pointing here. the roadmap
 references this doc from Stage 21e's card.
 
 `docs/dev/cert-procurement.md` already covers cert work for full-fork
@@ -336,7 +336,7 @@ the layering above. 21e implements; the layers were the question.
 
 ## Cross-references
 
-- [`ROADMAP.md`](../ROADMAP.md) — canonical stage tracking
+- [the roadmap](roadmap.html) — canonical stage tracking
 - [`docs/roadmap.html#s21`](roadmap.html#s21) — Stage 21 stage card with 21e
   sub-stages
 - [`docs/dev/cert-procurement.md`](dev/cert-procurement.md) — Apple

@@ -8,7 +8,7 @@
 > rule and the six-file plumbing checklist every new verb must hit.
 >
 > **Where this fits:** stage-level sequencing lives in
-> [ROADMAP.md](../ROADMAP.md). This file is the *verb-level* truth —
+> [the roadmap](roadmap.html). This file is the *verb-level* truth —
 > what's shipped, what's a gap, and what stage will close each gap.
 > Cross-refs to specific PRDs in [docs/prd/](prd/).
 >

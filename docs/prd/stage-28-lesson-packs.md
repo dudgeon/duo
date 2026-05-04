@@ -1,7 +1,7 @@
 # Stage 28 PRD — First-launch lesson packs
 
 > **Status:** spec drafted 2026-05-01. Sprint C of the FTUX-tutorial
-> initiative. Filed in `ROADMAP.md` and `docs/roadmap.html#s28`.
+> initiative. Filed in `roadmap.html` and `docs/roadmap.html#s28`.
 > Depends on Stage 27 (primitives — Sprint A) shipping first;
 > Stage 18b (distro pack machinery — Sprint B) optional but
 > preferred.
@@ -372,7 +372,7 @@ hand-coded escape hatches.
 
 ## 8. Cross-refs
 
-- `ROADMAP.md` line 185 — Stage 28 entry
+- `roadmap.html` line 185 — Stage 28 entry
 - `docs/roadmap.html#s28` — Stage 28 card
 - `docs/prd/stage-27-canvas-authoring.md` — the primitives
 - `docs/prd/stage-18-first-launch-self-install.md` — TBD if Stage 18b's PRD lives there

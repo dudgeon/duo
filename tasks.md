@@ -2675,7 +2675,7 @@ ENH-023 above with shipped status and full plumbing notes.) -->
 
 ### ENH-027: Local HTML defaults to canvas, not browser (`<meta name="duo-open-in">` opt-out)
 
-**Status:** 🆕 Filed · **held until Stage 17e** (cross-referenced in `docs/roadmap.html` + `ROADMAP.md` Phase 17e bullet list).
+**Status:** 🆕 Filed · **held until Stage 17e** (cross-referenced in `docs/roadmap.html` + `docs/roadmap.html` Phase 17e bullet list).
 **Priority:** Medium-High (user's "(better yet)" preference; design already exists in ROADMAP backlog).
 **Filed:** 2026-04-30 (v0.5.3 smoke walk OTHER NOTES).
 
@@ -2701,7 +2701,7 @@ user pain so the wait costs nothing. See § BUG-045 above + the
 
 The `duo open` verb was originally designed for URLs (web pages), and the file-path-resolution sugar (`resolveOpenTarget` converts a relative path to `file://`) was bolted on for convenience. But that means the same .html file routes to two different surfaces depending on which verb the agent chose, which leaks an internal distinction the user shouldn't have to know about.
 
-**Design (already in ROADMAP.md — Help/FAQ backlog):**
+**Design (already in docs/roadmap.html — Help/FAQ backlog):**
 A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="duo-open-in" content="browser">` to a file that explicitly needs browser semantics (scripts, full Chromium APIs, navigation, devtools). Default for HTML without the meta = canvas.
 
 **Affected paths:**
@@ -2712,7 +2712,7 @@ A per-file routing declaration via HTML meta tag. Agents/users add `<meta name="
 **Sequencing decision:** ENH-027 should land before/alongside Stage 17e (per-file allow-scripts opt-in). Until 17e ships, the meta tag is the only escape valve for HTML that needs scripts — agent-generated dashboards, FAQ live-search, smoke walks, mini-tools.
 
 **Cross-ref:**
-- ROADMAP.md § Help/FAQ — established the `duo-open-in` design.
+- docs/roadmap.html § Help/FAQ — established the `duo-open-in` design.
 - Stage 17e — allow-scripts opt-in dialog (still deferred). Once shipped, scripts can run in canvas, and `duo-open-in: browser` becomes a narrower escape valve (specifically for full-Chromium APIs, devtools, navigation history).
 - BUG-045 — covers the deletable-from-browser case for files that explicitly chose browser semantics.
 - `.claude/skills/smoke-walk/` — needs the meta tag once ENH-027 ships, OR a `--browser` CLI flag on `duo open`.
@@ -3685,25 +3685,36 @@ Self-walk during v0.6.3 surfaced that the **bullet TRIGGER itself** (typing `- `
 
 ---
 
-### ENH-043: The smoke-walk skill should be re-buildable via canvas / template primitives
+### ENH-043: The smoke-walk skill should be re-buildable via playground primitives [META — depends on ENH-092/093/094]
 
-**Status:** 🆕 Filed
-**Priority:** Medium (meta-improvement — the smoke-walk skill is itself a "template-driven canvas generator" that should eat its own dogfood).
-**Filed:** 2026-05-02 (idle-thoughts.md item)
+**Status:** 🚧 **Reframed 2026-05-04 as architectural meta-initiative.** Original framing assumed playground primitives could already subsume this. They can't — and the gap is real, not a sandbox-imposed dead end. Owner direction (verbatim): *"if the smoke walk using playground primitives is not possible, then our playground implementation is fucked and we need to fix it."* Decomposed into ENH-092/093/094 below; ENH-043 closes when those land + `worksheet/generate.mjs` is refactored to emit pure declarative HTML using the new playground vocabulary.
+**Priority:** High (architectural — this is what the playground is *for*).
+**Filed:** 2026-05-02 (idle-thoughts.md). Reframed 2026-05-04 (post-Phase-5 cut readiness check).
 
-**What this means:** the smoke-walk skill (`.claude/skills/smoke-walk/`) currently has its own bespoke HTML generator (`generate.mjs`) that emits the per-release walk page from a JSON manifest. Stage 27 (`canvas-authoring`) shipped a primitive set: declarative `<button data-action="..." data-...>` verbs, `data-payload-from`, `data-anchor`, etc. The smoke-walk page SHOULD be expressible as one of those canvases — using `canvas-authoring.md` patterns and the canvas-templates set (`lesson-scaffold.html`, etc.).
+**What the smoke walk actually does today (custom inline JS in `worksheet/generate.mjs`).** The 958-line generator emits a self-contained HTML page with NO playground primitives — every behavior is custom `addEventListener`:
+1. Per-item radios → CSS class on parent card (color tinting per PASS/FAIL/SKIP)
+2. Live tally (counts at top, recompute on every change)
+3. localStorage persistence (every input/change → save; on load → restore)
+4. "Mark all PASS" bulk button
+5. "Clear saved" wipe button
+6. "Copy results" — gather form state, format as text, write to clipboard
+7. "Send to Claude" — same composition, route to `window.duoSendResult` with clipboard fallback (FOLLOWUP-007 plumbing)
+8. Per-step `<pre>` copy buttons + backtick-parsing logic for runnable-command detection
 
-**What's wanted:**
-1. Identify which primitives the smoke-walk page needs that we don't yet have (e.g. a "Pass / Fail / Skip" toggle button trio, a textarea with localStorage persistence, a Copy-to-clipboard button, etc.).
-2. EITHER edit existing canvas-authoring primitives to cover those, OR add new canvas-templates entries (e.g. `walk-checklist.html`) that demonstrate the pattern.
-3. Refactor `generate.mjs` to emit canvases that use those primitives — so the smoke walk skill becomes "a template + a JSON manifest" rather than "a bespoke HTML factory."
+**What playground primitives have today.** Seven one-shot action verbs (`claude:spawn`/`terminal:send`/`editor:open`/`nav:reveal`/`selection:set`/`theme:set`/`terminal:focus`/`duo:event` + `browser:open`) + `data-payload-from` for single-input form-state binding. The vocabulary is "click → fire one structured action to host." Smoke walks need state, DOM reactivity, composition, clipboard — none of which today's verbs cover.
 
-**Why this matters:** the smoke walk's structure (checklist + notes + copy results button) is exactly the shape of many user-driven workflows. Making it expressible in canvas primitives means:
-- The same primitive set powers user lesson canvases, agent-generated dashboards, AND the smoke-walk pages.
-- The smoke-walk skill becomes a load-bearing example of canvas-authoring best practices.
-- Cross-skill drift is reduced — canvas-authoring docs and the smoke-walk skill stay aligned because they share primitives.
+**Plus a runtime-injection gap.** The playground action runtime (`installPlaygroundActions(doc, opts)`) lives in the canvas iframe's `contentDocument` — it doesn't reach browser-pane pages. Even with new verbs, a smoke walk hosted in a browser tab couldn't use them today. Same precedent already exists for partial cases though (Send→Duo pill `SELECTION_OBSERVER_IIFE`, `data-duo-path` `PATH_LINK_FORWARDER_IIFE`); we extend it to a full `PLAYGROUND_RUNTIME_IIFE` that injects the vocabulary into browser-pane pages too.
 
-**Sequencing:** depends on completing canvas-authoring's primitive set (Stage 27) which is shipped; this ENH is the next-stage "make the skill express the workflow" follow-up.
+**Decomposition (3 sub-ENHs):**
+1. **ENH-092** — Playground state + DOM-reactivity primitives (`state:save`/`state:set`/`state:get`/`state:wipe`, `dom:set-class`/`dom:toggle-class`/`dom:bind`).
+2. **ENH-093** — Playground composition + clipboard (`compose:result` walks form state into a structured payload; `clipboard:copy` writes literal or composed payload).
+3. **ENH-094** — Inject the playground runtime into browser-pane pages via CDP (`PLAYGROUND_RUNTIME_IIFE`). Now playground primitives work in EITHER pane.
+
+After 092 + 093 + 094 ship, ENH-043 = refactor `worksheet/generate.mjs` to emit pure declarative HTML using the new vocabulary. No inline JS. Manifests stay JSON; output becomes a thin recipe of playground verbs.
+
+**Why this matters (the original framing was right; the implementation didn't catch up):** the same primitive set will power lesson canvases, agent-generated dashboards, smoke walks, sprint-plan worksheets, future retros / triage forms. Today each is a separate generator. After ENH-092/093/094 + 043, they share one runtime contract.
+
+**Cross-ref:** ENH-092 / ENH-093 / ENH-094 (the dependencies). Stage 27 (the canvas-authoring vocabulary this extends). FOLLOWUP-007 (`duoSendResult` binding — the partial-case CDP injection precedent).
 
 **Cross-ref:** Stage 27 PRD (canvas-authoring); `skill/canvas-authoring.md`; ENH-046 (code-block + copy-button primitive — a sub-component this ENH would need).
 
@@ -4081,7 +4092,7 @@ The user's framing — "many demo lessons in the repo, toggle them on/off in ent
 - `skill/examples/canvas-actions.md` → same reason
 - `skill/examples/html-canvas-authoring.md` → same reason
 - `~/.claude/duo/packs/<name>/canvases/` subdirectory rename → would break installed user packs without migration logic
-- Historical references in `tasks.md`, `ROADMAP.md` (Stage 17 cards), `docs/DECISIONS.md`, `CHANGELOG.md`, `RELEASES.md`, `docs/research/` — leave as historical record per task entry
+- Historical references in `tasks.md`, `docs/roadmap.html` (Stage 17 cards), `docs/DECISIONS.md`, `CHANGELOG.md`, `RELEASES.md`, `docs/research/` — leave as historical record per task entry
 
 **Verification:** typecheck clean, Vitest 104/104 pass, `npm run build` succeeds.
 
@@ -4749,9 +4760,13 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### BUG-072: Blockquote double-Enter doesn't exit blockquote (parity gap with bullet/ordered-list behavior)
 
-**Status:** 🆕 Filed (surfaced in v0.6.4 smoke walk, BUG-061 row).
+**Status:** ✅ **Shipped v0.6.5 Phase 5** (v3 final, 2026-05-04 re-walk #3 PASS). Three iterations: v1 added the exit handler but the trigger produced a malformed structure (text directly in blockquote, no `<p>` wrapper). v2 hand-rolled `<blockquote><p></p></blockquote>` but Chromium's caret-snap quirk bumped the caret out of the empty `<p>` to the parent. v3 added a `<br>` filler — `<blockquote><p><br></p></blockquote>` — giving the inner `<p>` measurable height + an anchorable caret position. Owner verified: *"it works!"*.
 **Priority:** Medium (small UX inconsistency; bullets exit on double-Enter, blockquote should match).
-**Filed:** 2026-05-03 (owner smoke walk note).
+**Filed:** 2026-05-03 (owner smoke walk note). v2 cause + fix logged 2026-05-04 after re-walk.
+
+**v2 root cause (uncovered in re-walk).** The v1 trigger called `blockOps.toggleBlockquote(doc)` which uses `execCommand('formatBlock', false, '<blockquote>')`. Chromium's `formatBlock` CHANGES the current block's tag to `<blockquote>` rather than WRAPPING it — so an empty `<p>` becomes an empty `<blockquote>` with no `<p>` child. The user's caret + typed text then sit DIRECTLY inside the blockquote. Pressing Enter on that structure splits the BLOCKQUOTE itself (because the blockquote IS the current "block" from Chromium's contentEditable perspective) — producing TWO sibling blockquotes. Each subsequent Enter splits the empty trailing blockquote yet again. Owner re-walk 2026-05-04 showed five stacked blockquote-bars after Enter Enter Enter Enter, which was the diagnostic signal.
+
+**v2 fix.** Added `convertEmptyBlockToBlockquote` in `renderer/components/Page/markdownShortcuts.ts` — hand-rolls `<blockquote><p></p></blockquote>` and parks the caret inside the inner `<p>` (same pattern as `convertEmptyBlockToList` for ul/ol). Now the inner `<p>` is the current block; Enter splits it (creating a new `<p>` sibling within the blockquote — Chromium's normal `defaultParagraphSeparator='p'` behavior), and `isEmptyTrailingBlockquoteChild` correctly detects the empty trailing `<p>` for double-Enter exit. Replaces the call to `blockOps.toggleBlockquote(doc)` in `handleInput` § blockquote branch.
 
 **Owner observation (verbatim):** *"small issue with block quote: double line break continues block quote, unlike bullet handling; in bullets, you can enter twice to stop creating new bullets; blockquote should do the same"*
 
@@ -4879,6 +4894,63 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 6. **Owner-clarification refinement** (`511d8b8`) renamed `splitViewClose` → `splitViewPromote`. Check that ALL references were updated (was the rename complete?). Specifically: `useKeyboardShortcuts.ts` opts type, dispatch case, deps array, and App.tsx wiring all need to use the new name. Suspected source of the regression.
 
 **Cross-ref:** Phase 3b (commit `ed4d097` introduced the chords); commit `511d8b8` (the close → promote rename — most likely culprit if a callback ref dropped); BUG-001 / BUG-021 / BUG-038 lineage (closure-staleness in the keyboard dispatcher — though chord-was-never-seen is a different failure mode).
+
+---
+
+### BUG-078: FAQ tab opens on every app launch despite being closed last session (boot-default + default-pin double-up)
+
+**Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 5 — owner observation during BUG-072 walk).
+**Priority:** Medium (recurring user-visible annoyance — close FAQ, relaunch, FAQ comes back).
+**Filed:** 2026-05-04 (owner smoke walk note: *"why does a new tab of duo faq open on every app launch?"*).
+
+**Owner-stated rule (verbatim, after agent-proposed fix):** *"if an faq is already open (it is, pinned) don't open another one"* and *"yours is better: boot load only on fresh app; skip if prev tabs persisted."*
+
+**Root cause.** Two mechanisms re-opened the FAQ on every launch, even when the user closed it last session:
+
+1. **Constructor boot-default.** `BrowserManager` constructor unconditionally called `this.addTab()` (FAQ-as-default-landing) before session restore had a chance to run. With session restore, `restoreFromSession` repurposed tab[0] by `loadURL`-ing the first saved URL — so the FAQ briefly flashed before being navigated away. Functionally OK, but a visible flicker.
+2. **BUG-057 default-pin auto-restore.** [main.ts](electron/main.ts) post-restore loop iterated pinned entries and called `browserManager.addTab(pin.ref)` for any pin not already in `currentUrls`. Because the FAQ + What Duo Does are *default-pinned* per ENH-003 (and the user can't easily unpin them — pin chrome is for indication), closing the FAQ never stuck: it came back as a freshly-added tab.
+
+**Fix (this commit, v0.6.5 Phase 5).** Both mechanisms gated on `hasPersistedSession`, peeked at boot via `sessionStateService.load()` BEFORE `BrowserManager` construction:
+
+- **`BrowserManager` constructor** — new options arg `{ bootDefaultTab?: boolean }` (default `true` for back-compat). [main.ts](electron/main.ts) passes `bootDefaultTab: !hasPersistedSession`. With persisted session, the constructor doesn't auto-add the FAQ; `restoreFromSession` populates from saved state.
+- **`restoreFromSession`** — handles the new "tabs[] is empty at call time" case by `addTab()`-ing the first saved URL fresh (instead of `loadURL`-ing onto a non-existent tab[0]).
+- **BUG-057 default-pin restore** — gated on `!hasPersistedSession`. Original BUG-057 design predates working session restore; with session restore in place, the persisted session is the authoritative source of "what tabs were open." Fresh-app launches still get default-pinned tabs (FAQ + What Duo Does); session-restore launches don't get them re-introduced.
+
+**Test plan / acceptance:**
+1. Open FAQ. Close it. Quit Duo. Relaunch → FAQ stays closed.
+2. Open FAQ + smoke-walk page. Quit. Relaunch → both come back, no duplicate FAQ.
+3. Fresh install (no persisted session): FAQ opens as the boot landing tab.
+4. Test all three on a packaged DMG before v0.6.5 cut (smoke walk row).
+
+**Cross-ref:** ENH-003 (FAQ + What Duo Does default-pinned — pin chrome is preserved; the auto-restore behavior is what changed). BUG-057 (the auto-restore mechanism this fix scopes down). Stage 21c Phase 2 (session restore — the mechanism we're now treating as authoritative).
+
+---
+
+### BUG-079: ⌃⇧\` tab-cycle has multi-second latency + requires re-presses (recurring observation)
+
+**Status:** 🆕 Filed — surfaced again in v0.6.5 Phase 5 re-walk (2026-05-04).
+**Priority:** Medium (UX friction on a heavily-used chord; recurring class — owner has flagged variants of this multiple sprints).
+**Filed:** 2026-05-04 (owner re-walk verbatim: *"ctrl-shift~ real latency (>2 seconds)/reattempts required before tabs cycled back"*).
+
+**Symptom.** ⌃⇧\` (the reverse-direction tab cycle, mirror of ⌃Tab) takes >2 seconds to react and frequently requires re-pressing before any tab switch occurs. ⌃Tab forward-cycle is acceptably responsive.
+
+**Recurring-class.** Tab-cycle responsiveness has surfaced multiple times: BUG-001 (first cycle), BUG-021 (post-session-restore stale closure), BUG-038 (focusedColumn drift), BUG-042 (browser pane focus), BUG-076 (faq.html unreachable post-`duo open`). Each has shipped a fix; the cumulative cycle code has acquired enough complexity that a new latency mode emerged. ENH-084 also filed a related observation in the v0.6.5 smoke walk arc.
+
+**Hypotheses (not yet probed):**
+1. **IPC round-trip on focus change.** Each cycle keystroke goes renderer → main → focus the WCV → main → renderer. If the WCV `webContents.focus()` call is synchronous + slow on certain tab kinds (browser tabs in particular), the cycle is gated by that.
+2. **`activeIdRef` race after BUG-076 fix.** Phase 4's BUG-076 fix added `view.webContents.focus()` inside `BrowserManager.switchTab()`. If that call is now blocking the IPC return for ~2s on some tab kinds, the cycle handler waits before processing the next keystroke.
+3. **Reverse-direction wraparound calc.** `cycleNext(direction: -1)` may have a different code path than `+1` that's not memoized / cached. Worth checking `tabCycle.ts`.
+4. **Modifier-key release window.** The chord requires holding ⌃ + ⇧ while pressing \`. If the renderer's focus-change handler bumps focus mid-cycle, the OS may briefly drop the modifier state.
+
+**Where to look:**
+- `renderer/keyboard/tabCycle.ts` — the cycle algorithm.
+- `renderer/keyboard/useKeyboardShortcuts.ts` — the chord dispatcher.
+- `electron/browser-manager.ts § switchTab` — the focus call added in Phase 4.
+- `cli/duo.ts` is NOT in the path (chord goes purely through renderer + main IPC).
+
+**Next step:** add a console.log timing trace at the cycle entry + exit + IPC boundary to isolate which segment swallows the 2 seconds. Defer to v0.6.6 Sprint 5 — not a v0.6.5 cut blocker (the cycle still works eventually; this is latency polish).
+
+**Cross-ref:** BUG-001, BUG-021, BUG-038, BUG-042, BUG-076 (recurring tab-cycle class — same family). ENH-084 (aux pane focus indicator — related focus-tracking).
 
 ---
 
@@ -5376,6 +5448,141 @@ Update both shipped skills to reference `references/vocabulary.md` instead of `C
 - `skill/references/sandbox-troubleshooting.md` (one-line cross-reference for users hitting policy-driven blockers)
 
 **Cross-ref:** Stage 19b (the SessionStart hook explicitly designed as redundant safety net for this reason). ENH-088 (managed block points at `references/` directory; this doc joins that surface). PRD: `docs/prd/stage-19e-user-context-onboarding.md`.
+
+---
+
+### ENH-091: Place caret at end of body (after existing content) when opening a freshly-created canvas
+
+**Status:** 🆕 Filed (surfaced in v0.6.5 Phase 5 re-walk #3, 2026-05-04 — owner observation while testing BUG-072 v3 fix).
+**Priority:** Low (small QOL, not a blocker; current behavior is "caret at offset 0 of body" which sits BEFORE the boilerplate `<h1>` heading).
+**Filed:** 2026-05-04.
+
+**Owner observation (verbatim):** *"when I `duo html new /tmp/p5-v4.html`, in the resulting html canvas, the cursor is at the beginning of the empty doc; it would be nice if it was at the end"*
+
+**Owner constraint:** *"I don't want you to design anything too rube goldberg to accomplish this, but it is an ENH I want you to file."*
+
+**What's wanted.** When a new canvas opens (via `duo html new` OR ⌘N save-as `.html`), place the caret AT THE END of the existing body content — typically inside the empty `<p>` after the boilerplate's `<h1>title</h1>`. Today the caret lands at offset 0 of body, which puts it BEFORE the `<h1>` — typing immediately would prepend characters to the title, not start the body.
+
+**Why this is QOL, not a paper cut.** The user can click into the empty `<p>` after the heading and start typing — same gesture they'd do anyway. But auto-placing the caret in the right spot is one less click on the most common new-canvas flow.
+
+**Implementation sketch (keep it simple per owner direction).**
+
+The caret-placement code likely lives in `renderer/components/Page/PageTab.tsx` or `renderer/components/Page/RenderedPage.tsx` — wherever the iframe gets its initial focus on first load. Look for where the iframe body's contentEditable is set and the first selection is established.
+
+The cleanest implementation: detect "fresh canvas" (e.g., `data-duo-just-created` attribute set by the new-file commit handler, or the existing first-mount check) and on the iframe ready event, find the LAST block-level child of `<main>` (or `<body>` if no main) and place the caret at offset 0 of its content (or end if it has content).
+
+For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. Caret at offset 0 of that `<p>` = inside the empty paragraph below the heading. ✓
+
+**Affected files (estimated):**
+- `renderer/components/Page/PageTab.tsx` — likely where initial focus is wired (handleReady hook).
+- `renderer/components/Page/RenderedPage.tsx` — possibly the iframe load handler.
+- `shared/html-boilerplate.ts` — could optionally stamp a `data-duo-just-created` attr on the empty `<p>` for clean detection (or use position-based logic).
+
+**Out of scope:** existing canvases (where the user opens a previously-saved .html) — they get whatever the prior saved cursor state was, OR offset 0 of body if no saved state. This ENH is specifically about the *fresh* canvas path.
+
+**Cross-ref:** BUG-070 (cursor-doesn't-land-on-fresh-canvas — different bug, fixed v0.6.4 via about:blank guard; that fix made the caret LAND, this ENH refines WHERE it lands). `shared/html-boilerplate.ts` (the boilerplate shape this design assumes).
+
+---
+
+### ENH-092: Playground state + DOM-reactivity primitives (load-bearing for ENH-043 meta-initiative)
+
+**Status:** 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground architecture decomposition).
+**Priority:** High (load-bearing for ENH-043; without this, playground primitives can only fire one-shot host actions, not drive interactive pages).
+**Filed:** 2026-05-04.
+
+**Problem.** Playground vocabulary today is "click → fire one structured action to host." That covers `claude:spawn`/`terminal:send`/`browser:open`/etc. — but doesn't cover the DOM-side state + reactivity that any non-trivial interactive page needs (smoke walks, sprint-plan worksheets, retros, lesson progress trackers, agent dashboards). Today every such page reverts to custom inline JS, defeating the point of the primitive layer.
+
+**New verbs (all run page-side, no host round-trip):**
+
+**State (localStorage-backed, page-scoped key auto-derived from URL hash + path):**
+- `state:save` — `data-key="..."` writes the current form state (or a single value via `data-value="..."`) to localStorage under the page-scoped key.
+- `state:restore` — explicit restore (rare; usually auto-runs on page load via a `data-restore-on-load` directive).
+- `state:set` — `data-key="..." data-value="..."` sets a named value.
+- `state:get` — `data-key="..." data-target-attr="value"` reads a named value, writes to a target element's attr.
+- `state:wipe` — clears all state under the page key. Used by "Clear saved" buttons.
+
+**DOM reactivity (declarative bindings, no JS):**
+- `data-bind-class="<input-name>:<class-template>"` on any element — the element's class is recomputed when the named input changes. Template syntax: `is-{value}` produces `is-pass` / `is-fail` / `is-skip` from radio values. Replaces the smoke walk's `tally()` per-card class swap.
+- `data-bind-text="<expression>"` — element's text content is recomputed when referenced inputs change. Expression supports basic counts: `count(items, where=result==pass)`. Powers the live tally.
+- `data-bulk-set="<input-name>:<value>"` on a button — clicking sets every input matching `<input-name>` to `<value>`. Replaces "Mark all PASS."
+
+**Implementation surface (estimated):**
+- `shared/host-api.ts` — extend `PlaygroundAction` discriminated union (or carve out a new `PlaygroundDomDirective` parallel — TBD per design pass).
+- `renderer/components/Page/playgroundActions.ts` — extend the listener registry. State verbs go through localStorage directly (no host round-trip). DOM-bind directives are listener-installed at runtime.
+- `shared/types.ts` — type updates if new IPC channels.
+- `cli/duo.ts` — none (these are page-side, not CLI-driven).
+- `skill/playground-interaction.md` (or new sibling) — document the new verbs.
+- `agents/duo.md` cheat-sheet — entries for any agent-relevant new verbs.
+- New unit tests if any pure-function shape (e.g. expression parser).
+
+**Effort estimate:** 1–2 sprints. Real architectural work + careful API design (the verb names + payload shapes are user-facing once shipped).
+
+**Cross-ref:** ENH-043 (the meta-initiative this enables). ENH-093 (composition + clipboard — the next layer up). ENH-094 (browser-pane runtime injection — the third leg). Stage 27 (the canvas-authoring vocabulary this extends).
+
+---
+
+### ENH-093: Playground composition + clipboard primitives (load-bearing for ENH-043)
+
+**Status:** 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground architecture decomposition).
+**Priority:** High (load-bearing for ENH-043).
+**Filed:** 2026-05-04.
+
+**Problem.** Even with state + DOM reactivity (ENH-092), playground pages have no way to gather form state into a structured result and copy it to clipboard or send it to Claude. Smoke walks are the canonical case — at the end of a walk, the user clicks "Copy results" and gets a formatted text payload (header + per-item PASS/FAIL with notes + summary + optional misc-notes block). Today this is custom JS inside `worksheet/generate.mjs`. After ENH-093 it becomes a declarative recipe.
+
+**New verbs:**
+
+**Composition:**
+- `compose:result` — `data-format="..."` walks the page's form state into a structured payload using a format directive. Format directives reference named inputs via `{<name>}` and array iteration via `{#items}...{/items}`. Output is a single string (markdown-flavored by default). Reusable across smoke walks, sprint-plan worksheets, retros.
+- `compose:json` — same walk, but output is JSON. For agent-driven downstream consumers.
+
+**Clipboard + send:**
+- `clipboard:copy` — `data-text="..."` (literal) or `data-from-compose="..."` (reference a `compose:*` directive id) writes payload to clipboard via `navigator.clipboard.writeText`. Page-side; no host round-trip.
+- `host:send-to-claude` — `data-from-compose="..."` routes the payload through `window.duoSendResult` (FOLLOWUP-007 binding) with clipboard fallback. This IS a host round-trip but is page-initiated.
+
+**Format-directive design questions (decide during implementation):**
+- Templating syntax — `{name}` simple substitution + `{#section}…{/section}` block iteration is enough for smoke walks. No conditionals / arithmetic in v1. Slippery slope.
+- How to reference a directive — `id="result"` on the `compose:result` element + `data-from-compose="result"` on the consumer. Or implicit chaining if there's only one composition per page.
+- Serialization shape — markdown by default; JSON via `compose:json` opt-in.
+
+**Implementation surface:**
+- `renderer/components/Page/playgroundActions.ts` — extend handler registry. Composition runs page-side (walk DOM → format string). Clipboard hits browser API. `host:send-to-claude` calls the existing `window.duoSendResult` binding (or its CDP fallback).
+- `shared/host-api.ts` — `PlaygroundAction` union extension.
+- `skill/playground-interaction.md` — document the format directive syntax.
+- Skill docs reference how to author each verb.
+
+**Effort estimate:** 1 sprint after ENH-092 ships.
+
+**Cross-ref:** ENH-043 (meta). ENH-092 (depends on state + DOM). FOLLOWUP-007 (the `duoSendResult` binding this consumes; FOLLOWUP-007 should ship before or with ENH-093).
+
+---
+
+### ENH-094: Inject the playground runtime into browser-pane pages via CDP
+
+**Status:** 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground architecture decomposition).
+**Priority:** High (third leg of the ENH-043 meta-initiative — without this, playground primitives stay canvas-tab-only).
+**Filed:** 2026-05-04.
+
+**Problem.** The playground action runtime (`installPlaygroundActions(doc, opts)`) lives in the canvas iframe's `contentDocument` — it doesn't reach browser-pane pages. Smoke walks (and any worksheet that needs `<script>` execution privileges Chromium grants browser tabs but not canvas iframes) are hosted in browser tabs, so they can't access the playground vocabulary today. With ENH-092 + ENH-093 the verbs exist; this ENH puts them in scope for browser-pane pages.
+
+**Mechanism.** Mirror the proven pattern of CDP-injected page-side runtimes:
+- `SELECTION_OBSERVER_IIFE` (Send → Duo pill, Stage 15.2 — already shipped)
+- `PATH_LINK_FORWARDER_IIFE` (`data-duo-path` clicks, ENH-039 — already shipped)
+- `BROWSER_SEND_TO_DUO_BINDING` (Send → Duo pill click, BUG-006 v2 — already shipped)
+
+New: `PLAYGROUND_RUNTIME_IIFE` injected on every CDP attach + on `Page.frameNavigated`. The IIFE installs the same delegated-click listener for `data-action="*"` that `installPlaygroundActions` does in the canvas runtime, and routes actions through a `Runtime.binding` (`duoPlaygroundAction(actionPayload)`) back to main, where `BrowserManager` forwards to the renderer over `IPC.PLAYGROUND_ACTION`. Renderer dispatches via `onPlaygroundAction` (the existing handler). Identical contract to the canvas-side runtime; only the delivery channel differs.
+
+**Affected files (estimated):**
+- `electron/cdp-bridge.ts` — new `PLAYGROUND_RUNTIME_IIFE` constant + `Runtime.addBinding('duoPlaygroundAction')` + `Runtime.bindingCalled` handler that emits to a single browser-side listener.
+- `electron/browser-manager.ts` — wire the listener to `IPC.PLAYGROUND_ACTION`.
+- `shared/types.ts` — IPC channel addition.
+- `electron/preload.ts` — minimal pass-through if the renderer doesn't already subscribe via existing channels.
+- `renderer/App.tsx` (or wherever browser-pane page hosts integrate) — connect the IPC channel to the existing `onPlaygroundAction` dispatcher used by canvas pages. ONE handler should serve both panes.
+
+**Trust gate (cross-cuts ENH-094 + Stage 23 trust model):** Stage 23 limits canvas-action firing to files under `~/.claude/duo/` (path-restricted trust). For browser-pane pages, the same trust check needs to apply — only file:// URLs under trusted paths fire playground actions; arbitrary http(s) sites stay inert. Re-use the existing `isPathTrusted` check.
+
+**Effort estimate:** ~1 sprint (CDP injection + IPC plumbing + trust check + browser-pane test surface).
+
+**Cross-ref:** ENH-043 (meta). ENH-092 + ENH-093 (the verbs this exposes to browser pages). Stage 23 (canvas action vocabulary + trust model). Stage 15.2 / ENH-039 / BUG-006 (CDP injection precedents).
 
 ---
 

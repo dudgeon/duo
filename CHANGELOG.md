@@ -470,7 +470,7 @@ The "auto-update + session restore" release. Closes [issue #24](https://github.c
 
 ### Changed
 
-- `docs/roadmap.html` + `ROADMAP.md` snapshot bar updated to "post-v0.4.1, post-Stage-21" with v0.4.1 sandbox-resilience headline; Stage 21 status section flipped from "remaining work is mechanical" to "✅ shipped 2026-04-27" with the iCloud File Provider root cause documented inline.
+- `docs/roadmap.html` + `docs/roadmap.html` snapshot bar updated to "post-v0.4.1, post-Stage-21" with v0.4.1 sandbox-resilience headline; Stage 21 status section flipped from "remaining work is mechanical" to "✅ shipped 2026-04-27" with the iCloud File Provider root cause documented inline.
 
 ### Known issues at v0.4.2
 

@@ -180,21 +180,75 @@ that are NOT yet running in the dev, do all the restarts BEFORE
 calling Step 4 done. The user's first click on the smoke walk
 page is the cutoff.
 
-```bash
-ps aux | grep -i "[D]uo.app/Contents/MacOS/Duo\|[e]lectron" | head -3
-```
+> **HARD RULE — check for an existing `npm run dev` BEFORE
+> spawning a new one. Never run two dev servers at once.**
+>
+> Each `npm run dev` invocation spawns its OWN electron-vite, which
+> spawns its OWN Electron. The two trees are *not equivalent* —
+> they were compiled at different timestamps so their MAIN-process
+> bundles diverge (HMR only touches the renderer). With two
+> Electrons running you also have two competing socket binds and
+> ambiguous routing for `duo` CLI commands. The user sees two app
+> icons in the Dock and (correctly) demands an explanation.
+>
+> Before any `npm run dev` decision, run THIS exact probe:
+>
+> ```bash
+> ps -ef | grep "MacOS/Electron \." | grep -v grep | awk '{print $2}'
+> ```
+>
+> Interpret:
+> - **Zero matches:** nothing running. Spawn `npm run dev` in
+>   background.
+> - **Exactly one match:** an existing dev (or packed app) is
+>   already live. **DO NOT spawn another.** Adopt it. Renderer
+>   changes you've already made are HMR'd in. If you have
+>   uncommitted main-process changes (`electron/`, `core/`,
+>   `shared/host-api.ts`, `shared/html-boilerplate.ts`, anything
+>   imported from `electron/main.ts`), warn the user and ask whether
+>   to restart that single Electron — DO NOT silently kill it, and
+>   DO NOT add a parallel one. (Mid-walk restart still requires the
+>   "lose textarea contents" warning below.)
+> - **Two or more matches:** you (or a prior session) already
+>   spawned a duplicate. Stop. Tell the user, name the PIDs, ask
+>   which one to keep. Killing one without checking risks killing
+>   their workspace.
+>
+> Violated 2026-05-04: two Electrons running in parallel because the
+> agent ran `npm run dev` without checking. Geoff (rightly) flagged
+> it as procedure failure. Read this section before EVERY pre-flight.
+>
+> **Socket-cleanup gotcha (also 2026-05-04):** when you do find a
+> duplicate and kill the wrong one (or even the right one), the
+> socket file at `~/Library/Application Support/duo/duo.sock` may
+> get unlinked as part of either Electron's cleanup — even though
+> the OTHER Electron is still alive and was the original binder.
+> Symptom: `duo open` and other CLI verbs return *"Duo app is not
+> running"* even though `ps` shows the process is alive. The fix
+> is a restart: kill the surviving Electron and start fresh so the
+> socket-server binds a clean path. Don't try to "rescue" a
+> broken-socket Electron — restart is faster and more reliable.
 
-- **If a packed `.app` is running** (path contains `dist/mac-arm64/`
-  or `/Applications/Duo.app`), tell the user once: *"Quitting the
+**Action paths after the probe:**
+
+- **A packed `.app` is running** (path contains `dist/mac-arm64/`
+  or `/Applications/Duo.app`): tell the user once: *"Quitting the
   packed app and starting dev — your shipped code isn't live in
   the running build. The smoke page will reload when dev comes
   up."* Then: kill the packed app politely (`osascript -e 'quit
   app "Duo"'`) OR ask the user to quit it via ⌘Q if you don't have
   computer-use access. Do NOT proceed until it's gone — two Duo
   instances fighting over the socket is worse than no Duo.
-- **If nothing's running**, just start `npm run dev` straight away.
-- Either way: launch via Bash with `run_in_background: true`. Don't
-  poll for output — the dev server takes 3–6s to boot.
+- **Existing dev is running, no main-process changes pending**:
+  adopt it as-is. Renderer changes are already HMR'd in.
+- **Existing dev is running, main-process changes pending**:
+  warn the user (one line: "I have main-process changes that need a
+  restart for X / Y / Z; OK to restart Duo? No walk is in progress
+  so no walk-notes will be lost."), wait for explicit yes, then
+  restart that single Electron. Don't add a parallel one.
+- **Nothing running**: launch `npm run dev` via Bash with
+  `run_in_background: true`. Don't poll for output — the dev
+  server takes 3–6s to boot.
 
 After kicking it off, wait one cache-window (~270s if you have
 nothing else to do, or ~10s plus a `duo nav-state` probe to
@@ -206,7 +260,7 @@ server's stderr to the user — something else is wrong (port in
 use, missing dependency, sandbox refusal). Don't keep silently
 retrying.
 
-### 5. Open the smoke walk page in Duo's browser pane AND bring focus to it
+### 5. Open the smoke walk page in Duo's browser pane AND bring focus to it BEFORE you ask the user to walk it
 
 ```bash
 duo open docs/dev/smoke-walks/v<VERSION>.html
@@ -218,29 +272,35 @@ it as a browser tab. **Browser pane is required** — the page uses
 sandboxes (no `allow-scripts`). Browser tabs are full Chromium,
 which has clipboard access on user-gesture click events.
 
-**Important — until ENH-036 lands:** `duo open` adds the browser
-tab and marks it `isActive: true` in the browser-tab list, but it
-does NOT flip the WorkingPane's `activeWorking.kind` to `'browser'`
-when the user is currently on a canvas / file tab. The new tab
-will be present-but-hidden behind the canvas surface, and the user
-sees no change after running the command.
+**ENH-036 (shipped v0.6.4):** `duo open` now auto-focuses the new
+browser tab — flipping the WorkingPane to `activeWorking.kind === 'browser'`
+even when the user was on a canvas / file tab. The expected
+post-`duo open` state is "the smoke walk page is the visible tab
+in the browser pane," not "tab is open but hidden."
 
-Mitigation while ENH-036 is open: explicitly tell the user where
-to click, with the tab title verbatim:
+**HARD RULE — verify the page is the active visible tab before
+asking the user to walk it.** Don't hand off and assume; check.
+After `duo open`, run:
 
-> The smoke walk page is open as a browser tab titled
-> **"Smoke walk v<VERSION>"**. Click that tab in the working-pane
-> tab strip — it may be at the right end of the strip and require
-> scrolling — to bring it forward. Then mark each item Pass / Fail
-> and click "Copy results" at the bottom.
+```bash
+duo url
+duo title
+```
 
-Don't merely say "open in the browser pane." A user on the canvas
-side gets a confused-no-op feel; "the smoke walk tab is **named
-Smoke walk v<VERSION>** — click it" is what removes the ambiguity.
+`duo url` returns the URL of the currently-active browser tab;
+`duo title` returns its document title. Confirm the URL matches
+the worksheet path (`file://.../v<VERSION>.html`) and the title
+matches the manifest's `title` field. If either doesn't match —
+or the command errors — the page is not focused or the bridge is
+dead. Re-issue `duo open`, or if you suspect socket trouble, fall
+back to the pre-flight probe in Step 4.
 
-When ENH-036 ships (CLI verbs auto-focus the new tab), drop the
-hand-off paragraph from this skill — the `duo open` will bring
-the page forward by itself.
+> Violated 2026-05-04: agent ran `duo open` once, then immediately
+> wrote a "smoke walk is ready, walk it" handoff message. Geoff
+> reported back that no smoke walk file was active — the prior
+> `duo open` had landed on a now-killed duplicate Electron, and the
+> agent never verified the survivor had actually accepted the open.
+> Always verify focus AFTER the open, BEFORE the handoff.
 
 ### 6. Hand off to the user
 

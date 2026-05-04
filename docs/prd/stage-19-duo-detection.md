@@ -6,7 +6,7 @@
 > first-launch installer, since installer ships first per the
 > dependency graph). **Phase 19a (env signals) shipped 2026-04-26
 > in commit `640ec0e`** (originally tagged "Stage 18 Phase 18a" in
-> the commit message — see ROADMAP.md § Number history).
+> the commit message — see the roadmap § Number history).
 > **Slot in roadmap:** Stage 19, in Layer 3 (distribution-readiness).
 > Phase 19b (passive priming) folds into **Stage 18 (first-launch
 > installer)** when both ship — they share the consent sheet. Phase

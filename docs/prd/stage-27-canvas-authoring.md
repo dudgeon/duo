@@ -1,7 +1,7 @@
 # Stage 27 PRD — Canvas authoring vocabulary + skill
 
 > **Status:** spec drafted 2026-05-01. Sprint A of the FTUX-tutorial
-> initiative. Filed in `ROADMAP.md` and `docs/roadmap.html#s27`.
+> initiative. Filed in `roadmap.html` and `docs/roadmap.html#s27`.
 >
 > **Why this stage exists.** After v0.5.5 walk-2 passed, the owner
 > deferred the cut and articulated a richer initiative: build the
@@ -465,7 +465,7 @@ For each new canvas action verb (6 of them):
 
 ## 13. Cross-refs
 
-- `ROADMAP.md` line 184 — Stage 27 entry
+- `roadmap.html` line 184 — Stage 27 entry
 - `docs/roadmap.html#s27` — Stage 27 card
 - `docs/prd/stage-23-canvas-actions.md` — TBD (Stage 23 PRD if it exists; current canvas-action vocabulary)
 - `docs/prd/stage-28-lesson-packs.md` — Sprint C consumer

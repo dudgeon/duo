@@ -20,7 +20,7 @@ and that's enough.
 ## Where the canonical "where we landed" lives
 
 These archive files are NOT specs. The spec lives in the roadmap stage
-cards (`docs/roadmap.html`, mirrored in `ROADMAP.md`). When picking up
+cards (`docs/roadmap.html`, mirrored in `roadmap.html`). When picking up
 a stage for implementation, read the stage card first. The intent-
 conversation archive answers "why was this chosen?", not "what should
 I build?"

@@ -120,6 +120,14 @@ export function htmlBoilerplate(title: string): string {
     padding: 4px 0 4px 18px;
     color: var(--ink-mute);
   }
+  /* BUG-073 — marker-aware bullet styling. The markdown trigger
+     stamps data-list-marker="dash" / "plus" / "asterisk" on <ul>
+     based on the typed character; CSS3 list-style-type accepts a
+     string literal which Chromium + WebKit have shipped for years.
+     The asterisk marker falls through to default disc (no rule),
+     matching Markdown's most-conventional rendering. */
+  ul[data-list-marker="dash"] { list-style-type: '\\2013\\00a0\\00a0'; }
+  ul[data-list-marker="plus"] { list-style-type: '+\\00a0\\00a0'; }
   hr { border: none; border-top: 1px solid var(--paper-deep); margin: 32px 0; }
 </style>
 </head>

@@ -14,7 +14,7 @@
 > brief's product framing ("a tool for PMs using Claude Code at Capital
 > One") differs from the vision doc, the vision doc wins.
 
-> This is the full vision brief. For current build state see [ROADMAP.md](ROADMAP.md). For architecture decisions see [docs/DECISIONS.md](docs/DECISIONS.md). For first-time setup see [docs/FIRST-RUN.md](docs/FIRST-RUN.md). Brainstem.cc / MCP integration mentioned in §3, §8 is a future aspiration — the shipping Skills panel (Stage 4) is CWD-scan only.
+> This is the full vision brief. For current build state see [the roadmap](docs/roadmap.html). For architecture decisions see [docs/DECISIONS.md](docs/DECISIONS.md). For first-time setup see [docs/FIRST-RUN.md](docs/FIRST-RUN.md). Brainstem.cc / MCP integration mentioned in §3, §8 is a future aspiration — the shipping Skills panel (Stage 4) is CWD-scan only.
 
 -----
 

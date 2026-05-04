@@ -366,6 +366,6 @@ claude "summarize the page open in my browser"
 
 ## What comes next
 
-See [ROADMAP.md](../ROADMAP.md) for the current stage status and the
+See [the roadmap](roadmap.html) for the current stage status and the
 unscheduled backlog (reader mode, markdown editor, browser tab
 numbers, terminal selection improvements, file navigator).

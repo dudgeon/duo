@@ -1,6 +1,6 @@
 # Duo — Vision
 
-> The product north star. For engineering state see [ROADMAP.md](../ROADMAP.md),
+> The product north star. For engineering state see [the roadmap](roadmap.html),
 > for locked architectural choices see [DECISIONS.md](DECISIONS.md), for the
 > original engineering brief (historical) see [duo-brief.md](../duo-brief.md).
 
@@ -146,7 +146,7 @@ experience.
 ## Supporting capabilities
 
 Ordered by how directly each one serves the primary persona. Some are shipped
-(Stages 1–5); some are aspirational. See [ROADMAP.md](../ROADMAP.md) for
+(Stages 1–5); some are aspirational. See [the roadmap](roadmap.html) for
 status.
 
 ### Agent ↔ browser pair
@@ -248,7 +248,7 @@ smoothing is additive, never a cage.
   persona) rather than with the terminal-plus-browser technical pitch.
   Install/quickstart/CLI reference remain.
 
-- [`ROADMAP.md`](../ROADMAP.md) and [`DECISIONS.md`](DECISIONS.md) continue
+- [the roadmap](roadmap.html) and [`DECISIONS.md`](DECISIONS.md) continue
   to be the source of truth for what is built and why. Aspirational items
   named in this document are tracked there (or belong in the backlog if not
   yet) — this document does not commit to dates.

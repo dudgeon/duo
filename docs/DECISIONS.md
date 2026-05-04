@@ -4,7 +4,7 @@
 > implementation notes, and records any decisions made during build.
 >
 > **Where this fits:** stage-level sequencing lives in
-> [ROADMAP.md](../ROADMAP.md). This file is the *architectural-decision*
+> [the roadmap](roadmap.html). This file is the *architectural-decision*
 > truth — choices that bind across stages. Each stage's PRD in
 > [docs/prd/](prd/) cross-references the relevant ADRs.
 
@@ -730,7 +730,7 @@ remains documentation-only.
 install-path + settings fragment work; Stage 21 (distribution polish)
 for any cert-gated pieces. Skill-docs portion is cheap and can land
 before the flagship pair; transport + install changes land with the
- Stage 18 / Stage 21 sequence (split 2026-04-26 — see ROADMAP.md).
+ Stage 18 / Stage 21 sequence (split 2026-04-26 — see the roadmap).
 
 **Problem statement.** Claude Code runs each Bash tool invocation inside
 a macOS Seatbelt-based sandbox. Enterprise deployments (e.g. Capital

@@ -10,7 +10,7 @@
 > chrome). The other primitives originally clustered as 15a–f are
 > backlog; ship them when convenient.
 > **References:**
-> - [ROADMAP.md § Stage 15](../../ROADMAP.md) — slot in build order +
+> - [the roadmap § Stage 15](../roadmap.html) — slot in build order +
 >   layered dependencies
 > - [docs/VISION.md](../VISION.md) — collaboration as the flagship bet
 > - [docs/CLI-COVERAGE.md § Browser observability](../CLI-COVERAGE.md) —

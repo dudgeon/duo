@@ -19,10 +19,31 @@
 
 import type { BlockKind } from '../editor/EditorActions'
 
+// BUG-072 root cause (v0.6.5 Phase 5 walk) — `MAIN`, `ARTICLE`, and
+// `SECTION` were missing here. The boilerplate produces
+// `<body><main><h1></h1><p></p></main></body>` and the user's caret
+// can leak out of the `<p>` mid-edit (Chromium contentEditable
+// quirks: list-exit creates `<div>`, blockquote toggle wraps, etc.).
+// When the leaked content sits as a `<span>` directly inside `<main>`,
+// `findBlockAncestor` walked all the way up to `<body>` because none
+// of `[P, H1-6, BLOCKQUOTE, PRE, LI, DIV]` matched. The matcher then
+// tested `body.textContent` (the WHOLE document) against `^>\s$` etc.
+// — which never matched, so triggers silently dropped. Adding `MAIN`
+// stops the walk at the section root and the trigger sees a
+// reasonable text scope. ARTICLE + SECTION added defensively for the
+// same class of hand-authored HTML the user might paste in.
 const BLOCK_TAGS = new Set([
   'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
-  'BLOCKQUOTE', 'PRE', 'LI', 'DIV'
+  'BLOCKQUOTE', 'PRE', 'LI', 'DIV',
+  'MAIN', 'ARTICLE', 'SECTION'
 ])
+
+/** BUG-072 regression anchor — exposed so unit tests can assert the
+ *  block-tag membership without round-tripping through a real DOM.
+ *  Pure function; no Document dependency. */
+export function isBlockTag(tagName: string): boolean {
+  return BLOCK_TAGS.has(tagName)
+}
 
 // ── State queries ──────────────────────────────────────────────────────────
 

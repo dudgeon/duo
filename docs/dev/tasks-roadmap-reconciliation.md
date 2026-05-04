@@ -12,12 +12,12 @@ independently:
 | Artifact | Shape | Strengths | Drift risk |
 |---|---|---|---|
 | `tasks.md` | Flat numbered ledger of `BUG-*`/`ENH-*`/`MISSING-*`/`PROCESS-*`/`FOLLOWUP-*` entries with root-cause writeups | Optimized for "search by symptom or fix family"; recurring-class bugs (BUG-038's 5 instances) live in one place | Items can become stale once the underlying stage ships |
-| `docs/roadmap.html` (canonical) + `ROADMAP.md` (synced grep view) | Stage-numbered plan, nested checklists for sub-phases | Optimized for "what stage are we in, what's next"; multi-PR scope; forward-looking | Bug-class details get crammed into stage prose; small ENHs get filed in tasks but never linked back |
+| `docs/roadmap.html` (canonical) + `roadmap.html` (synced grep view) | Stage-numbered plan, nested checklists for sub-phases | Optimized for "what stage are we in, what's next"; multi-PR scope; forward-looking | Bug-class details get crammed into stage prose; small ENHs get filed in tasks but never linked back |
 | `CHANGELOG.md` | Semver-versioned what-shipped | Canonical version inventory | Doesn't carry "why it broke / what we learned" |
 | `docs/RELEASES.md` | Per-version prose | Release-note voice | Doesn't carry forward-looking context |
 | `docs/dev/session-log.md` | Session-by-session prose | Captures sequencing + decisions in real time | Not indexed; doesn't replace forward planning |
 
-The first two — `tasks.md` and `roadmap.html`/`ROADMAP.md` — are
+The first two — `tasks.md` and `roadmap.html`/`roadmap.html` — are
 the ones that overlap and drift. Examples of the drift today:
 
 1. **ENH-027** filed in `tasks.md`. Referenced in Stage 17e of both
@@ -30,7 +30,7 @@ the ones that overlap and drift. Examples of the drift today:
    alone wouldn't know "⌃Tab cycle has been a tar pit."
 3. **Roadmap "Backlog rough cuts"** (e.g. *Tab numbers in unified
    strip*, *`duo reload`* CLI verb, *Pane-aware ⌘+/- zoom*) are
-   `- [ ]` checklist items in `ROADMAP.md` with no corresponding
+   `- [ ]` checklist items in `roadmap.html` with no corresponding
    `ENH-*` ID. They're effectively shadow tasks — when an agent
    asks "what's open?" via a tasks.md grep, these don't appear.
 4. **Stage 14a** (markdown editor's CommentRail binding) is
@@ -70,7 +70,7 @@ existing `**Status:**` and `**Priority:**` fields:
 **Status:** 🆕 Filed · held until Stage 17e
 **Priority:** Medium-High
 **Filed:** 2026-04-30
-**Stage:** [Stage 17e — Polish + scripts + source view](../ROADMAP.md#phase-17e--polish--scripts--source-view-2-prs)
+**Stage:** [Stage 17e — Polish + scripts + source view](../roadmap.html#phase-17e--polish--scripts--source-view-2-prs)
 ```
 
 When the work is a free-floating ENH/BUG with no obvious stage
@@ -90,7 +90,7 @@ section with the same list.
 
 ### B. Promote shadow tasks to typed IDs
 
-Walk through `ROADMAP.md`'s checklist items (`- [ ]` lines under
+Walk through `roadmap.html`'s checklist items (`- [ ]` lines under
 backlog headings, deferred-from-stage notes) and decide for each:
 
 - **Discrete actionable** (specific bug, specific small ENH)
@@ -128,14 +128,14 @@ Two-paragraph addition under "Working style," roughly:
 > file it in `tasks.md` as a `BUG-XXX` / `ENH-XXX` entry with
 > root cause + repro. If the work belongs to a roadmap stage,
 > add a `**Stage:**` field linking to that stage AND update the
-> stage's "Linked items" footer in `ROADMAP.md` (and the matching
+> stage's "Linked items" footer in `roadmap.html` (and the matching
 > HTML card if you're touching `docs/roadmap.html`). Stage-level
 > work (multi-PR scope, new surface, locked decision) stays in
 > the roadmap as the canonical source; bug-class detail stays in
 > `tasks.md`. The two cross-reference each other.
 >
 > **Avoid shadow tasks.** Don't park action items as bare `- [ ]`
-> lines in `ROADMAP.md` without a `BUG-*`/`ENH-*` ID — those
+> lines in `roadmap.html` without a `BUG-*`/`ENH-*` ID — those
 > entries are invisible to `grep "Status:"` and stale fast.
 > Promote each line either into the parent stage's spec (if it's
 > stage-scope detail) or into `tasks.md` (if it's a discrete
@@ -146,8 +146,8 @@ Two-paragraph addition under "Working style," roughly:
 A small `scripts/check-tasks-roadmap-sync.mjs` that:
 
 - Scans `tasks.md` for `**Stage:**` references and confirms each
-  cited stage exists in `ROADMAP.md` and links back.
-- Scans `ROADMAP.md` "Linked items" lists and confirms each cited
+  cited stage exists in `roadmap.html` and links back.
+- Scans `roadmap.html` "Linked items" lists and confirms each cited
   ID exists in `tasks.md`.
 - Flags any `tasks.md` entry that references a stage by prose
   (e.g. "see Stage 17e") but doesn't have the structured field.
