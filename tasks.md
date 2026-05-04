@@ -4975,29 +4975,93 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 
 ---
 
-### BUG-081: HTML canvas Comment button no longer appears on text selection (regression)
+### BUG-081: HTML canvas Comment button gated on Claude session — and the entire hover-pill UX is wrong
 
-**Status:** 🔴 **Regression — IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 first item)
-**Priority:** **High** (regresses Stage 17d-A shipped ~v0.3.1; comments on canvas are a documented capability per `help/what-duo-does.html § Have Claude leave or list comments` and `make-page.md`. Owner couldn't find them in the app 2026-05-04.)
-**Filed:** 2026-05-04 (v0.6.6 pre-cut investigation; owner asked "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app; what happened?" Confirmed: canvas regressed; markdown editor never shipped — see MISSING-001).
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 first item). Reframed 2026-05-04 evening after owner investigation.
+**Priority:** **High** — root cause identified + the planned fix is a UX redesign (drop the hover-pill model entirely; replace with kb shortcut + right-click + toolbar button).
+**Filed:** 2026-05-04 (v0.6.6 pre-cut investigation). Reframed same day after owner found the gate + told us the hover-pill UX was never the right approach.
 
-**Symptom.** Open any HTML canvas (e.g. `duo html new /tmp/test.html`), select some text, expect a "💬 Comment" floating pill anchored to the selection. **It does not appear.** The Send → Duo pill DOES appear (selection-pill infrastructure is healthy); only the Comment pill is missing.
+**Root cause (identified).** [`renderer/components/Page/PageTab.tsx:1437`](renderer/components/Page/PageTab.tsx:1437):
+```tsx
+{onSendToDuo && pillRect && !newCommentAt && (
+  <>
+    <SendToDuoPill ... />
+    {!readOnly && lastCanvasSelectionRef.current?.anchorId && (
+      <CommentButton rect={pillRect} onClick={handleStartNewComment} />
+    )}
+  </>
+)}
+```
+The Comment button is rendered inside the same gate as the Send → Duo pill — and that outer gate is `onSendToDuo`, which is nullified when no Claude session is live. So when no Claude tab is open, BOTH pills hide. **Owner-confirmed**: the Comment button reappears as soon as a Claude session is active.
 
-**Where the wire-up should be.** [`renderer/components/Page/PageTab.tsx:1433-1437`](renderer/components/Page/PageTab.tsx:1433) has a comment block referencing the Stage 17d Comment button: *"floating Send → Duo pill + Stage 17d comment button. The '💬 Comment' button only shows when the user's selection has an anchor (live `data-duo-id` ancestor)."* Need to verify whether the gating (`pillRect && !newCommentAt`) condition still holds, whether the button render itself was removed, or whether some upstream prop (anchor detection / `data-duo-id` resolution) silently stopped firing.
+That's wrong on two levels: (a) the Comment button has no business being gated on Claude presence — comments don't require a Claude session, (b) the hover-pill UX itself is the wrong shape for "add a comment to selected text" anyway.
 
-**Hypotheses to probe:**
-1. **Anchor detection regressed.** The button only appears when the selection's anchor element has a live `data-duo-id`. If the v0.6.5 ENH-052 mechanical canvas → page rename touched `commentAnchors.ts` or the anchor-resolution pipeline (`renderer/components/Page/commentAnchors.ts`), it may have silently broken. Check whether `data-duo-id` is still being injected on canvas content via `idInjector.ts`.
-2. **Button render conditional changed.** PageTab.tsx line 1437 reads `{onSendToDuo && pillRect && !newCommentAt && (...)}` — visible to me as the Send→Duo render. The Comment button render needs verification — may have been accidentally gated on a stale prop / removed during a sweep.
-3. **Selection-anchor-id resolution.** `pageSelection.ts` resolves the selection to an anchor id; if the page kind got renamed (`'html-canvas'` → `'page'`) but the anchor-resolver's checks still reference the old kind anywhere, it could silently return null.
+**Owner direction (UX redesign).** Drop the hover-pill model for Comment entirely. Replace with three discoverable affordances, mirroring Google Docs:
+
+1. **Keyboard shortcut.** Use what Google Docs uses — **⌘⌥M** (`Cmd+Option+M`) on Mac. Adds a comment anchored to the current selection; opens the composer immediately.
+2. **Context-click on text.** Right-click any selection → "Comment" entry in the context menu. Same composer flow.
+3. **Toolbar button.** Permanent affordance in the canvas toolbar (next to the existing chrome). Click → comment on current selection. If no selection, no-op or hint.
+
+The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's the right shape for that action — a quote-and-send gesture is more rare and benefits from being explicit).
+
+**What to build:**
+1. **Wire the kb shortcut.** Add `⌘⌥M` to `renderer/keyboard/globalShortcuts.ts` (the central registry). Forwarder pattern from `useKeyboardShortcuts` should reach inside the canvas iframe via the existing forwarder primitive (canvas keystrokes are already shipped through `installGlobalShortcutForwarder`). Handler calls `handleStartNewComment` if there's a selection with an anchor; no-ops otherwise.
+2. **Add the context menu entry.** Canvas already has a right-click menu via `electron-context-menu`. Add a "Comment" entry that's enabled when there's a selection with a live `data-duo-id` anchor. Same handler as kb path.
+3. **Add the toolbar button.** Look at where the canvas toolbar lives (probably `PageTab.tsx`'s sidecar / chrome row). New "💬 Comment" button — enabled-state mirrors selection presence. No floating pill.
+4. **Remove the hover Comment pill.** Delete the `<CommentButton rect={pillRect} ...>` render at PageTab.tsx:1444 and the `CommentButton` primitive if nothing else uses it. Send → Duo pill stays.
+
+**Editor-canvas parity disposition (per CLAUDE.md § 4 rule):** **(c) Deferred** — markdown-editor side blocks on MISSING-001 / Stage 14a (the entire comment data plane is unbuilt for TipTap). Once MISSING-001 lands, the same three affordances (kb / right-click / toolbar) wire to the markdown editor's comment handler. Pair the canvas redesign with the markdown bring-up so they ship together with consistent UX.
+
+**Cross-ref:** MISSING-001 (markdown editor comments never shipped — pair). BUG-082 (comment rail doesn't restore on canvas reopen — separate persistence bug, same sprint). BUG-083 (rail visual association — separate visual gap, same sprint). BUG-024 (Send→Duo pill / Comment pill stacking — moot once the Comment pill is gone). ENH-052 (mechanical rename — innocent; not the regression source).
+
+---
+
+### BUG-082: Comment rail does not restore existing comments on canvas reopen
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6, BUG-081 family)
+**Priority:** **High** (data-loss UX — the comment is preserved on disk in the sidecar, but the rail doesn't pick it up on reopen, so the user assumes it's gone).
+**Filed:** 2026-05-04 evening (owner repro: added comment to `/tmp/p5-rewalk.html`, closed the canvas tab, reopened — comment rail was gone. Adding a new comment revealed the rail again).
+
+**Symptom.** Add a comment to a canvas. Close the canvas tab (or close + reopen Duo). Reopen the same file. The CommentRail should mount with the existing comment(s) visible. **It doesn't** — the rail is hidden. Adding a NEW comment causes the rail to appear with both old and new comments.
+
+**Likely cause.** [`renderer/components/Page/PageTab.tsx:1422`](renderer/components/Page/PageTab.tsx:1422) gates the rail on `railThreads.length > 0` (BUG-015 fix from v0.3.1). The threads list has to be initialized from sidecar storage on mount. Two suspects:
+
+1. **Sidecar load is async, but the gate is checked before it resolves.** On first mount, `sidecarRef.current.comments` is empty; the rail render-gate evaluates `false`; the rail doesn't mount. Even when the sidecar load completes and populates `sidecarRef.current.comments`, the render is using `railThreads` derived state — if that's not re-evaluating off the loaded sidecar, the rail stays hidden until something forces a re-render (like... adding a new comment, which mutates the threads list and triggers re-render).
+2. **`railThreads` is computed from `sidecarRef.current` at mount time only.** The pattern `useMemo(() => deriveThreads(sidecarRef.current), [])` (or similar with a stale dependency array) would lock in an empty list at first mount and never recompute. Need to verify the actual derivation path.
 
 **Where to look:**
-- `renderer/components/Page/PageTab.tsx` — the pill render block; verify Comment button still renders and what conditions gate it.
-- `renderer/components/Page/commentAnchors.ts` — anchor-detection logic.
-- `renderer/components/Page/pageSelection.ts` — selection → anchor resolution.
-- `renderer/components/Page/idInjector.ts` — `data-duo-id` injection on canvas content.
-- Recent commits since Stage 17d-A — bisect across the canvas → page rename (ENH-052) and any subsequent canvas refactor.
+- `renderer/components/Page/PageTab.tsx` — find `railThreads` definition and its dependencies.
+- `renderer/components/Page/sidecar.ts` — the sidecar load path; when does it resolve relative to the rail render?
+- `renderer/components/Page/commentAnchors.ts` — the anchor-resolution path that may also need to fire on load.
 
-**Cross-ref:** MISSING-001 (markdown editor never shipped — separate but related); ENH-052 (the mechanical rename that's a likely regression suspect); BUG-024 (the Comment-occludes-Send→Duo fix from v0.4.3 — may have a stacking-order rule that hides the Comment button if some condition is wrong).
+**Smoke verification (post-fix):** add 2 comments, close tab, reopen — both should be in the rail without any further action.
+
+**Cross-ref:** BUG-081 (sibling — discovered in same investigation). BUG-083 (rail visual association). BUG-015 (the original "hide rail when empty" fix that may have over-correlated rail visibility with thread count).
+
+---
+
+### BUG-083: Comments in rail have no visual association with the text they comment on
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6, BUG-081 family)
+**Priority:** **High** (UX cohesion — a comment that doesn't visibly attach to its anchor is barely a comment; doc readers don't know what's being commented on without clicking each thread).
+**Filed:** 2026-05-04 evening (owner observation: "comments in the rail land with no association with the text that they are a comment _for_").
+
+**Symptom.** Comments in the rail show their body + metadata, but nothing in the canvas body indicates *which text* the comment anchors to. Compare with Google Docs: an anchored comment highlights the source text (yellow underline / shaded background) and clicking the comment scrolls the document to the anchor (and vice versa — clicking the highlighted text focuses the matching comment thread).
+
+**What's missing:**
+1. **Anchor decoration in the canvas body.** The text spanned by the comment's `data-duo-comment-id` anchor should render with a visual indicator (subtle highlight / underline / left-rail tick — pick one). Today there's no decoration; comments float disembodied in the rail.
+2. **Bidirectional click-to-locate.** Clicking a thread in the rail should scroll the canvas to its anchor (probably already wired via `onJumpTo`). Clicking the anchor's highlighted text should focus the corresponding thread in the rail (probably not wired — same `onJumpTo` callback in reverse).
+3. **Active-thread indication.** When a thread is focused (rail-side or canvas-side), the linked anchor should highlight more strongly — Google Docs' "this is the one we're looking at" affordance.
+
+**Where to look:**
+- `renderer/components/Page/commentAnchors.ts` — anchor-resolution; does it stamp a visible class on the anchor element today?
+- `renderer/components/Page/PageTab.tsx` — `handleJumpToThread`; wire the click-anchor → focus-thread direction too.
+- `renderer/styles/globals.css` — comment-anchor styling. Should probably be a small CSS rule using `[data-duo-comment-id]` attribute selector.
+- `renderer/components/editor/primitives/CommentRail.tsx` — passing through the active-thread highlight to thread cards.
+
+**Editor-canvas parity disposition:** **(c) Deferred** — markdown-editor side blocks on MISSING-001 / Stage 14a; same visual contract should apply once it lands.
+
+**Cross-ref:** BUG-081 (sibling). BUG-082 (sibling — persistence). MISSING-001 (markdown side — apply same visual contract there).
 
 ---
 
