@@ -18,6 +18,40 @@
 
 ---
 
+## 2026-05-04 (Sprint 6 implementation) — comments are real and visible (canvas + markdown) · ⌘R fix · external-write reconciliation · two smoke-walk rounds
+
+**Status: Sprint 6 implementation complete, NOT cut-ready until rev3 walk passes.** All four planned phases + two mid-sprint bug additions shipped; the rev1 + rev2 smoke walks each surfaced new bugs that mid-sprint fixes addressed but the SAME walk procedure couldn't validate cleanly without follow-up fixes (procedural BUG-086, BUG-091, worksheet-promotion-to-canvas issue).
+
+**Phases (all ✅ implementation; full validation pending rev3 walk):**
+
+1. **Phase 1 — BUG-082** (rail restoration on canvas reopen, commit `db94369`). Root cause: `builtThreads` useMemo's `[threadsTick, getDoc]` deps were only bumped by user mutations, never by the async sidecar-load OR iframe-ready paths. Fix: bump tick from both async resolutions.
+
+2. **Phase 2 — BUG-081** (canvas Comment UX redesign, commit `0dcbd65`). Replaced the hover Comment pill with three discoverable affordances: toolbar 💬 button + ⌘⌥M (`'startComment'` ShortcutId) + right-click "Comment" entry. Plumbed via `EditorActions.startComment`/`canStartComment`, `IPC.PAGE_COMMENT_REQUEST`, and a renderer-side bridge in App.tsx. ⌘⌥M had to use `e.code === 'KeyM'` because Option on macOS yields 'µ' (same gotcha as BUG-075 v2 / Slash).
+
+3. **Phase 3 — BUG-083** (visual association + click-to-focus + active emphasis, commit `b248589`). New `data-duo-has-comment` + `data-duo-comment-active` attributes stamped by `paintAnchors`, iframe-side stylesheet via `installCommentAnchorStyles` (also fixed: badge styles never reached the iframe before — silent bug), bidirectional click-to-focus via `installAnchorClickListener`, serializer strips both attrs.
+
+4. **Phase 4 — MISSING-001 / Stage 14a** (markdown editor comments — full TipTap data plane, commit `ea1e828`). New `CommentMark` extension with `commentId` attribute, sidecar persistence at `<file>.md.duo.json`, re-anchor on file load via excerpt + context match (PM-position → textContent-offset mapping bridges the position-vs-character mismatch — naive PM `textBetween` for context produced overlapping slices that broke find on reopen). Three affordances reused. `NewCommentComposer` extracted into shared primitive used by both surfaces. CSS in `globals.css` mirrors the canvas anchor decoration.
+
+5. **BUG-084 — ⌘R reload (mid-sprint addition, commits `22855d9` + `c4ae04e`).** Removed Reload + Force Reload from the View menu (was destroying every terminal/working/canvas tab in one keystroke). Wired ⌘R as `'reloadBrowserTab'` ShortcutId — gated to only fire when `activeWorking.kind === 'browser'`. Forwarder in `browser-manager.ts` updated to let ⌘R reach the renderer matcher even when a WebContentsView has focus.
+
+6. **BUG-085 — Markdown editor external-write reconciliation (mid-sprint addition, commit `a4c56dc`).** File watcher subscribes via `files.watch`. Clean buffer → silent reload + advance baseline. Dirty buffer → conflict banner with Reload-from-disk / Keep-mine. Pre-save guard reads disk just before write so the autosave-vs-watcher race can't silently overwrite agent edits. Skill (`SKILL.md` + `agents/duo.md`) updated to direct agents toward `duo doc write` over `Write` for active-editor mutations.
+
+**Smoke walk findings (rev1 + rev2, both partial — full re-walk in rev3):**
+
+- **rev1** procedural failure (BUG-086): smoke-walk page rendered as canvas instead of browser, blocking Copy buttons. Owner pasted page text by hand. Real findings: BUG-087 (markdown rail #2 active-state broken; CSS `border-bottom-color: rgb(var(--duo-accent))` was invalid because `--duo-accent` is hex literal, not RGB triplet — silently fell back; ALSO PM transactions wiped manually-set attributes), BUG-088 (canvas bullet text didn't get anchor decoration), BUG-089 (canvas anchor decoration flickers on every keystroke — 100ms transition restarting), BUG-090 (canvas comments on different elements grouping into one thread — anchor falling back to parent `<ul>` when `<li>` has no data-duo-id).
+
+- **Mid-sprint fixes-1** (commit `25a755b`): BUG-087 (literal hex + re-apply on transaction), BUG-088/090 first attempt (auto-stamp via MutationObserver — but with a fatal sentinel-attribute bug that didn't survive reopen), BUG-089 (removed transition).
+
+- **rev2** found the BUG-088/090 fix didn't actually work — sentinel attr persisted to disk so the install bailed on reopen. Also surfaced BUG-091 (WorkingTabStrip's right-click menu excluded browser tabs from "Move to Split View" via `tab.type !== 'browser'` — local-file browser tabs DO have a path) and the worksheet-promoted-to-canvas-becomes-editable issue. Worksheet titles also rendered identically for rev1 and rev2 (worksheet generator hardcoded title from base version).
+
+- **Mid-sprint fixes-2** (commit `99826fa`): proper BUG-088/090 fix (removed sentinel, idempotent stamping, initial `body` sweep at install), BUG-091 (lifted exclusion in WorkingTabStrip), `<meta name="duo-editable" content="false">` added to worksheet template, smoke-walk wrapper honors `manifest.title`. Sentinel attr added to `RUNTIME_ATTRS_TO_ALWAYS_STRIP` for cleanup of any files saved during the in-flight walks.
+
+**Bugs filed (all in tasks.md):** BUG-086 (smoke-walk skill should re-verify browser-pane mount), BUG-087 (markdown rail click → anchor active-state, fixed in 25a755b/99826fa), BUG-088 (canvas bullet decoration, fixed in 99826fa), BUG-089 (flicker, fixed in 25a755b), BUG-090 (anchor-id collision, fixed in 99826fa), BUG-091 (tab right-click "Move to Split View", fixed in 99826fa). FOLLOWUP-009 still open (testing-library/react infra). Status flips: MISSING-001 + BUG-083 → 🟡 Partial pending rev3.
+
+**Cut posture:** held until rev3 passes. Manifest at `docs/dev/smoke-walks/v0.6.7-rev3.json`.
+
+---
+
 ## 2026-05-04 (post-cut) — Sprint 6 priorities filed: comments family
 
 **Status: Sprint 6 (v0.6.7) priorities queued; not yet started.** Owner asked post-cut "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app; what happened?" Investigation surfaced that the comments capability is broken on canvas (regression — BUG-081 family) AND was never built on the markdown editor (MISSING-001 / Stage 14a never landed despite always being "next"). Owner-confirmed root causes during the conversation:

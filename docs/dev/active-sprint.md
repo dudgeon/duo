@@ -112,6 +112,18 @@ Cut readiness:
 6. `package.json` already at `0.6.7`.
 7. Cut via `cut-version` skill.
 
+#### Smoke walk history (2026-05-04)
+
+- **rev1** — partial. Page opened in canvas mode (procedural BUG-086) blocking Copy buttons. Owner pasted page text by hand. Found: MISSING-001 rail #2 active-state broken (BUG-087); BUG-083 sub-bugs (BUG-088 / BUG-089 / BUG-090); 6 items SKIP'd due to procedural blocker.
+- **Mid-sprint fix-and-recommit** (commit 25a755b) addressed BUG-087, attempted BUG-088/090 via auto-stamp, fixed BUG-089 via static colors. Filed BUG-086 / BUG-091.
+- **rev2** — partial. Title rendered identically to rev1 in browser-tab strip (worksheet generator hardcoded title from base version, ignoring manifest.title). BUG-088/090 fix INSUFFICIENT — sentinel attr persisted to disk so install bailed on reopen; user re-saw the `<ul>`-grouping bug. BUG-091 confirmed; user's split-view promotion turned worksheet into editable canvas, blocking Copy buttons again.
+- **Mid-sprint fix-and-recommit-2** (commit 99826fa) re-fixed BUG-088/090 (no sentinel, idempotent stamping, initial sweep), fixed BUG-091, added `<meta name="duo-editable" content="false">` to worksheet template, fixed worksheet title to honor `manifest.title`.
+- **rev3** — pending owner walk. Manifest at `docs/dev/smoke-walks/v0.6.7-rev3.json`.
+
+#### Cut posture (as of 2026-05-04 evening)
+
+🚫 NOT cut-ready until rev3 passes. Re-validation needed for BUG-087/088/089/090 + the 6 items SKIP'd in rev1+rev2 (BUG-082, BUG-085, BUG-084-{no-app, browser}, BUG-056, plus the bullets / multi-comment / split-view paths).
+
 ---
 
 ## Stretch (if Phases 1–5 land before cut)
