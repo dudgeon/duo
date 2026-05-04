@@ -19,7 +19,44 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-(Empty — v0.6.5 cut 2026-05-04. Next cut accumulates here.)
+(Empty — v0.6.6 cut 2026-05-04. Next cut accumulates here.)
+
+## [0.6.6] — 2026-05-04
+
+Sprint 5 close-out plus Stage 19e closure. Two coherent chapters folded into one cut: a framework-overreach reframe that ended at "ship the one missing piece" (browser-pane playground actions), and the user-context onboarding hardening that finally gives Claude awareness of Duo from non-`DUO_SESSION` sessions and managed enterprise installs.
+
+### Added — Sprint 5: playground reach to browser pane
+
+- **Browser-pane playground actions** (ENH-094). The 9-verb `data-duo-action` runtime now reaches browser-pane pages via CDP injection (`PLAYGROUND_RUNTIME_IIFE`, parallel to existing Send→Duo + path-link patterns). Pages emit events Claude sees live via `duo events --follow` instead of relying on copy/paste. Trust posture: page-side `file://` gate only — matches existing path-link forwarder; threat model is local-first per owner direction.
+- **`window.duoPlaygroundAction(jsonBundle)` escape hatch** (ENH-094). Inline JS in browser-pane pages can fire structured actions directly without going through a click — the right shape for `change` / `input` / `blur` events.
+- **Worksheet emits live events** (ENH-043). `worksheet/generate.mjs` adds ~10 lines of inline JS firing a `<manifest.kind>:item-changed` event on each radio change. Smoke walks now talk to Claude live via `duo events --follow`; copy/paste stays as the offline fallback.
+- **Browser-pane authoring section in `make-playground.md`** documents the canvas-vs-browser-pane choice + when to reach for the `window.duoPlaygroundAction` escape hatch.
+
+### Added — Stage 19e: user-context onboarding hardening (closes the stage)
+
+- **Managed Duo block in `~/.claude/CLAUDE.md`** (ENH-088). Hook-independent. Installer writes a versioned block (`<!-- duo:managed-vX.Y.Z -->`) on first launch and version-aware-replaces on upgrades. Reaches every Claude Code session — non-`DUO_SESSION` terminals (Terminal.app, iTerm, VS Code, agent worktrees) and enterprise installs where hooks are policy-disabled. Sticky `claudeMdManaged` flag in `installed.json` so future installs respect user removal of the block.
+- **Shipped vocabulary reference** (ENH-089). New `skill/references/vocabulary.md` is the canonical user-facing doc for page / playground / lesson / canvas terms. Closes the broken `see CLAUDE.md § Glossary` pointer in `make-page.md` + `make-playground.md`.
+- **Enterprise-deployments reference** (ENH-090). New `skill/references/enterprise-deployments.md` — mechanism dependency map, common policy restrictions, what works hook-free, reporting checklist. ENH-088's managed block links here for users hitting policy issues.
+
+### Changed
+
+- **Playground action parser extracted to `shared/playground-actions.ts`** so main + renderer share one implementation. Pure refactor — `parseActionFromAttrs(getAttr)` accepts an attribute-getter abstraction so it works against either an `HTMLElement` (canvas runtime) or a JSON bundle (browser-pane host).
+- **Project `CLAUDE.md § Glossary` trimmed** to a contributor-facing internal-name table; user-facing vocabulary lifted to the shipped reference.
+- **ENH-094 trust posture differs from canvas-iframe gate** (deliberately). Page-side `file://` gate only on browser-pane runtime; canvas-iframe `~/.claude/duo/`-only gate unchanged. Separate decisions for separate threat models.
+
+### Fixed
+
+- **Bold text in markdown editor unreadable in dark mode** (BUG-080). Tailwind typography's `prose` default styled `<strong>` near-black; on dark paper that was invisible. Explicit `.duo-editor-prose :where(strong, b) { color: var(--duo-ink) }` rule added so bold inherits the same theme-aware ink color as body text.
+
+### Closed (won't-do)
+
+- **ENH-075** — canvas glyph alternative options. Owner walked the alternatives worksheet; none improved on the current glyph.
+- **ENH-092 + ENH-093** — playground state / DOM-reactivity / composition primitives. Owner pushback: pre-chews future-Claude's meal; primitives that prove restrictive get bypassed when the ceiling is too low. Future-Claude is a capable coder; inline JS for state/tally/composition is appropriate page-specific code, not primitive material.
+
+### Tests
+
+- Added `jsdom@^24` for DOM-environment tests via per-file `// @vitest-environment jsdom` directive.
+- 51 worksheet primitive characterization tests + 4 live-event tests + 13 ENH-088 merge-logic tests. **189 → 202 tests passing.**
 
 ## [0.6.5] — 2026-05-04
 

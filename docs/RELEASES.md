@@ -21,7 +21,62 @@
 
 ## Pending — not yet cut
 
-(Empty — v0.6.5 cut 2026-05-04. The next cut accumulates here.)
+(Empty — v0.6.6 cut 2026-05-04. The next cut accumulates here.)
+
+---
+
+## v0.6.6 — 2026-05-04 — Sprint 5: ENH-094 closes the live-event gap; Stage 19e closes (managed CLAUDE.md + vocab + enterprise ref); ENH-092/093 retired as framework-overreach
+
+The cut absorbed two arcs. The Sprint 5 core was a framework-overreach reframe followed by a single targeted plumbing ship; Stage 19e closure landed alongside as a coherent user-context-onboarding chapter.
+
+### Sprint 5 — playground primitives reframe
+
+v0.6.5 set up Sprint 5 for a 2–3 sprint "playground primitives initiative" (ENH-092 state → ENH-093 composition → ENH-094 CDP injection → ENH-043 refactor). v0.6.6 ships only **ENH-094** plus the smoke-walk decorator update, and closes ENH-092/093 as won't-do.
+
+The reframe happened mid-sprint. After committing characterization tests, a v1 PRD with 7 design tradeoffs, and a v2 PRD with a "reframe around events" pivot, the owner pushed back: this was building a frontend dev framework. Future-Claude is a capable coder; the existing 376-line `make-playground.md` skill already documents the vocabulary; primitives that pre-chew Claude's meal just get bypassed when the ceiling proves too low. The actual missing piece was that the playground runtime didn't reach browser-pane pages.
+
+ENH-094 fixes that single gap: a `PLAYGROUND_RUNTIME_IIFE` parallel to `SELECTION_OBSERVER_IIFE` and `PATH_LINK_FORWARDER_IIFE`, captures `data-duo-action` clicks page-side, ships them through the shared `parseActionFromAttrs` (extracted to `shared/`) → BrowserManager → IPC → `handlePlaygroundAction`. Trust posture: the page-side IIFE only attaches on `file://` URLs; the host-side path-rooted gate was dropped because it would have blocked smoke walks at `/tmp/duo-walks/` and the user explicitly framed the threat model as local-first. End-to-end validation passed in dev: `typeof window.duoPlaygroundAction === 'function'`; a 3-event sequence with change-of-mind via `duo eval` showed all three events landing in `duo events` in order with sequential cursors.
+
+### Stage 19e — user-context onboarding hardening, closed
+
+Three coordinated changes that close the gap between "the owner's Duo fluency" and "what end users actually get from the installer."
+
+**ENH-088 — Managed Duo block in `~/.claude/CLAUDE.md`.** The installer now writes a hook-independent block (`<!-- duo:managed-vX.Y.Z -->`) into the user's global CLAUDE.md on first launch and version-aware-replaces it on upgrades. This is the load-bearing path for Duo awareness in non-`DUO_SESSION` Claude Code sessions (Terminal.app, iTerm, VS Code, agent worktrees) and in enterprise installs where hooks are policy-disabled. The block lands inside CLAUDE.md, which Claude Code's core context loader reads on every session start regardless of policy. Insert/replace/respect-removal logic mirrors `mergeSessionStartHook`; pure decision logic in `planClaudeMdMerge` + `composeManagedClaudeMdBlock` is exported from `install-service.ts` for unit testing (13 tests cover all four PRD scenarios). The sticky `claudeMdManaged` flag on `installed.json` distinguishes "user removed our block" from "first-time install" — once removed, never re-added.
+
+**ENH-089 — Vocabulary lift.** User-facing page/playground/lesson vocabulary moved from project `CLAUDE.md § Glossary` (which only ships with the source repo) into `skill/references/vocabulary.md` (which ships with the skill installer). Both `make-page.md` and `make-playground.md` previously cited `CLAUDE.md § Glossary` as canonical — end users following the pointer landed at a doc they couldn't read. The new shipped reference closes that.
+
+**ENH-090 — Enterprise-deployments reference.** New `skill/references/enterprise-deployments.md` documents the mechanism dependency map (which Duo features need hooks vs. don't), common enterprise restrictions (hooks disabled, restrictive Bash allowlist, locked `~/.claude/`, custom CLAUDE.md authority), what works hook-free, and a reporting checklist. ENH-088's managed block links to this doc so users hitting policy issues land here directly.
+
+Plus two smaller items: **BUG-080** fixed bold text rendering as near-black in the markdown editor's dark mode (Tailwind typography default override). The `make-playground.md` skill gained a "Browser-pane playgrounds" section documenting the canvas-vs-browser-pane choice and the `window.duoPlaygroundAction` escape hatch.
+
+### Why this lands here, vs. earlier or later
+
+The Sprint 5 work alone could have cut. Folding in Stage 19e made the cut more coherent — both arcs are about "Claude reaching the user's actual environment cleanly." ENH-088 in particular benefits from being committed alongside the skill changes (ENH-089 + ENH-094 + the make-playground.md update) since they all interact with the same skill installer surface, and the managed CLAUDE.md block now references the new enterprise-deployments doc.
+
+### Key design decisions baked in
+
+1. **The managed CLAUDE.md block is hook-independent BY DESIGN.** SessionStart hook (Stage 19b) is the redundant in-Duo safety net; the managed block is the load-bearing primary path for everything else. Documented in the Stage 19e PRD as a load-bearing design property so future contributors don't accidentally regress it.
+
+2. **`planClaudeMdMerge` is pure and exported for testing.** No Electron coupling in the four-scenario decision logic — the I/O wrapper `mergeUserClaudeMd` is the only Electron-tied part. 13 unit tests against the pure helpers in `electron/install-service.test.ts`.
+
+3. **The `window.duoPlaygroundAction` escape hatch is part of ENH-094's contract.** Intentionally callable from inline JS, not only from the IIFE delegated click. Closing it would force every interaction through `<button data-duo-action>` ceremony — wrong shape for `change` / `input` / `blur` events, and the kind of restrictiveness that drives Claude to bypass the abstraction entirely.
+
+4. **No host-side trust gate for the new browser-pane runtime.** Stage-23-era `~/.claude/duo/`-only check would have blocked the primary use case (smoke walks at `/tmp/duo-walks/`). The IIFE's `location.protocol === 'file:'` guard is sufficient; matches the existing path-link forwarder posture. Canvas-iframe gate stays as-is — separate decision for a separate threat model.
+
+5. **The smoke walk's existing inline JS stays.** State save/restore + tally + composition are appropriate page-specific code, not primitive material. The decorator added in this cut is ~10 lines on top of that.
+
+### What this is and isn't
+
+This **is** the close of two coherent chapters: the Sprint 5 playground reach + Stage 19e user-context onboarding.
+
+This **is not** ENH-043 closure — the worksheet retains inline JS for state/tally/composition; the decorator only adds live-event capability for the in-Duo case. The full declarative-HTML refactor that ENH-043 originally framed may not be a future cut at all.
+
+This **is not** the canvas-iframe trust-gate decision. The existing `~/.claude/duo/`-only gate stays as-is on canvas; ENH-094's posture is a separate decision for the new browser-pane path.
+
+### Stage flips
+
+- **Stage 19e** — ✅ Closed. All three phases (ENH-088 + ENH-089 + ENH-090) shipped.
+- **Stage 23 (Canvas actions)** — extends to browser pane via ENH-094.
 
 ---
 

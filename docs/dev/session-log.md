@@ -18,6 +18,12 @@
 
 ---
 
+## 2026-05-04 (overnight) — Sprint 5 closed · v0.6.6 cut · framework-overreach reframe · Stage 19e closes
+
+**Status: v0.6.6 cut.** Sprint 5 pivoted mid-flight from "build playground primitives framework" to "ship the one missing piece" after owner pushback. ENH-094 (CDP-inject playground runtime into browser-pane pages) shipped as the actually-missing capability — same `data-duo-action` vocabulary the canvas iframe has had since Stage 23, now reaching browser pane pages too. Worksheet generator gained a 10-line `duo:event` decorator (ENH-043) so smoke walks talk to Claude live via `duo events --follow` instead of relying on copy/paste. Stage 19e closed alongside: ENH-088 managed CLAUDE.md block (hook-independent — works in non-`DUO_SESSION` Claude Code sessions and in enterprise managed installs where hooks are policy-disabled), ENH-089 user-facing vocabulary lifted from project CLAUDE.md to shipped `skill/references/vocabulary.md`, ENH-090 new `skill/references/enterprise-deployments.md`. Plus BUG-080 (bold text invisible in dark-mode editor — Tailwind typography prose default override). ENH-075 / ENH-092 / ENH-093 closed won't-do. The framework-overreach reframe is preserved in git history as a record (v1 PRD `7a62b60` → v2 PRD `6c1dda7` → v3 narrow-scope PRD `359b772` → ENH-092/093 won't-do entries) so future contributors don't re-litigate. End-to-end validation passed: `typeof window.duoPlaygroundAction === 'function'`; a 3-event sequence dispatched via `duo eval` showed all events landing in `duo events` with sequential cursors. 202/202 vitest green (was 189) — added 51 worksheet characterization tests + 4 live-event tests + 13 ENH-088 merge-logic tests. Added `jsdom@^24` for DOM-environment tests. Memory entry saved this sprint: bold-strong needs explicit `var(--duo-ink)` color override (Tailwind typography prose default uses gray-900, invisible on dark paper). Cut commit + tag pending; Step 7 dev-bump to v0.6.7 follows.
+
+---
+
 ## 2026-05-04 (night) — Sprint 4 closed · v0.6.5 cut · playground architecture initiative filed for v0.6.6
 
 **Status: v0.6.5 cut + tagged + pushed. Sprint 4 closed.** All five

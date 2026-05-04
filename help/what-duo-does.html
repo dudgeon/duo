@@ -489,6 +489,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="playground actions browser pane data-duo-action duo:event live event window.duoplaygroundaction smoke walk worksheet runtime injection cdp file:// browser tab interactive">
+  <div class="num">30c</div>
+  <div>
+    <h3>Live events from browser-pane pages</h3>
+    <p class="why">Agent-emitted HTML pages opened in Duo's browser pane (smoke walks, sprint plans, retros, custom dashboards) can fire <code>data-duo-action</code> events that Claude sees live via <code>duo events --follow</code> — same vocabulary that's worked in canvas iframes since Stage 23. Click a PASS / FAIL / SKIP radio in a smoke walk, Claude sees the answer in real time; no copy/paste round-trip. Inline JS in the page can also call <code>window.duoPlaygroundAction(jsonBundle)</code> directly to fire structured actions on <code>change</code> / <code>input</code> / <code>blur</code> events that don't fit the click-driven contract. The runtime is injected on every <code>file://</code> page Duo opens; arbitrary http(s) sites stay inert. <strong>v0.6.6+</strong></p>
+    <p class="how"><strong>HTML</strong><code>&lt;button data-duo-action="duo:event" data-event="walk:done"&gt;</code> · <strong>JS escape hatch</strong><code>window.duoPlaygroundAction(JSON.stringify({attrs: {...}}))</code> · <strong>Subscribe</strong><code>duo events --follow</code></p>
+  </div>
+</article>
+
 <h2 class="cat">Subagent</h2>
 <p class="cat-tagline">A specialized Haiku-powered agent for mechanical Duo work, so Claude doesn't burn its working memory on plumbing.</p>
 
@@ -661,6 +670,15 @@
     <h3>Claude sessions inside Duo arrive Duo-aware</h3>
     <p class="why">Every <code>claude</code> session you launch from a Duo terminal starts with knowledge of the workspace it's running in — the <code>duo</code> CLI verbs available, the file tree, the embedded browser, the canvas, the active selection. The agent can prefer <code>duo view</code> over <code>cat</code>, <code>duo selection</code> over scrolling for context, etc. without you typing a primer. Implementation: a PATH shim at <code>~/.claude/duo/bin/claude</code> (installed at first launch) wraps the real binary with <code>--append-system-prompt "$(cat ~/.claude/duo/priming.md)"</code> when <code>$DUO_SESSION</code> is set; a <code>SessionStart</code> hook in <code>~/.claude/settings.json</code> backs it up. Edit <code>priming.md</code> to customize.</p>
     <p class="how"><strong>UI</strong>Open a new Claude tab (<code>+</code> on the terminal strip or <code>⌘⇧T</code>). Priming is automatic.<br><strong>Customize</strong>Edit <code>~/.claude/duo/priming.md</code>; survives Duo upgrades.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="claude.md global managed block duo-managed marker hook-independent enterprise non-duo terminal vs code iterm agent worktree session start">
+  <div class="num">40b</div>
+  <div>
+    <h3>Claude sessions OUTSIDE Duo also know about Duo</h3>
+    <p class="why">A small Duo-awareness block lands in your global <code>~/.claude/CLAUDE.md</code> on first launch. Claude Code reads CLAUDE.md on every session start regardless of which terminal it's running in — Terminal.app, iTerm, VS Code's integrated terminal, agent worktrees not spawned by Duo. The block points at the <code>duo</code> skill, the <code>duo</code> subagent, the sandbox-troubleshooting reference, and the enterprise-deployments reference. Hook-independent — works in enterprise managed Claude Code installs where hooks are policy-disabled. Tagged with a <code>&lt;!-- duo:managed-vX.Y.Z --&gt;</code> marker; subsequent installs version-replace the block in place without touching your other content. Removable — once you delete the block, future installs respect that and never re-add. <strong>v0.6.6+</strong></p>
+    <p class="how"><strong>UI</strong>Click <strong>Install</strong> in the welcome banner. The block is added/refreshed automatically on each install + upgrade.<br><strong>Remove</strong>Edit <code>~/.claude/CLAUDE.md</code> and delete the section between the <code>&lt;!-- duo:managed-v* --&gt;</code> and <code>&lt;!-- duo:end --&gt;</code> markers. Future installs respect the removal.</p>
   </div>
 </article>
 
