@@ -459,6 +459,14 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     void readSidecar(path).then((sc) => {
       if (cancelled) return
       if (sc) sidecarRef.current = sc
+      // BUG-082 — bump threadsTick so the rail recomputes once the
+      // sidecar has actually landed. `builtThreads` is gated behind a
+      // useMemo keyed on [threadsTick, getDoc]; without this bump the
+      // memo runs once at mount with an empty sidecar and never again.
+      // Pairs with the bump at the end of handleReady (which covers
+      // the inverse race where the iframe becomes ready AFTER the
+      // sidecar has loaded).
+      setThreadsTick(v => v + 1)
     })
 
     window.electron.files.read(path).then(
@@ -725,6 +733,12 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // strips both on save.
     injectCodeBlockCopyStyle(doc)
     injectCodeBlockCopyButtons(doc, { markCanvasRuntime: true })
+
+    // BUG-082 — bump threadsTick so the rail recomputes once the
+    // iframe doc is actually live. Pairs with the bump in the
+    // readSidecar resolution callback to cover whichever async path
+    // (sidecar load vs iframe ready) finishes second.
+    setThreadsTick(v => v + 1)
 
     wireCleanupRef.current = () => {
       doc.removeEventListener('selectionchange', onSelChange)

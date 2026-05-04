@@ -5018,9 +5018,11 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ### BUG-082: Comment rail does not restore existing comments on canvas reopen
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6, BUG-081 family)
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 Phase 1, 2026-05-04). Root cause: `builtThreads` useMemo had deps `[threadsTick, getDoc]`, but `threadsTick` was only bumped by `persistSidecarMutation` — neither the async `readSidecar` resolution nor the `handleReady` iframe-ready callback bumped it, so a fresh open with an existing sidecar never recomputed the rail. Fix: bump `setThreadsTick(v => v + 1)` after `readSidecar` resolves AND at the end of `handleReady`, so whichever async path finishes second triggers the recompute. [PageTab.tsx:467](renderer/components/Page/PageTab.tsx:467) and [PageTab.tsx:734](renderer/components/Page/PageTab.tsx:734). Verified via fresh-open repro (CLI-driven canvas creation + sidecar pre-write).
 **Priority:** **High** (data-loss UX — the comment is preserved on disk in the sidecar, but the rail doesn't pick it up on reopen, so the user assumes it's gone).
 **Filed:** 2026-05-04 evening (owner repro: added comment to `/tmp/p5-rewalk.html`, closed the canvas tab, reopened — comment rail was gone. Adding a new comment revealed the rail again).
+
+**Regression-test gap.** Per the recurring-regressions feedback memory, this class of bug (comments-on-canvas regressing) wants durable test coverage, not just a smoke-walk line. The project doesn't currently have `@testing-library/react` (per `vitest.config.ts` — React component rendering is excluded from the test scope). Adding it for this one path is more infra than the fix warranted; queued as **FOLLOWUP-009: introduce @testing-library/react and write a regression test for the readSidecar / handleReady → rail-recompute orchestration**.
 
 **Symptom.** Add a comment to a canvas. Close the canvas tab (or close + reopen Duo). Reopen the same file. The CommentRail should mount with the existing comment(s) visible. **It doesn't** — the rail is hidden. Adding a NEW comment causes the rail to appear with both old and new comments.
 
@@ -5459,6 +5461,23 @@ These haven't surfaced as bugs because they're either hover-states (transient, l
 **Why this is a follow-up rather than a Sprint 4 blocker.** The selection state works correctly with solid `bg-accent`. The "less obtrusive" polish is real but not blocking the v0.6.5 cut — it can land as a focused PR in v0.6.6. Filing now so the next sprint plan surfaces it.
 
 **Cross-ref:** BUG-074 (the v3 polish attempt that surfaced this); Atelier token system (the wider design system this fix slots into); commit b9a4c69 (where the workaround — solid bg-accent + white text — landed).
+
+---
+
+### FOLLOWUP-009: Introduce `@testing-library/react` and write a regression test for sidecar-load → rail-recompute
+
+**Status:** 🆕 Filed
+**Filed:** 2026-05-04 (BUG-082 fix landed without a durable regression test — the recurring-regression memory says this class of bug should get test coverage, not just a smoke-walk line)
+
+**Why this is a follow-up rather than landing with the fix.** `vitest.config.ts` explicitly excludes React component rendering from the project's test scope ("Those layers stay covered by the smoke-walk skill at sprint close"). Adding `@testing-library/react` + a jsdom-environment test for the BUG-082 path is more infra than the fix itself warranted — but the PageTab effect orchestration (sidecar load resolution + iframe-ready callback both racing to populate derived state) is exactly the kind of code that benefits from a test, and there will be more such tests once the infra exists (Phase 4 / MISSING-001 markdown editor comments will add another rail-population path with the same race profile).
+
+**Scope:**
+1. Add `@testing-library/react` + `@testing-library/jest-dom` (or equivalent) to devDependencies.
+2. Update `vitest.config.ts` to allow `*.test.tsx` files + the jsdom environment opt-in pattern.
+3. Write `renderer/components/Page/PageTab.test.tsx` (or a more targeted unit on the recompute orchestration helper if one is extracted) that exercises both async-resolution orderings and asserts the rail mounts populated.
+4. Update `vitest.config.ts` header comment to drop the "we don't test React rendering" disclaimer.
+
+**Cross-ref:** BUG-082 (the fix this would have covered). MISSING-001 (Phase 4 — the next rail-population path that will benefit from the same infra). Recurring-regressions feedback memory (`feedback_recurring_regression_needs_test.md`).
 
 ---
 

@@ -31,7 +31,7 @@
 
 ## Phase plan (path-dependency-ordered)
 
-### Phase 1 — BUG-082 (rail-not-restoring-on-reopen) · ⬜
+### Phase 1 — BUG-082 (rail-not-restoring-on-reopen) · ✅ 2026-05-04
 
 **Smallest item, highest signal.** Fixes the data-loss appearance. Likely an async-sidecar-vs-mount-gate race in `PageTab.tsx`'s `railThreads` derivation.
 
@@ -40,6 +40,8 @@
 - Likely fix: ensure the gate at line 1422 (`railThreads.length > 0`) re-evaluates after sidecar load resolves. Probably a missing dependency in a `useMemo` / `useEffect`.
 
 **Acceptance:** add 2 comments, close tab, reopen — both visible in the rail without any further action.
+
+**Resolution.** Root cause was exactly the second hypothesis: `builtThreads` useMemo deps `[threadsTick, getDoc]` only got bumped by `persistSidecarMutation` (user mutates the sidecar). Neither the async `readSidecar` resolution NOR the `handleReady` iframe-ready callback bumped the tick — so a fresh open of a file with an existing sidecar never recomputed the rail. Fix: `setThreadsTick(v => v + 1)` in BOTH async resolution paths so whichever finishes second triggers the recompute (covers both orderings: sidecar-first-iframe-second and iframe-first-sidecar-second). Verified via CLI-driven repro: `duo html new` + write sidecar + close tab + `duo view` → rail mounts with both comments anchored. **Regression-test gap** filed as FOLLOWUP-009 (project lacks `@testing-library/react` infra; one-off React component test isn't worth the infra change today).
 
 ### Phase 2 — BUG-081 (UX redesign) · ⬜
 
