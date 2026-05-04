@@ -1,16 +1,15 @@
-# Active sprint state — Sprint 4 (v0.6.4 → v0.6.5 cut)
+# Active sprint state — Sprint 6 (v0.6.7)
 
 > **What this file is.** Running scratchpad for the active sprint
-> arc. The historical record (Sprint 3 walk results, v0.6.4
-> chapter shape, worksheet primitive spike) lives in
-> [docs/dev/session-log.md](session-log.md) — most recent at the
-> top. The sprint-plan worksheet that produced this plan is at
-> `docs/dev/worksheets/sprint-plan-v0.6.5.{json,html}`.
+> arc. The historical record (Sprint 5 reframe + v0.6.6 cut + Stage
+> 19e closure) lives in [docs/dev/session-log.md](session-log.md) —
+> most recent at the top.
 >
 > **For future Claude instances:** if you're picking up after a
-> compaction, READ THIS FILE FIRST. It points at the plan, the
-> walk results, and the owner's clustering instructions. The plan
-> below is path-dependency-ordered — start at Phase 1.
+> compaction, READ THIS FILE FIRST. Sprint 6's focus is **comments
+> on both surfaces** — canvas (regressed) + markdown editor (never
+> shipped). The phase plan below is path-dependency-ordered — start
+> at Phase 1.
 >
 > **Update cadence:** at the end of each commit (mark a phase row
 > done; flip the "next" pointer; add deviations).
@@ -19,338 +18,114 @@
 
 ## Sprint goal
 
-**Polish + close-out.** Three partially-shipped surfaces close in
-this sprint (navigator prominence, Split View Phase 3, smoke-walk →
-worksheet ecosystem) and the small bug backlog clears. No major new
-features; no architectural decisions pending. The deliverable is a
-**v0.6.5 cut** that resolves the two v0.6.4 cut blockers
-(ENH-078/BUG-074 light-mode contrast; BUG-075 chord regression as a
-P2 bonus or carry-over) plus a clean polish pass.
+**"Comments are real and visible" sprint.** Comments on canvas regressed (BUG-081 family — the discoverability UX is broken AND the rail doesn't restore on reopen AND there's no visual link between comment and anchored text); comments on the markdown editor were never built (MISSING-001 / Stage 14a — only the visual primitive exists; the entire data plane is unbuilt). Sprint 6 fixes all four pieces and ships them together with consistent UX across both surfaces:
 
-**Cut path:** v0.6.4 was never released. This sprint's work cuts as
-v0.6.5 directly. Package.json bumps to `0.6.5` at cut time per
-`cut-version § Step 7`.
+- **Three discoverable affordances** for adding a comment (replacing the broken hover-pill): keyboard shortcut **⌘⌥M** (Google Docs parity), context-click "Comment" entry, toolbar button.
+- **Anchor decoration in the body** — a comment that doesn't visibly attach to its anchor is barely a comment.
+- **Bidirectional click-to-focus** — click a thread in the rail → scroll to anchor; click anchored text → focus the thread.
+- **Persistence works on reopen** — close + reopen the file, your comments are still in the rail.
+
+**Cut path:** v0.6.7 cuts when both surfaces have the four affordances working, the persistence regression is fixed, the visual association lands, and a smoke walk validates end-to-end.
 
 ---
 
-## Phase plan (ordered for path-dependency + clustering)
+## Phase plan (path-dependency-ordered)
 
-### Phase 1 — Foundation refactor · ENH-052 · ✅ DONE
+### Phase 1 — BUG-082 (rail-not-restoring-on-reopen) · ⬜
 
-**Single self-contained commit BEFORE any UI work.** Every other
-phase touches identifiers about to be renamed; doing this first
-prevents conflicts.
+**Smallest item, highest signal.** Fixes the data-loss appearance. Likely an async-sidecar-vs-mount-gate race in `PageTab.tsx`'s `railThreads` derivation.
 
-- **ENH-052** ✅ **Shipped** — Mechanical canvas → page/playground
-  rename of internal identifiers. 177 edits across 32 files in one
-  commit. `WorkingTab.kind === 'page'`; `PageTab` component;
-  `playgroundActions.ts`/`PlaygroundAction` for action runtime; IPC
-  channels `'page:*'`; CLAUDE.md glossary updated; active-surface
-  skill/agent docs updated.
-  - **Editor/canvas parity:** N/A (identifier-only; no behavior delta).
-  - **Verification:** typecheck clean, Vitest 104/104 pass, production
-    build succeeds.
-  - **Deferred (separate follow-up):** `skill/examples/canvas-*` rename
-    + pack `canvases/` subdir rename — both external API surfaces with
-    backwards-compat implications. Tracked in tasks.md ENH-052 entry.
+- Find the `railThreads` definition + its dependencies in `renderer/components/Page/PageTab.tsx`.
+- Check the sidecar load path in `renderer/components/Page/sidecar.ts` — when does it resolve relative to the rail render?
+- Likely fix: ensure the gate at line 1422 (`railThreads.length > 0`) re-evaluates after sidecar load resolves. Probably a missing dependency in a `useMemo` / `useEffect`.
 
-### Phase 2 — Navigator close-out · ✅ DONE
+**Acceptance:** add 2 comments, close tab, reopen — both visible in the rail without any further action.
 
-Closes out the navigator-prominence work that started in v0.6.4
-(ENH-078 / ENH-079).
+### Phase 2 — BUG-081 (UX redesign) · ⬜
 
-- **ENH-078 / BUG-074** (collapsed → P0) ✅ **Shipped** — `FileTree.tsx`
-  selected branch swapped `text-zinc-50` → `text-ink` (theme-aware).
-  Dark text on cream paper in light mode; light text on dark surface
-  in dark mode. Background fill `bg-accent/30 font-medium` unchanged.
-- **ENH-086** (P1) ✅ **Shipped (direction pivot)** — Owner walk
-  flagged the original "stronger separation of stacked panes" as
-  insufficient and asked for a layout reorder: move "Your Claude
-  settings" to the BOTTOM of the navigator (with pinned files above
-  it). Implemented: `FilesPane.tsx` reorders UserClaudePane to render
-  after PinnedNav; `UserClaudePane.tsx` flips `border-b-2` →
-  `border-t-2` so the divider sits above the pane. Surface tint
-  `bg-paper-edge` retained.
-- **ENH-087** (P2) ✅ **Shipped** — Owner picked OPT-B (small
-  filled-dot glyph) from the planning worksheet. Implementation:
-  `FileTree.tsx` renders a 6px `bg-ink-mute` dot inline with the
-  filename for open-but-not-active rows; active-file dot still wins
-  priority (single accent dot, no double glyph).
+**Drop the hover Comment pill; replace with kb / right-click / toolbar.** The hover pill is gated on Claude session via the shared `onSendToDuo` block at `PageTab.tsx:1437` — that gate is incidental; the real fix is the UX redesign per owner direction (Google Docs parity).
 
-### Phase 3 — Split View Phase 3 close-out · ✅ DONE (incl. BUG-075 bonus)
+Steps:
+1. **Wire ⌘⌥M.** Add to `renderer/keyboard/globalShortcuts.ts`. The forwarder already reaches inside the canvas iframe via `installGlobalShortcutForwarder` (CLAUDE.md § 4 plumbing checklist for surfaces). Handler calls `handleStartNewComment` if there's a selection with an anchor; no-ops otherwise.
+2. **Add the context-menu entry.** Canvas has a right-click menu via `electron-context-menu`. Add a "Comment" entry that's enabled when the selection's anchor element has a live `data-duo-id`. Same handler.
+3. **Add the toolbar button.** Find the canvas chrome row (probably `PageTab.tsx`'s sidecar / chrome). New "💬 Comment" button — enabled-state mirrors selection presence. No floating pill.
+4. **Remove the hover Comment pill.** Delete the `<CommentButton rect={pillRect} ...>` render at `PageTab.tsx:1444` and the `CommentButton` primitive if nothing else uses it. **Send → Duo pill stays.**
 
-All four items closed in this phase. Touched: `App.tsx`, `TabBar.tsx`,
-`WorkingPane.tsx`, `WorkingTabStrip.tsx`, `globalShortcuts.ts` (+ new
-regression test file).
+**Editor-canvas parity** per CLAUDE.md § 4: this is a **(c) Deferred** mirror — markdown side blocks on Phase 4 (MISSING-001). Same kb / right-click / toolbar wires when Phase 4 lands.
 
-- **ENH-083** (P0) ✅ **Shipped** — Collapse-terminal button moved to
-  TabBar's new-tab cluster; collapse-canvas to WorkingTabStrip's.
-  Titlebar now holds version badge / Claude presence / theme toggle
-  only.
-- **ENH-085** (P0) ✅ **Shipped** — AuxHeader gains right-click menu
-  with: Reveal in navigator / Rename / Copy path / Move back to
-  main / Move to Trash. Same NSMenu-via-IPC pattern as
-  WorkingTabStrip (ENH-050). Trash uses system-sheet confirm; on
-  confirm, runs `files.trash(path)` + `setAuxState(null)`.
-- **ENH-084** (P1) ✅ **Shipped** — `WorkingPane` tracks
-  `focusedSubpane: 'main' | 'aux'` via `onMouseDownCapture` on each
-  column wrapper. AuxHeader renders the same `bg-accent-soft
-  border-accent` treatment as the main strip when subpane focus is
-  on it. State resets to 'main' when aux closes.
-- **BUG-075** (P2 bonus) ✅ **Fixed (after re-pick)** — TWO root
-  causes: (1) the matcher used `e.key === '\\'` instead of
-  `e.code === 'Backslash'`, breaking the shifted form; (2) 1Password's
-  system-level Cmd+\ autofill grab intercepted the chord before
-  Duo saw it (most macOS users have this). Owner re-picked the
-  chord: **⌘/ open + ⌘⇧/ promote**. Both forwarder
-  (`browser-manager.ts`) and matcher (`globalShortcuts.ts`) now use
-  `e.code === 'Slash'`. 6 regression tests in
-  `renderer/keyboard/globalShortcuts.test.ts` (added a negative
-  test for the old ⌘\ chord).
-- **ENH-084** (P1) 🔴 **DEFECT — deferred to v0.6.6 Sprint 5.** Three
-  attempts in Sprint 4 all failed (mousedownCapture missed iframe
-  clicks; gate-removal sacrificed exclusivity; focusin listener
-  didn't reach iframe focus events as expected). See tasks.md
-  § ENH-084 for the full attempt history + hypotheses for v4. Owner
-  direction: log + move on; instrument event sources before
-  designing v4.
+**Acceptance:** open a canvas, no Claude session — Comment button still appears in toolbar. ⌘⌥M with selection adds a comment. Right-click on selection → "Comment" entry adds a comment. Hover pill is gone.
 
-### Phase 4 — Tab cycling / focus fix · ✅ DONE
+### Phase 3 — BUG-083 (visual association) · ⬜
 
-- **BUG-076** (P1) ✅ **Fixed** — Root cause was *not* in `cycleNext`
-  / the keyboard registry but in `BrowserManager.switchTab()`: it
-  activated the new view's bounds but didn't call `webContents.focus()`
-  on it, so OS focus stayed on the previous (now-shrunk-to-1×1) view.
-  Other switchTab call sites (addTab / openExisting) had been calling
-  focus manually after; the bare API path used by the renderer cycle
-  didn't. Fix: centralized the focus call inside `switchTab`
-  (`electron/browser-manager.ts`). Every callee — renderer cycle, CLI
-  tab verb, click-to-switch, openOrFocus — now gets correct OS focus
-  transfer for free.
+**Make comments visibly attach to their anchored text.** Three sub-pieces:
 
-### Phase 5 — Markdown trigger family · single commit
+1. **Anchor decoration in canvas body.** CSS rule on `[data-duo-comment-id]` — subtle highlight (probably a `var(--duo-accent-soft)` background or underline). Lives in `renderer/styles/globals.css`.
+2. **Click-to-focus, both directions.** Clicking a thread in the rail → scroll canvas to anchor (probably already wired via `onJumpTo`). Clicking the highlighted text in the canvas → focus the corresponding thread in the rail (likely not wired today). Same `onJumpTo` callback in reverse.
+3. **Active-thread indication.** When a thread is focused (rail-side or canvas-side), the linked anchor highlights more strongly. Mirrors Google Docs' "this is the one we're looking at" affordance.
 
-All in `markdownShortcuts.ts` / canvas trigger detection:
+**Acceptance:** add a comment to a span. The span renders with a visible highlight. Click the span → rail thread highlights. Click the rail thread → canvas scrolls to span + span highlights more strongly.
 
-- **BUG-061** (P1) + **BUG-073** (P2) — Combined: bullet rendering
-  refinement. Detect the trigger source character (`-` vs. `*` vs.
-  `+`) and pass it through to `list-style` so `-` produces a dashed
-  marker, not the default round bullet.
-- **BUG-072** (P2) — Blockquote double-Enter exit. Parity with
-  bullet/ordered-list exit gesture (the `ListIndentShortcuts`
-  family).
+### Phase 4 — MISSING-001 / Stage 14a (markdown editor comments) · ⬜
 
-### Phase 6 — Worksheet ecosystem alignment
+**The biggest piece.** The entire TipTap data plane is unbuilt. Three concerns:
 
-- **ENH-043** (P1) — Smoke-walk skill re-buildable via canvas /
-  template primitives.
-  - **Owner note quoted:** *"I thought you already finished this;
-    when you take it on, please consider the new form primitives
-    you just built and ensure we're working from a single, cohesive
-    toolset."*
-  - **Action:** scope-clarification first. The new worksheet
-    primitive (`.claude/skills/worksheet/`) DOES factor out the
-    rendering — but it's still a JS-driven Node generator, not a
-    canvas-template. Decide: (a) is the worksheet primitive
-    sufficient (mark ENH-043 done with scope evolution), or (b)
-    does the worksheet primitive need a canvas-template wrapper
-    too. Generate a tiny worksheet to gather owner's preference if
-    needed.
-- **ENH-080** (P1) — `⌘⇧A` search open tabs (working pane + browser
-  tab strip). Same UI primitives as the chord registry; pairs with
-  ENH-043 in keyboard surface area.
-- **ENH-075** (P1) — Canvas glyph alternative options (collapse rail
-  + canvas-tab type icon). Same chrome polish surface as Phase 3.
+1. **TipTap mark for `data-duo-comment-id`.** New mark extension that renders the same anchor decoration as Phase 3 (use the same CSS class so styling is shared). Mark spans the commented text range.
+2. **Anchor reconciliation across edits.** When the user edits text mid-comment, the anchor should follow. TipTap's mark system handles this naturally for adjacent edits; harder cases (paste, delete-across-anchor) may need explicit reconciliation logic.
+3. **CommentRail data-plane wire-up.** Pass the same `threads` shape `<CommentRail>` already accepts. Reuse `handleStartNewComment` / `handleSubmitNewComment` / `handleResolveThread` patterns from canvas. The visual primitive is already shared.
 
-### Phase 7 — Validation + measurement
+Then wire the same three affordances from Phase 2 (⌘⌥M, right-click, toolbar) — most of the kb shortcut / context-menu plumbing is reusable. The toolbar button lives in the markdown editor's existing `EditorToolbar`.
 
-- **FOLLOWUP-004** (P1) — Visual smoke of Stage 5 v2 + Stage 15.1
-  (CLI half + pill UI) via computer-use. Owner-side computer-use
-  approval needed; deferred from prior session.
-- **FOLLOWUP-003** (P2) — Re-measure Class B perf with
-  cumulative-context methodology.
+**Acceptance:** open a markdown file, ⌘⌥M with selection adds a comment. Same UX as canvas. Comments persist across reload. Visual association works.
+
+### Phase 5 — Smoke walk + cut
+
+After Phases 1–4 land, run a smoke walk (use the `smoke-walk` skill — it now fires live `duo:event`s thanks to ENH-094 + ENH-043, so progress streams to Claude in real time). Items: each affordance × each surface = 6 items minimum, plus persistence + visual association on each.
+
+Cut readiness:
+1. All four affordances work on both surfaces.
+2. Persistence verified on both surfaces.
+3. Visual association working on both.
+4. Smoke walk passes 100%.
+5. Vitest green (ideally with new tests for the comment-anchor reconciliation logic).
+6. `package.json` already at `0.6.7`.
+7. Cut via `cut-version` skill.
 
 ---
 
-## Stretch (if Phases 1–7 land before cut)
+## Stretch (if Phases 1–5 land before cut)
 
-- **ENH-077** (P2) — System dialog icon production verification.
-  Needs DMG build cycle.
-- **ENH-047** (P2) — `duo events` listener auto-spawn for smoke walks.
-- **ENH-048** (P2) — Smoke walk V14 instructions clarity.
-
----
-
-## Skipped this sprint (carry-over to v0.6.6)
-
-- **ENH-027** — Local HTML defaults to canvas, not browser
-  (`<meta name="duo-open-in">` opt-out). Owner asked for a planning
-  surface. **Action this sprint:** generate a worksheet at
-  `docs/dev/worksheets/enh-027-routing-options.{json,html}` that
-  surfaces the design questions (default behavior, per-page opt-out
-  via meta, agent-driven preference, owner override) and gathers
-  owner preferences. Result feeds v0.6.6 sprint planning. Five
-  minutes of agent work to set up.
-- **ENH-082** — Terminal Context Bar. Needs scope/PRD before code.
-  Carry to v0.6.6+.
-- **FOLLOWUP-002** — Harden agents/duo.md session guard against
-  Bash-allowlist denial. **Owner asked for education** — see the
-  callout below.
-- **FOLLOWUP-006** — Autosave delay test knob. Already SKIP'd by
-  owner; unblocks Phase 3c-iii smoke testing if/when we revisit
-  dirty-replace.
+- **ENH-091** — caret placement on freshly-created canvas (owner ask 2026-05-04).
+- **BUG-079** — `⌃⇧\`` cycle multi-second latency (recurring class).
+- **ENH-080** — `⌘⇧A` tab-search palette (research doc shipped v0.6.5; implementation queued).
+- **ENH-084** — aux pane focus glow (3 v0.6.5 attempts failed; full defect log in tasks.md).
+- **FOLLOWUP-007** — `window.duoSendResult` CDP binding (small).
+- **FOLLOWUP-008** — accent token RGB-triplet migration (unblocks `bg-accent/N` opacity modifiers).
 
 ---
 
-## Education callout — FOLLOWUP-002 isn't security, it's robustness
+## Skipped this sprint (carry-over to v0.6.8+)
 
-Owner walk note: *"I don't understand this one; is this the concern
-that arbitrary clients could use duo cli? I don't think this is a
-big concern, but you may just need to educate me on some of the
-scary use cases/possible attacks."*
-
-**There's no scary attack vector here.** The session guard at the
-top of `agents/duo.md` runs:
-
-```bash
-[ -n "$DUO_SESSION" ] && echo in_duo
-```
-
-The agent checks the result before doing any duo work. The concern
-in FOLLOWUP-002 is what happens when **Claude Code's Bash tool
-denies that command** because the user's allowlist is restrictive.
-Two ways the agent can mishandle the denial:
-
-1. **No answer treated as "not in Duo"** — the agent declines a job
-   it could have done.
-2. **No answer treated as "in Duo"** — the agent attempts duo
-   commands that fail with `ECONNREFUSED`.
-
-Hardening means: detect the "Bash tool denied" failure shape
-specifically and surface it (*"can't tell if I'm in Duo because
-Bash denied the env-var check"*) rather than silently picking one
-interpretation. Low-priority polish — only matters if a user has an
-unusual allowlist that blocks the env-var check. Defer indefinitely
-unless someone actually hits this; close as won't-do if it never
-surfaces.
-
-Cross-machine duo CLI access (the "arbitrary clients" framing the
-owner asked about) is a separate concern, tracked under Stage 21d
-(socket auth). Not this item.
-
----
-
-## Cut readiness gate for v0.6.5
-
-After Phases 1–7 land:
-
-1. **BUG-074 / ENH-078 resolved** (Phase 2; cut-blocker from
-   v0.6.4).
-2. **BUG-075** resolved as Phase 3 bonus, OR explicitly carried
-   over to v0.6.6 P2 with a note that right-click + CLI Split View
-   paths still work — chord is degraded but the feature is usable.
-3. **No new regressions** introduced this sprint (smoke walk
-   catches them).
-4. **Vitest** suite passes (currently 41 tests; expect more after
-   ENH-052 + Phase 5).
-5. **package.json** bumps to `0.6.5`.
-6. Cut via `cut-version` skill.
-
-If Phase 7 (FOLLOWUP-004 / FOLLOWUP-003) doesn't land, that's fine —
-they're validation/measurement, not cut blockers.
-
----
-
-## Worksheet-driven planning artifacts owed this sprint
-
-Three planning surfaces that the owner asked for in walk notes,
-generated as worksheets so they round-trip cleanly:
-
-1. **`/tmp/enh-087-open-file-indicator-options.html`** — Phase 2,
-   before implementing ENH-087. Visual options for the open-file
-   indicator (current bold vs. alternatives). Worksheet manifest;
-   owner picks one option.
-2. **`docs/dev/worksheets/enh-027-routing-options.{json,html}`** —
-   independent of phases (skip-tier item). Gathers owner preferences
-   on local HTML default routing. Feeds v0.6.6 sprint planning.
-3. **`docs/dev/worksheets/enh-043-scope.{json,html}`** — Phase 6,
-   if scope is unclear. Asks owner whether the worksheet primitive
-   subsumes ENH-043 or whether a canvas-template wrapper is also
-   wanted.
+- **ENH-088** — already shipped v0.6.6.
+- **Stage 19d** — mid-tab launch-claude banner. Pedagogy theme; not blocking.
 
 ---
 
 ## How to resume after compaction
 
-**Sprint state (as of 2026-05-04 night, post v0.6.5 cut):**
-Sprint 4 closed. v0.6.5 cut + tagged + pushed. All five core phases
-shipped (Phase 1 ENH-052 rename · Phase 2 navigator close-out · Phase
-3 Split View Phase 3 · Phase 4 BUG-076 cycle fix · Phase 5 markdown
-trigger family + BUG-072 root-cause + BUG-078 FAQ-on-launch). Phase
-6a research doc shipped. Phase 6b/c worksheets walked (ENH-043 result
-folded into the playground architecture initiative below; ENH-075
-result captured per owner pick). Phase 7 deferred to v0.6.6.
+**Sprint state (as of 2026-05-04 evening, post v0.6.6 cut + Sprint 6 priorities filed):** v0.6.6 cut + tagged + pushed to GitHub Releases (signed + notarized DMGs at https://github.com/dudgeon/duo/releases/tag/v0.6.6). Working tree clean on `main`. Dev identifies as `v0.6.7`. Sprint 6 not yet started — tasks.md has BUG-081 reframed + BUG-082/083 filed + MISSING-001 priority bumped, all queued as immediate priorities.
 
-**Carry-overs to v0.6.6 (the next sprint plan starts here):**
+**Resume recipe (Sprint 6 kickoff):**
 
-The big one — **playground architecture initiative.** Owner direction
-2026-05-04 night, post-cut: *"if the smoke walk using playground
-primitives is not possible, then our playground implementation is
-fucked and we need to fix it."* Three new ENHs filed as the
-decomposition; ENH-043 reframed as the meta-tracker:
+1. **Read this file FIRST.** Phase plan above is the running order.
+2. **`git log --oneline -10`** — head should be the Sprint 6 prep commit (`6a5ce80 tasks: BUG-081 reframed + BUG-082/083 filed`); v0.6.6 cut is `7801fdc`.
+3. **Restart Duo** before any UI work (electron-vite HMR is renderer-only; main-process / preload changes need a kill + restart). Smoke-walk skill HARD RULES still apply: probe with `ps -ef | grep "MacOS/Electron \."` before any `npm run dev` (never spawn duplicate); after `duo open` verify focus via `duo url` + `duo title`.
+4. **Phase 1 first** — BUG-082 is the smallest, fixes the data-loss appearance. Likely a 30-min fix once the `railThreads` derivation is found.
+5. **Then Phase 2** — UX redesign. Get the kb shortcut working first; then right-click; then toolbar; then delete the hover pill.
+6. **Phase 3 + 4** are the bigger pieces. Phase 4 (MISSING-001) is the largest — full TipTap data plane. Consider whether Phase 4 needs its own sprint OR rides in v0.6.7 if it's tractable.
 
-- **ENH-092** — Playground state + DOM-reactivity primitives
-  (`state:save/restore/set/get/wipe`, `data-bind-class`,
-  `data-bind-text`, `data-bulk-set`).
-- **ENH-093** — Playground composition + clipboard (`compose:result`,
-  `compose:json`, `clipboard:copy`, `host:send-to-claude`).
-- **ENH-094** — Inject the playground runtime into browser-pane pages
-  via CDP (`PLAYGROUND_RUNTIME_IIFE`, parallel to existing
-  Send→Duo / path-link injections).
-- **ENH-043 (reframed)** — refactor `worksheet/generate.mjs` to emit
-  pure declarative HTML using the new playground vocabulary. No inline
-  JS. Closes when 092+093+094 land + the refactor ships.
+**Smoke-walk skill rules (still in effect):** probe before `npm run dev`; verify focus after `duo open`; smoke walks now fire live `duo:event`s through ENH-094 — Claude subscribed via `duo events --follow` sees walk progress in real time, no copy/paste required for in-Duo walks.
 
-Other v0.6.6 candidates already filed:
-- **ENH-084** (aux focus glow defect log — three failed attempts
-  documented)
-- **ENH-091** (caret placement on new canvas — owner ask 2026-05-04)
-- **BUG-079** (⌃⇧` cycle latency — recurring class)
-- **FOLLOWUP-008** (accent token RGB-triplet migration — unblocks
-  bg-accent/N opacity modifiers)
-- **FOLLOWUP-007** (`duoSendResult` CDP binding — pre-req for ENH-093's
-  `host:send-to-claude`)
-- **Stage 19e** (ENH-088/089/090 — managed CLAUDE.md block + glossary
-  lift + enterprise reference; PRD shipped v0.6.5)
-- **ENH-080** (`⌘⇧A` tab-search palette — research doc shipped v0.6.5,
-  implementation queued)
-- **ENH-075** (canvas glyph alternatives — owner pick from worksheet
-  result, simple SVG swap)
-- **Phase 7 carry-overs**: FOLLOWUP-003 (perf re-measure),
-  FOLLOWUP-004 (visual smoke via computer-use)
-
-**Resume recipe (v0.6.6 sprint planning):**
-1. **Read this file FIRST.** The carry-overs list above is the v0.6.6
-   sprint candidate pool.
-2. **`git log --oneline -15`** — head should be the v0.6.5 cut commit
-   (with the `v0.6.5` tag at HEAD or HEAD~1). Working tree clean.
-3. **Run the `sprint-plan` skill** to harvest candidates from
-   tasks.md / active-sprint.md / session-log.md / roadmap.html and
-   generate a worksheet for the owner to prioritize. The carry-overs
-   list above is the seed; the skill auto-rediscovers anything else
-   that opened since.
-4. **Smoke-walk skill rules (still in effect):**
-   - Probe FIRST: `ps -ef | grep "MacOS/Electron \."` before any
-     `npm run dev` — never spawn a duplicate.
-   - Verify focus AFTER `duo open`: `duo url` + `duo title` to
-     confirm the worksheet is the active visible tab BEFORE handoff.
-   - Generate a fresh worksheet for each verification round.
-5. **Reload Duo before any smoke walk** — main-process changes
-   require Electron restart, NOT just renderer HMR.
-6. **The playground initiative (ENH-092/093/094 → ENH-043) is high
-   priority but big.** Likely 2–3 sprints. Prioritize alongside other
-   v0.6.6 candidates per owner walk. May warrant its own dedicated
-   sprint (Sprint 5 = playground primitives).
+**Worksheet primitive note:** the smoke-walk + sprint-plan generators emit live events on radio change as of v0.6.6 (ENH-043). Manifest's `kind` is the event prefix; payload is `{worksheet, id, value}`. Falls back silently outside Duo.
 
 ---
 
@@ -358,13 +133,14 @@ Other v0.6.6 candidates already filed:
 
 | File | Purpose |
 |---|---|
-| [docs/dev/worksheets/sprint-plan-v0.6.5.html](worksheets/sprint-plan-v0.6.5.html) | The walked sprint plan (source of priority decisions) |
-| [docs/dev/session-log.md](session-log.md) § 2026-05-03 (evening) | v0.6.4 walk results + worksheet spike + this sprint planning recap |
-| [.claude/skills/worksheet/SKILL.md](../../.claude/skills/worksheet/SKILL.md) | Worksheet primitive (built this session; powers smoke-walk + sprint-plan) |
-| [.claude/skills/sprint-plan/SKILL.md](../../.claude/skills/sprint-plan/SKILL.md) | Sprint planning workflow (built this session) |
-| [tasks.md § FOLLOWUP-007](../../tasks.md) | Send-to-Claude binding plumbing (parallel to `duoOpenPath`); not blocking this sprint |
-| [tasks.md § ENH-052](../../tasks.md) | Mechanical canvas → page rename (Phase 1 source-of-truth) |
-| [tasks.md § ENH-078 / BUG-074](../../tasks.md) | Light-mode contrast (Phase 2 source-of-truth) |
-| [tasks.md § ENH-083 / ENH-084 / ENH-085](../../tasks.md) | Phase 3 source-of-truth |
-| [docs/DECISIONS.md § Editor / canvas convergence](../DECISIONS.md) | Phase 2 ADR (Path A — mirror) — applies to any editor/canvas work this sprint |
-| [CLAUDE.md § Plumbing checklists](../../CLAUDE.md) | Mandatory plumbing rules; ENH-052 will touch many |
+| [tasks.md § BUG-081](../../tasks.md) | UX redesign — kb / right-click / toolbar; drop hover pill. Hypothesis list + where-to-look |
+| [tasks.md § BUG-082](../../tasks.md) | Rail-not-restoring-on-reopen — likely async race |
+| [tasks.md § BUG-083](../../tasks.md) | Visual association gap — anchor decoration + click-to-focus |
+| [tasks.md § MISSING-001](../../tasks.md) | Markdown editor comments (Stage 14a) — entire data plane unbuilt |
+| [renderer/components/Page/PageTab.tsx](../../renderer/components/Page/PageTab.tsx) | Canvas comment wire-up; line 1437 has the gating block |
+| [renderer/components/editor/primitives/CommentRail.tsx](../../renderer/components/editor/primitives/CommentRail.tsx) | Visual primitive — already shared canvas + (future) markdown |
+| [renderer/components/Page/sidecar.ts](../../renderer/components/Page/sidecar.ts) | Sidecar persistence — start of BUG-082 trace |
+| [renderer/components/Page/commentAnchors.ts](../../renderer/components/Page/commentAnchors.ts) | Anchor resolution + decoration target for BUG-083 |
+| [renderer/keyboard/globalShortcuts.ts](../../renderer/keyboard/globalShortcuts.ts) | Where ⌘⌥M lands for Phase 2 |
+| [docs/RELEASES.md](../RELEASES.md) | v0.6.6 prose entry — most recent shipped chapter |
+| [CLAUDE.md § 4 — plumbing checklists](../../CLAUDE.md) | The plumbing rules; specifically the editor-canvas parity rule for Phases 2 + 4 |

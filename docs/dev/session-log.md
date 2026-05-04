@@ -18,6 +18,24 @@
 
 ---
 
+## 2026-05-04 (post-cut) — Sprint 6 priorities filed: comments family
+
+**Status: Sprint 6 (v0.6.7) priorities queued; not yet started.** Owner asked post-cut "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app; what happened?" Investigation surfaced that the comments capability is broken on canvas (regression — BUG-081 family) AND was never built on the markdown editor (MISSING-001 / Stage 14a never landed despite always being "next"). Owner-confirmed root causes during the conversation:
+
+1. **BUG-081** — Canvas Comment button hides when no Claude session is live. PageTab.tsx:1437 wraps the Comment button inside the same render block as the Send → Duo pill, gated on `onSendToDuo` which is null when no Claude tab is open. Owner direction: **drop the hover-pill UX entirely** — replace with kb shortcut (⌘⌥M, Google Docs parity), right-click "Comment" entry, toolbar button. The gating issue becomes moot once the pill is gone.
+
+2. **BUG-082** — Rail does not restore existing comments on canvas reopen. Owner repro: added a comment to /tmp/p5-rewalk.html, closed the tab, reopened — rail was gone; adding a new comment revealed the rail with both old and new visible. Likely async race where `railThreads` derivation locks in an empty list at mount before sidecar load resolves.
+
+3. **BUG-083** — Comments in rail have no visual association with their anchored text. Need anchor decoration on `[data-duo-comment-id]` spans, bidirectional click-to-focus (already wired one direction; reverse needs adding), active-thread visual indication.
+
+4. **MISSING-001** — Markdown editor comments (Stage 14a). Bumped from medium → high priority; pair with BUG-081 redesign so kb / right-click / toolbar UX ships consistent across both surfaces.
+
+All four entries detailed in tasks.md with where-to-look + hypotheses so Sprint 6 kicks off cold-pickable. active-sprint.md rewritten for Sprint 6 with the 5-phase plan (BUG-082 → BUG-081 → BUG-083 → MISSING-001 → smoke walk + cut). Filed as commit `6a5ce80`.
+
+The cut itself shipped clean: v0.6.6 commit `7801fdc`, tag pushed, GitHub Release published at https://github.com/dudgeon/duo/releases/tag/v0.6.6 with both signed + notarized DMGs (arm64 + x64) attached.
+
+---
+
 ## 2026-05-04 (overnight) — Sprint 5 closed · v0.6.6 cut · framework-overreach reframe · Stage 19e closes
 
 **Status: v0.6.6 cut.** Sprint 5 pivoted mid-flight from "build playground primitives framework" to "ship the one missing piece" after owner pushback. ENH-094 (CDP-inject playground runtime into browser-pane pages) shipped as the actually-missing capability — same `data-duo-action` vocabulary the canvas iframe has had since Stage 23, now reaching browser pane pages too. Worksheet generator gained a 10-line `duo:event` decorator (ENH-043) so smoke walks talk to Claude live via `duo events --follow` instead of relying on copy/paste. Stage 19e closed alongside: ENH-088 managed CLAUDE.md block (hook-independent — works in non-`DUO_SESSION` Claude Code sessions and in enterprise managed installs where hooks are policy-disabled), ENH-089 user-facing vocabulary lifted from project CLAUDE.md to shipped `skill/references/vocabulary.md`, ENH-090 new `skill/references/enterprise-deployments.md`. Plus BUG-080 (bold text invisible in dark-mode editor — Tailwind typography prose default override). ENH-075 / ENH-092 / ENH-093 closed won't-do. The framework-overreach reframe is preserved in git history as a record (v1 PRD `7a62b60` → v2 PRD `6c1dda7` → v3 narrow-scope PRD `359b772` → ENH-092/093 won't-do entries) so future contributors don't re-litigate. End-to-end validation passed: `typeof window.duoPlaygroundAction === 'function'`; a 3-event sequence dispatched via `duo eval` showed all events landing in `duo events` with sequential cursors. 202/202 vitest green (was 189) — added 51 worksheet characterization tests + 4 live-event tests + 13 ENH-088 merge-logic tests. Added `jsdom@^24` for DOM-environment tests. Memory entry saved this sprint: bold-strong needs explicit `var(--duo-ink)` color override (Tailwind typography prose default uses gray-900, invisible on dark paper). Cut commit + tag pending; Step 7 dev-bump to v0.6.7 follows.
