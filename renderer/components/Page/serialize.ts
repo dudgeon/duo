@@ -76,9 +76,19 @@ const RUNTIME_CLASSES_TO_STRIP = new Set([
 // re-open with stale highlighting until the rail rebuilds. Stripped
 // on EVERY element regardless of the runtime sentinel — same logic
 // as RUNTIME_CLASSES_TO_STRIP.
+//
+// Sprint 6 BUG-088 follow-up — also strip the legacy
+// `data-duo-auto-stamp-installed` sentinel. The first version of
+// `installAutoStampIds` set this on body to short-circuit double-
+// installs; it persisted to disk and broke the auto-stamp on
+// reopen. The current version doesn't set the attribute (it relies
+// on idempotent stamping instead), but files saved during the
+// in-flight Sprint 6 walks may carry the stale attribute — strip
+// it on every save so it disappears on first re-save.
 const RUNTIME_ATTRS_TO_ALWAYS_STRIP = new Set([
   'data-duo-has-comment',
-  'data-duo-comment-active'
+  'data-duo-comment-active',
+  'data-duo-auto-stamp-installed'
 ])
 
 // ── Public API ────────────────────────────────────────────────────────────

@@ -296,6 +296,15 @@ export function generateWorksheet(manifest) {
      contenteditable, trapping the Copy results click as a cursor
      placement). -->
 <meta name="duo-open-in" content="browser">
+<!-- duo-editable: lock to read-only IF the page does end up in the
+     canvas (e.g. user moves it to Split View, which currently
+     promotes browser-pane content to a canvas). The form controls
+     (radio inputs, textarea) still work — they bypass contentEditable
+     — but the document text doesn't accept stray cursor placement,
+     so Copy results / Send to Claude clicks land cleanly. Without
+     this, BUG-091 + the user's split-view test became a procedural
+     blocker for the smoke walk. -->
+<meta name="duo-editable" content="false">
 <!-- Path links default to opening in Split View so the worksheet
      stays visible while linked files open in aux. Per-link override:
      <a data-duo-path="..." data-duo-target="main">. -->

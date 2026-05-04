@@ -89,12 +89,20 @@ if (pkg) {
 }
 
 // Transform smoke-walk manifest → worksheet manifest.
+//
+// BUG-091 follow-up — render `manifest.title` if set; otherwise default
+// to `Smoke walk · v<full-version>`. Pre-fix this wrapper hardcoded
+// `Smoke walk · v${version}` ignoring caller-supplied titles, which
+// meant `v0.6.7` and `v0.6.7-rev2` both rendered as the same string in
+// the browser-tab strip — owner couldn't tell them apart.
 const worksheetManifest = {
   kind: 'smoke-walk',
   name: `smoke-walk-v${version}`,
   version,
   date,
-  title: `Smoke walk · v${version}`,
+  title: typeof manifest.title === 'string' && manifest.title.length > 0
+    ? manifest.title
+    : `Smoke walk · v${version}`,
   intro_html: `
     <strong>How this works.</strong>
     For each item below, walk the steps in the running Duo, then toggle

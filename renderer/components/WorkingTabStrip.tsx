@@ -537,12 +537,20 @@ function buildTabMenuTemplate(opts: {
     })
   }
 
-  // Sprint 3 Phase 3b — Move to Split View. File tabs only (browser-
-  // in-aux is Phase 3c). Path-bearing requirement screens out browser
-  // tabs without a file:// URL (i.e. http(s) tabs); local-file
-  // browser tabs DO have a path via pathFromFileUrl(tab.url) but
-  // they're still kind 'browser' so we exclude them by tab.type.
-  if (onMoveToSplit && path && tab && tab.type !== 'browser') {
+  // Sprint 3 Phase 3b — Move to Split View. Path-bearing requirement
+  // screens out browser tabs without a file:// URL (i.e. http(s) tabs).
+  //
+  // BUG-091 fix (v0.6.7) — local-file browser tabs (smoke walk pages,
+  // generated dashboards, agent-built artifacts opened with
+  // duo-open-in:browser) DO have a path via `pathFromFileUrl(tab.url)`,
+  // and the navigator's right-click "Open in Split View" handles
+  // them correctly. Moving them to split view is symmetric — the
+  // path opens in aux as its natural file type. Previously gated
+  // out by `tab.type !== 'browser'`; that exclusion was incidental
+  // (Phase 3b labeled the category "browser-in-aux is Phase 3c"),
+  // but for local-file URLs the action is just "open the file in
+  // split", which already works.
+  if (onMoveToSplit && path && tab) {
     if (items.length > 0) items.push({ type: 'separator' })
     items.push({ id: 'move-to-split', label: 'Move to Split View' })
   }

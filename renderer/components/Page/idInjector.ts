@@ -85,10 +85,18 @@ export function countDuoIds(doc: Document): number {
  */
 export function installAutoStampIds(doc: Document): () => void {
   if (!doc.body) return () => {}
-  // Idempotency sentinel — re-running handleReady (or HMR cycles)
-  // shouldn't double-install.
-  if (doc.body.hasAttribute('data-duo-auto-stamp-installed')) return () => {}
-  doc.body.setAttribute('data-duo-auto-stamp-installed', '1')
+  // No idempotency sentinel. The previous version stamped a
+  // `data-duo-auto-stamp-installed` attribute on body to short-circuit
+  // double-installs, but that attribute persisted to disk (not in
+  // serialize.ts's runtime-strip set) — so on canvas reopen, the
+  // sentinel was set but no observer existed; install bailed and
+  // newly-typed bullet items never got data-duo-id stamps.
+  // Solution: don't use a sentinel. The stamp function itself is
+  // already idempotent (skips elements that already have data-duo-id),
+  // and each call to installAutoStampIds returns its own cleanup.
+  // If two observers attach due to handleReady re-runs, both fire
+  // for each mutation but each performs a no-op stamp — cheap and
+  // correct.
 
   const stampElement = (el: Element): void => {
     if (SKIP_TAGS.has(el.tagName)) return
@@ -112,6 +120,14 @@ export function installAutoStampIds(doc: Document): () => void {
     }
   }
 
+  // Initial sweep: stamp every existing un-stamped element. Catches
+  // canvases where the user typed content (bullets, headings, etc.)
+  // in a previous session BEFORE this auto-stamp shipped — those
+  // elements have no data-duo-id and would otherwise stay unstamped
+  // until the user re-edited them. Idempotent: existing IDs are kept.
+  // Cheap (one full body walk on canvas mount).
+  stampSubtree(doc.body)
+
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       if (m.type !== 'childList') continue
@@ -125,7 +141,6 @@ export function installAutoStampIds(doc: Document): () => void {
 
   return () => {
     observer.disconnect()
-    doc.body?.removeAttribute('data-duo-auto-stamp-installed')
   }
 }
 
