@@ -5081,6 +5081,36 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ---
 
+### BUG-085: Markdown editor doesn't pick up external writes — and autosave can squash agent edits
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 mid-flight insertion). Owner repro 2026-05-04: wrote some MD; asked Duo to rewrite a section via Send → Duo (chord worked); Claude claimed to have rewritten it; the editor did not present the update. Actual root cause is multi-layered.
+**Priority:** **High** (silent data loss / silent staleness — user trusts what the editor shows; reality on disk diverges; autosave can then overwrite the agent's edits).
+**Filed:** 2026-05-04 (owner repro: see status line above).
+
+**What's actually broken (three layers).**
+
+1. **No file watcher in `MarkdownEditor`.** [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx) loads the file once on mount (line ~360) and never subscribes to filesystem-change events for the loaded path. The `window.electron.files.watch(paths, cb)` API exists (Stage 10 / BUG-007) and the navigator already uses it; the editor doesn't. So an `fs.write` against the open file (Claude's `Write` tool, an external editor save, a `git checkout`, etc.) never reaches the editor — the in-memory buffer stays at the pre-write content, and the user sees stale content while the file on disk has moved on.
+
+2. **Autosave squashes external writes when the buffer is dirty.** When the local buffer is dirty (user typed since last save), the autosave debounce eventually fires and writes the editor's serialized content. It does NOT compare against the on-disk file — it just blindly overwrites. So the sequence "user types → Claude `fs.write`s the agent-rewritten section → user pauses → autosave fires" produces a save that reverts Claude's edits without warning.
+
+3. **Skill / agent docs don't direct Claude to `duo doc write`.** The right path for "rewrite a section in the active markdown editor" is `duo doc write --replace-selection` (or similar), which goes through the EDITOR_DOC_WRITE IPC pair → MarkdownEditor's `onDocWrite` handler at line 1064 → in-place TipTap mutation + just-added wash + clean integration with the autosave pipeline. Claude used `Write` (raw fs) instead, which bypasses all that. The skill should make this distinction explicit so future "rewrite this section" prompts route through the agent-aware path.
+
+**Fix scope (this sprint).**
+
+a. **File watcher in `MarkdownEditor`.** Subscribe via `window.electron.files.watch([path], handler)` after file load completes. On change: read disk; compare to `lastSavedBodyRef.current`. If equal → ignore (it's our own save echoing back). If different → branch on `dirty`:
+   - **Clean buffer:** silently reload — `editor.commands.setContent(diskBody, false)` + advance `lastSavedBodyRef` + a brief "Updated from disk" toast.
+   - **Dirty buffer:** show a non-modal conflict banner. Two actions: "Reload from disk (loses my edits)" and "Keep mine (will overwrite on save)". The third future action — "Save my changes as a new file" — deferred.
+
+b. **Skill / agent docs.** Add a one-line nudge to `agents/duo.md` (verb cheat-sheet) and `skill/SKILL.md` directing agents toward `duo doc write` for "rewrite / replace / edit a section" of the active markdown editor's buffer, with a note that `Write` to disk works but loses the editor's just-added wash and risks autosave conflicts.
+
+c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTML canvas's PageTab — its file load is also one-shot. Mirror the watcher fix to PageTab in a follow-up; not blocking v0.6.7 (the user hit the markdown-editor variant).
+
+**Cross-ref:** Stage 16 (the broader "external-write reconciliation" spec — this BUG is the v1 implementation). BUG-033 v2 (the harder OT-merge case for `duo doc write` against a dirty buffer — separate from the fs-write reconciliation here, deferred). FOLLOWUP-NN: PageTab mirror.
+
+**Editor-canvas parity disposition (per CLAUDE.md § 4):** **(c) Deferred** — markdown editor ships v1; PageTab's canvas surface gets the same watcher pattern in a follow-up.
+
+---
+
 ### BUG-084: ⌘R reloads the entire app and kills running terminal sessions
 
 **Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 mid-flight insertion, 2026-05-04). Removed the default `{ role: 'reload' }` and `{ role: 'forceReload' }` items from the View menu in `electron/main.ts` — those Electron-default roles auto-bind ⌘R / ⇧⌘R to `webContents.reload()`, which destroys the renderer (every terminal tab, every working tab, every iframe canvas) without warning. The dev workflow keeps `toggleDevTools` (still in the menu); explicit reload is still possible by killing + restarting `npm run dev`. Production users have no reason to reload — the data they care about (tabs, sessions, files) is in the renderer state that the reload would wipe.

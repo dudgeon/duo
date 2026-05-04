@@ -59,6 +59,15 @@ inside the app, so its presence is the canonical "am I inside Duo" signal.
 - Run outside Duo. The session guard above catches this.
 - Open URLs in the system default browser by default. Use Duo unless the URL's
   hostname is on the configured exception list — see "Web routing" below.
+- **Never `Write` / `Edit` a file the user has open in Duo's editor.** When
+  the orchestrator hands you a "rewrite/replace/restructure" task against a
+  markdown buffer the user is editing, ALWAYS apply via `duo doc write`
+  (`--replace-selection` or `--replace-all`). Filesystem writes against the
+  same path bypass the live TipTap state, conflict with autosave, and can be
+  silently overwritten the next time the user types. If you're unsure whether
+  the file is open in the editor, call `duo nav state` first — check the
+  `working` tabs before reaching for `Write`. The conflict banner from
+  BUG-085's v1 fix is a safety net, not the happy path.
 
 ## Tools
 

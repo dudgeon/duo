@@ -205,6 +205,8 @@ declare friction sites once and stop fighting them.
 
 ## Patterns
 
+> **CRITICAL — never `Write`/`Edit` a markdown file the user has open in Duo's rich editor.** Mutate it through `duo doc write` (`--replace-selection` for a piece of the doc, `--replace-all` for the whole body). Direct filesystem writes bypass the editor's live TipTap state, so the user keeps seeing the OLD content while disk has moved on; worse, the editor's autosave can silently overwrite your fs write the moment the user types anything (BUG-085 fix landed a banner for the dirty case, but the right path is still to never go around the editor in the first place). If you're unsure whether the file is open, call `duo nav state` and check the `working` tabs before reaching for `Write` / `Edit`.
+
 ### Transform the user's selected text in the markdown editor
 
 This is the canonical "summarize this / shorten this / rewrite this"

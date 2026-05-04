@@ -114,6 +114,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Sprint 6 BUG-085 — external-write reconciliation. When a file we
+  // have open is modified outside of our buffer (Claude's Write tool,
+  // an external editor, `git checkout`), the watcher reads the new
+  // content and either silently reloads (clean buffer) or surfaces
+  // this banner state (dirty buffer). Banner offers two resolutions:
+  // reload from disk (loses local edits) or keep mine (next autosave
+  // overwrites disk).
+  const [externalConflict, setExternalConflict] = useState<{ diskBody: string } | null>(null)
   // ENH-023 — find bar visibility. ⌘F opens; ⎋ inside the input
   // closes (handled in FindBar). The extension's storage flips
   // `open` for any callers that need to gate behavior on it (e.g.
@@ -386,6 +394,95 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     return () => { cancelled = true }
   }, [path, editor, isNew])
 
+  // Sprint 6 BUG-085 — external-write reconciliation. Watch the loaded
+  // file for changes. When something OUTSIDE our editor (Claude's
+  // Write tool, an external editor save, `git checkout`) mutates the
+  // file, the editor previously had no idea — buffer stayed stale,
+  // and on the next autosave the agent's edits got silently
+  // overwritten. Now: read the disk content on every change event;
+  // if it matches `lastSavedBodyRef.current` it's our own save
+  // echoing back (no-op); otherwise branch on dirty state. Clean
+  // buffer → silent reload + advance baseline. Dirty buffer →
+  // surface a banner with reload-or-keep-mine choices.
+  //
+  // Skipped in `isNew` mode (no on-disk file to watch) and when the
+  // editor isn't ready yet.
+  useEffect(() => {
+    if (!editor) return
+    if (isNew) return
+
+    let cancelled = false
+    let unwatch: (() => Promise<void>) | null = null
+
+    void window.electron.files.watch([path], (event) => {
+      if (cancelled) return
+      if (event.path !== path) return
+      // 'removed' — file deleted externally. Don't reload (the read
+      // would fail). The user can save to recreate it. This matches
+      // most editors' behavior on external delete.
+      if (event.kind === 'removed') return
+
+      void window.electron.files.read(path).then((res) => {
+        if (cancelled) return
+        const text = decodeUtf8(res.bytes)
+        const split = splitFrontmatter(text)
+        const diskBody = split.body
+
+        // Echo of our own save — `lastSavedBodyRef.current` was
+        // updated to the freshly-saved body before chokidar fired.
+        if (diskBody === lastSavedBodyRef.current) return
+
+        const liveBody = editor.storage.markdown.getMarkdown() as string
+        const isDirty = liveBody !== lastSavedBodyRef.current
+
+        if (!isDirty) {
+          // Clean buffer — silent reload + baseline advance.
+          frontmatterRef.current = split.frontmatter
+          eolRef.current = split.eol
+          editor.commands.setContent(diskBody, false)
+          lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+        } else {
+          // Dirty buffer — surface conflict; user picks resolution.
+          setExternalConflict({ diskBody })
+        }
+      }).catch(() => { /* file unreadable / mid-rename — ignore */ })
+    }).then((fn) => {
+      if (cancelled) { void fn(); return }
+      unwatch = fn
+    }).catch(() => { /* watcher unavailable — degrade gracefully */ })
+
+    return () => {
+      cancelled = true
+      if (unwatch) void unwatch()
+    }
+  }, [path, editor, isNew])
+
+  // Sprint 6 BUG-085 — conflict-banner resolution handlers.
+  const resolveConflictReload = useCallback(() => {
+    if (!editor || !externalConflict) return
+    editor.commands.setContent(externalConflict.diskBody, false)
+    lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+    setDirty(false)
+    onDirtyChange?.(false)
+    setExternalConflict(null)
+  }, [editor, externalConflict, onDirtyChange])
+
+  const resolveConflictKeepMine = useCallback(() => {
+    if (!externalConflict) return
+    // Advance the baseline to the disk version. Our buffer differs
+    // from disk (we kept the local edits), so the dirty state stays
+    // true and the immediate save below overwrites disk with the
+    // local version — exactly what "keep mine" means.
+    lastSavedBodyRef.current = externalConflict.diskBody
+    setDirty(true)
+    onDirtyChange?.(true)
+    setExternalConflict(null)
+    // Fire the save explicitly. The autosave timer only arms on
+    // editor updates; without an explicit kick here, the dirty
+    // buffer would sit unchanged until the next keystroke.
+    void saveRef.current()
+  }, [externalConflict, onDirtyChange])
+
   // ── Save ─────────────────────────────────────────────────────────────────
   const save = useCallback(async () => {
     if (!editor) return
@@ -397,6 +494,29 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
     setSaving(true)
     try {
+      // Sprint 6 BUG-085 — pre-save reconciliation. The watcher's
+      // chokidar events are debounced and frequently arrive AFTER
+      // the autosave timer has already fired, so an external write
+      // racing against autosave could be silently overwritten before
+      // the watcher's banner ever surfaced. Read disk just before
+      // the write; if disk content has drifted from our baseline
+      // (someone else edited the file since our last load/save),
+      // bail out of this save and route through the same conflict
+      // banner the watcher uses. The user picks the resolution.
+      try {
+        const diskRes = await window.electron.files.read(path)
+        const diskText = decodeUtf8(diskRes.bytes)
+        const diskBody = splitFrontmatter(diskText).body
+        if (diskBody !== lastSavedBodyRef.current) {
+          setExternalConflict({ diskBody })
+          return
+        }
+      } catch {
+        // Can't read disk (file deleted, permissions, etc.) — fall
+        // through to write. The write may also fail; the catch below
+        // surfaces the error. Better than silently aborting the save.
+      }
+
       const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
       const bytes = encodeUtf8(full)
       await window.electron.files.write(path, bytes)
@@ -1184,6 +1304,28 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       {error && (
         <div className="shrink-0 px-10 py-2 text-xs text-red-400 border-b border-red-900/40 bg-red-950/20">
           {error}
+        </div>
+      )}
+      {externalConflict && (
+        <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+          <span className="flex-1">
+            <strong className="font-semibold">This file changed on disk</strong> while you were editing.
+            Reload (loses your edits) or keep yours (next save will overwrite the new disk version).
+          </span>
+          <button
+            type="button"
+            onClick={resolveConflictReload}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Reload from disk
+          </button>
+          <button
+            type="button"
+            onClick={resolveConflictKeepMine}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Keep mine
+          </button>
         </div>
       )}
       {/*
