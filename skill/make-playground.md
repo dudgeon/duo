@@ -10,7 +10,7 @@ description: Add interactivity to a Duo page — buttons that drive Duo, form in
 > verbs, form inputs piped through `data-payload-from`, events
 > emitted via `duo:event`. The interactive tier on top of `make-page`.
 >
-> **Vocabulary lock** (see CLAUDE.md § Glossary):
+> **Vocabulary lock** (see [`references/vocabulary.md`](references/vocabulary.md)):
 > - **canvas** — the right pane (slot, type-agnostic)
 > - **page** — basic HTML in the canvas (no interactivity) — see `make-page`
 > - **playground** — page WITH interactivity — THIS skill

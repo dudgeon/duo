@@ -11,7 +11,7 @@ description: Author a basic HTML page that lives in Duo's canvas (the right pane
 > Just rendered HTML. The simplest unit of canvas authoring; the
 > base that `make-playground` extends.
 >
-> **Vocabulary lock** (see CLAUDE.md § Glossary):
+> **Vocabulary lock** (see [`references/vocabulary.md`](references/vocabulary.md)):
 > - **canvas** — the right pane (slot, type-agnostic). Holds whatever
 >   tab is active. NOT what you author.
 > - **page** — a basic HTML tab inside the canvas. THIS is what

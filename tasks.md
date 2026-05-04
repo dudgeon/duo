@@ -4954,6 +4954,22 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 
 ---
 
+### BUG-080: Bold text in markdown editor is unreadable in dark mode
+
+**Status:** ✅ Shipped v0.6.6 (Sprint 5 close-out 2026-05-04). One-line CSS fix in `renderer/styles/globals.css`.
+**Priority:** Medium (UX paper-cut — bold emphasis in any markdown doc viewed in dark mode renders as near-black text on dark paper).
+**Filed:** 2026-05-04 (owner observation: viewing own `~/.claude/CLAUDE.md` in dark mode; bold "Primary obligation" / "Session awareness" / etc. were illegible).
+
+**Root cause.** `.duo-editor-prose` applies Tailwind's `prose` class from `@tailwindcss/typography`. The plugin's default styling for `<strong>` is `theme(colors.gray.900)` (~`#111`). On the dark paper background `#1A1611` that's invisible. No explicit override existed; light-mode worked because gray-900 on light paper is readable, masking the gap.
+
+**Fix.** Added `.duo-editor-prose :where(strong, b) { color: var(--duo-ink); }` so bold inherits the same theme-aware ink color as body text. Reads as dark in light mode, cream in dark mode.
+
+**Verified:** opened `~/.claude/CLAUDE.md` in dark mode after the CSS landed; owner confirmed bold emphasis renders correctly.
+
+**Cross-ref:** Stage 12 (Atelier palette / dark-mode rollout). Same class of issue as BUG-044 (paper-* classes silently falling through).
+
+---
+
 ### BUG-076: ⌃⇧\` tab-cycle doesn't reach faq.html after `duo open` switches focus to a new browser tab
 
 **Status:** ✅ **Fixed v0.6.5** (Sprint 4 Phase 4). Root cause: `BrowserManager.switchTab()` activated the new view's bounds + emitted state but never called `webContents.focus()` on it. OS-level keyboard focus stayed on the PREVIOUS (now-shrunk-to-1×1) view. The first cycle press worked because the focused-but-shrunk view's `before-input-event` handler still forwarded ⌃Tab; subsequent keystrokes drifted because every other call site of switchTab (addTab / openExisting / etc.) had been calling `webContents.focus()` manually — but the bare `switchTab(n)` API path that the renderer cycle uses didn't. Fix: centralize the focus call inside `switchTab` itself in `electron/browser-manager.ts § switchTab` after activating the new view. Existing inline `webContents.focus()` calls at sibling call sites become redundant but harmless.
@@ -5398,7 +5414,7 @@ Plus one regression: user removes block manually, runs install again → block s
 
 ### ENH-089: Lift user-facing glossary out of project CLAUDE.md into a shipped skill reference
 
-**Status:** 🆕 Filed — sprint candidate (Stage 19e Phase 2)
+**Status:** ✅ Shipped v0.6.6 (Sprint 5 close-out 2026-05-04). New `skill/references/vocabulary.md` ships with the user-facing terminology; `make-page.md` + `make-playground.md` pointer fix landed; CLAUDE.md § Glossary trimmed to contributor-facing internal-name table + pointer at the shipped reference. Sync verified via `npm run sync:claude` — `~/.claude/skills/duo/references/vocabulary.md` present in installed tree.
 **Priority:** Medium (single-source-of-truth fix; closes a broken cross-reference)
 **Filed:** 2026-05-03
 

@@ -289,6 +289,11 @@ html.dark {
   .duo-editor-prose h2 { font-size: 1.5rem; margin-top: 1.2em; margin-bottom: 0.5em; }
   .duo-editor-prose h3 { font-size: 1.25rem; margin-top: 1.1em; margin-bottom: 0.5em; }
   .duo-editor-prose p { margin-top: 0.6em; margin-bottom: 0.6em; }
+  /* BUG-080 (v0.6.6) — bold text in dark mode was rendering near-black
+     because Tailwind typography's prose default is theme(colors.gray.900).
+     Use --duo-ink so bold inherits the same contrast as body text in
+     both light + dark modes. */
+  .duo-editor-prose :where(strong, b) { color: var(--duo-ink); }
   .duo-editor-prose a.duo-link { color: var(--duo-accent-ink); text-decoration: underline; text-decoration-color: var(--duo-accent-soft); }
   .duo-editor-prose code {
     background: var(--duo-paper-deep);
