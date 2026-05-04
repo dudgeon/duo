@@ -3685,9 +3685,9 @@ Self-walk during v0.6.3 surfaced that the **bullet TRIGGER itself** (typing `- `
 
 ---
 
-### ENH-043: The smoke-walk skill should be re-buildable via playground primitives [META — depends on ENH-092/093/094]
+### ENH-043: The smoke-walk skill should be re-buildable via playground primitives [REFRAMED — narrowed scope]
 
-**Status:** 🚧 **Reframed 2026-05-04 as architectural meta-initiative.** Original framing assumed playground primitives could already subsume this. They can't — and the gap is real, not a sandbox-imposed dead end. Owner direction (verbatim): *"if the smoke walk using playground primitives is not possible, then our playground implementation is fucked and we need to fix it."* Decomposed into ENH-092/093/094 below; ENH-043 closes when those land + `worksheet/generate.mjs` is refactored to emit pure declarative HTML using the new playground vocabulary.
+**Status:** 🚧 **Reframed twice in Sprint 5.** First reframe (2026-05-04 morning) decomposed into ENH-092/093/094 + a worksheet refactor. Second reframe (2026-05-04 evening) — owner pushback on the "framework" direction: future-Claude is a capable coder; primitives that pre-chew its meal just get bypassed. Final scope: **ship ENH-094 (browser-pane runtime injection) so the smoke walk can fire `duo:event` live as the user interacts; close ENH-092/093 won't-do.** The smoke walk's existing inline JS (state/tally/composition) stays — it's appropriate page-specific code. The DELTA after ENH-094 is that the worksheet adds `data-duo-action="duo:event"` decorators on radio changes, and Claude subscribed via `duo events --follow` sees walk progress live instead of waiting for copy/paste. Net change to the worksheet generator: ~5 lines of decorator injection. ENH-043 closes when ENH-094 ships + the worksheet generator emits the event decorators.
 **Priority:** High (architectural — this is what the playground is *for*).
 **Filed:** 2026-05-02 (idle-thoughts.md). Reframed 2026-05-04 (post-Phase-5 cut readiness check).
 
@@ -5486,7 +5486,7 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-092: Playground state + DOM-reactivity primitives (load-bearing for ENH-043 meta-initiative)
 
-**Status:** 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground architecture decomposition).
+**Status:** ❌ Won't do — closed 2026-05-04 (Sprint 5 scoping). Owner direction post v0.6.5 cut: future-Claude is a capable coder authoring playgrounds collaboratively with the user; the existing `make-playground.md` skill (376 lines) already documents how to use the existing 9-verb action vocabulary + `data-payload-from` form-value capture. State save/restore + tally rendering + composition are trivially expressible as inline JS in a browser-pane page (where scripts are allowed) — they don't need new primitives. Building a binding-language / DSL / opinionated-shorthand layer would be "pre-chewing future-Claude's meal" and would just get bypassed when the ceiling proved too low. The actual missing piece is ENH-094 (extending the existing runtime to browser-pane pages so they can fire `duo:event` live), not new primitives. Closed without code changes.
 **Priority:** High (load-bearing for ENH-043; without this, playground primitives can only fire one-shot host actions, not drive interactive pages).
 **Filed:** 2026-05-04.
 
@@ -5523,7 +5523,7 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-093: Playground composition + clipboard primitives (load-bearing for ENH-043)
 
-**Status:** 🆕 Filed (Sprint 4 close-out 2026-05-04 — playground architecture decomposition).
+**Status:** ❌ Won't do — closed 2026-05-04 (Sprint 5 scoping; same reasoning as ENH-092). Composition / clipboard / send-to-Claude are already expressible: clipboard via `navigator.clipboard.writeText` from inline JS; send-to-Claude via `window.duoSendResult` (FOLLOWUP-007 binding, separately tracked); JSON snapshot of state is a 5-line `JSON.stringify(captureState())`. No new primitives warranted. The reframe to event-driven flow (live `duo:event` emission from page-side, Claude subscribed via `duo events --follow`) makes the batch composition pathway secondary anyway — it stays as a fallback for "user wants the result as text outside Duo," which the existing smoke-walk inline JS already covers. Closed without code changes.
 **Priority:** High (load-bearing for ENH-043).
 **Filed:** 2026-05-04.
 
