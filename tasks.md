@@ -5369,7 +5369,7 @@ These haven't surfaced as bugs because they're either hover-states (transient, l
 
 ### ENH-088: Install a managed Duo block in `~/.claude/CLAUDE.md` on first launch
 
-**Status:** 🆕 Filed — sprint candidate (Stage 19e Phase 1)
+**Status:** ✅ Shipped v0.6.6 (Sprint 5 close-out 2026-05-04). New `mergeUserClaudeMd` method in `electron/install-service.ts` runs alongside `installSessionStartHook`. Pure decision logic in exported `planClaudeMdMerge(input)` covers the four PRD scenarios (file-doesn't-exist / marker-present / no-marker-no-prior-flag / no-marker-flag-respects-removal). 13 unit tests in `electron/install-service.test.ts` against the pure helpers. `claudeMdManaged` flag persisted in `~/.claude/duo/installed.json` so a future install distinguishes "user removed our block" from "first-time install." Block is hook-independent: lands inside CLAUDE.md (read by Claude Code's core context loader), so it works in non-`DUO_SESSION` sessions and in enterprise managed installs where hooks are disabled. Block content is pointers only (skill, subagent, sandbox-troubleshooting reference, enterprise-deployments reference) — no inlined verb cheat-sheet (priming.md handles in-Duo sessions).
 **Priority:** Medium-High (closes the "Claude Code outside Duo terminals has no Duo awareness" gap; complements existing PATH-shim + SessionStart-hook priming which fire only inside `DUO_SESSION=1` PTYs)
 **Filed:** 2026-05-03
 
@@ -5446,7 +5446,7 @@ Update both shipped skills to reference `references/vocabulary.md` instead of `C
 
 ### ENH-090: Enterprise-deployments reference for hook-disabled / permission-restricted Claude Code installs
 
-**Status:** 🆕 Filed — sprint candidate (Stage 19e Phase 3)
+**Status:** ✅ Shipped v0.6.6 (Sprint 5 close-out 2026-05-04). New `skill/references/enterprise-deployments.md` shipped via the skill installer. Four sections: mechanism dependency map, common enterprise restrictions (hooks disabled / restrictive Bash allowlist / locked-down ~/.claude/ / custom CLAUDE.md authority), what still works (hook-free path), reporting checklist. ENH-088's managed CLAUDE.md block now points at this reference for users hitting policy-restricted installs.
 **Priority:** Medium (documentation; unblocks enterprise users hitting policy-driven failures)
 **Filed:** 2026-05-03
 

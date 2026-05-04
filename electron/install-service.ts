@@ -80,6 +80,7 @@ const PRIMING_PATH = path.join(DUO_DIR, 'priming.md')
 const PINS_PATH = path.join(DUO_DIR, 'pins.json')
 const SETTINGS_PATH = path.join(HOME, '.claude', 'settings.json')
 const SHIM_PATH = path.join(SHIM_DIR, 'claude')
+const USER_CLAUDE_MD_PATH = path.join(HOME, '.claude', 'CLAUDE.md')
 
 // Stage 19b — duo-managed SessionStart hook marker. The `_duo` field
 // is sibling to `hooks` inside the array entry so Claude Code's hook
@@ -95,6 +96,18 @@ const HOOK_MARKER_PREFIX = 'managed-v'
 // the hook from breaking SessionStart if priming.md has been deleted
 // — better to skip priming than fail the session start.
 const HOOK_COMMAND = `[ -n "$DUO_SESSION" ] && cat "$HOME/.claude/duo/priming.md" 2>/dev/null || true`
+
+// Stage 19e ENH-088 — managed block in ~/.claude/CLAUDE.md. Hook-
+// independent — works even when Claude Code's hook runtime is
+// disabled (enterprise managed installs, restrictive settings.json
+// policies, etc.). Insert / version-aware replace / respect-removal
+// logic mirrors mergeSessionStartHook above. The OPENING marker
+// regex matches ANY version so future versions can find + replace
+// older blocks; the version suffix on each install rotates so
+// upgrades are observable.
+const CLAUDE_MD_MARKER_OPEN_RE = /<!--\s*duo:managed-v[^>]*-->/
+const CLAUDE_MD_MARKER_CLOSE = '<!-- duo:end -->'
+const CLAUDE_MD_FULL_BLOCK_RE = /<!--\s*duo:managed-v[^>]*-->[\s\S]*?<!--\s*duo:end\s*-->/
 
 interface InstalledFile {
   version: string
@@ -120,6 +133,13 @@ interface InstalledFile {
    *  21e-iii ships overwrites freely (treats absent map as
    *  "trust the install") and starts tracking from there. */
   files?: Record<string, string>
+  /** Stage 19e ENH-088 — set to true the first time the install
+   *  service writes the managed block into ~/.claude/CLAUDE.md (or
+   *  creates that file). Once set, never cleared. Lets a future
+   *  install distinguish "the user removed our block" (flag = true,
+   *  no marker in file → respect-removal) from "first-time install"
+   *  (flag undefined/false, no marker → first-time append). */
+  claudeMdManaged?: boolean
 }
 
 /** Result of a single file install attempt. */
@@ -136,6 +156,110 @@ interface FileInstallResult {
 }
 
 const HOME_PREFIX_FOR_REL = path.join(HOME, '.claude') + path.sep
+
+// Stage 19e ENH-088 — managed CLAUDE.md block helpers, pure functions.
+// Exported for unit testing. The I/O wrapper (`mergeUserClaudeMd` on
+// InstallService) is the only Electron-coupled part.
+
+export interface ClaudeMdMergeInput {
+  /** Existing CLAUDE.md content, or null if the file doesn't exist. */
+  existing: string | null
+  /** Prior `claudeMdManaged` flag from installed.json. Undefined or
+   *  false means "we've never touched this file before"; true means
+   *  "we previously wrote the managed block." */
+  priorManaged: boolean
+  /** Block text to insert/replace, including marker comments. */
+  newBlock: string
+}
+
+export interface ClaudeMdMergeResult {
+  /** Final file contents to write, or null if no change is needed
+   *  (no-op cases like respect-removal or marker-only re-run). */
+  contents: string | null
+  /** New value of the `claudeMdManaged` flag. Sticky once set. */
+  managed: boolean
+  /** What action was taken — for diagnostics + tests. */
+  action:
+    | 'created'
+    | 'replaced'
+    | 'appended'
+    | 'respected-removal'
+    | 'no-op-marker-unchanged'
+}
+
+/**
+ * Stage 19e ENH-088 — render the managed Duo block for the user's
+ * `~/.claude/CLAUDE.md`. Pointers only; no inlined verb cheat-sheet
+ * (priming.md handles in-Duo sessions; the skill body handles
+ * triggered loads). The version suffix on the opening marker rotates
+ * each release so subsequent installs find + replace older blocks.
+ *
+ * Hook-independent: this lands inside CLAUDE.md, which Claude Code's
+ * core context loader reads on every session start regardless of
+ * hook policy or settings.json restrictions. That's the load-bearing
+ * design property.
+ */
+export function composeManagedClaudeMdBlock(version: string): string {
+  return [
+    `<!-- duo:managed-v${version} — installed by Duo. Edit freely; remove this block to opt out. -->`,
+    '## Duo workspace integration',
+    '',
+    'Duo (https://github.com/dudgeon/duo) is installed on this machine — a desktop app pairing Claude Code terminals with an embedded browser, file tree, markdown editor, and HTML canvas. When the user references Duo\'s surfaces ("the browser pane", "the editor", "what\'s selected", a `duo` CLI verb), reach for the **`duo` skill** at `~/.claude/skills/duo/SKILL.md` or delegate multi-step CLI sequences to the **`duo` subagent**. If a `duo` command hangs or returns `ECONNREFUSED`, see `~/.claude/skills/duo/references/sandbox-troubleshooting.md`. For enterprise / managed Claude Code installs (hooks disabled, restrictive permissions), see `~/.claude/skills/duo/references/enterprise-deployments.md`.',
+    '<!-- duo:end -->'
+  ].join('\n')
+}
+
+/**
+ * Stage 19e ENH-088 — pure decision logic for merging the managed
+ * Duo block into ~/.claude/CLAUDE.md. The four scenarios from
+ * docs/prd/stage-19e-user-context-onboarding.md § 4:
+ *
+ *   1. File doesn't exist → create with block.
+ *   2. File has a `<!-- duo:managed-v* -->` marker → version-aware
+ *      regex replace. Surrounding content untouched.
+ *   3. File exists, no marker, prior managed flag != true →
+ *      first-time append.
+ *   4. File exists, no marker, prior managed flag === true →
+ *      user removed the block. RESPECT THAT. No-op forever.
+ */
+export function planClaudeMdMerge(input: ClaudeMdMergeInput): ClaudeMdMergeResult {
+  const { existing, priorManaged, newBlock } = input
+
+  // Scenario 1 — file does not exist.
+  if (existing === null) {
+    return { contents: newBlock + '\n', managed: true, action: 'created' }
+  }
+
+  // Scenario 2 — managed marker present. Version-aware replace
+  // (the regex matches ANY duo:managed-v marker).
+  if (CLAUDE_MD_FULL_BLOCK_RE.test(existing)) {
+    const next = existing.replace(CLAUDE_MD_FULL_BLOCK_RE, newBlock)
+    if (next === existing) {
+      // Marker matched but the block content was already current.
+      return { contents: null, managed: true, action: 'no-op-marker-unchanged' }
+    }
+    return { contents: next, managed: true, action: 'replaced' }
+  }
+
+  // Scenario 4 — no marker, but we wrote one before. User removed
+  // it; respect that. Never re-add.
+  if (priorManaged) {
+    return { contents: null, managed: true, action: 'respected-removal' }
+  }
+
+  // Scenario 3 — first-time append.
+  // Two trailing newlines before the block so it sits separated from
+  // whatever the user already had. If the file doesn't end in a
+  // newline, the prepend pads to two — single \n at the start of the
+  // separator brings the total to two. If the file already ends in
+  // \n we still prepend one more for a blank-line separator.
+  const sep = existing.endsWith('\n') ? '\n' : '\n\n'
+  return {
+    contents: existing + sep + newBlock + '\n',
+    managed: true,
+    action: 'appended'
+  }
+}
 
 export class InstallService {
   async status(): Promise<InstallStatus> {
@@ -222,11 +346,16 @@ export class InstallService {
       // for first-ever installs and for upgrades from pre-21e-iii
       // versions (which didn't track files); both cases overwrite
       // freely and start tracking from this run forward.
+      // Stage 19e ENH-088 — also read the prior `claudeMdManaged`
+      // flag so the managed-block merge can distinguish first-time
+      // append from respect-removal.
       let prevShas: Record<string, string> | undefined
+      let priorClaudeMdManaged = false
       try {
         const raw = await fs.readFile(INSTALLED_PATH, 'utf8')
         const parsed = JSON.parse(raw) as Partial<InstalledFile>
         prevShas = parsed.files
+        priorClaudeMdManaged = parsed.claudeMdManaged === true
       } catch { /* missing/corrupt — treat as first install */ }
 
       const fileResults: FileInstallResult[] = []
@@ -408,6 +537,21 @@ export class InstallService {
       // for the load-bearing priming path.
       await this.installSessionStartHook()
 
+      // Stage 19e ENH-088 — managed Duo block in ~/.claude/CLAUDE.md.
+      // Hook-INDEPENDENT primary path (the SessionStart hook above is
+      // the redundant in-Duo safety net). Works in non-DUO_SESSION
+      // Claude Code sessions and in enterprise managed installs where
+      // hooks are policy-disabled. Best-effort: a write failure is
+      // non-fatal — log and move on. Sticky `claudeMdManaged` flag
+      // means a future install respects user removal.
+      let claudeMdManaged = priorClaudeMdManaged
+      try {
+        claudeMdManaged = await this.mergeUserClaudeMd(priorClaudeMdManaged)
+      } catch {
+        // Don't block install on a CLAUDE.md write error. The flag
+        // stays at its prior value so the next install can retry.
+      }
+
       // Stage 19b — PATH shim. Load-bearing priming mechanism. We
       // resolve real-claude via a login shell (so .zshrc PATH
       // additions are picked up) and inline the absolute path into
@@ -456,7 +600,8 @@ export class InstallService {
         version: app.getVersion(),
         installedAt: new Date().toISOString(),
         cliPath: cli.installed ? cli.path : undefined,
-        files: newFiles
+        files: newFiles,
+        claudeMdManaged
       }
       await fs.writeFile(INSTALLED_PATH, JSON.stringify(provenance, null, 2) + '\n')
 
@@ -641,6 +786,43 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
    * The `_duo` marker is a sibling of `hooks` and ignored by the
    * Claude Code runtime (it only reads recognized keys).
    */
+  /**
+   * Stage 19e ENH-088 — idempotent managed-block merge into the
+   * user's ~/.claude/CLAUDE.md. Hook-independent: lands inside
+   * CLAUDE.md (read by Claude Code's core context loader on every
+   * session start), so it works even when settings.json hooks are
+   * disabled by enterprise policy.
+   *
+   * `priorManaged` comes from the `claudeMdManaged` flag on the
+   * existing installed.json. Returns the new flag value, which the
+   * caller stamps into the provenance record on the way out.
+   *
+   * Atomic write via tmp + rename so a partial write doesn't
+   * corrupt user content.
+   */
+  private async mergeUserClaudeMd(priorManaged: boolean): Promise<boolean> {
+    let existing: string | null = null
+    try {
+      existing = await fs.readFile(USER_CLAUDE_MD_PATH, 'utf8')
+    } catch {
+      existing = null
+    }
+
+    const newBlock = composeManagedClaudeMdBlock(app.getVersion())
+    const result = planClaudeMdMerge({ existing, priorManaged, newBlock })
+
+    if (result.contents === null) {
+      // No-op cases (respect-removal or marker-already-current).
+      return result.managed
+    }
+
+    await fs.mkdir(path.dirname(USER_CLAUDE_MD_PATH), { recursive: true })
+    const tmpPath = `${USER_CLAUDE_MD_PATH}.tmp-${process.pid}`
+    await fs.writeFile(tmpPath, result.contents)
+    await fs.rename(tmpPath, USER_CLAUDE_MD_PATH)
+    return result.managed
+  }
+
   private async installSessionStartHook(): Promise<void> {
     let settings: Record<string, unknown> = {}
     try {
