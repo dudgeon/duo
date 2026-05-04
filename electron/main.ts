@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell, webContents, clipboard } from 'electron'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { MenuItemConstructorOptions, WebContents } from 'electron'
 // electron-context-menu v4 is ESM-only; main bundles as CJS, so we
 // load it via dynamic import inside app.whenReady. The lazy import
 // also defers the cost off the cold-start critical path. Imported
@@ -556,7 +556,12 @@ app.whenReady().then(async () => {
   try {
     const mod = await import('electron-context-menu')
     const contextMenu = (mod as { default: (opts: ContextMenuOptions) => () => void }).default
-    const ecmOptions: ContextMenuOptions = {
+    // Attach to existing webContents and any new ones. We close over
+    // each `wc` so the right-click "Comment" entry can send the IPC
+    // back to the same webContents that received the click — for
+    // canvas iframes this is the main BrowserWindow's wc (iframes
+    // share their parent's webContents in Electron).
+    const buildEcmOptions = (wc: WebContents): ContextMenuOptions => ({
       showSelectAll: true,
       showCopyLink: true,
       showSaveImageAs: true,
@@ -565,22 +570,38 @@ app.whenReady().then(async () => {
       showSearchWithGoogle: false,
       prepend: (_defaults, parameters) => {
         const sel = parameters.selectionText.trim()
-        if (sel.length === 0) return []
-        return [
-          {
+        const items: MenuItemConstructorOptions[] = []
+        if (sel.length > 0) {
+          items.push({
             label: 'Copy as Plain Text',
             accelerator: 'CmdOrCtrl+Alt+C',
             click: () => clipboard.writeText(parameters.selectionText)
+          })
+          // Sprint 6 BUG-081 — Comment entry shown ONLY when the
+          // right-click landed on a canvas iframe. Canvas iframes
+          // are srcdoc-based (RenderedPage builds them from the file's
+          // HTML), so frameURL is `about:srcdoc` for them and the
+          // file:// page URL otherwise. This gate prevents the entry
+          // from appearing in the markdown editor (Phase 4 / MISSING-001
+          // wires the markdown side) and the browser pane.
+          if (parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')) {
+            items.push({
+              label: 'Comment',
+              accelerator: 'CmdOrCtrl+Alt+M',
+              click: () => {
+                try { wc.send(IPC.PAGE_COMMENT_REQUEST) } catch { /* wc gone */ }
+              }
+            })
           }
-        ]
+        }
+        return items
       }
-    }
-    // Attach to existing webContents and any new ones.
+    })
     for (const wc of webContents.getAllWebContents()) {
-      contextMenu({ ...ecmOptions, window: wc })
+      contextMenu({ ...buildEcmOptions(wc), window: wc })
     }
     app.on('web-contents-created', (_event, wc) => {
-      contextMenu({ ...ecmOptions, window: wc })
+      contextMenu({ ...buildEcmOptions(wc), window: wc })
     })
   } catch (err) {
     console.warn('[main] failed to install context menu:', err)

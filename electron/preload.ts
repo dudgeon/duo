@@ -337,6 +337,12 @@ const api: ElectronAPI = {
 
     replyHtmlCommentsList: (result: HtmlCommentsListResult) => {
       ipcRenderer.send(IPC.PAGE_HTML_COMMENTS_LIST_RESULT, result)
+    },
+
+    onCommentRequest: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.PAGE_COMMENT_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.PAGE_COMMENT_REQUEST, handler)
     }
   },
 

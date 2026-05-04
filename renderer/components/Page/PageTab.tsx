@@ -416,9 +416,22 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
 
   const getDoc = useCallback(() => canvasRef.current?.getDocument() ?? null, [])
 
+  // Sprint 6 BUG-081 — forward-reference handleStartNewComment via a
+  // ref. The toolbar's Comment button is built into editorActions
+  // below, but handleStartNewComment is declared further down (it
+  // depends on pillRect). The ref lets editorActions stay stable
+  // (built once per mount) while always invoking the latest closure.
+  const startCommentRef = useRef<() => void>(() => {})
+
   // Build EditorActions once — it's a thin closure over `getDoc`, so it
   // never needs to rebuild. Toolbar reactivity is driven by selectionVersion.
-  const editorActions = useMemo(() => buildPageEditorActions(getDoc), [getDoc])
+  // The Comment button reads canStartComment on every toolbar render
+  // (selection-version-driven), so checking the live selection ref is
+  // sufficient to keep the enabled state in sync without rebuilding.
+  const editorActions = useMemo(() => buildPageEditorActions(getDoc, {
+    startComment: () => startCommentRef.current(),
+    canStartComment: () => Boolean(lastCanvasSelectionRef.current?.anchorId)
+  }), [getDoc])
 
   // Banner handlers (17b Phase A). Injection on accept marks the
   // buffer dirty so the IDs land on disk via the existing autosave
@@ -1167,10 +1180,16 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     persistSidecarMutation(withReopenedThread(sidecarRef.current, threadId))
   }, [persistSidecarMutation])
 
-  // 17d — "💬 Comment" button in the SendToDuoPill cluster. The button
-  // sits next to the Send → Duo pill when the user has a non-collapsed
-  // selection inside an anchored element. Clicking opens the
-  // composer; submitting calls handleNewComment.
+  // Sprint 6 BUG-081 — opens the new-comment composer on the active
+  // selection. Triggered by THREE affordances: the toolbar Comment
+  // button, the ⌘⌥M global shortcut, and the canvas right-click
+  // "Comment" menu entry. Replaces the v0.6.6-and-earlier hover
+  // Comment pill (deleted with this fix). No-ops if the selection
+  // doesn't have a duo-id anchor or if the composer can't be
+  // positioned. The pill rect is reused as the composer anchor so the
+  // popover lands near the user's selection — when triggered via
+  // keyboard / right-click, the rect was set during the last
+  // selection change, which is the same anchor the user expects.
   const handleStartNewComment = useCallback(() => {
     const snap = lastCanvasSelectionRef.current
     if (!snap || !snap.anchorId) return
@@ -1183,9 +1202,26 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       excerpt,
       rect
     })
-    // Hide the pill while the composer is open.
+    // Hide the Send → Duo pill while the composer is open.
     setPillRect(null)
   }, [pillRect])
+
+  // Keep startCommentRef pointed at the latest handleStartNewComment so
+  // the editorActions closure (built once per mount) always invokes
+  // the current handler. Updating in render is safe — refs are
+  // mutable and the closure dereferences `.current` at call time.
+  startCommentRef.current = handleStartNewComment
+
+  // Sprint 6 BUG-081 — listen for 'duo-start-comment' window events.
+  // Fired by ⌘⌥M (useKeyboardShortcuts) and by the canvas right-click
+  // menu (App.tsx onCommentRequest bridge). Same gating as the
+  // toolbar button — handleStartNewComment no-ops when there's no
+  // selection with an anchor.
+  useEffect(() => {
+    const handler = () => handleStartNewComment()
+    window.addEventListener('duo-start-comment', handler)
+    return () => window.removeEventListener('duo-start-comment', handler)
+  }, [handleStartNewComment])
 
   const handleSubmitNewComment = useCallback((body: string) => {
     const at = newCommentAt
@@ -1444,21 +1480,17 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           />
         )}
       </div>
-      {/* Stage 17c — floating Send → Duo pill + Stage 17d comment
-          button. The "💬 Comment" button only shows when the user's
-          selection has an anchor (live `data-duo-id` ancestor). Both
-          pills are portaled to body via the same primitive. */}
+      {/* Stage 17c — floating Send → Duo pill. Stays available even in
+          read-only mode — quoting FROM a reference HTML to the active
+          terminal is a useful motion.
+
+          Sprint 6 BUG-081 (v0.6.7) — the hover Comment pill that used
+          to render alongside this was replaced with three discoverable
+          affordances: toolbar Comment button, ⌘⌥M, canvas right-click.
+          The pill rect is still tracked because handleStartNewComment
+          uses it to anchor the composer popover. */}
       {onSendToDuo && pillRect && !newCommentAt && (
-        <>
-          {/* Send → Duo stays available even in read-only mode — quoting
-              FROM a reference HTML to the active terminal is a useful
-              motion. Comment button is suppressed: comments need
-              anchors which need editing. */}
-          <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
-          {!readOnly && lastCanvasSelectionRef.current?.anchorId && (
-            <CommentButton rect={pillRect} onClick={handleStartNewComment} />
-          )}
-        </>
+        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
       )}
       {/* Stage 17d — new-comment composer (modal popover). Anchored to
           the selection rect captured when the user clicked Comment. */}
@@ -1471,63 +1503,6 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
         />
       )}
     </div>
-  )
-}
-
-/**
- * 17d — small "💬" icon button rendered to the LEFT of the Send → Duo
- * pill (same anchor rect, offset by the pill's width). Same portal
- * pattern as SendToDuoPill so it lives outside the canvas tree.
- */
-function CommentButton({ rect, onClick }: { rect: PillAnchorRect; onClick: () => void }) {
-  // BUG-024 fix — stack vertically with the SendToDuoPill instead of
-  // side-by-side. Pre-fix, both buttons tried to share the same anchor
-  // row above the selection; a narrow selection (single word) plus
-  // viewport-edge clamping made them overlap and one would occlude
-  // the other. Now: SendToDuoPill stays ABOVE the selection (its
-  // primary-action position); Comment button drops BELOW the
-  // selection so the two are vertically separated and both always
-  // visible. If there's no room below (selection near viewport
-  // bottom), stack above the SendToDuoPill instead.
-  const PILL_HEIGHT_ESTIMATE = 24
-  const PILL_OFFSET_PX = 6
-  const PILL_WIDTH_ESTIMATE = 96
-  // Try below first (the fresh real-estate); fall back to above-
-  // above-pill when the selection is at the viewport bottom.
-  const wouldOverflowBottom = rect.bottom + PILL_OFFSET_PX + PILL_HEIGHT_ESTIMATE + 8 > window.innerHeight
-  const top = wouldOverflowBottom
-    ? rect.top - (PILL_HEIGHT_ESTIMATE + PILL_OFFSET_PX) * 2 // above the SendToDuoPill
-    : rect.bottom + PILL_OFFSET_PX
-  // Right-align with the SendToDuoPill (same x-coordinate) so the
-  // two read as a stack rather than a scattered row.
-  const left = Math.max(8, rect.right - PILL_WIDTH_ESTIMATE)
-  return createPortal(
-    <button
-      type="button"
-      className="duo-send-pill"
-      style={{
-        position: 'fixed',
-        top: `${top}px`,
-        left: `${left}px`,
-        // Slimmer than the Send → Duo pill so the visual hierarchy
-        // reads "Send → Duo first, Comment second" — comments are an
-        // adjacent action, not the primary one.
-        padding: '4px 8px',
-        background: 'var(--duo-paper)',
-        color: 'var(--duo-accent-ink)',
-        boxShadow: '0 1px 2px rgba(20, 14, 8, 0.18)',
-        fontSize: 11
-      }}
-      onMouseDown={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        onClick()
-      }}
-      aria-label="Add comment"
-    >
-      💬 Comment
-    </button>,
-    document.body
   )
 }
 

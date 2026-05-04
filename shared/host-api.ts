@@ -232,6 +232,11 @@ export interface ElectronCanvasAPI {
   /** Stage 17d — agent comments read. Returns the sorted thread list. */
   onHtmlCommentsList: (cb: (req: HtmlCommentsListRequest) => void) => () => void
   replyHtmlCommentsList: (result: HtmlCommentsListResult) => void
+  /** Sprint 6 BUG-081 — fired when the user picks "Comment" from the
+   *  canvas right-click menu. The renderer-side bridge re-dispatches
+   *  as a 'duo-start-comment' window CustomEvent so the active
+   *  PageTab handles it identically to the ⌘⌥M / toolbar paths. */
+  onCommentRequest: (cb: () => void) => () => void
 }
 
 export interface ElectronKeyboardAPI {

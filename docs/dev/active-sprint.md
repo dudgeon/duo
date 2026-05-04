@@ -43,7 +43,7 @@
 
 **Resolution.** Root cause was exactly the second hypothesis: `builtThreads` useMemo deps `[threadsTick, getDoc]` only got bumped by `persistSidecarMutation` (user mutates the sidecar). Neither the async `readSidecar` resolution NOR the `handleReady` iframe-ready callback bumped the tick — so a fresh open of a file with an existing sidecar never recomputed the rail. Fix: `setThreadsTick(v => v + 1)` in BOTH async resolution paths so whichever finishes second triggers the recompute (covers both orderings: sidecar-first-iframe-second and iframe-first-sidecar-second). Verified via CLI-driven repro: `duo html new` + write sidecar + close tab + `duo view` → rail mounts with both comments anchored. **Regression-test gap** filed as FOLLOWUP-009 (project lacks `@testing-library/react` infra; one-off React component test isn't worth the infra change today).
 
-### Phase 2 — BUG-081 (UX redesign) · ⬜
+### Phase 2 — BUG-081 (UX redesign) · ✅ 2026-05-04
 
 **Drop the hover Comment pill; replace with kb / right-click / toolbar.** The hover pill is gated on Claude session via the shared `onSendToDuo` block at `PageTab.tsx:1437` — that gate is incidental; the real fix is the UX redesign per owner direction (Google Docs parity).
 
@@ -56,6 +56,17 @@ Steps:
 **Editor-canvas parity** per CLAUDE.md § 4: this is a **(c) Deferred** mirror — markdown side blocks on Phase 4 (MISSING-001). Same kb / right-click / toolbar wires when Phase 4 lands.
 
 **Acceptance:** open a canvas, no Claude session — Comment button still appears in toolbar. ⌘⌥M with selection adds a comment. Right-click on selection → "Comment" entry adds a comment. Hover pill is gone.
+
+**Resolution.**
+- **EditorActions** gained optional `startComment` + `canStartComment` (top-level, not in CanvasExtras — Phase 4 will reuse them on the markdown side).
+- **EditorToolbar** renders a 💬 button conditionally on `actions.startComment` being set; the toolbar reads `canStartComment()` on every render so selection-version bumps drive the enabled state.
+- **`pageEditorActions`** accepts a `PageEditorActionsOptions` second arg with the two callbacks; PageTab wires them via a `startCommentRef` (the editorActions useMemo stays stable while always invoking the latest closure).
+- **`globalShortcuts.ts`** got `'startComment'` ShortcutId + ⌘⌥M matcher using `e.code === 'KeyM'` (not `e.key === 'm'` — Option on macOS yields 'µ', same gotcha as BUG-075 v2 and `e.code === 'Slash'` for `/?`).
+- **`useKeyboardShortcuts`** dispatches `'duo-start-comment'` window CustomEvent on the chord (mirrors the `sendToDuo` indirection).
+- **Right-click**: `electron/main.ts` gated on `parameters.frameURL.startsWith('about:srcdoc')` so only canvas iframes get the "Comment" entry. Click sends `IPC.PAGE_COMMENT_REQUEST` → renderer bridge in App.tsx re-dispatches `'duo-start-comment'` → PageTab handler.
+- **Hover pill removed**: `<CommentButton>` element + the orphaned primitive deleted; SendToDuoPill kept.
+
+Verified live: triple-click heading → toolbar button enabled, click opens composer; ⌘⌥M with selection opens composer; right-click → "Comment" opens composer; submitted a comment via right-click and the rail mounted with the badge anchored to the heading.
 
 ### Phase 3 — BUG-083 (visual association) · ⬜
 

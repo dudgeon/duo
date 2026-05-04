@@ -172,6 +172,16 @@ export function useKeyboardShortcuts(opts: Options) {
           window.dispatchEvent(new CustomEvent('duo-send-to-duo', { detail: { pane } }))
           return
         }
+        case 'startComment': {
+          // Sprint 6 BUG-081 — ⌘⌥M dispatches a CustomEvent the active
+          // editing surface listens for. Mirrors the sendToDuo pattern
+          // — surface-side handler decides whether to act based on
+          // local selection state (no-op when there's no selection or
+          // no anchor). Canvas listens today; markdown editor wires
+          // the same listener in Phase 4 / MISSING-001.
+          window.dispatchEvent(new CustomEvent('duo-start-comment', { detail: { pane } }))
+          return
+        }
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()
           return

@@ -138,6 +138,25 @@ export function EditorToolbar({ actions, onSave, dirty, saving }: Props) {
           </>
         )}
 
+        {/* Sprint 6 BUG-081 — discoverable Comment affordance. Replaces
+            the hover Comment pill with an always-present toolbar
+            button, gated to disabled when there's no selection with a
+            duo-id anchor. Mirrors Google Docs' toolbar comment icon.
+            Hidden entirely when the host doesn't wire comments
+            (markdown side until Phase 4 / MISSING-001 lands). */}
+        {actions.startComment && (
+          <>
+            <Sep />
+            <Btn
+              onMouseDown={() => actions.startComment?.()}
+              disabled={!(actions.canStartComment?.() ?? false)}
+              title="Comment (⌘⌥M)"
+            >
+              <span className="text-xs">💬</span>
+            </Btn>
+          </>
+        )}
+
         <div className="ml-auto flex items-center gap-3 pr-1 text-xs text-zinc-500">
           <span aria-live="polite">
             {saving ? 'Saving…' : dirty ? 'Unsaved' : 'Saved'}

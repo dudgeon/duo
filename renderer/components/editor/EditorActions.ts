@@ -90,4 +90,13 @@ export interface EditorActions {
   // Optional contextual surfaces.
   tableOps?: TableOps
   extras?: CanvasExtras
+
+  // Stage 17d / Sprint 6 BUG-081 — start a new comment thread on the
+  // current selection. Optional because not every host wires comments
+  // (markdown side lands in Phase 4 / MISSING-001). When undefined the
+  // toolbar hides the Comment button entirely. `canStartComment` gates
+  // the button's enabled state so users get visual feedback that a
+  // selection (with a duo-id anchor) is required.
+  startComment?: () => void
+  canStartComment?: () => boolean
 }

@@ -69,6 +69,12 @@ export type ShortcutId =
   // canvas / browser pane). Each surface listens for the
   // duo-send-to-duo CustomEvent and runs its own pill click.
   | 'sendToDuo'
+  // Sprint 6 BUG-081 — ⌘⌥M opens the comment composer on the active
+  // editor surface (canvas first; markdown side lands in Phase 4 /
+  // MISSING-001). Google Docs parity. Dispatches 'duo-start-comment'
+  // CustomEvent — same indirection as sendToDuo so the global hook
+  // stays free of surface-specific state.
+  | 'startComment'
   // Sprint 3 Phase 3b — Split View open/move + promote chords. ⌘\
   // moves the active main tab into the aux slot (or, if the
   // active tab is already in aux, no-op). ⌘⇧\ promotes aux back
@@ -174,6 +180,22 @@ export function matchGlobalShortcut(
   // (each surface installs its own listener for duo-send-to-duo).
   if (meta && !shift && !alt && !ctrl && key === 'd') {
     return { id: 'sendToDuo' }
+  }
+
+  // Sprint 6 BUG-081 — ⌘⌥M opens the comment composer on the active
+  // editing surface. Google Docs parity. Fires inside editable
+  // surfaces too — comments REQUIRE a selection in an editable
+  // surface, so yielding to the editor would defeat the purpose.
+  // No native conflict: ⌘⌥M is "Minimize All" in macOS's standard
+  // Window menu, but Duo's app menu doesn't include that item, so
+  // the chord reaches the renderer.
+  //
+  // Use `e.code === 'KeyM'` rather than `e.key === 'm'` because Option
+  // on macOS modifies the produced character — Option+M yields 'µ'
+  // (the micro symbol), not 'm'. Same root cause as BUG-075 v2 hit
+  // for the splitView shortcuts (Slash vs '?').
+  if (meta && alt && !shift && !ctrl && e.code === 'KeyM') {
+    return { id: 'startComment' }
   }
 
   // ⌘` — cycle pane focus.

@@ -1127,6 +1127,17 @@ export function App() {
     })
   }, [openFileSmart])
 
+  // Sprint 6 BUG-081 — bridge the canvas right-click "Comment" menu
+  // item from main → renderer. Main fires PAGE_COMMENT_REQUEST when
+  // the user picks Comment; we re-broadcast as a window CustomEvent
+  // so the active PageTab's listener (also driven by ⌘⌥M and the
+  // toolbar Comment button) handles it identically.
+  useEffect(() => {
+    return window.electron.canvas.onCommentRequest(() => {
+      window.dispatchEvent(new CustomEvent('duo-start-comment', { detail: { pane: 'working' } }))
+    })
+  }, [])
+
   // Stage 19c D27 — `duo new-tab` from the CLI. The renderer is the
   // authoritative tab state, so we add the tab here and reply with
   // {id, kind, cwd, title} for the socket to return. Defaults: kind →

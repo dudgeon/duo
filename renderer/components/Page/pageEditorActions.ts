@@ -22,12 +22,32 @@ const MARK_TO_TAG: Record<'bold' | 'italic' | 'underline' | 'strike' | 'code', I
   code: 'code'
 }
 
+/** Optional host-supplied hooks. The actions object is built once per
+ *  PageTab mount; selection-dependent state (canStartComment) lives
+ *  behind a callback so the toolbar's per-render query reads CURRENT
+ *  state without rebuilding the whole actions object. */
+export interface PageEditorActionsOptions {
+  /** Sprint 6 BUG-081 — fired when the toolbar Comment button is
+   *  clicked, when ⌘⌥M is pressed, or when "Comment" is chosen from
+   *  the canvas right-click menu. The host is responsible for opening
+   *  the composer; the toolbar just signals intent. */
+  startComment?: () => void
+  /** Returns whether starting a comment is currently possible — typically
+   *  "is there a non-empty selection inside an element with a
+   *  data-duo-id ancestor?" The toolbar reads this on every render to
+   *  drive the button's enabled state. */
+  canStartComment?: () => boolean
+}
+
 /** Build canvas-side actions from a getter that returns the live iframe
  *  document. The getter is used (rather than a captured `Document`)
  *  because the iframe's contentDocument can technically change across
  *  navigation; reading it lazily means we never operate on a stale
  *  reference. */
-export function buildPageEditorActions(getDoc: () => Document | null): EditorActions {
+export function buildPageEditorActions(
+  getDoc: () => Document | null,
+  opts?: PageEditorActionsOptions
+): EditorActions {
   const withDoc = (fn: (doc: Document) => void): void => {
     const doc = getDoc()
     if (!doc) return
@@ -103,7 +123,13 @@ export function buildPageEditorActions(getDoc: () => Document | null): EditorAct
       canDeleteColumn: () => queryDoc(tableOps.canDeleteColumn, false),
       canToggleHeaderRow: () => queryDoc(tableOps.canToggleHeaderRow, false),
       canDeleteTable: () => queryDoc(tableOps.canDeleteTable, false)
-    }
+    },
+
+    // Sprint 6 BUG-081 — wire the host's Comment hooks through. Both
+    // are pass-through; the toolbar reads canStartComment on every
+    // render so it always sees current selection state.
+    startComment: opts?.startComment,
+    canStartComment: opts?.canStartComment
     // No `extras` yet — PRD H28's insertComponent / view-source / lock
     // arrive in 17d/e and will be wired here when those land.
   }

@@ -4977,7 +4977,13 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 
 ### BUG-081: HTML canvas Comment button gated on Claude session — and the entire hover-pill UX is wrong
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 first item). Reframed 2026-05-04 evening after owner investigation.
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 Phase 2, 2026-05-04). Replaced the hover Comment pill with three discoverable affordances:
+- **Toolbar 💬 Comment button** in the EditorToolbar — always present when the host wires `actions.startComment` (canvas today; markdown editor Phase 4). Enabled state driven by `actions.canStartComment()` reading the live selection ref.
+- **⌘⌥M global shortcut** — Google Docs parity. Routed through `renderer/keyboard/globalShortcuts.ts` (key id `'startComment'`) → `useKeyboardShortcuts` dispatches `'duo-start-comment'` window event → PageTab listens and runs `handleStartNewComment`. Uses `e.code === 'KeyM'` (not `e.key === 'm'`) because Option on macOS yields 'µ' — same gotcha as BUG-075 v2 and Slash.
+- **Right-click "Comment" entry** in the canvas iframe context menu — gated on `parameters.frameURL.startsWith('about:srcdoc')` so the entry only appears in canvas iframes (not the markdown editor or the browser pane). Click → `wc.send(IPC.PAGE_COMMENT_REQUEST)` → renderer-side bridge in App.tsx re-dispatches as `'duo-start-comment'` → same PageTab handler.
+
+The hover `<CommentButton>` primitive was deleted with the fix (no remaining callers). Send → Duo pill kept as-is. Verified all three affordances live + a comment posted via right-click landed correctly in the rail.
+
 **Priority:** **High** — root cause identified + the planned fix is a UX redesign (drop the hover-pill model entirely; replace with kb shortcut + right-click + toolbar button).
 **Filed:** 2026-05-04 (v0.6.6 pre-cut investigation). Reframed same day after owner found the gate + told us the hover-pill UX was never the right approach.
 

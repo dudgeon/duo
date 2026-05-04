@@ -1165,6 +1165,14 @@ export const IPC = {
   PAGE_HTML_COMMENTS_LIST: 'page:html-comments-list',     // main → renderer
   PAGE_HTML_COMMENTS_LIST_RESULT: 'page:html-comments-list-result', // renderer → main
 
+  // Sprint 6 BUG-081 — right-click "Comment" entry on a canvas iframe
+  // sends this from main → renderer. The renderer-side bridge re-
+  // dispatches as a 'duo-start-comment' CustomEvent so the active
+  // PageTab's listener (also driven by ⌘⌥M and the toolbar) handles
+  // it identically. One-way; no reply needed — the composer opens or
+  // it doesn't, and the right-click already gave the user feedback.
+  PAGE_COMMENT_REQUEST: 'page:comment-request',
+
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
