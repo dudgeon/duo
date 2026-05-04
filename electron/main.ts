@@ -1236,8 +1236,15 @@ function installAppMenu(): void {
           ]
         },
         { type: 'separator' },
-        { role: 'reload' },
-        { role: 'forceReload' },
+        // BUG-084 fix (v0.6.7) — Reload + Force Reload removed.
+        // Electron's default `{ role: 'reload' }` auto-binds ⌘R to
+        // webContents.reload(), which destroys every terminal tab,
+        // every working tab, and every iframe canvas (PtyManager
+        // keeps the PTYs alive but the renderer-side wiring is gone).
+        // Duo isn't a web app and has no concept of "reload for
+        // fresh content" — the chord was just a data-loss footgun.
+        // Dev workflow retains toggleDevTools; reload-when-truly-
+        // needed is `kill npm run dev` + restart.
         { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'togglefullscreen' }

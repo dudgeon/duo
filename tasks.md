@@ -5061,8 +5061,6 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 **Priority:** **High** (UX cohesion — a comment that doesn't visibly attach to its anchor is barely a comment; doc readers don't know what's being commented on without clicking each thread).
 **Filed:** 2026-05-04 evening (owner observation: "comments in the rail land with no association with the text that they are a comment _for_").
-**Priority:** **High** (UX cohesion — a comment that doesn't visibly attach to its anchor is barely a comment; doc readers don't know what's being commented on without clicking each thread).
-**Filed:** 2026-05-04 evening (owner observation: "comments in the rail land with no association with the text that they are a comment _for_").
 
 **Symptom.** Comments in the rail show their body + metadata, but nothing in the canvas body indicates *which text* the comment anchors to. Compare with Google Docs: an anchored comment highlights the source text (yellow underline / shaded background) and clicking the comment scrolls the document to the anchor (and vice versa — clicking the highlighted text focuses the matching comment thread).
 
@@ -5080,6 +5078,22 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 **Editor-canvas parity disposition:** **(c) Deferred** — markdown-editor side blocks on MISSING-001 / Stage 14a; same visual contract should apply once it lands.
 
 **Cross-ref:** BUG-081 (sibling). BUG-082 (sibling — persistence). MISSING-001 (markdown side — apply same visual contract there).
+
+---
+
+### BUG-084: ⌘R reloads the entire app and kills running terminal sessions
+
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 mid-flight insertion, 2026-05-04). Removed the default `{ role: 'reload' }` and `{ role: 'forceReload' }` items from the View menu in `electron/main.ts` — those Electron-default roles auto-bind ⌘R / ⇧⌘R to `webContents.reload()`, which destroys the renderer (every terminal tab, every working tab, every iframe canvas) without warning. The dev workflow keeps `toggleDevTools` (still in the menu); explicit reload is still possible by killing + restarting `npm run dev`. Production users have no reason to reload — the data they care about (tabs, sessions, files) is in the renderer state that the reload would wipe.
+**Priority:** **High** (data-loss UX — a single accidental ⌘R kills every terminal session and unsaved working-tab state. There's no confirmation prompt and the reload is silent).
+**Filed:** 2026-05-04 (owner repro: "cmd r appears to refresh the whole app, killing existing terminal sessions; this is terrible").
+
+**Symptom.** User presses ⌘R (probably reflexively from a browser-pane focus or just muscle memory). The entire main BrowserWindow's webContents reloads. Every terminal tab gets a fresh xterm + the PTY's renderer-side connection drops; every working tab unmounts; every iframe canvas with unsaved edits loses them. PtyManager keeps the underlying processes alive in main, but the renderer-side wiring (xterm instances, focus state, scroll position) is gone.
+
+**Root cause.** Electron's default View menu, when built via `Menu.buildFromTemplate`, includes `{ role: 'reload' }` and `{ role: 'forceReload' }` which Chromium auto-binds to ⌘R / ⇧⌘R. Those accelerators fire `webContents.reload()` regardless of focus or app state. Duo isn't a web app — there's no concept of "reload to get fresh content" — but the chord still has its Chromium-default behavior because we left the menu items in.
+
+**Fix.** Remove both items from the View menu. ⌘R / ⇧⌘R now do nothing. `toggleDevTools` stays for dev. If a future need arises (e.g. ⌘R on a focused browser tab → reload that tab), wire it through `useKeyboardShortcuts` and gate it on the active pane being `working` AND the active tab being `kind: 'browser'` — never let it reach the main BrowserWindow.
+
+**Cross-ref:** Stage 21c (auto-update / session restore — the safety net WHEN a reload does happen, e.g. via toggleDevTools). The fix here is preventative: don't let ⌘R reach the main window in the first place.
 
 ---
 
