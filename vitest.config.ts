@@ -1,9 +1,17 @@
 // Vitest config — small unit-test scope (added v0.6.4).
 //
-// Tests target pure helpers extracted from main/renderer code so they
-// can run in plain Node without an Electron runtime or jsdom. The
-// `@shared` path alias mirrors what electron-vite + tsconfig.web.json
-// already wire so test imports look the same as production imports.
+// Default environment is `node` so pure-function tests run as fast as
+// possible. Tests that need a DOM (e.g. characterization tests for the
+// worksheet primitive's generated HTML + inline-script behavior) opt
+// into jsdom via a per-file directive at the top of the test:
+//
+//   // @vitest-environment jsdom
+//
+// jsdom is in devDependencies as of v0.6.6 (Sprint 5 — playground
+// primitives initiative; needed for worksheet generator characterization
+// tests). The `@shared` path alias mirrors what electron-vite +
+// tsconfig.web.json already wire so test imports look the same as
+// production imports.
 //
 // What we test here:
 // - Pure utility functions (tilde expansion, file classification)
@@ -11,6 +19,9 @@
 //   in renderer/components/Page/markdownShortcuts.ts (the
 //   recurring-regression class — BUG-061 v1/v2/v3 — needed durable
 //   coverage so future iterations don't regress what's been fixed)
+// - Generated-HTML behavior contracts (worksheet primitive — locks in
+//   the smoke-walk-shaped contract before refactoring onto the
+//   ENH-092/093/094 playground primitives).
 //
 // What we DON'T test here:
 // - Electron main-process behavior (BrowserWindow, IPC, etc.)

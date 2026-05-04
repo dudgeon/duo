@@ -4518,7 +4518,7 @@ These are two distinct files at two distinct paths. The cut-version skill's Step
 
 ### ENH-075: Canvas glyph alternative options (collapse rail + canvas-tab type icon)
 
-**Status:** 🆕 Filed
+**Status:** ❌ Won't do — closed 2026-05-04 (v0.6.6 sprint open). Owner walked the alternatives worksheet (`docs/dev/worksheets/enh-075-glyph-options.html`); none of the candidate options improved on the current rectangle-with-lines stand-in. Keeping the existing glyph; revisit only if a stronger directional concept emerges.
 **Priority:** Low (design exploration)
 **Filed:** 2026-05-02 (v0.6.3 walk-2 W2-V6 owner notes)
 
