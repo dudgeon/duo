@@ -172,6 +172,17 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, snapshot: Parameters<typeof cb>[0]) => cb(snapshot)
       ipcRenderer.on(IPC.BROWSER_SEND_TO_DUO_CLICK, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_SEND_TO_DUO_CLICK, handler)
+    },
+
+    // ENH-094 (Sprint 5) — playground action click in browser pane.
+    // Page-side IIFE captures `data-duo-action` clicks; main parses +
+    // applies trust gate; we receive the typed PlaygroundAction here
+    // and the renderer dispatches via the same handlePlaygroundAction
+    // the canvas runtime feeds.
+    onPlaygroundAction: (cb) => {
+      const handler = (_: IpcRendererEvent, action: Parameters<typeof cb>[0]) => cb(action)
+      ipcRenderer.on(IPC.BROWSER_PLAYGROUND_ACTION, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_PLAYGROUND_ACTION, handler)
     }
   },
 

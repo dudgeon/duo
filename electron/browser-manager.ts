@@ -11,12 +11,13 @@ import { WebContentsView, app, session, shell } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
-import { pathToFileURL } from 'url'
+import { pathToFileURL, fileURLToPath } from 'url'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
-import type { ExternalRedirectedPush } from '../shared/host-api'
+import type { ExternalRedirectedPush, PlaygroundAction } from '../shared/host-api'
 import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
+import { parseActionFromAttrs, isPagePathTrusted } from '../shared/playground-actions'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserHistoryService } from '../core/browser-history-service'
 import type { ExternalDomainsService } from '../core/external-domains-service'
@@ -129,6 +130,59 @@ export class BrowserManager {
     this.cdp.onBrowserSendToDuoClick((snapshot) => {
       if (this.window.isDestroyed()) return
       this.window.webContents.send(IPC.BROWSER_SEND_TO_DUO_CLICK, snapshot)
+    })
+
+    // ENH-094 (Sprint 5) — playground action click in browser pane.
+    // Parse the attribute bundle into a typed PlaygroundAction (using
+    // the shared parser that the canvas-side runtime also uses), apply
+    // the trust gate against the active tab's file:// path, then
+    // forward to the renderer over IPC.BROWSER_PLAYGROUND_ACTION.
+    // Renderer App.tsx subscribes and dispatches via the existing
+    // handlePlaygroundAction handler — one handler serves both panes.
+    //
+    // Untrusted paths are dropped silently with a console.warn (mirrors
+    // the canvas-side onUntrusted hook today, which similarly doesn't
+    // surface to the user). A future enhancement could emit an event
+    // page-side so the page renders a "actions disabled outside trusted
+    // paths" toast — out of scope for this commit.
+    this.cdp.onBrowserPlaygroundAction((bundle) => {
+      if (this.window.isDestroyed()) return
+      const parsed = parseActionFromAttrs((name) => bundle.attrs[name] ?? null)
+      if ('error' in parsed) {
+        console.warn('[BrowserManager] playground action parse error:', parsed.error)
+        return
+      }
+      let action = parsed.action
+      // Mirror the canvas-side data-payload-from stitching: when the
+      // verb is duo:event AND the IIFE captured a value, fold it into
+      // payload.value. Static `data-payload` keys win on collision.
+      if (action.kind === 'duo:event' && bundle.payloadFromValue !== undefined) {
+        const staticPayload = action.payload ?? {}
+        action = {
+          ...action,
+          payload: 'value' in staticPayload
+            ? staticPayload
+            : { ...staticPayload, value: bundle.payloadFromValue }
+        }
+      }
+      // Trust gate — extract path from the active tab's URL and check.
+      // The page-side IIFE already gated on `location.protocol ===
+      // 'file:'`, but the host applies the path-rooted check
+      // ($HOME/.claude/duo/) to match the canvas-side gate.
+      const activeTab = this.tabs[this.activeIndex]
+      const url = activeTab?.view.webContents.getURL() ?? ''
+      let absPath = ''
+      try {
+        if (url.startsWith('file://')) absPath = fileURLToPath(url)
+      } catch {
+        // Malformed file URL — leave absPath empty, trust check fails.
+      }
+      if (!isPagePathTrusted(absPath, homedir())) {
+        console.warn('[BrowserManager] playground action dropped — untrusted path:', absPath, action)
+        return
+      }
+      const payload: PlaygroundAction = action
+      this.window.webContents.send(IPC.BROWSER_PLAYGROUND_ACTION, payload)
     })
 
     // BUG-078 (v0.6.5 Phase 5 walk) — Owner asked: "why does a new tab

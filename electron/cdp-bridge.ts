@@ -249,6 +249,133 @@ const SELECTION_OBSERVER_IIFE = `(function () {
   window.addEventListener('resize', schedule);
 })();`
 
+// ENH-094 (Sprint 5) — page-side click forwarder for `[data-duo-action]`
+// elements in BROWSER-PANE pages. Parallel to the canvas-iframe runtime
+// in renderer/components/Page/playgroundActions.ts: same delegated-click
+// pattern, same 9-verb vocabulary, same `data-payload-from` semantics.
+// The IIFE captures the action element's attributes + (if present) the
+// resolved value of any `data-payload-from` selector and ships the
+// bundle through `window.duoPlaygroundAction(JSON.stringify(bundle))`,
+// which lands as a `Runtime.bindingCalled` event in this module's
+// handler, gets the trust check applied (BrowserManager), and is
+// forwarded to the renderer over IPC.BROWSER_PLAYGROUND_ACTION.
+//
+// Re-injection guard via `__duoPlaygroundRuntime` so subsequent
+// frame-navigated events on the same page are no-ops. Only wires on
+// `file://` pages — arbitrary http(s) sites carrying `[data-duo-action]`
+// markup stay inert.
+const PLAYGROUND_RUNTIME_IIFE = `(function () {
+  if (window.__duoPlaygroundRuntime) return;
+  window.__duoPlaygroundRuntime = true;
+  if (location.protocol !== 'file:') return;
+
+  function findActionElement(target) {
+    var el = target;
+    while (el && el.nodeType === 1) {
+      if (el.hasAttribute && el.hasAttribute('data-duo-action')) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  // Mirrors renderer-side captureFormValue. Cross-realm not a concern
+  // here (same realm as the page itself), but tag-name dispatch is
+  // still cleanest. Returns whatever the host can JSON-serialize.
+  function captureFormValue(selector) {
+    if (!selector) return undefined;
+    var el = null;
+    try { el = document.querySelector(selector); } catch (e) { return undefined; }
+    if (!el) return undefined;
+    var tag = el.tagName;
+    if (tag === 'INPUT') {
+      if (el.type === 'checkbox' || el.type === 'radio') return el.checked;
+      return el.value;
+    }
+    if (tag === 'TEXTAREA') return el.value;
+    if (tag === 'SELECT') {
+      if (el.multiple) {
+        return Array.from(el.selectedOptions).map(function (o) { return o.value; });
+      }
+      return el.value;
+    }
+    return undefined;
+  }
+
+  // Reachable attributes for the 9 known verbs. Listing them explicitly
+  // (vs. enumerating el.attributes) keeps the wire payload tight and
+  // avoids leaking unrelated data-* attributes into the host.
+  var REACHABLE_ATTRS = [
+    'data-duo-action',
+    'data-cwd', 'data-cmd',           // claude:spawn
+    'data-text', 'data-enter',        // terminal:send + selection:set
+    'data-url',                       // browser:open
+    'data-path', 'data-mode',         // editor:open
+    'data-target', 'data-line', 'data-anchor', // selection:set
+    'data-theme',                     // theme:set
+    'data-tab-id',                    // terminal:focus
+    'data-event', 'data-payload',     // duo:event
+    'data-payload-from'               // duo:event form-input source
+  ];
+
+  // Brief visual feedback so users see their click registered. Mirrors
+  // the canvas runtime's flashFeedback. Self-contained CSS — page CSS
+  // shouldn't override (animation property unique enough to not
+  // collide).
+  var flashStyleInjected = false;
+  function flashFeedback(el) {
+    if (!flashStyleInjected) {
+      var style = document.createElement('style');
+      style.id = 'duo-playground-runtime-flash';
+      style.textContent = '@keyframes duo-pg-flash {' +
+        '0% { outline: 2px solid rgba(207, 102, 121, 0.85); outline-offset: 2px; }' +
+        '100% { outline: 2px solid rgba(207, 102, 121, 0); outline-offset: 2px; }' +
+        '} [data-duo-pg-flash] { animation: duo-pg-flash 600ms ease-out; }';
+      (document.head || document.documentElement).appendChild(style);
+      flashStyleInjected = true;
+    }
+    el.setAttribute('data-duo-pg-flash', '1');
+    setTimeout(function () {
+      try { el.removeAttribute('data-duo-pg-flash'); } catch (e) {}
+    }, 700);
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.button !== 0) return;
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    var el = findActionElement(e.target);
+    if (!el) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    var attrs = {};
+    for (var i = 0; i < REACHABLE_ATTRS.length; i++) {
+      var name = REACHABLE_ATTRS[i];
+      var v = el.getAttribute(name);
+      if (v !== null) attrs[name] = v;
+    }
+
+    // Resolve data-payload-from page-side; the host doesn't have access
+    // to the document. Captured value rides along in the bundle as
+    // payloadFromValue; the host stitches it into the action's
+    // payload.value when the verb is duo:event (mirrors canvas runtime).
+    var payloadFromSel = el.getAttribute('data-payload-from');
+    var payloadFromValue;
+    if (payloadFromSel) payloadFromValue = captureFormValue(payloadFromSel);
+
+    var bundle = { attrs: attrs };
+    if (payloadFromValue !== undefined) bundle.payloadFromValue = payloadFromValue;
+
+    flashFeedback(el);
+    try {
+      window.duoPlaygroundAction(JSON.stringify(bundle));
+    } catch (err) {
+      // Binding not registered (older Duo, or page loaded outside Duo).
+      // Silent no-op — the trust gate at the host would reject the
+      // action anyway.
+    }
+  }, true);
+})();`
+
 // ENH-039 — page-side click forwarder for `[data-duo-path]` elements.
 // The smoke-walk generator (and any future Duo-authored page emitting
 // path links) wraps `~/...` / `/Users/...` / `/tmp/...` style paths in
@@ -346,6 +473,14 @@ export class CdpBridge {
   // splitViewOpen so the linked file lands in aux while the source
   // page stays in main. Smoke-walk pages are the first consumer.
   private browserOpenPathSplitListener: ((path: string) => void) | null = null
+  // ENH-094 (Sprint 5) — playground action click in browser pane. The
+  // PLAYGROUND_RUNTIME_IIFE captures `data-duo-action` clicks page-side
+  // and ships an attribute bundle through `window.duoPlaygroundAction`.
+  // BrowserManager subscribes once + forwards to the renderer over IPC.
+  // The trust gate is applied by BrowserManager (it knows the active
+  // tab's URL) before forwarding, mirroring the canvas-side gate
+  // applied in PageTab.tsx.
+  private browserPlaygroundActionListener: ((bundle: { attrs: Record<string, string>; payloadFromValue?: unknown }) => void) | null = null
 
   /** Stage 15.2 — register a single subscriber for live browser-
    *  selection pushes. BrowserManager calls this once on construction
@@ -377,6 +512,16 @@ export class CdpBridge {
    *  `splitViewOpen(path)`. */
   onBrowserOpenPathSplit(cb: (path: string) => void): void {
     this.browserOpenPathSplitListener = cb
+  }
+
+  /** ENH-094 (Sprint 5) — register a single subscriber for in-page
+   *  `data-duo-action` clicks in browser-pane pages. The bundle carries
+   *  the action's data-* attributes plus (when the action element has
+   *  `data-payload-from`) the resolved form value. BrowserManager
+   *  subscribes; applies the trust gate using the active tab's URL;
+   *  forwards trusted actions to the renderer over IPC. */
+  onBrowserPlaygroundAction(cb: (bundle: { attrs: Record<string, string>; payloadFromValue?: unknown }) => void): void {
+    this.browserPlaygroundActionListener = cb
   }
 
   /** Stage 15.2 — emit the current selection state to whoever is
@@ -473,6 +618,22 @@ export class CdpBridge {
     }
   }
 
+  /** ENH-094 (Sprint 5) — inject (or re-inject) the playground action
+   *  click forwarder into the active page's main world. Idempotent
+   *  thanks to the IIFE's `__duoPlaygroundRuntime` guard; cheap to
+   *  call on every page nav. Self-skips on non-file:// pages. */
+  private async injectPlaygroundRuntime(): Promise<void> {
+    try {
+      await this.dbg().sendCommand('Runtime.evaluate', {
+        expression: PLAYGROUND_RUNTIME_IIFE,
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] playground runtime inject failed:', (err as Error).message)
+    }
+  }
+
   async attach(webContents: WebContents): Promise<void> {
     if (this.wc && this.wc !== webContents) {
       try { this.wc.debugger.detach() } catch { /* already detached */ }
@@ -552,6 +713,17 @@ export class CdpBridge {
     } catch (err) {
       console.warn('[CdpBridge] Runtime.addBinding(duoOpenPathSplit) failed:', (err as Error).message)
     }
+    // ENH-094 (Sprint 5) — fifth binding for in-page playground action
+    // clicks (`data-duo-action`). PLAYGROUND_RUNTIME_IIFE installs a
+    // delegated click listener on file:// pages; this binding receives
+    // the captured attribute bundles + payload-from values.
+    try {
+      await webContents.debugger.sendCommand('Runtime.addBinding', {
+        name: 'duoPlaygroundAction'
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] Runtime.addBinding(duoPlaygroundAction) failed:', (err as Error).message)
+    }
     // Tab switch resets the pill — the new tab's selection state is
     // unknown until its observer reports.
     this.emitBrowserSelection({ snapshot: null, rect: null })
@@ -561,6 +733,8 @@ export class CdpBridge {
     // ENH-039 — same lifecycle: inject the path-link forwarder for the
     // current document; frame-navigated handler re-injects on nav.
     await this.injectPathLinkForwarder()
+    // ENH-094 — same lifecycle for the playground runtime forwarder.
+    await this.injectPlaygroundRuntime()
   }
 
   detach(): void {
@@ -992,6 +1166,29 @@ export class CdpBridge {
         this.browserSendToDuoListener?.(snapshot)
         return
       }
+      if (p.name === 'duoPlaygroundAction') {
+        // ENH-094 (Sprint 5) — page-side `data-duo-action` click in
+        // browser pane. Payload is `{attrs: Record<string,string>,
+        // payloadFromValue?: unknown}`. We surface as-is to the
+        // listener (BrowserManager); trust gating + verb parsing
+        // happens there using the active tab URL + the shared parser
+        // at shared/playground-actions.ts.
+        try {
+          const body = JSON.parse(p.payload ?? 'null') as
+            | null
+            | { attrs?: unknown; payloadFromValue?: unknown }
+          if (body && body.attrs && typeof body.attrs === 'object') {
+            const attrs = body.attrs as Record<string, string>
+            this.browserPlaygroundActionListener?.({
+              attrs,
+              payloadFromValue: body.payloadFromValue
+            })
+          }
+        } catch {
+          // Bad payload — drop.
+        }
+        return
+      }
       if (p.name === 'duoSelectionPush') {
         let parsed: BrowserSelectionPush | null = null
         try {
@@ -1018,16 +1215,21 @@ export class CdpBridge {
       }
     } else if (method === 'Page.frameNavigated') {
       // Stage 15.2 — re-inject the observer on top-frame navigation.
-      // Subframe nav doesn't carry our observer (we don't read selection
+      // ENH-039 + ENH-094 — same trigger re-injects the path-link
+      // forwarder and the playground action runtime, since both share
+      // the same per-document IIFE-guard pattern. Subframe nav doesn't
+      // carry our observers (we don't read selection or wire actions
       // out of iframes today). Clearing the cache here also hides the
       // pill while the new page loads.
       const p = params as { frame?: { id: string; parentId?: string } }
       if (p.frame && !p.frame.parentId) {
         this.emitBrowserSelection({ snapshot: null, rect: null })
-        // Fire-and-forget: the observer is non-critical UX glue; the
-        // injection happens asynchronously after the navigation event
+        // Fire-and-forget: these injections are non-critical UX glue;
+        // they happen asynchronously after the navigation event
         // returns control to the event loop.
         void this.injectSelectionObserver()
+        void this.injectPathLinkForwarder()
+        void this.injectPlaygroundRuntime()
       }
     }
   }

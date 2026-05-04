@@ -1014,6 +1014,24 @@ export function App() {
     }
   }, [activeTabId, pendingCwd, home, dispatchPostSpawnWrite, openFile, openFileSmart, nav.actions, theme, tabs])
 
+  // ENH-094 (Sprint 5) — subscribe to playground actions emitted from
+  // BROWSER-PANE pages (parallel to canvas-iframe pages, which dispatch
+  // through PageTab → WorkingPane → onPlaygroundAction). Main parses +
+  // applies trust gate; we just call the same handler. Defensive guard
+  // against a stale preload that doesn't expose `onPlaygroundAction`
+  // yet — preload doesn't HMR, so a renderer reload without an Electron
+  // restart leaves the binding undefined.
+  useEffect(() => {
+    const subscribe = window.electron.browser.onPlaygroundAction
+    if (typeof subscribe !== 'function') {
+      console.warn('[App] window.electron.browser.onPlaygroundAction missing — preload likely stale; restart Electron to enable browser-pane playground actions.')
+      return
+    }
+    return subscribe((action) => {
+      void handlePlaygroundAction(action)
+    })
+  }, [handlePlaygroundAction])
+
   // Stage 11 § D33a — \u2318N opens a new editor tab in the navigator's CWD.
   // Auto-pick `untitled.md`, fall back to `untitled-2.md`, etc., to dodge
   // collisions with already-open tabs. (Disk collisions are surfaced when

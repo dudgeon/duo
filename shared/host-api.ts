@@ -98,6 +98,13 @@ export interface ElectronBrowserAPI {
    *  mousedown time and passed through the binding payload (BUG-006
    *  v2 — eliminates the cache-clear race with selectionchange). */
   onSendToDuoClick: (cb: (snapshot: import('./types').BrowserSelectionSnapshot | null) => void) => () => void
+  /** ENH-094 (Sprint 5) — playground action click in browser pane.
+   *  Same shape as the canvas-iframe runtime: a typed `PlaygroundAction`
+   *  reaches the renderer and gets dispatched through the existing
+   *  `handlePlaygroundAction` handler. Trust gate is applied in main
+   *  (BrowserManager) before forwarding — untrusted paths are dropped
+   *  with a console warning, never reach the renderer. */
+  onPlaygroundAction: (cb: (action: PlaygroundAction) => void) => () => void
 }
 
 export interface FileWriteResult {

@@ -1024,6 +1024,15 @@ export const IPC = {
   // occluded by the WCV at compositor level). Click → CDP binding →
   // this channel → renderer's existing handleSendToDuoClick.
   BROWSER_SEND_TO_DUO_CLICK: 'browser:send-to-duo-click',
+  // ENH-094 (Sprint 5) — playground action click in a BROWSER-PANE
+  // page (parallel to the canvas-iframe runtime in
+  // renderer/components/Page/playgroundActions.ts). The PLAYGROUND_
+  // RUNTIME_IIFE in cdp-bridge.ts captures `data-duo-action` clicks
+  // page-side and ships the attribute bundle via Runtime.binding;
+  // BrowserManager checks the trust gate against the active tab's URL,
+  // forwards trusted actions over this channel; renderer dispatches
+  // to the same handlePlaygroundAction the canvas runtime feeds.
+  BROWSER_PLAYGROUND_ACTION: 'browser:playground-action',
 
   // Stage 27 — renderer → main: emit a DuoEvent into the bus. Powers
   // the canvas-action `duo:event` verb. Main owns the EventBus
