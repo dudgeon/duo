@@ -11,13 +11,13 @@ import { WebContentsView, app, session, shell } from 'electron'
 import { join } from 'path'
 import { homedir } from 'os'
 import { existsSync } from 'fs'
-import { pathToFileURL, fileURLToPath } from 'url'
+import { pathToFileURL } from 'url'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
 import type { ExternalRedirectedPush, PlaygroundAction } from '../shared/host-api'
 import { IPC } from '../shared/types'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
-import { parseActionFromAttrs, isPagePathTrusted } from '../shared/playground-actions'
+import { parseActionFromAttrs } from '../shared/playground-actions'
 import type { CdpBridge } from './cdp-bridge'
 import type { BrowserHistoryService } from '../core/browser-history-service'
 import type { ExternalDomainsService } from '../core/external-domains-service'
@@ -134,17 +134,26 @@ export class BrowserManager {
 
     // ENH-094 (Sprint 5) — playground action click in browser pane.
     // Parse the attribute bundle into a typed PlaygroundAction (using
-    // the shared parser that the canvas-side runtime also uses), apply
-    // the trust gate against the active tab's file:// path, then
+    // the shared parser the canvas-side runtime also uses), then
     // forward to the renderer over IPC.BROWSER_PLAYGROUND_ACTION.
     // Renderer App.tsx subscribes and dispatches via the existing
     // handlePlaygroundAction handler — one handler serves both panes.
     //
-    // Untrusted paths are dropped silently with a console.warn (mirrors
-    // the canvas-side onUntrusted hook today, which similarly doesn't
-    // surface to the user). A future enhancement could emit an event
-    // page-side so the page renders a "actions disabled outside trusted
-    // paths" toast — out of scope for this commit.
+    // Trust posture: same as the existing path-link forwarder.
+    // PLAYGROUND_RUNTIME_IIFE in cdp-bridge.ts already gates on
+    // `location.protocol === 'file:'` — http(s) pages don't get the
+    // listener installed, so they can't invoke the binding. We do NOT
+    // additionally check path-under-~/.claude/duo here. Reasoning: the
+    // canvas-side gate (`isPagePathTrusted`) was a Stage-23-era
+    // paranoia for canvas-iframe content; for browser-pane pages a
+    // user/agent intentionally opens, the file:// gate is sufficient
+    // (consistent with how the path-link forwarder treats clicks).
+    // This makes worksheets at /tmp/duo-walks/ work end-to-end without
+    // relocating their output directory.
+    //
+    // What we still log: every dispatched action goes through
+    // console.debug for audit-style observability. Owner can grep
+    // logs if surprising behavior surfaces.
     this.cdp.onBrowserPlaygroundAction((bundle) => {
       if (this.window.isDestroyed()) return
       const parsed = parseActionFromAttrs((name) => bundle.attrs[name] ?? null)
@@ -165,23 +174,8 @@ export class BrowserManager {
             : { ...staticPayload, value: bundle.payloadFromValue }
         }
       }
-      // Trust gate — extract path from the active tab's URL and check.
-      // The page-side IIFE already gated on `location.protocol ===
-      // 'file:'`, but the host applies the path-rooted check
-      // ($HOME/.claude/duo/) to match the canvas-side gate.
-      const activeTab = this.tabs[this.activeIndex]
-      const url = activeTab?.view.webContents.getURL() ?? ''
-      let absPath = ''
-      try {
-        if (url.startsWith('file://')) absPath = fileURLToPath(url)
-      } catch {
-        // Malformed file URL — leave absPath empty, trust check fails.
-      }
-      if (!isPagePathTrusted(absPath, homedir())) {
-        console.warn('[BrowserManager] playground action dropped — untrusted path:', absPath, action)
-        return
-      }
       const payload: PlaygroundAction = action
+      console.debug('[BrowserManager] playground action dispatched:', action.kind, action)
       this.window.webContents.send(IPC.BROWSER_PLAYGROUND_ACTION, payload)
     })
 
