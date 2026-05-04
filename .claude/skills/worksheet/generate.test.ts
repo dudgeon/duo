@@ -746,6 +746,75 @@ describe('path-link wrapping in steps', () => {
   })
 })
 
+describe('live event emission (ENH-094 + ENH-043)', () => {
+  it('does NOT throw when window.duoPlaygroundAction is absent (worksheet outside Duo)', () => {
+    // No binding — should silently no-op on every radio change.
+    expect(() => {
+      renderWorksheet(SAMPLE_MANIFEST)
+      setRadio('BUG-001', 'PASS')
+    }).not.toThrow()
+  })
+
+  it('calls window.duoPlaygroundAction with a duo:event bundle on radio change when binding is present', () => {
+    const bindingMock = vi.fn()
+    ;(window as unknown as { duoPlaygroundAction: typeof bindingMock }).duoPlaygroundAction = bindingMock
+
+    renderWorksheet(SAMPLE_MANIFEST)
+    setRadio('BUG-001', 'PASS')
+
+    expect(bindingMock).toHaveBeenCalledTimes(1)
+    const bundle = JSON.parse(bindingMock.mock.calls[0][0] as string)
+    expect(bundle.attrs['data-duo-action']).toBe('duo:event')
+    expect(bundle.attrs['data-event']).toBe('smoke-walk:item-changed')
+    const payload = JSON.parse(bundle.attrs['data-payload'])
+    expect(payload).toEqual({
+      worksheet: 'test-walk-v1',
+      id: 'BUG-001',
+      value: 'PASS'
+    })
+
+    delete (window as unknown as { duoPlaygroundAction?: unknown }).duoPlaygroundAction
+  })
+
+  it('uses the manifest kind as the event-name prefix (different worksheets emit distinguishable events)', () => {
+    const bindingMock = vi.fn()
+    ;(window as unknown as { duoPlaygroundAction: typeof bindingMock }).duoPlaygroundAction = bindingMock
+
+    const sprintPlanManifest = {
+      ...SAMPLE_MANIFEST,
+      kind: 'sprint-plan',
+      name: 'sprint-test'
+    }
+    renderWorksheet(sprintPlanManifest)
+    setRadio('BUG-001', 'PASS')
+
+    const bundle = JSON.parse(bindingMock.mock.calls[0][0] as string)
+    expect(bundle.attrs['data-event']).toBe('sprint-plan:item-changed')
+
+    delete (window as unknown as { duoPlaygroundAction?: unknown }).duoPlaygroundAction
+  })
+
+  it('emits one event per radio change in a sequence', () => {
+    const bindingMock = vi.fn()
+    ;(window as unknown as { duoPlaygroundAction: typeof bindingMock }).duoPlaygroundAction = bindingMock
+
+    renderWorksheet(SAMPLE_MANIFEST)
+    setRadio('BUG-001', 'PASS')
+    setRadio('BUG-002', 'FAIL')
+    setRadio('BUG-001', 'SKIP')  // change of mind on BUG-001
+
+    expect(bindingMock).toHaveBeenCalledTimes(3)
+    const events = bindingMock.mock.calls.map(([s]) =>
+      JSON.parse(JSON.parse(s as string).attrs['data-payload'])
+    )
+    expect(events[0]).toMatchObject({ id: 'BUG-001', value: 'PASS' })
+    expect(events[1]).toMatchObject({ id: 'BUG-002', value: 'FAIL' })
+    expect(events[2]).toMatchObject({ id: 'BUG-001', value: 'SKIP' })
+
+    delete (window as unknown as { duoPlaygroundAction?: unknown }).duoPlaygroundAction
+  })
+})
+
 describe('rendered shape (smoke checks against generator HTML)', () => {
   it('exposes per-item id + title via data attributes for state lookup', () => {
     renderWorksheet(SAMPLE_MANIFEST)

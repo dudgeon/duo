@@ -646,6 +646,10 @@ ${miscHtml}
   const PRIMARY_OPTIONS = ${JSON.stringify(primary.options.map(o => o.value))};
   const SECONDARY_NAME = ${JSON.stringify(secondary?.name ?? null)};
   const MISC_RESULT_TITLE = ${JSON.stringify(misc_notes?.result_block_title ?? 'OTHER NOTES')};
+  // ENH-043 — event-name prefix for live duo:event emission. Defaults
+  // to the manifest 'kind' (e.g. 'smoke-walk', 'sprint-plan') so
+  // multiple open worksheets don't collide on the event bus.
+  const WALK_EVENT_PREFIX = ${JSON.stringify(kind)};
 
   const itemEls = Array.from(document.querySelectorAll('section.item'));
   const summaryEl = document.getElementById('summary');
@@ -680,6 +684,34 @@ ${miscHtml}
   document.getElementById('items').addEventListener('change', tally);
   document.getElementById('items').addEventListener('input', tally);
   tally();
+
+  // ENH-094 + ENH-043 (Sprint 5) — when running inside Duo, fire a
+  // live duo:event each time a radio changes, so Claude subscribed
+  // via 'duo events --follow' sees walk progress as it happens. Falls
+  // back to a no-op when window.duoPlaygroundAction isn't present
+  // (worksheet opened outside Duo, or older Duo build pre-ENH-094).
+  // Per-item events use the manifest's 'kind' as the event prefix
+  // so smoke walks fire 'smoke-walk:item-changed', sprint plans fire
+  // 'sprint-plan:item-changed', etc. — keeps the event channel
+  // disambiguated when multiple worksheets are open.
+  function emitItemChanged(id, value) {
+    if (typeof window.duoPlaygroundAction !== 'function') return;
+    try {
+      window.duoPlaygroundAction(JSON.stringify({
+        attrs: {
+          'data-duo-action': 'duo:event',
+          'data-event': WALK_EVENT_PREFIX + ':item-changed',
+          'data-payload': JSON.stringify({ worksheet: NAME, id: id, value: value })
+        }
+      }));
+    } catch (err) { /* binding refused — silent fallback */ }
+  }
+  document.getElementById('items').addEventListener('change', function (e) {
+    if (!e.target || !e.target.matches || !e.target.matches('input[type=radio]')) return;
+    const item = e.target.closest('section.item');
+    if (!item) return;
+    emitItemChanged(item.dataset.id, e.target.value);
+  });
 
   // localStorage persistence — keyed by manifest name so different
   // worksheets don't restore each other's state.
