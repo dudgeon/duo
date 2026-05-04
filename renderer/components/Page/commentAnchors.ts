@@ -103,7 +103,11 @@ export function installCommentAnchorStyles(doc: Document): void {
   background: rgba(198, 106, 46, 0.08);
   border-bottom: 1px solid rgba(198, 106, 46, 0.45);
   cursor: pointer;
-  transition: background 100ms ease-out, border-color 100ms ease-out;
+  /* BUG-089 fix — no transition on the static state. Typing inside
+     a commented element triggers contentEditable repaints; a 100ms
+     transition restarted on each keystroke produced a visible
+     flicker. Hover state gets no transition either; the visual
+     change is small enough to read instantly. */
 }
 [${HAS_COMMENT_DATA}]:hover {
   background: rgba(198, 106, 46, 0.16);

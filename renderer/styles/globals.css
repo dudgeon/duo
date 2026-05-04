@@ -907,14 +907,21 @@ html.dark {
     background: rgba(198, 106, 46, 0.08);
     border-bottom: 1px solid rgba(198, 106, 46, 0.45);
     cursor: pointer;
-    transition: background 100ms ease-out, border-color 100ms ease-out;
+    /* BUG-089 fix — no transition. Typing inside a commented mark
+       triggers a paint per keystroke; a 100ms transition restarted
+       on each beat produced visible flicker. Static colors only. */
   }
   .ProseMirror [data-duo-comment-id]:hover {
     background: rgba(198, 106, 46, 0.16);
   }
   .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
     background: rgba(198, 106, 46, 0.22);
-    border-bottom-color: rgb(var(--duo-accent));
+    /* Literal hex — `var(--duo-accent)` resolves to `#C66A2E` not
+       an RGB triplet, so `rgb(var(--duo-accent))` was invalid CSS
+       and the rule silently fell back to the inactive border color.
+       FOLLOWUP-008 will migrate the token system to RGB-triplet
+       form so `rgb()` + alpha modifiers work app-wide. */
+    border-bottom-color: #C66A2E;
   }
 }
 

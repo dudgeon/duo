@@ -28,6 +28,7 @@ import { WriteWarningBanner } from '../editor/primitives/WriteWarningBanner'
 import {
   countDuoIds,
   injectIds,
+  installAutoStampIds,
   getChoiceForDir,
   setChoiceForDir,
   dirOf
@@ -651,6 +652,17 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // which doesn't reach the iframe — badges rendered as plain
     // unstyled "1" text. Idempotent.
     installCommentAnchorStyles(doc)
+    // Sprint 6 BUG-088 / BUG-090 — auto-stamp data-duo-id on every
+    // new element added to the canvas body. Without this, markdown-
+    // shortcut conversions (`- bullet`, `> quote`, etc.) created
+    // elements with no anchor; comments on them fell back to the
+    // closest ancestor's id (often the body), grouping unrelated
+    // comments into a single rail thread. Skipped in read-only
+    // mode (no editing, no new elements). Cleanup is wired via
+    // wireCleanupRef below.
+    const cleanAutoStampIds = readOnly
+      ? () => {}
+      : installAutoStampIds(doc)
     // Sprint 6 BUG-083 — delegated click listener that catches
     // clicks on commented anchor elements (not the badge sibling)
     // and focuses the corresponding rail thread. Completes
@@ -779,6 +791,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       cleanPlaygroundActions()
       cleanPaste()
       cleanAnchorClick()
+      cleanAutoStampIds()
       blurred.dispose()
       sel.dispose()
       clearAnchors(doc)

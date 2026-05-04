@@ -57,6 +57,78 @@ export function countDuoIds(doc: Document): number {
   return doc.body.querySelectorAll('[data-duo-id]:not([data-duo-id="opt-out"])').length
 }
 
+/**
+ * Sprint 6 BUG-088 / BUG-090 — auto-stamp data-duo-id on every NEW
+ * element added to the canvas body after mount. The boilerplate seeds
+ * IDs only on `body` / `h1` / `p` (one of each); markdown-shortcut
+ * conversions (`- bullet`, `1. ordered`, `> quote`, etc.) and any
+ * other DOM mutations create elements WITHOUT IDs. When the user
+ * later commented on one of those elements, the closest ancestor
+ * with a `data-duo-id` was a generic container (`<body>`, `<ul>`),
+ * so multiple distinct comments grouped into the same thread.
+ *
+ * Returns a cleanup function. Idempotent (the install bails if the
+ * sentinel-marked observer is already attached). Observes ONLY
+ * childList mutations — attribute changes are excluded so the
+ * stamp itself doesn't re-fire the observer.
+ *
+ * Skip rules mirror `injectIds`:
+ *   - Skip `BR` / `HR` (no comment / agent semantics for void marks).
+ *   - Skip elements with `data-duo-id="opt-out"`.
+ *   - Don't stamp text / comment nodes (only Element nodes).
+ *
+ * Stamping happens after the mutation lands, so the autosave's
+ * MutationObserver (observing attributes too) DOES see the
+ * stamp-as-attribute-change. That's intentional — the resulting
+ * stamp ends up in the next save, exactly as it would if the
+ * agent had stamped IDs through `duo html stamp-ids`.
+ */
+export function installAutoStampIds(doc: Document): () => void {
+  if (!doc.body) return () => {}
+  // Idempotency sentinel — re-running handleReady (or HMR cycles)
+  // shouldn't double-install.
+  if (doc.body.hasAttribute('data-duo-auto-stamp-installed')) return () => {}
+  doc.body.setAttribute('data-duo-auto-stamp-installed', '1')
+
+  const stampElement = (el: Element): void => {
+    if (SKIP_TAGS.has(el.tagName)) return
+    const existing = el.getAttribute('data-duo-id')
+    if (existing === 'opt-out') return
+    if (existing) return
+    el.setAttribute('data-duo-id', newULID())
+  }
+
+  // Walk a subtree, stamping every element. Used for newly-added
+  // nodes that themselves contain children (e.g. paste of a complex
+  // fragment, or a `<ul>` containing multiple `<li>`s).
+  const stampSubtree = (root: Node): void => {
+    if (root.nodeType !== 1) return
+    stampElement(root as Element)
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_ELEMENT)
+    let node = walker.nextNode()
+    while (node) {
+      stampElement(node as Element)
+      node = walker.nextNode()
+    }
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.type !== 'childList') continue
+      m.addedNodes.forEach((n) => stampSubtree(n))
+    }
+  })
+  observer.observe(doc.body, {
+    subtree: true,
+    childList: true
+  })
+
+  return () => {
+    observer.disconnect()
+    doc.body?.removeAttribute('data-duo-auto-stamp-installed')
+  }
+}
+
 // ── Per-directory choice persistence (PRD H14) ─────────────────────────────
 
 export type AutoInjectChoice = 'always' | 'never'

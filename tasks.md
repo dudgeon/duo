@@ -719,7 +719,7 @@ Audit the theme service. The css `@media (prefers-color-scheme: dark)` blocks ar
 
 ### MISSING-001: Markdown editor — no way to add a comment
 
-**Status:** ✅ **SHIPPED** in v0.6.7 (Sprint 6 Phase 4, 2026-05-04). Full TipTap data plane:
+**Status:** 🟡 **PARTIAL** in v0.6.7 (Sprint 6 Phase 4, 2026-05-04). Full TipTap data plane SHIPPED (mark + sidecar + re-anchor + rail + 3 affordances all work end-to-end and reopen-survives), but smoke walk surfaced one regression: clicking a rail thread beyond #1 doesn't activate the corresponding anchor's stronger background tint. Filed as BUG-087 — follow-up before the v0.6.7 cut. Full TipTap data plane:
 
 - **`CommentMark` extension** (new `renderer/components/editor/extensions/CommentMark.ts`). Inline mark with a `commentId` attribute that renders as `<span data-duo-comment-id="…" class="duo-comment-anchor-text">`. Inclusive boundaries (typing at the edge extends the anchor); doesn't merge with adjacent marks of a different id; commands `applyCommentMark(id, from?, to?)` and `removeCommentMark(id)` for the comment lifecycle.
 - **Sidecar persistence** (`<file>.md.duo.json`, same shape as canvas — extended `SidecarComment` with optional `excerpt` / `contextBefore` / `contextAfter` for re-anchoring). Markdown source stays clean: `Markdown.html` is configured `false` so the spans strip on serialize; comments live entirely in the sidecar JSON.
@@ -5065,7 +5065,7 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ### BUG-083: Comments in rail have no visual association with the text they comment on
 
-**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 Phase 3, 2026-05-04). Three concerns addressed:
+**Status:** 🟡 **PARTIAL** in v0.6.7 (Sprint 6 Phase 3, 2026-05-04). Heading-level + paragraph-level anchors work; smoke walk surfaced three follow-up issues filed as BUG-088 / BUG-089 / BUG-090. Decision: hold the v0.6.7 cut until these land. Original three concerns:
 - **Anchor decoration in canvas body.** New `data-duo-has-comment` attribute stamped on the anchor element (separate from the existing badge sibling) by `paintAnchors`. CSS rule (in the iframe-side stylesheet — see below) applies a subtle accent-soft background tint + bottom border so the user sees which text the comment attaches to. Resolved threads don't decorate (the visual would be noise).
 - **Bidirectional click-to-focus.** Rail → anchor was already wired via `handleJumpToThread → scrollToAnchor`. New `installAnchorClickListener` adds the reverse: a delegated click on the iframe body catches clicks on `[data-duo-has-comment]` (or any descendant) and calls `setActiveThreadId(threadId)`. Walks up via `closest()` so clicking inline text inside a commented `<p>` still focuses the thread.
 - **Active-thread emphasis.** New `data-duo-comment-active` attribute stamped on the active anchor (same pass as `data-duo-has-comment`). Stronger background — Google Docs' "this is the one we're looking at" affordance. Rail-side active styling was already wired in `CommentRail` via `duo-comment-thread--active`.
@@ -5123,6 +5123,110 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 **Cross-ref:** Stage 16 (the broader "external-write reconciliation" spec — this BUG is the v1 implementation). BUG-033 v2 (the harder OT-merge case for `duo doc write` against a dirty buffer — separate from the fs-write reconciliation here, deferred). FOLLOWUP-NN: PageTab mirror.
 
 **Editor-canvas parity disposition (per CLAUDE.md § 4):** **(c) Deferred** — markdown editor ships v1; PageTab's canvas surface gets the same watcher pattern in a follow-up.
+
+---
+
+### BUG-086: Smoke-walk skill should re-verify the page rendered as a browser tab (not as a canvas)
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 mid-flight, 2026-05-04 smoke-walk procedural failure)
+**Priority:** **Medium** (smoke-walk is sprint infrastructure; if it can route to the wrong surface, the cut process gets jammed and the walk has to be re-done by hand).
+**Filed:** 2026-05-04 (smoke walk v0.6.7 — owner reported "smoke walk non functional — opened as editable in html canvas so I could not click the 'copy results' button").
+
+**Symptom.** The smoke-walk page (`docs/dev/smoke-walks/v0.6.7.html`) was generated correctly with `<meta name="duo-open-in" content="browser">`. The skill ran `duo open <path>` which returned `{ ok: true, routedTo: "browser" }` — the bridge confirmed routing to the browser pane. AND `duo url` immediately after confirmed the URL + title matched the smoke-walk page in the browser tab list. Despite all that, the user saw the page render as an editable HTML CANVAS and couldn't click the Copy results / Send to Claude buttons (the canvas's contentEditable swallows interactions). The user fell back to copying the page text by hand.
+
+**Likely cause.** Investigation deferred. Two hypotheses:
+1. The user's last-active working tab was a canvas, and `duo open` opened the smoke walk into a NEW browser tab BUT the working pane stayed on the previous canvas — the user saw the canvas and assumed it was the smoke walk.
+2. There's a path where the meta tag's routing intent is honored at the bridge level (return path returns `routedTo: "browser"`) but the renderer-side WorkingPane still mounted it as a canvas. Either way, post-`duo open` checks (which the skill DOES run via `duo url`/`duo title`) would NOT have caught hypothesis 1 — they only verify the BROWSER tab's URL/title.
+
+**What to fix on the skill side:**
+1. After `duo open`, ALSO run `duo selection --pane canvas` and `duo selection --pane editor` — confirm neither returns the smoke-walk path. If either does, the page rendered into the wrong surface.
+2. Pre-handoff, check `activeWorking.kind === 'browser'` via `duo nav-state` (or equivalent). If the working pane is showing a canvas/editor, the user's eye lands there — not on the new browser tab.
+3. If detection fails, instruct the user to click the smoke-walk tab in the browser-tab strip explicitly before walking.
+
+**Cross-ref:** smoke-walk SKILL.md § Step 5 (the existing focus-verification step doesn't catch this case).
+
+---
+
+### BUG-087: Markdown editor — clicking a rail thread beyond #1 doesn't activate the corresponding anchor's stronger background
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (MISSING-001 follow-up, surfaced in smoke walk)
+**Priority:** **Medium-High** (visual association partly broken; the rail-side active state still works but the body-side strong-tint transfer fails for everything past thread #1).
+**Filed:** 2026-05-04 (smoke walk).
+
+**Symptom.** Markdown editor with multiple comments. Clicking the FIRST rail thread correctly activates the first paragraph's anchor (stronger orange background appears). Clicking the SECOND rail thread updates the rail's active state (border + box-shadow) BUT the second paragraph's anchor stays at the inactive tint — `data-duo-comment-active` doesn't transfer.
+
+**Likely cause.** The useEffect at MarkdownEditor.tsx that sets `data-duo-comment-active` runs on `[activeThreadId, builtThreads, editor]`. Sidecar + ranges look correct on disk (verified — three distinct `anchorId`s, three distinct `excerpt`s). Hypotheses:
+1. ProseMirror re-renders the doc in some path between rail-click and DOM read, wiping the manual `setAttribute`.
+2. A stale closure inside the effect captures an outdated `activeThreadId`.
+3. The `querySelectorAll` finds the wrong span when multiple distinct comment marks coexist (the browser may be returning the LAST match instead of the matching one for some attribute selector).
+
+**Fix path.** Set the active attribute via a ProseMirror Decoration instead of a direct DOM mutation — Decorations are part of PM's render pipeline so they survive re-renders. Or render the active state via a SECOND mark attribute (`active: boolean`) — but PM marks aren't great for transient state, so Decoration is cleaner.
+
+**Cross-ref:** MISSING-001 (parent feature). PageTab uses the same direct-setAttribute pattern for canvas — needs cross-check that BUG-087 doesn't also apply to canvas (BUG-083 walked OK for the FIRST canvas comment but multi-comment behavior wasn't smoke-tested).
+
+---
+
+### BUG-088: Canvas — anchor decoration missing on bullet `<li>` text
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (BUG-083 smoke-walk follow-up)
+**Priority:** **Medium-High** (canvas comment scope appears block-only; bullet items + nested children are silent commenters).
+**Filed:** 2026-05-04 (smoke walk).
+
+**Symptom.** Canvas. User selects text inside a bullet `<li>` and adds a comment via the toolbar. Comment lands in the rail correctly (sidecar persists, thread visible). But the bullet text gets NO orange decoration in the body — the visual association is missing for `<li>` content.
+
+**Likely cause.** The canvas's anchor model is per-element via `data-duo-id`. `injectIds` (renderer/components/Page/idInjection.ts? or similar) probably stamps `data-duo-id` on a specific list of block-level tags — `H1-H6, P, BLOCKQUOTE, etc.` — and DOESN'T include `LI`. When the user comments on bullet text, the closest ancestor with a `data-duo-id` is the parent `<ul>` or even further up the body. paintAnchors then stamps `data-duo-has-comment` on that ancestor — but the `<ul>`'s text content is just whitespace + child `<li>`s, so the visual decoration applies to nothing visible.
+
+**Fix path.** Extend `injectIds`'s stamped-tag list to include `LI` (and maybe `TD`/`TH` for table cells, `DT`/`DD` for definition lists). This is also the proximate cause of BUG-090 — when multiple `<li>`s share a parent `<ul>`, comments on different bullets currently both anchor to the same `<ul>` data-duo-id and grouped together.
+
+**Cross-ref:** BUG-090 (same root cause), BUG-083 (parent visual-association feature).
+
+---
+
+### BUG-089: Canvas — anchor decoration "flickers" while typing inside a commented heading
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (BUG-083 smoke-walk follow-up)
+**Priority:** **Medium** (cosmetic; users notice and worry the comment is breaking).
+**Filed:** 2026-05-04 (smoke walk).
+
+**Symptom.** Canvas. User adds a comment to an H1, then types inside that H1 to edit it. The orange anchor decoration on the H1 visibly flickers (briefly disappears + reappears) on each keystroke.
+
+**Likely cause.** paintAnchors is called from the builtThreads useMemo / useEffect chain. On every typing transaction, MutationObserver fires → handleChange → … some path that re-runs paintAnchors. paintAnchors removes + re-stamps `data-duo-has-comment` (instead of leaving it in place when the anchor element is still present). The remove-then-stamp window is one paint frame and is visible as a flicker.
+
+**Fix path.** In paintAnchors's loop, only update attributes that have CHANGED. If the anchor element already has `data-duo-has-comment="1"`, don't strip + re-set. Same for `data-duo-comment-active`.
+
+**Cross-ref:** BUG-083 (parent feature). commentAnchors.ts § paintAnchors.
+
+---
+
+### BUG-090: Canvas — comments on non-adjacent text get concatenated into a single rail thread
+
+**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (BUG-083 smoke-walk follow-up)
+**Priority:** **High** (data-correctness — comments meant for different content show as one thread; user can't tell what each comment refers to without expanding the rail card).
+**Filed:** 2026-05-04 (smoke walk).
+
+**Symptom.** Canvas. User adds two comments on two different non-adjacent elements (e.g. a bullet `<li>` and a paragraph elsewhere). Both comments end up grouped under a SINGLE rail thread as if they were replies to the same parent comment.
+
+**Likely cause.** Almost certainly the same root cause as BUG-088: when `injectIds` doesn't stamp `data-duo-id` on `<li>`, comments on bullet text fall back to the closest ancestor with a `data-duo-id` — the parent `<ul>` or `<body>`. Two distinct comments on different bullets both get the same `anchorId`. The thread builder groups by `anchorId`, so they look like a single thread with multiple replies.
+
+**Fix path.** Same as BUG-088 — extend `injectIds`'s stamped-tag list. After the fix, each `<li>` gets its own data-duo-id; comments anchor on the correct element; threads stay distinct.
+
+**Cross-ref:** BUG-088 (same root cause). Confirms there are NO comment-add paths that should ever attribute to a non-stamped element — if needed, harden `handleStartNewComment` to refuse if the closest ancestor's stamped `data-duo-id` belongs to a container element (`<ul>`, `<ol>`, `<body>`, `<main>`) rather than a leaf-content element.
+
+---
+
+### BUG-091: WorkingPane tab right-click menu missing "Move to split view" entry
+
+**Status:** 🟡 **Filed** (smoke walk other-notes, deferred to v0.6.8)
+**Priority:** **Low** (workaround exists: navigator right-click works).
+**Filed:** 2026-05-04 (smoke walk other-notes).
+
+**Symptom.** User right-clicks a WorkingPane tab in the strip (not in the navigator) and looks for "Move to split view" — entry not present. Same gesture against the same file via the navigator's right-click menu does have the entry.
+
+**Likely cause.** The two right-click menus (`WorkingPane.tsx` for tab-strip clicks, `FileTree.tsx` for navigator) were built independently; the split-view action was added to FileTree but not back-ported to the tab strip.
+
+**Fix.** Add the entry to WorkingTabStrip's right-click menu, mirroring FileTree's wiring.
+
+**Cross-ref:** Sprint 3 Phase 3b split-view feature.
 
 ---
 

@@ -855,17 +855,31 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [])
 
   /** Update [data-duo-comment-active] on every comment span so the
-   *  active thread reads stronger than its siblings. */
+   *  active thread reads stronger than its siblings. BUG-087 fix —
+   *  also re-apply on every editor transaction. ProseMirror manages
+   *  its own DOM and can re-create mark spans on transactions
+   *  (selection updates, content changes); without this, the active
+   *  attribute set via direct setAttribute would be wiped the next
+   *  time PM re-rendered the spans, and only the FIRST rail-click
+   *  worked (subsequent clicks landed on freshly-rendered spans
+   *  whose attribute hadn't been re-applied yet). */
   useEffect(() => {
     if (!editor) return
-    const root = editor.view.dom
-    root.querySelectorAll<HTMLElement>('[data-duo-comment-id]').forEach((el) => {
-      if (el.getAttribute('data-duo-comment-id') === activeThreadId) {
-        el.setAttribute('data-duo-comment-active', '1')
-      } else {
-        el.removeAttribute('data-duo-comment-active')
-      }
-    })
+    const apply = () => {
+      const root = editor.view.dom
+      root.querySelectorAll<HTMLElement>('[data-duo-comment-id]').forEach((el) => {
+        if (el.getAttribute('data-duo-comment-id') === activeThreadId) {
+          el.setAttribute('data-duo-comment-active', '1')
+        } else {
+          el.removeAttribute('data-duo-comment-active')
+        }
+      })
+    }
+    apply()
+    // Re-apply on every PM transaction so ProseMirror-driven re-
+    // renders don't strip the active attribute.
+    editor.on('transaction', apply)
+    return () => { editor.off('transaction', apply) }
   }, [activeThreadId, builtThreads, editor])
 
   /** Click-on-anchor → activate the corresponding rail thread.
