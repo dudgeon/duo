@@ -21,6 +21,56 @@
 
 ## Pending — not yet cut
 
+(Empty — v0.6.5 cut 2026-05-04. The next cut accumulates here.)
+
+---
+
+## v0.6.5 — 2026-05-04 — Sprint 4 close-out: canvas → page rename · navigator + Split View polish · markdown trigger family · FAQ-on-launch fix · ROADMAP.md retired · playground architecture initiative filed
+
+The ship of three accumulated chapters. The v0.6.3 chapter never cut (Stage 17 / canvas-authoring polish). The v0.6.4 chapter never cut (Sprint 3 — Split View v1 + idle-thoughts sweep + Vitest framework, blocked at walk-1 on BUG-074 light-mode contrast + BUG-075 chord regression). Sprint 4 absorbed both, fixed the cut blockers, and added its own arc: a deep mechanical rename of the canvas → page/playground/lesson hierarchy (177 edits, zero behavior change), a navigator close-out (Finder-style selection took three v1/v2/v3 attempts before it stuck), a Split View Phase 3 close-out (chord re-pick from `⌘\` to `⌘/` after 1Password's autofill grab made `⌘\` unreachable), a tab-cycling fix, and the markdown trigger family — including a BUG-072 root-cause discovery that surfaced TWO pre-existing canvas issues (`MAIN` missing from `BLOCK_TAGS`, `defaultParagraphSeparator` not set to `'p'`) that had been silently breaking trigger detection whenever content sat outside the boilerplate's lone `<p>`. Plus BUG-078 — the FAQ tab opening on every launch despite being closed — fixed by gating both the constructor's boot-default AND BUG-057's default-pin auto-restore on `!hasPersistedSession`.
+
+This cut also retires `ROADMAP.md` (the synced markdown view drifted from canonical `docs/roadmap.html` in practice; maintenance tax exceeded value). Three unique sections — Number history (the 2026-04-26 renumber map), Layout commitment (three-column ADR), Open issue → stage mapping — extracted to `docs/dev/roadmap-history.md`. CLAUDE.md and 25 file references rewritten to point at the canonical HTML.
+
+### The architectural pivot — playground primitives initiative filed for v0.6.6
+
+The most consequential change in this cut isn't a feature; it's a decomposition. ENH-043 (originally framed as "the smoke-walk skill should be re-buildable via canvas/template primitives") was about to close as scope-evolved. Owner pushback during the post-Phase-5 walk reframed it: **the smoke-walk skill MUST be expressible via playground primitives — and if it can't be today, the playground vocabulary itself is broken.**
+
+The walk diagnosed three concrete gaps. (1) Today's playground vocabulary is one-shot host actions (`claude:spawn` / `terminal:send` / etc.) — no state, no DOM reactivity, no composition, no clipboard. Smoke walks need all four. (2) The playground action runtime lives in the canvas iframe's `contentDocument`; it doesn't reach browser-pane pages. Smoke walks must run in browser tabs (they need `<script>` execution privileges canvas tabs don't grant). (3) These aren't sandbox-imposed dead ends — they're vocabulary + runtime gaps to fix.
+
+Filed as ENH-092 (state + DOM-reactivity primitives) → ENH-093 (composition + clipboard) → ENH-094 (CDP injection of the playground runtime into browser-pane pages, parallel to existing Send → Duo + path-link injections) → ENH-043 reframed as the meta-tracker that closes when the refactor of `worksheet/generate.mjs` to pure declarative HTML lands. Likely 2–3 sprints; may warrant a dedicated Sprint 5 = playground primitives. The same primitive set will eventually power lesson canvases, agent-generated dashboards, smoke walks, sprint-plan worksheets, retros, triage forms — one runtime contract across surfaces.
+
+### Why this lands here, vs. earlier or later
+
+v0.6.3 should have cut after the Stage 17 / canvas-authoring polish landed. Owner direction was "no cut yet, accumulate." Sprint 3 absorbed the chapter into v0.6.4. v0.6.4 should have cut after Split View v1 + the idle-thoughts sweep + Vitest. Walk-1 (2026-05-04 morning) found 4 cut blockers (BUG-074 light-mode contrast, BUG-075 chord regression, plus two minor) and the cut was deferred. Sprint 4 fixed all four plus the deeper canvas issues that surfaced during Phase 5's smoke walks. v0.6.5 cuts now because (a) every cut blocker is closed, (b) 134/134 vitest tests pass, (c) the architectural reframe of ENH-043 is filed in detail so the next sprint has a real plan, and (d) the changeset has accumulated long enough that further deferral risks losing the narrative thread between commits.
+
+### Key design decisions baked in
+
+1. **Hand-rolled blockquote trigger.** BUG-072 went through three iterations. v1 used `execCommand('formatBlock', '<blockquote>')` + a separate exit handler; the formatBlock execCommand replaces the current block's tag rather than wrapping (Chromium quirk), so text landed directly inside the blockquote with no `<p>` child. v2 hand-rolled `<blockquote><p></p></blockquote>` but Chromium's caret-snap quirk bumped the caret out of the empty `<p>` to the parent. v3 added a `<br>` filler — the standard contentEditable trick — to anchor the caret. Decision recorded inline in `markdownShortcuts.ts § convertEmptyBlockToBlockquote`.
+
+2. **`MAIN`/`ARTICLE`/`SECTION` belong in `BLOCK_TAGS`.** Pre-fix, when the user's caret leaked into a `<span>` directly inside `<main>` (which happens any time content sits outside the boilerplate's lone `<p>`), `findBlockAncestor` walked all the way up to `<body>` because none of `[P, H1-6, BLOCKQUOTE, PRE, LI, DIV]` matched. The matcher then tested `body.textContent` (entire document) against `^>\s$` — never matched, trigger silently dropped. This was the root cause that masqueraded as a Phase 5 regression but had been latent since canvas inception.
+
+3. **`defaultParagraphSeparator='p'` on canvas init.** Chromium's contentEditable defaults to `<div>` for new paragraphs. When the caret was inside a `<span>` directly under `<main>` (no `<p>` wrapper), pressing Enter created a sibling `<div>` — but Chromium routed it to the `<main>` level instead of the span level, producing a NEW `<main>` sibling. Each subsequent Enter stacked another `<main>`, and each new `<main>` inherited the boilerplate's `padding: 48px 24px 96px` — that's where the "huge paragraph spacing started halfway through the test" report came from. Setting the separator to `<p>` short-circuits this entirely.
+
+4. **FAQ-on-launch: session is authoritative; default-pin restore is fresh-app-only.** The original BUG-057 design ("pinned tabs always come back") predates working session restore. With Stage 21c Phase 2's session restore in place, the persisted session is the authoritative source of "what tabs were open." Auto-restoring default-pinned tabs (FAQ + What Duo Does) on top of the restored session resurrected tabs the user explicitly closed. New rule (owner-stated): "boot load only on fresh app; skip if prev tabs persisted."
+
+### What this is and isn't
+
+This **is** a major cut — three sprint-chapters' worth of work, plus a fundamental terminology rename (canvas → page/playground/lesson) that touches 32 files, plus the retirement of a load-bearing doc (ROADMAP.md). It also reframes a long-pending ENH (043) into a real architectural initiative.
+
+This **is not** the playground primitives implementation. ENH-092/093/094 ship in v0.6.6+ (likely a dedicated sprint). v0.6.5 lays the architectural plan but doesn't write the code. Today's smoke walks still run on the same custom-JS worksheet generator they did in v0.6.4 — only the plan to fix that has been formalized.
+
+### Stage flips
+
+- **Stage 17 (HTML canvas)** — adds the v0.6.5 ENH-052 page rename + BUG-072 root-cause fixes to the status-line.
+- **Stage 19** — 19e PRD landed (ENH-088/089/090 — sprint candidate for v0.6.6+).
+- **Stages 11 / 12 / 15 / 17a-polish** — class corrections (`inprog`/`pending` → `done`), already accurate per their own status-line text but the wrapping article class was stale.
+
+---
+
+## v0.6.4 — 2026-05-04 — *(absorbed into v0.6.5; never cut as a separate release)*
+
+The Sprint 3 chapter — Split View + idle-thoughts sweep + first regression tests. Headline content preserved here for historical context; cut narrative folds into v0.6.5 above.
+
 ### v0.6.4 (in-progress) — Split View + idle-thoughts sweep + first regression tests
 
 The v0.6.3 chapter never cut — owner direction was "no cut yet, accumulate until the chapter feels closed." Sprint 3 expanded that chapter with the **Split View** capability (the canvas can hold two files side-by-side), an idle-thoughts sweep that closed eight smaller items at once, and the first **Vitest** regression-test suite to lock in the BUG-061 markdown-trigger class. The combined release is v0.6.4. The detailed v0.6.3 work below stays (it all ships under v0.6.4); Sprint 3 highlights summarized first.

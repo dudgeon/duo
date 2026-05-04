@@ -19,7 +19,69 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-The shape of the next cut — owner direction "no cut yet" until Phase 3b + 3c land + a fresh smoke walk passes. The v0.6.3 chapter never cut; Sprint 3 absorbed it into v0.6.4 (Split View, idle-thoughts sweep, first regression-test framework). See `docs/RELEASES.md § Pending — not yet cut` for the prose narrative.
+(Empty — v0.6.5 cut 2026-05-04. Next cut accumulates here.)
+
+## [0.6.5] — 2026-05-04
+
+Sprint 4 close-out. Absorbs both the never-cut v0.6.3 chapter (Stage 17/canvas authoring polish) AND the never-cut v0.6.4 chapter (Split View v1 + idle-thoughts sweep + Vitest framework) along with Sprint 4's own arc (canvas → page rename + navigator close-out + Split View Phase 3 close-out + tab cycling + markdown trigger family + FAQ-on-launch fix). v0.6.4 walk surfaced two cut blockers (BUG-074 light-mode contrast, BUG-075 Split View chord regression); both fixed in this cut. Ships also a strategic refile: ROADMAP.md retired in favor of canonical `docs/roadmap.html`, with unique history extracted to `docs/dev/roadmap-history.md`.
+
+### Added — v0.6.5 sprint additions
+
+- **Canvas → page/playground/lesson rename** (ENH-052). Internal mechanical rename of the canvas-authoring identifiers — `WorkingTab.kind === 'page'` (was `'html-canvas'`), `renderer/components/Page/`, `PlaygroundAction`, `IPC.PAGE_*`, `PageSelectionSnapshot`. 177 edits / 32 files / zero behavior change. Pack subdir paths (`packs/<name>/canvases/`) and skill examples (`canvas-templates/`) intentionally deferred — they're external API surfaces with backwards-compat implications.
+- **Bullet marker passthrough** (BUG-061 + BUG-073 combined). `-` / `*` / `+` typed at line-start now stamp `data-list-marker="dash" | "asterisk" | "plus"` on the generated `<ul>`. CSS in the boilerplate emits an en-dash for `dash`, a plus marker for `plus`, and the default disc for `asterisk`.
+- **Blockquote double-Enter exit** (BUG-072 v3). Pressing Enter on an empty trailing line inside a blockquote lifts the line out of the blockquote — parity with the bullet/ordered-list double-Enter convention. Took three iterations: v1 wrong shape, v2 Chromium caret-snap quirk, v3 `<br>` filler in inner `<p>` (the standard contentEditable trick).
+- **Split View aux header right-click menu** (ENH-085). Right-click the aux pane's tab header → "Reveal in navigator" / "Rename" / "Copy path" / "Move back to main" / "Move to Trash." Parity with the main canvas tab strip.
+- **Open-file dot glyph in navigator** (ENH-087). Distinguishes "this file is open in a tab" (small dot) from "this file is the active tab" (bold + accent text).
+- **Stage 19e PRD landed** for v0.6.6+ — ENH-088 (managed Duo block in `~/.claude/CLAUDE.md`), ENH-089 (vocabulary glossary lift to `skill/references/vocabulary.md`), ENH-090 (enterprise-deployments reference). Hook-independent design property preserved as load-bearing.
+- **ENH-080 research doc** at `docs/prd/canvas-tab-search-research.md` — 4 architecture options for the `⌘⇧A` open-tab search palette vs. the WCV-occlusion class. Recommended Option A (native child window with pre-creation at boot); fast-fallback Option B (WCV mute pattern). Sprint-entry gate for v0.6.6 implementation.
+- **24 new regression tests** in `renderer/components/Page/blockOps.test.ts` — locks the BUG-072 root-cause fix (MAIN/ARTICLE/SECTION in BLOCK_TAGS). Total 134/134 vitest green (was 110).
+- **`docs/dev/roadmap-history.md`** — new home for Number history (2026-04-26 renumber), Layout commitment (three-column ADR), and Open issue → stage mapping. Extracted when ROADMAP.md was retired.
+
+### Changed — v0.6.5
+
+- **Navigator selection style** (BUG-074 v3 final). Solid `bg-accent text-white font-medium` Finder-style fill, square corners. Three v1/v2/v3 attempts + a v4 polish revert before it stuck (`bg-accent/85` opacity modifier silently failed because the accent token isn't an alpha-aware Tailwind color — FOLLOWUP-008 filed for the migration).
+- **User-claude pane reordered to bottom of left column** (ENH-086 v2). Now sits below the file tree with `border-t-2 border-paper-rule bg-paper-edge` separation. Earlier "two-pane stack" framing pushed the user-claude pane up; owner walk made the file-tree-as-primary intent explicit.
+- **Split View collapse rail + new-tab/globe/collapse-canvas cluster** (ENH-083). Collapse-canvas button moved INTO the existing tab-strip cluster (was on the titlebar). New cluster: new-file / globe (web tab) / collapse-canvas, separated by hairline rules.
+- **`BrowserManager.switchTab()` now calls `view.webContents.focus()`** (BUG-076 fix). After activating the new view's bounds + emitting state. Fixes ⌃Tab cycle continuation after `duo open` had drifted OS-level focus to a 1×1-shrunk previous view.
+- **Canvas init sets `defaultParagraphSeparator='p'`** (BUG-072 root cause #2). `PageTab.tsx § handleReady` runs `doc.execCommand('defaultParagraphSeparator', false, 'p')` so Enter wraps new content in `<p>` instead of Chromium's default `<div>` (which, when caret was outside the boilerplate's `<p>`, was creating new `<main>` siblings — the source of the "huge paragraph spacing started halfway through the test" report).
+- **`MAIN`/`ARTICLE`/`SECTION` added to `BLOCK_TAGS`** in `blockOps.ts` (BUG-072 root cause #1). `findBlockAncestor` now stops at section roots instead of falling through to `<body>` — fixes silent-drop trigger detection when content sits in a span-in-main without a `<p>` wrapper.
+- **Smoke-walk skill hardened** with two HARD RULES + a socket-cleanup gotcha note: pre-flight Electron probe before any `npm run dev` (never spawn a duplicate); focus verification (`duo url` + `duo title`) after every `duo open` before owner handoff.
+- **ROADMAP.md retired**; `docs/roadmap.html` is now the single source of truth. 25 file references rewritten to point at the canonical HTML or the new history doc. CLAUDE.md "Where to look" updated.
+- **Roadmap stage-class corrections.** Stages 11 / 12 / 15 / 17a-polish were stale `inprog`/`pending` while their own status-lines said ✅ shipped. All flipped to `done` in the roadmap HTML.
+
+### Fixed — v0.6.5
+
+- **BUG-072 — blockquote double-Enter exits** (v3 `<br>` filler — see "Added" entry above).
+- **BUG-074 — navigator selection prominence in light mode** (v3 final). White text on light paper is now legible because the accent fill is solid + opaque.
+- **BUG-075 — Split View chord regression** (Phase 3b). Original `⌘\` chord was eaten by 1Password's system-level autofill grab. Re-picked as `⌘/` + `⌘⇧/` using `e.code === 'Slash'` (modifier-independent) in BOTH the matcher and the browser-pane forwarder. Locked with 6 regression tests including a negative test that `⌘\` no longer matches.
+- **BUG-076 — ⌃Tab cycle drifts** after `duo open` switches focus to a new browser tab. `BrowserManager.switchTab()` now calls `webContents.focus()` on activation.
+- **BUG-078 — FAQ tab opens on every app launch** despite being closed last session. Two mechanisms re-introduced the FAQ: the `BrowserManager` constructor's unconditional `addTab()` AND BUG-057's default-pin restore loop (FAQ is default-pinned per ENH-003). Both now gated on `!hasPersistedSession` peeked at boot via `sessionStateService.load()` BEFORE BrowserManager construction. Owner-stated rule: *"boot load only on fresh app; skip if prev tabs persisted."*
+
+### Deferred / queued for v0.6.6
+
+- **ENH-084** (aux pane focus indicator — orange glow when active in side pane) — three v0.6.5 attempts all failed; deferred with full v1/v2/v3 defect log in `tasks.md`. Owner direction: *"please log the defect, incl failed attempts to fix it, then move on; this has wasted too much time this sprint."*
+- **ENH-091** (caret placement on new canvas) — surfaced in BUG-072 v3 re-walk owner ask: *"when I duo html new ..., the cursor is at the beginning of the empty doc; it would be nice if it was at the end."*
+- **BUG-079** (`⌃⇧\`` cycle multi-second latency) — recurring tab-cycle class; deferred with hypothesis list.
+- **FOLLOWUP-008** (accent token RGB-triplet migration) — unblocks `bg-accent/N` opacity modifiers that silently fail today.
+- **FOLLOWUP-007** (`window.duoSendResult` CDP binding) — pre-req for ENH-093's `host:send-to-claude` verb.
+- **Phase 7 carry-overs**: FOLLOWUP-003 (perf re-measure), FOLLOWUP-004 (visual smoke via computer-use).
+
+### Filed for v0.6.6 (architecture initiative)
+
+The big one — **playground architecture decomposition**. Owner direction post-Phase-5: *"if the smoke walk using playground primitives is not possible, then our playground implementation is fucked and we need to fix it."* Today the worksheet generator (powering smoke-walk + sprint-plan) emits 958 lines of custom inline JS — zero playground primitives — because the vocabulary doesn't cover state, DOM reactivity, composition, or clipboard, AND the runtime is canvas-iframe-only (doesn't reach browser-pane pages). Decomposed into:
+
+- **ENH-092** — Playground state + DOM-reactivity primitives (`state:save/restore/set/get/wipe`, `data-bind-class`, `data-bind-text`, `data-bulk-set`).
+- **ENH-093** — Playground composition + clipboard (`compose:result`, `compose:json`, `clipboard:copy`, `host:send-to-claude`).
+- **ENH-094** — Inject the playground runtime into browser-pane pages via CDP (`PLAYGROUND_RUNTIME_IIFE`, parallel to existing Send→Duo + path-link injections).
+- **ENH-043** (reframed as meta-tracker) — refactor `worksheet/generate.mjs` to emit pure declarative HTML using the new vocabulary. Closes when 092+093+094 land.
+
+Likely 2–3 sprints; may warrant a dedicated Sprint 5 = playground primitives.
+
+---
+
+## [0.6.4] — 2026-05-04 *(never cut as a separate release; absorbed into 0.6.5)*
+
+The Sprint 3 chapter — Split View v1 + idle-thoughts sweep + first regression-test framework. Cut blocked on BUG-074 + BUG-075 from the walk-1 results; both shipped in v0.6.5 above.
 
 ### Added
 

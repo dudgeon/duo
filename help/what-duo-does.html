@@ -105,11 +105,11 @@
   </div>
 </article>
 
-<article class="item" data-keys="markdown shortcuts hash heading list bold italic typing">
+<article class="item" data-keys="markdown shortcuts hash heading list bold italic typing dash plus asterisk bullet marker passthrough blockquote double enter exit">
   <div class="num">2</div>
   <div>
     <h3>Markdown shortcuts on typing</h3>
-    <p class="why">Type <code># </code> to make a heading, <code>- </code> for a bullet, <code>**bold**</code> for bold, <code>1. </code> for a numbered list, <code>&gt; </code> for a quote, <code>---</code> for a divider, <code>```</code> for a code block. Works in both the markdown editor and the HTML canvas.</p>
+    <p class="why">Type <code># </code> to make a heading, <code>- </code> / <code>* </code> / <code>+ </code> for a bullet (the marker character is preserved visually — <code>-</code> renders as an en-dash, <code>+</code> as a plus, <code>*</code> as the default disc), <code>**bold**</code> for bold, <code>1. </code> for a numbered list, <code>&gt; </code> for a quote, <code>---</code> for a divider, <code>```</code> for a code block. Press Enter twice on an empty line inside a bullet, ordered list, or blockquote to exit it. Works in both the markdown editor and the HTML canvas. <strong>v0.6.5+</strong> for the marker-passthrough + blockquote double-Enter exit.</p>
     <p class="how"><strong>UI</strong>Just type. The shortcut fires on the space or Enter that ends the trigger.</p>
   </div>
 </article>
@@ -154,7 +154,7 @@
   <div class="num">4d</div>
   <div>
     <h3>Indent / outdent list items</h3>
-    <p class="why">Inside a bullet, ordered, or task list, ⌘] indents the current item (sinks it into a sub-list); ⌘[ outdents (lifts it back). Outside a list the chord no-ops. Familiar from Obsidian / Bear / Notion. Works in both the markdown editor and the HTML canvas (canvas parity shipped <strong>v0.6.4</strong>; markdown editor since <strong>v0.5.3</strong>). Tab / Shift-Tab also indent / outdent inside list items in both surfaces.</p>
+    <p class="why">Inside a bullet, ordered, or task list, ⌘] indents the current item (sinks it into a sub-list); ⌘[ outdents (lifts it back). Outside a list the chord no-ops. Familiar from Obsidian / Bear / Notion. Works in both the markdown editor and the HTML canvas (canvas parity shipped <strong>v0.6.5</strong>; markdown editor since <strong>v0.5.3</strong>). Tab / Shift-Tab also indent / outdent inside list items in both surfaces.</p>
     <p class="how"><strong>UI</strong>⌘] / ⌘[ (or Tab / Shift-Tab) inside any list item.</p>
   </div>
 </article>
@@ -331,7 +331,7 @@
   <div class="num">17</div>
   <div>
     <h3>Collapse the file column to a rail</h3>
-    <p class="why">More room for the terminal and the working pane when you don't need to navigate. The collapsed rail shows a folder glyph plus a vertical "Navigator: <em>{project_name}</em>" label so you know which project's tree is hiding behind it (useful when you have multiple Duo windows open). Click the rail to expand. <strong>v0.6.4+</strong></p>
+    <p class="why">More room for the terminal and the working pane when you don't need to navigate. The collapsed rail shows a folder glyph plus a vertical "Navigator: <em>{project_name}</em>" label so you know which project's tree is hiding behind it (useful when you have multiple Duo windows open). Click the rail to expand. <strong>v0.6.5+</strong></p>
     <p class="how"><strong>UI</strong>⌘B (toggle); click the rail to expand.</p>
   </div>
 </article>
@@ -340,7 +340,7 @@
   <div class="num">17a</div>
   <div>
     <h3>See and clear navigator selection easily</h3>
-    <p class="why">Selected file or folder rows in the navigator paint with a stronger accent fill plus heavier weight (Finder-style — at-a-glance visible). Three ways to clear selection: click the same row again, click any whitespace below the row list, or press Escape. <strong>v0.6.4+</strong></p>
+    <p class="why">Selected file or folder rows in the navigator paint with a stronger accent fill plus heavier weight (Finder-style — at-a-glance visible). Three ways to clear selection: click the same row again, click any whitespace below the row list, or press Escape. <strong>v0.6.5+</strong></p>
     <p class="how"><strong>UI</strong>Single-click to select; click again / click whitespace / Escape to deselect.</p>
   </div>
 </article>
@@ -349,7 +349,7 @@
   <div class="num">17b</div>
   <div>
     <h3>Open a file from Finder into Duo</h3>
-    <p class="why">Duo registers as a macOS Open With candidate for <code>.md</code> and <code>.html</code> files. Right-click any markdown or HTML file in Finder → <strong>Open With</strong> → <strong>Duo</strong>, and the file lands in the working pane via the same smart-routing path as <code>duo open</code> (markdown → editor; HTML → canvas, or browser if its <code>duo-open-in</code> meta says so). Set Duo as the default for an extension via Get Info → Open With → Change All. Cold-start is supported — opening a file from Finder while Duo is closed launches the app and routes the file once the renderer mounts. <strong>v0.6.4+ (signed DMG only)</strong></p>
+    <p class="why">Duo registers as a macOS Open With candidate for <code>.md</code> and <code>.html</code> files. Right-click any markdown or HTML file in Finder → <strong>Open With</strong> → <strong>Duo</strong>, and the file lands in the working pane via the same smart-routing path as <code>duo open</code> (markdown → editor; HTML → canvas, or browser if its <code>duo-open-in</code> meta says so). Set Duo as the default for an extension via Get Info → Open With → Change All. Cold-start is supported — opening a file from Finder while Duo is closed launches the app and routes the file once the renderer mounts. <strong>v0.6.5+ (signed DMG only)</strong></p>
     <p class="how"><strong>UI</strong>Right-click a file in Finder → Open With → Duo, or set Duo as default for the extension.</p>
   </div>
 </article>
@@ -553,7 +553,7 @@
   <div class="num">56</div>
   <div>
     <h3>Open two files side-by-side in Split View</h3>
-    <p class="why">The canvas (right pane) can host a "main" file on the left and an "aux" file on the right. Useful for reading a spec next to its implementation, comparing two drafts, or keeping a smoke-walk page visible while you exercise the file it references. Drag the divider to resize (clamped 20–80%); double-click resets to 50/50. State persists across launch — relaunch Duo and the split is restored. Single-source-of-truth: a file can only be in one pane at a time. <strong>v0.6.4+</strong></p>
+    <p class="why">The canvas (right pane) can host a "main" file on the left and an "aux" file on the right. Useful for reading a spec next to its implementation, comparing two drafts, or keeping a smoke-walk page visible while you exercise the file it references. Drag the divider to resize (clamped 20–80%); double-click resets to 50/50. State persists across launch — relaunch Duo and the split is restored. Single-source-of-truth: a file can only be in one pane at a time. <strong>v0.6.5+</strong></p>
     <p class="why"><strong>Swap when aux is occupied.</strong> Moving a new file into Split View while aux already holds a different file <em>swaps</em> them: the existing aux file moves back to main as a new file tab, and the new file takes the aux slot. The displaced file isn't lost — it lives on in main where you can keep working with it. (If the existing aux file has unsaved edits, you'll see a Cancel / Discard dialog before the swap — the editor unmounts during the pane move so unsaved edits would be lost. Save manually first if you want to keep them.)</p>
     <p class="how"><strong>UI — open / move into split:</strong> Right-click any file tab → <strong>Move to Split View</strong>; or right-click a file in the navigator / pinned list → <strong>Open in Split View</strong>; or with a file tab active, press <strong>⌘\\</strong>. <strong>UI — promote aux back to main (close split, keep file):</strong> press <strong>⌘⇧\\</strong> or click the <strong>⇤</strong> button in the aux header — aux's content becomes a fresh main tab. <strong>UI — discard split entirely:</strong> click the <strong>✕</strong> in the aux header — aux content is dropped without promoting (⚠ unsaved edits lost; the dirty dialog only fires on swap). <strong>CLI</strong><code>duo split-view open &lt;path&gt;</code> · <code>duo split-view state</code> · <code>duo split-view resize &lt;pct&gt;</code> · <code>duo split-view promote</code> · <code>duo split-view close</code>. <strong>Per-page opt-in</strong> — pages in the browser pane can default their <code>data-duo-path</code> link clicks to Split View by adding <code>&lt;meta name="duo-path-target" content="split"&gt;</code> at the document head, or per-link via <code>data-duo-target="split"</code>. Smoke-walk pages use this so step-link clicks land in the side without losing the walk doc.</p>
   </div>
@@ -563,7 +563,7 @@
   <div class="num">57</div>
   <div>
     <h3>Get a confirm before Split View swaps a dirty aux back to main</h3>
-    <p class="why">When the aux pane is showing a file with unsaved edits and you (or the agent) try to open a different file in aux, Duo fires a native macOS confirm dialog: <strong>Cancel</strong> (default — preserves the current state) or <strong>Discard changes</strong> (proceeds with the swap, losing the dirty file's unsaved edits during the pane move). v1 has no Save button — save the file manually first if you want to keep the work. Clean aux files swap silently with no dialog. The dialog fires on swaps; the explicit ✕ "discard split entirely" gesture skips the dialog (you opted in to the discard with the click). <strong>v0.6.4+</strong></p>
+    <p class="why">When the aux pane is showing a file with unsaved edits and you (or the agent) try to open a different file in aux, Duo fires a native macOS confirm dialog: <strong>Cancel</strong> (default — preserves the current state) or <strong>Discard changes</strong> (proceeds with the swap, losing the dirty file's unsaved edits during the pane move). v1 has no Save button — save the file manually first if you want to keep the work. Clean aux files swap silently with no dialog. The dialog fires on swaps; the explicit ✕ "discard split entirely" gesture skips the dialog (you opted in to the discard with the click). <strong>v0.6.5+</strong></p>
     <p class="how"><strong>UI</strong>Triggered automatically on any Split View move-into-aux attempt that would swap a dirty existing aux back to main: right-click menus, <code>⌘\\</code> chord, page-link <code>[data-duo-path]</code> clicks, CLI <code>duo split-view open</code>. All five entry points converge on the same dirty-swap gate.</p>
   </div>
 </article>
