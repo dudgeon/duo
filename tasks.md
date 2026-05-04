@@ -719,7 +719,22 @@ Audit the theme service. The css `@media (prefers-color-scheme: dark)` blocks ar
 
 ### MISSING-001: Markdown editor — no way to add a comment
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6) — promoted 2026-05-04 after owner asked "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app." Stage 14a was deferred sprint after sprint; this is the cycle that ships it. Pairs with BUG-081 (canvas comments regression — file together as the "comments are real and visible" sprint).
+**Status:** ✅ **SHIPPED** in v0.6.7 (Sprint 6 Phase 4, 2026-05-04). Full TipTap data plane:
+
+- **`CommentMark` extension** (new `renderer/components/editor/extensions/CommentMark.ts`). Inline mark with a `commentId` attribute that renders as `<span data-duo-comment-id="…" class="duo-comment-anchor-text">`. Inclusive boundaries (typing at the edge extends the anchor); doesn't merge with adjacent marks of a different id; commands `applyCommentMark(id, from?, to?)` and `removeCommentMark(id)` for the comment lifecycle.
+- **Sidecar persistence** (`<file>.md.duo.json`, same shape as canvas — extended `SidecarComment` with optional `excerpt` / `contextBefore` / `contextAfter` for re-anchoring). Markdown source stays clean: `Markdown.html` is configured `false` so the spans strip on serialize; comments live entirely in the sidecar JSON.
+- **Re-anchor on file load** (`renderer/components/editor/markdownComments.ts` — new module). Walks the parsed doc looking for each sidecar comment's excerpt; uses `contextBefore` / `contextAfter` for disambiguation when the same excerpt appears multiple times. Pre-save pass refreshes excerpt + context to the latest text so the next reopen finds it. PM-position → text-offset mapping handles node-boundary off-by-one cleanly.
+- **CommentRail + composer** wired in MarkdownEditor with the same primitive shared with the canvas. The `NewCommentComposer` got extracted from PageTab into `primitives/NewCommentComposer.tsx` so both surfaces use one implementation.
+- **Three discoverable affordances** (parity with BUG-081's canvas redesign):
+  - Toolbar 💬 button via `EditorActions.startComment` + `canStartComment`. Wires through a `startCommentRef` so the editorActions closure stays stable while the toolbar always invokes the latest handler.
+  - ⌘⌥M global shortcut (no new chord — same `'startComment'` ShortcutId from Phase 2; the markdown editor listens for `'duo-start-comment'` window events identically to the canvas).
+  - Right-click "Comment" menu entry. `electron/main.ts` gate extended: shown when EITHER the canvas iframe (`frameURL` is `about:srcdoc`) OR the main BrowserWindow's renderer with an editable selection (`isEditable === true`). Browser-tab WCVs have their own ecmOptions instance so they're never affected.
+- **Visual decoration** in `globals.css` mirrors the canvas's `[data-duo-has-comment]` rule for `.ProseMirror [data-duo-comment-id]` — soft accent background + bottom border, stronger when the thread is active. Light + dark mode parity.
+- **Bidirectional click-to-focus** wired: clicking a thread in the rail → scroll editor to the marked range; clicking the marked text → activate the corresponding rail thread.
+
+Verified live: created comment via toolbar / ⌘⌥M / right-click; the rail mounts; the second paragraph picks up the orange decoration; close + reopen the file — decoration reappears via the re-anchor pass; Electron-restart cycle preserves everything (sidecar on disk).
+
+Promoted 2026-05-04 after owner asked "I thought we shipped comments a long time ago for both the markdown editor and HTML canvas — I can't find them in the app." Stage 14a was deferred sprint after sprint; this is the cycle that ships it. Pairs with BUG-081 (canvas comments regression — file together as the "comments are real and visible" sprint).
 **Priority:** **High** (was Medium — feature gap that the owner recently re-discovered; the comments capability was always communicated as "shipped on canvas, coming to markdown next" but Stage 14a never landed).
 **Filed:** 2026-04-26 (v0.3.0 pre-cut smoke). Re-prioritized 2026-05-04.
 

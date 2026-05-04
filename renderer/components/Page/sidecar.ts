@@ -43,6 +43,18 @@ export interface SidecarComment {
   author: string
   ts: string                              // ISO 8601
   body: string
+  /** Sprint 6 Phase 4 / MISSING-001 — markdown-side fields. The
+   *  markdown editor strips comment marks on serialize (Markdown.html
+   *  is configured `false` in MarkdownEditor.tsx so plain `.md` files
+   *  stay clean), so on reopen we re-anchor by finding `excerpt` in
+   *  the parsed doc. `contextBefore`/`contextAfter` (a slice of
+   *  surrounding plaintext) disambiguate when the same excerpt
+   *  appears more than once. Canvas ignores these — it reads excerpt
+   *  from the live DOM at thread-build time. Optional so v0.6.7's
+   *  canvas sidecars don't grow unnecessarily. */
+  excerpt?: string
+  contextBefore?: string
+  contextAfter?: string
 }
 
 export type SidecarEditKind =

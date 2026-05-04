@@ -38,8 +38,11 @@ import { ListIndentShortcuts } from './extensions/ListIndentShortcuts'
 import { FencedCodeBlockEnter } from './extensions/FencedCodeBlockEnter'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
+import { CommentMark, collectCommentRanges } from './extensions/CommentMark'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
+import { CommentRail, type CommentThread } from './primitives/CommentRail'
+import { NewCommentComposer } from './primitives/NewCommentComposer'
 import { formatSendPayload } from './sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { matchGlobalShortcut } from '../../keyboard/globalShortcuts'
@@ -50,6 +53,23 @@ import {
   decodeUtf8,
   encodeUtf8
 } from './markdown-io'
+import {
+  readSidecar,
+  writeSidecar,
+  emptySidecar,
+  withComment as sidecarWithComment,
+  withResolvedThread as sidecarWithResolvedThread,
+  withReopenedThread as sidecarWithReopenedThread,
+  type SidecarV1,
+  type SidecarComment
+} from '../Page/sidecar'
+import {
+  applyCommentMarksFromSidecar,
+  refreshSidecarFromDoc,
+  buildMarkdownThreads,
+  captureExcerptContext,
+  scrollToCommentAnchor
+} from './markdownComments'
 
 interface Props {
   path: string
@@ -122,6 +142,31 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // reload from disk (loses local edits) or keep mine (next autosave
   // overwrites disk).
   const [externalConflict, setExternalConflict] = useState<{ diskBody: string } | null>(null)
+  // Sprint 6 Phase 4 / MISSING-001 — comment thread state. Sidecar
+  // lives at `<path>.md.duo.json` and stores comment bodies + the
+  // excerpt/context used to re-anchor commentMark on file load.
+  // `threadsTick` mirrors the canvas's PageTab tick — bumped on
+  // sidecar mutation OR after the file-load re-anchor pass so the
+  // builtThreads useMemo recomputes against fresh state.
+  const sidecarRef = useRef<SidecarV1>(emptySidecar())
+  const sidecarDirtyRef = useRef(false)
+  const [threadsTick, setThreadsTick] = useState(0)
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  const [newCommentAt, setNewCommentAt] = useState<{
+    commentId: string
+    range: { from: number; to: number }
+    excerpt: string
+    contextBefore: string
+    contextAfter: string
+    rect: DOMRect
+  } | null>(null)
+  // Forward-reference container for handleStartNewComment. The
+  // editorActions useMemo (built early to feed the toolbar) needs to
+  // call into `handleStartNewComment` which is defined further down
+  // in the comment-handlers section. Pointing through a ref keeps the
+  // editorActions closure stable while always invoking the latest
+  // handler; the ref's `.current` is updated on each render below.
+  const startCommentRef = useRef<() => void>(() => {})
   // ENH-023 — find bar visibility. ⌘F opens; ⎋ inside the input
   // closes (handled in FindBar). The extension's storage flips
   // `open` for any callers that need to gate behavior on it (e.g.
@@ -239,7 +284,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // where TipTap's built-in input rule only fires on trailing
       // SPACE — users typing the fence + Enter expected the
       // paragraph to convert, but nothing happened.
-      FencedCodeBlockEnter
+      FencedCodeBlockEnter,
+      // Sprint 6 Phase 4 / MISSING-001 — anchor mark for inline
+      // comment threads. Stripped on markdown serialize (html=false
+      // above); re-applied on file load by `applyCommentMarksFromSidecar`
+      // matching sidecar excerpts back to the parsed doc.
+      CommentMark
     ],
     []
   )
@@ -296,7 +346,21 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // and re-reads `actions.isActive(...)` / `currentBlock()` etc. (replaces
   // the previous TipTap-specific `useEditorState` subscription).
   const editorActions: EditorActions = useMemo(
-    () => editor ? buildTiptapEditorActions(editor) : NULL_ACTIONS,
+    () => editor
+      ? buildTiptapEditorActions(editor, {
+          // Sprint 6 Phase 4 — toolbar Comment button. canStartComment
+          // is queried on every toolbar render (driven by toolbarVersion
+          // bumps below); the closure reads the live selection
+          // directly so the enabled state stays in sync. startComment
+          // routes through `startCommentRef.current` which the comment
+          // handlers section keeps pointed at the latest closure.
+          startComment: () => startCommentRef.current(),
+          canStartComment: () => {
+            const sel = editor.state.selection
+            return sel.from !== sel.to
+          }
+        })
+      : NULL_ACTIONS,
     [editor]
   )
   const [toolbarVersion, setToolbarVersion] = useState(0)
@@ -365,6 +429,27 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       return () => { cancelled = true }
     }
 
+    // Sprint 6 Phase 4 — reset sidecar state up-front so a stale
+    // sidecar from the previously-open file doesn't leak across the
+    // path change. The async read below re-populates.
+    sidecarRef.current = emptySidecar()
+    sidecarDirtyRef.current = false
+    setActiveThreadId(null)
+    setNewCommentAt(null)
+
+    // Read the sidecar in parallel with the body. Comments don't
+    // block the prose render — they apply once both have resolved.
+    void readSidecar(path).then((sc) => {
+      if (cancelled || pathRef.current !== path) return
+      if (sc) sidecarRef.current = sc
+      // Re-apply any marks now if the body has already loaded;
+      // otherwise the body-load branch below handles it.
+      if (lastSavedBodyRef.current.length > 0 || (editor.state.doc.content.size > 2)) {
+        applyCommentMarksFromSidecar(editor, sidecarRef.current)
+      }
+      setThreadsTick(v => v + 1)
+    })
+
     window.electron.files.read(path).then(
       (res) => {
         if (cancelled || pathRef.current !== path) return
@@ -382,6 +467,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // using what the editor itself serializes avoids a spurious "dirty"
         // state the instant the user types a single character.
         lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+
+        // Sprint 6 Phase 4 — re-apply comment marks now the body is in
+        // the doc. Idempotent if the sidecar branch already ran (it
+        // skips comments whose marks already exist). Bumps tick so
+        // the rail recomputes against the marks we just stamped.
+        applyCommentMarksFromSidecar(editor, sidecarRef.current)
+        setThreadsTick(v => v + 1)
+
         setLoaded(true)
         consumePendingFocus()
       },
@@ -462,6 +555,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     if (!editor || !externalConflict) return
     editor.commands.setContent(externalConflict.diskBody, false)
     lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+    // Sprint 6 Phase 4 — re-apply comment marks after setContent
+    // wipes them. Same idempotent pass that runs on initial load.
+    applyCommentMarksFromSidecar(editor, sidecarRef.current)
+    setThreadsTick(v => v + 1)
     setDirty(false)
     onDirtyChange?.(false)
     setExternalConflict(null)
@@ -490,7 +587,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
     // Pull current body markdown from tiptap-markdown storage.
     const body = editor.storage.markdown.getMarkdown() as string
-    if (body === lastSavedBodyRef.current && !dirty) return
+    const bodyChanged = body !== lastSavedBodyRef.current
+    if (!bodyChanged && !dirty && !sidecarDirtyRef.current) return
 
     setSaving(true)
     try {
@@ -503,24 +601,43 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // (someone else edited the file since our last load/save),
       // bail out of this save and route through the same conflict
       // banner the watcher uses. The user picks the resolution.
-      try {
-        const diskRes = await window.electron.files.read(path)
-        const diskText = decodeUtf8(diskRes.bytes)
-        const diskBody = splitFrontmatter(diskText).body
-        if (diskBody !== lastSavedBodyRef.current) {
-          setExternalConflict({ diskBody })
-          return
+      if (bodyChanged) {
+        try {
+          const diskRes = await window.electron.files.read(path)
+          const diskText = decodeUtf8(diskRes.bytes)
+          const diskBody = splitFrontmatter(diskText).body
+          if (diskBody !== lastSavedBodyRef.current) {
+            setExternalConflict({ diskBody })
+            return
+          }
+        } catch {
+          // Can't read disk (file deleted, permissions, etc.) — fall
+          // through to write. The write may also fail; the catch below
+          // surfaces the error. Better than silently aborting the save.
         }
-      } catch {
-        // Can't read disk (file deleted, permissions, etc.) — fall
-        // through to write. The write may also fail; the catch below
-        // surfaces the error. Better than silently aborting the save.
+
+        const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
+        const bytes = encodeUtf8(full)
+        await window.electron.files.write(path, bytes)
+        lastSavedBodyRef.current = body
       }
 
-      const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
-      const bytes = encodeUtf8(full)
-      await window.electron.files.write(path, bytes)
-      lastSavedBodyRef.current = body
+      // Sprint 6 Phase 4 — refresh + persist the sidecar. Refresh
+      // happens on EVERY save (even body-only changes) so each
+      // comment's excerpt + context tracks the latest text — that's
+      // what the next reopen's re-anchor pass keys off. Write only
+      // when the sidecar is actually dirty (avoids a no-op write
+      // every body save).
+      const refreshed = refreshSidecarFromDoc(editor.state.doc, sidecarRef.current)
+      if (refreshed !== sidecarRef.current) {
+        sidecarRef.current = refreshed
+        sidecarDirtyRef.current = true
+      }
+      if (sidecarDirtyRef.current) {
+        await writeSidecar(path, sidecarRef.current)
+        sidecarDirtyRef.current = false
+      }
+
       setDirty(false)
       onDirtyChange?.(false)
     } catch (err) {
@@ -693,6 +810,184 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     window.addEventListener('duo-send-to-duo', handler)
     return () => window.removeEventListener('duo-send-to-duo', handler)
   }, [handleSendToDuoClick])
+
+  // ── Comment threads (Sprint 6 Phase 4 / MISSING-001) ──────────────────────
+
+  /** Build threads off the live ProseMirror doc + the sidecar. The
+   *  rail gates on `railThreads.length > 0`, so this also drives the
+   *  rail's mount/unmount. Recomputed on every threadsTick bump
+   *  (sidecar mutation, file load, mark application). */
+  const builtThreads = useMemo(() => {
+    if (!editor) return []
+    return buildMarkdownThreads(editor.state.doc, sidecarRef.current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadsTick, editor])
+
+  /** Adapt to the CommentRail primitive's expected shape. Number is
+   *  1-based document order, mirroring the canvas convention. */
+  const railThreads = useMemo<CommentThread[]>(() => {
+    return builtThreads.map((t, i) => ({
+      id: t.threadId,
+      number: i + 1,
+      excerpt: t.excerpt,
+      resolved: t.resolved,
+      entries: t.entries.map(e => ({
+        id: e.id,
+        author: e.author,
+        ts: e.ts,
+        body: e.body
+      }))
+    }))
+  }, [builtThreads])
+
+  /** Persist a sidecar mutation through the same autosave path as
+   *  body edits. Mirrors PageTab's persistSidecarMutation. */
+  const persistSidecarMutation = useCallback((next: SidecarV1) => {
+    sidecarRef.current = next
+    sidecarDirtyRef.current = true
+    setThreadsTick(v => v + 1)
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null
+      void saveRef.current()
+    }, AUTOSAVE_DEBOUNCE_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** Update [data-duo-comment-active] on every comment span so the
+   *  active thread reads stronger than its siblings. */
+  useEffect(() => {
+    if (!editor) return
+    const root = editor.view.dom
+    root.querySelectorAll<HTMLElement>('[data-duo-comment-id]').forEach((el) => {
+      if (el.getAttribute('data-duo-comment-id') === activeThreadId) {
+        el.setAttribute('data-duo-comment-active', '1')
+      } else {
+        el.removeAttribute('data-duo-comment-active')
+      }
+    })
+  }, [activeThreadId, builtThreads, editor])
+
+  /** Click-on-anchor → activate the corresponding rail thread.
+   *  Delegated listener catches clicks anywhere inside a comment span
+   *  (or its descendants — bold/italic/link inside a commented run). */
+  useEffect(() => {
+    if (!editor) return
+    const root = editor.view.dom
+    const handler = (e: Event) => {
+      const target = e.target as Element | null
+      if (!target) return
+      const commented = target.closest('[data-duo-comment-id]') as HTMLElement | null
+      if (!commented) return
+      const id = commented.getAttribute('data-duo-comment-id')
+      if (id) setActiveThreadId(id)
+    }
+    root.addEventListener('click', handler)
+    return () => root.removeEventListener('click', handler)
+  }, [editor])
+
+  /** Open the new-comment composer over the current selection. Same
+   *  contract as PageTab's handler — no-op when the selection is
+   *  collapsed or rect-less. */
+  const handleStartNewComment = useCallback(() => {
+    if (!editor) return
+    const sel = editor.state.selection
+    if (sel.from === sel.to) return
+    const rect = pillRect
+    if (!rect) return
+    const { excerpt, contextBefore, contextAfter } = captureExcerptContext(
+      editor.state.doc,
+      { from: sel.from, to: sel.to }
+    )
+    if (!excerpt.trim()) return
+    const commentId = `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    setNewCommentAt({
+      commentId,
+      range: { from: sel.from, to: sel.to },
+      excerpt,
+      contextBefore,
+      contextAfter,
+      rect
+    })
+    // Hide the SendToDuo pill while the composer is open — same
+    // single-affordance posture as the canvas.
+    setPillRect(null)
+  }, [editor, pillRect])
+
+  const handleSubmitNewComment = useCallback((body: string) => {
+    if (!editor) return
+    const at = newCommentAt
+    if (!at) return
+    const trimmed = body.trim()
+    if (!trimmed) { setNewCommentAt(null); return }
+    // Apply the mark BEFORE persisting — if the user edited between
+    // start-comment and submit, the range may have shifted; PM will
+    // map the original from/to through the intervening transactions.
+    editor.commands.applyCommentMark(at.commentId, at.range.from, at.range.to)
+    const entry: SidecarComment = {
+      id: `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      anchorId: at.commentId,
+      author: 'user',
+      ts: new Date().toISOString(),
+      body: trimmed,
+      excerpt: at.excerpt,
+      contextBefore: at.contextBefore,
+      contextAfter: at.contextAfter
+    }
+    persistSidecarMutation(sidecarWithComment(sidecarRef.current, entry))
+    setNewCommentAt(null)
+    setActiveThreadId(at.commentId)
+  }, [editor, newCommentAt, persistSidecarMutation])
+
+  const handleCancelNewComment = useCallback(() => {
+    setNewCommentAt(null)
+  }, [])
+
+  const handleJumpToThread = useCallback((threadId: string) => {
+    if (!editor) return
+    setActiveThreadId(threadId)
+    scrollToCommentAnchor(editor.view, threadId)
+  }, [editor])
+
+  const handleReplyToThread = useCallback((threadId: string, body: string) => {
+    const trimmed = body.trim()
+    if (!trimmed) return
+    const entry: SidecarComment = {
+      id: `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+      anchorId: threadId,
+      author: 'user',
+      ts: new Date().toISOString(),
+      body: trimmed
+    }
+    persistSidecarMutation(sidecarWithComment(sidecarRef.current, entry))
+  }, [persistSidecarMutation])
+
+  const handleResolveThread = useCallback((threadId: string) => {
+    if (!editor) return
+    persistSidecarMutation(sidecarWithResolvedThread(sidecarRef.current, threadId, 'user'))
+    // Visual cleanup — strip the anchor decoration once resolved
+    // (parallel to the canvas's resolved-thread behavior).
+    editor.commands.removeCommentMark(threadId)
+  }, [editor, persistSidecarMutation])
+
+  const handleReopenThread = useCallback((threadId: string) => {
+    if (!editor) return
+    persistSidecarMutation(sidecarWithReopenedThread(sidecarRef.current, threadId))
+    applyCommentMarksFromSidecar(editor, sidecarRef.current)
+    setThreadsTick(v => v + 1)
+  }, [editor, persistSidecarMutation])
+
+  // Update the forward-reference ref (declared near top) so the
+  // editorActions closure always invokes the latest closure. ⌘⌥M /
+  // canvas right-click both fire 'duo-start-comment' window events
+  // which the listener below picks up.
+  startCommentRef.current = handleStartNewComment
+
+  useEffect(() => {
+    const handler = () => handleStartNewComment()
+    window.addEventListener('duo-start-comment', handler)
+    return () => window.removeEventListener('duo-start-comment', handler)
+  }, [handleStartNewComment])
 
   // ── Serve doc-read requests with the live buffer ────────────────────────
   useEffect(() => {
@@ -1340,57 +1635,88 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         lands before the browser's default selection-collapsing
         behavior.
       */}
-      <div
-        className="flex-1 overflow-auto"
-        onMouseDown={(e) => {
-          if (!editor) return
-          const target = e.target as HTMLElement
-          // Click landed on the prose or one of its descendants — let
-          // ProseMirror handle it natively (cursor placement, selection).
-          if (target.closest('.ProseMirror')) return
-          // Anything else inside the scroll-host (gray margins, inside
-          // the centered column but outside the prose) → focus prose.
-          e.preventDefault()
-          editor.commands.focus()
-        }}
-      >
+      {/* Sprint 6 Phase 4 — flex container for the prose + comment
+          rail. Rail mounts only when there's at least one comment
+          (parallel to the canvas; an empty rail wastes horizontal
+          space). New-file mode skips the rail entirely (no on-disk
+          file means no sidecar). */}
+      <div className="flex-1 min-h-0 flex">
         <div
-          className="mx-auto max-w-[760px] px-10 py-10"
-          // ENH-069 — line-number toggle. The CSS in globals.css
-          // hangs counter rules off `[data-line-numbers="true"]`.
-          data-line-numbers={lineNumbers ? 'true' : undefined}
+          className="flex-1 overflow-auto"
+          onMouseDown={(e) => {
+            if (!editor) return
+            const target = e.target as HTMLElement
+            // Click landed on the prose or one of its descendants — let
+            // ProseMirror handle it natively (cursor placement, selection).
+            if (target.closest('.ProseMirror')) return
+            // Anything else inside the scroll-host (gray margins, inside
+            // the centered column but outside the prose) → focus prose.
+            e.preventDefault()
+            editor.commands.focus()
+          }}
         >
-          <EditorContent editor={editor} />
+          <div
+            className="mx-auto max-w-[760px] px-10 py-10"
+            // ENH-069 — line-number toggle. The CSS in globals.css
+            // hangs counter rules off `[data-line-numbers="true"]`.
+            data-line-numbers={lineNumbers ? 'true' : undefined}
+          >
+            <EditorContent editor={editor} />
+          </div>
+          {/* ENH-069 — small floating toggle in the bottom-right of
+              the scroll-host. Discreet (low contrast, small) so it
+              doesn't compete with content; visible enough to find.
+              Click flips the persistent preference. */}
+          <button
+            type="button"
+            onClick={() => setLineNumbers(v => !v)}
+            title={lineNumbers ? 'Hide line numbers' : 'Show line numbers'}
+            aria-label={lineNumbers ? 'Hide line numbers' : 'Show line numbers'}
+            className={[
+              'sticky bottom-3 ml-3 px-2 h-6 rounded text-[11px] flex items-center gap-1.5 transition-colors shrink-0',
+              lineNumbers
+                ? 'bg-accent text-white hover:bg-accent-ink'
+                : 'text-ink-mute hover:text-ink hover:bg-surface-2'
+            ].join(' ')}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <text x="2" y="5" fontFamily="monospace" fontSize="3.6" fill="currentColor">1</text>
+              <text x="2" y="9" fontFamily="monospace" fontSize="3.6" fill="currentColor">2</text>
+              <path d="M6 4h5M6 8h5" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
+            </svg>
+            {/* ENH-071 (v0.6.3) — text changed from "Lines" to `#`
+                per owner walk-2 note. Glyph stays. */}
+            <span className="font-mono">#</span>
+          </button>
         </div>
-        {/* ENH-069 — small floating toggle in the bottom-right of
-            the scroll-host. Discreet (low contrast, small) so it
-            doesn't compete with content; visible enough to find.
-            Click flips the persistent preference. */}
-        <button
-          type="button"
-          onClick={() => setLineNumbers(v => !v)}
-          title={lineNumbers ? 'Hide line numbers' : 'Show line numbers'}
-          aria-label={lineNumbers ? 'Hide line numbers' : 'Show line numbers'}
-          className={[
-            'sticky bottom-3 ml-3 px-2 h-6 rounded text-[11px] flex items-center gap-1.5 transition-colors shrink-0',
-            lineNumbers
-              ? 'bg-accent text-white hover:bg-accent-ink'
-              : 'text-ink-mute hover:text-ink hover:bg-surface-2'
-          ].join(' ')}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <text x="2" y="5" fontFamily="monospace" fontSize="3.6" fill="currentColor">1</text>
-            <text x="2" y="9" fontFamily="monospace" fontSize="3.6" fill="currentColor">2</text>
-            <path d="M6 4h5M6 8h5" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
-          </svg>
-          {/* ENH-071 (v0.6.3) — text changed from "Lines" to `#`
-              per owner walk-2 note. Glyph stays. */}
-          <span className="font-mono">#</span>
-        </button>
+        {/* Sprint 6 Phase 4 / MISSING-001 — comment rail. Mirrors the
+            canvas's gating: hidden in isNew mode (no sidecar) and
+            when threads are empty. Reuses the shared CommentRail
+            primitive — same styling, same interaction surface. */}
+        {!isNew && railThreads.length > 0 && (
+          <CommentRail
+            threads={railThreads}
+            activeThreadId={activeThreadId}
+            onJumpTo={handleJumpToThread}
+            onReply={handleReplyToThread}
+            onResolve={handleResolveThread}
+            onReopen={handleReopenThread}
+          />
+        )}
       </div>
       {/* Stage 15.1 — floating Send → Duo pill, portaled to body. */}
-      {onSendToDuo && (
+      {onSendToDuo && !newCommentAt && (
         <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+      )}
+      {/* Sprint 6 Phase 4 — new-comment composer. Anchored to the
+          selection rect captured when the user invoked Comment. */}
+      {newCommentAt && (
+        <NewCommentComposer
+          anchorRect={newCommentAt.rect}
+          excerpt={newCommentAt.excerpt}
+          onSubmit={handleSubmitNewComment}
+          onCancel={handleCancelNewComment}
+        />
       )}
     </div>
   )

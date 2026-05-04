@@ -577,14 +577,22 @@ app.whenReady().then(async () => {
             accelerator: 'CmdOrCtrl+Alt+C',
             click: () => clipboard.writeText(parameters.selectionText)
           })
-          // Sprint 6 BUG-081 — Comment entry shown ONLY when the
-          // right-click landed on a canvas iframe. Canvas iframes
-          // are srcdoc-based (RenderedPage builds them from the file's
-          // HTML), so frameURL is `about:srcdoc` for them and the
-          // file:// page URL otherwise. This gate prevents the entry
-          // from appearing in the markdown editor (Phase 4 / MISSING-001
-          // wires the markdown side) and the browser pane.
-          if (parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')) {
+          // Sprint 6 BUG-081 + Phase 4 — "Comment" entry. Two surfaces:
+          //   (a) canvas iframes (srcdoc-based) — `frameURL` is
+          //       `about:srcdoc`. Routed to PageTab's listener.
+          //   (b) markdown editor — selection inside contentEditable
+          //       on the main BrowserWindow's renderer (NOT a WCV
+          //       browser tab). Routed to MarkdownEditor's listener
+          //       via the same 'duo-start-comment' window event.
+          // Both share the IPC.PAGE_COMMENT_REQUEST channel; the
+          // renderer-side bridge in App.tsx re-dispatches as a
+          // window CustomEvent which whichever surface is active
+          // listens for. Browser-tab right-clicks live in their own
+          // WCV webContents so this filter never applies to them.
+          const isCanvasIframe = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
+          const isMainRenderer = mainWindow !== null && wc === mainWindow.webContents
+          const isContentEditable = parameters.editFlags?.canCut === true || parameters.isEditable === true
+          if (isCanvasIframe || (isMainRenderer && isContentEditable)) {
             items.push({
               label: 'Comment',
               accelerator: 'CmdOrCtrl+Alt+M',

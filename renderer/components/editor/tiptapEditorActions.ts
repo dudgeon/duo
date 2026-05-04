@@ -6,7 +6,21 @@
 import type { Editor } from '@tiptap/react'
 import type { BlockKind, EditorActions, Mark } from './EditorActions'
 
-export function buildTiptapEditorActions(editor: Editor): EditorActions {
+/** Sprint 6 Phase 4 / MISSING-001 — host-supplied hooks that wire the
+ *  toolbar's Comment button to the markdown editor's commentMark
+ *  pipeline. canStartComment runs on every toolbar render so the
+ *  enabled state tracks the live selection (toolbarVersion bumps on
+ *  selectionUpdate / update). startComment is a stable closure that
+ *  the host points at the latest handleStartNewComment via a ref. */
+export interface TiptapEditorActionsOptions {
+  startComment?: () => void
+  canStartComment?: () => boolean
+}
+
+export function buildTiptapEditorActions(
+  editor: Editor,
+  opts?: TiptapEditorActionsOptions
+): EditorActions {
   return {
     toggleBold: () => editor.chain().focus().toggleBold().run(),
     toggleItalic: () => editor.chain().focus().toggleItalic().run(),
@@ -72,7 +86,10 @@ export function buildTiptapEditorActions(editor: Editor): EditorActions {
       canDeleteColumn: () => editor.can().deleteColumn(),
       canToggleHeaderRow: () => editor.can().toggleHeaderRow(),
       canDeleteTable: () => editor.can().deleteTable()
-    }
+    },
     // No `extras` — those are canvas-only (PRD H28).
+    // Sprint 6 Phase 4 / MISSING-001 — comment hooks.
+    startComment: opts?.startComment,
+    canStartComment: opts?.canStartComment
   }
 }

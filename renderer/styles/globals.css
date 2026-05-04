@@ -895,4 +895,42 @@ html.dark {
     background: var(--duo-paper-rule);
     color: var(--duo-ink-mute);
   }
+
+  /* Sprint 6 Phase 4 / MISSING-001 — anchor decoration for markdown
+     editor comment marks. Mirrors the canvas-side
+     [data-duo-has-comment] rule (lives inside the iframe stylesheet
+     installed by `installCommentAnchorStyles`). The `.ProseMirror`
+     scope keeps the styling out of any other contexts that might
+     emit `data-duo-comment-id` (e.g. canvas iframes — which already
+     have their own copy via the iframe stylesheet). */
+  .ProseMirror [data-duo-comment-id] {
+    background: rgba(198, 106, 46, 0.08);
+    border-bottom: 1px solid rgba(198, 106, 46, 0.45);
+    cursor: pointer;
+    transition: background 100ms ease-out, border-color 100ms ease-out;
+  }
+  .ProseMirror [data-duo-comment-id]:hover {
+    background: rgba(198, 106, 46, 0.16);
+  }
+  .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
+    background: rgba(198, 106, 46, 0.22);
+    border-bottom-color: rgb(var(--duo-accent));
+  }
+}
+
+/* Dark-mode parity for the markdown comment-anchor styling. The
+   canvas iframe stylesheet handles its own `prefers-color-scheme`
+   media query; the parent renderer flips via the `data-theme="dark"`
+   attribute on `<html>`, which takes precedence over OS preference
+   when the user has chosen a Duo theme. */
+[data-theme="dark"] .ProseMirror [data-duo-comment-id] {
+  background: rgba(224, 143, 74, 0.12);
+  border-bottom-color: rgba(224, 143, 74, 0.55);
+}
+[data-theme="dark"] .ProseMirror [data-duo-comment-id]:hover {
+  background: rgba(224, 143, 74, 0.22);
+}
+[data-theme="dark"] .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
+  background: rgba(224, 143, 74, 0.32);
+  border-bottom-color: #E08F4A;
 }

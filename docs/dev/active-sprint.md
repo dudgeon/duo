@@ -87,7 +87,7 @@ Verified live: triple-click heading → toolbar button enabled, click opens comp
 
 Verified live: opened a canvas with one anchored comment; the heading rendered with the soft accent decoration; clicking the rail thread strengthened the anchor's background AND added the rail-side border; close + reopen + clicking the heading text focused the rail thread (canvas → rail direction). Bidirectional click-to-focus works.
 
-### Phase 4 — MISSING-001 / Stage 14a (markdown editor comments) · ⬜
+### Phase 4 — MISSING-001 / Stage 14a (markdown editor comments) · ✅ 2026-05-04
 
 **The biggest piece.** The entire TipTap data plane is unbuilt. Three concerns:
 
