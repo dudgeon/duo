@@ -314,6 +314,48 @@ event-loop, see the lesson-template at
 
 ---
 
+## Browser-pane playgrounds (post-ENH-094 — Sprint 5)
+
+Some playgrounds need `<script>` execution that canvas iframes don't allow (`allow-scripts` is OFF — see `make-page` § Sandboxing). The smoke walk is the canonical case: it needs inline JS for state save/restore, live tally, format composition. These pages live in the **browser pane** instead, opted in via `<meta name="duo-open-in" content="browser">` in the page `<head>`.
+
+**As of ENH-094 (v0.6.6 / Sprint 5)**, browser-pane pages get the same `data-duo-action` runtime that canvas-iframe pages have always had. The 9 verbs all work identically. Trust posture: `file://` pages a user/agent intentionally opens are trusted; `http(s)://` URLs don't get the runtime listener installed at all.
+
+**The escape hatch** that makes browser-pane pages especially flexible: the runtime exposes `window.duoPlaygroundAction(jsonBundle)` directly. Inline JS can call it without going through a click. Bundle shape:
+
+```js
+window.duoPlaygroundAction(JSON.stringify({
+  attrs: {
+    'data-duo-action': 'duo:event',
+    'data-event': 'walk:item-changed',
+    'data-payload': JSON.stringify({ id: 'BUG-001', value: 'PASS' })
+  }
+}));
+```
+
+This unlocks the **live-event pattern** for any user interaction: the page's existing change/input/keydown handlers can call `duoPlaygroundAction` directly and Claude (subscribed via `duo events --follow`) sees the interaction live. No click needed; no `<button data-duo-action>` ceremony.
+
+**When to reach for this:**
+- The user clicks a radio / checkbox / select inside a worksheet → inline JS handler emits `duo:event` so Claude sees the answer live.
+- The user types into a textarea and pauses → debounced inline JS emits `duo:event` with the current value.
+- The user reaches a milestone (form complete, lesson step done) → inline JS emits a custom event payload.
+
+**Don't over-decorate.** The point is that Claude is subscribed to `duo events --follow` and reacts to events as they fire. **Don't fire an event on every keystroke** — that floods the bus and races with itself. Fire on `change` for radios/selects, on `blur` or debounced `input` for textareas, on explicit submit for forms.
+
+**Defensive guard.** Always check `typeof window.duoPlaygroundAction === 'function'` before calling — the function is undefined when the page is opened outside Duo (plain Chrome, etc.) or in older Duo builds. Fall through to whatever fallback your worksheet provides (clipboard copy, `window.duoSendResult`, etc.).
+
+**Canvas-iframe vs browser-pane — when to choose which:**
+
+| Need | Choose |
+|---|---|
+| Read-only content with click handlers (open file, focus terminal) | **Canvas iframe** (no scripts; runtime handles all action verbs) |
+| Live tally / state persistence / composition / clipboard | **Browser pane** (`<meta name="duo-open-in" content="browser">`) |
+| Lesson step that uses paint regions and `duo html update` | **Canvas iframe** (paint regions are a canvas feature) |
+| Worksheet that captures user answers and emits events live | **Browser pane** (inline JS + `window.duoPlaygroundAction`) |
+
+The smoke-walk page (`.claude/skills/smoke-walk/`) and the worksheet primitive (`.claude/skills/worksheet/`) are the reference implementations of the browser-pane pattern.
+
+---
+
 ## On WebMCP — should authored playgrounds conform?
 
 **Short answer: not for canvas-tab playgrounds. Maybe later for
