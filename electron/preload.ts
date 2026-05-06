@@ -259,13 +259,21 @@ const api: ElectronAPI = {
     },
 
     onView: (cb) => {
-      const handler = (_: IpcRendererEvent, path: string) => cb(path)
+      // ENH-097 — payload may be a bare string (legacy) or
+      // `{ path, mode }` (when CLI passed --canvas / --browser override).
+      const handler = (_: IpcRendererEvent, payload: string | { path: string; mode?: 'canvas' | 'browser' }) => {
+        if (typeof payload === 'string') cb(payload)
+        else cb(payload.path, payload.mode)
+      }
       ipcRenderer.on(IPC.NAV_VIEW, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_VIEW, handler)
     },
 
     onEdit: (cb) => {
-      const handler = (_: IpcRendererEvent, path: string) => cb(path)
+      const handler = (_: IpcRendererEvent, payload: string | { path: string; mode?: 'canvas' | 'browser' }) => {
+        if (typeof payload === 'string') cb(payload)
+        else cb(payload.path, payload.mode)
+      }
       ipcRenderer.on(IPC.NAV_EDIT, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_EDIT, handler)
     }

@@ -59,9 +59,12 @@ export interface NavBridge {
   /** Ask the renderer to move the navigator to `path` + fire a chip. */
   reveal: (path: string) => { ok: boolean; error?: string }
   /** Ask the renderer to open `path` as a file tab in the WorkingPane. */
-  view: (path: string) => { ok: boolean; error?: string }
+  /** ENH-097 — optional `mode` forces canvas-mode mount for HTML
+   *  files that declare `duo-open-in: browser`. `undefined` keeps
+   *  the meta-tag-default routing. */
+  view: (path: string, mode?: 'canvas' | 'browser') => { ok: boolean; error?: string }
   /** Stage 11 — open `path` in the rich markdown editor tab. */
-  edit: (path: string) => { ok: boolean; error?: string }
+  edit: (path: string, mode?: 'canvas' | 'browser') => { ok: boolean; error?: string }
   /** Stage 11 § D29a — return the active editor's selection snapshot. */
   getSelection: () => EditorSelectionSnapshot | null
   /** Stage 17c — return the active canvas's selection snapshot. */
@@ -574,13 +577,17 @@ export class SocketServer {
         case 'view': {
           const p = args['path'] as string
           if (!p) throw new Error('view requires a path arg')
-          result = this.nav.view(p)
+          // ENH-097 — optional `mode: 'canvas'` overrides the file's
+          // `duo-open-in` meta to force canvas-mode mount.
+          const mode = args['mode'] as 'canvas' | 'browser' | undefined
+          result = this.nav.view(p, mode)
           break
         }
         case 'edit': {
           const p = args['path'] as string
           if (!p) throw new Error('edit requires a path arg')
-          result = this.nav.edit(p)
+          const mode = args['mode'] as 'canvas' | 'browser' | undefined
+          result = this.nav.edit(p, mode)
           break
         }
         case 'selection': {

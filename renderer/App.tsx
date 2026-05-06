@@ -770,12 +770,21 @@ export function App() {
   // and any user file that opts in. Non-HTML files skip the pre-flight
   // entirely (cheap fast path). On read failure or no meta present,
   // falls through to the canvas as before.
-  const openFileSmart = useCallback(async (path: string, title: string) => {
+  const openFileSmart = useCallback(async (path: string, title: string, mode?: 'canvas' | 'browser') => {
     const lower = path.toLowerCase()
+    // ENH-097 — explicit canvas-mode override wins over the file's
+    // `duo-open-in` meta. Used by `duo edit --canvas <path>` and the
+    // right-click "Edit in canvas" entry on browser tabs. The override
+    // skips the meta-tag branch entirely and routes the file to the
+    // canvas iframe (kind: 'page') for editing.
+    if (mode === 'canvas') {
+      openFile(path, title)
+      return
+    }
     if (lower.endsWith('.html') || lower.endsWith('.htm')) {
       try {
         const meta = await window.electron.files.getHtmlMeta(path)
-        if (meta?.openIn === 'browser') {
+        if (meta?.openIn === 'browser' || mode === 'browser') {
           const fileUrl = `file://${encodeURI(path)}`
           // BUG-059 — de-dupe local files routed to the browser pane via
           // `<meta duo-open-in="browser">`. file:// URLs ARE local files
@@ -1144,20 +1153,23 @@ export function App() {
   // Stage 10 Phase 6: `duo view <path>` from the CLI. Open as a file tab.
   // Routes through openFileSmart so duo-open-in:browser is honored
   // when the agent runs `duo view ~/.claude/duo/help/faq.html` etc.
+  // ENH-097 — `mode` carries an optional `--canvas` override that
+  // forces canvas-mode mount even when the file declares browser mode.
   useEffect(() => {
-    return window.electron.nav.onView((p) => {
+    return window.electron.nav.onView((p, mode) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
-      void openFileSmart(p, name)
+      void openFileSmart(p, name, mode)
     })
   }, [openFileSmart])
 
   // Stage 11: `duo edit <path>` from the CLI. Same dispatch as view — the
   // classifier routes `.md` to the editor tab type; other types open in
-  // their usual preview. duo-open-in:browser still honored.
+  // their usual preview. duo-open-in:browser still honored unless the
+  // CLI passed `--canvas` (ENH-097), which forces canvas mode.
   useEffect(() => {
-    return window.electron.nav.onEdit((p) => {
+    return window.electron.nav.onEdit((p, mode) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
-      void openFileSmart(p, name)
+      void openFileSmart(p, name, mode)
     })
   }, [openFileSmart])
 
@@ -2430,6 +2442,16 @@ export function App() {
               }}
               onMoveTabToSplit={splitViewMoveTabByPath}
               onMoveBrowserTabToSplit={splitViewMoveBrowserTab}
+              // ENH-097 — "Edit in canvas" on file:// browser tabs.
+              // Closes the browser tab and re-opens the file in
+              // canvas mode (forces canvas mount even if the file
+              // declares duo-open-in: browser, so the user can edit
+              // playground source while scripts stay inert).
+              onEditBrowserTabInCanvas={(browserTabId, filePath) => {
+                void window.electron.browser.closeTab(browserTabId)
+                const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath
+                void openFileSmart(filePath, name, 'canvas')
+              }}
               // ENH-083 (v0.6.5) — collapse-canvas button moved from
               // titlebar into the new-tab cluster.
               isCanvasCollapsed={isCanvasCollapsed}

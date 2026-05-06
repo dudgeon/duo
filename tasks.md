@@ -6002,7 +6002,14 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-097: Playground/canvas modality lock — `duo edit --canvas` override + right-click "Edit in canvas"
 
-**Status:** 🆕 Filed (Sprint 8 candidate, 2026-05-06).
+**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8 Phase 3 prelude, 2026-05-06). Doc-side codification + canvas-template/lesson-pack migration shipped earlier this session (commit `f4548ff`); code-side override path lands in this commit:
+- **CLI:** `duo edit --canvas <path>` and `duo view --canvas <path>` parse the flag and forward `mode: 'canvas'` through the socket. Help text + skill cheat-sheets + agents/duo.md + CLI-COVERAGE.md updated. CLI binary rebuilt.
+- **IPC:** `IPC.NAV_VIEW` / `IPC.NAV_EDIT` payloads accept either a bare path string (legacy) or `{ path, mode }` (new). Backwards-compat is preserved — preload.ts handler narrows on `typeof === 'string'`.
+- **Renderer:** `openFileSmart(path, title, mode?)` — the explicit `'canvas'` override wins over `<meta duo-open-in>` and routes the file straight to canvas iframe (kind: 'page'). Subscribers in App.tsx (`nav.onView`, `nav.onEdit`) thread the `mode` through.
+- **UI:** Right-click an `file://...html` browser tab → "Edit in canvas" entry appears (gated on path resolving to a local HTML file). Click closes the browser tab and re-opens the file in canvas mode.
+- 239/239 tests green; typecheck clean.
+**Priority:** **Medium**.
+**Filed:** 2026-05-06.
 **Priority:** Medium — codifies a vocabulary lock owner identified as a confusion source. Doc-side changes already committed; code-side changes are the override path that gives users a way to edit playground source after the modality default routes everything to browser mode.
 **Filed:** 2026-05-06.
 

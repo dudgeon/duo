@@ -202,10 +202,13 @@ export interface ElectronNavAPI {
   pushState: (snapshot: NavStateSnapshot) => void
   /** Subscribe to `duo reveal <path>` commands coming in from the CLI. */
   onReveal: (cb: (path: string) => void) => () => void
-  /** Subscribe to `duo view <path>` commands coming in from the CLI. */
-  onView: (cb: (path: string) => void) => () => void
-  /** Subscribe to `duo edit <path>` commands coming in from the CLI. */
-  onEdit: (cb: (path: string) => void) => () => void
+  /** Subscribe to `duo view <path>` commands coming in from the CLI.
+   *  ENH-097 — `mode` carries an optional override ('canvas' forces
+   *  canvas-mode mount even if the file declares `duo-open-in: browser`). */
+  onView: (cb: (path: string, mode?: 'canvas' | 'browser') => void) => () => void
+  /** Subscribe to `duo edit <path>` commands coming in from the CLI.
+   *  See onView for the optional `mode` override. */
+  onEdit: (cb: (path: string, mode?: 'canvas' | 'browser') => void) => () => void
 }
 
 export interface ElectronEditorAPI {

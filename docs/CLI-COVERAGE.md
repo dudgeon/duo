@@ -51,7 +51,7 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
-| `duo view <path>` | Open a file in the Viewer/Editor column (inferred by extension) |
+| `duo view <path> [--canvas]` | Open a file in the Viewer/Editor column (inferred by extension). HTML routes per `<meta duo-open-in>`. `--canvas` (ENH-097) forces canvas-mode mount even when the file declares browser mode. |
 | `duo reveal <path>` | Move the file navigator to `<path>`, flash a chip |
 | `duo ls [path]` | List directory contents (JSON) |
 | `duo nav state` | Navigator state: cwd, selection, expanded, pinned |
@@ -64,7 +64,7 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
-| `duo edit <path>` | Open a `.md` in the rich editor |
+| `duo edit <path> [--canvas]` | Open a `.md` in the rich editor; `.html` per `<meta duo-open-in>` (canvas or browser). `--canvas` (ENH-097) forces canvas-mode mount — required for editing a playground's source (playgrounds default to browser per the modality lock). |
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection. `auto` (default) prefers a non-empty browser highlight, then a non-empty canvas selection, falling back to the editor's cached selection. Returns the unified `DuoSelection` shape (`kind: 'editor' \| 'browser' \| 'page'`). Stage 17c adds the canvas branch. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. |
 | `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor |

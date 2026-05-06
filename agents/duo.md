@@ -150,8 +150,8 @@ empty.
 | `duo wait <selector> [--timeout ms]` | Block until element appears |
 | `duo nav state` | `{ cwd, selected, expanded, pinned }` |
 | `duo ls [path]` | List directory (defaults to nav cwd) |
-| `duo view <path>` | Open file in Viewer/Editor column (markdown / page / image / pdf) |
-| `duo edit <path>` | Open `.md` in rich editor; `.html` in HTML canvas (Stage 17a) |
+| `duo view <path> [--canvas]` | Open file in Viewer/Editor column (markdown / page / image / pdf). HTML routes per `<meta duo-open-in>`. `--canvas` (ENH-097) forces canvas-mode mount. |
+| `duo edit <path> [--canvas]` | Open `.md` in rich editor; `.html` per `<meta duo-open-in>` (canvas or browser). `--canvas` forces canvas-mode mount — required for editing a playground's source (playgrounds default to browser). |
 | `duo html new <path.html> [--title "…"]` | Stage 17a — create new HTML file from boilerplate + open in canvas |
 | `duo html query <css>` | Stage 17b — list elements in the active canvas (id, tag, text, classes) |
 | `duo html get --id <duo-id>` / `--selector <css>` | Stage 17b — read outerHTML + text of one element |

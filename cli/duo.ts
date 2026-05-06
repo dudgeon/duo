@@ -480,15 +480,26 @@ async function main(): Promise<void> {
         break
       }
       case 'view': {
-        const target = rest[0] ?? die('Usage: duo view <path>')
+        // ENH-097 — `--canvas` forces canvas-mode mount, overriding the
+        // file's `<meta name="duo-open-in" content="browser">` if present.
+        // Routing precedence: explicit flag > meta tag > kind default.
+        const canvasFlagIdx = rest.indexOf('--canvas')
+        const target = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo view <path> [--canvas]')
         const resolved = resolveFilePath(target)
-        out(await send('view', { path: resolved }))
+        const overrideMode = canvasFlagIdx !== -1 ? 'canvas' : undefined
+        out(await send('view', overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }))
         break
       }
       case 'edit': {
-        const target = rest[0] ?? die('Usage: duo edit <path>')
+        // ENH-097 — `--canvas` forces canvas-mode mount, overriding the
+        // file's `<meta name="duo-open-in" content="browser">` if present.
+        // Useful for editing playground source after the modality lock
+        // routes the file to browser mode by default.
+        const canvasFlagIdx = rest.indexOf('--canvas')
+        const target = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo edit <path> [--canvas]')
         const resolved = resolveFilePath(target)
-        out(await send('edit', { path: resolved }))
+        const overrideMode = canvasFlagIdx !== -1 ? 'canvas' : undefined
+        out(await send('edit', overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }))
         break
       }
       case 'selection': {
@@ -1332,14 +1343,22 @@ COMMANDS
   close <n>                       Close browser tab N (cannot close the last)
   wait <selector> [--timeout ms]  Wait for element to appear
 
-  view <path>                     Open a file in the working pane (new tab,
+  view <path> [--canvas]          Open a file in the working pane (new tab,
                                   type inferred from extension). Distinct
                                   from \`open\` (which opens a URL/HTML in
-                                  a browser tab).
-  edit <path>                     Open a markdown file in the rich editor
+                                  a browser tab). \`--canvas\` (ENH-097)
+                                  forces canvas-mode mount even if the
+                                  file declares <meta duo-open-in="browser">
+                                  — useful when you want to view or edit
+                                  a playground's source without firing
+                                  its scripts.
+  edit <path> [--canvas]          Open a markdown file in the rich editor
                                   (Stage 11). For .md files this gives the
                                   Google-Docs-style editing surface; for
                                   other types behaves like \`view\`.
+                                  \`--canvas\` forces canvas-mode mount
+                                  for HTML files (override for editing
+                                  playground source — see make-playground).
   selection [--pane auto|editor|browser|canvas]
                                   Print the active surface's selection as
                                   JSON. Default --pane auto prefers a

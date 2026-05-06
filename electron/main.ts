@@ -1320,19 +1320,23 @@ export function sendReveal(path: string): { ok: boolean; error?: string } {
   return { ok: true }
 }
 
-export function sendView(path: string): { ok: boolean; error?: string } {
+export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_VIEW, path)
+  // ENH-097 — when a mode override is supplied, send a {path, mode}
+  // payload; otherwise keep the bare-string payload for backwards
+  // compat with existing renderer subscribers (NAV_VIEW / NAV_EDIT
+  // both originally took a plain `path: string`).
+  mainWindow.webContents.send(IPC.NAV_VIEW, mode ? { path, mode } : path)
   return { ok: true }
 }
 
-export function sendEdit(path: string): { ok: boolean; error?: string } {
+export function sendEdit(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_EDIT, path)
+  mainWindow.webContents.send(IPC.NAV_EDIT, mode ? { path, mode } : path)
   return { ok: true }
 }
 

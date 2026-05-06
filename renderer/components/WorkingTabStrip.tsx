@@ -65,6 +65,12 @@ interface WorkingTabStripProps {
    *  id). App.tsx routes via splitViewMoveBrowserTab. The menu
    *  builder picks this callback when `tab.type === 'browser'`. */
   onMoveBrowserTabToSplit?: (browserTabId: number) => void
+  /** ENH-097 — "Edit in canvas" entry shown on `file://` browser tabs.
+   *  Closes the browser tab and re-opens the file in canvas mode
+   *  (kind: 'page'). Forces canvas mount even if the file declares
+   *  `<meta duo-open-in="browser">`, so the user can edit the
+   *  playground's source while its scripts stay inert. */
+  onEditInCanvas?: (browserTabId: number, path: string) => void
   /** ENH-083 (v0.6.5) — collapse-canvas button moved from titlebar to
    *  the new-tab cluster. Same pattern as TabBar's terminal-collapse
    *  variant; active (collapsed) state inverts to accent fill. */
@@ -97,6 +103,7 @@ export function WorkingTabStrip({
   onReorderTab,
   onMoveToSplit,
   onMoveBrowserTabToSplit,
+  onEditInCanvas,
   isCanvasCollapsed = false,
   onToggleCanvasCollapsed
 }: WorkingTabStripProps) {
@@ -154,7 +161,11 @@ export function WorkingTabStrip({
       // Phase 3c — pass BOTH callbacks; the menu builder decides
       // which to wire based on tab.type (browser vs file).
       onMoveToSplit,
-      onMoveBrowserTabToSplit
+      onMoveBrowserTabToSplit,
+      // ENH-097 — pass the callback so the menu builder can decide
+      // whether to render the "Edit in canvas" entry (file:// browser
+      // tabs only).
+      onEditInCanvas
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -218,6 +229,15 @@ export function WorkingTabStrip({
           onMoveToSplit?.(path)
         }
         return
+      case 'edit-in-canvas': {
+        // ENH-097 — close the browser tab and re-open the file in
+        // canvas mode. Only fires for file:// browser tabs; menu
+        // builder gated the entry on path being a local file.
+        if (!path || tab.type !== 'browser' || !onEditInCanvas) return
+        const parsedId = parseBrowserId(tab.id)
+        if (parsedId !== null) onEditInCanvas(parsedId, path)
+        return
+      }
       case 'trash': {
         if (!path || !onTrashFile) return
         const result = await window.electron.dialog.confirm({
@@ -527,8 +547,11 @@ function buildTabMenuTemplate(opts: {
   onMoveToSplit?: (path: string) => void
   /** Phase 3c — browser-tab variant of the move-to-split entry. */
   onMoveBrowserTabToSplit?: (browserTabId: number) => void
+  /** ENH-097 — "Edit in canvas" entry. Shown only on file:// browser
+   *  tabs (where path resolves to a local file). */
+  onEditInCanvas?: (browserTabId: number, path: string) => void
 }): MenuTemplateItem[] {
-  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit, onMoveBrowserTabToSplit } = opts
+  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit, onMoveBrowserTabToSplit, onEditInCanvas } = opts
   const tab = tabs.find(t => t.id === tabId)
   const items: MenuTemplateItem[] = []
 
@@ -582,6 +605,24 @@ function buildTabMenuTemplate(opts: {
   if (canMoveBrowserToSplit || canMoveFileToSplit) {
     if (items.length > 0) items.push({ type: 'separator' })
     items.push({ id: 'move-to-split', label: 'Move to Split View' })
+  }
+
+  // ENH-097 — "Edit in canvas" on file:// browser tabs. Pairs with
+  // the modality lock: a playground HTML file routes to browser by
+  // default (scripts run, buttons fire). To edit the source, the
+  // user opens the same file in canvas mode where buttons render
+  // but clicks place a cursor. Only shown when the browser tab's
+  // URL resolved to a local file path AND the file is HTML.
+  const canEditInCanvas = !!(
+    onEditInCanvas
+    && tab
+    && tab.type === 'browser'
+    && path
+    && /\.html?$/i.test(path)
+  )
+  if (canEditInCanvas) {
+    if (items.length > 0) items.push({ type: 'separator' })
+    items.push({ id: 'edit-in-canvas', label: 'Edit in canvas' })
   }
 
   if (path && tab) {

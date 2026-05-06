@@ -136,6 +136,10 @@ interface WorkingPaneProps {
    *  slot. Threaded through to WorkingTabStrip's right-click menu;
    *  surfaces only on file tabs (browser-in-aux is Phase 3c). */
   onMoveTabToSplit?: (path: string) => void
+  /** ENH-097 — "Edit in canvas" on file:// browser tabs. Closes the
+   *  browser tab and re-opens the file in canvas mode (forces
+   *  canvas-mode mount even if the file declares browser as default). */
+  onEditBrowserTabInCanvas?: (browserTabId: number, path: string) => void
   /** ENH-083 (v0.6.5) — collapse-canvas pane control, moved from
    *  titlebar to the new-tab cluster. App.tsx owns the splitPct state
    *  and the collapse semantics; WorkingPane just threads the props
@@ -176,6 +180,7 @@ export function WorkingPane({
   onAuxPromote,
   onAuxResize,
   onMoveTabToSplit,
+  onEditBrowserTabInCanvas,
   isCanvasCollapsed = false,
   onToggleCanvasCollapsed,
   onAuxTrash
@@ -514,6 +519,7 @@ export function WorkingPane({
         onStartRenameFromTab={onStartRenameFromTab}
         onMoveToSplit={onMoveTabToSplit}
         onMoveBrowserTabToSplit={onMoveBrowserTabToSplit}
+        onEditInCanvas={onEditBrowserTabInCanvas}
         isCanvasCollapsed={isCanvasCollapsed}
         onToggleCanvasCollapsed={onToggleCanvasCollapsed}
       />
