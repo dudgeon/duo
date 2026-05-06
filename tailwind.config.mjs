@@ -44,11 +44,17 @@ export default {
           strong: 'var(--duo-ink-ghost)'
         },
         accent: {
-          DEFAULT: 'var(--duo-accent)',
-          soft: 'var(--duo-accent-soft)',
-          ink: 'var(--duo-accent-ink)',
+          // FOLLOWUP-008 (v0.6.8) — wrap the RGB-triplet sibling
+          // tokens in `rgb(... / <alpha-value>)` so Tailwind's
+          // opacity modifiers (`bg-accent/30`, `text-accent-ink/60`)
+          // compose with the alpha channel correctly. The plain hex
+          // tokens (`--duo-accent`, etc.) stay defined in globals.css
+          // for direct `var()` use in non-Tailwind CSS rules.
+          DEFAULT: 'rgb(var(--duo-accent-rgb) / <alpha-value>)',
+          soft: 'rgb(var(--duo-accent-soft-rgb) / <alpha-value>)',
+          ink: 'rgb(var(--duo-accent-ink-rgb) / <alpha-value>)',
           // Backwards-compat alias — components still reference accent.dim
-          dim: 'var(--duo-accent-soft)'
+          dim: 'rgb(var(--duo-accent-soft-rgb) / <alpha-value>)'
         },
         // New Atelier-specific scale (use these for new components)
         ink: {

@@ -66,6 +66,17 @@
   --duo-accent: #C66A2E;          /* warm ochre/amber */
   --duo-accent-soft: #F2D9B8;
   --duo-accent-ink: #7A3E1A;
+  /* FOLLOWUP-008 (v0.6.8) — RGB-triplet siblings of the accent tokens.
+     Tailwind's opacity modifiers (`bg-accent/30`, `bg-accent/60`)
+     compose with `<alpha-value>` only when the color is declared as
+     `rgb(<r> <g> <b> / <alpha-value>)`. Hex literals silently no-op
+     the alpha channel, which is why pre-fix `bg-accent/N` rendered as
+     either solid accent or no color at all. The hex tokens above stay
+     for direct `var(--duo-accent)` use (boxes, borders, text); the
+     -rgb variants below are exclusively for Tailwind config bindings. */
+  --duo-accent-rgb: 198 106 46;
+  --duo-accent-soft-rgb: 242 217 184;
+  --duo-accent-ink-rgb: 122 62 26;
   /* Stage 13a — bumped from the Atelier prototype's `#F8E59C` to a more
      saturated gold so the just-added wash + blurred-selection actually
      read against the cream paper bg. The prototype's value is too close
@@ -92,6 +103,10 @@ html.dark {
   --duo-accent: #E08F4A;
   --duo-accent-soft: #3F2A18;
   --duo-accent-ink: #F2D2A8;
+  /* FOLLOWUP-008 — dark-mode RGB-triplet siblings (see :root for context). */
+  --duo-accent-rgb: 224 143 74;
+  --duo-accent-soft-rgb: 63 42 24;
+  --duo-accent-ink-rgb: 242 210 168;
   --duo-mark: #3F3318;
   --duo-term-bg: #0C0A07;
   --duo-term-fg: #E9DEC2;

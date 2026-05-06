@@ -5706,7 +5706,7 @@ The page-side Promise resolves when `duoSendResult` returns. We could additional
 
 ### FOLLOWUP-008: Migrate accent (and other CSS-var-backed Tailwind colors) to RGB-triplet + `<alpha-value>` placeholder
 
-**Status:** 🆕 Filed
+**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8 Phase 0, 2026-05-06). Approach: additive — kept the existing `--duo-accent` / `--duo-accent-soft` / `--duo-accent-ink` hex tokens in [globals.css](renderer/styles/globals.css) for direct `var()` use in non-Tailwind CSS rules, and added sibling `--duo-accent-rgb` / `--duo-accent-soft-rgb` / `--duo-accent-ink-rgb` tokens carrying the same colors as space-separated RGB triplets (`198 106 46` etc., light + dark mode each). Tailwind config now binds the `accent` color family via `rgb(var(--duo-accent-rgb) / <alpha-value>)`, which is the canonical pattern for CSS-variable-backed Tailwind colors that need opacity modifier support. Result: `bg-accent/30`, `text-accent-ink/60`, etc. now actually render at the requested opacity. Existing `bg-accent` (no modifier) usages unchanged.
 **Filed:** 2026-05-04 (BUG-074 v3 polish attempt — `bg-accent/85` produced zero fill, traced to this root cause)
 
 **The problem.** The Tailwind config defines accent / surface / paper / ink tokens like:
