@@ -101,52 +101,102 @@ it lands) catches a regression in either path.
 
 ### Phase 2 — Stage 21d: cohort distribution (the anchor)
 
-**Three coordinated pieces.**
+**Reframed 2026-05-06** after AUQ session post-v0.6.7 cut. Original
+21d (socket auth + agent-driven-nav notifications + early-adopter
+README) was scoped before Stage 27/28 introduced playgrounds + lesson
+packs + canvas-action runtime. New framing: **distro packs as
+plugin-loaded customization on the canonical signed DMG.**
 
-#### 2a — Socket auth model
+**Full PRD: [docs/prd/stage-21d-distro-packs.md](../prd/stage-21d-distro-packs.md).**
 
-Today the Unix socket at `~/Library/Application Support/duo/socket`
-trusts any local connection. Fine for personal use; not fine when
-distributing to a cohort where multiple users on a shared dev box
-might inadvertently cross streams, or when an agent on machine A
-is asked about machine B.
+**Owner-locked decisions** (from AUQ rounds 1+2+3):
+- All three personas (corporate IT / education / OSS community);
+  no rebrand required ⇒ plugin pack is primary path, recompile
+  fork is optional.
+- Distros pin to specific Duo versions; test + republish manually.
+- Distro content lives in merged-by-content-type folders with
+  per-distro namespacing (`~/.claude/skills/<distro>/`,
+  `~/.claude/duo/distros/<distro>/`, etc.).
+- Strictly additive — no overrides of Duo's bundled content.
+- Install = consent; no pack-signature requirement.
+- `requiresDuoVersion` is a hard block (refuse to install on
+  unsupported Duo).
+- Project-level CLAUDE.md injection: out of scope (user-level only).
+- Pack lifecycle: atomic replace (wipe old version's tracked files,
+  install new).
 
-Approach (need PRD before coding):
-- Generate a per-install bearer token; persist in `installed.json`.
-- Socket server requires the token in a handshake message before
-  routing commands.
-- CLI reads the token from the same `installed.json` (CLI binary
-  installed alongside the app already knows where this is).
-- Cross-machine SSH-tunneled connections negotiate the token
-  from `~/.duo/auth.json` on the remote side (queued, not v1).
+**Three distribution paths (mutually compatible):**
 
-**Open question for owner:** is v1 just per-install token (single
-machine, multi-user safety) or also cross-machine (the agent on my
-laptop talks to Duo on my desktop)? The cross-machine case
-substantially expands scope.
+1. **`.pkg` installer** — distro bundles canonical `Duo.app` +
+   their pack + postinstall script; signed with distro's cert
+   (Duo.app inside keeps upstream signature). Mass-deployable via
+   Jamf / Munki.
+2. **Drop-in folder** — pack zip published as download / git repo;
+   user/IT places at `~/.claude/duo/extra-packs/<distro-name>/`.
+   Auto-discovered.
+3. **Fork + compile** — distro maintains a fork with their pack
+   pre-baked into `bundled-distro/<name>/`; users clone + `npm run
+   dist` get an unsigned DMG with pack bundled. Early-adopter path
+   for companies pre-DMG-approval.
 
-#### 2b — Agent-driven-nav notifications
+**Sub-stages (21d-i through 21d-iv in the PRD):**
 
-When the CLI navigates to a destination tab the user wasn't looking
-at (e.g. `duo edit /path/foo.md` from a backgrounded terminal),
-the user should see a toast / glow / banner that tells them what
-the agent just did. Today the navigation is silent and surprising.
+#### 21d-i — Distro pack discovery + install pipeline (load-bearing)
 
-Touch points: `App.tsx` `setActiveWorking` path, possibly a
-notification primitive in `renderer/components/`.
+- Auto-discover packs at `~/.claude/duo/extra-packs/` on launch +
+  bundled-distros at `Duo.app/Contents/Resources/bundled-distros/`.
+- DISTRO.json schema + validator.
+- `requiresDuoVersion` hard-block enforcement.
+- Atomic-replace install: provenance manifest tracks every file
+  Duo creates per pack; uninstall + reinstall on version change.
+- Multi-distro CLAUDE.md merge: extends ENH-088 to support
+  multiple `<!-- distro:<name>-managed-vX.Y.Z -->` blocks
+  alongside Duo's own.
+- FTUX re-fire: when a new pack is detected (post-original-FTUX),
+  open `openOnFirstLaunch[]` canvases on next launch.
 
-#### 2c — Early-adopter README
+#### 21d-ii — Pack-builder skill (the canonical spec)
 
-Plain-prose document covering: install, first-launch banner, what
-to expect from the FAQ + vocabulary + enterprise-deployments
-references, how to file feedback. Lives at the repo root or
-`docs/EARLY-ADOPTERS.md`.
+- New skill at `skill/pack-builder.md` shipping with default Duo
+  via `npm run sync:claude`.
+- Capabilities: scaffold / validate / build-zip / build-pkg /
+  build-bundled-fork / bump-version.
+- Schema reference at `skill/references/distro-v1-schema.json`.
+- Distros use this skill to author + maintain their packs.
 
-**Acceptance for the whole anchor:** a non-Geoff machine can
-install signed Duo from the GitHub Release, complete first-launch,
-run a `duo` command from a Claude Code session, see the agent-nav
-notifications on navigation events. README points readers to the
-right places when something breaks.
+#### 21d-iii — CLI surface
+
+- `duo pack list` — installed distro packs (name, version, install date).
+- `duo pack uninstall <distro-name>` — atomic uninstall via
+  provenance manifest.
+- (`duo pack install <url>` deferred to FOLLOWUP-010 per AUQ.)
+
+#### 21d-iv — Sample distro + early-adopter README
+
+- `examples/distro-pack-template/` — working copy-and-customize
+  starting point.
+- HOW-TO-FORK.md gains "Layer 2.5 — distro packs" between Layer 2
+  (drop-in) and Layer 3 (build-time partial fork).
+- README early-adopter section: distribution paths, when to
+  choose each, pack-builder skill, Duo upgrade handling.
+
+**Original 21d goals: deferred to follow-ups.**
+- Cross-machine socket auth → FOLLOWUP-011 (revisit when real
+  cross-machine demand surfaces; local multi-user safety addressable
+  via socket file permissions).
+- Agent-driven-nav notifications → FOLLOWUP-012 (not distro-specific;
+  rides along in 21d-iv if useful for the early-adopter cohort).
+
+**Acceptance for the whole anchor:** A distro builder can run the
+pack-builder skill to scaffold a pack containing a skill + a
+playground + a welcome canvas + a CLAUDE.md snippet, build a `.pkg`,
+ship it to a non-Geoff machine, observe: pack installs on next Duo
+launch, FTUX fires opening the welcome canvas, the CLAUDE.md block
+appears in the user's `~/.claude/CLAUDE.md`, the skill is reachable
+from a Claude Code session under `~/.claude/skills/<distro>/`, and
+`duo pack list` reports the install. Re-running the install with a
+new pack version atomic-replaces. `duo pack uninstall <distro>`
+cleanly removes everything.
 
 ### Phase 3 — ENH-080: ⌘⇧A tab-search palette
 
