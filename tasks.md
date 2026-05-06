@@ -5892,7 +5892,7 @@ Update both shipped skills to reference `references/vocabulary.md` instead of `C
 
 ### ENH-091: Place caret at end of body (after existing content) when opening a freshly-created canvas
 
-**Status:** 🆕 Filed (surfaced in v0.6.5 Phase 5 re-walk #3, 2026-05-04 — owner observation while testing BUG-072 v3 fix).
+**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8, 2026-05-06). New `seedCaretInEmptyParagraph` helper at [renderer/components/Page/caretSeed.ts](renderer/components/Page/caretSeed.ts) called from [RenderedPage.tsx](renderer/components/Page/RenderedPage.tsx)'s `wire()` after `body.focus()` fires. Detection is conservative: requires the body's structural root (`<main>` or `<body>`) to have an `<h1>` first child + a single trailing empty `<p>` (or only-whitespace text node) AND no content between them. On match, the caret repositions inside the empty `<p>`. On any structural mismatch (existing user content, non-H1 first child, non-`<p>` last child, etc.) the function exits without touching the selection — guarantees we never clobber an existing user cursor on canvas reopen. 11 vitest fixtures lock the seed/no-op boundary; full test suite 213/213 green (was 202).
 **Priority:** Low (small QOL, not a blocker; current behavior is "caret at offset 0 of body" which sits BEFORE the boilerplate `<h1>` heading).
 **Filed:** 2026-05-04.
 

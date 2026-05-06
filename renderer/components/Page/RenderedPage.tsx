@@ -19,6 +19,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
 import { serializeDocument } from './serialize'
 import { installGlobalShortcutForwarder } from '../../keyboard/iframeForwarder'
+import { seedCaretInEmptyParagraph } from './caretSeed'
 
 interface Props {
   /** Initial HTML the iframe should render. Set on mount; the iframe
@@ -253,6 +254,19 @@ export const RenderedPage = forwardRef<RenderedPageHandle, Props>(
           // 'working'`, so a re-mount under terminal focus stays put.
           if (shouldStealFocusRef.current) {
             try { doc.body.focus() } catch { /* ignore */ }
+            // ENH-091 — caret seeding for fresh canvases. After
+            // body.focus(), the contentEditable cursor lands at the
+            // body's first focusable position, which is typically the
+            // start of the H1 title — so the user's first keystroke
+            // mutates the title instead of seeding body content. For
+            // freshly-created canvases (boilerplate shape: H1 with
+            // text + an empty trailing <P>), reposition the caret
+            // inside the empty <P> so typing flows into the body
+            // paragraph as the user expects. Skipped when the body
+            // already has user content (any non-empty paragraph or
+            // heading after the first H1) — that's an existing canvas
+            // and we don't want to clobber the user's prior cursor.
+            try { seedCaretInEmptyParagraph(doc) } catch { /* ignore */ }
           }
         } else {
           // BUG-051 — re-mount under `readOnly: true` after a prior
@@ -351,3 +365,4 @@ export const RenderedPage = forwardRef<RenderedPageHandle, Props>(
     )
   }
 )
+
