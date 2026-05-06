@@ -5332,6 +5332,41 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ---
 
+### BUG-100: Send → Duo pill missing on text selections inside the split-view (aux) browser pane
+
+**Status:** 🟡 Open (filed during smoke walk v0.6.8, 2026-05-06). User flagged "non blocking, add to backlog."
+**Priority:** **Medium** — affects users who park a reference page in the split-view + select text from it for chat. Workaround: promote the aux browser tab back to main (⌘⇧/) before selecting.
+**Filed:** 2026-05-06 (Smoke walk v0.6.8 step 5 — *"opened claude session: pill DOES appear for selected text in main pane, but not in split view"*).
+
+**Symptom.** With at least one Claude tab live in the terminal pane and a browser tab pinned to the split-view (aux), selecting text inside the aux pane's WebContentsView does NOT render the in-page Send → Duo pill. Selection in the MAIN browser pane behaves correctly under the same conditions.
+
+**Hypothesis (untested).** The Send→Duo pill is rendered via CDP injection into the active browser tab's webContents (`cdp-bridge.ts § showPillFor`). The CDP connection is attached to `tabs[activeIndex]` only. Aux tabs have a separate webContents that the CDP bridge has no awareness of — any `selectionchange` events fired by the aux pane's WebContentsView don't reach the pill code. Fix candidates:
+1. Attach a parallel CDP bridge to the aux webContents when one is pinned, mirroring the main bridge's selection→pill flow.
+2. Hoist the CDP bridge to be tab-id-keyed (one bridge per webContents) and attach on aux pin / detach on aux clear.
+3. Forward selectionchange via a minimal `before-input-event`-style preload script in the aux pane only.
+
+(2) is the cleanest but the heaviest refactor. (1) is the most localized; (3) sidesteps CDP entirely. Defer the choice until the bug is prioritized.
+
+**Cross-ref:** Stage 15.3 Send → Duo pill (origin); Sprint 7 Phase 3c (aux browser pinning).
+
+---
+
+### BUG-099: Markdown editor — autosave race triggers spurious "file changed on disk" banner during normal typing
+
+**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8 walk-1 follow-up, 2026-05-06). Added a `recentlyWrittenBodiesRef` Map<string, number> in [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) tracking every body string we write with a 2-second TTL. Watcher's echo detection now consults the set as a secondary check after the existing `lastSavedBodyRef.current` exact match, so a chokidar event whose body has already been superseded by a newer save is still recognized as our own. `trackRecentlyWritten(body)` fires BEFORE the `files.write` IPC; the set clears on path change. Diagnostic `console.debug('[BUG-085 conflict]', {…})` lines added on both the silent-reload and conflict-surface paths so any future repro leaves a paper trail (length + head excerpts; no full body content for privacy).
+**Priority:** **High** (was — eroded user trust in the editor's autosave; conflict banner appearing during normal typing felt like data was at risk).
+**Filed:** 2026-05-06 (Smoke walk v0.6.8, ENH-096-WIKILINKS step 3 — *"received race condition on editing in the middle of step 3; clicked 'keep mine' -- you need to investigate the save loop"*).
+
+**Symptom (pre-fix).** While typing in the markdown editor — particularly during rapid consecutive edits that triggered multiple debounced autosaves in quick succession — the "This file changed on disk while you were editing" banner appeared mid-session. User had not modified the file from any other tool. Clicking "keep mine" triggered another save, which sometimes re-fired the banner, looping until typing slowed.
+
+**Root cause.** The BUG-085 watcher echo-check compared the just-read disk body against a single `lastSavedBodyRef.current`. The save flow updates `lastSavedBodyRef.current = body` AFTER `await window.electron.files.write(path, bytes)` resolves. Chokidar's `awaitWriteFinish: { stabilityThreshold: 150ms }` typically delays the event past that line, but two close-together saves race the window: save#1 writes body "A" (sets baseline = A), save#2 writes body "B" (sets baseline = B), chokidar fires for save#1 with disk body "A" — but baseline is now "B" — false conflict surfaces. The "keep mine" loop happens because resolveConflictKeepMine triggers another save, which triggers another watcher event for a stale body.
+
+**Why "keep mine" looped.** `resolveConflictKeepMine` calls `void saveRef.current()`. That save fires another write → chokidar fires again → the new write may also be racing against a still-pending older event. With the recently-written set, both events resolve as echoes.
+
+**Cross-ref:** [Sprint 6 BUG-085 (markdown editor reconciles external file writes)](tasks.md). This bug is the BUG-085 family's escape hatch — the original BUG-085 fix solved "external writes are visible," this fix solves "internal writes don't masquerade as external."
+
+---
+
 ### BUG-098: Right-click tab → Move to Trash on a missing file shows error popup instead of closing tab
 
 **Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). [App.tsx § onTrashTabFile](renderer/App.tsx) now catches the "doesn't exist" / `ENOENT` / "no such file" error class from `files.trash`, treats it as a no-op success, and proceeds to close the tab. Other error classes still surface via `window.alert`. Regex matches both ASCII (`'`) and Unicode (`'`) apostrophes — Apple's native error strings use the curly quote.

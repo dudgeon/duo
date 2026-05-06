@@ -203,6 +203,35 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // and to avoid issuing identical writes.
   const lastSavedBodyRef = useRef<string>('')
 
+  // BUG-099 / save-loop fix — set of body strings we've written recently.
+  // Used by the watcher's echo detection alongside `lastSavedBodyRef` so
+  // a chokidar event that arrives between two consecutive autosaves (or
+  // before `lastSavedBodyRef` is updated post-write) is still recognized
+  // as our own write, not an external change. Each entry expires after
+  // ~2s — long enough to absorb chokidar's `awaitWriteFinish`
+  // stabilityThreshold (150ms) plus typing-debounced retries, short
+  // enough that a true external write isn't masked indefinitely.
+  //
+  // Pre-fix: a chokidar event whose `diskBody` matched a save we issued
+  // milliseconds earlier — but whose body had since been superseded by
+  // another save (so `lastSavedBodyRef.current` had advanced) — was
+  // misclassified as an external write and surfaced the conflict
+  // banner. User clicked "keep mine", that triggered another save,
+  // which triggered another watcher event, looping. Smoke walk
+  // v0.6.8 / ENH-096-WIKILINKS surfaced the loop.
+  const recentlyWrittenBodiesRef = useRef<Map<string, number>>(new Map())
+  const trackRecentlyWritten = useCallback((body: string) => {
+    const map = recentlyWrittenBodiesRef.current
+    map.set(body, Date.now())
+    // Evict expired entries. O(n) per call but n is bounded by the
+    // number of saves within 2 seconds — typically < 5 even for fast
+    // typists.
+    const cutoff = Date.now() - 2000
+    for (const [b, ts] of map) {
+      if (ts < cutoff) map.delete(b)
+    }
+  }, [])
+
   // Track the latest path we loaded, so late-arriving reads don't clobber a
   // newer tab open.
   const pathRef = useRef(path)
@@ -426,6 +455,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
     // New-file mode: don't try to read disk, the file doesn't exist yet.
     // Editor stays empty until the user commits a filename.
+    // BUG-099 fix — clear the recently-written set on path change so
+    // a stale entry from the previously-open file can't masquerade as
+    // an echo for the new path's first watcher event.
+    recentlyWrittenBodiesRef.current.clear()
     if (isNew) {
       frontmatterRef.current = null
       eolRef.current = '\n'
@@ -534,17 +567,46 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // updated to the freshly-saved body before chokidar fired.
         if (diskBody === lastSavedBodyRef.current) return
 
+        // BUG-099 fix — secondary echo check against the
+        // recently-written set. Catches the race where chokidar's
+        // event arrived between the write completing and
+        // `lastSavedBodyRef.current` being assigned, OR where a
+        // newer save has already advanced the baseline past this
+        // event's body. Without this, the post-fix watcher would
+        // false-positive on rapid consecutive saves.
+        if (recentlyWrittenBodiesRef.current.has(diskBody)) return
+
         const liveBody = editor.storage.markdown.getMarkdown() as string
         const isDirty = liveBody !== lastSavedBodyRef.current
 
         if (!isDirty) {
           // Clean buffer — silent reload + baseline advance.
+          // BUG-099 diagnostic — log the silent reload so a regression
+          // that masquerades as "silent loss of edits" leaves a trail.
+          console.debug('[BUG-085 reload] external write detected on clean buffer; reloading from disk', {
+            path,
+            diskBodyLength: diskBody.length,
+            baselineLength: lastSavedBodyRef.current.length
+          })
           frontmatterRef.current = split.frontmatter
           eolRef.current = split.eol
           editor.commands.setContent(diskBody, false)
           lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
         } else {
           // Dirty buffer — surface conflict; user picks resolution.
+          // BUG-099 diagnostic — log the conflict-surface event with
+          // length+head data so the next reproduction leaves a paper
+          // trail. Don't include full body content to avoid leaking
+          // user data into easily-shared logs.
+          console.debug('[BUG-085 conflict] dirty buffer + diverged disk; surfacing banner', {
+            path,
+            diskBodyLength: diskBody.length,
+            baselineLength: lastSavedBodyRef.current.length,
+            liveBodyLength: liveBody.length,
+            recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
+            diskBodyHead: diskBody.slice(0, 40),
+            baselineHead: lastSavedBodyRef.current.slice(0, 40)
+          })
           setExternalConflict({ diskBody })
         }
       }).catch(() => { /* file unreadable / mid-rename — ignore */ })
@@ -627,6 +689,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
         const bytes = encodeUtf8(full)
+        // BUG-099 fix — register our intent to write THIS body BEFORE
+        // the IPC call. If chokidar's event arrives before line 631
+        // (the post-write baseline update) executes, the watcher still
+        // recognizes the disk content as ours via the recently-written
+        // set. Without this, save → write → watcher fires → diskBody
+        // !== lastSavedBodyRef.current (still old) → false conflict.
+        trackRecentlyWritten(body)
         await window.electron.files.write(path, bytes)
         lastSavedBodyRef.current = body
       }
