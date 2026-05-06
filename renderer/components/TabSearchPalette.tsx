@@ -29,6 +29,11 @@ export interface TabSearchEntry {
    *  `'browser'` for browser tabs. Unknown kinds fall back to a
    *  generic glyph. */
   kind: string
+  /** ENH-080 walk-1 fix — split-view ("aux") membership. When true,
+   *  the entry is rendered with a "split" badge and the pick handler
+   *  in App.tsx skips the main-pane switch (the entry is already in
+   *  the aux pane; pick = focus working column, don't promote). */
+  inAux?: boolean
 }
 
 export interface TabSearchPaletteProps {
@@ -177,7 +182,17 @@ export function TabSearchPalette({ open, entries, onPick, onDismiss }: TabSearch
               >
                 <KindGlyph kind={entry.kind} active={i === activeIdx} />
                 <div className="flex flex-col flex-1 min-w-0">
-                  <span className="truncate text-sm font-medium">{entry.title}</span>
+                  <span className="truncate text-sm font-medium flex items-center gap-2">
+                    <span className="truncate">{entry.title}</span>
+                    {entry.inAux && (
+                      <span className={[
+                        'shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-px rounded border',
+                        i === activeIdx ? 'border-white/40 text-white/90' : 'border-paper-rule text-ink-mute'
+                      ].join(' ')}>
+                        Split
+                      </span>
+                    )}
+                  </span>
                   {entry.subtitle && (
                     <span className={[
                       'truncate text-xs',

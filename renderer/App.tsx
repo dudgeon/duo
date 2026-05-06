@@ -1307,6 +1307,16 @@ export function App() {
     return () => window.removeEventListener('duo-open-tab-search', handler)
   }, [])
 
+  // ENH-080 walk-1 fix — mute the browser WebContentsView(s) while the
+  // palette is open. Without this the WCV composites over the renderer
+  // overlay (the palette's z-50 doesn't beat the WCV — that's why
+  // setOverlayMuted exists for context menus too). Symptom pre-fix:
+  // user saw the dim backdrop bleeding into pane edges but the palette
+  // body was hidden behind the still-visible page content.
+  useEffect(() => {
+    window.electron.browser.setOverlayMuted(tabSearchOpen)
+  }, [tabSearchOpen])
+
   // ENH-096 (B1) — Wikilink resolver. The WikilinkDecorations plugin
   // fires `duo-wikilink-open` on cmd+click; we walk up from the active
   // file's directory to find an `.obsidian/` (vault root), then search
@@ -1346,26 +1356,28 @@ export function App() {
 
   // ENH-080 — derive the search entries from open tabs. Includes both
   // file tabs (markdown editor / canvas / image / pdf) and browser
-  // tabs that aren't currently in aux. Sorted: active-first, then by
-  // strip order. Subtitle helps when titles repeat (multiple files
-  // with the same basename).
+  // tabs. Aux tabs (split-view) are tagged `inAux: true` and labeled
+  // with a "Split" badge in the palette UI. Walk-1 fix: aux browser
+  // tabs were filtered out entirely pre-fix; aux file tabs were
+  // included but indistinguishable from main-pane file tabs.
   const tabSearchEntries: TabSearchEntry[] = useMemo(() => {
+    const auxFilePaths = new Set(auxState?.paths ?? [])
     const fileEntries: TabSearchEntry[] = fileTabs.map((t) => ({
       id: `f:${t.id}`,
       title: t.title,
       subtitle: t.path,
-      kind: t.type
+      kind: t.type,
+      inAux: auxFilePaths.has(t.path)
     }))
-    const browserEntries: TabSearchEntry[] = browserTabs
-      .filter((t) => !t.inAux)
-      .map((t) => ({
-        id: `b:${t.id}`,
-        title: t.title || t.url,
-        subtitle: t.url,
-        kind: 'browser' as const
-      }))
+    const browserEntries: TabSearchEntry[] = browserTabs.map((t) => ({
+      id: `b:${t.id}`,
+      title: t.title || t.url,
+      subtitle: t.url,
+      kind: 'browser' as const,
+      inAux: t.inAux
+    }))
     return [...fileEntries, ...browserEntries]
-  }, [fileTabs, browserTabs])
+  }, [fileTabs, browserTabs, auxState])
 
   // Stage 19c D27 — `duo new-tab` from the CLI. The renderer is the
   // authoritative tab state, so we add the tab here and reply with
@@ -2653,6 +2665,14 @@ export function App() {
         entries={tabSearchEntries}
         onPick={(entry) => {
           setTabSearchOpen(false)
+          // ENH-080 walk-1 fix — for aux entries, just dismiss + focus
+          // the working column. The picked tab is already the aux
+          // pane's active tab; calling switchTab / setActiveWorking
+          // would route it to the main pane and break the split.
+          if (entry.inAux) {
+            setFocusedColumn('working')
+            return
+          }
           if (entry.id.startsWith('f:')) {
             setActiveWorking({ kind: 'file', id: entry.id.slice(2) })
           } else if (entry.id.startsWith('b:')) {

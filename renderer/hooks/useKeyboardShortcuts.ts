@@ -298,8 +298,15 @@ export function useKeyboardShortcuts(opts: Options) {
     // 'working' pane override because the browser pane having keyboard
     // focus is the proximate cause of the forward.
     const unsubscribeBrowserKey = window.electron.keyboard?.onBrowserKey((forward) => {
+      // ENH-080 walk-1 fix — pass `code` so chord matchers that consult
+      // `e.code === 'KeyA'` / `e.code === 'Slash'` / `e.code === 'KeyM'`
+      // actually match on the WCV-forward path. Pre-fix `code` was
+      // missing from ForwardedKeyEvent so `synthetic.code === ''`,
+      // breaking ⌘⇧A (palette) and ⌘⇧/ (split-view promote) from
+      // browser-pane focus.
       const synthetic = new KeyboardEvent('keydown', {
         key: forward.key,
+        code: forward.code,
         ctrlKey: forward.ctrl,
         metaKey: forward.meta,
         shiftKey: forward.shift,

@@ -801,10 +801,19 @@ export class BrowserManager {
   setOverlayMuted(muted: boolean): void {
     this.mutedForOverlay = muted
     if (this.tabs.length === 0) return
+    const main = this.tabs[this.activeIndex]
+    const aux = this.auxTabId !== null ? this.tabs.find(t => t.id === this.auxTabId) : null
     if (muted) {
-      this.tabs[this.activeIndex].view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+      main.view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+      // ENH-080 walk-1 fix — also mute the aux WCV when present.
+      // Without this, the aux pane's WCV stayed at full bounds and
+      // composited over any renderer-level modal mounted in the
+      // split-view region (the tab-search palette's z-50 doesn't
+      // beat the WCV — that's the whole reason setOverlayMuted exists).
+      if (aux) aux.view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
     } else {
-      this.tabs[this.activeIndex].view.setBounds(this.currentBounds)
+      main.view.setBounds(this.currentBounds)
+      if (aux) aux.view.setBounds(this.auxBounds)
     }
   }
 
@@ -913,6 +922,7 @@ export class BrowserManager {
         event.preventDefault()
         this.window.webContents.send(IPC.BROWSER_KEY_FORWARD, {
           key: input.key,
+          code: input.code,
           shift: input.shift,
           meta: input.meta,
           alt: input.alt,
@@ -958,6 +968,14 @@ export class BrowserManager {
         // but input.code === 'Slash' regardless). Same code-vs-key
         // lesson as the previous chord — see globalShortcuts.ts.
         input.code === 'Slash' ||
+        // ENH-080 walk-1 fix — ⌘⇧A = tab-search palette. Without this
+        // entry, Chromium's "select all" handler claims the chord when
+        // the browser pane has focus and the renderer never sees the
+        // keystroke. Symptom: palette opened from terminal/editor focus
+        // but no-op'd from browser-pane focus — and once the palette
+        // had been used once (focus moves to WCV after pick) it stopped
+        // working entirely.
+        input.code === 'KeyA' ||
         (key >= '1' && key <= '9')
       // NOTE: ⌘` is intentionally NOT in this list. It's handled by the
       // app-menu accelerator (which beats macOS's system shortcut) and
@@ -984,13 +1002,27 @@ export class BrowserManager {
       // openFind dispatcher mounts the find input and calls .focus()
       // on it. Without OS focus on the renderer, that focus call is
       // a no-op and the user types into the page instead of the bar.
-      const needsRendererFocus = key === 't' || key === 'n' || key === 'l' || key === 'f'
+      // ENH-080 — ⌘⇧A also needs the focus reclaim: the palette
+      // mounts a search input and calls `.focus()` on it via
+      // requestAnimationFrame. Without OS focus on the renderer, that
+      // focus call is a no-op and the palette opens with no caret —
+      // the user sees the dim backdrop but typing goes nowhere. Same
+      // family as ⌘F.
+      const needsRendererFocus =
+        key === 't' || key === 'n' || key === 'l' || key === 'f' ||
+        (input.code === 'KeyA' && input.shift)
       if (needsRendererFocus) {
         this.window.webContents.focus()
       }
 
+      // ENH-080 walk-1 fix — include `code` so chord matchers that
+      // consult `e.code` (KeyA, Slash, KeyM) round-trip correctly via
+      // the synthetic KeyboardEvent rebuilt in useKeyboardShortcuts.
+      // Pre-fix: synthetic.code was '' so KeyA / Slash matchers never
+      // matched on the WCV-forward path.
       this.window.webContents.send(IPC.BROWSER_KEY_FORWARD, {
         key: input.key,
+        code: input.code,
         shift: input.shift,
         meta: input.meta,
         alt: input.alt,

@@ -292,6 +292,14 @@ export interface ElectronKeyboardAPI {
 
 export interface ForwardedKeyEvent {
   key: string
+  /** `KeyboardEvent.code` — modifier-independent physical key. Required
+   *  to round-trip chord matchers that use `e.code === 'KeyA'` /
+   *  `e.code === 'Slash'` etc. Pre-fix this field was missing and the
+   *  synthetic event in useKeyboardShortcuts had `code === ''`, so any
+   *  WCV-forwarded chord whose matcher consulted `e.code` silently
+   *  dropped (ENH-080 ⌘⇧A bug — palette didn't open from browser-pane
+   *  focus, and ⌘⇧/ split-view-promote was similarly broken). */
+  code: string
   shift: boolean
   meta: boolean
   alt: boolean
