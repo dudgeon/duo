@@ -5281,6 +5281,21 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 2. Read the `[ErrorBoundary:WorkingPane]` log — the error message + component stack identifies WHICH component threw.
 3. Cross-reference the two. The combination is usually enough to name the bug without further digging.
 
+**Code-side analysis (Sprint 8 Phase 4, 2026-05-06).** Without a clean live repro yet, I audited the suspect code paths against the v0.6.7 instrumentation. Three structural issues stand out as likely contributors when the bug fires:
+
+1. **Multi-setState cascade across `await` boundary** ([App.tsx § splitViewMoveTabByPath:1564-1647](renderer/App.tsx)). After `await window.electron.browser.releaseAuxTab()` (line 1566) and `await window.electron.dialog.confirm(...)` (line 1591), React's automatic batching is broken. The subsequent block fires four separate setStates in sequence: `setFileTabs(filter)` (1619), `setFileTabs(append)` (1627), `setActiveWorking(...)` (1634), `setAuxState(...)` (1643). Each triggers a render. WorkingPane's intermediate-render states are mid-swap — fileTabs may already not include the moving-in path while activeWorking still references it, OR the new aux path is set before fileTabs has stabilized. A child component (PageTab → RenderedPage's iframe wire) reading inconsistent state during one of those intermediate renders is a plausible throw point.
+
+2. **Stale `fileTabs` closure in setActiveWorking** (line 1636). `const wasMoved = fileTabs.find(t => t.id === prev.id && t.path === path)` reads `fileTabs` from the useCallback closure rather than React's latest state. Once line 1619's `setFileTabs(prev => prev.filter(t => t.path !== path))` queues, the closure-captured `fileTabs` is stale by the time line 1636 runs. The find still works (we want pre-removal data), but a similar pattern elsewhere could miss updates and cause an inconsistent state read.
+
+3. **PageTab unmount/remount during swap** — when auxState.paths changes, WorkingPane decides which tab kind=`'page'` mounts in main vs aux. The path move triggers a `key={tab.id}` change on the PageTab, forcing unmount + remount. handleReady's wireCleanupRef cleanup chains (selectionchange listener, MutationObserver from installAutoStampIds, comment-anchor click delegate, just-added repaint scheduler) all return cleanup functions that must run BEFORE the new wire fires. If a previous wire's cleanup races with the new wire's setup, the new doc could observe leaked listeners or torn-down state. The recent BUG-088 fix (commit `e203b7c`'s ENH-091 caret-seed change uses the same wire path) doesn't add a new failure mode but does reaffirm the wire-path's complexity.
+
+**Defensive fix candidates (deferred — low confidence without repro):**
+- (a) Wrap the post-await setState block in `flushSync` from `react-dom` so all four setStates apply synchronously as one render batch. Trade: flushSync has its own caveats (forbidden during render; can de-optimize React's scheduling).
+- (b) Restructure the swap: compute the desired state shape first (one object), then call setStates in dependency order with a single useReducer-style update. Bigger refactor but eliminates the intermediate-render risk class.
+- (c) Add explicit unmount-stabilization in PageTab — guard handleReady against stale doc references via a per-mount epoch counter that handleReady checks before each side-effect install.
+
+**Filed FOLLOWUP-013** (next sprint) to drive the clean-repro investigation: open Duo dev with devtools open + filtered on `[BUG-093]` + `[ErrorBoundary:WorkingPane]`, exercise the rev3 repro shape (fresh canvas + bullets + one comment + right-click → Move to Split View), capture the trace + ErrorBoundary log + component stack. With those three lines the fix usually names itself; without them any code change is speculation.
+
 **Cross-ref:** BUG-092 (companion — even when the move *succeeds*, the resulting canvas is broken because the iframe sandbox blocks scripts); BUG-091 (the over-broad lift that gated this); BUG-065 (the original v0.6.3 ErrorBoundary that this extends with `inline` + `label` + `Try again`); Sprint 6 Phase 1/3/4 (comment-system work that may have introduced the unmount race).
 
 ---
@@ -5779,6 +5794,24 @@ These haven't surfaced as bugs because they're either hover-states (transient, l
 **Why this is a follow-up rather than a Sprint 4 blocker.** The selection state works correctly with solid `bg-accent`. The "less obtrusive" polish is real but not blocking the v0.6.5 cut — it can land as a focused PR in v0.6.6. Filing now so the next sprint plan surfaces it.
 
 **Cross-ref:** BUG-074 (the v3 polish attempt that surfaced this); Atelier token system (the wider design system this fix slots into); commit b9a4c69 (where the workaround — solid bg-accent + white text — landed).
+
+---
+
+### FOLLOWUP-013: BUG-093 clean-repro investigation (right-click → Move to Split View renderer crash)
+
+**Status:** 🆕 Filed (Sprint 8 Phase 4, 2026-05-06).
+**Priority:** **High** — BUG-093 fires from a real user gesture and crashes the WorkingPane.
+**Filed:** 2026-05-06.
+
+**What this follow-up does.** v0.6.7 shipped instrumentation around `splitViewMoveTabByPath` + an inline `ErrorBoundary` around `<WorkingPane>`. The crash hasn't been re-observed since the rev3 walk that surfaced it. This follow-up drives the clean-repro:
+1. Open Duo dev with devtools console visible, filtered on `[BUG-093]` and `[ErrorBoundary:WorkingPane]`.
+2. Reproduce the rev3 shape: fresh canvas → type bullets → add a comment on one bullet → right-click the canvas tab → "Move to Split View."
+3. If it crashes: capture the last `[BUG-093]` line (names the swap phase that was running) + the `[ErrorBoundary:WorkingPane]` error message + component stack. The combination usually names the bug.
+4. If it refuses to reproduce: try variants — multi-bullet canvas with multiple comments, mid-typing dirty buffer, swap-direction (canvas → split when split is empty vs occupied), the BUG-098 trash interaction.
+
+**Code-side analysis already recorded** (see [BUG-093 entry](#BUG-093) for the three structural-issues audit + three deferred fix candidates). Don't ship a code change without a clean trace.
+
+**Cross-ref:** BUG-093 (the bug being investigated), BUG-092 (companion — even when the move succeeds, scripts don't run in the canvas iframe), BUG-091 (the over-broad lift that gated the original surface).
 
 ---
 
