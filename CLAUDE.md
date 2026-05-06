@@ -313,6 +313,36 @@ on anything touching renderer / main / preload / CSS / menus:
 If you can't fill in the "saw in the live app" block from the
 checklist's reporting template, the task isn't done.
 
+### 7a. RESTART DUO YOURSELF when verification needs it
+
+**HARD RULE — never write any variant of "you (the user) need to
+restart Duo / restart the dev environment / re-run npm run dev"
+in a handoff or verification prompt.** That offloads your job onto
+the user. If verification needs a fresh dev session — main-process
+edits that HMR doesn't pick up, a stale dev session whose socket
+file is gone, post-cut DMG-build that left the validation app
+hanging around, anything — **YOU restart it**:
+
+1. Find the running dev session: `ps -ef | grep -E "MacOS/Electron \." | grep -v grep`
+2. Kill it: `kill <pid>` (or `kill -9 <pid>` if it doesn't exit on
+   SIGTERM after a couple of seconds).
+3. Start a fresh one in the background: call `Bash` with
+   `command: "npm run dev"` and `run_in_background: true`.
+4. Poll for readiness: `until duo doctor 2>&1 | grep -q "Unix
+   socket"; do sleep 2; done` (the Monitor tool also works for
+   this, but the until-loop is the simplest pattern).
+5. Verify: `duo doctor` shows the socket up + an `app version`
+   line.
+
+Only when steps 1–5 are clean do you continue with verification or
+the smoke walk. The user's only job is to walk the page or use the
+feature — not to debug whether Duo is running.
+
+This rule applies to every Sprint 8+ verification flow, every
+post-cut smoke walk, every "open Duo and check this works" moment.
+If you find yourself about to write "once you restart the dev
+environment...", stop, restart it yourself, then write the followup.
+
 ### 7b. End every UI sprint with a generated smoke-walk page
 After 7 confirms the work runs locally, hand the user-side
 verification to them via the **`smoke-walk` skill**

@@ -137,18 +137,41 @@ Do not offer options. Do not propose alternatives. The skill's
 whole point is to remove the "should I?" friction from sprint-end
 verification.
 
-> **HARD RULE — never write any variant of "to walk, run `npm run dev`"
-> in the handoff message.** That's offloading your job onto the user.
-> The skill is broken if it produces those words. If Duo isn't running
-> when you reach the handoff, you START IT YOURSELF (background `npm
-> run dev`, wait for `duo doctor` to confirm the socket is up,
-> THEN write the handoff). The user's only job is to walk the page —
-> not to debug whether Duo is running.
+> **HARD RULE — Claude restarts Duo, never the user. This applies
+> to EVERY verification flow, not just the smoke-walk handoff.**
 >
-> This rule is restated here because Claude has violated it (2026-05-02,
-> walk-3) by telling the user to relaunch — Geoff's response was the
-> obvious one ("NO NO NO -- the fucking skill should tell you this").
-> The skill DID tell you. Read this section before every handoff.
+> Never write any variant of these phrases anywhere in the
+> conversation:
+> - "to walk, run `npm run dev`"
+> - "once you restart Duo / the dev environment / the app"
+> - "after you relaunch Duo"
+> - "please restart Duo and verify"
+> - any other sentence that puts the restart on the user.
+>
+> If verification needs a fresh main-process bundle (you edited
+> `electron/`, `core/`, `shared/host-api.ts`, `shared/html-boilerplate.ts`,
+> or anything imported from `electron/main.ts`), YOU restart it —
+> with the kill→spawn→poll procedure in CLAUDE.md §7a:
+>
+> ```bash
+> ps -ef | grep "MacOS/Electron \." | grep -v grep | awk '{print $2}'
+> # → kill that PID, then:
+> npm run dev   # in background
+> # poll `duo doctor` until the socket is up, THEN proceed.
+> ```
+>
+> The user's only job in any verification flow is to *observe and
+> report* — not to debug whether Duo is running, not to relaunch it,
+> not to wait for HMR. If Duo is in a state where the change won't
+> show, that's Claude's problem to fix before handing off.
+>
+> This rule has been violated multiple times — flagged 2026-05-02
+> ("NO NO NO -- the fucking skill should tell you this") for the
+> handoff case, and again 2026-05-05 ("'once you restart the dev
+> environment' YOU restart the dev environment") for mid-sprint
+> verification. Read this section before EVERY verification handoff,
+> AND any time you're about to type the word "restart" in a sentence
+> directed at the user.
 
 > **CRITICAL — never restart Duo (or kill the dev process tree)
 > AFTER the user has started clicking through the smoke walk page.**
