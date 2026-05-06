@@ -1,0 +1,11 @@
+{
+  "$schema": "https://code.claude.com/schemas/plugin.json",
+  "name": "example-distro",
+  "version": "0.1.0",
+  "description": "Example Duo distro pack — copy this folder, rename, and fill in skills + agents + duo-extras for your organization.",
+  "author": {
+    "name": "Your Team Name",
+    "email": "team@example.com"
+  },
+  "homepage": "https://example.com/duo-distro"
+}

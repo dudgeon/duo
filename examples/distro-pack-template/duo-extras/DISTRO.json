@@ -1,0 +1,10 @@
+{
+  "$schema": "https://duo.dev/schemas/distro-v1.json",
+  "$comment": "Duo integration manifest. Identity fields (name, version, description, author) live in `.claude-plugin/plugin.json` instead.",
+  "requiresDuoVersion": ">=0.6.7 <0.8.0",
+  "openOnFirstLaunch": [],
+  "pinnedFiles": [],
+  "claudeMdSnippet": true,
+  "primingAdditions": false,
+  "externalDomainsAdditions": false
+}

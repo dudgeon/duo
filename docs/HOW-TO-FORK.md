@@ -158,10 +158,74 @@ A user (or an organization's IT) drops a pack folder into
 records each file in the provenance manifest, and (optionally) pins entries
 listed in `PACK.json § pins[]`.
 
-**Coming soon.** Stage 18b drafts the data plane; Stage 21e wires the
-runtime discovery + provenance. Closes the "I want my org's onboarding
-materials baked into every team-member's Duo without forcing them to
-clone-and-rebuild" use case.
+**Available today (Stage 21d-i, v0.6.8+).** Duo's install service
+scans `~/.claude/duo/extra-packs/` on every launch, decomposes each
+pack's plugin source into standalone destinations under
+`~/.claude/skills/<distro>-<name>/` and `~/.claude/agents/<distro>-<name>.md`,
+merges the per-distro CLAUDE.md snippet into the user's
+`~/.claude/CLAUDE.md` (with markers that coexist with Duo's own
+ENH-088 block + other distros), and writes a provenance manifest so
+the next install of the same pack name = atomic-replace. Manage with
+`duo pack list` / `duo pack uninstall <name>`.
+
+---
+
+### Layer 2.5 — Distro pack (Anthropic-canonical plugin format + Duo extras)
+
+```
+my-distro-pack/
+├── .claude-plugin/
+│   └── plugin.json                       # Claude Code plugin manifest (canonical schema)
+├── duo-extras/
+│   ├── DISTRO.json                       # Duo integration manifest (FTUX + toggles)
+│   ├── claude-md-snippet.md              # merged into ~/.claude/CLAUDE.md
+│   └── (canvases/, playgrounds/, canvas-templates/ — Duo-specific routing)
+├── skills/
+│   └── <skill-name>/SKILL.md             # → ~/.claude/skills/<distro>-<skill-name>/
+└── agents/
+    └── <agent-name>.md                   # → ~/.claude/agents/<distro>-<agent-name>.md
+```
+
+The canonical pack format that Stage 21d-i (v0.6.8+) discovers and
+installs. **Source is Anthropic-canonical** — every distro pack is
+also a valid Claude Code plugin folder; the `duo-extras/` subtree
+holds Duo-specific bits Claude Code doesn't read. **Install
+destinations are standalone-skill paths** so the skills work in
+EVERY Claude Code session on the user's machine (not just sessions
+launched from Duo). v2 (deferred) will optionally promote distro
+packs to Claude Code plugin marketplace installs for
+`/<distro>:<skill>` namespacing instead of v1's hyphen-joined form.
+
+**Authoring path.** Copy [`examples/distro-pack-template/`](../examples/distro-pack-template/)
+in the source repo, fill in the manifests, replace the example
+skills/agents with your content. The `pack-builder` skill at
+`~/.claude/skills/pack-builder/SKILL.md` walks the validation
+contract and the build paths.
+
+**Distribution paths:**
+- **Drop-in zip** — IT pushes the pack folder to
+  `~/.claude/duo/extra-packs/<distro-name>/` via Jamf / Munki /
+  manual download. Lowest packaging effort.
+- **`.pkg` installer** — bundle canonical Duo.app + your pack +
+  postinstall script; signed with your distro's Developer ID
+  Installer cert. Polished UX; adds packaging + signing work.
+- **Fork + compile** — maintain a fork with the pack baked into a
+  top-level `bundled-distros/<name>/` directory; users clone +
+  `npm run dist` get an unsigned DMG with the pack bundled.
+  Early-adopter path for companies pre-DMG-approval.
+
+**PRD:** [`docs/prd/stage-21d-distro-packs.md`](prd/stage-21d-distro-packs.md).
+
+---
+
+### Layer 2 (legacy, for reference)
+
+The pre-21d "drop-in org pack" shape called for a single `PACK.json`
+manifest at the pack root + flat `skills/` / `agents/` / `help/`
+folders. That format is superseded by Layer 2.5's canonical plugin
+shape. Existing `PACK.json`-style packs still work via Stage 18b's
+PackLoader (lesson packs + start tabs), but new distro authoring
+should use Layer 2.5.
 
 ---
 
