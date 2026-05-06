@@ -4694,7 +4694,16 @@ Filed as a discussion item, not a task. No code change unless the owner picks a 
 
 ### ENH-080: ⌘⇧A — search open tabs (working pane + browser tab strip)
 
-**Status:** 🆕 Filed · **research-doc owed before code**.
+**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8 Phase 3b, 2026-05-06). v1 ships per [docs/prd/canvas-tab-search-research.md § Option B](docs/prd/canvas-tab-search-research.md) — renderer-only React overlay. New components + wiring:
+- `renderer/components/TabSearchPalette.tsx` — overlay UI (z-50 modal centered at top 15% of viewport; backdrop-click + Esc dismiss; ↑↓ navigate; Enter pick; mousedown-not-click selection so the input doesn't blur-dismiss before pick fires). Atelier-styled (bg-surface-1, accent on active row); kind-glyph icons per tab type.
+- `scoreEntry()` — substring + prefix ranking with kind-aware boosts: exact title (1000), title prefix (500), title contains (200 - position), subtitle contains (50 - position), no match (-1). 9 vitest fixtures lock the ranking boundary.
+- `globalShortcuts.ts` § matcher — `⌘⇧A` (`e.code === 'KeyA'` to defend against keyboard-layout shifts) → `'openTabSearchPalette'` ShortcutId.
+- `useKeyboardShortcuts.ts` dispatches `'duo-open-tab-search'` window CustomEvent; `App.tsx` toggles `tabSearchOpen` state on event.
+- `App.tsx` derives `tabSearchEntries` from `fileTabs` + non-aux `browserTabs`; `onPick` dispatches `setActiveWorking` to the chosen tab.
+- 248/248 tests green; typecheck clean.
+
+**Trade-offs accepted in v1:** the overlay is a renderer-only React modal — it CAN be occluded by the WebContentsView when the active tab is a browser tab. The research doc's Option A (native child window pre-created at boot) would solve that but is queued for v2. v1 ships fast; if WCV occlusion becomes a real friction, the WCV-mute pattern (set-aux-bounds-1×1 while open) is a tiny enhancement layered on top.
+
 **Priority:** Medium (the user has many tabs open across the working pane and browser pane; opening a "where is X tab?" picker is a real gap).
 **Filed:** 2026-05-03 (idle-thoughts.md → processed in this sprint).
 

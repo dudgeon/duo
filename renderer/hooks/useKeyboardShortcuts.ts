@@ -241,6 +241,12 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'splitViewPromote':
           opts.splitViewPromote?.()
           return
+        case 'openTabSearchPalette':
+          // ENH-080 — fire a window CustomEvent that App.tsx listens
+          // for. Same indirection as sendToDuo and startComment so
+          // this hook stays free of palette state.
+          window.dispatchEvent(new CustomEvent('duo-open-tab-search'))
+          return
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
           const delta = (id === 'cycleTabsBackward' ? -1 : 1) as 1 | -1

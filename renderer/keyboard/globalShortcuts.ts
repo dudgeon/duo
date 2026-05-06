@@ -92,6 +92,10 @@ export type ShortcutId =
   // in the aux header.
   | 'splitViewToggle'
   | 'splitViewPromote'
+  // ENH-080 — ⌘⇧A opens the tab-search palette (fuzzy search across
+  // all open file tabs + browser tabs in the working strip). Renderer
+  // overlay, not a native window. Esc dismisses; arrows + Enter pick.
+  | 'openTabSearchPalette'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -215,6 +219,16 @@ export function matchGlobalShortcut(
   // the keystroke so any Chromium fallback also gets consumed.
   if (meta && !shift && !alt && !ctrl && key === 'r') {
     return { id: 'reloadBrowserTab' }
+  }
+
+  // ENH-080 — ⌘⇧A opens the tab-search palette. Fuzzy search across
+  // all working-pane tabs (file tabs + browser tabs). VS Code / Slack
+  // muscle memory — `⌘⇧A` is the quick-action palette in both. Use
+  // `e.code === 'KeyA'` to defend against keyboard layouts where
+  // shift+A might produce something other than 'a' (same gotcha as
+  // the other Option-affected chords above).
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyA') {
+    return { id: 'openTabSearchPalette' }
   }
 
   // ⌘` — cycle pane focus.

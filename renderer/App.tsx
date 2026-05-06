@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
+import { TabSearchPalette, type TabSearchEntry } from './components/TabSearchPalette'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
@@ -271,6 +272,11 @@ export function App() {
   // dialog logic in splitViewMoveTabByPath.
   const [dirtyPaths, setDirtyPaths] = useState<Set<string>>(() => new Set())
   const [activeWorking, setActiveWorking] = useState<ActiveWorking>({ kind: 'browser' })
+
+  // ENH-080 — `⌘⇧A` opens a fuzzy search palette over open tabs.
+  // The palette is a renderer overlay; we set its `open` state from
+  // the `duo-open-tab-search` window event fired by useKeyboardShortcuts.
+  const [tabSearchOpen, setTabSearchOpen] = useState<boolean>(false)
 
   // ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
   // docs/prd/canvas-split-view-research.html. v1 is single-slot
@@ -1197,6 +1203,36 @@ export function App() {
     window.addEventListener('duo-reload-active-browser', handler)
     return () => window.removeEventListener('duo-reload-active-browser', handler)
   }, [activeWorking.kind])
+
+  // ENH-080 — toggle the tab-search palette when ⌘⇧A fires.
+  useEffect(() => {
+    const handler = () => setTabSearchOpen((open) => !open)
+    window.addEventListener('duo-open-tab-search', handler)
+    return () => window.removeEventListener('duo-open-tab-search', handler)
+  }, [])
+
+  // ENH-080 — derive the search entries from open tabs. Includes both
+  // file tabs (markdown editor / canvas / image / pdf) and browser
+  // tabs that aren't currently in aux. Sorted: active-first, then by
+  // strip order. Subtitle helps when titles repeat (multiple files
+  // with the same basename).
+  const tabSearchEntries: TabSearchEntry[] = useMemo(() => {
+    const fileEntries: TabSearchEntry[] = fileTabs.map((t) => ({
+      id: `f:${t.id}`,
+      title: t.title,
+      subtitle: t.path,
+      kind: t.type
+    }))
+    const browserEntries: TabSearchEntry[] = browserTabs
+      .filter((t) => !t.inAux)
+      .map((t) => ({
+        id: `b:${t.id}`,
+        title: t.title || t.url,
+        subtitle: t.url,
+        kind: 'browser' as const
+      }))
+    return [...fileEntries, ...browserEntries]
+  }, [fileTabs, browserTabs])
 
   // Stage 19c D27 — `duo new-tab` from the CLI. The renderer is the
   // authoritative tab state, so we add the tab here and reply with
@@ -2476,6 +2512,27 @@ export function App() {
           </div>
         </div>
       </div>
+      {/* ENH-080 — tab-search palette overlay. Mounted at the top of
+          the app so its z-50 sits above the working pane and titlebar.
+          The palette dismisses on Esc / backdrop-click / pick. */}
+      <TabSearchPalette
+        open={tabSearchOpen}
+        entries={tabSearchEntries}
+        onPick={(entry) => {
+          setTabSearchOpen(false)
+          if (entry.id.startsWith('f:')) {
+            setActiveWorking({ kind: 'file', id: entry.id.slice(2) })
+          } else if (entry.id.startsWith('b:')) {
+            const numericId = parseInt(entry.id.slice(2), 10)
+            if (Number.isFinite(numericId)) {
+              void window.electron.browser.switchTab(numericId)
+              setActiveWorking({ kind: 'browser' })
+            }
+          }
+          setFocusedColumn('working')
+        }}
+        onDismiss={() => setTabSearchOpen(false)}
+      />
     </div>
   )
 }
