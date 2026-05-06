@@ -207,7 +207,39 @@ from a Claude Code session under `~/.claude/skills/<distro>/`, and
 new pack version atomic-replaces. `duo pack uninstall <distro>`
 cleanly removes everything.
 
-### Phase 3 — ENH-080: ⌘⇧A tab-search palette
+### Phase 3a — ENH-096: Obsidian-vault-friendly editor
+
+**Added 2026-05-06** after research pass on what would work / break if a user opened their Obsidian vault in Duo. Full research doc at [docs/prd/obsidian-vault-research.md](../prd/obsidian-vault-research.md); concise PRD body in [tasks.md § ENH-096](../../tasks.md).
+
+**Why now:** Obsidian is the most-deployed personal-knowledge-management tool in Duo's audience adjacency. The Stage 11 + Sprint 6 work already gives us a sound markdown round-trip foundation (frontmatter pass-through, external-write reconciliation, dotfile-hidden navigator). What's missing is the visual + invocation layer — wikilinks rendered as text, no vault-wide quick switcher, sidecars without user-facing docs. ENH-096 closes the gap with one focused enhancement that pairs with already-in-sprint items (ENH-080 + FOLLOWUP-009).
+
+**Scope:**
+- **Tier A defensive baseline (XS, all four):**
+  - A1: faq.html + what-duo-does.html doc explaining `<note>.md.duo.json` sidecar convention; recommend `*.duo.json` in `.gitignore` for git-tracked vaults.
+  - A3: vitest fixtures for Obsidian-style YAML round-trip (folds into FOLLOWUP-009).
+  - A4: `.obsidian/` ignore rule on Duo's file watcher (separate from navigator hide).
+  - A5: smoke-walk verification that `[[…]]` round-trips through tiptap-markdown cleanly.
+- **Tier B distinctive features (M each, share a fuzzy-palette base):**
+  - B1: wikilink rendering as Atelier-styled clickable spans; `cmd+click` opens linked file.
+  - B2: wikilink autocomplete on `[[` (fuzzy vault note search; Tab/Enter insert).
+  - B4: `⌘O` vault quick switcher (fuzzy file search across vault; distinct from ENH-080 tab search).
+
+**Pairs with:**
+- ENH-080 (tab-search palette): same fuzzy-palette primitive; B2 + B4 reuse the base.
+- FOLLOWUP-009 (testing-library/react infra): A3 fixtures land in the new test directory.
+- Stage 21d (distro packs): future "obsidian-companion" distro pack ships Obsidian-tuned skills + templates after the editor affordances land.
+
+**Deferred to Sprint 9+:** B3 inline tag rendering, B5 full-text vault search panel, all of Tier C (backlinks panel, outline panel, daily notes shortcut, callout extension, math/mermaid rendering, frontmatter properties panel — Stage 11 D15). Tier D (graph view, `.canvas` files, reading mode, embed rendering, block references, plugin/theme compatibility) is indefinitely deferred.
+
+**Open questions to settle before coding** (from research doc § Open questions):
+1. Vault root detection algorithm (walk up to `.obsidian/` vs. navigator CWD vs. persisted mark).
+2. Wikilink resolution semantics (Obsidian's name-first vault-wide vs. Duo's relative-path).
+3. Sidecar location for vaults (same-folder vs. centralized in `.obsidian/duo-comments/`).
+4. Hotkey conflict policy (`⌘O`: Obsidian quick-switcher vs. Duo's existing chord).
+
+**Acceptance:** the 8-point checklist in [tasks.md § ENH-096](../../tasks.md).
+
+### Phase 3b — ENH-080: ⌘⇧A tab-search palette
 
 Research doc landed in v0.6.5
 ([docs/prd/canvas-tab-search-research.md](../prd/canvas-tab-search-research.md)).

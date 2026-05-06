@@ -5995,6 +5995,61 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ---
 
+### ENH-096: Obsidian-vault-friendly editor (wikilinks + vault quick switcher + sidecar convention)
+
+**Status:** 🆕 Filed (Sprint 8 candidate, 2026-05-06).
+**Priority:** Medium — opens Duo to the Obsidian audience (a non-trivial slice of would-be Duo users maintain markdown vaults in Obsidian today). Defensive baseline (Tier A) is XS effort and prevents trust erosion; rendering-layer affordances (Tier B subset) ship the most-noticed gaps.
+**Filed:** 2026-05-06.
+
+**Background.** [Research doc at `docs/prd/obsidian-vault-research.md`](prd/obsidian-vault-research.md). The basic round-trip already works thanks to Stage 11 frontmatter pass-through, BUG-085 external-write reconciliation, and dotfile-hidden navigator. What breaks is the visual + invocation layer: wikilinks render as plain text, no vault-wide quick switcher, sidecars accumulate next to notes without user-facing documentation.
+
+**Scope (Sprint 8 phase boundary):**
+
+- **Tier A — defensive baseline.**
+  - **A1** Sidecar convention doc — faq.html + what-duo-does.html addition explaining `<note>.md.duo.json` sidecars; recommend `*.duo.json` in `.gitignore` for git-tracked vaults.
+  - **A3** Frontmatter round-trip vitest fixtures for Obsidian-style YAML (`tags: [...]`, `aliases: [...]`, `cssclasses: [...]`, custom properties); folds into FOLLOWUP-009's `@testing-library/react` infra.
+  - **A4** File watcher ignore rule for `.obsidian/` (separate from navigator hide).
+  - **A5** Wikilink no-op verification — confirm tiptap-markdown round-trips `[[…]]` cleanly; smoke walk item.
+- **Tier B subset — distinctive Obsidian features.**
+  - **B1** Wikilink rendering — custom TipTap node/mark recognizing `[[Page Name]]`, rendered as Atelier-styled clickable inline span; `cmd+click` opens the linked file from the resolved vault root.
+  - **B2** Wikilink autocomplete on `[[` — fuzzy-search vault notes; Tab/Enter to insert; Esc dismisses. Shares a base palette implementation with ENH-080 + B4.
+  - **B4** Vault quick switcher (`⌘O`) — fuzzy file search across the entire vault root; distinct from ENH-080's open-tab search; shares the palette base.
+
+**Deferred to follow-up (filed separately if/when sprint scope warrants):**
+
+- Tier B3 (inline tag rendering as clickable pills)
+- Tier B5 (full-text vault search panel `⌘⇧F`)
+- Tier C — backlinks panel, outline panel, daily notes shortcut, callout TipTap extension, properties panel (Stage 11 D15 already filed), math (KaTeX), mermaid
+- Tier D — graph view, `.canvas` file support, reading-mode toggle, embed rendering, block references, plugin compatibility, theme compatibility (these are out of scope or indefinitely deferred)
+
+**Pairs naturally with already-in-sprint:**
+
+- ENH-080 (tab-search palette): same fuzzy-palette primitive; B2 + B4 reuse the base.
+- FOLLOWUP-009 (testing-library/react infra): A3 fixtures land in the new test directory.
+- Stage 21d (distro packs): an "obsidian-companion" distro pack (future sprint) ships Obsidian-tuned skills + canvas templates leveraging the editor affordances landing here.
+
+**Open questions surfaced in the research doc (to settle before code):**
+
+1. Vault root detection — walk up to `.obsidian/`? Use navigator CWD? Persisted "this is a vault root" mark?
+2. Obsidian's "shortest path when possible" wikilink resolution — match it (name-first across vault, ambiguity warning) or use relative-path resolution?
+3. Sidecar location for vaults — same folder as note (current) or centralized under `.obsidian/duo-comments/`?
+4. Hotkey conflict policy — Obsidian's `⌘O` is the most likely contention; Duo's `⌘O` could be repurposed for vault quick switcher when a vault is detected.
+
+**Acceptance (the smoke-walkable shape):**
+
+1. Open an Obsidian vault folder via Duo's navigator.
+2. Click any `.md` note — frontmatter intact (verified by save + reload).
+3. `[[Other Note]]` wikilinks render as styled clickable spans; `cmd+click` opens the linked note in a new tab.
+4. Typing `[[` opens autocomplete; Enter inserts.
+5. `⌘O` opens vault-wide quick switcher; type to filter; Enter opens.
+6. `.obsidian/` invisible in navigator (already-shipped).
+7. Edit + save in Duo. Switch to Obsidian. Obsidian sees the changes. No frontmatter loss.
+8. Smoke walk green; FOLLOWUP-009 tests cover frontmatter round-trip.
+
+**Cross-ref:** `docs/prd/obsidian-vault-research.md` for the full surface map.
+
+---
+
 ### ENH-095: Aux header — single ✕ button replaces ⇤ + ✕ pair
 
 **Status:** ✅ **LANDED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). The aux header (file-aux in [WorkingPane.tsx § AuxHeader](renderer/components/WorkingPane.tsx) and browser-aux in [AuxBrowserSlot.tsx](renderer/components/AuxBrowserSlot.tsx)) now renders only the ✕ button. Tooltip / aria-label changed to "Move back to main". Both `onAuxClose` and `onAuxPromote` props in App.tsx now point at `splitViewPromote` so closing the split also promotes the aux'd content back to the main strip — the previous separate ⇤ button was redundant. Right-click "Move back to main" menu entry remains as a synonym in the file-aux header.
