@@ -26,7 +26,10 @@
     action to fire. See skill/canvas-authoring.md § "The contract".
   -->
 
-  <!-- Mount read-only by default; user can flip to edit via toolbar. -->
+  <!-- Playground modality: defaults to browser pane (scripts run, buttons fire). -->
+  <meta name="duo-open-in" content="browser">
+  <!-- Soft default for the canvas-mode override: when opened in canvas to edit
+       source, mount read-only first; user can flip to edit via toolbar. -->
   <meta name="duo-default-editable" content="false">
 
   <style>

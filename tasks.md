@@ -5995,6 +5995,47 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ---
 
+### ENH-097: Playground/canvas modality lock — `duo edit --canvas` override + right-click "Edit in canvas"
+
+**Status:** 🆕 Filed (Sprint 8 candidate, 2026-05-06).
+**Priority:** Medium — codifies a vocabulary lock owner identified as a confusion source. Doc-side changes already committed; code-side changes are the override path that gives users a way to edit playground source after the modality default routes everything to browser mode.
+**Filed:** 2026-05-06.
+
+**Background.** Owner clarification 2026-05-06: a playground opens in the browser pane (interactive — scripts run, buttons fire). A canvas (HTML tab in canvas iframe) is editable but inert (scripts blocked, buttons render but click as cursor placement). The user can EDIT a playground by opening the same file in canvas mode — that's the override. Codifying both in docs and in code reduces the long-standing confusion where playgrounds without `duo-open-in: browser` opened in canvas mode and the data-duo-action runtime parent-side-delegation was faking interactivity.
+
+**Doc changes already committed (this turn):**
+
+- [`skill/references/vocabulary.md`](skill/references/vocabulary.md) — modality lock section; "browser mode" / "canvas mode" / playground-defaults-to-browser semantics.
+- [`skill/make-playground.md`](skill/make-playground.md) — modality lock callout in the header; worked-example template adds `<meta name="duo-open-in" content="browser">`; "Browser-pane playgrounds" section reframed from "for script-needing playgrounds" to "the default for all playgrounds."
+- [`CLAUDE.md`](CLAUDE.md) — glossary `kind: 'page'` / `kind: 'browser'` row split; modality-lock paragraph documenting the override paths.
+- All 5 canvas-action templates at `skill/examples/canvas-templates/` (button-card, dashboard, form-input, lesson-scaffold, paint-target) — added `<meta name="duo-open-in" content="browser">` so they default to browser mode (where their `data-duo-action` buttons can actually fire).
+- All 9 shipped lesson canvases (`packs/intro-to-duo/canvases/welcome.html` + 8 in `packs/claude-code-basics/canvases/`) — same meta tag added so the existing first-launch lesson packs migrate to the new modality lock without behavior surprise. Canvas-iframe parent-side click delegation still works via ENH-094, so the lessons are double-covered during the transition.
+
+**Code changes (this sprint, scope of ENH-097 v1):**
+
+1. **`duo edit --canvas <path>` CLI override.** Today `duo edit` and `duo open` both route through `openFileSmart` which honors `<meta duo-open-in>`. Add a `--canvas` flag to `duo edit` (and `duo view` for symmetry) that forces canvas-iframe mode regardless of the file's declared default. Routing precedence: explicit flag > meta tag > kind-default. Touch points:
+   - [cli/duo.ts](cli/duo.ts) — flag parser.
+   - [shared/types.ts](shared/types.ts) — extend the IPC for `nav.edit` / `nav.view` to carry an override.
+   - [electron/main.ts § sendEdit / sendView](electron/main.ts) — propagate the override through `IPC.NAV_EDIT` / `IPC.NAV_VIEW`.
+   - [renderer/App.tsx § openFileSmart](renderer/App.tsx) — when override === 'canvas', skip the meta-tag branch and route to the file editor (`openFile`) directly.
+
+2. **Right-click "Edit in canvas" on `file://` browser tabs.** When the active browser tab's URL starts with `file://`, the right-click menu adds an "Edit in canvas" entry. Click → calls the same canvas override (open the file in canvas mode as a new working-pane tab). Touch points:
+   - [renderer/components/BrowserPane.tsx](renderer/components/BrowserPane.tsx) (or wherever browser-pane right-click is wired) — menu item gated on `tab.url.startsWith('file://')`.
+   - Reuses `openFileSmart(path, title, { mode: 'canvas' })` from item 1.
+
+3. **Symmetric "Open in browser" for canvas tabs that have a file path.** When the active working tab is `kind: 'page'` and its source file has `duo-open-in: browser`, surface a right-click "Open in browser" entry that closes the canvas tab + opens the same file in the browser pane. Lower priority than items 1 + 2; can defer if scope tight.
+
+**Acceptance:**
+1. `duo edit --canvas ~/.claude/duo/help/faq.html` opens the FAQ in canvas mode (editable, scripts blocked) even though the file declares `duo-open-in: browser`.
+2. With a smoke-walk page open in browser pane, right-click → "Edit in canvas" opens the same file as a `kind: 'page'` working tab; buttons render but clicks place cursors.
+3. Existing `duo open` / `duo edit` (without flag) still routes per `duo-open-in` meta — no regression.
+4. The 9 shipped lesson canvases + 5 canvas templates open in browser mode by default after the doc commits land; existing canvas-iframe parent-delegation paths still work as a fallback for any playground without the meta.
+5. `make-playground` skill scaffolds new playgrounds with the meta tag in the template head.
+
+**Cross-ref:** [`skill/references/vocabulary.md`](skill/references/vocabulary.md) modality lock; ENH-094 (browser-pane action runtime that this lock leans on); ENH-052 (canvas → page rename that established the kind names this clarifies).
+
+---
+
 ### ENH-096: Obsidian-vault-friendly editor (wikilinks + vault quick switcher + sidecar convention)
 
 **Status:** 🆕 Filed (Sprint 8 candidate, 2026-05-06).

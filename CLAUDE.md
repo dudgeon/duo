@@ -127,20 +127,26 @@ tab.
 
 | User says | Internal name |
 |---|---|
-| **the canvas** | `WorkingPane` / `activeWorking` |
+| **the canvas** (the slot) | `WorkingPane` / `activeWorking` |
+| **canvas mode** (HTML in canvas iframe — editable, scripts blocked, buttons inert) | `WorkingTab` with `kind: 'page'` (component: `PageTab` in `renderer/components/Page/`) |
+| **browser mode** (HTML in browser pane — scripts run, buttons fire) | `WorkingTab` with `kind: 'browser'` rendered via `BrowserManager` WebContentsView |
 | **a tab** | `WorkingTab` (kinds: `editor`, `page`, `browser`, `image`, `pdf`, ...) |
-| **a page** | `WorkingTab` with `kind: 'page'` (component: `PageTab` in `renderer/components/Page/`) |
-| **a playground** | Same `WorkingTab.kind === 'page'` — no kind-level split. Action runtime: `playgroundActions.ts`; type: `PlaygroundAction` (in `shared/host-api.ts`) |
-| **a lesson** | Stage 28 lesson packs at `packs/<name>/{canvases/, lesson-skill/}` (pack subdir name kept as `canvases/` for backwards-compat with installed packs) |
+| **a page** | HTML tab; **defaults to canvas mode** (`kind: 'page'`). Static or read-and-edit content. |
+| **a playground** | HTML tab; **defaults to browser mode** (`kind: 'browser'`) — declared via `<meta name="duo-open-in" content="browser">` in the file's `<head>`. Action runtime: `playgroundActions.ts`; browser-pane CDP injection wired in ENH-094. |
+| **a lesson** | Stage 28 lesson pack at `packs/<name>/{canvases/, lesson-skill/}`. Each canvas in the pack ships with `duo-open-in: browser` (modality lock — ENH-097). |
 | **the navigator** | `FileTree` / `useNavigator` |
 | **the terminal** | `TerminalPane` / `tabs[]` |
 | **a terminal tab** | `TabSession` |
 
-**The page/playground distinction is content-level, not kind-level.**
-Both are the same `WorkingTab` kind (`'page'`). What makes a page a
-playground is whether it has interactivity baked in. The user-facing
-guidance ("when to reach for which") lives in
-[`skill/references/vocabulary.md`](skill/references/vocabulary.md).
+**Modality lock — playground = browser, canvas mode = inert edit (ENH-097, 2026-05-06).**
+
+A playground is an HTML file that opens in browser mode by default — declared via `<meta name="duo-open-in" content="browser">`. Scripts run, buttons fire, the user **interacts** with the running surface. Canvas mode is the override for **editing** the same file's source — buttons render but clicks place a cursor (no `allow-scripts` in the canvas iframe).
+
+The override surfaces:
+- CLI: `duo edit --canvas <path>` forces canvas mode regardless of the file's `duo-open-in` declaration.
+- UI: right-click a `file://` browser tab → "Edit in canvas."
+
+User-facing guidance lives in [`skill/references/vocabulary.md`](skill/references/vocabulary.md). Pre-ENH-097, the page/playground split was content-only — both rendered as `kind: 'page'` (canvas iframe) with parent-side click delegation faking interactivity. Post-ENH-097, the split is **modality-level**: page → canvas iframe, playground → browser pane. The same source file can flip between modes via the meta declaration + override.
 
 ## Build commands
 

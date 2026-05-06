@@ -207,6 +207,21 @@ from a Claude Code session under `~/.claude/skills/<distro>/`, and
 new pack version atomic-replaces. `duo pack uninstall <distro>`
 cleanly removes everything.
 
+### Phase 3 prelude — ENH-097: Playground/canvas modality lock
+
+**Added 2026-05-06** after owner clarification on the playground vs canvas mental model. Doc side already committed (vocabulary.md, make-playground.md, CLAUDE.md glossary, 5 canvas-action templates + 9 shipped lesson canvases all carry `<meta name="duo-open-in" content="browser">` now). Code side ships in this sprint as ENH-097.
+
+**The lock (codified):**
+- **Playground** = HTML tab opening in browser pane by default (scripts run, buttons fire). Declared via `<meta name="duo-open-in" content="browser">` in `<head>` — mandatory for playgrounds.
+- **Canvas mode** = same file rendered in the canvas iframe — editable, scripts blocked, buttons render but click as cursor placement. The override path for editing a playground's source.
+
+**Sprint 8 code scope:**
+1. `duo edit --canvas <path>` CLI flag — forces canvas-mode mount regardless of `duo-open-in` declaration. Symmetric `--canvas` on `duo view`. Routing precedence: explicit flag > meta tag > kind default.
+2. Right-click "Edit in canvas" entry on `file://` browser tabs — UI surface for the same override.
+3. (Optional) Symmetric "Open in browser" right-click on canvas-mode tabs whose source declares `duo-open-in: browser` — defer if scope tight.
+
+Full PRD body in [tasks.md § ENH-097](../../tasks.md). Pairs with ENH-095 (single-✕ aux header) and the vocabulary surface — both clean up the long-standing canvas-vs-browser overloading.
+
 ### Phase 3a — ENH-096: Obsidian-vault-friendly editor
 
 **Added 2026-05-06** after research pass on what would work / break if a user opened their Obsidian vault in Duo. Full research doc at [docs/prd/obsidian-vault-research.md](../prd/obsidian-vault-research.md); concise PRD body in [tasks.md § ENH-096](../../tasks.md).

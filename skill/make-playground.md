@@ -5,15 +5,25 @@ description: Add interactivity to a Duo page — buttons that drive Duo, form in
 
 # Authoring playgrounds for Duo
 
-> **Stage 27 — `skill/make-playground.md`.** A **playground** is a
-> page WITH interactivity: buttons that drive Duo via canvas-action
+> **Stage 27 — `skill/make-playground.md`.** A **playground** is an
+> HTML tab with interactivity: buttons that drive Duo via playground-action
 > verbs, form inputs piped through `data-payload-from`, events
 > emitted via `duo:event`. The interactive tier on top of `make-page`.
 >
+> **Modality lock — playgrounds default to BROWSER mode** (added
+> 2026-05-06, ENH-097). A playground HTML file MUST declare
+> `<meta name="duo-open-in" content="browser">` in `<head>`. The
+> file opens in Duo's browser pane; scripts run; buttons fire.
+> The user **interacts** with the running surface — they don't edit
+> source while it's running. Editing the source = open the same file
+> in canvas mode (override). See [`references/vocabulary.md`](references/vocabulary.md).
+>
 > **Vocabulary lock** (see [`references/vocabulary.md`](references/vocabulary.md)):
-> - **canvas** — the right pane (slot, type-agnostic)
-> - **page** — basic HTML in the canvas (no interactivity) — see `make-page`
-> - **playground** — page WITH interactivity — THIS skill
+> - **canvas (the slot)** — the right pane (type-agnostic)
+> - **canvas mode** — HTML tab in the canvas iframe; editable, scripts blocked, buttons inert
+> - **browser mode** — HTML tab in the browser pane; scripts run, buttons fire
+> - **page** — HTML tab, defaults to canvas mode (read-only or editable doc) — see `make-page`
+> - **playground** — HTML tab with interactivity, defaults to **browser mode** — THIS skill
 > - **lesson** — playground + paired guide skill — see § Lessons specifically
 > - **start tab** — a playground that auto-opens on first launch
 >
@@ -26,7 +36,7 @@ description: Add interactivity to a Duo page — buttons that drive Duo, form in
 > **Read `make-page` first** if you're building from scratch. This
 > skill assumes you have the page basics (sandboxing, paint regions,
 > stable IDs, routing meta tags) — those are documented there.
-> Playground = page + interactivity.
+> Playground = page + interactivity + **browser-mode default**.
 
 ---
 
@@ -269,6 +279,10 @@ demonstrates a complete two-step tutorial:
 <!DOCTYPE html>
 <html>
 <head>
+  <!-- Required for playgrounds — opens in browser pane so scripts run + buttons fire. -->
+  <meta name="duo-open-in" content="browser">
+  <!-- Soft default for the canvas-mode override path: when the user opens this
+       file in canvas mode to edit, the canvas mounts read-only by default. -->
   <meta name="duo-default-editable" content="false">
   <style>/* Atelier palette tokens, padded layout, etc. */</style>
 </head>
@@ -314,13 +328,21 @@ event-loop, see the lesson-template at
 
 ---
 
-## Browser-pane playgrounds (post-ENH-094 — Sprint 5)
+## Browser-mode is the default — all playgrounds open in the browser pane
 
-Some playgrounds need `<script>` execution that canvas iframes don't allow (`allow-scripts` is OFF — see `make-page` § Sandboxing). The smoke walk is the canonical case: it needs inline JS for state save/restore, live tally, format composition. These pages live in the **browser pane** instead, opted in via `<meta name="duo-open-in" content="browser">` in the page `<head>`.
+**Modality lock (2026-05-06, ENH-097).** All playgrounds run in browser mode. The `<meta name="duo-open-in" content="browser">` declaration is **mandatory** on every playground HTML file. The user opens the file via `duo open <path>` (or by clicking it in the navigator) and the file lands in the browser pane as a real Chromium tab — scripts run, buttons fire their `data-duo-action` handlers, form inputs are live, events stream to Claude via `duo events --follow`.
 
-**As of ENH-094 (v0.6.6 / Sprint 5)**, browser-pane pages get the same `data-duo-action` runtime that canvas-iframe pages have always had. The 9 verbs all work identically. Trust posture: `file://` pages a user/agent intentionally opens are trusted; `http(s)://` URLs don't get the runtime listener installed at all.
+The previous ambiguous era — where playgrounds without the meta tag opened in the canvas iframe and relied on parent-side click delegation to fake interactivity — is over. A playground without the meta tag is a misconfigured playground; the canvas iframe blocks scripts (`allow-scripts` is off; see `make-page` § Sandboxing) and the user can't fully interact with the surface there.
 
-**The escape hatch** that makes browser-pane pages especially flexible: the runtime exposes `window.duoPlaygroundAction(jsonBundle)` directly. Inline JS can call it without going through a click. Bundle shape:
+**Editing a playground's source — the canvas-mode override.** When the user wants to mutate a playground's HTML source, they open the same file in canvas mode. The `<meta duo-open-in="browser">` defaults the file to browser, so canvas mode requires an explicit override:
+- CLI: `duo edit --canvas <path>` (forces canvas mount; the `--canvas` flag overrides the meta-declared default).
+- UI: right-click a browser tab whose URL is `file://…` → "Edit in canvas." Same effect.
+
+In canvas mode, the buttons render but **clicks place a cursor instead of firing handlers** (no `allow-scripts` in the iframe; the parent click delegation is gated to `kind: 'page'` tabs that came from the canvas-default path). The user edits the HTML source via contentEditable + markdown shortcuts. Save reflects in the running browser tab if it's still open (the file watcher reloads the browser tab — same path as BUG-085 reconciliation for markdown).
+
+### The escape hatch — `window.duoPlaygroundAction`
+
+The browser-pane runtime (ENH-094, Sprint 5) exposes `window.duoPlaygroundAction(jsonBundle)` directly on the page's window. Inline JS can call it without going through a click. Bundle shape:
 
 ```js
 window.duoPlaygroundAction(JSON.stringify({
@@ -341,18 +363,11 @@ This unlocks the **live-event pattern** for any user interaction: the page's exi
 
 **Don't over-decorate.** The point is that Claude is subscribed to `duo events --follow` and reacts to events as they fire. **Don't fire an event on every keystroke** — that floods the bus and races with itself. Fire on `change` for radios/selects, on `blur` or debounced `input` for textareas, on explicit submit for forms.
 
-**Defensive guard.** Always check `typeof window.duoPlaygroundAction === 'function'` before calling — the function is undefined when the page is opened outside Duo (plain Chrome, etc.) or in older Duo builds. Fall through to whatever fallback your worksheet provides (clipboard copy, `window.duoSendResult`, etc.).
+**Defensive guard.** Always check `typeof window.duoPlaygroundAction === 'function'` before calling — the function is undefined when the page is opened outside Duo (plain Chrome, etc.) or in older Duo builds. Fall through to whatever fallback your playground provides (clipboard copy, `window.duoSendResult`, etc.).
 
-**Canvas-iframe vs browser-pane — when to choose which:**
+### Reference implementations
 
-| Need | Choose |
-|---|---|
-| Read-only content with click handlers (open file, focus terminal) | **Canvas iframe** (no scripts; runtime handles all action verbs) |
-| Live tally / state persistence / composition / clipboard | **Browser pane** (`<meta name="duo-open-in" content="browser">`) |
-| Lesson step that uses paint regions and `duo html update` | **Canvas iframe** (paint regions are a canvas feature) |
-| Worksheet that captures user answers and emits events live | **Browser pane** (inline JS + `window.duoPlaygroundAction`) |
-
-The smoke-walk page (`.claude/skills/smoke-walk/`) and the worksheet primitive (`.claude/skills/worksheet/`) are the reference implementations of the browser-pane pattern.
+The smoke-walk page (`.claude/skills/smoke-walk/`) and the worksheet primitive (`.claude/skills/worksheet/`) are the reference implementations. Both ship `<meta name="duo-open-in" content="browser">` and use the inline-JS escape hatch for live event emission.
 
 ---
 
