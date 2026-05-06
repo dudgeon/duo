@@ -22,6 +22,7 @@ import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
+import { normalizeWikilinkName } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
@@ -241,6 +242,7 @@ async function resolveWikilinkInVault(
     // Fall through to name-search if no path-form match.
   }
   // Name-first BFS walk. Skip dotdirs (`.obsidian`, `.git`, etc.).
+  const normalizedTarget = normalizeWikilinkName(target)
   const queue: string[] = [vaultRoot]
   let scanned = 0
   while (queue.length > 0 && scanned < 2000) {
@@ -258,10 +260,13 @@ async function resolveWikilinkInVault(
         queue.push(entry.path)
         continue
       }
-      // Match against basename without extension.
+      // Match against basename without extension. ENH-096 walk-1
+      // fix — normalize both sides (lowercase + treat -/_ as space)
+      // before comparing. Pre-fix: case-sensitive exact match meant
+      // `[[Other Note]]` silently failed to resolve `other-note.md`.
       const dot = entry.name.lastIndexOf('.')
       const stem = dot > 0 ? entry.name.slice(0, dot) : entry.name
-      if (stem === target) {
+      if (normalizeWikilinkName(stem) === normalizedTarget) {
         return entry.path
       }
     }
