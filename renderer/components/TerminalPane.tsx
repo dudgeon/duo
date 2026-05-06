@@ -313,6 +313,31 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     // User keystrokes → PTY
     term.onData((data) => window.electron.pty.write(tab.id, data))
 
+    // BUG-094 — strip TRAILING newlines from clipboard pastes. A copy
+    // from chat / a doc / most sources ships with a trailing `\n`,
+    // which the shell receives as Enter — the pasted command auto-
+    // executes before the user can read or edit it. Capture-phase
+    // listener on host fires before xterm's textarea-bound handler,
+    // so we get first crack at the clipboard event; we drop only the
+    // run of trailing newlines (matching Terminal.app's default paste
+    // behavior) and hand the cleaned string to `term.paste()` (which
+    // still wraps in bracketed-paste markers if the shell enabled
+    // `?2004h`). Internal `\n`s are PRESERVED so legitimate multi-
+    // line paste keeps working: Claude Code multi-line prompts, here-
+    // docs, REPL blocks, copy-pasted scripts. Pastes without trailing
+    // newlines fast-path to xterm's default — no behavior change for
+    // the common single-line case.
+    const onHostPaste = (e: ClipboardEvent) => {
+      const data = e.clipboardData?.getData('text/plain')
+      if (data == null) return
+      if (!/[\r\n]+$/.test(data)) return
+      e.preventDefault()
+      e.stopPropagation()
+      const cleaned = data.replace(/[\r\n]+$/, '')
+      if (cleaned) term.paste(cleaned)
+    }
+    host.addEventListener('paste', onHostPaste, true)
+
     // Start the PTY
     window.electron.pty.create(tab.id, undefined, tab.cwd)
 
@@ -320,6 +345,7 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
 
     return () => {
       cleanupRef.current.forEach(fn => fn())
+      host.removeEventListener('paste', onHostPaste, true)
       window.electron.pty.kill(tab.id)
       term.dispose()
       termRef.current = null

@@ -5149,7 +5149,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-087: Markdown editor — clicking a rail thread beyond #1 doesn't activate the corresponding anchor's stronger background
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (MISSING-001 follow-up, surfaced in smoke walk)
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). Root cause was BUG-088/090's duplicate-id-on-clone bug: when the user pressed Enter to make a second / third bullet, contentEditable cloned the source `<li>` and the new sibling kept the parent's `data-duo-id`. Three bullets sharing one id meant `[data-duo-id="X"]` selected MULTIPLE elements; setting `data-duo-comment-active` walked all matches but the second match's repaint visually got lost behind the first. Once `installAutoStampIds` re-stamps duplicates on insertion ([idInjector.ts](renderer/components/Page/idInjector.ts)), every bullet gets a unique id and the active-attribute lands on exactly one element. Verified live 2026-05-05: rail-click on a comment anchored to the middle bullet activates only the middle bullet's strong-tint emphasis.
 **Priority:** **Medium-High** (visual association partly broken; the rail-side active state still works but the body-side strong-tint transfer fails for everything past thread #1).
 **Filed:** 2026-05-04 (smoke walk).
 
@@ -5168,7 +5168,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-088: Canvas — anchor decoration missing on bullet `<li>` text
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (BUG-083 smoke-walk follow-up)
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). Root cause was NOT the originally hypothesized "injectIds doesn't stamp `<li>`" — `<li>` was already in the stamped-tag walk. The actual bug: when contentEditable splits a list item on Enter, the new sibling `<li>` is created as a clone of the source and inherits its `data-duo-id`. The MutationObserver in `installAutoStampIds` saw the new node had an "existing" id and skipped it, so all sibling bullets ended up sharing one id. Comments on any of them anchored to the same element via `[data-duo-id="X"]`. **Fix.** [idInjector.ts § stampElement](renderer/components/Page/idInjector.ts) now detects duplicates: if any other element in the body already owns the id, the new element is a clone and gets a fresh ULID. First-in-document keeps its id (so existing comments still resolve); later siblings get unique ids. Verified live 2026-05-05: typed three bullets in a fresh canvas, file on disk shows 3 distinct `data-duo-id`s on the `<li>`s; commenting on the middle bullet decorates only the middle bullet.
 **Priority:** **Medium-High** (canvas comment scope appears block-only; bullet items + nested children are silent commenters).
 **Filed:** 2026-05-04 (smoke walk).
 
@@ -5200,7 +5200,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-090: Canvas — comments on non-adjacent text get concatenated into a single rail thread
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (BUG-083 smoke-walk follow-up)
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). Same root cause as BUG-088: contentEditable cloned `<li>`s shared one `data-duo-id`, so `buildThreads`'s anchor-key bucketing collapsed multiple comments under a single thread. With the duplicate-detect fix in [idInjector.ts](renderer/components/Page/idInjector.ts), each bullet has a unique id, comments anchor on distinct elements, and threads stay distinct. Verified live 2026-05-05.
 **Priority:** **High** (data-correctness — comments meant for different content show as one thread; user can't tell what each comment refers to without expanding the rail card).
 **Filed:** 2026-05-04 (smoke walk).
 
@@ -5227,6 +5227,136 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 **Fix.** Add the entry to WorkingTabStrip's right-click menu, mirroring FileTree's wiring.
 
 **Cross-ref:** Sprint 3 Phase 3b split-view feature.
+
+---
+
+### BUG-092: "Move to Split View" promotes scripted browser pages to a script-blocked canvas
+
+**Status:** ✅ **FIXED in v0.6.7 (Sprint 7 Phase 3c, 2026-05-04 evening session).** Browser tabs can now live natively in the Split View aux slot via a new `auxBrowserTab` renderer state + `BrowserManager.moveTabToAux/releaseAuxTab` + new `<AuxBrowserSlot>` component that mirrors `BrowserRenderer`'s bounds-push pattern over a separate `BROWSER_AUX_BOUNDS` IPC channel. The pinned tab stays a real Chromium tab, NOT a canvas iframe — scripts run normally, Copy buttons work, worksheet / smoke-walk / dashboard pages function end-to-end in split view. CLI parity via `duo split-view open-browser <id>` (id from `duo tab` listing). File-aux and browser-aux are mutually exclusive (pinning one releases the other). Right-click "Move to Split View" on a browser tab in the WorkingTabStrip routes through the new browser-aware path automatically.
+**Priority:** **High** for the workflow.
+**Filed:** 2026-05-04 (rev3 walk PROCEDURAL-SPLITVIEW-READONLY FAIL — "Copy results button disabled").
+
+**Symptom.** User has a worksheet / smoke-walk / dashboard page open in the browser pane (e.g. via `duo open <path>`). Right-clicks the tab → "Move to Split View." Page promotes to aux as a file tab and renders in the canvas. Page is read-only (good — `<meta name="duo-editable" content="false">` works). BUT: every interactive button (Copy results, Send to Claude, Clear saved, mark-all, per-step Copy buttons, the live-tally script, localStorage persistence, ENH-094 `duoPlaygroundAction` event emission) is inert. Worksheet is unusable in the canvas surface.
+
+**Root cause.** Stage 17a's iframe sandbox is `allow-same-origin allow-popups allow-forms` — explicitly NO `allow-scripts` (PRD H4/H8). All worksheet behavior lives in one inline `<script>` block (see `.claude/skills/worksheet/generate.mjs` lines 649–963); none of it runs in a sandboxed iframe. Buttons render and look enabled, but no event handlers were ever attached. `<meta name="duo-editable" content="false">` (added in [99826fa](https://github.com/dudgeon/duo/commit/99826fa)) was the wrong-layer fix — it stopped contentEditable from swallowing clicks as cursor placement, but didn't restore script execution. BUG-091's right-click lift was structurally over-broad: file-URL browser tabs CAN be promoted to aux, but the resulting canvas mount is a meaningfully different surface than the source browser tab.
+
+**Fix (real — Phase 3c, queued for next sprint).** Browser-tabs-in-aux. Aux pane learns to host a `WorkingTab` of `kind: 'browser'` rendered through BrowserManager rather than promoting to file. Worksheet stays a real Chromium tab on either side of the split; scripts run; user gets the smoke walk side-by-side with the canvas being tested. Touches: `App.tsx auxState` shape (path-only → `{ kind, path?, browserTabId? }`), `WorkingPane.tsx` aux render branch, `BrowserManager` aux-slot bounds tracking, `splitViewMoveTabByPath` swap semantics for the cross-kind case.
+
+**Mitigation (short-term, can land before Phase 3c).** In `WorkingTabStrip § buildContextMenu`, when `tab.type === 'browser'` AND the resolved page declares `duo-open-in: browser`, drop the "Move to Split View" entry (it's a footgun). The path is reachable via the page meta (already parsed in `playgroundActions.ts` for the `duo-editable` lock). Or: pre-flight the navigation — if the source browser tab's URL is `file://` AND the file's `<meta name="duo-open-in">` is `"browser"`, refuse the move with a one-line toast. Doesn't unblock the rev3 PROCEDURAL goal but stops silent-fail. Recommended only if Phase 3c slips.
+
+**Why this matters.** The whole worksheet primitive is built around the smoke-walk → reading the canvas concurrently flow. The user's natural gesture ("split view, walk on left, canvas on right") was being silently broken. Cut blockers for any sprint that ships smoke walks, dashboards, or scripted pages until either Phase 3c lands or the mitigation lands.
+
+**Cross-ref:** [99826fa](https://github.com/dudgeon/duo/commit/99826fa) (the over-broad BUG-091 lift); BUG-091 (the right-click entry that BUG-092 says is conditionally wrong); Sprint 3 Phase 3a/3b/3c (split-view, deferred phase); PRD H4/H8 (canvas no-scripts sandbox); ENH-094 (browser-pane scripted-page action surface — works *because* browser pane is a real Chromium tab, the exact thing canvas isn't).
+
+---
+
+### BUG-093: Right-click tab → Move to Split View can crash the renderer
+
+**Status:** 🟡 **Filed + INSTRUMENTED in v0.6.7** (smoke walk v0.6.7-rev3 OTHER-NOTES, 2026-05-04). Awaits a clean repro against the instrumented build.
+**Priority:** **High** (when the bug fires, the canvas / editor crashes; pre-instrumentation the entire renderer dropped to the app-level error page; post-instrumentation the WorkingPane drops to a localized error panel and the rest of the app — terminal column, file tree, banners — keeps running).
+**Filed:** 2026-05-04 (rev3 walk BUG-088/090 step 3 — "tried to move that canvas to split view (right click tab) and it caused a render error that forced reload of the whole app").
+
+**Symptom.** With a fresh canvas active in the working pane (rev3 step was a `/tmp/v067r3-bullets.html` canvas with a few bullets typed and one comment thread), user right-clicks the tab → "Move to Split View." The renderer crashes (React error overlay or main-process error message). Pre-v0.6.7-instrumentation, the app-level boundary caught it but the user lost their entire working session on Reload.
+
+**Suspected causes (still need a clean repro + the new traces to confirm).**
+- Dirty-replace swap path in `App.tsx § splitViewMoveTabByPath` — the aux slot's existing content gets promoted back to main as a fresh file tab; if the canvas was mid-mount (autosave debouncer pending, comment-rail mounting, auto-stamp observer attached, user-typed mutations not yet flushed), the unmount/remount cycle could trip a stale-ref or unmount-after-setState pattern.
+- Auto-stamp observer cleanup race (recent: [99826fa](https://github.com/dudgeon/duo/commit/99826fa) dropped the install sentinel and now relies on idempotent stamping; cleanup function returned by `installAutoStampIds` may not run before the iframe's `srcdoc` swap on remount).
+- Comment data-plane (Sprint 6 Phase 4 — [ea1e828](https://github.com/dudgeon/duo/commit/ea1e828)) — the rail / TipTap data plane assumes a stable surface; an iframe re-srcdoc during a swap may leave dangling subscriptions.
+
+**Instrumentation landed (v0.6.7).**
+- **Inline `ErrorBoundary` wraps `<WorkingPane>` in `App.tsx`.** A render error inside WorkingPane no longer drops the entire renderer to the app-level error page — it shows a localized "WorkingPane hit a render error" panel inside the working column with a "Try again" button (remounts via the boundary's `retryKey` bump) and a "Reload renderer" fallback. Terminal column, file tree, banners, menu all keep running. Captured `[ErrorBoundary:WorkingPane]` console error survives the remount / persists in devtools.
+- **Structured `[BUG-093]` console traces in `App.tsx § splitViewMoveTabByPath`.** Logs at every decision point: ENTRY (with auxState / dirty count / fileTabs count), no-op-already-in-aux, dirty-replace gate firing, dirty-replace gate CANCELLED, beginning swap, COMMITTED. Cheap when no crash happens; if the next move-to-split crashes, the last `[BUG-093]` line in the console names which step preceded the throw.
+
+**Repro plan (now armed).** Open Duo dev. Type some bullets in a fresh canvas. Add a comment on one bullet. Open devtools console (filter on `[BUG-093]` and `[ErrorBoundary:WorkingPane]`). Right-click the canvas tab → "Move to Split View." If it crashes:
+1. Read the last `[BUG-093]` log — the step it printed identifies WHICH phase of the swap was running.
+2. Read the `[ErrorBoundary:WorkingPane]` log — the error message + component stack identifies WHICH component threw.
+3. Cross-reference the two. The combination is usually enough to name the bug without further digging.
+
+**Cross-ref:** BUG-092 (companion — even when the move *succeeds*, the resulting canvas is broken because the iframe sandbox blocks scripts); BUG-091 (the over-broad lift that gated this); BUG-065 (the original v0.6.3 ErrorBoundary that this extends with `inline` + `label` + `Try again`); Sprint 6 Phase 1/3/4 (comment-system work that may have introduced the unmount race).
+
+---
+
+### BUG-095: Click into aux-pinned browser tab steals main pane focus and switches main to a different tab
+
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 Phase 3c follow-up, 2026-05-05). `BrowserManager.wireEvents` now forwards `{ tabId, slot }` with `BROWSER_FOCUS_GAINED`; renderer's [App.tsx:1782](renderer/App.tsx:1782) handler only flips `activeWorking` to `'browser'` when `slot === 'main'`. `focusedColumn` still flips to `'working'` either way. Type signature in [host-api.ts:275](shared/host-api.ts:275) updated; preload bridge in [preload.ts:492](electron/preload.ts:492) carries the payload.
+**Priority:** **High** (broke the primary Phase 3c use case — split-view smoke walks were unusable because clicking a pass/fail radio in the aux'd worksheet kicked the canvas under test out of the main pane).
+**Filed:** 2026-05-05 (rev4 walk OTHER NOTES — "click on smoke walk browser in split view, main pane focus stolen by different browser").
+
+**Symptom.** With a browser tab pinned in Split View aux and a markdown editor / canvas active in main, clicking anywhere inside the aux'd browser tab caused the main pane to switch from the editor / canvas to a different (random non-aux) browser tab. If only one non-aux browser tab existed, that one took main; if multiple, whichever `BrowserManager.activeIndex` happened to point at. The user lost their work-in-progress visibility every time they interacted with the aux pane.
+
+**Root cause.** `BrowserManager.wireEvents` fires `BROWSER_FOCUS_GAINED` from `view.webContents.on('focus', …)` for ANY view, including the aux-pinned one. The renderer's handler unconditionally set `activeWorking = { kind: 'browser' }`, which caused WorkingPane to render `<BrowserRenderer>` in the main pane — and `BrowserRenderer` shows whatever `BrowserManager.getState()` returns, which uses `this.activeIndex`, which is the FIRST NON-AUX tab. So clicking the aux tab caused main to switch to whichever other tab happened to be the main-strip's active index.
+
+**Fix.** Two-line change at the focus listener (forward `{ tabId, slot }` payload) plus a one-line guard at the renderer subscriber (`if (payload.slot === 'main') setActiveWorking({ kind: 'browser' })`). `slot` is computed `tab.id === this.auxTabId ? 'aux' : 'main'` at fire time. Aux focus events still flip `focusedColumn` to `'working'` so the focus glow tracks correctly.
+
+**Cross-ref:** BUG-092 (parent — Phase 3c shipped browser-in-aux); BUG-096 (sibling — closeTab activated the aux tab as next-active and blanked aux bounds; same Phase 3c follow-up session).
+
+---
+
+### BUG-096: Closing the last main-strip browser tab while another is in aux blanks the aux pane
+
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 Phase 3c follow-up, 2026-05-05). `BrowserManager.closeTab` next-active picker now skips the aux tab; spawns a fresh `about:blank` in main if only the aux tab would remain. Mirrors the existing "closing the last tab → open blank tab" pattern (BUG-020 family).
+**Priority:** **High** (Phase 3c integration bug; aux pane blanks during normal multi-tab cleanup).
+**Filed:** 2026-05-05 (rev4 walk OTHER NOTES — "when closed faq.html from main tab, it blanked (dark brown) the split view where I was looking at/working with the smoke walk").
+
+**Symptom.** With a browser tab pinned in Split View aux (e.g. a smoke walk page) and one or more other browser tabs in main (e.g. faq.html), closing one of the main tabs caused the aux pane to go blank/dark-brown. The pinned aux tab's content disappeared from view; the WCV repositioned to overlay the main slot but main had nothing to render either.
+
+**Root cause.** `closeTab`'s next-active picker did `this.activeIndex = Math.max(0, idx - 1)` without checking whether the resulting index pointed at the aux-pinned tab. When the aux tab became the new "main active", `setBounds(this.currentBounds)` overwrote its `auxBounds` with main bounds. The aux pane's React DOM was still mounted (the renderer didn't know about the bounds shift), but the WebContentsView was now positioned over the main pane area.
+
+**Fix.** Replace the bare `Math.max(0, idx - 1)` with a `findNonAux(start)` helper that walks left first then right, skipping `auxTabId`. Returns `-1` when only the aux tab remains; in that case `closeTab` spawns a fresh `about:blank` (mirrors the existing BUG-020 last-tab pattern), takes the new tab as main-active, and leaves the aux tab's bounds untouched.
+
+**Cross-ref:** BUG-092 (parent), BUG-095 (sibling), BUG-020 (last-tab spawn pattern this fix mirrors).
+
+---
+
+### BUG-098: Right-click tab → Move to Trash on a missing file shows error popup instead of closing tab
+
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). [App.tsx § onTrashTabFile](renderer/App.tsx) now catches the "doesn't exist" / `ENOENT` / "no such file" error class from `files.trash`, treats it as a no-op success, and proceeds to close the tab. Other error classes still surface via `window.alert`. Regex matches both ASCII (`'`) and Unicode (`'`) apostrophes — Apple's native error strings use the curly quote.
+**Priority:** **Medium** (UX paper cut — every other path closes the tab when the user's intent is "this file shouldn't be here anymore"; trash-on-missing-file shouldn't be an exception).
+**Filed:** 2026-05-05 (rev6 walk OTHER NOTES — "tried to delete file by right clicking tab and selecting 'move to trash'; received 'file does not exist' error; if true, that file does not exist, we should simply confirm the action and close the tab").
+
+**Symptom.** User has a file tab open. The underlying file gets removed from disk (deleted by another tool, vanished due to a `git clean`, never written to disk in the first place, etc.). User right-clicks the tab → "Move to Trash…" → confirms in the system sheet. macOS rejects the trash call with "The file 'foo' doesn't exist." The renderer surfaces it as a `window.alert` and the tab stays open — the user has to close the tab manually.
+
+**Fix.** Pattern-match the error message (`/doesn['']?t exist|ENOENT|no such file/i`); on match, skip the alert and proceed to the existing close-tab branch. The user already saw the confirm dialog, said "Move to Trash" — closing the tab on a missing target matches their intent. If the trash IPC fails for some other reason (permission denied, locked file, exotic filesystem), the alert path still fires.
+
+**Cross-ref:** None — clean fix, no related bugs.
+
+---
+
+### BUG-097: Markdown editor empty-doc placeholder wraps at ~3 characters per line on first load
+
+**Status:** 🟡 **Filed** (rev5 walk MUTUAL note, 2026-05-05). Awaits root-cause investigation.
+**Priority:** **Medium** — visual ugliness, not data-loss. Workaround: type any character; placeholder disappears.
+**Filed:** 2026-05-05 (rev5 walk MUTUAL note — "strange page formatting when I first load the markdown file").
+
+**Symptom.** When opening a freshly-touched empty `.md` file via `duo edit /tmp/foo.md`, the editor's placeholder text "Start typing — markdown shortcuts work (`#`, `_`, `>`, `**bold**`)…" renders in a narrow column on the left, wrapping at ~3-4 characters per line. A small orange chip with "1=" and "#" appears beside it, also narrow. The toolbar above renders normally. Typing any character clears the placeholder and the editor renders correctly thereafter — so the bug is empty-state-only.
+
+**Suspected cause (needs repro).** The placeholder rule at `globals.css:371` uses `float: left; height: 0`. Some other floated element (the orange chip — currently unidentified in source; possibly a TipTap-inserted node or a CSS pseudo-element) may be displacing the placeholder around itself, forcing the placeholder column to the right of an unbreakable left-floated chip. Could also be a `column-count` / `writing-mode` interaction or a TipTap empty-line affordance I haven't grepped out yet.
+
+**Where to look.** `renderer/styles/globals.css § .duo-editor-prose .is-editor-empty` plus any sibling styles. `renderer/components/editor/MarkdownEditor.tsx` extension list — particularly `Placeholder.configure` and any custom node views. `renderer/components/editor/extensions/` for anything that adds inline DOM to empty lines.
+
+**Cross-ref:** Sprint 7 Phase 3c rev5 walk (surfaced this).
+
+---
+
+### BUG-094: Terminal paste with trailing newline auto-executes the command
+
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6 mid-flight insertion, 2026-05-04). `TerminalPane.tsx` installs a capture-phase `paste` listener on the xterm host. When the clipboard payload ends with one or more `\r` / `\n`, the listener intercepts before xterm's textarea handler, drops only the trailing newline run, and hands the cleaned string to `term.paste()` (which still wraps in bracketed-paste markers if the shell enabled `?2004h`). Pastes without trailing newlines fast-path to xterm's default. Internal `\n`s are preserved so legitimate multi-line content (Claude Code multi-line prompts, heredocs, REPL blocks, scripts) still works.
+**Priority:** **High** (the user's primary copy-paste-from-chat workflow auto-executed the command before they could read it).
+**Filed:** 2026-05-04 (rev3 walk OTHER-NOTES — "I copied your text and pasted it to terminal; I need to be able to do this").
+
+**Symptom.** User copies a command from chat / a doc / any source whose copy ships with a trailing `\n` (most sources do). Pastes into terminal. Shell sees `<command>\n` and treats the `\n` as Enter — the command auto-executes before the user has a chance to read or edit it. If the source ALSO injected a wrap-induced `\n` mid-command (e.g. Ink-rendered TUI hard-wraps long lines), that `\n` ALSO executed as Enter, splitting one command across multiple Returns and leaving the shell at a continuation prompt or running partial commands. Resizing the terminal to try to recover triggered an xterm reflow that re-wrapped the polluted scrollback into duplicate-looking rows (rev3 screenshot showed four stacked attempts).
+
+**Root cause.** xterm.js v5 only wraps pastes in bracketed-paste markers (`\e[200~ … \e[201~`) when the host shell has explicitly enabled the mode via `\e[?2004h`. zsh's default config (no `bracketed-paste-magic` widget bound) does not enable it; the user's `(base)` Anaconda zsh ships without the opt-in. Without renderer-side normalization, every `\r` / `\n` in the paste hits the PTY as a Return key.
+
+**Fix (trailing-only, conservative).** `TerminalPane.tsx`'s mount effect installs a capture-phase `paste` listener on the host before `term.open(host)`'s internal listeners can handle it. When the clipboard text matches `/[\r\n]+$/`, preventDefault + stopPropagation, then `term.paste(data.replace(/[\r\n]+$/, ''))`. The cleaned string runs through `term.paste()`, which respects bracketed-paste mode if it happens to be on. Cleanup removes the listener on tab dispose. Behavior matches Terminal.app's default paste; deliberately scoped to trailing newlines so legitimate multi-line paste still works.
+
+**Trade-off accepted.** A paste with `\n` *internal* to a single intended command (e.g. a chat-copy where Ink hard-wrapped the source line) will still execute the partial command before the wrap. That case is harder to detect without false positives against legitimate multi-line paste, and the principled fix (heuristic, or shell-mode-aware bypass when `?2004h` is on) belongs in a follow-up. The trailing-only fix solves the broadest class of the BUG-094 symptom (auto-execute on paste of any source-with-trailing-newline) without breaking multi-line use.
+
+**Open follow-up if internal-`\n` case bites.** If chat-copy paths still break in practice, the next iteration is one of: (a) detect bracketed-paste mode state on the PTY (track `\e[?2004h` / `\e[?2004l` in the data stream from main → renderer; only strip when mode is OFF), (b) add a soft-wrap heuristic (lines that end mid-word + uniform line lengths → likely wrap-injected `\n`s, collapse them; lines with consistent indentation or blank lines → intentional multi-line, preserve), or (c) provide an opt-out modifier (Shift+Paste preserves newlines).
+
+**Why this couldn't wait.** The user's primary "talk to Claude, copy a command, run it" loop is the most common interaction in the Duo workflow. A copy-paste path that auto-executes commands before the user can read them is a daily friction point. Filed and fixed same session.
+
+**Cross-ref:** Sprint 6 close-out (was supposed to be smoke-walk + cut, but the rev3 walk surfaced this); BUG-001 family (xterm consuming user input wrong) — different class but adjacent surface.
 
 ---
 
@@ -5862,6 +5992,20 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 **Effort estimate:** 1 sprint after ENH-092 ships.
 
 **Cross-ref:** ENH-043 (meta). ENH-092 (depends on state + DOM). FOLLOWUP-007 (the `duoSendResult` binding this consumes; FOLLOWUP-007 should ship before or with ENH-093).
+
+---
+
+### ENH-095: Aux header — single ✕ button replaces ⇤ + ✕ pair
+
+**Status:** ✅ **LANDED** in v0.6.7 (Sprint 7 rev6 follow-up, 2026-05-05). The aux header (file-aux in [WorkingPane.tsx § AuxHeader](renderer/components/WorkingPane.tsx) and browser-aux in [AuxBrowserSlot.tsx](renderer/components/AuxBrowserSlot.tsx)) now renders only the ✕ button. Tooltip / aria-label changed to "Move back to main". Both `onAuxClose` and `onAuxPromote` props in App.tsx now point at `splitViewPromote` so closing the split also promotes the aux'd content back to the main strip — the previous separate ⇤ button was redundant. Right-click "Move back to main" menu entry remains as a synonym in the file-aux header.
+**Priority:** **Low** (UX paper cut — owner observed the two buttons were doing the same thing in browser-aux mode).
+**Filed:** 2026-05-05 (rev6 walk PROCEDURAL-PHASE3C-PROMOTE notes — "in split view, the promote and 'X' buttons seem to do the same thing; let's get rid of promote, and ensure that 'X' functions like promote").
+
+**Background.** Phase 3c shipped browser-tabs-in-aux. The browser-aux's onClose handler in App.tsx fired `releaseAuxTab` + `setAuxBrowserTab(null)` — the exact same effect as `splitViewPromote` for the browser case. Two visually distinct buttons doing the same thing. For the file-aux case the buttons differed (close cleared aux without re-opening; promote re-opened in main as a fresh tab) — owner directive was to make X always do the latter.
+
+**Fix.** Wire both onClose + onPromote to `splitViewPromote`. Drop the ⇤ button render in both AuxHeader and AuxBrowserSlot. Tooltip on X now reads "Move back to main".
+
+**Cross-ref:** Phase 3c (BUG-092 fix that introduced AuxBrowserSlot); BUG-095 / BUG-096 (sibling Phase 3c follow-ups).
 
 ---
 

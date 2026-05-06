@@ -114,15 +114,12 @@ broader cohort, prototype speed in the MVP.
 
 The fastest path: grab the latest **signed + notarized** DMG from
 [**GitHub Releases**](https://github.com/dudgeon/duo/releases/latest)
-and drop the `Duo.app` it mounts into `/Applications`. Pick the
-`-arm64` build for Apple Silicon and the unsuffixed build for Intel.
+and drop the `Duo.app` it mounts into `/Applications`.
 
-For the latest signed + notarized DMG, browse
-[**GitHub Releases**](https://github.com/dudgeon/duo/releases/latest)
-and pick the asset that matches your CPU (`-arm64` for Apple Silicon
-Macs, the unsuffixed build for Intel). Direct-download URLs are
-versioned per cut, so the canonical link to the latest is the
-Releases page itself.
+Duo ships **arm64-only** as of Sprint 7 (2026-05-05) — Apple Silicon
+Macs are the only supported platform. Intel users on macOS 13+ should
+stay on the older v0.6.6 release if needed; future cuts won't include
+an Intel DMG.
 
 > **No Gatekeeper warning** since v0.4.1 — the DMGs are signed with
 > Apple Developer ID and notarized, so first launch is a clean
@@ -237,8 +234,7 @@ Output:
 
 ```
 dist/
-├── Duo-X.Y.Z-arm64.dmg          # Apple Silicon
-└── Duo-X.Y.Z.dmg                # x64
+└── Duo-X.Y.Z-arm64.dmg          # Apple Silicon (arm64-only as of Sprint 7)
 ```
 
 Open the DMG, drag `Duo.app` to `/Applications`, double-click to launch.

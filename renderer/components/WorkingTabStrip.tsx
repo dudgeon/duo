@@ -54,12 +54,17 @@ interface WorkingTabStripProps {
    *  before reaching the parent. */
   onReorderTab?: (sourceId: string, targetId: string) => void
   /** Sprint 3 Phase 3b — Move tab into the Split View aux slot.
-   *  Surfaced in the right-click menu for file tabs (browser tabs
-   *  excluded — browser-in-aux is Phase 3c). Called with the tab's
-   *  absolute path; App.tsx routes through the same state mutations
-   *  the workingAux.onOpen handler applies (drop from main, set as
-   *  aux's only path). */
+   *  Surfaced in the right-click menu for file tabs. Called with
+   *  the tab's absolute path; App.tsx routes through the same state
+   *  mutations the workingAux.onOpen handler applies (drop from
+   *  main, set as aux's only path). */
   onMoveToSplit?: (path: string) => void
+  /** Sprint 7 Phase 3c — Move a browser tab into the Split View aux
+   *  slot. Same right-click menu item as `onMoveToSplit` but takes a
+   *  numeric BrowserTab id (extracted from the tab's `b:<n>` strip
+   *  id). App.tsx routes via splitViewMoveBrowserTab. The menu
+   *  builder picks this callback when `tab.type === 'browser'`. */
+  onMoveBrowserTabToSplit?: (browserTabId: number) => void
   /** ENH-083 (v0.6.5) — collapse-canvas button moved from titlebar to
    *  the new-tab cluster. Same pattern as TabBar's terminal-collapse
    *  variant; active (collapsed) state inverts to accent fill. */
@@ -91,6 +96,7 @@ export function WorkingTabStrip({
   onStartRenameFromTab,
   onReorderTab,
   onMoveToSplit,
+  onMoveBrowserTabToSplit,
   isCanvasCollapsed = false,
   onToggleCanvasCollapsed
 }: WorkingTabStripProps) {
@@ -145,7 +151,10 @@ export function WorkingTabStrip({
       onRevealInNavigator,
       onStartRenameFromTab,
       onMoveTab: onReorderTab ? moveTabBy : undefined,
-      onMoveToSplit
+      // Phase 3c — pass BOTH callbacks; the menu builder decides
+      // which to wire based on tab.type (browser vs file).
+      onMoveToSplit,
+      onMoveBrowserTabToSplit
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -196,7 +205,18 @@ export function WorkingTabStrip({
         onTogglePin?.(tab.id)
         return
       case 'move-to-split':
-        if (path) onMoveToSplit?.(path)
+        // Phase 3c — branch on tab kind. Browser tabs route through
+        // the BrowserManager-aware path so the WCV repositions into
+        // the aux slot directly (scripts keep running). File tabs
+        // route through the path-based file-aux flow. Handlers are
+        // App.tsx's splitViewMoveBrowserTab and splitViewMoveTabByPath
+        // respectively.
+        if (tab.type === 'browser') {
+          const parsedId = parseBrowserId(tab.id)
+          if (parsedId !== null) onMoveBrowserTabToSplit?.(parsedId)
+        } else if (path) {
+          onMoveToSplit?.(path)
+        }
         return
       case 'trash': {
         if (!path || !onTrashFile) return
@@ -462,6 +482,18 @@ function WorkingTabItem({
   )
 }
 
+/** Phase 3c — extract the numeric BrowserTab id from a strip-id of
+ *  the form `b:<n>`. Returns null if the id isn't a browser strip-id
+ *  or the numeric portion doesn't parse. Mirrors the
+ *  `parseId({kind:'browser'})` helper in WorkingPane.tsx but scoped
+ *  to the browser case the strip needs for the Move-to-Split-View
+ *  right-click handler. */
+function parseBrowserId(stripId: string): number | null {
+  if (!stripId.startsWith('b:')) return null
+  const n = parseInt(stripId.slice(2), 10)
+  return Number.isInteger(n) ? n : null
+}
+
 function tabLabel(tab: WorkingTab): string {
   if (tab.type === 'browser') return tab.title || tab.url || 'New tab'
   return tab.title
@@ -493,8 +525,10 @@ function buildTabMenuTemplate(opts: {
   onStartRenameFromTab?: (path: string) => void
   onMoveTab?: (id: string, delta: -1 | 1) => void
   onMoveToSplit?: (path: string) => void
+  /** Phase 3c — browser-tab variant of the move-to-split entry. */
+  onMoveBrowserTabToSplit?: (browserTabId: number) => void
 }): MenuTemplateItem[] {
-  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit } = opts
+  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit, onMoveBrowserTabToSplit } = opts
   const tab = tabs.find(t => t.id === tabId)
   const items: MenuTemplateItem[] = []
 
@@ -537,20 +571,15 @@ function buildTabMenuTemplate(opts: {
     })
   }
 
-  // Sprint 3 Phase 3b — Move to Split View. Path-bearing requirement
-  // screens out browser tabs without a file:// URL (i.e. http(s) tabs).
-  //
-  // BUG-091 fix (v0.6.7) — local-file browser tabs (smoke walk pages,
-  // generated dashboards, agent-built artifacts opened with
-  // duo-open-in:browser) DO have a path via `pathFromFileUrl(tab.url)`,
-  // and the navigator's right-click "Open in Split View" handles
-  // them correctly. Moving them to split view is symmetric — the
-  // path opens in aux as its natural file type. Previously gated
-  // out by `tab.type !== 'browser'`; that exclusion was incidental
-  // (Phase 3b labeled the category "browser-in-aux is Phase 3c"),
-  // but for local-file URLs the action is just "open the file in
-  // split", which already works.
-  if (onMoveToSplit && path && tab) {
+  // Sprint 3 Phase 3b → Sprint 7 Phase 3c — Move to Split View.
+  // Browser tabs route through `onMoveBrowserTabToSplit` (the
+  // BrowserManager pins the WCV into the aux slot directly, so
+  // scripts keep running — fixes BUG-092). File tabs route through
+  // `onMoveToSplit` (path-based file-aux flow). Show the entry when
+  // the appropriate callback exists for the tab's kind.
+  const canMoveBrowserToSplit = !!(onMoveBrowserTabToSplit && tab && tab.type === 'browser')
+  const canMoveFileToSplit = !!(onMoveToSplit && path && tab && tab.type !== 'browser')
+  if (canMoveBrowserToSplit || canMoveFileToSplit) {
     if (items.length > 0) items.push({ type: 'separator' })
     items.push({ id: 'move-to-split', label: 'Move to Split View' })
   }

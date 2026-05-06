@@ -100,6 +100,21 @@ const api: ElectronAPI = {
     setBounds: (bounds) =>
       ipcRenderer.send(IPC.BROWSER_BOUNDS, bounds),
 
+    // Phase 3c — bounds for the aux-pinned browser tab. Mirrors
+    // setBounds but routes to BrowserManager.setAuxBounds.
+    setAuxBounds: (bounds) =>
+      ipcRenderer.send(IPC.BROWSER_AUX_BOUNDS, bounds),
+
+    // Phase 3c — pin a browser tab into the aux slot. Returns the
+    // pinned tab's url/title so the AuxBrowserSlot header can show
+    // them without a second round trip.
+    moveTabToAux: (id) =>
+      ipcRenderer.invoke(IPC.BROWSER_MOVE_TAB_TO_AUX, id),
+
+    // Phase 3c — release the aux-pinned tab back to the main strip.
+    releaseAuxTab: () =>
+      ipcRenderer.invoke(IPC.BROWSER_RELEASE_AUX_TAB),
+
     setOverlayMuted: (muted) =>
       ipcRenderer.send(IPC.BROWSER_OVERLAY_MUTED, { muted }),
 
@@ -392,6 +407,13 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.WORKING_AUX_OPEN, handler)
       return () => ipcRenderer.removeListener(IPC.WORKING_AUX_OPEN, handler)
     },
+    /** Phase 3c — main asks renderer to pin a browser tab into aux.
+     *  Renderer subscribes and routes through splitViewMoveBrowserTab. */
+    onOpenBrowser: (cb) => {
+      const handler = (_: IpcRendererEvent, browserTabId: number) => cb(browserTabId)
+      ipcRenderer.on(IPC.WORKING_AUX_OPEN_BROWSER, handler)
+      return () => ipcRenderer.removeListener(IPC.WORKING_AUX_OPEN_BROWSER, handler)
+    },
     onClose: (cb) => {
       const handler = () => cb()
       ipcRenderer.on(IPC.WORKING_AUX_CLOSE, handler)
@@ -468,7 +490,10 @@ const api: ElectronAPI = {
     },
     reclaimFocus: () => ipcRenderer.send(IPC.PANE_FOCUS_RECLAIM),
     onBrowserFocusGained: (cb) => {
-      const handler = () => cb()
+      // Phase 3c BUG-095 — payload now carries `{ tabId, slot }` so the
+      // renderer can ignore aux-slot focus events for activeWorking
+      // purposes. Pre-Phase-3c the channel was payload-less.
+      const handler = (_: IpcRendererEvent, payload: { tabId: number; slot: 'main' | 'aux' }) => cb(payload)
       ipcRenderer.on(IPC.BROWSER_FOCUS_GAINED, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_FOCUS_GAINED, handler)
     },

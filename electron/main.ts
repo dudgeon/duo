@@ -345,6 +345,7 @@ async function createWindow(): Promise<void> {
     setTheme: setThemeMode,
     setSplit: setSplit,
     splitViewOpen: splitViewOpen,
+    splitViewOpenBrowser: splitViewOpenBrowser,
     splitViewClose: splitViewClose,
     splitViewPromote: splitViewPromote,
     splitViewResize: splitViewResize,
@@ -699,6 +700,30 @@ function setupIPC(): void {
   // the split moves or the window resizes. We reposition the WebContentsView.
   ipcMain.on(IPC.BROWSER_BOUNDS, (_event, bounds: BrowserBounds) => {
     browserManager?.setBounds(bounds)
+  })
+
+  // Phase 3c — renderer reports aux-pane bounds for the aux-pinned
+  // browser tab. Mirrors BROWSER_BOUNDS but routes to the separate
+  // aux-bounds slot inside BrowserManager. Pushed from the
+  // AuxBrowserSlot component on mount + ResizeObserver + window
+  // resize + split divider drag.
+  ipcMain.on(IPC.BROWSER_AUX_BOUNDS, (_event, bounds: BrowserBounds) => {
+    browserManager?.setAuxBounds(bounds)
+  })
+
+  // Phase 3c — renderer asks main to pin a browser tab into the aux
+  // slot. Returns the pinned tab's url + title so the renderer can
+  // render the aux header without a second round trip.
+  ipcMain.handle(IPC.BROWSER_MOVE_TAB_TO_AUX, (_event, tabId: number) => {
+    if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
+    return browserManager.moveTabToAux(tabId)
+  })
+
+  // Phase 3c — renderer asks main to release the aux-pinned tab back
+  // to the main strip. The released tab becomes main-strip active.
+  ipcMain.handle(IPC.BROWSER_RELEASE_AUX_TAB, () => {
+    if (!browserManager) return { ok: false, error: 'BrowserManager not initialized' }
+    return browserManager.releaseAuxTab()
   })
 
   // Stage 27 — renderer → main: emit a DuoEvent into the bus. Powers
@@ -1379,6 +1404,30 @@ export function splitViewOpen(path: string): { ok: boolean; error?: string } {
     expanded = join(homedir(), expanded.slice(2))
   }
   mainWindow.webContents.send(IPC.WORKING_AUX_OPEN, expanded)
+  return { ok: true }
+}
+
+/** Phase 3c — pin a browser tab into the aux slot. Carries the
+ *  numeric BrowserTab id (from `duo tab` listing). Renderer's
+ *  WORKING_AUX_OPEN_BROWSER subscriber calls
+ *  `splitViewMoveBrowserTab(id)`. */
+export function splitViewOpenBrowser(browserTabId: number): { ok: boolean; error?: string } {
+  if (!Number.isInteger(browserTabId) || browserTabId < 1) {
+    return { ok: false, error: 'split-view open-browser requires a positive integer tab id' }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  if (!browserManager) {
+    return { ok: false, error: 'BrowserManager not initialized' }
+  }
+  // Validate the tab exists before round-tripping — a fast CLI error
+  // is friendlier than a silent renderer-side no-op.
+  const tabs = browserManager.getTabs()
+  if (!tabs.some(t => t.id === browserTabId)) {
+    return { ok: false, error: `No browser tab with id ${browserTabId}` }
+  }
+  mainWindow.webContents.send(IPC.WORKING_AUX_OPEN_BROWSER, browserTabId)
   return { ok: true }
 }
 

@@ -88,6 +88,15 @@ export class BrowserManager {
   private activeIndex = 0
   private nextId = 1
   private currentBounds: BrowserBounds = { x: 0, y: 0, width: 0, height: 0 }
+  // Sprint 7 Phase 3c — aux-slot tab tracking. When `auxTabId` is non-
+  // null, that tab is pinned to the Split View aux slot: it's removed
+  // from the main strip's rotation (switchTab skips it; getTabs marks
+  // it `inAux: true` so the renderer's main strip filters it out) and
+  // its bounds come from `auxBounds` instead of `currentBounds`. The
+  // aux slot holds at most one tab in v1 (matches the file-side
+  // single-slot constraint).
+  private auxTabId: number | null = null
+  private auxBounds: BrowserBounds = { x: 0, y: 0, width: 0, height: 0 }
   // BUG-027 — most-recently-closed stack. Used by reopenLastClosed().
   private closedTabs: ClosedTabEntry[] = []
   // Issue #27 — history service for URL-bar autocomplete. Injected by
@@ -355,6 +364,16 @@ export class BrowserManager {
   async switchTab(n: number): Promise<{ ok: boolean; error?: string }> {
     const idx = this.tabs.findIndex(t => t.id === n)
     if (idx === -1) return { ok: false, error: `No tab with id ${n}` }
+    // Phase 3c — refuse to switch the main strip's active tab to a tab
+    // that's pinned in aux. The renderer's main strip already filters
+    // those out, but a stray CLI `duo tab <n>` against an aux tab id
+    // would otherwise pull it back into the main slot and silently
+    // corrupt aux state. The right action for the user is to release
+    // the aux pin first (`duo split-view promote` or close), or to
+    // address the aux tab via `duo split-view` flows directly.
+    if (n === this.auxTabId) {
+      return { ok: false, error: `Tab ${n} is pinned in Split View aux. Use \`duo split-view promote\` to return it to main first.` }
+    }
     if (idx === this.activeIndex) return { ok: true }
 
     // Shrink current active view
@@ -393,6 +412,16 @@ export class BrowserManager {
   async closeTab(n: number): Promise<{ ok: boolean; error?: string }> {
     const idx = this.tabs.findIndex(t => t.id === n)
     if (idx === -1) return { ok: false, error: `No tab with id ${n}` }
+
+    // Phase 3c — if the tab being closed is currently in aux, clear
+    // the aux pin first so downstream emits / state reflect the
+    // released slot. The renderer's auxState observer (state-push
+    // round trip) will then drop the corresponding browser slot from
+    // its `slots` array. Skipped main-strip activation logic below
+    // already handles re-picking an active main tab if needed.
+    if (n === this.auxTabId) {
+      this.auxTabId = null
+    }
 
     // BUG-027 — record the URL+title before we tear the tab down so
     // ⌘⇧T from browser focus can reopen it. Skip about:blank entries
@@ -441,16 +470,55 @@ export class BrowserManager {
     try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }
     try { removed.view.webContents.close() } catch { /* ignore */ }
 
-    // If we removed the active tab, activate its neighbor (prefer the one to the left)
+    // If we removed the active tab, activate its neighbor.
     if (idx === this.activeIndex) {
-      this.activeIndex = Math.max(0, idx - 1)
-      const newActive = this.tabs[this.activeIndex]
-      newActive.view.setBounds(this.currentBounds)
-      this.emitState()
-      try {
-        await this.cdp.attach(newActive.view.webContents)
-      } catch (err) {
-        console.warn('[BrowserManager] CDP attach failed on closeTab:', err)
+      // Phase 3c BUG-096 fix — when picking the next main-active tab,
+      // SKIP the aux-pinned tab. Pre-fix, closing the last main-strip
+      // browser tab while another was pinned in aux made the aux tab
+      // the new main-active, then `setBounds(currentBounds)` overwrote
+      // its aux bounds with main bounds — the aux pane went blank
+      // (the WCV repositioned over the now-empty main slot, leaving
+      // aux nothing to render).
+      const findNonAux = (start: number) => {
+        // Search left first (matches the "prefer left neighbor"
+        // semantics of the pre-fix code); then right if nothing
+        // qualifies on the left.
+        for (let j = start; j >= 0; j--) {
+          if (this.tabs[j] && this.tabs[j].id !== this.auxTabId) return j
+        }
+        for (let j = start + 1; j < this.tabs.length; j++) {
+          if (this.tabs[j] && this.tabs[j].id !== this.auxTabId) return j
+        }
+        return -1
+      }
+      const nextMainIdx = findNonAux(Math.min(idx - 1, this.tabs.length - 1))
+      if (nextMainIdx === -1) {
+        // Only the aux tab remains. Spawn a fresh about:blank so the
+        // main pane has something to show; the aux tab keeps its aux
+        // bounds untouched. Mirrors the existing "closing the last
+        // tab → open blank tab" pattern (BUG-020 family).
+        this.addTab(newTabUrl())
+        const blankIdx = this.tabs.findIndex(t => t.id !== this.auxTabId)
+        if (blankIdx !== -1) {
+          this.activeIndex = blankIdx
+          this.tabs[blankIdx].view.setBounds(this.currentBounds)
+          this.emitState()
+          try {
+            await this.cdp.attach(this.tabs[blankIdx].view.webContents)
+          } catch (err) {
+            console.warn('[BrowserManager] CDP attach failed on closeTab blank-spawn:', err)
+          }
+        }
+      } else {
+        this.activeIndex = nextMainIdx
+        const newActive = this.tabs[nextMainIdx]
+        newActive.view.setBounds(this.currentBounds)
+        this.emitState()
+        try {
+          await this.cdp.attach(newActive.view.webContents)
+        } catch (err) {
+          console.warn('[BrowserManager] CDP attach failed on closeTab:', err)
+        }
       }
     } else if (idx < this.activeIndex) {
       // Closed a tab to the left; shift our pointer
@@ -479,7 +547,12 @@ export class BrowserManager {
       id: t.id,
       url: t.view.webContents.getURL() || 'about:blank',
       title: t.view.webContents.getTitle() || '(no title)',
-      isActive: i === this.activeIndex
+      // Phase 3c — `isActive` reflects the MAIN-STRIP active tab, not
+      // including the aux tab. An aux-pinned tab is never the
+      // main-strip active. Renderer's main strip filters out
+      // `inAux: true` tabs; the aux pane finds the inAux tab.
+      isActive: i === this.activeIndex && t.id !== this.auxTabId,
+      inAux: t.id === this.auxTabId
     }))
   }
 
@@ -591,9 +664,126 @@ export class BrowserManager {
 
   setBounds(bounds: BrowserBounds): void {
     this.currentBounds = bounds
+    // Phase 3c — skip the aux tab. Main bounds apply to the active
+    // main-strip tab only. The aux tab gets its own bounds via
+    // setAuxBounds; if we re-applied main bounds to it here, the aux
+    // pane would briefly flash the old main-pane geometry on every
+    // resize.
     if (this.tabs.length > 0 && !this.mutedForOverlay) {
-      this.tabs[this.activeIndex].view.setBounds(bounds)
+      const activeId = this.tabs[this.activeIndex]?.id
+      if (activeId !== undefined && activeId !== this.auxTabId) {
+        this.tabs[this.activeIndex].view.setBounds(bounds)
+      }
     }
+  }
+
+  /** Phase 3c — bounds for the aux-pinned browser tab. Stored
+   *  separately from `currentBounds` (which tracks the main strip)
+   *  and applied only to the auxTabId's view. No-op when no aux tab
+   *  is pinned. */
+  setAuxBounds(bounds: BrowserBounds): void {
+    this.auxBounds = bounds
+    if (this.auxTabId === null) return
+    const aux = this.tabs.find(t => t.id === this.auxTabId)
+    if (aux && !this.mutedForOverlay) {
+      aux.view.setBounds(bounds)
+    }
+  }
+
+  /** Phase 3c — pin a browser tab into the aux slot. Removes it from
+   *  the main strip's rotation (switchTab skips it; getTabs marks
+   *  it `inAux: true`). If the moved tab WAS the main-strip's active
+   *  tab, the active index is shifted to the next available main
+   *  tab (or 0 if all that's left is aux-pinned, which can't happen
+   *  in v1 since aux holds ≤1 and main always has ≥1 after addTab).
+   *  Applies aux bounds immediately so the WCV repositions in one
+   *  paint. Returns metadata for the renderer's aux header. */
+  moveTabToAux(id: number): { ok: boolean; error?: string; url?: string; title?: string } {
+    const idx = this.tabs.findIndex(t => t.id === id)
+    if (idx === -1) return { ok: false, error: `No tab with id ${id}` }
+    if (this.auxTabId === id) {
+      // Already in aux — return current metadata as a no-op.
+      const tab = this.tabs[idx]
+      return {
+        ok: true,
+        url: tab.view.webContents.getURL() || 'about:blank',
+        title: tab.view.webContents.getTitle() || ''
+      }
+    }
+    // If a DIFFERENT tab was already in aux, release it first so the
+    // aux slot only holds one tab. The released tab returns to the
+    // main strip's regular layout (next setBounds will reposition it
+    // back into main bounds when its turn comes via switchTab).
+    if (this.auxTabId !== null) {
+      const prev = this.tabs.find(t => t.id === this.auxTabId)
+      if (prev) prev.view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+      this.auxTabId = null
+    }
+    this.auxTabId = id
+    // If the tab moved to aux was the main-strip's active tab, pick a
+    // new main-strip active tab. Strategy: pick the first non-aux tab.
+    if (idx === this.activeIndex) {
+      const nextMainIdx = this.tabs.findIndex(t => t.id !== this.auxTabId)
+      if (nextMainIdx !== -1) {
+        this.activeIndex = nextMainIdx
+        // Re-apply main bounds to the new active tab so its view is
+        // visible (the previous main-active was just moved to aux).
+        if (!this.mutedForOverlay) {
+          this.tabs[nextMainIdx].view.setBounds(this.currentBounds)
+        }
+      }
+    }
+    // Apply aux bounds to the now-aux tab.
+    const aux = this.tabs[idx]
+    if (!this.mutedForOverlay) {
+      aux.view.setBounds(this.auxBounds)
+    }
+    this.emitTabs()
+    this.emitState()
+    return {
+      ok: true,
+      url: aux.view.webContents.getURL() || 'about:blank',
+      title: aux.view.webContents.getTitle() || ''
+    }
+  }
+
+  /** Phase 3c — release the aux-pinned tab back to the main strip.
+   *  Sets it as main-strip active so the user lands back on the
+   *  released tab (matches "promote" semantics for file tabs). No-op
+   *  when no tab is pinned. */
+  releaseAuxTab(): { ok: boolean; error?: string } {
+    if (this.auxTabId === null) return { ok: false, error: 'No tab is currently in aux' }
+    const released = this.auxTabId
+    const idx = this.tabs.findIndex(t => t.id === released)
+    this.auxTabId = null
+    if (idx === -1) {
+      // Tab was closed externally while in aux — already gone.
+      this.emitTabs()
+      this.emitState()
+      return { ok: true }
+    }
+    // Shrink whatever is currently main-active so the released tab
+    // can take over the visible main bounds.
+    const mainActive = this.tabs[this.activeIndex]
+    if (mainActive && mainActive.id !== released) {
+      mainActive.view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+    }
+    this.activeIndex = idx
+    if (!this.mutedForOverlay) {
+      this.tabs[idx].view.setBounds(this.currentBounds)
+    }
+    this.tabs[idx].view.webContents.focus()
+    this.emitTabs()
+    this.emitState()
+    return { ok: true }
+  }
+
+  /** Phase 3c — public read for the aux state. The renderer doesn't
+   *  need this (auxState is owned renderer-side), but the CLI's
+   *  `duo split-view` reflection wants to know whether aux is
+   *  holding a browser tab. */
+  getAuxTabId(): number | null {
+    return this.auxTabId
   }
 
   // BUG-047 Path B (overlay-mute) — temporarily collapse the active
@@ -822,7 +1012,18 @@ export class BrowserManager {
     // focusedColumn = 'working'. Symmetric to the canvas iframe's
     // mousedown forwarder (BUG-037 fix on the renderer side).
     view.webContents.on('focus', () => {
-      this.window.webContents.send(IPC.BROWSER_FOCUS_GAINED)
+      // Phase 3c BUG-095 fix — forward the tab id + slot so the
+      // renderer can distinguish a focus event on the AUX-pinned tab
+      // from one on a main-strip tab. Pre-fix the renderer
+      // unconditionally flipped activeWorking to 'browser' on every
+      // focus event, which kicked the active markdown / canvas out
+      // of the main pane whenever the user clicked into the aux'd
+      // browser tab. Symmetric with how main-strip clicks should
+      // continue to work.
+      const tab = this.tabs.find(t => t.view === view)
+      if (!tab) return
+      const slot: 'main' | 'aux' = tab.id === this.auxTabId ? 'aux' : 'main'
+      this.window.webContents.send(IPC.BROWSER_FOCUS_GAINED, { tabId: tab.id, slot })
     })
   }
 

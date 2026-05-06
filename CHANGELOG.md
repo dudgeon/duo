@@ -19,7 +19,50 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-(Empty — v0.6.6 cut 2026-05-04. Next cut accumulates here.)
+(Empty — v0.6.7 cut 2026-05-05. Next cut accumulates here.)
+
+## [0.6.7] — 2026-05-05
+
+Sprint 6 + Sprint 7 close-out — comments are real and visible on both surfaces, browser tabs live in Split View, terminal paste behaves like Terminal.app, and Duo ships arm64-only.
+
+### Added — Sprint 6: comments on both surfaces
+
+- **Markdown editor comments — full data plane** (MISSING-001 / Stage 14a). New `CommentMark` TipTap extension with `commentId` attribute, `<file>.md.duo.json` sidecar persistence (excerpt + contextBefore + contextAfter), re-anchor on file load via excerpt + context match. Three affordances on parity with canvas: ⌘⌥M, right-click "Comment", toolbar 💬. Closing + reopening the file rebuilds the rail with all comments + decorations re-applied.
+- **Three discoverable Comment affordances on canvas** (BUG-081). Replaced the hover Comment pill with: ⌘⌥M kb shortcut (Google Docs parity), right-click "Comment" entry on canvas iframes, toolbar 💬 button. Hover pill removed entirely. Send → Duo pill kept.
+- **Anchor decoration + bidirectional click-to-focus on canvas** (BUG-083). Commented elements stamp `data-duo-has-comment`; rail-click + body-click both fire `setActiveThreadId`; the active anchor strengthens to `data-duo-comment-active`. Resolved threads strip the body decoration. New `installCommentAnchorStyles` injects iframe-side styles (parent `globals.css` doesn't reach `srcdoc` — also fixed: badge styles never reached the iframe before this cut).
+- **Comment rail restores on canvas reopen** (BUG-082). `builtThreads` useMemo's tick now bumps from BOTH async paths (sidecar load + iframe ready) so a fresh open of a file with existing comments rebuilds the rail without the user having to add a new comment to wake it up.
+
+### Added — Sprint 7: browser tabs in Split View + paste fix
+
+- **Browser tabs in Split View aux** (BUG-092 / Phase 3c). Worksheets, smoke walks, dashboards, and any other scripted page can now live natively in the Split View aux slot — pages stay in a real Chromium tab (scripts run, Copy buttons work) instead of being promoted to a script-blocked canvas. New `BrowserManager.auxTabId` + `auxBounds` tracking + `moveTabToAux` / `releaseAuxTab` methods. New `<AuxBrowserSlot>` component mirrors `BrowserRenderer`'s bounds-push pattern. Right-click a browser tab → "Move to Split View" routes through the new path. CLI parity: `duo split-view open-browser <id>`.
+- **Single ✕ button on the aux header** (ENH-095, post-rev6 follow-up). Dropped the redundant ⇤ button — the ✕ now closes the split AND promotes the aux'd content back to the main strip in one click. Tooltip / aria-label is "Move back to main." File-aux header keeps the right-click "Move back to main" menu entry as a synonym.
+- **⌘R reloads the active browser tab** (BUG-084 follow-up). New `'reloadBrowserTab'` ShortcutId; gated on `activeWorking.kind === 'browser'` so editor / canvas / terminal panes still no-op. The `'r'` keystroke is forwarded from the WebContentsView's `before-input-event` handler so ⌘R reaches the matcher even from inside a browser tab.
+
+### Changed
+
+- **arm64-only macOS builds.** Sprint 7 dropped Intel/x64 from `electron-builder.yml`'s `mac.target.arch`. Apple Silicon is the only published architecture; ~2.6 GB of Intel artifacts cleaned from the project + 1.85 GB freed on GitHub Releases (17 prior releases stripped of x64 DMG + blockmap assets). Cut time drops ~50% (one notarization round-trip instead of two).
+- **Terminal paste no longer auto-executes commands** (BUG-094). Capture-phase paste listener on the xterm host strips trailing newlines from the clipboard payload (matches Terminal.app default). Internal newlines preserved so legitimate multi-line paste — Claude Code prompts, heredocs, REPL blocks, scripts — still works.
+
+### Fixed
+
+- **Bullet anchor decoration + thread distinctness** (BUG-088 / BUG-090 / BUG-087, post-rev6 root-cause fix). When the user pressed Enter to make a second / third bullet, contentEditable cloned the source `<li>` and the new sibling kept the parent's `data-duo-id` — three bullets sharing one id meant comments on different bullets all anchored to the same element. `installAutoStampIds` now detects duplicates: if any other element in the body already owns the id, the new element is a clone and gets a fresh ULID. First-in-document keeps its id (so existing comments still resolve); later siblings get unique ids. Also fixes BUG-087: with each anchor truly unique, rail-click activates exactly one element (not "first and third bullets" via duplicate-id selector match).
+- **Move to Trash on a missing file silently closes the tab** (BUG-098, post-rev6). `App.tsx`'s `onTrashTabFile` catches `doesn't exist` / `ENOENT` / `no such file` (handles both ASCII `'` and Apple's curly `'`) and proceeds to the close path. Other error classes still alert.
+- **Aux tab focus no longer steals main pane focus** (BUG-095). `BROWSER_FOCUS_GAINED` payload now carries `{ tabId, slot }`; renderer only flips `activeWorking` to `'browser'` when `slot === 'main'`. Aux clicks still flip `focusedColumn` so the focus glow tracks correctly.
+- **Closing the last main-strip browser tab no longer blanks aux** (BUG-096). `closeTab`'s next-active picker walks past the aux tab; spawns a fresh `about:blank` if only the aux tab would remain (mirrors the BUG-020 last-tab pattern).
+- **Markdown editor reconciles external file writes** (BUG-085). New file-watcher subscription via `files.watch`. Clean buffer → silent reload + advance baseline; dirty buffer → amber conflict banner with Reload-from-disk / Keep-mine. Pre-save guard reads disk just before write so the autosave-vs-watcher race can't silently overwrite agent edits. Skill (`SKILL.md` + `agents/duo.md`) updated to direct agents toward `duo doc write` over raw `Write` for active-editor mutations.
+- **⌘R no longer kills the entire app** (BUG-084). Removed `{ role: 'reload' }` and `{ role: 'forceReload' }` from the View menu — they were silently bound to ⌘R / ⇧⌘R and called `webContents.reload()` against the main BrowserWindow, destroying every terminal session, every working tab, every iframe canvas in one keystroke. Reload is now scoped to active browser tabs only.
+- **Canvas anchor decoration no longer flickers while typing** (BUG-089). Removed the 100ms CSS transition on `[data-duo-has-comment]` that restarted on every contentEditable repaint. Static colors only.
+- **Worksheet / smoke-walk pages stay read-only in canvas** (BUG-091 + worksheet-promotion). `<meta name="duo-editable" content="false">` added to the worksheet template; smoke-walk wrapper honors `manifest.title` (was hardcoding from base version). Combined with Phase 3c, the rev3-walk procedural blocker (worksheet usable in split view) is fully resolved.
+- **Right-click "Move to Split View" works on browser tabs** (BUG-091 follow-up). `WorkingTabStrip § buildContextMenu` no longer excludes `tab.type === 'browser'` from the menu entry; routing branches on tab kind to the right callback (`splitViewMoveBrowserTab` for browser, `splitViewMoveTabByPath` for files).
+
+### Added — Instrumentation
+
+- **`<ErrorBoundary>` extended with `inline` + `label` + Try-again retry** (BUG-093 instrumentation). Wrapped `<WorkingPane>` with an inline boundary; structured `[BUG-093]` console traces in `splitViewMoveTabByPath`. The crash that surfaced in rev3 is now scoped — a render error inside WorkingPane no longer drops the entire renderer to the app-level error page; terminal column / file tree / banners stay alive. Awaits a clean repro against the armed build.
+
+### Known issues
+
+- **BUG-097 — Markdown editor empty-doc placeholder wraps narrow on first load.** Visual ugliness (placeholder column at ~3-4 chars per line on first open of an empty `.md`); typing any character clears it. Filed; investigation deferred. Not blocking.
+- **BUG-093 — Right-click tab → Move to Split View can crash the renderer.** Now scoped to a localized error panel (not app-wide); awaits a clean repro against the instrumented build.
 
 ## [0.6.6] — 2026-05-04
 

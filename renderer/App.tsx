@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
@@ -293,6 +294,23 @@ export function App() {
     splitPct: number
   } | null>(null)
 
+  // Sprint 7 Phase 3c — browser-in-aux. Mutually exclusive with
+  // auxState (a file in aux clears any browser pin and vice versa).
+  // Tracked separately rather than threaded through auxState so the
+  // existing file-aux consumers are unchanged. Carries the numeric
+  // BrowserTab id (from BrowserManager); cached url/title fuels the
+  // aux header without a per-render IPC round trip. Not persisted in
+  // session-state.json for v1 — relaunch starts with a clean aux pane
+  // when the previous session had a browser pinned (acceptable: the
+  // browser tab itself is still in BrowserManager, just back in the
+  // main strip).
+  const [auxBrowserTab, setAuxBrowserTab] = useState<{
+    id: number
+    url: string
+    title: string
+    splitPct: number
+  } | null>(null)
+
   // Stage 24 — pinned WorkingPane tabs. Owned at App level so the ⌘W
   // keyboard handler can gate close-of-pinned-tab behind a confirm
   // modal. Persisted via the pins service in main; loaded once on
@@ -335,7 +353,23 @@ export function App() {
   // tracks main's view of the browser tab list. Used by the save
   // effect below.
   useEffect(() => {
-    return window.electron.browser.onTabsChange(setBrowserTabs)
+    return window.electron.browser.onTabsChange((tabs) => {
+      setBrowserTabs(tabs)
+      // Sprint 7 Phase 3c — keep aux-browser-tab state consistent
+      // with main's view of browser tabs. When the pinned browser
+      // tab is closed externally (BrowserManager already clears its
+      // auxTabId on close), drop the aux state so the aux pane
+      // doesn't render a header for a tab that no longer exists.
+      // Also refresh url/title from the broadcast so the header
+      // tracks navigation inside the aux tab.
+      setAuxBrowserTab(prev => {
+        if (!prev) return prev
+        const stillExists = tabs.find(t => t.id === prev.id)
+        if (!stillExists) return null
+        if (stillExists.url === prev.url && stillExists.title === prev.title) return prev
+        return { ...prev, url: stillExists.url, title: stillExists.title }
+      })
+    })
   }, [])
 
   // One-shot session-state load on mount.
@@ -1328,7 +1362,38 @@ export function App() {
   // Empty aux (paths.length === 0 / null) goes straight to silent
   // open with no swap (no existing aux to promote).
   const splitViewMoveTabByPath = useCallback(async (path: string) => {
-    if (auxState && auxState.paths.includes(path)) return
+    // BUG-093 instrumentation (v0.6.7) — structured trace at every
+    // decision point so the next renderer crash during a split-view
+    // move leaves a forensic breadcrumb in the console BEFORE the
+    // ErrorBoundary catches the throw. Each entry tags itself with
+    // `[BUG-093]` so it's grep-able from a captured devtools log.
+    // Cheap when no crash happens (one console.log per move); the
+    // logs let us tell exactly which step preceded the error when
+    // it does.
+    // eslint-disable-next-line no-console
+    console.log('[BUG-093] splitViewMoveTabByPath ENTRY', {
+      path,
+      auxState,
+      dirtyCount: dirtyPaths.size,
+      fileTabsCount: fileTabs.length
+    })
+    // Sprint 7 Phase 3c — file-aux and browser-aux are mutually
+    // exclusive. If a browser tab is currently pinned, release it
+    // back to main first so the file move lands in a clean slot.
+    if (auxBrowserTab) {
+      try {
+        await window.electron.browser.releaseAuxTab()
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn('[Phase 3c] releaseAuxTab failed during file-aux move:', err)
+      }
+      setAuxBrowserTab(null)
+    }
+    if (auxState && auxState.paths.includes(path)) {
+      // eslint-disable-next-line no-console
+      console.log('[BUG-093] no-op: path already in aux')
+      return
+    }
     // Capture the existing aux path BEFORE any mutations so the swap
     // logic below can promote it back to main.
     const existingAuxPath = auxState && auxState.paths.length > 0
@@ -1338,6 +1403,8 @@ export function App() {
     // holding a different path AND that path is dirty (the swap will
     // unmount its editor, losing unsaved edits during the pane move).
     if (existingAuxPath && dirtyPaths.has(existingAuxPath)) {
+      // eslint-disable-next-line no-console
+      console.log('[BUG-093] dirty-replace gate firing', { existingAuxPath })
       const filename = existingAuxPath.split('/').pop() ?? existingAuxPath
       const newFilename = path.split('/').pop() ?? path
       const result = await window.electron.dialog.confirm({
@@ -1348,7 +1415,11 @@ export function App() {
         cancelId: 0,
         type: 'warning'
       })
-      if (result.response !== 1) return
+      if (result.response !== 1) {
+        // eslint-disable-next-line no-console
+        console.log('[BUG-093] dirty-replace gate CANCELLED')
+        return
+      }
       // Discard chosen — clear the dirty flag for the path being
       // remounted as a fresh main tab. The editor's in-memory dirty
       // state resets to clean on the unmount/remount cycle anyway;
@@ -1361,6 +1432,8 @@ export function App() {
         return next
       })
     }
+    // eslint-disable-next-line no-console
+    console.log('[BUG-093] beginning swap', { existingAuxPath, movingIn: path })
     // Drop the new path from main fileTabs (single-source-of-truth).
     setFileTabs(prev => prev.filter(t => t.path !== path))
     // Promote the existing aux path back to main as a new file tab
@@ -1391,7 +1464,9 @@ export function App() {
       activeIndex: 0,
       splitPct: prev?.splitPct ?? 0.5
     }))
-  }, [auxState, fileTabs, dirtyPaths])
+    // eslint-disable-next-line no-console
+    console.log('[BUG-093] splitViewMoveTabByPath COMMITTED', { path, promotedId })
+  }, [auxState, fileTabs, dirtyPaths, auxBrowserTab])
 
   // ⌘\ — move the ACTIVE main file tab into the aux slot. Resolves the
   // active tab's path then routes through splitViewMoveTabByPath so the
@@ -1414,10 +1489,18 @@ export function App() {
   // ⌘⇧\ — promote aux back to main (close the split AND keep the
   // file open). Mirrors the aux header's ⇤ button (workingAux.onPromote
   // handler). Same state mutation: aux's active path becomes a fresh
-  // main file tab; auxState clears to null. No-op if no split is open.
-  // For pure-close (discard the split entirely), the aux header's ✕
-  // button is the affordance.
+  // main file tab; auxState clears to null. Sprint 7 Phase 3c — also
+  // handles browser-in-aux: a pinned browser tab is released back to
+  // the main strip via BrowserManager.releaseAuxTab(). No-op if no
+  // split is open. For pure-close (discard the split entirely), the
+  // aux header's ✕ button is the affordance.
   const splitViewPromote = useCallback(() => {
+    if (auxBrowserTab) {
+      void window.electron.browser.releaseAuxTab().then(() => {
+        setAuxBrowserTab(null)
+      })
+      return
+    }
     setAuxState(prev => {
       if (!prev || prev.paths.length === 0) return null
       const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
@@ -1428,7 +1511,40 @@ export function App() {
       setActiveWorking({ kind: 'file', id: newId })
       return null
     })
-  }, [])
+  }, [auxBrowserTab])
+
+  // Sprint 7 Phase 3c — pin a browser tab into the aux slot. Mutually
+  // exclusive with file-aux: if a file is currently pinned to aux,
+  // it's released back to main first (via splitViewPromote's file
+  // path) so the aux slot only holds one thing at a time.
+  // BrowserManager.moveTabToAux returns the tab's url/title for the
+  // aux header. The browser tabs broadcast (onTabsChange) will mark
+  // the moved tab `inAux: true` so the main strip filters it out.
+  const splitViewMoveBrowserTab = useCallback(async (browserTabId: number) => {
+    // If a file is currently in aux, release it back to main first.
+    // We can't share the slot. Re-uses the existing promote logic.
+    setAuxState(prev => {
+      if (!prev || prev.paths.length === 0) return null
+      const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
+      const { type, mime } = classifyFile(path)
+      const newId = `f:${crypto.randomUUID()}`
+      const title = path.split('/').pop() ?? path
+      setFileTabs(curr => [...curr, { id: newId, type, path, title, mime }])
+      return null
+    })
+    const result = await window.electron.browser.moveTabToAux(browserTabId)
+    if (!result.ok) {
+      // eslint-disable-next-line no-console
+      console.warn('[Phase 3c] moveTabToAux failed:', result.error)
+      return
+    }
+    setAuxBrowserTab({
+      id: browserTabId,
+      url: result.url ?? '',
+      title: result.title ?? '',
+      splitPct: auxState?.splitPct ?? 0.5
+    })
+  }, [auxState])
 
   // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
   // bump value, updates the "remember last choice" default (so new tabs
@@ -1663,7 +1779,7 @@ export function App() {
   // and unblocks BUG-038's recurring repro shape (cycle keystrokes
   // routing to the wrong pane because focus tracking was stuck).
   useEffect(() => {
-    return window.electron.keyboard?.onBrowserFocusGained?.(() => {
+    return window.electron.keyboard?.onBrowserFocusGained?.((payload) => {
       // ENH-036 (v0.6.4) — when `duo open <url>` lands on the browser
       // path (i.e. URL went to BrowserManager.openTab, NOT smart-routed
       // to the editor), the working pane needs to flip to browser kind
@@ -1674,8 +1790,20 @@ export function App() {
       // browser:open's effect by setting activeWorking too. Idempotent
       // on click-into-browser (BUG-042 source) — activeWorking is
       // already 'browser' when the user clicks the browser pane.
-      setActiveWorking({ kind: 'browser' })
+      //
+      // Phase 3c BUG-095 — when the focus event came from the AUX-
+      // pinned tab (slot === 'aux'), only flip focusedColumn to
+      // 'working'. Do NOT touch activeWorking: the aux tab is
+      // ALREADY in the aux pane and doesn't represent a main-strip
+      // intent. Pre-fix, clicking into the aux'd tab kicked the
+      // main pane's active markdown / canvas out and replaced it
+      // with whatever non-aux browser tab BrowserManager had as
+      // activeIndex — surprise tab switching the user reported as
+      // "main pane focus stolen."
       setFocusedColumn('working')
+      if (payload.slot === 'main') {
+        setActiveWorking({ kind: 'browser' })
+      }
     })
   }, [])
 
@@ -1749,6 +1877,14 @@ export function App() {
   const splitViewMoveTabByPathRef = useRef(splitViewMoveTabByPath)
   splitViewMoveTabByPathRef.current = splitViewMoveTabByPath
 
+  // Phase 3c — same ref pattern for the browser-aux mutation primitive
+  // and the auxBrowserTab state, so the IPC handlers can read the
+  // latest closure / state without re-subscribing on every change.
+  const splitViewMoveBrowserTabRef = useRef(splitViewMoveBrowserTab)
+  splitViewMoveBrowserTabRef.current = splitViewMoveBrowserTab
+  const auxBrowserTabRef = useRef(auxBrowserTab)
+  auxBrowserTabRef.current = auxBrowserTab
+
   useEffect(() => {
     const offOpen = window.electron.workingAux?.onOpen?.((path) => {
       // Sprint 3 Phase 3b + 3c-iii — delegate to the shared mutation
@@ -1758,10 +1894,32 @@ export function App() {
       // doesn't need to await the dialog response.
       void splitViewMoveTabByPathRef.current(path)
     })
+    // Phase 3c — CLI `duo split-view open-browser <id>` parity.
+    const offOpenBrowser = window.electron.workingAux?.onOpenBrowser?.((browserTabId) => {
+      void splitViewMoveBrowserTabRef.current(browserTabId)
+    })
     const offClose = window.electron.workingAux?.onClose?.(() => {
+      // Sprint 7 Phase 3c — close clears BOTH file-aux and browser-aux.
+      // If a browser tab is in aux, release it back to main first so
+      // the WCV gets repositioned out of the aux slot bounds.
+      if (auxBrowserTabRef.current) {
+        void window.electron.browser.releaseAuxTab().then(() => {
+          setAuxBrowserTab(null)
+        })
+      }
       setAuxState(null)
     })
     const offPromote = window.electron.workingAux?.onPromote?.(() => {
+      // Phase 3c — promote handles BOTH file-aux and browser-aux. If
+      // a browser tab is currently pinned, release it (BrowserManager
+      // handles the WCV reposition + activates the released tab in
+      // main strip). Otherwise the existing file-aux logic.
+      if (auxBrowserTabRef.current) {
+        void window.electron.browser.releaseAuxTab().then(() => {
+          setAuxBrowserTab(null)
+        })
+        return
+      }
       setAuxState(prev => {
         if (!prev || prev.paths.length === 0) return null
         const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
@@ -1790,6 +1948,7 @@ export function App() {
     })
     return () => {
       offOpen?.()
+      offOpenBrowser?.()
       offClose?.()
       offPromote?.()
       offResize?.()
@@ -1807,17 +1966,35 @@ export function App() {
   // so the CLI's no-arg `duo split-view` state query can answer
   // without a renderer round-trip.
   useEffect(() => {
-    const snapshot = auxState && auxState.paths.length > 0
-      ? {
-          aux: {
-            activePath: auxState.paths[auxState.activeIndex] ?? auxState.paths[0],
-            activeKind: classifyFile(auxState.paths[auxState.activeIndex] ?? auxState.paths[0]).type,
-            splitPct: auxState.splitPct
-          }
+    // Phase 3c — snapshot reflects the active aux slot (file OR
+    // browser). The activePath field carries the file path for files
+    // and the URL for browser tabs; activeKind disambiguates. The CLI
+    // consumer (`duo split-view` reflection) only has these two
+    // fields to work with, so a "browser tab in aux" shows up as
+    // activeKind: 'browser' + activePath: <url>.
+    let snapshot: { aux: { activePath: string; activeKind: import('@shared/types').WorkingTabType; splitPct: number } | null }
+    if (auxBrowserTab) {
+      snapshot = {
+        aux: {
+          activePath: auxBrowserTab.url,
+          activeKind: 'browser',
+          splitPct: auxBrowserTab.splitPct
         }
-      : { aux: null }
+      }
+    } else if (auxState && auxState.paths.length > 0) {
+      const activePath = auxState.paths[auxState.activeIndex] ?? auxState.paths[0]
+      snapshot = {
+        aux: {
+          activePath,
+          activeKind: classifyFile(activePath).type,
+          splitPct: auxState.splitPct
+        }
+      }
+    } else {
+      snapshot = { aux: null }
+    }
     window.electron.workingAux?.pushState?.(snapshot)
-  }, [auxState])
+  }, [auxState, auxBrowserTab])
 
   // ENH-040 — cache the previous non-collapsed split for restore.
   // Whenever splitPct is in the user's drag range (20–80), remember
@@ -2105,6 +2282,18 @@ export function App() {
                 onExpand={toggleCollapseCanvas}
               />
             ) : (
+            // BUG-093 instrumentation (v0.6.7) — inline ErrorBoundary
+            // scopes WorkingPane render-error containment so a canvas
+            // / editor crash leaves the rest of the app (terminal
+            // column, file tree, banners, menu) alive instead of
+            // dropping the entire renderer to the app-level error
+            // page. The "Try again" button remounts WorkingPane via
+            // the boundary's retryKey bump; if the underlying state
+            // has settled (e.g. mid-mount race resolved), recovery is
+            // free. The label "WorkingPane" prefixes the captured
+            // console error so post-mortem can tell this fired vs.
+            // the app-level boundary.
+            <ErrorBoundary inline label="WorkingPane">
             <WorkingPane
               fileTabs={fileTabs}
               activeWorking={activeWorking}
@@ -2169,24 +2358,40 @@ export function App() {
                 setFocusedColumn('files')
               }}
               onTrashTabFile={async (id, filePath) => {
+                // Sprint 7 rev6 follow-up — if the file is already
+                // gone (deleted in Finder, by another tool, or never
+                // existed), the trash IPC throws "doesn't exist".
+                // The user's intent is unambiguous: close the tab.
+                // Treat ENOENT as a no-op success and proceed to the
+                // close path; surface other errors via alert.
+                let trashed = true
                 try {
                   await window.electron.files.trash(filePath)
-                  // Strip-id encoding: file tabs are "f:<uuid>",
-                  // browser tabs are "b:<numericId>". BUG-045 — a
-                  // file:// browser tab can also reach this handler
-                  // (Reveal/Trash now exposed for them too) so we
-                  // need to close whichever kind it actually is.
-                  if (id.startsWith('f:')) {
-                    closeFileTab(id.slice(2))
-                  } else if (id.startsWith('b:')) {
-                    const numericId = parseInt(id.slice(2), 10)
-                    if (Number.isFinite(numericId)) {
-                      void window.electron.browser.closeTab(numericId)
-                    }
-                  }
                 } catch (err) {
-                  window.alert(`Move to Trash failed: ${err instanceof Error ? err.message : String(err)}`)
+                  const msg = err instanceof Error ? err.message : String(err)
+                  // Match both ASCII (') and Unicode (’) apostrophes —
+                  // Apple's file-not-found errors use the curly quote.
+                  if (/doesn['’]?t exist|ENOENT|no such file/i.test(msg)) {
+                    trashed = false
+                  } else {
+                    window.alert(`Move to Trash failed: ${msg}`)
+                    return
+                  }
                 }
+                // Strip-id encoding: file tabs are "f:<uuid>",
+                // browser tabs are "b:<numericId>". BUG-045 — a
+                // file:// browser tab can also reach this handler
+                // (Reveal/Trash now exposed for them too) so we
+                // need to close whichever kind it actually is.
+                if (id.startsWith('f:')) {
+                  closeFileTab(id.slice(2))
+                } else if (id.startsWith('b:')) {
+                  const numericId = parseInt(id.slice(2), 10)
+                  if (Number.isFinite(numericId)) {
+                    void window.electron.browser.closeTab(numericId)
+                  }
+                }
+                void trashed
               }}
               onStartRenameFromTab={(filePath) => {
                 const dir = filePath.slice(0, filePath.lastIndexOf('/')) || '/'
@@ -2210,23 +2415,21 @@ export function App() {
               // callbacks (no IPC round-trip needed when the user
               // clicks a button in their own renderer).
               auxState={auxState}
-              onAuxClose={() => setAuxState(null)}
-              onAuxPromote={() => {
-                setAuxState(prev => {
-                  if (!prev || prev.paths.length === 0) return null
-                  const path = prev.paths[prev.activeIndex] ?? prev.paths[0]
-                  const { type, mime } = classifyFile(path)
-                  const newId = `f:${crypto.randomUUID()}`
-                  const title = path.split('/').pop() ?? path
-                  setFileTabs(curr => [...curr, { id: newId, type, path, title, mime }])
-                  setActiveWorking({ kind: 'file', id: newId })
-                  return null
-                })
-              }}
+              auxBrowserTab={auxBrowserTab}
+              onAuxClose={splitViewPromote}
+              onAuxPromote={splitViewPromote}
               onAuxResize={(pct) => {
-                setAuxState(prev => prev ? { ...prev, splitPct: pct } : null)
+                // Phase 3c — divider-drag updates splitPct on whichever
+                // slot is active. Mutually exclusive: at most one of
+                // auxState / auxBrowserTab is non-null.
+                if (auxBrowserTab) {
+                  setAuxBrowserTab(prev => prev ? { ...prev, splitPct: pct } : null)
+                } else {
+                  setAuxState(prev => prev ? { ...prev, splitPct: pct } : null)
+                }
               }}
               onMoveTabToSplit={splitViewMoveTabByPath}
+              onMoveBrowserTabToSplit={splitViewMoveBrowserTab}
               // ENH-083 (v0.6.5) — collapse-canvas button moved from
               // titlebar into the new-tab cluster.
               isCanvasCollapsed={isCanvasCollapsed}
@@ -2246,6 +2449,7 @@ export function App() {
                 }
               }}
             />
+            </ErrorBoundary>
             )}
           </div>
         </div>

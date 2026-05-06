@@ -298,6 +298,13 @@ export interface BrowserTab {
   url: string
   title: string
   isActive: boolean
+  /** Sprint 7 Phase 3c — when true, this browser tab is currently
+   *  living in the Split View aux slot and should NOT render in the
+   *  main tab strip. The aux pane finds the inAux tab and routes
+   *  bounds for it through `BROWSER_AUX_BOUNDS`. Mutually exclusive
+   *  with `isActive` for main-strip rotation purposes (an aux-pinned
+   *  tab is never the main-strip "active"). */
+  inAux?: boolean
 }
 
 // ── Working-pane tabs (Stage 10 § D25/D26) ───────────────────────────────────
@@ -379,6 +386,10 @@ export interface WorkingAuxSnapshot {
 /** Sub-verb shape for `duo split-view <op>`. */
 export type WorkingAuxOp =
   | { op: 'open'; path: string }
+  /** Phase 3c — pin an existing browser tab (by 1-based id from the
+   *  main strip) into the aux slot. CLI parity for the right-click
+   *  "Move to Split View" gesture on a browser tab. */
+  | { op: 'open-browser'; browserTabId: number }
   | { op: 'close' }
   | { op: 'promote' }
   | { op: 'resize'; pct: number }
@@ -450,11 +461,18 @@ export type SessionStateActiveWorking =
  *  v1 SessionState schema (aux=null on load when missing) — old
  *  saves stay valid without a schema bump. v1 paths.length ≤ 1 (no
  *  multi-tab aux yet); the array shape is forward-compatible with
- *  future Phase 3c+ multi-tab. */
+ *  future Phase 3c+ multi-tab.
+ *
+ *  Sprint 7 Phase 3c shipped browser-in-aux as a SEPARATE renderer
+ *  state (`auxBrowserTabId`) rather than threading a discriminated
+ *  union through here. The two slot kinds are mutually exclusive at
+ *  any moment (a file in aux clears the browser pin and vice versa).
+ *  Browser-in-aux does NOT persist across relaunch in v1 — re-pin
+ *  manually on next launch. File-aux persistence is unchanged. */
 export interface SessionStateAux {
   /** Absolute file paths in the aux strip. v1: length 0 or 1.
-   *  Browser-in-aux paths land here as file:// URLs once Phase 3c
-   *  supports them; until then this is file paths only. */
+   *  Browser-in-aux is tracked separately (auxBrowserTabId,
+   *  renderer-side, non-persisted in v1). */
   paths: string[]
   /** Index of the active aux tab. -1 / out-of-range → restore picks 0
    *  (or no-op if paths is empty). */
@@ -1259,10 +1277,23 @@ export const IPC = {
   // useState); main caches the latest snapshot so the CLI's no-arg
   // state query can answer without a renderer round-trip.
   WORKING_AUX_OPEN: 'working:aux-open',          // main → renderer
+  WORKING_AUX_OPEN_BROWSER: 'working:aux-open-browser', // main → renderer (Phase 3c — browser tab id into aux)
   WORKING_AUX_CLOSE: 'working:aux-close',        // main → renderer
   WORKING_AUX_PROMOTE: 'working:aux-promote',    // main → renderer (move to main)
   WORKING_AUX_RESIZE: 'working:aux-resize',      // main → renderer (CLI-driven splitPct)
-  WORKING_AUX_STATE_PUSH: 'working:aux-state-push' // renderer → main (cache snapshot)
+  WORKING_AUX_STATE_PUSH: 'working:aux-state-push', // renderer → main (cache snapshot)
+  /** Phase 3c — bounds for the aux-pinned browser tab. Renderer pushes
+   *  on mount + on resize / split divider drag. Main applies them via
+   *  BrowserManager.setAuxBounds. */
+  BROWSER_AUX_BOUNDS: 'browser:aux-bounds',      // renderer → main
+  /** Phase 3c — pin a browser tab into the aux slot. Renderer call.
+   *  Carries the numeric BrowserTab id. Resolves with the aux'd tab's
+   *  url/title so the renderer can render the aux header. */
+  BROWSER_MOVE_TAB_TO_AUX: 'browser:move-tab-to-aux',
+  /** Phase 3c — release the aux-pinned tab back to the main strip.
+   *  Renderer call; main flips the BrowserManager flag and switches
+   *  the strip's active tab to the released one. */
+  BROWSER_RELEASE_AUX_TAB: 'browser:release-aux-tab'
 } as const
 
 

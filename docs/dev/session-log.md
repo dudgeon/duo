@@ -18,6 +18,62 @@
 
 ---
 
+## 2026-05-05 (late evening, post-rev6) — v0.6.7 cut · BUG-088/090/087 root cause + BUG-098 trash + ENH-095 ✕=Promote · Claude-driven walk of rev6 SKIPs · Stage 14a flips ✅
+
+**Status: v0.6.7 cut.** Picked up the rev6 walk paste from the owner; three FAILs (BUG-088/090/087) all traced to one duplicate-id-on-clone bug in `installAutoStampIds`; same-session fix re-stamps duplicates. Two adjacent items filed + fixed: BUG-098 (trash on missing file silently closes the tab) and ENH-095 (drop the redundant ⇤ Promote button on aux headers; ✕ now closes split + promotes back to main). Owner directive "you should attempt all of the smoke walk items yourself, including those I skipped, and only ask me to verify what you cannot" — Claude walked the six rev6 SKIPs (BUG-082 / BUG-083-FULL / BUG-089 / MISSING-001-PHASE-4-FULL / BUG-085 all PASS; BUG-084-BROWSER-RELOAD inconclusive due to synthetic-keystroke focus path on the WCV — owner walked + ✅). All comment-system arc items now validated end-to-end.
+
+**Cut deliverables:** v0.6.7 tag, single arm64-only DMG (`Duo-0.6.7-arm64.dmg`), CHANGELOG + RELEASES + faq.html "What's new" + what-duo-does.html (comments-on-both-surfaces #7 rewrite + browser-in-aux #56b + terminal-paste #18b) + roadmap.html (Stage 14a flipped ✅, header banner reflects v0.6.7) + session-log entry. Stage 14b–d (CriticMarkup track-changes, Suggesting toolbar, agent CLI verbs) remain ⬜.
+
+**Why it took two arcs:** Sprint 6 (comments on both surfaces — Phases 1–4) was the planned shape; Sprint 7 layered Phase 3c (browser-in-aux for BUG-092) plus BUG-094 / BUG-095 / BUG-096 follow-ups; rev6 walk surfaced BUG-088/090/087 as one bug not three; same-session root-cause fix unblocked the cut. The narrative arc held the cut from v0.6.6 — that was the right call; v0.6.6 would have shipped the comment regression as "fixed in code" without the markdown side or the Split View flow worksheets actually need.
+
+**Sprint 7 carry-overs:** BUG-093 (right-click → split crash, instrumentation landed; awaits clean repro). BUG-097 (markdown empty placeholder wraps narrow). FOLLOWUP-009 (`@testing-library/react` regression coverage for the comment-anchor reconciliation logic).
+
+---
+
+## 2026-05-05 (Sprint 7 mid-flight) — Phase 3c (browser-in-aux) ships · BUG-094/095/096/097 family · arm64-only policy · ~2.6 GB cleanup · rev6 smoke walk live, walk pending in fresh session
+
+**Status: a LOT in working tree, nothing committed today.** This session arc spanned a single long thread (no compaction). Owner is taking a break and walking rev6 in a FRESH SESSION next; this entry is the breadcrumb so that session can pick up cold.
+
+**What happened (chronological condensed):**
+
+1. Picked up at the rev3 smoke walk results from 2026-05-04 evening — 2 FAIL + 9 SKIP. Identified three real bugs from the walk: BUG-092 (Phase 3c blocker — split-view promotion strands `duo-open-in:browser` pages in script-blocked canvas), BUG-093 (renderer crash on right-click → split-view), BUG-094 (terminal paste auto-executes).
+
+2. **BUG-094 paste fix** — initially shipped a strip-all-newlines version; owner correctly flagged as too aggressive; reverted to trailing-only (matches Terminal.app default, preserves multi-line paste for Claude Code prompts / heredocs / scripts). Owner walked + ✅.
+
+3. **BUG-093 instrumentation** — extended `ErrorBoundary` with `inline` + `label` + Try-again retry; wrapped `<WorkingPane>`; added `[BUG-093]` structured traces in `splitViewMoveTabByPath`. Awaits a clean repro against the armed build.
+
+4. **Sprint 7 Phase 3c (BUG-092 fix) — browser-in-aux end-to-end.** Owner explicitly redirected when I tried to propose a v0.6.7 cut without it ("you said you'd do these, you didn't, and now you're asking me to cut?"). Built the full plumbing in one focused chunk: types + IPC channels (BROWSER_AUX_BOUNDS / BROWSER_MOVE_TAB_TO_AUX / BROWSER_RELEASE_AUX_TAB / WORKING_AUX_OPEN_BROWSER / `'open-browser'` op) → BrowserManager.auxTabId + auxBounds + moveTabToAux/releaseAuxTab/setAuxBounds + getTabs(inAux) + switchTab/closeTab updates → main.ts handlers + splitViewOpenBrowser CLI helper → preload + host-api bridge → renderer auxBrowserTab state + splitViewMoveBrowserTab + splitViewMoveTabByPath releases browser-aux first + IPC subscribers + onTabsChange consistency → new `<AuxBrowserSlot>` component → WorkingPane aux render branches (file vs browser kind) + browser tab `inAux` filter from main strip → WorkingTabStrip parseBrowserId helper + browser branch in move-to-split menu → `duo split-view open-browser <id>` verb in cli/duo.ts + socket-server.ts → skill/SKILL.md + agents/duo.md + CLI-COVERAGE.md cheat-sheet entries. Typecheck clean. Owner walked PHASE3C-MOVE + PHASE3C-MUTUAL + ✅ in rev5; PROMOTE/CLI/095/096/etc still SKIP from rev5.
+
+5. **BUG-095 + BUG-096 fixes** (Phase 3c follow-ups, surfaced in rev4 OTHER NOTES).
+   - BUG-095: focus event payload now carries `{tabId, slot}`; renderer only flips activeWorking on `slot === 'main'`. Aux-tab clicks no longer steal main pane focus.
+   - BUG-096: `closeTab` next-active picker skips the aux tab; spawns about:blank if only aux remains. Aux pane no longer blanks on main-strip cleanup.
+
+6. **BUG-097 filed** — markdown editor empty placeholder wraps narrow on first load (rev5 OTHER NOTE; visual ugliness, not blocking). No fix yet; suspected float interaction with empty-line affordance.
+
+7. **arm64-only distribution policy.** Owner decision (2026-05-05): drop Intel/x64 entirely. Updated `electron-builder.yml` (mac.target.arch reduced to `[arm64]`), `cut-version` SKILL.md (3 spots), README.md (install + Build-from-source). Scripts (`dist.sh`, `dist-signed.sh`, validators) inherit the change without edits. Cut time should drop ~50% per release (one notarization round-trip).
+
+8. **Cleanup pass.** Working under `Confirm` → `C` choices:
+   - `dist/` 3.0 GB → 364 MB. Pre-v0.6.6 DMGs deleted. v0.6.6 Intel DMG + `dist/mac/` x64 unpacked dir removed (arm64 policy).
+   - 4 stale worktrees removed (`stage-26-nav-row-interaction`, `stage-20-sandbox-transport`, `stage-19c-default-claude-tabs`, `hardcore-meninsky-42f7d6` — all merged or abandoned). 1 dirty worktree preserved (`distracted-chandrasekhar-335ce0` has uncommitted marketing work; option C kept it).
+   - `duo-chrome-extension-exploration` worktree preserved (active research per CLAUDE.md).
+   - 17 GitHub Releases cleaned of x64 DMG + blockmap assets — ~1.85 GB freed publicly. v0.4.1–0.4.3 release latest-mac.yml files still reference x64 sha512s (broken auto-update path for the essentially-zero universe of Intel users on auto-update against those exact releases; not chased).
+   - /tmp scratch (29 dev logs + 16 demo files) cleared.
+
+9. **rev5 smoke walk** — 5 PASS / 1 FAIL / 11 SKIP. Surfaced BUG-095 (focus theft), BUG-096 (close blanks aux), BUG-097 (placeholder wrap). My MUTUAL/CLI manifest steps were ambiguous (`<...>` placeholders + wrong verb name `duo tab` vs `duo tabs`) — owner typed `<4>` literally and zsh parsed `<>` as redirect. Manifest fixed in rev6 with concrete numeric example. Five passed items dropped from rev6 per owner request.
+
+10. **rev6 smoke walk live now** — 12 items (1 retest + 11 carry-over), browser pane in single Duo (pid 59072 from morning launch). Owner walks next session.
+
+**What's owed:**
+- rev6 walk (owner, fresh session).
+- v0.6.7 cut (post-walk; arm64-only single DMG; bump to v0.6.8 after).
+- BUG-093 root-cause repro (now armed with traces + boundary).
+- BUG-097 investigation (placeholder wrap; not blocking).
+- Re-anchor any auto-update yml regenerations if Intel-on-auto-update users complain (won't happen).
+
+**Read this entry's "Resume recipe" in `docs/dev/active-sprint.md § Resume — fresh session picking up rev6` before doing anything in the next session.**
+
+---
+
 ## 2026-05-04 (Sprint 6 implementation) — comments are real and visible (canvas + markdown) · ⌘R fix · external-write reconciliation · two smoke-walk rounds
 
 **Status: Sprint 6 implementation complete, NOT cut-ready until rev3 walk passes.** All four planned phases + two mid-sprint bug additions shipped; the rev1 + rev2 smoke walks each surfaced new bugs that mid-sprint fixes addressed but the SAME walk procedure couldn't validate cleanly without follow-up fixes (procedural BUG-086, BUG-091, worksheet-promotion-to-canvas issue).

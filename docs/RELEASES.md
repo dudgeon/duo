@@ -21,7 +21,29 @@
 
 ## Pending — not yet cut
 
-(Empty — v0.6.6 cut 2026-05-04. The next cut accumulates here.)
+(Empty — v0.6.7 cut 2026-05-05. The next cut accumulates here.)
+
+---
+
+## v0.6.7 — 2026-05-05 — Sprint 6 + Sprint 7: comments on both surfaces, browser tabs in Split View, terminal paste behaves, arm64-only
+
+This is the cut that v0.6.6 owed. The post-v0.6.6 conversation surfaced that comments on the canvas had regressed AND the markdown editor's comment surface (Stage 14a / MISSING-001) had never been built despite always being "next." Sprint 6 was the four-phase repair. Sprint 7 layered on the Split View fix that v0.6.6's worksheet-in-canvas workflow had quietly forced (BUG-092 — Phase 3c), the terminal paste fix that surfaced during the rev3 walk (BUG-094), and the arm64-only distribution policy. The cut held until rev6 walked clean — and in that walk, three rev6 FAILs (BUG-088 / BUG-090 / BUG-087) revealed a single deeper root cause: contentEditable's `<li>` cloning on Enter was inheriting the source bullet's `data-duo-id`, so multiple bullets shared one anchor. Same-session fix in `installAutoStampIds` re-stamps duplicates on insertion; everything downstream of "anchors are unique" passed verification end-to-end.
+
+**Why this lands here, not earlier.** The v0.6.6 cut was the wrong shape for these changes — it would have shipped the canvas comment regression as "fixed in code" without the markdown side, and without the Split View flow that worksheets depend on. By the time Phase 3c (browser-in-aux) was scoped, the right thing was to hold the cut until both surfaces had comments AND worksheets stopped being silently broken in split view.
+
+**Two key design decisions baked in.**
+
+1. **Comments are an iframe-side concern, not a parent-doc concern.** Stage 17's canvas iframes are `srcdoc` documents — parent `globals.css` doesn't reach them. Pre-Sprint 6, the comment badges had been rendering as plain "1" text inside canvases because the badge styles only existed in the parent. The Sprint 6 fix injects `installCommentAnchorStyles` into the iframe at ready-time (mirroring the existing `installJustAddedStyles` pattern). Same applies to the new `[data-duo-has-comment]` decoration. This means iframe-side styles + parent-side styles must stay in sync manually — the trade is worth it because it keeps the canvas surface independent of parent-doc styling drift.
+
+2. **Anchor uniqueness is the root invariant.** The bullet-decoration bug looked like a list-tag injection issue (BUG-088 hypothesized "extend `injectIds` to include `LI`" — but `<li>` was already in the walk). The real bug was that contentEditable clones an `<li>` on Enter and the new sibling inherits the `data-duo-id`. The MutationObserver would see "an existing id, skip" — preserving the duplicate. Once the auto-stamp detects duplicates and re-stamps later siblings, BUG-087 (rail-click activates "first and third bullets, not the middle") fell out as a consequence: with three li's sharing one id, the active-attribute selector matched all three; with unique ids, only the right one. The fix is general — it covers Enter-split, paste-of-stamped-fragments, and undo/redo flows.
+
+3. **Browser tabs and file tabs are different surfaces.** Phase 3c's BUG-092 fix could have routed worksheets through the canvas with `<meta name="duo-editable" content="false">` (and the rev2 cut tried that — it's still wired as a defense-in-depth measure). But canvas iframes are `sandbox="allow-same-origin allow-popups allow-forms"` — no `allow-scripts`. Worksheets need scripts. The right architectural fix was to make the aux slot tab-kind-aware: a browser tab pinned to aux stays a real Chromium WebContentsView, just repositioned. Type-discriminated `auxState` + `auxBrowserTab` + a separate `<AuxBrowserSlot>` component keeps the two paths clearly delineated.
+
+**arm64-only is a distribution simplification, not a deprecation.** Apple Silicon is ~3 years into broad availability; the Intel users running Sequoia + auto-update are essentially zero. Cut times drop ~50% per release (one notarization round-trip), local + remote storage frees up by ~4.5 GB, and the test matrix shrinks. If x64 is ever needed again, adding `- x64` back to `electron-builder.yml`'s `mac.target.arch` is one line; everything else (cut-version skill, scripts, validators, release upload glob) honors it without further changes.
+
+**Observability deserves a callout.** This cut also lands the BUG-093 instrumentation — ErrorBoundary `inline` + `label` + Try-again, structured `[BUG-093]` traces in `splitViewMoveTabByPath`. The renderer-crash-on-right-click-to-split that surfaced in rev3 is now scoped (a render error in WorkingPane no longer drops the entire renderer to the app-level error page) AND will name itself when it next fires. The bug isn't fixed; it's diagnostic-armed.
+
+**What this is and isn't.** This is the comment-system cut. Markdown editor and HTML canvas now have full comment-surface parity (kb / right-click / toolbar / persistence / re-anchor / visual association / bidirectional click-to-focus). It's also the Split-View-actually-works cut — worksheets, smoke walks, and dashboards live in real Chromium tabs on either side of the divider. **It is not a 1.0 candidate** — BUG-093 (right-click crash) still awaits root-cause; BUG-097 (markdown placeholder wraps narrow) is filed but unfixed; the comment-anchor reconciliation across markdown edits has the basic excerpt + context match but lacks `@testing-library/react` regression coverage (FOLLOWUP-009). Next sprint candidates queue here.
 
 ---
 

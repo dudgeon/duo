@@ -213,12 +213,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="comment thread reply resolve canvas html">
+<article class="item" data-keys="comment thread reply resolve canvas html markdown editor cmd alt m option-m google-docs right click toolbar bidirectional decoration anchor sidecar duo-json reopen rail rail-click body-click visual-association data-duo-has-comment data-duo-comment-active commentmark tiptap missing-001 stage 14a">
   <div class="num">7</div>
   <div>
-    <h3>Add comments to an HTML canvas</h3>
-    <p class="why">Select text inside an anchored element, click the 💬 Comment pill that appears beside Send → Duo, write a comment. Comments live in a sidecar (<code>&lt;file&gt;.html.duo.json</code>) — never mixed into the saved HTML. Reply, resolve, reopen all from the rail on the right.</p>
-    <p class="how"><strong>UI</strong>Select text → click 💬 Comment → write → ⌘+Enter. <strong>CLI</strong><code>duo html comment --id &lt;duo-id&gt; --body "…"</code></p>
+    <h3>Add comments to a document — markdown editor or HTML canvas</h3>
+    <p class="why">Both surfaces have the same comment UX. Select text, then any of: press <code>⌘⌥M</code> (Google Docs parity), right-click and pick "Comment", or click the 💬 button on the toolbar. Comments persist in a sidecar (<code>&lt;file&gt;.md.duo.json</code> or <code>.html.duo.json</code>) — the source file stays clean. The commented text shows a soft orange highlight. Click rail thread → anchor strengthens; click anchored text → rail thread focuses (bidirectional). Resolve a thread and the body highlight disappears. Closing + reopening the file rebuilds the rail with comments + decorations re-applied.</p>
+    <p class="how"><strong>UI</strong>Select text → <code>⌘⌥M</code> / right-click "Comment" / toolbar 💬 → write → ⌘+Enter. <strong>CLI</strong><code>duo html comment --id &lt;duo-id&gt; --body "…"</code> (canvas only)</p>
   </div>
 </article>
 
@@ -363,6 +363,15 @@
     <h3>Open a vanilla shell tab</h3>
     <p class="why">A regular zsh / bash session, useful for scripts you don't want Claude in.</p>
     <p class="how"><strong>UI</strong>Click <code>&gt;</code> on the terminal tab strip, or ⌘T while a terminal has focus (opens at the front terminal's CWD). <strong>CLI</strong><code>duo new-tab --shell</code> <strong>v0.5.3+</strong></p>
+  </div>
+</article>
+
+<article class="item" data-keys="terminal paste trailing newline auto execute bracketed paste clipboard chat copy heredoc multi-line bug-094">
+  <div class="num">18b</div>
+  <div>
+    <h3>Paste into the terminal without auto-executing</h3>
+    <p class="why">When you copy a command from chat or a doc, the source usually appends a trailing newline. Pre-v0.6.7, pasting that into a Duo terminal auto-executed the command before you could read it. Now Duo strips trailing newlines from the clipboard payload (matches Terminal.app's default). Internal newlines stay intact — multi-line paste for Claude Code prompts, heredocs, REPL blocks, and shell scripts still works. <strong>v0.6.7+</strong></p>
+    <p class="how"><strong>UI</strong>Just paste (<code>⌘V</code>). The trailing newline is dropped automatically; no opt-in required.</p>
   </div>
 </article>
 
@@ -564,7 +573,16 @@
     <h3>Open two files side-by-side in Split View</h3>
     <p class="why">The canvas (right pane) can host a "main" file on the left and an "aux" file on the right. Useful for reading a spec next to its implementation, comparing two drafts, or keeping a smoke-walk page visible while you exercise the file it references. Drag the divider to resize (clamped 20–80%); double-click resets to 50/50. State persists across launch — relaunch Duo and the split is restored. Single-source-of-truth: a file can only be in one pane at a time. <strong>v0.6.5+</strong></p>
     <p class="why"><strong>Swap when aux is occupied.</strong> Moving a new file into Split View while aux already holds a different file <em>swaps</em> them: the existing aux file moves back to main as a new file tab, and the new file takes the aux slot. The displaced file isn't lost — it lives on in main where you can keep working with it. (If the existing aux file has unsaved edits, you'll see a Cancel / Discard dialog before the swap — the editor unmounts during the pane move so unsaved edits would be lost. Save manually first if you want to keep them.)</p>
-    <p class="how"><strong>UI — open / move into split:</strong> Right-click any file tab → <strong>Move to Split View</strong>; or right-click a file in the navigator / pinned list → <strong>Open in Split View</strong>; or with a file tab active, press <strong>⌘\\</strong>. <strong>UI — promote aux back to main (close split, keep file):</strong> press <strong>⌘⇧\\</strong> or click the <strong>⇤</strong> button in the aux header — aux's content becomes a fresh main tab. <strong>UI — discard split entirely:</strong> click the <strong>✕</strong> in the aux header — aux content is dropped without promoting (⚠ unsaved edits lost; the dirty dialog only fires on swap). <strong>CLI</strong><code>duo split-view open &lt;path&gt;</code> · <code>duo split-view state</code> · <code>duo split-view resize &lt;pct&gt;</code> · <code>duo split-view promote</code> · <code>duo split-view close</code>. <strong>Per-page opt-in</strong> — pages in the browser pane can default their <code>data-duo-path</code> link clicks to Split View by adding <code>&lt;meta name="duo-path-target" content="split"&gt;</code> at the document head, or per-link via <code>data-duo-target="split"</code>. Smoke-walk pages use this so step-link clicks land in the side without losing the walk doc.</p>
+    <p class="how"><strong>UI — open / move into split:</strong> Right-click any file tab → <strong>Move to Split View</strong>; or right-click a file in the navigator / pinned list → <strong>Open in Split View</strong>; or with a file tab active, press <strong>⌘\\</strong>. <strong>UI — close split + return to main:</strong> click the <strong>✕</strong> in the aux header (since v0.6.7, ✕ promotes aux content back to main as a fresh tab — the prior separate ⇤ button was redundant); or press <strong>⌘⇧\\</strong>. <strong>CLI</strong><code>duo split-view open &lt;path&gt;</code> · <code>duo split-view state</code> · <code>duo split-view resize &lt;pct&gt;</code> · <code>duo split-view promote</code> · <code>duo split-view close</code>. <strong>Per-page opt-in</strong> — pages in the browser pane can default their <code>data-duo-path</code> link clicks to Split View by adding <code>&lt;meta name="duo-path-target" content="split"&gt;</code> at the document head, or per-link via <code>data-duo-target="split"</code>. Smoke-walk pages use this so step-link clicks land in the side without losing the walk doc.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="split view browser tab phase 3c bug-092 worksheet smoke walk dashboard scripted page chromium webcontentsview aux open-browser duo-split-view-open-browser real script execution copy buttons live-event">
+  <div class="num">56b</div>
+  <div>
+    <h3>Pin a browser tab to Split View (worksheet next to its target)</h3>
+    <p class="why">A browser tab — worksheet, smoke walk, dashboard, any scripted page — can be moved to the Split View aux slot AND stay in a real Chromium tab. Scripts run, Copy buttons work, live <code>duo:event</code> emission still works. Pre-v0.6.7, moving a worksheet to split silently routed it through a script-blocked canvas iframe; that path is gone. <strong>v0.6.7+</strong></p>
+    <p class="how"><strong>UI</strong>Right-click a browser tab → <strong>Move to Split View</strong>. The tab leaves the main browser strip and pins to aux as a real WebContentsView. <strong>CLI</strong><code>duo split-view open-browser &lt;id&gt;</code> (id from <code>duo tabs</code>). The aux ✕ promotes the tab back to the main strip.</p>
   </div>
 </article>
 

@@ -240,6 +240,13 @@ export function paintAnchors({ doc, badges, activeThreadId, onClick }: PaintAnch
   // externally). Saved HTML never carries these attributes — the
   // serializer strips data-duo-* runtime markers via the canvas-
   // runtime sentinel pathway.
+  // BUG-088/090 diagnostic instrumentation (Sprint 7) — capture which
+  // elements pick up data-duo-has-comment so the rev4+ walk can pin
+  // down whether the bug is "comment anchored to UL instead of LI" or
+  // "multiple LIs share an id" or something else. Cheap (one console
+  // group per repaint) and only runs when there are unresolved
+  // threads. Strip after the bug is rooted out.
+  const tinted: Array<{ tag: string; id: string; threadId: string }> = []
   doc.body.querySelectorAll<HTMLElement>('[data-duo-id]').forEach((el) => {
     const id = el.getAttribute('data-duo-id')
     if (!id) return
@@ -253,11 +260,18 @@ export function paintAnchors({ doc, badges, activeThreadId, onClick }: PaintAnch
       if (meta && meta.resolved) el.removeAttribute(HAS_COMMENT_DATA)
       if (id === activeThreadId) el.setAttribute(COMMENT_ACTIVE_DATA, '1')
       else el.removeAttribute(COMMENT_ACTIVE_DATA)
+      if (!meta?.resolved) {
+        tinted.push({ tag: el.tagName.toLowerCase(), id, threadId: meta?.threadId ?? id })
+      }
     } else {
       el.removeAttribute(HAS_COMMENT_DATA)
       el.removeAttribute(COMMENT_ACTIVE_DATA)
     }
   })
+  if (tinted.length > 0) {
+    // eslint-disable-next-line no-console
+    console.log('[BUG-088/090] paintAnchors tinted elements:', tinted)
+  }
 }
 
 /**

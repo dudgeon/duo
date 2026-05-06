@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { cycleNext } from '../keyboard/tabCycle'
 import { BrowserRenderer } from './BrowserRenderer'
+import { AuxBrowserSlot } from './AuxBrowserSlot'
 import { MarkdownPreview } from './MarkdownPreview'
 import { MarkdownEditor } from './editor/MarkdownEditor'
 import { PageTab } from './Page/PageTab'
@@ -108,6 +109,23 @@ interface WorkingPaneProps {
    *  (single-column layout); non-null = render side-by-side with
    *  splitPct controlling the main:aux ratio. v1 paths.length ≤ 1. */
   auxState?: WorkingAuxLocalState | null
+  /** Sprint 7 Phase 3c — browser tab pinned to Split View aux. When
+   *  set, the aux pane renders an `<AuxBrowserSlot>` over the
+   *  BrowserManager's auxTabId-tagged WebContentsView (no React
+   *  iframe — same path as the main browser pane, so scripts run
+   *  exactly as they would in main). Mutually exclusive with
+   *  auxState (a file in aux clears any browser pin and vice versa).
+   *  v1 single-slot only. */
+  auxBrowserTab?: {
+    id: number
+    url: string
+    title: string
+    splitPct: number
+  } | null
+  /** Phase 3c — right-click "Move to Split View" on a browser tab in
+   *  the main strip routes here. Threaded through to WorkingTabStrip;
+   *  carries the numeric BrowserTab id (extracted from `b:<n>`). */
+  onMoveBrowserTabToSplit?: (browserTabId: number) => void
   /** ENH-041 — close the aux pane (✕ button in AuxHeader). */
   onAuxClose?: () => void
   /** ENH-041 — promote aux's active tab back to main + close aux. */
@@ -146,6 +164,8 @@ export function WorkingPane({
   pins,
   onTogglePin,
   onPlaygroundAction,
+  auxBrowserTab,
+  onMoveBrowserTabToSplit,
   homeDir,
   onPageFocusGained,
   onRevealInNavigator,
@@ -202,7 +222,11 @@ export function WorkingPane({
       isActive: activeWorking.kind === 'file' && activeWorking.id === ft.id,
       pinned: !ft.isNew && isPinned('file', ft.path)
     })),
-    ...browserTabs.map(bt => ({
+    // Sprint 7 Phase 3c — browser tabs marked `inAux` are pinned to
+    // Split View and do NOT belong in the main strip's list. Filter
+    // them out before merging so they don't render as duplicates.
+    // The aux pane finds its tab by browserTabId via auxBrowserTab.
+    ...browserTabs.filter(bt => !bt.inAux).map(bt => ({
       id: stringifyBrowserId(bt.id),
       type: 'browser' as const,
       title: bt.title,
@@ -450,14 +474,19 @@ export function WorkingPane({
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }
 
-  // ENH-041 / Sprint 3 — Split View. When auxState is non-null and
-  // has at least one path, render side-by-side: main on the left at
-  // (1 - splitPct) width, aux on the right at splitPct width, with
-  // a draggable divider between. v1 single-slot aux holds file tabs
-  // only (no browser kinds in aux — Phase 3c work).
-  const splitOpen = !!(auxState && auxState.paths.length > 0)
-  const auxPath = splitOpen ? (auxState!.paths[auxState!.activeIndex] ?? auxState!.paths[0]) : null
+  // ENH-041 / Sprint 3 → Sprint 7 Phase 3c — Split View. Two slot
+  // kinds today, mutually exclusive: a file path (auxState.paths) or
+  // a pinned browser tab (auxBrowserTab). Either one being set
+  // counts as splitOpen. The splitPct is read from whichever slot is
+  // active. v1 single-slot only.
+  const fileSplitOpen = !!(auxState && auxState.paths.length > 0)
+  const browserSplitOpen = !!auxBrowserTab
+  const splitOpen = fileSplitOpen || browserSplitOpen
+  const auxPath = fileSplitOpen ? (auxState!.paths[auxState!.activeIndex] ?? auxState!.paths[0]) : null
   const auxFileTab: FileTab | null = auxPath ? buildAuxFileTab(auxPath) : null
+  const activeSplitPct = browserSplitOpen
+    ? auxBrowserTab!.splitPct
+    : (auxState?.splitPct ?? 0.5)
 
   // Main pane — owned by App.tsx, never persists across session
   // unmount; the existing WorkingTabStrip + render logic. Wrapped so
@@ -484,6 +513,7 @@ export function WorkingPane({
         onTrashFile={onTrashTabFile}
         onStartRenameFromTab={onStartRenameFromTab}
         onMoveToSplit={onMoveTabToSplit}
+        onMoveBrowserTabToSplit={onMoveBrowserTabToSplit}
         isCanvasCollapsed={isCanvasCollapsed}
         onToggleCanvasCollapsed={onToggleCanvasCollapsed}
       />
@@ -533,41 +563,55 @@ export function WorkingPane({
           instrumentation BEFORE writing the v4 fix. */}
       <div
         className="flex flex-col min-w-0"
-        style={splitOpen ? { flex: `${(1 - auxState!.splitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
+        style={splitOpen ? { flex: `${(1 - activeSplitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
       >
         {mainPaneFragment}
       </div>
-      {splitOpen && auxFileTab && (
+      {splitOpen && (
         <>
           <SplitViewDivider
-            splitPct={auxState!.splitPct}
+            splitPct={activeSplitPct}
             onResize={onAuxResize}
           />
           <div
             className="flex flex-col min-w-0 border-l border-paper-rule"
-            style={{ flex: `${auxState!.splitPct * 100} 0 0%` }}
+            style={{ flex: `${activeSplitPct * 100} 0 0%` }}
           >
-            <AuxHeader
-              path={auxFileTab.path}
-              title={auxFileTab.title}
-              onClose={onAuxClose}
-              onPromote={onAuxPromote}
-              // ENH-084 — focus glow on aux header when the aux
-              // subpane has focus.
-              focused={focused && focusedSubpane === 'aux'}
-              // ENH-085 (v0.6.5) — right-click parity with main canvas
-              // tab. The reveal/rename/trash callbacks already exist
-              // on WorkingPane for the main strip; thread them through
-              // to AuxHeader's handleContextMenu.
-              onRevealInNavigator={onRevealInNavigator}
-              onStartRenameFromTab={onStartRenameFromTab}
-              onAuxTrash={onAuxTrash}
-            />
-            <div className="flex-1 min-h-0 relative">
-              <div className="absolute inset-0 flex flex-col">
-                {renderFileTab(auxFileTab)}
-              </div>
-            </div>
+            {browserSplitOpen && auxBrowserTab && (
+              <AuxBrowserSlot
+                browserTabId={auxBrowserTab.id}
+                url={auxBrowserTab.url}
+                title={auxBrowserTab.title}
+                onClose={onAuxClose}
+                onPromote={onAuxPromote}
+                focused={focused && focusedSubpane === 'aux'}
+              />
+            )}
+            {fileSplitOpen && auxFileTab && (
+              <>
+                <AuxHeader
+                  path={auxFileTab.path}
+                  title={auxFileTab.title}
+                  onClose={onAuxClose}
+                  onPromote={onAuxPromote}
+                  // ENH-084 — focus glow on aux header when the aux
+                  // subpane has focus.
+                  focused={focused && focusedSubpane === 'aux'}
+                  // ENH-085 (v0.6.5) — right-click parity with main canvas
+                  // tab. The reveal/rename/trash callbacks already exist
+                  // on WorkingPane for the main strip; thread them through
+                  // to AuxHeader's handleContextMenu.
+                  onRevealInNavigator={onRevealInNavigator}
+                  onStartRenameFromTab={onStartRenameFromTab}
+                  onAuxTrash={onAuxTrash}
+                />
+                <div className="flex-1 min-h-0 relative">
+                  <div className="absolute inset-0 flex flex-col">
+                    {renderFileTab(auxFileTab)}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}
@@ -709,24 +753,18 @@ function AuxHeader({
     >
       <span className="text-[11px] uppercase tracking-wide text-ink-mute">Split</span>
       <span className="text-sm truncate flex-1 text-ink">{title}</span>
-      {onPromote && (
-        <button
-          type="button"
-          onClick={onPromote}
-          className="text-[11px] text-ink-mute hover:text-accent px-1.5 py-0.5 rounded"
-          title="Move to main"
-          aria-label="Move split tab to main"
-        >
-          ⇤ to main
-        </button>
-      )}
+      {/* Sprint 7 rev6 — single ✕ button replaces the ⇤ + ✕ pair.
+          App.tsx wires both onAuxClose and onAuxPromote to
+          splitViewPromote so closing the split also promotes the file
+          back to a main-pane tab. The right-click "Move back to main"
+          menu entry remains as a synonym. */}
       {onClose && (
         <button
           type="button"
           onClick={onClose}
           className="text-ink-mute hover:text-ink px-1.5 py-0.5 rounded"
-          title="Close split (⌘⇧\\)"
-          aria-label="Close Split View"
+          title="Move back to main (⌘⇧\\)"
+          aria-label="Move back to main"
         >
           ✕
         </button>

@@ -88,11 +88,19 @@ extraResources:
 
 mac:
   category: public.app-category.developer-tools
+  # Sprint 7 (2026-05-05) — arm64-only distribution. Owner decision:
+  # Duo no longer ships an Intel/x64 build. Apple Silicon is the
+  # primary target; Intel users on Sequoia have moved on. Dropping
+  # x64 cuts cut-time DMG count from 2 → 1 per build, halves the
+  # notarization round-trips, and frees ~100 MB per release locally
+  # and on GitHub Releases. If the universal/x64 case is ever needed
+  # again, add `- x64` back to the arch list and the rest of the
+  # pipeline (dist scripts, validators, release upload glob) honors
+  # it without changes.
   target:
     - target: dmg
       arch:
         - arm64
-        - x64
   # Stage 21b: build/icon.icns is the multi-resolution macOS icon (10
   # standard sizes 16²..1024², generated from build/icon.png via
   # sips + iconutil). Regenerate with the same pipeline if the PNG

@@ -58,6 +58,21 @@ export interface ElectronBrowserAPI {
   forward: () => void
   reload: () => void
   setBounds: (bounds: BrowserBounds) => void
+  /** Phase 3c — bounds for the aux-pinned browser tab (Split View).
+   *  Renderer's AuxBrowserSlot pushes on mount + ResizeObserver +
+   *  window resize + split divider drag. Stored separately from
+   *  setBounds inside BrowserManager so the main strip and aux pane
+   *  can have independent geometry. */
+  setAuxBounds: (bounds: BrowserBounds) => void
+  /** Phase 3c — pin a browser tab into the Split View aux slot.
+   *  Removes it from the main tab strip's rotation. Returns the
+   *  pinned tab's url + title so the AuxBrowserSlot header can
+   *  display them without a second round trip. */
+  moveTabToAux: (id: number) => Promise<{ ok: boolean; error?: string; url?: string; title?: string }>
+  /** Phase 3c — release the aux-pinned tab back to the main strip.
+   *  The released tab becomes main-strip active. No-op when no tab
+   *  is currently in aux. */
+  releaseAuxTab: () => Promise<{ ok: boolean; error?: string }>
   /** BUG-047 — temporarily mute the WebContentsView (collapse to 1×1)
    *  so a renderer-DOM overlay (context menu, tooltip) can render
    *  unobstructed. macOS composites WCV above renderer DOM regardless
@@ -252,12 +267,19 @@ export interface ElectronKeyboardAPI {
    *  toggle's prev read. Fires `mainWindow.webContents.focus()`
    *  in the main process. */
   reclaimFocus: () => void
-  /** BUG-042 — fires when the browser WebContentsView gains keyboard
+  /** BUG-042 — fires when a browser WebContentsView gains keyboard
    *  focus (click into the page, programmatic focus, etc.). Renderer
    *  flips `focusedColumn = 'working'` so subsequent ⌃Tab / ⌘T fire
    *  against the right pane. Symmetric to the canvas iframe's
-   *  mousedown forwarder (BUG-037). */
-  onBrowserFocusGained: (cb: () => void) => () => void
+   *  mousedown forwarder (BUG-037).
+   *
+   *  Phase 3c BUG-095 — payload carries `tabId` + `slot` so the
+   *  renderer can distinguish a focus event on the aux-pinned tab
+   *  from one on the main-strip active tab. The aux slot focusing
+   *  should NOT flip activeWorking to 'browser' (it would replace
+   *  the main pane's active editor / canvas with a different
+   *  browser tab, since the aux'd tab itself is already in aux). */
+  onBrowserFocusGained: (cb: (payload: { tabId: number; slot: 'main' | 'aux' }) => void) => () => void
   /** Stage 12 close — Claude just read a selection via `duo selection`.
    *  Carries which pane the resolved selection came from so the
    *  renderer can paint a transient accent glow on the right surface.
@@ -300,6 +322,10 @@ export interface ElectronWorkingAuxAPI {
   /** Subscribe to `duo split-view open <path>` from the CLI. The
    *  path arg is already tilde-expanded by main. */
   onOpen: (cb: (path: string) => void) => () => void
+  /** Phase 3c — subscribe to `duo split-view open-browser <id>` from
+   *  the CLI. Carries the numeric BrowserTab id; renderer routes
+   *  through splitViewMoveBrowserTab. */
+  onOpenBrowser: (cb: (browserTabId: number) => void) => () => void
   /** Subscribe to `duo split-view close` from the CLI. */
   onClose: (cb: () => void) => () => void
   /** Subscribe to `duo split-view promote` — move aux's tab to main

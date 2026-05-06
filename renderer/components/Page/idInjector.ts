@@ -102,7 +102,29 @@ export function installAutoStampIds(doc: Document): () => void {
     if (SKIP_TAGS.has(el.tagName)) return
     const existing = el.getAttribute('data-duo-id')
     if (existing === 'opt-out') return
-    if (existing) return
+    if (existing) {
+      // BUG-088/090 (Sprint 7 rev6 root cause) — when the user presses
+      // Enter at the end of a bullet, contentEditable splits the active
+      // <li> into two: the new sibling carries the original element's
+      // data-duo-id. Pre-fix, this branch returned immediately because
+      // the new element "had an id," so all sibling bullets ended up
+      // sharing one id and comments on any of them collapsed into a
+      // single thread anchored to the first sibling. The same shape
+      // bites paste-of-stamped-fragments and undo/redo flows.
+      //
+      // Fix: detect duplicates. If any OTHER element in the body
+      // already owns this id, this element is a clone and needs a
+      // fresh id. We keep the first-in-document occurrence and re-stamp
+      // later ones — the original element retains its identity (so any
+      // existing comment anchored to it still resolves), while the new
+      // sibling gets a unique id and can host its own future comments.
+      const escaped = existing.replace(/(["\\])/g, '\\$1')
+      const duplicates = doc.body.querySelectorAll(`[data-duo-id="${escaped}"]`)
+      if (duplicates.length > 1 && duplicates[0] !== el) {
+        el.setAttribute('data-duo-id', newULID())
+      }
+      return
+    }
     el.setAttribute('data-duo-id', newULID())
   }
 

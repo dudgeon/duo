@@ -154,13 +154,20 @@ Two paths. Pick by what's set up on the cutting machine.
 ```bash
 bash scripts/dist-signed.sh
                                   # produces dist/Duo-X.Y.Z-arm64.dmg
-                                  # AND dist/Duo-X.Y.Z.dmg (x64)
                                   # signed + notarized + stapled,
                                   # validated end-to-end before exit
 ```
 
-End-to-end ~5–8 min on M1 (most of it is the two Apple notarization
-round-trips, one per arch). The script:
+Sprint 7 (2026-05-05) — Duo ships **arm64-only** now. The Intel/x64
+target was dropped from `electron-builder.yml`'s `mac.target.arch`
+list. Apple Silicon is the only published architecture; Intel users
+on Sequoia have moved on. If the universal/x64 case is ever needed
+again, add `- x64` back to the yml's arch list and every downstream
+piece (this skill, README, validators, release upload glob) honors
+it without further changes.
+
+End-to-end ~3–4 min on M1 (one notarization round-trip; previously
+~5–8 min covered both archs). The script:
 
 1. Sources cert + notarization env vars from
    `~/Documents/duo-private/.env` (`CSC_NAME`, `APPLE_API_KEY`,
@@ -233,7 +240,7 @@ is **NOT** the cause. It's harmless on its own; even files in
 ```bash
 CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist
                                   # produces dist/Duo-X.Y.Z-arm64.dmg
-                                  # (and the universal/x64 DMG)
+                                  # (arm64-only as of Sprint 7)
 ```
 
 Skips signing entirely. End users see the macOS "Apple cannot check
@@ -395,8 +402,10 @@ gh release create vX.Y.Z \
   dist/Duo-X.Y.Z*.dmg
 ```
 
-The `dist/Duo-X.Y.Z*.dmg` glob picks up both arm64 and x64 builds when
-electron-builder produces them. Both attach to the same release.
+The `dist/Duo-X.Y.Z*.dmg` glob is arm64-only as of Sprint 7 (single
+file: `Duo-X.Y.Z-arm64.dmg`). The glob shape is preserved so a
+hypothetical re-introduction of x64 (add `- x64` back to
+`electron-builder.yml`) works without touching this command.
 
 **Stage 21 ✅ — signed + notarized DMGs.** This step works unchanged
 for both signed and unsigned cuts; the DMG glob doesn't care which

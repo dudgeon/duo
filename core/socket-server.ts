@@ -85,6 +85,10 @@ export interface NavBridge {
    *  the no-arg getter returns main's cached snapshot pushed by the
    *  renderer on every aux state change. */
   splitViewOpen: (path: string) => { ok: boolean; error?: string }
+  /** Phase 3c — pin a browser tab (numeric BrowserTab id) into the
+   *  Split View aux slot. Mirrors splitViewOpen but routes through
+   *  IPC.WORKING_AUX_OPEN_BROWSER instead of WORKING_AUX_OPEN. */
+  splitViewOpenBrowser: (browserTabId: number) => { ok: boolean; error?: string }
   splitViewClose: () => { ok: boolean; error?: string }
   splitViewPromote: () => { ok: boolean; error?: string }
   splitViewResize: (pct: number) => { ok: boolean; pct?: number; error?: string }
@@ -724,6 +728,17 @@ export class SocketServer {
             result = { ok: true }
             break
           }
+          if (op === 'open-browser') {
+            // Phase 3c — pin a browser tab into the aux slot.
+            const browserTabId = args['browserTabId']
+            if (typeof browserTabId !== 'number' || !Number.isInteger(browserTabId) || browserTabId < 1) {
+              throw new Error('split-view open-browser requires a positive integer browserTabId arg')
+            }
+            const r = this.nav.splitViewOpenBrowser(browserTabId)
+            if (!r.ok) throw new Error(r.error ?? 'split-view open-browser failed')
+            result = { ok: true }
+            break
+          }
           if (op === 'close') {
             const r = this.nav.splitViewClose()
             if (!r.ok) throw new Error(r.error ?? 'split-view close failed')
@@ -746,7 +761,7 @@ export class SocketServer {
             result = { pct: r.pct }
             break
           }
-          throw new Error(`split-view: unknown op '${op}' (expected open|close|promote|resize|state)`)
+          throw new Error(`split-view: unknown op '${op}' (expected open|open-browser|close|promote|resize|state)`)
         }
         case 'selection-format': {
           const format = args['format'] as string | undefined
