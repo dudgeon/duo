@@ -374,6 +374,23 @@ html.dark {
     float: left;
     height: 0;
     pointer-events: none;
+    /* BUG-097 (v0.6.8) — Tailwind Typography's `@apply prose`
+       (line 276) brings its own first-child + first-of-type
+       pseudo-element rules that can interact with this floated
+       placeholder and squeeze it into a vertical one-character-per-
+       line column on first load of an empty `.md` file. Lock the
+       inline behavior so the placeholder always lays out
+       horizontally regardless of which prose-level rules win on
+       cascade order. `white-space: nowrap` forbids mid-text wrap;
+       `word-break: normal` defends against any inherited
+       `break-all`; `max-width: 100%` keeps overflow in check on
+       very narrow editors (the text clips rather than vertical-
+       wraps — much more readable). */
+    white-space: nowrap;
+    word-break: normal;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* Stage 11 selection persistence — painted by the PersistentSelection

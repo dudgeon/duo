@@ -5324,7 +5324,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-097: Markdown editor empty-doc placeholder wraps at ~3 characters per line on first load
 
-**Status:** 🟡 **Filed** (rev5 walk MUTUAL note, 2026-05-05). Awaits root-cause investigation.
+**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8 Phase 0, 2026-05-06). Defensive CSS hardening on the placeholder rule at [globals.css:371](renderer/styles/globals.css). Suspected root cause: Tailwind Typography's `@apply prose` (line 276 of the same file) brings its own first-child / first-of-type pseudo-element rules that interact with the floated placeholder pseudo-element and squeeze it into a vertical one-character-per-line column on first load. The fix locks horizontal layout: `white-space: nowrap` forbids mid-text wrap; `word-break: normal` defends against any inherited `break-all`; `max-width: 100%` + `overflow: hidden` + `text-overflow: ellipsis` keep overflow in check on narrow editors (the text clips with `…` rather than vertical-wraps — far more readable). The fix is defensive rather than precision-targeted because the exact Tailwind interaction surface drift between Typography versions and the cost of a precision fix exceeds the cost of locking the placeholder's inline behavior.
 **Priority:** **Medium** — visual ugliness, not data-loss. Workaround: type any character; placeholder disappears.
 **Filed:** 2026-05-05 (rev5 walk MUTUAL note — "strange page formatting when I first load the markdown file").
 
