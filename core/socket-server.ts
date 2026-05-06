@@ -978,6 +978,25 @@ export class SocketServer {
           }
           break
         }
+        case 'pack-list': {
+          // Stage 21d-iii — list installed distro packs.
+          const { listInstalledPacks } = await import('../electron/distro-pack-service')
+          result = await listInstalledPacks()
+          break
+        }
+        case 'pack-uninstall': {
+          // Stage 21d-iii — uninstall a distro pack by name. Removes
+          // the pack's tracked files (skills, agents) and its
+          // CLAUDE.md managed block. With --remove-folder, also
+          // deletes the source pack folder under extra-packs/.
+          const name = args['name'] as string
+          const removeFolder = !!args['removeFolder']
+          if (!name) throw new Error('pack-uninstall requires a name arg')
+          const { uninstallPack } = await import('../electron/distro-pack-service')
+          result = await uninstallPack(name, { removePackFolder: removeFolder })
+          break
+        }
+
         default:
           return { id, ok: false, error: `Unknown command: ${cmd}` }
       }

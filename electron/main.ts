@@ -18,6 +18,13 @@ import { FilesService } from './files-service'
 import { PinsService } from '../core/pins-service'
 import { NavPinsService } from '../core/nav-pins-service'
 import { InstallService } from './install-service'
+import {
+  discoverPacks,
+  installPack,
+  mergeDistroClaudeMd,
+  uninstallPack,
+  listInstalledPacks
+} from './distro-pack-service'
 import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
@@ -947,6 +954,16 @@ function setupIPC(): void {
     return installService.addToShellPath()
   })
 
+  // Stage 21d-i — distro pack discovery + install on launch.
+  // Each pack at ~/.claude/duo/extra-packs/<name>/ is read; if its
+  // requiresDuoVersion accepts the running Duo, the plugin source
+  // is decomposed into standalone-skill destinations and the
+  // CLAUDE.md snippet (if present) is merged. Atomic-replace
+  // semantics — the previous version's tracked files are removed
+  // before re-installation. Errors are logged but don't block the
+  // launch path; users see the pack-install summary in `duo pack list`.
+  void scanAndInstallDistroPacks()
+
   // v0.4.0 — GitHub Releases update checker.
   ipcMain.handle(IPC.UPDATE_CHECK, () => {
     return updateChecker.maybeRefresh()
@@ -1318,6 +1335,43 @@ export function sendReveal(path: string): { ok: boolean; error?: string } {
   }
   mainWindow.webContents.send(IPC.NAV_REVEAL, path)
   return { ok: true }
+}
+
+/**
+ * Stage 21d-i — scan ~/.claude/duo/extra-packs/ on launch and run
+ * the install pipeline for each pack. Idempotent + atomic-replace,
+ * so repeated launches are a no-op for unchanged packs and a
+ * version-aware re-install for updated ones.
+ *
+ * Errors per-pack are logged but never block the launch path.
+ */
+async function scanAndInstallDistroPacks(): Promise<void> {
+  let packs: string[]
+  try {
+    packs = await discoverPacks()
+  } catch (e) {
+    console.warn('[distro-pack] Discovery failed:', (e as Error).message)
+    return
+  }
+  if (packs.length === 0) return
+  const duoVersion = app.getVersion()
+  for (const packPath of packs) {
+    try {
+      const outcome = await installPack(packPath, duoVersion)
+      if (!outcome.ok) {
+        console.warn(`[distro-pack] Skipped ${packPath}: ${outcome.error.reason}`)
+        continue
+      }
+      // Stage 21d-i v1 — CLAUDE.md merge runs as a separate step
+      // so the install pipeline stays pure on the filesystem side.
+      const merged = await mergeDistroClaudeMd(packPath, outcome.result.name, outcome.result.version)
+      console.log(
+        `[distro-pack] Installed ${outcome.result.name} v${outcome.result.version}: ${outcome.result.filesInstalled} files${merged ? ' + CLAUDE.md merged' : ''}`
+      )
+    } catch (e) {
+      console.warn(`[distro-pack] Install failed for ${packPath}:`, (e as Error).message)
+    }
+  }
 }
 
 export function sendView(path: string, mode?: 'canvas' | 'browser'): { ok: boolean; error?: string } {

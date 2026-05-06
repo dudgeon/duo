@@ -1039,6 +1039,25 @@ async function main(): Promise<void> {
         runInstall({ system })
         break
       }
+      case 'pack': {
+        // Stage 21d-iii — distro pack management.
+        //   duo pack list                — JSON list of installed packs
+        //   duo pack uninstall <name>    — remove a pack
+        // Future: duo pack install <url> (FOLLOWUP-010)
+        const sub = rest[0]
+        if (sub === 'list') {
+          out(await send('pack-list', {}))
+          break
+        }
+        if (sub === 'uninstall') {
+          const name = rest[1]
+          if (!name) die('Usage: duo pack uninstall <distro-name>')
+          const removeFolder = rest.includes('--remove-folder')
+          out(await send('pack-uninstall', { name, removeFolder }))
+          break
+        }
+        die('Usage: duo pack list  |  duo pack uninstall <name> [--remove-folder]')
+      }
 
       default:
         die(`Unknown command: ${cmd}\nRun duo --help for usage`)

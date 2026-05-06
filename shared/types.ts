@@ -88,6 +88,9 @@ export type DuoCommandName =
   // .html file from boilerplate (PRD H17, minimal v1) and opens it in
   // the canvas tab. Other `duo html *` verbs land in 17b/17c.
   | 'html-new'
+  // Stage 21d-iii — distro pack management.
+  | 'pack-list'
+  | 'pack-uninstall'
   // Stage 17b Phase C — agent read/write verbs against the active
   // canvas: `duo html query/get/set/replace/append/remove/attr`. All
   // routed through a single `html-op` socket command with a

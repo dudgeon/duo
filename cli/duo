@@ -830,6 +830,21 @@ async function main() {
         runInstall({ system });
         break;
       }
+      case "pack": {
+        const sub = rest[0];
+        if (sub === "list") {
+          out(await send("pack-list", {}));
+          break;
+        }
+        if (sub === "uninstall") {
+          const name = rest[1];
+          if (!name) die("Usage: duo pack uninstall <distro-name>");
+          const removeFolder = rest.includes("--remove-folder");
+          out(await send("pack-uninstall", { name, removeFolder }));
+          break;
+        }
+        die("Usage: duo pack list  |  duo pack uninstall <name> [--remove-folder]");
+      }
       default:
         die(`Unknown command: ${cmd}
 Run duo --help for usage`);
