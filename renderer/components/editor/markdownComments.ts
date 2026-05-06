@@ -199,8 +199,12 @@ export function applyCommentMarksFromSidecar(
  *  are present, prefer the occurrence with matching surrounding text;
  *  fall back to first occurrence otherwise. Returns -1 when not
  *  found.
+ *
+ *  Exported for FOLLOWUP-009 regression tests — the function is the
+ *  load-bearing reconciliation primitive for re-anchoring markdown
+ *  comments on file load via excerpt + context match. Pure; no DOM.
  */
-function findExcerptIndex(
+export function findExcerptIndex(
   docText: string,
   excerpt: string,
   contextBefore?: string,

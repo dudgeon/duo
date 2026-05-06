@@ -5775,10 +5775,15 @@ These haven't surfaced as bugs because they're either hover-states (transient, l
 
 ### FOLLOWUP-009: Introduce `@testing-library/react` and write a regression test for sidecar-load → rail-recompute
 
-**Status:** 🆕 Filed
-**Filed:** 2026-05-04 (BUG-082 fix landed without a durable regression test — the recurring-regression memory says this class of bug should get test coverage, not just a smoke-walk line)
+**Status:** ✅ **PARTIALLY ADDRESSED** in v0.6.8 (Sprint 8 Phase 1, 2026-05-06). Pivoted from "introduce `@testing-library/react` infra" to "cover the recurring-regression bug class via jsdom-only DOM-manipulation tests" — turns out the highest-value coverage targets (BUG-088 duplicate-id-on-clone, BUG-082's reconciliation primitives) are pure functions or DOM manipulators that don't require React component rendering. Two new test files land 26 fixtures:
+- [`renderer/components/Page/idInjector.test.ts`](renderer/components/Page/idInjector.test.ts) — 14 fixtures locking the BUG-088/090/087 root-cause fix: contentEditable Enter-clone re-stamping, multi-Enter clone chain, paste-of-stamped-fragment with + without collisions, BR/HR + opt-out skip, cleanup observer disconnect.
+- [`renderer/components/editor/markdownComments.test.ts`](renderer/components/editor/markdownComments.test.ts) — 12 fixtures locking `findExcerptIndex` (the load-bearing primitive for re-anchoring markdown comments on file load via excerpt + context match). Covers unique-excerpt match, ambiguous-without-context fallback, contextBefore + contextAfter disambiguation, end-of-doc / start-of-doc edges, the v067r6-md.md rev6 regression shape (3 paragraphs same word).
 
-**Why this is a follow-up rather than landing with the fix.** `vitest.config.ts` explicitly excludes React component rendering from the project's test scope ("Those layers stay covered by the smoke-walk skill at sprint close"). Adding `@testing-library/react` + a jsdom-environment test for the BUG-082 path is more infra than the fix itself warranted — but the PageTab effect orchestration (sidecar load resolution + iframe-ready callback both racing to populate derived state) is exactly the kind of code that benefits from a test, and there will be more such tests once the infra exists (Phase 4 / MISSING-001 markdown editor comments will add another rail-population path with the same race profile).
+Test suite 239/239 green (was 213; +14 idInjector + 12 markdownComments). Typecheck clean.
+
+**Why scoped this way.** `@testing-library/react` adds devDep + tsconfig.test.json + .tsx test pattern + setup file complexity that doesn't earn its keep when the regression-class targets are testable without it. Deferred to a future sprint when there's a strong case (e.g. testing PageTab's async useMemo orchestration end-to-end, or the markdown editor's setContent-then-applyMarks race shape). The smoke-walk skill stays the cover for "PageTab + RenderedPage + sidecar all together."
+
+**Filed:** 2026-05-04 (BUG-082 fix landed without a durable regression test — the recurring-regression memory says this class of bug should get test coverage, not just a smoke-walk line)
 
 **Scope:**
 1. Add `@testing-library/react` + `@testing-library/jest-dom` (or equivalent) to devDependencies.
