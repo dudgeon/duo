@@ -6059,7 +6059,25 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-096: Obsidian-vault-friendly editor (wikilinks + vault quick switcher + sidecar convention)
 
-**Status:** 🆕 Filed (Sprint 8 candidate, 2026-05-06).
+**Status:** ✅ **PARTIAL** in v0.6.8 (Sprint 8 Phase 3a, 2026-05-06). **Tier A + B1 shipped; B2 + B4 deferred to a follow-up sprint.** Coverage:
+- **A1 — sidecar convention doc.** Two new entries in [help/faq.html § Working with files](help/faq.html): "Can I open my Obsidian vault in Duo?" + "What are the .duo.json files next to my notes?" Covers what works, what doesn't, and the `*.duo.json` gitignore recommendation for git-tracked vaults.
+- **A4 — `.obsidian/` watcher ignore.** [files-service.ts § watch](electron/files-service.ts) chokidar config now ignores `.obsidian/`, `.git/`, and `node_modules/` at the watcher level. Pre-emptive against Obsidian's frequent `workspace.json` writes if a user manually expands the navigator's hidden-files toggle. (`.obsidian/` was already hidden from the navigator by Stage 10's dotfile filter.)
+- **A5 — wikilink no-op verify.** tiptap-markdown's default config (`html: false`, `breaks: false`, no Wikilink mark in StarterKit) round-trips `[[…]]` literals verbatim through save. Confirmed by inspection — the WikilinkDecorations plugin (B1) is purely a render-time decoration and never mutates the source.
+- **B1 — wikilink rendering + cmd+click resolution.** New [renderer/components/editor/extensions/WikilinkDecorations.ts](renderer/components/editor/extensions/WikilinkDecorations.ts) ProseMirror plugin scans the doc on every transaction for `[[Page Name]]` patterns and decorates each match with `class="duo-wikilink"` + a `data-duo-wikilink-target` attribute. Atelier-styled (accent-soft tinted background, accent-ink text). cmd/ctrl+click fires `duo-wikilink-open` window CustomEvent. App.tsx resolver walks up from the active file's directory until it finds an `.obsidian/` (vault root, depth-cap 16), then BFS-searches the vault for the target file (name-first, dotdir-skipping, scan-cap 2000 entries). Path-bearing targets (e.g. `[[subdir/Page]]`) try `<root>/<target>.md` / `<root>/<target>` / `<root>/<target>.html` literal forms first. Plain click stays cursor-placement so source-edit isn't blocked.
+
+**Deferred to a follow-up sprint:**
+- **B2 — wikilink autocomplete on `[[`.** Needs a popup overlay coordinated with TipTap's input handler — substantively more work than the decoration plugin. Filed as a future scope item under the same ENH-096 entry.
+- **B4 — `⌘O` vault quick switcher.** Logic shape is well-understood (TabSearchPalette UI + a vault-walking source). Defer until B2 lands so they can share the popup primitive. Owner can manually navigate via the existing FileTree until then.
+- **A3 — `@testing-library/react` infra + frontmatter round-trip fixtures.** Defer alongside FOLLOWUP-009's existing deferral note — the infra cost doesn't earn its keep until there's a concrete async-orchestration test the smoke walk can't cover.
+
+**Owner-locked design calls (resolved per AUQ on 2026-05-06):**
+1. Vault root detection: walk up from active file's directory until `.obsidian/` is found (cap 16 levels). Fall back to no-op if no ancestor matches.
+2. Wikilink resolution: name-first, vault-wide BFS. First-match wins on basename (without extension).
+3. Sidecar location: same-folder. Documented in faq.html with `*.duo.json` gitignore guidance.
+4. `⌘O` policy: deferred to B4. Existing chord behavior unchanged.
+
+**Priority:** Medium.
+**Filed:** 2026-05-06.
 **Priority:** Medium — opens Duo to the Obsidian audience (a non-trivial slice of would-be Duo users maintain markdown vaults in Obsidian today). Defensive baseline (Tier A) is XS effort and prevents trust erosion; rendering-layer affordances (Tier B subset) ship the most-noticed gaps.
 **Filed:** 2026-05-06.
 

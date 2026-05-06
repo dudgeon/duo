@@ -383,6 +383,24 @@ html.dark {
   }
   .duo-editor-prose th { background: var(--duo-paper-deep); font-weight: 600; }
   .duo-editor-prose hr { border-color: var(--duo-paper-rule); }
+  /* ENH-096 (B1) — Wikilink decoration. The WikilinkDecorations
+     ProseMirror plugin tags every `[[Page Name]]` range with this
+     class. Subtle accent-soft tint + underline so the user reads it
+     as "this is a link"; cmd+click opens the linked file (resolved
+     against the vault root). Plain click stays cursor-placement so
+     editing the wikilink source isn't blocked. */
+  .duo-editor-prose .duo-wikilink {
+    color: var(--duo-accent-ink);
+    background: rgb(var(--duo-accent-soft-rgb) / 0.45);
+    border-radius: 3px;
+    padding: 0 2px;
+    cursor: pointer;
+    transition: background-color 80ms ease-out;
+  }
+  .duo-editor-prose .duo-wikilink:hover {
+    background: rgb(var(--duo-accent-soft-rgb) / 0.85);
+  }
+
   .duo-editor-prose .is-editor-empty:first-child::before {
     content: attr(data-placeholder);
     color: var(--duo-ink-ghost);

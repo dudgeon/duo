@@ -39,6 +39,7 @@ import { FencedCodeBlockEnter } from './extensions/FencedCodeBlockEnter'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { CommentMark, collectCommentRanges } from './extensions/CommentMark'
+import { WikilinkDecorations } from './extensions/WikilinkDecorations'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { CommentRail, type CommentThread } from './primitives/CommentRail'
@@ -289,7 +290,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // comment threads. Stripped on markdown serialize (html=false
       // above); re-applied on file load by `applyCommentMarksFromSidecar`
       // matching sidecar excerpts back to the parsed doc.
-      CommentMark
+      CommentMark,
+      // ENH-096 (B1) — Wikilink decoration plugin. Recognizes
+      // `[[Page Name]]` patterns in the doc and renders them as
+      // styled clickable spans. cmd+click fires `duo-wikilink-open`
+      // CustomEvent — App.tsx resolves the target against the vault
+      // root and opens the linked file. The markdown source stays
+      // verbatim; tiptap-markdown round-trips `[[…]]` literals through
+      // save without touching them.
+      WikilinkDecorations
     ],
     []
   )

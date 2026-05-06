@@ -467,6 +467,27 @@
   <p style="margin-top: 10px;"><strong>Known issues at this version:</strong> <code>⌘T</code> from terminal focus is currently swallowed (<code>tasks.md § BUG-008</code>); the <code>+</code>-claude-tab button doesn't auto-launch claude on first try due to a write race (<code>BUG-009</code>); about:blank still loads as the default new-tab landing (this FAQ replaces it in v0.2.0).</p>
 </article>
 
+<h2 class="cat">Working with files</h2>
+
+<details class="qa" data-keys="obsidian vault open notes wikilinks markdown editor">
+  <summary>Can I open my Obsidian vault in Duo?</summary>
+  <div class="body">
+    <p>Yes. Duo's navigator opens any folder, and the markdown editor handles standard markdown — your YAML frontmatter (<code>tags: [...]</code>, <code>aliases: [...]</code>, <code>cssclasses: [...]</code>, custom properties) is preserved verbatim through every save. The <code>.obsidian/</code> config folder stays hidden in the navigator (Duo hides dotfiles by default) and is also ignored by Duo's file watcher so workspace-state writes from a concurrently-running Obsidian don't churn through Duo's reload pipeline.</p>
+    <p>Concurrent editing is safe: BUG-085's external-write reconciliation means if Obsidian saves a file you have open in Duo, Duo silently reloads on a clean buffer or surfaces a Reload-from-disk / Keep-mine banner if your buffer was dirty.</p>
+    <p><strong>Wikilinks (<code>[[Page Name]]</code>) — v0.6.8+:</strong> rendered as Atelier-styled clickable spans. Cmd+click opens the linked file from the resolved vault root (Duo walks up from the active file's directory until it finds a <code>.obsidian/</code> folder, falling back to the navigator CWD). Click resolution uses Obsidian's name-first semantic — same shorthand <code>[[Foo]]</code> finds <code>Foo.md</code> anywhere in the vault.</p>
+    <p><strong>What still doesn't render:</strong> embeds (<code>![[Page]]</code>), block references (<code>[[Page#^block]]</code>), inline tag pills (<code>#tag</code> shows as plain text), callouts (<code>&gt; [!note]</code> renders as a plain blockquote), math (<code>$inline$</code>), Mermaid diagrams, daily-notes shortcut, and the graph view. These are queued for follow-up sprints. Obsidian-specific features (plugins, themes, the canvas <code>.canvas</code> file format) are out of scope.</p>
+  </div>
+</details>
+
+<details class="qa" data-keys="comments sidecar duo.json gitignore vault note annotations">
+  <summary>What are the <code>.duo.json</code> files next to my notes?</summary>
+  <div class="body">
+    <p>When you add a comment to a markdown file or HTML canvas in Duo, the comment metadata is written to a sidecar at <code>&lt;file&gt;.md.duo.json</code> (or <code>&lt;file&gt;.html.duo.json</code> for canvases). The sidecar carries the comment body, an excerpt of the anchored text, and a small slice of context before/after so the anchor can re-resolve when you reopen the file. The source file itself stays clean — comments never mix into the markdown / HTML on disk.</p>
+    <p><strong>For git-tracked vaults / repos:</strong> add <code>*.duo.json</code> to your <code>.gitignore</code> if you'd rather the sidecars stay local. They're per-machine annotations, not collaborative content. If you DO want them tracked (say, to share comments across a team's vault), commit them as-is — they're plain JSON and merge cleanly.</p>
+    <p><strong>Removing them:</strong> deleting a sidecar removes its associated comments on the next open of the file. Duo never re-creates a sidecar for a file with no comments.</p>
+  </div>
+</details>
+
 <h2 class="cat">Getting started</h2>
 
 <details class="qa" data-keys="install setup first run launch download">

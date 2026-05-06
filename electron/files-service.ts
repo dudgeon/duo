@@ -257,7 +257,18 @@ export class FilesService {
         pollInterval: 50
       },
       // Filesystem-level watchers; no polling except on network mounts.
-      usePolling: false
+      usePolling: false,
+      // ENH-096 (A4) — Obsidian vaults' `.obsidian/` directory is
+      // written constantly by Obsidian (`workspace.json`, plugin
+      // state, etc.). Even though the navigator already hides
+      // dotfiles by default (Stage 10), the file watcher would still
+      // emit change events for these writes if a user manually
+      // expanded the navigator's hidden-files toggle. Pre-emptive
+      // ignore at the watcher level keeps event noise bounded
+      // regardless of UI visibility. The `.git/` ignore is a
+      // long-standing convention for the same reason (any
+      // git-tracked vault would also benefit).
+      ignored: [/\.obsidian(\/|$)/, /\.git(\/|$)/, /node_modules(\/|$)/]
     })
 
     const send = (kind: FileChangeEvent['kind'], p: string) => {

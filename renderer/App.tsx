@@ -173,6 +173,102 @@ function makeTab(cwd: string, kind: TerminalTabKind, home: string): TabSession {
   }
 }
 
+/**
+ * ENH-096 (B1) — Walk up from `startPath` (a file path) until an
+ * `.obsidian/` directory is found at the same level. Returns the
+ * directory containing `.obsidian/` (the vault root) or `null` if
+ * none is found before reaching `/`. If `startPath` is null,
+ * returns null without doing any IO.
+ *
+ * Cap the walk at a reasonable depth so a non-vault tree doesn't
+ * pay arbitrary IO cost on every cmd+click. 16 levels covers any
+ * practical vault depth.
+ */
+async function findVaultRoot(startPath: string | null): Promise<string | null> {
+  if (!startPath) return null
+  let dir = startPath.slice(0, startPath.lastIndexOf('/'))
+  if (!dir) return null
+  for (let depth = 0; depth < 16; depth++) {
+    const obsidianPath = `${dir}/.obsidian`
+    try {
+      // .obsidian is a directory; `exists` returns true for either
+      // file or directory presence.
+      if (await window.electron.files.exists(obsidianPath)) {
+        return dir
+      }
+    } catch {
+      // IO failure → assume not a vault root, continue walking up.
+    }
+    const parent = dir.slice(0, dir.lastIndexOf('/'))
+    if (!parent || parent === dir) return null
+    dir = parent
+  }
+  return null
+}
+
+/**
+ * ENH-096 (B1) — Resolve a wikilink target inside a vault root. The
+ * target is the inner text of `[[Page Name]]` (sans `#section` or
+ * `^block` suffixes — those are stripped by the caller).
+ *
+ * Resolution order (Obsidian-compat best-effort):
+ *   1. If target contains `/`, treat as a relative path from the
+ *      vault root. First try `<root>/<target>.md`, then
+ *      `<root>/<target>` verbatim, then `<root>/<target>.html`.
+ *   2. Otherwise: name-first vault walk. First file whose basename
+ *      (without extension) equals the target wins. Walk is BFS so
+ *      shallower matches win when both exist.
+ *
+ * Walk-cap: 2000 entries scanned to bound IO on monster vaults.
+ * Realistic vaults are well below this.
+ */
+async function resolveWikilinkInVault(
+  vaultRoot: string,
+  target: string
+): Promise<string | null> {
+  // Path-bearing target: try the literal forms first.
+  if (target.includes('/')) {
+    const candidates = [
+      `${vaultRoot}/${target}.md`,
+      `${vaultRoot}/${target}`,
+      `${vaultRoot}/${target}.html`
+    ]
+    for (const candidate of candidates) {
+      try {
+        if (await window.electron.files.exists(candidate)) return candidate
+      } catch { /* keep trying */ }
+    }
+    // Fall through to name-search if no path-form match.
+  }
+  // Name-first BFS walk. Skip dotdirs (`.obsidian`, `.git`, etc.).
+  const queue: string[] = [vaultRoot]
+  let scanned = 0
+  while (queue.length > 0 && scanned < 2000) {
+    const dir = queue.shift()!
+    let entries: import('@shared/types').DirEntry[]
+    try {
+      entries = await window.electron.files.list(dir)
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      scanned++
+      if (entry.name.startsWith('.')) continue
+      if (entry.kind === 'directory') {
+        queue.push(entry.path)
+        continue
+      }
+      // Match against basename without extension.
+      const dot = entry.name.lastIndexOf('.')
+      const stem = dot > 0 ? entry.name.slice(0, dot) : entry.name
+      if (stem === target) {
+        return entry.path
+      }
+    }
+  }
+  return null
+}
+
 export function App() {
   const home = window.electron.env.HOME || '~'
   const nav = useNavigator(home)
@@ -1210,6 +1306,43 @@ export function App() {
     window.addEventListener('duo-open-tab-search', handler)
     return () => window.removeEventListener('duo-open-tab-search', handler)
   }, [])
+
+  // ENH-096 (B1) — Wikilink resolver. The WikilinkDecorations plugin
+  // fires `duo-wikilink-open` on cmd+click; we walk up from the active
+  // file's directory to find an `.obsidian/` (vault root), then search
+  // the vault for a file whose basename (without extension) matches
+  // the target. Opens via openFileSmart. Falls back to navigator CWD
+  // if no `.obsidian/` ancestor exists.
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const detail = (e as CustomEvent<{ target: string }>).detail
+      const wikilinkTarget = detail?.target?.trim()
+      if (!wikilinkTarget) return
+      // Strip block-ref / heading suffix; v1 doesn't resolve those —
+      // we just open the base file. Obsidian-compat in a future stage.
+      const cleanTarget = wikilinkTarget.replace(/[#^].*$/, '').trim()
+      // Use the active file tab's path to find the vault root, falling
+      // back to the navigator CWD.
+      const activeFile = activeWorking.kind === 'file'
+        ? fileTabs.find((t) => t.id === activeWorking.id)
+        : null
+      const startPath = activeFile?.path ?? null
+      const vaultRoot = await findVaultRoot(startPath)
+      if (!vaultRoot) {
+        console.warn('[ENH-096] No vault root found; cannot resolve wikilink:', wikilinkTarget)
+        return
+      }
+      const resolved = await resolveWikilinkInVault(vaultRoot, cleanTarget)
+      if (!resolved) {
+        console.warn('[ENH-096] Wikilink target not found in vault:', wikilinkTarget, 'vault:', vaultRoot)
+        return
+      }
+      const name = resolved.slice(resolved.lastIndexOf('/') + 1) || resolved
+      void openFileSmart(resolved, name)
+    }
+    window.addEventListener('duo-wikilink-open', handler)
+    return () => window.removeEventListener('duo-wikilink-open', handler)
+  }, [activeWorking, fileTabs, openFileSmart])
 
   // ENH-080 — derive the search entries from open tabs. Includes both
   // file tabs (markdown editor / canvas / image / pdf) and browser
