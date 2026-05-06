@@ -109,14 +109,11 @@ plugin-loaded customization on the canonical signed DMG.**
 
 **Full PRD: [docs/prd/stage-21d-distro-packs.md](../prd/stage-21d-distro-packs.md).**
 
-**Owner-locked decisions** (from AUQ rounds 1+2+3):
+**Owner-locked decisions** (from AUQ rounds 1+2+3+4):
 - All three personas (corporate IT / education / OSS community);
   no rebrand required ⇒ plugin pack is primary path, recompile
   fork is optional.
 - Distros pin to specific Duo versions; test + republish manually.
-- Distro content lives in merged-by-content-type folders with
-  per-distro namespacing (`~/.claude/skills/<distro>/`,
-  `~/.claude/duo/distros/<distro>/`, etc.).
 - Strictly additive — no overrides of Duo's bundled content.
 - Install = consent; no pack-signature requirement.
 - `requiresDuoVersion` is a hard block (refuse to install on
@@ -124,6 +121,18 @@ plugin-loaded customization on the canonical signed DMG.**
 - Project-level CLAUDE.md injection: out of scope (user-level only).
 - Pack lifecycle: atomic replace (wipe old version's tracked files,
   install new).
+- **Source format = Claude Code plugin format** (round 4): pack
+  authors against the canonical plugin layout
+  (`.claude-plugin/plugin.json` + `skills/<name>/SKILL.md` +
+  `agents/<name>.md`) plus a `duo-extras/` subfolder for
+  Duo-specific content (canvases, playgrounds, FTUX manifest, etc.).
+- **Install destinations = standalone skills** with `<distro>-`
+  prefix added at install time (`~/.claude/skills/<distro>-<name>/`,
+  `~/.claude/agents/<distro>-<name>.md`). Auto-discovered by
+  Claude Code in every session; model-invokable by default off the
+  skill's `description` frontmatter. v2 evolution path: convert
+  same source format to plugin-install for `/<distro>:<skill>`
+  namespacing once Duo can drive Claude Code's plugin manager.
 
 **Three distribution paths (mutually compatible):**
 
