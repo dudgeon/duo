@@ -5332,6 +5332,23 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ---
 
+### BUG-101: `duo open` / `duo edit` sometimes return `{ok: true}` without producing a visible tab
+
+**Status:** 🟡 Open (filed during smoke walk v0.6.8-rev2 pre-walk, 2026-05-06).
+**Priority:** **Medium** — affects automation flows that rely on `duo open <url>` / `duo edit <path>` to land a usable tab. CLI claims success but the user (or agent) sees no new tab.
+**Filed:** 2026-05-06 (pre-walk surfaced — `duo open /tmp/walk-rev2-playground.html` and `duo edit /tmp/bug097-prewalk.md` both reported `{ok: true}`, but the ⌘⇧A palette enumerated only the pre-existing 10 tabs; neither new file appeared. `duo url` / `duo title` did report the playground as the live browser tab, so the BrowserManager has it — but the renderer's `browserTabs` state didn't include it).
+
+**Symptom.** `duo open <path>` returns `{ok: true, url, routedTo: "browser"}` and `duo title` / `duo url` confirm the page is the live browser tab. But the working-pane / browser-pane tab strip doesn't grow a new entry, and the ⌘⇧A palette doesn't enumerate the new tab. Same shape for `duo edit <path>` against fresh `.md` files.
+
+**Hypotheses (untested):**
+1. **Renderer state drift** — BrowserManager added the tab + emitted `onTabsChange`, but the renderer's `setBrowserTabs` callback didn't fire (subscription dropped after a HMR re-mount? race against an effect cleanup?). Diagnose: instrument `onTabsChange` callback in App.tsx, confirm it fires after `duo open`.
+2. **Tab-strip overflow** — the working-pane tab strip may have a fixed visible width; new tabs are added but composite off-screen and aren't horizontally-scrollable. Less likely for the palette case (palette enumerates from state, not DOM).
+3. **`duo open` IPC routing** — when the active browser tab is already a `file://` URL with similar path semantics, BrowserManager may REUSE the slot rather than create a new one. Testable by adding a counter to BrowserManager's `addTab` log.
+
+**Cross-ref:** ENH-080 (the just-shipped tab-search palette is what surfaced this — the palette listed everything *but* the new tabs).
+
+---
+
 ### BUG-100: Send → Duo pill missing on text selections inside the split-view (aux) browser pane
 
 **Status:** 🟡 Open (filed during smoke walk v0.6.8, 2026-05-06). User flagged "non blocking, add to backlog."
