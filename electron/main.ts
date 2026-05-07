@@ -22,6 +22,7 @@ import {
   discoverPacks,
   installPack,
   mergeDistroClaudeMd,
+  setManifestClaudeMdFlag,
   uninstallPack,
   listInstalledPacks
 } from './distro-pack-service'
@@ -1365,6 +1366,15 @@ async function scanAndInstallDistroPacks(): Promise<void> {
       // Stage 21d-i v1 — CLAUDE.md merge runs as a separate step
       // so the install pipeline stays pure on the filesystem side.
       const merged = await mergeDistroClaudeMd(packPath, outcome.result.name, outcome.result.version)
+      // Walk-1 fix (smoke walk v0.6.8 rev2) — round-trip the merge
+      // result into the persisted manifest. Pre-fix the manifest's
+      // `claudeMdManaged` flag was hardcoded to false in installPack
+      // and never updated, so uninstall's CLAUDE.md cleanup was always
+      // gated `false` and skipped — leaving orphan distro blocks in
+      // the user's CLAUDE.md after `duo pack uninstall`.
+      if (merged) {
+        await setManifestClaudeMdFlag(packPath, true)
+      }
       console.log(
         `[distro-pack] Installed ${outcome.result.name} v${outcome.result.version}: ${outcome.result.filesInstalled} files${merged ? ' + CLAUDE.md merged' : ''}`
       )

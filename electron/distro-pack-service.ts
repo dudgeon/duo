@@ -495,6 +495,30 @@ export async function mergeDistroClaudeMd(
 }
 
 /**
+ * Walk-1 fix (smoke walk v0.6.8 rev2) — round-trip the CLAUDE.md merge
+ * result back into the persisted provenance manifest. installPack
+ * hardcodes `claudeMdManaged: false` because the merge runs as a
+ * separate host-orchestrated step in main.ts; that step then has to
+ * call this helper to update the flag. Without this, uninstallPack
+ * sees a perpetually-false flag and skips CLAUDE.md cleanup.
+ */
+export async function setManifestClaudeMdFlag(
+  packPath: string,
+  value: boolean
+): Promise<void> {
+  const provenancePath = path.join(packPath, '.installed-files.json')
+  try {
+    const raw = await fsp.readFile(provenancePath, 'utf8')
+    const manifest = JSON.parse(raw) as InstalledFilesManifest
+    if (manifest.claudeMdManaged === value) return
+    manifest.claudeMdManaged = value
+    await fsp.writeFile(provenancePath, JSON.stringify(manifest, null, 2) + '\n', 'utf8')
+  } catch {
+    // Manifest missing — install pipeline never wrote one. Nothing to update.
+  }
+}
+
+/**
  * Uninstall a distro pack. Reads the provenance manifest, deletes
  * every tracked file, removes the distro's CLAUDE.md block (matched
  * by marker pair), and finally deletes the pack folder itself if
@@ -546,22 +570,40 @@ export async function uninstallPack(
     try { await fsp.rmdir(dir) } catch { /* non-empty; ignore */ }
   }
 
-  // Remove CLAUDE.md block (if any).
-  if (manifest.claudeMdManaged) {
-    try {
-      const existing = await fsp.readFile(CLAUDE_MD, 'utf8')
-      const escaped = distroName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
-      const blockRe = new RegExp(
-        `\\n*<!-- distro:${escaped}-managed-v[^\\n]*-->[\\s\\S]*?<!-- distro:${escaped}-end -->\\n*`,
-        'g'
-      )
-      const next = existing.replace(blockRe, '\n')
-      if (next !== existing) {
-        await fsp.writeFile(CLAUDE_MD, next, 'utf8')
-      }
-    } catch {
-      // No CLAUDE.md → nothing to remove.
+  // Remove CLAUDE.md block. Walk-1 fix (smoke walk v0.6.8 rev2): pre-fix
+  // this was gated on `manifest.claudeMdManaged`, but the install
+  // pipeline never updates that flag after the merge happens (the merge
+  // runs as a separate host-orchestrated step in main.ts and didn't
+  // round-trip the result back into the manifest). The flag was always
+  // `false` in persisted manifests, so uninstall always skipped the
+  // CLAUDE.md cleanup. Now: try the strip unconditionally — the regex
+  // is bounded to this distro's marker pair, so packs that never merged
+  // are a harmless no-op (regex.replace with no matches returns the
+  // original string).
+  try {
+    const existing = await fsp.readFile(CLAUDE_MD, 'utf8')
+    const escaped = distroName.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const blockRe = new RegExp(
+      `\\n*<!-- distro:${escaped}-managed-v[^\\n]*-->[\\s\\S]*?<!-- distro:${escaped}-end -->\\n*`,
+      'g'
+    )
+    const next = existing.replace(blockRe, '\n')
+    if (next !== existing) {
+      await fsp.writeFile(CLAUDE_MD, next, 'utf8')
     }
+  } catch {
+    // No CLAUDE.md → nothing to remove.
+  }
+
+  // Walk-1 fix — delete the provenance manifest itself. Pre-fix
+  // uninstall removed the tracked files but left .installed-files.json
+  // intact in the pack folder; listInstalledPacks reads that file to
+  // populate `duo pack list`, so uninstalled packs kept appearing in
+  // the output (with stale `files[]` pointing at now-deleted paths).
+  try {
+    await fsp.unlink(provenancePath)
+  } catch {
+    // Already gone or never existed.
   }
 
   // Optionally remove the pack folder itself.
