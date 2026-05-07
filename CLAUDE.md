@@ -437,13 +437,14 @@ routed around ad hoc.
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes (project + home) |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
-| Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture). Still ⬜: 21b DMG background image · 21d early-adopter cohort (socket auth + agent-driven-nav notifications + README). |
+| Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-106 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill). Still ⬜: 21b DMG background image. |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Distribution timeline (early-adopter cohort) | Before Stage 21d (socket auth + early-adopter README) |
-| Socket auth approach for cross-machine cohort distribution | Before Stage 21d |
+| Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 10 |
+| ENH-103 + ENH-104 SaveControl + autosave toggle — owner sign-off on the four-state visual treatment (Saved / Save / Saving / Failed-retry) | Before any Sprint 10+ code work on the consolidated control |
+| ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into Sprint 10 |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |
