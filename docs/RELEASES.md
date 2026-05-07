@@ -21,7 +21,21 @@
 
 ## Pending — not yet cut
 
-(Empty — v0.6.7 cut 2026-05-05. The next cut accumulates here.)
+(Empty — v0.6.8 cut 2026-05-06. The next cut accumulates here.)
+
+---
+
+## v0.6.8 — 2026-05-06 — Sprint 8: Stage 21d cohort distribution + ⌘⇧A palette + Obsidian wikilinks + canvas modality lock
+
+**Stage 21d ships.** v0.6.8 is the cut where Duo turns from a personal tool into a substrate that an early-adopter cohort, an enterprise team, or an open-source community can actually build on. Drop a folder into `~/.claude/duo/extra-packs/`, restart Duo, and your distro's skills + agents + canvases + CLAUDE.md guidance auto-install — atomic-replace, version-gated, uninstallable. The `pack-builder` skill walks authoring; the sample template scaffolds in five minutes; HOW-TO-FORK Layer 2.5 documents three distribution paths (`.pkg` installer for IT, drop-in zip, fork+compile for pre-DMG-approval shops). The architecture decision that took four AUQ rounds to lock: source format is canonical Claude Code plugin shape (`.claude-plugin/plugin.json` + `skills/<name>/SKILL.md` + `agents/<name>.md`) with a `duo-extras/` subtree for Duo-specific bits; install destinations are standalone-skill paths (`~/.claude/skills/<distro>-<name>/`) so the skill works in EVERY Claude Code session on the user's machine, not just sessions launched from Duo.
+
+**Three feature surfaces ride alongside.** ⌘⇧A is now the quick-switcher across every open tab — file + browser, including aux. Wikilinks render as styled clickable spans in the markdown editor (Tier B1 of Obsidian-vault-friendly editing, with the sidecar convention documented in the FAQ). `duo edit --canvas` is the modality override for editing a playground's source — the meta-tag-vs-canvas tension that's been latent since Stage 27 finally has a clean affordance. Plus three Phase-0 polish items: ENH-091 caret seed (partial), BUG-097 placeholder fix, and the FOLLOWUP-008 Tailwind RGB-triplet migration that lets `bg-accent/N` opacity modifiers actually compose.
+
+**The walks turned over four real bugs.** Walk-1 found two that never made it to ship: the autosave/watcher race (BUG-099) that was firing the conflict banner during normal typing, and an ⌘⇧A palette that worked from terminal focus but not browser-pane focus — both root-caused + fixed in walk-1 follow-up commits. Pre-walk-2 found the Stage 21d uninstall path was leaving CLAUDE.md blocks orphaned and the provenance manifest stale (both fixed in the same session). Then the user found two Duo instances running side-by-side — packaged `/Applications/Duo.app` v0.6.7 was competing with the dev session for the socket, ambiguating CLI routing — and that the `cli/duo` binary had regressed at some point to a pre-Sprint-8 build. Both untangled before the cut.
+
+**Three known issues ship.** ENH-091 (caret on fresh canvas) had two fix attempts that didn't move the live behavior — the unit tests pass, the live iframe doesn't follow. Diagnostic plan recorded; next sprint. ENH-096 wikilinks render perfectly but cmd+click navigation is still routing wrong somewhere between the WikilinkDecorations handleClick and App.tsx's listener — owner blessed shipping the visual but flagged the half-feature as **Sprint 9 P0**: close the click handler OR strip the decoration entirely (false affordance worse than no affordance). Plus BUG-100/101/102 — known shape, non-blocking.
+
+**What this is and isn't.** v0.6.8 is the substrate cut. It's not the cohort-distribution release: that comes when an actual non-Geoff machine installs `Duo.app` + a real distro pack + uses the agent loop end-to-end. The plumbing is in place. The next sprint's job is to (1) close ENH-096 wikilinks to a fully-working state, (2) chase ENH-091 caret in the live iframe, and (3) find a real distro use case (Cap One AIP starter pack? a community-built lesson pack?) and walk the cross-machine flow.
 
 ---
 

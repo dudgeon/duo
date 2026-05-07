@@ -5332,6 +5332,29 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ---
 
+### BUG-102: Split view goes blank while ⌘⇧A tab-search palette is open
+
+**Status:** 🟡 Open (filed during smoke walk v0.6.8-rev3, 2026-05-06). Owner: *"non urgent."*
+**Priority:** **Low** — small visual annoyance. The user opens the palette over a split-view layout, the aux pane goes blank for the duration, the user picks a tab + dismisses, the aux pane returns. No data lost; just a UI flash that competes with the user's mental model of the palette as a transient overlay.
+**Filed:** 2026-05-06 (Smoke walk v0.6.8-rev3 ENH-080-MULTI-PANE PASS notes — *"split view goes blank when search is active; this is a small annoyance and I want to fix in a future sprint -- non urgent"*).
+
+**Symptom.** With split view active, press ⌘⇧A. The palette opens (correct), but the aux pane's WCV blanks instead of compositing behind the palette. When the palette dismisses, the aux pane's WCV restores.
+
+**Root cause (educated guess from the ENH-080 walk-1 fix path).** The walk-1 fix wired `setOverlayMuted(true)` on palette-open and extended the helper to also mute the aux WCV (`tabs[auxTabId].view.setBounds({ x: 0, y: 0, width: 1, height: 1 })`). Mute = WCV shrunk to 1×1, leaving the renderer's overlay free to composite. But "blanking" the aux pane during a palette-open is too aggressive: the user can SEE the palette body anyway (the overlay is correctly above the WCV), so the aux mute isn't needed for the no-occlusion case. We mute the aux WCV but the aux PANE BACKGROUND inside the renderer still renders — the user sees the renderer's empty placeholder area where the WCV used to be.
+
+**Fix candidates (deferred):**
+1. **Don't mute the aux WCV during palette overlay** — only mute the main WCV (the one most likely to occlude). If aux ends up occluding (depends on layout), revisit case-by-case.
+2. **Render a snapshot of the aux WCV behind the palette** while muted — visually preserves the layout but adds complexity.
+3. **Resize the aux pane's renderer placeholder to fill the slot** — keep the aux pane visually present (just with a brief flash).
+
+(1) is cheapest. Worth checking whether the original BUG-058 context-menu use case ALSO blanked the aux WCV — if so, this is a pre-existing behavior the palette inherited, and (1) might regress that. Defer the choice to walk + repro time.
+
+**Naming note.** Owner asked: should the tab-search palette have a proper user-facing name beyond "⌘⇧A"? Current docs call it "tab-search palette" / "tab search". Possible: "Quick Switcher" (Obsidian/VS Code parity), "Go to Tab" (more verbose), "⌘⇧A palette" (chord-named). Defer naming decision until next user-docs pass.
+
+**Cross-ref:** ENH-080 (the palette itself); BUG-058 (the original setOverlayMuted use case for context menus).
+
+---
+
 ### BUG-101: `duo open` / `duo edit` sometimes return `{ok: true}` without producing a visible tab
 
 **Status:** 🟡 Open (filed during smoke walk v0.6.8-rev2 pre-walk, 2026-05-06).
@@ -5991,7 +6014,19 @@ Update both shipped skills to reference `references/vocabulary.md` instead of `C
 
 ### ENH-091: Place caret at end of body (after existing content) when opening a freshly-created canvas
 
-**Status:** ✅ **FIXED** in v0.6.8 (Sprint 8, 2026-05-06). New `seedCaretInEmptyParagraph` helper at [renderer/components/Page/caretSeed.ts](renderer/components/Page/caretSeed.ts) called from [RenderedPage.tsx](renderer/components/Page/RenderedPage.tsx)'s `wire()` after `body.focus()` fires. Detection is conservative: requires the body's structural root (`<main>` or `<body>`) to have an `<h1>` first child + a single trailing empty `<p>` (or only-whitespace text node) AND no content between them. On match, the caret repositions inside the empty `<p>`. On any structural mismatch (existing user content, non-H1 first child, non-`<p>` last child, etc.) the function exits without touching the selection — guarantees we never clobber an existing user cursor on canvas reopen. 11 vitest fixtures lock the seed/no-op boundary; full test suite 213/213 green (was 202).
+**Status:** 🟡 **PARTIAL — DEFERRED** (Sprint 8 v0.6.8, 2026-05-06). Two attempts in v0.6.8 didn't successfully land the caret in the empty `<p>`. Owner-blessed as non-blocking for the cut. Smoke walk v0.6.8-rev3 reported: *"fails but with acceptable failure mode to not block release: carat now appears at end of title, not beginning; but no new <p> is inserted, and so carat is on title line (unchanged from last walk)."*
+
+  **Attempt 1 (e203b7c, walk-1).** New `seedCaretInEmptyParagraph` helper at [renderer/components/Page/caretSeed.ts](renderer/components/Page/caretSeed.ts) called from [RenderedPage.tsx](renderer/components/Page/RenderedPage.tsx)'s `wire()` after `body.focus()` fires. Detection: `<main>` or `<body>` root has `<h1>` first + single trailing empty `<p>` + no content between. On match, repositions caret inside the empty `<p>`. 11 vitest fixtures green. Walk-1: caret moved from offset-0-of-body to end-of-title (a regression, not a fix).
+
+  **Attempt 2 (4f9f60c, walk-1 rev2).** Hypothesized Chromium auto-inserts `<br>` placeholder into empty contentEditable blocks → detector bailed because `<br>` is ELEMENT_NODE not TEXT_NODE. Fix: detector now accepts a single `<br>` child as the "empty" marker; switched range creation to `setStart(<p>, 0)` to sidestep Chromium's "round to nearest text position" behavior. 12 vitest fixtures (was 11). Walk-rev3: same symptom as walk-1 — caret on title line. Fix didn't help.
+
+  **What's left to investigate.** The seedCaretInEmptyParagraph helper has correct unit-test coverage (12 fixtures pin the seed/no-op boundary in jsdom) but doesn't successfully reposition the caret in the live iframe. Hypotheses for next sprint:
+  - **iframe focus race.** `body.focus()` runs synchronously, then seed runs, but Chromium's contentEditable focus logic may schedule a microtask that overrides our manual selection back to "first focusable text" (= start of H1).
+  - **Selection isn't applied in time.** The seed runs inside the iframe's window, but the iframe may not yet have the OS-level focus chain Chromium needs to apply `getSelection().addRange()`.
+  - **Detector firing on the wrong frame.** wire() fires on iframe load; maybe `doc.body` doesn't yet match the boilerplate when the seeder runs.
+  - **A different code path is overriding.** Perhaps the "auto-stamp IDs" pass or some other wire() step moves the cursor after we set it.
+
+  **Recommended next-sprint approach.** Add `console.debug('[ENH-091]', { detected, sel: doc.getSelection()?.toString(), focusNode: doc.getSelection()?.focusNode?.nodeName })` at the top of seedCaretInEmptyParagraph and at `wire()` exit. Reproduce live. The actual position the cursor ends up in (vs. where the seed sets it) will name the override.
 **Priority:** Low (small QOL, not a blocker; current behavior is "caret at offset 0 of body" which sits BEFORE the boilerplate `<h1>` heading).
 **Filed:** 2026-05-04.
 
@@ -6144,7 +6179,21 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-096: Obsidian-vault-friendly editor (wikilinks + vault quick switcher + sidecar convention)
 
-**Status:** ✅ **PARTIAL** in v0.6.8 (Sprint 8 Phase 3a, 2026-05-06). **Tier A + B1 shipped; B2 + B4 deferred to a follow-up sprint.** Coverage:
+**Status:** 🟡 **PARTIAL — B1 cmd+click navigation deferred** in v0.6.8 (Sprint 8 Phase 3a, 2026-05-06). Tier A + B1 wikilink rendering shipped; B1 cmd+click navigation has a click-handler issue still open after walk-1 fix. B2 + B4 deferred. Smoke walk v0.6.8-rev3: *"link cursor appears, but click, cmd click are both no op"* (same symptom as walk-1 even after the resolver normalize fix). Owner-blessed as non-blocking for cut.
+
+**🔴 SPRINT 9 P0 — Owner directive at v0.6.8 cut (2026-05-06):** *"wikilinks is urgent for next sprint as we only have half a feature and it could confuse users."* Visual decoration without working navigation is a confusing half-state — the link styling implies clickable behavior that doesn't fire. Sprint 9 must close B1 to a fully-working state OR strip the decoration entirely (revert to plain `[[…]]` text) to avoid the false affordance. The 30-second console.debug diagnosis (queued below) should resolve which path is right.
+
+**Walk-1 fix (66f9b09).** Hypothesized root cause was case-sensitive resolver — `'other-note' === 'Other Note'` → false → silent no-op. Added `normalizeWikilinkName(name)` helper (lowercase + `-`/`_`/whitespace → single space, more forgiving than Obsidian itself). Applied on both sides of the BFS comparison. 8 vitest fixtures green. **Walk-rev3 verdict:** symptom unchanged. The resolver fix didn't help — meaning the click handler isn't reaching the resolver at all. The dispatched `duo-wikilink-open` window event is either not firing or App.tsx's listener isn't picking it up.
+
+**What's left to investigate.** [WikilinkDecorations.ts § handleClick](renderer/components/editor/extensions/WikilinkDecorations.ts) is supposed to fire on cmd/ctrl+click on a span with `[data-duo-wikilink-target]`. Hypotheses for next sprint:
+  - **ProseMirror plugin order — another handleClick claims first.** TipTap's Link extension (`openOnClick: false` is set) shouldn't claim. But there are many extensions in MarkdownEditor.tsx; one of them may return `true` from handleClick before WikilinkDecorations gets a turn.
+  - **`event.target.closest()` returns null.** If the click target is a text node (not the styled span), `closest` returns null → handler bails. Try walking up via `event.target.parentElement?.closest(...)` or use ProseMirror's `pos` parameter to look up the decoration directly.
+  - **Decoration class isn't on the rendered DOM.** Verify with DevTools: is the `<span class="duo-wikilink" data-duo-wikilink-target="...">` actually present around the wikilink text in the live editor?
+  - **window event isn't reaching App.tsx listener.** Add `console.debug('[ENH-096 click]', wikilinkTarget)` at dispatch + `console.debug('[ENH-096 receive]', e.detail)` at the App.tsx handler. The first one tells us the click handler fires; the second tells us the event reaches the listener.
+
+**Recommended next-sprint approach.** Add the two `console.debug` lines, walk in DevTools, see which trace fires (or doesn't). 30-second diagnosis. The visual decoration renders fine (steps 1-2 PASSED in both walks); the issue is purely the click→navigation path.
+
+**Original (pre-walk-1) fix description follows.**
 - **A1 — sidecar convention doc.** Two new entries in [help/faq.html § Working with files](help/faq.html): "Can I open my Obsidian vault in Duo?" + "What are the .duo.json files next to my notes?" Covers what works, what doesn't, and the `*.duo.json` gitignore recommendation for git-tracked vaults.
 - **A4 — `.obsidian/` watcher ignore.** [files-service.ts § watch](electron/files-service.ts) chokidar config now ignores `.obsidian/`, `.git/`, and `node_modules/` at the watcher level. Pre-emptive against Obsidian's frequent `workspace.json` writes if a user manually expands the navigator's hidden-files toggle. (`.obsidian/` was already hidden from the navigator by Stage 10's dotfile filter.)
 - **A5 — wikilink no-op verify.** tiptap-markdown's default config (`html: false`, `breaks: false`, no Wikilink mark in StarterKit) round-trips `[[…]]` literals verbatim through save. Confirmed by inspection — the WikilinkDecorations plugin (B1) is purely a render-time decoration and never mutates the source.

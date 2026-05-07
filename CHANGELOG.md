@@ -19,7 +19,51 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-(Empty — v0.6.7 cut 2026-05-05. Next cut accumulates here.)
+(Empty — v0.6.8 cut 2026-05-06. Next cut accumulates here.)
+
+## [0.6.8] — 2026-05-06
+
+Sprint 8 close-out — Stage 21d cohort distribution lands as the v0.6.8 anchor. Plus the ⌘⇧A tab-search palette, Obsidian-vault-friendly editor (wikilinks + sidecar convention), playground/canvas modality lock, three Phase-0 polish items, and walk-1 root-cause fixes for the autosave race + the surfaced-during-pre-walk distro-pack uninstall bugs.
+
+### Added — Stage 21d: distro packs (the cohort distribution anchor)
+
+- **Distro pack discovery + atomic install pipeline** (Stage 21d-i). Auto-scans `~/.claude/duo/extra-packs/` on launch; validates plugin manifest + `requiresDuoVersion` hard-block; decomposes plugin source into standalone destinations under `~/.claude/skills/<distro>-<name>/` and `~/.claude/agents/<distro>-<name>.md` (auto-discoverable by every Claude Code session). Atomic-replace via per-pack provenance manifest. CLAUDE.md merge between distro-managed markers (coexists with Duo's own ENH-088 block + other distros).
+- **`duo pack list` / `duo pack uninstall <name>` CLI verbs** (Stage 21d-iii). Uninstall reads the provenance manifest and atomically removes every tracked file + the CLAUDE.md block + the manifest itself; source pack folder preserved.
+- **`pack-builder` skill** (Stage 21d-ii). Canonical authoring path. Walks scaffold → validate → build-zip / build-pkg / build-bundled-fork → bump-version. Schema reference at `skill/references/distro-v1-schema.json`. Ships via `npm run sync:claude`.
+- **`examples/distro-pack-template/`** (Stage 21d-iv). Working copy-and-customize starting point. `.claude-plugin/plugin.json` + `duo-extras/DISTRO.json` + claude-md-snippet + example-skill + example-agent + README.
+- **`docs/HOW-TO-FORK.md` Layer 2.5** — distro packs slot between Layer 2 (drop-in) and Layer 3 (build-time partial fork). Three distribution paths: `.pkg` installer, drop-in zip, fork+compile.
+
+### Added — Sprint 8: feature surfaces
+
+- **⌘⇧A tab-search palette** (ENH-080). Quick-switcher modal across file tabs (markdown editor, canvas, image, pdf) + browser tabs (main + aux). Type to filter; arrow keys navigate; Enter switches; Esc dismisses. Aux tabs render with a "Split" badge and route to the aux pane on pick (no main-pane promotion). VS Code / Slack muscle memory.
+- **Obsidian-vault-friendly editor — Tier A + B1** (ENH-096 partial). `[[Wikilinks]]` render as Atelier-styled clickable spans via ProseMirror Decoration plugin (no schema change; markdown source verbatim through tiptap-markdown). `findVaultRoot()` walks up to `.obsidian/` ancestor; `resolveWikilinkInVault()` BFS searches with case-insensitive + space/hyphen normalized name match. `.obsidian/` / `.git/` / `node_modules/` ignored at the file watcher level. Two new FAQ entries documenting sidecar convention + vault compatibility. **Cmd+click navigation deferred** — see Known issues.
+- **`duo edit --canvas` modality override** (ENH-097). Forces canvas-mode mount even when `<meta name="duo-open-in" content="browser">` declares browser-default. Right-click "Edit in canvas" entry on file:// browser tabs surfaces the same override via UI. Codifies the playground/canvas mental model — playground = browser pane (scripts run, buttons fire), canvas = inert edit surface (scripts blocked, clicks place cursor).
+
+### Added — Phase 0 polish
+
+- **Tailwind `<alpha-value>` migration** (FOLLOWUP-008). `--duo-accent-rgb: 198 106 46` (RGB triplet) replaces the hex literal so Tailwind opacity modifiers (`bg-accent/30`, `bg-accent/85`) actually compose. Soft + ink variants migrated for both light + dark mode. Solid `bg-accent` uses unchanged.
+
+### Changed
+
+- **CLAUDE.md §7a — "Claude restarts Duo, never the user"** hard rule + 5-step kill→spawn→poll procedure. Codified after multiple sessions where Claude wrote "once you restart the dev environment..." and offloaded the work onto the owner.
+
+### Fixed
+
+- **BUG-099 — autosave race no longer surfaces spurious conflict banner during typing.** BUG-085's echo-check compared just-read disk body against a single `lastSavedBodyRef.current`; rapid consecutive saves race the post-write baseline assignment. Fix: `recentlyWrittenBodiesRef: Map<string, number>` with 2s TTL — every body added BEFORE the IPC, secondary echo-check consults the set so superseded events are still recognized as ours.
+- **BUG-097 — markdown placeholder renders horizontal on fresh-empty load.** `white-space: nowrap + word-break: normal` on `.is-editor-empty:first-child::before` defends against Tailwind Typography's first-child rules that squeezed the placeholder into a 3-char column. Walk-1 follow-up: dropped `overflow: hidden + text-overflow: ellipsis` that clipped the 0-height float entirely.
+- **Stage 21d uninstall — CLAUDE.md block + provenance manifest now correctly cleaned.** Surfaced + fixed during pre-walk: install path never round-tripped `claudeMdManaged: true` into the manifest, and uninstall left the `.installed-files.json` file in place after removing tracked files. Both fixed; uninstall also strips CLAUDE.md unconditionally as belt-and-suspenders for legacy installs.
+
+### Tests
+
+- **+9 vitest fixtures.** caretSeed: 12 (was 11; added BR-placeholder case). markdownComments: 12 + idInjector: 14 (FOLLOWUP-009 regression coverage for BUG-088 duplicate-id + comment re-anchor). wikilinkResolver: 8 new (case + space/hyphen normalization). Distro-pack-service: 17 unit tests for discovery + install + uninstall paths. Full suite: 274/274 green.
+
+### Known issues
+
+- **ENH-091 — caret seed on fresh canvas (partial fix).** Detector + helper land but live iframe still positions the caret on the H1's title line. Two fix attempts in v0.6.8 didn't move the live behavior; investigation deferred with diagnostic plan in tasks.md.
+- **ENH-096-WIKILINKS — cmd+click navigation no-op.** Visual decoration renders correctly; resolver normalization fix lands. But cmd+click is still no-op at the click-handler level. **Sprint 9 P0** per owner: visual decoration without working navigation is a confusing half-feature; Sprint 9 closes it OR strips the decoration. 30-second console.debug diagnosis queued.
+- **BUG-100** — Send→Duo pill missing in split-view aux browser pane.
+- **BUG-101** — `duo open` / `duo edit` sometimes return `{ok: true}` without producing a visible tab.
+- **BUG-102** — Split view blanks during ⌘⇧A search overlay.
 
 ## [0.6.7] — 2026-05-05
 

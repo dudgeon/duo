@@ -790,8 +790,44 @@
   </div>
 </article>
 
+<article class="item" data-keys="cmd shift a tab search palette quick switcher fuzzy filter open tabs file browser aux split view enh-080">
+  <div class="num">51</div>
+  <div>
+    <h3>⌘⇧A opens a quick-switcher palette over every open tab</h3>
+    <p class="why">VS Code / Slack muscle memory. <code>⌘⇧A</code> from anywhere — terminal, editor, browser pane — opens a fuzzy-search palette listing every file tab (markdown editor, canvas, image, pdf) and every browser tab (main + aux). Type to filter, arrow keys navigate, Enter switches focus to the chosen tab, Esc dismisses. Aux tabs render with a small "Split" badge and route back to the aux pane on pick (no main-pane promotion). Covers the case where the strip overflows or you've got a tab buried behind 8 others.</p>
+    <p class="how"><strong>Keyboard</strong><code>⌘⇧A</code> from any pane.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="wikilink obsidian vault page name square brackets cmd click cmd+click navigation .obsidian sidecar enh-096">
+  <div class="num">52</div>
+  <div>
+    <h3>Obsidian-style wikilinks render in the markdown editor</h3>
+    <p class="why">Type <code>[[Page Name]]</code> in any markdown file and the wikilink renders as an Atelier-styled clickable span (no markdown source rewrite — saves verbatim). Vault detection: Duo walks up from the active file's directory looking for a <code>.obsidian/</code> ancestor; the matching directory is the vault root. Resolver matches name with case-insensitive + space/hyphen normalization (more forgiving than Obsidian itself — <code>[[Other Note]]</code> resolves to <code>other-note.md</code>). Sidecar files (<code>note.md.duo.json</code>) hold comments and other Duo metadata; coexist with vaults without git noise (recommend gitignoring <code>*.duo.json</code>). <strong>Cmd+click navigation deferred to v0.6.9</strong> — the visual decoration ships in v0.6.8 but cmd+click is currently a no-op pending click-handler diagnosis.</p>
+    <p class="how"><strong>Type</strong><code>[[Page Name]]</code> in any markdown file. Decoration renders automatically inside an Obsidian-vault path.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo edit canvas flag override modality lock playground browser script blocked inert iframe meta duo-open-in right click context menu enh-097">
+  <div class="num">53</div>
+  <div>
+    <h3>Edit a playground's source with <code>duo edit --canvas</code></h3>
+    <p class="why">Playgrounds (HTML files declaring <code>&lt;meta name="duo-open-in" content="browser"&gt;</code>) open in the browser pane by default — scripts run, buttons fire, the user interacts with the live surface. To EDIT the playground's source instead, use the canvas-mode override: scripts blocked, buttons render but clicking them places a cursor instead of firing the handler. Two surfaces: <code>duo edit --canvas &lt;path&gt;</code> from the CLI, OR right-click any <code>file://</code> browser tab → "Edit in canvas." Codifies the playground/canvas mental model: playground = browser modality (interactive), canvas = inert edit modality (source-editable).</p>
+    <p class="how"><strong>CLI</strong><code>duo edit --canvas /path/to/playground.html</code><br><strong>UI</strong>Right-click a browser tab → "Edit in canvas" (only appears for <code>file://</code> tabs).</p>
+  </div>
+</article>
+
+<article class="item" data-keys="distro pack distribution cohort plugin pack-builder skill claude-plugin extra-packs requiresDuoVersion atomic install uninstall provenance manifest stage 21d enterprise org community education distribution path drop-in pkg fork compile">
+  <div class="num">54</div>
+  <div>
+    <h3>Ship your team's skills + agents + canvases as a Duo distro pack</h3>
+    <p class="why">Drop a folder into <code>~/.claude/duo/extra-packs/</code> and Duo discovers it on next launch — auto-installs the plugin's skills + agents into standalone destinations under <code>~/.claude/skills/&lt;distro&gt;-&lt;name&gt;/</code> and <code>~/.claude/agents/&lt;distro&gt;-&lt;name&gt;.md</code> (auto-discoverable in EVERY Claude Code session on the machine, not just sessions launched from Duo). Pack source format = canonical Claude Code plugin shape (<code>.claude-plugin/plugin.json</code> + <code>skills/</code> + <code>agents/</code>) with a <code>duo-extras/</code> subtree for Duo-specific bits (CLAUDE.md snippet, FTUX manifest). Atomic-replace via per-pack provenance manifest. CLAUDE.md merge between distro-managed markers (coexists with Duo's own block + other distros). Three distribution paths: drop-in zip, signed <code>.pkg</code> installer (mass-deployable via Jamf / Munki), fork+compile for shops that can't yet ship signed binaries.</p>
+    <p class="how"><strong>Author</strong>Run the <code>pack-builder</code> skill (auto-discovered as <code>/pack-builder</code> in any Claude Code session) — walks scaffold → validate → build. Sample template at <code>examples/distro-pack-template/</code>.<br><strong>Manage</strong><code>duo pack list</code> · <code>duo pack uninstall &lt;name&gt;</code><br><strong>Reference</strong><code>docs/HOW-TO-FORK.md</code> Layer 2.5.</p>
+  </div>
+</article>
+
 <footer>
-  <p>This is Duo v0.4.0. Last updated 2026-04-26. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.6.8. Last updated 2026-05-06. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 
