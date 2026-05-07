@@ -1,4 +1,4 @@
-# Active sprint state — Sprint 10 (v0.6.10, planning pending)
+# Active sprint state — Sprint 10 (v0.6.10, committed 2026-05-07)
 
 > **What this file is.** Running scratchpad for the active sprint
 > arc. The historical record — Sprint 9 close-out (v0.6.9 cut +
@@ -12,38 +12,41 @@
 
 ---
 
-## Sprint 10 (v0.6.10) — pending sprint-plan session
+## Sprint 10 (v0.6.10) — committed 2026-05-07
 
-**Sprint goal — TBD pending sprint-plan.**
+**Theme:** Save/autosave clarity + adjacent paper cuts.
 
-**Strong candidates** (carry-overs from Sprint 9 walks + tasks.md):
+### P0 (anchor)
+- **ENH-103 + ENH-104 paired SaveControl** — consolidates today's "Saved" / "Saving…" status indicator + the separate Save button into a single pill control with four color/text states:
+  - **Saved** — muted gray text, button looks inert.
+  - **Save** — solid `bg-accent` + white text, action-y / clickable.
+  - **Saving…** — disabled state with spinner.
+  - **Failed — retry** — red text on muted bg, click retries.
 
-### P0 candidates
-*None pre-locked.* The Sprint 9 cut closed the v0.6.8 P0 carry-over
-(ENH-096 wikilinks). No P0-by-directive item is queued for Sprint 10.
+  Hover-reveal autosave on/off toggle adjacent to the SaveControl itself (zero new UI surfaces; the SaveControl owns the save concept, so it owns the toggle). Persists per-app via localStorage. Both editor (TipTap) + canvas surfaces. Owner-locked in this sprint plan: **pill button with color-state**, **hover-reveal toggle** (not View menu, not per-tab, not deferred).
 
-### P1 candidates — Sprint 9 walk-3 carry-overs
-- **BUG-101 browser-routed half** — `duo open <url>` sometimes returns ok with the tab present in BrowserManager state but the renderer's working pane doesn't flip to browser-kind. Same shape as the editor-routed half fixed in v0.6.9, different code path. Surfaced live during the v0.6.9 cut process (the rev2 walk page returned about:blank from `duo url` until `duo tab N` was explicitly run).
-- **BUG-106** — `duo edit <non-existent-path>` opens the tab but editor errors with ENOENT. Recommended: mount empty buffer + flag as new-file (symmetric with `⌘N` flow). Affects automation flows like `touch + duo edit`.
-- **ENH-108** — cmd+click on `[[Does Not Exist]]` wikilink should create the file at vault root (Obsidian parity, owner-requested via v0.6.9 walk-2 OTHER NOTES).
-- **BUG-100** — Send→Duo pill missing on text selections inside the split-view aux browser pane.
+### P1 (carry-overs)
+- **ENH-108** — cmd+click on `[[Does Not Exist]]` wikilink creates the file at vault root + opens it (Obsidian parity). Pairs with the resolver path fixed in v0.6.9. Owner-requested via walk-2 OTHER NOTES.
+- **BUG-101 browser-routed half** — `duo open <url>` sometimes returns ok with the tab present in BrowserManager state but the renderer's working pane doesn't flip to browser-kind. Same shape as the editor-routed half fixed in v0.6.9, different code path. Surfaced live during the v0.6.9 cut process.
+- **BUG-106** — `duo edit <non-existent-path>` opens the tab but editor errors with ENOENT. Mount empty buffer + flag as new-file (symmetric with ⌘N flow).
+- **BUG-105** — right-click → Copy path on a tab is a no-op. Menu entry exists; action doesn't fire. Likely missing dispatcher branch.
 
-### P2 candidates
-- **BUG-104** — file-changed-on-disk dialog fires unexpectedly after ⌘⇧; chord (low — possible chokidar reconciliation race).
-- **BUG-105** — right-click → Copy path on a tab is a no-op (menu entry exists; action doesn't fire).
-- **BUG-102** — split view goes blank while ⌘⇧A palette is open (aux WCV mute too aggressive in narrow-split layouts; owner-flagged "non urgent" in v0.6.9).
-- **FOLLOWUP-013** — BUG-093 right-click split-view crash repro hunt (instrumentation landed v0.6.7; awaits clean repro).
-- **ENH-103 + ENH-104** — SaveControl consolidation + autosave toggle. Paired; needs owner UX sign-off on the four-state visual treatment before code.
-- **ENH-101** — expand/collapse chords ⌘⌥T/⌘⌥C — owner-deferred from Sprint 9; revisit semantic (rail-collapse vs. full-screen).
-- **ENH-099** — 3-way 33/33/33 layout chord. Architecture decision; defer until 3-way layouts prove a real workflow need.
-- **ENH-100** — lock/unlock context menu verb (canvas-only meta exists; surface via right-click).
-- **ENH-105** — `@` filename autocomplete in canvas editor (multi-day; pairs with ENH-096 B2 wikilink autocomplete; same fuzzy-popover primitive).
+### Skip / Deferred to Sprint 11+
+- **ENH-101 expand/collapse chords ⌘⌥T/⌘⌥C — KILLED 2026-05-07.** Redundant with ⌘⌥0/9 (full-pane chords already handle "full-screen this pane"). Closed in tasks.md; removed from backlog.
+- **BUG-100** Send→Duo pill missing in split-view aux — defer.
+- **BUG-104** file-changed dialog after ⌘⇧; — defer (owner-flagged low priority; possible chokidar race needing diagnostic instrumentation).
+- **BUG-102** split-view blank during palette — already deferred (owner-flagged "non urgent").
+- **FOLLOWUP-013** BUG-093 right-click split-view crash — needs interactive repro work.
+- Older filed: BUG-079, BUG-091, BUG-083, BUG-073, ENH-082, ENH-094, ENH-077, ENH-027, ENH-047, ENH-048, ENH-099, ENH-100, ENH-105, FOLLOWUP-002 through -007.
 
-### Older filed items (low signal unless owner pulls forward)
-BUG-079, BUG-091, BUG-083, BUG-073, ENH-082, ENH-094, ENH-077, ENH-027, ENH-047, ENH-048, FOLLOWUP-002, FOLLOWUP-003, FOLLOWUP-004, FOLLOWUP-006, FOLLOWUP-007.
+### Stretch — explicitly Sprint 11 candidate
+**Cross-machine cohort validation** deferred until ENH-108 ships in THIS sprint. Once Duo has an Obsidian-friendly vault editor (wikilinks render + cmd+click navigates + cmd+click creates), the demo for a real pack builder walking `distro-pack-builder/playground.md` end-to-end on a non-Geoff Mac is a much richer story. Not this sprint.
 
-### Stretch — cohort-distribution end-to-end validation
-The v0.6.8 Stage 21d substrate + v0.6.9 ENH-106 workshop substrate ship, but neither has been validated on a non-Geoff machine. A real pack builder walking the workshop's `playground.md` end-to-end closes that gap (also closes FOLLOWUP-011).
+### Sequencing
+1. **SaveControl + autosave toggle FIRST** — the anchor. Lock the design in time for an owner UI walk before the carry-overs land.
+2. **Carry-overs in any order** — each is sub-day. ENH-108 has the most architectural shape (the resolver branch + file create + parent dir mkdir for path-bearing forms); the three BUGs are mechanical fixes once root cause is in hand.
+
+(Source: AUQ in chat 2026-05-07; no worksheet generated.)
 
 ---
 

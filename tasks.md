@@ -101,8 +101,8 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-101: Expand/collapse chords — ⌘⌥T (terminal) · ⌘⌥C (canvas)
 
-**Status:** ⬜ DRAFT — needs refinement before code.
-**Priority:** Low (overlaps with existing `⌘⌥0/9` full-pane chords).
+**Status:** ❌ **CLOSED — won't fix (Sprint 10 sprint-plan, 2026-05-07).** Redundant with the existing `⌘⌥0` (full terminal, canvas hidden) / `⌘⌥9` (full canvas, terminal hidden) chords — those already do exactly what "full-screen this pane" would mean for ⌘⌥T/⌘⌥C. The only meaningfully-different interpretation was "rail-collapse to a fixed-width strip" (toggling between rail-collapsed and last-known-width, distinct from full-screen), but the user-research signal for that distinct gesture isn't there yet — owner-decided 2026-05-07: kill the ticket; the existing chords cover the use case. Revisit only if a real workflow surfaces "I want to rail-collapse the terminal but keep the canvas at its current width" as a recurring need.
+**Priority:** Closed.
 **Filed:** 2026-05-06 (idle-thoughts sweep).
 
 **What's wanted.** Two new chords that toggle expand/collapse of the terminal and canvas panes respectively. Distinct from the "focus" chords above — these change PANE VISIBILITY, not focus.
