@@ -102,6 +102,24 @@ describe('seedCaretInEmptyParagraph (ENH-091)', () => {
     expect(sel === null || sel.rangeCount === 0).toBe(true)
   })
 
+  it('SEEDS when the <p> contains only a <br> (Chromium auto-placeholder for empty contentEditable blocks)', () => {
+    // Smoke walk v0.6.8 walk-1 fix — the disk file is `<p></p>` but
+    // by the time the iframe's wire() runs, contentEditable has
+    // auto-inserted a <br> placeholder, so the live DOM is
+    // `<p><br></p>`. Pre-fix the detector bailed (BR is ELEMENT_NODE,
+    // not TEXT_NODE) and the caret stayed wherever body.focus()
+    // landed it — typically end of the H1 title.
+    const doc = loadCanvas('<main><h1>Title</h1><p><br></p></main>')
+    seedCaretInEmptyParagraph(doc)
+    const sel = window.getSelection()
+    expect(sel).toBeTruthy()
+    expect(sel!.rangeCount).toBe(1)
+    const range = sel!.getRangeAt(0)
+    expect((range.startContainer as Element).tagName).toBe('P')
+    expect(range.startOffset).toBe(0)
+    expect(range.collapsed).toBe(true)
+  })
+
   it('is a no-op on a richly-populated canvas (existing user content)', () => {
     const doc = loadCanvas(`
       <main>

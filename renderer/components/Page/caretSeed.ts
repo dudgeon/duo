@@ -25,6 +25,7 @@
 // exits early on the structural check.
 
 const TEXT_NODE = 3
+const ELEMENT_NODE = 1
 
 export function seedCaretInEmptyParagraph(doc: Document): void {
   const body = doc.body
@@ -42,16 +43,38 @@ export function seedCaretInEmptyParagraph(doc: Document): void {
   if (children.length > 2) return
   const last = children[children.length - 1]
   if (!last || last.tagName !== 'P') return
-  // The trailing <p> must be empty (no child nodes, or a single empty
-  // text node — some serializers preserve whitespace between tags).
+  // The trailing <p> must be empty. "Empty" includes:
+  //   - no child nodes at all (boilerplate-on-disk shape: `<p></p>`)
+  //   - a single empty text node (some serializers preserve whitespace
+  //     between tags)
+  //   - a single <br> element (Chromium's auto-inserted placeholder
+  //     that contentEditable adds to empty block elements on iframe
+  //     load — the disk file says `<p></p>` but the live DOM has
+  //     `<p><br></p>` by the time wire() runs the seeder. Walk-1
+  //     bug: pre-fix the detector bailed on this case because <br>
+  //     is ELEMENT_NODE, not TEXT_NODE.)
   if (last.childNodes.length > 1) return
   if (last.childNodes.length === 1) {
     const only = last.childNodes[0]
-    if (!only || only.nodeType !== TEXT_NODE) return
-    if ((only.textContent ?? '').trim().length > 0) return
+    if (!only) return
+    if (only.nodeType === TEXT_NODE) {
+      if ((only.textContent ?? '').trim().length > 0) return
+    } else if (only.nodeType === ELEMENT_NODE) {
+      if ((only as Element).tagName !== 'BR') return
+    } else {
+      return
+    }
   }
   const range = doc.createRange()
-  range.selectNodeContents(last)
+  // Place caret at offset 0 of the <p> directly. selectNodeContents +
+  // collapse produces the same range when <p> has no children, but
+  // when <p> has a single <br> placeholder, the contents-then-collapse
+  // path yields a range whose endpoint is at the START of the <br>,
+  // which Chromium can render visually as "after the previous text
+  // node" (= end of the H1 title) when the body has just been focused.
+  // setStart(<p>, 0) explicitly anchors before any children, sidestepping
+  // the rounding behavior.
+  range.setStart(last, 0)
   range.collapse(true)
   // Selection lives on the document's window. `doc.getSelection()` is
   // a browser alias but not implemented in jsdom (so unit tests would

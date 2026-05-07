@@ -407,23 +407,27 @@ html.dark {
     float: left;
     height: 0;
     pointer-events: none;
-    /* BUG-097 (v0.6.8) — Tailwind Typography's `@apply prose`
-       (line 276) brings its own first-child + first-of-type
-       pseudo-element rules that can interact with this floated
-       placeholder and squeeze it into a vertical one-character-per-
-       line column on first load of an empty `.md` file. Lock the
-       inline behavior so the placeholder always lays out
-       horizontally regardless of which prose-level rules win on
-       cascade order. `white-space: nowrap` forbids mid-text wrap;
-       `word-break: normal` defends against any inherited
-       `break-all`; `max-width: 100%` keeps overflow in check on
-       very narrow editors (the text clips rather than vertical-
-       wraps — much more readable). */
+    /* BUG-097 — Tailwind Typography's `@apply prose` (line 276)
+       brings its own first-child + first-of-type pseudo-element
+       rules that can interact with this floated placeholder and
+       squeeze it into a vertical one-character-per-line column on
+       first load of an empty `.md` file. `white-space: nowrap` is
+       the load-bearing fix — it forbids the column-collapse mid-
+       text-wrap regardless of which prose-level rules win on
+       cascade order. `word-break: normal` defends against any
+       inherited `break-all`.
+
+       Walk-1 fix (smoke walk v0.6.8) — DO NOT add `overflow: hidden`
+       here. The original v0.6.8 fix tried to clamp very-long
+       placeholders with `overflow: hidden + text-overflow: ellipsis`,
+       but the pseudo-element has `height: 0` (TipTap Placeholder's
+       standard layout pattern: text overflows the 0-height float
+       and renders into the parent paragraph). With `overflow: hidden`
+       + `height: 0`, ALL text is clipped — placeholder rendered
+       invisible. The narrow-column case is rare; the always-invisible
+       case is worse. Keep nowrap + word-break only. */
     white-space: nowrap;
     word-break: normal;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /* Stage 11 selection persistence — painted by the PersistentSelection
