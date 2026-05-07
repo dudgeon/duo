@@ -530,6 +530,17 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'focus-pane': {
+        // ENH-098 (Sprint 9) \u2014 CLI parity with the \u2318\u2325L/;/' chord set.
+        // Distinct from `duo focus <selector>` (CDP focus on a CSS
+        // selector inside the active browser pane).
+        const target = rest[0]
+        if (target !== 'terminal' && target !== 'main' && target !== 'aux') {
+          die('Usage: duo focus-pane <terminal|main|aux>')
+        }
+        out(await send('focus-pane', { target }))
+        break
+      }
       case 'packs': {
         // Stage 18b \u2014 `duo packs` lists every discovered distro pack
         // as JSON. Pretty-prints by default (single-shot output, not
@@ -1427,6 +1438,15 @@ COMMANDS
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
+  focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) — jump keyboard
+                                  focus to the named pane. CLI parity
+                                  with the ⌘⌥L (terminal) / ⌘⌥;
+                                  (main) / ⌘⌥' (aux) chord set. Aux
+                                  is a no-op when split view is
+                                  closed (renderer logs an info
+                                  hint). Distinct from 'focus
+                                  <selector>' which targets a CSS
+                                  selector in the browser pane.
   split <pct|preset>              Set the split-pane percentage
                                   (terminal column as % of the split
                                   container). Numeric arg clamps to

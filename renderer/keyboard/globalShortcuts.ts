@@ -96,6 +96,32 @@ export type ShortcutId =
   // all open file tabs + browser tabs in the working strip). Renderer
   // overlay, not a native window. Esc dismisses; arrows + Enter pick.
   | 'openTabSearchPalette'
+  // ENH-098 (Sprint 9) — pane-jump chord set. ⌘⇧L jumps focus to the
+  // terminal pane (whichever terminal tab is active), ⌘⇧; jumps to
+  // the main working pane (whichever main-strip tab is active), ⌘⇧'
+  // jumps to the split-view aux pane (no-op when split view is
+  // closed). Distinct from `togglePaneFocus` (⌘`) which CYCLES — the
+  // jump chords go DIRECTLY to a named pane.
+  //
+  // Walk-1 chord re-pick (Sprint 9 walk-1, 2026-05-07): originally
+  // ⌘⌥L/;/' but the owner's window manager intercepts the meta+alt
+  // combos at the system level, so the chord never reached the
+  // renderer. Re-picked to meta+shift form. Uses `e.code` (KeyL /
+  // Semicolon / Quote) regardless because Shift modifies the produced
+  // character on US layouts (Shift+L = 'L', Shift+; = ':',
+  // Shift+' = '"') — `e.code`-based matching is layout-independent.
+  | 'focusTerminalPane'
+  | 'focusMainPane'
+  | 'focusAuxPane'
+  // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+  // (move-to-trash with confirm). Matches Finder-style destructive
+  // muscle memory. Working-pane file tabs only — browser tabs and
+  // terminal tabs are out of scope (closing them isn't deletion;
+  // ⌘W already exists for tab close). Fires inside editable
+  // surfaces too — file deletion is a higher-level intent than
+  // line-edit, and TipTap's default ⌘⇧⌫ behavior (delete to start
+  // of line) yields to it.
+  | 'deleteCurrentFile'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -229,6 +255,33 @@ export function matchGlobalShortcut(
   // the other Option-affected chords above).
   if (meta && shift && !alt && !ctrl && e.code === 'KeyA') {
     return { id: 'openTabSearchPalette' }
+  }
+
+  // ENH-098 (Sprint 9 walk-1 re-pick) — pane-jump chords. ⌘⇧L/;/'
+  // jump focus to terminal/main/aux respectively. Always use
+  // `e.code` (not e.key) because Shift modifies the produced
+  // character on US layouts (Shift+L = 'L', Shift+; = ':',
+  // Shift+' = '"'). Originally ⌘⌥L/;/' but owner's system-level
+  // window manager intercepts meta+alt combos before they reach
+  // the renderer.
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyL') {
+    return { id: 'focusTerminalPane' }
+  }
+  if (meta && shift && !alt && !ctrl && e.code === 'Semicolon') {
+    return { id: 'focusMainPane' }
+  }
+  if (meta && shift && !alt && !ctrl && e.code === 'Quote') {
+    return { id: 'focusAuxPane' }
+  }
+
+  // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+  // (move-to-trash with confirm). `e.code === 'Backspace'` is
+  // unambiguous — Backspace and Delete have distinct codes on Mac
+  // keyboards (Backspace is the main-cluster key; Delete is the
+  // forward-delete key on extended keyboards). The chord targets
+  // the main Backspace.
+  if (meta && shift && !alt && !ctrl && e.code === 'Backspace') {
+    return { id: 'deleteCurrentFile' }
   }
 
   // ⌘` — cycle pane focus.

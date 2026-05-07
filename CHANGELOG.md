@@ -19,7 +19,47 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-(Empty — v0.6.8 cut 2026-05-06. Next cut accumulates here.)
+(Empty — v0.6.9 cut 2026-05-07. Next cut accumulates here.)
+
+## [0.6.9] — 2026-05-07
+
+Sprint 9 — wikilinks cmd+click closure (the v0.6.8 P0 carry-over) + pane-jump chord set + `duo edit` reliability + ⌘⇧⌫ delete file + new browser tab caret fix + Distro Pack Builder Workshop substrate + automated regression coverage for BUG-056.
+
+### Added
+
+- **ENH-098 — Pane-jump chord set + `duo focus-pane` CLI verb.** New chords that JUMP focus directly to a named pane (vs. ⌘\` which CYCLES): ⌘⇧L → terminal, ⌘⇧; → main working pane, ⌘⇧' → split-view aux. CLI parity via `duo focus-pane <terminal|main|aux>`. Chord originally specced as ⌘⌥L/;/' but re-picked at walk-1 — system-level window managers (Raycast / similar) intercept meta+alt before the renderer sees it. Aux-with-browser-tab is no-op'd with a console hint pending a future browser-pane focus IPC.
+- **ENH-102 — `⌘⇧⌫` deletes the active file (with confirm).** Mirrors the right-click → Move to Trash flow on a working-pane file tab. Browser tabs and terminal tabs explicitly out of scope (`⌘W` already handles tab close). Soft-success on ENOENT — file's gone, user's intent is still "close this tab."
+- **ENH-106 — Distro Pack Builder Workshop.** New repo-only `distro-pack-builder/` folder ships a guided tutorial for first-time pack builders: scoped CLAUDE.md, README, 11-step playground.md walking scaffold→customize→validate→build→smoke→distribute, project-scoped assistant skill at `.claude/skills/pack-builder-workshop/`. Defers to the canonical global `/pack-builder` skill for mechanical work (validate / build-zip / build-pkg / build-bundled-fork). The workshop skill is repo-resident only (NOT synced to `~/.claude/`) so it activates only for people working IN the repo, not every Duo user.
+- **`files.dirExists` IPC + `host-api.ts` type** — directory-aware sibling to `files.exists`. Added because the wikilink vault-root walker (ENH-096) needed to detect `.obsidian/` directories; `files.exists` strictly returns true only for regular files (BUG-039 semantic preserved for session-restore).
+- **`data-duo-workingpane-aux` marker** on the aux container in `WorkingPane.tsx` — disambiguates aux from main when both have editors mounted (split view).
+- **`findVisibleWorkingPaneCE(scope)` helper** in App.tsx — visibility-aware editor finder. Filters by `offsetParent !== null` so focus calls land on the VISIBLE editor, not whichever display-toggled invisible tab won the DOM-order race. Backs both ENH-098 chord set AND `openFile`'s post-rAF .focus().
+
+### Fixed
+
+- **ENH-096 walk-2 / wikilinks cmd+click.** Two-phase fix closes the v0.6.8 P0 carry-over. Walk-0: extracted `resolveWikilinkTargetAtClick` helper that handles Text-node targets via `parentElement` + falls back to a pos-based decoration lookup using `PLUGIN_KEY.getState(view.state).find(pos, pos)`. Walk-1: `findVaultRoot` was using `files.exists` which strictly returns true only for regular files — `.obsidian/` is a directory → walker climbed past every real vault root. Switched to the new `files.dirExists`. cmd+click now opens the resolved target reliably.
+- **BUG-101 walk-2 / `duo edit` editor-routed half.** Three layers of bug. (1) React anti-pattern: `setActiveWorking` was nested inside the `setFileTabs` updater, allowing React 18+'s automatic batching to land the inner setter in a different render than the tab addition. Lifted to `pendingActivationRef` + post-updater flush. (2) DOM-level focus on the editor's contentEditable wasn't firing — added a two-rAF `.focus()` chain mirroring `newBrowserTab`'s address-bar dance. (3) The query selector hit invisible tabs because BUG-046 keeps every file-tab renderer mounted (display-toggled). Routed through `findVisibleWorkingPaneCE('main')` which filters by visibility. Tab now reliably surfaces AND caret lands in the editor; first keystroke writes into the new file.
+- **BUG-103 / `⌘T` new browser tab caret in URL bar.** Owner walk-1 diagnostic was the smoking gun: `document.activeElement.tagName === 'INPUT'`, `dataset.duoAddressbar === 'true'` — DOM focus was correct on the address bar input, but the input's caret rendered grey/inactive, meaning OS-level keyboard focus stayed on the new browser tab's WCV (renderer didn't own OS focus). Fix: call `keyboard.reclaimFocus()` BEFORE the rAF chain in newBrowserTab so by the time `.focus()` fires, the renderer owns OS focus and the URL input's caret renders blue/active.
+
+### Changed
+
+- **BUG-056 — pill gating regression now AUTOMATED.** Owner-flagged at walk-2: *"WHY AM I SEEING THIS IF YOU TEST IT AND IT PASSES DON'T SHOW ME THIS."* Added `electron/cdp-bridge.test.ts` with three tests asserting on the IIFE source string: (1) the literal `if (!window.__duoClaudeLive)` guard is present, (2) it sits BEFORE `ensurePill()` so the pill never even mounts before the gate fires, (3) exactly one active code-site reads the flag (excluding documentation comments). Removed BUG-056 from the smoke-walk skill's "Mandatory regression items" section. CI catches future refactor breaks before they ship; manual walk no longer required.
+- **`SELECTION_OBSERVER_IIFE` exported** from `electron/cdp-bridge.ts` for unit-test access. The CDP-injected IIFE strings can't be unit-tested by execution (they run in the page context), so we test invariants on the source.
+- **`smoke-walk` skill — removed BUG-056 mandatory-item entry + added a hard rule** against re-listing items that have automated coverage. Keeps the manual walk to things CI can't verify.
+
+### Deprecated / Deferred
+
+- **ENH-091 caret seed for fresh canvases.** Deferred indefinitely per owner directive (walk-2): *"this is a low priority bug and we should not revisit for a LONG time unless the console provides a smoking gun and obvious fix."* Walk traces showed the seed APPLIES correctly AND sticks across the next animation frame (`stillInSeededP: true`) — but typing still lands in the H1 title. The override fires AFTER rAF, after Chromium's internal layout pass, which is unfixable without a different architectural approach. Diagnostic instrumentation stays in code (cheap to keep, helps a future investigator).
+
+### Known issues / Sprint 10 carry-overs
+
+- **BUG-101 browser-routed half** — `duo open <url>` sometimes returns ok with the tab present in BrowserManager state but the renderer's working pane doesn't flip to browser-kind, so `duo url` returns about:blank from a stale CDP attach point. The editor-routed half is fixed (above); the browser side is the same shape but a different code path.
+- **BUG-100** — Send → Duo pill missing on text selections inside the split-view (aux) browser pane.
+- **BUG-102** — split view goes blank while ⌘⇧A palette is open (aux WCV mute too aggressive in narrow-split layouts; owner-flagged "non urgent").
+- **BUG-104** — `⌘⇧;` chord triggered the file-changed-on-disk reload dialog during walk-3 (low — possible chokidar reconciliation race).
+- **BUG-105** — right-click → Copy path on a tab is a no-op (menu entry exists; action doesn't fire).
+- **BUG-106** — `duo edit <non-existent-path>` opens the tab but the editor errors with ENOENT on initial read. Recommend: mount empty buffer + flag as new-file (symmetric with `⌘N` flow).
+- **ENH-108** — cmd+click on `[[Does Not Exist]]` wikilink should create the file at the vault root (Obsidian parity, owner-requested).
+- **FOLLOWUP-013** — BUG-093 right-click → Move to Split View renderer crash; instrumentation landed v0.6.7, awaits a clean repro.
 
 ## [0.6.8] — 2026-05-06
 

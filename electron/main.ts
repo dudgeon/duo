@@ -367,6 +367,17 @@ async function createWindow(): Promise<void> {
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab,
+    // ENH-098 (Sprint 9) — `duo focus-pane <name>` bridge. Renderer's
+    // focusPane() owns the actual focus shift; main just pushes the
+    // target name over PANE_FOCUS_JUMP. The bridge return value is
+    // synchronous {ok: true} — the renderer's no-aux-open guard fires
+    // a console.info hint there rather than a sync error here (split-
+    // view state lives on the renderer side).
+    focusPane: (target) => {
+      if (!mainWindow) return { ok: false, error: 'main window not ready' }
+      mainWindow.webContents.send(IPC.PANE_FOCUS_JUMP, target)
+      return { ok: true, target }
+    },
     pushNavPinsChanged: (pins) => {
       mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
     }
@@ -858,6 +869,12 @@ function setupIPC(): void {
   // BUG-039 — existence check for session-restore tab hydration.
   ipcMain.handle(IPC.FILES_EXISTS, (_event, { path: p }: { path: string }) => {
     return filesService.exists(p)
+  })
+
+  // ENH-096 v2 (Sprint 9 walk-1 fix) — directory-aware existence
+  // probe for the wikilink vault-root walker.
+  ipcMain.handle(IPC.FILES_DIR_EXISTS, (_event, { path: p }: { path: string }) => {
+    return filesService.dirExists(p)
   })
 
   // ENH-016 — create a directory (navigator "New folder…").

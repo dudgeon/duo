@@ -39,7 +39,12 @@ const NETWORK_RING_SIZE = 300
 // is irrelevant. Click handler calls `window.duoSendToDuoClick()`
 // (a separate binding) which the renderer wires to its existing
 // `handleSendToDuoClick` callback. Fix path (b) per the BUG-006 entry.
-const SELECTION_OBSERVER_IIFE = `(function () {
+// Exported for unit testing — see cdp-bridge.test.ts. The CDP-injected
+// IIFE strings are otherwise difficult to test (they execute in the
+// page context after CDP attach), so we test invariants on the source
+// (e.g. BUG-056 — the showPillFor gate must remain present so the
+// pill never renders without an active Claude session).
+export const SELECTION_OBSERVER_IIFE = `(function () {
   if (window.__duoSelectionObserver) return;
   window.__duoSelectionObserver = true;
   var lastText = '';

@@ -71,6 +71,17 @@ domain names that appear in the browser blocklist.
   and `.claude/skills/sprint-plan/` (next-sprint prioritization,
   fed by a gatherer that harvests tasks.md + active-sprint.md +
   roadmap.html).
+- **`distro-pack-builder/`** — workshop for first-time distro pack
+  builders (ENH-106, Sprint 9). Repo-only; does NOT ship to end
+  users. When Claude opens a session with cwd inside this folder
+  it activates a scoped CLAUDE.md + project-only assistant skill
+  that walks `playground.md` step-by-step, defers to the canonical
+  global `/pack-builder` skill (`skill/pack-builder/SKILL.md`) for
+  the mechanical work (validate / build / smoke), and helps
+  builders make the small decisions a first pack needs (naming,
+  `requiresDuoVersion` constraint, FTUX defaults, distribution
+  path). Pairs with `examples/distro-pack-template/` (the
+  copy-and-customize starting point).
 - **`docs/design/atelier/`** — visual source-of-truth. Read its
   README before any UI-touching work.
 - **`docs/VISION.md`** — product north star.

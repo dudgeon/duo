@@ -26,11 +26,27 @@
 > input before code work — chord conflicts, exact UX choice, scope
 > boundaries. **Refine in the next sprint-plan session.**
 
-### ENH-098: Focus-chord set — ⌘⌥L (terminal) · ⌘⌥; (main canvas) · ⌘⌥' (split view)
+### ENH-098: Focus-chord set — ⌘⇧L (terminal) · ⌘⇧; (main canvas) · ⌘⇧' (split view)
 
-**Status:** ⬜ DRAFT — needs refinement before code.
+**Status:** ✅ **Shipped Sprint 9 (2026-05-07)** — chord set ⌘⇧L/;/' verified working in walk-3. Owner: "carat landed!" — focus + caret BOTH transfer reliably. Walk-3 surfaced two adjacent bugs (file-changed-on-disk dialog after typing, and right-click → Copy path no-op) — filed as BUG-104 + BUG-105 for follow-up; both are independent of the chord fix itself. Walk-1 re-pick (⌘⌥ → ⌘⇧) escaped owner's system-level window-manager interception. Walk-2 visibility filter (`findVisibleWorkingPaneCE`) addressed BUG-046's display-toggled-mounted tabs winning the selector race. Chord matchers + dispatch + browser-pane allowlist + CLI parity (`duo focus-pane`) all wired and type-clean. 13 vitest fixtures green for the matcher (incl. all three chord shapes, modifier specificity, in-editable-surface escape, plain ⌘L still maps to focusAddressBar). End-to-end CLI test against the dev session: all three targets return `{target}` ok; bogus argument errors out cleanly. The only path not autonomously verified is actually pressing the chord in the live UI and confirming the OS-level focus shift — code path is identical to the CLI test (both call the same `focusPane()`).
 **Priority:** Medium (QOL chord coverage; agent + power users want named chords for each pane).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
+**Implementation summary (Sprint 9 Phase 2, 2026-05-07).**
+- `renderer/keyboard/globalShortcuts.ts` — three new ShortcutId entries (`focusTerminalPane`, `focusMainPane`, `focusAuxPane`); matchers use `e.code` (KeyL / Semicolon / Quote) because Option on macOS modifies the produced character (Option+L → '¬', Option+; → '…', Option+' → 'æ').
+- `renderer/hooks/useKeyboardShortcuts.ts` — three new dispatch cases + opts.
+- `renderer/App.tsx` — single `focusPane(target)` callback shared by the three chord callbacks AND the CLI verb's IPC subscriber. Implements per-target focus (terminal: xterm helper textarea + reclaimFocus; main: focus active main file/browser slot; aux: focus aux WCV/contenteditable, no-op + console.info if split view closed).
+- `electron/browser-manager.ts § isDuoShortcut` — allowlist `input.alt && (KeyL|Semicolon|Quote)` so chord escapes Chromium when browser pane has focus.
+- `shared/types.ts` — `DuoCommandName` extended with `focus-pane`; `IPC.PANE_FOCUS_JUMP` channel constant.
+- `shared/host-api.ts` — `onPaneFocusJump` typed bridge subscription.
+- `electron/preload.ts` — `keyboard.onPaneFocusJump` IPC subscription.
+- `electron/main.ts` — `focusPane` bridge implementation pushes PANE_FOCUS_JUMP IPC to renderer.
+- `core/socket-server.ts` — `case 'focus-pane'` socket verb + `focusPane` on NavBridge.
+- `cli/duo.ts` — `case 'focus-pane'` parser + help text.
+- `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md` — verb cheat-sheet entries.
+
+**Open question deferred (decided per recommended path).**
+- Aux behavior when not present: no-op + `console.info` hint (not a toast UI). Toast/banner deferred until pattern is reused elsewhere.
+- Per-pane vs. per-tab: chose pane-level (focus the active tab in the named pane). Per-tab is `⌘1-9` / `⌘⇧1-9`.
 
 **What's wanted.** Three new chords that move focus to a specific pane:
 - `⌘⌥L` → terminal pane focus (whatever the active terminal tab is).
@@ -102,9 +118,20 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-102: ⌘⇧⌫ delete current file (with confirm)
 
-**Status:** ⬜ DRAFT — needs refinement before code.
+**Status:** 🟡 **LANDED in Sprint 9 (2026-05-07)** — UI smoke verification owed. Chord matcher + dispatch + browser-pane allowlist + App.tsx callback all wired and type-clean. 6 vitest fixtures green for the matcher (⌘⇧⌫ matches; plain ⌫ / ⌘⌫ alone / ⇧⌫ alone / ⌘⌥⇧⌫ all fall through; chord still matches inside editable surfaces because file deletion is a higher intent than line-edit).
 **Priority:** Medium (matches macOS file-management muscle memory; closes a gap where the only delete path is right-click → Move to Trash via the navigator or the tab strip).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
+**Implementation summary (Sprint 9 Phase 4, 2026-05-07).**
+- `renderer/keyboard/globalShortcuts.ts` — `deleteCurrentFile` ShortcutId + matcher on `e.code === 'Backspace'` (unambiguous between Backspace and Delete physical keys on Mac extended keyboards).
+- `renderer/hooks/useKeyboardShortcuts.ts` — dispatch case + opt.
+- `renderer/App.tsx` — `deleteCurrentFile` callback. Reads `activeWorking`; no-ops on non-file surfaces (browser/terminal — `⌘W` already handles tab close); for file tabs, fires confirm dialog ("Move <title> to Trash?" + recover-from-Finder hint), runs `files.trash`, closes the tab. Soft-success on ENOENT (mirrors the right-click trash flow's Sprint 7 rev6 fix — file's gone, user's intent is still "close the tab").
+- `electron/browser-manager.ts § isDuoShortcut` — allowlist `input.shift && input.code === 'Backspace'` so chord escapes Chromium's history-back default when browser pane has focus (no-op-then anyway, but the chord shouldn't trigger a back-navigation surprise).
+
+**Resolved (per recommended path).**
+- Chord choice: `⌘⇧⌫` (owner-recommended).
+- Scope: working-pane file tabs only. Browser tabs (close, not delete) and terminal tabs (close session) explicitly out of scope — `⌘W` covers those.
+- Confirm dialog style: same as right-click → Move to Trash (reuses `dialog.confirm`).
+- Tab close semantics post-delete: tab closes (matches BUG-098 path).
 
 **What's wanted.** Pressing `⌘⇧⌫` (Cmd+Shift+Delete) — or `⌥⇧⌫` (Option+Shift+Delete), whichever is more common — when a tab is open should trigger "delete current file" with a confirmation dialog. Same destination as right-click → Move to Trash on a tab.
 
@@ -118,7 +145,7 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-103: Consolidate "Saved / Saving / Save" indicator + button into a single control
 
-**Status:** ⬜ DRAFT — needs refinement before code.
+**Status:** ⬜ **DRAFT — owner-sign-off needed before code (Sprint 9 deferral 2026-05-07).** The four-state visual treatment (Saved / Save / Saving / Failed-retry) is a real UX decision; landing it without owner input risks shipping a design that needs to be redone. Sprint 9 chose to defer in favor of items where the design was already fixed. **Pairs with ENH-104** — both should ship together as a single SaveControl design.
 **Priority:** Medium (UI clarity — current setup has TWO controls that perform the same conceptual thing).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
 
@@ -135,7 +162,7 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-104: Autosave should be toggle-able
 
-**Status:** ⬜ DRAFT — needs refinement before code.
+**Status:** ⬜ **DRAFT — pairs with ENH-103, both deferred to a future sprint (Sprint 9 deferral 2026-05-07).** The autosave-off mode raises questions about persistent dirty state visualization that need owner UX input. Without owner present + a sign-off on the four-state SaveControl, building the toggle in isolation is premature.
 **Priority:** Low (current autosave is fine for the dominant flow; toggle is for users who want explicit control).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
 
@@ -169,6 +196,71 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 **Affected files.** New `<AtMentionPopover>` component, integration with TipTap (suggestion plugin), file-list IPC (`files.list` recursive variant), keyboard handler. Probably 2–3 days of focused work.
 
 **Pair with ENH-096 B2** — same primitive.
+
+---
+
+### ENH-107: Tab should detect file deletion and close-with-alert
+
+**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-1, owner ENH idea).
+**Priority:** **Low–Medium** — UX paper cut. Active editor tabs become orphaned views of disk state when the file is deleted out from under them; typing into the buffer continues but autosave starts erroring or recreates the file silently.
+**Filed:** 2026-05-07.
+
+**What's wanted.** When a file with an active tab is deleted (e.g. `rm -f /tmp/foo.md` from any terminal, or any other process), Duo should detect the deletion via the file watcher and either:
+1. Close the tab automatically with a brief banner ("`foo.md` was deleted from disk; closed."), OR
+2. Mark the tab visually as "orphaned" + offer a button to recover (re-save the in-memory buffer to the original path) or close.
+
+Recommended: option 1 for clean state + option 2 for dirty state — clean buffer = nothing to lose, just close; dirty buffer = preserve the work behind a banner.
+
+**Affected code.**
+- `electron/files-service.ts § watch` already runs chokidar on the navigator's CWD; it emits unlink events.
+- `renderer/App.tsx` listens to navigator state pushes and could subscribe to a `file-deleted` channel.
+- New IPC channel `IPC.FILES_DELETED` (broadcast on chokidar unlink for any watched path).
+- Renderer-side handler in App.tsx: scan fileTabs for matching path; for clean tabs, closeFileTab; for dirty tabs, mark with a `deletedFromDisk: true` flag + render the banner.
+
+**Cross-ref:** Surfaced during ENH-091 walk-1 — owner reset the test file with `rm -f /tmp/enh091-fresh.html`, then re-`duo edit`'d, and the failed ENOENT showed the autosave-against-deleted-file path is currently silent.
+
+---
+
+### ENH-106: Distro Pack Builder Workshop — repo-resident playground doc + assistant skill
+
+**Status:** 🟡 **LANDED in Sprint 9 (2026-05-07)** — initial scaffolding shipped. Workshop folder `distro-pack-builder/` carries scoped CLAUDE.md + README.md + step-by-step playground.md (11 steps from scaffold-from-template through cohort distribution) + project-scoped assistant skill at `.claude/skills/pack-builder-workshop/SKILL.md`. Does NOT ship to end-user machines (npm sync:claude unchanged); only people who clone Duo and open Claude in the workshop folder pick it up. Root CLAUDE.md updated to reference the new folder. Refines as real pack builders surface friction.
+**Priority:** Sprint 9 P1 (locked 2026-05-07 sprint-plan session — owner directive).
+**Filed:** 2026-05-07.
+
+**Verification owed.** A real pack builder (or owner) walking the playground end-to-end on a non-Geoff machine. Closes the FOLLOWUP-011 cross-machine-validation gap simultaneously. Scaffolding is in place; walking it surfaces real-builder friction the v1 doc doesn't anticipate.
+
+**Resolved (per recommended path).**
+- Folder location: top-level `distro-pack-builder/` (not under `examples/` — keeps the workshop itself separate from the template the workshop references; existing `examples/distro-pack-template/` stays where it is and is *referenced* from the workshop).
+- CLAUDE.md scope: explicit "inherits from `../CLAUDE.md`" reference + workshop-specific scope on top. No partial-merge mechanics.
+- Skill discovery: project-scoped at `<workshop>/.claude/skills/pack-builder-workshop/`; not synced to `~/.claude/`.
+- Doc format: markdown, step-by-step with embedded code examples, "Common pitfalls" troubleshooting table.
+- Smoke validation: included as Step 10 of playground.md (smoke install on builder's own Mac before distribution).
+
+
+**What's wanted.** A rich, step-by-step playground doc that walks an enterprise distro pack builder through Duo's pack-builder primitives — what's available, how to build them, where to load them. Bundled with an authoring-assistant skill scoped to the cwd. The skill ships **in the repo** (so contributors / forkers / enterprise pack builders cloning Duo get it) but **NOT in the canonical signed DMG / ~/.claude/skills/** (end users don't need it).
+
+**Workflow.** A distro pack builder clones / forks the Duo repo, opens Claude Code in `<repo>/distro-pack-builder/` (or wherever the workshop folder lives), and immediately has:
+- A scoped CLAUDE.md telling Claude "you are helping build a Duo distro pack — here are the primitives, here are the conventions, here's where things load."
+- Human-facing step-by-step docs for the builder to read.
+- An assistant skill that helps with the mechanical work — manifest authoring (`plugin.json` + `DISTRO.json`), validation, build-zip / build-pkg / build-bundled-fork, version bumping, smoke testing.
+
+**Distinct from the existing `pack-builder` skill (Stage 21d-ii).** That skill ships globally via `npm run sync:claude` → `~/.claude/skills/pack-builder/`. It's the *canonical authoring path* for any user. ENH-106 is the **workshop wrapper** — guided tutorial + scoped CLAUDE.md + assistant — that lives in the repo and only activates for people working IN the repo. Ideally the new skill *uses* the existing pack-builder skill rather than duplicating it.
+
+**Needs refinement.**
+- **Folder location.** Top-level `distro-pack-builder/`? Under `examples/` (alongside the existing `examples/distro-pack-template/`)? Under `tooling/`? Recommend top-level `distro-pack-builder/` with the existing template folder remaining at `examples/distro-pack-template/` and being *referenced* from the workshop.
+- **Workshop CLAUDE.md scope.** Does it inherit from the project root CLAUDE.md? Override? Partial merge? Recommend: reference the project root via "see `../CLAUDE.md`" + add workshop-specific scope on top.
+- **Skill discovery.** If the skill lives at `<repo>/distro-pack-builder/.claude/skills/`, Claude Code auto-discovers it when cwd is inside that folder. No `npm run sync:claude` step needed for the workshop skill — it's project-scoped by design.
+- **Doc format.** Markdown (renders in Duo canvas, easy to read). Step-by-step with embedded code examples, screenshots if useful.
+- **Smoke validation.** The workshop should be walkable end-to-end by someone unfamiliar with Duo internals. A second-person walk (cross-machine cohort validation) closes the FOLLOWUP-011 gap simultaneously.
+
+**Affected files / new structure (proposed).**
+- `distro-pack-builder/CLAUDE.md` — scoped builder instructions.
+- `distro-pack-builder/README.md` — entry point linking to the playground doc.
+- `distro-pack-builder/playground.md` — step-by-step walk through primitives.
+- `distro-pack-builder/.claude/skills/pack-builder-workshop/` — assistant skill (project-scoped, not synced).
+- Cross-references to `examples/distro-pack-template/` and `skill/references/distro-v1-schema.json`.
+
+**Pairs with FOLLOWUP-011** (cross-machine substrate validation) — a real enterprise pack builder following the workshop on a non-Geoff machine validates Stage 21d's substrate end-to-end.
 
 ---
 
@@ -3661,7 +3753,10 @@ The file-tab context-menu's "Reveal in Navigator" presumably has the same plumbi
 
 ### BUG-056: Send → Duo pill on browser pane fires without an active Claude session
 
-**Status:** ✅ **Shipped post-v0.5.6 (commit `70fd53a`).**
+**Status:** ✅ **Shipped post-v0.5.6 (commit `70fd53a`); Sprint 9 walk-1 added automated regression coverage so this stops being a manual smoke item (owner-flagged 2026-05-07: "why do I need to walk this every session? please include in YOUR regression testing").** Test at [electron/cdp-bridge.test.ts](electron/cdp-bridge.test.ts) — exports `SELECTION_OBSERVER_IIFE` and asserts: (1) the IIFE source contains the literal `if (!window.__duoClaudeLive)` guard text, (2) the guard is positioned BEFORE the `ensurePill()` call (so the pill never mounts before the gate fires), (3) exactly one active code-site references `window.__duoClaudeLive` (excluding documentation comments — extra refs would force a fresh look at gating semantics). Three tests, all green; the guard's removal in any future refactor will fail CI before the bug ships.
+
+If a future refactor needs to rename `window.__duoClaudeLive` (e.g. `window.duoState.claudeLive`), update the test's literal expectation in the SAME PR — the guard string is the contract between main and the page-side IIFE.
+
 **Priority:** **High — recurring regression. Owner has called it out repeatedly: "we have discussed before; please update the docs and regression tests to ensure this does not happen again."**
 **Filed:** 2026-05-02 (walk-2; user explicit "STILL getting" feedback)
 
@@ -5485,6 +5580,108 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ---
 
+### BUG-106: `duo edit <non-existent-path>` opens the tab + editor errors with ENOENT
+
+**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-3 surfaced).
+**Priority:** **Medium** — affects automation flows and the `touch + duo edit` scaffolding pattern. The file-doesn't-exist case isn't rare.
+**Filed:** 2026-05-07.
+
+**Symptom.** Run `duo edit /tmp/foo.md` against a path that doesn't exist on disk. The tab opens (the BUG-101 walk-2 fix correctly activates it), but the editor's mount-time `files:read` IPC fails with `Error invoking remote method 'files:read': Error: ENOENT: no such file or directory, stat '/tmp/foo.md'`. Error surfaces in DevTools console (and possibly as a banner in some flows).
+
+**What ought to happen instead — design call.**
+1. **Auto-create on open** (most user-friendly): renderer detects the ENOENT on the read attempt, creates an empty file at the path, retries the read, mounts the editor against the new empty file. Same shape as `⌘N` new-markdown-file flow but path-supplied.
+2. **Refuse upfront** (most explicit): socket-server's `case 'edit'` checks existence before forwarding NAV_EDIT; returns `{ok: false, error: 'no such file'}` to the CLI. Doesn't add a tab.
+3. **Mount empty + flag as new** (current `⌘N` shape): editor mounts with empty buffer, dirty flag implicitly set; first save creates the file. Easiest path; makes `duo edit` symmetric with `⌘N` for non-existent paths.
+
+**Recommended (3) — symmetric with `⌘N`.** The editor already handles "new file" state for `⌘N`; extend that path to also fire when ENOENT lands during initial read. Keeps the open-then-write semantic agents and humans both expect.
+
+**Affected files (estimated).** `renderer/components/editor/MarkdownEditor.tsx § initial read effect` (catch ENOENT and treat as new-file); possibly `core/socket-server.ts § case 'edit'` (no change if renderer handles it; pre-flight existence check if owner prefers option 2).
+
+**Cross-ref:** Surfaced during BUG-101 walk-3. Independent of BUG-101's React-anti-pattern fix (which IS verified working — caret landed).
+
+---
+
+### BUG-105: Right-click → Copy path on a tab is a no-op
+
+**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-3 surfaced during ENH-098 testing).
+**Priority:** **Low–Medium** — discoverable feature that's silently broken; affects "share this file's path with another tool" workflows.
+**Filed:** 2026-05-07.
+
+**Symptom.** Right-click on a working-pane tab → "Copy path" (the menu entry exists). Action does nothing visible. Clipboard is unchanged.
+
+**Hypotheses.** The right-click menu in `WorkingTabStrip § handleContextMenu` likely has the menu item registered but the dispatcher branch isn't wired (or it's wired but `clipboard.writeText` fails silently in the WCV-context path the menu fires in). Could also be a missing IPC bridge between the menu's id and the actual copy action.
+
+**Diagnostic plan.** Add a `console.log` at the right-click handler's `case 'copy-path'` (or whatever the menu id is) + at the `clipboard.writeText` call site. Right-click → Copy path; observe which traces fire.
+
+**Cross-ref:** Surfaced during ENH-098 walk-3 (owner: "Second bug, tried to context click the index.md tab to copy path; copy path action was no op").
+
+---
+
+### BUG-104: ⌘⇧; chord triggered "file changed on disk" reload dialog
+
+**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-3 surfaced during ENH-098 testing).
+**Priority:** **Low** — chord works but a spurious file-watcher reload prompt fires unexpectedly.
+**Filed:** 2026-05-07.
+
+**Symptom.** With Index.md open in the editor, owner pressed `⌘⇧;` (focus main pane chord), focus correctly moved to the editor + caret landed. But typing the first character triggered the BUG-085 file-changed-on-disk reload dialog: *"This file changed on disk while you were editing. Reload (loses your edits) or keep yours (next save will overwrite the new disk version)."*
+
+**Hypotheses.**
+1. **External-write reconciliation race** — chokidar may have observed a change to Index.md from the test-vault setup (the wikilink walk earlier touched files in that vault). The watcher's debounce window may have caught the post-walk write. Possible if the timestamps are stale and the watcher reconciles on the next focus.
+2. **Owner's own actions** — possible but unlikely; owner reported the chord caused it.
+3. **focusPane / openFile interaction with the file watcher's reconciliation logic** — less likely; focus changes shouldn't fire the file-watcher.
+
+**Diagnostic plan.** Reproduce: open the test vault Index.md, press ⌘⇧;, type. Check whether the dialog fires. If yes, repeat with watcher disabled (toggle `chokidar.unwatch`). If reproducible without watcher, the dialog is firing from a different code path. Add a `console.log` at the BUG-085 dialog mount point with a trace of which event triggered it.
+
+**Cross-ref:** Surfaced during ENH-098 walk-3 (owner: "May be unrelated, but after cmd-shift-; started typing in index.md and received...").
+
+---
+
+### ENH-108: Cmd+click on `[[Does Not Exist]]` wikilink should create the file (Obsidian parity)
+
+**Status:** 🆕 Filed 2026-05-07 (owner request via ENH-096 walk-2 OTHER NOTES).
+**Priority:** **Medium** — Obsidian parity affordance; matches how vault users actually work.
+**Filed:** 2026-05-07.
+
+**What's wanted.** When the user cmd+clicks a `[[Page Name]]` wikilink whose target doesn't resolve to any existing file in the vault, Duo should:
+1. Create a new `.md` file at `<vault-root>/<Page Name>.md` with default body (just the H1 title).
+2. Open the new file in the working pane.
+3. Surface a brief banner / toast: "Created `<Page Name>.md` in vault."
+
+This is how Obsidian works by default — many users use cmd+click as the primary "create new note" gesture. Owner asked the question during ENH-096 walk-2 and explicitly requested filing as an ENH.
+
+**Affected code (estimated).**
+- `renderer/App.tsx § resolveWikilinkInVault` — currently returns null when no match. Either change to return a sentinel value indicating "create new at root/<target>.md", OR add a new branch in the caller.
+- `renderer/App.tsx § duo-wikilink-open handler` — when resolver returns the create-sentinel, fire `files.write(path, defaultBody)` then `openFileSmart`.
+- Default body shape: just `# <target>\n` per Obsidian. (If the target is path-bearing, ensure parent directories exist via `files.mkdir`.)
+
+**Open questions.**
+- Path-bearing wikilinks (`[[subdir/New Note]]`) — recursive mkdir on the parent before write?
+- File-extension policy — always `.md`? What if the user wants `.html`? (Probably out of scope for v1; Obsidian only handles `.md` here.)
+- Confirmation dialog — silent create (Obsidian default) or "Create `<Page Name>.md`?" prompt? Recommend silent + a toast/banner, matching Obsidian.
+
+**Cross-ref:** Filed alongside ENH-096 (the wikilink rendering + cmd+click resolver). The two pair naturally — this is the "no match" branch.
+
+---
+
+### BUG-103: ⌘T new browser tab — caret not in URL bar (regression, surfaced 2026-05-07 walk-1)
+
+**Status:** ✅ **Shipped Sprint 9 (2026-05-07).** Walk-3 user-verified PASS. Walk-1 fix landed `window.electron.keyboard.reclaimFocus()` BEFORE the rAF chain in newBrowserTab — pulls OS focus from the WCV to the renderer so by the time the URL input's `.focus()` fires, the renderer owns OS focus and the caret renders blue/active. Owner walk-3: "[PASS]."
+**Priority:** **Medium** — every fresh ⌘T forces a click into the URL bar before typing. Pre-regression behavior was that the address bar held caret immediately.
+**Filed:** 2026-05-07.
+
+**Symptom.** Press ⌘T → new browser tab opens (correct), tab strip flips to it (correct), but the address-bar input does NOT have keyboard focus. User has to click into the URL bar manually before they can type a URL.
+
+**What looked correct on inspection.** [renderer/App.tsx § newBrowserTab handler](renderer/App.tsx) already has the focus dance: `setActiveWorking({ kind: 'browser' })` + `setFocusedColumn('working')` + `await window.electron.browser.addTab().then(() => requestAnimationFrame(...rAF...→ document.querySelector('[data-duo-addressbar]').focus().select()))`. Two nested rAFs to wait past React commit + paint. So the code intends to focus.
+
+**Hypotheses for next sprint.**
+1. **Selector mismatch** — `data-duo-addressbar` may have been renamed or removed during a recent refactor. Check that the AddressBar component still exposes the attribute.
+2. **WCV occlusion** — when the new browser tab's WCV mounts, it may steal OS focus from the renderer (the .focus() on the input runs but the WCV becomes the keyboard target immediately after).
+3. **Race with my Sprint 9 ENH-098 / ENH-102 changes** — none of those touched newBrowserTab directly, but the focus-pane refactor did add new focus paths. Worth checking whether `focusPane` or `pendingActivationRef` is firing on the new browser tab and stealing focus.
+
+**Cross-ref:** Surfaced during ENH-102 walk-1 in v0.6.9 smoke. Owner-flagged "BUG: unrelated to intent but discovered regression during testing."
+
+---
+
 ### BUG-102: Split view goes blank while ⌘⇧A tab-search palette is open
 
 **Status:** 🟡 Open (filed during smoke walk v0.6.8-rev3, 2026-05-06). Owner: *"non urgent."*
@@ -5500,6 +5697,10 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 2. **Render a snapshot of the aux WCV behind the palette** while muted — visually preserves the layout but adds complexity.
 3. **Resize the aux pane's renderer placeholder to fill the slot** — keep the aux pane visually present (just with a brief flash).
 
+**Sprint 9 investigation (2026-05-07).** Confirmed root cause via code reading: `setOverlayMuted(true)` in [browser-manager.ts:801](electron/browser-manager.ts:801) shrinks BOTH the main WCV and the aux WCV (when present) to 1×1 to prevent WCV-over-overlay compositing. This is correct for the main WCV (palette body is centered, sits over main). It's over-aggressive for the aux WCV in typical layouts: the palette body (`max-w-2xl` ~672px, centered) sits in the screen's center; the aux pane is on the right. Backdrop (`bg-black/30 fixed inset-0`) covers everywhere but is 30% transparent — an un-muted aux WCV would composite over the backdrop, dimming aux content but keeping it visible (the desired UX). HOWEVER: in narrow-split layouts (~1280px window with 50/50 split), the palette body overlaps the aux bounds by ~200px, so the un-muted aux WCV would occlude the palette body (regression).
+
+**Recommended fix when this gets prioritized.** Compute the palette body's runtime bounding box (renderer-side known, can be IPC'd to main) and pass it to `setOverlayMuted` as an optional argument. Mute aux only if its bounds intersect the palette body's bounds. Mute main unconditionally (palette always sits over main). Falls back to current behavior when bounds aren't passed. Estimated half-day work; needs careful smoke against varying split-view widths.
+
 (1) is cheapest. Worth checking whether the original BUG-058 context-menu use case ALSO blanked the aux WCV — if so, this is a pre-existing behavior the palette inherited, and (1) might regress that. Defer the choice to walk + repro time.
 
 **Naming note.** Owner asked: should the tab-search palette have a proper user-facing name beyond "⌘⇧A"? Current docs call it "tab-search palette" / "tab search". Possible: "Quick Switcher" (Obsidian/VS Code parity), "Go to Tab" (more verbose), "⌘⇧A palette" (chord-named). Defer naming decision until next user-docs pass.
@@ -5510,16 +5711,31 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-101: `duo open` / `duo edit` sometimes return `{ok: true}` without producing a visible tab
 
-**Status:** 🟡 Open (filed during smoke walk v0.6.8-rev2 pre-walk, 2026-05-06).
-**Priority:** **Medium** — affects automation flows that rely on `duo open <url>` / `duo edit <path>` to land a usable tab. CLI claims success but the user (or agent) sees no new tab.
+**Status:** ✅ **Editor-routed half shipped Sprint 9 (2026-05-07).** Walk-3 user-verified PASS for the caret-lands-in-editor case ("carat landed!"). Three walks of fixes:
+1. Walk-0: React anti-pattern fix (setActiveWorking lifted out of setFileTabs updater).
+2. Walk-1: rAF chain to focus the editor's contentEditable + `console.debug` → `console.log` for trace visibility.
+3. Walk-2: routed through `findVisibleWorkingPaneCE('main')` — filters by `offsetParent !== null` so the focus call lands on the VISIBLE editor (not whichever display-toggled invisible tab was first in DOM order; BUG-046's mount-all-then-display-toggle pattern was producing the stale selector). Same helper used by ENH-098 chord set.
+
+**Browser-routed half still open** (`duo open https://example.com` not surfacing reliably) — separate hypothesis #1 from walk-0 description; Sprint 10 candidate.
+
+**Walk-3 surfaced BUG-106** (`duo edit <non-existent-path>` opens tab + editor errors with ENOENT). Independent of this fix; filed separately.
+
+**Sprint 9 fix (2026-05-07).** Refactored `openFile` in [renderer/App.tsx:858](renderer/App.tsx:858) to lift `setActiveWorking` OUT of the `setFileTabs` updater. The pre-fix shape called `setActiveWorking({ kind: 'file', id })` from INSIDE the `setFileTabs(prev => …)` updater body — a React anti-pattern. Inner state updates schedule separately from the outer commit, and React 18+'s automatic batching can land them in a different render than the tab addition itself, leaving fileTabs grown but `activeWorking` stuck (or vice versa). The new shape stashes the activation target on a `pendingActivationRef` from inside the updater, then flushes both `setActiveWorking` and `setFocusedColumn` AFTER the updater returns — both setters now run as direct top-level state writes that React batches normally. Added `console.debug('[BUG-101 openFile]', { path, title })` for future repro diagnosis.
+
+**Priority:** **Medium** — affects automation flows that rely on `duo open <url>` / `duo edit <path>` to land a usable tab. CLI claims success but the user (or agent) sees no new tab. Also bit the Sprint 9 planning session itself — `duo open` fired ok but the worksheet tab didn't surface for the owner.
 **Filed:** 2026-05-06 (pre-walk surfaced — `duo open /tmp/walk-rev2-playground.html` and `duo edit /tmp/bug097-prewalk.md` both reported `{ok: true}`, but the ⌘⇧A palette enumerated only the pre-existing 10 tabs; neither new file appeared. `duo url` / `duo title` did report the playground as the live browser tab, so the BrowserManager has it — but the renderer's `browserTabs` state didn't include it).
 
 **Symptom.** `duo open <path>` returns `{ok: true, url, routedTo: "browser"}` and `duo title` / `duo url` confirm the page is the live browser tab. But the working-pane / browser-pane tab strip doesn't grow a new entry, and the ⌘⇧A palette doesn't enumerate the new tab. Same shape for `duo edit <path>` against fresh `.md` files.
 
-**Hypotheses (untested):**
-1. **Renderer state drift** — BrowserManager added the tab + emitted `onTabsChange`, but the renderer's `setBrowserTabs` callback didn't fire (subscription dropped after a HMR re-mount? race against an effect cleanup?). Diagnose: instrument `onTabsChange` callback in App.tsx, confirm it fires after `duo open`.
+**Hypotheses (status update 2026-05-07):**
+1. ~~**Renderer state drift** — BrowserManager added the tab + emitted `onTabsChange`, but the renderer's `setBrowserTabs` callback didn't fire (subscription dropped after a HMR re-mount? race against an effect cleanup?).~~ — STILL OPEN for the browser-pane (`duo open` to a URL) path. The Sprint 9 fix only addressed the editor-pane (`duo edit` / `duo open` of a local file) path.
 2. **Tab-strip overflow** — the working-pane tab strip may have a fixed visible width; new tabs are added but composite off-screen and aren't horizontally-scrollable. Less likely for the palette case (palette enumerates from state, not DOM).
-3. **`duo open` IPC routing** — when the active browser tab is already a `file://` URL with similar path semantics, BrowserManager may REUSE the slot rather than create a new one. Testable by adding a counter to BrowserManager's `addTab` log.
+3. ~~**`duo open` IPC routing** — when the active browser tab is already a `file://` URL with similar path semantics, BrowserManager may REUSE the slot rather than create a new one.~~ — Less likely after re-reading openTab; the BrowserManager creates a new tab unless `--switch-existing` is set.
+4. **(NEW) Editor-routing setActiveWorking nesting bug** — fixed Sprint 9; was the most likely root cause for the editor-routed half of the symptom. Visual verification pending.
+
+**Verification owed.**
+- UI smoke: `duo edit /tmp/<fresh-md-file>` should now reliably open AND surface the tab. Walk this when owner returns.
+- Browser-pane half: `duo open https://example.com` should reliably surface a new browser tab. If this still fails after the editor-side fix, hypothesis #1 needs separate work — likely instrumentation around `onTabsChange` subscription lifecycle.
 
 **Cross-ref:** ENH-080 (the just-shipped tab-search palette is what surfaced this — the palette listed everything *but* the new tabs).
 
@@ -6167,7 +6383,17 @@ Update both shipped skills to reference `references/vocabulary.md` instead of `C
 
 ### ENH-091: Place caret at end of body (after existing content) when opening a freshly-created canvas
 
-**Status:** 🟡 **PARTIAL — DEFERRED** (Sprint 8 v0.6.8, 2026-05-06). Two attempts in v0.6.8 didn't successfully land the caret in the empty `<p>`. Owner-blessed as non-blocking for the cut. Smoke walk v0.6.8-rev3 reported: *"fails but with acceptable failure mode to not block release: carat now appears at end of title, not beginning; but no new <p> is inserted, and so carat is on title line (unchanged from last walk)."*
+**Status:** 🟡 **DEFERRED indefinitely per owner directive (Sprint 9 walk-2, 2026-05-07).** Walk-2 traces showed every `[ENH-091 seed] APPLIED` was followed by `[ENH-091 wire-exit] {startContainerName: 'P', startOffset: 0, ...}` AND `[ENH-091 seed] post-rAF check {stillInSeededP: true, ...}` — meaning the seed sticks across the next animation frame. But typing still landed in the H1 title, not the empty <p>. So the override fires AFTER rAF (after Chromium's internal layout pass) — unfixable without a different architectural approach (e.g. handling the first keystroke ourselves and re-routing it; or rebuilding the canvas DOM so there's no H1-first-focusable surface).
+
+Owner directive (walk-2): *"this is a low priority bug and we should not revisit for a LONG time unless the console provides a smoking gun and obvious fix; please remove from this sprint."* Done — instrumentation stays in code (cheap to keep, helps a future investigator), tasks.md status flipped to deferred, no further sprint-9 work. Recommend: pick this up only when a Chromium update changes layout timing OR when someone has an architectural-rewrite proposal.
+
+**Walk history (kept for reference):**
+1. Walk-0 (v0.6.8): added `seedCaretInEmptyParagraph` helper; smoke showed caret moved from "offset 0 of body" to "end of title" — partial regression.
+2. Walk-1 (Sprint 9): rebuilt detector to handle the `<br>` placeholder; added 12 vitest fixtures + diagnostic traces. Walk-1 owner: "no console output" — `console.debug` was hidden by DevTools default filter.
+3. Walk-2 (Sprint 9 walk-1 fix): flipped traces to `console.log`; corrected manifest verb to `duo html new`. Walk-2 traces showed seed APPLIES + sticks across rAF, but override still wins — Chromium-internals timing.
+4. Sprint 9 walk-2 outcome: deferred per owner directive.
+
+**Verification owed when owner returns.** Open Duo's renderer DevTools, create a fresh canvas (`duo edit --canvas /tmp/foo.html` against a non-existent path — the renderer creates boilerplate). Type a single character. Read the console for the three trace lines. The output pinpoints the override.
 
   **Attempt 1 (e203b7c, walk-1).** New `seedCaretInEmptyParagraph` helper at [renderer/components/Page/caretSeed.ts](renderer/components/Page/caretSeed.ts) called from [RenderedPage.tsx](renderer/components/Page/RenderedPage.tsx)'s `wire()` after `body.focus()` fires. Detection: `<main>` or `<body>` root has `<h1>` first + single trailing empty `<p>` + no content between. On match, repositions caret inside the empty `<p>`. 11 vitest fixtures green. Walk-1: caret moved from offset-0-of-body to end-of-title (a regression, not a fix).
 
@@ -6332,9 +6558,17 @@ For the boilerplate `<h1>title</h1><p></p>`, the last block is the empty `<p>`. 
 
 ### ENH-096: Obsidian-vault-friendly editor (wikilinks + vault quick switcher + sidecar convention)
 
-**Status:** 🟡 **PARTIAL — B1 cmd+click navigation deferred** in v0.6.8 (Sprint 8 Phase 3a, 2026-05-06). Tier A + B1 wikilink rendering shipped; B1 cmd+click navigation has a click-handler issue still open after walk-1 fix. B2 + B4 deferred. Smoke walk v0.6.8-rev3: *"link cursor appears, but click, cmd click are both no op"* (same symptom as walk-1 even after the resolver normalize fix). Owner-blessed as non-blocking for cut.
+**Status:** 🟡 **PARTIAL — Sprint 9 walk-1 surfaced second root cause; walk-1 fix landed.** Tier A + B1 wikilink rendering shipped in v0.6.8; cmd+click click-handler fix landed in Sprint 9 walk-0; vault-root walker fix landed in Sprint 9 walk-1. Awaiting walk-2 verification. B2 + B4 still deferred.
 
-**🔴 SPRINT 9 P0 — Owner directive at v0.6.8 cut (2026-05-06):** *"wikilinks is urgent for next sprint as we only have half a feature and it could confuse users."* Visual decoration without working navigation is a confusing half-state — the link styling implies clickable behavior that doesn't fire. Sprint 9 must close B1 to a fully-working state OR strip the decoration entirely (revert to plain `[[…]]` text) to avoid the false affordance. The 30-second console.debug diagnosis (queued below) should resolve which path is right.
+**Sprint 9 walk-1 user-verified failure 2026-05-07.** Owner ran the smoke walk; cmd+click was still no-op. Owner-provided console log (`/Users/geoffreydudgeon/Downloads/localhost-1778149539006.log`) showed the click handler IS firing AND the dispatch IS reaching the App.tsx listener — every cmd+click logged `[ENH-096] No vault root found; cannot resolve wikilink: <name>`. So the walk-0 click-handler fix was correct + working; the bug surfaced was downstream in `findVaultRoot`.
+
+**Sprint 9 walk-1 fix (2026-05-07).** `findVaultRoot` was using `window.electron.files.exists` to detect `.obsidian/`. But `filesService.exists` is documented (BUG-039 semantic — used by session-restore to drop tabs whose FILES were deleted) to return true ONLY for regular files. `.obsidian/` is a DIRECTORY → exists returned false → walker climbed past every real vault root and reported "no vault." The pre-fix comment in App.tsx even said "exists returns true for either file or directory presence" — that assumption was wrong; the implementation strictly checks `st.isFile()`. Fix: added a sibling `filesService.dirExists(absPath)` (returns `st.isDirectory()`) + IPC channel `FILES_DIR_EXISTS` + preload bridge + host-api type. Switched `findVaultRoot` to call `dirExists` instead. Total plumbing: `electron/files-service.ts § dirExists`, `shared/types.ts § IPC.FILES_DIR_EXISTS`, `electron/main.ts § FILES_DIR_EXISTS handler`, `electron/preload.ts § files.dirExists`, `shared/host-api.ts § dirExists type`, `renderer/App.tsx § findVaultRoot`. Existing exists() left strictly file-only (BUG-039 semantic preserved).
+
+**Sprint 9 walk-0 fix (2026-05-07, summary).** Click-handler fix — extracted `resolveWikilinkTargetAtClick` helper handling text-node targets via parentElement + pos-based decoration fallback. 7 vitest fixtures green. Owner walk-1 confirmed click handler now reaches the resolver.
+
+**🔴 SPRINT 9 P0 — Owner directive at v0.6.8 cut (2026-05-06):** *"wikilinks is urgent for next sprint as we only have half a feature and it could confuse users."* Visual decoration without working navigation is a confusing half-state — the link styling implies clickable behavior that doesn't fire. Sprint 9 must close B1 to a fully-working state OR strip the decoration entirely (revert to plain `[[…]]` text) to avoid the false affordance.
+
+**Verification owed (UI smoke).** Open a markdown file with `[[…]]` wikilinks inside an `.obsidian/`-marked folder. Cmd+click a wikilink. Expected: target file opens. Test vault available at `/tmp/wikilink-diag/test-vault/Index.md` (auto-generated during the Sprint 9 diagnostic).
 
 **Walk-1 fix (66f9b09).** Hypothesized root cause was case-sensitive resolver — `'other-note' === 'Other Note'` → false → silent no-op. Added `normalizeWikilinkName(name)` helper (lowercase + `-`/`_`/whitespace → single space, more forgiving than Obsidian itself). Applied on both sides of the BFS comparison. 8 vitest fixtures green. **Walk-rev3 verdict:** symptom unchanged. The resolver fix didn't help — meaning the click handler isn't reaching the resolver at all. The dispatched `duo-wikilink-open` window event is either not firing or App.tsx's listener isn't picking it up.
 

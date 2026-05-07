@@ -126,6 +126,11 @@ export interface NavBridge {
    *  renderer picks defaults (D28 persisted last-kind, navigator
    *  pending CWD, no pre-typed command). */
   newTab: (req: Omit<NewTabRequest, 'reqId'>) => Promise<NewTabResult>
+  /** ENH-098 (Sprint 9) — pane-jump focus action. Same shape as the
+   *  ⌘⌥L/;/' chord set, exposed via `duo focus-pane <name>`. Returns
+   *  `{ok: false, error: 'split view not open'}` for target='aux'
+   *  when neither file aux nor browser aux is mounted. */
+  focusPane: (target: 'terminal' | 'main' | 'aux') => { ok: boolean; target?: string; error?: string }
   /** BUG-030 — broadcast nav-pin state change to renderer subscribers
    *  after a CLI-driven mutation (the IPC handler broadcasts itself;
    *  this is the socket-server's path to the same channel). */
@@ -696,6 +701,21 @@ export class SocketServer {
             // reliable signal to report back.
             result = { ...this.nav.getTheme(), mode }
           }
+          break
+        }
+        case 'focus-pane': {
+          // ENH-098 (Sprint 9) — CLI parity with the ⌘⌥L/;/' chord
+          // set. Same `focusPane()` core in App.tsx; the IPC channel
+          // is PANE_FOCUS_JUMP. No-op for target='aux' when neither
+          // file aux nor browser aux is open (renderer reports back
+          // via the bridge's return value).
+          const target = args['target'] as string
+          if (target !== 'terminal' && target !== 'main' && target !== 'aux') {
+            throw new Error('focus-pane target must be terminal|main|aux')
+          }
+          const focusResult = this.nav.focusPane(target as 'terminal' | 'main' | 'aux')
+          if (!focusResult.ok) throw new Error(focusResult.error ?? 'focus-pane failed')
+          result = { target: focusResult.target ?? target }
           break
         }
         case 'send': {

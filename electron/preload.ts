@@ -220,6 +220,7 @@ const api: ElectronAPI = {
 
     // BUG-039 — existence check for session-restore tab hydration.
     exists: (p) => ipcRenderer.invoke(IPC.FILES_EXISTS, { path: p }),
+    dirExists: (p) => ipcRenderer.invoke(IPC.FILES_DIR_EXISTS, { path: p }),
 
     // ENH-016 — create a directory (navigator "New folder…").
     mkdir: (p) => ipcRenderer.invoke(IPC.FILES_MKDIR, { path: p }),
@@ -495,6 +496,13 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.PANE_TOGGLE_FOCUS, handler)
       return () => ipcRenderer.removeListener(IPC.PANE_TOGGLE_FOCUS, handler)
+    },
+    // ENH-098 (Sprint 9) — pane-jump from CLI (`duo focus-pane <name>`).
+    // Same shape as onPaneToggleFocus but payload-bearing.
+    onPaneFocusJump: (cb) => {
+      const handler = (_: IpcRendererEvent, target: 'terminal' | 'main' | 'aux') => cb(target)
+      ipcRenderer.on(IPC.PANE_FOCUS_JUMP, handler)
+      return () => ipcRenderer.removeListener(IPC.PANE_FOCUS_JUMP, handler)
     },
     reclaimFocus: () => ipcRenderer.send(IPC.PANE_FOCUS_RECLAIM),
     onBrowserFocusGained: (cb) => {

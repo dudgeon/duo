@@ -149,6 +149,12 @@ export type DuoCommandName =
   // agent can diagnose a malformed manifest without crawling the
   // filesystem.
   | 'packs'
+  // ENH-098 (Sprint 9) — `duo focus-pane <terminal|main|aux>` mirrors
+  // the ⌘⌥L/;/' chord set. Distinct from the existing 'focus' verb
+  // (which calls CDP focus on a CSS selector inside the active
+  // browser pane). The pane-jump verb routes through the bridge's
+  // focusPane() back to the renderer via PANE_FOCUS_JUMP IPC.
+  | 'focus-pane'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -1076,6 +1082,11 @@ export const IPC = {
   // BUG-039 — lightweight existence check used by session-restore
   // hydration to drop tabs whose files were deleted between sessions.
   FILES_EXISTS: 'files:exists',
+  // ENH-096 v2 (Sprint 9 walk-1 fix) — directory-aware existence
+  // check for the wikilink vault-root walker. `FILES_EXISTS` strictly
+  // returns true only for regular files (BUG-039 semantic); this one
+  // returns true only for directories.
+  FILES_DIR_EXISTS: 'files:dir-exists',
   // ENH-016 — create a directory (used by the navigator's "New
   // folder…" context-menu entry).
   FILES_MKDIR: 'files:mkdir',
@@ -1261,6 +1272,12 @@ export const IPC = {
   // in main's ⌘` accelerator click handler and fired BEFORE the
   // IPC, racing the toggle's prev read.
   PANE_FOCUS_RECLAIM: 'pane:focus-reclaim',
+
+  // ENH-098 (Sprint 9) — main→renderer push for `duo focus-pane <name>`.
+  // Renderer's existing focusPane() callback handles the dispatch; this
+  // IPC just carries the target name. Mirrors PANE_TOGGLE_FOCUS but
+  // payload-bearing (target) rather than payload-less.
+  PANE_FOCUS_JUMP: 'pane:focus-jump',
 
   // Stage 19c D27 — `duo new-tab` from the CLI. Main forwards the
   // request (kind/cwd/cmd) to the renderer; renderer adds the tab and

@@ -438,18 +438,20 @@ ENHs at the bottom.
 that have recurred multiple times across walks. Each release's
 manifest MUST include them, with explicit verification steps.
 
-- **BUG-056** — Send → Duo pill on browser pane should NOT appear
-  when there's no active Claude session. Steps: (a) close ALL
-  Claude tabs in the terminal pane (only shell tabs left); (b)
-  open ANY browser tab (faq.html, smoke walk page, anything);
-  (c) select text in the page; (d) confirm the in-page pill does
-  NOT render. Owner has reported this recurringly across walks;
-  the gating is in `cdp-bridge.ts § showPillFor` reading
-  `window.__duoClaudeLive` which `setClaudeLive(state)` flips
-  from main when claude-presence changes. Re-test on every cut.
+> **HARD RULE — when a regression item gets durable automated test
+> coverage that passes in CI, REMOVE it from this list AND from
+> the next sprint's manifest.** The smoke walk is for things that
+> MIGHT have regressed; CI catches the things the test suite
+> already guarantees. Owner-flagged 2026-05-07 walk-2: "WHY AM I
+> SEEING THIS IF YOU TEST IT AND IT PASSES DON'T SHOW ME THIS."
+> Adding a "verify the test exists" smoke-walk row is the same
+> mistake — drop the item entirely.
 
-(Add new mandatory items here when a bug recurs across two
-releases — that's the smell.)
+(Currently no items in this section — BUG-056 was removed
+2026-05-07 after `electron/cdp-bridge.test.ts` landed with three
+asserts on the IIFE source. Add new items here when a bug recurs
+across two releases AND there's no clean automated test path
+yet.)
 
 **Code blocks + Copy buttons (ENH-046 — 2026-05-02 walk-2).** Any
 shell command, code snippet, or file path the user is expected to

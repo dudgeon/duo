@@ -185,6 +185,44 @@ function makeTab(cwd: string, kind: TerminalTabKind, home: string): TabSession {
  * pay arbitrary IO cost on every cmd+click. 16 levels covers any
  * practical vault depth.
  */
+/**
+ * ENH-098 (Sprint 9 walk-2) — find the VISIBLE editor's
+ * contenteditable scoped to the requested working-pane subtree.
+ *
+ * Why this is non-trivial: BUG-046 keeps every file-tab renderer
+ * mounted simultaneously (display-toggled) for instant cycling.
+ * So `[data-duo-workingpane]` matches N elements in DOM at any
+ * time, only one of which is visible (its ancestor's display !==
+ * 'none'). And when split view is open, the aux pane mounts its
+ * own editor too, also marked [data-duo-workingpane]. A naive
+ * querySelector picks the FIRST in DOM order, which is rarely
+ * the right target.
+ *
+ * Algorithm: walk every [data-duo-workingpane], filter by
+ * `offsetParent !== null` (excludes display:none AND visibility
+ * variants without false positives), then partition by whether
+ * the element sits inside [data-duo-workingpane-aux]. Return the
+ * first element matching the requested scope.
+ *
+ * Returns the editor's contenteditable when present (the actual
+ * caret target), falling back to the wrapper element when no
+ * contenteditable is rendered (image/PDF preview tabs are
+ * non-editable).
+ */
+function findVisibleWorkingPaneCE(scope: 'main' | 'aux'): HTMLElement | null {
+  const all = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-duo-workingpane]')
+  )
+  const visible = all.filter(el => el.offsetParent !== null)
+  const target = visible.find(el => {
+    const inAux = el.closest('[data-duo-workingpane-aux]') !== null
+    return scope === 'aux' ? inAux : !inAux
+  })
+  if (!target) return null
+  const ce = target.querySelector<HTMLElement>('[contenteditable="true"]')
+  return ce ?? target
+}
+
 async function findVaultRoot(startPath: string | null): Promise<string | null> {
   if (!startPath) return null
   let dir = startPath.slice(0, startPath.lastIndexOf('/'))
@@ -192,9 +230,13 @@ async function findVaultRoot(startPath: string | null): Promise<string | null> {
   for (let depth = 0; depth < 16; depth++) {
     const obsidianPath = `${dir}/.obsidian`
     try {
-      // .obsidian is a directory; `exists` returns true for either
-      // file or directory presence.
-      if (await window.electron.files.exists(obsidianPath)) {
+      // ENH-096 v2 (Sprint 9 walk-1 fix). Pre-fix used `files.exists`,
+      // which strictly returns true only for regular files (BUG-039
+      // semantic); `.obsidian/` is a DIRECTORY, so the existence
+      // check always returned false → the walker climbed past every
+      // real vault root and reported "no vault." Switched to the new
+      // `files.dirExists` which is the directory-aware sibling probe.
+      if (await window.electron.files.dirExists(obsidianPath)) {
         return dir
       }
     } catch {
@@ -359,6 +401,12 @@ export function App() {
     // read the user's last deliberate column choice unaffected.
     _internalSetFocusedColumn(next)
   }, [])
+
+  // BUG-101 (Sprint 9) — scratchpad ref used by openFile to hand off
+  // the "which tab should activate" decision from inside the
+  // setFileTabs updater to the outer flush block. Avoids the React
+  // anti-pattern of nested setState (see openFile comment below).
+  const pendingActivationRef = useRef<ActiveWorking | null>(null)
   // Stage 26 PR 3 item 8 — handle for the FilesPane so the global
   // ⌘⇧G shortcut can flip its breadcrumb into the editable input.
   const filesPaneRef = useRef<FilesPaneHandle | null>(null)
@@ -855,19 +903,59 @@ export function App() {
   // Open (or switch to) a file tab in the WorkingPane. § D13 — same-path
   // identity: if a tab already exists for this path, activate it instead of
   // creating a duplicate.
+  //
+  // BUG-101 (Sprint 9, 2026-05-07) — calling `setActiveWorking` from
+  // INSIDE the `setFileTabs` updater is a React anti-pattern. Inner
+  // state updates are scheduled separately from the outer set's
+  // commit, and React 18+'s automatic batching can land them in a
+  // different render than the tab addition itself. Symptom: the
+  // CLI returned `{ok: true}` because main fired NAV_EDIT and the
+  // tab appended to fileTabs, but `activeWorking` flipped to a
+  // stale value (or didn't flip at all in some race), so the new
+  // tab never surfaced as visible. Fix: do the read-then-write
+  // pattern with a ref-style lookup so both setters run as direct
+  // state transitions, not nested ones.
   const openFile = useCallback((path: string, title: string) => {
     setFileTabs(prev => {
       const existing = prev.find(t => t.path === path)
       if (existing) {
-        setActiveWorking({ kind: 'file', id: existing.id })
+        // Existing tab — surface its id so the activation runs OUTSIDE
+        // this updater. We can't return both the new state AND the id;
+        // stash on a ref-pattern via `pendingActivationRef`.
+        pendingActivationRef.current = { kind: 'file', id: existing.id }
         return prev
       }
       const { type, mime } = classifyFile(path)
       const id = crypto.randomUUID()
-      setActiveWorking({ kind: 'file', id })
+      pendingActivationRef.current = { kind: 'file', id }
       return [...prev, { id, type, path, title, mime }]
     })
+    // Now flush activation + focus OUTSIDE the updater. Both run as
+    // direct state writes that React batches normally — no nesting.
+    if (pendingActivationRef.current) {
+      setActiveWorking(pendingActivationRef.current)
+      pendingActivationRef.current = null
+    }
     setFocusedColumn('working')
+    // BUG-101 walk-2 (Sprint 9, 2026-05-07) — owner saw the tab
+    // surface but caret stayed in the terminal. Walk-1 added a
+    // two-rAF .focus() dance, but the selector hit a hidden tab
+    // (BUG-046 keeps all file-tab renderers mounted, display-toggled).
+    // Walk-2 fix: route through `findVisibleWorkingPaneCE('main')`
+    // which filters by offsetParent !== null AND excludes the aux
+    // subtree. Same two-rAF pattern (wait past React commit + paint).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const ce = findVisibleWorkingPaneCE('main')
+        if (ce) ce.focus()
+      })
+    })
+    // BUG-101 instrumentation — surface the path the open went down.
+    // Walk-1 feedback: console.debug is hidden by Chrome DevTools'
+    // default level filter (Info+). Switched to console.log so the
+    // trace lands in the default Console view without the user having
+    // to enable Verbose.
+    console.log('[BUG-101 openFile]', { path, title })
   }, [])
 
   // Smart file-open dispatcher: pre-flights HTML files for the
@@ -1331,6 +1419,7 @@ export function App() {
   useEffect(() => {
     const handler = async (e: Event) => {
       const detail = (e as CustomEvent<{ target: string }>).detail
+      console.debug('[ENH-096 receive]', detail)
       const wikilinkTarget = detail?.target?.trim()
       if (!wikilinkTarget) return
       // Strip block-ref / heading suffix; v1 doesn't resolve those —
@@ -1494,6 +1583,131 @@ export function App() {
   //     contenteditable prose, falling back to the wrapper. The wrapper
   //     alone has tabIndex=0 but isn't a typing target — typing into
   //     a focused tabIndex wrapper is a no-op for the editor.
+  // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+  // (move-to-trash with confirm). Mirrors the right-click → Move to
+  // Trash flow on the WorkingTabStrip but adds the confirm dialog
+  // (the strip's own dialog lives inside its handler). No-op when
+  // active surface is a browser tab or terminal.
+  const deleteCurrentFile = useCallback(async () => {
+    if (activeWorking.kind !== 'file') {
+      // No-op for browser / terminal panes. ⌘W already exists for
+      // tab close; the chord is specifically for FILE deletion.
+      console.info('[ENH-102] no-op: active surface is not a file tab')
+      return
+    }
+    const tab = fileTabs.find(t => t.id === activeWorking.id)
+    if (!tab) return
+    const result = await window.electron.dialog.confirm({
+      title: `Move "${tab.title}" to Trash?`,
+      message: 'This file will be moved to the macOS Trash. You can recover it from Finder.',
+      buttons: ['Cancel', 'Move to Trash'],
+      defaultId: 1,
+      cancelId: 0,
+      type: 'warning'
+    })
+    if (result.response !== 1) return
+    // Sprint 7 rev6 follow-up applied here too — if the file's
+    // already gone, the user's intent is still "close this tab,"
+    // so ENOENT lands as a soft-success and we proceed to close.
+    try {
+      await window.electron.files.trash(tab.path)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!/doesn['’]?t exist|ENOENT|no such file/i.test(msg)) {
+        window.alert(`Move to Trash failed: ${msg}`)
+        return
+      }
+    }
+    closeFileTab(tab.id)
+  }, [activeWorking, fileTabs, closeFileTab])
+
+  // ENH-098 (Sprint 9) — pane-jump focus action. ⌘⌥L/;/' chord set
+  // and the `duo focus-pane` CLI verb both route here. Distinct from
+  // togglePaneFocus (⌘`) which CYCLES; this function jumps DIRECTLY
+  // to the named target.
+  //
+  // Implementation per target:
+  //   - 'terminal'  : same shape as togglePaneFocus's terminal branch.
+  //   - 'main'      : focus the main working pane (NOT aux). For
+  //                   browser tabs this is browser.focusActive(); for
+  //                   file tabs (markdown / canvas / image / pdf) it's
+  //                   the wrapper or its contenteditable.
+  //   - 'aux'       : focus the split-view aux pane. No-op if neither
+  //                   a file aux nor a browser aux is open. For file
+  //                   aux: focus its contenteditable. For browser
+  //                   aux: route the active WCV's focus (we do NOT
+  //                   have a dedicated focusAux IPC today; the WCV
+  //                   inside the aux slot picks up keyboard focus
+  //                   when its host element is focused).
+  const focusPane = useCallback((target: 'terminal' | 'main' | 'aux') => {
+    if (target === 'terminal') {
+      setFocusedColumn('terminal')
+      window.electron.keyboard.reclaimFocus()
+      queueMicrotask(() => {
+        const textarea = document.querySelector<HTMLTextAreaElement>(
+          '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
+        )
+        textarea?.focus()
+      })
+      return
+    }
+    if (target === 'main') {
+      setFocusedColumn('working')
+      queueMicrotask(() => {
+        if (activeWorking.kind === 'browser') {
+          window.electron.browser.focusActive()
+          return
+        }
+        // ENH-098 (Sprint 9 walk-2 fix). Pre-fix used
+        // `document.querySelector('[data-duo-workingpane]')` — picks
+        // the FIRST in DOM order. But BUG-046 keeps every file-tab
+        // renderer mounted (display-toggled), so when the user has
+        // multiple file tabs open the selector hits the FIRST tab's
+        // editor (often invisible) instead of the active one. .focus()
+        // on a `display:none` ancestor's contenteditable silently
+        // fails — DOM focus stays where it was (xterm), keyboard
+        // caret never moves. Walk-1 owner: "focus shifts to main pane,
+        // but carat stays on the terminal." Fix: filter by visibility
+        // (offsetParent !== null) AND exclude any editor inside the
+        // aux subtree.
+        const ce = findVisibleWorkingPaneCE('main')
+        if (ce) ce.focus()
+      })
+      return
+    }
+    // target === 'aux'
+    const hasFileAux = !!(auxState && auxState.paths.length > 0)
+    const hasBrowserAux = !!auxBrowserTab
+    if (!hasFileAux && !hasBrowserAux) {
+      // No-op when split view is closed. Surface a console hint so
+      // a user wondering why nothing happened can find an explanation.
+      // (Toast/banner UI deferred — out of scope for this chord ship.)
+      console.info('[ENH-098] focusAux: split view is not open')
+      return
+    }
+    setFocusedColumn('working')
+    queueMicrotask(() => {
+      if (hasBrowserAux) {
+        // Aux holds a browser tab. We don't have a dedicated
+        // focusAux IPC today — focusActive() targets the active
+        // MAIN browser tab, not the aux WCV. Tracked as a
+        // FOLLOWUP for Phase 3c-iv (browser-aux WCV focus IPC);
+        // for now best-effort fall through to no-op.
+        // TODO: file follow-up to add an aux-targeting browser
+        // focus IPC; until then, keyboard activation of the aux
+        // browser pane requires the user to click into it.
+        console.info('[ENH-098] focusAux: aux holds a browser tab; programmatic focus of the aux WCV is not yet supported (FOLLOWUP needed). Click into the aux pane to focus.')
+        return
+      }
+      // File aux — find the contenteditable scoped to the aux
+      // subtree (the new [data-duo-workingpane-aux] marker added
+      // in WorkingPane.tsx).
+      const ce = findVisibleWorkingPaneCE('aux')
+      if (ce) ce.focus()
+      else console.info('[ENH-098] focusAux: no contenteditable found inside aux subtree')
+    })
+  }, [activeWorking, auxState, auxBrowserTab, setFocusedColumn])
+
   const togglePaneFocus = useCallback(() => {
     // BUG-048 v3 — read direction from the REF, which holds the
     // user's last-deliberate column choice (untouched by the xterm
@@ -1844,6 +2058,17 @@ export function App() {
         // requestAnimationFrames push us past the React commit AND
         // past the paint cycle, so the address-bar DOM node is
         // guaranteed mounted + visible when we focus().
+        // BUG-103 fix (Sprint 9 walk-1, 2026-05-07) — owner saw the
+        // address bar marked focused at the DOM level
+        // (document.activeElement.tagName === 'INPUT', dataset
+        // duoAddressbar === 'true'), BUT the input's caret rendered
+        // grey/inactive instead of blue/active — meaning the OS-level
+        // keyboard focus was on the new browser tab's WCV, not the
+        // renderer that owns the input. New tab creation moves OS
+        // focus to the WCV by default. Reclaim it BEFORE the rAF
+        // chain so by the time .focus() runs, the renderer owns OS
+        // focus and the input's caret renders active.
+        window.electron.keyboard.reclaimFocus()
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
@@ -1917,6 +2142,15 @@ export function App() {
     // a menu accelerator. On macOS the system shortcut intercepts ⌘`
     // before this handler sees it; see `onPaneToggleFocus` below.
     togglePaneFocus,
+    // ENH-098 (Sprint 9) — pane-jump chords. Same `focusPane` core
+    // routes the chord callbacks AND the CLI `duo focus-pane` verb
+    // (wired in core/socket-server.ts § case 'focus-pane' →
+    // PANE_JUMP IPC → renderer below).
+    focusTerminalPane: () => focusPane('terminal'),
+    focusMainPane: () => focusPane('main'),
+    focusAuxPane: () => focusPane('aux'),
+    // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active file with confirm.
+    deleteCurrentFile,
     // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
     // aux slot; ⌘⇧\ promotes aux back to main (closes the split AND
     // keeps the file open — mirrors the ⇤ button in the aux header).
@@ -1968,6 +2202,13 @@ export function App() {
   useEffect(() => {
     return window.electron.keyboard?.onPaneToggleFocus?.(togglePaneFocus)
   }, [togglePaneFocus])
+
+  // ENH-098 (Sprint 9) — `duo focus-pane <name>` CLI verb routes here
+  // through main → PANE_FOCUS_JUMP → preload's onPaneFocusJump. Same
+  // focusPane() core that the ⌘⌥L/;/' chord set fires.
+  useEffect(() => {
+    return window.electron.keyboard?.onPaneFocusJump?.(focusPane)
+  }, [focusPane])
 
   // BUG-042 — when the user clicks into the browser WebContentsView,
   // the click happens in a separate process and the renderer's

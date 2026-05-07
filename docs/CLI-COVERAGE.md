@@ -167,12 +167,12 @@ collision. The new-tab verb is in the bare `duo new-tab` namespace
 title}` + tab-strip primary affordance ("`+` = claude") justify
 top-level placement.
 
-### Pane focus — P0
+### Pane focus — partially shipped
 
-| Verb | UI parallel | Shape |
+| Verb | UI parallel | Status |
 |---|---|---|
-| `duo pane focus <files\|terminal\|working>` | `⌘\`` cycle | Sets focused column. Returns `{focused}`. |
-| `duo pane state` | — | `{focused, filesCollapsed, splitPct}` for the layout surface (useful for agents writing UI tours / walk-throughs). |
+| `duo focus-pane <terminal\|main\|aux>` | ⌘⌥L (terminal) / ⌘⌥; (main) / ⌘⌥' (aux) chord set | **✅ Shipped Sprint 9 (ENH-098).** Jumps focus DIRECTLY to the named pane (vs. `⌘\`` which cycles). Aux is a no-op when split view is closed. Returns `{target}`. **Note:** the original spec proposed `duo pane focus` as the verb name; shipped as `duo focus-pane` to mirror the chord-set semantic and avoid collision with the existing `duo focus <selector>` (CDP element focus). |
+| `duo pane state` | — | Not shipped. P1. Would return `{focused, filesCollapsed, splitPct}` for the layout surface (useful for agents writing UI tours / walk-throughs). |
 
 ### Editor read + doc ops — P0 / P1
 

@@ -582,6 +582,12 @@ export function WorkingPane({
           <div
             className="flex flex-col min-w-0 border-l border-paper-rule"
             style={{ flex: `${activeSplitPct * 100} 0 0%` }}
+            // ENH-098 (Sprint 9 walk-1) — marker so focusPane('aux')
+            // can target the aux subtree's editor (vs. the main one).
+            // Both main + aux editors carry [data-duo-workingpane], so
+            // a generic selector picks the DOM-first one (almost
+            // always main) — disambiguation lives in this attribute.
+            data-duo-workingpane-aux="1"
           >
             {browserSplitOpen && auxBrowserTab && (
               <AuxBrowserSlot
