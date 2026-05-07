@@ -19,6 +19,159 @@
 > aggressively trim BUG-001..BUG-017 era entries since their lessons
 > live elsewhere now.
 
+## DRAFT — Sprint-9+ candidates from idle-thoughts sweep (2026-05-06)
+
+> Filed during the v0.6.8 cut close-out sweep. Each entry below is a
+> draft of an idea from `idle-thoughts.md` that needs sprint planning
+> input before code work — chord conflicts, exact UX choice, scope
+> boundaries. **Refine in the next sprint-plan session.**
+
+### ENH-098: Focus-chord set — ⌘⌥L (terminal) · ⌘⌥; (main canvas) · ⌘⌥' (split view)
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Medium (QOL chord coverage; agent + power users want named chords for each pane).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** Three new chords that move focus to a specific pane:
+- `⌘⌥L` → terminal pane focus (whatever the active terminal tab is).
+- `⌘⌥;` → main canvas / working-pane focus (whatever the active main-pane tab is).
+- `⌘⌥'` → split-view (aux) pane focus.
+
+Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present). Useful as a generic toggle, but doesn't let the user JUMP to a specific pane without cycling through.
+
+**Needs refinement.**
+- **Chord conflicts.** `⌘⌥;` and `⌘⌥'` are unusual on macOS but: confirm they don't collide with macOS system chords (none I'm aware of), Chromium-WCV-default-handlers (need a `before-input-event` whitelist entry per the BUG-002 family), or any TipTap / canvas extension shortcuts. `⌘⌥L` may conflict with browser-pane address-bar focus on some extensions — verify.
+- **Aux behavior when not present.** `⌘⌥'` no-ops when split view isn't open? Or auto-opens an empty aux? (Recommend: no-op; arrow forward to "open split view first" toast.)
+- **Per-pane vs. per-tab.** Focus the pane (whatever tab's currently active there) vs. focus a SPECIFIC tab? Recommend pane-level — tab-jump is what `⌘1-9` / `⌘⇧1-9` already does.
+
+**Affected files.** `globalShortcuts.ts` (3 new entries), `useKeyboardShortcuts.ts` (3 dispatch branches), `browser-manager.ts § isDuoShortcut` (whitelist `KeyL` / `Semicolon` / `Quote` — codes pending verification).
+
+---
+
+### ENH-099: 3-way 33/33/33 pane-size chord — ⌘⌥4
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Low (cosmetic; current `⌘⌥1/2/3` covers most cases).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** New chord `⌘⌥4` that resizes terminal / main / split-view to ~33/33/33 widths simultaneously.
+
+**Needs refinement.**
+- **3-way layouts not supported by current resize state.** Current panes are: terminal (left column) + working pane (right column with optional aux split). Aux is INSIDE the working pane, not a third sibling. So a "33/33/33" doesn't have a clean home — it's terminal/main/aux where aux is sub-divided from the working column. Need to decide: does this resize the OUTER terminal/working split to 33% terminal + 67% working, then sub-split working to 50/50 main/aux? Or does it require a layout refactor?
+- **Aux must already be open** for the chord to make sense. No-op when no split view? Or auto-open one?
+- **Chord ergonomics.** `⌘⌥1/2/3/0/9` are taken; `⌘⌥4` is free. But the existing "even" layout `⌘⌥2` already covers 50/50; this 33/33/33 is a meaningfully different layout that probably warrants its own preset name in `duo split <preset>` too.
+
+**Recommend deferring** until we know whether 3-way layouts are a real workflow need (vs. a "nice to have" idea).
+
+---
+
+### ENH-100: Lock/unlock context menu verb for filetypes that support editability
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Medium (concept exists in code via `<meta duo-default-editable="false">` and the read-only/edit toggle strip; right-click menu would surface it more discoverably).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** Right-click on a tab (or in the editor body?) → "Lock" / "Unlock" verb that toggles editability. Current state: HTML canvases with `<meta duo-default-editable="false">` mount in read-only mode with a toggle strip; markdown editor has a `Saved` / `Save` button area but no lock concept.
+
+**Needs refinement.**
+- **What "lock" means per filetype.** HTML canvas: write `<meta duo-default-editable="false">` to disk and re-mount in read-only? Markdown editor: ??? (no equivalent meta convention; tiptap-markdown doesn't have a read-only mark). PDF / image: no-op since they're not editable to start with.
+- **Where the menu lives.** Right-click on the tab title in the strip? Or a kebab menu in the toolbar? Or both?
+- **Persistence.** Does "lock" persist across sessions (write to file or sidecar) or is it a session-only state?
+- **Markdown editor scope.** Is the markdown editor in scope for v1, or does this start as a canvas-only verb that gets a sister implementation later?
+
+**Recommended path.** Start with canvas-only, write the meta tag on lock, surface via right-click on the tab. Markdown later if there's a real use case.
+
+---
+
+### ENH-101: Expand/collapse chords — ⌘⌥T (terminal) · ⌘⌥C (canvas)
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Low (overlaps with existing `⌘⌥0/9` full-pane chords).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** Two new chords that toggle expand/collapse of the terminal and canvas panes respectively. Distinct from the "focus" chords above — these change PANE VISIBILITY, not focus.
+
+**Needs refinement.**
+- **Overlap with `⌘⌥0` / `⌘⌥9`.** Currently `⌘⌥0` = full terminal (canvas hidden), `⌘⌥9` = full canvas (terminal hidden). The proposed `⌘⌥T` / `⌘⌥C` could be the same gestures, OR could be DIFFERENT (e.g., collapse the pane to the rail, not full-screen). Owner clarify which interpretation.
+- **Rail-collapse as the target?** Both panes have a CollapsedRail when fully collapsed (visible in the screenshot earlier). `⌘⌥T` could toggle terminal between full-rail-collapsed and last-known-width. That's distinct from `⌘⌥0`'s behavior.
+- **Chord conflicts.** `⌘⌥T` and `⌘⌥C` need to clear the same gauntlet as ENH-098 (system / Chromium / TipTap / canvas extension).
+
+**Recommended.** If the intent is "rail-collapse / restore", file as a NEW behavior orthogonal to the existing full-pane chords. If the intent is "full-screen this pane", these are redundant with `⌘⌥0/9` and we should defer.
+
+---
+
+### ENH-102: ⌘⇧⌫ delete current file (with confirm)
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Medium (matches macOS file-management muscle memory; closes a gap where the only delete path is right-click → Move to Trash via the navigator or the tab strip).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** Pressing `⌘⇧⌫` (Cmd+Shift+Delete) — or `⌥⇧⌫` (Option+Shift+Delete), whichever is more common — when a tab is open should trigger "delete current file" with a confirmation dialog. Same destination as right-click → Move to Trash on a tab.
+
+**Needs refinement.**
+- **Chord choice.** macOS has no canonical "delete file from open editor" chord; both `⌘⇧⌫` and `⌥⇧⌫` are free. Pick one and document. (Recommend `⌘⇧⌫` — same modifier shape as `⌘⇧S`, easy to remember.)
+- **Scope.** Working pane file tabs only? Includes browser tabs (close tab, NOT delete URL — different verb)? Includes terminal tabs (close session, NOT delete anything)?
+- **Confirm modal style.** Same modal as right-click → Move to Trash today? Or a different "destructive shortcut, confirm" pattern?
+- **Tab close semantics post-delete.** Tab closes with the file? Tab stays open with a "file deleted" banner? Recommend: tab closes (matches BUG-098 path).
+
+---
+
+### ENH-103: Consolidate "Saved / Saving / Save" indicator + button into a single control
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Medium (UI clarity — current setup has TWO controls that perform the same conceptual thing).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** Today the markdown editor + canvas toolbar shows: a "Saved" / "Saving..." status indicator AND a "Save" button. They duplicate state. Consolidate into a single control that shows current state AND lets the user fire a manual save.
+
+**Needs refinement.**
+- **Behavior states.** When clean: "Saved" (button disabled, or just static text). When dirty: "Save" (button active, click triggers save). When mid-save: "Saving…" (button disabled, spinner). When error: "Failed — retry" (red, click retries). Owner sign-off on the four-state model.
+- **Visual treatment.** Pill button (matches the existing accent-bg button family)? Inline label only when clean, full button when dirty? Material-style FAB? Recommend pill button.
+- **Surfaces.** Markdown editor + canvas — both toolbars get the new control. Position-match with the current Save button.
+
+**Affected files.** `MarkdownEditor.tsx § toolbar`, `RenderedPage.tsx § toolbar` (or wherever the canvas's Save lives), shared `<SaveControl>` component if we want one.
+
+---
+
+### ENH-104: Autosave should be toggle-able
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Low (current autosave is fine for the dominant flow; toggle is for users who want explicit control).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** A user-controllable toggle that disables autosave (`AUTOSAVE_DEBOUNCE_MS` debounce). When off, only `⌘S` / Save-button clicks persist edits to disk.
+
+**Needs refinement.**
+- **Where the toggle lives.** App-level (`localStorage` setting, persists across sessions)? Per-tab (toggle on the editor's toolbar)? Per-file (in a sidecar)? Recommend app-level — autosave is a global preference, not per-doc.
+- **UI surface.** Settings panel (we don't really have one — see Stage 19a/22 territory)? Edit menu? View menu? Right-click on the new SaveControl from ENH-103?
+- **Sidecar interaction.** Autosave-off mode still saves the sidecar (comments) on demand? Or treat sidecar saves identically to body saves under the same toggle?
+- **Persistent dirty state.** With autosave off, dirty state can persist for hours/days. Need a visual cue stronger than the current dot.
+
+**Pairs with ENH-103** — the SaveControl naturally surfaces "autosave: on / off" as a hover-revealed setting.
+
+---
+
+### ENH-105: `@` triggers filename autocomplete in the canvas editor
+
+**Status:** ⬜ DRAFT — needs refinement before code. **Larger surface than the others — likely a multi-day sprint item.**
+**Priority:** Medium (high pedagogical value: `@` for "reference a sibling file" matches Obsidian + Notion + Slack + every modern note tool).
+**Filed:** 2026-05-06 (idle-thoughts sweep).
+
+**What's wanted.** In the canvas editor (and probably the markdown editor too), typing `@` triggers a filename autocomplete popover. Source: parent folder of the active file, recursively (all subfolders). Result resolves to either a file path or a folder path (clicking opens the file or navigates to the folder). Escape dismisses.
+
+**Needs refinement.**
+- **Markdown editor scope.** ENH-096 already ships `[[wikilink]]` rendering and (Sprint 9 P0) cmd+click navigation. `@` autocomplete in the markdown editor would compete with — or complement — `[[`. Recommend: scope to canvas FIRST; markdown follows once the wikilink P0 closes.
+- **What "parent folder" means.** Active file's directory? Or the navigator's CWD? Or the vault root if one exists (matches ENH-096's vault-root walk)? Recommend: vault root if `.obsidian/` exists, else navigator CWD. Falls in line with the rest of the vault-aware editor surface.
+- **Autocomplete UI.** Popover list at caret, fuzzy-filter as user types, keyboard nav (↑↓), Tab/Enter to insert. Same shape as ENH-096's deferred B2 (wikilink autocomplete on `[[`) — pair them as ONE component.
+- **Insertion shape.** Plain text path? Markdown link `[name](path)`? `@filename` as a literal token (a la Slack)? Owner pick.
+- **Trigger char escape.** What if the user wants to type a literal `@` (e.g. an email address)? Standard pattern: dismiss-on-space, dismiss-on-non-matching-char.
+
+**Affected files.** New `<AtMentionPopover>` component, integration with TipTap (suggestion plugin), file-list IPC (`files.list` recursive variant), keyboard handler. Probably 2–3 days of focused work.
+
+**Pair with ENH-096 B2** — same primitive.
+
+---
+
 ## Bugs
 
 ### BUG-001: ⌃Tab does not cycle terminal tabs when focus is on terminal
