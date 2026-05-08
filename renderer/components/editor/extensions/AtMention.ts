@@ -52,7 +52,14 @@ export const AtMention = Extension.create<AtMentionOptions>({
         // when multiple suggestion-utility instances coexist.
         pluginKey: AT_MENTION_KEY,
         char: '@',
-        allowSpaces: true,
+        // Sprint 11 walk-1 v2 fix — same allowSpaces concern as
+        // WikilinkSuggestion. Pre-fix any `@agent`-style text in the
+        // document fired the popover unprompted on caret moves; with
+        // allowSpaces:false the trigger only fires while the user is
+        // actively typing a contiguous query post-`@`. Filenames with
+        // spaces become a kebab-case requirement until we migrate to
+        // a Mention-NODE-based approach in a follow-up sprint.
+        allowSpaces: false,
         startOfLine: false,
 
         items: ({ query }) => {

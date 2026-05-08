@@ -67,17 +67,24 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
         // `Adding different instances of a keyed plugin (suggestion$)`
         // crash when AtMention is also loaded.
         pluginKey: WIKILINK_SUGGESTION_KEY,
-        // `[[` trigger. The `char` field on the suggestion config is
-        // a single character; we use `[` and require allowSpaces:false
-        // + an extra startOfLine guard via the items() filter below.
-        // Net behavior: typing "[[" opens the popover; typing
-        // "[" alone does NOT.
+        // `[[` trigger. The `char` field is a single character; we
+        // use `[` and require startOfLine:false. The popover opens
+        // when the user types `[[<query>` — the second `[` is the
+        // first character of the query.
         char: '[',
-        // Allow spaces in the query (filenames have spaces).
-        allowSpaces: true,
-        // The popover's match regex captures everything between the
-        // second `[` and the caret. We require the prefix to start
-        // with `[` (the second of `[[`), matched in items() below.
+        // Sprint 11 walk-1 v2 fix — `allowSpaces: false` keeps the
+        // trigger from matching against existing `[[…]]` text in the
+        // document on caret-move. With allowSpaces:true, the default
+        // findSuggestionMatch greedily captured everything from any
+        // `[` in the doc to the caret position, so opening a file
+        // that already contained `[[Foo]]` text fired the popover
+        // unprompted (showing a stray "No matches" stub at top-left
+        // of the window). Trade-off: filenames with spaces in the
+        // query string don't match — user must use kebab-case or
+        // type without spaces. allowSpaces:true with proper match-
+        // gating is a follow-up (needs custom findSuggestionMatch
+        // OR migration to Mention-NODE-based approach).
+        allowSpaces: false,
         startOfLine: false,
 
         items: ({ query }) => {
