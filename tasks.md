@@ -81,6 +81,8 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 **Recommended path.** Start with canvas-only, write the meta tag on lock, surface via right-click on the tab. Markdown later if there's a real use case.
 
+**Update 2026-05-08 — markdown driver landed.** ENH-106 files the data-model + editor wiring for markdown lock/unlock (YAML frontmatter `duo-default-editable: false`, mirrors ENH-034). Real first user: the local `idle-thoughts.md` Notion mirror. ENH-100's "Markdown later" arm reopens once ENH-106 ships — at that point this verb extends to markdown tabs alongside canvas tabs.
+
 ---
 
 ### ENH-101: Expand/collapse chords — ⌘⌥T (terminal) · ⌘⌥C (canvas)
@@ -169,6 +171,78 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 **Affected files.** New `<AtMentionPopover>` component, integration with TipTap (suggestion plugin), file-list IPC (`files.list` recursive variant), keyboard handler. Probably 2–3 days of focused work.
 
 **Pair with ENH-096 B2** — same primitive.
+
+---
+
+### ENH-106: Extend lock/unlock to Markdown files (frontmatter persistence)
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Medium-High (real first-user exists: `idle-thoughts.md` is a regenerable Notion mirror that should never accept local edits, but today there's no mechanism to enforce that).
+**Filed:** 2026-05-08 (idle-thoughts processing pattern shift to Notion-canonical).
+
+**What's wanted.** Extend the lock / unlock concept (ENH-034 + ENH-100) from HTML canvases to Markdown files. The HTML side ships today via `<meta name="duo-default-editable" content="false">` parsed in `electron/files-service.ts § getHtmlMeta`; markdown has no equivalent. Add a parallel mechanism so a `.md` file can be marked "open in read-only mode" with the same eye/pencil toggle strip the HTML canvas uses.
+
+**Real-world driver.** The local `idle-thoughts.md` is now a read-only mirror of [Duo Idle Thoughts (Notion)](https://www.notion.so/Duo-Idle-Thoughts-34d45f48854f8032ba68fae6dc0473fe) — refreshed via the Notion MCP every time Claude reads idle-thoughts. Local edits get silently overwritten on next sync. Surfacing this as a UI lock (with explicit unlock to override) prevents the data-loss footgun. Lesson packs (Stage 28) are the second use case: lesson markdown should mount read-only by default for the same reason canvas lessons do.
+
+**Recommended persistence — YAML frontmatter.**
+
+```markdown
+---
+duo-default-editable: false
+---
+
+# Document body…
+```
+
+Rationale:
+- **Standard convention.** Jekyll, Hugo, Obsidian, Notion-export all use YAML frontmatter. Agents writing markdown already know the pattern.
+- **Single-file unit.** No sidecar, no localStorage divergence between machines.
+- **Mirrors the HTML mechanism.** Same key name (`duo-default-editable`), same true/false semantics, same precedence rules. Re-uses the per-tab pencil/eye toggle that ENH-034 already shipped (just gate it on a different parser path).
+
+**Plumbing checklist (mirrors ENH-034).**
+
+1. **`electron/files-service.ts`** — add `getMarkdownMeta(filePath)` that parses YAML frontmatter and returns `{ editableDefault: boolean | null }`. Reuse a small frontmatter parser (e.g. `gray-matter` is dep-heavy; a 30-line custom parser handling `---\nkey: value\n---` is enough for v1).
+2. **`shared/host-api.ts`** — extend `MarkdownFileMeta` (new shape, parallel to `HtmlFileMeta`) with `editableDefault?: boolean`.
+3. **`renderer/components/editor/MarkdownEditor.tsx`** — read meta on mount, seed initial `readOnly` state. Hide TipTap's full toolbar when `readOnly`; show a `Read-only · Edit` strip parallel to `CanvasTab`'s.
+4. **TipTap read-only.** TipTap-core has `editor.setEditable(false)` (it's the standard pattern; "tiptap-markdown doesn't have a read-only mark" in ENH-100 was wrong — `setEditable` is at the editor level, not the markdown extension). Verify it disables ProseMirror input + paste + drop + IME without breaking the rendered view.
+5. **Persisting unlock.** Mirror ENH-034: per-file localStorage key `duo:editor:readOnly:<path>` overrides the meta default. Toggling the strip flips localStorage, NOT the source frontmatter (so the file stays canonically "this is a locked doc" but the user can scribble locally if they really mean it).
+6. **`agents/duo.md` + `skill/SKILL.md`** — document the frontmatter convention so agents can write `duo-default-editable: false` into generated lessons / mirrors / docs.
+
+**Cross-reference ENH-100.** ENH-100 is the right-click "Lock / Unlock" verb; ENH-106 is the underlying data-model + editor wiring it depends on. ENH-100's "Markdown later if there's a real use case" arm closes once ENH-106 lands. After ENH-106:
+- ENH-100 v2 surfaces "Lock" / "Unlock" on markdown tabs alongside canvas tabs.
+- Right-click "Lock" on a markdown tab writes the frontmatter on save (or surfaces an AskUserQuestion if the file has no frontmatter block — "add `duo-default-editable: false` to the top of the file?").
+
+**Open questions for owner.**
+- **Frontmatter visibility in the editor.** TipTap by default would render `---\nduo-default-editable: false\n---` as visible content. Options: (a) frontmatter is hidden in the rendered view but visible in source view (Obsidian-style); (b) frontmatter renders as a small grey collapsed strip at the top; (c) frontmatter is fully invisible and only the toggle strip surfaces it. Recommend (a) — matches Obsidian, gives advanced users a clear handle, doesn't pretend the file is something it isn't.
+- **Sidecar fallback?** If frontmatter proves too invasive (e.g. for files the user wants to keep clean source for), allow a parallel `.duo.json` sidecar with `{ "editableDefault": false }`. Defer to v2.
+- **Other frontmatter fields (forward-compat).** While we're parsing frontmatter, ENH-096 (Obsidian-vault-friendly editor) lands with its own conventions (vault-root, sidecar, wikilink config). The frontmatter parser should be a shared module both can consume. Plan the API once, ship it twice.
+
+**First user lined up.** `idle-thoughts.md` already carries an explicit `<!-- Canonical: ... -->` warning header today. Once ENH-106 ships, the Notion-sync writer adds a `duo-default-editable: false` frontmatter block to every refresh, so the file auto-locks. Pre-loading the frontmatter NOW (before ENH-106 ships) is harmless — TipTap renders it as visible YAML until the parser lands, then it goes invisible and the lock activates.
+
+---
+
+### ENH-107: Terminal tab strip — context-menu commands to move tabs left / right
+
+**Status:** ⬜ DRAFT — needs refinement before code.
+**Priority:** Medium-Low (working-pane tabs already have drag-and-drop reorder via ENH-042; terminal tabs have neither drag-reorder nor context-menu reorder today, so users with 3+ terminal tabs have no way to reorganize them).
+**Filed:** 2026-05-08 (idle-thoughts sweep).
+
+**What's wanted.** Right-click on a terminal tab in `TerminalPane.tsx` → context menu with at minimum two entries: `Move tab left` (disabled when tab is at index 0) and `Move tab right` (disabled when tab is at last index).
+
+**Current state.** `TerminalPane.tsx` (line 162) maps tabs to buttons with NO `onContextMenu` handler — terminal tabs have no right-click menu at all today. `WorkingTabStrip.tsx` already has drag-and-drop reorder (ENH-042) and a working tab context menu (ENH-026: Reveal in Navigator + others); the working-pane patterns can be cribbed for the terminal side.
+
+**Plumbing checklist.**
+
+1. **`renderer/components/TerminalPane.tsx`** — add `onContextMenu` on each tab button. Spawn a small popover-style menu (matches `WorkingTabStrip.tsx`'s ENH-026 affordance — same visual language).
+2. **State plumbing.** Terminal tab order lives in `renderer/App.tsx` § `tabs` state (line ~307 area). Add a `moveTerminalTab(id, direction)` callback or expose `setTabs` reorder helper. Persist tab order in `~/.claude/duo/session-state.json` so reorder survives restarts (terminal tabs already restore via Stage 21c Phase 2).
+3. **CLI parity (per CLAUDE.md working-style item 4).** UI feature → CLI counterpart. New verb: `duo terminal move <tab-index> <left|right>` (or `duo terminal reorder <from> <to>`). Bridge → `electron/socket-server.ts` → renderer state. Touch the full plumbing checklist (shared/types.ts, preload.ts, main.ts, socket-server.ts, cli/duo.ts, skill/SKILL.md, agents/duo.md, docs/CLI-COVERAGE.md).
+4. **Optional v2: drag-and-drop reorder.** Crib from `WorkingTabStrip.tsx § ENH-042`. Reuse the same drag-target overlay logic. Could ship in the same PR if low-cost; defer to v2 if context-menu version lands first.
+
+**Open questions for owner.**
+- **Menu scope.** Just `Move left` / `Move right`, or also `Close tab` / `Close other tabs` / `Pin tab` while we're adding context-menu plumbing? Recommend: just the two reorder entries for v1; expand if there's a real ask.
+- **Keyboard chord parallel?** Working-pane tab reorder via `⌘⇧←` / `⌘⇧→` would be a natural pair. Could file as a sub-ENH or roll in.
+
+**Affected files.** `renderer/components/TerminalPane.tsx`, `renderer/App.tsx` (state), `electron/main.ts` (session-state persistence), CLI plumbing chain. Smaller surface than ENH-105/106 but still touches the full CLI-parity stack.
 
 ---
 
@@ -5482,6 +5556,57 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 **Fix.** Replace the bare `Math.max(0, idx - 1)` with a `findNonAux(start)` helper that walks left first then right, skipping `auxTabId`. Returns `-1` when only the aux tab remains; in that case `closeTab` spawns a fresh `about:blank` (mirrors the existing BUG-020 last-tab pattern), takes the new tab as main-active, and leaves the aux tab's bounds untouched.
 
 **Cross-ref:** BUG-092 (parent), BUG-095 (sibling), BUG-020 (last-tab spawn pattern this fix mirrors).
+
+---
+
+### BUG-103: Markdown editor blockquotes render with literal curly quotation marks instead of left-border style
+
+**Status:** 🟡 Open (filed from idle-thoughts sweep).
+**Priority:** Medium (visible cosmetic bug; affects every blockquote a user types in the markdown editor; blockquotes are a common markdown primitive).
+**Filed:** 2026-05-08 (idle-thoughts sweep).
+
+**Repro.** In the markdown editor (TipTap), type:
+```markdown
+> some block quote text
+```
+
+**Expected.** Blockquote renders with a left accent border + softened text color + non-italic, per the `.duo-editor-prose blockquote` rules at `renderer/styles/globals.css` lines 194-197 and 327-331. Pattern matches Obsidian / Notion / GitHub.
+
+**Observed.** Each line of the blockquote is wrapped with visible Unicode curly quotation marks (`"…"`). E.g., `"some block quote text"` renders literally with the smart-quote glyphs, not as a left-border block.
+
+**Root cause.** `renderer/styles/globals.css` line 291 applies `@apply prose max-w-none` to `.duo-editor-prose` (Tailwind Typography plugin enabled in `tailwind.config.ts` line 89). The `prose` defaults include:
+
+```css
+.prose blockquote { quotes: "\201C""\201D""\2018""\2019"; }
+.prose blockquote p:first-of-type::before { content: open-quote; }
+.prose blockquote p:last-of-type::after { content: close-quote; }
+```
+
+The Duo overrides at lines 194-197 and 327-331 only customize `border-left`, `color`, and `font-style` — they do NOT reset the `::before` / `::after` `content` rules from the prose plugin. Result: every blockquote paragraph picks up the curly-quote pseudo-elements.
+
+**Fix.** Add to the `.duo-editor-prose blockquote` rules:
+
+```css
+.duo-editor-prose blockquote {
+  quotes: none;
+}
+.duo-editor-prose blockquote p:first-of-type::before,
+.duo-editor-prose blockquote p:last-of-type::after {
+  content: none;
+}
+```
+
+Probably 5-line CSS change. Verify in both light and dark themes — Tailwind Typography ships dark variants too.
+
+**Affected files.** `renderer/styles/globals.css` only (no JS/TS change needed).
+
+**Smoke after fix.**
+1. Type `> hello world` in the markdown editor → should render with left accent border, no curly quotes.
+2. Multi-line blockquote (`> line one` Enter `> line two`) → still left-border, no quotes.
+3. Empty blockquote (just `>` and Enter) → no stray quote glyphs.
+4. Switch theme light↔dark → border + text color swap, still no quotes.
+
+**Cross-ref.** Pairs with BUG-061 (markdown parsing broken in HTML canvas — bullets, indent/outdent missing). Both surfaces drift from the markdown-source convention; this one is a CSS-reset miss, BUG-061 is missing extension config. Same theme: the editor's prose styling has gaps where Tailwind Typography defaults leak through.
 
 ---
 

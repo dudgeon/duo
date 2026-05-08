@@ -62,6 +62,26 @@ domain names that appear in the browser blocklist.
   live in the roadmap cards); reach for these only when you need
   the "why was this chosen?" context behind a stage's design.
   See the directory's `README.md` for the lifecycle convention.
+- **`idle-thoughts.md`** — Geoff's scratchpad inbox of un-triaged
+  ideas / bug reports / "while I'm thinking about it" items.
+  **Notion is canonical** — the page at
+  [Duo Idle Thoughts](https://www.notion.so/Duo-Idle-Thoughts-34d45f48854f8032ba68fae6dc0473fe)
+  is the source of truth (Geoff edits it from any device, including
+  mobile). The local `idle-thoughts.md` file is a **gitignored
+  read-only mirror** that Claude refreshes via the Notion MCP every
+  time it reads idle-thoughts. Do NOT edit the local file directly —
+  edits will be lost on next sync. **To process a thought:**
+    1. Read canonical via `mcp__...__notion-fetch` with the page URL
+       (also rewrite `idle-thoughts.md` to match — that's the sync).
+       **Always preserve the YAML frontmatter block at the top
+       (`duo-default-editable: false`) — it's forward-compat for
+       ENH-106 (markdown lock/unlock).**
+    2. For each Unprocessed bullet, decide → recommend → execute (with
+       permission). File in `tasks.md` as ENH-/BUG-/FOLLOWUP- entries.
+    3. Edit canonical via `mcp__...__notion-update-page` to strikethrough
+       the bullet, move it under `# Processed`, and add an
+       `**Action <date>:**` sub-bullet describing what was filed/shipped.
+    4. Re-fetch to refresh the local mirror so the two stay aligned.
 - **`.claude/skills/worksheet/`** — schema-driven primitive for
   generating interactive HTML pages where the user fills out
   per-item radios + notes and hits Send-to-Claude / Copy results.
