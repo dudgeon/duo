@@ -106,7 +106,12 @@ export function SaveControl({
         onClick={onToggleAutosave}
         title={`Autosave is ${autosaveOn ? 'on' : 'off'} — click to ${autosaveOn ? 'turn off' : 'turn on'}`}
         className={[
-          'text-[11px] tracking-tight transition-opacity opacity-0 group-hover:opacity-100 focus:opacity-100',
+          // Walk-1 polish (Sprint 10) — `whitespace-nowrap` prevents
+          // the two-word label ("Autosave: on/off") from wrapping into
+          // a tall, double-spaced stack on narrow toolbars. The toggle
+          // is hover-revealed so brief horizontal overflow under the
+          // cursor is acceptable.
+          'text-[11px] tracking-tight whitespace-nowrap transition-opacity opacity-0 group-hover:opacity-100 focus:opacity-100',
           autosaveOn ? 'text-zinc-500 hover:text-zinc-300' : 'text-amber-400/70 hover:text-amber-300'
         ].join(' ')}
       >

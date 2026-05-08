@@ -3,7 +3,7 @@
 // the HTML canvas. Owner-locked Sprint 10: no per-tab override, no
 // per-file override. Single global toggle, defaults to ON.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 const STORAGE_KEY = 'duo.autosave.v1'
 
@@ -33,9 +33,22 @@ function writeAutosavePreference(value: boolean): void {
 /** Hook — read the current preference + a stable toggler. Subscribes
  *  to changes from OTHER editor/canvas tabs in the same window so
  *  flipping the toggle in one surface updates every visible
- *  SaveControl in the same Duo session. */
+ *  SaveControl in the same Duo session.
+ *
+ *  Walk-1 fix (Sprint 10) — pre-fix `toggle` called `writeAutosave-
+ *  Preference(next)` from INSIDE the setState updater. `writeAutosave-
+ *  Preference` synchronously dispatches a `duo:autosave-changed`
+ *  CustomEvent, which fires listeners on every OTHER editor/canvas
+ *  instance — those listeners call `setAutosaveOn(detail)`. When the
+ *  trigger is a setState updater currently mid-flight, those setState
+ *  calls land "during render of another component," which React 18
+ *  flags as a developer warning. The fix below reads the current value
+ *  through a ref so we can compute `next` and write it OUTSIDE any
+ *  updater — same end state, no cross-instance render race. */
 export function useAutosavePreference(): [boolean, () => void] {
   const [autosaveOn, setAutosaveOn] = useState<boolean>(() => readAutosavePreference())
+  const currentRef = useRef(autosaveOn)
+  currentRef.current = autosaveOn
 
   useEffect(() => {
     const onSameWindow = (e: Event) => {
@@ -55,11 +68,13 @@ export function useAutosavePreference(): [boolean, () => void] {
   }, [])
 
   const toggle = useCallback(() => {
-    setAutosaveOn(prev => {
-      const next = !prev
-      writeAutosavePreference(next)
-      return next
-    })
+    const next = !currentRef.current
+    setAutosaveOn(next)
+    // Outside the setState updater — the dispatchEvent in writeAutosave-
+    // Preference fires listeners synchronously, but they're now batched
+    // alongside setAutosaveOn rather than landing during another
+    // component's render commit.
+    writeAutosavePreference(next)
   }, [])
 
   return [autosaveOn, toggle]

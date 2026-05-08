@@ -5603,7 +5603,9 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-105: Right-click → Copy path on a tab is a no-op
 
-**Status:** ✅ **Shipped Sprint 10 (2026-05-07).** Root cause: `navigator.clipboard.writeText` silently rejects when called from a native NSMenu's `click` handler — the user-gesture context closed when the menu opened, and Chromium's clipboard API requires either user gesture OR explicit permission. Fixed by adding a main-process clipboard IPC (`clipboard:write-text`) using Electron's `clipboard` module (no gesture requirement). Updated all three context-menu Copy-path call sites: [renderer/components/WorkingTabStrip.tsx](renderer/components/WorkingTabStrip.tsx) (working-pane tab right-click), [renderer/components/WorkingPane.tsx](renderer/components/WorkingPane.tsx) (aux-pane tab), [renderer/components/FileTree.tsx](renderer/components/FileTree.tsx) (navigator). The new `window.electron.clipboard.writeText` is the canonical path for any future context-menu copy affordance.
+**Status:** ✅ **Shipped Sprint 10 (2026-05-07; walk-1 surfaced + walk-2 hardened).** Root cause: `navigator.clipboard.writeText` silently rejects when called from a native NSMenu's `click` handler — the user-gesture context closed when the menu opened, and Chromium's clipboard API requires either user gesture OR explicit permission. Fixed by adding a main-process clipboard IPC (`clipboard:write-text`) using Electron's `clipboard` module (no gesture requirement). Updated all three context-menu Copy-path call sites: [renderer/components/WorkingTabStrip.tsx](renderer/components/WorkingTabStrip.tsx) (working-pane tab right-click), [renderer/components/WorkingPane.tsx](renderer/components/WorkingPane.tsx) (aux-pane file tab), [renderer/components/FileTree.tsx](renderer/components/FileTree.tsx) (navigator).
+
+**Walk-1 surfaced fourth call site** — the `<AuxBrowserSlot>` at [renderer/components/AuxBrowserSlot.tsx](renderer/components/AuxBrowserSlot.tsx) (the aux-pane chrome for a BROWSER tab pinned to split view) had no `onContextMenu` handler at all, so right-clicking it showed nothing. Walk-1 fix added the same NSMenu-via-IPC pattern: "Copy path" (when the URL is a `file://`, extracted via `pathFromFileUrl`) or "Copy URL" otherwise + "Move back to main." All four call sites now route through `window.electron.clipboard.writeText`, the canonical path for any future context-menu copy affordance.
 **Priority:** **Low–Medium** — discoverable feature that's silently broken; affects "share this file's path with another tool" workflows.
 **Filed:** 2026-05-07.
 
@@ -5633,6 +5635,54 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 **Diagnostic plan.** Reproduce: open the test vault Index.md, press ⌘⇧;, type. Check whether the dialog fires. If yes, repeat with watcher disabled (toggle `chokidar.unwatch`). If reproducible without watcher, the dialog is firing from a different code path. Add a `console.log` at the BUG-085 dialog mount point with a trace of which event triggered it.
 
 **Cross-ref:** Surfaced during ENH-098 walk-3 (owner: "May be unrelated, but after cmd-shift-; started typing in index.md and received...").
+
+---
+
+### ENH-109: Show `.obsidian/` directory in the navigator when working in a vault
+
+**Status:** 🆕 Filed 2026-05-07 (Sprint 10 walk-1 OTHER NOTES — owner: "if we are working with .obsidian files, we should show (not hide) them in the navigator").
+**Priority:** **Medium** — Obsidian-parity affordance; vault config / theme / plugin authors need access to `.obsidian/` to actually edit those files.
+
+**What's wanted.** The navigator currently hides ALL dotfile/dotdir entries (including `.obsidian/`). When the user is working inside an Obsidian vault, the `.obsidian/` directory holds vault-specific config (`workspace.json`, `app.json`, theme/plugin folders) that some users edit by hand. Because it's hidden from the navigator, those files are unreachable except via terminal.
+
+**Proposed behavior.** When the navigator's CWD is inside an Obsidian vault (i.e. `findVaultRoot` would return a non-null path from somewhere up the tree), un-hide `.obsidian/` specifically. Other dotdirs (`.git/`, `.vscode/`, etc.) stay hidden by default. A future generalization could honor the existing "Show hidden files" toggle if it gets a `~/.claude/duo/show-dotdirs.json` override; this v1 unhides only `.obsidian/`.
+
+**Affected code (estimated).**
+- `renderer/components/FileTree.tsx § filter` (or wherever the dotfile filter lives) — branch the filter so `.obsidian/` is allowed when the tree shows a vault subtree.
+- `renderer/components/useNavigator.ts` (if listing happens there) — same.
+- The vault detection should reuse the existing `findVaultRoot` helper from App.tsx (extract to a shared module or pass context down).
+
+**Cross-ref:** Pairs with ENH-096 (wikilinks tier A) + ENH-108 (wikilink-create-on-cmd+click). Filed during Sprint 10 walk-1 OTHER NOTES.
+
+---
+
+### BUG-107: "File changed on disk" dialog fires on first edit (walk-1 surfaced)
+
+**Status:** 🆕 Filed 2026-05-07 (Sprint 10 walk-1 ENH-103-SAVE-CONTROL FAIL).
+**Priority:** **Medium** — interrupts the autosave UX that ENH-103+ENH-104 just shipped. May be a pre-existing BUG-085 family flake (see BUG-104) or a Sprint 10 regression — needs reproduction with explicit instrumentation.
+
+**Symptom.** Owner: "AS SOON as I edited the markdown file (added a space after the title) I received the following error: 'This file changed on disk while you were editing. Reload (loses your edits) or keep yours (next save will overwrite the new disk version).'"
+
+**What we know.**
+- Dialog fires from the watcher path, not the save path (no save can have run before first edit).
+- Pre-fix [renderer/components/editor/MarkdownEditor.tsx § watcher effect](renderer/components/editor/MarkdownEditor.tsx) only fires `setExternalConflict` when chokidar reports a change AND the disk body diverges from BOTH `lastSavedBodyRef.current` AND `recentlyWrittenBodiesRef.current`.
+- Sprint 10 changes that touched MarkdownEditor: added `useAutosavePreference()` hook + `saveError` state + autosave-gating ref. None directly touch the watcher or the recently-written set.
+- Cross-ref BUG-104 (Sprint 9 walk-3) reported the same dialog firing after ⌘⇧;-then-typing on a vault file. Owner suspected "may be unrelated."
+
+**Hypotheses.**
+1. **BUG-085 family flake** — pre-existing race between chokidar's debounce + the recently-written set's eviction window (2s post-write). If the user's specific file had a frontmatter peculiarity the editor's markdown round-trip changes the byte-for-byte representation slightly, the disk body wouldn't match the cached body. Pre-Sprint-10 cause.
+2. **Sprint 10 regression** — `useAutosavePreference` mounts a window-event listener; if some sequence of state updates causes the load effect to re-fire, lastSavedBodyRef could be reset to a stale value while disk holds the post-save body. Possible if the load effect's deps subtly include autosaveOn or saveError; needs verification.
+3. **Owner's terminal echo** — if the owner had a terminal open with `tail -f` or similar on the file path, that could trigger chokidar mtime-only updates that cascade through the read path. Unlikely but worth ruling out.
+
+**Diagnostic plan.**
+- Add a `console.log('[BUG-107] watcher.fire', {path, reason})` at the top of the watcher's chokidar handler in MarkdownEditor.tsx. Log on every fire.
+- Add a `console.log('[BUG-107] watcher.skip-echo', {...lengths})` when the silent-return branches hit.
+- Add a `console.log('[BUG-107] watcher.surfaceConflict', {...})` when `setExternalConflict` fires (replacement for the existing `console.debug` so it's visible in the default Console view).
+- Repro: open a fresh markdown file, type one character, observe the console traces. Compare timestamps + body lengths.
+
+**Affected code (estimated).** [renderer/components/editor/MarkdownEditor.tsx § watcher effect](renderer/components/editor/MarkdownEditor.tsx) lines 555–634.
+
+**Cross-ref:** Walk-1 walk-blocked ENH-103-SAVE-CONTROL. Pairs with BUG-104 (Sprint 9 walk-3 — same dialog after ⌘⇧;).
 
 ---
 

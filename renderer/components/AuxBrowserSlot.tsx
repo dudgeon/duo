@@ -23,6 +23,7 @@
 //   working-column collapse.
 
 import { useRef, useEffect } from 'react'
+import { pathFromFileUrl } from './urlUtils'
 
 interface AuxBrowserSlotProps {
   /** Numeric BrowserTab id of the pinned tab. Forwarded into the
@@ -53,6 +54,44 @@ export function AuxBrowserSlot({
   focused = false
 }: AuxBrowserSlotProps) {
   const contentRef = useRef<HTMLDivElement>(null)
+
+  // BUG-105 walk-1 (Sprint 10) — pre-fix the aux pane's browser-slot
+  // header had no `onContextMenu` handler at all, so right-clicking it
+  // showed nothing (the user expected the same "Copy path / Copy URL /
+  // Move back to main" menu the file-aux header has). AuxHeader covers
+  // file tabs in split view; this covers browser tabs.
+  const handleContextMenu = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    const filePath = pathFromFileUrl(url)
+    const items: import('@shared/types').MenuTemplateItem[] = []
+    // Copy path / Copy URL — pathFromFileUrl returns null for non-file
+    // URLs; in that case show "Copy URL" instead. Always available.
+    items.push({
+      id: 'aux-browser-copy',
+      label: filePath ? 'Copy path' : 'Copy URL'
+    })
+    if (onPromote) {
+      items.push({ id: 'aux-browser-sep', type: 'separator' })
+      items.push({ id: 'aux-browser-promote', label: 'Move back to main' })
+    }
+    const result = await window.electron.menu.popup({
+      items,
+      x: e.clientX,
+      y: e.clientY
+    })
+    if (!result.chosenId) return
+    switch (result.chosenId) {
+      case 'aux-browser-copy': {
+        const text = filePath ?? url
+        if (!text) return
+        try { await window.electron.clipboard.writeText(text) } catch { /* perm denied */ }
+        return
+      }
+      case 'aux-browser-promote':
+        onPromote?.()
+        return
+    }
+  }
 
   useEffect(() => {
     const el = contentRef.current
@@ -100,7 +139,7 @@ export function AuxBrowserSlot({
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className={headerClass}>
+      <div className={headerClass} onContextMenu={(e) => { void handleContextMenu(e) }}>
         <div className="flex flex-col min-w-0 flex-1 gap-0">
           <div className="truncate text-ink font-medium" title={title || url}>
             {title || url || '(loading)'}
