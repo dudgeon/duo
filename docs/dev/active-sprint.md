@@ -49,6 +49,14 @@ v0.6.8 cut: ENH-096 wikilinks closure is P0.
   handler OR strip the decoration. 30-second console.debug
   diagnosis queued in tasks.md § ENH-096 § "What's left to
   investigate."
+- **ENH-108 paste-image handling (markdown editor + HTML canvas)** —
+  owner-directed P0 (idle-thoughts sweep, 2026-05-08). ⌘V or
+  drag-drop an image into either editor surface → Duo saves to the
+  active file's parent dir + inserts the reference (`![](path)` in
+  markdown, `<img src=...>` in canvas). Closes a workflow-defining
+  gap (today: save-to-Desktop → drag-to-Finder → markdown-link-by-
+  hand). Mirror requirement per editor-canvas parity rule. Full
+  plumbing checklist in tasks.md § ENH-108.
 
 ### P1 candidates — walk-1/walk-rev2 carry-overs
 - **ENH-091 caret seed** — diagnostic plan recorded; needs
@@ -59,7 +67,7 @@ v0.6.8 cut: ENH-096 wikilinks closure is P0.
 - **BUG-102** split view blank during palette overlay.
 - **BUG-093** right-click split-view crash repro hunt.
 
-### P2 DRAFT candidates — fresh from idle-thoughts sweep (2026-05-06)
+### P2 DRAFT candidates — fresh from idle-thoughts sweep (2026-05-06 + 2026-05-08)
 - **ENH-098** focus-chord set ⌘⌥L/;/'.
 - **ENH-099** 3-way 33/33/33 chord ⌘⌥4 (likely defer until use case proven).
 - **ENH-100** lock/unlock context menu verb.
@@ -68,6 +76,11 @@ v0.6.8 cut: ENH-096 wikilinks closure is P0.
 - **ENH-103** consolidate Save indicator + button.
 - **ENH-104** autosave toggle.
 - **ENH-105** `@` filename autocomplete (multi-day item; pairs with ENH-096 B2).
+- **ENH-106** extend lock/unlock to Markdown via YAML frontmatter
+  (paired with ENH-100; first user is `idle-thoughts.md` Notion mirror).
+- **ENH-107** terminal tab strip context-menu Move-left / Move-right.
+- **BUG-103** markdown blockquotes render with literal curly
+  quotation marks instead of left-border (~5-line CSS fix; cross-ref BUG-061).
 
 ### Stretch — cohort-distribution end-to-end validation
 - **The v0.6.8 substrate ships** but hasn't been validated on a

@@ -246,6 +246,64 @@ Rationale:
 
 ---
 
+### ENH-108: Paste-image handling — markdown editor + HTML canvas (save to active file's parent dir)
+
+**Status:** ⬜ DRAFT — needs refinement before code. **Owner-directive P0 for Sprint 9 (high priority).**
+**Priority:** **High** — owner explicit "high priority item to the roadmap / include in the next sprint" (idle-thoughts sweep, 2026-05-08). Closes a workflow-defining gap: today, dropping an image into a doc means save-to-Desktop → drag-to-finder → markdown-link-by-hand. After this lands, ⌘V into either editor surface "just works" the way Obsidian / Notion users expect.
+**Filed:** 2026-05-08 (idle-thoughts sweep).
+
+**What's wanted.** In BOTH the markdown editor (`MarkdownEditor.tsx`) and the HTML canvas (`RenderedPage.tsx` iframe), paste-from-clipboard with image data should:
+
+1. **Save the image** to the parent directory of the active file (or a fallback location for untitled docs).
+2. **Insert a reference** at the caret — markdown editor uses `![](relative-path)`, HTML canvas uses `<img src="relative-path">` ("html tagging" per the owner's bullet).
+3. **Both surfaces feel identical** from the user's perspective: same trigger (⌘V), same auto-naming, same in-folder save.
+
+**Plumbing checklist.**
+
+1. **TipTap Image extension audit.** Verify `@tiptap/extension-image` is in the editor config; if not, add it. Confirm it round-trips through tiptap-markdown's serializer as `![](path)` and not as inline base64.
+2. **Markdown-editor paste handler.** TipTap exposes `editorProps.handlePaste`. Detect `event.clipboardData.items` entries with `image/*` MIME types, extract as Blob, IPC-save via the new endpoint, insert the image node at caret.
+3. **Canvas paste handler.** `RenderedPage.tsx` mounts the iframe; install a `paste` listener on the iframe document. Same Blob → IPC → insert flow, but inserts an `<img>` element via `execCommand('insertHTML', ...)` or direct DOM manipulation (matches existing canvas mutation patterns).
+4. **IPC endpoint.** `electron/files-service.ts § saveImageBeside(activeFilePath, buffer, ext) → { path, error? }`. Writes to `dirname(activeFilePath)/<generated-name>.<ext>`. Returns the relative path the editor should insert.
+5. **Filename generation.** `image-<YYYYMMDD-HHMMSS>-<4charhash>.<ext>` — sortable, zero collisions, readable. Hash is `crypto.randomBytes(2).toString('hex')`.
+6. **MIME → extension mapping.** `image/png` → `.png`, `image/jpeg` → `.jpg`, `image/gif` → `.gif`, `image/webp` → `.webp`, `image/svg+xml` → `.svg`. Reject other MIMEs with a console warn.
+7. **Untitled-file edge case.** If the active file has no on-disk path (new tab, never saved), surface an AskUserQuestion: "Save document first to use paste-image, or save image to ~/.claude/duo/scratch-images/?" Recommend the prompt-to-save default.
+8. **Drag-and-drop parity (v1).** Same handler for `drop` events with image files attached. One handler implementation, two trigger sources.
+9. **CLI parity (per CLAUDE.md working-style item 4).** New verb: `duo image insert <local-path>` — insert an image from a local file into the active editor's caret position (copies to active-file parent dir if outside it; references it if inside). Touches the full plumbing chain (shared/types.ts, preload.ts, main.ts, socket-server.ts, cli/duo.ts, skill/SKILL.md, agents/duo.md, docs/CLI-COVERAGE.md).
+10. **Skill stub.** `skill/examples/paste-image-workflow.md` showing the agent-side trigger pattern.
+
+**Open questions for owner.**
+
+- **Filename strategy.** Timestamp + hash (recommended — sortable, collision-free), or content-hash dedupe (saves disk if user pastes the same image twice, but harder to read), or per-folder counter `image-1.png`?
+- **Vault-relative vs file-relative paths.** ENH-096 introduces vault-root awareness. For v1, paths are file-relative (simpler). v2 could opt into vault-root if `.obsidian/` exists.
+- **Alt-text prompt.** Empty for v1 (users can edit), or AskUserQuestion on every paste? Recommend: empty for v1.
+- **Max image size.** No limit for v1, or reject > N MB to prevent accidental huge-PNG pastes? Recommend: no limit; surface as v2 if it becomes a problem.
+- **Image format normalization.** Clipboard PNGs are often huge (browser screenshots). Convert to JPEG for photographic content? Recommend: keep clipboard format for v1; revisit if disk-bloat reports surface.
+- **Markdown editor scope vs HTML canvas scope.** Both surfaces ship together (same PR), or one-at-a-time? Recommend: ship together — the user-facing promise ("paste an image, it goes in") is identical, and the IPC + filename code is shared.
+
+**Affected files.**
+- `renderer/components/editor/MarkdownEditor.tsx` (paste handler).
+- `renderer/components/Page/RenderedPage.tsx` (iframe paste handler).
+- `renderer/components/Page/PageTab.tsx` (mount the handler if needed).
+- `electron/files-service.ts` (`saveImageBeside`).
+- `shared/host-api.ts` + `electron/preload.ts` (IPC contract).
+- `electron/socket-server.ts` (CLI verb routing).
+- `cli/duo.ts` (`duo image insert`).
+- `skill/SKILL.md` + `agents/duo.md` (cheat-sheet entry).
+
+**Cross-refs.**
+- **ENH-096** (Obsidian-vault-friendly editor) — adjacent territory; Obsidian's "default location for attachments" is the design precedent. This ENH picks the simplest variant (same folder as active file).
+- **BUG-061** (canvas markdown gap — bullets/indent missing) — same theme of MD/HTML editor parity. Both ENH-108 and BUG-061 push toward "the two surfaces feel identical for content authoring."
+- **Editor-canvas parity rule** in CLAUDE.md (Locked decision 2026-05-02) — **mandatory disposition for both surfaces in this PR**: this is option (a) **Mirrored** — same feature in both the markdown editor and the HTML canvas, same PR.
+
+**Smoke after ship.**
+1. Open a markdown file. ⌘C an image from a screenshot, ⌘V into the editor → image appears inline; check the source for `![](image-...)` markdown link; confirm the file landed beside the markdown.
+2. Same flow in HTML canvas → image appears inline; source view shows `<img src="image-...">`.
+3. Drag-and-drop a `.jpg` from Finder onto either surface → same outcome.
+4. Untitled markdown tab + ⌘V image → AskUserQuestion appears.
+5. CLI: `duo image insert /path/to/local-image.png` from a different cwd → image saved beside active doc, inserted at caret.
+
+---
+
 ## Bugs
 
 ### BUG-001: ⌃Tab does not cycle terminal tabs when focus is on terminal
