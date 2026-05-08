@@ -4,6 +4,8 @@ import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { TabSearchPalette, type TabSearchEntry } from './components/TabSearchPalette'
+import { VaultQuickSwitcher } from './components/VaultQuickSwitcher'
+import { useVaultIndex } from './components/editor/vaultIndex'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
@@ -23,7 +25,7 @@ import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import { normalizeWikilinkName } from './components/editor/wikilinkResolver'
+import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
@@ -224,98 +226,13 @@ function findVisibleWorkingPaneCE(scope: 'main' | 'aux'): HTMLElement | null {
   return ce ?? target
 }
 
-async function findVaultRoot(startPath: string | null): Promise<string | null> {
-  if (!startPath) return null
-  let dir = startPath.slice(0, startPath.lastIndexOf('/'))
-  if (!dir) return null
-  for (let depth = 0; depth < 16; depth++) {
-    const obsidianPath = `${dir}/.obsidian`
-    try {
-      // ENH-096 v2 (Sprint 9 walk-1 fix). Pre-fix used `files.exists`,
-      // which strictly returns true only for regular files (BUG-039
-      // semantic); `.obsidian/` is a DIRECTORY, so the existence
-      // check always returned false → the walker climbed past every
-      // real vault root and reported "no vault." Switched to the new
-      // `files.dirExists` which is the directory-aware sibling probe.
-      if (await window.electron.files.dirExists(obsidianPath)) {
-        return dir
-      }
-    } catch {
-      // IO failure → assume not a vault root, continue walking up.
-    }
-    const parent = dir.slice(0, dir.lastIndexOf('/'))
-    if (!parent || parent === dir) return null
-    dir = parent
-  }
-  return null
-}
-
-/**
- * ENH-096 (B1) — Resolve a wikilink target inside a vault root. The
- * target is the inner text of `[[Page Name]]` (sans `#section` or
- * `^block` suffixes — those are stripped by the caller).
- *
- * Resolution order (Obsidian-compat best-effort):
- *   1. If target contains `/`, treat as a relative path from the
- *      vault root. First try `<root>/<target>.md`, then
- *      `<root>/<target>` verbatim, then `<root>/<target>.html`.
- *   2. Otherwise: name-first vault walk. First file whose basename
- *      (without extension) equals the target wins. Walk is BFS so
- *      shallower matches win when both exist.
- *
- * Walk-cap: 2000 entries scanned to bound IO on monster vaults.
- * Realistic vaults are well below this.
- */
-async function resolveWikilinkInVault(
-  vaultRoot: string,
-  target: string
-): Promise<string | null> {
-  // Path-bearing target: try the literal forms first.
-  if (target.includes('/')) {
-    const candidates = [
-      `${vaultRoot}/${target}.md`,
-      `${vaultRoot}/${target}`,
-      `${vaultRoot}/${target}.html`
-    ]
-    for (const candidate of candidates) {
-      try {
-        if (await window.electron.files.exists(candidate)) return candidate
-      } catch { /* keep trying */ }
-    }
-    // Fall through to name-search if no path-form match.
-  }
-  // Name-first BFS walk. Skip dotdirs (`.obsidian`, `.git`, etc.).
-  const normalizedTarget = normalizeWikilinkName(target)
-  const queue: string[] = [vaultRoot]
-  let scanned = 0
-  while (queue.length > 0 && scanned < 2000) {
-    const dir = queue.shift()!
-    let entries: import('@shared/types').DirEntry[]
-    try {
-      entries = await window.electron.files.list(dir)
-    } catch {
-      continue
-    }
-    for (const entry of entries) {
-      scanned++
-      if (entry.name.startsWith('.')) continue
-      if (entry.kind === 'directory') {
-        queue.push(entry.path)
-        continue
-      }
-      // Match against basename without extension. ENH-096 walk-1
-      // fix — normalize both sides (lowercase + treat -/_ as space)
-      // before comparing. Pre-fix: case-sensitive exact match meant
-      // `[[Other Note]]` silently failed to resolve `other-note.md`.
-      const dot = entry.name.lastIndexOf('.')
-      const stem = dot > 0 ? entry.name.slice(0, dot) : entry.name
-      if (normalizeWikilinkName(stem) === normalizedTarget) {
-        return entry.path
-      }
-    }
-  }
-  return null
-}
+// Sprint 11 — `findVaultRoot` + `resolveWikilinkInVault` extracted to
+// `./components/editor/wikilinkResolver.ts` so the wikilink autocomplete
+// (ENH-096 B.2), `@` mention (ENH-105), and `⌘O` quick switcher (B.4)
+// share the same vault-detection + name-first BFS walk logic. The
+// extracted module also exports `walkVaultFiles` for the autocomplete
+// UI's bulk-list use-case (the resolver bails on first match; the
+// walker collects everything for fuzzy ranking).
 
 export function App() {
   const home = window.electron.env.HOME || '~'
@@ -427,6 +344,10 @@ export function App() {
   // The palette is a renderer overlay; we set its `open` state from
   // the `duo-open-tab-search` window event fired by useKeyboardShortcuts.
   const [tabSearchOpen, setTabSearchOpen] = useState<boolean>(false)
+  // Sprint 11 ENH-096 B.4 — ⌘O vault quick switcher overlay state.
+  // Distinct from tabSearchOpen (⌘⇧A — open tabs). Sources its file
+  // list from useVaultIndex below, keyed off the active file's path.
+  const [vaultQuickSwitcherOpen, setVaultQuickSwitcherOpen] = useState<boolean>(false)
 
   // ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
   // docs/prd/canvas-split-view-research.html. v1 is single-slot
@@ -1431,9 +1352,23 @@ export function App() {
   // setOverlayMuted exists for context menus too). Symptom pre-fix:
   // user saw the dim backdrop bleeding into pane edges but the palette
   // body was hidden behind the still-visible page content.
+  //
+  // Sprint 11 ENH-096 B.4 — VaultQuickSwitcher (⌘O) gets the same
+  // treatment. Either overlay open → mute WCVs.
   useEffect(() => {
-    window.electron.browser.setOverlayMuted(tabSearchOpen)
-  }, [tabSearchOpen])
+    window.electron.browser.setOverlayMuted(tabSearchOpen || vaultQuickSwitcherOpen)
+  }, [tabSearchOpen, vaultQuickSwitcherOpen])
+
+  // Sprint 11 ENH-096 B.4 — vault index for the ⌘O quick switcher.
+  // Keyed off the active file's path; recomputes only on vault-root
+  // change (so navigating within a vault doesn't re-walk). When the
+  // active surface isn't a file tab, falls back to null which the
+  // overlay handles with the "open a file inside a vault" hint.
+  const vaultIndexForSwitcher = useVaultIndex((() => {
+    if (activeWorking.kind !== 'file') return null
+    const tab = fileTabs.find((t) => t.id === activeWorking.id)
+    return tab?.path ?? null
+  })())
 
   // ENH-096 (B1) — Wikilink resolver. The WikilinkDecorations plugin
   // fires `duo-wikilink-open` on cmd+click; we walk up from the active
@@ -2194,6 +2129,8 @@ export function App() {
     focusAuxPane: () => focusPane('aux'),
     // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active file with confirm.
     deleteCurrentFile,
+    // Sprint 11 ENH-096 B.4 — ⌘O opens the vault quick switcher.
+    openVaultQuickSwitcher: () => setVaultQuickSwitcherOpen(true),
     // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
     // aux slot; ⌘⇧\ promotes aux back to main (closes the split AND
     // keeps the file open — mirrors the ⇤ button in the aux header).
@@ -2954,6 +2891,22 @@ export function App() {
           </div>
         </div>
       </div>
+      {/* Sprint 11 ENH-096 B.4 — VaultQuickSwitcher overlay (⌘O).
+          Mounted parallel to TabSearchPalette so the same z-index
+          rules apply. Sources its file list from the vault index
+          keyed off the active file's path. */}
+      <VaultQuickSwitcher
+        open={vaultQuickSwitcherOpen}
+        files={vaultIndexForSwitcher.files}
+        loading={vaultIndexForSwitcher.loading}
+        vaultRoot={vaultIndexForSwitcher.vaultRoot}
+        onPick={(file) => {
+          setVaultQuickSwitcherOpen(false)
+          const name = file.basename + (file.ext ? '.' + file.ext : '')
+          void openFileSmart(file.absPath, name)
+        }}
+        onDismiss={() => setVaultQuickSwitcherOpen(false)}
+      />
       {/* ENH-080 — tab-search palette overlay. Mounted at the top of
           the app so its z-50 sits above the working pane and titlebar.
           The palette dismisses on Esc / backdrop-click / pick. */}

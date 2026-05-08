@@ -122,6 +122,12 @@ export type ShortcutId =
   // line-edit, and TipTap's default ⌘⇧⌫ behavior (delete to start
   // of line) yields to it.
   | 'deleteCurrentFile'
+  // Sprint 11 ENH-096 B.4 — ⌘O opens the VaultQuickSwitcher overlay
+  // (fuzzy search across all files in the active vault root).
+  // Distinct from ⌘⇧A (TabSearchPalette / open-tabs only). When the
+  // active file isn't inside a vault, the overlay still opens but
+  // shows a "no vault detected" empty state.
+  | 'vaultQuickSwitcher'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -282,6 +288,18 @@ export function matchGlobalShortcut(
   // the main Backspace.
   if (meta && shift && !alt && !ctrl && e.code === 'Backspace') {
     return { id: 'deleteCurrentFile' }
+  }
+
+  // Sprint 11 ENH-096 B.4 — ⌘O opens the VaultQuickSwitcher overlay.
+  // `e.code === 'KeyO'` is layout-independent (matches the physical
+  // O key regardless of whether the user is on QWERTY/Dvorak/etc.).
+  // No shift/alt/ctrl modifiers — bare ⌘O. macOS apps usually bind
+  // ⌘O to "open file dialog"; we override because Duo's vault model
+  // makes the quick switcher a more useful destination, and File →
+  // Open already lives in the menu under ⌘⇧O if the system Open is
+  // ever wanted (FOLLOWUP if owner objects).
+  if (meta && !shift && !alt && !ctrl && e.code === 'KeyO') {
+    return { id: 'vaultQuickSwitcher' }
   }
 
   // ⌘` — cycle pane focus.

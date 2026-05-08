@@ -1,4 +1,74 @@
-# Active sprint state — Sprint 10 (v0.6.10, committed 2026-05-07)
+# Active sprint state — Sprint 11 (v0.6.11, committed 2026-05-07 evening)
+
+**Theme:** Obsidian autocomplete + split-view rough edges.
+
+**Owner directive (2026-05-07 evening):** *"roll straight into Sprint 11
+— will walk in the morning; no need to cut if your work is committed."*
+Sprint 10 v0.6.10 walk-2 stays open in Duo for the morning walk; cut
+deferred until walk-2 PASSes. Sprint 11 starts now in autonomous mode.
+
+### P0 anchor — TipTap Suggestion primitive shared across three features
+- **ENH-096 B.2** — wikilink autocomplete on `[[`. Type `[[fo`, popup
+  shows fuzzy matches from the vault, ↑↓ to nav, Tab/Enter inserts
+  the wikilink. Closes the v0.6.8 owner directive ("we only have half
+  a feature").
+- **ENH-105** — `@` filename autocomplete in the markdown editor. Same
+  popover, same vault-walking source. Type `@`, select a sibling
+  file, inserts as a `[[wikilink]]` (so vault round-trip is unified).
+- **ENH-096 B.4** — `⌘O` vault quick switcher. Renderer-overlay shell
+  (resembles ENH-080's `⌘⇧A` palette) sharing the same fuzzy match +
+  vault walk source.
+
+**Architectural pieces (one-time investments shared by all three):**
+- `@tiptap/suggestion` + `@tiptap/extension-mention` deps installed
+  (~2 KB gz combined; first-party + zero-deps).
+- New module `renderer/components/editor/vaultIndex.ts` — caches the
+  vault file list for fuzzy match. Refreshed on watcher events.
+  Both the suggestion popover (B.2 + ENH-105) AND the `⌘O` palette
+  (B.4) read from this index.
+- New module `renderer/components/editor/extensions/WikilinkSuggestion.ts`
+  — TipTap suggestion extension that triggers on `[[` and resolves
+  via `vaultIndex`.
+- New module `renderer/components/editor/extensions/AtMention.ts` —
+  parallel suggestion extension for `@`, inserts as `[[wikilink]]`.
+- New component `renderer/components/VaultQuickSwitcher.tsx` —
+  the `⌘O` overlay (refactor of ENH-080's TabSearchPalette pattern).
+
+### P0 carry-overs (Sprint 10 walk-1 OTHER NOTES + earlier deferrals)
+- **BUG-091** — right-click "Move to split view" missing from the
+  WorkingTabStrip's tab right-click menu. Sprint 8 P3 carry-over.
+- **BUG-093** — split-view → renderer crash (instrumented in v0.6.7;
+  needs FOLLOWUP-013 clean-repro work).
+- **BUG-100** — Send → Duo pill missing on text selections in the
+  split-view (aux) browser pane. Owner-flagged "non blocking, deferred."
+
+### P1 polish
+- **ENH-109** — show `.obsidian/` in the navigator when the active
+  CWD is inside a vault. Pairs naturally with the autocomplete work
+  (vault-aware navigator).
+
+### Skip / defer
+- **JSON viewer / data primitives** (ENH-110, ENH-111) — research doc
+  landed at `docs/research/data-primitives-canvas.html`; deferred to
+  Sprint 12 anchor per owner research-review pending. Don't dive in.
+- **Backlinks panel + tag pills** (ENH-096 B.3 + Tier C) — Sprint 13+
+  per the 3-sprint synthesis.
+
+### Sequencing
+1. **Wikilink autocomplete (B.2) FIRST** — closes the v0.6.8 owner
+   directive; most user-pull. Forces the architectural pieces (deps,
+   vault index, suggestion extension shape).
+2. **`@` autocomplete (ENH-105)** — second feature on the same primitive,
+   verifies the shape is reusable.
+3. **`⌘O` quick switcher (B.4)** — third feature, refactors ENH-080's
+   palette pattern.
+4. **Carry-overs (BUG-091/093/100)** — mechanical once the autocomplete
+   work settles. Each is sub-day.
+5. **ENH-109** — polish, last.
+
+---
+
+# Sprint 10 (v0.6.10, committed 2026-05-07)
 
 > **Status update 2026-05-07:** All P0 + P1 implementation landed in
 > a single autonomous push following the AUQ-driven plan below.

@@ -41,6 +41,9 @@ import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { CommentMark, collectCommentRanges } from './extensions/CommentMark'
 import { WikilinkDecorations } from './extensions/WikilinkDecorations'
+import { WikilinkSuggestion } from './extensions/WikilinkSuggestion'
+import { AtMention } from './extensions/AtMention'
+import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { CommentRail, type CommentThread } from './primitives/CommentRail'
@@ -263,6 +266,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // effect's success path AFTER setContent + setLoaded(true) have run.
   const pendingProseFocusRef = useRef<boolean>(false)
 
+  // Sprint 11 — vault index for the suggestion popovers (ENH-096 B.2
+  // wikilink autocomplete + ENH-105 `@` mention). Refreshes when the
+  // active path moves to a different vault root; manual `refresh()`
+  // available for post-create/-delete invalidation. The two extensions
+  // below pass `getItems` / `isLoading` closures that read through
+  // refs so the useMemo([]) extension list doesn't have to rebuild.
+  const vaultIndex = useVaultIndex(path)
+  const vaultFilesRef = useRef(vaultIndex.files)
+  vaultFilesRef.current = vaultIndex.files
+  const vaultLoadingRef = useRef(vaultIndex.loading)
+  vaultLoadingRef.current = vaultIndex.loading
+
   const extensions = useMemo(
     () => [
       StarterKit.configure({
@@ -339,7 +354,26 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // root and opens the linked file. The markdown source stays
       // verbatim; tiptap-markdown round-trips `[[…]]` literals through
       // save without touching them.
-      WikilinkDecorations
+      WikilinkDecorations,
+      // Sprint 11 ENH-096 (B.2) — autocomplete on `[[`. Pops the
+      // SuggestionPopover anchored at caret, fuzzy matches against
+      // the vault index. Inserts `[[<basename>]]`. Closes the v0.6.8
+      // owner directive ("we only have half a feature"). Reads the
+      // vault file list through a ref so the `useMemo([])` extension
+      // list doesn't need to rebuild when the index updates.
+      WikilinkSuggestion.configure({
+        getItems: () => vaultFilesRef.current,
+        isLoading: () => vaultLoadingRef.current,
+        rank: rankVaultFiles
+      }),
+      // Sprint 11 ENH-105 — `@` filename autocomplete. Same vault
+      // index, parallel popover. Inserts the canonical `[[wikilink]]`
+      // form so vault round-trip is unified across triggers.
+      AtMention.configure({
+        getItems: () => vaultFilesRef.current,
+        isLoading: () => vaultLoadingRef.current,
+        rank: rankVaultFiles
+      })
     ],
     []
   )

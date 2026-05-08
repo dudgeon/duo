@@ -68,6 +68,12 @@ interface Options {
    *  tabs only; no-op when active surface is a browser tab or
    *  terminal. */
   deleteCurrentFile?: () => void
+  /** Sprint 11 ENH-096 B.4 — ⌘O opens the VaultQuickSwitcher overlay
+   *  (fuzzy search across all files in the vault root, distinct from
+   *  ⌘⇧A which is open-tabs only). When the active path isn't inside
+   *  a vault, the overlay still opens but renders an empty-state
+   *  hint pointing at the vault requirement. */
+  openVaultQuickSwitcher?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -271,6 +277,9 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'deleteCurrentFile':
           opts.deleteCurrentFile?.()
           return
+        case 'vaultQuickSwitcher':
+          opts.openVaultQuickSwitcher?.()
+          return
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
           const delta = (id === 'cycleTabsBackward' ? -1 : 1) as 1 | -1
@@ -362,6 +371,7 @@ export function useKeyboardShortcuts(opts: Options) {
     opts.focusMainPane,
     opts.focusAuxPane,
     opts.deleteCurrentFile,
+    opts.openVaultQuickSwitcher,
     opts.adjustTerminalFontBump,
     opts.activePaneFocus
   ])
