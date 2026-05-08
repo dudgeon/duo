@@ -79,8 +79,14 @@ export const AtMention = Extension.create<AtMentionOptions>({
 
         render: () => {
           let component: ReactRenderer<SuggestionPopoverHandle, SuggestionPopoverProps> | null = null
+          // Walk-1 v4 fix — see WikilinkSuggestion.ts for the full
+          // dismissed-flag rationale. AT-MENTION specifically reproduced
+          // the persistent-popover bug at walk-2 (visible in user's
+          // screenshot — popover with "Foo" stayed up after Enter).
+          let dismissed = false
           return {
             onStart(props: SuggestionProps) {
+              dismissed = false
               component = new ReactRenderer(SuggestionPopover, {
                 props: {
                   items: props.items,
@@ -92,6 +98,7 @@ export const AtMention = Extension.create<AtMentionOptions>({
               })
             },
             onUpdate(props: SuggestionProps) {
+              if (dismissed) return
               component?.updateProps({
                 items: props.items,
                 command: (item: VaultFile) => props.command(item),
@@ -100,14 +107,23 @@ export const AtMention = Extension.create<AtMentionOptions>({
               })
             },
             onKeyDown(props: SuggestionKeyDownProps) {
+              if (dismissed) return false
               if (props.event.key === 'Escape') {
+                dismissed = true
                 component?.destroy()
                 component = null
                 return true
               }
-              return component?.ref?.onKeyDown(props.event) ?? false
+              const handled = component?.ref?.onKeyDown(props.event) ?? false
+              if (handled && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
+                dismissed = true
+                component?.destroy()
+                component = null
+              }
+              return handled
             },
             onExit() {
+              dismissed = false
               component?.destroy()
               component = null
             }

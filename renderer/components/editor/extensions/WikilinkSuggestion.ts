@@ -107,19 +107,34 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
 
         render: () => {
           let component: ReactRenderer<SuggestionPopoverHandle, SuggestionPopoverProps> | null = null
+          // Walk-1 v4 fix — dismissed flag survives across the
+          // suggestion plugin's onUpdate calls. When Escape is
+          // pressed (or Enter selects an item), the popover destroys
+          // its React tree but the suggestion plugin may still be
+          // "active" until the next state change makes
+          // findSuggestionMatch return null. Without dismissed=true,
+          // the next onUpdate would re-mount the component (because
+          // we aggressively re-create on null component reference).
+          // Reset on onStart for the next suggestion session.
+          let dismissed = false
+          const mountComponent = (props: SuggestionProps) => {
+            component = new ReactRenderer(SuggestionPopover, {
+              props: {
+                items: props.items,
+                command: (item: VaultFile) => props.command(item),
+                clientRect: props.clientRect ?? null,
+                loading: opts.isLoading?.() ?? false
+              },
+              editor: props.editor
+            })
+          }
           return {
             onStart(props: SuggestionProps) {
-              component = new ReactRenderer(SuggestionPopover, {
-                props: {
-                  items: props.items,
-                  command: (item: VaultFile) => props.command(item),
-                  clientRect: props.clientRect ?? null,
-                  loading: opts.isLoading?.() ?? false
-                },
-                editor: props.editor
-              })
+              dismissed = false
+              mountComponent(props)
             },
             onUpdate(props: SuggestionProps) {
+              if (dismissed) return
               component?.updateProps({
                 items: props.items,
                 command: (item: VaultFile) => props.command(item),
@@ -128,14 +143,29 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
               })
             },
             onKeyDown(props: SuggestionKeyDownProps) {
+              if (dismissed) return false
               if (props.event.key === 'Escape') {
+                dismissed = true
                 component?.destroy()
                 component = null
                 return true
               }
-              return component?.ref?.onKeyDown(props.event) ?? false
+              const handled = component?.ref?.onKeyDown(props.event) ?? false
+              // Walk-1 v4 — defensively destroy after a successful
+              // Enter/Tab. The suggestion plugin SHOULD fire onExit
+              // after our command() inserts text (because the new
+              // doc state no longer matches), but in practice the
+              // popover persisted post-insert. Destroying here is
+              // belt-and-braces; onExit's destroy is a no-op then.
+              if (handled && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
+                dismissed = true
+                component?.destroy()
+                component = null
+              }
+              return handled
             },
             onExit() {
+              dismissed = false
               component?.destroy()
               component = null
             }
