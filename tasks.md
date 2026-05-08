@@ -5638,6 +5638,42 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ---
 
+### ENH-110: JSON viewer/editor as a new canvas tab kind (PM persona — API responses, configs, webhook payloads)
+
+**Status:** ⬜ DRAFT — research doc landed, owner sign-off needed before code (Sprint 12 candidate).
+**Priority:** **Medium** — high pedagogical value for the PM persona who opens API responses / Slack JSON / webhook payloads daily. Today these fall through to the unknown-file preview.
+**Filed:** 2026-05-07.
+
+**Research doc.** [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) (rich HTML report with mockups, library matrix, hand-roll-vs-library tradeoff). Covers four tiers (plain text → syntax highlight → collapsible tree → full IDE), six libraries evaluated (`@uiw/react-json-view`, `json-edit-react`, `react-json-view`, `react-json-tree`, `@codemirror/lang-json`, `monaco-editor`), and the new-tab-kind architectural recommendation.
+
+**Recommendation (Sprint 12 anchor).** Tier 3 (collapsible interactive tree) via [`@uiw/react-json-view`](https://github.com/uiwjs/react-json-view) (~7 KB gz, MIT, active, zero deps, React 18 native). New tab kind `kind: 'json'` (NOT inside the canvas iframe — script-block contract would defeat the interactive tree). File classifier maps `.json` / `.jsonl` / `.har` to this tab type. Tier 1+2 fallback for files over a configurable threshold (~1 MB) where the tree's render cost is prohibitive.
+
+**Open questions for owner.** Tier 3 vs. tier 2? Edit semantics (autosave on blur vs ⌘S only)? YAML cohabitation in the same tab kind? See research doc § 5 for full list.
+
+**Pairs with.** ENH-111 (data primitives umbrella).
+
+---
+
+### ENH-111: Data primitives umbrella — image v2, CSV table, YAML, Mermaid (PM persona cluster)
+
+**Status:** ⬜ DRAFT — clustered roadmap doc landed; owner sign-off needed before scoping individual sprint anchors.
+**Priority:** **Medium** — most items in the cluster are S/M effort; the cluster is what earns the win for the PM persona.
+
+**Research doc.** [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) §3 — primitive × use-case × effort matrix.
+
+**Cluster contents (recommended):**
+- **CSV / TSV** (Sprint 12 P1 — pairs with JSON anchor): sortable table, column-type inference, summary stats. `papaparse` + TanStack Table. ~5d.
+- **YAML** (Sprint 12 P2): reuse the JSON tab kind with a `format` discriminator. ~1d.
+- **Image v2** (Sprint 13 P1): toolbar chrome around existing `<img>` base — zoom/pan/fit/dimensions/copy. ~1d.
+- **Mermaid** (Sprint 13 P0, paired with Obsidian content fidelity): TipTap node extension inside the markdown editor. ~2d.
+
+**Cluster non-contents (skip / defer):**
+- **SQLite explorer** — real users for this are devs not PMs; DB Browser for SQLite is great + native + free. Skip unless complaint surfaces.
+- **xlsx (Excel)** — Numbers/Excel are 30-second OS-level open. Don't compete.
+- **Log viewer** — pairs with ENH-082 (Terminal Context Bar) once that ships; defer to Sprint 14+.
+
+---
+
 ### ENH-109: Show `.obsidian/` directory in the navigator when working in a vault
 
 **Status:** 🆕 Filed 2026-05-07 (Sprint 10 walk-1 OTHER NOTES — owner: "if we are working with .obsidian files, we should show (not hide) them in the navigator").
