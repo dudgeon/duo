@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { buildWikilinkCreatePath } from './wikilinkCreate'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
@@ -1361,9 +1362,33 @@ export function App() {
   // classifier routes `.md` to the editor tab type; other types open in
   // their usual preview. duo-open-in:browser still honored unless the
   // CLI passed `--canvas` (ENH-097), which forces canvas mode.
+  //
+  // BUG-106 (Sprint 10) — pre-flight existence so `duo edit
+  // <non-existent-path>` doesn't ENOENT in the editor. Pre-create
+  // empty bytes for the path, mirroring ⌘N's onCommitNewFile pre-write.
+  // files.write mkdir-p's the parent dir (so `duo edit
+  // /new/dir/Foo.md` creates `new/dir/` automatically — symmetric
+  // with the wikilink-create path in ENH-108). The classifier
+  // determines whether to seed with an HTML boilerplate or empty
+  // bytes, matching the ⌘N seed convention.
   useEffect(() => {
-    return window.electron.nav.onEdit((p, mode) => {
+    return window.electron.nav.onEdit(async (p, mode) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
+      try {
+        const exists = await window.electron.files.exists(p)
+        if (!exists) {
+          const { type } = classifyFile(p)
+          const seed = type === 'page'
+            ? encodeUtf8(htmlBoilerplate(name.replace(/\.[^.]+$/, '')))
+            : new Uint8Array()
+          await window.electron.files.write(p, seed)
+        }
+      } catch (err) {
+        // Don't block the open on pre-flight failure — the editor's
+        // existing error path will surface a useful message if the
+        // problem persists at read time.
+        console.warn('[BUG-106 pre-flight failed]', { path: p, err })
+      }
       void openFileSmart(p, name, mode)
     })
   }, [openFileSmart])
@@ -1438,7 +1463,25 @@ export function App() {
       }
       const resolved = await resolveWikilinkInVault(vaultRoot, cleanTarget)
       if (!resolved) {
-        console.warn('[ENH-096] Wikilink target not found in vault:', wikilinkTarget, 'vault:', vaultRoot)
+        // Sprint 10 ENH-108 — Obsidian-parity create-on-cmd+click.
+        // No existing file matched, so create one at the requested
+        // path within the vault root and open it. files.write()
+        // mkdir-p's the parent (so [[notes/Foo]] creates notes/ on
+        // demand). Empty seed mirrors the ⌘N markdown new-file flow.
+        const createPath = buildWikilinkCreatePath(vaultRoot, cleanTarget)
+        try {
+          await window.electron.files.write(createPath, new Uint8Array())
+        } catch (err) {
+          console.warn(
+            '[ENH-108] Failed to create wikilink target:',
+            wikilinkTarget,
+            'createPath:', createPath,
+            'err:', err
+          )
+          return
+        }
+        const newName = createPath.slice(createPath.lastIndexOf('/') + 1) || createPath
+        void openFileSmart(createPath, newName)
         return
       }
       const name = resolved.slice(resolved.lastIndexOf('/') + 1) || resolved
@@ -2239,8 +2282,16 @@ export function App() {
       // with whatever non-aux browser tab BrowserManager had as
       // activeIndex — surprise tab switching the user reported as
       // "main pane focus stolen."
+      //
+      // BUG-101 (Sprint 10) — defensive null-guard. The supplemental
+      // event from socket-server.ts now sends a proper {tabId, slot}
+      // payload, but legacy callers / future refactors might forget
+      // and pass `null`. Treat a missing/malformed payload as a
+      // "main-strip intent" since that was the historic semantic
+      // before Phase 3c added the slot discriminator.
       setFocusedColumn('working')
-      if (payload.slot === 'main') {
+      const slot = (payload as { slot?: 'main' | 'aux' } | null | undefined)?.slot ?? 'main'
+      if (slot === 'main') {
         setActiveWorking({ kind: 'browser' })
       }
     })

@@ -26,6 +26,7 @@ import { Markdown } from 'tiptap-markdown'
 import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
+import { useAutosavePreference } from './autosavePreference'
 import { buildTiptapEditorActions } from './tiptapEditorActions'
 import type { EditorActions } from './EditorActions'
 import { TableShortcuts } from './extensions/TableShortcuts'
@@ -135,6 +136,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Sprint 10 ENH-103 — last save failure (separate from `error`,
+  // which surfaces read/load errors via the banner). Drives the
+  // SaveControl pill's "Failed — retry" state. Cleared on next edit
+  // and on next successful save.
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // Sprint 10 ENH-104 — per-app autosave preference (single global
+  // localStorage key, shared with PageTab). Off → 800ms debounce
+  // suppressed; ⌘S + Save-button still write.
+  const [autosaveOn, toggleAutosave] = useAutosavePreference()
+  const autosaveOnRef = useRef(autosaveOn)
+  autosaveOnRef.current = autosaveOn
   // Sprint 6 BUG-085 — external-write reconciliation. When a file we
   // have open is modified outside of our buffer (Claude's Write tool,
   // an external editor, `git checkout`), the watcher reads the new
@@ -718,8 +730,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
       setDirty(false)
       onDirtyChange?.(false)
+      // Sprint 10 ENH-103 — successful save clears the pill's
+      // "Failed — retry" state.
+      setSaveError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setSaveError(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
@@ -744,7 +759,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       const body = editor.storage.markdown.getMarkdown() as string
       const isDirty = body !== lastSavedBodyRef.current
       setDirty(isDirty)
-      if (isDirty && !blockAutosaveRef.current) {
+      // Sprint 10 ENH-103 — clear any prior save-failure indicator on
+      // the next edit; the pill returns to plain "Save" so the user
+      // doesn't see a stale red state while still typing.
+      if (isDirty) setSaveError(null)
+      // Sprint 10 ENH-104 — autosave-off suppresses the 800ms timer
+      // path. ⌘S + Save-button + unmount-flush still fire (autosave
+      // is about latency in steady-state, not data preservation on
+      // tab close). Read through ref so closure capture stays fresh.
+      if (isDirty && !blockAutosaveRef.current && autosaveOnRef.current) {
         if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
         autosaveTimerRef.current = setTimeout(() => {
           autosaveTimerRef.current = null
@@ -1668,6 +1691,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         onSave={() => void save()}
         dirty={dirty}
         saving={saving}
+        saveError={saveError}
+        autosaveOn={autosaveOn}
+        onToggleAutosave={toggleAutosave}
       />
       {/* ENH-023 — find bar drops down between toolbar and prose
           when ⌘F is pressed. Closed state renders nothing. */}

@@ -706,6 +706,15 @@ export interface ElectronDialogAPI {
   confirm: (req: import('./types').DialogConfirmRequest) => Promise<import('./types').DialogConfirmResult>
 }
 
+// BUG-105 (Sprint 10) — main-process clipboard write. The renderer's
+// `navigator.clipboard.writeText` silently rejects when called from
+// inside a native NSMenu's `click` handler (the user-gesture window
+// closed when the menu opened). Routing through main uses Electron's
+// `clipboard` module which has no gesture requirement.
+export interface ElectronClipboardAPI {
+  writeText: (text: string) => Promise<void>
+}
+
 // Stage 21c — session state restored across Duo relaunches.
 // ~/.claude/duo/session-state.json. Renderer pulls on mount,
 // debounce-saves on every state change.
@@ -743,6 +752,9 @@ export interface ElectronAPI {
   // ENH-050 — native menu / sheet primitives.
   menu: ElectronMenuAPI
   dialog: ElectronDialogAPI
+  // BUG-105 (Sprint 10) — main-process clipboard, used from
+  // context-menu click handlers.
+  clipboard: ElectronClipboardAPI
   sessionState: ElectronSessionStateAPI
   events: ElectronEventsAPI
 }

@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { EditorToolbar } from '../editor/EditorToolbar'
+import { useAutosavePreference } from '../editor/autosavePreference'
 import { RenderedPage, type RenderedPageHandle } from './RenderedPage'
 import { buildPageEditorActions } from './pageEditorActions'
 import { installMarkdownShortcuts } from './markdownShortcuts'
@@ -307,6 +308,15 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Sprint 10 ENH-103 — last save failure (separate from `error`,
+  // which surfaces read/load errors via the banner). Drives the
+  // SaveControl pill's "Failed — retry" state.
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // Sprint 10 ENH-104 — per-app autosave preference (single global
+  // localStorage key, shared with MarkdownEditor).
+  const [autosaveOn, toggleAutosave] = useAutosavePreference()
+  const autosaveOnRef = useRef(autosaveOn)
+  autosaveOnRef.current = autosaveOn
 
   // Stage 27 (ENH-034) — `lockedReadOnly` is the existing
   // `<meta duo-editable="false">` hard-lock; toolbar toggle hidden,
@@ -527,8 +537,11 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       }
       setDirty(false)
       onDirtyChange?.(false)
+      // Sprint 10 ENH-103 — successful save clears the pill's
+      // "Failed — retry" state.
+      setSaveError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setSaveError(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
@@ -543,13 +556,19 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     const html = handle.serialize()
     const isDirty = html !== '' && html !== lastSavedRef.current
     setDirty(isDirty)
+    // Sprint 10 ENH-103 — clear any prior save-failure indicator on
+    // the next edit; the pill returns to plain "Save" so the user
+    // doesn't see a stale red state while still typing.
+    if (isDirty) setSaveError(null)
     bumpVersion()  // mutations may also affect toolbar state (e.g. inTable)
     // ENH-005 — re-inject copy buttons after any mutation (new <pre>
     // landing via paste / agent write needs a button). Idempotent;
     // sentinel class gates per-pre.
     const doc = canvasRef.current?.getDocument()
     if (doc) injectCodeBlockCopyButtons(doc, { markCanvasRuntime: true })
-    if (isDirty && !blockAutosaveRef.current) {
+    // Sprint 10 ENH-104 — autosave-off suppresses the 800ms timer
+    // path. ⌘S + Save-button + unmount-flush still fire.
+    if (isDirty && !blockAutosaveRef.current && autosaveOnRef.current) {
       if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = setTimeout(() => {
         autosaveTimerRef.current = null
@@ -1408,6 +1427,9 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           onSave={() => void save()}
           dirty={dirty}
           saving={saving}
+          saveError={saveError}
+          autosaveOn={autosaveOn}
+          onToggleAutosave={toggleAutosave}
         />
       )}
       {readOnly && !lockedReadOnly && (

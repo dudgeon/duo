@@ -420,10 +420,12 @@ export class SocketServer {
               // Fall through to the browser path on decode / fs failure.
             }
           }
+          let openedTabId: number | null = null
           if (!routedToEditor) {
             // http(s) URLs + bare hostnames (already https://-prefixed by
             // resolveOpenTarget on the CLI side) all land here.
             const browserResult = await this.browser.openTab(url)
+            openedTabId = browserResult.id
             result = { ...browserResult, routedTo: 'browser' }
           }
           // BUG-048 v2 — explicit BROWSER_FOCUS_GAINED push.
@@ -442,8 +444,22 @@ export class SocketServer {
           // BUG-067 — only fire when the URL actually went to the
           // browser. Editor-routed opens get their own focus push from
           // the renderer's NAV_EDIT handler.
-          if (!routedToEditor && this.eventSink) {
-            this.eventSink('browser:focus-gained', null)
+          //
+          // BUG-101 (Sprint 10) — pre-fix the payload was `null`, but
+          // the renderer's `onBrowserFocusGained` handler dereferences
+          // `payload.slot` (Phase 3c BUG-095 contract) so the null
+          // synthesized event threw and `activeWorking` never flipped
+          // to 'browser'. The genuine `webContents.on('focus')` event
+          // (browser-manager.ts) sends a proper `{tabId, slot}` shape;
+          // the supplemental defensive push has to match. `duo open`
+          // always lands a NEW main-strip tab (BrowserManager.openTab
+          // appends to `this.tabs`, never to the aux-pinned slot), so
+          // `slot: 'main'` is always correct for this path.
+          if (!routedToEditor && this.eventSink && openedTabId !== null) {
+            this.eventSink(
+              'browser:focus-gained',
+              { tabId: openedTabId, slot: 'main' }
+            )
           }
           break
         }

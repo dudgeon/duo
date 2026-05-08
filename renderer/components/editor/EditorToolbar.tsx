@@ -10,6 +10,7 @@
 // inTable, can-X disabled flags) stays in sync.
 
 import type { EditorActions } from './EditorActions'
+import { SaveControl } from './SaveControl'
 
 interface Props {
   actions: EditorActions
@@ -19,9 +20,20 @@ interface Props {
   onSave: () => void
   dirty: boolean
   saving: boolean
+  /** Sprint 10 ENH-103 — last save failure (cleared on next edit /
+   *  successful save). Drives the SaveControl pill's "Failed — retry"
+   *  state. */
+  saveError: string | null
+  /** Sprint 10 ENH-104 — current autosave preference (persisted
+   *  per-app by the host). */
+  autosaveOn: boolean
+  onToggleAutosave: () => void
 }
 
-export function EditorToolbar({ actions, onSave, dirty, saving }: Props) {
+export function EditorToolbar({
+  actions, onSave, dirty, saving,
+  saveError, autosaveOn, onToggleAutosave
+}: Props) {
   // selectionVersion is consumed via the prop signature alone — the
   // mere change of value triggers React to re-render this component,
   // and the action queries below are called fresh on every render.
@@ -157,18 +169,15 @@ export function EditorToolbar({ actions, onSave, dirty, saving }: Props) {
           </>
         )}
 
-        <div className="ml-auto flex items-center gap-3 pr-1 text-xs text-zinc-500">
-          <span aria-live="polite">
-            {saving ? 'Saving…' : dirty ? 'Unsaved' : 'Saved'}
-          </span>
-          <button
-            onClick={onSave}
-            disabled={!dirty || saving}
-            className="px-2 py-1 rounded border border-border hover:border-accent/60 text-zinc-300 disabled:opacity-40 disabled:hover:border-border"
-            title="Save (⌘S)"
-          >
-            Save
-          </button>
+        <div className="ml-auto flex items-center">
+          <SaveControl
+            dirty={dirty}
+            saving={saving}
+            saveError={saveError}
+            autosaveOn={autosaveOn}
+            onToggleAutosave={onToggleAutosave}
+            onSave={onSave}
+          />
         </div>
       </div>
 

@@ -145,7 +145,7 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-103: Consolidate "Saved / Saving / Save" indicator + button into a single control
 
-**Status:** ⬜ **DRAFT — owner-sign-off needed before code (Sprint 9 deferral 2026-05-07).** The four-state visual treatment (Saved / Save / Saving / Failed-retry) is a real UX decision; landing it without owner input risks shipping a design that needs to be redone. Sprint 9 chose to defer in favor of items where the design was already fixed. **Pairs with ENH-104** — both should ship together as a single SaveControl design.
+**Status:** ✅ **Shipped 2026-05-07 (Sprint 10 P0 anchor).** Owner-locked design via AUQ: pill button with four color/text states (Saved muted gray · Save bg-accent + white · Saving… disabled with spinner · Failed-retry red on muted bg). Lives in [renderer/components/editor/SaveControl.tsx](renderer/components/editor/SaveControl.tsx); replaces the prior text-span + Save button at the right edge of EditorToolbar. Both editor (TipTap) + canvas (PageTab) surfaces consume the shared control. Failed-retry state takes priority over saving (defensive against a stuck saving flag) and over unsaved (user needs the retry affordance, not a bare Save). Save-error state cleared on next edit + on next successful save. Locked priority order via 8 unit tests at [renderer/components/editor/SaveControl.test.ts](renderer/components/editor/SaveControl.test.ts).
 **Priority:** Medium (UI clarity — current setup has TWO controls that perform the same conceptual thing).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
 
@@ -162,7 +162,7 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-104: Autosave should be toggle-able
 
-**Status:** ⬜ **DRAFT — pairs with ENH-103, both deferred to a future sprint (Sprint 9 deferral 2026-05-07).** The autosave-off mode raises questions about persistent dirty state visualization that need owner UX input. Without owner present + a sign-off on the four-state SaveControl, building the toggle in isolation is premature.
+**Status:** ✅ **Shipped 2026-05-07 (Sprint 10 P0, paired with ENH-103).** Hover-reveal "Autosave: on/off" toggle adjacent to the SaveControl pill — opacity-0 by default, group-hover and focus-within reveal it. Single global localStorage key (`duo.autosave.v1`, default ON) shared across editor + canvas via the [renderer/components/editor/autosavePreference.ts](renderer/components/editor/autosavePreference.ts) hook. Off mode suppresses ONLY the 800ms debounce timer — ⌘S, the Save button, and unmount-flush still write (autosave-off is about latency in steady-state edits, not data preservation on tab close). When OFF, the toggle's text is amber-tinted to hint that the non-default mode is active. Cross-tab sync via a `duo:autosave-changed` CustomEvent so flipping the toggle in one editor updates every visible SaveControl in the same Duo session.
 **Priority:** Low (current autosave is fine for the dominant flow; toggle is for users who want explicit control).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
 
@@ -5582,7 +5582,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-106: `duo edit <non-existent-path>` opens the tab + editor errors with ENOENT
 
-**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-3 surfaced).
+**Status:** ✅ **Shipped Sprint 10 (2026-05-07).** Pre-flight existence check in [renderer/App.tsx § nav.onEdit handler](renderer/App.tsx) — when the path doesn't exist, the renderer pre-creates an empty file (or HTML boilerplate for `.html` / `.htm` paths via `classifyFile` + `htmlBoilerplate`) BEFORE calling `openFileSmart`. `files.write` mkdir-p's the parent so `duo edit /new/dir/Foo.md` lands `new/dir/` automatically. Symmetric with `⌘N`'s `onCommitNewFile` pre-write convention.
 **Priority:** **Medium** — affects automation flows and the `touch + duo edit` scaffolding pattern. The file-doesn't-exist case isn't rare.
 **Filed:** 2026-05-07.
 
@@ -5603,7 +5603,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-105: Right-click → Copy path on a tab is a no-op
 
-**Status:** 🆕 Filed 2026-05-07 (Sprint 9 walk-3 surfaced during ENH-098 testing).
+**Status:** ✅ **Shipped Sprint 10 (2026-05-07).** Root cause: `navigator.clipboard.writeText` silently rejects when called from a native NSMenu's `click` handler — the user-gesture context closed when the menu opened, and Chromium's clipboard API requires either user gesture OR explicit permission. Fixed by adding a main-process clipboard IPC (`clipboard:write-text`) using Electron's `clipboard` module (no gesture requirement). Updated all three context-menu Copy-path call sites: [renderer/components/WorkingTabStrip.tsx](renderer/components/WorkingTabStrip.tsx) (working-pane tab right-click), [renderer/components/WorkingPane.tsx](renderer/components/WorkingPane.tsx) (aux-pane tab), [renderer/components/FileTree.tsx](renderer/components/FileTree.tsx) (navigator). The new `window.electron.clipboard.writeText` is the canonical path for any future context-menu copy affordance.
 **Priority:** **Low–Medium** — discoverable feature that's silently broken; affects "share this file's path with another tool" workflows.
 **Filed:** 2026-05-07.
 
@@ -5638,7 +5638,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### ENH-108: Cmd+click on `[[Does Not Exist]]` wikilink should create the file (Obsidian parity)
 
-**Status:** 🆕 Filed 2026-05-07 (owner request via ENH-096 walk-2 OTHER NOTES).
+**Status:** ✅ **Shipped Sprint 10 (2026-05-07).** When `resolveWikilinkInVault` returns null in [renderer/App.tsx § duo-wikilink-open handler](renderer/App.tsx), the handler now computes a vault-relative create path via [renderer/wikilinkCreate.ts § buildWikilinkCreatePath](renderer/wikilinkCreate.ts) and writes empty bytes via `files.write` (mkdir-p's the parent for path-bearing targets like `[[notes/Foo]]`). Existing extension recognition (`.md` / `.html` / `.htm` / `.txt`) prevents the double-up case `[[Foo.md]]` → `Foo.md.md`. Path-traversal defense — strips leading slashes and drops `..` / `.` segments so `[[../secret]]` and `[[/etc/passwd]]` cannot escape the vault root. 17 unit tests at [renderer/wikilinkCreate.test.ts](renderer/wikilinkCreate.test.ts) lock down the contract.
 **Priority:** **Medium** — Obsidian parity affordance; matches how vault users actually work.
 **Filed:** 2026-05-07.
 
@@ -5711,12 +5711,14 @@ This is how Obsidian works by default — many users use cmd+click as the primar
 
 ### BUG-101: `duo open` / `duo edit` sometimes return `{ok: true}` without producing a visible tab
 
-**Status:** ✅ **Editor-routed half shipped Sprint 9 (2026-05-07).** Walk-3 user-verified PASS for the caret-lands-in-editor case ("carat landed!"). Three walks of fixes:
+**Status:** ✅ **Both halves shipped (editor in Sprint 9 2026-05-07; browser in Sprint 10 2026-05-07).**
+
+**Sprint 10 browser-routed fix (2026-05-07):** Root cause was a payload-shape mismatch. `core/socket-server.ts § case 'open'` fired a defensive supplemental `browser:focus-gained` event (added in BUG-048 v2 to handle the "Duo not foregrounded" case where Electron's programmatic `webContents.focus()` may queue or no-op). The defensive payload was `null`, but Phase 3c BUG-095 had switched the renderer's `onBrowserFocusGained` handler to dereference `payload.slot` — so the supplemental event threw and `setActiveWorking({kind:'browser'})` never fired. The genuine `webContents.on('focus')` event from `browser-manager.ts` already sent `{tabId, slot}`, so the bug only surfaced when programmatic focus was queued (running `duo open` from iTerm or another non-Duo terminal). Two-layer fix: (1) socket-server now sends `{tabId: openedTabId, slot: 'main'}` matching the canonical contract — `duo open` always lands a NEW main-strip tab (BrowserManager appends to `this.tabs`, never to the aux-pinned slot); (2) renderer handler is null-safe via `(payload as ...)?.slot ?? 'main'` so a future regression of this same shape cannot reproduce.
+
+**Sprint 9 editor-routed fix (2026-05-07).** Walk-3 user-verified PASS for the caret-lands-in-editor case ("carat landed!"). Three walks of fixes:
 1. Walk-0: React anti-pattern fix (setActiveWorking lifted out of setFileTabs updater).
 2. Walk-1: rAF chain to focus the editor's contentEditable + `console.debug` → `console.log` for trace visibility.
 3. Walk-2: routed through `findVisibleWorkingPaneCE('main')` — filters by `offsetParent !== null` so the focus call lands on the VISIBLE editor (not whichever display-toggled invisible tab was first in DOM order; BUG-046's mount-all-then-display-toggle pattern was producing the stale selector). Same helper used by ENH-098 chord set.
-
-**Browser-routed half still open** (`duo open https://example.com` not surfacing reliably) — separate hypothesis #1 from walk-0 description; Sprint 10 candidate.
 
 **Walk-3 surfaced BUG-106** (`duo edit <non-existent-path>` opens tab + editor errors with ENOENT). Independent of this fix; filed separately.
 

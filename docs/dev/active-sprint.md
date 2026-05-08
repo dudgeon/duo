@@ -1,5 +1,53 @@
 # Active sprint state — Sprint 10 (v0.6.10, committed 2026-05-07)
 
+> **Status update 2026-05-07:** All P0 + P1 implementation landed in
+> a single autonomous push following the AUQ-driven plan below.
+> Tests: 323 passing (up from 298 at sprint start; +25). Typecheck
+> clean. Smoke walk next.
+>
+> **What landed (autonomous session):**
+> - **ENH-103 + ENH-104 SaveControl** — pill component with the
+>   four owner-locked states (Saved muted gray · Save bg-accent +
+>   white · Saving… disabled with spinner · Failed-retry red on
+>   muted bg) + hover-reveal autosave on/off toggle. Both editor
+>   (TipTap) + canvas (PageTab) surfaces. Per-app localStorage
+>   key (`duo.autosave.v1`) shared across both surfaces; cross-tab
+>   sync via `duo:autosave-changed` CustomEvent. 8 unit tests.
+> - **ENH-108 wikilink-create-on-cmd+click** — Obsidian-parity:
+>   cmd+click on `[[Does Not Exist]]` creates the file at vault
+>   root + opens it. `buildWikilinkCreatePath` extracted to its
+>   own module with 17 unit tests covering extension handling
+>   (`.md` / `.html` / `.htm` / `.txt` recognition, no double-up),
+>   path-bearing targets (`[[notes/Foo]]`), and path-traversal
+>   defense (`../`, `/etc/passwd`, leading slashes all sanitized).
+> - **BUG-101 browser-routed half** — root cause: the defensive
+>   supplemental `browser:focus-gained` push from `core/socket-
+>   server.ts` (added BUG-048 v2 for the "Duo not foregrounded"
+>   case) sent `null` payload but Phase 3c BUG-095 had switched the
+>   renderer's handler to `payload.slot`. Two-layer fix: send
+>   `{tabId, slot:'main'}` from socket-server; null-guard the
+>   renderer handler so future shape regressions can't reproduce.
+> - **BUG-106 duo edit non-existent path** — pre-flight existence
+>   check in `nav.onEdit` handler; pre-create empty bytes (or
+>   HTML boilerplate via `classifyFile`) before `openFileSmart`.
+>   Symmetric with `⌘N`'s `onCommitNewFile` pre-write convention.
+> - **BUG-105 Copy path no-op** — root cause: `navigator.clipboard.
+>   writeText` silently rejects when called from a native NSMenu's
+>   `click` handler (no user-gesture context). Fixed by adding
+>   main-process `clipboard:write-text` IPC and routing all three
+>   call sites (WorkingTabStrip, WorkingPane aux, FileTree)
+>   through it. The new `window.electron.clipboard.writeText` is
+>   the canonical path for any future context-menu copy.
+>
+> **Procedural deviation from sequencing:** active-sprint.md said
+> "SaveControl FIRST — lock the design in time for an owner UI walk
+> before the carry-overs land." The autonomous session shipped
+> SaveControl + carry-overs together. The owner UI walk is the
+> smoke walk; if SaveControl needs design rework, the carry-overs
+> are independent and can stand on their own.
+
+
+
 > **What this file is.** Running scratchpad for the active sprint
 > arc. The historical record — Sprint 9 close-out (v0.6.9 cut +
 > wikilinks closure + pane-jump chord set + duo edit reliability +

@@ -208,8 +208,14 @@ export function WorkingTabStrip({
         // resolvable path (file tabs always; browser tabs only when
         // their URL is a file:// pointing at a local artifact —
         // see pathFromFileUrl above).
+        //
+        // BUG-105 (Sprint 10) — pre-fix used `navigator.clipboard.
+        // writeText`, which silently rejects when called from inside
+        // a native NSMenu's click handler (no user-gesture context).
+        // Routing through main's `clipboard` module sidesteps the
+        // gesture requirement entirely.
         if (!path) return
-        try { await navigator.clipboard.writeText(path) } catch { /* permission denied */ }
+        try { await window.electron.clipboard.writeText(path) } catch { /* permission denied */ }
         return
       }
       case 'pin':

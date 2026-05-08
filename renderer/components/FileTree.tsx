@@ -240,7 +240,10 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         await window.electron.files.revealInFinder(target.path)
         return
       case 'copy-path':
-        try { await navigator.clipboard.writeText(target.path) } catch { /* permission denied */ }
+        // BUG-105 (Sprint 10) — route through main's clipboard
+        // module; the renderer-side API silently rejects when fired
+        // from a native NSMenu callback (no user-gesture context).
+        try { await window.electron.clipboard.writeText(target.path) } catch { /* permission denied */ }
         return
       case 'open-with-default':
         await window.electron.files.openExternal(target.path)

@@ -728,7 +728,10 @@ function AuxHeader({
         onStartRenameFromTab?.(path)
         return
       case 'aux-copy-path':
-        try { await navigator.clipboard.writeText(path) } catch { /* perm denied */ }
+        // BUG-105 (Sprint 10) — route through main's clipboard
+        // module; the renderer-side API silently rejects when fired
+        // from a native NSMenu callback (no user-gesture context).
+        try { await window.electron.clipboard.writeText(path) } catch { /* perm denied */ }
         return
       case 'aux-promote':
         onPromote?.()

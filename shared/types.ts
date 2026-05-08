@@ -1160,6 +1160,13 @@ export const IPC = {
   //   button index (with checkboxChecked when applicable).
   MENU_POPUP: 'menu:popup',
   DIALOG_CONFIRM: 'dialog:confirm',
+  // BUG-105 (Sprint 10) — main-process clipboard write. The renderer's
+  // `navigator.clipboard.writeText` silently rejects when called from
+  // a native NSMenu's `click` handler because the user-gesture window
+  // closed when the menu opened. Routing through main uses Electron's
+  // `clipboard` module which has no gesture requirement. Used by every
+  // "Copy path" / "Copy URL" affordance reachable from a context menu.
+  CLIPBOARD_WRITE_TEXT: 'clipboard:write-text',
 
   // Stage 10 Phase 6 — navigator state + agent-facing commands
   NAV_STATE_PUSH: 'nav:state-push',      // renderer → main (cache state for CLI)

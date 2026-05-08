@@ -576,6 +576,13 @@ const api: ElectronAPI = {
   },
   dialog: {
     confirm: (req) => ipcRenderer.invoke(IPC.DIALOG_CONFIRM, req)
+  },
+  // BUG-105 (Sprint 10) — main-process clipboard write. Use this from
+  // any context-menu `click` handler (Copy path / Copy URL / etc.);
+  // never call `navigator.clipboard.writeText` from inside a native
+  // NSMenu callback chain.
+  clipboard: {
+    writeText: (text) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_TEXT, text) as Promise<void>
   }
 }
 

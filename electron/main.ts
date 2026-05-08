@@ -937,6 +937,16 @@ function setupIPC(): void {
     })
   })
 
+  // BUG-105 (Sprint 10) — main-process clipboard write. Renderer's
+  // `navigator.clipboard.writeText` silently rejects when called from
+  // a native NSMenu's `click` handler (no user-gesture context once
+  // the menu opens). Use this from any "Copy path" / "Copy URL" /
+  // similar context-menu wiring instead.
+  ipcMain.handle(IPC.CLIPBOARD_WRITE_TEXT, (_event, text: string): void => {
+    if (typeof text !== 'string') return
+    clipboard.writeText(text)
+  })
+
   ipcMain.handle(IPC.DIALOG_CONFIRM, async (_event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {
     if (!mainWindow) return { response: req.cancelId ?? 0 }
     const result = await dialog.showMessageBox(mainWindow, {
