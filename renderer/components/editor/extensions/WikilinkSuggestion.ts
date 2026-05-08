@@ -12,9 +12,19 @@
 // component.
 
 import { Extension } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
 import Suggestion from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
+
+// Sprint 11 walk-1 fix — distinct PluginKey is mandatory when two
+// Suggestion-utility instances live in the same editor (one for
+// WikilinkSuggestion, one for AtMention). Pre-fix both used the
+// utility's default `'suggestion'` key, which ProseMirror rejects
+// at editor-init time with `RangeError: Adding different instances
+// of a keyed plugin (suggestion$)` — the renderer crashed in
+// MarkdownEditor's mount and bubbled up through the working pane.
+const WIKILINK_SUGGESTION_KEY = new PluginKey('wikilinkSuggestion')
 import {
   SuggestionPopover,
   type SuggestionPopoverHandle,
@@ -53,6 +63,10 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
     return [
       Suggestion({
         editor: this.editor,
+        // Sprint 11 walk-1 fix — explicit pluginKey avoids the
+        // `Adding different instances of a keyed plugin (suggestion$)`
+        // crash when AtMention is also loaded.
+        pluginKey: WIKILINK_SUGGESTION_KEY,
         // `[[` trigger. The `char` field on the suggestion config is
         // a single character; we use `[` and require allowSpaces:false
         // + an extra startOfLine guard via the items() filter below.

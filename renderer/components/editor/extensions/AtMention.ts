@@ -10,9 +10,14 @@
 // index source, different trigger shape + insertion shape.
 
 import { Extension } from '@tiptap/core'
+import { PluginKey } from '@tiptap/pm/state'
 import Suggestion from '@tiptap/suggestion'
 import { ReactRenderer } from '@tiptap/react'
 import type { SuggestionProps, SuggestionKeyDownProps } from '@tiptap/suggestion'
+
+// Sprint 11 walk-1 fix — distinct PluginKey from WikilinkSuggestion's
+// (see that file for the full ProseMirror-keyed-plugin rationale).
+const AT_MENTION_KEY = new PluginKey('atMention')
 import {
   SuggestionPopover,
   type SuggestionPopoverHandle,
@@ -42,6 +47,10 @@ export const AtMention = Extension.create<AtMentionOptions>({
     return [
       Suggestion({
         editor: this.editor,
+        // Sprint 11 walk-1 fix — explicit pluginKey distinct from
+        // WikilinkSuggestion's. ProseMirror requires unique keys
+        // when multiple suggestion-utility instances coexist.
+        pluginKey: AT_MENTION_KEY,
         char: '@',
         allowSpaces: true,
         startOfLine: false,
