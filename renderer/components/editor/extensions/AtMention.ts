@@ -92,33 +92,49 @@ export const AtMention = Extension.create<AtMentionOptions>({
                   items: props.items,
                   command: (item: VaultFile) => props.command(item),
                   clientRect: props.clientRect ?? null,
-                  loading: opts.isLoading?.() ?? false
+                  loading: opts.isLoading?.() ?? false,
+                  visible: true
                 },
                 editor: props.editor
               })
             },
             onUpdate(props: SuggestionProps) {
-              if (dismissed) return
               component?.updateProps({
                 items: props.items,
                 command: (item: VaultFile) => props.command(item),
                 clientRect: props.clientRect ?? null,
-                loading: opts.isLoading?.() ?? false
+                loading: opts.isLoading?.() ?? false,
+                visible: !dismissed
               })
             },
             onKeyDown(props: SuggestionKeyDownProps) {
-              if (dismissed) return false
               if (props.event.key === 'Escape') {
+                if (dismissed) return false
                 dismissed = true
-                component?.destroy()
-                component = null
+                component?.updateProps({
+                  items: [],
+                  command: () => {},
+                  clientRect: null,
+                  loading: false,
+                  visible: false
+                })
+                queueMicrotask(() => {
+                  component?.destroy()
+                  component = null
+                })
                 return true
               }
+              if (dismissed) return false
               const handled = component?.ref?.onKeyDown(props.event) ?? false
               if (handled && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
                 dismissed = true
-                component?.destroy()
-                component = null
+                component?.updateProps({
+                  items: [],
+                  command: () => {},
+                  clientRect: null,
+                  loading: false,
+                  visible: false
+                })
               }
               return handled
             },

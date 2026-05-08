@@ -30,6 +30,15 @@ export interface SuggestionPopoverProps {
    *  small "Searching vault…" hint so the user doesn't perceive the
    *  empty list as "no matches." */
   loading?: boolean
+  /** Walk-2 v2 fix — explicit visible flag controlled by the
+   *  suggestion lifecycle. Pre-fix, Escape called ReactRenderer.
+   *  destroy() but the React tree didn't always unmount in time
+   *  (suspected createPortal + React 18 async unmount race). With
+   *  this prop the popover RENDERS NULL when visible=false, so the
+   *  user sees it dismiss immediately even if the underlying React
+   *  tree teardown happens on the next tick. Defaults to true so
+   *  callers that don't pass it get the original behavior. */
+  visible?: boolean
 }
 
 export interface SuggestionPopoverHandle {
@@ -42,7 +51,7 @@ export interface SuggestionPopoverHandle {
 const ITEM_LIMIT_VISIBLE = 8
 
 export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionPopoverProps>(
-  function SuggestionPopover({ items, command, clientRect, loading }, ref) {
+  function SuggestionPopover({ items, command, clientRect, loading, visible = true }, ref) {
     const [activeIdx, setActiveIdx] = useState(0)
 
     // Reset to first item when the items list changes (new query or
@@ -76,6 +85,10 @@ export const SuggestionPopover = forwardRef<SuggestionPopoverHandle, SuggestionP
       }
     }), [items, activeIdx, command])
 
+    // Walk-2 v2 — visible:false forces null render even if the
+    // React tree hasn't fully unmounted. Belt-and-braces against
+    // ReactRenderer.destroy()'s portal cleanup race.
+    if (!visible) return null
     if (!clientRect) return null
     const rect = clientRect()
     if (!rect) return null

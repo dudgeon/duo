@@ -123,7 +123,8 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
                 items: props.items,
                 command: (item: VaultFile) => props.command(item),
                 clientRect: props.clientRect ?? null,
-                loading: opts.isLoading?.() ?? false
+                loading: opts.isLoading?.() ?? false,
+                visible: true
               },
               editor: props.editor
             })
@@ -134,33 +135,57 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
               mountComponent(props)
             },
             onUpdate(props: SuggestionProps) {
-              if (dismissed) return
+              // Walk-2 v2 — even when dismissed, keep updateProps
+              // running with visible:false so the React tree stays
+              // alive but the popover renders null. Lets onExit
+              // do the real teardown when the plugin's state
+              // changes; visible:false ensures the user sees the
+              // popover dismiss IMMEDIATELY on Escape.
               component?.updateProps({
                 items: props.items,
                 command: (item: VaultFile) => props.command(item),
                 clientRect: props.clientRect ?? null,
-                loading: opts.isLoading?.() ?? false
+                loading: opts.isLoading?.() ?? false,
+                visible: !dismissed
               })
             },
             onKeyDown(props: SuggestionKeyDownProps) {
-              if (dismissed) return false
               if (props.event.key === 'Escape') {
+                if (dismissed) return false
                 dismissed = true
-                component?.destroy()
-                component = null
+                // Walk-2 v3 — directly destroy + remove DOM element.
+                // ReactRenderer's destroy() unmounts via the editor's
+                // contentComponent registry — but the registry's
+                // re-render is async (subscriber notification +
+                // React commit), so a stale DOM element can linger
+                // for a frame or two. We immediately hide via
+                // visible:false (so the next render returns null)
+                // AND queue a destroy. Both belt-and-braces.
+                component?.updateProps({
+                  items: [],
+                  command: () => {},
+                  clientRect: null,
+                  loading: false,
+                  visible: false
+                })
+                // Explicitly destroy after the visible-update propagates.
+                queueMicrotask(() => {
+                  component?.destroy()
+                  component = null
+                })
                 return true
               }
+              if (dismissed) return false
               const handled = component?.ref?.onKeyDown(props.event) ?? false
-              // Walk-1 v4 — defensively destroy after a successful
-              // Enter/Tab. The suggestion plugin SHOULD fire onExit
-              // after our command() inserts text (because the new
-              // doc state no longer matches), but in practice the
-              // popover persisted post-insert. Destroying here is
-              // belt-and-braces; onExit's destroy is a no-op then.
               if (handled && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
                 dismissed = true
-                component?.destroy()
-                component = null
+                component?.updateProps({
+                  items: [],
+                  command: () => {},
+                  clientRect: null,
+                  loading: false,
+                  visible: false
+                })
               }
               return handled
             },
