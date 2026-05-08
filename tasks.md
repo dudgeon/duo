@@ -5473,7 +5473,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-091: WorkingPane tab right-click menu missing "Move to split view" entry
 
-**Status:** 🟡 **Filed** (smoke walk other-notes, deferred to v0.6.8)
+**Status:** 🟡 **LIKELY FIXED — Sprint 7 Phase 3c plumbing landed the entry; verification owed in Sprint 11 walk-2 (2026-05-07).** Code reading confirms the menu IS built correctly today: `WorkingTabStrip § buildContextMenu` line 611 pushes 'Move to Split View' when `onMoveToSplit` (or `onMoveBrowserTabToSplit` for browser tabs) is wired; App.tsx mounts WorkingPane with `onMoveTabToSplit={splitViewMoveTabByPath}` (line 2858) which threads through to WorkingTabStrip as `onMoveToSplit`. The bug as filed (2026-05-04, pre-Phase-3c) was true at that point in the code's history but resolved silently when Phase 3c added the browser-tab branch. Walk verification step: right-click a markdown / canvas tab in the working strip → confirm "Move to Split View" appears.
 **Priority:** **Low** (workaround exists: navigator right-click works).
 **Filed:** 2026-05-04 (smoke walk other-notes).
 
@@ -5676,7 +5676,7 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### ENH-109: Show `.obsidian/` directory in the navigator when working in a vault
 
-**Status:** 🆕 Filed 2026-05-07 (Sprint 10 walk-1 OTHER NOTES — owner: "if we are working with .obsidian files, we should show (not hide) them in the navigator").
+**Status:** ✅ **Shipped Sprint 11 (2026-05-07).** Added `.obsidian` to the always-visible list in [renderer/components/FileTree.tsx § shouldShow](renderer/components/FileTree.tsx) — same pattern as `.claude` (the existing dotdir exception). Decision: simpler than the originally-filed "context-aware" approach (only show inside a vault). Vault config files (workspace.json, plugin state) are universally useful when present; users without `.obsidian/` see no change. The "Show hidden files" global toggle already covers the broader case.
 **Priority:** **Medium** — Obsidian-parity affordance; vault config / theme / plugin authors need access to `.obsidian/` to actually edit those files.
 
 **What's wanted.** The navigator currently hides ALL dotfile/dotdir entries (including `.obsidian/`). When the user is working inside an Obsidian vault, the `.obsidian/` directory holds vault-specific config (`workspace.json`, `app.json`, theme/plugin folders) that some users edit by hand. Because it's hidden from the navigator, those files are unreachable except via terminal.
@@ -5831,7 +5831,7 @@ This is how Obsidian works by default — many users use cmd+click as the primar
 
 ### BUG-100: Send → Duo pill missing on text selections inside the split-view (aux) browser pane
 
-**Status:** 🟡 Open (filed during smoke walk v0.6.8, 2026-05-06). User flagged "non blocking, add to backlog."
+**Status:** 🟡 Open (Sprint 11 evaluated 2026-05-07; deferred). Owner originally flagged "non blocking, add to backlog" v0.6.8; Sprint 11 architectural assessment confirms cost: a CdpBridge multi-attach refactor (~3–4 hours of careful debugger plumbing) is the right shape for this. The bridge today holds a single `wc: WebContents` field; attaching to a second tab requires either (a) a parallel `auxWc` slot with mirrored Runtime.addBinding setup + a separate session-events listener (option 1 below), (b) a tab-id-keyed Map of bridges (option 2 — cleaner architecture but more code), or (c) executeJavaScript-based one-shot injection without CDP bindings (option 3 — sidesteps the binding plumbing; selection data has to round-trip via window CustomEvent + IPC instead). Owner pull pending — deferred to a future sprint when the workflow surfaces. Workaround: promote the aux browser tab back to main (⌘⇧/) before selecting.
 **Priority:** **Medium** — affects users who park a reference page in the split-view + select text from it for chat. Workaround: promote the aux browser tab back to main (⌘⇧/) before selecting.
 **Filed:** 2026-05-06 (Smoke walk v0.6.8 step 5 — *"opened claude session: pill DOES appear for selected text in main pane, but not in split view"*).
 
