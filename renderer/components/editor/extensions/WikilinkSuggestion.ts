@@ -31,6 +31,7 @@ import {
   type SuggestionPopoverProps
 } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
+import { findWikilinkMatch } from './suggestionMatchers'
 
 export interface WikilinkSuggestionOptions {
   /** Returns the current vault file list. Called once per trigger
@@ -67,54 +68,40 @@ export const WikilinkSuggestion = Extension.create<WikilinkSuggestionOptions>({
         // `Adding different instances of a keyed plugin (suggestion$)`
         // crash when AtMention is also loaded.
         pluginKey: WIKILINK_SUGGESTION_KEY,
-        // `[[` trigger. The `char` field is a single character; we
-        // use `[` and require startOfLine:false. The popover opens
-        // when the user types `[[<query>` — the second `[` is the
-        // first character of the query.
+        // `char` is required by the suggestion config but unused
+        // when a custom findSuggestionMatch is provided. We pass the
+        // canonical first character anyway for clarity.
         char: '[',
-        // Sprint 11 walk-1 v2 fix — `allowSpaces: false` keeps the
-        // trigger from matching against existing `[[…]]` text in the
-        // document on caret-move. With allowSpaces:true, the default
-        // findSuggestionMatch greedily captured everything from any
-        // `[` in the doc to the caret position, so opening a file
-        // that already contained `[[Foo]]` text fired the popover
-        // unprompted (showing a stray "No matches" stub at top-left
-        // of the window). Trade-off: filenames with spaces in the
-        // query string don't match — user must use kebab-case or
-        // type without spaces. allowSpaces:true with proper match-
-        // gating is a follow-up (needs custom findSuggestionMatch
-        // OR migration to Mention-NODE-based approach).
         allowSpaces: false,
         startOfLine: false,
+        // Sprint 11 walk-1 v3 fix — custom match function that requires
+        // `[[` (two consecutive `[` chars) immediately before the
+        // caret with no whitespace / `]` / closing pair in between.
+        // Default findSuggestionMatch couldn't express this — see
+        // suggestionMatchers.ts for the full rationale.
+        findSuggestionMatch: findWikilinkMatch,
 
         items: ({ query }) => {
-          // The suggestion utility passes everything between the
-          // trigger char + the caret. We want `[foo` after `[[foo`,
-          // so query starts with `[`. Strip it.
-          if (!query.startsWith('[')) return []
-          const stripped = query.slice(1)
-          // Bail if the next char would close the wikilink (user
-          // typed `[[]]`) — empty stripped is fine, that's the
-          // "show all files" state.
-          if (stripped.includes(']')) return []
+          // With our custom matcher, `query` is the text strictly
+          // AFTER `[[` (no leading bracket to strip). Empty query is
+          // valid — that's the "user just typed `[[`, show me all
+          // vault files" state.
+          if (query.includes(']')) return []
           const all = opts.getItems()
-          return opts.rank(all, stripped)
+          return opts.rank(all, query)
         },
 
-        // Replace `[[<query>` with `[[<basename>]]`. The selected
-        // basename is what becomes the wikilink; WikilinkDecorations
-        // handles the click / hover styling on subsequent renders.
+        // Replace `[[<query>` with `[[<basename>]]`. The matcher's
+        // `range.from` points at the first `[` of `[[`, so replacing
+        // [from, to] cleanly swaps the user's in-progress trigger
+        // for the canonical wikilink form.
         command: ({ editor, range, props }) => {
           const item = props as VaultFile
           const insert = `[[${item.basename}]]`
           editor
             .chain()
             .focus()
-            // The range starts at `[` (the trigger). We want to
-            // replace `[[<query>` with `[[<basename>]]`, so the
-            // replace range starts ONE char before the trigger
-            // (capturing the first `[` of `[[`).
-            .insertContentAt({ from: range.from - 1, to: range.to }, insert)
+            .insertContentAt({ from: range.from, to: range.to }, insert)
             .run()
         },
 

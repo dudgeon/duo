@@ -24,6 +24,7 @@ import {
   type SuggestionPopoverProps
 } from '../primitives/SuggestionPopover'
 import type { VaultFile } from '../wikilinkResolver'
+import { findAtMentionMatch } from './suggestionMatchers'
 
 export interface AtMentionOptions {
   getItems: () => VaultFile[]
@@ -47,27 +48,17 @@ export const AtMention = Extension.create<AtMentionOptions>({
     return [
       Suggestion({
         editor: this.editor,
-        // Sprint 11 walk-1 fix — explicit pluginKey distinct from
-        // WikilinkSuggestion's. ProseMirror requires unique keys
-        // when multiple suggestion-utility instances coexist.
         pluginKey: AT_MENTION_KEY,
         char: '@',
-        // Sprint 11 walk-1 v2 fix — same allowSpaces concern as
-        // WikilinkSuggestion. Pre-fix any `@agent`-style text in the
-        // document fired the popover unprompted on caret moves; with
-        // allowSpaces:false the trigger only fires while the user is
-        // actively typing a contiguous query post-`@`. Filenames with
-        // spaces become a kebab-case requirement until we migrate to
-        // a Mention-NODE-based approach in a follow-up sprint.
         allowSpaces: false,
         startOfLine: false,
+        // Sprint 11 walk-1 v3 fix — custom match function rejects
+        // mid-word `@` (so `email@example` doesn't trigger) and
+        // existing `@agent` text near caret. See suggestionMatchers.ts
+        // for the rationale.
+        findSuggestionMatch: findAtMentionMatch,
 
         items: ({ query }) => {
-          // `@` doesn't have an `@`-only escape — typing `@@` would
-          // start a fresh trigger. Also: an `@` immediately followed
-          // by whitespace + character ("@ foo") would be ambiguous,
-          // but TipTap's suggestion utility dismisses on space-after-
-          // trigger by default, so we get that for free.
           const all = opts.getItems()
           return opts.rank(all, query)
         },
