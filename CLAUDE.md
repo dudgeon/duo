@@ -372,6 +372,70 @@ sprint-to-sprint smoke walks is part of the data — drift defeats
 the point. Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
 (gitignored by default; the skill's SKILL.md has the format spec).
 
+### 7c. VERIFY CLEAN APP STATE BEFORE asking the user to smoke walk
+
+**HARD RULE — never hand the smoke-walk page to the user without
+first confirming the running Duo isn't in a crashed / errored state.**
+Catching a stale error overlay before the user sees it is the agent's
+job, not the user's.
+
+The failure mode this rule prevents: agent commits a renderer-
+crashing bug, opens the smoke-walk page (which lives in the
+browser pane and renders fine), tells the user "walk it." User
+walks step 1 ("open a markdown file") and immediately hits the
+React error boundary. The agent shipped a crash AND wasted the
+user's verification cycle. Sprint 11 walk-1 (2026-05-08) violated
+this: the WikilinkSuggestion + AtMention plugins both used the
+default `'suggestion'` plugin key, which ProseMirror rejected at
+MarkdownEditor mount, and the error boundary caught it — but the
+agent had already handed off the smoke walk page.
+
+**The pre-handoff check, in order:**
+
+1. **`duo doctor` clean** — socket transport up, CLI version matches
+   app version. If not: restart per item 7a.
+2. **`duo nav-state` returns OK** — the renderer is alive at the
+   IPC layer. (A crashed renderer with a live socket-server is
+   possible in some edge cases; this catches the easy ones.)
+3. **Take responsibility for the FIRST step of the walk.**
+   Don't hand off until you've personally exercised the code path
+   the walk's first item exercises. Two paths, depending on
+   computer-use:
+   - **Computer-use granted (preferred):** call `request_access`
+     for Electron, take a screenshot of Duo, visually scan for
+     ANY error overlay (React red error screen, ErrorBoundary
+     panel, "WorkingPane hit a render error" / "App hit an error"
+     fallback panels). If anything looks wrong, FIX IT before
+     handoff.
+   - **Computer-use denied / unavailable:** at minimum, exercise
+     the smoke walk's first failure-prone step yourself via the
+     CLI. For the wikilink-autocomplete case, that's
+     `duo edit /tmp/preflight-walk-N.md` to mount MarkdownEditor.
+     If the editor's load completes (the file appears as a tab,
+     `duo url` returns the path), the mount succeeded. Then read
+     the dev's stderr / DevTools console output (via the dev's
+     background log file) for any uncaught exception trace
+     mentioning your changed modules.
+4. **Explicit warning when verification is impossible.** If
+   computer-use is denied AND the walk's first step can't be
+   exercised via the CLI (e.g. it requires a click or a
+   keystroke), say so EXPLICITLY in the handoff message: *"I
+   couldn't verify the app's render state — please check
+   DevTools (Cmd+Opt+I) for any error overlay before walking."*
+   Don't bury this in a paragraph; it's the first sentence.
+
+**Restart on uncertainty.** If you've made many changes since the
+last verified clean state and the dev session has been running
+the whole time, restart the dev (item 7a) before the smoke walk
+even when the surface checks pass. HMR can leave the app in a
+half-applied state where one extension is the new code + another
+is the old; a clean restart bisects the question.
+
+This rule applies whether the smoke walk is the formal close-out
+walk OR a mid-sprint verification handoff. It applies even when
+the user explicitly asks to walk now — the answer is "let me
+verify the app's clean first, give me 30 seconds."
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits
