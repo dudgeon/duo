@@ -2904,6 +2904,14 @@ export function App() {
           setVaultQuickSwitcherOpen(false)
           const name = file.basename + (file.ext ? '.' + file.ext : '')
           void openFileSmart(file.absPath, name)
+          // Sprint 11 walk-3 fix — when ⌘O Enter picks a file, the
+          // overlay's input loses focus on unmount. Without an
+          // explicit reclaim, OS-level focus can land on document.
+          // body before openFile's rAF chain runs, so the contenteditable.
+          // focus() succeeds at the DOM layer but the user perceives
+          // the new tab as "background." Same fix shape as BUG-103
+          // (⌘T URL-bar focus).
+          window.electron.keyboard?.reclaimFocus?.()
         }}
         onDismiss={() => setVaultQuickSwitcherOpen(false)}
       />

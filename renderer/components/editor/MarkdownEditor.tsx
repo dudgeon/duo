@@ -611,7 +611,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         // Echo of our own save — `lastSavedBodyRef.current` was
         // updated to the freshly-saved body before chokidar fired.
-        if (diskBody === lastSavedBodyRef.current) return
+        // Sprint 11 walk-3 fix (BUG-107) — normalize trailing
+        // whitespace before comparing. The serializer strips
+        // trailing blank lines on round-trip, so disk vs. baseline
+        // can differ by `\n` alone after legit saves. Pre-fix this
+        // surfaced a false conflict whenever the disk file ended
+        // with a blank line.
+        const normalize = (s: string) => s.replace(/\s+$/, '')
+        if (normalize(diskBody) === normalize(lastSavedBodyRef.current)) return
 
         // BUG-099 fix — secondary echo check against the
         // recently-written set. Catches the race where chokidar's
@@ -723,7 +730,24 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const diskRes = await window.electron.files.read(path)
           const diskText = decodeUtf8(diskRes.bytes)
           const diskBody = splitFrontmatter(diskText).body
-          if (diskBody !== lastSavedBodyRef.current) {
+          // Sprint 11 walk-3 fix (BUG-107) — disk content may differ
+          // from baseline by trailing whitespace alone. tiptap-markdown's
+          // serializer normalizes trailing blank lines on round-trip
+          // (e.g. `# Index\n\n` from disk → `# Index\n` after parse +
+          // re-serialize). Pre-fix, this caused a false-conflict
+          // banner on first edit of any file with a trailing blank
+          // line. Normalize trailing whitespace before comparing —
+          // anything more substantive is a real conflict and still
+          // surfaces the banner.
+          const normalize = (s: string) => s.replace(/\s+$/, '')
+          if (normalize(diskBody) !== normalize(lastSavedBodyRef.current)) {
+            console.log('[BUG-107 save-pre-conflict] real diff', {
+              path,
+              diskBodyLength: diskBody.length,
+              baselineLength: lastSavedBodyRef.current.length,
+              diskHead: diskBody.slice(0, 60),
+              baselineHead: lastSavedBodyRef.current.slice(0, 60)
+            })
             setExternalConflict({ diskBody })
             return
           }
