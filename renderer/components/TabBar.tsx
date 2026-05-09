@@ -24,6 +24,10 @@ interface TabBarProps {
    *  toggles. Active (collapsed) state inverts to the accent fill. */
   isTerminalCollapsed?: boolean
   onToggleTerminalCollapsed?: () => void
+  /** ENH-115 (Sprint 12) — right-click → "Reveal in navigator" on a
+   *  tab fires this with the tab's `cwd`. Parent points the navigator
+   *  at the path (same code path as the CLI's `duo reveal`). */
+  onRevealCwd?: (cwd: string) => void
 }
 
 // Stage 12 Phase 3 — tab-strip rhyme.
@@ -52,7 +56,8 @@ export function TabBar({
   pendingCwd,
   focused = false,
   isTerminalCollapsed = false,
-  onToggleTerminalCollapsed
+  onToggleTerminalCollapsed,
+  onRevealCwd
 }: TabBarProps) {
   const cwdSuffix = pendingCwd ? ` in ${pendingCwd}` : ''
   const claudeTip = `New Claude session (⌘T from terminal focus)${cwdSuffix}`
@@ -89,6 +94,7 @@ export function TabBar({
               onClose(tab.id)
             }}
             canClose={tabs.length > 1}
+            onRevealCwd={onRevealCwd}
             // ENH-024 — only the active tab gets the ref; previous
             // active tab loses the assignment naturally on re-render.
             buttonRef={tab.id === activeTabId ? activeTabRef : undefined}
@@ -166,13 +172,29 @@ interface TabProps {
   /** ENH-024 — passed by the parent on the active tab so it can
    *  `scrollIntoView` whenever the active tab changes. */
   buttonRef?: React.Ref<HTMLButtonElement>
+  /** ENH-115 — right-click → Reveal in navigator. */
+  onRevealCwd?: (cwd: string) => void
 }
 
-function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef }: TabProps) {
+function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCwd }: TabProps) {
+  // ENH-115 — right-click → native context menu. Single verb today
+  // ("Reveal in navigator"); leaves room for additional terminal-tab
+  // verbs (Duplicate / Close others) without restructuring.
+  const onContextMenu = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!onRevealCwd || !tab.cwd) return
+    const res = await window.electron.menu.popup({
+      items: [{ id: 'reveal-cwd', label: 'Reveal in navigator' }],
+      x: e.clientX,
+      y: e.clientY
+    })
+    if (res.chosenId === 'reveal-cwd') onRevealCwd(tab.cwd)
+  }
   return (
     <button
       ref={buttonRef}
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       className={[
         'group relative flex items-center gap-1.5 px-2.5 h-7 max-w-[200px] rounded-t-lg shrink-0 transition-colors',
         isActive

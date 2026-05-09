@@ -228,6 +228,9 @@ const api: ElectronAPI = {
     // Stage 26 PR 3 item 8 — path-kind probe (editable breadcrumb).
     kind: (p) => ipcRenderer.invoke(IPC.FILES_KIND, { path: p }),
 
+    // ENH-111 (Sprint 12) — file size + mtime for image viewer chrome.
+    stat: (p) => ipcRenderer.invoke(IPC.FILES_STAT, { path: p }),
+
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process
@@ -582,7 +585,9 @@ const api: ElectronAPI = {
   // never call `navigator.clipboard.writeText` from inside a native
   // NSMenu callback chain.
   clipboard: {
-    writeText: (text) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_TEXT, text) as Promise<void>
+    writeText: (text) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_TEXT, text) as Promise<void>,
+    // ENH-111 (Sprint 12) — image-to-clipboard for image viewer.
+    writeImage: (p) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_IMAGE, p) as Promise<boolean>
   }
 }
 

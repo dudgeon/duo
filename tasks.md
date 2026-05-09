@@ -5879,24 +5879,27 @@ Probably 5-line CSS change. Verify in both light and dark themes — Tailwind Ty
 
 ### BUG-108: Copying cell text from a markdown-editor table copies "[table]" instead
 
-**Status:** 🆕 Filed 2026-05-08 (owner-discovered, pre-cut).
+**Status:** ✅ **Shipped Sprint 12 (2026-05-09).** Root cause confirmed: tiptap-markdown's `transformCopiedText` plugin runs `MarkdownSerializer.serialize(slice.content)`. ProseMirror's `Selection.content()` returns slices with `includeParents=true` — so an intra-cell text selection arrives wrapped in `<table><tr><td>…</td></tr></table>`. tiptap-markdown's table serializer rejects that wrapped slice in `isMarkdownSerializable` (the function requires the first row to be all `tableHeader`; a body-cell-only slice always fails), and the fallback path is `state.write("[" + node.type.name + "]")` — which writes the literal `[table]` because Duo runs tiptap-markdown with `html: false` for round-trip fidelity. Fix lives in [renderer/components/editor/extensions/TableCellCopy.ts](renderer/components/editor/extensions/TableCellCopy.ts) — a higher-priority extension whose `clipboardTextSerializer` detects "slice begins with a table node" and returns the slice's plain-text content via `Fragment.textBetween(0, size, '\n', '\t')` (newline between rows, tab between cells — matches every spreadsheet/word-processor convention). Whole-table selections that include the header row fall through (`return null`) so tiptap-markdown's existing markdown-table serializer continues to render the proper `| key | value |` form for full-table copies.
 **Priority:** **High** — silently destructive: user expects "copy this cell value", clipboard ends up with the literal string `[table]`. Trips up the "select cell text → paste into terminal" workflow that's a primary use of vault tables.
 
 **Symptom.** Open a markdown file containing a table in the TipTap editor. Click into a cell (e.g. the value column). Select text within the cell with the mouse. ⌘C. Paste anywhere — the clipboard contains the string `[table]` (literally that 7-character string), not the selected cell text.
 
-**Hypothesis.** TipTap's Table extension serializes selections-spanning-the-table-node by emitting a placeholder string when copied as plain text. Likely the markdown serializer's `toPlainText` (or equivalent) is producing `[table]` as a fallback for the table node. The expected behavior is that an INTRA-CELL text selection should serialize to JUST the selected text (since the selection doesn't span the whole table); only a selection that selects the table NODE should yield the placeholder (or, ideally, a markdown table representation).
-
-**Likely fix area.** `renderer/components/editor/MarkdownEditor.tsx` — TipTap Table extension config + `Markdown.configure({ transformCopiedText: ... })`. Also check `tiptap-markdown`'s clipboard serializer for any custom toText behavior on Table nodes.
-
-**Reproduction.** Open `/tmp/duo-walk-vault/Index.md` (or any md with a table). Add a table:
+**Reproduction (use to validate the fix).** Open any md file with a table in the TipTap editor. Add or use:
 ```
 | key  | value |
 |------|-------|
 | foo  | hello |
 ```
-Click into "hello", select with double-click or shift-arrow, ⌘C, paste somewhere. Expected: "hello". Actual: "[table]".
+Click into "hello", select with double-click or shift-arrow, ⌘C, paste somewhere. Expected (post-fix): "hello". Pre-fix: "[table]".
 
-**Cross-ref.** Newly discovered 2026-05-08 pre-cut. Pairs with the broader markdown editor polish backlog (BUG-073 dash bullets, etc.).
+**Validation cases owed in the smoke walk.**
+- Intra-cell partial text selection → exact selected substring.
+- Whole-cell selection (triple-click) → cell text.
+- Multi-cell same-row selection → cells joined by `\t`.
+- Multi-row selection → rows joined by `\n`, cells by `\t`.
+- Whole-table selection (⌘A or click outside, drag through table) → markdown table form (existing tiptap-markdown serializer).
+
+**Cross-ref.** Discovered 2026-05-08 pre-cut. Pairs with the broader markdown editor polish backlog (BUG-073 dash bullets, etc.).
 
 ---
 
@@ -5954,6 +5957,39 @@ This is how Obsidian works by default — many users use cmd+click as the primar
 - Confirmation dialog — silent create (Obsidian default) or "Create `<Page Name>.md`?" prompt? Recommend silent + a toast/banner, matching Obsidian.
 
 **Cross-ref:** Filed alongside ENH-096 (the wikilink rendering + cmd+click resolver). The two pair naturally — this is the "no match" branch.
+
+---
+
+### ENH-115: Right-click terminal tab → "Reveal in navigator" (focus nav on tab's CWD)
+
+**Status:** 🆕 Filed 2026-05-09 (Sprint 12 P1 — landing alongside image v2 + BUG-108).
+**Priority:** **Medium** — small QoL bridge between the terminal column and the navigator. The terminal tab already knows its `cwd`; the navigator already knows how to navigate-to a path; today there's no gesture to connect them.
+**Filed:** 2026-05-09.
+
+**What's wanted.** Right-click any tab in the terminal tab strip → context menu with at least one entry: **"Reveal in navigator"** (working name). Clicking it calls `nav.actions.navigateTo(tab.cwd)` — same code path that `duo reveal` already uses — and surfaces the existing reveal chip so the user sees what just changed.
+
+The pattern matches macOS's "Reveal in Finder" affordance and Duo's existing `nav.onReveal` plumbing — this is the in-app sibling to the CLI's `duo reveal` verb.
+
+**Naming TBD.** Owner explicitly flagged the label as uncertain. Candidates:
+- **"Reveal in navigator"** — matches the existing "Reveal in Finder" verb pattern; concise. **Recommended.**
+- "Reveal project in navigator" — owner's first instinct; accurate when CWD is a project root, but verbose and "project" is overloaded.
+- "Show CWD in navigator" — explicit but jargon-y.
+- "Focus navigator here" — readable but doesn't reuse the established "Reveal" verb.
+
+Recommend "Reveal in navigator" for the v1 label; revisit during the smoke walk if it reads wrong in context.
+
+**Affected code (estimated, ~30min).**
+- `renderer/components/TabBar.tsx § Tab` — add `onContextMenu` to the tab button. Calls `window.electron.menu.popup({ items: [...], x, y })` with a single entry today, leaving room for additional verbs later (e.g. "Duplicate tab in this CWD", "Close all other tabs").
+- `renderer/components/TabBar.tsx § TabBarProps` — add `onRevealCwd?: (cwd: string) => void` callback so the wiring stays in App.tsx.
+- `renderer/App.tsx` — wire the prop to `nav.actions.navigateTo(cwd)` + `setRevealChip(cwd)` (mirrors the existing `nav.onReveal` handler at line ~1257).
+
+**No new IPC surface needed** — `window.electron.menu.popup` (BUG-105 / ENH-050) and `nav.actions.navigateTo` already exist.
+
+**Open questions for the smoke walk.**
+- Should the menu also offer "Open new terminal here" / "Duplicate tab"? **Defer** — v1 ships the single verb; expand only if the right-click gesture feels under-utilized.
+- Should the reveal chip differentiate "from CLI" vs "from terminal context-menu"? **No** — same source-of-truth, same chip.
+
+**Cross-ref:** Pairs with the existing `duo reveal <path>` CLI verb (Stage 10) and the `nav.onReveal` listener at [renderer/App.tsx:1257](renderer/App.tsx).
 
 ---
 

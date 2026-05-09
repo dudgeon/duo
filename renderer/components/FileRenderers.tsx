@@ -1,22 +1,9 @@
 // Stage 10 Phase 5 — small per-type renderers for the WorkingPane.
-// MarkdownPreview has its own file since it's heavier; this file groups the
-// lightweight glyphs (image / pdf / unknown).
+// PDF + unknown-type fallbacks live here. ImageView (ENH-111, Sprint
+// 12) graduated to its own file when it grew toolbar chrome.
 
 import { useState } from 'react'
 import type { WorkingTab } from '@shared/types'
-
-export function ImagePreview({ tab }: { tab: WorkingTab }) {
-  return (
-    <div className="flex-1 overflow-auto bg-surface-0 flex items-center justify-center p-8">
-      <img
-        src={'file://' + encodeURI(tab.path ?? '')}
-        alt={tab.title}
-        className="max-w-full max-h-full object-contain"
-        style={{ imageRendering: 'auto' }}
-      />
-    </div>
-  )
-}
 
 export function PdfPreview({ tab }: { tab: WorkingTab }) {
   // Electron's built-in Chromium ships a PDF viewer; <embed> with the

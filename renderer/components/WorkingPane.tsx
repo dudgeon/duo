@@ -12,7 +12,8 @@ import { AuxBrowserSlot } from './AuxBrowserSlot'
 import { MarkdownPreview } from './MarkdownPreview'
 import { MarkdownEditor } from './editor/MarkdownEditor'
 import { PageTab } from './Page/PageTab'
-import { ImagePreview, PdfPreview, UnknownFilePreview } from './FileRenderers'
+import { PdfPreview, UnknownFilePreview } from './FileRenderers'
+import { ImageView } from './ImageView'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { classifyFile } from './fileClassifier'
@@ -474,7 +475,7 @@ export function WorkingPane({
         />
       )
     }
-    if (tab.type === 'image') return <ImagePreview tab={asWorkingTab(tab)} />
+    if (tab.type === 'image') return <ImageView tab={asWorkingTab(tab)} />
     if (tab.type === 'pdf') return <PdfPreview tab={asWorkingTab(tab)} />
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }
