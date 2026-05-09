@@ -128,6 +128,13 @@ export interface FileWriteResult {
   mtimeMs: number
 }
 
+/** ENH-111 (Sprint 12) — payload for `files.stat`. Returned for
+ *  regular files; null when the path doesn't exist or stat throws. */
+export interface FileStatResult {
+  size: number
+  mtimeMs: number
+}
+
 export interface HtmlFileMeta {
   /** `<meta name="duo-open-in" content="...">` — declarative routing hint
    *  for HTML files. `browser` opens the file in a browser tab (file://
@@ -181,6 +188,10 @@ export interface ElectronFilesAPI {
    *  breadcrumb's resolution logic. Returns 'file' / 'folder' /
    *  null. Symlinks resolve through to the target. */
   kind: (path: string) => Promise<'file' | 'folder' | null>
+  /** ENH-111 (Sprint 12) — file size + mtime probe for the image
+   *  viewer chrome's "1440 × 900 · 312 KB" readout. Returns null
+   *  when the path doesn't exist or isn't a regular file. */
+  stat: (path: string) => Promise<FileStatResult | null>
   /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
    *  routing meta tags. Used by the file-open dispatcher to decide
    *  whether an .html file mounts as a browser tab or a canvas tab.
@@ -713,6 +724,12 @@ export interface ElectronDialogAPI {
 // `clipboard` module which has no gesture requirement.
 export interface ElectronClipboardAPI {
   writeText: (text: string) => Promise<void>
+  /** ENH-111 (Sprint 12) — copy an image file to the system
+   *  clipboard. Reads the file in main via `nativeImage.createFromPath`
+   *  and writes via Electron's `clipboard.writeImage`. Returns false
+   *  when the path doesn't decode as an image (createFromPath returns
+   *  an empty native image — we detect via `isEmpty()`). */
+  writeImage: (path: string) => Promise<boolean>
 }
 
 // Stage 21c — session state restored across Duo relaunches.

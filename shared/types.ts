@@ -1093,6 +1093,10 @@ export const IPC = {
   // Stage 26 PR 3 item 8 — path-kind probe for the editable
   // breadcrumb's resolution logic.
   FILES_KIND: 'files:kind',
+  // ENH-111 (Sprint 12) — file-size + mtime probe for the image
+  // viewer chrome's "1440 × 900 · 312 KB" readout. Cheaper than
+  // FILES_READ (no payload transfer).
+  FILES_STAT: 'files:stat',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
@@ -1167,6 +1171,14 @@ export const IPC = {
   // `clipboard` module which has no gesture requirement. Used by every
   // "Copy path" / "Copy URL" affordance reachable from a context menu.
   CLIPBOARD_WRITE_TEXT: 'clipboard:write-text',
+  // ENH-111 (Sprint 12) — image-to-clipboard for the image viewer's
+  // "Copy image" toolbar action and right-click "Copy image". The
+  // renderer can't write image data to the clipboard reliably from
+  // a JS-only path (`navigator.clipboard.write` requires a user
+  // gesture and PNG-only `ClipboardItem` support); main's
+  // `nativeImage.createFromPath` + `clipboard.writeImage` covers
+  // every codec Electron can decode.
+  CLIPBOARD_WRITE_IMAGE: 'clipboard:write-image',
 
   // Stage 10 Phase 6 — navigator state + agent-facing commands
   NAV_STATE_PUSH: 'nav:state-push',      // renderer → main (cache state for CLI)

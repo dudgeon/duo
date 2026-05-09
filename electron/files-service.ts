@@ -15,7 +15,7 @@ import * as path from 'path'
 import { shell } from 'electron'
 import type { WebContents } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
-import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent, HtmlFileMeta } from '../shared/types'
+import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent, FileStatResult, HtmlFileMeta } from '../shared/types'
 
 // Prevent accidentally shipping 50MB of log file over IPC. Renderer should
 // use `openExternal` for payloads this big.
@@ -215,6 +215,19 @@ export class FilesService {
       if (st.isFile()) return 'file'
       if (st.isDirectory()) return 'folder'
       return null
+    } catch {
+      return null
+    }
+  }
+
+  /** ENH-111 (Sprint 12) — file size + mtime probe for the image
+   *  viewer chrome. Returns null when the path doesn't exist or
+   *  isn't a regular file (we don't surface directory size). */
+  async stat(absPath: string): Promise<FileStatResult | null> {
+    try {
+      const st = await fs.stat(absPath)
+      if (!st.isFile()) return null
+      return { size: st.size, mtimeMs: st.mtimeMs }
     } catch {
       return null
     }

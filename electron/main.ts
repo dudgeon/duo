@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell, webContents, clipboard } from 'electron'
+import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 // electron-context-menu v4 is ESM-only; main bundles as CJS, so we
 // load it via dynamic import inside app.whenReady. The lazy import
@@ -887,6 +887,11 @@ function setupIPC(): void {
     return filesService.kind(p)
   })
 
+  // ENH-111 (Sprint 12) — file-size + mtime probe for image viewer chrome.
+  ipcMain.handle(IPC.FILES_STAT, (_event, { path: p }: { path: string }) => {
+    return filesService.stat(p)
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()
@@ -945,6 +950,18 @@ function setupIPC(): void {
   ipcMain.handle(IPC.CLIPBOARD_WRITE_TEXT, (_event, text: string): void => {
     if (typeof text !== 'string') return
     clipboard.writeText(text)
+  })
+
+  // ENH-111 (Sprint 12) — copy an image file to the system clipboard.
+  // Loads via `nativeImage.createFromPath` (handles every codec
+  // Electron can decode: png/jpg/gif/webp/bmp/ico). Returns false
+  // when the path doesn't decode — caller can surface a toast.
+  ipcMain.handle(IPC.CLIPBOARD_WRITE_IMAGE, (_event, p: string): boolean => {
+    if (typeof p !== 'string' || !p) return false
+    const img = nativeImage.createFromPath(p)
+    if (img.isEmpty()) return false
+    clipboard.writeImage(img)
+    return true
   })
 
   ipcMain.handle(IPC.DIALOG_CONFIRM, async (_event, req: import('../shared/types').DialogConfirmRequest): Promise<import('../shared/types').DialogConfirmResult> => {

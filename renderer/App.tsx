@@ -2643,6 +2643,13 @@ export function App() {
                   // from titlebar into the new-tab cluster.
                   isTerminalCollapsed={isTerminalCollapsed}
                   onToggleTerminalCollapsed={toggleCollapseTerminal}
+                  // ENH-115 (Sprint 12) — right-click → "Reveal in
+                  // navigator" reuses the same nav navigateTo + chip
+                  // path that `duo reveal <path>` triggers.
+                  onRevealCwd={(cwd) => {
+                    nav.actions.navigateTo(cwd)
+                    setRevealChip(cwd)
+                  }}
                 />
                 <div className="flex-1 overflow-hidden">
                   <TerminalPane

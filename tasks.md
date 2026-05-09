@@ -5957,6 +5957,39 @@ This is how Obsidian works by default — many users use cmd+click as the primar
 
 ---
 
+### ENH-115: Right-click terminal tab → "Reveal in navigator" (focus nav on tab's CWD)
+
+**Status:** 🆕 Filed 2026-05-09 (Sprint 12 P1 — landing alongside image v2 + BUG-108).
+**Priority:** **Medium** — small QoL bridge between the terminal column and the navigator. The terminal tab already knows its `cwd`; the navigator already knows how to navigate-to a path; today there's no gesture to connect them.
+**Filed:** 2026-05-09.
+
+**What's wanted.** Right-click any tab in the terminal tab strip → context menu with at least one entry: **"Reveal in navigator"** (working name). Clicking it calls `nav.actions.navigateTo(tab.cwd)` — same code path that `duo reveal` already uses — and surfaces the existing reveal chip so the user sees what just changed.
+
+The pattern matches macOS's "Reveal in Finder" affordance and Duo's existing `nav.onReveal` plumbing — this is the in-app sibling to the CLI's `duo reveal` verb.
+
+**Naming TBD.** Owner explicitly flagged the label as uncertain. Candidates:
+- **"Reveal in navigator"** — matches the existing "Reveal in Finder" verb pattern; concise. **Recommended.**
+- "Reveal project in navigator" — owner's first instinct; accurate when CWD is a project root, but verbose and "project" is overloaded.
+- "Show CWD in navigator" — explicit but jargon-y.
+- "Focus navigator here" — readable but doesn't reuse the established "Reveal" verb.
+
+Recommend "Reveal in navigator" for the v1 label; revisit during the smoke walk if it reads wrong in context.
+
+**Affected code (estimated, ~30min).**
+- `renderer/components/TabBar.tsx § Tab` — add `onContextMenu` to the tab button. Calls `window.electron.menu.popup({ items: [...], x, y })` with a single entry today, leaving room for additional verbs later (e.g. "Duplicate tab in this CWD", "Close all other tabs").
+- `renderer/components/TabBar.tsx § TabBarProps` — add `onRevealCwd?: (cwd: string) => void` callback so the wiring stays in App.tsx.
+- `renderer/App.tsx` — wire the prop to `nav.actions.navigateTo(cwd)` + `setRevealChip(cwd)` (mirrors the existing `nav.onReveal` handler at line ~1257).
+
+**No new IPC surface needed** — `window.electron.menu.popup` (BUG-105 / ENH-050) and `nav.actions.navigateTo` already exist.
+
+**Open questions for the smoke walk.**
+- Should the menu also offer "Open new terminal here" / "Duplicate tab"? **Defer** — v1 ships the single verb; expand only if the right-click gesture feels under-utilized.
+- Should the reveal chip differentiate "from CLI" vs "from terminal context-menu"? **No** — same source-of-truth, same chip.
+
+**Cross-ref:** Pairs with the existing `duo reveal <path>` CLI verb (Stage 10) and the `nav.onReveal` listener at [renderer/App.tsx:1257](renderer/App.tsx).
+
+---
+
 ### BUG-109: ⌘T new browser tab — caret not in URL bar (regression, surfaced 2026-05-07 walk-1)
 
 **Status:** ✅ **Shipped Sprint 9 (2026-05-07).** Walk-3 user-verified PASS. Walk-1 fix landed `window.electron.keyboard.reclaimFocus()` BEFORE the rAF chain in newBrowserTab — pulls OS focus from the WCV to the renderer so by the time the URL input's `.focus()` fires, the renderer owns OS focus and the caret renders blue/active. Owner walk-3: "[PASS]."

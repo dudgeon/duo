@@ -31,13 +31,25 @@ cut fires.
   serialize to JUST the selected text; only whole-node selections
   yield the markdown-table representation.
 
+### P1 — ENH-115 terminal-tab "Reveal in navigator"
+- **ENH-115** — right-click on a terminal tab → context-menu entry
+  "Reveal in navigator" (label TBD; owner flagged uncertainty —
+  recommend matching the macOS "Reveal in Finder" verb pattern).
+  Reuses `window.electron.menu.popup` (no new IPC) + the existing
+  `nav.actions.navigateTo` + reveal-chip flow from the CLI's
+  `duo reveal` plumbing. ~30min change in `TabBar.tsx` +
+  `App.tsx` wiring. Filed mid-sprint 2026-05-09 per owner.
+
 ### Sequencing
 1. **Image v2 first** — well-scoped, single-component refactor of the
    existing image tab. Lower-risk than BUG-108 (which involves
    TipTap clipboard serialization, more architectural).
 2. **BUG-108 second** — surgical fix in TipTap Table extension config
    + clipboard serializer override.
-3. **Cut v0.6.10** — once both land + smoke walk passes.
+3. **ENH-115 third** — small, isolated UI add in the terminal tab
+   strip. Lands after image v2 is verified so the smoke walk can
+   batch both.
+4. **Cut v0.6.10** — once all three land + smoke walk passes.
 
 ### Deferred to Sprint 13+
 - **JSON viewer (ENH-110)** — research doc landed; pull in once
