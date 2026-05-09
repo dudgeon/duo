@@ -21,7 +21,58 @@
 
 ## Pending — not yet cut
 
-(Empty — v0.6.9 cut 2026-05-07. The next cut accumulates here.)
+> **Sprint 10 + Sprint 11 work + Sprint 12 image v2 + BUG-108.** Owner
+> directive 2026-05-08: *"don't cut yet; I want to address image
+> handling (should be in the roadmap now) and one more newly
+> discovered bug before cutting: copying cell text from a table in
+> the markdown editor just copies '[table]' to the clipboard."*
+>
+> Cut accumulates as **v0.6.10** when image v2 + BUG-108 land.
+
+### Pending v0.6.10 — Save clarity + Obsidian autocomplete
+
+Two sprints in one cut. Sprint 10 consolidated the save UX; Sprint 11
+closed the wikilink half-feature with a TipTap-suggestion-backed
+autocomplete. Sprint 12 (still in flight as of 2026-05-08) adds image
+v2 + BUG-108 fix.
+
+**Why this cut lands here.** v0.6.9 shipped wikilink rendering +
+cmd+click navigation but typing wikilinks was hunt-and-peck. This
+release closes that gap with the `[[` and `@` popovers, plus `⌘O`
+for vault-wide search. Side-benefit: the file-changed-on-disk false-
+positive (BUG-104/107 — recurring across walks for several sprints)
+finally got root-caused and fixed (the serializer mutates trailing
+whitespace, then the pre-save check compared raw strings).
+
+**Three load-bearing design decisions.**
+1. **One TipTap Suggestion primitive backs all three autocomplete
+   features.** Wikilink, `@`-mention, and `⌘O` quick switcher share
+   `vaultIndex.ts` (the fuzzy-match source) plus `SuggestionPopover.tsx`
+   (the rendering). Three features, one architectural piece.
+2. **`@` inserts canonical `[[wikilink]]`.** Vault round-trip is
+   unified — the same file content reads identically regardless of
+   which trigger produced the link. Obsidian-compat first.
+3. **SaveControl owns the autosave toggle.** Hover-reveal next to
+   the pill, no separate View menu entry, no per-tab override. The
+   control owns the save concept end-to-end.
+
+**Skill rule shipped:** CLAUDE.md § 7c + smoke-walk skill § 5b —
+agent must verify clean app state before every smoke-walk handoff.
+Encoded after a walk-1 violation where a PluginKey collision crashed
+the editor under an otherwise-healthy smoke-walk page.
+
+**What this is and isn't.** This release is the "wikilinks reach
+completeness" moment — typing them is no longer hunt-and-peck. It
+is NOT yet the backlinks panel or graph view (Sprint 13+). It also
+doesn't ship the JSON viewer (research doc landed; Sprint 13 anchor
+candidate now that image v2 + BUG-108 took the Sprint 12 slot).
+
+**Stats so far:** 17 commits since v0.6.9. 352 tests passing (+54
+from sprint start). Typecheck clean. Sprint 12 adds two more atoms
+before the cut fires.
+
+See `CHANGELOG.md § [Unreleased]` for the full Added/Fixed/Changed
+inventory.
 
 ---
 

@@ -1,11 +1,64 @@
-# Active sprint state — Sprint 11 (v0.6.11, committed 2026-05-07 evening)
+# Active sprint state — Sprint 12 (v0.6.10 cut pending, image v2 + BUG-108 first)
+
+**Theme:** Image viewing chrome + the table-cell-copy paper cut.
+
+**Owner directive (2026-05-08 evening, post-walk-3):** *"don't cut yet;
+I want to address image handling (should be in the roadmap now) and
+one more newly discovered bug before cutting: copying cell text from
+a table in the markdown editor just copies '[table]' to the clipboard."*
+
+The cut-version proposal (drafted in chat, not yet applied) is held
+in `RELEASES.md § Pending`. Sprint 12 lands TWO additions before the
+cut fires.
+
+### P0 anchor — image viewer v2 (promoted from Sprint 13)
+- **ENH-111 (image v2)** — toolbar chrome around the existing image
+  tab. Zoom (+/−), fit-to-window, 1:1 actual-size, dimensions readout
+  (e.g. `1440 × 900 · 312 KB`), copy-to-clipboard, pan via drag.
+  Right-click → Open in Preview.app / Reveal in Finder / Copy path
+  via the existing `clipboard:write-text` IPC. Hand-roll (~1d). PM
+  persona benefit: dragging a screenshot from Slack into Duo currently
+  shows a small image; with chrome, users can zoom into UI mockups
+  without leaving Duo. Image tab type already exists (renderer/components/
+  fileClassifier.ts § 'image'); this is renderer-side polish.
+
+### P0 anchor — BUG-108 table cell copy
+- **BUG-108** — copying selected text from a markdown-editor table
+  cell yields the literal string `"[table]"` instead of the cell's
+  text content. Likely TipTap Table + tiptap-markdown's clipboard
+  serializer emitting a placeholder for the whole table node when
+  ANY selection within the table is copied. Fix: intra-cell selections
+  serialize to JUST the selected text; only whole-node selections
+  yield the markdown-table representation.
+
+### Sequencing
+1. **Image v2 first** — well-scoped, single-component refactor of the
+   existing image tab. Lower-risk than BUG-108 (which involves
+   TipTap clipboard serialization, more architectural).
+2. **BUG-108 second** — surgical fix in TipTap Table extension config
+   + clipboard serializer override.
+3. **Cut v0.6.10** — once both land + smoke walk passes.
+
+### Deferred to Sprint 13+
+- **JSON viewer (ENH-110)** — research doc landed; pull in once
+  Sprint 12 closes.
+- **CSV / TSV** (ENH-111 cluster) — pairs with JSON.
+- **YAML / Mermaid** — Sprint 13 content fidelity.
+
+---
+
+# Sprint 11 (v0.6.10 work, committed 2026-05-07 → 2026-05-08)
 
 **Theme:** Obsidian autocomplete + split-view rough edges.
 
 **Owner directive (2026-05-07 evening):** *"roll straight into Sprint 11
 — will walk in the morning; no need to cut if your work is committed."*
-Sprint 10 v0.6.10 walk-2 stays open in Duo for the morning walk; cut
-deferred until walk-2 PASSes. Sprint 11 starts now in autonomous mode.
+
+> **Status update 2026-05-08:** All Sprint 11 P0 + P1 + carry-overs
+> landed across walks 1–3. 4/6 walk-3 PASS; 2 walk-3 FAILs (⌘O focus
+> + BUG-107 file-changed dialog) fixed in walk-3 commits and verified
+> live via computer-use. Owner deferred cut pending image v2 + BUG-108
+> additions (see Sprint 12 above).
 
 ### P0 anchor — TipTap Suggestion primitive shared across three features
 - **ENH-096 B.2** — wikilink autocomplete on `[[`. Type `[[fo`, popup

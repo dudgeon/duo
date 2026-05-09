@@ -5656,15 +5656,17 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### ENH-111: Data primitives umbrella — image v2, CSV table, YAML, Mermaid (PM persona cluster)
 
-**Status:** ⬜ DRAFT — clustered roadmap doc landed; owner sign-off needed before scoping individual sprint anchors.
+**Status:** ⬜ DRAFT — clustered roadmap doc landed; **image v2 promoted to Sprint 12 P0 anchor (owner directive 2026-05-08, pre-cut)** alongside BUG-108 (table-cell-copy).
 **Priority:** **Medium** — most items in the cluster are S/M effort; the cluster is what earns the win for the PM persona.
 
 **Research doc.** [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) §3 — primitive × use-case × effort matrix.
 
-**Cluster contents (recommended):**
-- **CSV / TSV** (Sprint 12 P1 — pairs with JSON anchor): sortable table, column-type inference, summary stats. `papaparse` + TanStack Table. ~5d.
-- **YAML** (Sprint 12 P2): reuse the JSON tab kind with a `format` discriminator. ~1d.
-- **Image v2** (Sprint 13 P1): toolbar chrome around existing `<img>` base — zoom/pan/fit/dimensions/copy. ~1d.
+**Cluster sequencing (revised 2026-05-08 per owner pull):**
+- **Image v2** (Sprint 12 P0 — promoted from Sprint 13 by owner): toolbar chrome around existing `<img>` base — zoom / pan / fit-to-window / 1:1 actual-size / dimensions readout / copy-to-clipboard. ~1d. PM persona benefit: dragging a screenshot from Slack into Duo currently shows a small image; with proper chrome, users can zoom into UI mockups without leaving Duo. Image tab type already exists (`renderer/components/fileClassifier.ts` § `'image'` case); this is renderer-side polish.
+- **BUG-108 table-cell-copy** (Sprint 12 P0 — newly discovered 2026-05-08): clipboard gets literal `"[table]"` string instead of selected cell text. See BUG-108 entry below for symptom + reproduction. Pairs with image v2 because both are "fix what users actually do daily" Sprint 12 work.
+- **JSON tier-3 viewer (ENH-110)** (Sprint 12 P1 — was P0 anchor in earlier sprint plan): `@uiw/react-json-view` as new `kind: 'json'` tab type. ~3d.
+- **CSV / TSV** (Sprint 12 P2 — defer if Sprint 12 fills with image + BUG-108 + JSON): sortable table, column-type inference, summary stats. `papaparse` + TanStack Table. ~5d.
+- **YAML** (Sprint 13 P1): reuse the JSON tab kind with a `format` discriminator. ~1d.
 - **Mermaid** (Sprint 13 P0, paired with Obsidian content fidelity): TipTap node extension inside the markdown editor. ~2d.
 
 **Cluster non-contents (skip / defer):**
@@ -5689,6 +5691,29 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 - The vault detection should reuse the existing `findVaultRoot` helper from App.tsx (extract to a shared module or pass context down).
 
 **Cross-ref:** Pairs with ENH-096 (wikilinks tier A) + ENH-108 (wikilink-create-on-cmd+click). Filed during Sprint 10 walk-1 OTHER NOTES.
+
+---
+
+### BUG-108: Copying cell text from a markdown-editor table copies "[table]" instead
+
+**Status:** 🆕 Filed 2026-05-08 (owner-discovered, pre-cut).
+**Priority:** **High** — silently destructive: user expects "copy this cell value", clipboard ends up with the literal string `[table]`. Trips up the "select cell text → paste into terminal" workflow that's a primary use of vault tables.
+
+**Symptom.** Open a markdown file containing a table in the TipTap editor. Click into a cell (e.g. the value column). Select text within the cell with the mouse. ⌘C. Paste anywhere — the clipboard contains the string `[table]` (literally that 7-character string), not the selected cell text.
+
+**Hypothesis.** TipTap's Table extension serializes selections-spanning-the-table-node by emitting a placeholder string when copied as plain text. Likely the markdown serializer's `toPlainText` (or equivalent) is producing `[table]` as a fallback for the table node. The expected behavior is that an INTRA-CELL text selection should serialize to JUST the selected text (since the selection doesn't span the whole table); only a selection that selects the table NODE should yield the placeholder (or, ideally, a markdown table representation).
+
+**Likely fix area.** `renderer/components/editor/MarkdownEditor.tsx` — TipTap Table extension config + `Markdown.configure({ transformCopiedText: ... })`. Also check `tiptap-markdown`'s clipboard serializer for any custom toText behavior on Table nodes.
+
+**Reproduction.** Open `/tmp/duo-walk-vault/Index.md` (or any md with a table). Add a table:
+```
+| key  | value |
+|------|-------|
+| foo  | hello |
+```
+Click into "hello", select with double-click or shift-arrow, ⌘C, paste somewhere. Expected: "hello". Actual: "[table]".
+
+**Cross-ref.** Newly discovered 2026-05-08 pre-cut. Pairs with the broader markdown editor polish backlog (BUG-073 dash bullets, etc.).
 
 ---
 

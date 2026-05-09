@@ -19,7 +19,44 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-(Empty — v0.6.9 cut 2026-05-07. Next cut accumulates here.)
+> Sprint 10 + Sprint 11 work. Cut deferred 2026-05-08 per owner pull —
+> image v2 (ENH-111 cluster) + BUG-108 (table cell copy `[table]` bug)
+> land before v0.6.10 fires. See `docs/RELEASES.md § Pending` for the
+> full release-notes draft and `docs/dev/active-sprint.md` for the
+> Sprint 12 work plan.
+
+### Added — Save UX (Sprint 10 anchor)
+- **SaveControl pill** (ENH-103 + ENH-104) — replaces the prior "Saved/Saving…" text + Save button with a single four-state pill (Saved · Save · Saving… · Failed-retry). Both editor and canvas surfaces. Hover-reveal autosave on/off toggle adjacent to the pill. Per-app localStorage preference, cross-tab sync via `duo:autosave-changed` CustomEvent.
+
+### Added — Obsidian autocomplete (Sprint 11 anchor)
+- **`[[` wikilink autocomplete** (ENH-096 B.2) — type `[[` in a vault file, popup shows fuzzy matches against vault files; ↑↓/Tab/Enter to insert as `[[Basename]]`. Custom `findWikilinkMatch` rejects mid-existing-`[[Foo]]` text to prevent false-positive triggers on caret moves.
+- **`@` filename autocomplete** (ENH-105) — same vault index source; inserts canonical `[[wikilink]]` form so vault round-trip is unified across triggers. Custom `findAtMentionMatch` rejects mid-word `@` (email-address protection).
+- **`⌘O` vault quick switcher** (ENH-096 B.4) — centered overlay sourcing the same vault index. Distinct from `⌘⇧A` (open-tabs only).
+- **`.obsidian/` directory visible** in the navigator (ENH-109) — always-visible dotdir, sibling to `.claude`.
+- **`[[Does Not Exist]]` cmd+click creates the file** (ENH-108) — Obsidian-parity. Path-bearing forms (`[[notes/Foo]]`) auto-mkdir the parent. 17 unit tests pin the create-path contract.
+
+### Fixed
+- **`duo open <https-url>` reliably surfaces the new browser tab** (BUG-101 browser half) — defensive `browser:focus-gained` push from socket-server now sends the proper `{tabId, slot}` payload (was `null` pre-fix, which the renderer's Phase-3c-shape handler dereferenced and threw on).
+- **`duo edit <non-existent-path>` mounts an empty editor** (BUG-106) — pre-flight existence check pre-creates the file with `files.write`'s mkdir-p semantics. Symmetric with `⌘N` flow.
+- **Right-click → Copy path actually fires** (BUG-105) — clipboard write routed through new `clipboard:write-text` main-process IPC. `navigator.clipboard.writeText` silently rejects inside native NSMenu callbacks; this works around it. Also added Copy URL / Copy path entry on the aux-browser slot's right-click menu (was missing entirely).
+- **"File changed on disk" false-positive on first edit** (BUG-104 + BUG-107) — root-caused: tiptap-markdown's serializer normalizes trailing whitespace on round-trip; `# Index\n\n` from disk parses then re-serializes as `# Index\n`. Pre-fix, save's pre-save reconciliation check compared raw strings and false-positived for any file with a trailing blank line. Fixed in BOTH save (line 681) AND watcher reconciliation (line 580) paths via trailing-whitespace normalization. Real conflicts (substantive content drift) still surface the banner.
+- **Right-click → Move to Split View** entry now reliably appears on tab right-click (BUG-091) — silently resolved by Phase 3c plumbing; verified Sprint 11.
+- **`useAutosavePreference` no longer triggers React "set during render" warning** when toggling autosave with multiple editors mounted — read current value through ref + write outside the setState updater.
+- **Aux-browser tab right-click** now shows Copy URL / Copy path / Move back to main (was no menu at all pre-fix).
+
+### Changed
+- **Skill procedure docs** — CLAUDE.md § 7c + smoke-walk skill § 5b: agent must verify clean app state (no error overlay) before every smoke-walk handoff. Encoded after a walk-1 violation where a PluginKey collision crashed the editor under an otherwise-healthy smoke-walk page.
+- **`findVaultRoot` + `resolveWikilinkInVault` extracted** from `App.tsx` to `renderer/components/editor/wikilinkResolver.ts` so the autocomplete features share the vault detection. Plus a new `walkVaultFiles` bulk-collect helper for the autocomplete UI's ranking source.
+
+### Known issues
+- **Escape on `[[` / `@` autocomplete popover** has a portal-cleanup race (Sprint 12 candidate; multi-hour refactor to bypass `@tiptap/react`'s ReactRenderer for the popover). Workaround: type any char, click outside, or just Enter to insert.
+- **BUG-100** Send→Duo pill in aux browser pane — deferred (CdpBridge multi-attach refactor needed).
+- **BUG-093** split-view crash — still owner-blocked (needs live repro + console traces).
+
+### Deferred to Sprint 12+
+- **JSON viewer** (ENH-110) — research doc landed at `docs/research/data-primitives-canvas.html`.
+- **CSV / TSV** (ENH-111 cluster).
+- **Image v2 + BUG-108** — moved to Sprint 12 P0 anchors per owner directive 2026-05-08 pre-cut.
 
 ## [0.6.9] — 2026-05-07
 

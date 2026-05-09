@@ -18,6 +18,44 @@
 
 ---
 
+## 2026-05-08 (Sprint 10 + Sprint 11 implementation; v0.6.10 cut deferred) — SaveControl pill · vault autocomplete (`[[` + `@` + `⌘O`) · BUG-104/107 root-caused · 3 walks across two sprints · cut held for image v2 + BUG-108
+
+**Status: v0.6.10 cut deferred — Sprint 12 image v2 + BUG-108 land first.** Two sprints of work accumulated since v0.6.9 (Sprint 10 SaveControl + Sprint 11 vault autocomplete). All P0 + P1 + carry-overs landed and verified live via computer-use. Owner directive 2026-05-08 evening: *"don't cut yet; I want to address image handling (should be in the roadmap now) and one more newly discovered bug before cutting: copying cell text from a table in the markdown editor just copies '[table]' to the clipboard."* Cut paperwork drafted (CHANGELOG `[Unreleased]` + RELEASES.md `Pending`); Sprint 12 anchors image v2 + BUG-108.
+
+**Sprint 10 — SaveControl + carry-overs (committed 2026-05-07).** Owner-locked design via AUQ: pill button with four color/text states (Saved muted gray · Save bg-accent + white · Saving… disabled with spinner · Failed-retry red on muted bg). Hover-reveal autosave on/off toggle adjacent. Both editor + canvas surfaces. Per-app localStorage (`duo.autosave.v1`) + cross-tab sync via `duo:autosave-changed` CustomEvent. 8 unit tests pin priority order. Plus carry-overs: ENH-108 wikilink-create-on-cmd+click (17 unit tests for path-traversal defense), BUG-101 browser-routed half (defensive `browser:focus-gained` payload was `null`; sent proper `{tabId, slot}`), BUG-106 `duo edit <non-existent>` (pre-flight existence + mkdir-p), BUG-105 Copy path (added main-process `clipboard:write-text` IPC since `navigator.clipboard.writeText` silently rejects in NSMenu callbacks).
+
+**Sprint 11 — vault autocomplete (committed 2026-05-07 → 2026-05-08, 3 walks).** Three Obsidian-thread features sharing one TipTap Suggestion primitive: ENH-096 B.2 (`[[` autocomplete), ENH-105 (`@` mention, inserts canonical `[[wikilink]]`), ENH-096 B.4 (`⌘O` vault quick switcher overlay). Architectural pieces: `vaultIndex.ts` (12 unit tests), `SuggestionPopover` shared primitive, `suggestionMatchers.ts` (17 unit tests for custom `findWikilinkMatch` + `findAtMentionMatch` rejecting mid-word/`[[…]]` matches). Plus ENH-109 (`.obsidian/` visible in navigator).
+
+**Walks 1-3 unwound 5 successive bugs in the autocomplete stack:**
+1. **PluginKey crash** (walk-1) — both `WikilinkSuggestion` and `AtMention` used the default `'suggestion'` plugin key; ProseMirror rejected the second instance at MarkdownEditor mount → React error boundary caught the crash. Fix: explicit unique `WIKILINK_SUGGESTION_KEY` / `AT_MENTION_KEY`. Surfaced AFTER smoke-walk handoff (the walk page itself rendered fine; user opened a markdown file as walk step 1 and hit the boundary). **Encoded as CLAUDE.md § 7c + smoke-walk skill § 5b: agent must verify clean app state before every smoke-walk handoff** (computer-use screenshot OR exercise the walk's first failure-prone step via CLI).
+2. **`allowSpaces:true` triggering on existing doc text** (walk-2 v1) — popover rendered "No matches" at top-left of the window on document load because the default `findSuggestionMatch` greedily captured everything from any `@` or `[` in the doc to the caret. Fix: `allowSpaces:false`.
+3. **Default `findSuggestionMatch` couldn't express `[[`** (walk-2 v2) — `[[` is two chars; the second `[` is preceded by `[`, not in default `allowedPrefixes: [' ']`. Custom `findWikilinkMatch` + `findAtMentionMatch` in new `suggestionMatchers.ts`.
+4. **Popover persisted after Enter / Escape** (walk-2 → walk-3) — closure-scoped `dismissed` flag in render() lifecycle + visible-prop fallback + `queueMicrotask` destroy. Enter dismissal works cleanly; Escape has a known portal-cleanup race in `@tiptap/react`'s ReactRenderer + `createPortal` interaction (walk-3 documented as known-limitation; workarounds: type any char, click outside, or just Enter to insert).
+5. **⌘O Enter opened file but as "background pane"** (walk-3) — overlay's input lost focus on unmount; OS focus landed on `document.body` before `openFile`'s rAF chain. Fix: `keyboard.reclaimFocus()` after `openFileSmart` (mirrors BUG-103's ⌘T URL-bar fix).
+
+**BUG-104 + BUG-107 finally root-caused (walk-3).** The "file changed on disk" dialog had been recurring across walks for several sprints (BUG-104 filed Sprint 9 walk-3, BUG-107 filed Sprint 10 walk-1). Root cause: tiptap-markdown's serializer normalizes trailing whitespace on round-trip — `# Index\n\n` from disk parses then re-serializes as `# Index\n`. After file load, `lastSavedBodyRef` held the serializer's view; on first save attempt, the pre-save reconciliation check (line 681) read disk again (still `# Index\n\n`) and false-positived the comparison. Fix: trailing-whitespace normalization in BOTH save's pre-save check AND the watcher reconciliation (line 580). Real conflicts (substantive content drift) still surface the banner. Diagnostic log `[BUG-107 save-pre-conflict]` added for any future repros. Walk-3 user reported "no [BUG-085] trace in console" which was THE diagnostic clue — dialog wasn't firing from the watcher path, it was firing from save's pre-save check.
+
+**Owner directives during walks:**
+1. **AT-MENTION popover persistence** (walk-2 OTHER NOTES) — "the list of matching files does not disappear/persists after escape/enter (see screenshot)." Fixed by walk-3's dismissed-flag + visible-prop work.
+2. **⌘O Enter no-op** (walk-2) — "not a no op, but once I hit enter (step 3) the file opens but as a background pane; should bring focus to the new pane." Fixed by walk-3's reclaimFocus.
+3. **Image handling promotion** (post-walk-3) — owner pulled image v2 forward to Sprint 12 P0 anchor (was Sprint 13 P1 in earlier cluster).
+4. **BUG-108 newly-discovered** — table cell text copy yields `"[table]"` instead of cell text. Filed pre-cut; Sprint 12 P0.
+
+**Carry-overs to Sprint 12:**
+- **Image v2** (ENH-111 cluster) — Sprint 12 P0, owner-pulled-forward. Toolbar chrome around existing `<img>` base.
+- **BUG-108 table cell copy** — Sprint 12 P0. TipTap Table + tiptap-markdown clipboard serializer.
+- **JSON viewer** (ENH-110) — defer to Sprint 13.
+- **CSV / TSV** (ENH-111) — defer to Sprint 13.
+- **Escape popover dismissal** (Sprint 11 known limitation) — multi-hour refactor away from ReactRenderer; defer.
+- **BUG-100** Send→Duo pill in aux browser — defer (CdpBridge multi-attach refactor).
+- **BUG-093** split-view crash — still owner-blocked.
+
+**Stats:** 17 commits since v0.6.9. 352 tests passing (up from 298 at sprint start; +54 net: +12 vaultIndex + +17 wikilink-create + +17 suggestionMatchers + +8 SaveControl). Typecheck clean throughout.
+
+**What this entry does NOT cover** (since cut deferred): Sprint 12 image v2 + BUG-108 implementation. That'll be a follow-up entry tied to the v0.6.10 cut.
+
+---
+
 ## 2026-05-07 (Sprint 9 close-out) — v0.6.9 cut · wikilinks cmd+click closure · pane-jump chord set · duo edit reliability · workshop substrate · automated regression coverage · 3 walk rounds (one autonomous, two with owner)
 
 **Status: v0.6.9 cut.** Sprint 9 closed the v0.6.8 P0 carry-over (ENH-096 wikilinks cmd+click navigation) plus shipped a new chord vocabulary (⌘⇧L/⌘⇧;/⌘⇧') + `duo focus-pane` CLI parity + three layers of `duo edit` reliability bug + ⌘⇧⌫ delete-file chord + a new ⌘T URL-bar focus reclaim + the Distro Pack Builder Workshop scaffolding + automated test coverage for the long-recurring BUG-056 pill-gating regression.
