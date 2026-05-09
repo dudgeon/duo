@@ -1,15 +1,37 @@
-# Active sprint state — Sprint 12 (v0.6.10 cut pending, image v2 + BUG-108 first)
+# Active sprint state — Sprint 12 (v0.6.10 cut pending, image v2 + BUG-108 + ENH-115 ready for smoke walk)
 
-**Theme:** Image viewing chrome + the table-cell-copy paper cut.
+**Theme:** Image viewing chrome + the table-cell-copy paper cut + a
+small terminal-tab context-menu QoL.
 
 **Owner directive (2026-05-08 evening, post-walk-3):** *"don't cut yet;
 I want to address image handling (should be in the roadmap now) and
 one more newly discovered bug before cutting: copying cell text from
 a table in the markdown editor just copies '[table]' to the clipboard."*
+**Owner directive (2026-05-09):** *"add another feature (document it
+then add to sprint): right clicking on terminal tab should offer
+option to focus the navigator on that tab's CWD."* → ENH-115.
 
 The cut-version proposal (drafted in chat, not yet applied) is held
-in `RELEASES.md § Pending`. Sprint 12 lands TWO additions before the
-cut fires.
+in `RELEASES.md § Pending`. Sprint 12 lands THREE additions before
+the cut fires; all three landed 2026-05-09 — smoke walk owed before
+the cut.
+
+### Status (2026-05-09)
+- **ENH-111 (image v2):** ✅ committed. Toolbar + zoom + pan +
+  context menu + dimensions/size readout. New IPCs: `files.stat`,
+  `clipboard.writeImage`. Component lives at
+  `renderer/components/ImageView.tsx`.
+- **BUG-108 (table cell copy):** ✅ committed. Higher-priority
+  `clipboardTextSerializer` in
+  `renderer/components/editor/extensions/TableCellCopy.ts` returns
+  the slice's plain text when the slice begins with a table node;
+  defers (returns null) for whole-table copies so tiptap-markdown's
+  existing markdown-table serializer continues to render those.
+- **ENH-115 (terminal tab → Reveal in navigator):** ✅ committed
+  (batched with image v2). One context-menu entry on the terminal
+  tab strip, calls the existing `nav.actions.navigateTo` + reveal
+  chip. Working label: "Reveal in navigator" — revisit during
+  smoke walk if it reads wrong.
 
 ### P0 anchor — image viewer v2 (promoted from Sprint 13)
 - **ENH-111 (image v2)** — toolbar chrome around the existing image

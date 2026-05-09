@@ -30,6 +30,7 @@ import { useAutosavePreference } from './autosavePreference'
 import { buildTiptapEditorActions } from './tiptapEditorActions'
 import type { EditorActions } from './EditorActions'
 import { TableShortcuts } from './extensions/TableShortcuts'
+import { TableCellCopy } from './extensions/TableCellCopy'
 import { PersistentSelection } from './extensions/PersistentSelection'
 import { JustAdded } from './extensions/JustAdded'
 import { MarkdownPaste } from './extensions/MarkdownPaste'
@@ -306,6 +307,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       TableHeader,
       TableCell,
       TableShortcuts,
+      // BUG-108 (Sprint 12) — intercept clipboard text serialization
+      // for intra-table selections; without this, tiptap-markdown's
+      // serializer falls through to the HTMLNode "[table]" placeholder
+      // because slice.content always wraps cell selections in the
+      // table node. Higher priority than tiptap-markdown's
+      // markdownClipboard plugin so this hook wins for the table case
+      // and defers (returns null) otherwise.
+      TableCellCopy,
       PersistentSelection,
       JustAdded,
       CodeBlockLowlight.configure({ lowlight }),
