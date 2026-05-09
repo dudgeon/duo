@@ -22,7 +22,7 @@
 //   node .claude/skills/smoke-walk/generate.mjs <manifest.json> <output.html>
 
 import { readFileSync, writeFileSync, mkdirSync } from 'fs'
-import { dirname, resolve } from 'path'
+import { basename, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { generateWorksheet } from '../worksheet/generate.mjs'
 
@@ -31,6 +31,16 @@ if (!manifestPath || !outPath) {
   console.error('Usage: generate.mjs <manifest.json> <output.html>')
   process.exit(2)
 }
+
+// Walk identifier derived from the manifest filename (sans .json).
+// Used as the localStorage key suffix so two walks of the same
+// version (e.g. Sprint 11 wikilink walk + Sprint 12 image-viewer
+// walk both targeting v0.6.10) don't collide on
+// `worksheet:smoke-walk-v0.6.10` and silently overwrite each other.
+// Pre-fix the suffix was just `v${version}` — same version walks
+// crashed into each other and applyState() found no matching items
+// so the user's edits appeared to vanish.
+const walkSlug = basename(manifestPath, '.json')
 
 let manifest
 try {
@@ -97,7 +107,7 @@ if (pkg) {
 // the browser-tab strip — owner couldn't tell them apart.
 const worksheetManifest = {
   kind: 'smoke-walk',
-  name: `smoke-walk-v${version}`,
+  name: `smoke-walk-${walkSlug}`,
   version,
   date,
   title: typeof manifest.title === 'string' && manifest.title.length > 0

@@ -12,10 +12,12 @@
 
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import * as crypto from 'crypto'
 import { shell } from 'electron'
 import type { WebContents } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
 import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent, FileStatResult, HtmlFileMeta } from '../shared/types'
+import type { FileSaveImageBesideResult } from '../shared/host-api'
 
 // Prevent accidentally shipping 50MB of log file over IPC. Renderer should
 // use `openExternal` for payloads this big.
@@ -231,6 +233,29 @@ export class FilesService {
     } catch {
       return null
     }
+  }
+
+  /** ENH-108 (Sprint 12) — paste-image: write a clipboard image
+   *  alongside the active doc with a generated filename. Filename
+   *  format `image-<YYYYMMDD-HHMMSS>-<4charhash>.<ext>` is sortable
+   *  (timestamp prefix groups same-session pastes together) and
+   *  collision-free even on rapid successive pastes (4-char hex
+   *  random suffix → 65k options). Returns absolute + relative
+   *  paths so the caller can serialize `![](relPath)` into the doc
+   *  while the image stays adjacent on disk. */
+  async saveImageBeside(activeDocPath: string, bytes: Uint8Array, ext: string): Promise<FileSaveImageBesideResult> {
+    const parentDir = path.dirname(activeDocPath)
+    const safeExt = ext.replace(/^\./, '').toLowerCase()
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
+    const hash = crypto.randomBytes(2).toString('hex')
+    const filename = `image-${stamp}-${hash}.${safeExt}`
+    const absPath = path.join(parentDir, filename)
+    await fs.mkdir(parentDir, { recursive: true })
+    await fs.writeFile(absPath, bytes)
+    const st = await fs.stat(absPath)
+    return { absPath, relPath: filename, size: st.size }
   }
 
   async openExternal(absPath: string): Promise<void> {

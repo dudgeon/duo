@@ -102,6 +102,23 @@ interface Props {
 
 const AUTOSAVE_DEBOUNCE_MS = 800
 
+// ENH-108 (Sprint 12) — paste-image / drop-image MIME → file-extension
+// map. Entries cover what the standard browser clipboard yields when
+// the user copies an image from a screenshot tool, browser context
+// menu, or another app. Anything not in the map falls through to 'png'
+// (the most common screenshot format) rather than producing an
+// extension-less file.
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/bmp': 'bmp',
+  'image/tiff': 'tiff'
+}
+
 // Module-scope lowlight instance — cheap to construct, shared across tabs.
 const lowlight = createLowlight(common)
 
@@ -427,6 +444,95 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           return true
         }
         return false
+      },
+      // ENH-108 (Sprint 12) — paste-image. ⌘V (or drag-drop, see
+      // handleDrop below) with image data on the clipboard saves the
+      // image alongside the active doc and inserts a markdown link at
+      // caret. Closes the workflow gap: today users save-to-Desktop →
+      // drag-to-Finder → markdown-link-by-hand. After: ⌘V "just works."
+      // Untitled files (isNew) bail with a console warning — saving an
+      // image beside a non-existent doc has no obvious target.
+      handlePaste: (_view, event) => {
+        const cb = event.clipboardData
+        if (!cb) return false
+        const items = Array.from(cb.items)
+        const imgItem = items.find(it => it.kind === 'file' && it.type.startsWith('image/'))
+        if (!imgItem) return false  // no image — defer to other handlers
+        const file = imgItem.getAsFile()
+        if (!file) return false
+        if (isNew) {
+          console.warn('[ENH-108] paste-image into untitled doc — save the doc first so we know where to put the image')
+          return false
+        }
+        event.preventDefault()
+        const ext = MIME_TO_EXT[file.type] ?? 'png'
+        void file.arrayBuffer().then(async (buf) => {
+          try {
+            const result = await window.electron.files.saveImageBeside(path, new Uint8Array(buf), ext)
+            // Insert at current selection. TipTap's Image extension
+            // renders ![](src) on serialize; tiptap-markdown round-
+            // trips it as a standard markdown image.
+            // ENH-108 walk-rev3 v2 — insert a BLOB URL built from the
+            // paste/drop bytes. duo-asset:// custom protocol returned
+            // 200/correct-bytes (verified via fetch from a file:// page)
+            // but rendering in the renderer at http://localhost:5173/
+            // was silently blocked by Chromium even with corsEnabled +
+            // CORS headers. Blob URLs are same-origin to the renderer
+            // so they render reliably.
+            //
+            // Trade-off: the markdown source stores `![](blob:...)`
+            // which is renderer-process-scoped — on document reload the
+            // blob URL is dead and the image is broken. Acceptable for
+            // v1 (the workflow ask was "paste and see the image") with
+            // FOLLOWUP-013 + a new v2 plan to ship a custom Image
+            // NodeView that stores the abs path in the markdown and
+            // hydrates a blob URL via files.read at mount time.
+            const blobUrl = URL.createObjectURL(new Blob([buf], { type: file.type }))
+            editor?.chain().focus().setImage({ src: blobUrl }).run()
+          } catch (err) {
+            console.error('[ENH-108] saveImageBeside failed:', err)
+          }
+        })
+        return true
+      },
+      // ENH-108 (Sprint 12) — drag-drop image parity. Same handler as
+      // paste; just routes through dataTransfer instead of clipboardData.
+      handleDrop: (_view, event) => {
+        const dt = event.dataTransfer
+        if (!dt) return false
+        const file = Array.from(dt.files).find(f => f.type.startsWith('image/'))
+        if (!file) return false
+        if (isNew) {
+          console.warn('[ENH-108] drop-image into untitled doc — save the doc first')
+          return false
+        }
+        event.preventDefault()
+        const ext = MIME_TO_EXT[file.type] ?? 'png'
+        void file.arrayBuffer().then(async (buf) => {
+          try {
+            const result = await window.electron.files.saveImageBeside(path, new Uint8Array(buf), ext)
+            // ENH-108 walk-rev3 v2 — insert a BLOB URL built from the
+            // paste/drop bytes. duo-asset:// custom protocol returned
+            // 200/correct-bytes (verified via fetch from a file:// page)
+            // but rendering in the renderer at http://localhost:5173/
+            // was silently blocked by Chromium even with corsEnabled +
+            // CORS headers. Blob URLs are same-origin to the renderer
+            // so they render reliably.
+            //
+            // Trade-off: the markdown source stores `![](blob:...)`
+            // which is renderer-process-scoped — on document reload the
+            // blob URL is dead and the image is broken. Acceptable for
+            // v1 (the workflow ask was "paste and see the image") with
+            // FOLLOWUP-013 + a new v2 plan to ship a custom Image
+            // NodeView that stores the abs path in the markdown and
+            // hydrates a blob URL via files.read at mount time.
+            const blobUrl = URL.createObjectURL(new Blob([buf], { type: file.type }))
+            editor?.chain().focus().setImage({ src: blobUrl }).run()
+          } catch (err) {
+            console.error('[ENH-108] saveImageBeside failed:', err)
+          }
+        })
+        return true
       }
     },
     // Content is set after the async file read lands.
@@ -1655,6 +1761,35 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   dirtyRef.current = dirty
   const pendingWriteRef = useRef<DocWriteRequest | null>(null)
   pendingWriteRef.current = pendingWrite
+
+  // ENH-108 (Sprint 12) — `duo image insert <path>` handler. Mirrors
+  // the handlePaste flow: saveImageBeside (alongside the active doc),
+  // then insert blob URL at caret. v1 trade-off matches paste-image:
+  // markdown source carries `![](blob:...)` which doesn't survive
+  // doc reload — see FOLLOWUP-013 for the v2 plan.
+  useEffect(() => {
+    if (!editor || isNew) return
+    return window.electron.editor?.onImageInsert(async (req) => {
+      try {
+        const result = await window.electron.files.saveImageBeside(path, req.bytes, req.ext)
+        const mime = ({
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+          webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff'
+        } as Record<string, string>)[req.ext] ?? 'application/octet-stream'
+        const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(req.bytes)], { type: mime }))
+        const attrs: { src: string; alt?: string } = { src: blobUrl }
+        if (req.alt !== undefined) attrs.alt = req.alt
+        editor.chain().focus().setImage(attrs).run()
+        window.electron.editor.replyImageInsert({ reqId: req.reqId, ok: true, absPath: result.absPath })
+      } catch (err) {
+        window.electron.editor.replyImageInsert({
+          reqId: req.reqId,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [editor, path, isNew])
 
   useEffect(() => {
     if (!editor || isNew) return

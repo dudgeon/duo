@@ -3,7 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'" />
+    <!-- ENH-108 / ENH-111 walk-rev3 fix v3 — explicit img-src to allow
+         blob: (paste-image inline preview, ImageView's blob URL via
+         files.read), data: (lightweight inline icons), duo-asset:
+         (custom protocol kept as a fallback path), and file: (for
+         packaged-build paths where renderer is also at file://). The
+         pre-fix CSP omitted img-src, falling through to default-src
+         'self' which silently rejected blob: and duo-asset: image
+         loads. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: file: duo-asset:; media-src 'self' blob: data: file: duo-asset:" />
     <title>Duo</title>
   </head>
   <body class="overflow-hidden">

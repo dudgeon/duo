@@ -19,11 +19,27 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Sprint 10 + Sprint 11 work. Cut deferred 2026-05-08 per owner pull —
-> image v2 (ENH-111 cluster) + BUG-108 (table cell copy `[table]` bug)
-> land before v0.6.10 fires. See `docs/RELEASES.md § Pending` for the
-> full release-notes draft and `docs/dev/active-sprint.md` for the
-> Sprint 12 work plan.
+> Empty — v0.6.10 cut 2026-05-09. Sprint 13+ work accumulates here.
+
+## [0.6.10] — 2026-05-09
+
+Three sprints in one cut. Sprint 10 (SaveControl pill + autosave toggle) and Sprint 11 (Obsidian autocomplete cluster + BUG-104/107 root-cause) accumulated since v0.6.9; Sprint 12 was course-corrected mid-flight when the prior cloud agent shipped image VIEWER chrome (ENH-111) instead of paste-image (ENH-108, the actual ask) — local Claude shipped ENH-108 alongside before the cut fired. Both ship together.
+
+### Added — Image handling (Sprint 12)
+- **Image viewer v2** (ENH-111) — toolbar over the image area: zoom in/out (+/−, ⌘/⌃-wheel), click-toggle fit/manual, fit-to-window, 1:1 actual size, copy-image, dimensions + file-size readout (e.g. "1440 × 900 · 312 KB"). Right-click → native context menu (Copy image / Copy path / Open in default app / Reveal in Finder / Fit / 1:1). Drag-pan when zoomed past container.
+- **Paste-image into markdown editor** (ENH-108) — ⌘V or drag-drop an image into the editor saves it alongside the active doc as `image-<YYYYMMDD-HHMMSS>-<hash>.<ext>` and inserts inline. Supported: png, jpg, jpeg, gif, webp, svg, bmp, tiff. Untitled buffers warn-and-decline.
+- **Paste-image into canvas** (ENH-108 mirror) — same flow on the HTML canvas surface (PageTab). Editor-canvas parity per CLAUDE.md § 4.
+- **`duo image insert <path> [--alt "…"]`** (ENH-108 CLI) — agent-driven image insertion: source bytes copied alongside the active doc, inserted at caret. Full plumbing landed (types / preload / main dispatch / socket-server / CLI verb / agents/skill cheat-sheets / CLI-COVERAGE). v1 markdown-editor target only — canvas CLI parity deferred to ENH-125.
+
+### Added — Sprint 12 polish
+- **Terminal-tab right-click → Reveal in navigator** (ENH-115) — context-menu entry on terminal tabs jumps the file tree to that tab's CWD and surfaces the reveal chip. Reuses the existing `duo reveal` flow (no new IPC).
+- **Renderer console forwarder** (ENH-121) — in dev mode, every `console.log/warn/error` from the renderer prints to dev stdout prefixed `[renderer:level] (file:line)`. Filters Vite + Electron-security noise. Dev-only (`!app.isPackaged`). Single highest-leverage observability addition; would have saved ~90 min on Sprint 12 walk-rev3 image-render diagnosis.
+
+### Fixed — Sprint 12
+- **Markdown table-cell copy yields the cell text, not `[table]`** (BUG-108) — new `TableCellCopy` extension at priority 1000 intercepts clipboard text serialization for slices that begin with a table node, returning plain text via `Fragment.textBetween('\n', '\t')`. Whole-table selections fall through to tiptap-markdown's existing markdown-table serializer. Pre-fix: ProseMirror's `Selection.content()` wraps intra-cell text in `<table><tr><td>`; tiptap-markdown's table serializer rejected the wrapped slice; fallback wrote the literal `[table]` placeholder.
+- **Image rendering in the renderer** (ENH-111 + ENH-108 walk-rev3 fix) — three layered fixes after walk-rev2/3 broken-icon symptoms: (1) registered `duo-asset://` custom protocol on default + `persist:duo-browser` sessions for `file://` cross-origin loads, (2) updated CSP `img-src` to allow `blob: data: file: duo-asset:`, (3) ImageView + paste-image insert switched to blob URLs via `files.read` (sidesteps custom-scheme cross-origin block for images). Final root cause was actually a layout misread (split-view squished image-viewer pane); infrastructure fixes landed regardless as insurance.
+- **Smoke-walk localStorage key collides across walks of the same version** (BUG-110) — `.claude/skills/smoke-walk/generate.mjs` now keys by manifest filename (`basename`) instead of bare version. Sprint 11's wikilink walk + Sprint 12's image-viewer walk no longer fight for `worksheet:smoke-walk-v0.6.10`; user's typed walk notes no longer silently overwritten by stale state from a prior walk on the same version base.
+- **Wrong feature shipped catch** (BUG-111) — closed by shipping ENH-108 paste-image (the actual ask) alongside the already-shipped ENH-111 image viewer (the misread). Owner-flagged mid-sprint; corrected before cut.
 
 ### Added — Save UX (Sprint 10 anchor)
 - **SaveControl pill** (ENH-103 + ENH-104) — replaces the prior "Saved/Saving…" text + Save button with a single four-state pill (Saved · Save · Saving… · Failed-retry). Both editor and canvas surfaces. Hover-reveal autosave on/off toggle adjacent to the pill. Per-app localStorage preference, cross-tab sync via `duo:autosave-changed` CustomEvent.
@@ -48,15 +64,22 @@ notarized distribution (Stage 21).
 - **Skill procedure docs** — CLAUDE.md § 7c + smoke-walk skill § 5b: agent must verify clean app state (no error overlay) before every smoke-walk handoff. Encoded after a walk-1 violation where a PluginKey collision crashed the editor under an otherwise-healthy smoke-walk page.
 - **`findVaultRoot` + `resolveWikilinkInVault` extracted** from `App.tsx` to `renderer/components/editor/wikilinkResolver.ts` so the autocomplete features share the vault detection. Plus a new `walkVaultFiles` bulk-collect helper for the autocomplete UI's ranking source.
 
-### Known issues
-- **Escape on `[[` / `@` autocomplete popover** has a portal-cleanup race (Sprint 12 candidate; multi-hour refactor to bypass `@tiptap/react`'s ReactRenderer for the popover). Workaround: type any char, click outside, or just Enter to insert.
+### Known issues / v1 trade-offs
+- **Paste-image markdown source carries `![](blob:...)` URLs** (FOLLOWUP-013) — non-portable across reload. v1 ships unblock; v2 plan: custom Image NodeView storing relative paths and resolving via `files.read` at mount time.
+- **Canvas paste-image markdown source same blob-URL trade-off** — same v2 plan applies.
+- **`duo edit` doesn't auto-focus the opened tab** (BUG-101) — workaround: click the tab manually after open, or use the file navigator. Fix queued.
+- **Escape on `[[` / `@` autocomplete popover** has a portal-cleanup race. Workaround: type any char, click outside, or just Enter to insert.
 - **BUG-100** Send→Duo pill in aux browser pane — deferred (CdpBridge multi-attach refactor needed).
 - **BUG-093** split-view crash — still owner-blocked (needs live repro + console traces).
 
-### Deferred to Sprint 12+
-- **JSON viewer** (ENH-110) — research doc landed at `docs/research/data-primitives-canvas.html`.
-- **CSV / TSV** (ENH-111 cluster).
-- **Image v2 + BUG-108** — moved to Sprint 12 P0 anchors per owner directive 2026-05-08 pre-cut.
+### Deferred to Sprint 13+
+- **Canvas `duo image insert` CLI parity** (ENH-125) — v0.6.10 markdown-only; canvas surface uses paste / drop today.
+- **Image-handling cluster polish** — image-in-selection tint (ENH-119), copy-paste-out preserves image bytes (ENH-120), image-type discussion (ENH-118).
+- **View-source for markdown / HTML** (ENH-117).
+- **Renderer DevTools tooling** — `duo dom <selector>` (ENH-122), `duo devtools` (ENH-123), `duo layout` (ENH-124). Filed after Sprint 12 walk-rev3 retro exposed the renderer-debugging blind spot.
+- **`.claude/skills/smoke-walk/SKILL.md` trim** (ENH-116) — file is 600+ lines, runtime truncation risk.
+- **JSON viewer** (ENH-110) — research doc at `docs/research/data-primitives-canvas.html`.
+- **CSV / TSV** (ENH-111 cluster — separate from the now-shipped image viewer).
 
 ## [0.6.9] — 2026-05-07
 

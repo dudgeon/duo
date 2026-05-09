@@ -231,6 +231,10 @@ const api: ElectronAPI = {
     // ENH-111 (Sprint 12) — file size + mtime for image viewer chrome.
     stat: (p) => ipcRenderer.invoke(IPC.FILES_STAT, { path: p }),
 
+    // ENH-108 (Sprint 12) — paste-image: save bytes beside active doc.
+    saveImageBeside: (activeDocPath, bytes, ext) =>
+      ipcRenderer.invoke(IPC.FILES_SAVE_IMAGE_BESIDE, { activeDocPath, bytes, ext }),
+
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
       // the caller's callback. The id lives in the renderer; main process
@@ -296,6 +300,17 @@ const api: ElectronAPI = {
 
     replyDocWrite: (result: DocWriteResult) => {
       ipcRenderer.send(IPC.EDITOR_DOC_WRITE_RESULT, result)
+    },
+
+    // ENH-108 — `duo image insert` request/reply mirror.
+    onImageInsert: (cb: (req: import('../shared/types').ImageInsertRequest) => void) => {
+      const handler = (_: IpcRendererEvent, req: import('../shared/types').ImageInsertRequest) => cb(req)
+      ipcRenderer.on(IPC.EDITOR_IMAGE_INSERT, handler)
+      return () => ipcRenderer.removeListener(IPC.EDITOR_IMAGE_INSERT, handler)
+    },
+
+    replyImageInsert: (result: import('../shared/types').ImageInsertResult) => {
+      ipcRenderer.send(IPC.EDITOR_IMAGE_INSERT_RESULT, result)
     },
 
     onDocRead: (cb) => {

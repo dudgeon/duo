@@ -71,6 +71,10 @@ export interface NavBridge {
   getCanvasSelection: () => PageSelectionSnapshot | null
   /** Stage 11 § D27 — apply a doc-write to the active editor. */
   docWrite: (req: Omit<DocWriteRequest, 'reqId'>) => Promise<DocWriteResult>
+  /** ENH-108 — insert an image into the active markdown editor.
+   *  Bytes are read from disk by the CLI/main process. Renderer
+   *  saves the image alongside the active doc + inserts at caret. */
+  imageInsert: (req: { bytes: Uint8Array; ext: string; alt?: string }) => Promise<import('../shared/types').ImageInsertResult>
   /** Read the live editor buffer (active or specified path). */
   docRead: (req: Omit<DocReadRequest, 'reqId'>) => Promise<DocReadResult>
   /** ENH-022 — agent-driven editor navigation (heading / line / anchor). */
@@ -664,6 +668,29 @@ export class SocketServer {
           }
           const path = args['path'] as string | undefined
           result = await this.nav.docWrite({ text, mode, path })
+          break
+        }
+        case 'image-insert': {
+          // ENH-108 — `duo image insert <source-path>` reads the source
+          // image from disk and asks the renderer to save it alongside
+          // the active markdown editor's doc + insert at caret. v1
+          // markdown only.
+          const sourcePath = args['path'] as string | undefined
+          const alt = args['alt'] as string | undefined
+          if (!sourcePath) throw new Error('image insert requires a path arg')
+          // Resolve via Node fs — same MAX cap as files.read.
+          const fs = await import('fs/promises')
+          const pathMod = await import('path')
+          const buf = await fs.readFile(sourcePath)
+          const extRaw = pathMod.extname(sourcePath).slice(1).toLowerCase()
+          if (!extRaw) throw new Error(`image insert: source path has no file extension: ${sourcePath}`)
+          const knownExt = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'tiff'].includes(extRaw)
+          if (!knownExt) {
+            throw new Error(`image insert: unsupported extension .${extRaw} (supported: png, jpg, jpeg, gif, webp, svg, bmp, tiff)`)
+          }
+          const reply = await this.nav.imageInsert({ bytes: new Uint8Array(buf), ext: extRaw, alt })
+          if (!reply.ok) throw new Error(reply.error ?? 'image insert failed')
+          result = { absPath: reply.absPath }
           break
         }
         case 'doc-read': {

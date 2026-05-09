@@ -356,7 +356,9 @@ verification cycle.
    IPC layer. (A crashed renderer with a live socket-server is
    possible in some edge cases; this catches the easy ones.)
 
-3. **Take responsibility for the FIRST failure-prone step the walk
+3. **Exercise the worksheet primitive itself first.** Toggle a radio + add a note + click Copy via `duo eval`, verify localStorage round-trip, verify clipboard via `pbpaste`, then `localStorage.removeItem(STORAGE_KEY); location.reload()` to clear test state. Catches localStorage key collisions (BUG-110, 2026-05-09), `navigator.clipboard.writeText` permission failures, secure-context drift between page types (`.png` returns `origin: 'null'`; `.html` returns `origin: 'file://'`).
+
+4. **Then exercise the FIRST failure-prone step the FEATURE walk
    exercises.** Don't hand off until you've personally exercised the
    code path the walk's first item exercises. Two paths:
 
@@ -375,7 +377,7 @@ verification cycle.
      succeeded — but you still can't see render errors past the
      ErrorBoundary catch, so move to step 4.
 
-4. **Explicit warning when verification is impossible.** If
+5. **Explicit warning when verification is impossible.** If
    computer-use is denied AND the walk's first step can't be
    exercised via the CLI (e.g. it requires a click or a keystroke),
    say so EXPLICITLY in the handoff message — first sentence, not
@@ -384,7 +386,7 @@ verification cycle.
    > "I couldn't verify the app's render state — please check
    > DevTools (Cmd+Opt+I) for any error overlay before walking."
 
-5. **Restart on uncertainty.** If you've made many changes since
+6. **Restart on uncertainty.** If you've made many changes since
    the last verified clean state and the dev session has been
    running the whole time, restart the dev (CLAUDE.md item 7a)
    before the smoke walk even when the surface checks pass. HMR

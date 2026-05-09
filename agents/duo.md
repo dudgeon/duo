@@ -167,6 +167,7 @@ empty.
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'page', path, text, html, anchorId, anchorPath, range, surrounding}` for the active page tab. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
 | `duo doc write [--replace-selection\|--replace-all]` | Apply text to active editor (stdin or `--text`) |
+| `duo image insert <path> [--alt "…"]` | ENH-108 (Sprint 12) — insert an image into the active markdown editor: source bytes read from disk, copied alongside the active doc as `image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`, inserted at caret. Supported extensions: png, jpg, jpeg, gif, webp, svg, bmp, tiff. v1 markdown-editor target only — for the canvas surface use clipboard paste / drag-drop until the canvas-CLI follow-up lands. |
 | `duo doc goto [<path>] --heading "X" \| --line N \| --anchor "Y"` | ENH-022 — scroll editor to a target. `--heading` markdown-only (case-insensitive substring). `--line` 1-indexed. `--anchor` = markdown heading slug OR canvas/HTML element id (`data-duo-id` first, then `id`). Returns `{ok, path, line?, anchor?}` |
 | `duo doc find <query> [<path>] [--case-sensitive]` | ENH-023 — search markdown editor's live buffer; returns `{ok, path, matches, first: {line, col}}`. v1 markdown only |
 | `duo theme [system\|light\|dark]` | Read or set theme |

@@ -240,6 +240,24 @@
   </div>
 </article>
 
+<article class="item" data-keys="paste image cmd v drag drop screenshot saveImageBeside enh-108 markdown editor canvas blob url png jpg gif webp svg duo image insert cli verb">
+  <div class="num">10</div>
+  <div>
+    <h3>Paste an image into a markdown doc or canvas (it just works)</h3>
+    <p class="why">⌘V or drag-drop an image into the markdown editor or HTML canvas — Duo saves it alongside the active doc as <code>image-&lt;YYYYMMDD-HHMMSS&gt;-&lt;hash&gt;.&lt;ext&gt;</code> and inserts it inline. Supported: PNG, JPG, GIF, WEBP, SVG, BMP, TIFF. Pre-v0.6.10 you had to save-to-Desktop → drag-to-Finder → markdown-link-by-hand. Untitled buffers warn-and-decline (save the doc first so we know where to put the image).</p>
+    <p class="how"><strong>UI</strong>⌘V (clipboard image) or drag from Finder. <strong>CLI</strong><code>duo image insert &lt;path&gt; [--alt "alt text"]</code> (markdown editor target only in v1; use clipboard / drag-drop for the canvas surface). <strong>v1 trade-off:</strong> markdown source carries <code>![](blob:...)</code> URLs that don't survive doc reload — v2 with persistent abs paths is queued.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="image viewer toolbar zoom fit actual-size copy enh-111 png jpg gif webp svg dimensions readout file size context menu reveal finder">
+  <div class="num">11</div>
+  <div>
+    <h3>View images with a real toolbar</h3>
+    <p class="why">Open any image (PNG, JPG, GIF, WEBP, SVG) in the working pane and you get a toolbar over the image area: zoom in/out (+/−, ⌘/⌃-wheel), click-toggle fit/manual, fit-to-window, 1:1 actual size, copy-image, dimensions + file-size readout (e.g. "1440 × 900 · 312 KB"). Drag to pan when zoomed past the container.</p>
+    <p class="how"><strong>UI</strong>Double-click an image in the file navigator or open via <code>duo edit &lt;path-to-image&gt;</code>. Right-click anywhere on the image for the native menu (Copy image / Copy path / Open in default app / Reveal in Finder / Fit / 1:1).</p>
+  </div>
+</article>
+
 <h2 class="cat">Browsing the web</h2>
 <p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
 
@@ -381,6 +399,15 @@
     <h3>Open a Claude tab</h3>
     <p class="why">A new terminal tab that auto-launches Claude Code (when <code>claude</code> is on your PATH). Title shows <code>claude · &lt;basename&gt;</code> until the REPL detects.</p>
     <p class="how"><strong>UI</strong>Click <code>+</code> on the terminal tab strip, or ⌘⇧T from anywhere — from terminal focus, opens at the front terminal's CWD. <strong>CLI</strong><code>duo new-tab --claude</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="terminal tab right click reveal navigator cwd jump enh-115">
+  <div class="num">19b</div>
+  <div>
+    <h3>Right-click a terminal tab → Reveal in navigator</h3>
+    <p class="why">Each terminal tab has its own CWD (set when you spawned it). Right-click any tab in the terminal tab strip → "Reveal in navigator" jumps the file tree to that tab's CWD and surfaces the reveal chip. Same flow as the CLI's <code>duo reveal</code>. <strong>v0.6.10+</strong></p>
+    <p class="how"><strong>UI</strong>Right-click the tab label (top of the terminal column, NOT inside the terminal body) → Reveal in navigator.</p>
   </div>
 </article>
 

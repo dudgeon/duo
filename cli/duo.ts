@@ -490,6 +490,24 @@ async function main(): Promise<void> {
         out(await send('view', overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }))
         break
       }
+      case 'image': {
+        // ENH-108 — `duo image insert <path>` saves the image alongside
+        // the active markdown editor's doc + inserts at caret. v1
+        // markdown only — canvas (PageTab) gets the same treatment in
+        // a follow-up. Optional `--alt "…"`.
+        const sub = rest[0]
+        const subRest = rest.slice(1)
+        if (sub === 'insert') {
+          const target = subRest.find(a => !a.startsWith('--')) ?? die('Usage: duo image insert <path> [--alt "alt text"]')
+          const resolved = resolveFilePath(target)
+          const altIdx = subRest.indexOf('--alt')
+          const alt = altIdx !== -1 ? subRest[altIdx + 1] : undefined
+          out(await send('image-insert', alt !== undefined ? { path: resolved, alt } : { path: resolved }))
+          break
+        }
+        die('Usage: duo image insert <path> [--alt "alt text"]')
+        break
+      }
       case 'edit': {
         // ENH-097 — `--canvas` forces canvas-mode mount, overriding the
         // file's `<meta name="duo-open-in" content="browser">` if present.

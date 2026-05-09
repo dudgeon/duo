@@ -383,6 +383,20 @@ async function main() {
         out(await send("view", overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }));
         break;
       }
+      case "image": {
+        const sub = rest[0];
+        const subRest = rest.slice(1);
+        if (sub === "insert") {
+          const target = subRest.find((a) => !a.startsWith("--")) ?? die('Usage: duo image insert <path> [--alt "alt text"]');
+          const resolved = resolveFilePath(target);
+          const altIdx = subRest.indexOf("--alt");
+          const alt = altIdx !== -1 ? subRest[altIdx + 1] : void 0;
+          out(await send("image-insert", alt !== void 0 ? { path: resolved, alt } : { path: resolved }));
+          break;
+        }
+        die('Usage: duo image insert <path> [--alt "alt text"]');
+        break;
+      }
       case "edit": {
         const canvasFlagIdx = rest.indexOf("--canvas");
         const target = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo edit <path> [--canvas]");

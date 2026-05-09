@@ -1,5 +1,28 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, shell, webContents, clipboard } from 'electron'
+import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, protocol, session, shell, webContents, clipboard } from 'electron'
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
+import * as nodeFs from 'fs/promises'
+import * as nodePath from 'path'
+
+// ENH-108 / ENH-111 (Sprint 12 walk-1 fix) — register the `duo-asset://`
+// custom protocol BEFORE app.whenReady so the renderer can load local
+// files via `<img src="duo-asset://abs/path/to/file.png">`. The renderer
+// runs at `http://localhost:5173/` in dev (electron-vite dev server) so
+// `file://` images are blocked by Chromium's same-origin policy. The
+// existing `<img src="file://...">` pattern in ImageView (and the
+// pre-Sprint-12 ImagePreview) was a latent bug that only worked in
+// production where the renderer is also at `file://`. duo-asset:// works
+// in both surfaces. Schema rules: `secure: true` lets it load on https /
+// http origins; `standard: true` enables URL parsing; `supportFetchAPI`
+// + `stream` enable fetch() and Response streams.
+protocol.registerSchemesAsPrivileged([
+  // `corsEnabled: true` is required for the renderer (running at
+  // http://localhost:5173 in dev) to issue cross-origin requests for
+  // duo-asset:// URLs — without it, Chromium blocks `<img src>`
+  // requests across origin scheme boundaries even with `secure: true`.
+  // `bypassCSP: true` covers any future CSP we add to the renderer.
+  // `allowServiceWorkers: true` is harmless even without SW use.
+  { scheme: 'duo-asset', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true, bypassCSP: true } }
+])
 // electron-context-menu v4 is ESM-only; main bundles as CJS, so we
 // load it via dynamic import inside app.whenReady. The lazy import
 // also defers the cost off the cold-start critical path. Imported
@@ -29,6 +52,7 @@ import {
 import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
+import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { ClaudePresenceProbe } from '../core/claude-presence'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
@@ -100,6 +124,10 @@ const docFindPending = new Map<string, (res: DocFindResult) => void>()
 
 // Stage 17b Phase C — pending `duo html *` ops awaiting a renderer reply.
 const htmlOpPending = new Map<string, (res: HtmlOpResult) => void>()
+
+// ENH-108 (Sprint 12) — pending `duo image insert` requests awaiting
+// a renderer reply. Same Map-pairing pattern as docWritePending.
+const imageInsertPending = new Map<string, (res: import('../shared/types').ImageInsertResult) => void>()
 
 // Stage 17d — pending `duo html comment` / `duo html comments` requests
 // awaiting a renderer reply. Same Map-pairing pattern as htmlOpPending.
@@ -347,6 +375,7 @@ async function createWindow(): Promise<void> {
     getCanvasSelection: getCanvasSelection,
     docWrite: dispatchDocWrite,
     docRead: dispatchDocRead,
+    imageInsert: dispatchImageInsert,
     docGoto: dispatchDocGoto,
     docFind: dispatchDocFind,
     getTheme: getThemeState,
@@ -538,6 +567,27 @@ async function createWindow(): Promise<void> {
     mainWindow?.webContents.setZoomFactor(1)
   })
 
+  // ENH-121 (Sprint 12 walk-rev3 retro fix) — forward renderer console
+  // messages to dev stdout. Without this, agent debugging the renderer
+  // is blind to the most basic signal (every other surface logs into
+  // the dev terminal but the renderer's console only goes to DevTools).
+  // Today's image-render diagnosis spent ~90 minutes inventing in-DOM
+  // debug overlays + colored boxes to surface state that a single
+  // `console.log` would have made visible immediately. Dev only —
+  // packaged builds don't surface DevTools-style noise.
+  if (!app.isPackaged) {
+    mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+      const labels = ['[renderer:log]', '[renderer:warn]', '[renderer:error]'] as const
+      const label = labels[level] ?? '[renderer]'
+      // Strip Vite-noise the dev terminal already echoes (HMR + Electron
+      // security warning). Keep everything else.
+      if (message.startsWith('[vite]')) return
+      if (message.includes('Electron Security Warning')) return
+      const where = sourceId ? ` (${sourceId.split('/').slice(-2).join('/')}:${line})` : ''
+      console.log(`${label}${where} ${message}`)
+    })
+  }
+
   mainWindow.on('closed', () => {
     socketServer?.stop()
     browserManager?.dispose()
@@ -550,6 +600,59 @@ async function createWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // ENH-108 / ENH-111 — install the duo-asset:// handler. URL form is
+  // `duo-asset:///abs/path/to/file.ext`. Path is decoded from the URL's
+  // pathname (`encodeURI` on the renderer side handles spaces / unicode).
+  // Refuses anything that doesn't resolve to an existing regular file —
+  // returns a 404 Response so the `<img>` shows the broken-icon glyph
+  // and the error is visible in DevTools rather than a silent hang.
+  // ENH-108 / ENH-111 walk-1 fix v2 — register on BOTH the default
+  // session (renderer pane uses this) AND the persist:duo-browser
+  // session (BrowserManager's WebContentsViews use this). protocol.handle
+  // is per-session; without registering on both, browser-pane <img> tags
+  // referencing duo-asset:// fail with ERR_UNKNOWN_URL_SCHEME.
+  // URL form is `duo-asset://local/abs/path/to/file.ext` — the constant
+  // `local` host is required because the scheme is registered with
+  // `standard: true`, which makes Chromium normalize triple-slash forms
+  // (`duo-asset:///tmp/foo`) into `duo-asset://tmp/foo` with `tmp` as
+  // the host. Using an explicit `local` authority keeps the abs path
+  // intact in the pathname.
+  const duoAssetHandler = async (req: Request) => {
+    try {
+      const u = new URL(req.url)
+      const filePath = decodeURIComponent(u.pathname)
+      const abs = filePath.startsWith('/') ? filePath : '/' + filePath
+      const st = await nodeFs.stat(abs)
+      if (!st.isFile()) return new Response('Not a file', { status: 404 })
+      const data = await nodeFs.readFile(abs)
+      const ext = nodePath.extname(abs).slice(1).toLowerCase()
+      const mime = ({
+        png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+        webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff',
+        ico: 'image/vnd.microsoft.icon', pdf: 'application/pdf'
+      } as Record<string, string>)[ext] ?? 'application/octet-stream'
+      return new Response(data, {
+        headers: {
+          'Content-Type': mime,
+          'Content-Length': String(data.byteLength),
+          // Explicit CORS allow — corsEnabled scheme privilege opens
+          // the gate for the request to be sent; without an
+          // Access-Control-Allow-Origin response header, Chromium may
+          // still block image rendering across origin scheme boundaries
+          // (http://localhost → duo-asset://).
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-store'
+        }
+      })
+    } catch (err) {
+      return new Response(`duo-asset error: ${err instanceof Error ? err.message : String(err)}`, { status: 404 })
+    }
+  }
+  // Default session — used by the main BrowserWindow's renderer.
+  protocol.handle('duo-asset', duoAssetHandler)
+  // Browser-pane session (WebContentsViews / Stage 2 BrowserManager).
+  session.fromPartition(BROWSER_SESSION_PARTITION).protocol.handle('duo-asset', duoAssetHandler)
+
   setupIPC()
   installAppMenu()
   // ENH-031 — global right-click context menu for every WebContents
@@ -892,6 +995,14 @@ function setupIPC(): void {
     return filesService.stat(p)
   })
 
+  // ENH-108 (Sprint 12) — paste-image: write clipboard image bytes to
+  // disk beside the active doc. Filename is generated by the service
+  // (timestamp + 4-char hex hash), insertion-relative path is returned
+  // for the editor to compose the markdown link.
+  ipcMain.handle(IPC.FILES_SAVE_IMAGE_BESIDE, (_event, { activeDocPath, bytes, ext }: { activeDocPath: string; bytes: Uint8Array; ext: string }) => {
+    return filesService.saveImageBeside(activeDocPath, bytes, ext)
+  })
+
   // Stage 24 — pinned WorkingPane tabs.
   ipcMain.handle(IPC.PINS_LIST, () => {
     return pinsService.list()
@@ -1045,6 +1156,15 @@ function setupIPC(): void {
   })
 
   // Stage 11 — renderer's reply to a doc-write request.
+  // ENH-108 — image-insert reply.
+  ipcMain.on(IPC.EDITOR_IMAGE_INSERT_RESULT, (_event, result: import('../shared/types').ImageInsertResult) => {
+    const resolver = imageInsertPending.get(result.reqId)
+    if (resolver) {
+      imageInsertPending.delete(result.reqId)
+      resolver(result)
+    }
+  })
+
   ipcMain.on(IPC.EDITOR_DOC_WRITE_RESULT, (_event, result: DocWriteResult) => {
     const resolver = docWritePending.get(result.reqId)
     if (resolver) {
@@ -1622,6 +1742,24 @@ export function dispatchDocWrite(req: Omit<DocWriteRequest, 'reqId'>): Promise<D
       resolve(res)
     })
     mainWindow!.webContents.send(IPC.EDITOR_DOC_WRITE, { ...req, reqId })
+  })
+}
+
+export function dispatchImageInsert(req: { bytes: Uint8Array; ext: string; alt?: string }): Promise<import('../shared/types').ImageInsertResult> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return Promise.resolve({ reqId: '', ok: false, error: 'Duo window not ready' })
+  }
+  const reqId = `ii_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      imageInsertPending.delete(reqId)
+      resolve({ reqId, ok: false, error: 'Renderer did not reply within 10s — likely no markdown editor active' })
+    }, 10000)
+    imageInsertPending.set(reqId, (res) => {
+      clearTimeout(timer)
+      resolve(res)
+    })
+    mainWindow!.webContents.send(IPC.EDITOR_IMAGE_INSERT, { ...req, reqId })
   })
 }
 

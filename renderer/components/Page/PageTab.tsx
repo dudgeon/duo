@@ -657,7 +657,12 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // inline color / background from regular paste (so dark-mode
     // bold pastes inherit the canvas ink token instead of the
     // source's brown), and adds ⌘⇧V → paste-as-plain-text.
-    const cleanPaste = readOnly ? () => {} : installPagePasteHandlers(doc)
+    // ENH-108 (Sprint 12 walk-rev3 retro) — pass active doc path so
+    // image-paste / image-drop can `saveImageBeside`. PageTab's `path`
+    // is always set for canvas tabs (canvas tabs always have an
+    // on-disk target by construction). If that ever changes, drop a
+    // null check here.
+    const cleanPaste = readOnly ? () => {} : installPagePasteHandlers(doc, { activeDocPath: path })
 
     // 17c — install the just-added keyframe + class into the iframe
     // stylesheet. Must happen before any markJustAdded call (the

@@ -18,6 +18,42 @@
 
 ---
 
+## 2026-05-09 (Sprint 12 + v0.6.10 cut) — image handling (paste / view / CLI) · BUG-108 table cell copy · BUG-110 smoke-walk localStorage collision · BUG-111 wrong-feature-shipped course-correction · ENH-121 renderer console forwarder · 4 walks
+
+**Status: v0.6.10 cut shipped 2026-05-09.** Three sprints in one cut. Sprint 10 (SaveControl) + Sprint 11 (Obsidian autocomplete) accumulated since v0.6.9 on 2026-05-07; Sprint 12 was course-corrected mid-flight when a prior cloud agent (working from `claude/plan-next-priorities-w4wX7` branch on a different machine) shipped image VIEWER chrome (ENH-111) instead of paste-image (ENH-108, the actual ask) — local Claude shipped ENH-108 alongside before the cut fired. Both ship together.
+
+**Sprint 12 P0 commits inherited from cloud agent (committed 2026-05-09 early, in `7e2e6fa` merge):** ENH-111 image viewer v2 chrome (toolbar, zoom, pan, copy, dimensions readout — `renderer/components/ImageView.tsx`). BUG-108 table cell copy returns cell text not `[table]` (new TableCellCopy extension at priority 1000 — `renderer/components/editor/extensions/TableCellCopy.ts`). ENH-115 terminal-tab right-click → Reveal in navigator. RESUME.md handoff to local-Claude smoke walk + cut.
+
+**Local Claude session 2026-05-09 (this session):**
+
+1. **Walk-rev1 setup procedure violations.** Silently killed a worktree dev without warn-then-ask (smoke-walk SKILL.md § 4 violation); accidentally launched packaged Duo via `open_application "Duo"` (macOS resolved name to `/Applications/Duo.app`). Both flagged by Geoff. Saved `feedback_never_silently_kill_dev.md` + `feedback_never_open_application_for_duo_electron.md` memories.
+
+2. **BUG-110 smoke-walk localStorage key collision found + fixed mid-walk-rev1.** `.claude/skills/smoke-walk/generate.mjs` keyed by version (`smoke-walk-v${version}`); Sprint 11 wikilink walk + Sprint 12 walk both at v0.6.10 collided. Fix: derive key from `basename(manifestPath, '.json')`. Saved `feedback_exercise_worksheet_primitive_before_handoff.md` rule.
+
+3. **Walk-rev2: 1 PASS (ENH-115), 3 FAIL** — broken-image-icon for ENH-108 + ENH-111, plus a BUG-108 multi-cell selection symptom (TipTap-Table CellSelection model — different from the copy-serialization fix that DID land).
+
+4. **Image-render diagnosis (~90 minutes of layered hypothesis chasing).** file:// blocked by same-origin → registered `duo-asset://` custom protocol on default + `persist:duo-browser` sessions → URL parsing ate first segment as host (needed constant `local` host) → corsEnabled scheme privilege → CORS headers → CSP `img-src` updated to allow `blob: data: file: duo-asset:` → switched to blob URLs via `files.read`. **Actual root cause was a layout misread**: working pane was in split view, image-viewer slot was squished to ~80px wide, image overflow-clipped to invisibility. Revealed by a 200×100 red debug box. All infrastructure landed regardless as insurance.
+
+5. **Walk-rev4 PASS** for ENH-108 paste + ENH-111 viewer in normal-pane layout. Geoff: *"good job fixing this; please include a meta analysis of what made this harder than need be."*
+
+6. **ENH-121 renderer console forwarder shipped** as the highest-leverage retro fix. Single highest-leverage observability addition this year — would have compressed today's 90-minute diagnosis into ~5 minutes. Saved `feedback_build_visibility_tooling_before_blind_debugging.md`. Filed ENH-122/123/124 as backlog.
+
+7. **Canvas paste-image mirror + `duo image insert` CLI verb** built per Geoff's "build it" + "ship it" directives. Canvas (`pagePaste.ts`) handles paste + drop with same blob-URL approach. CLI verb full plumbing per CLAUDE.md checklist. v1 markdown-editor target only — canvas CLI parity filed as ENH-125 deferral.
+
+8. **BUG-111 closed.** Both ENH-108 (the actual ask) AND ENH-111 (the misread) shipped this sprint.
+
+9. **v0.6.10 cut.** Geoff: *"Cut — but preserve checklist for next smoke walk"* (canvas-paste + CLI verb shipped without their own walk). Carry-over checklist landed at [docs/dev/v0.6.10-walk-carryover.md](v0.6.10-walk-carryover.md). CHANGELOG, RELEASES.md, faq.html, what-duo-does.html, roadmap.html updated. Cut commit + tag locally; `git push --tags` deferred to owner.
+
+**Owner directives during the day:**
+- *"Split View should be feature parity with main pane; please scrutinize why this disparity exists"* — at the file-tab render level there's NO disparity (both use `renderFileTab(tab)`). Real disparities (single-slot aux, hardcoded `focusedSubpane='main'`, simpler header) are intentional v1 simplifications per ENH-041 Sprint 3→7 lineage.
+- *"don't overfit the change, but solve for the meta issue"* on the visibility-tooling retro — shipped ENH-121 as the principle; filed ENH-122/123/124 as the next-tier additions; saved a "build the missing primitive when blind past 15 min" rule.
+
+**ENHs filed (10 new + 1 followup):** ENH-116 (skill trim), ENH-117 (view-source), ENH-118 (image-type discussion), ENH-119 (image-in-selection tint), ENH-120 (clipboard preserves image bytes), ENH-121 ✅ (console forwarder, shipped), ENH-122 (`duo dom`), ENH-123 (`duo devtools`), ENH-124 (`duo layout`), ENH-125 (canvas-CLI parity for image insert), FOLLOWUP-013 (paste-image v2 with custom NodeView for persistent abs paths).
+
+---
+
+## 2026-05-08 (Sprint 10 + Sprint 11 implementation; v0.6.10 cut deferred) — SaveControl pill · vault autocomplete (`[[` + `@` + `⌘O`) · BUG-104/107 root-caused · 3 walks across two sprints · cut held for image v2 + BUG-108
+
 ## 2026-05-08 (Sprint 10 + Sprint 11 implementation; v0.6.10 cut deferred) — SaveControl pill · vault autocomplete (`[[` + `@` + `⌘O`) · BUG-104/107 root-caused · 3 walks across two sprints · cut held for image v2 + BUG-108
 
 **Status: v0.6.10 cut deferred — Sprint 12 image v2 + BUG-108 land first.** Two sprints of work accumulated since v0.6.9 (Sprint 10 SaveControl + Sprint 11 vault autocomplete). All P0 + P1 + carry-overs landed and verified live via computer-use. Owner directive 2026-05-08 evening: *"don't cut yet; I want to address image handling (should be in the roadmap now) and one more newly discovered bug before cutting: copying cell text from a table in the markdown editor just copies '[table]' to the clipboard."* Cut paperwork drafted (CHANGELOG `[Unreleased]` + RELEASES.md `Pending`); Sprint 12 anchors image v2 + BUG-108.

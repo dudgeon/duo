@@ -21,60 +21,35 @@
 
 ## Pending — not yet cut
 
-> **Sprint 10 + Sprint 11 work + Sprint 12 image v2 + BUG-108.** Owner
-> directive 2026-05-08: *"don't cut yet; I want to address image
-> handling (should be in the roadmap now) and one more newly
-> discovered bug before cutting: copying cell text from a table in
-> the markdown editor just copies '[table]' to the clipboard."*
->
-> Cut accumulates as **v0.6.10** when image v2 + BUG-108 land.
-
-### Pending v0.6.10 — Save clarity + Obsidian autocomplete
-
-Two sprints in one cut. Sprint 10 consolidated the save UX; Sprint 11
-closed the wikilink half-feature with a TipTap-suggestion-backed
-autocomplete. Sprint 12 (still in flight as of 2026-05-08) adds image
-v2 + BUG-108 fix.
-
-**Why this cut lands here.** v0.6.9 shipped wikilink rendering +
-cmd+click navigation but typing wikilinks was hunt-and-peck. This
-release closes that gap with the `[[` and `@` popovers, plus `⌘O`
-for vault-wide search. Side-benefit: the file-changed-on-disk false-
-positive (BUG-104/107 — recurring across walks for several sprints)
-finally got root-caused and fixed (the serializer mutates trailing
-whitespace, then the pre-save check compared raw strings).
-
-**Three load-bearing design decisions.**
-1. **One TipTap Suggestion primitive backs all three autocomplete
-   features.** Wikilink, `@`-mention, and `⌘O` quick switcher share
-   `vaultIndex.ts` (the fuzzy-match source) plus `SuggestionPopover.tsx`
-   (the rendering). Three features, one architectural piece.
-2. **`@` inserts canonical `[[wikilink]]`.** Vault round-trip is
-   unified — the same file content reads identically regardless of
-   which trigger produced the link. Obsidian-compat first.
-3. **SaveControl owns the autosave toggle.** Hover-reveal next to
-   the pill, no separate View menu entry, no per-tab override. The
-   control owns the save concept end-to-end.
-
-**Skill rule shipped:** CLAUDE.md § 7c + smoke-walk skill § 5b —
-agent must verify clean app state before every smoke-walk handoff.
-Encoded after a walk-1 violation where a PluginKey collision crashed
-the editor under an otherwise-healthy smoke-walk page.
-
-**What this is and isn't.** This release is the "wikilinks reach
-completeness" moment — typing them is no longer hunt-and-peck. It
-is NOT yet the backlinks panel or graph view (Sprint 13+). It also
-doesn't ship the JSON viewer (research doc landed; Sprint 13 anchor
-candidate now that image v2 + BUG-108 took the Sprint 12 slot).
-
-**Stats so far:** 17 commits since v0.6.9. 352 tests passing (+54
-from sprint start). Typecheck clean. Sprint 12 adds two more atoms
-before the cut fires.
-
-See `CHANGELOG.md § [Unreleased]` for the full Added/Fixed/Changed
-inventory.
+> *(empty — v0.6.10 cut 2026-05-09)*
 
 ---
+
+## v0.6.10 — 2026-05-09 — Image handling (paste / view / CLI) + Save clarity + Obsidian autocomplete
+
+**Three sprints in one cut.** Save clarity (Sprint 10), Obsidian autocomplete (Sprint 11), image handling (Sprint 12) accumulated since v0.6.9. Sprint 12 was course-corrected mid-flight when the prior cloud agent shipped image VIEWER chrome (ENH-111) instead of paste-image (ENH-108, the actual ask) — local Claude shipped ENH-108 alongside before the cut fired. Both ship together.
+
+**Why this cut lands here.** v0.6.9 closed wikilinks (rendering + cmd+click); v0.6.10 closes the workflow-defining gap of "paste an image into a doc and it just works." Pre-v0.6.10 path was save-to-Desktop → drag-to-Finder → markdown-link-by-hand. Post: ⌘V works in both markdown editor and canvas; `duo image insert` works from the agent. Plus Save clarity (SaveControl pill + autosave toggle) and the Obsidian-style `[[` / `@` / ⌘O autocomplete cluster.
+
+**Three load-bearing design decisions baked in.**
+
+1. **One TipTap Suggestion primitive backs all autocomplete** — `vaultIndex.ts` (fuzzy match) + `SuggestionPopover.tsx` (rendering) are shared by `[[`, `@`, and ⌘O. Three features, one architectural piece.
+
+2. **`@` mention inserts canonical `[[wikilink]]`** — vault round-trip stays unified regardless of which trigger produced the link. Obsidian-compat first.
+
+3. **Paste-image v1 trades source-portability for ship velocity** — blob URLs in markdown source (`![](blob:...)`) render immediately on paste but die on reload. v2 (custom NodeView with persistent abs paths, FOLLOWUP-013) is queued. The trade-off was deliberate after ~90 minutes of debugging revealed the cross-origin / CSP / blob-URL layering — getting the user-visible feature out beat shipping the architecturally-pure version this sprint.
+
+**Sprint 12 retro fix shipped:** ENH-121 — renderer console forwarder. Every `console.*` from the renderer now prints to dev stdout. Single highest-leverage observability addition this year; Sprint 12 walk-rev3's 90 minutes of futile hypothesis-test cycles would have been ~5 minutes with this in place. Memory rule landed alongside: when debugging blindly past ~15 min, build the missing observability primitive *before* the next hypothesis cycle.
+
+**Skill rule from Sprint 11 still applies:** CLAUDE.md § 7c + smoke-walk skill § 5b — agent must verify clean app state before every smoke-walk handoff. Sprint 12 walk-rev3 retro added "exercise the worksheet primitive itself first" as a § 5b sub-step (catches the BUG-110-class storage-key collision before the user's edits silently vanish).
+
+**What this is and isn't.** This release is "image handling reaches v1" + "wikilinks reach completeness" + "save UX consolidates." It is NOT yet the image-handling polish (selection tint, clipboard-preserves-bytes, GIF/SVG discussion), the JSON viewer, or the backlinks panel — all queued for Sprint 13+. The CLI verb covers markdown-editor target only; canvas-CLI parity is ENH-125 carry-over. Two sprint-12 items shipped without a final smoke walk (canvas paste-image + drop, `duo image insert` CLI verb) — Geoff cut on faith after the markdown-side variants passed walk-rev4. Items preserved in `docs/dev/v0.6.10-walk-carryover.md` for next sprint's smoke walk.
+
+**Stats:** 4 commits since v0.6.9 + ~6 mid-cut commits this sprint. Typecheck clean. CLI verb self-tested end-to-end. Walk-rev4 PASSED for ENH-108 + ENH-111 in normal-pane layout. Mid-day diagnosis of the image-render bug was 90 minutes of layered hypothesis chasing (file:// → custom protocol → CORS → CORS headers → CSP → blob URL); actual root cause was a layout misread (split-view squish). Three layers of fixes landed regardless as insurance against the genuine issues each was hunting.
+
+---
+
+## v0.6.9 — 2026-05-07 — Sprint 9: wikilinks closure · pane-jump chord set · `duo edit` reliability · workshop substrate · automated regression coverage
 
 ## v0.6.9 — 2026-05-07 — Sprint 9: wikilinks closure · pane-jump chord set · `duo edit` reliability · workshop substrate · automated regression coverage
 

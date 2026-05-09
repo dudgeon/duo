@@ -37,6 +37,15 @@ export function ImageView({ tab }: { tab: WorkingTab }) {
   const [bytes, setBytes] = useState<number | null>(null)
   const [containerSize, setContainerSize] = useState<Dims>({ w: 0, h: 0 })
   const [copyFlash, setCopyFlash] = useState<'idle' | 'ok' | 'fail'>('idle')
+  // ENH-111 walk-rev3 fix v2 — load via files.read IPC + blob URL. The
+  // duo-asset:// custom protocol returned 200/correct-bytes from a
+  // file:// origin (verified via fetch from the smoke-walk page) but
+  // images would not render in the renderer at http://localhost:5173/
+  // even with corsEnabled + Access-Control-Allow-Origin: *. Chromium
+  // appears to silently block cross-origin image renders for custom
+  // schemes regardless of CORS. Blob URLs sidestep all of that by
+  // staying same-origin to the renderer.
+  const [imgUrl, setImgUrl] = useState<string | null>(null)
 
   // File size readout via files.stat (cheap — no payload transfer).
   useEffect(() => {
@@ -47,6 +56,35 @@ export function ImageView({ tab }: { tab: WorkingTab }) {
       setBytes(s?.size ?? null)
     })
     return () => { cancelled = true }
+  }, [path])
+
+  // Load the image via files.read → Blob → object URL. Re-runs on path
+  // change. Cleanup revokes the prior object URL to avoid leaks.
+  useEffect(() => {
+    let cancelled = false
+    let urlToRevoke: string | null = null
+    if (!path) {
+      setImgUrl(null)
+      return
+    }
+    void window.electron.files.read(path).then((res) => {
+      if (cancelled) return
+      // Slice into a fresh ArrayBuffer-backed Uint8Array — IPC may
+      // return SharedArrayBuffer-backed bytes which BlobPart typing
+      // rejects.
+      const safe = new Uint8Array(res.bytes)
+      const blob = new Blob([safe], { type: res.mime })
+      const u = URL.createObjectURL(blob)
+      urlToRevoke = u
+      setImgUrl(u)
+    }).catch((err) => {
+      console.warn('[ImageView] files.read failed for', path, err)
+      if (!cancelled) setImgUrl(null)
+    })
+    return () => {
+      cancelled = true
+      if (urlToRevoke) URL.revokeObjectURL(urlToRevoke)
+    }
   }, [path])
 
   // Track container size so 'fit' mode can compute a percentage
@@ -294,14 +332,16 @@ export function ImageView({ tab }: { tab: WorkingTab }) {
           backgroundPosition: '0 0, 7px 7px'
         }}
       >
-        <img
-          ref={imgRef}
-          src={'file://' + encodeURI(path)}
-          alt={tab.title}
-          onLoad={onImgLoad}
-          style={imgStyle}
-          draggable={false}
-        />
+        {imgUrl && (
+          <img
+            ref={imgRef}
+            src={imgUrl}
+            alt={tab.title}
+            onLoad={onImgLoad}
+            style={imgStyle}
+            draggable={false}
+          />
+        )}
       </div>
     </div>
   )

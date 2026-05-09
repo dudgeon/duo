@@ -5993,6 +5993,277 @@ Recommend "Reveal in navigator" for the v1 label; revisit during the smoke walk 
 
 ---
 
+### ENH-121: Forward main-renderer `console.*` to dev stdout (Sprint 12 walk-rev3 retro fix)
+
+**Status:** ✅ **Shipped 2026-05-09** as part of Sprint 12 walk-rev3 retro. [electron/main.ts](electron/main.ts) installs `mainWindow.webContents.on('console-message', ...)` in dev (`!app.isPackaged`) — every renderer `console.log/warn/error` call prints to dev stdout prefixed with `[renderer:log/warn/error]` and the source location. Filters `[vite]` HMR + `Electron Security Warning` noise.
+**Priority:** **High** (was) — single highest-leverage missing tool exposed by today's image-render diagnosis. Before this, `console.log` in any renderer component (MarkdownEditor, ImageView, App.tsx, etc.) was invisible to a CLI-only debugging workflow; agent had to invent in-DOM debug overlays + colored boxes to surface state. Today's 90 minutes of futile work would've been ~5 minutes with this in place.
+**Filed:** 2026-05-09 (same-day fix, no separate filing).
+
+**Verified live:** opening an image triggered `[renderer:warn] (App.tsx:466) [BUG-101 openFile] [object Object]` to reach dev stdout. Existing console-log statements in renderer code now flow up automatically.
+
+**What it doesn't cover (separate ENHs):**
+- DOM-state queries from CLI: see ENH-122.
+- DevTools open from CLI: see ENH-123.
+- Layout-state snapshot (split view? active tab? pane dims?): see ENH-124.
+
+---
+
+### ENH-122: `duo dom <selector>` — query the renderer's DOM from CLI (Sprint 12 walk-rev3 retro)
+
+**Status:** 🆕 Filed 2026-05-09 from same-day retro.
+**Priority:** **High** — second-highest-leverage missing tool. Today's blind diagnosis ate ~30 min trying to figure out whether ImageView's `<img>` element was rendered, what its `src` attribute was, and what its computed CSS dimensions were. `duo eval` only sees BROWSER-pane tabs (CDP-attached), not the renderer; the renderer's DOM is locked behind manual DevTools.
+**Filed:** 2026-05-09.
+
+**What's wanted.** A CLI verb that takes a CSS selector (or arbitrary JS expression scoped to the renderer's window) and returns the result. Mirrors `duo eval` but targets the renderer instead of the browser pane.
+
+**Examples:**
+```
+duo dom 'img'                                    # outerHTML of first img
+duo dom 'section.item[data-id=BUG-108]' --html   # outerHTML
+duo dom '.ProseMirror img' --attr src            # specific attribute
+duo dom '.ProseMirror img' --computed width,height,display  # computed styles
+duo dom --js 'document.querySelector("img").naturalWidth'   # arbitrary expr
+```
+
+**Implementation sketch:**
+1. New `EDITOR_RENDERER_EVAL` IPC channel (renderer-side handler does the eval, returns serialized result).
+2. CLI parses args → wraps in JS → calls `socket-server` → main forwards to renderer's webContents → renderer's preload exposes a sandboxed eval helper → returns string/JSON.
+3. Safety: only enabled in dev (`!app.isPackaged`) per the same gate as ENH-121.
+
+**Cross-ref:** [ENH-121](tasks.md:somewhere) (renderer console forwarder), [ENH-123](tasks.md:somewhere) (devtools verb).
+
+---
+
+### ENH-123: `duo devtools` — open the renderer's DevTools from CLI (Sprint 12 walk-rev3 retro)
+
+**Status:** 🆕 Filed 2026-05-09 from same-day retro.
+**Priority:** Medium — backstop for the 5% of cases where ENH-122's targeted query isn't enough and you need the full DevTools UI (Network tab, full Elements tree, breakpoints).
+**Filed:** 2026-05-09.
+
+**What's wanted.** `duo devtools` opens DevTools on the main renderer (default). `duo devtools --browser-pane` opens DevTools on the active browser pane's WebContentsView. `duo devtools --close` closes any open DevTools. One-line implementation: `mainWindow.webContents.openDevTools({ mode: 'right' })`.
+
+---
+
+### ENH-124: `duo layout` — structured snapshot of working pane state (Sprint 12 walk-rev3 retro)
+
+**Status:** 🆕 Filed 2026-05-09 from same-day retro.
+**Priority:** Medium — third missing tool exposed by today's diagnosis. ~20 min wasted on misreading the layout from screenshot pixels: I assumed the working pane was a single full-width slot when it was actually a split view with the image-viewer squished to ~80px wide. A structured layout snapshot would have made this immediately obvious.
+**Filed:** 2026-05-09.
+
+**What's wanted.** `duo layout` returns JSON describing the WorkingPane's current state:
+
+```json
+{
+  "split": true,
+  "main": { "tab": { "kind": "image", "path": "/tmp/foo.png", "id": "tab-3" }, "width": 80, "height": 540 },
+  "aux":  { "tab": { "kind": "editor", "path": "/tmp/note.md", "id": "tab-2" }, "width": 760, "height": 540 },
+  "focused": "main",
+  "terminal": { "expanded": true, "width": 480 },
+  "navigator": { "expanded": true, "width": 220 }
+}
+```
+
+Reuses existing state via `nav-state` + new IPC for working-pane state. Removes ambiguity about WHAT THE USER IS LOOKING AT — every "is the image viewer the small slot or the big one?" question becomes a 100ms call.
+
+**Cross-ref:** Existing `duo nav-state` covers the FILE TREE. This is the missing parallel for the WORKING PANE.
+
+---
+
+### ENH-119: Selection tint should cover images — visual feedback when an image is in the selected range
+
+**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev4 (ENH-108-PASTE-RENDERS PASS notes).
+**Priority:** Medium — owner ask: "include in next sprint." Today, when a selection range includes an image, the surrounding text gets the selection background but the image itself shows no visual indicator. User can't easily tell whether the image is part of the selection.
+**Filed:** 2026-05-09.
+
+**What's wanted.** Inside the markdown editor (and the HTML canvas, per editor-canvas parity rule), when a Selection range covers an `<img>` node, the image should render with a visible selection tint (e.g. a colored overlay or border) so it's obvious the image is in the range. This affects copy / cut / delete operations downstream — without the visual cue, users might cut text expecting the image to come with it (or stay).
+
+**Implementation sketch:**
+- TipTap's Image extension renders `<img>` directly. Add a CSS rule scoped to the editor: when an `<img>` is inside a `::selection`-containing range, apply a `box-shadow: inset 0 0 0 9999px var(--accent-soft)` or similar tint.
+- ProseMirror's selection model uses NodeSelection / TextSelection. For NodeSelection on an image (click-to-select-the-image), TipTap's stock behavior IS to add a `ProseMirror-selectednode` class. Verify that styling is wired in Duo's CSS.
+- For TextSelection that SPANS the image (text on both sides), the image isn't selected per-se but is "in the range." Need a custom decoration to paint a tint on the image node when its position is within `selection.from..selection.to`.
+
+**Cross-ref:** [ENH-108](tasks.md:276) (the underlying paste-image feature). [ENH-120](tasks.md:somewhere) (the copy-with-image limitation, sibling).
+
+---
+
+### ENH-120: Copying a markdown range that includes an image should put the image on the clipboard too
+
+**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev4. Owner: "less urgent but still important to note on the image handling section(s) of the roadmap as a known limitation."
+**Priority:** Low-Medium — known limitation, document for now, schedule for image-handling-cluster sprint.
+**Filed:** 2026-05-09.
+
+**What's wanted.** When the user selects a range in the markdown editor that includes an image, then ⌘C and pastes into another app (Notes, Mail, Slack, etc.), the image should appear in the destination — not just the surrounding text without it. Today: only the text portion arrives at the destination.
+
+**Why this happens (current state).** The markdown editor uses tiptap-markdown's `transformCopiedText` to serialize the selected slice as markdown text. Markdown text is `![](blob:...)` for v1 paste-image inserts (per FOLLOWUP-013 — abs path is the v2 plan). Even with a real path, the destination app receives PLAIN TEXT — not the image bytes. To put the image bytes on the clipboard alongside, the copy handler needs to ALSO write image data to the clipboard via `navigator.clipboard.write([new ClipboardItem({ 'image/png': blob, 'text/plain': text })])`.
+
+**Scope considerations:**
+- Single-image selection (just the image, no surrounding text): straightforward — write image + text to clipboard.
+- Multi-image selection: most other apps only accept ONE image per clipboard write. Pick the first? Refuse? Concat into a montage? Document the limitation.
+- Mixed text + image: the text portion travels as-is; the image portion converts to image bytes.
+
+**Cross-ref:** [ENH-108](tasks.md:276), [FOLLOWUP-013](tasks.md:somewhere) (relative-path portability), [ENH-118](tasks.md:somewhere) (image-type handling discussion). All belong in the image-handling cluster on the roadmap.
+
+---
+
+### ENH-125: Canvas-side `duo image insert <path>` — CLI parity with the markdown-editor verb
+
+**Status:** 🆕 Filed 2026-05-09 from Sprint 12 walk-rev3 retro. Deferred from v0.6.10.
+**Priority:** Medium — markdown editor + canvas surface should expose the same agent-driven capability per CLAUDE.md § 4 (CLI parity with UI). v1 ENH-108 ships markdown only; canvas surface only supports paste / drag-drop today.
+**Filed:** 2026-05-09.
+
+**What's wanted.** Extend `duo image insert <path>` to dispatch to the canvas (PageTab) when it's the active working tab, not just the markdown editor. v1 explicit asymmetry per the editor-canvas parity disposition rule (see Sprint 12 commit message); v2 closes it.
+
+**Implementation sketch:**
+1. Add `EDITOR_IMAGE_INSERT` listener to `PageTab.tsx` — mirror the MarkdownEditor's handler at [renderer/components/editor/MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) (calls `files.saveImageBeside`, builds blob URL, inserts via `doc.execCommand('insertHTML', false, '<img src="…">')`).
+2. App.tsx-level dispatch: when an `image-insert` request arrives, route to whichever editor is active (markdown OR page), error if neither.
+3. Reply contract stays the same (`ImageInsertResult { absPath }`).
+
+**Why deferred from v0.6.10:** Sprint 12's velocity. Markdown-side covered the immediate need; canvas-side is symmetric polish. Owner concurred ("ship it").
+
+**Cross-ref:** [ENH-108](tasks.md:276), CLAUDE.md § 4 (editor-canvas parity rule).
+
+---
+
+### ENH-117: Markdown / HTML "view source" — inspect raw markdown / HTML for the active doc
+
+**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev2.
+**Priority:** Medium — paired with ENH-108's testing; without it, the user has to `cat` the file in a terminal to see what got serialized after a paste / edit.
+**Filed:** 2026-05-09.
+
+**What's wanted.** A "view source" toggle for both the markdown editor and the HTML canvas — flips between the rendered/edited view and a read-only (or read-write?) raw-source view of the underlying markdown / HTML. Owner trigger: while testing ENH-108 paste-image, no in-app way to verify what tiptap-markdown serialized to disk for the inserted `<img>` node. Today: switch to terminal, `cat <path>`.
+
+**Open scope questions:**
+- Read-only or editable raw view? Read-only is the v1 ask; editable is a much bigger lift (need a CodeMirror integration with bidi sync to TipTap).
+- Surface as a tab toggle, a split (source on right), or a chord? `⌘⌥V` (view-source convention) is a reasonable chord.
+- Markdown-editor side: pull from `editor.storage.markdown.getMarkdown()` (already used by save). HTML canvas: read from PageTab's iframe document and pretty-print.
+
+**Cross-ref:** Pairs with the editor-canvas parity rule (CLAUDE.md § 4) — both surfaces ship together OR explicit asymmetry declaration.
+
+---
+
+### ENH-118: Image-type handling discussion — beyond PNG (esp. GIF, SVG)
+
+**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev2.
+**Priority:** Medium — owner ask: "after you fix PNG, discuss with owner how to handle other image types, esp GIF and SVG."
+**Filed:** 2026-05-09.
+
+**What's wanted.** ENH-108 v1 handles all common image types via the same path (clipboard → save → insert with `<img>`). The `MIME_TO_EXT` map in [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) covers PNG / JPEG / GIF / WEBP / SVG / BMP / TIFF, and the duo-asset:// protocol handler returns the right MIME for each (so SVG renders as SVG, GIF animates, etc.). But there are open product / safety questions per type:
+
+**Per-type considerations:**
+- **PNG / JPEG / WEBP** — straightforward. Bytes saved as-is, `<img>` displays. No special concerns.
+- **GIF** — animates by default in `<img>`. Owner question: should there be a "freeze first-frame" toggle (Slack-style) or is animate-by-default fine? Performance concern: a giant GIF can hammer the renderer.
+- **SVG** — `<img src="...svg">` renders the SVG inert (no script execution, no external refs). That's the safe default. But: SVG with embedded CSS / fonts may render differently than the source intends. Also: pasting SVG markup as TEXT (rather than a clipboard image) currently inserts as raw `<svg>...` markup which TipTap may strip — separate code path worth confirming.
+- **HEIC / RAW** — not in the MIME map. Unlikely to come from clipboard but possible from drag-drop. Falls through to .png in the current code (wrong extension) — should reject or convert.
+- **PDF as "image"** — pasted PDFs from some apps come through as `application/pdf` clipboard items. Currently filtered out (only `image/*` MIMEs). Owner confirms whether to add a `<embed>` insert path for PDFs.
+
+**Recommendation for next conversation:**
+1. Animate vs. freeze GIFs — owner pick.
+2. SVG safety review — current `<img>` embed is safe; document the limitation that scripts in SVG are blocked.
+3. HEIC / RAW — out-of-scope for v1; reject with a console warn.
+4. PDF — separate ENH if owner wants in-line PDF embeds.
+
+**Cross-ref:** [ENH-108](tasks.md:276), the underlying paste-image feature.
+
+---
+
+### FOLLOWUP-013: ENH-108 paste-image inserts ABSOLUTE duo-asset:// URLs in markdown source (non-portable)
+
+**Status:** 🆕 Filed 2026-05-09 mid-sprint after rev3 protocol fix.
+**Priority:** Medium — markdown content is non-portable across machines (links break when the doc + images are copied to a different filesystem path or different user). Acceptable for v1; owner trigger to escalate.
+**Filed:** 2026-05-09.
+
+**What's broken.** [ENH-108 v1](renderer/components/editor/MarkdownEditor.tsx) inserts pasted images as `![](duo-asset://local/abs/path/image-...png)` — absolute path under a custom protocol. Saves to disk fine, renders inline fine (after rev3 protocol fix). But the markdown source is NOT portable:
+- Move the doc to a different folder → link breaks (abs path no longer matches).
+- Sync the doc to a different machine → link breaks (different home dir, different absolute layout).
+- Share the doc + image folder as a zip → link STILL breaks unless the recipient places them at the same abs path.
+
+**What v1 SHOULD have done (and v2 needs to fix).** Markdown source contains the RELATIVE path (`![](image-stamp-hash.png)`). Custom TipTap Image extension's `renderHTML` resolves the relative src against the active doc's directory and rewrites to `duo-asset://local<absParent>/<filename>` at render time. tiptap-markdown serializes the original `src` attribute (the relative form), so save / round-trip stays portable. The runtime resolution makes it render correctly in the editor.
+
+**Why v1 didn't do this.** Time pressure during Sprint 12 walk-rev3. The relative-rendering Image extension is ~30-50 lines of TipTap extension code (override `addAttributes` to store both `src` and `resolvedSrc`, override `renderHTML` to use `resolvedSrc`); shipping the absolute form unblocked the user immediately. v2 polish.
+
+**v2 plan:**
+1. New `DuoImage` extension (`renderer/components/editor/extensions/DuoImage.ts`) extending `@tiptap/extension-image`.
+2. `addOptions()` adds a `getDocPath: () => string | null` callback.
+3. `renderHTML(node)` resolves `node.attrs.src` — if it's relative, prepend `duo-asset://local${dirname(getDocPath())}/`; if absolute (file:// or duo-asset://), use as-is.
+4. `parseHTML` reads back the `src` attribute as-given (no resolution).
+5. Replace stock `Image` import in [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx).
+6. Update handlePaste/handleDrop to insert with `result.relPath` again.
+
+**Cross-ref:** [ENH-108](tasks.md:276), [BUG-111](tasks.md:somewhere-below).
+
+---
+
+### BUG-111: Sprint 12 shipped ENH-111 (image VIEWER chrome) instead of ENH-108 (paste-image), the actually-asked-for feature
+
+**Status:** ✅ **CLOSED 2026-05-09** — both features now ship in Sprint 12. ENH-108 paste-image landed mid-sprint after the wrong-feature catch (markdown editor + canvas + CLI verb `duo image insert`). ENH-111 image viewer chrome remains as a useful sibling feature; both items in the v0.6.10 cut. Owner directive's "image handling" ambiguity resolved by shipping both.
+**Original status:** 🟡 Open — ENH-111 (the wrong feature) is in main as of 20798ac. ENH-108 (the right feature) was never started. Owner directive misread by the prior cloud agent.
+**Priority:** **High** — owner explicitly flagged, mid-Sprint-12 review: *"shipped broken feature I did not ask for, not the one I did."*
+**Filed:** 2026-05-09 by local Claude during Sprint 12 close-out.
+
+**What was asked for.** [ENH-108: Paste-image handling — markdown editor + HTML canvas](tasks.md:276) — owner-directed P0 for Sprint 9, filed 2026-05-08 from idle-thoughts sweep. Spec: `⌘V` (or drag-drop) an image into either editor surface → Duo saves to active file's parent dir (`image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`) + inserts the link inline (`![](path)` markdown / `<img>` canvas). Closes a workflow-defining gap: today = save-to-Desktop → drag-to-Finder → markdown-link-by-hand. Mirror requirement per editor-canvas parity rule.
+
+**What got shipped.** [ENH-111: image viewer v2 chrome](renderer/components/ImageView.tsx) — toolbar with zoom/pan/copy/dimensions readout for the image-VIEWER tab type. Promoted from Sprint 13 by the cloud agent. Different feature, different surface (viewer vs editor), different user benefit.
+
+**How the misread happened.** Active-sprint.md captured the owner directive verbatim — *"address image handling (should be in the roadmap now)"*. ENH-108 had been filed as P0 the same day (2026-05-08) per the idle-thoughts sweep — that's the only "image handling" item with active P0 status. The cloud agent went sprint-13's image VIEWER work instead, presumably anchored on the literal token "image" in the most-recently-touched roadmap item.
+
+**Owner's "broken" complaint.** Owner reported ENH-111 is broken in addition to being the wrong feature. Specific failure modes not yet identified by the local agent — needs a walk of the image viewer to confirm (toolbar buttons fire? files.stat IPC wired? clipboard.writeImage works? context menu items execute? wheel-zoom + drag-pan?). Pre-existing ENH-111 walk items in the smoke-walk manifest cover the basics; need to actually exercise them.
+
+**Recovery options (NOT executed — owner picks):**
+
+1. **Revert ENH-111 + ship ENH-108 this sprint, re-cut.** Most destructive but cleanest narrative — Sprint 12 actually does what owner asked. The 20798ac commit batched ENH-111 with ENH-115 (terminal-tab Reveal in navigator); a clean revert needs to preserve ENH-115. Manual cherry-revert: `git restore --source=461b63f^ -- renderer/components/ImageView.tsx renderer/components/FileRenderers.tsx renderer/components/WorkingPane.tsx electron/files-service.ts electron/main.ts electron/preload.ts shared/host-api.ts shared/types.ts`, then re-introduce only the ENH-115 deltas in TabBar.tsx + App.tsx (already in main).
+2. **Keep ENH-111 (it works, just isn't what was asked) + ship ENH-108 next sprint with explicit P0 slot.** Least destructive. Sprint 12 cut goes out as-is; ENH-108 leads Sprint 13.
+3. **Keep ENH-111 + ship ENH-108 this sprint, both.** Delays the cut by ~1d (ENH-108 spec covers ~10 sub-steps + CLI parity). Sprint 12 grows from 3 commits to 4-5.
+4. **Fix ENH-111's bugs first**, then decide on (1)/(2)/(3) — rules out option (1) if the bugs are minor (since the code is salvageable).
+
+**Recommendation:** owner picks. Local agent's lean (without seeing what's broken about ENH-111): **(2)** — Sprint 12 ships as-is plus a release-note line acknowledging "image viewer chrome landed; paste-image (the actual ask) is Sprint 13 P0." Trades narrative cleanness for ship velocity. Inverts to **(1)** if ENH-111 is broken in a way that wastes user time (e.g. crashes the renderer or the toolbar buttons no-op).
+
+**Cross-ref:** [ENH-108 (the actual ask)](tasks.md:276), [ENH-111 (what shipped)](tasks.md:5840), [active-sprint.md](docs/dev/active-sprint.md), idle-thoughts.md "Image handling" entry → ENH-108 sub-bullet.
+
+---
+
+### ENH-116: Trim `.claude/skills/smoke-walk/SKILL.md` — verbosity will get truncated at runtime
+
+**Status:** 🆕 Filed 2026-05-09.
+**Priority:** **High** — runtime skill truncation means HARD RULES at the bottom of the file (e.g. § 5b checks 3-6, § 7 result-parsing) silently drop out of Claude's working context. Skill becomes advisory not authoritative.
+**Filed:** 2026-05-09 (Geoff, after Sprint 12 walk-1 broken-page incident).
+
+**Symptom.** SKILL.md is **603 lines** as of 2026-05-09. Claude's skill-loading budget cuts long skills; rules near the end of the file get truncated. The smoke-walk skill encodes critical procedures (§ 4 dev-process probe + warn-then-ask, § 5b error-overlay scan + worksheet-primitive exercise, § 7 result parsing, § Manifest authoring tips backtick conventions) that all need to be in-context for the agent to execute correctly. Pre-trim the file is too long to reliably load.
+
+**What needs to happen.**
+1. **Audit which sections are read-only-once-then-cite-forever** (e.g. detailed result-format spec, manifest authoring tips, error-overlay catalog) and move them to `.claude/skills/smoke-walk/references/<topic>.md` files. Keep only the procedure-active-verbs in SKILL.md proper.
+2. **Collapse all the violation callouts** ("Violated 2026-05-04…", "Violated 2026-05-08…") into a single "incidents that motivated each rule" reference sub-doc. The narrative provenance is valuable for understanding WHY but isn't load-on-demand-needed for executing the skill.
+3. **Tighten redundant prose** — every blockquote-callout duplicates the rule above it in different words. Pick the shortest formulation; cut the others.
+4. **Tighten Step 4 hard-rule on warn-then-ask** — currently in a blockquote that visually de-emphasizes (the format does the opposite of what's intended); promote to numbered step inside the procedure body.
+5. **Fold (a) worksheet-primitive verification (landed 2026-05-09 as § 5b step 3) into the trim pass** so it doesn't bloat the file further.
+
+**Cross-ref:** Same audit applies to `.claude/skills/duo/SKILL.md` (ships globally to every machine running Duo's agent stack); should be an audit pass across `.claude/skills/*/SKILL.md` to keep all skills under a runtime-safe ceiling.
+
+**Open questions.**
+- What IS the runtime truncation threshold? Probably depends on harness (Claude Code vs other surfaces) and total context loaded. Empirical answer: if a smoke-walk hard-rule from the bottom of the file fails to fire, it's truncated. Hard to test deterministically.
+- Should the trim be one PR per skill, or a sweep PR across all? Probably per-skill — easier review.
+
+---
+
+### BUG-110: smoke-walk localStorage key collides across walks of the same version
+
+**Status:** ✅ **Shipped 2026-05-09 (Sprint 12 close-out).** Patched `.claude/skills/smoke-walk/generate.mjs` to derive the worksheet `name` from the manifest filename (`basename(manifestPath, '.json')`) instead of the bare version. Sprint 12 walk now keys at `worksheet:smoke-walk-v0.6.10-sprint12` instead of `worksheet:smoke-walk-v0.6.10`.
+**Priority:** **High** — every smoke walk pre-fix was at risk; happened to bite Sprint 12 because Sprint 11's wikilink walk ran against the same v0.6.10 base.
+**Filed:** 2026-05-09.
+
+**Symptom (owner-side, Sprint 12 walk-1).** Owner reported "the copy button for the smoke walk did not work and that my edits were lost because local storage was broken." Page rendered (3 items, footer shows "3 to go"), script bound (tally() ran), but radio-toggle + notes edits appeared to vanish, and the Copy results button felt unresponsive.
+
+**Root cause.** `.claude/skills/smoke-walk/generate.mjs` set `name: \`smoke-walk-v\${version}\`` — the worksheet primitive uses that as `STORAGE_KEY = 'worksheet:' + NAME`. Sprint 11's wikilink walk-3 manifest also declared `version: "0.6.10"` (post-bump for Sprint 12 work), so its results saved to `worksheet:smoke-walk-v0.6.10`. When Sprint 12's page loaded, `applyState()` read that prior state, found item IDs (`WIKILINK-AUTOCOMPLETE-V3`, `AT-MENTION-V3`, etc.) that didn't match the Sprint 12 items (`BUG-108`, `ENH-111`, `ENH-115`) — silently ignored everything. Owner's fresh edits then wrote into the same colliding key on top of the wikilink ghosts; on any reload `applyState()` couldn't reconcile.
+
+**Why "Copy didn't work" too.** Copy itself worked (`navigator.clipboard.writeText` succeeds in the `file://` HTML page's secure context — verified). But owner had lost confidence in the page after the apparent edit-loss; "didn't work" was downstream confusion, not a separate bug.
+
+**Fix.** [.claude/skills/smoke-walk/generate.mjs:24-50](.claude/skills/smoke-walk/generate.mjs:24): added `walkSlug = basename(manifestPath, '.json')` and changed `name: \`smoke-walk-v\${version}\`` → `name: \`smoke-walk-\${walkSlug}\``. Verified end-to-end (radio toggle → save → reload → restore round-trip + Copy button → clipboard) before re-handing off the Sprint 12 walk.
+
+**Cross-ref / lessons:**
+1. The worksheet primitive's docs already said `name: "v0.6.4-walk-1"` — unique-per-walk was the documented contract. The smoke-walk wrapper drifted from it. Add a smoke-walk SKILL.md note + the worksheet generate.mjs validator could check for a collision against existing localStorage keys, but that requires reading from the page context which the build step can't.
+2. Pre-flight verification of the smoke walk page should include "set/get a localStorage round-trip with the worksheet key" — not just "duo doctor + nav-state + first-step exercise" per CLAUDE.md § 7c. Worth adding to the smoke-walk skill's pre-handoff checklist.
+
+---
+
 ### BUG-109: ⌘T new browser tab — caret not in URL bar (regression, surfaced 2026-05-07 walk-1)
 
 **Status:** ✅ **Shipped Sprint 9 (2026-05-07).** Walk-3 user-verified PASS. Walk-1 fix landed `window.electron.keyboard.reclaimFocus()` BEFORE the rAF chain in newBrowserTab — pulls OS focus from the WCV to the renderer so by the time the URL input's `.focus()` fires, the renderer owns OS focus and the caret renders blue/active. Owner walk-3: "[PASS]."

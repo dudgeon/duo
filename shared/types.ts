@@ -125,6 +125,13 @@ export type DuoCommandName =
   // navigator's right-click Pin / Unpin actions. Same single-verb
   // discriminated-op shape as 'file'.
   | 'nav-pin'
+  // ENH-108 (Sprint 12) — `duo image insert <path>` inserts an
+  // image into the active markdown editor. Reads source bytes,
+  // calls `files.saveImageBeside` to copy alongside the active doc
+  // with a generated filename, then inserts at caret. v1 supports
+  // markdown editor target only; canvas (PageTab) parity in a
+  // follow-up. Optional `--alt` to set alt text.
+  | 'image-insert'
   // ENH-014 (v0.5.2 sprint) — set split-pane percentage. Mirrors
   // the View → Pane size menu and ⌘⌥1/2/3 keyboard accelerators.
   // Clamps to the 20–80 range the divider drag uses.
@@ -646,6 +653,26 @@ export interface DocWriteResult {
   error?: string
 }
 
+// ENH-108 (Sprint 12) — `duo image insert <path>` request/reply.
+// Source bytes are read by main (CLI process can't reach the renderer
+// directly + bytes can be large) and shipped through. Renderer
+// dispatches to active markdown editor → saveImageBeside + insert at
+// caret. v1 supports markdown editor target only.
+export interface ImageInsertRequest {
+  reqId: string
+  bytes: Uint8Array
+  ext: string  // e.g. 'png', 'jpg' — used for the saved filename
+  alt?: string // optional alt text on the inserted node
+}
+
+export interface ImageInsertResult {
+  reqId: string
+  ok: boolean
+  /** Absolute path of the saved-alongside image, when ok. */
+  absPath?: string
+  error?: string
+}
+
 // ENH-022 (v0.5.4) — `duo doc goto` — agent-driven editor navigation.
 // One of the three target fields must be set. The handler routes by
 // active editor type: markdown editor handles `heading` + `line` +
@@ -1097,6 +1124,12 @@ export const IPC = {
   // viewer chrome's "1440 × 900 · 312 KB" readout. Cheaper than
   // FILES_READ (no payload transfer).
   FILES_STAT: 'files:stat',
+  // ENH-108 (Sprint 12) — paste-image: write a clipboard image
+  // beside the active doc. Renderer hands main the bytes + parent
+  // dir + extension; main generates a unique filename
+  // (`image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`), writes the file, returns
+  // the absolute path the editor inserts via `![](relative-path)`.
+  FILES_SAVE_IMAGE_BESIDE: 'files:save-image-beside',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
@@ -1202,6 +1235,14 @@ export const IPC = {
   // Stage 17b Phase C — agent ops against the active page.
   PAGE_HTML_OP: 'page:html-op',               // main → renderer (apply / read)
   PAGE_HTML_OP_RESULT: 'page:html-op-result', // renderer → main (reply)
+
+  // ENH-108 (Sprint 12) — `duo image insert <path>` request/reply pair.
+  // Main reads source bytes + sends; renderer dispatches to the active
+  // markdown editor (v1 — canvas parity later) which calls
+  // saveImageBeside + inserts at caret. Reply carries the absolute
+  // path of the saved image.
+  EDITOR_IMAGE_INSERT: 'editor:image-insert',                 // main → renderer
+  EDITOR_IMAGE_INSERT_RESULT: 'editor:image-insert-result',   // renderer → main
 
   // Stage 17c — page selection snapshot push from the renderer. Mirrors
   // `EDITOR_SELECTION_PUSH` for the page surface so `duo selection

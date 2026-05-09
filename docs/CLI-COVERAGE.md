@@ -70,6 +70,7 @@ for the authoritative usage text.
 | `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor |
 | `duo doc goto [<path>] --heading "X" \| --line N \| --anchor "Y"` | **ENH-022** — scroll the active editor (or specified file's editor) to a target. `--heading` markdown-only (case-insensitive substring on heading text). `--line` is 1-indexed. `--anchor` matches markdown heading slug OR canvas/HTML element id (`data-duo-id` first, then `id`). |
 | `duo doc find <query> [<path>] [--case-sensitive]` | **ENH-023** — search the markdown editor's live buffer; returns `{matches, first: {line, col}}`. v1 markdown only. |
+| `duo image insert <path> [--alt "…"]` | **ENH-108** — insert an image from disk into the active markdown editor. Source bytes copied alongside the active doc as `image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`, inserted at caret. v1 markdown-editor target only — canvas (PageTab) parity is a follow-up. |
 
 ### HTML canvas (Stage 17)
 
