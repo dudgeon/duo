@@ -325,6 +325,97 @@ back to the pre-flight probe in Step 4.
 > agent never verified the survivor had actually accepted the open.
 > Always verify focus AFTER the open, BEFORE the handoff.
 
+### 5b. Verify the app is in a CLEAN state before handoff
+
+> **HARD RULE — never hand off the smoke walk page if the app is in
+> a crashed / errored state.** Catching a stale error overlay is the
+> agent's job, not the user's. Mirrors `CLAUDE.md § 7c`.
+
+The failure mode this rule prevents: agent commits a renderer-
+crashing bug, opens the smoke walk page (which lives in the browser
+pane and renders fine on its own), tells the user "walk it." User
+walks step 1 ("open a markdown file"), immediately hits the React
+error boundary. The agent shipped a crash AND wasted the user's
+verification cycle.
+
+> Violated 2026-05-08 (Sprint 11 walk-1): agent shipped two
+> `@tiptap/suggestion` instances both using the default `'suggestion'`
+> plugin key. ProseMirror rejected the second one at MarkdownEditor
+> mount. The crash was caught by the WorkingPane ErrorBoundary —
+> agent had no clue because the smoke walk page itself rendered fine
+> in the browser pane. User opened the editor and saw the error
+> overlay before the agent did. Read this section before EVERY
+> handoff, even when the surface looks fine.
+
+#### Checks before handoff (in order, all must pass):
+
+1. **`duo doctor` clean** — socket transport up, CLI version
+   matches app version. If not: restart per CLAUDE.md item 7a.
+
+2. **`duo nav-state` returns OK** — the renderer is alive at the
+   IPC layer. (A crashed renderer with a live socket-server is
+   possible in some edge cases; this catches the easy ones.)
+
+3. **Take responsibility for the FIRST failure-prone step the walk
+   exercises.** Don't hand off until you've personally exercised the
+   code path the walk's first item exercises. Two paths:
+
+   - **Computer-use granted (preferred):** call `request_access`
+     for Electron, take a screenshot of Duo, visually scan for ANY
+     error overlay (React red error screen, ErrorBoundary fallback
+     panel, the localized `[ErrorBoundary:WorkingPane]` panel,
+     "App hit an error" fallback). If anything looks wrong, FIX IT
+     before handoff.
+
+   - **Computer-use denied / unavailable:** at minimum, exercise
+     the walk's first failure-prone step yourself via the CLI. For
+     a markdown-editor walk: `duo edit /tmp/preflight-walk-N.md`
+     to mount MarkdownEditor. If the editor's mount completes (the
+     file appears as a tab, `duo url` matches), the mount probably
+     succeeded — but you still can't see render errors past the
+     ErrorBoundary catch, so move to step 4.
+
+4. **Explicit warning when verification is impossible.** If
+   computer-use is denied AND the walk's first step can't be
+   exercised via the CLI (e.g. it requires a click or a keystroke),
+   say so EXPLICITLY in the handoff message — first sentence, not
+   buried:
+
+   > "I couldn't verify the app's render state — please check
+   > DevTools (Cmd+Opt+I) for any error overlay before walking."
+
+5. **Restart on uncertainty.** If you've made many changes since
+   the last verified clean state and the dev session has been
+   running the whole time, restart the dev (CLAUDE.md item 7a)
+   before the smoke walk even when the surface checks pass. HMR
+   can leave the app in a half-applied state where one extension
+   is the new code + another is the old; a clean restart bisects
+   the question.
+
+#### Common error-overlay patterns to scan for:
+
+- **React error overlay** — full-screen red panel with stack
+  trace; renderer-level uncaught exceptions. Almost always means
+  a render-time throw in your code OR a TipTap extension mount
+  failure.
+- **App-level ErrorBoundary** — "App hit an error" fallback in
+  `renderer/components/ErrorBoundary.tsx`. Catches anything past
+  WorkingPane / localized boundaries.
+- **WorkingPane ErrorBoundary panel** — "WorkingPane hit a render
+  error" with Try Again + Reload Renderer buttons (BUG-093
+  instrumentation, Sprint 7). Localized; rest of app keeps
+  running. Your fix-and-recover cycle is "fix the underlying
+  cause, click Try Again, verify clean mount."
+- **Pending-write banner** that's stale (BUG-033) — if the agent
+  just submitted an html-op or doc-write that errored, the
+  banner can persist past the rejection.
+- **External-conflict banner** (BUG-085) — "This file changed on
+  disk while you were editing." Sometimes a real disk drift, but
+  often a chokidar / autosave race surfaced by Sprint 11+ work.
+
+If any of these is up: resolve it (or restart) before handoff.
+Don't hand the walk to the user with a stale error visible.
+
 ### 6. Hand off to the user
 
 Say (briefly), incorporating the focus-the-tab nudge from Step 5:
@@ -438,18 +529,20 @@ ENHs at the bottom.
 that have recurred multiple times across walks. Each release's
 manifest MUST include them, with explicit verification steps.
 
-- **BUG-056** — Send → Duo pill on browser pane should NOT appear
-  when there's no active Claude session. Steps: (a) close ALL
-  Claude tabs in the terminal pane (only shell tabs left); (b)
-  open ANY browser tab (faq.html, smoke walk page, anything);
-  (c) select text in the page; (d) confirm the in-page pill does
-  NOT render. Owner has reported this recurringly across walks;
-  the gating is in `cdp-bridge.ts § showPillFor` reading
-  `window.__duoClaudeLive` which `setClaudeLive(state)` flips
-  from main when claude-presence changes. Re-test on every cut.
+> **HARD RULE — when a regression item gets durable automated test
+> coverage that passes in CI, REMOVE it from this list AND from
+> the next sprint's manifest.** The smoke walk is for things that
+> MIGHT have regressed; CI catches the things the test suite
+> already guarantees. Owner-flagged 2026-05-07 walk-2: "WHY AM I
+> SEEING THIS IF YOU TEST IT AND IT PASSES DON'T SHOW ME THIS."
+> Adding a "verify the test exists" smoke-walk row is the same
+> mistake — drop the item entirely.
 
-(Add new mandatory items here when a bug recurs across two
-releases — that's the smell.)
+(Currently no items in this section — BUG-056 was removed
+2026-05-07 after `electron/cdp-bridge.test.ts` landed with three
+asserts on the IIFE source. Add new items here when a bug recurs
+across two releases AND there's no clean automated test path
+yet.)
 
 **Code blocks + Copy buttons (ENH-046 — 2026-05-02 walk-2).** Any
 shell command, code snippet, or file path the user is expected to

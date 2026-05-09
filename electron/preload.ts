@@ -220,6 +220,7 @@ const api: ElectronAPI = {
 
     // BUG-039 — existence check for session-restore tab hydration.
     exists: (p) => ipcRenderer.invoke(IPC.FILES_EXISTS, { path: p }),
+    dirExists: (p) => ipcRenderer.invoke(IPC.FILES_DIR_EXISTS, { path: p }),
 
     // ENH-016 — create a directory (navigator "New folder…").
     mkdir: (p) => ipcRenderer.invoke(IPC.FILES_MKDIR, { path: p }),
@@ -496,6 +497,13 @@ const api: ElectronAPI = {
       ipcRenderer.on(IPC.PANE_TOGGLE_FOCUS, handler)
       return () => ipcRenderer.removeListener(IPC.PANE_TOGGLE_FOCUS, handler)
     },
+    // ENH-098 (Sprint 9) — pane-jump from CLI (`duo focus-pane <name>`).
+    // Same shape as onPaneToggleFocus but payload-bearing.
+    onPaneFocusJump: (cb) => {
+      const handler = (_: IpcRendererEvent, target: 'terminal' | 'main' | 'aux') => cb(target)
+      ipcRenderer.on(IPC.PANE_FOCUS_JUMP, handler)
+      return () => ipcRenderer.removeListener(IPC.PANE_FOCUS_JUMP, handler)
+    },
     reclaimFocus: () => ipcRenderer.send(IPC.PANE_FOCUS_RECLAIM),
     onBrowserFocusGained: (cb) => {
       // Phase 3c BUG-095 — payload now carries `{ tabId, slot }` so the
@@ -568,6 +576,13 @@ const api: ElectronAPI = {
   },
   dialog: {
     confirm: (req) => ipcRenderer.invoke(IPC.DIALOG_CONFIRM, req)
+  },
+  // BUG-105 (Sprint 10) — main-process clipboard write. Use this from
+  // any context-menu `click` handler (Copy path / Copy URL / etc.);
+  // never call `navigator.clipboard.writeText` from inside a native
+  // NSMenu callback chain.
+  clipboard: {
+    writeText: (text) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_TEXT, text) as Promise<void>
   }
 }
 

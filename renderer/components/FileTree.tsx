@@ -240,7 +240,10 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         await window.electron.files.revealInFinder(target.path)
         return
       case 'copy-path':
-        try { await navigator.clipboard.writeText(target.path) } catch { /* permission denied */ }
+        // BUG-105 (Sprint 10) — route through main's clipboard
+        // module; the renderer-side API silently rejects when fired
+        // from a native NSMenu callback (no user-gesture context).
+        try { await window.electron.clipboard.writeText(target.path) } catch { /* permission denied */ }
         return
       case 'open-with-default':
         await window.electron.files.openExternal(target.path)
@@ -746,12 +749,19 @@ function RenameInput({ initial, isFolder, onCommit, onCancel }: RenameInputProps
   )
 }
 
-// Dotfile rule (Stage 10 § D6): hide dotfiles by default, EXCEPT `.claude`
-// directories and anything beneath them, which are always visible.
+// Dotfile rule (Stage 10 § D6): hide dotfiles by default, EXCEPT
+// `.claude` directories — which carry user/project skills + agents
+// and are first-class for the Duo workflow — and `.obsidian`
+// directories, which carry vault config (workspace/theme/plugins)
+// that vault authors edit by hand. Sprint 11 ENH-109 — added
+// `.obsidian` to the always-visible list so working with an
+// Obsidian vault doesn't require flipping the global "show hidden
+// files" toggle just to reach the vault config.
 function shouldShow(entry: DirEntry, showDotfiles: boolean): boolean {
   if (showDotfiles) return true
   if (!entry.name.startsWith('.')) return true
   if (entry.name === '.claude') return true
+  if (entry.name === '.obsidian') return true
   return false
 }
 

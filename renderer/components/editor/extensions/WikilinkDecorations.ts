@@ -34,11 +34,59 @@
 
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import type { Node as PMNode } from '@tiptap/pm/model'
 
 const WIKILINK_RE = /\[\[([^\]\n]+)\]\]/g
 const PLUGIN_KEY = new PluginKey('duo-wikilink-decorations')
+
+/**
+ * Resolve the wikilink target at a click. Tries the DOM-walk path
+ * first (handles text-node targets — `event.target` is often a Text
+ * node when the click hits visible text inside our decoration span,
+ * and `closest` is undefined on Text nodes). Falls back to a
+ * pos-based decoration lookup so the resolution is robust to any
+ * DOM weirdness — ProseMirror's pos parameter is computed from
+ * coordinates and reliably points inside whatever inline content
+ * received the click.
+ *
+ * Exported for unit testing; the production caller is the click
+ * handler in the plugin below.
+ */
+export function resolveWikilinkTargetAtClick(
+  view: EditorView,
+  pos: number,
+  event: MouseEvent | { target: EventTarget | null }
+): string | null {
+  // 1. DOM-walk path. event.target may be: (a) the wikilink span, (b)
+  //    a text node child of the span (Element.closest is undefined on
+  //    Text nodes — walk up via parentElement), (c) some unrelated
+  //    element if the click missed the decoration entirely.
+  const targetNode = event.target as Node | null
+  const startEl: Element | null = targetNode instanceof Element
+    ? targetNode
+    : (targetNode?.parentElement ?? null)
+  const domHit = startEl?.closest?.('[data-duo-wikilink-target]') as HTMLElement | null
+  const fromDom = domHit?.getAttribute('data-duo-wikilink-target') ?? null
+  if (fromDom) return fromDom
+
+  // 2. Pos-based fallback. Find the wikilink decoration covering the
+  //    click position. This works even when event.target is a Text
+  //    node from a different DOM subtree (e.g. when a parent
+  //    contenteditable handler intercepts and re-targets the event).
+  const decorationSet = PLUGIN_KEY.getState(view.state) as DecorationSet | undefined
+  if (!decorationSet) return null
+  const hits = decorationSet.find(pos, pos)
+  for (const dec of hits) {
+    // Inline decorations expose their attrs at `dec.type.attrs`. The
+    // ProseMirror types don't formally expose this on the public
+    // Decoration shape, so we read defensively.
+    const attrs = (dec as unknown as { type?: { attrs?: Record<string, string> } }).type?.attrs
+    const t = attrs?.['data-duo-wikilink-target']
+    if (t) return t
+  }
+  return null
+}
 
 /**
  * Compute decorations for the doc. Re-run on every transaction.
@@ -97,12 +145,10 @@ export const WikilinkDecorations = Extension.create({
             // Detect clicks on wikilink decorations. Only fire on
             // cmd/ctrl+click so a plain click stays "place a cursor"
             // — same convention as VS Code, IntelliJ etc.
-            const meta = (event as MouseEvent).metaKey || (event as MouseEvent).ctrlKey
+            const me = event as MouseEvent
+            const meta = me.metaKey || me.ctrlKey
             if (!meta) return false
-            // Walk DOM up from the click target to find the wikilink span.
-            const target = (event.target as Element | null)?.closest?.('[data-duo-wikilink-target]') as HTMLElement | null
-            if (!target) return false
-            const wikilinkTarget = target.getAttribute('data-duo-wikilink-target')
+            const wikilinkTarget = resolveWikilinkTargetAtClick(view, pos, event)
             if (!wikilinkTarget) return false
             // Dispatch a window event the host (App.tsx) listens for.
             // Decouples the resolution logic (which needs vault-root

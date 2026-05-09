@@ -109,6 +109,20 @@ export class FilesService {
     }
   }
 
+  /** ENH-096 v2 (Sprint 9 walk-1 fix) — directory-aware existence
+   *  check for the wikilink vault-root walker. `files.exists` strictly
+   *  returns true only for regular files (BUG-039 semantic); the
+   *  walker needs to detect `.obsidian/` which is a directory. Symlinks
+   *  resolve via `fs.stat`; a broken symlink reports false. */
+  async dirExists(absPath: string): Promise<boolean> {
+    try {
+      const st = await fs.stat(absPath)
+      return st.isDirectory()
+    } catch {
+      return false
+    }
+  }
+
   async read(absPath: string): Promise<FileReadResult> {
     const st = await fs.stat(absPath)
     if (st.size > MAX_READ_BYTES) {

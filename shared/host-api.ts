@@ -168,6 +168,11 @@ export interface ElectronFilesAPI {
    *  session-restore hydration to drop tabs whose files were
    *  deleted between sessions. */
   exists: (path: string) => Promise<boolean>
+  /** ENH-096 v2 (Sprint 9 walk-1 fix) — directory-aware existence
+   *  probe. `exists` strictly returns true only for regular files
+   *  (BUG-039 semantic); this one returns true only for directories.
+   *  Used by the wikilink vault-root walker to detect `.obsidian/`. */
+  dirExists: (path: string) => Promise<boolean>
   /** ENH-016 — create a directory (recursive — parents created if
    *  missing). Used by the navigator's "New folder…" context-menu
    *  entry. */
@@ -264,6 +269,10 @@ export interface ElectronKeyboardAPI {
   /** Fires when the View → Toggle pane focus menu accelerator
    *  (⌘`) is triggered. */
   onPaneToggleFocus: (cb: () => void) => () => void
+  /** ENH-098 (Sprint 9) — fires when `duo focus-pane <name>` is
+   *  dispatched from the CLI. Payload is the target pane name; the
+   *  renderer's focusPane() implements the actual focus shift. */
+  onPaneFocusJump: (cb: (target: 'terminal' | 'main' | 'aux') => void) => () => void
   /** BUG-048 v3 — renderer-driven OS focus reclaim. Called by
    *  togglePaneFocus AFTER it has decided direction so the focus
    *  reclaim's xterm-focus-event side-effect doesn't poison the
@@ -697,6 +706,15 @@ export interface ElectronDialogAPI {
   confirm: (req: import('./types').DialogConfirmRequest) => Promise<import('./types').DialogConfirmResult>
 }
 
+// BUG-105 (Sprint 10) — main-process clipboard write. The renderer's
+// `navigator.clipboard.writeText` silently rejects when called from
+// inside a native NSMenu's `click` handler (the user-gesture window
+// closed when the menu opened). Routing through main uses Electron's
+// `clipboard` module which has no gesture requirement.
+export interface ElectronClipboardAPI {
+  writeText: (text: string) => Promise<void>
+}
+
 // Stage 21c — session state restored across Duo relaunches.
 // ~/.claude/duo/session-state.json. Renderer pulls on mount,
 // debounce-saves on every state change.
@@ -734,6 +752,9 @@ export interface ElectronAPI {
   // ENH-050 — native menu / sheet primitives.
   menu: ElectronMenuAPI
   dialog: ElectronDialogAPI
+  // BUG-105 (Sprint 10) — main-process clipboard, used from
+  // context-menu click handlers.
+  clipboard: ElectronClipboardAPI
   sessionState: ElectronSessionStateAPI
   events: ElectronEventsAPI
 }

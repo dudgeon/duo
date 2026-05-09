@@ -976,6 +976,24 @@ export class BrowserManager {
         // had been used once (focus moves to WCV after pick) it stopped
         // working entirely.
         input.code === 'KeyA' ||
+        // ENH-098 (Sprint 9 walk-1 re-pick) — pane-jump chords ⌘⇧L/;/'.
+        // Originally ⌘⌥L/;/' but owner's window manager intercepts
+        // meta+alt at the system level so chord never reaches the
+        // renderer. Use `code` (KeyL/Semicolon/Quote) since Shift
+        // modifies the produced character on US layouts. Gated on
+        // `input.shift` to avoid colliding with ⌘L = focusAddressBar
+        // and any future plain-modifier chords sharing the same
+        // physical key.
+        (input.shift && (input.code === 'KeyL' || input.code === 'Semicolon' || input.code === 'Quote')) ||
+        // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active file. From
+        // browser-pane focus, Backspace would normally trigger
+        // Chromium's history-back behavior; intercepting here lets
+        // the chord reach the renderer instead. The renderer's
+        // deleteCurrentFile callback no-ops if the active surface
+        // is a browser tab anyway, but escaping the chord is still
+        // necessary so that user holding ⌘⇧⌫ on a browser tab
+        // doesn't trigger a back-navigation surprise.
+        (input.shift && input.code === 'Backspace') ||
         (key >= '1' && key <= '9')
       // NOTE: ⌘` is intentionally NOT in this list. It's handled by the
       // app-menu accelerator (which beats macOS's system shortcut) and

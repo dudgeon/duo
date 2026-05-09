@@ -1,8 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { buildWikilinkCreatePath } from './wikilinkCreate'
 import { TabBar } from './components/TabBar'
 import { TerminalPane } from './components/TerminalPane'
 import { WorkingPane } from './components/WorkingPane'
 import { TabSearchPalette, type TabSearchEntry } from './components/TabSearchPalette'
+import { VaultQuickSwitcher } from './components/VaultQuickSwitcher'
+import { useVaultIndex } from './components/editor/vaultIndex'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
@@ -22,7 +25,7 @@ import { useTheme } from './hooks/useTheme'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
-import { normalizeWikilinkName } from './components/editor/wikilinkResolver'
+import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
 import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
@@ -185,94 +188,51 @@ function makeTab(cwd: string, kind: TerminalTabKind, home: string): TabSession {
  * pay arbitrary IO cost on every cmd+click. 16 levels covers any
  * practical vault depth.
  */
-async function findVaultRoot(startPath: string | null): Promise<string | null> {
-  if (!startPath) return null
-  let dir = startPath.slice(0, startPath.lastIndexOf('/'))
-  if (!dir) return null
-  for (let depth = 0; depth < 16; depth++) {
-    const obsidianPath = `${dir}/.obsidian`
-    try {
-      // .obsidian is a directory; `exists` returns true for either
-      // file or directory presence.
-      if (await window.electron.files.exists(obsidianPath)) {
-        return dir
-      }
-    } catch {
-      // IO failure → assume not a vault root, continue walking up.
-    }
-    const parent = dir.slice(0, dir.lastIndexOf('/'))
-    if (!parent || parent === dir) return null
-    dir = parent
-  }
-  return null
+/**
+ * ENH-098 (Sprint 9 walk-2) — find the VISIBLE editor's
+ * contenteditable scoped to the requested working-pane subtree.
+ *
+ * Why this is non-trivial: BUG-046 keeps every file-tab renderer
+ * mounted simultaneously (display-toggled) for instant cycling.
+ * So `[data-duo-workingpane]` matches N elements in DOM at any
+ * time, only one of which is visible (its ancestor's display !==
+ * 'none'). And when split view is open, the aux pane mounts its
+ * own editor too, also marked [data-duo-workingpane]. A naive
+ * querySelector picks the FIRST in DOM order, which is rarely
+ * the right target.
+ *
+ * Algorithm: walk every [data-duo-workingpane], filter by
+ * `offsetParent !== null` (excludes display:none AND visibility
+ * variants without false positives), then partition by whether
+ * the element sits inside [data-duo-workingpane-aux]. Return the
+ * first element matching the requested scope.
+ *
+ * Returns the editor's contenteditable when present (the actual
+ * caret target), falling back to the wrapper element when no
+ * contenteditable is rendered (image/PDF preview tabs are
+ * non-editable).
+ */
+function findVisibleWorkingPaneCE(scope: 'main' | 'aux'): HTMLElement | null {
+  const all = Array.from(
+    document.querySelectorAll<HTMLElement>('[data-duo-workingpane]')
+  )
+  const visible = all.filter(el => el.offsetParent !== null)
+  const target = visible.find(el => {
+    const inAux = el.closest('[data-duo-workingpane-aux]') !== null
+    return scope === 'aux' ? inAux : !inAux
+  })
+  if (!target) return null
+  const ce = target.querySelector<HTMLElement>('[contenteditable="true"]')
+  return ce ?? target
 }
 
-/**
- * ENH-096 (B1) — Resolve a wikilink target inside a vault root. The
- * target is the inner text of `[[Page Name]]` (sans `#section` or
- * `^block` suffixes — those are stripped by the caller).
- *
- * Resolution order (Obsidian-compat best-effort):
- *   1. If target contains `/`, treat as a relative path from the
- *      vault root. First try `<root>/<target>.md`, then
- *      `<root>/<target>` verbatim, then `<root>/<target>.html`.
- *   2. Otherwise: name-first vault walk. First file whose basename
- *      (without extension) equals the target wins. Walk is BFS so
- *      shallower matches win when both exist.
- *
- * Walk-cap: 2000 entries scanned to bound IO on monster vaults.
- * Realistic vaults are well below this.
- */
-async function resolveWikilinkInVault(
-  vaultRoot: string,
-  target: string
-): Promise<string | null> {
-  // Path-bearing target: try the literal forms first.
-  if (target.includes('/')) {
-    const candidates = [
-      `${vaultRoot}/${target}.md`,
-      `${vaultRoot}/${target}`,
-      `${vaultRoot}/${target}.html`
-    ]
-    for (const candidate of candidates) {
-      try {
-        if (await window.electron.files.exists(candidate)) return candidate
-      } catch { /* keep trying */ }
-    }
-    // Fall through to name-search if no path-form match.
-  }
-  // Name-first BFS walk. Skip dotdirs (`.obsidian`, `.git`, etc.).
-  const normalizedTarget = normalizeWikilinkName(target)
-  const queue: string[] = [vaultRoot]
-  let scanned = 0
-  while (queue.length > 0 && scanned < 2000) {
-    const dir = queue.shift()!
-    let entries: import('@shared/types').DirEntry[]
-    try {
-      entries = await window.electron.files.list(dir)
-    } catch {
-      continue
-    }
-    for (const entry of entries) {
-      scanned++
-      if (entry.name.startsWith('.')) continue
-      if (entry.kind === 'directory') {
-        queue.push(entry.path)
-        continue
-      }
-      // Match against basename without extension. ENH-096 walk-1
-      // fix — normalize both sides (lowercase + treat -/_ as space)
-      // before comparing. Pre-fix: case-sensitive exact match meant
-      // `[[Other Note]]` silently failed to resolve `other-note.md`.
-      const dot = entry.name.lastIndexOf('.')
-      const stem = dot > 0 ? entry.name.slice(0, dot) : entry.name
-      if (normalizeWikilinkName(stem) === normalizedTarget) {
-        return entry.path
-      }
-    }
-  }
-  return null
-}
+// Sprint 11 — `findVaultRoot` + `resolveWikilinkInVault` extracted to
+// `./components/editor/wikilinkResolver.ts` so the wikilink autocomplete
+// (ENH-096 B.2), `@` mention (ENH-105), and `⌘O` quick switcher (B.4)
+// share the same vault-detection + name-first BFS walk logic. The
+// extracted module also exports `walkVaultFiles` for the autocomplete
+// UI's bulk-list use-case (the resolver bails on first match; the
+// walker collects everything for fuzzy ranking).
 
 export function App() {
   const home = window.electron.env.HOME || '~'
@@ -359,6 +319,12 @@ export function App() {
     // read the user's last deliberate column choice unaffected.
     _internalSetFocusedColumn(next)
   }, [])
+
+  // BUG-101 (Sprint 9) — scratchpad ref used by openFile to hand off
+  // the "which tab should activate" decision from inside the
+  // setFileTabs updater to the outer flush block. Avoids the React
+  // anti-pattern of nested setState (see openFile comment below).
+  const pendingActivationRef = useRef<ActiveWorking | null>(null)
   // Stage 26 PR 3 item 8 — handle for the FilesPane so the global
   // ⌘⇧G shortcut can flip its breadcrumb into the editable input.
   const filesPaneRef = useRef<FilesPaneHandle | null>(null)
@@ -378,6 +344,10 @@ export function App() {
   // The palette is a renderer overlay; we set its `open` state from
   // the `duo-open-tab-search` window event fired by useKeyboardShortcuts.
   const [tabSearchOpen, setTabSearchOpen] = useState<boolean>(false)
+  // Sprint 11 ENH-096 B.4 — ⌘O vault quick switcher overlay state.
+  // Distinct from tabSearchOpen (⌘⇧A — open tabs). Sources its file
+  // list from useVaultIndex below, keyed off the active file's path.
+  const [vaultQuickSwitcherOpen, setVaultQuickSwitcherOpen] = useState<boolean>(false)
 
   // ENH-041 / Sprint 3 — Split View ("aux") state. Locked spec at
   // docs/prd/canvas-split-view-research.html. v1 is single-slot
@@ -855,19 +825,59 @@ export function App() {
   // Open (or switch to) a file tab in the WorkingPane. § D13 — same-path
   // identity: if a tab already exists for this path, activate it instead of
   // creating a duplicate.
+  //
+  // BUG-101 (Sprint 9, 2026-05-07) — calling `setActiveWorking` from
+  // INSIDE the `setFileTabs` updater is a React anti-pattern. Inner
+  // state updates are scheduled separately from the outer set's
+  // commit, and React 18+'s automatic batching can land them in a
+  // different render than the tab addition itself. Symptom: the
+  // CLI returned `{ok: true}` because main fired NAV_EDIT and the
+  // tab appended to fileTabs, but `activeWorking` flipped to a
+  // stale value (or didn't flip at all in some race), so the new
+  // tab never surfaced as visible. Fix: do the read-then-write
+  // pattern with a ref-style lookup so both setters run as direct
+  // state transitions, not nested ones.
   const openFile = useCallback((path: string, title: string) => {
     setFileTabs(prev => {
       const existing = prev.find(t => t.path === path)
       if (existing) {
-        setActiveWorking({ kind: 'file', id: existing.id })
+        // Existing tab — surface its id so the activation runs OUTSIDE
+        // this updater. We can't return both the new state AND the id;
+        // stash on a ref-pattern via `pendingActivationRef`.
+        pendingActivationRef.current = { kind: 'file', id: existing.id }
         return prev
       }
       const { type, mime } = classifyFile(path)
       const id = crypto.randomUUID()
-      setActiveWorking({ kind: 'file', id })
+      pendingActivationRef.current = { kind: 'file', id }
       return [...prev, { id, type, path, title, mime }]
     })
+    // Now flush activation + focus OUTSIDE the updater. Both run as
+    // direct state writes that React batches normally — no nesting.
+    if (pendingActivationRef.current) {
+      setActiveWorking(pendingActivationRef.current)
+      pendingActivationRef.current = null
+    }
     setFocusedColumn('working')
+    // BUG-101 walk-2 (Sprint 9, 2026-05-07) — owner saw the tab
+    // surface but caret stayed in the terminal. Walk-1 added a
+    // two-rAF .focus() dance, but the selector hit a hidden tab
+    // (BUG-046 keeps all file-tab renderers mounted, display-toggled).
+    // Walk-2 fix: route through `findVisibleWorkingPaneCE('main')`
+    // which filters by offsetParent !== null AND excludes the aux
+    // subtree. Same two-rAF pattern (wait past React commit + paint).
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const ce = findVisibleWorkingPaneCE('main')
+        if (ce) ce.focus()
+      })
+    })
+    // BUG-101 instrumentation — surface the path the open went down.
+    // Walk-1 feedback: console.debug is hidden by Chrome DevTools'
+    // default level filter (Info+). Switched to console.log so the
+    // trace lands in the default Console view without the user having
+    // to enable Verbose.
+    console.log('[BUG-101 openFile]', { path, title })
   }, [])
 
   // Smart file-open dispatcher: pre-flights HTML files for the
@@ -1273,9 +1283,33 @@ export function App() {
   // classifier routes `.md` to the editor tab type; other types open in
   // their usual preview. duo-open-in:browser still honored unless the
   // CLI passed `--canvas` (ENH-097), which forces canvas mode.
+  //
+  // BUG-106 (Sprint 10) — pre-flight existence so `duo edit
+  // <non-existent-path>` doesn't ENOENT in the editor. Pre-create
+  // empty bytes for the path, mirroring ⌘N's onCommitNewFile pre-write.
+  // files.write mkdir-p's the parent dir (so `duo edit
+  // /new/dir/Foo.md` creates `new/dir/` automatically — symmetric
+  // with the wikilink-create path in ENH-108). The classifier
+  // determines whether to seed with an HTML boilerplate or empty
+  // bytes, matching the ⌘N seed convention.
   useEffect(() => {
-    return window.electron.nav.onEdit((p, mode) => {
+    return window.electron.nav.onEdit(async (p, mode) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
+      try {
+        const exists = await window.electron.files.exists(p)
+        if (!exists) {
+          const { type } = classifyFile(p)
+          const seed = type === 'page'
+            ? encodeUtf8(htmlBoilerplate(name.replace(/\.[^.]+$/, '')))
+            : new Uint8Array()
+          await window.electron.files.write(p, seed)
+        }
+      } catch (err) {
+        // Don't block the open on pre-flight failure — the editor's
+        // existing error path will surface a useful message if the
+        // problem persists at read time.
+        console.warn('[BUG-106 pre-flight failed]', { path: p, err })
+      }
       void openFileSmart(p, name, mode)
     })
   }, [openFileSmart])
@@ -1318,9 +1352,23 @@ export function App() {
   // setOverlayMuted exists for context menus too). Symptom pre-fix:
   // user saw the dim backdrop bleeding into pane edges but the palette
   // body was hidden behind the still-visible page content.
+  //
+  // Sprint 11 ENH-096 B.4 — VaultQuickSwitcher (⌘O) gets the same
+  // treatment. Either overlay open → mute WCVs.
   useEffect(() => {
-    window.electron.browser.setOverlayMuted(tabSearchOpen)
-  }, [tabSearchOpen])
+    window.electron.browser.setOverlayMuted(tabSearchOpen || vaultQuickSwitcherOpen)
+  }, [tabSearchOpen, vaultQuickSwitcherOpen])
+
+  // Sprint 11 ENH-096 B.4 — vault index for the ⌘O quick switcher.
+  // Keyed off the active file's path; recomputes only on vault-root
+  // change (so navigating within a vault doesn't re-walk). When the
+  // active surface isn't a file tab, falls back to null which the
+  // overlay handles with the "open a file inside a vault" hint.
+  const vaultIndexForSwitcher = useVaultIndex((() => {
+    if (activeWorking.kind !== 'file') return null
+    const tab = fileTabs.find((t) => t.id === activeWorking.id)
+    return tab?.path ?? null
+  })())
 
   // ENH-096 (B1) — Wikilink resolver. The WikilinkDecorations plugin
   // fires `duo-wikilink-open` on cmd+click; we walk up from the active
@@ -1331,6 +1379,7 @@ export function App() {
   useEffect(() => {
     const handler = async (e: Event) => {
       const detail = (e as CustomEvent<{ target: string }>).detail
+      console.debug('[ENH-096 receive]', detail)
       const wikilinkTarget = detail?.target?.trim()
       if (!wikilinkTarget) return
       // Strip block-ref / heading suffix; v1 doesn't resolve those —
@@ -1349,7 +1398,25 @@ export function App() {
       }
       const resolved = await resolveWikilinkInVault(vaultRoot, cleanTarget)
       if (!resolved) {
-        console.warn('[ENH-096] Wikilink target not found in vault:', wikilinkTarget, 'vault:', vaultRoot)
+        // Sprint 10 ENH-108 — Obsidian-parity create-on-cmd+click.
+        // No existing file matched, so create one at the requested
+        // path within the vault root and open it. files.write()
+        // mkdir-p's the parent (so [[notes/Foo]] creates notes/ on
+        // demand). Empty seed mirrors the ⌘N markdown new-file flow.
+        const createPath = buildWikilinkCreatePath(vaultRoot, cleanTarget)
+        try {
+          await window.electron.files.write(createPath, new Uint8Array())
+        } catch (err) {
+          console.warn(
+            '[ENH-108] Failed to create wikilink target:',
+            wikilinkTarget,
+            'createPath:', createPath,
+            'err:', err
+          )
+          return
+        }
+        const newName = createPath.slice(createPath.lastIndexOf('/') + 1) || createPath
+        void openFileSmart(createPath, newName)
         return
       }
       const name = resolved.slice(resolved.lastIndexOf('/') + 1) || resolved
@@ -1494,6 +1561,131 @@ export function App() {
   //     contenteditable prose, falling back to the wrapper. The wrapper
   //     alone has tabIndex=0 but isn't a typing target — typing into
   //     a focused tabIndex wrapper is a no-op for the editor.
+  // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+  // (move-to-trash with confirm). Mirrors the right-click → Move to
+  // Trash flow on the WorkingTabStrip but adds the confirm dialog
+  // (the strip's own dialog lives inside its handler). No-op when
+  // active surface is a browser tab or terminal.
+  const deleteCurrentFile = useCallback(async () => {
+    if (activeWorking.kind !== 'file') {
+      // No-op for browser / terminal panes. ⌘W already exists for
+      // tab close; the chord is specifically for FILE deletion.
+      console.info('[ENH-102] no-op: active surface is not a file tab')
+      return
+    }
+    const tab = fileTabs.find(t => t.id === activeWorking.id)
+    if (!tab) return
+    const result = await window.electron.dialog.confirm({
+      title: `Move "${tab.title}" to Trash?`,
+      message: 'This file will be moved to the macOS Trash. You can recover it from Finder.',
+      buttons: ['Cancel', 'Move to Trash'],
+      defaultId: 1,
+      cancelId: 0,
+      type: 'warning'
+    })
+    if (result.response !== 1) return
+    // Sprint 7 rev6 follow-up applied here too — if the file's
+    // already gone, the user's intent is still "close this tab,"
+    // so ENOENT lands as a soft-success and we proceed to close.
+    try {
+      await window.electron.files.trash(tab.path)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (!/doesn['’]?t exist|ENOENT|no such file/i.test(msg)) {
+        window.alert(`Move to Trash failed: ${msg}`)
+        return
+      }
+    }
+    closeFileTab(tab.id)
+  }, [activeWorking, fileTabs, closeFileTab])
+
+  // ENH-098 (Sprint 9) — pane-jump focus action. ⌘⌥L/;/' chord set
+  // and the `duo focus-pane` CLI verb both route here. Distinct from
+  // togglePaneFocus (⌘`) which CYCLES; this function jumps DIRECTLY
+  // to the named target.
+  //
+  // Implementation per target:
+  //   - 'terminal'  : same shape as togglePaneFocus's terminal branch.
+  //   - 'main'      : focus the main working pane (NOT aux). For
+  //                   browser tabs this is browser.focusActive(); for
+  //                   file tabs (markdown / canvas / image / pdf) it's
+  //                   the wrapper or its contenteditable.
+  //   - 'aux'       : focus the split-view aux pane. No-op if neither
+  //                   a file aux nor a browser aux is open. For file
+  //                   aux: focus its contenteditable. For browser
+  //                   aux: route the active WCV's focus (we do NOT
+  //                   have a dedicated focusAux IPC today; the WCV
+  //                   inside the aux slot picks up keyboard focus
+  //                   when its host element is focused).
+  const focusPane = useCallback((target: 'terminal' | 'main' | 'aux') => {
+    if (target === 'terminal') {
+      setFocusedColumn('terminal')
+      window.electron.keyboard.reclaimFocus()
+      queueMicrotask(() => {
+        const textarea = document.querySelector<HTMLTextAreaElement>(
+          '.xterm-host:not([style*="display: none"]) .xterm-helper-textarea'
+        )
+        textarea?.focus()
+      })
+      return
+    }
+    if (target === 'main') {
+      setFocusedColumn('working')
+      queueMicrotask(() => {
+        if (activeWorking.kind === 'browser') {
+          window.electron.browser.focusActive()
+          return
+        }
+        // ENH-098 (Sprint 9 walk-2 fix). Pre-fix used
+        // `document.querySelector('[data-duo-workingpane]')` — picks
+        // the FIRST in DOM order. But BUG-046 keeps every file-tab
+        // renderer mounted (display-toggled), so when the user has
+        // multiple file tabs open the selector hits the FIRST tab's
+        // editor (often invisible) instead of the active one. .focus()
+        // on a `display:none` ancestor's contenteditable silently
+        // fails — DOM focus stays where it was (xterm), keyboard
+        // caret never moves. Walk-1 owner: "focus shifts to main pane,
+        // but carat stays on the terminal." Fix: filter by visibility
+        // (offsetParent !== null) AND exclude any editor inside the
+        // aux subtree.
+        const ce = findVisibleWorkingPaneCE('main')
+        if (ce) ce.focus()
+      })
+      return
+    }
+    // target === 'aux'
+    const hasFileAux = !!(auxState && auxState.paths.length > 0)
+    const hasBrowserAux = !!auxBrowserTab
+    if (!hasFileAux && !hasBrowserAux) {
+      // No-op when split view is closed. Surface a console hint so
+      // a user wondering why nothing happened can find an explanation.
+      // (Toast/banner UI deferred — out of scope for this chord ship.)
+      console.info('[ENH-098] focusAux: split view is not open')
+      return
+    }
+    setFocusedColumn('working')
+    queueMicrotask(() => {
+      if (hasBrowserAux) {
+        // Aux holds a browser tab. We don't have a dedicated
+        // focusAux IPC today — focusActive() targets the active
+        // MAIN browser tab, not the aux WCV. Tracked as a
+        // FOLLOWUP for Phase 3c-iv (browser-aux WCV focus IPC);
+        // for now best-effort fall through to no-op.
+        // TODO: file follow-up to add an aux-targeting browser
+        // focus IPC; until then, keyboard activation of the aux
+        // browser pane requires the user to click into it.
+        console.info('[ENH-098] focusAux: aux holds a browser tab; programmatic focus of the aux WCV is not yet supported (FOLLOWUP needed). Click into the aux pane to focus.')
+        return
+      }
+      // File aux — find the contenteditable scoped to the aux
+      // subtree (the new [data-duo-workingpane-aux] marker added
+      // in WorkingPane.tsx).
+      const ce = findVisibleWorkingPaneCE('aux')
+      if (ce) ce.focus()
+      else console.info('[ENH-098] focusAux: no contenteditable found inside aux subtree')
+    })
+  }, [activeWorking, auxState, auxBrowserTab, setFocusedColumn])
+
   const togglePaneFocus = useCallback(() => {
     // BUG-048 v3 — read direction from the REF, which holds the
     // user's last-deliberate column choice (untouched by the xterm
@@ -1844,6 +2036,17 @@ export function App() {
         // requestAnimationFrames push us past the React commit AND
         // past the paint cycle, so the address-bar DOM node is
         // guaranteed mounted + visible when we focus().
+        // BUG-103 fix (Sprint 9 walk-1, 2026-05-07) — owner saw the
+        // address bar marked focused at the DOM level
+        // (document.activeElement.tagName === 'INPUT', dataset
+        // duoAddressbar === 'true'), BUT the input's caret rendered
+        // grey/inactive instead of blue/active — meaning the OS-level
+        // keyboard focus was on the new browser tab's WCV, not the
+        // renderer that owns the input. New tab creation moves OS
+        // focus to the WCV by default. Reclaim it BEFORE the rAF
+        // chain so by the time .focus() runs, the renderer owns OS
+        // focus and the input's caret renders active.
+        window.electron.keyboard.reclaimFocus()
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
             const addr = document.querySelector<HTMLInputElement>('[data-duo-addressbar]')
@@ -1917,6 +2120,17 @@ export function App() {
     // a menu accelerator. On macOS the system shortcut intercepts ⌘`
     // before this handler sees it; see `onPaneToggleFocus` below.
     togglePaneFocus,
+    // ENH-098 (Sprint 9) — pane-jump chords. Same `focusPane` core
+    // routes the chord callbacks AND the CLI `duo focus-pane` verb
+    // (wired in core/socket-server.ts § case 'focus-pane' →
+    // PANE_JUMP IPC → renderer below).
+    focusTerminalPane: () => focusPane('terminal'),
+    focusMainPane: () => focusPane('main'),
+    focusAuxPane: () => focusPane('aux'),
+    // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active file with confirm.
+    deleteCurrentFile,
+    // Sprint 11 ENH-096 B.4 — ⌘O opens the vault quick switcher.
+    openVaultQuickSwitcher: () => setVaultQuickSwitcherOpen(true),
     // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
     // aux slot; ⌘⇧\ promotes aux back to main (closes the split AND
     // keeps the file open — mirrors the ⇤ button in the aux header).
@@ -1969,6 +2183,13 @@ export function App() {
     return window.electron.keyboard?.onPaneToggleFocus?.(togglePaneFocus)
   }, [togglePaneFocus])
 
+  // ENH-098 (Sprint 9) — `duo focus-pane <name>` CLI verb routes here
+  // through main → PANE_FOCUS_JUMP → preload's onPaneFocusJump. Same
+  // focusPane() core that the ⌘⌥L/;/' chord set fires.
+  useEffect(() => {
+    return window.electron.keyboard?.onPaneFocusJump?.(focusPane)
+  }, [focusPane])
+
   // BUG-042 — when the user clicks into the browser WebContentsView,
   // the click happens in a separate process and the renderer's
   // column-wrapper onMouseDown never fires. Main forwards a focus
@@ -1998,8 +2219,16 @@ export function App() {
       // with whatever non-aux browser tab BrowserManager had as
       // activeIndex — surprise tab switching the user reported as
       // "main pane focus stolen."
+      //
+      // BUG-101 (Sprint 10) — defensive null-guard. The supplemental
+      // event from socket-server.ts now sends a proper {tabId, slot}
+      // payload, but legacy callers / future refactors might forget
+      // and pass `null`. Treat a missing/malformed payload as a
+      // "main-strip intent" since that was the historic semantic
+      // before Phase 3c added the slot discriminator.
       setFocusedColumn('working')
-      if (payload.slot === 'main') {
+      const slot = (payload as { slot?: 'main' | 'aux' } | null | undefined)?.slot ?? 'main'
+      if (slot === 'main') {
         setActiveWorking({ kind: 'browser' })
       }
     })
@@ -2662,6 +2891,30 @@ export function App() {
           </div>
         </div>
       </div>
+      {/* Sprint 11 ENH-096 B.4 — VaultQuickSwitcher overlay (⌘O).
+          Mounted parallel to TabSearchPalette so the same z-index
+          rules apply. Sources its file list from the vault index
+          keyed off the active file's path. */}
+      <VaultQuickSwitcher
+        open={vaultQuickSwitcherOpen}
+        files={vaultIndexForSwitcher.files}
+        loading={vaultIndexForSwitcher.loading}
+        vaultRoot={vaultIndexForSwitcher.vaultRoot}
+        onPick={(file) => {
+          setVaultQuickSwitcherOpen(false)
+          const name = file.basename + (file.ext ? '.' + file.ext : '')
+          void openFileSmart(file.absPath, name)
+          // Sprint 11 walk-3 fix — when ⌘O Enter picks a file, the
+          // overlay's input loses focus on unmount. Without an
+          // explicit reclaim, OS-level focus can land on document.
+          // body before openFile's rAF chain runs, so the contenteditable.
+          // focus() succeeds at the DOM layer but the user perceives
+          // the new tab as "background." Same fix shape as BUG-103
+          // (⌘T URL-bar focus).
+          window.electron.keyboard?.reclaimFocus?.()
+        }}
+        onDismiss={() => setVaultQuickSwitcherOpen(false)}
+      />
       {/* ENH-080 — tab-search palette overlay. Mounted at the top of
           the app so its z-50 sits above the working pane and titlebar.
           The palette dismisses on Esc / backdrop-click / pick. */}

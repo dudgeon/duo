@@ -21,7 +21,76 @@
 
 ## Pending — not yet cut
 
-(Empty — v0.6.8 cut 2026-05-06. The next cut accumulates here.)
+> **Sprint 10 + Sprint 11 work + Sprint 12 image v2 + BUG-108.** Owner
+> directive 2026-05-08: *"don't cut yet; I want to address image
+> handling (should be in the roadmap now) and one more newly
+> discovered bug before cutting: copying cell text from a table in
+> the markdown editor just copies '[table]' to the clipboard."*
+>
+> Cut accumulates as **v0.6.10** when image v2 + BUG-108 land.
+
+### Pending v0.6.10 — Save clarity + Obsidian autocomplete
+
+Two sprints in one cut. Sprint 10 consolidated the save UX; Sprint 11
+closed the wikilink half-feature with a TipTap-suggestion-backed
+autocomplete. Sprint 12 (still in flight as of 2026-05-08) adds image
+v2 + BUG-108 fix.
+
+**Why this cut lands here.** v0.6.9 shipped wikilink rendering +
+cmd+click navigation but typing wikilinks was hunt-and-peck. This
+release closes that gap with the `[[` and `@` popovers, plus `⌘O`
+for vault-wide search. Side-benefit: the file-changed-on-disk false-
+positive (BUG-104/107 — recurring across walks for several sprints)
+finally got root-caused and fixed (the serializer mutates trailing
+whitespace, then the pre-save check compared raw strings).
+
+**Three load-bearing design decisions.**
+1. **One TipTap Suggestion primitive backs all three autocomplete
+   features.** Wikilink, `@`-mention, and `⌘O` quick switcher share
+   `vaultIndex.ts` (the fuzzy-match source) plus `SuggestionPopover.tsx`
+   (the rendering). Three features, one architectural piece.
+2. **`@` inserts canonical `[[wikilink]]`.** Vault round-trip is
+   unified — the same file content reads identically regardless of
+   which trigger produced the link. Obsidian-compat first.
+3. **SaveControl owns the autosave toggle.** Hover-reveal next to
+   the pill, no separate View menu entry, no per-tab override. The
+   control owns the save concept end-to-end.
+
+**Skill rule shipped:** CLAUDE.md § 7c + smoke-walk skill § 5b —
+agent must verify clean app state before every smoke-walk handoff.
+Encoded after a walk-1 violation where a PluginKey collision crashed
+the editor under an otherwise-healthy smoke-walk page.
+
+**What this is and isn't.** This release is the "wikilinks reach
+completeness" moment — typing them is no longer hunt-and-peck. It
+is NOT yet the backlinks panel or graph view (Sprint 13+). It also
+doesn't ship the JSON viewer (research doc landed; Sprint 13 anchor
+candidate now that image v2 + BUG-108 took the Sprint 12 slot).
+
+**Stats so far:** 17 commits since v0.6.9. 352 tests passing (+54
+from sprint start). Typecheck clean. Sprint 12 adds two more atoms
+before the cut fires.
+
+See `CHANGELOG.md § [Unreleased]` for the full Added/Fixed/Changed
+inventory.
+
+---
+
+## v0.6.9 — 2026-05-07 — Sprint 9: wikilinks closure · pane-jump chord set · `duo edit` reliability · workshop substrate · automated regression coverage
+
+**The half-feature is closed.** v0.6.8's wikilink rendering was a Sprint 9 P0 by directive — Tier B1 shipped the visual decoration, but cmd+click was a no-op, and a styled-clickable-thing-that-doesn't-click is worse than nothing because users learn to mistrust the affordance. Three walks of fixes landed. Walk-0: the click handler bailed because `event.target` is a Text node when the click hits visible text inside the decoration span — `closest` is undefined on Text nodes; the optional chain returned null. Extracted `resolveWikilinkTargetAtClick` that walks up via `parentElement` + falls back to a pos-based decoration lookup using ProseMirror's `PLUGIN_KEY.getState(view.state).find(pos, pos)`. Walk-1: the FIX worked (owner's console log proved the click reached the resolver), but the resolver couldn't find the vault root — `findVaultRoot` was calling `files.exists` to detect `.obsidian/`, and `files.exists` strictly returns true only for regular files (BUG-039 semantic preserved for session-restore). Added a `files.dirExists` IPC sibling. Walk-2: PASS. cmd+click on a `[[Other Note]]` opens the linked file from the vault.
+
+**A new chord vocabulary for keyboard-first navigation.** ⌘⇧L → terminal · ⌘⇧; → main working pane · ⌘⇧' → split-view aux. These JUMP focus directly to a named pane, distinct from `⌘\`` which CYCLES — useful when you want to land somewhere specific without arrowing through every intermediate state. Three walks worth of refinement: walk-0 specced the chord as ⌘⌥L/;/' (system-level window managers like Raycast intercept meta+alt before the renderer sees it; re-picked to ⌘⇧L/;/'), walk-1 added the matchers + dispatch + browser-pane allowlist + `duo focus-pane` CLI parity, walk-2 surfaced a deeper bug — focus changed React state but caret didn't follow because BUG-046 keeps every file-tab renderer mounted simultaneously (display-toggled). Selectors hit a hidden tab; `.focus()` on a `display:none` ancestor's contenteditable silently fails. Built `findVisibleWorkingPaneCE(scope)` that filters by `offsetParent !== null` AND scopes to inside-/outside-aux via a new `[data-duo-workingpane-aux]` marker on the aux container. Same helper now backs the chord set AND `openFile`'s post-rAF .focus() — closing the editor-routed half of BUG-101 in the same diff.
+
+**`duo edit` is finally reliable.** Three layers of latent bug surfaced over walks 0–2. (1) React anti-pattern: `setActiveWorking` was nested inside `setFileTabs`'s updater, letting React 18+'s automatic batching land the inner setter in a different render than the tab addition. Lifted to a `pendingActivationRef` + post-updater flush. (2) DOM-level `.focus()` on the editor's contentEditable wasn't firing — added the same two-rAF chain `newBrowserTab` uses for the address bar. (3) The selector race from above. End-to-end: `duo edit /tmp/foo.md` reliably surfaces the new tab AND the caret lands in the editor; first keystroke writes into the file. Walk-3: PASS ("carat landed!"). The browser-routed half (`duo open https://...` not surfacing reliably) is the same shape on a different code path; carries to Sprint 10.
+
+**The recurring regression goes from manual walk to CI test.** BUG-056 — the in-page Send → Duo pill must NEVER render without an active Claude session — has recurred across multiple walks because the gating (`if (!window.__duoClaudeLive)` inside the CDP-injected IIFE) was tested only by manually walking the negative case on every cut. Walk-2 owner: *"WHY AM I SEEING THIS IF YOU TEST IT AND IT PASSES DON'T SHOW ME THIS."* Made `SELECTION_OBSERVER_IIFE` exportable and added `electron/cdp-bridge.test.ts` with three asserts on the source string: the literal guard text exists, it sits before `ensurePill()` (so the pill never mounts before the gate fires), and there's exactly one active code-site read (excluding doc comments). Three tests, green. Removed from the smoke-walk skill's "Mandatory regression items" section + added a hard rule against re-listing items with automated coverage. Future refactor breaks fail CI; the manual walk doesn't have to.
+
+**Plus a quiet pile of paper-cut fixes.** ⌘T new browser tab — owner's diagnostic showed DOM focus on the address bar but caret grey/inactive (OS focus on the WCV). Calling `keyboard.reclaimFocus()` before the rAF chain pulls OS focus from the WCV to the renderer; URL bar caret renders active. ⌘⇧⌫ now deletes the active file with confirm (mirrors the right-click → Move to Trash flow; soft-success on ENOENT). And the **Distro Pack Builder Workshop** scaffolds: a repo-only `distro-pack-builder/` folder with scoped CLAUDE.md, README, 11-step playground.md, and a project-scoped assistant skill that activates when Claude Code is open with cwd inside the workshop. Defers to the canonical global `/pack-builder` skill for mechanical work; adds the layered tutorial pacing first-time builders need.
+
+**Owner-blessed deferral: ENH-091 caret seed for fresh canvases.** Two prior fix attempts (v0.6.8 and Sprint 9 walk-1) didn't move the live behavior. Walk-2 traces showed the seed APPLIES correctly AND sticks across the next animation frame — but typing still lands in the H1 title. The override fires AFTER rAF, after Chromium's internal layout pass, which is unfixable without a different architectural approach (e.g. handling the first keystroke ourselves, or rebuilding the canvas DOM so there's no H1-first-focusable surface). Owner directive: *"low priority, do not revisit for a LONG time unless the console provides a smoking gun and obvious fix."* Diagnostic instrumentation stays in code for whoever picks this up later.
+
+**What this is and isn't.** v0.6.9 closes Sprint 8's loose ends + ships the chord vocabulary that makes keyboard-first navigation feel coherent. It's not the cohort-distribution release — that still waits for a real non-Geoff machine to install Duo + a real distro pack + use it end-to-end. The workshop substrate is in place; ENH-112's verification owed when a real builder walks the playground. Sprint 10's queue: BUG-101 browser-routed half · BUG-100 Send→Duo pill in split-view aux · BUG-104/105/106 (walk-3 surfaced — file-changed dialog after chord, right-click Copy path no-op, `duo edit` non-existent path ENOENT) · ENH-114 cmd+click on missing wikilink → create file (Obsidian parity, owner-requested via walk-2 OTHER NOTES).
 
 ---
 

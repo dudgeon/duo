@@ -91,6 +91,17 @@ domain names that appear in the browser blocklist.
   and `.claude/skills/sprint-plan/` (next-sprint prioritization,
   fed by a gatherer that harvests tasks.md + active-sprint.md +
   roadmap.html).
+- **`distro-pack-builder/`** — workshop for first-time distro pack
+  builders (ENH-112, Sprint 9). Repo-only; does NOT ship to end
+  users. When Claude opens a session with cwd inside this folder
+  it activates a scoped CLAUDE.md + project-only assistant skill
+  that walks `playground.md` step-by-step, defers to the canonical
+  global `/pack-builder` skill (`skill/pack-builder/SKILL.md`) for
+  the mechanical work (validate / build / smoke), and helps
+  builders make the small decisions a first pack needs (naming,
+  `requiresDuoVersion` constraint, FTUX defaults, distribution
+  path). Pairs with `examples/distro-pack-template/` (the
+  copy-and-customize starting point).
 - **`docs/design/atelier/`** — visual source-of-truth. Read its
   README before any UI-touching work.
 - **`docs/VISION.md`** — product north star.
@@ -381,6 +392,70 @@ sprint-to-sprint smoke walks is part of the data — drift defeats
 the point. Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
 (gitignored by default; the skill's SKILL.md has the format spec).
 
+### 7c. VERIFY CLEAN APP STATE BEFORE asking the user to smoke walk
+
+**HARD RULE — never hand the smoke-walk page to the user without
+first confirming the running Duo isn't in a crashed / errored state.**
+Catching a stale error overlay before the user sees it is the agent's
+job, not the user's.
+
+The failure mode this rule prevents: agent commits a renderer-
+crashing bug, opens the smoke-walk page (which lives in the
+browser pane and renders fine), tells the user "walk it." User
+walks step 1 ("open a markdown file") and immediately hits the
+React error boundary. The agent shipped a crash AND wasted the
+user's verification cycle. Sprint 11 walk-1 (2026-05-08) violated
+this: the WikilinkSuggestion + AtMention plugins both used the
+default `'suggestion'` plugin key, which ProseMirror rejected at
+MarkdownEditor mount, and the error boundary caught it — but the
+agent had already handed off the smoke walk page.
+
+**The pre-handoff check, in order:**
+
+1. **`duo doctor` clean** — socket transport up, CLI version matches
+   app version. If not: restart per item 7a.
+2. **`duo nav-state` returns OK** — the renderer is alive at the
+   IPC layer. (A crashed renderer with a live socket-server is
+   possible in some edge cases; this catches the easy ones.)
+3. **Take responsibility for the FIRST step of the walk.**
+   Don't hand off until you've personally exercised the code path
+   the walk's first item exercises. Two paths, depending on
+   computer-use:
+   - **Computer-use granted (preferred):** call `request_access`
+     for Electron, take a screenshot of Duo, visually scan for
+     ANY error overlay (React red error screen, ErrorBoundary
+     panel, "WorkingPane hit a render error" / "App hit an error"
+     fallback panels). If anything looks wrong, FIX IT before
+     handoff.
+   - **Computer-use denied / unavailable:** at minimum, exercise
+     the smoke walk's first failure-prone step yourself via the
+     CLI. For the wikilink-autocomplete case, that's
+     `duo edit /tmp/preflight-walk-N.md` to mount MarkdownEditor.
+     If the editor's load completes (the file appears as a tab,
+     `duo url` returns the path), the mount succeeded. Then read
+     the dev's stderr / DevTools console output (via the dev's
+     background log file) for any uncaught exception trace
+     mentioning your changed modules.
+4. **Explicit warning when verification is impossible.** If
+   computer-use is denied AND the walk's first step can't be
+   exercised via the CLI (e.g. it requires a click or a
+   keystroke), say so EXPLICITLY in the handoff message: *"I
+   couldn't verify the app's render state — please check
+   DevTools (Cmd+Opt+I) for any error overlay before walking."*
+   Don't bury this in a paragraph; it's the first sentence.
+
+**Restart on uncertainty.** If you've made many changes since the
+last verified clean state and the dev session has been running
+the whole time, restart the dev (item 7a) before the smoke walk
+even when the surface checks pass. HMR can leave the app in a
+half-applied state where one extension is the new code + another
+is the old; a clean restart bisects the question.
+
+This rule applies whether the smoke walk is the formal close-out
+walk OR a mid-sprint verification handoff. It applies even when
+the user explicitly asks to walk now — the answer is "let me
+verify the app's clean first, give me 30 seconds."
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits
@@ -446,13 +521,14 @@ routed around ad hoc.
 | Brainstem / MCP | **Not included** — Skills panel is CWD-scan only |
 | Skills CWD source | PTY launch CWD (not moving shell CWD); two scopes (project + home) |
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
-| Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture). Still ⬜: 21b DMG background image · 21d early-adopter cohort (socket auth + agent-driven-nav notifications + README). |
+| Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Distribution timeline (early-adopter cohort) | Before Stage 21d (socket auth + early-adopter README) |
-| Socket auth approach for cross-machine cohort distribution | Before Stage 21d |
+| Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 10 |
+| ENH-103 + ENH-104 SaveControl + autosave toggle — owner sign-off on the four-state visual treatment (Saved / Save / Saving / Failed-retry) | Before any Sprint 10+ code work on the consolidated control |
+| ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into Sprint 10 |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |

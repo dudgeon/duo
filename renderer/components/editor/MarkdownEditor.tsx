@@ -26,6 +26,7 @@ import { Markdown } from 'tiptap-markdown'
 import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
+import { useAutosavePreference } from './autosavePreference'
 import { buildTiptapEditorActions } from './tiptapEditorActions'
 import type { EditorActions } from './EditorActions'
 import { TableShortcuts } from './extensions/TableShortcuts'
@@ -40,6 +41,9 @@ import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
 import { CommentMark, collectCommentRanges } from './extensions/CommentMark'
 import { WikilinkDecorations } from './extensions/WikilinkDecorations'
+import { WikilinkSuggestion } from './extensions/WikilinkSuggestion'
+import { AtMention } from './extensions/AtMention'
+import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
 import { CommentRail, type CommentThread } from './primitives/CommentRail'
@@ -135,6 +139,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // Sprint 10 ENH-103 — last save failure (separate from `error`,
+  // which surfaces read/load errors via the banner). Drives the
+  // SaveControl pill's "Failed — retry" state. Cleared on next edit
+  // and on next successful save.
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // Sprint 10 ENH-104 — per-app autosave preference (single global
+  // localStorage key, shared with PageTab). Off → 800ms debounce
+  // suppressed; ⌘S + Save-button still write.
+  const [autosaveOn, toggleAutosave] = useAutosavePreference()
+  const autosaveOnRef = useRef(autosaveOn)
+  autosaveOnRef.current = autosaveOn
   // Sprint 6 BUG-085 — external-write reconciliation. When a file we
   // have open is modified outside of our buffer (Claude's Write tool,
   // an external editor, `git checkout`), the watcher reads the new
@@ -251,6 +266,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // effect's success path AFTER setContent + setLoaded(true) have run.
   const pendingProseFocusRef = useRef<boolean>(false)
 
+  // Sprint 11 — vault index for the suggestion popovers (ENH-096 B.2
+  // wikilink autocomplete + ENH-105 `@` mention). Refreshes when the
+  // active path moves to a different vault root; manual `refresh()`
+  // available for post-create/-delete invalidation. The two extensions
+  // below pass `getItems` / `isLoading` closures that read through
+  // refs so the useMemo([]) extension list doesn't have to rebuild.
+  const vaultIndex = useVaultIndex(path)
+  const vaultFilesRef = useRef(vaultIndex.files)
+  vaultFilesRef.current = vaultIndex.files
+  const vaultLoadingRef = useRef(vaultIndex.loading)
+  vaultLoadingRef.current = vaultIndex.loading
+
   const extensions = useMemo(
     () => [
       StarterKit.configure({
@@ -327,7 +354,26 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // root and opens the linked file. The markdown source stays
       // verbatim; tiptap-markdown round-trips `[[…]]` literals through
       // save without touching them.
-      WikilinkDecorations
+      WikilinkDecorations,
+      // Sprint 11 ENH-096 (B.2) — autocomplete on `[[`. Pops the
+      // SuggestionPopover anchored at caret, fuzzy matches against
+      // the vault index. Inserts `[[<basename>]]`. Closes the v0.6.8
+      // owner directive ("we only have half a feature"). Reads the
+      // vault file list through a ref so the `useMemo([])` extension
+      // list doesn't need to rebuild when the index updates.
+      WikilinkSuggestion.configure({
+        getItems: () => vaultFilesRef.current,
+        isLoading: () => vaultLoadingRef.current,
+        rank: rankVaultFiles
+      }),
+      // Sprint 11 ENH-105 — `@` filename autocomplete. Same vault
+      // index, parallel popover. Inserts the canonical `[[wikilink]]`
+      // form so vault round-trip is unified across triggers.
+      AtMention.configure({
+        getItems: () => vaultFilesRef.current,
+        isLoading: () => vaultLoadingRef.current,
+        rank: rankVaultFiles
+      })
     ],
     []
   )
@@ -565,7 +611,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         // Echo of our own save — `lastSavedBodyRef.current` was
         // updated to the freshly-saved body before chokidar fired.
-        if (diskBody === lastSavedBodyRef.current) return
+        // Sprint 11 walk-3 fix (BUG-107) — normalize trailing
+        // whitespace before comparing. The serializer strips
+        // trailing blank lines on round-trip, so disk vs. baseline
+        // can differ by `\n` alone after legit saves. Pre-fix this
+        // surfaced a false conflict whenever the disk file ended
+        // with a blank line.
+        const normalize = (s: string) => s.replace(/\s+$/, '')
+        if (normalize(diskBody) === normalize(lastSavedBodyRef.current)) return
 
         // BUG-099 fix — secondary echo check against the
         // recently-written set. Catches the race where chokidar's
@@ -677,7 +730,24 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const diskRes = await window.electron.files.read(path)
           const diskText = decodeUtf8(diskRes.bytes)
           const diskBody = splitFrontmatter(diskText).body
-          if (diskBody !== lastSavedBodyRef.current) {
+          // Sprint 11 walk-3 fix (BUG-107) — disk content may differ
+          // from baseline by trailing whitespace alone. tiptap-markdown's
+          // serializer normalizes trailing blank lines on round-trip
+          // (e.g. `# Index\n\n` from disk → `# Index\n` after parse +
+          // re-serialize). Pre-fix, this caused a false-conflict
+          // banner on first edit of any file with a trailing blank
+          // line. Normalize trailing whitespace before comparing —
+          // anything more substantive is a real conflict and still
+          // surfaces the banner.
+          const normalize = (s: string) => s.replace(/\s+$/, '')
+          if (normalize(diskBody) !== normalize(lastSavedBodyRef.current)) {
+            console.log('[BUG-107 save-pre-conflict] real diff', {
+              path,
+              diskBodyLength: diskBody.length,
+              baselineLength: lastSavedBodyRef.current.length,
+              diskHead: diskBody.slice(0, 60),
+              baselineHead: lastSavedBodyRef.current.slice(0, 60)
+            })
             setExternalConflict({ diskBody })
             return
           }
@@ -718,8 +788,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
       setDirty(false)
       onDirtyChange?.(false)
+      // Sprint 10 ENH-103 — successful save clears the pill's
+      // "Failed — retry" state.
+      setSaveError(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      setSaveError(err instanceof Error ? err.message : String(err))
     } finally {
       setSaving(false)
     }
@@ -744,7 +817,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       const body = editor.storage.markdown.getMarkdown() as string
       const isDirty = body !== lastSavedBodyRef.current
       setDirty(isDirty)
-      if (isDirty && !blockAutosaveRef.current) {
+      // Sprint 10 ENH-103 — clear any prior save-failure indicator on
+      // the next edit; the pill returns to plain "Save" so the user
+      // doesn't see a stale red state while still typing.
+      if (isDirty) setSaveError(null)
+      // Sprint 10 ENH-104 — autosave-off suppresses the 800ms timer
+      // path. ⌘S + Save-button + unmount-flush still fire (autosave
+      // is about latency in steady-state, not data preservation on
+      // tab close). Read through ref so closure capture stays fresh.
+      if (isDirty && !blockAutosaveRef.current && autosaveOnRef.current) {
         if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
         autosaveTimerRef.current = setTimeout(() => {
           autosaveTimerRef.current = null
@@ -1668,6 +1749,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         onSave={() => void save()}
         dirty={dirty}
         saving={saving}
+        saveError={saveError}
+        autosaveOn={autosaveOn}
+        onToggleAutosave={toggleAutosave}
       />
       {/* ENH-023 — find bar drops down between toolbar and prose
           when ⌘F is pressed. Closed state renders nothing. */}

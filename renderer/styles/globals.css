@@ -995,3 +995,176 @@ html.dark {
   background: rgba(224, 143, 74, 0.32);
   border-bottom-color: #E08F4A;
 }
+
+/* Sprint 11 — SuggestionPopover (`[[` wikilink, `@` mention).
+   Mounted via React Portal to <body>; absolute-positioned via
+   inline style above the trigger DOMRect. */
+.duo-suggestion-popover {
+  background: white;
+  border: 1px solid var(--paper-rule, #d9cea8);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  min-width: 240px;
+  max-width: 360px;
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.duo-suggestion-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink, #2b2620);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.duo-suggestion-item:hover,
+.duo-suggestion-item.is-active {
+  background: var(--accent-soft, #f4d9b6);
+  color: var(--ink, #2b2620);
+}
+.duo-suggestion-basename { font-weight: 500; }
+.duo-suggestion-relpath {
+  color: var(--ink-mute, #6f6557);
+  font-size: 11.5px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.duo-suggestion-empty {
+  padding: 8px 12px;
+  color: var(--ink-mute, #6f6557);
+  font-style: italic;
+  font-size: 12px;
+}
+.duo-suggestion-more {
+  padding: 4px 12px 6px;
+  color: var(--ink-mute, #6f6557);
+  font-size: 11px;
+  border-top: 1px solid var(--paper-deep, #f3ede0);
+  margin-top: 4px;
+}
+
+[data-theme="dark"] .duo-suggestion-popover {
+  background: #2b2823;
+  border-color: #44403a;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+[data-theme="dark"] .duo-suggestion-item { color: #e8e0cb; }
+[data-theme="dark"] .duo-suggestion-item:hover,
+[data-theme="dark"] .duo-suggestion-item.is-active {
+  background: #44403a;
+}
+[data-theme="dark"] .duo-suggestion-relpath { color: #9a9080; }
+[data-theme="dark"] .duo-suggestion-empty,
+[data-theme="dark"] .duo-suggestion-more { color: #9a9080; }
+[data-theme="dark"] .duo-suggestion-more { border-top-color: #44403a; }
+
+/* Sprint 11 ENH-096 B.4 — VaultQuickSwitcher (⌘O overlay).
+   Mirrors TabSearchPalette's visual register but sources from the
+   full vault file list. Backdrop dims the WCV (browser pane) to
+   match the existing palette + setOverlayMuted pattern. */
+.duo-qs-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.32);
+  z-index: 50;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 96px;
+}
+.duo-qs-shell {
+  width: min(640px, 92vw);
+  max-height: 70vh;
+  background: white;
+  border: 1px solid var(--paper-rule, #d9cea8);
+  border-radius: 8px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.32);
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  overflow: hidden;
+}
+.duo-qs-header {
+  border-bottom: 1px solid var(--paper-deep, #f3ede0);
+  padding: 12px 14px;
+}
+.duo-qs-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  font-family: inherit;
+  color: var(--ink, #2b2620);
+  outline: none;
+}
+.duo-qs-input::placeholder { color: var(--ink-mute, #6f6557); }
+.duo-qs-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.duo-qs-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13.5px;
+  color: var(--ink, #2b2620);
+  line-height: 1.35;
+}
+.duo-qs-item:hover,
+.duo-qs-item.is-active {
+  background: var(--accent-soft, #f4d9b6);
+}
+.duo-qs-basename { font-weight: 500; flex-shrink: 0; }
+.duo-qs-relpath {
+  color: var(--ink-mute, #6f6557);
+  font-size: 11.5px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.duo-qs-empty {
+  padding: 16px;
+  color: var(--ink-mute, #6f6557);
+  font-size: 13px;
+  text-align: center;
+  font-style: italic;
+}
+.duo-qs-footer {
+  border-top: 1px solid var(--paper-deep, #f3ede0);
+  padding: 6px 14px;
+  font-size: 11px;
+  color: var(--ink-mute, #6f6557);
+  text-align: right;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+[data-theme="dark"] .duo-qs-shell {
+  background: #2b2823;
+  border-color: #44403a;
+}
+[data-theme="dark"] .duo-qs-header,
+[data-theme="dark"] .duo-qs-footer { border-color: #44403a; }
+[data-theme="dark"] .duo-qs-input { color: #e8e0cb; }
+[data-theme="dark"] .duo-qs-input::placeholder { color: #9a9080; }
+[data-theme="dark"] .duo-qs-item { color: #e8e0cb; }
+[data-theme="dark"] .duo-qs-item:hover,
+[data-theme="dark"] .duo-qs-item.is-active { background: #44403a; }
+[data-theme="dark"] .duo-qs-relpath,
+[data-theme="dark"] .duo-qs-empty,
+[data-theme="dark"] .duo-qs-footer { color: #9a9080; }

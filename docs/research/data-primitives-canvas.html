@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<title>Data primitives for canvas — research + roadmap</title>
+<style>
+  :root {
+    --paper: #fbf8f1;
+    --paper-deep: #f3ede0;
+    --paper-edge: #e8e0cb;
+    --paper-rule: #d9cea8;
+    --ink: #2b2620;
+    --ink-soft: #4a4238;
+    --ink-mute: #6f6557;
+    --ink-ghost: #9a9080;
+    --accent: #c46a1c;
+    --accent-soft: #f4d9b6;
+    --pass: #4a7d3e;
+    --fail: #b13e3a;
+    --skip: #6f6557;
+    --code-bg: #2b2823;
+    --code-ink: #e8e0cb;
+    --code-key: #88b6e0;
+    --code-string: #c4a86a;
+    --code-number: #d49e6e;
+    --code-bool: #b87aa6;
+    --code-null: #9a9080;
+    --code-rule: #44403a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+
+  header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+  header.page-head h1 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    margin: 0 0 4px;
+    font-size: 24px;
+  }
+  header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+
+  .intro {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .intro strong { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 600;
+    margin: 36px 0 12px;
+    font-size: 19px;
+    border-bottom: 1px solid var(--paper-rule);
+    padding-bottom: 6px;
+  }
+  h3 {
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-weight: 600;
+    margin: 22px 0 8px;
+    font-size: 15px;
+  }
+  p { margin: 8px 0; }
+  ul { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    background: var(--paper-deep);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+
+  /* Mockup card — wraps a tier mockup with title + caption */
+  .mockup-card {
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin: 14px 0 18px;
+  }
+  .mockup-card .mockup-head {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-mute);
+    margin-bottom: 4px;
+  }
+  .mockup-card .mockup-title {
+    font-weight: 600;
+    margin-bottom: 8px;
+    font-size: 14.5px;
+  }
+  .mockup-card .mockup-caption {
+    font-size: 12.5px;
+    color: var(--ink-mute);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--paper-deep);
+  }
+
+  /* JSON mockup body — code block with syntax-highlight tokens */
+  .json-mock {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    border-radius: 4px;
+    padding: 12px 14px;
+    overflow-x: auto;
+  }
+  .json-mock .key { color: var(--code-key); }
+  .json-mock .str { color: var(--code-string); }
+  .json-mock .num { color: var(--code-number); }
+  .json-mock .bool { color: var(--code-bool); }
+  .json-mock .null { color: var(--code-null); }
+  .json-mock .punct { color: var(--code-null); }
+
+  /* Tier 1 — plain monospace, no highlight */
+  .json-mock.tier-1 { color: #c8c0b0; }
+  .json-mock.tier-1 .key,
+  .json-mock.tier-1 .str,
+  .json-mock.tier-1 .num,
+  .json-mock.tier-1 .bool,
+  .json-mock.tier-1 .null,
+  .json-mock.tier-1 .punct { color: #c8c0b0; }
+
+  /* Tier 3 — interactive tree look. Adds chevron + collapse cursor */
+  .json-mock.tier-3 .row { display: flex; align-items: baseline; }
+  .json-mock.tier-3 .chevron {
+    display: inline-block;
+    width: 12px;
+    color: #6f6557;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .json-mock.tier-3 .row.collapsed .chevron::before { content: '▸'; }
+  .json-mock.tier-3 .row:not(.collapsed) .chevron::before { content: '▾'; }
+  .json-mock.tier-3 .row.collapsed .body { color: var(--code-null); font-style: italic; }
+  .json-mock.tier-3 .lineno {
+    display: inline-block;
+    width: 22px;
+    color: var(--code-rule);
+    font-size: 11px;
+    text-align: right;
+    margin-right: 8px;
+    user-select: none;
+  }
+
+  /* Tier 4 — IDE-like with gutter, breadcrumb, search */
+  .json-mock.tier-4 {
+    padding: 0;
+    overflow: hidden;
+  }
+  .json-mock.tier-4 .ide-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    background: #1f1c18;
+    border-bottom: 1px solid var(--code-rule);
+    font-size: 11.5px;
+    color: var(--ink-ghost);
+  }
+  .json-mock.tier-4 .ide-toolbar .breadcrumb { font-family: ui-monospace, monospace; color: #c8c0b0; }
+  .json-mock.tier-4 .ide-toolbar .search-icon { margin-left: auto; opacity: 0.7; }
+  .json-mock.tier-4 .ide-body { display: flex; }
+  .json-mock.tier-4 .ide-gutter {
+    background: #1f1c18;
+    color: var(--code-rule);
+    text-align: right;
+    padding: 12px 8px;
+    user-select: none;
+    font-size: 11px;
+    line-height: 1.6;
+    flex-shrink: 0;
+  }
+  .json-mock.tier-4 .ide-fold {
+    background: #1f1c18;
+    color: #6f6557;
+    text-align: center;
+    width: 16px;
+    padding: 12px 0;
+    user-select: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .json-mock.tier-4 .ide-content {
+    flex: 1;
+    padding: 12px 14px;
+    overflow-x: auto;
+  }
+  .json-mock.tier-4 .ide-status {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 12px;
+    background: #1f1c18;
+    border-top: 1px solid var(--code-rule);
+    font-size: 11px;
+    color: var(--ink-ghost);
+  }
+
+  /* Library matrix table */
+  table.lib-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  table.lib-matrix th, table.lib-matrix td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--paper-deep);
+    vertical-align: top;
+  }
+  table.lib-matrix th {
+    background: var(--paper-deep);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+  table.lib-matrix tr:last-child td { border-bottom: none; }
+  table.lib-matrix .lib-name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 600;
+    font-size: 12.5px;
+  }
+  table.lib-matrix .badge-status {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 9px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  table.lib-matrix .badge-status.alive {
+    background: color-mix(in srgb, var(--pass) 18%, white);
+    color: var(--pass);
+  }
+  table.lib-matrix .badge-status.stale {
+    background: color-mix(in srgb, var(--fail) 18%, white);
+    color: var(--fail);
+  }
+  table.lib-matrix .badge-status.cm6 {
+    background: color-mix(in srgb, var(--accent) 18%, white);
+    color: var(--accent);
+  }
+
+  /* Pros/cons callout */
+  .procons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 12px 0;
+  }
+  .procons .col {
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+  .procons .col h4 {
+    margin: 0 0 6px;
+    font-size: 12.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .procons .col.pros h4 { color: var(--pass); }
+  .procons .col.cons h4 { color: var(--fail); }
+  .procons .col ul { margin: 0; padding-left: 18px; font-size: 13px; }
+  .procons .col li { margin: 3px 0; }
+
+  /* Recommendation card */
+  .reco-card {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, white), white);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 18px 0 24px;
+  }
+  .reco-card .reco-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: white;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .reco-card h3 { margin: 0 0 6px; }
+
+  /* Image viewer mockup */
+  .image-mock {
+    background: #1f1c18;
+    border: 1px solid var(--code-rule);
+    border-radius: 4px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .image-mock .img-toolbar {
+    background: #2b2823;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ink-ghost);
+    font-size: 11.5px;
+    border-bottom: 1px solid var(--code-rule);
+  }
+  .image-mock .img-toolbar .zoom-btn {
+    padding: 2px 8px;
+    background: #44403a;
+    border-radius: 3px;
+    cursor: pointer;
+    color: #c8c0b0;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+  }
+  .image-mock .img-canvas {
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image:
+      linear-gradient(45deg, #2b2823 25%, transparent 25%),
+      linear-gradient(-45deg, #2b2823 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #2b2823 75%),
+      linear-gradient(-45deg, transparent 75%, #2b2823 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-color: #1a1814;
+    color: #6f6557;
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+  }
+
+  /* Cluster table for "other primitives" */
+  table.cluster-matrix {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 13px;
+  }
+  table.cluster-matrix th, table.cluster-matrix td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--paper-deep);
+    vertical-align: top;
+  }
+  table.cluster-matrix th {
+    background: var(--paper-deep);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-soft);
+  }
+  table.cluster-matrix tr:last-child td { border-bottom: none; }
+  table.cluster-matrix .pm-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--accent) 18%, white);
+    color: var(--accent);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  table.cluster-matrix .effort {
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+  }
+  .effort.s { color: var(--pass); }
+  .effort.m { color: var(--accent); }
+  .effort.l { color: var(--fail); }
+
+  /* Sprint roadmap timeline */
+  .timeline {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 14px 0;
+  }
+  .timeline .sprint {
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .timeline .sprint h4 {
+    margin: 0 0 6px;
+    font-size: 13.5px;
+    color: var(--accent);
+  }
+  .timeline .sprint .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-mute);
+    margin-bottom: 4px;
+  }
+  .timeline .sprint ul {
+    margin: 4px 0 0;
+    padding-left: 16px;
+    font-size: 12.5px;
+  }
+  .timeline .sprint li { margin: 3px 0; }
+
+  /* Architectural note callout */
+  .arch-note {
+    background: color-mix(in srgb, var(--accent) 6%, white);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 10px 14px;
+    margin: 14px 0;
+    font-size: 13px;
+  }
+  .arch-note strong { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Data primitives for canvas — research + roadmap</h1>
+  <div class="meta">Filed 2026-05-07 · Sprint 11+ planning artifact · author: Claude (autonomous, walk-2 standby)</div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> An owner-facing research doc covering three clustered topics: (1) JSON viewer/editor in canvas (Sprint 11 candidate), (2) image viewing in canvas (deeper roadmap), and (3) other data primitives for the PM persona. Each section: spectrum of options → live mockups → library matrix → recommendation. Ends with a clustered roadmap proposal so this whole theme moves as a unit, not as scattered ENHs.
+  <br><br>
+  <strong>Why cluster.</strong> Duo's PM/dev/designer audience opens these primitives in the same workflows — paste an API response from Slack, drag a CSV from analytics, drop a Figma export PNG, look at a Mermaid diagram. Building them as a coherent <em>data viewer surface</em> with shared chrome (toolbar, breadcrumb, copy, search) earns more than each as a one-off tab kind.
+</div>
+
+<h2>1 · JSON viewer/editor in canvas</h2>
+
+<p><strong>Scope.</strong> A user opens <code>response.json</code> in Duo (drag-drop, <code>duo edit</code>, FileTree click, paste-from-clipboard). Today it falls through to the unknown-file preview. We want a dedicated, useful experience.</p>
+
+<h3>The spectrum — four tiers</h3>
+
+<div class="mockup-card">
+  <div class="mockup-head">Tier 1 · Plain text + indent</div>
+  <div class="mockup-title">Pretty-printed monospace</div>
+  <div class="json-mock tier-1">{<br>
+&nbsp;&nbsp;"id": 4218,<br>
+&nbsp;&nbsp;"customer": "acme-corp",<br>
+&nbsp;&nbsp;"plan": "team",<br>
+&nbsp;&nbsp;"seats": 14,<br>
+&nbsp;&nbsp;"trial": false,<br>
+&nbsp;&nbsp;"renewals": [<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{ "date": "2026-04-01", "amount": 1400 },<br>
+&nbsp;&nbsp;&nbsp;&nbsp;{ "date": "2026-05-01", "amount": 1400 }<br>
+&nbsp;&nbsp;]<br>
+}</div>
+  <div class="mockup-caption">~10 lines of work. <code>JSON.stringify(obj, null, 2)</code> + monospace pre. No syntax color, no fold. Already what you get if you open a JSON file in the existing markdown editor.</div>
+</div>
+
+<div class="mockup-card">
+  <div class="mockup-head">Tier 2 · Syntax-highlighted text</div>
+  <div class="mockup-title">Read-only with token coloring</div>
+  <div class="json-mock tier-2"><span class="punct">{</span><br>
+&nbsp;&nbsp;<span class="key">"id"</span><span class="punct">:</span> <span class="num">4218</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"customer"</span><span class="punct">:</span> <span class="str">"acme-corp"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"plan"</span><span class="punct">:</span> <span class="str">"team"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"seats"</span><span class="punct">:</span> <span class="num">14</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"trial"</span><span class="punct">:</span> <span class="bool">false</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"renewals"</span><span class="punct">:</span> <span class="punct">[</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">{</span> <span class="key">"date"</span><span class="punct">:</span> <span class="str">"2026-04-01"</span><span class="punct">,</span> <span class="key">"amount"</span><span class="punct">:</span> <span class="num">1400</span> <span class="punct">}</span><span class="punct">,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">{</span> <span class="key">"date"</span><span class="punct">:</span> <span class="str">"2026-05-01"</span><span class="punct">,</span> <span class="key">"amount"</span><span class="punct">:</span> <span class="num">1400</span> <span class="punct">}</span><br>
+&nbsp;&nbsp;<span class="punct">]</span><br>
+<span class="punct">}</span></div>
+  <div class="mockup-caption">~30 lines of work + lowlight (already a dep for code blocks). Tokens via the JSON grammar <code>lowlight</code> already loads. No interactivity beyond text selection.</div>
+</div>
+
+<div class="mockup-card">
+  <div class="mockup-head">Tier 3 · Collapsible interactive tree</div>
+  <div class="mockup-title">Click to expand/collapse, copy on hover</div>
+  <div class="json-mock tier-3">
+    <div class="row"><span class="lineno">1</span><span class="chevron"></span><span class="body"><span class="punct">{</span> <span class="num" style="opacity:.5">7 keys</span></span></div>
+    <div class="row" style="padding-left:24px"><span class="lineno">2</span><span class="body"><span class="key">"id"</span><span class="punct">:</span> <span class="num">4218</span><span class="punct">,</span></span></div>
+    <div class="row" style="padding-left:24px"><span class="lineno">3</span><span class="body"><span class="key">"customer"</span><span class="punct">:</span> <span class="str">"acme-corp"</span><span class="punct">,</span></span></div>
+    <div class="row" style="padding-left:24px"><span class="lineno">4</span><span class="body"><span class="key">"plan"</span><span class="punct">:</span> <span class="str">"team"</span><span class="punct">,</span></span></div>
+    <div class="row" style="padding-left:24px"><span class="lineno">5</span><span class="body"><span class="key">"seats"</span><span class="punct">:</span> <span class="num">14</span><span class="punct">,</span></span></div>
+    <div class="row" style="padding-left:24px"><span class="lineno">6</span><span class="body"><span class="key">"trial"</span><span class="punct">:</span> <span class="bool">false</span><span class="punct">,</span></span></div>
+    <div class="row collapsed" style="padding-left:24px"><span class="lineno">7</span><span class="chevron"></span><span class="body"><span class="key">"renewals"</span><span class="punct">:</span> <span class="punct">[</span> <span style="opacity:.5">2 items</span> <span class="punct">]</span><span class="punct">,</span></span></div>
+    <div class="row" style="padding-left:0"><span class="lineno">15</span><span class="body"><span class="punct">}</span></span></div>
+  </div>
+  <div class="mockup-caption">Chevrons toggle children. Sibling-counts ("7 keys", "2 items") shown when collapsed. Hover any row → copy-key/value buttons appear. Click a value → switches to inline edit. This is the workhorse tier — what most users actually want for "I just need to see this API response cleanly."</div>
+</div>
+
+<div class="mockup-card">
+  <div class="mockup-head">Tier 4 · Full IDE — folding gutter, breadcrumb, search, line numbers</div>
+  <div class="mockup-title">CodeMirror/Monaco-grade</div>
+  <div class="json-mock tier-4">
+    <div class="ide-toolbar">
+      <span class="breadcrumb">{} root → renewals → [0] → date</span>
+      <span class="search-icon">🔍 Search keys/values</span>
+    </div>
+    <div class="ide-body">
+      <div class="ide-gutter">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10</div>
+      <div class="ide-fold">▾<br>&nbsp;<br>&nbsp;<br>&nbsp;<br>&nbsp;<br>&nbsp;<br>▾<br>&nbsp;<br>&nbsp;<br>&nbsp;</div>
+      <div class="ide-content"><span class="punct">{</span><br>
+&nbsp;&nbsp;<span class="key">"id"</span><span class="punct">:</span> <span class="num">4218</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"customer"</span><span class="punct">:</span> <span class="str">"acme-corp"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"plan"</span><span class="punct">:</span> <span class="str">"team"</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"seats"</span><span class="punct">:</span> <span class="num">14</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"trial"</span><span class="punct">:</span> <span class="bool">false</span><span class="punct">,</span><br>
+&nbsp;&nbsp;<span class="key">"renewals"</span><span class="punct">:</span> <span class="punct">[</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">{</span> <span class="key">"date"</span><span class="punct">:</span> <span class="str">"2026-04-<span style="background:#5a4a1a;color:#e8c870">01</span>"</span><span class="punct">,</span> <span class="key">"amount"</span><span class="punct">:</span> <span class="num">1400</span> <span class="punct">}</span><span class="punct">,</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="punct">{</span> <span class="key">"date"</span><span class="punct">:</span> <span class="str">"2026-05-01"</span><span class="punct">,</span> <span class="key">"amount"</span><span class="punct">:</span> <span class="num">1400</span> <span class="punct">}</span></div>
+    </div>
+    <div class="ide-status">
+      <span>JSON · 14 lines · valid</span>
+      <span>Ln 8 · Col 26</span>
+    </div>
+  </div>
+  <div class="mockup-caption">Folding gutter (▾ to collapse arrays/objects), line numbers, breadcrumb at caret, search-and-highlight, status bar with validation state. The full IDE-feel. Appropriate for "I'm editing a config file" but excessive for "I'm reading an API response."</div>
+</div>
+
+<h3>Library candidates</h3>
+
+<table class="lib-matrix">
+  <thead>
+  <tr>
+    <th style="width: 22%">Library</th>
+    <th style="width: 14%">Status</th>
+    <th style="width: 11%">Bundle</th>
+    <th style="width: 53%">Fit + features</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td><div class="lib-name">@uiw/react-json-view</div><div style="font-size:11px;color:var(--ink-mute)">v2.0.0-alpha — apr 2026</div></td>
+    <td><span class="badge-status alive">Active</span></td>
+    <td>~7 KB gz</td>
+    <td>Tier 3. Collapsible, edit, copy, themes (vscode/github/nord/+), zero deps, MIT. <strong>Recommended for tier 3.</strong></td>
+  </tr>
+  <tr>
+    <td><div class="lib-name">json-edit-react</div><div style="font-size:11px;color:var(--ink-mute)">v1.29 — oct 2025 · CarlosNZ</div></td>
+    <td><span class="badge-status alive">Active</span></td>
+    <td>~30 KB gz</td>
+    <td>Tier 3 + form mode. Schema validation hook (Ajv), drag-reorder, multiple themes, full localisation. Fancier but bigger. Strong for "PM edits a config" flows.</td>
+  </tr>
+  <tr>
+    <td><div class="lib-name">react-json-view (mac-s-g)</div><div style="font-size:11px;color:var(--ink-mute)">v1.21 — feb 2022</div></td>
+    <td><span class="badge-status stale">Stale</span></td>
+    <td>~16 KB gz</td>
+    <td>The OG tier-3 lib. Wide adoption but unmaintained 4 years. React 18 has known peer-dep warnings. Don't pick this unless absolutely needed.</td>
+  </tr>
+  <tr>
+    <td><div class="lib-name">react-json-tree</div><div style="font-size:11px;color:var(--ink-mute)">v0.19 — 2024</div></td>
+    <td><span class="badge-status alive">Active</span></td>
+    <td>~6 KB gz</td>
+    <td>Read-only tier 3. Lightweight, customizable, no edit. Great if we want display-only and don't care about editing.</td>
+  </tr>
+  <tr>
+    <td><div class="lib-name">@codemirror/lang-json</div><div style="font-size:11px;color:var(--ink-mute)">CM6 ecosystem</div></td>
+    <td><span class="badge-status cm6">CM6</span></td>
+    <td>~50 KB gz core + JSON lang</td>
+    <td>Tier 4. Full text-editor experience: folding, search, lint, validate. Same ecosystem as Obsidian's editor (cross-ref ENH-096 architecture note). Heavier, but: if we adopt CM6 for the markdown editor too, this gets a tier-4 JSON editor for free.</td>
+  </tr>
+  <tr>
+    <td><div class="lib-name">monaco-editor</div><div style="font-size:11px;color:var(--ink-mute)">VSCode's editor</div></td>
+    <td><span class="badge-status alive">Active</span></td>
+    <td>~5 MB</td>
+    <td>Tier 4 maximalist. Full VSCode editor in your renderer. <strong>Overkill</strong> — bundle size alone disqualifies for our DMG-size budget. Don't pick.</td>
+  </tr>
+  </tbody>
+</table>
+
+<h3>Hand-roll vs library — the real tradeoff</h3>
+
+<div class="procons">
+  <div class="col pros">
+    <h4>Hand-roll (tier 1+2)</h4>
+    <ul>
+      <li>Zero new deps. Fits the existing <code>lowlight</code>+monospace stack.</li>
+      <li>Probably ~50 LOC for tier 1+2 read-only.</li>
+      <li>Owner controls every pixel; matches Atelier styling instantly.</li>
+      <li>No upgrade churn from a 3rd-party release cycle.</li>
+    </ul>
+  </div>
+  <div class="col cons">
+    <h4>Hand-roll (tier 3+4)</h4>
+    <ul>
+      <li>Tier 3 (collapsible tree) hand-rolled: ~300 LOC + accessibility work.</li>
+      <li>Tier 4 (folding gutter, search, lint, validation) is editor-engine territory; hand-rolling reinvents what CodeMirror gives you for free.</li>
+      <li>Edge cases (deeply nested objects, circular refs, very-large files) are bug magnets.</li>
+      <li>No upstream improvements when other tools find new patterns.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="reco-card">
+  <div class="reco-tag">Recommendation</div>
+  <h3>Tier 3 with <code>@uiw/react-json-view</code> as a new tab kind <code>kind: 'json'</code></h3>
+  <p>Sprint 11 lands tier 3 (collapsible tree, edit, copy, search) via <code>@uiw/react-json-view</code> at ~7 KB gz. New tab kind so it doesn't have to fit into the canvas iframe (where the script-block restriction would hurt the interactive tree). File classifier maps <code>.json</code>, <code>.jsonl</code> (line-by-line), <code>.har</code> to this tab type.</p>
+  <p style="margin-top:6px"><strong>Tier 4 is parked</strong> until a real workflow surfaces ("I'm editing a 2000-line config and the gutter+search would change my day"). When/if that happens, it folds naturally into the CodeMirror 6 migration path discussed for the Obsidian editor (ENH-096 architecture note). Single architectural shift, two payoffs.</p>
+  <p style="margin-top:6px"><strong>Tier 1+2 is the fallback</strong> when libraries don't fit (e.g. very large files where the tree's render cost is prohibitive). The new tab can switch to plain text mode for files over a configurable threshold (~1 MB).</p>
+</div>
+
+<div class="arch-note">
+  <strong>Architectural note — why a new tab kind, not the canvas iframe.</strong> The canvas iframe (kind: 'page') intentionally blocks scripts so user-authored HTML can't fire side effects. An interactive JSON tree needs scripts. Putting JSON-viewing in the canvas iframe means either (a) breaking the script-block contract for our own primitives (slippery slope) or (b) re-implementing the tree without scripts using only CSS state (unwieldy). A new tab kind <code>'json'</code> gets a React component just like <code>'image'</code> and <code>'pdf'</code> — clean isolation, full interactivity, fits the existing pattern.
+</div>
+
+<h2>2 · Image viewing in canvas (deeper roadmap)</h2>
+
+<p><strong>Current state.</strong> <code>.png</code>, <code>.jpg</code>, <code>.gif</code>, <code>.webp</code>, <code>.svg</code> already classify to <code>kind: 'image'</code> and mount a basic image preview tab. What's missing is the affordances that make an image tab <em>useful</em> — pan, zoom, fit-window, color picker for designers, EXIF/dimensions display, copy-to-clipboard.</p>
+
+<h3>Mockup — proposed image tab chrome</h3>
+
+<div class="mockup-card">
+  <div class="mockup-head">Image tab — proposed chrome</div>
+  <div class="mockup-title">With pan, zoom, dimensions readout, copy</div>
+  <div class="image-mock">
+    <div class="img-toolbar">
+      <span class="zoom-btn">−</span>
+      <span style="font-family: ui-monospace, monospace; font-size: 12px;">100%</span>
+      <span class="zoom-btn">+</span>
+      <span class="zoom-btn">⌂ Fit</span>
+      <span class="zoom-btn">1:1</span>
+      <span style="margin-left: 12px; font-size: 11px;">screenshot.png · 1440 × 900 · 312 KB</span>
+      <span style="margin-left: auto;" class="zoom-btn">📋 Copy</span>
+    </div>
+    <div class="img-canvas">[ image content area · checkered transparent bg ]</div>
+  </div>
+  <div class="mockup-caption">Toolbar: zoom controls, fit-to-window, 1:1 actual-size, dimensions/size readout, copy-to-clipboard. Pan via drag. Pinch-zoom on trackpad. EXIF panel (toggle, optional). Right-click → "Open in Preview.app", "Reveal in Finder", "Copy path".</div>
+</div>
+
+<div class="reco-card">
+  <div class="reco-tag">Recommendation</div>
+  <h3>Image tab v2 — toolbar chrome around an existing <code>&lt;img&gt;</code> base</h3>
+  <p>Hand-rolled. The interactions (zoom, pan, fit) are well-trodden territory; CSS transforms + a simple state machine. ~1 day of work. The PM persona benefit: dragging a screenshot from Slack into Duo currently shows a small image; with proper chrome they can zoom into UI mockups without leaving Duo.</p>
+  <p style="margin-top:6px"><strong>SVG sub-case:</strong> render with <code>&lt;img&gt;</code> by default (preserves vector). Toggle to "View source" → opens the SVG XML in the JSON-style tier-4 editor (eventually) or markdown editor (today).</p>
+</div>
+
+<h2>3 · Other data primitives (PM persona)</h2>
+
+<p><strong>The PM persona test.</strong> A PM working with Claude opens these artifacts daily: API responses (JSON), analytics exports (CSV), config files (YAML), log dumps (JSONL), database snapshots (SQLite), wireframes (PNG/SVG), diagrams (Mermaid), specs (Markdown — already covered). The question is: which of these earn dedicated tab kinds, and which are fine as plain-text editor tabs?</p>
+
+<table class="cluster-matrix">
+  <thead>
+  <tr>
+    <th>Primitive</th>
+    <th>PM use-case</th>
+    <th>Effort</th>
+    <th>Recommendation</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td><span class="pm-tag">JSON / JSONL / HAR</span></td>
+    <td>Read API responses · debug Claude tool-use traces · explore webhook payloads · paste a Slack thread JSON</td>
+    <td><span class="effort s">S</span> ~3d</td>
+    <td><strong>Sprint 11 P0.</strong> Tier 3 via <code>@uiw/react-json-view</code> (above).</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">CSV / TSV</span></td>
+    <td>Analytics exports · Looker / Mixpanel downloads · spreadsheet from another team</td>
+    <td><span class="effort m">M</span> ~5d</td>
+    <td>Sortable table with column-type inference (number / date / string), summary stats footer (count, sum, avg), filter row. Use <code>papaparse</code> for parsing (~10 KB gz, decade-old but stable). Render with TanStack Table.</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">YAML</span></td>
+    <td>GitHub Actions configs · k8s manifests · Duo's own packs</td>
+    <td><span class="effort s">S</span> ~1d</td>
+    <td>Same JSON-style tree (YAML parses to a JS object, render identically). Could share the JSON tab kind with a <code>format: 'yaml' | 'json'</code> discriminator.</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">Mermaid / PlantUML</span></td>
+    <td>Architecture diagrams · sequence diagrams in spec docs · flowcharts</td>
+    <td><span class="effort s">S</span> ~2d</td>
+    <td>Mermaid as a TipTap node extension <strong>inside</strong> the markdown editor (Obsidian-thread Sprint 13). PlantUML deferred — fewer users, server-rendering complications.</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">SQLite</span></td>
+    <td>App-local database snapshots · debugging stored state · Slack archive exports</td>
+    <td><span class="effort l">L</span> ~2w</td>
+    <td><strong>Probably not.</strong> Real users for this are devs, not PMs, and DB Browser for SQLite is great + free + native. Skip unless a real complaint surfaces.</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">Log files</span></td>
+    <td>App debug logs · session traces · CI build logs · stderr from a long-running command</td>
+    <td><span class="effort m">M</span> ~4d</td>
+    <td>Pairs with ENH-082 (Terminal Context Bar) — the natural home for live log streams is INSIDE a terminal pane, not a separate tab. For static log <em>files</em>: render in a JSON-tree-like view if the lines parse as JSON (JSONL); otherwise plain text with timestamp folding. Defer to Sprint 13+.</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">Spreadsheet (xlsx)</span></td>
+    <td>Excel files dragged in</td>
+    <td><span class="effort l">L</span> ~3w</td>
+    <td><strong>Skip.</strong> Numbers/Excel are 30-second OS-level open. Don't compete.</td>
+  </tr>
+  <tr>
+    <td><span class="pm-tag">Image v2</span></td>
+    <td>Mockups · screenshots from PM tools</td>
+    <td><span class="effort s">S</span> ~1d</td>
+    <td>Sprint 13 candidate (above). Toolbar chrome on existing image tab.</td>
+  </tr>
+  </tbody>
+</table>
+
+<h2>4 · Roadmap proposal — clustered</h2>
+
+<p>Sprint 11 was previously scoped around the Obsidian autocomplete thread (B.2 + B.4 + ENH-105) plus split-view crash work (BUG-091 / 093). Adding the JSON viewer doesn't fit that sprint cleanly — it's its own theme. Two options:</p>
+
+<div class="procons">
+  <div class="col pros">
+    <h4>Option A · Push JSON to Sprint 12</h4>
+    <ul>
+      <li>Sprint 11 stays focused (Obsidian autocomplete + split-view fixes).</li>
+      <li>Sprint 12 becomes "data primitives" theme — JSON tier-3 + CSV table + YAML reuse.</li>
+      <li>Sprint 13 stays as "Obsidian content fidelity" (callouts, math, mermaid) + image v2.</li>
+    </ul>
+  </div>
+  <div class="col cons">
+    <h4>Option B · JSON in Sprint 11, defer Obsidian split</h4>
+    <ul>
+      <li>Sprint 11 becomes "data primitives + autocomplete" — broader, less coherent.</li>
+      <li>Splits attention between two themes.</li>
+      <li>Worse: the TipTap Suggestion primitive (the architectural piece earning B.2 + B.4 + ENH-105 together) doesn't ship in one PR.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="reco-card">
+  <div class="reco-tag">Recommended</div>
+  <h3>Option A — keep Sprint 11 focused on Obsidian autocomplete, file JSON as Sprint 12 anchor</h3>
+  <p>Sprint 12 becomes "data primitives" theme: JSON tier-3 (P0 anchor) · CSV sortable table (P1) · YAML reuse (P2 polish). Sprint 13 rotates to "Obsidian content fidelity + image v2" (callouts + math + mermaid + image toolbar). Backlinks panel + properties panel (originally proposed for Sprint 12) move to Sprint 14. The shift adds a sprint to the Obsidian thread but earns a clean data-primitives sprint that PM users will feel immediately.</p>
+</div>
+
+<div class="timeline">
+  <div class="sprint">
+    <div class="label">Sprint 11</div>
+    <h4>Obsidian autocomplete + split-view crash</h4>
+    <ul>
+      <li>P0 anchor: <code>@tiptap/suggestion</code> primitive shared by <code>[[</code> + <code>@</code> + <code>⌘O</code></li>
+      <li>P0: BUG-091, BUG-093 (split-view crash), BUG-100</li>
+      <li>P1 polish: ENH-109 .obsidian visibility</li>
+    </ul>
+  </div>
+  <div class="sprint">
+    <div class="label">Sprint 12 (NEW)</div>
+    <h4>Data primitives</h4>
+    <ul>
+      <li>P0 anchor: JSON tier-3 viewer (<code>@uiw/react-json-view</code>, new <code>kind: 'json'</code>)</li>
+      <li>P1: CSV sortable table (<code>papaparse</code> + TanStack Table)</li>
+      <li>P2 polish: YAML reuses JSON tab kind</li>
+    </ul>
+  </div>
+  <div class="sprint">
+    <div class="label">Sprint 13</div>
+    <h4>Content fidelity + image v2</h4>
+    <ul>
+      <li>P0: TipTap callouts node (<code>&gt; [!note]</code>)</li>
+      <li>P0: KaTeX math + mermaid in markdown editor</li>
+      <li>P1: image tab toolbar (zoom/pan/dimensions/copy)</li>
+    </ul>
+  </div>
+</div>
+
+<p style="margin-top:24px"><strong>Sprints 14+ deeper roadmap (Obsidian content fidelity continues):</strong> backlinks panel · properties panel (Stage 11 D15) · tag pills (B.3) · daily-notes shortcut · SQLite explorer (only if real complaint surfaces) · log viewer (pairs with ENH-082 Terminal Context Bar).</p>
+
+<h2>5 · Open questions for owner</h2>
+
+<ul>
+  <li><strong>JSON tier — confirm tier 3 vs. tier 2.</strong> Do you want the collapsible tree experience (more interactive, ~7 KB lib added), or is "syntax-highlighted text + line numbers" enough for the v1?</li>
+  <li><strong>JSON edit semantics.</strong> When the user edits a value inline in the tree, do we autosave on blur (matching the markdown autosave pattern) or require ⌘S (so the file isn't silently mutated)?</li>
+  <li><strong>YAML cohabitation.</strong> Is YAML in the same tab kind as JSON acceptable (single chrome, format-discriminated)? Or distinct kinds for cleaner mental model?</li>
+  <li><strong>Sprint 11 vs. Sprint 12 ordering.</strong> Confirm Option A (Obsidian-autocomplete first, data primitives second). Or flip if data primitives are more user-pull right now.</li>
+  <li><strong>Image v2 priority.</strong> Sprint 13 fits, but if PM users hit the limitation often it could move up. Owner pull?</li>
+</ul>
+
+<p style="margin-top:32px; font-size: 12px; color: var(--ink-mute);">— end of research doc · author: Claude (autonomous Sprint 10 walk-2 standby) · 2026-05-07</p>
+
+</body>
+</html>

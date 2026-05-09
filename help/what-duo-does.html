@@ -802,9 +802,9 @@
 <article class="item" data-keys="wikilink obsidian vault page name square brackets cmd click cmd+click navigation .obsidian sidecar enh-096">
   <div class="num">52</div>
   <div>
-    <h3>Obsidian-style wikilinks render in the markdown editor</h3>
-    <p class="why">Type <code>[[Page Name]]</code> in any markdown file and the wikilink renders as an Atelier-styled clickable span (no markdown source rewrite — saves verbatim). Vault detection: Duo walks up from the active file's directory looking for a <code>.obsidian/</code> ancestor; the matching directory is the vault root. Resolver matches name with case-insensitive + space/hyphen normalization (more forgiving than Obsidian itself — <code>[[Other Note]]</code> resolves to <code>other-note.md</code>). Sidecar files (<code>note.md.duo.json</code>) hold comments and other Duo metadata; coexist with vaults without git noise (recommend gitignoring <code>*.duo.json</code>). <strong>Cmd+click navigation deferred to v0.6.9</strong> — the visual decoration ships in v0.6.8 but cmd+click is currently a no-op pending click-handler diagnosis.</p>
-    <p class="how"><strong>Type</strong><code>[[Page Name]]</code> in any markdown file. Decoration renders automatically inside an Obsidian-vault path.</p>
+    <h3>Obsidian-style wikilinks render in the markdown editor + cmd+click navigates</h3>
+    <p class="why">Type <code>[[Page Name]]</code> in any markdown file and the wikilink renders as an Atelier-styled clickable span (no markdown source rewrite — saves verbatim). Vault detection: Duo walks up from the active file's directory looking for a <code>.obsidian/</code> ancestor; the matching directory is the vault root. Resolver matches name with case-insensitive + space/hyphen normalization (more forgiving than Obsidian itself — <code>[[Other Note]]</code> resolves to <code>other-note.md</code>). Sidecar files (<code>note.md.duo.json</code>) hold comments and other Duo metadata; coexist with vaults without git noise (recommend gitignoring <code>*.duo.json</code>). <strong>Cmd+click navigation closed in v0.6.9</strong> — Cmd+click any wikilink to open the linked file as a new tab in the working pane.</p>
+    <p class="how"><strong>Type</strong><code>[[Page Name]]</code> in any markdown file. Decoration renders automatically inside an Obsidian-vault path.<br><strong>Cmd+click</strong>any wikilink to open the linked file. Path-bearing forms (<code>[[Notes/Subnote]]</code>) resolve relative to the vault root.</p>
   </div>
 </article>
 
@@ -826,8 +826,35 @@
   </div>
 </article>
 
+<article class="item" data-keys="focus pane chord cmd shift l semicolon quote terminal main aux jump pane-jump enh-098 duo focus-pane CLI parity raycast window manager keyboard navigation">
+  <div class="num">55</div>
+  <div>
+    <h3>Jump keyboard focus directly to a named pane</h3>
+    <p class="why">Three new chords that go DIRECTLY to a named pane (vs. <code>⌘`</code> which CYCLES through the panes one at a time): <code>⌘⇧L</code> → terminal, <code>⌘⇧;</code> → main working pane, <code>⌘⇧'</code> → split-view aux. Useful when you want to land somewhere specific without arrowing through every intermediate state. CLI parity via <code>duo focus-pane &lt;terminal|main|aux&gt;</code> for agent-driven flows. <code>⌘⇧'</code> is a no-op when split view is closed (logs a console hint); aux-with-browser-tab is no-op'd pending a future browser-pane focus IPC.</p>
+    <p class="how"><strong>Keyboard</strong><code>⌘⇧L</code> · <code>⌘⇧;</code> · <code>⌘⇧'</code><br><strong>CLI</strong><code>duo focus-pane terminal</code> · <code>duo focus-pane main</code> · <code>duo focus-pane aux</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="cmd shift backspace delete current file confirm trash move enh-102 keyboard chord">
+  <div class="num">56</div>
+  <div>
+    <h3>Delete the active file with <code>⌘⇧⌫</code></h3>
+    <p class="why">Working-pane file tabs gain a keyboard chord that mirrors the right-click → Move to Trash flow. <code>⌘⇧⌫</code> on an active file tab pops a confirm dialog ("Move &lt;name&gt; to Trash?") with Cancel + Move-to-Trash buttons; on confirm, the file moves to the macOS Trash AND the tab closes. Browser tabs and terminal tabs explicitly out of scope (<code>⌘W</code> already handles tab close). Soft-success on ENOENT — if the file's already gone, the user's intent is still "close this tab," so the chord proceeds to close.</p>
+    <p class="how"><strong>Keyboard</strong>Active editor tab + <code>⌘⇧⌫</code><br><strong>CLI parity</strong><code>duo file trash &lt;path&gt;</code> (preexisting, same backend)</p>
+  </div>
+</article>
+
+<article class="item" data-keys="distro pack builder workshop playground assistant skill scoped CLAUDE.md tutorial enh-106 enterprise pack onboarding scaffold customize validate build smoke distribute">
+  <div class="num">57</div>
+  <div>
+    <h3>Workshop for first-time distro pack builders</h3>
+    <p class="why">A guided tutorial that wraps the canonical <code>/pack-builder</code> skill with the pacing + decision support a first-time pack builder needs. Lives at <code>distro-pack-builder/</code> in the repo (NOT installed on end-user machines — it's only for people who clone Duo to author packs). Inside: a scoped CLAUDE.md telling Claude "you are helping someone build a Duo distro pack," a README, an 11-step <code>playground.md</code> walking scaffold → customize → validate → build → smoke-install → distribute, and a project-scoped assistant skill (<code>pack-builder-workshop</code>) that activates only when Claude Code's cwd is inside the workshop folder. Defers to the canonical <code>/pack-builder</code> for the actual mechanical work; adds the layered tutorial. Pairs with the existing <code>examples/distro-pack-template/</code> as the copy-and-customize starting point.</p>
+    <p class="how"><strong>Open</strong>Clone Duo, open Claude Code with cwd = <code>distro-pack-builder/</code>. Read <code>playground.md</code>; the assistant skill helps with the mechanical bits as you go.</p>
+  </div>
+</article>
+
 <footer>
-  <p>This is Duo v0.6.8. Last updated 2026-05-06. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
+  <p>This is Duo v0.6.9. Last updated 2026-05-07. <a href="faq.html">FAQ</a> · <a href="https://github.com/dudgeon/duo">Source</a>.</p>
   <p style="margin-top:6px; color: var(--ink-ghost); font-size: 11px;">Find an item that should be here? Tell Claude — the cut-version skill updates this file with each release.</p>
 </footer>
 

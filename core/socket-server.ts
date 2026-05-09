@@ -126,6 +126,11 @@ export interface NavBridge {
    *  renderer picks defaults (D28 persisted last-kind, navigator
    *  pending CWD, no pre-typed command). */
   newTab: (req: Omit<NewTabRequest, 'reqId'>) => Promise<NewTabResult>
+  /** ENH-098 (Sprint 9) — pane-jump focus action. Same shape as the
+   *  ⌘⌥L/;/' chord set, exposed via `duo focus-pane <name>`. Returns
+   *  `{ok: false, error: 'split view not open'}` for target='aux'
+   *  when neither file aux nor browser aux is mounted. */
+  focusPane: (target: 'terminal' | 'main' | 'aux') => { ok: boolean; target?: string; error?: string }
   /** BUG-030 — broadcast nav-pin state change to renderer subscribers
    *  after a CLI-driven mutation (the IPC handler broadcasts itself;
    *  this is the socket-server's path to the same channel). */
@@ -415,10 +420,12 @@ export class SocketServer {
               // Fall through to the browser path on decode / fs failure.
             }
           }
+          let openedTabId: number | null = null
           if (!routedToEditor) {
             // http(s) URLs + bare hostnames (already https://-prefixed by
             // resolveOpenTarget on the CLI side) all land here.
             const browserResult = await this.browser.openTab(url)
+            openedTabId = browserResult.id
             result = { ...browserResult, routedTo: 'browser' }
           }
           // BUG-048 v2 — explicit BROWSER_FOCUS_GAINED push.
@@ -437,8 +444,22 @@ export class SocketServer {
           // BUG-067 — only fire when the URL actually went to the
           // browser. Editor-routed opens get their own focus push from
           // the renderer's NAV_EDIT handler.
-          if (!routedToEditor && this.eventSink) {
-            this.eventSink('browser:focus-gained', null)
+          //
+          // BUG-101 (Sprint 10) — pre-fix the payload was `null`, but
+          // the renderer's `onBrowserFocusGained` handler dereferences
+          // `payload.slot` (Phase 3c BUG-095 contract) so the null
+          // synthesized event threw and `activeWorking` never flipped
+          // to 'browser'. The genuine `webContents.on('focus')` event
+          // (browser-manager.ts) sends a proper `{tabId, slot}` shape;
+          // the supplemental defensive push has to match. `duo open`
+          // always lands a NEW main-strip tab (BrowserManager.openTab
+          // appends to `this.tabs`, never to the aux-pinned slot), so
+          // `slot: 'main'` is always correct for this path.
+          if (!routedToEditor && this.eventSink && openedTabId !== null) {
+            this.eventSink(
+              'browser:focus-gained',
+              { tabId: openedTabId, slot: 'main' }
+            )
           }
           break
         }
@@ -696,6 +717,21 @@ export class SocketServer {
             // reliable signal to report back.
             result = { ...this.nav.getTheme(), mode }
           }
+          break
+        }
+        case 'focus-pane': {
+          // ENH-098 (Sprint 9) — CLI parity with the ⌘⌥L/;/' chord
+          // set. Same `focusPane()` core in App.tsx; the IPC channel
+          // is PANE_FOCUS_JUMP. No-op for target='aux' when neither
+          // file aux nor browser aux is open (renderer reports back
+          // via the bridge's return value).
+          const target = args['target'] as string
+          if (target !== 'terminal' && target !== 'main' && target !== 'aux') {
+            throw new Error('focus-pane target must be terminal|main|aux')
+          }
+          const focusResult = this.nav.focusPane(target as 'terminal' | 'main' | 'aux')
+          if (!focusResult.ok) throw new Error(focusResult.error ?? 'focus-pane failed')
+          result = { target: focusResult.target ?? target }
           break
         }
         case 'send': {

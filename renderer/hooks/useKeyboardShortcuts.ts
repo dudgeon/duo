@@ -56,6 +56,24 @@ interface Options {
    *  use the ✕ button in the aux header. */
   splitViewToggle?: () => void
   splitViewPromote?: () => void
+  /** ENH-098 (Sprint 9) — pane-jump chords. ⌘⌥L/;/' jump focus
+   *  directly to terminal/main/aux respectively (vs. togglePaneFocus
+   *  which CYCLES). focusAuxPane is a no-op when split view is
+   *  closed; App.tsx may surface a toast hint there. */
+  focusTerminalPane?: () => void
+  focusMainPane?: () => void
+  focusAuxPane?: () => void
+  /** ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+   *  (move-to-trash + close tab + confirm dialog). Working-pane file
+   *  tabs only; no-op when active surface is a browser tab or
+   *  terminal. */
+  deleteCurrentFile?: () => void
+  /** Sprint 11 ENH-096 B.4 — ⌘O opens the VaultQuickSwitcher overlay
+   *  (fuzzy search across all files in the vault root, distinct from
+   *  ⌘⇧A which is open-tabs only). When the active path isn't inside
+   *  a vault, the overlay still opens but renders an empty-state
+   *  hint pointing at the vault requirement. */
+  openVaultQuickSwitcher?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -247,6 +265,21 @@ export function useKeyboardShortcuts(opts: Options) {
           // this hook stays free of palette state.
           window.dispatchEvent(new CustomEvent('duo-open-tab-search'))
           return
+        case 'focusTerminalPane':
+          opts.focusTerminalPane?.()
+          return
+        case 'focusMainPane':
+          opts.focusMainPane?.()
+          return
+        case 'focusAuxPane':
+          opts.focusAuxPane?.()
+          return
+        case 'deleteCurrentFile':
+          opts.deleteCurrentFile?.()
+          return
+        case 'vaultQuickSwitcher':
+          opts.openVaultQuickSwitcher?.()
+          return
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
           const delta = (id === 'cycleTabsBackward' ? -1 : 1) as 1 | -1
@@ -334,6 +367,11 @@ export function useKeyboardShortcuts(opts: Options) {
     opts.togglePaneFocus,
     opts.splitViewToggle,
     opts.splitViewPromote,
+    opts.focusTerminalPane,
+    opts.focusMainPane,
+    opts.focusAuxPane,
+    opts.deleteCurrentFile,
+    opts.openVaultQuickSwitcher,
     opts.adjustTerminalFontBump,
     opts.activePaneFocus
   ])

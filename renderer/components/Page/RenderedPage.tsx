@@ -267,6 +267,31 @@ export const RenderedPage = forwardRef<RenderedPageHandle, Props>(
             // heading after the first H1) — that's an existing canvas
             // and we don't want to clobber the user's prior cursor.
             try { seedCaretInEmptyParagraph(doc) } catch { /* ignore */ }
+            // ENH-091 walk-3 diagnostic — record the wire-exit selection
+            // state so we can compare against the post-rAF check inside
+            // seedCaretInEmptyParagraph. If the wire-exit shows the
+            // caret in the empty <p> but post-rAF shows it elsewhere,
+            // the override fires AFTER wire() returns. If wire-exit
+            // already shows it elsewhere, the override is synchronous
+            // and likely inside the seed function itself or one of its
+            // direct dependencies (e.g. an immediate selectionchange
+            // listener that re-runs body.focus()).
+            try {
+              const w = doc.defaultView
+              const s = w?.getSelection?.()
+              const r = s && s.rangeCount > 0 ? s.getRangeAt(0) : null
+              const startName = r
+                ? (r.startContainer.nodeType === 3
+                    ? 'text("' + (r.startContainer.textContent ?? '').slice(0, 20) + '")'
+                    : (r.startContainer as Element).tagName)
+                : 'no-range'
+              console.log('[ENH-091 wire-exit]', {
+                rangeCount: s?.rangeCount ?? 0,
+                startContainerName: startName,
+                startOffset: r?.startOffset,
+                bodyChildCount: doc.body.children.length
+              })
+            } catch { /* ignore */ }
           }
         } else {
           // BUG-051 — re-mount under `readOnly: true` after a prior

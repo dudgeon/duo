@@ -96,6 +96,38 @@ export type ShortcutId =
   // all open file tabs + browser tabs in the working strip). Renderer
   // overlay, not a native window. Esc dismisses; arrows + Enter pick.
   | 'openTabSearchPalette'
+  // ENH-098 (Sprint 9) — pane-jump chord set. ⌘⇧L jumps focus to the
+  // terminal pane (whichever terminal tab is active), ⌘⇧; jumps to
+  // the main working pane (whichever main-strip tab is active), ⌘⇧'
+  // jumps to the split-view aux pane (no-op when split view is
+  // closed). Distinct from `togglePaneFocus` (⌘`) which CYCLES — the
+  // jump chords go DIRECTLY to a named pane.
+  //
+  // Walk-1 chord re-pick (Sprint 9 walk-1, 2026-05-07): originally
+  // ⌘⌥L/;/' but the owner's window manager intercepts the meta+alt
+  // combos at the system level, so the chord never reached the
+  // renderer. Re-picked to meta+shift form. Uses `e.code` (KeyL /
+  // Semicolon / Quote) regardless because Shift modifies the produced
+  // character on US layouts (Shift+L = 'L', Shift+; = ':',
+  // Shift+' = '"') — `e.code`-based matching is layout-independent.
+  | 'focusTerminalPane'
+  | 'focusMainPane'
+  | 'focusAuxPane'
+  // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+  // (move-to-trash with confirm). Matches Finder-style destructive
+  // muscle memory. Working-pane file tabs only — browser tabs and
+  // terminal tabs are out of scope (closing them isn't deletion;
+  // ⌘W already exists for tab close). Fires inside editable
+  // surfaces too — file deletion is a higher-level intent than
+  // line-edit, and TipTap's default ⌘⇧⌫ behavior (delete to start
+  // of line) yields to it.
+  | 'deleteCurrentFile'
+  // Sprint 11 ENH-096 B.4 — ⌘O opens the VaultQuickSwitcher overlay
+  // (fuzzy search across all files in the active vault root).
+  // Distinct from ⌘⇧A (TabSearchPalette / open-tabs only). When the
+  // active file isn't inside a vault, the overlay still opens but
+  // shows a "no vault detected" empty state.
+  | 'vaultQuickSwitcher'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -229,6 +261,45 @@ export function matchGlobalShortcut(
   // the other Option-affected chords above).
   if (meta && shift && !alt && !ctrl && e.code === 'KeyA') {
     return { id: 'openTabSearchPalette' }
+  }
+
+  // ENH-098 (Sprint 9 walk-1 re-pick) — pane-jump chords. ⌘⇧L/;/'
+  // jump focus to terminal/main/aux respectively. Always use
+  // `e.code` (not e.key) because Shift modifies the produced
+  // character on US layouts (Shift+L = 'L', Shift+; = ':',
+  // Shift+' = '"'). Originally ⌘⌥L/;/' but owner's system-level
+  // window manager intercepts meta+alt combos before they reach
+  // the renderer.
+  if (meta && shift && !alt && !ctrl && e.code === 'KeyL') {
+    return { id: 'focusTerminalPane' }
+  }
+  if (meta && shift && !alt && !ctrl && e.code === 'Semicolon') {
+    return { id: 'focusMainPane' }
+  }
+  if (meta && shift && !alt && !ctrl && e.code === 'Quote') {
+    return { id: 'focusAuxPane' }
+  }
+
+  // ENH-102 (Sprint 9) — ⌘⇧⌫ deletes the active working-pane file
+  // (move-to-trash with confirm). `e.code === 'Backspace'` is
+  // unambiguous — Backspace and Delete have distinct codes on Mac
+  // keyboards (Backspace is the main-cluster key; Delete is the
+  // forward-delete key on extended keyboards). The chord targets
+  // the main Backspace.
+  if (meta && shift && !alt && !ctrl && e.code === 'Backspace') {
+    return { id: 'deleteCurrentFile' }
+  }
+
+  // Sprint 11 ENH-096 B.4 — ⌘O opens the VaultQuickSwitcher overlay.
+  // `e.code === 'KeyO'` is layout-independent (matches the physical
+  // O key regardless of whether the user is on QWERTY/Dvorak/etc.).
+  // No shift/alt/ctrl modifiers — bare ⌘O. macOS apps usually bind
+  // ⌘O to "open file dialog"; we override because Duo's vault model
+  // makes the quick switcher a more useful destination, and File →
+  // Open already lives in the menu under ⌘⇧O if the system Open is
+  // ever wanted (FOLLOWUP if owner objects).
+  if (meta && !shift && !alt && !ctrl && e.code === 'KeyO') {
+    return { id: 'vaultQuickSwitcher' }
   }
 
   // ⌘` — cycle pane focus.

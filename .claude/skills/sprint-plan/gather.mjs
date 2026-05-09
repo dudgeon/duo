@@ -3,7 +3,7 @@
 //
 // Build a sprint-plan worksheet manifest by harvesting candidates from
 // the four agreed sources:
-//   1. tasks.md open entries (🆕 / 🟡 / ⏳)
+//   1. tasks.md open entries (🆕 / 🟡 / ⏳ / ⬜ DRAFT)
 //   2. docs/dev/active-sprint.md FAIL + carry-over rows
 //   3. docs/dev/session-log.md most recent dated section (referenced
 //      in the intro; not parsed mechanically — too prose-y)
@@ -62,11 +62,12 @@ function parseTasksMd() {
     if (statusLine.startsWith('🆕')) status = '🆕 Filed'
     else if (statusLine.startsWith('🟡')) status = '🟡 Partial'
     else if (statusLine.startsWith('⏳')) status = '⏳ Open'
+    else if (statusLine.startsWith('⬜')) status = '⬜ Draft'
     if (!status) continue
 
     // Pull a 1-line description from the status line (everything after
     // the emoji + word) or the next non-frontmatter line.
-    const statusBlurb = statusLine.replace(/^[🆕🟡⏳]\s*\S+\s*/, '').slice(0, 220)
+    const statusBlurb = statusLine.replace(/^[🆕🟡⏳⬜]\s*\S+\s*/, '').slice(0, 220)
 
     items.push({
       id,
