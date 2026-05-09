@@ -523,12 +523,22 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
+## Active sprint — Sprint 13 (cut target v0.6.11)
+
+**P0:** FOLLOWUP-014 paste-image v2 — custom Image NodeView storing relative paths in markdown source, hydrating displayable URLs at mount via `files.read`. Closes the v0.6.10 v1 trade-off (`![](blob:...)` doesn't survive doc reload).
+
+**Carry-overs:** ENH-125 canvas-CLI parity for `duo image insert`, v0.6.10 walk-carryover (canvas paste + drop + CLI verb walk), BUG-101 `duo edit` doesn't auto-focus tab, ENH-116 trim SKILL.md verbosity.
+
+Full plan: [docs/dev/active-sprint.md](docs/dev/active-sprint.md).
+
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 10 |
-| ENH-103 + ENH-104 SaveControl + autosave toggle — owner sign-off on the four-state visual treatment (Saved / Save / Saving / Failed-retry) | Before any Sprint 10+ code work on the consolidated control |
-| ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into Sprint 10 |
+| Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 13 |
+| FOLLOWUP-014 paste-image v2 architecture — NodeView (async-aware, supports the resolution at mount) vs. renderHTML (synchronous, must precompute)? | Before any Sprint 13 P0 code work — affects the whole shape of `DuoImage.ts` |
+| ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into a future sprint |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |
+| ENH-118 image-type handling — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before Sprint 14 picks up the image-handling polish cluster |
+| Backlinks panel / graph view (Obsidian cluster) — Sprint 14+ anchor? Or defer further? | When wikilinks autocomplete (v0.6.10) usage tells us whether the next-tier capability has demand |

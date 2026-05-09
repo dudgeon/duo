@@ -37,7 +37,7 @@
 
 2. **`@` mention inserts canonical `[[wikilink]]`** — vault round-trip stays unified regardless of which trigger produced the link. Obsidian-compat first.
 
-3. **Paste-image v1 trades source-portability for ship velocity** — blob URLs in markdown source (`![](blob:...)`) render immediately on paste but die on reload. v2 (custom NodeView with persistent abs paths, FOLLOWUP-013) is queued. The trade-off was deliberate after ~90 minutes of debugging revealed the cross-origin / CSP / blob-URL layering — getting the user-visible feature out beat shipping the architecturally-pure version this sprint.
+3. **Paste-image v1 trades source-portability for ship velocity** — blob URLs in markdown source (`![](blob:...)`) render immediately on paste but die on reload. v2 (custom NodeView with persistent abs paths, FOLLOWUP-014) is queued. The trade-off was deliberate after ~90 minutes of debugging revealed the cross-origin / CSP / blob-URL layering — getting the user-visible feature out beat shipping the architecturally-pure version this sprint.
 
 **Sprint 12 retro fix shipped:** ENH-121 — renderer console forwarder. Every `console.*` from the renderer now prints to dev stdout. Single highest-leverage observability addition this year; Sprint 12 walk-rev3's 90 minutes of futile hypothesis-test cycles would have been ~5 minutes with this in place. Memory rule landed alongside: when debugging blindly past ~15 min, build the missing observability primitive *before* the next hypothesis cycle.
 

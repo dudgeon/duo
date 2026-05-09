@@ -48,7 +48,7 @@
 - *"Split View should be feature parity with main pane; please scrutinize why this disparity exists"* — at the file-tab render level there's NO disparity (both use `renderFileTab(tab)`). Real disparities (single-slot aux, hardcoded `focusedSubpane='main'`, simpler header) are intentional v1 simplifications per ENH-041 Sprint 3→7 lineage.
 - *"don't overfit the change, but solve for the meta issue"* on the visibility-tooling retro — shipped ENH-121 as the principle; filed ENH-122/123/124 as the next-tier additions; saved a "build the missing primitive when blind past 15 min" rule.
 
-**ENHs filed (10 new + 1 followup):** ENH-116 (skill trim), ENH-117 (view-source), ENH-118 (image-type discussion), ENH-119 (image-in-selection tint), ENH-120 (clipboard preserves image bytes), ENH-121 ✅ (console forwarder, shipped), ENH-122 (`duo dom`), ENH-123 (`duo devtools`), ENH-124 (`duo layout`), ENH-125 (canvas-CLI parity for image insert), FOLLOWUP-013 (paste-image v2 with custom NodeView for persistent abs paths).
+**ENHs filed (10 new + 1 followup):** ENH-116 (skill trim), ENH-117 (view-source), ENH-118 (image-type discussion), ENH-119 (image-in-selection tint), ENH-120 (clipboard preserves image bytes), ENH-121 ✅ (console forwarder, shipped), ENH-122 (`duo dom`), ENH-123 (`duo devtools`), ENH-124 (`duo layout`), ENH-125 (canvas-CLI parity for image insert), FOLLOWUP-014 (paste-image v2 with custom NodeView for persistent abs paths). Note: FOLLOWUP-014 numbering chosen to avoid collision with the existing FOLLOWUP-013 (BUG-093 split-view crash repro hunt, filed Sprint 8).
 
 ---
 

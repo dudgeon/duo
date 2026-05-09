@@ -65,7 +65,7 @@ Three sprints in one cut. Sprint 10 (SaveControl pill + autosave toggle) and Spr
 - **`findVaultRoot` + `resolveWikilinkInVault` extracted** from `App.tsx` to `renderer/components/editor/wikilinkResolver.ts` so the autocomplete features share the vault detection. Plus a new `walkVaultFiles` bulk-collect helper for the autocomplete UI's ranking source.
 
 ### Known issues / v1 trade-offs
-- **Paste-image markdown source carries `![](blob:...)` URLs** (FOLLOWUP-013) — non-portable across reload. v1 ships unblock; v2 plan: custom Image NodeView storing relative paths and resolving via `files.read` at mount time.
+- **Paste-image markdown source carries `![](blob:...)` URLs** (FOLLOWUP-014) — non-portable across reload. v1 ships unblock; v2 plan: custom Image NodeView storing relative paths and resolving via `files.read` at mount time.
 - **Canvas paste-image markdown source same blob-URL trade-off** — same v2 plan applies.
 - **`duo edit` doesn't auto-focus the opened tab** (BUG-101) — workaround: click the tab manually after open, or use the file navigator. Fix queued.
 - **Escape on `[[` / `@` autocomplete popover** has a portal-cleanup race. Workaround: type any char, click outside, or just Enter to insert.

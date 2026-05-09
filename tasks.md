@@ -6094,14 +6094,14 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 **What's wanted.** When the user selects a range in the markdown editor that includes an image, then ⌘C and pastes into another app (Notes, Mail, Slack, etc.), the image should appear in the destination — not just the surrounding text without it. Today: only the text portion arrives at the destination.
 
-**Why this happens (current state).** The markdown editor uses tiptap-markdown's `transformCopiedText` to serialize the selected slice as markdown text. Markdown text is `![](blob:...)` for v1 paste-image inserts (per FOLLOWUP-013 — abs path is the v2 plan). Even with a real path, the destination app receives PLAIN TEXT — not the image bytes. To put the image bytes on the clipboard alongside, the copy handler needs to ALSO write image data to the clipboard via `navigator.clipboard.write([new ClipboardItem({ 'image/png': blob, 'text/plain': text })])`.
+**Why this happens (current state).** The markdown editor uses tiptap-markdown's `transformCopiedText` to serialize the selected slice as markdown text. Markdown text is `![](blob:...)` for v1 paste-image inserts (per FOLLOWUP-014 — abs path is the v2 plan). Even with a real path, the destination app receives PLAIN TEXT — not the image bytes. To put the image bytes on the clipboard alongside, the copy handler needs to ALSO write image data to the clipboard via `navigator.clipboard.write([new ClipboardItem({ 'image/png': blob, 'text/plain': text })])`.
 
 **Scope considerations:**
 - Single-image selection (just the image, no surrounding text): straightforward — write image + text to clipboard.
 - Multi-image selection: most other apps only accept ONE image per clipboard write. Pick the first? Refuse? Concat into a montage? Document the limitation.
 - Mixed text + image: the text portion travels as-is; the image portion converts to image bytes.
 
-**Cross-ref:** [ENH-108](tasks.md:276), [FOLLOWUP-013](tasks.md:somewhere) (relative-path portability), [ENH-118](tasks.md:somewhere) (image-type handling discussion). All belong in the image-handling cluster on the roadmap.
+**Cross-ref:** [ENH-108](tasks.md:276), [FOLLOWUP-014](tasks.md:somewhere) (relative-path portability), [ENH-118](tasks.md:somewhere) (image-type handling discussion). All belong in the image-handling cluster on the roadmap.
 
 ---
 
@@ -6166,7 +6166,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ---
 
-### FOLLOWUP-013: ENH-108 paste-image inserts ABSOLUTE duo-asset:// URLs in markdown source (non-portable)
+### FOLLOWUP-014: ENH-108 paste-image inserts ABSOLUTE duo-asset:// URLs in markdown source (non-portable)
 
 **Status:** 🆕 Filed 2026-05-09 mid-sprint after rev3 protocol fix.
 **Priority:** Medium — markdown content is non-portable across machines (links break when the doc + images are copied to a different filesystem path or different user). Acceptable for v1; owner trigger to escalate.
