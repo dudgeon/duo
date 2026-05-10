@@ -5718,6 +5718,68 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### BUG-119: fsevents native-module shutdown race — SIGABRT every time Duo quits
+
+**Status:** 🟡 Open. Filed 2026-05-10 from Sprint 15 close-out (post-v0.6.13 cut). Owner reports the macOS crash dialog appears every time Duo quits.
+**Priority:** Medium — cosmetic (crash happens AFTER app shutdown; no data loss; sessions/pins persist correctly), but the macOS crash dialog is annoying and looks bad. Not user-facing on a daily basis but unprofessional.
+**Filed:** 2026-05-10.
+
+**Symptom.** Every quit (Cmd+Q, SIGTERM, or normal close) produces a macOS crash report:
+
+```
+Process:               Duo [...]
+Identifier:            com.geoffdudgeon.duo
+Version:               0.6.12 (and presumably 0.6.13+)
+Crashed Thread:        0  CrBrowserMain  Dispatch queue: com.apple.main-thread
+Exception Type:        EXC_CRASH (SIGABRT)
+Termination Reason:    Namespace SIGNAL, Code 6 Abort trap: 6
+
+Thread 0 stack:
+  __pthread_kill → pthread_kill → abort
+    → uv_mutex_lock → napi_release_threadsafe_function
+    → fse_instance_destroy   ← in fsevents.node
+```
+
+**Root cause.** `fse_instance_destroy` = the macOS `fsevents` native Node addon used by chokidar (which `FilesService` uses for navigator file-watching). On process termination, the addon's threadsafe N-API function teardown races with the Node env shutdown.
+
+The shutdown sequence in `electron/main.ts`:
+
+- `before-quit` (line 801) — flushes session-state + browser history. Does NOT dispose watchers.
+- `window-all-closed` (line 809) — `ptyManager.dispose()` + `filesService.dispose()`.
+
+On macOS the `window-all-closed` hook DOES NOT FIRE on Cmd+Q or SIGTERM by default (it's gated on platform — line 816 only calls `app.quit()` on non-darwin). Net: watchers stay alive while the env tears down. fsevents' threadsafe function tries to release after the mutex it depends on is already destroyed → abort.
+
+**Fix.** Move `filesService.dispose()` (and `ptyManager.dispose()`) into the `before-quit` hook so watchers close BEFORE the Node env starts tearing down native modules:
+
+```typescript
+// in electron/main.ts:
+app.on('before-quit', async () => {
+  // ENH-013 — stop polling first (lightweight).
+  claudePresence.stop()
+  // BUG-119 — dispose watchers BEFORE the env teardown so the fsevents
+  // native module can release its threadsafe function while the mutex
+  // is still alive. Without this, `fse_instance_destroy` races against
+  // Node env shutdown and aborts.
+  ptyManager.dispose()
+  await filesService.dispose()
+  // Final flushes.
+  await sessionStateService.flush()
+  await browserHistory.flush()
+})
+
+app.on('window-all-closed', () => {
+  // Disposes already happened in before-quit; this hook is now just for
+  // platform-quit semantics on non-darwin.
+  if (process.platform !== 'darwin') app.quit()
+})
+```
+
+**Smoke walk item.** After the fix lands: launch Duo → Cmd+Q → confirm NO crash report appears. Repeat for SIGTERM (`kill <pid>`) and force-quit.
+
+**Cross-ref.** Discovered post-v0.6.13 cut during Sprint 15 close-out (owner walked the cut + saw the recurring crash dialog). `chokidar` + `fsevents` are listed in `scripts/validate-dmg-launch.sh § REQUIRED_RUNTIME_MODULES`. Class of bug: Electron native-module shutdown race; well-documented in the chokidar / fsevents issue trackers (search "fsevents abort shutdown").
+
+---
+
 ### BUG-118: `cut-version` skill should sanity-check cli/duo binary against a fresh rebuild — caught after v0.6.12 shipped stale
 
 **Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commit 2).** Added `git diff --quiet cli/duo` post-`npm run build:cli` guard in [`.claude/skills/cut-version/SKILL.md`](.claude/skills/cut-version/SKILL.md) at Step 4. If the freshly-rebuilt binary differs from HEAD, the cut aborts with a helpful message: "Run: git add cli/duo (then re-attempt the cut)." Future cuts can no longer silently ship a stale binary.
