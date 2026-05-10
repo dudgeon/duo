@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<title>Dogfooding the distro-packs pattern — planning playground</title>
+<style>
+  :root {
+    --paper: #fbf8f1;
+    --paper-deep: #f3ede0;
+    --paper-edge: #e8e0cb;
+    --paper-rule: #d9cea8;
+    --ink: #2b2620;
+    --ink-soft: #4a4238;
+    --ink-mute: #6f6557;
+    --ink-ghost: #9a9080;
+    --accent: #c46a1c;
+    --accent-soft: #f4d9b6;
+    --accent-rgb: 196 106 28;
+    --pass: #4a7d3e;
+    --fail: #b13e3a;
+    --warn: #b07527;
+    --code-bg: #2b2823;
+    --code-ink: #e8e0cb;
+    --code-key: #88b6e0;
+    --code-string: #c4a86a;
+    --code-rule: #44403a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  body { padding: 32px 40px 120px; max-width: 980px; margin: 0 auto; }
+
+  header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+  header.page-head h1 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-style: italic;
+    font-weight: 500;
+    margin: 0 0 4px;
+    font-size: 26px;
+  }
+  header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+  header.page-head .meta .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 6px;
+  }
+
+  .intro {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
+  }
+  .intro strong { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 600;
+    margin: 36px 0 12px;
+    font-size: 19px;
+    border-bottom: 1px solid var(--paper-rule);
+    padding-bottom: 6px;
+  }
+  h3 {
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-weight: 600;
+    margin: 22px 0 8px;
+    font-size: 15px;
+  }
+  h4 { margin: 16px 0 6px; font-size: 13.5px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px;
+    background: var(--paper-deep);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    line-height: 1.5;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+  /* — Inventory table — */
+  table.ops {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 16px;
+    font-size: 12.5px;
+  }
+  table.ops th, table.ops td {
+    border: 1px solid var(--paper-rule);
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.ops th {
+    background: var(--paper-deep);
+    font-weight: 600;
+    color: var(--ink);
+  }
+  table.ops td.num { width: 28px; text-align: center; color: var(--ink-mute); }
+  table.ops tr.content-op td.num { background: color-mix(in srgb, var(--pass) 12%, transparent); }
+  table.ops tr.plumbing-op td.num { background: color-mix(in srgb, var(--warn) 18%, transparent); }
+  table.ops .op-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: 6px;
+  }
+  table.ops .op-tag.content { background: color-mix(in srgb, var(--pass) 18%, transparent); color: var(--pass); }
+  table.ops .op-tag.plumbing { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+
+  /* — Schema comparison cards — */
+  .schema-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 12px 0 18px;
+  }
+  @media (min-width: 760px) {
+    .schema-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .schema-card {
+    background: var(--paper);
+    border: 1.5px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 14px 16px;
+  }
+  .schema-card h4 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .schema-card .schema-meta {
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    margin: 0 0 10px;
+  }
+  .schema-card .schema-fields { font-size: 12.5px; }
+  .schema-card .schema-fields li { margin: 3px 0; }
+  .schema-card.A { border-color: color-mix(in srgb, var(--ink-soft) 30%, var(--paper-rule)); }
+  .schema-card.B { border-color: color-mix(in srgb, var(--accent) 50%, var(--paper-rule)); }
+
+  /* — Option comparison cards — */
+  .options-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin: 14px 0 22px;
+  }
+  @media (min-width: 760px) {
+    .options-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .option-card {
+    background: var(--paper);
+    border: 1.5px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 14px 16px;
+    position: relative;
+  }
+  .option-card.recommended {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 5%, var(--paper));
+  }
+  .option-card .recommendation-pill {
+    position: absolute;
+    top: -10px;
+    right: 14px;
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 10px;
+  }
+  .option-card h3 { margin: 0 0 4px; font-size: 15px; }
+  .option-card .option-meta {
+    font-size: 11.5px;
+    color: var(--ink-mute);
+    margin: 0 0 8px;
+  }
+  .option-card .option-summary {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0 0 8px;
+  }
+  .option-card .pros, .option-card .cons {
+    font-size: 12.5px;
+    margin: 6px 0;
+  }
+  .option-card .pros .label { color: var(--pass); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .option-card .cons .label { color: var(--fail); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .option-card .effort {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--paper-rule);
+    font-size: 12px;
+    color: var(--ink-mute);
+  }
+  .option-card .effort strong { color: var(--ink); }
+
+  /* — Decision card (4 AUQs) — */
+  .decision-card {
+    background: var(--paper-deep);
+    border: 1.5px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin: 18px 0;
+  }
+  .decision-card .q-title {
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  .decision-card .q-prompt {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 500;
+    font-size: 17px;
+    color: var(--ink);
+    margin: 0 0 12px;
+    line-height: 1.35;
+  }
+  .decision-card .q-context {
+    font-size: 13px;
+    color: var(--ink-mute);
+    margin: 0 0 14px;
+  }
+  .q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+  .q-option {
+    display: block;
+    background: var(--paper);
+    border: 1.5px solid var(--paper-rule);
+    border-radius: 5px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .q-option:hover { border-color: var(--ink-ghost); }
+  .q-option input[type="radio"] {
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .q-option:has(input[type="radio"]:checked) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+  }
+  .q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+  .q-option-title {
+    font-weight: 600;
+    font-size: 13.5px;
+    color: var(--ink);
+    margin: 0 0 3px;
+  }
+  .q-option-title .recommend-tag {
+    font-size: 10px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+  }
+  .q-option-rationale {
+    font-size: 12px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+    margin: 3px 0 0;
+  }
+  .q-notes {
+    width: 100%;
+    background: var(--paper);
+    border: 1px solid var(--paper-rule);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 12.5px;
+    color: var(--ink);
+    resize: vertical;
+    min-height: 50px;
+  }
+  .q-notes:focus { outline: 1.5px solid var(--accent); }
+
+  /* — Sticky copy bar — */
+  .copy-bar {
+    position: sticky;
+    bottom: 0;
+    margin: 32px -40px -120px;
+    padding: 16px 40px;
+    background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+    border-top: 1.5px solid var(--paper-rule);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+  .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+  .copy-bar button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 9px 18px;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+  .copy-bar button.copied { background: var(--pass); }
+
+  /* — Pipeline diagram — */
+  .pipeline {
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 18px 20px;
+    margin: 12px 0 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--ink-soft);
+    white-space: pre;
+    overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Dogfooding the distro-packs pattern for Duo's own defaults</h1>
+  <div class="meta">
+    <span class="pill">ENH-134</span>
+    Status: <strong>open / planning</strong> · filed 2026-05-10 · author: Claude (post-v0.6.12 cleanup)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this doc answers.</strong> Two owner questions: <em>"what
+  markdowns ship with the actual packaged app, which load as pinned in
+  FTUX, etc"</em> (an inventory) and <em>"how should we refactor the
+  main app distro to eat our own dogfood and use the packs pattern?"</em>
+  (a design choice). Sections 1–2 are the inventory + problem statement.
+  Section 3 contrasts four refactor options. Section 4 is interactive —
+  pick the recommended option (or another), answer the four AUQs that
+  gate Step 2, and hit <strong>Copy decisions</strong> at the bottom.
+  Until you do, ENH-134 stays open and re-surfaces in every smoke walk.
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="current">§ 1 · Current state — inventory</h2>
+
+<h3>What ships in the packaged <code>.app</code> bundle</h3>
+<p>From <code>electron-builder.yml</code>:</p>
+<ul>
+  <li><strong><code>files:</code></strong> — <code>out/**/*</code> (compiled main + renderer), <code>package.json</code>, <code>help/**/*</code>, <code>node_modules/**/*</code> (production deps for native modules).</li>
+  <li><strong><code>extraResources:</code></strong> — <code>skill/</code>, <code>cli/</code>, <code>agents/</code>.</li>
+</ul>
+<p>So inside <code>Duo.app/Contents/Resources/</code>:</p>
+<pre><code>Duo.app/Contents/Resources/
+├── skill/                      ← extraResource (Claude Code skill src)
+├── cli/                        ← extraResource (the duo binary)
+├── agents/duo.md               ← extraResource (the duo subagent)
+└── app.asar/
+    ├── out/...                 ← compiled Electron source
+    ├── package.json
+    ├── help/                   ← faq.html, what-duo-does.html, canvas-actions-demo.html
+    ├── packs/                  ← lesson packs (intro-to-duo, claude-code-basics)
+    └── node_modules/...        ← production deps (node-pty, chokidar, etc.)</code></pre>
+
+<h3>What the install service does on first launch</h3>
+<p>The welcome banner triggers <code>electron/install-service.ts § run()</code> — <strong>1331 lines, hand-rolled</strong>. It performs 13 numbered operations. Operations 1–5 install <span style="color:var(--pass);font-weight:600">CONTENT</span>; operations 6–13 install <span style="color:var(--warn);font-weight:600">PLUMBING</span> (OS-level wiring + integrations).</p>
+
+<table class="ops">
+  <thead>
+    <tr>
+      <th class="num">#</th>
+      <th>Operation</th>
+      <th>Source</th>
+      <th>Destination</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr class="content-op"><td class="num">1</td><td>Copy bundled skill <span class="op-tag content">content</span></td><td><code>&lt;app&gt;/skill/</code></td><td><code>~/.claude/skills/duo/</code></td></tr>
+    <tr class="content-op"><td class="num">2</td><td>Copy pack-builder skill <span class="op-tag content">content</span></td><td><code>&lt;app&gt;/skill/pack-builder/</code></td><td><code>~/.claude/skills/pack-builder/</code></td></tr>
+    <tr class="content-op"><td class="num">3</td><td>Copy subagent <span class="op-tag content">content</span></td><td><code>&lt;app&gt;/agents/duo.md</code></td><td><code>~/.claude/agents/duo.md</code></td></tr>
+    <tr class="content-op"><td class="num">4</td><td>Copy help files <span class="op-tag content">content</span></td><td><code>&lt;app&gt;/help/</code></td><td><code>~/.claude/duo/help/</code></td></tr>
+    <tr class="content-op"><td class="num">5</td><td>Copy lesson packs <span class="op-tag content">content</span></td><td><code>&lt;app&gt;/packs/</code></td><td><code>~/.claude/duo/packs/</code></td></tr>
+    <tr class="plumbing-op"><td class="num">6</td><td>Bootstrap external-domains.json <span class="op-tag plumbing">plumbing</span></td><td><code>fork.config.json § __DUO_BOOTSTRAP_EXTERNAL_DOMAINS__</code></td><td><code>~/.claude/duo/external-domains.json</code> (additive merge)</td></tr>
+    <tr class="plumbing-op"><td class="num">7</td><td>Bootstrap priming.md <span class="op-tag plumbing">plumbing</span></td><td><code>&lt;app&gt;/skill/priming.md</code></td><td><code>~/.claude/duo/priming.md</code> (only-if-absent)</td></tr>
+    <tr class="plumbing-op"><td class="num">8</td><td>Bootstrap default <strong>pins.json</strong> <span class="op-tag plumbing">plumbing</span></td><td>hardcoded JSON literal in <code>install-service.ts:522-528</code></td><td><code>~/.claude/duo/pins.json</code> (only-if-absent)</td></tr>
+    <tr class="plumbing-op"><td class="num">9</td><td>Install SessionStart hook <span class="op-tag plumbing">plumbing</span></td><td>hardcoded payload</td><td><code>~/.claude/settings.json</code> (merged)</td></tr>
+    <tr class="plumbing-op"><td class="num">10</td><td>Merge managed Duo block into user CLAUDE.md <span class="op-tag plumbing">plumbing</span></td><td>hardcoded snippet text</td><td><code>~/.claude/CLAUDE.md</code> (between distro-managed markers)</td></tr>
+    <tr class="plumbing-op"><td class="num">11</td><td>Install PATH shim <span class="op-tag plumbing">plumbing</span></td><td>hardcoded shell-script template</td><td><code>~/.claude/bin/claude</code></td></tr>
+    <tr class="plumbing-op"><td class="num">12</td><td>Install CLI binary <span class="op-tag plumbing">plumbing</span></td><td><code>&lt;app&gt;/cli/duo</code></td><td><code>~/.local/bin/duo</code> (symlink)</td></tr>
+    <tr class="plumbing-op"><td class="num">13</td><td>Write provenance <span class="op-tag plumbing">plumbing</span></td><td>computed</td><td><code>~/.claude/duo/installed.json</code></td></tr>
+  </tbody>
+</table>
+
+<h3>The first-launch defaults hook (separate from install-service)</h3>
+<p>After session restore, <code>electron/main.ts § 513</code> fires the first-launch defaults hook:</p>
+<div class="pipeline">PackLoader.scan('~/.claude/duo/packs/')
+       │
+       ▼
+   for each pack with manifest:
+       │
+       ▼
+   needsFirstLaunch(installed-packs.json, &lt;name&gt;@&lt;version&gt;)?
+       │
+       ├── no  ────► skip
+       │
+       ├── yes ────► for default in defaults[]:
+       │                if openOnFirstLaunch:
+       │                  send NAV_EDIT(&lt;packDir&gt;/&lt;default.path&gt;)
+       │              markFirstLaunched(name, version)</div>
+<p>So <strong>lesson packs are first-launch-aware</strong> via <code>PackLoader</code> + <code>installed-packs.json</code> (per-pack-version, not per-app-version). The OTHER content (skill, subagent, help, default pins, CLAUDE.md block) doesn't have this hook — it's bootstrap-only-if-absent or atomic-replace via the install-service.</p>
+
+<h3>Default FTUX experience (what the user actually sees on first launch)</h3>
+<p>After clicking <strong>Install</strong> on the welcome banner, the user gets:</p>
+<ol>
+  <li><strong>Two pinned browser tabs</strong> — <code>Duo — FAQ</code> (<code>~/.claude/duo/help/faq.html</code>) and <code>Duo — What Duo Does</code> (<code>~/.claude/duo/help/what-duo-does.html</code>). Bootstrapped via op #8 above (the hardcoded JSON literal).</li>
+  <li><strong>Lesson pack canvases</strong> — <code>intro-to-duo/canvases/welcome.html</code> opens automatically (per <code>PACK.json § defaults[]</code>). The <code>claude-code-basics</code> pack is on disk but only fires when the user invokes the lesson skill.</li>
+  <li><strong>The <code>duo</code> skill + subagent</strong> — auto-discovered by any Claude Code session running anywhere on the machine (because they're at <code>~/.claude/skills/</code> + <code>~/.claude/agents/</code>, the canonical auto-discover paths).</li>
+</ol>
+
+<h3>The two pack patterns we already have</h3>
+<p>There are <strong>two incompatible-looking pack schemas</strong> in the codebase right now:</p>
+
+<div class="schema-grid">
+  <div class="schema-card A">
+    <h4>Pattern A — "Lesson packs"</h4>
+    <p class="schema-meta">Stage 28 (v0.6.0+) · INTERNAL ONLY · loaded by <code>core/pack-loader.ts</code></p>
+    <p style="font-size:12.5px;margin:0 0 8px;">Lives at <code>packs/&lt;name&gt;/</code>; mirrored to <code>~/.claude/duo/packs/&lt;name&gt;/</code>.</p>
+    <h4 style="margin-top:8px;font-size:12.5px;color:var(--ink-soft);">Files</h4>
+    <ul class="schema-fields">
+      <li><code>PACK.json</code> — single manifest</li>
+      <li><code>canvases/*.html</code> — first-launch tabs</li>
+      <li><code>lesson-skill/SKILL.md</code> — pack-specific Claude Code skill</li>
+    </ul>
+    <h4 style="font-size:12.5px;color:var(--ink-soft);">PACK.json fields</h4>
+    <ul class="schema-fields">
+      <li><code>schemaVersion: 1</code></li>
+      <li><code>name</code>, <code>version</code>, <code>title</code>, <code>description</code></li>
+      <li><code>defaults[]</code> — auto-open canvases (<code>kind</code>, <code>path</code>, <code>openOnFirstLaunch</code>, <code>pin</code>)</li>
+      <li><code>navPins[]</code> — nav-tree pins (v1 stub, not enforced)</li>
+    </ul>
+    <h4 style="font-size:12.5px;color:var(--ink-soft);">Used by</h4>
+    <ul class="schema-fields">
+      <li><code>packs/intro-to-duo/</code></li>
+      <li><code>packs/claude-code-basics/</code></li>
+    </ul>
+  </div>
+
+  <div class="schema-card B">
+    <h4>Pattern B — "Distro packs"</h4>
+    <p class="schema-meta">Stage 21d (v0.6.8+) · ENTERPRISE-FACING · loaded by <code>electron/distro-pack-service.ts</code></p>
+    <p style="font-size:12.5px;margin:0 0 8px;">Lives at <code>~/.claude/duo/extra-packs/&lt;name&gt;/</code> after user install (drop-in zip / .pkg / fork-and-compile).</p>
+    <h4 style="margin-top:8px;font-size:12.5px;color:var(--ink-soft);">Files</h4>
+    <ul class="schema-fields">
+      <li><code>.claude-plugin/plugin.json</code> — Claude Code plugin manifest (identity)</li>
+      <li><code>duo-extras/DISTRO.json</code> — Duo integration manifest</li>
+      <li><code>duo-extras/claude-md-snippet.md</code> — optional CLAUDE.md snippet</li>
+      <li><code>skills/&lt;skill&gt;/SKILL.md</code></li>
+      <li><code>agents/&lt;name&gt;.md</code></li>
+    </ul>
+    <h4 style="font-size:12.5px;color:var(--ink-soft);">DISTRO.json fields</h4>
+    <ul class="schema-fields">
+      <li><code>requiresDuoVersion</code> — semver range</li>
+      <li><code>openOnFirstLaunch[]</code> — same shape as Pattern A's <code>defaults[]</code></li>
+      <li><code>pinnedFiles[]</code> — equivalent to Pattern A's <code>navPins[]</code></li>
+      <li><code>claudeMdSnippet: bool</code> — opt-in for the snippet merge</li>
+      <li><code>primingAdditions: bool</code> — opt-in for priming.md additions</li>
+      <li><code>externalDomainsAdditions: bool</code> — opt-in for external-domains additions</li>
+    </ul>
+    <h4 style="font-size:12.5px;color:var(--ink-soft);">Used by</h4>
+    <ul class="schema-fields">
+      <li>External authors via the <code>pack-builder</code> skill</li>
+      <li>Template at <code>examples/distro-pack-template/</code></li>
+    </ul>
+  </div>
+</div>
+
+<p>The two schemas are <strong>semantically overlapping but mechanically distinct</strong>. Both have an identity block, a "what version of Duo do I require" version constraint, a "what to auto-open on first launch" list, and (implicit in A; explicit in B) a way to ship skills and agents and doc snippets. But the field names, file shapes, loaders, and install pipelines are different. Pattern A predates Pattern B by ~2 sprints; the duplication has been on the deferred-cleanup list since.</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="problem">§ 2 · Problem statement</h2>
+<p style="font-size:14px;background:var(--accent-soft);padding:14px 18px;border-radius:6px;border-left:4px solid var(--accent);">
+  The main app's "default distro" — docs (<code>help/</code>, <code>skill/</code>, <code>agents/</code>), the FTUX-pinned tabs (default <code>pins.json</code>), the auto-opened lesson (<code>intro-to-duo</code>), the CLAUDE.md snippet, the <code>priming.md</code>, the external-domains seed — is <strong>hand-rolled in <code>install-service.ts</code></strong>. Enterprise teams shipping their own version of these same things follow a <strong>wholly different pattern</strong> (<code>DISTRO.json + plugin.json + distro-pack-service</code>).
+</p>
+<p>Dogfooding the pack pattern means EITHER (a) refactoring the install service to consume the distro-pack schema for its own defaults, or (b) keeping the two pipelines but making the Duo defaults expressible AS a distro pack so authors have a copyable reference, or (c) unifying just the schemas without changing pipelines, or (d) some combination.</p>
+<p>The cost-benefit changes a lot depending on how much of the install service we want to subsume. <span style="color:var(--pass);font-weight:600">Operations 1–5 (content)</span> are obvious candidates. <span style="color:var(--warn);font-weight:600">Operations 6–13 (plumbing)</span> are trickier — some are pack-expressible (CLAUDE.md snippet, external-domains additions), others probably should stay hand-rolled (PATH shim, SessionStart hook, CLI binary symlink, provenance file).</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="options">§ 3 · Four options for the refactor</h2>
+
+<div class="options-grid">
+
+  <div class="option-card">
+    <h3>Option A — Full dogfood</h3>
+    <p class="option-meta">Most ambitious · ~3-5 days · biggest blast radius</p>
+    <p class="option-summary">Convert Duo's defaults into a built-in distro pack consumed by the same <code>distro-pack-service</code> enterprise packs use. Kill <code>PACK.json</code> entirely. Refactor <code>install-service.ts</code> to call <code>distroPackService</code> for the bundled distro pack first, then run only the irreducibly-hand-rolled plumbing.</p>
+    <p class="pros"><span class="label">Pros</span> — One install pipeline. Pack authors see Duo's defaults as their reference template (true dogfood). Schema unification kills PACK.json/DISTRO.json duplication. Forks edit one config (DISTRO.json), not <code>install-service.ts</code>. <code>install-service.ts</code> shrinks ~1331 → ~400 lines.</p>
+    <p class="cons"><span class="label">Cons</span> — Big refactor. Need to encode hardcoded behaviors (CLAUDE.md merge, SessionStart hook, PATH shim) into DISTRO.json schema or a "built-in extensions" concept. Stage 21d's <code>distro-pack-service</code> was designed for SECONDARY packs; making it ALSO the primary path raises edge cases (what if bundled pack missing? version-mismatch handling? re-install-on-upgrade).</p>
+    <p class="effort"><strong>Effort:</strong> ~3–5 days · <strong>Risk:</strong> regression-touches the load-bearing first-launch flow</p>
+  </div>
+
+  <div class="option-card">
+    <h3>Option B — Documentary mirror only</h3>
+    <p class="option-meta">Cheapest · ~1 day · drift risk</p>
+    <p class="option-summary">Keep the main install hardcoded. Publish Duo's defaults AS a distro-pack-shaped folder in <code>examples/duo-default-distro/</code> for reference only. Pack-builders see "this is what Duo's own defaults look like" without guessing.</p>
+    <p class="pros"><span class="label">Pros</span> — Cheap. Documentary value. No regression risk. Reversible.</p>
+    <p class="cons"><span class="label">Cons</span> — TWO things to maintain (the actual install-service AND the documentary mirror). Drift risk — install-service edits won't auto-propagate to the example. Doesn't unify the codebase. PACK.json vs DISTRO.json duplication remains.</p>
+    <p class="effort"><strong>Effort:</strong> ~1 day · <strong>Risk:</strong> minimal</p>
+  </div>
+
+  <div class="option-card">
+    <h3>Option C — Schema unification</h3>
+    <p class="option-meta">Medium scope · ~2 days · high architectural value</p>
+    <p class="option-summary">Unify <code>PACK.json</code> and <code>DISTRO.json</code> into one schema. Don't refactor the main install pipeline. Pick one canonical schema (probably DISTRO.json + plugin.json since it's Claude-Code-plugin-spec-aligned), port <code>intro-to-duo</code> + <code>claude-code-basics</code> to it. Update <code>core/pack-loader.ts</code> or retire it.</p>
+    <p class="pros"><span class="label">Pros</span> — Removes schema-duplication confusion (the user's likely root concern). No big install-service refactor. Smaller blast radius than A.</p>
+    <p class="cons"><span class="label">Cons</span> — Doesn't actually move main app's docs/skills/agent into a pack. Two loaders still coexist (or pack-loader dies, ripples through main.ts § first-launch defaults hook). The two lesson-pack ports need testing.</p>
+    <p class="effort"><strong>Effort:</strong> ~2 days · <strong>Risk:</strong> low (internal-only schema migration)</p>
+  </div>
+
+  <div class="option-card recommended">
+    <span class="recommendation-pill">Recommended</span>
+    <h3>Option D — Phased: C now, A later</h3>
+    <p class="option-meta">Two sprints · ~2 + ~3-5 days · gates each step on smoke-walk</p>
+    <p class="option-summary">
+      <strong>Sprint 15:</strong> ship Option C (schema unification, port lesson packs).<br>
+      <strong>Sprint 15 close-out:</strong> owner-decision gate on Step 2 via the four AUQs in § 4 below.<br>
+      <strong>Sprint 16+:</strong> ship Option A subset per Q1–Q4 answers (built-in <code>duo-default</code> pack consumed by <code>distro-pack-service</code>; preserve hand-rolled plumbing).<br>
+      <strong>Step 3 (later, if pain emerges):</strong> move pack-expressible plumbing into DISTRO.json post-install hooks.
+    </p>
+    <p class="pros"><span class="label">Pros</span> — Phased; Sprint 15's Option C is reversible if Step 2 looks bad. Each step gates on a smoke-walk. Final state is a single install pipeline + dogfooded default distro. Owner gets to course-correct between sprints.</p>
+    <p class="cons"><span class="label">Cons</span> — Requires owner buy-in across two sprints. Step 2 needs a fresh PRD-style scoping discussion before code work.</p>
+    <p class="effort"><strong>Effort:</strong> ~2 days (Sprint 15) + ~3–5 days (Sprint 16+) · <strong>Risk:</strong> low (Sprint 15) → medium (Sprint 16+, gated)</p>
+  </div>
+
+</div>
+
+<h3>Why D over A directly</h3>
+<p>Two reasons: (1) the schema duplication (PACK.json vs DISTRO.json) is a real source of confusion <em>today</em> and worth fixing regardless of whether we go on to A. Skipping to A means doing both pieces in one big sprint with no fallback. (2) The owner question that prompted this doc is half "what ships" (an inventory, answered above) and half "should we use the pack pattern" (a design choice). Option C answers the inventory side fully and gives us a stable substrate for the design choice.</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="decisions">§ 4 · Decisions — pick one option + answer the AUQs</h2>
+
+<p>The four AUQs below gate Step 2 of the recommended phased plan (full main-app dogfood). If you pick Option D, answer all four; if you pick another option, only Q4 (PACK.json BC) applies.</p>
+
+<!-- Decision 0: which option -->
+<section class="decision-card" data-question-id="option-pick">
+  <div class="q-title">Q0 · Which option?</div>
+  <div class="q-prompt">Which refactor path do you want to commit to?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="option-pick" value="option-d-phased">
+      <div class="q-option-body">
+        <div class="q-option-title">Option D — phased: Schema unify (Sprint 15) → main-app dogfood (Sprint 16+) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Reversible. Each step gates on a smoke walk. Sprint 15's win is small but real (kills PACK.json/DISTRO.json duplication). Sprint 16+ is the big payoff (single install pipeline) and gets a fresh scoping discussion before code work.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="option-pick" value="option-c-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Option C only — schema unify, no main-app refactor</div>
+        <div class="q-option-rationale">If Sprint 16+ feels too aggressive and the inventory answer is enough. Closes the schema duplication; defers the dogfooding question.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="option-pick" value="option-a-direct">
+      <div class="q-option-body">
+        <div class="q-option-title">Option A direct — full dogfood in one sprint</div>
+        <div class="q-option-rationale">Aggressive. Skips the schema-unify reversibility step; commits to the full refactor immediately.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="option-pick" value="option-b-mirror">
+      <div class="q-option-body">
+        <div class="q-option-title">Option B — documentary mirror only</div>
+        <div class="q-option-rationale">Cheapest. No real architectural change; just publishes a copyable reference for pack authors. Drift risk over time.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="option-pick" value="defer">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer — close ENH-134 unread, revisit later</div>
+        <div class="q-option-rationale">If Sprint 15 has a different anchor and the dogfooding question can wait.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="option-pick-notes" placeholder="Optional — anything that doesn't fit the picks above? E.g. 'pick D but invert: A first, C as cleanup'…"></textarea>
+</section>
+
+<!-- Decision 1: pack location -->
+<section class="decision-card" data-question-id="pack-location">
+  <div class="q-title">Q1 · Pack location for Duo's own defaults <span style="color:var(--ink-mute);font-weight:400;font-size:11.5px;">(Step 2 / A only — skip if Q0 = C, B, or defer)</span></div>
+  <div class="q-prompt">Where should the built-in distro pack live in the repo?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="pack-location" value="packs-duo-default">
+      <div class="q-option-body">
+        <div class="q-option-title"><code>packs/duo-default/</code> <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Sibling of lesson packs. Minimizes re-org churn — <code>packs/</code> is already the conventional location. The pack just happens to be the one Duo ships by default; PackLoader treats it like any other.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="pack-location" value="duo-default-top-level">
+      <div class="q-option-body">
+        <div class="q-option-title"><code>duo-default/</code> at repo root</div>
+        <div class="q-option-rationale">Top-level marker so <code>packs/</code> stays "user-facing content packs" only. Cleaner separation but adds a new top-level dir we just cleaned out.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="pack-location" value="examples-duo-default">
+      <div class="q-option-body">
+        <div class="q-option-title"><code>examples/duo-default/</code></div>
+        <div class="q-option-rationale">Treated as "the reference template that's also the actual default" — symmetry with <code>examples/distro-pack-template/</code>. Adds a build-time copy step (examples/ isn't currently in extraResources).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="pack-location-notes" placeholder="Optional…"></textarea>
+</section>
+
+<!-- Decision 2: install-service simplification scope -->
+<section class="decision-card" data-question-id="simplification-scope">
+  <div class="q-title">Q2 · install-service simplification scope <span style="color:var(--ink-mute);font-weight:400;font-size:11.5px;">(Step 2 / A only)</span></div>
+  <div class="q-prompt">When converting Duo's defaults to a built-in pack, which currently-hand-rolled operations also collapse into the pack consumer?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="simplification-scope" value="content-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Content only — operations 1–5</div>
+        <div class="q-option-rationale">Skill, subagent, help, lesson packs, default pins move into the pack. Plumbing (ops 6–13) stays in install-service. Smallest blast radius. <code>install-service.ts</code> shrinks but plumbing stays clearly delimited.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="simplification-scope" value="content-plus-soft">
+      <div class="q-option-body">
+        <div class="q-option-title">Content + soft plumbing — ops 1–5 + 6 + 10 <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Adds external-domains seed (op 6) and CLAUDE.md merge (op 10) into the pack — both already pack-expressible (<code>externalDomainsAdditions</code>, <code>claudeMdSnippet</code>). Hard plumbing (PATH shim, SessionStart hook, CLI symlink, provenance) stays in install-service. Sweet spot.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="simplification-scope" value="aggressive">
+      <div class="q-option-body">
+        <div class="q-option-title">Aggressive — try to pack-express ALL operations</div>
+        <div class="q-option-rationale">Including PATH shim and SessionStart hook. Probably impossible for v1 — these are sensitive OS-level wiring with security implications. Ambitious target only.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="simplification-scope-notes" placeholder="Optional — e.g. 'also collapse op 8 (default pins.json) into pinnedFiles[]'…"></textarea>
+</section>
+
+<!-- Decision 3: version coupling -->
+<section class="decision-card" data-question-id="version-coupling">
+  <div class="q-title">Q3 · Built-in pack version coupling <span style="color:var(--ink-mute);font-weight:400;font-size:11.5px;">(Step 2 / A only)</span></div>
+  <div class="q-prompt">Does the built-in distro pack carry its own version, or always inherit Duo's <code>package.json</code> version?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="version-coupling" value="independent">
+      <div class="q-option-body">
+        <div class="q-option-title">Independent — pack bumps separately from Duo</div>
+        <div class="q-option-rationale">Lets us re-fire first-launch defaults without a full Duo bump. But two version numbers to track; risk of drift.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="version-coupling" value="inherited-with-hash">
+      <div class="q-option-body">
+        <div class="q-option-title">Inherited — pack version = Duo's; hash-check first-launch re-firing <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Single version number. Add a content-hash sentinel in <code>installed-packs.json</code> so first-launch effects only trigger on actual content drift, not every Duo version bump.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="version-coupling" value="inherited-naive">
+      <div class="q-option-body">
+        <div class="q-option-title">Inherited — pack version = Duo's; re-fire on every bump</div>
+        <div class="q-option-rationale">Simplest. Every Duo bump fires first-launch defaults again. Annoying for users (the welcome canvas re-opens on every upgrade).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="version-coupling-notes" placeholder="Optional…"></textarea>
+</section>
+
+<!-- Decision 4: PACK.json BC -->
+<section class="decision-card" data-question-id="pack-json-bc">
+  <div class="q-title">Q4 · PACK.json backwards-compat <span style="color:var(--ink-mute);font-weight:400;font-size:11.5px;">(Sprint 15 / Option C — applies to all paths except defer)</span></div>
+  <div class="q-prompt">Should <code>core/pack-loader.ts</code> keep PACK.json reader logic for a few versions for BC, or hard-cut?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="pack-json-bc" value="hard-cut">
+      <div class="q-option-body">
+        <div class="q-option-title">Hard-cut <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">PACK.json is internal-only — only Duo's two bundled lesson packs use it. We control all consumers. Remove the reader; ship one schema.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="pack-json-bc" value="soft-deprecate">
+      <div class="q-option-body">
+        <div class="q-option-title">Soft-deprecate</div>
+        <div class="q-option-rationale">Keep PACK.json reader but emit a deprecation warning. Remove in v0.7.x. Useful only if external consumers exist; today there are none.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="pack-json-bc-notes" placeholder="Optional…"></textarea>
+</section>
+
+<!-- General textarea -->
+<section class="decision-card" data-question-id="general-comments" style="border-color:var(--accent-soft);">
+  <div class="q-title">General comments / open thoughts</div>
+  <div class="q-prompt">Anything else worth saying?</div>
+  <textarea class="q-notes" name="general-notes" placeholder="E.g. 'before any of this, finish ENH-110 polish' or 'add a Sprint 16 PRD before Step 2 starts'…" style="min-height:96px;"></textarea>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="cross-refs">§ 5 · Cross-references</h2>
+<ul style="font-size:13px;">
+  <li>Stage 18 PRD — first-launch installer: <a href="../prd/stage-18b-distro-packs.md"><code>docs/prd/stage-18b-distro-packs.md</code></a></li>
+  <li>Stage 21d PRD — distro pack mechanism: <a href="../prd/stage-21d-distro-packs.md"><code>docs/prd/stage-21d-distro-packs.md</code></a></li>
+  <li>Stage 28 PRD — lesson packs: <a href="../prd/stage-28-lesson-packs.md"><code>docs/prd/stage-28-lesson-packs.md</code></a></li>
+  <li>Pack manifest schema (Pattern A): <a href="../../shared/types.ts"><code>shared/types.ts § PackManifest</code></a></li>
+  <li>Pack loader (lesson packs): <a href="../../core/pack-loader.ts"><code>core/pack-loader.ts</code></a></li>
+  <li>Distro pack service (enterprise packs): <a href="../../electron/distro-pack-service.ts"><code>electron/distro-pack-service.ts</code></a></li>
+  <li>Install service (the hand-rolled defaults): <a href="../../electron/install-service.ts"><code>electron/install-service.ts</code></a></li>
+  <li>Distro pack template: <a href="../../examples/distro-pack-template/"><code>examples/distro-pack-template/</code></a></li>
+  <li>Pack builder skill: <a href="../../skill/pack-builder/SKILL.md"><code>skill/pack-builder/SKILL.md</code></a></li>
+  <li>Built-in lesson packs: <a href="../../packs/intro-to-duo/PACK.json"><code>packs/intro-to-duo/PACK.json</code></a> · <a href="../../packs/claude-code-basics/PACK.json"><code>packs/claude-code-basics/PACK.json</code></a></li>
+  <li>Default pins bootstrap: <a href="../../electron/install-service.ts"><code>electron/install-service.ts § 522-528</code></a></li>
+  <li>First-launch defaults hook: <a href="../../electron/main.ts"><code>electron/main.ts § 513-547</code></a></li>
+  <li>Tracked: <a href="../../tasks.md"><code>tasks.md § ENH-134</code></a></li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 5</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+  (function () {
+    const counter = document.getElementById('answered-count');
+    const button = document.getElementById('copy-decisions');
+
+    const QUESTIONS = [
+      { id: 'option-pick',          title: 'Q0 · Refactor option' },
+      { id: 'pack-location',        title: 'Q1 · Pack location' },
+      { id: 'simplification-scope', title: 'Q2 · install-service simplification scope' },
+      { id: 'version-coupling',     title: 'Q3 · Version coupling' },
+      { id: 'pack-json-bc',         title: 'Q4 · PACK.json BC' }
+    ];
+
+    function refreshCount() {
+      let answered = 0;
+      for (const q of QUESTIONS) {
+        if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+      }
+      counter.textContent = answered + ' / ' + QUESTIONS.length;
+    }
+    document.addEventListener('change', refreshCount);
+    refreshCount();
+
+    function buildPayload() {
+      const lines = [];
+      lines.push('ENH-134 DOGFOOD-DISTRO-PACKS — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+      lines.push('============================================================');
+      lines.push('');
+      for (const q of QUESTIONS) {
+        const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[name="' + q.id + '-notes"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + q.title);
+        if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+        lines.push('');
+      }
+      const general = (document.querySelector('textarea[name="general-notes"]')?.value || '').trim();
+      if (general) {
+        lines.push('GENERAL COMMENTS');
+        lines.push('----------------');
+        for (const line of general.split('\n')) lines.push(line);
+        lines.push('');
+      }
+      lines.push('---');
+      lines.push('Source: docs/research/dogfood-distro-packs-plan.html');
+      return lines.join('\n');
+    }
+
+    button.addEventListener('click', async function () {
+      const payload = buildPayload();
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(function () {
+          button.textContent = 'Copy decisions';
+          button.classList.remove('copied');
+        }, 1400);
+      } catch (err) {
+        console.warn('[ENH-134 playground] clipboard.writeText failed:', err);
+        button.textContent = 'Copy failed — see console';
+      }
+    });
+  })();
+</script>
+
+<p style="margin-top:32px;font-size:11.5px;color:var(--ink-mute);">— end of planning playground · ENH-134 · author: Claude (post-v0.6.12 cleanup, 2026-05-10)</p>
+
+</body>
+</html>

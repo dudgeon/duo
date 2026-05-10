@@ -528,6 +528,56 @@ the user's pasted results, parse them, and only then propose the
 cut. Skip-and-go-straight-to-cut is fine ONLY for doc-only changes
 or refactors with no observable behavior delta.
 
+### 11. Planning artifacts default to HTML interactive playgrounds — never plain markdown
+
+Owner directive 2026-05-10: *"you should always use html to make the
+planning artifacts rich, interactive, context rich playgrounds with
+diagrams etc to explain and contrast approaches."* When a research
+note, refactor proposal, or architectural plan needs owner input,
+write it as an HTML page at `docs/research/<slug>.html`, NOT as
+`docs/research/<slug>.md`.
+
+**The shape — model after [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) (ENH-110, the precedent) and [`docs/research/dogfood-distro-packs-plan.html`](docs/research/dogfood-distro-packs-plan.html) (ENH-134):**
+
+- `<meta name="duo-open-in" content="browser">` so it routes to the
+  browser pane (interactive). `<meta name="duo-editable" content="false">`
+  for read-only.
+- Atelier styling (cream paper / orange accent / serif headings — copy
+  the `<style>` block from one of the precedents and adapt).
+- Body sections — context, current state with **diagrams** (ASCII art
+  in `<pre>`, comparison cards via CSS grid, inventory tables with
+  semantic color tags), problem statement, options compared side-by-
+  side via `.option-card` blocks (with a `.recommended` highlight on
+  the recommended option).
+- **Interactive decision blocks** — for each owner-decision needed,
+  use a `<section class="decision-card">` with radio `<input>`s wrapped
+  in `<label class="q-option">` + a `<textarea class="q-notes">`.
+  Decisions are inline alongside the relevant theme — let the owner
+  decide as they read, not by scrolling to a consolidated § X.
+- **Sticky `.copy-bar` footer** — `<X / N> decisions answered` counter
+  + a `Copy decisions` button that assembles a structured
+  `[OPTION-VALUE] Q-title\n    notes…` payload and writes to clipboard.
+  Owner pastes back to Claude.
+- **File the artifact as a tracked task** (ENH-XXX) in `tasks.md` per
+  the `feedback_research_reports_must_file_review_task.md` memory
+  rule. The entry surfaces in every smoke walk until the owner closes
+  the gate by Copy-decisions-back.
+
+**Why HTML over markdown.** Markdown decision docs sit on a list page
+the owner has to remember to revisit. HTML playgrounds open in Duo's
+browser pane via `duo open <path>`, render with diagrams + interactive
+controls, and round-trip decisions back to Claude in one button click.
+ENH-110 was lost across 3 sprints when it was a markdown research
+doc; the moment it became a playground (data-primitives-canvas.html)
+the owner walked it and the gate closed in one session.
+
+**When markdown IS appropriate** — implementation notes (no owner
+decisions; engineer reads + executes), PRDs (Stage X scope locked
+already; live in `docs/prd/<slug>.md`), session-log / active-sprint
+breadcrumbs (machine-readable, agent-consumed), `tasks.md` ledger
+entries. The HTML rule is for **owner-decision-shaped artifacts** —
+options, gates, AUQs, pick-one-from-N.
+
 ---
 
 ## Claude Code sandbox — read before touching transport / install / CLI file I/O
