@@ -5628,6 +5628,60 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-138: Move FTUX-loadable HTML/markdown content into a built-in default pack — establish the "FTUX content → packs / plumbing → install-service" boundary
+
+**Status:** 🟡 **Open / awaiting owner approval on principle + scope.** Owner directive 2026-05-10 (refining ENH-134 review): *"if packs provide a good mechanism for easy things like markdown files that default load on FTUX, then that could make sense, right? — we can keep the diverged method [hand-rolled install for plumbing] vs packs [for content] for those things that need it."*
+**Priority:** Medium — clean architectural boundary that simplifies adding new FTUX content (Beginner's Guide ENH-137 lands here directly). Not user-blocking but high-leverage for future content additions.
+**Filed:** 2026-05-10.
+
+**The principle owner is articulating** — a clean partition of the install pipeline:
+
+| Surface | Pattern | What goes here |
+|---|---|---|
+| **Plumbing** (ops 6–13) | Hand-rolled `install-service.ts` | SessionStart hook, CLAUDE.md merge, PATH shim, CLI symlink, external-domains seed, priming.md, provenance |
+| **Skills + agents** (ops 1–3) | Hand-rolled `install-service.ts` | `skill/`, `agents/`, `pack-builder/skill/` |
+| **FTUX-loadable content** (NEW pack) | `packs/duo-default/` via PackLoader | `what-duo-does.html`, `beginners-guide.html` (when ENH-137 lands), any future "default-load on first launch" markdown/HTML |
+| **Lesson packs** (existing) | `packs/intro-to-duo/`, `packs/<lesson>/` via PackLoader | Multi-canvas curricula, lesson-specific skills |
+
+**Why this is the right call (the surgical case for using packs here):**
+
+1. **The pack mechanism already handles every behavior FTUX content needs:**
+   - Auto-open canvas on first launch (per-pack-version flag in `installed-packs.json`)
+   - Atomic-replace on Duo upgrade (preserves user-edited copies via SHA compare)
+   - Per-pack-version re-fire (bump pack version when content changes; users see the update on next launch)
+   - Pin via `defaults[].pin: true` (best-effort in v1; can harden if needed)
+2. **Today's hardcoded default-pins JSON literal** (`install-service.ts:520-528`, op #8) implements a SUBSET of pack behavior with a separate code path. Collapsing that into the pack's `defaults[]` removes the duplication.
+3. **Future content drops in trivially** — Beginner's Guide (ENH-137) just becomes another canvas in `packs/duo-default/`. No install-service edits per addition; no need to bump default-pins JSON literal.
+4. **No schema changes required** — `PackManifest` (shared/types.ts) already supports the needed fields. PackLoader + first-launch defaults hook (main.ts:513-547) already work for the existing `intro-to-duo` pack; this just adds a SECOND pack with the same shape.
+
+**Migration scope (sub-tasks):**
+
+1. **Create `packs/duo-default/`** with:
+   - `PACK.json` (name: `duo-default`, version: matches Duo's version per ENH-134 § Q3 recommendation)
+   - `canvases/what-duo-does.html` (moved from `help/`)
+   - `defaults[]` set to auto-open + pin `what-duo-does.html` on first launch
+2. **Move `help/what-duo-does.html` → `packs/duo-default/canvases/what-duo-does.html`** (`git mv`)
+3. **Remove the hardcoded default-pins JSON literal** at install-service.ts:520-528 (op #8) — the pack's `defaults[].pin: true` handles it now
+4. **Update `browser-manager.ts:49`** (`defaultLandingUrl`) — currently `helpUrl('faq.html')`; pivot to either `null` (blank canvas on new tab) or the pack canvas URL
+5. **Update `electron/main.ts:305-310`** — remove the FAQ-as-boot-default-tab logic (no longer relevant after ENH-135 + ENH-138)
+6. **When ENH-137 ships:** add `canvases/beginners-guide.html` to the same `packs/duo-default/` pack; bump pack version to re-fire first-launch open for existing users
+7. **Smoke walk:** fresh install → `what-duo-does.html` opens via the pack, gets pinned. Bump pack version + reinstall → first-launch open re-fires. Existing user with a closed pin → not re-pinned (best-effort honor).
+8. **Mark `packs/duo-default/` as built-in** — `duo pack uninstall duo-default` should refuse OR require `--force`. Need a `builtIn: true` flag in PACK.json or a hardcoded denylist; latter is simpler for v1.
+
+**Open AUQs (file as decisions in the playground):**
+
+1. **Q1 — pack name.** `duo-default`, `default-content`, `duo-builtin`, or other? Recommended: **`duo-default`** (clear; matches the "default" semantic).
+2. **Q2 — timing.** Land ENH-138 NOW (Sprint 15, alongside ENH-135 + ENH-136) or wait for ENH-137 (Beginner's Guide draft) so both content items migrate together? Recommended: **wait for ENH-137 draft** so we move once. But create the empty `packs/duo-default/` skeleton + migrate `what-duo-does.html` now, ready for ENH-137 to drop in.
+3. **Q3 — built-in pack uninstall guard.** Hardcoded denylist of pack names that `duo pack uninstall` refuses, OR a `builtIn: true` flag in PACK.json the CLI honors? Recommended: **flag in PACK.json** (declarative; future-proof if external authors want to mark their packs the same way).
+
+**Implications for ENH-135 (FAQ removal):** simpler. The default-pins.json bootstrap (op #8) goes away entirely after ENH-138 lands. FAQ migration to `docs/legacy/` happens unchanged; the "what replaces FAQ as default pin?" question dissolves (the pack's `defaults[].pin: true` is the new default-pin mechanism).
+
+**Implications for ENH-137 (Beginner's Guide):** content lives at `packs/duo-default/canvases/beginners-guide.html`. The Q1 surface decision in the playground becomes moot — the pack IS the surface. Owner-authored draft → Claude polish → drop into the pack.
+
+**Cross-ref.** ENH-134 (the planning playground that surfaced this question; refocused 2026-05-10 to capture the principle as § 5). ENH-135 (FAQ removal — simplifies after ENH-138). ENH-137 (Beginner's Guide — content drops in here). PRD context: Stage 28 ([docs/prd/stage-28-lesson-packs.md](docs/prd/stage-28-lesson-packs.md)).
+
+---
+
 ### BUG-118: `cut-version` skill should sanity-check cli/duo binary against a fresh rebuild — caught after v0.6.12 shipped stale
 
 **Status:** 🟡 Open. Filed 2026-05-10 from v0.6.12 close-out cli/duo regression.
@@ -5723,7 +5777,9 @@ bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
 
 **Claude action (after owner draft lands):** polish the draft, render as HTML matching the Atelier styling (`help/` aesthetic), pick the surface per Q1, ship in the appropriate location, update install-service if needed (e.g., add to default pins.json if (c) is picked).
 
-**Cross-ref:** ENH-135 (FAQ removal — creates the discoverability gap this fills). ENH-134 (planning playground that surfaced this).
+**Cross-ref:** ENH-138 (the default-pack mechanism this content lives in once both lands). ENH-135 (FAQ removal — creates the discoverability gap this fills). ENH-134 (planning playground that surfaced this).
+
+**Pack-shape clarification (added 2026-05-10 after owner principle discussion):** with ENH-138's "FTUX content → packs" boundary, the surface decision (Q1 in the original ENH-137 filing — pack vs help file vs both) collapses to *"the pack IS the surface."* The Beginner's Guide content lives at `packs/duo-default/canvases/beginners-guide.html` once both ENHs land. ENH-137's remaining work: owner-authored draft + Claude polish + paste into the pack canvas.
 
 ---
 
@@ -5792,7 +5848,7 @@ bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
 5. Update smoke-walk skill template if it cites FAQ directly
 6. Smoke walk: fresh install → verify no FAQ tab opens, no FAQ in default pins, ⌘T new tab lands on the picked replacement.
 
-**Cross-ref:** ENH-134 (planning playground — surgical "modify the install" recipe demonstration). ENH-137 (the beginner's guide that may eventually take FAQ's discovery slot).
+**Cross-ref:** ENH-138 (default-pack migration — once it lands, the default-pins JSON literal at op #8 goes away entirely; FAQ removal becomes simpler because there's no "what replaces FAQ as default pin?" question — the pack's `defaults[].pin: true` is the new mechanism). ENH-134 (planning playground — surgical "modify the install" recipe demonstration). ENH-137 (the beginner's guide that may eventually take FAQ's discovery slot, via the same pack).
 
 ---
 

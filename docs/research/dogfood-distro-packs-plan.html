@@ -528,52 +528,147 @@
 </div>
 
 <!-- ─────────────────────────────────────────────────────────── -->
-<h2 id="surgical">§ 5 · Decision — should the new Beginner's Guide ship as a pack?</h2>
+<h2 id="surgical">§ 5 · The principle — "FTUX content → packs / plumbing → install-service"</h2>
 
-<p>Owner directive 2026-05-10: <em>"perhaps we should be more surgical, like the new beginners guide I mentioned should ship as a pack?"</em></p>
-<p>This is the only convergence-shaped question under serious consideration. The Beginner's Guide ([ENH-137](../../tasks.md)) is being filed as a separate task; this decision shapes its delivery surface.</p>
+<p style="font-size:14px;background:var(--accent-soft);padding:14px 18px;border-radius:6px;border-left:4px solid var(--accent);">
+  Owner refinement 2026-05-10: <em>"if packs provide a good mechanism for easy things like markdown files that default load on FTUX, then that could make sense — we can keep the diverged method [hand-rolled install for plumbing] vs packs [for content] for those things that need it."</em>
+</p>
 
-<section class="decision-card" data-question-id="beginners-guide-surface">
-  <div class="q-title">Q1 · Beginner's Guide delivery surface</div>
-  <div class="q-prompt">When the new Beginner's Guide (ENH-137) is ready to ship, what surface should it use?</div>
-  <p class="q-context">Three options. Pick the one that best balances FTUX visibility, content evolvability, and minimal new code.</p>
+<p>This is a sharper, more surgical version of the convergence question deferred in § 6. Instead of all-or-nothing convergence, draw a clean partition:</p>
+
+<table class="ops" style="margin: 14px 0 18px;">
+  <thead>
+    <tr><th>Surface</th><th>Pattern</th><th>What goes here</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Plumbing</strong> (ops 6, 9, 10, 11, 13)</td>
+      <td>Hand-rolled <code>install-service.ts</code></td>
+      <td>SessionStart hook, CLAUDE.md merge, PATH shim, CLI symlink, external-domains seed, priming.md, provenance</td>
+    </tr>
+    <tr>
+      <td><strong>Skills + agents</strong> (ops 1–3)</td>
+      <td>Hand-rolled <code>install-service.ts</code></td>
+      <td><code>skill/</code>, <code>agents/duo.md</code>, <code>skill/pack-builder/</code></td>
+    </tr>
+    <tr style="background: color-mix(in srgb, var(--accent) 6%, var(--paper));">
+      <td><strong>FTUX content</strong> (ops 4, 8 today; collapses to a pack) <span class="op-tag content" style="background:var(--accent-soft);color:var(--accent);">NEW</span></td>
+      <td><code>packs/duo-default/</code> via PackLoader</td>
+      <td><code>what-duo-does.html</code>, <code>beginners-guide.html</code> (when ENH-137 lands), any future "default-load on first launch" markdown/HTML</td>
+    </tr>
+    <tr>
+      <td><strong>Lesson packs</strong> (op 5, existing)</td>
+      <td><code>packs/intro-to-duo/</code>, <code>packs/&lt;lesson&gt;/</code> via PackLoader</td>
+      <td>Multi-canvas curricula, lesson-specific skills</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><strong>Why packs are the right tool for FTUX content.</strong> The pack mechanism (Stage 28 PackLoader + first-launch defaults hook) ALREADY does every behavior FTUX content needs:</p>
+<ul>
+  <li>Auto-open canvas on first launch (per-pack-version flag in <code>installed-packs.json</code>)</li>
+  <li>Atomic-replace on Duo upgrade (preserves user-edited copies via SHA compare)</li>
+  <li>Per-pack-version re-fire (bump pack version → users see updated content on next launch)</li>
+  <li>Pin via <code>defaults[].pin: true</code> (best-effort in v1; can harden if needed)</li>
+</ul>
+<p>Today's hardcoded default-pins JSON literal at <code>install-service.ts:520-528</code> (op #8) implements a SUBSET of pack behavior with a separate code path. Collapsing op #8 into a pack's <code>defaults[]</code> removes the duplication. Future content (ENH-137 Beginner's Guide) drops in trivially — just another canvas in the same pack.</p>
+
+<p style="font-size:13px;color:var(--ink-mute);"><strong>Filed as <a href="../../tasks.md">ENH-138</a></strong> — full migration scope + sub-tasks listed there.</p>
+
+<h3>Three decisions</h3>
+
+<section class="decision-card" data-question-id="ftux-pack-principle">
+  <div class="q-title">Q1 · Adopt the principle?</div>
+  <div class="q-prompt">"FTUX-loadable HTML/markdown → packs; everything else (plumbing, skills, agents) → hand-rolled install-service."</div>
+  <p class="q-context">If yes, ENH-138 ships: create <code>packs/duo-default/</code>, migrate <code>what-duo-does.html</code> into it, retire op #8's hardcoded default-pins literal. Future content (Beginner's Guide etc.) drops into the same pack.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="beginners-guide-surface" value="pack-only">
+      <input type="radio" name="ftux-pack-principle" value="adopt">
       <div class="q-option-body">
-        <div class="q-option-title">Lesson pack at <code>packs/beginners-guide/</code> — auto-open on first launch <span class="recommend-tag">Surgical</span></div>
-        <div class="q-option-rationale">Leverages existing PackLoader infrastructure. Auto-opens on first install per the per-pack-version flag. Re-fires on version bump. Pattern A schema (PACK.json) — internal-only, simple. Owner suggested this in the review. <strong>Cons:</strong> users who dismiss it lose the discovery surface (no Help-menu pointer); pack content evolves on Duo's release cadence (no separate update path).</div>
+        <div class="q-option-title">Adopt — partition install-service vs packs along the FTUX-content boundary <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Surgical. Keeps plumbing hand-rolled (where it belongs). Uses the existing pack mechanism for what it's good at. No schema changes; no new infrastructure. Future content additions are zero-touch on install-service.</div>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="beginners-guide-surface" value="help-only">
+      <input type="radio" name="ftux-pack-principle" value="adopt-narrower">
       <div class="q-option-body">
-        <div class="q-option-title">Hardcoded help file at <code>help/beginners-guide.html</code></div>
-        <div class="q-option-rationale">Simplest. Replaces the FAQ slot directly. Discoverable via Help menu and the default-pin replacement (per ENH-135). <strong>Cons:</strong> doesn't auto-open on first launch (user has to click the pin); no pack-style versioning.</div>
+        <div class="q-option-title">Adopt narrower — just for the new Beginner's Guide; leave <code>what-duo-does.html</code> in <code>help/</code></div>
+        <div class="q-option-rationale">Lower-risk migration. Beginner's Guide ships in a pack from day 1; <code>what-duo-does.html</code> stays in <code>help/</code> + the hardcoded default-pins literal. <strong>Cons:</strong> the duplication persists; the principle isn't fully expressed (some FTUX content is in packs, some in <code>help/</code>).</div>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="beginners-guide-surface" value="both">
+      <input type="radio" name="ftux-pack-principle" value="reject">
       <div class="q-option-body">
-        <div class="q-option-title">Both — pack auto-opens, help/ file is the always-on Help-menu surface</div>
-        <div class="q-option-rationale">Best discoverability. The pack provides the FTUX welcome moment; the help/ file is what the user finds when they go looking. <strong>Cons:</strong> two copies of the content to keep in sync (or a build-step that copies one to the other). Most code work.</div>
-      </div>
-    </label>
-    <label class="q-option">
-      <input type="radio" name="beginners-guide-surface" value="defer">
-      <div class="q-option-body">
-        <div class="q-option-title">Defer — owner writes the draft first, surface decision waits</div>
-        <div class="q-option-rationale">Reasonable if you want to see the draft content before deciding the format. Risk: ENH-137 stays open longer; the FAQ removal (ENH-135) creates a discovery gap until the guide ships.</div>
+        <div class="q-option-title">Reject — keep <code>help/</code> + default-pins literal as the FTUX content surface</div>
+        <div class="q-option-rationale">No migration; ENH-137 ships as <code>help/beginners-guide.html</code>. Simplest from a code-change perspective; defers the principle question.</div>
       </div>
     </label>
   </div>
-  <textarea class="q-notes" name="beginners-guide-surface-notes" placeholder="Optional — e.g. 'pick (a) but also expose via Help menu' or 'see ENH-137 first'…"></textarea>
+  <textarea class="q-notes" name="ftux-pack-principle-notes" placeholder="Optional — e.g. 'adopt but only after ENH-137 draft is in hand'…"></textarea>
+</section>
+
+<section class="decision-card" data-question-id="ftux-pack-timing">
+  <div class="q-title">Q2 · Migration timing (only if Q1 = adopt or adopt-narrower)</div>
+  <div class="q-prompt">When should the migration land relative to ENH-137 (Beginner's Guide draft)?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="ftux-pack-timing" value="now-skeleton">
+      <div class="q-option-body">
+        <div class="q-option-title">Now (Sprint 15) — create <code>packs/duo-default/</code> skeleton + migrate <code>what-duo-does.html</code>; ENH-137 drops in later <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Establishes the pack + boundary now. <code>what-duo-does.html</code> migrates immediately (no content change; just file move + PACK.json wiring). When ENH-137's draft is ready, it's a single file-add into the existing pack.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="ftux-pack-timing" value="wait-for-137">
+      <div class="q-option-body">
+        <div class="q-option-title">Wait for ENH-137 — migrate everything (WDD + Beginner's Guide) in one move</div>
+        <div class="q-option-rationale">Cleaner single-commit migration. <strong>Cons:</strong> the <code>what-duo-does.html</code> default-pins-literal duplication persists until ENH-137 is ready; ENH-137 has indeterminate timeline (owner-authored draft).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="ftux-pack-timing" value="defer-both">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer both — Sprint 15 ships ENH-135 (FAQ removal) + ENH-136 (claude-code-basics template) only; no pack work</div>
+        <div class="q-option-rationale">Lightest Sprint 15. Pick this if you want zero pack-pattern changes this sprint and revisit ENH-138 entirely after the FAQ removal lands.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="ftux-pack-timing-notes" placeholder="Optional…"></textarea>
+</section>
+
+<section class="decision-card" data-question-id="builtin-pack-uninstall">
+  <div class="q-title">Q3 · Built-in pack uninstall guard (only if Q1 ≠ reject)</div>
+  <div class="q-prompt">Should <code>duo pack uninstall duo-default</code> work? The new pack ships bundled with Duo — uninstalling it on a whim breaks FTUX.</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="builtin-pack-uninstall" value="flag-in-pack-json">
+      <div class="q-option-body">
+        <div class="q-option-title">Add <code>builtIn: true</code> flag to PACK.json schema; CLI refuses uninstall (or requires <code>--force</code>) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Declarative. Future-proof if external authors want to mark their packs the same way (e.g. an enterprise distro pack could mark itself as "essential to the team's flow"). Schema change is minimal — single bool field.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="builtin-pack-uninstall" value="hardcoded-denylist">
+      <div class="q-option-body">
+        <div class="q-option-title">Hardcoded denylist of pack names in <code>cli/duo.ts</code></div>
+        <div class="q-option-rationale">Simplest. Each Duo release knows which packs it ships and refuses to uninstall them. <strong>Cons:</strong> not extensible by external authors; one more thing to maintain in the CLI source.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="builtin-pack-uninstall" value="allow">
+      <div class="q-option-body">
+        <div class="q-option-title">Allow — user can uninstall the default pack at their own risk</div>
+        <div class="q-option-rationale">Treat <code>duo-default</code> like any other pack. <strong>Cons:</strong> a curious user uninstalling it loses FTUX content; next install re-creates the pack (PackLoader scans on every boot) but won't auto-re-open canvases (the <code>installed-packs.json</code> flag has been set).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="builtin-pack-uninstall-notes" placeholder="Optional…"></textarea>
 </section>
 
 <section class="decision-card" data-question-id="general-comments" style="border-color:var(--accent-soft);">
   <div class="q-title">General comments / additions</div>
-  <div class="q-prompt">Anything else worth saying about the install pipeline or the recipes?</div>
-  <textarea class="q-notes" name="general-notes" placeholder="E.g. 'add a recipe for changing the priming.md content' or 'BUG-117 graceful-failure pattern — apply to PATH shim install too?'…" style="min-height:96px;"></textarea>
+  <div class="q-prompt">Anything else worth saying about the install pipeline, the recipes, or the principle?</div>
+  <textarea class="q-notes" name="general-notes" placeholder="E.g. 'add a recipe for changing the priming.md content' or 'BUG-117 graceful-failure pattern — apply to PATH shim install too?' or 'rename packs/duo-default/ to something else'…" style="min-height:96px;"></textarea>
 </section>
 
 <!-- ─────────────────────────────────────────────────────────── -->
@@ -600,9 +695,11 @@
 <ul style="font-size:13px;">
   <li><a href="../../tasks.md"><code>BUG-117</code></a> — install-service SessionStart hook write must fail gracefully (✅ shipped 2026-05-10)</li>
   <li><a href="../../tasks.md"><code>BUG-116</code></a> — <code>scripts/dist-signed.sh</code> validates wrong DMG via glob (open)</li>
+  <li><a href="../../tasks.md"><code>BUG-118</code></a> — cut-version skill should sanity-check cli/duo binary (open; surfaced by v0.6.12 stale-binary regression)</li>
   <li><a href="../../tasks.md"><code>ENH-135</code></a> — Remove FAQ from default install + move to <code>docs/legacy/</code></li>
   <li><a href="../../tasks.md"><code>ENH-136</code></a> — Treat <code>packs/claude-code-basics/</code> as a template (move to <code>examples/</code>)</li>
-  <li><a href="../../tasks.md"><code>ENH-137</code></a> — Beginner's Guide to Duo (owner-authored draft + Claude polish + ship surface per § 5)</li>
+  <li><a href="../../tasks.md"><code>ENH-137</code></a> — Beginner's Guide to Duo (owner-authored draft + Claude polish; ships into the pack from ENH-138)</li>
+  <li><a href="../../tasks.md"><code>ENH-138</code></a> — Move FTUX-loadable HTML/markdown content into <code>packs/duo-default/</code>; establish "FTUX content → packs / plumbing → install-service" boundary <strong>(this is § 5's question)</strong></li>
   <li><a href="../../tasks.md"><code>ENH-134</code></a> — this planning artifact (status: open until owner Copy-decisions back; will close once § 5 is answered)</li>
 </ul>
 
@@ -620,7 +717,7 @@
 <!-- ─────────────────────────────────────────────────────────── -->
 <div class="copy-bar">
   <div class="copy-meta">
-    <span id="answered-count">0 / 1</span> decisions answered.
+    <span id="answered-count">0 / 3</span> decisions answered.
     Hit Copy when ready, then paste back to Claude.
   </div>
   <button id="copy-decisions" type="button">Copy decisions</button>
@@ -632,7 +729,9 @@
     const button = document.getElementById('copy-decisions');
 
     const QUESTIONS = [
-      { id: 'beginners-guide-surface', title: 'Q1 · Beginner\'s Guide delivery surface' }
+      { id: 'ftux-pack-principle',  title: 'Q1 · Adopt the FTUX-content-→-packs principle?' },
+      { id: 'ftux-pack-timing',     title: 'Q2 · Migration timing relative to ENH-137' },
+      { id: 'builtin-pack-uninstall', title: 'Q3 · Built-in pack uninstall guard' }
     ];
 
     function refreshCount() {
