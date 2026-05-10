@@ -1129,8 +1129,7 @@ async function runDoctor() {
     lines.push("    Fix: add to your ~/.zshrc (after any conda init block):");
     lines.push("      export LANG=en_US.UTF-8");
     lines.push("      export LC_ALL=en_US.UTF-8");
-    lines.push('    Then open a fresh terminal. See FAQ \u2192 "Why do special');
-    lines.push('    characters look broken when I paste into the terminal?"');
+    lines.push("    Then open a fresh terminal.");
   }
   process.stdout.write(lines.join("\n") + "\n");
   process.exit(unixOk || tcpOk ? 0 : 1);

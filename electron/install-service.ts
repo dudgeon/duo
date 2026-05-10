@@ -124,7 +124,7 @@ interface InstalledFile {
    *  preserved-conflict.
    *
    *  Keys are relative paths under `~/.claude/` (e.g.
-   *  `skills/duo/SKILL.md`, `agents/duo.md`, `duo/help/faq.html`).
+   *  `skills/duo/SKILL.md`, `agents/duo.md`, `duo/help/canvas-actions-demo.html`).
    *  Bootstrap-only files (external-domains.json, priming.md,
    *  pins.json) are NOT tracked — they're already protected by
    *  "only write if absent" and any user edits there are by design.
@@ -506,23 +506,31 @@ export class InstallService {
         )
       }
 
-      // ENH-003 (v0.3.1) — bootstrap pins.json with FAQ + What Duo
-      // Does pre-pinned. Bootstrap-only: never clobber a user's
-      // existing pin set. Pin URLs use the user-installed help copies
-      // at `~/.claude/duo/help/*.html` (which we just installed
-      // above) so they match `BrowserManager.defaultLandingUrl`
-      // post-install. Until the user actually opens those tabs, the
-      // pins are inert metadata; once they're opened, the strip
-      // renders them with the pin glyph + sorts to leftmost.
+      // ENH-003 (v0.3.1) + ENH-138 (Sprint 15) — bootstrap pins.json
+      // with What Duo Does pre-pinned. Bootstrap-only: never clobber
+      // a user's existing pin set. The pin URL points at the
+      // duo-default pack canvas (mirrored to
+      // `~/.claude/duo/packs/duo-default/canvases/what-duo-does.html`
+      // by the pack-mirror op above). Once the user opens the tab
+      // (auto-fired by BUG-057's first-launch pin restore), the
+      // strip renders it with the pin glyph + sorts leftmost.
+      //
+      // ENH-135 (Sprint 15) — FAQ removed from default pins. The
+      // FAQ content was retired to `docs/legacy/faq.html`; the
+      // default install no longer ships or references it.
+      //
+      // Future direction: this hardcoded literal is the last
+      // duplicate of pack-default-pinning behavior in install-
+      // service. A follow-up will iterate `packs/*/PACK.json` for
+      // entries with `defaults[].pin: true` and seed pins.json from
+      // them, removing this hardcoded URL entirely.
       try {
         await fs.access(PINS_PATH)
       } catch {
-        const faqUrl = `file://${path.join(HELP_DEST_DIR, 'faq.html')}`
-        const wddUrl = `file://${path.join(HELP_DEST_DIR, 'what-duo-does.html')}`
+        const wddUrl = `file://${path.join(PACKS_DEST_DIR, 'duo-default', 'canvases', 'what-duo-does.html')}`
         const defaultPins = {
           version: 1,
           pins: [
-            { kind: 'browser', ref: faqUrl, title: 'Duo — FAQ' },
             { kind: 'browser', ref: wddUrl, title: 'Duo — What Duo Does' }
           ]
         }
@@ -1109,10 +1117,9 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
    *  Production path is unchanged — `safeOverwriteDirContents`
    *  still copies real files when `app.isPackaged === true`.
    *
-   *  Single-level only — `help/` has no subdirectories today (3
-   *  flat .html files: faq.html, what-duo-does.html,
-   *  canvas-actions-demo.html). If that changes, this helper needs
-   *  to recurse. */
+   *  Single-level only — `help/` has no subdirectories today (one
+   *  flat .html file: canvas-actions-demo.html, post-ENH-135 +
+   *  ENH-138). If that changes, this helper needs to recurse. */
   private async maintainHelpSymlinksInDev(sourceHelpDir: string): Promise<void> {
     try {
       await fs.access(sourceHelpDir)

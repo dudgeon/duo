@@ -208,6 +208,17 @@ export interface PackManifest {
   title: string
   /** Optional one-line description. */
   description?: string
+  /** Built-in pack — declares the pack ships with Duo's default
+   *  install (vs. a third-party pack the user added to
+   *  ~/.claude/duo/packs/). Used by the `duo-default` pack today
+   *  (ships `what-duo-does.html`, future Beginner's Guide). Future
+   *  Stage 28 uninstall tooling honors this flag — refuses
+   *  uninstall without `--force`. v1 has no Stage 28 uninstall
+   *  surface; the existing `duo pack uninstall` operates on Stage
+   *  21d distro packs at extra-packs/, not on these lesson packs.
+   *  External pack authors can set this if they want the same
+   *  protection. ENH-138 introduced the field. */
+  builtIn?: boolean
   /** Tabs to auto-open on first launch after the pack lands.
    *  Empty / missing = "skill pack only" (no default tabs). */
   defaults?: PackDefault[]

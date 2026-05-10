@@ -1417,8 +1417,8 @@ async function runDoctor(): Promise<void> {
   // ENH-032 — terminal locale check. Multi-byte UTF-8 paste into the
   // terminal renders as raw bytes when LC_ALL/LC_CTYPE/LANG aren't
   // UTF-8. Most common cause: conda's `(base)` activator setting
-  // LC_ALL=C. Diagnostic-only (we can't fix the user's shell rc); a
-  // warning here points to the FAQ entry with the fix.
+  // LC_ALL=C. Diagnostic-only (we can't fix the user's shell rc); the
+  // warning emits the fix inline so users have everything they need.
   lines.push('Locale')
   const localeVars = ['LC_ALL', 'LC_CTYPE', 'LANG'] as const
   const looksUtf8 = (v: string | undefined): boolean => {
@@ -1446,8 +1446,7 @@ async function runDoctor(): Promise<void> {
     lines.push('    Fix: add to your ~/.zshrc (after any conda init block):')
     lines.push('      export LANG=en_US.UTF-8')
     lines.push('      export LC_ALL=en_US.UTF-8')
-    lines.push('    Then open a fresh terminal. See FAQ → "Why do special')
-    lines.push('    characters look broken when I paste into the terminal?"')
+    lines.push('    Then open a fresh terminal.')
   }
 
   process.stdout.write(lines.join('\n') + '\n')

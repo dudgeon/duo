@@ -63,7 +63,7 @@ for a broader cohort, prototype speed in the MVP.
 
 For the full capability inventory (every shipped feature with the CLI verb
 that drives it), see
-[help/what-duo-does.html](help/what-duo-does.html).
+[packs/duo-default/canvases/what-duo-does.html](packs/duo-default/canvases/what-duo-does.html).
 
 ---
 

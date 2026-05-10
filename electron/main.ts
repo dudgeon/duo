@@ -300,14 +300,12 @@ async function createWindow(): Promise<void> {
 
   // Browser manager owns WebContentsViews and forwards state to renderer.
   //
-  // BUG-078 (v0.6.5 Phase 5 walk) — peek the persisted session BEFORE
-  // construction so we can decide whether the constructor should open
-  // its boot-default FAQ tab. If a session exists, suppress the boot
-  // tab — `restoreFromSession` (called from did-finish-load below) will
-  // populate from saved state. Without this peek the constructor opens
-  // FAQ unconditionally; saved tabs then layer on top, and BUG-057's
-  // default-pin restore re-adds the FAQ even when the user closed it
-  // last session. Net was "FAQ tab opens on every launch."
+  // BUG-057 + BUG-078 (preserved through ENH-135) — peek the persisted
+  // session BEFORE construction so the BUG-057 pin-restore loop below
+  // can decide whether to fire. The historical bootDefaultTab arg went
+  // away with ENH-135 (no more boot-default FAQ tab); the persisted-
+  // session peek stays because BUG-057 still uses it to gate the
+  // pin-restore on fresh-app boot only.
   const persistedAtBoot = await sessionStateService.load().catch(() => ({ browserTabs: [], activeBrowserIndex: 0 } as { browserTabs: { url: string; title: string }[]; activeBrowserIndex: number }))
   const hasPersistedSession = persistedAtBoot.browserTabs.length > 0
 
@@ -318,8 +316,7 @@ async function createWindow(): Promise<void> {
     (state: BrowserState) => mainWindow?.webContents.send(IPC.BROWSER_STATE, state),
     (tabs: BrowserTab[]) => mainWindow?.webContents.send(IPC.BROWSER_TABS, tabs),
     browserHistory,
-    externalDomainsService,
-    { bootDefaultTab: !hasPersistedSession }
+    externalDomainsService
   )
 
   // ENH-039 — page-side `[data-duo-path]` link clicks (smoke-walk page,
@@ -329,7 +326,7 @@ async function createWindow(): Promise<void> {
   // so arbitrary http(s) sites containing [data-duo-path] markup stay inert.
   //
   // Tilde expansion: page-emitted paths commonly use `~/...` shorthand
-  // (smoke-walk steps render `~/.claude/duo/help/faq.html` verbatim from
+  // (smoke-walk steps render `~/.claude/duo/packs/...` verbatim from
   // the manifest). The renderer's openFileSmart calls fs.stat against
   // the literal string, which yields ENOENT on `~`. Expand here, before
   // sendEdit, so the renderer always sees absolute paths. `~user/...`
@@ -483,8 +480,9 @@ async function createWindow(): Promise<void> {
       // The original BUG-057 design predates session-state restore
       // working reliably; with restore in place, the persisted session
       // is the authoritative source of "what tabs were open." Auto-
-      // restoring default-pinned tabs (FAQ, What Duo Does — both
-      // default-pinned per ENH-003) on top of the restored session
+      // restoring default-pinned tabs (today: What Duo Does only,
+      // post-ENH-135 — FAQ retired; default pin seed lives in
+      // install-service op #8) on top of the restored session
       // resurrects tabs the user explicitly closed. New rule (owner-
       // stated): "boot load only on fresh app; skip if prev tabs
       // persisted." User-explicit pins still survive across upgrades

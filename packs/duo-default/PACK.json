@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "name": "duo-default",
+  "version": "1.0.0",
+  "title": "Duo defaults",
+  "description": "Built-in pack — ships default FTUX content (What Duo Does today; future Beginner's Guide will land here per ENH-137). Cannot be uninstalled without --force; flagged builtIn: true so future Stage 28 uninstall tooling honors the protection.",
+  "builtIn": true,
+  "defaults": [
+    {
+      "kind": "canvas",
+      "path": "canvases/what-duo-does.html",
+      "openOnFirstLaunch": false,
+      "pin": true
+    }
+  ]
+}

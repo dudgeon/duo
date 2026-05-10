@@ -7,11 +7,7 @@
 // SSO persistence: every view uses the BROWSER_SESSION_PARTITION ('persist:duo-browser'),
 // so cookies / localStorage survive app restarts.
 
-import { WebContentsView, app, session, shell } from 'electron'
-import { join } from 'path'
-import { homedir } from 'os'
-import { existsSync } from 'fs'
-import { pathToFileURL } from 'url'
+import { WebContentsView, session, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
 import type { ExternalRedirectedPush, PlaygroundAction } from '../shared/host-api'
@@ -22,42 +18,19 @@ import type { CdpBridge } from './cdp-bridge'
 import type { BrowserHistoryService } from '../core/browser-history-service'
 import type { ExternalDomainsService } from '../core/external-domains-service'
 
-// Default landing page for new browser tabs.
-//
-// v0.3.1 — Prefer the user-installed copy at `~/.claude/duo/help/<file>`
-// (created by the install service from the bundle copy). This makes the
-// URL stable across app moves AND matches the URLs in
-// `~/.claude/duo/pins.json` (ENH-003 — FAQ + What Duo Does
-// default-pinned), so the default-landing tab renders with the pin
-// glyph in the strip.
-//
-// Fall back to the bundle copy at `app.getAppPath()/help/<file>` for
-// pre-first-install launches (the user hasn't clicked Install yet).
-// In dev `app.getAppPath()` is the project root; in prod it's the
-// asar root (electron-builder.yml ships help/**/* inside asar).
-function helpUrl(filename: string): string {
-  try {
-    const userPath = join(homedir(), '.claude', 'duo', 'help', filename)
-    if (existsSync(userPath)) return pathToFileURL(userPath).href
-    return pathToFileURL(join(app.getAppPath(), 'help', filename)).href
-  } catch {
-    return 'about:blank'
-  }
-}
-
-function defaultLandingUrl(): string {
-  return helpUrl('faq.html')
-}
-
-// BUG-018 fix — `⌘T` (and any "open a fresh tab" CLI / UI path)
-// gets a blank canvas, NOT the FAQ. The FAQ is the FIRST-tab
-// default (boot landing) — duplicating it on every ⌘T was
-// confusing.
-//
 // `about:blank` is the simplest "new tab" page: the address bar
 // reflects no URL, the user types where they want to go. Pairs
 // with the renderer-side address-bar auto-focus on new-tab open
 // (see App.tsx § newBrowserTab).
+//
+// ENH-135 (Sprint 15) — the previous `defaultLandingUrl()` returned
+// `helpUrl('faq.html')`, used as both the boot-default tab and the
+// `addTab()` default fallback. With FAQ retired and the boot-default
+// tab logic removed, all "fresh tab" call sites converge on
+// about:blank. The `helpUrl()` helper went with them — its only
+// caller was `defaultLandingUrl()`, and the WDD pin (still default-
+// pinned) resolves its URL via the install-service's pin-seed at
+// install time, not via this module.
 function newTabUrl(): string {
   return 'about:blank'
 }
@@ -113,8 +86,7 @@ export class BrowserManager {
     onStateChange: StateCallback,
     onTabsChange: TabsCallback,
     history?: BrowserHistoryService,
-    externalDomains?: ExternalDomainsService,
-    options: { bootDefaultTab?: boolean } = {}
+    externalDomains?: ExternalDomainsService
   ) {
     this.window = window
     this.cdp = cdp
@@ -188,63 +160,34 @@ export class BrowserManager {
       this.window.webContents.send(IPC.BROWSER_PLAYGROUND_ACTION, payload)
     })
 
-    // BUG-078 (v0.6.5 Phase 5 walk) — Owner asked: "why does a new tab
-    // of duo faq open on every app launch?" Root cause: the constructor
-    // unconditionally opened the FAQ as tab[0]. When a persisted session
-    // existed, `restoreFromSession` later navigated tab[0] AWAY from the
-    // FAQ to the saved URL — but the FAQ is in pins.json as a default
-    // pin (ENH-003), so BUG-057's pin-restore loop re-added it as a
-    // fresh tab. Net: closing the FAQ never sticks; it comes back every
-    // launch. Owner's rule: "boot load only on fresh app; skip if prev
-    // tabs persisted." Implementation: main.ts decides at boot whether
-    // a session exists and passes `bootDefaultTab: false` to suppress
-    // the constructor's auto-open. Session restore (or BUG-057 pinning)
-    // owns the post-construction tab-add. Default stays `true` so other
-    // call sites (tests, future entry points) keep current behavior.
-    if (options.bootDefaultTab ?? true) {
-      this.addTab()  // open the first tab (FAQ landing)
-    }
+    // ENH-135 (Sprint 15) — no boot-default tab. The previous
+    // BUG-078 mechanism gated `addTab()` on `!hasPersistedSession`
+    // to avoid resurrecting the FAQ after the user closed it.
+    // With FAQ retired (ENH-135) and the boot-default-tab semantics
+    // collapsed into pin-restore (BUG-057's first-launch loop in
+    // main.ts auto-opens the WDD pin from pins.json), the
+    // constructor's auto-open is no longer needed. New behavior:
+    // cold start with no persisted session → empty browser pane;
+    // BUG-057 pin-restore opens the WDD pin pinned. With a
+    // persisted session → restoreFromSession populates from saved
+    // state.
   }
 
   // ── Tab management ─────────────────────────────────────────────────────────
 
-  /** Stage 21c — restore browser tabs from a persisted session. The
-   *  constructor's default-tab call has already opened one tab; this
-   *  method navigates that first tab to `savedTabs[0]` and adds
-   *  additional tabs for `savedTabs[1..N]`. Idempotent at the
-   *  signature level — calling with an empty array is a no-op. */
+  /** Stage 21c — restore browser tabs from a persisted session.
+   *  Adds one tab per saved entry. ENH-135 (Sprint 15): the
+   *  constructor no longer auto-opens a boot tab, so `this.tabs`
+   *  is always empty when this method is called. Each `addTab()`
+   *  routes through `routeOffHostIfMatched` internally, which
+   *  bounces matched hosts (capitalone.com, etc.) to the system
+   *  browser instead of resurrecting an SSO-broken embedded
+   *  session on relaunch. Idempotent at the signature level —
+   *  calling with an empty array is a no-op. */
   async restoreFromSession(savedTabs: { url: string; title: string }[], activeIndex: number): Promise<void> {
     if (savedTabs.length === 0) return
 
-    // BUG-078 (v0.6.5 Phase 5 walk) — handle the case where the
-    // constructor was told `bootDefaultTab: false` and `this.tabs` is
-    // empty. The legacy path repurposed the boot tab via `loadURL`;
-    // when there's no boot tab, just `addTab(savedTabs[0].url)` —
-    // which goes through the same off-host gating path (`addTab`
-    // delegates to `routeOffHostIfMatched` internally for the loaded
-    // URL).
-    let startIndex: number
-    if (this.tabs.length === 0) {
-      this.addTab(savedTabs[0].url)
-      startIndex = 1
-    } else {
-      // Repurpose the constructor's default tab as the first restored tab.
-      // BUG-040 hole-fix: gate the restored URL through the off-host
-      // matcher so a session containing capitalone.com (or any matched
-      // host) bounces to the system browser instead of resurrecting an
-      // SSO-broken embedded session on relaunch.
-      const firstTab = this.tabs[0]
-      const restored = savedTabs[0].url
-      if (this.routeOffHostIfMatched(restored)) {
-        try { await firstTab.view.webContents.loadURL('about:blank') } catch { /* ignore */ }
-      } else {
-        try { await firstTab.view.webContents.loadURL(restored) } catch { /* page-load errors are user-visible already */ }
-      }
-      startIndex = 1
-    }
-
-    // Add the rest
-    for (let i = startIndex; i < savedTabs.length; i++) {
+    for (let i = 0; i < savedTabs.length; i++) {
       this.addTab(savedTabs[i].url)
     }
 
@@ -259,7 +202,7 @@ export class BrowserManager {
     this.emitTabs()
   }
 
-  addTab(url = defaultLandingUrl()): TabEntry {
+  addTab(url = newTabUrl()): TabEntry {
     const ses = session.fromPartition(BROWSER_SESSION_PARTITION)
     const view = new WebContentsView({
       webPreferences: {

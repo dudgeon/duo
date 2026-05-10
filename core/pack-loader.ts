@@ -67,6 +67,9 @@ function validateManifest(
   if (obj.description !== undefined && typeof obj.description !== 'string') {
     errors.push('description, when present, must be a string')
   }
+  if (obj.builtIn !== undefined && typeof obj.builtIn !== 'boolean') {
+    errors.push('builtIn, when present, must be boolean')
+  }
 
   // defaults[] — optional. Each entry is validated; bad entries push
   // errors but don't reject the whole manifest. Returning a
@@ -151,6 +154,7 @@ function validateManifest(
     version: obj.version as string,
     title: obj.title as string,
     ...(obj.description ? { description: obj.description as string } : {}),
+    ...(obj.builtIn !== undefined ? { builtIn: obj.builtIn as boolean } : {}),
     ...(defaults.length > 0 ? { defaults } : {}),
     ...(navPins.length > 0 ? { navPins } : {}),
   }

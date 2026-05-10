@@ -5630,7 +5630,22 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ### ENH-138: Move FTUX-loadable HTML/markdown content into a built-in default pack — establish the "FTUX content → packs / plumbing → install-service" boundary
 
-**Status:** 🟢 **Decisions captured 2026-05-10; Sprint 15 P0 commitment.** Owner picked all three AUQs from the playground at [docs/research/dogfood-distro-packs-plan.html § 5](docs/research/dogfood-distro-packs-plan.html):
+**Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commit 3).** NOW-SKELETON migration landed:
+- `packs/duo-default/` created with `PACK.json` (`builtIn: true`, `name: "duo-default"`, `version: "1.0.0"`).
+- `git mv help/what-duo-does.html packs/duo-default/canvases/what-duo-does.html`. The pack-mirror op in `install-service.ts:457-463` picks up the new pack automatically; no install-service changes needed for the mirror.
+- `PackManifest` schema extended with `builtIn?: boolean` ([`shared/types.ts:213`](shared/types.ts)). `PackLoader.validateManifest` accepts + surfaces the field ([`core/pack-loader.ts`](core/pack-loader.ts)).
+- Op #8 in install-service ([`electron/install-service.ts:509-540`](electron/install-service.ts)) pivoted: dropped FAQ pin (ENH-135), repointed WDD URL to `${PACKS_DEST_DIR}/duo-default/canvases/what-duo-does.html`. The hardcoded literal stays as a transitional shape — a future commit will iterate `packs/*/PACK.json` for `defaults[].pin: true` entries and seed pins.json from them, removing the hardcoded URL entirely. (Filed as FOLLOWUP in `docs/dev/active-sprint.md` § "Sprint 15 carry-over".)
+
+**Owner picks (verbatim 2026-05-10):**
+- **Q1 ADOPT** — partition install-service vs packs along the FTUX-content boundary (full adoption).
+- **Q2 NOW-SKELETON** — Sprint 15 creates `packs/duo-default/` skeleton + migrates `what-duo-does.html` immediately; ENH-137 Beginner's Guide drops into the same pack later.
+- **Q3 FLAG-IN-PACK-JSON** — extend PackManifest schema with `builtIn: true` flag.
+
+**Architectural note on `builtIn` enforcement:** The existing `duo pack uninstall <name>` CLI verb operates on **Stage 21d distro packs** (under `~/.claude/duo/extra-packs/`), NOT on **Stage 28 lesson packs** (under `~/.claude/duo/packs/`, where `duo-default` lives). There is no current code path that would attempt to uninstall a Stage 28 lesson pack via Duo's CLI; the pack folder must be deleted manually. The `builtIn: true` flag is therefore **forward-compat only** — it's a declarative marker any future Stage 28 uninstall tooling will honor. Adding a refusal handler today would be wired to a code path that doesn't exist.
+
+**Owner general-comment (verbatim 2026-05-10):** *"Confirm that pack-delivered FTUX/default open, persist til closed content can be ANY OF: a markdown file in editable state, a markdown file in locked state, an html canvas, a playground."*
+
+**Confirmation answer (sub-task scope clarification):**
 - **Q1 ADOPT** — partition install-service vs packs along the FTUX-content boundary (full adoption, not narrower)
 - **Q2 NOW-SKELETON** — Sprint 15 creates `packs/duo-default/` skeleton + migrates `what-duo-does.html` immediately; ENH-137 Beginner's Guide drops into the same pack later
 - **Q3 FLAG-IN-PACK-JSON** — extend PackManifest schema with `builtIn: true` flag; CLI `duo pack uninstall <name>` refuses (or requires `--force`) when the flag is set
@@ -5699,58 +5714,6 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 **Trigger to land:** when ENH-137 (Beginner's Guide) author chooses markdown OR when a future content pack needs explicit browser-mode default-open without depending on the file's meta hint.
 
 **Cross-ref:** ENH-138 (the principle that surfaced this gap). ENH-137 (the most likely trigger).
-
----
-
-### BUG-118: `cut-version` skill should sanity-check cli/duo binary against a fresh rebuild — caught after v0.6.12 shipped stale
-**Priority:** Medium — clean architectural boundary that simplifies adding new FTUX content (Beginner's Guide ENH-137 lands here directly). Not user-blocking but high-leverage for future content additions.
-**Filed:** 2026-05-10.
-
-**The principle owner is articulating** — a clean partition of the install pipeline:
-
-| Surface | Pattern | What goes here |
-|---|---|---|
-| **Plumbing** (ops 6–13) | Hand-rolled `install-service.ts` | SessionStart hook, CLAUDE.md merge, PATH shim, CLI symlink, external-domains seed, priming.md, provenance |
-| **Skills + agents** (ops 1–3) | Hand-rolled `install-service.ts` | `skill/`, `agents/`, `pack-builder/skill/` |
-| **FTUX-loadable content** (NEW pack) | `packs/duo-default/` via PackLoader | `what-duo-does.html`, `beginners-guide.html` (when ENH-137 lands), any future "default-load on first launch" markdown/HTML |
-| **Lesson packs** (existing) | `packs/intro-to-duo/`, `packs/<lesson>/` via PackLoader | Multi-canvas curricula, lesson-specific skills |
-
-**Why this is the right call (the surgical case for using packs here):**
-
-1. **The pack mechanism already handles every behavior FTUX content needs:**
-   - Auto-open canvas on first launch (per-pack-version flag in `installed-packs.json`)
-   - Atomic-replace on Duo upgrade (preserves user-edited copies via SHA compare)
-   - Per-pack-version re-fire (bump pack version when content changes; users see the update on next launch)
-   - Pin via `defaults[].pin: true` (best-effort in v1; can harden if needed)
-2. **Today's hardcoded default-pins JSON literal** (`install-service.ts:520-528`, op #8) implements a SUBSET of pack behavior with a separate code path. Collapsing that into the pack's `defaults[]` removes the duplication.
-3. **Future content drops in trivially** — Beginner's Guide (ENH-137) just becomes another canvas in `packs/duo-default/`. No install-service edits per addition; no need to bump default-pins JSON literal.
-4. **No schema changes required** — `PackManifest` (shared/types.ts) already supports the needed fields. PackLoader + first-launch defaults hook (main.ts:513-547) already work for the existing `intro-to-duo` pack; this just adds a SECOND pack with the same shape.
-
-**Migration scope (sub-tasks):**
-
-1. **Create `packs/duo-default/`** with:
-   - `PACK.json` (name: `duo-default`, version: matches Duo's version per ENH-134 § Q3 recommendation)
-   - `canvases/what-duo-does.html` (moved from `help/`)
-   - `defaults[]` set to auto-open + pin `what-duo-does.html` on first launch
-2. **Move `help/what-duo-does.html` → `packs/duo-default/canvases/what-duo-does.html`** (`git mv`)
-3. **Remove the hardcoded default-pins JSON literal** at install-service.ts:520-528 (op #8) — the pack's `defaults[].pin: true` handles it now
-4. **Update `browser-manager.ts:49`** (`defaultLandingUrl`) — currently `helpUrl('faq.html')`; pivot to either `null` (blank canvas on new tab) or the pack canvas URL
-5. **Update `electron/main.ts:305-310`** — remove the FAQ-as-boot-default-tab logic (no longer relevant after ENH-135 + ENH-138)
-6. **When ENH-137 ships:** add `canvases/beginners-guide.html` to the same `packs/duo-default/` pack; bump pack version to re-fire first-launch open for existing users
-7. **Smoke walk:** fresh install → `what-duo-does.html` opens via the pack, gets pinned. Bump pack version + reinstall → first-launch open re-fires. Existing user with a closed pin → not re-pinned (best-effort honor).
-8. **Mark `packs/duo-default/` as built-in** — `duo pack uninstall duo-default` should refuse OR require `--force`. Need a `builtIn: true` flag in PACK.json or a hardcoded denylist; latter is simpler for v1.
-
-**Open AUQs (file as decisions in the playground):**
-
-1. **Q1 — pack name.** `duo-default`, `default-content`, `duo-builtin`, or other? Recommended: **`duo-default`** (clear; matches the "default" semantic).
-2. **Q2 — timing.** Land ENH-138 NOW (Sprint 15, alongside ENH-135 + ENH-136) or wait for ENH-137 (Beginner's Guide draft) so both content items migrate together? Recommended: **wait for ENH-137 draft** so we move once. But create the empty `packs/duo-default/` skeleton + migrate `what-duo-does.html` now, ready for ENH-137 to drop in.
-3. **Q3 — built-in pack uninstall guard.** Hardcoded denylist of pack names that `duo pack uninstall` refuses, OR a `builtIn: true` flag in PACK.json the CLI honors? Recommended: **flag in PACK.json** (declarative; future-proof if external authors want to mark their packs the same way).
-
-**Implications for ENH-135 (FAQ removal):** simpler. The default-pins.json bootstrap (op #8) goes away entirely after ENH-138 lands. FAQ migration to `docs/legacy/` happens unchanged; the "what replaces FAQ as default pin?" question dissolves (the pack's `defaults[].pin: true` is the new default-pin mechanism).
-
-**Implications for ENH-137 (Beginner's Guide):** content lives at `packs/duo-default/canvases/beginners-guide.html`. The Q1 surface decision in the playground becomes moot — the pack IS the surface. Owner-authored draft → Claude polish → drop into the pack.
-
-**Cross-ref.** ENH-134 (the planning playground that surfaced this question; refocused 2026-05-10 to capture the principle as § 5). ENH-135 (FAQ removal — simplifies after ENH-138). ENH-137 (Beginner's Guide — content drops in here). PRD context: Stage 28 ([docs/prd/stage-28-lesson-packs.md](docs/prd/stage-28-lesson-packs.md)).
 
 ---
 
@@ -5850,7 +5813,24 @@ bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
 
 ### ENH-135: Remove FAQ from default install — move `help/faq.html` somewhere harmless in the repo
 
-**Status:** 🟡 **Open / awaiting owner approval on scope.** Owner directive 2026-05-10 (from ENH-134 review): *"FAQ is not useful; please remove from default install and move it somewhere harmless in the repo."*
+**Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commit 3, folded into ENH-138).** Implementation:
+- `git mv help/faq.html docs/legacy/faq.html` — file preserved for code reference; no longer ships in DMG.
+- Op #8 default-pin literal in install-service.ts pivoted to drop the FAQ entry (now seeds `pins.json` with WDD-only, pointing at the duo-default pack canvas).
+- `defaultLandingUrl()` + `helpUrl()` deleted from `electron/browser-manager.ts` (vestigial after FAQ retired). `addTab()` default param flipped to `'about:blank'` via `newTabUrl()`.
+- `bootDefaultTab` constructor option dropped from `BrowserManager`. Cold-start with no persisted session = empty browser pane; the `BUG-057` pin-restore loop opens the WDD pin pinned (single pinned WDD tab vs. previous "FAQ + WDD pinned"). With persisted session, `restoreFromSession` populates from saved state.
+- BUG-078 comment block in `electron/main.ts:303-310` collapsed (the conditional it explained no longer exists). The `hasPersistedSession` peek stays — BUG-057's pin-restore at line 491 still uses it.
+- `fork.config.default.json:26` `helpPinnedFiles`: dropped `"faq.html"` (the constant `__DUO_BOOTSTRAP_HELP_PINNED__` declared in `shared/fork-config.d.ts` is currently unread, so this is hygiene only).
+- `cli/duo.ts § printDoctor` dropped the "See FAQ → ..." pointer in the locale-warning text (FAQ no longer exists; the inline fix commands stay).
+- Comment refs throughout (`README.md`, `docs/HOW-TO-FORK.md`, `.claude/skills/cut-version/SKILL.md`, `electron/install-service.ts` JSDoc, `electron/main.ts` example paths, `electron/browser-manager.ts` history blocks) updated to reflect the new layout.
+
+**Owner picks (verbatim 2026-05-10):**
+- **Q1 new-tab landing:** `(a) about:blank` — `defaultLandingUrl()` retired entirely (function deleted; sole caller `addTab()` default param now `'about:blank'`).
+- **Q2 boot-default first tab:** `(a) Remove entirely` — no boot tab. WDD opens via the existing pins.json + BUG-057 pin-restore mechanism on first launch.
+- **(implicit Q3 default-pin):** Drop FAQ from default pins; keep WDD pinned via the pivoted op #8 seed. Future direction: replace op #8 with iteration over `packs/*/PACK.json` `defaults[].pin: true`.
+
+**Cross-ref:** ENH-138 (the pack mechanism that replaces FAQ as the FTUX surface). FOLLOWUP filed in active-sprint.md § "Sprint 15 carry-over" — "wire pack `defaults[].pin: true` → pins.json seeding so future packs auto-pin without install-service edits."
+
+**Original spec (preserved for cross-reference):**
 **Priority:** Medium — current FAQ content is stale and the in-app surface gives users a misleading impression of Duo's polish. Scope larger than a single delete because FAQ is woven into multiple surfaces.
 **Filed:** 2026-05-10.
 

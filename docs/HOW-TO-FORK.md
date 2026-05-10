@@ -32,8 +32,8 @@ https://github.com/dudgeon/duo/releases/latest
   / help files into `~/.claude/` and the `duo` CLI to `~/.claude/bin/`.
 
 **What's in:** the canonical Duo experience as Geoff ships it. App icon,
-bundled skill (`skill/SKILL.md`, agent, help files: faq.html,
-what-duo-does.html, canvas-actions-demo.html), `*.capitalone.com` seeded into
+bundled skill (`skill/SKILL.md`, agent, the `duo-default` pack with
+`what-duo-does.html`, `canvas-actions-demo.html` in help/), `*.capitalone.com` seeded into
 the external-domains bootstrap (Cap One context — see § "What's hard-coded
 today" below), `dudgeon/duo` as the auto-update upstream.
 
