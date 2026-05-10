@@ -5628,6 +5628,35 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-134: Dogfood the distro-packs pattern for Duo's own defaults — schema unification + main-app refactor (planning artifact)
+
+**Status:** 🟡 **Open / planning.** Planning artifact at [docs/research/dogfood-distro-packs-plan.md](docs/research/dogfood-distro-packs-plan.md). Surfaces in every smoke walk until owner closes it (per the "research reports must file a tracked review task" memory rule).
+**Priority:** Medium — architectural cleanup; not user-blocking but unblocks several adjacent improvements (single install pipeline, smaller install-service.ts, no PACK.json vs DISTRO.json schema duplication).
+**Filed:** 2026-05-10.
+
+**Owner directive (verbatim 2026-05-10):** *"I am not clear what markdowns ship with the actual packaged app, which load as pinned in FTUX, etc. We built a `packs` pattern for future enterprise devs to change this type of content (plus default skills, etc). Please write a planning artifact that describe the current default install strategy for docs and actions (skills, agent) vs the pack approach. Propose options for how to refactor the main app distro to eat our own dogfood and use the packs pattern to manage the apps own default distro for docs, skills, agents."*
+
+**The planning artifact answers:**
+1. **What ships in the packaged app** (`extraResources` skill/, cli/, agents/ + asar-packed help/, packs/, out/, node_modules/).
+2. **What the install service does on first launch** — 13 numbered operations, the first 5 being CONTENT (skill, subagent, help, lesson packs, default pins) and the rest being PLUMBING (CLAUDE.md merge, SessionStart hook, PATH shim, CLI symlink, etc.).
+3. **The two pack patterns we already have** — Pattern A "Lesson packs" at `packs/<name>/PACK.json` (Stage 28); Pattern B "Distro packs" at `~/.claude/duo/extra-packs/<name>/` with `.claude-plugin/plugin.json + duo-extras/DISTRO.json` (Stage 21d). Semantically overlapping, mechanically distinct.
+4. **Four options for the refactor** —
+   - **A: Full dogfood** (kill PACK.json, refactor install-service to consume distro-pack schema for built-in defaults; ~3–5 days)
+   - **B: Documentary mirror** (publish `examples/duo-default-distro/` as a reference; install-service unchanged; ~1 day; drift risk)
+   - **C: Schema unification** (unify PACK.json + DISTRO.json into one schema, port the two lesson packs; install-service unchanged; ~2 days)
+   - **D: Phased — C in Sprint 15, A in Sprint 16+** (recommended; lets each step gate on the previous)
+5. **Four AUQs that gate Step 2** of the recommended phased plan (pack location, install-service simplification scope, version-coupling, PACK.json BC).
+
+**Owner action:** read the planning artifact; confirm the recommended Option D phased approach (or pick a different option); answer the 4 AUQs at Sprint 15 close-out OR defer to Sprint 16 plan.
+
+**Sprint 15 commit (gated on owner approval):** ENH-134a — Option C (schema unification, port lesson packs to canonical shape, retire `core/pack-loader.ts` per Q4-(a)). ~2 days.
+
+**Sprint 16+ commit (gated on owner Q1-Q4 answers + Sprint 15 success):** ENH-134b — Step 2 (build a `duo-default` distro pack; refactor install-service to consume it; preserve hand-rolled plumbing per Q2 answer). ~3–5 days.
+
+**Cross-refs.** Stage 18 ([docs/prd/stage-18b-distro-packs.md](docs/prd/stage-18b-distro-packs.md)), Stage 21d ([docs/prd/stage-21d-distro-packs.md](docs/prd/stage-21d-distro-packs.md)), Stage 28 ([docs/prd/stage-28-lesson-packs.md](docs/prd/stage-28-lesson-packs.md)). Pairs with FOLLOWUP-011 (cross-machine substrate validation — a real enterprise pack walked end-to-end).
+
+---
+
 ### ENH-131: Tab right-click — "Open in browser" (inverse of "Edit in canvas")
 
 **Status:** ✅ **Shipped Sprint 14 (2026-05-10).** Inverse of ENH-097's "Edit in canvas." Right-click on a canvas tab (`tab.type === 'page'`) backed by an HTML file → "Open in browser" entry. Click closes the canvas tab and re-opens the same path as a browser tab so scripts run / buttons fire (the playground modality). Mirrors the existing `onEditBrowserTabInCanvas` flow exactly: WorkingTabStrip menu builder gates on the appropriate tab kind, App.tsx-side handler does `closeFileTab(id)` then `openFileSmart(path, name, 'browser')`.
