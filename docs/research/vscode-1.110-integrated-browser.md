@@ -2,7 +2,7 @@
 
 > **Source:** External research report delivered 2026-04-22, reviewed in the `claude/browser-document-editing-OdneV` branch.
 > **Why it's here:** Duo's architecture is a direct response to the walls this report documents. VS Code 1.110 ships a capable agent-driven browser but locks Claude Code out; Duo is being designed so Claude Code is the first-class client of the browser. Preserving the report helps future Claude instances understand which patterns we are borrowing, which we are improving on, and why.
-> **Companion doc:** See `../../duo-brief.md` §17 ("Google Docs First-Class Support") for the implications mapped onto our roadmap.
+> **Companion doc:** See `../duo-brief.md` §17 ("Google Docs First-Class Support") for the implications mapped onto our roadmap.
 
 -----
 

@@ -2,7 +2,7 @@
 
 > The product north star. For engineering state see [the roadmap](roadmap.html),
 > for locked architectural choices see [DECISIONS.md](DECISIONS.md), for the
-> original engineering brief (historical) see [duo-brief.md](../duo-brief.md).
+> original engineering brief (historical) see [duo-brief.md](duo-brief.md).
 
 ---
 
@@ -237,7 +237,7 @@ smoothing is additive, never a cage.
 
 ## What this vision supersedes
 
-- [`duo-brief.md`](../duo-brief.md) captured the engineering brief for Stages
+- [`duo-brief.md`](duo-brief.md) captured the engineering brief for Stages
   1–5 (terminal + browser + bridge + skill). It remains the authoritative
   reference for the technical architecture and the Google Docs first-class
   read/write path. The product framing in that brief — "a tool for PMs using

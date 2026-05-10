@@ -452,9 +452,9 @@ duo/
 │   ├── research/          # raw tech-choice notes
 │   ├── dev/
 │   │   └── smoke-checklist.md   # test-before-shipping matrix
+│   ├── duo-brief.md       # original brief (Stages 1–5; product framing
+│   │                      #   superseded by docs/VISION.md)
 │   └── ux/
-├── duo-brief.md           # original brief (Stages 1–5; product framing
-│                          #   superseded by docs/VISION.md)
 └── CLAUDE.md              # guidance for AI working on the project
 ```
 
@@ -523,7 +523,7 @@ release headlines worth pulling forward in this README:
 - **[CLAUDE.md](CLAUDE.md)** — rules for future Claude instances working
   on the project. Rule #4 is CLI parity — the project's load-bearing
   design principle.
-- **[duo-brief.md](duo-brief.md)** — original engineering brief for
+- **[docs/duo-brief.md](docs/duo-brief.md)** — original engineering brief for
   Stages 1–5. Product framing is superseded by `docs/VISION.md`; the
   technical detail (especially the Google Docs read/write path in §17)
   remains the authoritative reference.
