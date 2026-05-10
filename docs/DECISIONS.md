@@ -715,6 +715,55 @@ Cross-references: BUG-058 (parent menu-occlusion bug, originally fixed via WCV-m
 
 ---
 
+### Pack canvas / pinned tab idempotency contract
+
+**Status:** 🟢 Locked 2026-05-10 (Sprint 15 ENH-138 upgrade-path fix; ships in v0.6.13).
+**Raised:** 2026-05-10 — during Sprint 15 smoke walk close-out. Owner asked: *"any stale installs will not get the new WDD — should we change the name of the WDD file in the pack version, such that stale duos on update will see that the new one was never opened, and open it?"* Surfaced a real upgrade-path gap.
+**Resolves:** how two independent first-launch mechanisms (pin-restore at `main.ts § BUG-057` vs. pack-defaults hook at `main.ts § Stage 18b first-launch defaults`) compose when both target the same canvas — without double-opening on fresh install OR missing new content on upgrade.
+
+**Decision.** The pack first-launch hook checks `pins.json` before firing `NAV_EDIT` for each pack default. If the canvas's `file://` URL is already in pins.json (as `kind: 'browser'`), the pin-restore mechanism (BUG-057) owns the open — skip. Otherwise, fire NAV_EDIT.
+
+**Cooperation across the two mechanisms:**
+
+| Boot scenario | pins.json state | Pin-restore behavior | First-launch hook behavior | Net result |
+|---|---|---|---|---|
+| **Fresh install** | Created by op #8 with pack canvas URL pre-pinned | Opens pack canvas (pinned) | Sees URL in pins.json → skips NAV_EDIT | 1 WDD tab, pinned ✓ |
+| **v0.6.12 → v0.6.13 upgrade** | Inherited from v0.6.12 with old `~/.claude/duo/help/...` URL (file still on disk; op #8 doesn't reseed) | Opens stale-content URL (or session restore handles it) | Pack URL NOT in pins.json → fires NAV_EDIT | 2 WDD tabs (stale pinned + fresh new) ✓ |
+| **2nd boot after fresh install** | pack URL pinned | Opens pack canvas (pinned) | `installed-packs.json` has the per-pack-version flag → whole pack skipped | 1 WDD tab, pinned ✓ |
+| **Pack-version bump (`duo-default@1.0.0` → `1.1.0`)** | Pack URL pinned | Opens pack canvas (pinned) | New pack version → flag re-fires → URL in pins.json → skips NAV_EDIT | 1 WDD tab (already pinned) ✓ |
+| **Pack-version bump + user closed the pin** | Pin previously toggled off; URL not in pins.json | Nothing to restore | URL not in pins.json → fires NAV_EDIT for the new pack version | Fresh content opens as new tab (unpinned). User can re-pin via UI. ✓ |
+
+**Why this option won.**
+
+- **No file renaming required per version.** The owner's first proposal was to rename WDD per pack version so stale Duos would discover "an unopened file" on upgrade. That works but encodes versioning in filenames, which gets ugly fast (`what-duo-does-v3.html`, `what-duo-does-v4.html`...). The idempotency check + `installed-packs.json` per-pack-version flag give the same semantic with one-line install-tracker state.
+- **Two-way cooperation, not winner-takes-all.** Pin-restore handles the pinned cases (fresh + already-pinned); pack-defaults handles the unpinned/new-pack-version cases. Each mechanism's failure mode is independent — pins.json corruption doesn't break pack-defaults; missing `installed-packs.json` doesn't break pin-restore.
+- **Existing-user upgrade path works without state migration.** v0.6.12 users keep their pins.json as-is (no install-service migration). Their stale-content WDD pin still resolves (the old `~/.claude/duo/help/...` file isn't deleted on upgrade by `safeOverwriteDirContents`). The first-launch hook fires the NEW canvas alongside. User chooses what to keep.
+- **Forward-looking: ENH-137 Beginner's Guide drops in trivially.** Adding `canvases/beginners-guide.html` + bumping `duo-default@1.0.0 → 1.1.0` re-fires for everyone. Existing users see the new content as a fresh tab on next launch.
+
+**Why not the alternatives.**
+
+- **Rename file per version (owner's first proposal).** Encodes versioning in filenames; doesn't compose with the existing `installed-packs.json` per-pack-version flag (which was built precisely for this); breaks deep-links if anything references the filename directly (README.md, future docs).
+- **Install-service migrates pins.json URLs on upgrade.** Detect v0.6.12-shaped URLs in pins.json + rewrite to pack location. Works but invasive — modifies user state without explicit consent, and the heuristic ("URL starts with `~/.claude/duo/help/`") is fragile. The current decision is non-invasive: user's pins.json is never touched, just the pack-defaults hook fires alongside.
+- **Delete old `help/what-duo-does.html` on upgrade.** Forces the issue (stale pin 404s; user has to re-pin). Worse UX than letting the stale pin coexist with the new tab.
+- **Set `openOnFirstLaunch: false` and rely on pin-restore only.** What Sprint 15's first iteration did. Avoids the double-open on fresh install, but misses content delivery on upgrade entirely (the gap the owner raised). The idempotency check is what lets `openOnFirstLaunch: true` be safe.
+
+**Trade-offs accepted.**
+
+- **Upgrade users see TWO WDD tabs on first launch.** One pinned (stale v0.6.12 content), one fresh (new pack location). They have to manually close the stale one + optionally re-pin the new one. The friction is bounded — one-time, per-major-content-update.
+- **The new tab opens UNPINNED for upgrade users.** First-launch hook only does NAV_EDIT, not pin. So the new WDD is a regular tab; if the user doesn't pin it, next session restore might not bring it back (depending on whether it's in their persisted session). Pinning-on-first-launch would require modifying pins.json (invasive — explicitly rejected above). Future enhancement: wire the pack's `pin: true` to seed pins.json IF the URL is not already pinned. Filed in active-sprint.md § "Sprint 15 carry-over" as a follow-up.
+- **Two-mechanism cognitive load.** Pack authors writing manifests need to understand that `openOnFirstLaunch: true` + the user's pin state interact. The PACK.json `pin: true` field is still informational-only today (no install-service hook reads it to seed pins.json automatically); the explicit op #8 in install-service is the seeding path. The two pathways need a brief intro paragraph in `skill/pack-builder/SKILL.md` (filed in `docs/dev/active-sprint.md § "Sprint 15 carry-over"` as a follow-up doc edit).
+
+**Implementation.**
+
+1. **`electron/main.ts § Stage 18b first-launch defaults`** — read `pins.json` via `pinsService.list()` before the iteration; compute the `file://` URL for each pack default; skip if URL is in the pin set. Inline comment cross-references this ADR section.
+2. **`packs/duo-default/PACK.json`** — set `openOnFirstLaunch: true` for the WDD default (the idempotency check makes this safe; without it, fresh installs would double-open).
+3. **No changes to `pins.json` schema or `pinsService` API.** The contract is one-way: hook reads pins, never writes.
+4. **No changes to `installed-packs.json` schema.** The per-pack-version flag continues to gate "fire once per pack version per user."
+
+Cross-references: ENH-138 (Sprint 15 — established the FTUX-content / pack boundary that produced this idempotency need), BUG-057 (pin-restore mechanism the hook cooperates with), `core/pins-service.ts` (pin storage), `core/installed-packs-service.ts` (per-pack-version flag), `electron/install-service.ts § op #8` (the pins.json seed that makes fresh-install idempotency necessary).
+
+---
+
 ## Open ADRs (pending decision)
 
 ### Sandbox-tolerant transport and install paths for the `duo` CLI

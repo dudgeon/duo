@@ -5630,11 +5630,12 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ### ENH-138: Move FTUX-loadable HTML/markdown content into a built-in default pack — establish the "FTUX content → packs / plumbing → install-service" boundary
 
-**Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commit 3).** NOW-SKELETON migration landed:
+**Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commits 3 + 6).** NOW-SKELETON migration + upgrade-path fix landed:
 - `packs/duo-default/` created with `PACK.json` (`builtIn: true`, `name: "duo-default"`, `version: "1.0.0"`).
 - `git mv help/what-duo-does.html packs/duo-default/canvases/what-duo-does.html`. The pack-mirror op in `install-service.ts:457-463` picks up the new pack automatically; no install-service changes needed for the mirror.
 - `PackManifest` schema extended with `builtIn?: boolean` ([`shared/types.ts:213`](shared/types.ts)). `PackLoader.validateManifest` accepts + surfaces the field ([`core/pack-loader.ts`](core/pack-loader.ts)).
 - Op #8 in install-service ([`electron/install-service.ts:509-540`](electron/install-service.ts)) pivoted: dropped FAQ pin (ENH-135), repointed WDD URL to `${PACKS_DEST_DIR}/duo-default/canvases/what-duo-does.html`. The hardcoded literal stays as a transitional shape — a future commit will iterate `packs/*/PACK.json` for `defaults[].pin: true` entries and seed pins.json from them, removing the hardcoded URL entirely. (Filed as FOLLOWUP in `docs/dev/active-sprint.md` § "Sprint 15 carry-over".)
+- **Commit 6 (upgrade-path fix; owner-raised during smoke walk):** `openOnFirstLaunch: true` for the duo-default WDD canvas + idempotency check added to the first-launch hook in [`electron/main.ts § 521-571`](electron/main.ts). The hook now reads pins.json and skips NAV_EDIT for any pack default whose URL is already pinned — pin-restore (BUG-057) owns those opens. Net: fresh installs see ONE WDD tab pinned (no dupe); v0.6.12 → v0.6.13 upgraders see TWO WDD tabs (stale pinned at v0.6.12 location + fresh new at pack location). Pack-version bumps re-fire for everyone. Full design recorded as ADR in [`docs/DECISIONS.md § "Pack canvas / pinned tab idempotency contract"`](docs/DECISIONS.md).
 
 **Owner picks (verbatim 2026-05-10):**
 - **Q1 ADOPT** — partition install-service vs packs along the FTUX-content boundary (full adoption).

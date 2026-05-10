@@ -521,6 +521,31 @@ async function createWindow(): Promise<void> {
     try {
       const registry = packLoader.get()
       const installed = await installedPacksService.load()
+      // ADR (2026-05-10) — pack-canvas / pinned-tab idempotency contract.
+      // If a pack default's `file://` URL is already in pins.json, the
+      // pin-restore mechanism (BUG-057, line 491+) owns the open — skip
+      // the NAV_EDIT to avoid double-tabs on fresh install.
+      //
+      // Why this matters:
+      // - Fresh install: op #8 in install-service.ts seeds pins.json with
+      //   the pack's canvas URL (the WDD pin today). BUG-057 pin-restore
+      //   opens that URL as a pinned tab on first boot. Without this
+      //   skip, the first-launch hook would NAV_EDIT the same canvas —
+      //   user sees TWO WDD tabs (one pinned via pin-restore, one fresh
+      //   via NAV_EDIT).
+      // - v0.6.12 → v0.6.13 upgrade: pins.json has the OLD URL
+      //   (`~/.claude/duo/help/what-duo-does.html`), NOT the new pack
+      //   location. The new pack URL is NOT in pins.json. The hook
+      //   fires NAV_EDIT, opening the new content as a fresh tab.
+      //   User sees the updated WDD even though their stale pin still
+      //   points at the v0.6.12 file (left on disk by install-service).
+      //
+      // Pin-tracking lives in pins.json (read at boot); installed-packs.json
+      // tracks the per-pack-version first-launch flag (fire once per
+      // pack version per user). These two records cooperate, neither
+      // double-opens nor misses content on upgrade. See
+      // docs/DECISIONS.md § "Pack canvas / pinned tab idempotency".
+      const pinUrlSet = new Set((await pinsService.list()).map(p => p.ref))
       for (const loaded of registry.packs) {
         const m = loaded.manifest
         if (!m) continue                    // malformed manifest — skip
@@ -532,6 +557,14 @@ async function createWindow(): Promise<void> {
           if (!def.openOnFirstLaunch) continue
           if (def.kind !== 'canvas') continue   // editor/browser are v2
           const absPath = join(loaded.rootDir, def.path)
+          const fileUrl = `file://${absPath}`
+          if (pinUrlSet.has(fileUrl)) {
+            // Pin-restore owns this URL on fresh-install boots; skip the
+            // NAV_EDIT here so we don't double-open. On boots where
+            // pin-restore is skipped (persisted session exists), the
+            // tab is already in the restored session — same result.
+            continue
+          }
           // NAV_EDIT routes through the renderer's openFileSmart, which
           // honors duo-open-in meta. Most pack canvases will land in
           // the canvas tab; templates that opt into browser routing

@@ -9,7 +9,7 @@
     {
       "kind": "canvas",
       "path": "canvases/what-duo-does.html",
-      "openOnFirstLaunch": false,
+      "openOnFirstLaunch": true,
       "pin": true
     }
   ]
