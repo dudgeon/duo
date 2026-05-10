@@ -19,7 +19,94 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.6.12 cut 2026-05-10. Sprint 15+ work accumulates here.
+> Empty — v0.6.13 cut 2026-05-10. Sprint 16+ work accumulates here.
+
+## [0.6.13] — 2026-05-10
+
+Sprint 15 — install-pipeline boundary reshape. FTUX content moves
+into a new built-in pack (`packs/duo-default/`); install-service
+stays hand-rolled for plumbing only. FAQ retired from default
+install; boot-default browser tab logic deleted; pack-canvas /
+pinned-tab idempotency contract documented as an ADR. Two
+install-pipeline bug fixes from the v0.6.12 close-out tail.
+
+### Added
+- **ENH-138** — `packs/duo-default/` built-in pack ships default
+  FTUX content (`what-duo-does.html` today; future Beginner's
+  Guide will land here per ENH-137). New `PackManifest.builtIn`
+  schema flag marks built-in packs (declarative forward-compat
+  flag for any future Stage 28 uninstall tooling — today's
+  `duo pack uninstall` operates on Stage 21d distro packs at
+  `extra-packs/`, not Stage 28 lesson packs at `packs/`, so the
+  flag is informational-only).
+- **ADR** — `docs/DECISIONS.md § "Pack canvas / pinned tab
+  idempotency contract"`. Establishes how the pack first-launch
+  hook cooperates with pin-restore (BUG-057). Full cooperation
+  matrix across 5 boot scenarios + trade-offs + alternatives
+  considered.
+- **`examples/lesson-pack-template/`** — ENH-136 retired
+  `packs/claude-code-basics/` from the default install; the pack
+  becomes a copy-and-customize template for pack authors.
+  Includes `PACK.json` (renamed `name: "lesson-pack-template"`),
+  internal `claude-code-basics` references bulk-renamed, plus a
+  new `README.md` walking the copy-customize flow.
+
+### Changed
+- **ENH-138** — install-service op #8 (`electron/install-service.ts:509`)
+  pivoted: drops FAQ pin entirely, seeds `pins.json` with WDD only
+  (pointing at the new pack canvas location).
+- **ENH-135** — `defaultLandingUrl()` + `helpUrl()` deleted from
+  `electron/browser-manager.ts`; `addTab()` default param flipped
+  to `'about:blank'` (via `newTabUrl()`); `bootDefaultTab`
+  constructor option dropped from `BrowserManager`. Cold-start
+  with no persisted session = empty browser pane (WDD opens
+  pinned via BUG-057 pin-restore, NOT via a "boot tab").
+- **ENH-138** — first-launch hook in `electron/main.ts` gains
+  pin-set idempotency check. Pack canvases already pinned in
+  `pins.json` don't double-open with NAV_EDIT; new pack canvases
+  (URL not in pins) fire NAV_EDIT and open as fresh tabs.
+  Pack-version bumps re-fire for everyone; idempotency check
+  still applies.
+- **BUG-118** — `cut-version` skill adds post-build
+  `git diff --quiet cli/duo` guard at Step 4. Failed cuts no
+  longer silently ship stale binaries.
+- **BUG-116** — `scripts/dist-signed.sh` passes explicit
+  version-pinned DMG path to `validate-dmg-launch.sh` (was: relied
+  on alphabetical glob, silently validated v0.6.8 instead of
+  v0.6.12 during the previous cut).
+
+### Removed
+- **ENH-135** — `help/faq.html` retired to `docs/legacy/faq.html`.
+  Default install no longer ships FAQ.
+  `fork.config.default.json § helpPinnedFiles` drops `"faq.html"`.
+- **ENH-136** — `packs/claude-code-basics/` removed from default
+  install. Moved to `examples/lesson-pack-template/`. Existing
+  v0.6.12 users keep their `~/.claude/duo/packs/claude-code-basics/`
+  folder (install-service mirror doesn't delete) until they
+  manually clean up.
+
+### Fixed
+- **ENH-138 upgrade-path** — existing v0.6.12 users now see the
+  new WDD content on first launch via the idempotent first-launch
+  hook (NAV_EDITs the new pack URL when not already pinned).
+  Closes the gap owner raised at Sprint 15 smoke walk: "stale
+  Duos on upgrade won't see the new WDD."
+- **BUG-117** (shipped 2026-05-10 in this branch, before the
+  Sprint 15 work) — `installSessionStartHook()` wrapped in
+  try/catch; enterprise-locked `~/.claude/settings.json` no
+  longer aborts the install (PATH shim remains the load-bearing
+  priming path; SessionStart hook is the redundant safety net).
+
+### Known issues
+- **Upgrade users see two WDD tabs** on first launch after
+  upgrading from v0.6.12: their stale pinned WDD (pointing at the
+  v0.6.12 `~/.claude/duo/help/` copy that install-service didn't
+  delete) + the fresh new pack-located WDD (auto-opened via the
+  first-launch hook). One-time friction — close the stale tab,
+  optionally re-pin the new. Smoother upgrade migration (auto-
+  rewrite stale pins.json URLs) filed in
+  `docs/dev/active-sprint.md § Sprint 15 carry-over` for a
+  future enhancement.
 
 ## [0.6.12] — 2026-05-10
 

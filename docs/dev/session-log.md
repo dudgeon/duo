@@ -18,6 +18,33 @@
 
 ---
 
+## 2026-05-10 night (v0.6.13 cut — Sprint 15 close-out) — FTUX content → packs (install-pipeline reshape); 6 commits behind the cut
+
+**Status: v0.6.13 cut — tag `v0.6.13` local-only (not yet pushed; awaiting owner blessing).** Sprint 15 ships the FTUX-content / packs partition principle that ENH-134's planning playground surfaced. The cut hits these surfaces:
+
+- **ENH-138 NOW-SKELETON migration** — `packs/duo-default/` skeleton ships with `PackManifest.builtIn` schema flag (declarative; forward-compat for future Stage 28 uninstall tooling). `git mv help/what-duo-does.html → packs/duo-default/canvases/`. install-service op #8 pivoted: drops FAQ pin, repoints WDD URL to pack location.
+- **ENH-135 FAQ retirement** — `git mv help/faq.html → docs/legacy/faq.html`. `defaultLandingUrl()` + `helpUrl()` deleted from `browser-manager.ts`; `bootDefaultTab` constructor option dropped; `BrowserManager` cold-start with no persisted session = empty browser pane.
+- **ENH-136 claude-code-basics retirement** — `git mv packs/claude-code-basics/ → examples/lesson-pack-template/`. PACK.json renamed; internal refs bulk-renamed; new README.md walks the copy-customize flow.
+- **Pack-canvas / pinned-tab idempotency contract ADR** (`docs/DECISIONS.md`) — owner-raised during smoke walk: "stale Duos on upgrade won't see the new WDD." First-launch hook now reads `pins.json` membership; skips NAV_EDIT for URLs already pinned (avoids fresh-install double-open); fires NAV_EDIT for URLs not pinned (gives upgrade users new content visibility). Full cooperation matrix across 5 boot scenarios.
+- **BUG-118 cut-version sanity-check** — post-`npm run build:cli` guard fails the cut if `cli/duo` binary differs from HEAD. v0.6.12 cut shipped a stale binary; future cuts can't.
+- **BUG-116 dist-signed.sh DMG version pinning** — explicit version-pinned path to `validate-dmg-launch.sh` (was: alphabetical glob silently validating wrong DMG).
+
+**Commit chain (5 sprint commits + the cut + the post-cut bump):**
+
+1. `7a38fb1` — ENH-136 claude-code-basics → examples/lesson-pack-template/
+2. `20b83ca` — BUG-118 cli/duo sanity-check in cut-version skill
+3. `58c8fdf` — ENH-138 + ENH-135 (pack scaffold + FAQ retirement + boot-default tab removed)
+4. `3103ed2` — BUG-116 dist-signed.sh DMG version pinning
+5. `ec0893b` — pack-canvas / pinned-tab idempotency contract + ADR (owner-raised at smoke walk close-out)
+6. (cut commit + tag — release: v0.6.13)
+7. (post-cut bump — chore: bump to v0.6.14 for next sprint)
+
+**Smoke walk shape.** Walk-1 manifest at `docs/dev/smoke-walks/v0.6.13.json` (3 items: existing-user-no-regression, ⌘T blank, DMG fresh-install deferred). Walk-1 returned 1 PASS + 2 FAIL — both FAILs diagnosed as test-environment artifacts. FAIL 1: dev pins.json had developer-only repo-path pins pointing at moved files (FAQ + WDD); migrated to point at the new pack location + closed the 3 broken tabs. FAIL 2: owner ran `dist-signed.sh` pre-cut in wrong cwd (the DEFERRED item explicitly said "wait for the cut to complete"); cleared at cut time. Item 3 (DMG fresh-install) walks AFTER the cut against the freshly-built `dist/Duo-0.6.13-arm64.dmg`.
+
+**Carry-forward to Sprint 16.** ENH-137 Beginner's Guide (awaiting owner draft → drops into `packs/duo-default/canvases/` via pack-version bump). ENH-139 PackManifest schema extension for markdown kinds (gated on ENH-137 picking markdown or future pack needing it). FOLLOWUP: install-service iterates `packs/*/PACK.json` for `defaults[].pin: true` to seed pins.json dynamically (removes op #8's hardcoded literal). FOLLOWUP: install-service migrates stale pins.json URLs on upgrade (auto-rewrite `~/.claude/duo/help/...` → `~/.claude/duo/packs/duo-default/canvases/...`) for a smoother upgrade experience.
+
+---
+
 ## 2026-05-10 late-evening (post-v0.6.12 cleanup pass + Sprint 15 planning) — repo deep-clean + ENH-134 planning playground + 5 task entries + BUG-117 hardening + ENH-138 surgical FTUX-pack migration decisions
 
 **Status: 9 commits ahead of origin/main as of session end (after `f04f113`).** All 9 carry the v0.6.12 release tag + cleanup work + Sprint 15 planning artifacts. Owner-pushed at `e2b1f8c`/`8d1f96e`/`f04f113` rolling — push state: pushed through `f04f113` per next-session pickup.

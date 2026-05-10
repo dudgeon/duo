@@ -21,7 +21,73 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.6.12 cut 2026-05-10)*
+> *(empty — v0.6.13 cut 2026-05-10)*
+
+---
+
+## v0.6.13 — 2026-05-10 — Sprint 15: FTUX content → packs (install-pipeline reshape)
+
+The owner adopted a clean partition between install-service plumbing
+and FTUX-loadable content: install-service stays hand-rolled for the
+load-bearing pieces (PATH shim, CLAUDE.md merge, SessionStart hook,
+priming.md, provenance); FTUX content (What Duo Does today, future
+Beginner's Guide) collapses into a new built-in lesson pack at
+`packs/duo-default/`. The pack mechanism already handles every behavior
+FTUX content needs (auto-open canvas, atomic-replace on upgrade, per-
+pack-version re-fire, declarative pin intent). Sprint 15 establishes
+the boundary; future content drops in trivially via canvas-add +
+pack-version bump.
+
+**Why this cut lands here.** Three months of FTUX-content additions
+(FAQ, What Duo Does, default pins) had grown via a hardcoded JSON
+literal in `install-service.ts:520-528`. ENH-134's planning playground
+(2026-05-10) made the boundary visible. Owner picked NOW-SKELETON
+migration: Sprint 15 creates the pack + migrates WDD now; ENH-137
+Beginner's Guide drops in later via the same mechanism. ENH-135 (FAQ
+removal) folds in — FAQ becomes the first "retired" piece of FTUX
+content, banished to `docs/legacy/`. Plus two install-pipeline bug
+fixes (BUG-118 cut-version stale-binary guard, BUG-116 dist-signed
+DMG version pinning) that shipped from the v0.6.12 close-out tail.
+
+**Four key design decisions baked in:**
+
+1. **Partition along the FTUX-content boundary.** Plumbing in
+   install-service; content in packs. Documented in
+   `docs/research/dogfood-distro-packs-plan.html § 5` (Q1 ADOPT).
+2. **`PackManifest.builtIn: true` flag.** Marks Duo's default pack as
+   un-uninstallable without `--force`. Forward-compat — the existing
+   `duo pack uninstall` operates on Stage 21d distro packs
+   (`extra-packs/`), not Stage 28 lesson packs (`packs/`), so today's
+   enforcement is declarative-only.
+3. **Pack-canvas / pinned-tab idempotency contract.** Owner-raised
+   during smoke walk: "stale Duos on upgrade won't see the new WDD."
+   Two mechanisms (BUG-057 pin-restore + Stage 18b first-launch hook)
+   cooperate via a `pins.json` membership check in the hook. Fresh
+   installs see ONE WDD tab (pinned, no dupe); v0.6.12 upgraders see
+   TWO (stale pinned + fresh new) and choose what to keep.
+   Pack-version bumps re-fire for everyone. ADR at
+   `docs/DECISIONS.md`.
+4. **No file renaming per pack version.** Owner's first instinct was
+   to encode versioning in filenames; the idempotency check +
+   existing per-pack-version flag in `installed-packs.json` achieve
+   the same semantic without it.
+
+**What this is and isn't.** This is the boundary commit — the
+mechanism for shipping FTUX content via packs. The Beginner's Guide
+(ENH-137) is the first new content that lands via the mechanism;
+that's a future-sprint deliverable awaiting owner-authored draft.
+The PackManifest schema extension for markdown-editable +
+markdown-locked kinds (ENH-139) is filed and deferred; gated on
+ENH-137 picking markdown OR a future pack needing it.
+
+**Known transient: upgrade users see two WDD tabs.** On first launch
+after upgrade, the stale-content WDD pin (pointing at the v0.6.12
+`~/.claude/duo/help/` copy that wasn't deleted) opens alongside the
+fresh new WDD (via the first-launch hook). One-time friction; user
+manually closes the stale one and optionally re-pins the new.
+Cleaner upgrade migration (auto-rewrite stale pins.json URLs) filed
+in `docs/dev/active-sprint.md § Sprint 15 carry-over` for a future
+enhancement.
 
 ---
 
