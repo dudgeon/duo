@@ -124,6 +124,18 @@ Run in order. Stop on first error.
 npm run typecheck                 # blocking — must be clean
 
 npm run build:cli                 # rebuilds cli/duo binary
+
+# BUG-118 sanity-check — guard against committing a stale binary.
+# v0.6.12 cut shipped a stale cli/duo missing ENH-130 --reveal handling
+# because the prior commit's `git add cli/duo` captured a pre-rebuild
+# copy. Fail the cut early if the freshly-rebuilt binary differs from
+# what's in HEAD — owner re-stages and re-attempts.
+git diff --quiet cli/duo || {
+  echo "ERROR: cli/duo binary has uncommitted changes post-rebuild."
+  echo "Run: git add cli/duo  (then re-attempt the cut)."
+  exit 1
+}
+
 npm run sync:claude               # copies skill + agent into ~/.claude/
 
 # Optional: npm run build, then a quick `npm run dev` boot smoke
