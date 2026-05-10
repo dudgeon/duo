@@ -18,6 +18,56 @@
 
 ---
 
+## 2026-05-10 late-evening (post-v0.6.12 cleanup pass + Sprint 15 planning) — repo deep-clean + ENH-134 planning playground + 5 task entries + BUG-117 hardening + ENH-138 surgical FTUX-pack migration decisions
+
+**Status: 9 commits ahead of origin/main as of session end (after `f04f113`).** All 9 carry the v0.6.12 release tag + cleanup work + Sprint 15 planning artifacts. Owner-pushed at `e2b1f8c`/`8d1f96e`/`f04f113` rolling — push state: pushed through `f04f113` per next-session pickup.
+
+**The session shape.** v0.6.12 cut shipped earlier this evening (commit `18725c7` + tag + GitHub Release with DMG attached); push happened after walk-6 PASS. After the push, owner asked for a repo deep-clean ("clean up old/unneeded testing files, scrutinize root vs folders, refactor README to be end-user focused, mass-prune tasks.md per its own pruning policy"). That triggered a 4-step cleanup pass landing as 4 separate commits (a/b/c/d in the planning thread), then a substantial post-cleanup conversation about the install pipeline that landed as ENH-134 + ENH-138 planning artifacts + 5 follow-up tasks + 1 hardening fix.
+
+**What landed (chronologically from v0.6.12 cut commit forward):**
+
+1. **`6822a66` chore: bump to v0.6.13** — Step 7 of the cut workflow.
+2. **`ce74481` chore(repo-clean): repo-root cleanup** — rm `RESUME.md` (Sprint-12-handoff dead doc never deleted across 3 cuts), mv `duo-brief.md` → `docs/`, rm stray PNG, rm old DMGs from `dist/` (kept v0.6.12 only — ~250 MB freed). 4 path-ref updates in README + VISION + research doc.
+3. **`32eab90` docs(repo-clean): split README** — 535 → 168 lines, end-user-focused. New `docs/dev/CONTRIBUTING.md` (412 lines) carries dev content (build-from-source, custom npm registry, signed/unsigned DMG, cert pre-work, FOLLOWUP-005 keychain, iCloud File Provider, architecture, repo layout, CLI verb reference, working-with-Claude rules pointer).
+4. **Smoke-walks prune** — 77 → 13 files; gitignored, no commit.
+5. **`e4ff756` docs(repo-clean): trim tasks.md** — pruned BUG-001..BUG-017 (-697 lines per file's own pruning policy + owner explicit approval).
+6. **`089521f` docs(research): file ENH-134** — original .md plan (refactored next).
+7. **`650609b` docs(research): replace .md with HTML playground + CLAUDE.md § 11 rule** — owner: *"you should always use html to make the planning artifacts rich, interactive, context rich playgrounds with diagrams etc."* Codified as CLAUDE.md § 11.
+8. **`bf8db68` docs+fix: refocus playground + BUG-117 + 4 follow-ups** — owner notes pivoted the planning artifact from "should we converge?" to "how to modify the install + surgical question." BUG-117 wrapped `installSessionStartHook()` in try/catch for enterprise-locked settings.json. Filed BUG-116 (dist-signed.sh validate-glob), BUG-117 (shipped), ENH-135 (FAQ removal), ENH-136 (claude-code-basics template), ENH-137 (Beginner's Guide).
+9. **`8d1f96e` fix(cli): rebuild stale cli/duo binary** — caught during git status after the planning work; v0.6.12's commit had captured a 1269-line pre-rebuild copy missing ENH-130 `--reveal` handling. DMG-bundled binary was correct (built post-`npm run build:cli`); only dev-install path affected. Filed BUG-118 to harden the cut-version skill.
+10. **`e2b1f8c` docs(tasks): file BUG-118** — cut-version skill post-build sanity check.
+11. **`f04f113` docs(install): file ENH-138 + capture FTUX-content-→-packs principle in playground § 5** — owner asked the sharper question: *"if packs provide a good mechanism for easy things like markdown files that default load on FTUX, then that could make sense — we can keep the diverged method [hand-rolled install for plumbing] vs packs [for content] for those things that need it."* Refactored playground § 5 from one Beginner's Guide decision to three decisions (principle / timing / uninstall guard) capturing the install-pipeline partition.
+
+**ENH-134 close-out (decisions captured 2026-05-10 close-of-session):**
+
+```
+Q1 ADOPT — partition install-service vs packs along the FTUX-content boundary
+Q2 NOW-SKELETON — Sprint 15 creates packs/duo-default/ + migrates WDD; ENH-137 drops in later
+Q3 FLAG-IN-PACK-JSON — extend PackManifest with builtIn: true; CLI refuses uninstall
+
+GENERAL: confirm pack-delivered FTUX content can be ANY OF: markdown editable,
+markdown locked, html canvas, playground.
+```
+
+**Confirmation answer captured in ENH-138 entry + active-sprint.md:** v1 PackDefault.kind only supports `'canvas'` — works for HTML canvas + HTML playground (via `<meta duo-open-in>`). Markdown editable + markdown locked need schema extension filed as **ENH-139** (deferred until ENH-137 chooses markdown OR future need).
+
+**Sprint 15 P0 commit order (per active-sprint.md):**
+1. ENH-136 (smallest; 1-day; move claude-code-basics → examples/lesson-pack-template/)
+2. BUG-118 (~30 min; cut-version skill sanity check)
+3. ENH-138 NOW-SKELETON migration (~half-day; create packs/duo-default/ + migrate WDD + builtIn flag)
+4. ENH-135 folded in (FAQ removal; default-pins-literal removal)
+5. BUG-116 (~30 min; dist-signed.sh glob fix)
+6. Smoke walk + cut v0.6.13.
+
+**Open AUQs flagged for next session** (in CLAUDE.md § Open questions):
+- ENH-136 — confirm option (a) move claude-code-basics → examples/lesson-pack-template/
+- ENH-138 — `browser-manager.ts:49` defaultLandingUrl pivot (null vs pack canvas)
+- ENH-138 — `electron/main.ts:305-310` boot-default first tab (remove vs replace with pack canvas)
+
+**Pre-compact handoff** for the new session: read CLAUDE.md § "Active sprint — Sprint 15" + this entry + active-sprint.md. The Sprint 15 commits are crisply scoped; first thing in next session is the ENH-136 confirmation AUQ, then start the migration.
+
+---
+
 ## 2026-05-10 evening (Sprint 14 close-out + v0.6.12 cut) — BUG-115 closed as agent-behavior · ENH-128 sips fallback · ENH-133 Shift+Enter · ENH-110 JSON/YAML viewer-editor pulled forward from v0.6.13 · 3 walks (4 → 5 → 6) · cut shipped
 
 **Status: v0.6.12 cut shipped 2026-05-10 evening.** Picked up immediately after the morning walk-3 close-out (which left the cut blocked on ENH-128 HEIC genuine decode failure + a BUG-115 dialog of unknown cause). One session diagnosed both, then pulled ENH-110 + ENH-133 forward same-day, then walked the JsonView UX through three iteration rounds.

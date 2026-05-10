@@ -5630,7 +5630,79 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ### ENH-138: Move FTUX-loadable HTML/markdown content into a built-in default pack — establish the "FTUX content → packs / plumbing → install-service" boundary
 
-**Status:** 🟡 **Open / awaiting owner approval on principle + scope.** Owner directive 2026-05-10 (refining ENH-134 review): *"if packs provide a good mechanism for easy things like markdown files that default load on FTUX, then that could make sense, right? — we can keep the diverged method [hand-rolled install for plumbing] vs packs [for content] for those things that need it."*
+**Status:** 🟢 **Decisions captured 2026-05-10; Sprint 15 P0 commitment.** Owner picked all three AUQs from the playground at [docs/research/dogfood-distro-packs-plan.html § 5](docs/research/dogfood-distro-packs-plan.html):
+- **Q1 ADOPT** — partition install-service vs packs along the FTUX-content boundary (full adoption, not narrower)
+- **Q2 NOW-SKELETON** — Sprint 15 creates `packs/duo-default/` skeleton + migrates `what-duo-does.html` immediately; ENH-137 Beginner's Guide drops into the same pack later
+- **Q3 FLAG-IN-PACK-JSON** — extend PackManifest schema with `builtIn: true` flag; CLI `duo pack uninstall <name>` refuses (or requires `--force`) when the flag is set
+
+**Owner general-comment (verbatim 2026-05-10):** *"Confirm that pack-delivered FTUX/default open, persist til closed content can be ANY OF: a markdown file in editable state, a markdown file in locked state, an html canvas, a playground."*
+
+**Confirmation answer (sub-task scope clarification):**
+
+| Content kind | v1 schema support | How |
+|---|---|---|
+| HTML canvas (canvas mode — editable raw HTML) | ✅ supported today | `PackDefault.kind: 'canvas'` + plain `.html` file → first-launch hook sends `NAV_EDIT` → `openFileSmart` routes to canvas tab |
+| HTML playground (browser mode — scripts run, buttons fire) | ✅ supported today | `PackDefault.kind: 'canvas'` + `.html` file with `<meta name="duo-open-in" content="browser">` in the head → `openFileSmart` honors the meta hint and routes to browser pane |
+| Markdown editable (TipTap rich editor) | ❌ NOT yet — needs schema extension | `PackDefault.kind` would expand to `'editor'`; `electron/main.ts:535` hardcodes a filter that drops non-canvas kinds (`if (def.kind !== 'canvas') continue   // editor/browser are v2`) |
+| Markdown locked (read-only preview) | ❌ NOT yet — needs schema extension | `PackDefault.kind` would expand to `'markdown-preview'` (the existing read-only TabType per shared/types.ts:347); first-launch dispatch needs a kind-aware route to force preview mode |
+
+**Resulting Sprint 15 scope (NOW-SKELETON migration):**
+
+- **WDD migration uses v1 schema as-is.** `what-duo-does.html` is already an HTML file; opens via `kind: 'canvas'` (or `kind: 'canvas'` + `duo-open-in=browser` if we want browser-mode rendering — owner's call).
+- **Schema extension is OUT OF SCOPE for the NOW-SKELETON migration.** The pack works for HTML; markdown support is a follow-on.
+- **The schema extension lands** when a pack default needs to deliver markdown — most likely at ENH-137 (Beginner's Guide) IF the owner chooses to author it as markdown rather than HTML. **Filed as ENH-139 below.**
+
+**Sprint 15 sub-tasks (per Q1+Q2+Q3 picks):**
+
+1. Create `packs/duo-default/` with `PACK.json` (name: `duo-default`, version: matches Duo's `package.json`, `builtIn: true`, `defaults[]` with one entry for `what-duo-does.html` set to `openOnFirstLaunch: true, pin: true`).
+2. `git mv help/what-duo-does.html packs/duo-default/canvases/what-duo-does.html`. Update any cross-references (the asar `files: help/**/*` glob still includes `help/`; `help/canvas-actions-demo.html` remains).
+3. Extend PackManifest schema (shared/types.ts) with `builtIn?: boolean` field.
+4. Update PackLoader (`core/pack-loader.ts`) to surface the `builtIn` flag.
+5. Update CLI `pack uninstall` (likely in `cli/duo.ts` + `core/socket-server.ts` + the `electron/distro-pack-service.ts` uninstaller) to refuse uninstall when `builtIn: true`, OR require `--force`.
+6. Remove the hardcoded default-pins JSON literal at `install-service.ts:520-528` (op #8). The pack's `defaults[].pin: true` handles default-pinning now.
+7. Update `browser-manager.ts:49` (`defaultLandingUrl`) — currently `helpUrl('faq.html')`; pivot to either `null` (blank canvas on new tab — recommended) or the pack canvas URL.
+8. Update `electron/main.ts:305-310` — drop the FAQ-as-boot-default-tab logic (no longer relevant).
+9. Smoke walk: fresh install → WDD opens via the pack, gets pinned. Bump pack version + reinstall → first-launch open re-fires. `duo pack uninstall duo-default` is refused without `--force`.
+
+**Implications cascading from these decisions:**
+
+- **ENH-135 (FAQ removal) collapses into ENH-138's sub-task #6 + #7.** The default-pins literal goes away entirely; FAQ archive to `docs/legacy/` is a single `git mv`.
+- **ENH-137 (Beginner's Guide) gets simpler.** Its surface decision (pack vs help vs both) dissolves — the pack IS the surface. Owner-authored draft drops into `packs/duo-default/canvases/beginners-guide.html` (HTML) or triggers ENH-139 schema extension if owner authors as markdown.
+
+**Cross-ref:** ENH-134 (the planning playground that surfaced this question; can be closed as ✅ resolved once Sprint 15 ships ENH-138). ENH-135 (folds into ENH-138 sub-tasks). ENH-137 (content drops into the pack ENH-138 creates). ENH-139 (the schema extension if/when needed).
+
+---
+
+### ENH-139: Extend PackManifest schema to support markdown editable / markdown locked / playground (browser-mode) defaults
+
+**Status:** 🟡 **Open / deferred until needed.** Surfaced 2026-05-10 by ENH-138's owner general-comment confirming the v1 PackDefault.kind union (just `'canvas'`) doesn't cover all four content kinds owner asked about. Defer until a real pack default needs markdown OR explicit playground routing.
+**Priority:** Medium — gates pack-delivered markdown content. Not urgent because today's known FTUX content (`what-duo-does.html`, `beginners-guide.html` likely) is HTML.
+**Filed:** 2026-05-10.
+
+**What's wanted.** Expand the union from `kind: 'canvas'` to `kind: 'canvas' | 'editor' | 'markdown-preview' | 'browser'` to express:
+- `'canvas'` — HTML in canvas mode (editable raw HTML; today's behavior)
+- `'editor'` — `.md` file in TipTap rich editor (full editable markdown experience)
+- `'markdown-preview'` — `.md` file in read-only preview pane (locked markdown — user reads, doesn't type)
+- `'browser'` — explicit playground routing (today implicit via the file's `<meta duo-open-in>` meta — making this explicit at the pack-default level lets a single HTML file be routed differently per pack default if needed)
+
+**Implementation sketch:**
+
+1. `shared/types.ts § PackDefault.kind` — expand the union.
+2. `core/pack-loader.ts § validateManifest` — accept the new kinds.
+3. `electron/main.ts § first-launch defaults hook` — remove the line 535 `if (def.kind !== 'canvas') continue` filter; route each kind:
+   - `'canvas'` → `NAV_EDIT` (current; openFileSmart handles routing)
+   - `'editor'` → `NAV_EDIT` (same call; openFileSmart routes `.md` to editor by default)
+   - `'markdown-preview'` → some new IPC that forces preview mode (need to add — `openFileSmart` doesn't currently have a "force preview" override; might need a new `mode: 'preview'` argument similar to ENH-097's `mode: 'canvas'`)
+   - `'browser'` → `openFileSmart(path, name, 'browser')` (the explicit override path; bypasses the file's own `duo-open-in` meta)
+4. Update PackManifest validation tests + smoke-walk fixture packs covering each kind.
+
+**Trigger to land:** when ENH-137 (Beginner's Guide) author chooses markdown OR when a future content pack needs explicit browser-mode default-open without depending on the file's meta hint.
+
+**Cross-ref:** ENH-138 (the principle that surfaced this gap). ENH-137 (the most likely trigger).
+
+---
+
+### BUG-118: `cut-version` skill should sanity-check cli/duo binary against a fresh rebuild — caught after v0.6.12 shipped stale
 **Priority:** Medium — clean architectural boundary that simplifies adding new FTUX content (Beginner's Guide ENH-137 lands here directly). Not user-blocking but high-leverage for future content additions.
 **Filed:** 2026-05-10.
 
@@ -5852,7 +5924,27 @@ bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
 
 ---
 
-### ENH-134: Dogfood the distro-packs pattern for Duo's own defaults — schema unification + main-app refactor (planning artifact)
+### ENH-134: Dogfood the distro-packs pattern for Duo's own defaults — planning artifact (CLOSED — decisions captured 2026-05-10)
+
+**Status:** ✅ **CLOSED 2026-05-10.** Refocused mid-flight from "should we converge?" to "how to modify the install + the surgical FTUX-content question." Owner walked the playground and Copy-decisions-back came back as: principle ADOPTED, NOW-SKELETON timing, FLAG-IN-PACK-JSON uninstall guard. Captured + filed as ENH-138 + ENH-139 (Sprint 15 P0 + deferred follow-on respectively). Playground stays in repo at [docs/research/dogfood-distro-packs-plan.html](docs/research/dogfood-distro-packs-plan.html) for reference (the install-pipeline inventory in §§ 1–4 is canonical maintenance documentation; § 5 closed but kept for context).
+
+**Final decisions (verbatim Copy-decisions-back payload):**
+```
+ENH-134 INSTALL-MAINTENANCE — DECISIONS (2026-05-10)
+============================================================
+[ADOPT] Q1 · Adopt the FTUX-content-→-packs principle?
+[NOW-SKELETON] Q2 · Migration timing relative to ENH-137
+[FLAG-IN-PACK-JSON] Q3 · Built-in pack uninstall guard
+GENERAL COMMENTS
+----------------
+Confirm that pack-delivered FTUX/default open, persist til closed
+content can be ANY OF: a markdown file in editable state, a
+markdown file in locked state, an html canvas, a playground
+```
+
+**General-comment confirmation answer captured in ENH-138 entry above.** Two of four kinds work in v1 schema (HTML canvas + playground via meta); markdown editable + markdown locked need schema extension filed as ENH-139.
+
+**Original filing (kept below for context — supersedes by the closed status above):**
 
 **Status:** 🟡 **Open / planning.** Interactive playground at [docs/research/dogfood-distro-packs-plan.html](docs/research/dogfood-distro-packs-plan.html) — open in Duo's browser pane via `duo open docs/research/dogfood-distro-packs-plan.html`, walk through § 1–3 (inventory, problem, four options compared via `.option-card` blocks), then answer the 5 inline decisions in § 4 (Q0 option pick + Q1–Q4 AUQs that gate Step 2), hit Copy decisions, paste back to Claude. Surfaces in every smoke walk until owner closes it (per the "research reports must file a tracked review task" memory rule).
 **Priority:** Medium — architectural cleanup; not user-blocking but unblocks several adjacent improvements (single install pipeline, smaller install-service.ts, no PACK.json vs DISTRO.json schema duplication).
