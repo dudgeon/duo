@@ -1,100 +1,51 @@
-# Active sprint state — Sprint 13 (cut target v0.6.11)
+# Active sprint state — Sprint 14 (cut target v0.6.12)
 
-**Theme:** Paste-image v1 → v2. The Sprint 12 cut shipped paste-image as
-a workflow-unblock with a known trade-off: blob URLs in markdown source
-that don't survive doc reload (`![](blob:http://localhost:5173/...)`).
-Sprint 13 closes that debt by storing relative paths in source and
-hydrating displayable URLs at mount time. Plus four carry-overs that
-keep the editor-canvas parity story clean and remove daily friction.
-
-**Owner directive (2026-05-09 post-cut, AUQ answers):** P0 = FOLLOWUP-014
-paste-image v2 (custom Image NodeView). Carry-overs: ENH-125 canvas-CLI
-parity for `duo image insert`, v0.6.10 walk-carryover (canvas paste +
-drop + CLI verb walk), BUG-101 `duo edit` doesn't auto-focus tab,
-ENH-116 trim SKILL.md verbosity.
+**Theme: TBD — picks open after v0.6.11 cut (2026-05-09 evening).** Sprint 13 closed cleanly with paste-image v2 + auto-redistribute panes + view-source v1 + race-class fixes. Sprint 14 has no anchor commitment yet — owner picks from the queued candidates below in the next planning session.
 
 ---
 
-## Status (2026-05-09 — sprint open)
+## Status (2026-05-09 — sprint open, no commitment yet)
 
-- **FOLLOWUP-014 (P0 anchor — paste-image v2):** ⬜ Not started.
-- **ENH-125 (canvas-CLI parity for `duo image insert`):** ⬜ Not started.
-- **BUG-101 (`duo edit` doesn't auto-focus tab):** ⬜ Not started.
-- **ENH-116 (trim SKILL.md):** ⬜ Not started.
-- **v0.6.10 walk-carryover (canvas paste + drop + CLI verb walk):**
-  ⬜ Walk owed before v0.6.11 cut. See [docs/dev/v0.6.10-walk-carryover.md](v0.6.10-walk-carryover.md).
+No items committed. Read the **candidate slate** below + the **owner-directed pulls already on owner's mind** before the first work commit lands. Run `/sprint-plan` to get a worksheet for prioritization.
 
 ---
 
-## P0 anchor — FOLLOWUP-014 paste-image v2
+## Candidate slate (carries from Sprint 13's "Deferred to Sprint 14+" stash)
 
-**Pre-state (v0.6.10):** [renderer/components/editor/MarkdownEditor.tsx](../../renderer/components/editor/MarkdownEditor.tsx) `handlePaste` / `handleDrop` insert via `setImage({ src: blobUrl })`. tiptap-markdown serializes the src as-is, so disk source carries `![](blob:http://localhost:5173/<uuid>)` — renderer-process-scoped, dies on doc reload. Same trade-off in [renderer/components/Page/pagePaste.ts](../../renderer/components/Page/pagePaste.ts) for the canvas surface.
+### Owner-directed (already named with intent)
 
-**v2 plan (custom Image extension):**
-1. New extension at `renderer/components/editor/extensions/DuoImage.ts` — extends `@tiptap/extension-image`.
-2. `addOptions()` adds a `getDocPath: () => string | null` callback the editor passes in.
-3. `addAttributes()` keeps `src` (relative or abs as authored) AND adds a private `__resolvedSrc` (transient, not serialized).
-4. `renderHTML(node)` resolves: if `node.attrs.src` is relative, prepend `dirname(getDocPath())/` + read bytes via `files.read` + create blob URL → use that as the rendered `<img>` src. If absolute (file://, duo-asset://, http(s)://), use as-is.
-5. `parseHTML` reads `src` as-given (no resolution).
-6. tiptap-markdown serializes the original `src` attribute (unchanged) → markdown stays portable.
-7. Update handlePaste/handleDrop to insert with `result.relPath` (the bare filename) instead of the blob URL.
-8. Mirror to the canvas surface (`pagePaste.ts`) — analogous resolution at insert time + a separate post-load pass to hydrate any existing `![](relative-path.png)` already in the doc.
+- **FOLLOWUP-015 — ENH-117 v2 panel-fill view-source.** Owner walk-3 surfaced the surface miss on v1: *"view source should occupy the full panel … you should have asked more questions about the intent vs making this modal approach … not urgent to fix but this is bad."* v2 = panel-fill (in-place toggle; replaces the editor / canvas content area) + menu + tab-context entry triggers (not chord-only). Open scope question: read-only-only (~half-day) OR read+write panel-fill with bidi sync (~multi-day, requires CodeMirror integration with TipTap)? Confirm before code.
+- **ENH-127 reconsideration.** v1 implemented + reverted same day after live test confirmed Claude Code's input loop treats `\n` and `\r` identically. Future paths documented in tasks.md entry: (1) Claude Code adds raw-newline mode (out of Duo's control; could file upstream), (2) Duo-side composer-window pattern (separate text area outside the terminal), (3) anti-accidental-submit heuristic (delay-based or click-confirm). Pick a direction OR keep declined.
+- **ENH-118 image-type handling discussion.** Owner ask from Sprint 12 walk-rev2: animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently `<img>` tag, scripts blocked). HEIC/RAW reject vs convert? Open question in CLAUDE.md flagged "before Sprint 14 picks up the image-handling polish cluster" — answer this before ENH-119/120 work.
 
-**Open scope questions (decide during build):**
-- NodeView (async-aware) vs. renderHTML (synchronous, must precompute) — NodeView lets the resolution happen async on mount; renderHTML can't await files.read. NodeView is the right architecture but bigger lift.
-- Caching: read file once per src, hold blob URL in a per-doc cache so re-renders don't re-read. Memory implications for large docs with many images.
-- Cleanup: revoke blob URLs on tab unmount to avoid leaks. (See ImageView's pattern.)
+### Visibility-tooling cluster (saves blind-debugging pain — Sprint 13 surfaced repeatedly)
 
----
+- **ENH-122 `duo dom <selector>`** — query renderer DOM from CLI. Single CLI verb, ~half-day. Would have prevented several Sprint 13 blind-canvas debugging sessions.
+- **ENH-123 `duo devtools`** — open the renderer's DevTools from CLI. ~hour. Backstop for the 5% of cases where ENH-122's targeted query isn't enough.
+- **ENH-124 `duo layout`** — structured snapshot of working pane state (active tab kind/path, split state, etc.). ~half-day. Removes ambiguity about WHAT the user is looking at.
 
-## Carry-overs
+### Image-handling polish cluster (paired with ENH-118 above)
 
-### ENH-125 — canvas CLI parity for `duo image insert`
+- **ENH-119** — selection tint covers images (visual feedback when an image is in the selected range).
+- **ENH-120** — copy-with-image preserves image bytes on clipboard (today the markdown is copied but the image itself isn't a clipboard-image item).
 
-Closes the explicit `(c)-Deferred` from v0.6.10's editor-canvas parity disposition. v1 ships markdown-editor target only; v2 adds canvas dispatch. Implementation:
-1. Add `EDITOR_IMAGE_INSERT` listener to `PageTab.tsx` mirroring [MarkdownEditor.tsx](../../renderer/components/editor/MarkdownEditor.tsx)'s handler.
-2. App.tsx-level dispatch: when an `image-insert` request arrives, route to whichever editor is active (markdown OR page); error if neither.
-3. Reply contract unchanged (`ImageInsertResult { absPath }`).
+### Larger / strategic candidates (would anchor a sprint by themselves)
 
-### v0.6.10 walk carry-over
+- **ENH-110 JSON viewer (PM persona)** — research doc landed at `docs/research/data-primitives-canvas.html` § 4. Recommended Tier 3 (`@uiw/react-json-view` ~7 KB gz) as new `kind: 'json'` tab type. ~3 days. Open scope questions in CLAUDE.md (tier 2 vs 3, edit semantics, YAML cohabitation).
+- **ENH-082 Terminal Context Bar** — collapsible UI for job + docs + skills shared between user and agent. Research-doc owed before code. Medium-large feature.
+- **Obsidian cluster — backlinks panel / graph view** — Tier C from the Obsidian-vault research doc. Wikilinks autocomplete (v0.6.10) usage tells us whether the next-tier capability has demand.
 
-Items shipped without their own walk per [docs/dev/v0.6.10-walk-carryover.md](v0.6.10-walk-carryover.md): canvas paste-image, canvas drop-image, `duo image insert` CLI verb (markdown editor), ENH-121 console forwarder regression check. Walk these BEFORE v0.6.11 cut.
+### Bugs / paper cuts queued
 
-### BUG-101 — `duo edit` doesn't auto-focus the opened tab
-
-Editor-half landed in v0.6.9 (React anti-pattern + visibility filter). The remaining symptom: `duo edit /path/to/file.md` opens the file as a tab but the active editor stays on whatever was active before. Forces "click the tab manually" in every walk script + every CLI flow. Polluting test patterns. Sprint 13 fix likely lives in App.tsx's `openFile` dispatcher: after the rAF chain, also flip `setActiveWorking({ kind: 'file', id: newTabId })`.
-
-### ENH-116 — trim `.claude/skills/smoke-walk/SKILL.md`
-
-File is 600+ lines as of 2026-05-09. Runtime skill-loading budget cuts long skills; rules near the bottom (§ 5b checks 4-6, § 7 result-parsing, manifest-authoring tips) get truncated and silently drop from Claude's working context. Audit:
-1. Move detailed sections to `.claude/skills/smoke-walk/references/<topic>.md`.
-2. Collapse violation callouts ("Violated 2026-05-04…") into a single incidents-reference sub-doc.
-3. Tighten redundant prose (every blockquote-callout duplicates the rule above).
-4. Keep procedure-active-verbs in SKILL.md proper.
+- **BUG-100** — Send → Duo pill missing on text selections inside the split-view aux browser pane. Owner originally flagged "non blocking"; cost is a CdpBridge multi-attach refactor (~3-4 hours).
+- **BUG-093** — right-click → Move to Split View can crash the renderer. Instrumented in v0.6.7; owner-blocked on a live repro against the instrumented build.
+- **BUG-102** — split view goes blank while ⌘⇧A tab-search palette is open. Owner: *"non urgent."*
+- **Stage 21b** — DMG background image. Polish-only.
 
 ---
 
-## Sequencing
+## Sprint 14 picks awaiting owner
 
-1. **Walk the v0.6.10 carry-over first** — confirms the v0.6.10 cut is functionally complete on canvas + CLI before piling new work on top.
-2. **FOLLOWUP-014 paste-image v2** — the P0 anchor. Markdown editor first, then canvas mirror. ENH-125 may absorb naturally if the canvas paths get touched.
-3. **BUG-101 + ENH-116** in parallel where convenient — small scopes, reduce daily friction independent of the P0.
-4. **Cut v0.6.11** when all five items pass walk.
+Run `/sprint-plan 0.6.12` for a worksheet that gathers all candidates (above + open `tasks.md` items + last walk's "Other notes for next sprint") and prompts P0/P1/P2/Skip prioritization. Otherwise lead the planning session with a direct AUQ on which 1-3 items to commit.
 
----
-
-## Deferred to Sprint 14+
-
-- ~~ENH-126 (was Sprint 14 P0)~~ ✅ Pulled into Sprint 13 + shipped v0.6.11 (2026-05-09) after owner escalation. Auto-redistribute on aux-open: terminal-visible → 33/33/33; terminal-collapsed → main+split 50/50. ENH-099 (`⌘⌥4` chord) is still queued for a future sprint as an on-demand trigger using the same canonical-layout target.
-- ENH-110 JSON viewer (data-primitives canvas cluster — research doc landed at `docs/research/data-primitives-canvas.html`).
-- ENH-118 image-type handling discussion (GIF freeze-on-first-frame? SVG safety? HEIC?).
-- ENH-119 image-in-selection tint.
-- ENH-120 clipboard preserves image bytes when copying out.
-- ENH-117 view-source for markdown / HTML.
-- ENH-122 `duo dom <selector>` (renderer DOM query CLI).
-- ENH-123 `duo devtools` (open renderer DevTools from CLI).
-- ENH-124 `duo layout` (working-pane state snapshot CLI).
-- BUG-100 Send→Duo pill in aux browser pane.
-- BUG-093 split-view crash (owner-blocked on live repro + console traces).
-- Backlinks panel / graph view (Obsidian cluster continuation).
-- Split-view feature-parity refactor scrutiny (per Geoff's 2026-05-09 ask — at file-tab render level there's NO disparity, real disparities are intentional v1 simplifications; revisit if multi-tab aux becomes a real workflow ask).
+**Recommendation if owner just says "pick something":** ENH-122 (`duo dom`) as a half-day P0 because the visibility-tooling pain was repeated in Sprint 13. Pairs with FOLLOWUP-015 ENH-117 v2 panel-fill (small) for a coherent "developer experience + paper-cut polish" sprint shape. ENH-118 owner-pick conversation queued before any image-polish work.
