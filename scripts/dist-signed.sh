@@ -151,4 +151,11 @@ bash "$REPO_ROOT/scripts/validate-signed-dmg.sh"
 
 echo
 echo "[duo] Validating launch + runtime modules (catches v0.4.0–v0.4.3-class node-pty crash)..."
-bash "$REPO_ROOT/scripts/validate-dmg-launch.sh"
+# BUG-116 (Sprint 15) — pass the explicit current-version DMG path
+# instead of letting validate-dmg-launch.sh glob `dist/Duo-*-arm64.dmg`.
+# The glob's `ls | tail -1` picks alphabetically-LAST, which between
+# v0.6.8 and v0.6.12 is v0.6.8 (because "1" < "8" character-wise) — so
+# the validate would silently check the OLD DMG, not the freshly-cut
+# one. The cut would still pass with stale validation.
+DUO_VERSION=$(node -p "require('$REPO_ROOT/package.json').version")
+bash "$REPO_ROOT/scripts/validate-dmg-launch.sh" "dist/Duo-${DUO_VERSION}-arm64.dmg"

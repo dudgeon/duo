@@ -5747,24 +5747,13 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ### BUG-116: `scripts/dist-signed.sh` validates the wrong DMG via glob
 
-**Status:** 🟡 Open. Filed 2026-05-10 from v0.6.12 cut close-out.
-**Priority:** Low — non-user-facing; affects build-pipeline confidence only. The new DMG is signed + notarized + stapled correctly; only the launch-smoke validate step picks the wrong file.
-**Filed:** 2026-05-10.
+**Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commit 5).** [`scripts/dist-signed.sh:154`](scripts/dist-signed.sh) now reads the version from `package.json` and passes the explicit `dist/Duo-${DUO_VERSION}-arm64.dmg` path to `validate-dmg-launch.sh`. The script's existing `DMG_PATTERN="${1:-dist/Duo-*-arm64.dmg}"` glob (line 29) plus `ls | tail -1` was picking the alphabetically-last match — between v0.6.8 and v0.6.12 that's v0.6.8 (because "1" < "8" character-wise), so cuts could pass validation against the OLD DMG. The fix sidesteps the glob entirely.
+**Priority:** Low — non-user-facing; affects build-pipeline confidence only. The new DMG is signed + notarized + stapled correctly; only the launch-smoke validate step was picking the wrong file.
+**Filed:** 2026-05-10. **Shipped:** 2026-05-10.
 
-**Symptom.** During the v0.6.12 cut, `bash scripts/dist-signed.sh` ran successfully end-to-end, but the embedded `scripts/validate-dmg-launch.sh` step printed `[validate-launch] DMG: dist/Duo-0.6.8-arm64.dmg` — it picked an OLD DMG (probably first match in a glob inside `dist/`), not the freshly-built `Duo-0.6.12-arm64.dmg`. Static + dynamic launch checks PASSED but were against `0.6.8`, not `0.6.12`. Owner caught it; cut paused; ran `bash scripts/validate-dmg-launch.sh dist/Duo-0.6.12-arm64.dmg` explicitly, which passed.
+**Symptom (preserved for cross-reference).** During the v0.6.12 cut, `bash scripts/dist-signed.sh` ran successfully end-to-end, but the embedded `scripts/validate-dmg-launch.sh` step printed `[validate-launch] DMG: dist/Duo-0.6.8-arm64.dmg` — it picked an OLD DMG, not the freshly-built `Duo-0.6.12-arm64.dmg`. Static + dynamic launch checks PASSED but were against `0.6.8`, not `0.6.12`. Owner caught it; cut paused; ran `bash scripts/validate-dmg-launch.sh dist/Duo-0.6.12-arm64.dmg` explicitly, which passed.
 
-**Fix.** `dist-signed.sh` should pass the explicit current-version DMG path (computed from `package.json § version`) to `validate-dmg-launch.sh` rather than letting it auto-pick from `dist/`. One-liner change:
-
-```bash
-# in scripts/dist-signed.sh, near the validate step:
-local version
-version=$(node -p "require('./package.json').version")
-bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
-```
-
-**Smoke walk item.** Cut a test DMG (signed unsigned doesn't matter for this test) with multiple older DMGs in `dist/`; verify the validate step prints the NEW DMG path, not an old one.
-
-**Cross-ref:** v0.6.12 cut session (planning file at `~/.claude/plans/task-notification-task-id-brxh7e0lj-tas-quiet-cerf.md` flagged this).
+**Cross-ref:** v0.6.12 cut session.
 
 ---
 
