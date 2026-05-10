@@ -5628,6 +5628,39 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### BUG-118: `cut-version` skill should sanity-check cli/duo binary against a fresh rebuild — caught after v0.6.12 shipped stale
+
+**Status:** 🟡 Open. Filed 2026-05-10 from v0.6.12 close-out cli/duo regression.
+**Priority:** High — silently shipped a stale CLI binary in v0.6.12; only caught during ENH-134 cleanup work because `git status` showed a 225-line cli/duo diff post-cut. Without that catch the regression would have lived on `main` until the next cut.
+**Filed:** 2026-05-10.
+
+**What happened.** v0.6.12's cut commit (18725c7) included `cli/duo` at SHA `025a57b` (1269 lines, missing the ENH-130 `--reveal` flag handling for `duo open / edit / view`). The freshly-rebuilt binary at SHA `34dd176` (1476 lines) wires the flag correctly. The dist-signed.sh + DMG-bundled binary IS correct (built post-`npm run build:cli`); this regression only affects dev users (npm run dev install path).
+
+**Theory on the trigger.** Most likely a misordered shell invocation in the cut workflow Step 4: `npm run build:cli` ran fresh; then a typecheck failure on JsonView (onAdd/onDelete props) caused me to edit + re-typecheck; somewhere between the rebuild and the `git add cli/duo` the binary got reverted on disk OR the build was overwritten. cli/duo.ts source was unchanged — only the binary drifted.
+
+**The cut-version skill upgrade.** Add a post-build sanity check:
+
+```bash
+# After Step 4's npm run build:cli:
+git diff --quiet cli/duo || {
+  echo "[cut] cli/duo has uncommitted diff post-build — verifying with fresh rebuild"
+  cp cli/duo /tmp/cli-duo-postbuild
+  npm run build:cli
+  if ! cmp -s cli/duo /tmp/cli-duo-postbuild; then
+    echo "ERROR: cli/duo drifted between build:cli and commit time. Aborting cut."
+    exit 1
+  fi
+}
+```
+
+Or simpler: at the start of Step 6 (commit), re-run `npm run build:cli` to guarantee freshness. Cheap (~5ms); guarantees the binary in the cut matches the source at commit time.
+
+**Mitigation for users.** v0.6.12 DMG users are unaffected (the bundled cli/duo in the .app was packaged post-`npm run build:cli`; install-service op #12 copies the bundled one). v0.6.12 dev-install users (`npm run dev` path) had the stale binary at `~/.local/bin/duo`; landing 8d1f96e in v0.6.13 fixes them on next install-banner click.
+
+**Cross-ref.** Commit 18725c7 (the cut that committed the stale binary). Commit 8d1f96e (the fix). ENH-134 (cleanup work that surfaced the regression).
+
+---
+
 ### BUG-117: install-service SessionStart hook write must fail gracefully for enterprise-locked `~/.claude/settings.json`
 
 **Status:** ✅ **Shipped 2026-05-10** — wrapped `installSessionStartHook()` call site in try/catch ([electron/install-service.ts:538-553](electron/install-service.ts)). On failure (read-only settings.json, restrictive enterprise policy, JSON write reject), the catch logs a warn and continues — the rest of the install still completes. Mirrors the existing CLAUDE.md merge graceful-failure pattern at lines 547-553.
