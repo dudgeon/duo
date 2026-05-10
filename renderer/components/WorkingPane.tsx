@@ -436,6 +436,12 @@ export function WorkingPane({
         <MarkdownEditor
           path={tab.path}
           isNew={tab.isNew}
+          // FOLLOWUP-014/walk-2 — gates `onImageInsert` IPC subscription
+          // so only the active editor responds to `duo image insert`.
+          // Pre-fix every mounted MarkdownEditor responded; first reply
+          // won; image landed in the wrong file when multiple tabs were
+          // open. Same race shape as the doc-read bug.
+          isActive={isFileActive(tab.id)}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onCommitNewFile={(p, t) => onCommitNewFile(tab.id, p, t)}
           onCancelNew={() => closeFileTab(tab.id)}
@@ -459,6 +465,11 @@ export function WorkingPane({
           // active one. Without the active gate, hidden canvases would
           // try to claim focus when ⌘` lands in the working pane.
           focused={focused && isFileActive(tab.id)}
+          // FOLLOWUP-014/walk-2 — gates `onImageInsert` IPC subscription
+          // so only the active canvas responds to `duo image insert`.
+          // Same race shape as the doc-read bug; without the gate older
+          // canvases (from session restore) would win the response race.
+          isActive={isFileActive(tab.id)}
           // BUG-037 — iframe mousedown forwards up to App.tsx so it
           // can flip focusedColumn to 'working'. Otherwise clicks
           // into the canvas while terminal had focus leave the

@@ -668,9 +668,16 @@ async function main(): Promise<void> {
         // (terminal column width as % of the split container). Clamps
         // to 20\u201380 server-side. Also accepts named presets to mirror
         // the View \u2192 Pane size menu shortcuts.
+        // ENH-099 \u2014 `3way` preset is special: snaps to outer 33/67
+        // PLUS inner aux 50/50 (when aux is open). Routes through the
+        // dedicated `layout-3way-even` socket verb instead of `split`.
         const arg = rest[0]
         if (arg === undefined) {
-          die('Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>')
+          die('Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy|3way>')
+        }
+        if (arg === '3way' || arg === '3-way' || arg === 'even-3way') {
+          out(await send('layout-3way-even', {}))
+          break
         }
         const presets: Record<string, number> = {
           even: 50,
@@ -685,7 +692,7 @@ async function main(): Promise<void> {
         } else {
           const parsed = Number(arg)
           if (!Number.isFinite(parsed)) {
-            die('Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>')
+            die('Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy|3way>')
           }
           pct = parsed
         }
@@ -1471,8 +1478,12 @@ COMMANDS
                                   20–80. Presets: even (50), terminal-
                                   heavy (67), canvas-heavy (33),
                                   terminal (80, full-terminal), canvas
-                                  (20, full-canvas). Mirrors View →
-                                  Pane size menu and ⌘⌥1/2/3/0/9.
+                                  (20, full-canvas), 3way (ENH-099 —
+                                  outer 33/67 + inner aux 50/50;
+                                  matches ⌘⌥4 chord; on-demand
+                                  sibling of ENH-126's redistribute-
+                                  on-aux-open). Mirrors View → Pane
+                                  size menu and ⌘⌥1/2/3/4/0/9.
   split-view <op> [args]          ENH-041 / Sprint 3 + Phase 3c —
                                   Split View aux pane. Sub-verbs:
                                     open <path>           open file in aux

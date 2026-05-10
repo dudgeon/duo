@@ -272,6 +272,19 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
       return true
     })
 
+    // ENH-127 was implemented + tested live in walk-3 (2026-05-09) —
+    // the per-Claude-tab Enter → \n / Cmd+Enter → \r intercept fired
+    // correctly at the renderer side, but Claude Code's input loop
+    // treats \n and \r identically at the line-discipline level
+    // (verified: plain Enter still submits to Claude). The Duo-side
+    // intercept can't differentiate without Claude Code itself
+    // honoring the LF/CR distinction. Reverted the intercept; ENH-127
+    // remains filed in tasks.md with the live-test result documented
+    // for any future revisit (e.g. if Claude Code adds a "send raw
+    // newline" mode, or if a different anti-accidental-submit pattern
+    // surfaces — Slack-style ⇧Return-only-submits-when-typing-stops,
+    // a confirmation dialog on submit, etc.).
+
     // Set refs before attempting the first fit so resize/visibility effects
     // still work even if fit throws (e.g. zero-size container on initial mount).
     termRef.current = term

@@ -366,6 +366,10 @@ export interface ElectronLayoutAPI {
    *  accelerators, or `duo split <pct>` set the split percentage.
    *  Renderer clamps to 20–80 (matching divider drag). */
   onSplitSet: (cb: (pct: number) => void) => () => void
+  /** ENH-099 — fires when the `⌘⌥4` chord, View → Pane size → 3-way
+   *  even, or `duo split 3way` requests the canonical 3-pane layout
+   *  (outer 33/67 + inner aux 50/50 if aux is open). */
+  onLayout3wayEven: (cb: () => void) => () => void
 }
 
 // ENH-041 / Sprint 3 — Split View ("aux") API. Renderer is the

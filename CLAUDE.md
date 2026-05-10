@@ -535,6 +535,7 @@ Full plan: [docs/dev/active-sprint.md](docs/dev/active-sprint.md).
 
 | Question | Priority |
 |---|---|
+| ~~ENH-126~~ ✅ Shipped v0.6.11 (2026-05-09 same-day after owner escalation; was Sprint 14 P0). Auto-redistribute on aux-open implemented in `App.tsx § splitViewMoveTabByPath / splitViewMoveBrowserTab`. ENH-099 (`⌘⌥4` chord) still queued separately. | None — done |
 | Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 13 |
 | FOLLOWUP-014 paste-image v2 architecture — NodeView (async-aware, supports the resolution at mount) vs. renderHTML (synchronous, must precompute)? | Before any Sprint 13 P0 code work — affects the whole shape of `DuoImage.ts` |
 | ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into a future sprint |

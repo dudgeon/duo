@@ -417,6 +417,13 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, pct: number) => cb(pct)
       ipcRenderer.on(IPC.SPLIT_SET, handler)
       return () => ipcRenderer.removeListener(IPC.SPLIT_SET, handler)
+    },
+    // ENH-099 — bridge for the 3-way even chord / menu / `duo split 3way`.
+    // Payload-free signal; renderer applies outer 33/67 + inner aux 50/50.
+    onLayout3wayEven: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.LAYOUT_3WAY_EVEN, handler)
+      return () => ipcRenderer.removeListener(IPC.LAYOUT_3WAY_EVEN, handler)
     }
   },
 

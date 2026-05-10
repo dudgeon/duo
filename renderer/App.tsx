@@ -320,11 +320,15 @@ export function App() {
     _internalSetFocusedColumn(next)
   }, [])
 
-  // BUG-101 (Sprint 9) — scratchpad ref used by openFile to hand off
-  // the "which tab should activate" decision from inside the
-  // setFileTabs updater to the outer flush block. Avoids the React
-  // anti-pattern of nested setState (see openFile comment below).
-  const pendingActivationRef = useRef<ActiveWorking | null>(null)
+  // BUG-101 (Sprint 13 v2 fix) — `fileTabsRef` mirrors the latest
+  // committed `fileTabs` so openFile can read it synchronously
+  // without waiting for a setFileTabs updater to commit. Pre-fix the
+  // sprint-9 "scratchpad ref" pattern stashed activation inside the
+  // setFileTabs updater and tried to flush it on the next line, but
+  // the updater is deferred to commit time — by the time the flush
+  // ran, the ref was still null. Now we resolve activation entirely
+  // outside the updater (see openFile below).
+  const fileTabsRef = useRef<FileTab[]>([])
   // Stage 26 PR 3 item 8 — handle for the FilesPane so the global
   // ⌘⇧G shortcut can flip its breadcrumb into the editable input.
   const filesPaneRef = useRef<FilesPaneHandle | null>(null)
@@ -332,6 +336,10 @@ export function App() {
   // Stage 10 Phase 5 — working-pane file tabs live in App-level state so
   // the navigator can push into them from FilesPane.onOpenFile.
   const [fileTabs, setFileTabs] = useState<FileTab[]>([])
+  // BUG-101 (Sprint 13 v2 fix) — keep fileTabsRef in sync so openFile
+  // can read the latest committed value synchronously without going
+  // through a setFileTabs updater.
+  fileTabsRef.current = fileTabs
   // Sprint 3 Phase 3c-iii foundation (v0.6.5 prep) — path-keyed dirty
   // tracking that bridges main fileTabs and the aux pane (whose
   // synthesized `aux:${path}` IDs aren't in fileTabs). Populated by
@@ -826,38 +834,37 @@ export function App() {
   // identity: if a tab already exists for this path, activate it instead of
   // creating a duplicate.
   //
-  // BUG-101 (Sprint 9, 2026-05-07) — calling `setActiveWorking` from
-  // INSIDE the `setFileTabs` updater is a React anti-pattern. Inner
-  // state updates are scheduled separately from the outer set's
-  // commit, and React 18+'s automatic batching can land them in a
-  // different render than the tab addition itself. Symptom: the
-  // CLI returned `{ok: true}` because main fired NAV_EDIT and the
-  // tab appended to fileTabs, but `activeWorking` flipped to a
-  // stale value (or didn't flip at all in some race), so the new
-  // tab never surfaced as visible. Fix: do the read-then-write
-  // pattern with a ref-style lookup so both setters run as direct
-  // state transitions, not nested ones.
+  // BUG-101 (Sprint 13 v2 fix) — resolve activation OUTSIDE the
+  // setFileTabs updater. Pre-fix (Sprint 9), the activation target
+  // was stashed on `pendingActivationRef` inside the updater and
+  // flushed on the next line — but the updater is queued, not run
+  // synchronously, so the ref was still null when the flush ran.
+  // Symptom: `duo edit /path/foo.md` opened the tab but never
+  // activated it; the previously-active tab kept focus.
+  //
+  // Fix: read the latest committed fileTabs via `fileTabsRef`,
+  // decide the activation id synchronously, then schedule the
+  // setFileTabs append + setActiveWorking + setFocusedColumn calls
+  // in the same React batch. The updater inside setFileTabs only
+  // does the array mutation (re-checking for an existing tab is
+  // race-defensive but otherwise pure).
   const openFile = useCallback((path: string, title: string) => {
-    setFileTabs(prev => {
-      const existing = prev.find(t => t.path === path)
-      if (existing) {
-        // Existing tab — surface its id so the activation runs OUTSIDE
-        // this updater. We can't return both the new state AND the id;
-        // stash on a ref-pattern via `pendingActivationRef`.
-        pendingActivationRef.current = { kind: 'file', id: existing.id }
-        return prev
-      }
+    const existing = fileTabsRef.current.find(t => t.path === path)
+    let activationId: string
+    if (existing) {
+      activationId = existing.id
+    } else {
       const { type, mime } = classifyFile(path)
-      const id = crypto.randomUUID()
-      pendingActivationRef.current = { kind: 'file', id }
-      return [...prev, { id, type, path, title, mime }]
-    })
-    // Now flush activation + focus OUTSIDE the updater. Both run as
-    // direct state writes that React batches normally — no nesting.
-    if (pendingActivationRef.current) {
-      setActiveWorking(pendingActivationRef.current)
-      pendingActivationRef.current = null
+      activationId = crypto.randomUUID()
+      const newTab: FileTab = { id: activationId, type, path, title, mime }
+      setFileTabs(prev => {
+        // Race-defense: a concurrent open of the same path may have
+        // landed between our ref read and this commit. Re-check.
+        if (prev.find(t => t.path === path)) return prev
+        return [...prev, newTab]
+      })
     }
+    setActiveWorking({ kind: 'file', id: activationId })
     setFocusedColumn('working')
     // BUG-101 walk-2 (Sprint 9, 2026-05-07) — owner saw the tab
     // surface but caret stayed in the terminal. Walk-1 added a
@@ -1849,14 +1856,26 @@ export function App() {
       }
       return prev
     })
-    setAuxState(prev => ({
+    setAuxState({
       paths: [path],
       activeIndex: 0,
-      splitPct: prev?.splitPct ?? 0.5
-    }))
+      // ENH-126 — opening a file in split view always snaps the inner
+      // main/aux divider to 50/50. Pre-fix this preserved the prior
+      // aux split, which was usually some hand-dragged ratio from a
+      // previous session — surprised the user every time.
+      splitPct: 0.5
+    })
+    // ENH-126 — outer terminal/working snaps to 33% terminal / 67%
+    // working when terminal is visible (so net visual is ~33/33/33
+    // across all three columns). When terminal is collapsed
+    // (splitPct === 0), we leave it collapsed and rely on the inner
+    // 50/50 to give main/split a clean even split.
+    if (splitPct !== 0 && splitPct !== 100) {
+      setSplitPct(33)
+    }
     // eslint-disable-next-line no-console
     console.log('[BUG-093] splitViewMoveTabByPath COMMITTED', { path, promotedId })
-  }, [auxState, fileTabs, dirtyPaths, auxBrowserTab])
+  }, [auxState, fileTabs, dirtyPaths, auxBrowserTab, splitPct])
 
   // ⌘\ — move the ACTIVE main file tab into the aux slot. Resolves the
   // active tab's path then routes through splitViewMoveTabByPath so the
@@ -1932,9 +1951,16 @@ export function App() {
       id: browserTabId,
       url: result.url ?? '',
       title: result.title ?? '',
-      splitPct: auxState?.splitPct ?? 0.5
+      // ENH-126 — same canonical 50/50 inner split on browser-aux open
+      // as on file-aux open. See splitViewMoveTabByPath for the rationale.
+      splitPct: 0.5
     })
-  }, [auxState])
+    // ENH-126 — outer terminal/working snaps to 33/67 when terminal is
+    // visible. See splitViewMoveTabByPath for the full rationale.
+    if (splitPct !== 0 && splitPct !== 100) {
+      setSplitPct(33)
+    }
+  }, [auxState, splitPct])
 
   // ⌘+ / ⌘- / ⌘0 handler for terminal font bump. Flips the active tab's
   // bump value, updates the "remember last choice" default (so new tabs
@@ -2277,6 +2303,31 @@ export function App() {
   useEffect(() => {
     return window.electron.layout?.onSplitSet?.((pct) => {
       setSplitPct(Math.min(Math.max(pct, 20), 80))
+    })
+  }, [])
+
+  // ENH-099 — `⌘⌥4` chord / View → Pane size → 3-way even / `duo split
+  // 3way`. Sets the canonical 3-pane layout: outer 33/67 + inner aux
+  // 50/50. Same target shape as ENH-126's auto-redistribute on aux-
+  // open, but on-demand. When aux isn't currently open, only the outer
+  // ratio gets set.
+  //
+  // Walk-3 fix: aux's effective splitPct is read from EITHER auxState
+  // (file-aux) OR auxBrowserTab (browser-aux) — see WorkingPane §
+  // activeSplitPct. The chord must reset BOTH so the inner divider
+  // honors the new 50/50 regardless of which aux kind is currently
+  // pinned. Pre-fix the chord only touched file-aux's splitPct, so when
+  // a browser tab was in the aux slot (the most common case during the
+  // walk's smoke-walk-page review pattern), the inner divider stayed at
+  // whatever ratio the previous drag had left it.
+  useEffect(() => {
+    return window.electron.layout?.onLayout3wayEven?.(() => {
+      setSplitPct(33)
+      setAuxState(prev => (prev && prev.paths.length > 0
+        ? { ...prev, splitPct: 0.5 }
+        : prev
+      ))
+      setAuxBrowserTab(prev => (prev ? { ...prev, splitPct: 0.5 } : prev))
     })
   }, [])
 

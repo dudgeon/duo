@@ -210,6 +210,15 @@ export function useKeyboardShortcuts(opts: Options) {
           window.dispatchEvent(new CustomEvent('duo-reload-active-browser', { detail: { pane } }))
           return
         }
+        case 'viewSource': {
+          // ENH-117 — ⌘⌥V opens the read-only "view source" overlay.
+          // Both MarkdownEditor + PageTab listen for this event;
+          // each gates on isActive so only the visible surface
+          // responds. Same pane-aware indirection as sendToDuo /
+          // startComment.
+          window.dispatchEvent(new CustomEvent('duo-view-source', { detail: { pane } }))
+          return
+        }
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()
           return

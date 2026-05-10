@@ -381,6 +381,7 @@ async function createWindow(): Promise<void> {
     getTheme: getThemeState,
     setTheme: setThemeMode,
     setSplit: setSplit,
+    setLayout3wayEven: setLayout3wayEven,
     splitViewOpen: splitViewOpen,
     splitViewOpenBrowser: splitViewOpenBrowser,
     splitViewClose: splitViewClose,
@@ -1437,6 +1438,14 @@ function installAppMenu(): void {
               accelerator: 'CmdOrCtrl+Alt+3',
               click: () => setSplit(33)
             },
+            {
+              // ENH-099 — 3-pane even layout: outer 33/67 + inner aux
+              // 50/50 (if aux is open). On-demand sibling of ENH-126's
+              // auto-redistribute on aux-open.
+              label: '3-way even (33/33/33)',
+              accelerator: 'CmdOrCtrl+Alt+4',
+              click: () => setLayout3wayEven()
+            },
             { type: 'separator' },
             {
               label: 'Full terminal',
@@ -1612,6 +1621,18 @@ export function setSplit(pct: number): { ok: boolean; pct?: number; error?: stri
   }
   mainWindow.webContents.send(IPC.SPLIT_SET, clamped)
   return { ok: true, pct: clamped }
+}
+
+// ENH-099 — `⌘⌥4` chord, View → Pane size → 3-way even, and `duo split
+// 3way` all land here. Tells the renderer to apply the canonical 3-pane
+// even layout: outer 33/67 + inner aux 50/50 (when aux is open). Same
+// target shape as ENH-126's auto-redistribute, but on-demand.
+export function setLayout3wayEven(): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.LAYOUT_3WAY_EVEN)
+  return { ok: true }
 }
 
 // ENH-041 / Sprint 3 — Split View aux pane CLI handlers. Renderer

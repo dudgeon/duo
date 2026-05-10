@@ -87,6 +87,9 @@ export interface NavBridge {
   setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
   /** ENH-014 — CLI-driven split-pane percentage (clamped 20–80). */
   setSplit: (pct: number) => { ok: boolean; pct?: number; error?: string }
+  /** ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
+   *  inner aux 50/50 (when aux is open). On-demand sibling of ENH-126. */
+  setLayout3wayEven: () => { ok: boolean; error?: string }
   /** ENH-041 / Sprint 3 — Split View aux pane. CLI-driven open/close/
    *  promote/resize + state query. State is renderer-authoritative;
    *  the no-arg getter returns main's cached snapshot pushed by the
@@ -776,6 +779,14 @@ export class SocketServer {
           const setResult = this.nav.setSplit(pct)
           if (!setResult.ok) throw new Error(setResult.error ?? 'split set failed')
           result = { pct: setResult.pct }
+          break
+        }
+        case 'layout-3way-even': {
+          // ENH-099 — `duo split 3way` / `⌘⌥4` chord. Renderer applies
+          // the canonical 3-pane layout: outer 33/67 + inner aux 50/50.
+          const setResult = this.nav.setLayout3wayEven()
+          if (!setResult.ok) throw new Error(setResult.error ?? 'layout-3way-even failed')
+          result = { ok: true }
           break
         }
         case 'split-view': {

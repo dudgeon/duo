@@ -19,7 +19,31 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.6.10 cut 2026-05-09. Sprint 13+ work accumulates here.
+> Empty — v0.6.11 cut 2026-05-09. Sprint 14+ work accumulates here.
+
+## [0.6.11] — 2026-05-09
+
+Sprint 13 — paste-image v2 (closes the v0.6.10 blob-URL-in-source trade-off) + auto-redistribute panes on aux-open + on-demand 3-way chord pairing + read-only view-source overlay + several race-class fixes that surfaced during the cut walks.
+
+### Added
+- **ENH-126 — auto-redistribute panes on split-open** — opening a file in split view auto-snaps the column ratios to the canonical even shape: terminal-visible → 33/33/33; terminal-collapsed → main+split 50/50. Both code paths (`splitViewMoveTabByPath` for files, `splitViewMoveBrowserTab` for browser tabs) trigger it. Owner-directed pull-in mid-sprint.
+- **ENH-099 — `⌘⌥4` 33/33/33 chord** — on-demand sibling of ENH-126. Three trigger surfaces: `⌘⌥4` keyboard chord, View → Pane size → "3-way even (33/33/33)" menu entry, `duo split 3way` CLI verb (also accepts `3-way` and `even-3way` aliases). Same canonical layout helper. Walk-3 surfaced + walk-4 fixed: chord now resets BOTH file-aux AND browser-aux inner divider (pre-fix only touched file-aux's splitPct).
+- **ENH-125 — `duo image insert <path>` works against canvas** — closes the v0.6.10 explicit `(c)-Deferred` parity disposition. PageTab subscribes to the same `EDITOR_IMAGE_INSERT` IPC; canvas tab now responds when active. CLI verb takes the same args; either surface wins.
+- **ENH-117 v1 — `⌘⌥V` view-source modal (read-only)** — centered modal showing the active surface's raw source (markdown body+frontmatter for editors; pretty-printed HTML for canvases). Both surfaces gated on `isActive` (one overlay across the app at a time). Copy / Esc / backdrop-click dismiss. Atelier-styled. v2 panel-fill + menu/tab-context entry filed as **FOLLOWUP-015** for a future cut.
+
+### Changed
+- **FOLLOWUP-014 — paste-image v2 closes the v0.6.10 blob-URL-in-source trade-off.** Markdown source now carries `![](image-<stamp>.png)` (relative); custom `DuoImage` NodeView resolves via `files.read` at mount + hydrates a per-tab blob URL into the rendered `<img>`. Canvas surface mirrored via `imageHydrate.ts` (MutationObserver) + `serialize.ts` swap (src ↔ data-duo-original-src at save time). 4 vitest fixtures green for the serializer swap. Files survive reload, git commit, `cp` to another machine.
+- **ENH-116 — smoke-walk SKILL.md trim** — 604 → 241 lines (60% reduction); detail moved to four reference docs at `.claude/skills/smoke-walk/references/` (`restart-and-preflight.md`, `clean-state-checks.md`, `result-format-and-parsing.md`, `manifest-authoring.md`). No content lost. Closes the runtime-truncation problem where HARD RULES near the bottom of the file silently dropped from Claude's working context.
+
+### Fixed
+- **BUG-101 v2 — `duo edit <path>` auto-focuses the new tab.** Sprint 9's "scratchpad ref" pattern relied on a wrong React semantics assumption: `setState` updaters DON'T run synchronously during dispatch — they run at commit time. So when the post-`setFileTabs` `if (pendingActivationRef.current)` check ran, the ref was still null and `setActiveWorking` never fired. v2 reads the latest committed `fileTabs` via `fileTabsRef` and decides activation outside the updater.
+- **BUG-112 — `duo doc read` (no path) returns the active editor's content.** Pre-fix every mounted MarkdownEditor responded to the IPC; first reply won; `duo doc read` returned an arbitrary tab's content. Same `isActive` gate pattern as ENH-125's image-insert race fix. Per-tab `isActive` prop threaded from WorkingPane § renderFileTab.
+- **FOLLOWUP-014 walk-2 sub-fixes** — two latent bugs surfaced during walk-1 canvas verification:
+  - PageTab's `lastSavedRef` re-baseline was firing on every wire-effect re-fire (deps include `handleShortcut → save → dirty`). Inserting any content captured the post-insert DOM as the dirty-detection baseline → save saw `htmlChanged=false` → silent autosave no-op. Gated re-baseline behind `baselinedRef` — fires once per path-mount only.
+  - PageTab + MarkdownEditor's `onImageInsert` IPC subscription raced across all mounted instances; first reply won; image landed in the wrong file when older session-restored tabs were present. Fixed by threading `isActive` through WorkingPane § renderFileTab + ref-gating both handlers.
+
+### Reverted
+- **ENH-127 — per-Claude-tab Return → newline.** Implemented + reverted same day after walk-3 live-test confirmed Claude Code's input loop treats `\n` and `\r` identically at the line-discipline level. Renderer-side intercept can't deliver the desired UX without Claude Code itself differentiating. tasks.md entry documents four future paths if the problem gets re-prioritized (Claude Code adds raw-newline mode, Duo-side composer window, anti-accidental-submit heuristic, etc.).
 
 ## [0.6.10] — 2026-05-09
 

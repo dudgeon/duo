@@ -85,6 +85,7 @@ File is 600+ lines as of 2026-05-09. Runtime skill-loading budget cuts long skil
 
 ## Deferred to Sprint 14+
 
+- ~~ENH-126 (was Sprint 14 P0)~~ ✅ Pulled into Sprint 13 + shipped v0.6.11 (2026-05-09) after owner escalation. Auto-redistribute on aux-open: terminal-visible → 33/33/33; terminal-collapsed → main+split 50/50. ENH-099 (`⌘⌥4` chord) is still queued for a future sprint as an on-demand trigger using the same canonical-layout target.
 - ENH-110 JSON viewer (data-primitives canvas cluster — research doc landed at `docs/research/data-primitives-canvas.html`).
 - ENH-118 image-type handling discussion (GIF freeze-on-first-frame? SVG safety? HEIC?).
 - ENH-119 image-in-selection tint.

@@ -52,6 +52,8 @@ import { installBlurredSelection } from './blurredSelection'
 import { installPageSelection, computePageSnapshot } from './pageSelection'
 import { installPlaygroundActions, isPagePathTrusted } from './playgroundActions'
 import { installPagePasteHandlers } from './pagePaste'
+import { installImageHydrate } from './imageHydrate'
+import { ViewSourceOverlay } from '../ViewSourceOverlay'
 import {
   paintAnchors,
   clearAnchors,
@@ -100,6 +102,12 @@ interface Props {
    *  fired while the user has the terminal focused doesn't yank the
    *  cursor mid-typing. */
   focused?: boolean
+  /** FOLLOWUP-014/walk-2 — true when this canvas is the active visible
+   *  tab. Gates IPC handlers (currently `onImageInsert`) that should
+   *  only fire on the user-facing surface. Pre-gate every mounted
+   *  PageTab responded to `duo image insert`; first reply won; image
+   *  landed in the wrong file. Same race shape as the doc-read bug. */
+  isActive?: boolean
   /** BUG-037 — fires when the user clicks (mousedown) inside the
    *  canvas iframe. The host (App.tsx via WorkingPane) maps this to
    *  `setFocusedColumn('working')`. Iframe events don't bubble to
@@ -303,11 +311,14 @@ function writeReadOnlyOverride(absPath: string, readOnly: boolean): void {
   } catch { /* private browsing / storage quota — drop silently */ }
 }
 
-export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, homeDir, focused = false, onUserInteract }: Props) {
+export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, homeDir, focused = false, isActive = false, onUserInteract }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // ENH-117 — view-source overlay state. Snapshot of canvas's serialized
+  // (pretty-printed) HTML at chord time; the overlay renders read-only.
+  const [viewSource, setViewSource] = useState<string | null>(null)
   // Sprint 10 ENH-103 — last save failure (separate from `error`,
   // which surfaces read/load errors via the banner). Drives the
   // SaveControl pill's "Failed — retry" state.
@@ -353,6 +364,19 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
   }, [lockedReadOnly, path])
 
   const canvasRef = useRef<RenderedPageHandle | null>(null)
+  // FOLLOWUP-014/walk-2 — `lastSavedRef` re-baseline gate. handleReady's
+  // 17b Phase D re-baseline (`lastSavedRef.current = canvasRef.current?.serialize()`)
+  // must run ONCE per path-mount, NOT on every wire-effect re-fire.
+  // RenderedPage's wire effect has deps `[onChange, onShortcut, onReady,
+  // readOnly]`; `handleShortcut` re-creates whenever `save` does, which
+  // re-creates whenever `dirty` flips. So inserting an image into a
+  // canvas would: setDirty(true) → save re-creates → handleShortcut
+  // re-creates → wire effect re-fires → handleReady re-runs → re-baseline
+  // captures the POST-insert DOM as `lastSavedRef`. Subsequent save()
+  // would then see `htmlChanged === false` and skip the write — silent
+  // data loss. Gate the re-baseline so it only fires the FIRST time
+  // handleReady is invoked per path.
+  const baselinedRef = useRef(false)
   // The serialized HTML as it was on disk after the last successful read
   // or write. Diff against this to compute `dirty`.
   const lastSavedRef = useRef<string>('')
@@ -480,6 +504,9 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     setError(null)
     setInitialHtml(null)
     setDirty(false)
+    // FOLLOWUP-014/walk-2 — reset baseline gate per path so the new
+    // doc's first handleReady captures its own pretty-printed baseline.
+    baselinedRef.current = false
     sidecarRef.current = emptySidecar()
     sidecarDirtyRef.current = false
 
@@ -664,6 +691,19 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // null check here.
     const cleanPaste = readOnly ? () => {} : installPagePasteHandlers(doc, { activeDocPath: path })
 
+    // FOLLOWUP-014 (Sprint 13) — canvas paste-image v2 hydration.
+    // Walks all `<img>` elements in the iframe doc on mount + watches
+    // for new ones via MutationObserver. For relative/abs-path src
+    // values, stashes original in `data-duo-original-src` and swaps
+    // src to a blob URL via files.read. Save-time serializer
+    // (serialize.ts § attrString) restores the original src.
+    // Read-only canvases skip hydration — their docs aren't editable
+    // so the v0.6.10 blob-URL trade-off doesn't apply (they were
+    // saved by some other path).
+    const cleanImageHydrate = readOnly
+      ? () => {}
+      : installImageHydrate(doc, { getDocPath: () => path })
+
     // 17c — install the just-added keyframe + class into the iframe
     // stylesheet. Must happen before any markJustAdded call (the
     // recentEdits repaint pass below or the html-op handler later).
@@ -743,8 +783,20 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // Must happen BEFORE the ID-injection logic below — auto-inject
     // mutates the DOM, and we want those mutations to register as a
     // dirty state against the no-ID baseline so autosave persists them.
-    const initialSerialized = canvasRef.current?.serialize()
-    if (initialSerialized) lastSavedRef.current = initialSerialized
+    //
+    // FOLLOWUP-014/walk-2 — gated on `baselinedRef.current` so this
+    // re-baseline only happens the FIRST time handleReady runs per
+    // path-mount. RenderedPage's wire effect re-fires on `handleShortcut`
+    // identity change (which happens whenever `dirty` flips, because
+    // `save` is in `handleShortcut`'s deps and `save` depends on `dirty`).
+    // Without the gate, inserting an image causes the re-fire to capture
+    // the post-insert DOM as the baseline → save sees no change → silent
+    // data loss. baselinedRef resets on path change (effect below).
+    if (!baselinedRef.current) {
+      const initialSerialized = canvasRef.current?.serialize()
+      if (initialSerialized) lastSavedRef.current = initialSerialized
+      baselinedRef.current = true
+    }
 
     // ── ID injection (PRD H12–H14). If the file already has duo-ids,
     // do nothing — they're stable across sessions. Otherwise consult
@@ -814,6 +866,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       cleanPlaceholder()
       cleanPlaygroundActions()
       cleanPaste()
+      cleanImageHydrate()
       cleanAnchorClick()
       cleanAutoStampIds()
       blurred.dispose()
@@ -981,6 +1034,90 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       error: 'User declined the agent\'s write request.'
     })
   }, [])
+
+  // ── ENH-125 (Sprint 13) — canvas-side `duo image insert <path>` ─────────
+  // Mirrors MarkdownEditor's onImageInsert handler. Closes the v0.6.10
+  // editor-canvas parity gap (markdown editor accepted the verb;
+  // canvas didn't, so the user couldn't insert images via CLI when a
+  // canvas tab was active). saveImageBeside writes the file beside
+  // this canvas's HTML; the inserted `<img>` element carries
+  // data-duo-original-src so the serializer round-trips the relative
+  // path (FOLLOWUP-014 v2 contract).
+  //
+  // FOLLOWUP-014/walk-2 — gated on `isActive` via a ref so a tab
+  // switch doesn't tear down the listener; both inactive canvases are
+  // silent; only the visible one responds. Pre-gate older session-
+  // restored canvases would win the response race and the image
+  // landed in the wrong file. Walk-1 falsely PASSed the markdown side
+  // because the smoke walk had no other markdown editor open;
+  // ENH-125 walk-1 surfaced the race because session-restored
+  // canvases were present.
+  const pageIsActiveRef = useRef(isActive)
+  pageIsActiveRef.current = isActive
+
+  // ENH-117 — view-source overlay listener. Capture-phase listener
+  // for the `duo-view-source` window event dispatched by ⌘⌥V. Gated
+  // on `pageIsActiveRef` so only the visible canvas responds (one
+  // overlay across the app at a time). Snapshot via
+  // canvasRef.current?.serialize() — the same pretty-printed form
+  // the next save would write to disk.
+  useEffect(() => {
+    if (initialHtml === null) return
+    const onViewSource = () => {
+      if (!pageIsActiveRef.current) return
+      const html = canvasRef.current?.serialize() ?? ''
+      setViewSource(html)
+    }
+    window.addEventListener('duo-view-source', onViewSource)
+    return () => window.removeEventListener('duo-view-source', onViewSource)
+  }, [initialHtml])
+
+  useEffect(() => {
+    if (initialHtml === null || readOnly) return
+    return window.electron.editor?.onImageInsert(async (req) => {
+      if (!pageIsActiveRef.current) return // silently ignore on inactive tabs
+      const doc = canvasRef.current?.getDocument()
+      if (!doc) {
+        window.electron.editor.replyImageInsert({
+          reqId: req.reqId,
+          ok: false,
+          error: 'Canvas iframe not yet ready.'
+        })
+        return
+      }
+      try {
+        const result = await window.electron.files.saveImageBeside(path, req.bytes, req.ext)
+        const mime = ({
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+          webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff'
+        } as Record<string, string>)[req.ext] ?? 'application/octet-stream'
+        const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(req.bytes)], { type: mime }))
+        const altAttr = req.alt !== undefined
+          ? ` alt="${req.alt.replace(/"/g, '&quot;')}"`
+          : ' alt=""'
+        // Insert at the canvas's current caret. execCommand composes
+        // with contentEditable's undo stack — same pattern as
+        // pagePaste.ts. The data-duo-original-src marker triggers the
+        // serializer's src↔original-src swap at save time.
+        doc.execCommand(
+          'insertHTML',
+          false,
+          `<img src="${blobUrl}" data-duo-original-src="${result.relPath}"${altAttr}>`
+        )
+        window.electron.editor.replyImageInsert({
+          reqId: req.reqId,
+          ok: true,
+          absPath: result.absPath
+        })
+      } catch (err) {
+        window.electron.editor.replyImageInsert({
+          reqId: req.reqId,
+          ok: false,
+          error: err instanceof Error ? err.message : String(err)
+        })
+      }
+    })
+  }, [initialHtml, path, readOnly])
 
   // ── ENH-022 doc-goto for canvases ───────────────────────────────────────
   // Canvas accepts `--anchor X` (matches data-duo-id first, falls back
@@ -1560,6 +1697,13 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           excerpt={newCommentAt.excerpt}
           onSubmit={handleSubmitNewComment}
           onCancel={handleCancelNewComment}
+        />
+      )}
+      {viewSource !== null && (
+        <ViewSourceOverlay
+          source={viewSource}
+          title={path.split('/').pop() ?? path}
+          onClose={() => setViewSource(null)}
         />
       )}
     </div>

@@ -240,12 +240,12 @@
   </div>
 </article>
 
-<article class="item" data-keys="paste image cmd v drag drop screenshot saveImageBeside enh-108 markdown editor canvas blob url png jpg gif webp svg duo image insert cli verb">
+<article class="item" data-keys="paste image cmd v drag drop screenshot saveImageBeside enh-108 followup-014 markdown editor canvas blob url relative path png jpg gif webp svg duo image insert cli verb portable across machines reload survives duoimage nodeview imagehydrate serializer">
   <div class="num">10</div>
   <div>
-    <h3>Paste an image into a markdown doc or canvas (it just works)</h3>
-    <p class="why">⌘V or drag-drop an image into the markdown editor or HTML canvas — Duo saves it alongside the active doc as <code>image-&lt;YYYYMMDD-HHMMSS&gt;-&lt;hash&gt;.&lt;ext&gt;</code> and inserts it inline. Supported: PNG, JPG, GIF, WEBP, SVG, BMP, TIFF. Pre-v0.6.10 you had to save-to-Desktop → drag-to-Finder → markdown-link-by-hand. Untitled buffers warn-and-decline (save the doc first so we know where to put the image).</p>
-    <p class="how"><strong>UI</strong>⌘V (clipboard image) or drag from Finder. <strong>CLI</strong><code>duo image insert &lt;path&gt; [--alt "alt text"]</code> (markdown editor target only in v1; use clipboard / drag-drop for the canvas surface). <strong>v1 trade-off:</strong> markdown source carries <code>![](blob:...)</code> URLs that don't survive doc reload — v2 with persistent abs paths is queued.</p>
+    <h3>Paste an image into a markdown doc or canvas — portable across machines</h3>
+    <p class="why">⌘V or drag-drop an image into the markdown editor or HTML canvas — Duo saves it alongside the active doc as <code>image-&lt;YYYYMMDD-HHMMSS&gt;-&lt;hash&gt;.&lt;ext&gt;</code> and inserts it inline. Supported: PNG, JPG, GIF, WEBP, SVG, BMP, TIFF. Pre-v0.6.10 you had to save-to-Desktop → drag-to-Finder → markdown-link-by-hand. Pre-v0.6.11 the markdown source carried <code>![](blob:...)</code> URLs that died on doc reload. <strong>v0.6.11+:</strong> the source carries <code>![](image-&lt;stamp&gt;.png)</code> (relative filename) and a NodeView resolves the path at mount time — files survive reload, git commit, copying to another machine. Untitled buffers warn-and-decline (save the doc first so we know where to put the image).</p>
+    <p class="how"><strong>UI</strong>⌘V (clipboard image) or drag from Finder. <strong>CLI</strong><code>duo image insert &lt;path&gt; [--alt "alt text"]</code> (works against the active markdown editor OR HTML canvas — v0.6.11 closed the canvas-side parity gap).</p>
   </div>
 </article>
 
@@ -255,6 +255,15 @@
     <h3>View images with a real toolbar</h3>
     <p class="why">Open any image (PNG, JPG, GIF, WEBP, SVG) in the working pane and you get a toolbar over the image area: zoom in/out (+/−, ⌘/⌃-wheel), click-toggle fit/manual, fit-to-window, 1:1 actual size, copy-image, dimensions + file-size readout (e.g. "1440 × 900 · 312 KB"). Drag to pan when zoomed past the container.</p>
     <p class="how"><strong>UI</strong>Double-click an image in the file navigator or open via <code>duo edit &lt;path-to-image&gt;</code>. Right-click anywhere on the image for the native menu (Copy image / Copy path / Open in default app / Reveal in Finder / Fit / 1:1).</p>
+  </div>
+</article>
+
+<article class="item" data-keys="view source raw markdown html cmd opt v enh-117 followup-015 modal overlay copy serializer pretty printed read only">
+  <div class="num">12</div>
+  <div>
+    <h3>View raw source for the active editor or canvas (read-only)</h3>
+    <p class="why">Sometimes you want to see what's ACTUALLY in the file — markdown source (with frontmatter) for the editor, pretty-printed HTML (with <code>data-duo-id</code> attrs and the canonical attribute order) for the canvas. Useful for verifying what a paste / agent edit / autosave actually wrote, or for grabbing a chunk to share. <strong>v0.6.11+</strong> ships v1 as a read-only modal; the panel-fill / in-place toggle redesign is queued as FOLLOWUP-015.</p>
+    <p class="how"><strong>Keyboard</strong><code>⌘⌥V</code> on the active editor or canvas opens the source modal. Copy button / Esc / backdrop click dismiss.</p>
   </div>
 </article>
 
@@ -549,12 +558,21 @@
 <h2 class="cat">Look & feel</h2>
 <p class="cat-tagline">Atelier visual identity — paper-cream surfaces, warm ochre accents, light by default.</p>
 
-<article class="item" data-keys="pane size split divider preset terminal heavy canvas heavy 50 67 33 even keyboard shortcut layout resize">
+<article class="item" data-keys="pane size split divider preset terminal heavy canvas heavy 50 67 33 even 3way 33-33-33 keyboard shortcut layout resize enh-099">
   <div class="num">51</div>
   <div>
     <h3>Snap pane sizes (terminal vs canvas)</h3>
     <p class="why">Drag the divider between the terminal column and the working pane to resize, or pick a preset. Range is 20–80% terminal column. Useful when you want to focus reading (canvas-heavy) vs typing (terminal-heavy) without fiddling.</p>
-    <p class="how"><strong>UI</strong>Drag the divider, or View → Pane size → Even / Terminal heavy / Canvas heavy / Full terminal / Full canvas. <strong>Keyboard</strong><code>⌘⌥1</code> (terminal heavy 67/33), <code>⌘⌥2</code> (even 50/50), <code>⌘⌥3</code> (canvas heavy 33/67), <code>⌘⌥0</code> (full terminal), <code>⌘⌥9</code> (full canvas). <strong>CLI</strong><code>duo split &lt;pct&gt;</code> (numeric, 0–100, clamped to 20–80) or <code>duo split &lt;preset&gt;</code> (<code>even</code>, <code>terminal-heavy</code>, <code>canvas-heavy</code>, <code>terminal</code>, <code>canvas</code>).</p>
+    <p class="how"><strong>UI</strong>Drag the divider, or View → Pane size → Even / Terminal heavy / Canvas heavy / 3-way even / Full terminal / Full canvas. <strong>Keyboard</strong><code>⌘⌥1</code> (terminal heavy 67/33), <code>⌘⌥2</code> (even 50/50), <code>⌘⌥3</code> (canvas heavy 33/67), <code>⌘⌥4</code> (3-way even 33/33/33 — outer 33/67 + inner aux 50/50 if split view is open), <code>⌘⌥0</code> (full terminal), <code>⌘⌥9</code> (full canvas). <strong>CLI</strong><code>duo split &lt;pct&gt;</code> (numeric, 0–100, clamped to 20–80) or <code>duo split &lt;preset&gt;</code> (<code>even</code>, <code>terminal-heavy</code>, <code>canvas-heavy</code>, <code>terminal</code>, <code>canvas</code>, <code>3way</code>). <strong>v0.6.11+:</strong> <code>3way</code> preset / <code>⌘⌥4</code> chord (ENH-099).</p>
+  </div>
+</article>
+
+<article class="item" data-keys="auto redistribute panes split open enh-126 33 33 33 50 50 even distribute terminal collapsed canonical layout">
+  <div class="num">51b</div>
+  <div>
+    <h3>Opening a file in split view auto-redistributes the panes</h3>
+    <p class="why">Pre-v0.6.11, opening a file in split view kept whatever asymmetric divider position you'd last dragged — annoying when you wanted to see both files clearly. <strong>v0.6.11+:</strong> opening a file in split view (any trigger — chord, right-click "Move to Split View," <code>duo split-view open</code>) auto-snaps the columns to the canonical even shape: terminal-visible → ~33/33/33; terminal-collapsed → main+split 50/50. The on-demand sibling for already-open splits is the <code>⌘⌥4</code> chord above.</p>
+    <p class="how"><strong>Triggers it:</strong> any aux-open path (right-click a tab → "Move to Split View"; <code>⌘/</code> chord; <code>duo split-view open &lt;path&gt;</code>; <code>duo split-view open-browser &lt;id&gt;</code>). Re-opening the same path is a no-op (no surprise re-snap on idempotent calls).</p>
   </div>
 </article>
 

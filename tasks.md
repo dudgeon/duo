@@ -66,9 +66,13 @@ Today: `⌘\`` cycles between panes (terminal ↔ working ↔ aux when present).
 
 ### ENH-099: 3-way 33/33/33 pane-size chord — ⌘⌥4
 
-**Status:** ⬜ DRAFT — needs refinement before code.
-**Priority:** Low (cosmetic; current `⌘⌥1/2/3` covers most cases).
-**Filed:** 2026-05-06 (idle-thoughts sweep).
+**Status:** ✅ Shipped v0.6.11 (Sprint 13 walk-3, 2026-05-09). On-demand sibling of ENH-126's auto-redistribute on aux-open. Same canonical layout: outer terminal/working = 33/67 + inner aux = 50/50 (when aux is open). When aux isn't open, only the outer ratio changes. Three trigger surfaces:
+
+- **`⌘⌥4` chord** via View → Pane size → 3-way even (33/33/33) menu accelerator in [electron/main.ts](electron/main.ts).
+- **`duo split 3way` CLI verb** via `cli/duo.ts` (also accepts `3-way` and `even-3way` aliases for forgiveness). Routes through new `LAYOUT_3WAY_EVEN` IPC.
+- **Application menu item** (View → Pane size → 3-way even) for discoverability.
+
+Plumbing: `shared/types.ts § IPC.LAYOUT_3WAY_EVEN` + `LAYOUT_3WAY_EVEN` discriminator on `DuoCommandName`; `electron/main.ts § setLayout3wayEven` dispatch helper + menu entry; `electron/preload.ts § layout.onLayout3wayEven` bridge; `shared/host-api.ts § onLayout3wayEven` type; `renderer/App.tsx` subscriber that does `setSplitPct(33) + setAuxState(...splitPct: 0.5)`; `core/socket-server.ts § case 'layout-3way-even'`; `cli/duo.ts § case 'split'` with `3way` preset; full skill/SKILL.md + agents/duo.md + CLI-COVERAGE.md cheat-sheet entries. **Priority:** Low-medium (cosmetic; pairs with ENH-126's auto-redistribute as the on-demand trigger of the same canonical layout). **Filed:** 2026-05-06 (idle-thoughts sweep). **Pulled into Sprint 13 walk-3** alongside ENH-117 + ENH-127 as substantive work to round out the cut.
 
 **What's wanted.** New chord `⌘⌥4` that resizes terminal / main / split-view to ~33/33/33 widths simultaneously.
 
@@ -6107,7 +6111,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### ENH-125: Canvas-side `duo image insert <path>` — CLI parity with the markdown-editor verb
 
-**Status:** 🆕 Filed 2026-05-09 from Sprint 12 walk-rev3 retro. Deferred from v0.6.10.
+**Status:** ✅ Shipped v0.6.11 (Sprint 13, 2026-05-09 — walk-2 functional PASS; visual verification owed only because the test image was 1×1 pixel and invisible). PageTab subscribes to `EDITOR_IMAGE_INSERT`; on receive (gated on `isActive`), calls `files.saveImageBeside` against the canvas's docPath, then `doc.execCommand('insertHTML', ...)` with `<img src="${blobUrl}" data-duo-original-src="${relPath}">`. Save-time serializer (FOLLOWUP-014) restores the relative path. CLI verb takes the same args; canvas tab now responds when active. Walk-1 reported FAIL because (a) the IPC race wasn't gated — older session-restored canvases won the response and the image landed in the wrong dir, AND (b) the autosave was silently no-op'ing because the dirty-detection baseline was getting corrupted (FOLLOWUP-014 walk-2 entry has the full diagnosis). Both fixed walk-2: race-fix via the `isActive` gate (threaded from WorkingPane § renderFileTab), autosave-fix via PageTab's `baselinedRef`. Walk-2 owner reported steps 1-6 + 8 PASS; step 7 (visual confirm of inline render) was a false-fail — Claude's test fixture (`/tmp/v2-image-test/red.png`) is a 1×1 PNG so the inserted image is one transparent-against-cream pixel, not visually verifiable. Functional contract (file written with relative `src`, alt round-trips, file lands in active canvas's parent dir) confirmed PASS. Use a real-size PNG for any future visual smoke. Editor-canvas parity disposition closed for the image-insert capability.
 **Priority:** Medium — markdown editor + canvas surface should expose the same agent-driven capability per CLAUDE.md § 4 (CLI parity with UI). v1 ENH-108 ships markdown only; canvas surface only supports paste / drag-drop today.
 **Filed:** 2026-05-09.
 
@@ -6124,9 +6128,106 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ---
 
+### ENH-126: Opening a split pane should auto-redistribute the other panes for even width
+
+**Status:** ✅ Shipped v0.6.11 (Sprint 13, 2026-05-09). Pulled into the current sprint after owner pushback on Sprint-14 deferral. [App.tsx § splitViewMoveTabByPath](renderer/App.tsx) and [splitViewMoveBrowserTab](renderer/App.tsx) now redistribute on every aux-open trigger:
+- `setAuxState({ ..., splitPct: 0.5 })` — inner main/aux always snaps to 50/50 (was preserving prior aux split, which surprised users).
+- `if (splitPct !== 0 && splitPct !== 100) setSplitPct(33)` — outer terminal/working snaps to 33/67 when terminal is visible. When terminal is collapsed (splitPct === 0), leave it collapsed and rely on the inner 50/50 — net visual is main + aux 50/50 inside the working column.
+
+Both code paths (file-aux open via right-click "Move to Split View" / `⌘/` chord / `duo split-view open`, and browser-aux open via right-click "Move to Split View" on a browser tab / `duo split-view open-browser`) trigger the redistribute. Re-opening the same path is still a no-op (early-return preserved). Owner spec verbatim: *"if all three (minus terminal) are open, then it should be 33/33/33; if terminal is collapsed, then the main pane and the split view should be 50/50."*
+
+**Priority:** **High — owner-directed P0 for v0.6.11** (verbal directive carried across multiple sessions; ledger gap closed 2026-05-09 + escalation prompted same-day implementation).
+**Filed:** 2026-05-09. Spec clarified by owner same-day. Shipped same-day after escalation.
+
+**What's wanted.** When the user opens a file in split view (via any existing entry point: `⌘/` chord, `duo split-view open <path>`, right-click "Open in Split View" on tab/file/page-link, "Move to Split View" on existing tab), Duo redistributes the visible columns to even widths automatically. **Owner spec (verbatim 2026-05-09):**
+
+> "when I open a file in split view, the panes should redistribute; if all three (minus terminal) are open, then it should be 33/33/33; if terminal is collapsed, then the main pane and the split view should be 50/50"
+
+**Behavior matrix.**
+| State at split-open | Resulting widths |
+|---|---|
+| Terminal visible + main + (new) split  | terminal 33% / main 33% / split 33% |
+| Terminal collapsed + main + (new) split | main 50% / split 50% (terminal stays collapsed) |
+
+(Wording note: owner's "all three (minus terminal)" parses as "all three columns including terminal, even though terminal isn't strictly inside the working pane" — i.e. the 3-up case. Confirmed by the second clause naming terminal-collapsed → 50/50 which only makes sense if "all three" was the terminal-visible case.)
+
+**Implementation sketch.**
+- Hook into the split-open code path in `core/socket-server.ts § 'split-view'` + the renderer's split-open dispatcher (App.tsx). Single helper that runs after the new aux file lands.
+- Helper reads `terminalCollapsed` state. If false: set outer terminal/working ratio to 33/67 + inner main/aux ratio to 50/50 (yields ~33/33/33 of total width). If true: set inner main/aux to 50/50 only (terminal column stays its collapsed-rail width).
+- Persist the new ratios via the existing pane-size persistence path so a refresh keeps the redistributed layout.
+- Idempotent: re-opening a split when already in the canonical layout is a no-op.
+
+**Open scope questions for the implementer (smaller now that owner pinned the spec).**
+1. **Does it also fire on "move existing tab to split"?** Owner spec said "open a file in split view" — most natural reading is yes (tab-move-to-split = opening the tab in the split). Treat the same.
+2. **Does it overwrite a user-manually-dragged ratio?** Recommend yes (simpler; the user just opened a NEW pane — they expect the layout to readjust). If owner wants "respect prior drag," that's a v2.
+3. **Terminal-collapse state tracking.** Need to read this from existing collapse state — verify there's a renderer-side accessor; if not, plumb one.
+
+**Cross-refs.**
+- **ENH-099** — `⌘⌥4` 33/33/33 chord. Same end-state target (terminal/main/aux 33/33/33), different trigger (chord vs. auto). Implementation shares a "snap to canonical layout" helper. **Land them together** — ENH-126 supplies the auto-trigger; ENH-099 supplies the on-demand chord; both call the same helper.
+- **Layout architecture note:** ENH-099's filed concern was "aux is INSIDE the working pane, not a third sibling, so 33/33/33 may need a layout refactor." Owner's spec sidesteps the refactor question — the 33/33/33 reads as outer (terminal:working = 33:67) + inner (main:aux = 50:50). No layout change needed; just a coordinated double-set of two existing percentages.
+
+**Sprint 14 P0** per owner verbal directive. Pair with ENH-099.
+
+---
+
+### ENH-127: Terminal Return-key semantic — per-Claude-tab Return = newline; ⌘Return = submit
+
+**Status:** ❌ **Implemented + reverted same day after live-test failure** (Sprint 13 walk-3, 2026-05-09). Pre-revert flagged risk verified: Claude Code's input loop treats `\n` and `\r` identically at the line-discipline level. The Duo-side intercept fired correctly at the renderer (verified via TerminalPane's `attachCustomKeyEventHandler` — wrote `\n` to the PTY on plain Enter), but Claude Code received `\n` and submitted the prompt the same as it would for `\r`. No way for Duo alone to differentiate Enter-as-newline from Enter-as-submit without Claude Code itself honoring the distinction.
+
+**What this means.** A renderer-side keystroke intercept can't deliver the desired UX. The accidental-submit problem is real, but solving it requires one of:
+
+1. **Claude Code adds a "raw newline" mode** that interprets `\n` as buffer continuation, `\r` as submit. Out of Duo's control; could file a request upstream.
+2. **A confirmation gate at submit time** — Duo intercepts the byte BEFORE writing to the PTY, surfaces a tiny inline confirm ("Submit to Claude?"), proceeds only on user-confirm. Adds friction to every prompt; wrong shape.
+3. **Slack-style anti-accidental-submit** — submit only when the user has paused typing for ≥ N ms AND pressed Enter, OR an explicit ⌘+Enter chord. Soft heuristic; still requires a layer above xterm to inspect input cadence.
+4. **Composer-window pattern** — separate Duo chrome (text area outside the terminal) where the user composes multi-line prompts; ⌘+Enter (or button click) sends the buffered text to the PTY as one shot. Bigger refactor; doesn't reuse Claude's TUI input box.
+
+**Priority:** Medium-low (declined v1 — owner can re-prioritize once one of the above paths becomes attractive). The accidental-submit problem remains; the v1 fix doesn't work; future work should pick from the four shapes above based on owner intent.
+
+**Code state.** TerminalPane.tsx's `attachCustomKeyEventHandler` is back to the pre-ENH-127 shape (just `matchGlobalShortcut` gate, no Enter-key special case). Comment block in the same file documents the failed-live-test outcome so the next attempt doesn't re-walk this path without reading prior context.
+
+**Filed:** 2026-05-09. **Implemented + reverted:** same day. Owner verbally OK'd the per-Claude-tab approach pre-implementation; live-test result invalidates the design.
+
+**What's wanted (verbatim).** *"ENH: Can we override the return key in terminal to avoid accidentally initiating a command, and instead require cmd-return? return just works as a line break. I don't want to do anything super janky to accomplish this — you can tell me if this is risky."*
+
+**The risk profile (the "tell me if it's risky" answer).** This is meaningfully risky for the kind of terminal Duo runs.
+
+The terminal is xterm.js connected to a real PTY (per [PtyManager](electron/pty-manager.ts)) running the user's shell (zsh today, but Claude Code, REPLs, Vim, less, ssh, sudo, htop — anything that takes input). Return = `\r` (CR) at the byte-stream level. The shell's line-discipline interprets CR as "submit the current line" and the agent / sub-process ALSO interprets CR for its own input (Claude Code's prompt, a Python REPL, less's "next line", Vim's command-mode-execute, etc.). Re-mapping Return → "insert a literal newline character" only without submitting would mean:
+
+- **Shell prompts** become hostile. zsh expects CR to submit. Holding the user's Return-press = newline-not-submit changes how every command runs. Multi-line shell input (`for i in ...; do` block) already uses CR for line-continuation when the shell knows the syntax is incomplete; the user typing `ls` then expecting "newline-not-execute" then ⌘+Return-to-execute is a fundamentally different shell contract.
+- **Agents like Claude Code, REPLs, less, Vim, sudo password prompts** all read raw line discipline. Some treat CR as "submit," some treat it as "newline." If we intercept CR and translate to LF (\n) only, every program becomes inconsistent with the user's expectation outside Duo.
+- **ssh sessions** would break worst — the remote side's terminal handler doesn't know about Duo's intercept; the user's local Return-press might never reach the remote.
+- **Bracketed-paste mode** complicates: when bracketed paste is on, multi-line paste already ships as a single block ending with one CR. Our intercept logic would have to distinguish "user typed Return" from "paste ended."
+
+**What COULD be done less-risky:**
+
+1. **xterm.js-side multi-line input mode** — treat Return as `\n` (LF) ONLY when the user has explicitly toggled a "multi-line mode" via a chord or chrome button. Default = today's behavior (CR submits). Useful for "I want to paste / type a multi-line Claude prompt without auto-submit between paragraphs." Requires a visible affordance so users know their Return key just changed semantics.
+2. **Shift+Return vs Return** — many terminal apps (modern Slack, Discord, ChatGPT web) use Shift+Return = newline, plain Return = submit. If the goal is "I want a way to insert a newline mid-prompt to Claude without submitting," ⇧Return is closer to user expectations than ⌘Return. But xterm.js still needs to know to send `\n` only on ⇧Return — application-side shell still needs to handle multi-line input correctly.
+3. **Per-app gate** — only intercept Return in Claude Code tabs (kind === 'claude'); leave shell tabs alone. xterm.js doesn't know what's running in the PTY though, so this requires the renderer to track tab kind + pass through claude tabs differently. Doable but adds per-tab keybinding state.
+
+**Recommendation.** Don't do the universal Return → newline override. The shell/REPL/agent contract is too fragile. If the actual workflow problem is "I want to insert a newline mid-Claude-prompt," option (2) or (3) — Shift+Return in Claude tabs only — is much safer and matches existing chat-app conventions. Owner confirm direction before any code work.
+
+**Cross-ref:** BUG-094 (terminal paste with trailing newline auto-executes — same family of "Return-as-execute" friction; fixed by stripping trailing newlines from clipboard pastes only). [TerminalPane.tsx](renderer/components/TerminalPane.tsx) is where the keystroke intercept would live. Stage 19c (claude vs shell tab kind) — the per-tab gate would key on `TabSession.kind`.
+
+---
+
 ### ENH-117: Markdown / HTML "view source" — inspect raw markdown / HTML for the active doc
 
-**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev2.
+**Status:** 🟡 **PARTIAL — v1 shipped as modal; owner walk-3 wants panel-fill redesign.** Walk-3 owner direction (verbatim 2026-05-09): *"this works, but view source should occupy the full panel (ie the space where text editing normally happens), not a modal; this is a low priority to fully resolve, but view source should have a menu and tab context command to trigger -- not just rely on kb shortcut … same comments [for canvas]; works but not what I want; you should have asked more questions about the intent vs making this modal approach; not urgent to fix but this is bad."*
+
+**v1 (shipped 2026-05-09 walk-3) — modal overlay.** `⌘⌥V` opens a centered modal overlay rendering the active surface's raw source in a monospaced block. Both [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) (markdown body + frontmatter via `editor.storage.markdown.getMarkdown()` + `joinFrontmatter`) and [PageTab.tsx](renderer/components/Page/PageTab.tsx) (pretty-printed HTML via `canvasRef.current.serialize()`) listen for the `duo-view-source` window event dispatched by [useKeyboardShortcuts.ts](renderer/hooks/useKeyboardShortcuts.ts); each gates on `isActive`. Overlay has Copy + Close buttons; Esc / backdrop click dismisses. Atelier-styled. Capability lands; surface is wrong.
+
+**v2 (queued — FOLLOWUP-015 below).** Per owner direction:
+
+1. **Panel-fill, not modal.** View-source replaces the active editor / canvas content area in-place — same dimensions, same column. Toggling out returns to the live editor / canvas.
+2. **Menu + tab right-click trigger** — not chord-only. View → "View source" menu item + Tab strip right-click → "View source." Chord stays as the power-user accelerator.
+3. **Toggle UX, not "open + close."** Same chord toggles in/out (or a Done button in the source view).
+4. **Editable view-source — defer or no?** v1 explicitly said deferred (CodeMirror integration is a much bigger surface). Owner confirms before any v2 work.
+
+**Why this slipped.** I picked "modal overlay" as the shape because (a) it composed cleanly with the existing surface architecture (no per-tab refactor needed) and (b) it matched my mental model of "view-source" from browsers (separate window). I should have asked the owner whether the intent was "browser-style separate view" or "in-place toggle." Saved memory: ask about surface choice before implementing on display-shape decisions, especially for read/write inversions.
+
+**Priority:** Medium for v1 (shipped). v2 panel-fill: low-medium per owner ("not urgent to fix but this is bad"). Tracked as **FOLLOWUP-015** below.
+
+**Filed:** 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev2. v1 shipped + walk-3 surfaced the surface miss same day.
 **Priority:** Medium — paired with ENH-108's testing; without it, the user has to `cat` the file in a terminal to see what got serialized after a paste / edit.
 **Filed:** 2026-05-09.
 
@@ -6166,9 +6267,44 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ---
 
+### FOLLOWUP-015: ENH-117 v2 — view-source as panel-fill, not modal; menu + tab-context entries
+
+**Status:** 🆕 Filed 2026-05-09 from owner walk-3 feedback on ENH-117 v1.
+**Priority:** Low-medium per owner direction (*"not urgent to fix but this is bad"*).
+**Filed:** 2026-05-09.
+
+**What's wanted (per owner walk-3 verbatim):**
+
+1. **Panel-fill, not modal.** View-source replaces the active editor / canvas content area in-place — same dimensions, same column. Toggling out returns to the live editor / canvas. Mental model: VS Code's "View Source" command.
+2. **Menu + tab-context entries** — not chord-only. View → "View source" menu item + Tab strip right-click → "View source." Chord stays as the power-user accelerator.
+3. **Toggle UX, not "open + close."** Same chord toggles in/out (or a Done button in the source view).
+
+**Open scope question for owner.** Editable view-source (live two-way sync between source-view and rendered-view) would require CodeMirror integration with bidi sync to TipTap — a substantially bigger surface (multi-day work, not a half-day polish). Confirm whether v2 is read-only-panel-fill (~half-day) or read+write panel-fill (~multi-day) before code work.
+
+**Implementation sketch (read-only v2):**
+
+- New per-tab state `viewSourceActive: boolean` on MarkdownEditor + PageTab.
+- When true: render the source `<pre>` block in the same content area where `<EditorContent>` / `<RenderedPage>` would normally render.
+- Toolbar gets a "Done" / "Edit" button to toggle back.
+- View menu: "View source" (toggle, gated on active surface being editor or canvas).
+- Tab right-click menu: "View source" entry.
+- Chord ⌘⌥V remains; toggles instead of opening modal.
+
+**Code-side delete path.** The v1 modal in `renderer/components/ViewSourceOverlay.tsx` becomes either (a) deleted if v2 replaces it entirely, or (b) kept as a fallback for surfaces where panel-fill is awkward (e.g. browser-pane "view page source" if that ever surfaces).
+
+**Cross-ref:** ENH-117 (parent).
+
+---
+
 ### FOLLOWUP-014: ENH-108 paste-image inserts ABSOLUTE duo-asset:// URLs in markdown source (non-portable)
 
-**Status:** 🆕 Filed 2026-05-09 mid-sprint after rev3 protocol fix.
+**Status:** ✅ Shipped v0.6.11 (Sprint 13, 2026-05-09 — walk-2 close-out). Markdown source NOW carries relative filenames (`![](image-<stamp>-<hash>.png)`); on render, [DuoImage NodeView](renderer/components/editor/extensions/DuoImage.ts) resolves against the doc's parent dir via `files.read` and hydrates a per-tab blob URL into the rendered `<img>` element. Canvas surface mirrored via [imageHydrate.ts](renderer/components/Page/imageHydrate.ts) (MutationObserver pattern) + serializer hook in [serialize.ts](renderer/components/Page/serialize.ts) that swaps `src` ↔ `data-duo-original-src` at save time so HTML stays portable. 4 vitest fixtures green for the serializer swap.
+
+**Walk-2 fix (2026-05-09).** Owner walk-1 reported canvas FAIL — paste / CLI insert produced no on-disk change. Diagnosis traced to [PageTab.tsx](renderer/components/Page/PageTab.tsx)'s `lastSavedRef` re-baseline path: RenderedPage's wire effect has deps `[onChange, onShortcut, onReady, readOnly]`. `handleShortcut` re-creates whenever `save` does, which re-creates whenever `dirty` flips. So inserting any content via execCommand (paste OR CLI verb path) caused: setDirty(true) → save callback re-creates → handleShortcut re-creates → wire effect re-fires → handleReady re-runs → re-baseline captured the POST-insert DOM as `lastSavedRef`. Subsequent save() saw `htmlChanged === false` and skipped the write — silent data loss. Fix: gate the re-baseline behind a `baselinedRef` flag so it only fires the FIRST time handleReady runs per path-mount; reset on path change. Verified end-to-end: `duo edit --canvas /tmp/foo.html` + `duo image insert <png>` now writes `<img src="image-<stamp>.png">` to the canvas's HTML source (via PageTab's autosave path), file survives reload + portable across machines.
+
+**Walk-2 sibling race fixes (same session):** PageTab + MarkdownEditor's `onImageInsert` IPC subscriptions previously race-responded — every mounted instance subscribed; first reply won; image landed in the wrong file when multiple tabs were open. Walk-1 silently passed the markdown side because no other markdown editor was open at smoke-walk time; walk-2 surfaced the canvas-side race because session-restored canvases were active. Fix: thread `isActive` prop through [WorkingPane § renderFileTab](renderer/components/WorkingPane.tsx) and gate the IPC handlers via a ref-mirrored `isActive` check (same pattern as the existing `focused` gate but specifically for IPC routing rather than focus-stealing).
+
+Backward-compat: legacy v0.6.10 docs with `<img src="blob:...">` continue to render the same way (broken on reload — same as before; v2 doesn't migrate them).
 **Priority:** Medium — markdown content is non-portable across machines (links break when the doc + images are copied to a different filesystem path or different user). Acceptable for v1; owner trigger to escalate.
 **Filed:** 2026-05-09.
 
@@ -6190,6 +6326,20 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 6. Update handlePaste/handleDrop to insert with `result.relPath` again.
 
 **Cross-ref:** [ENH-108](tasks.md:276), [BUG-111](tasks.md:somewhere-below).
+
+---
+
+### BUG-112: `duo doc read` (no path) returns wrong editor's content when multiple markdown editors are open
+
+**Status:** ✅ Shipped v0.6.11 (Sprint 13 walk-2, 2026-05-09). Renderer's `onDocRead` handler in [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) now gates on `isActive` when `req.path` is absent — only the visible editor responds. Pre-fix every mounted MarkdownEditor responded to the IPC; first reply won; `duo doc read` returned an arbitrary tab's content (often whichever was opened first this session). Fix uses the same `isActive` prop threading + ref-mirror pattern as ENH-125's image-insert race fix (one prop, threaded from WorkingPane § renderFileTab, gates both handlers). With `req.path` supplied, the existing path-filter routes to the right editor — no change there. Verified live: opened `/tmp/bug112-test.md` after several other markdown tabs were active; `duo doc read` returned the new file's content immediately. **Priority:** **High** — silent data return mismatch breaks any agent flow that does "open a file with `duo edit`, then `duo doc read` to confirm" or "iteratively `duo doc read` while watching". **Filed:** 2026-05-09 (surfaced during BUG-101-V2 walk-2 — owner reported the wrong content for step 3).
+
+**Symptom (pre-fix).** With multiple markdown tabs open (typical via session restore), `duo doc read` (no path argument) returned content from a non-active editor. Reproducible by: open file A → open file B → `duo doc read` returns content for whichever editor's IPC subscription happened to fire first in the renderer (often A, the older tab, because subscription order tracks mount order under React's effect resolution).
+
+**Root cause.** `onDocRead`'s default behavior (when `req.path === undefined`) was "any editor can respond." Multiple editors all responded; main.ts's `docReadPending` Map resolves the IPC promise on FIRST reply — so the first responder wins. Same race shape as ENH-125's `image-insert` race (and the canvas's `html-op` race, filed for follow-up — different code path, same pattern).
+
+**Fix.** Renderer-side gate on `isActive`. The IPC handler returns silently when `!req.path && !isActive` — inactive editors never reply. Only the active editor's reply reaches main → CLI. With `req.path` set, the existing path-filter handles routing (each editor either matches and responds, or returns an error reply that loses the race to the matching editor's success reply — current behavior preserved).
+
+**Cross-ref:** ENH-125 (sibling race fix); FOLLOWUP-014 walk-2 (same `isActive` prop plumbing in PageTab + MarkdownEditor); the canvas `html-op` race (separate but same pattern — filed for follow-up if it bites).
 
 ---
 
@@ -6223,7 +6373,7 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### ENH-116: Trim `.claude/skills/smoke-walk/SKILL.md` — verbosity will get truncated at runtime
 
-**Status:** 🆕 Filed 2026-05-09.
+**Status:** ✅ Shipped v0.6.11 (Sprint 13, 2026-05-09). SKILL.md trimmed from 604 lines → 241 lines (60% reduction). Detail moved to four companion reference docs at `.claude/skills/smoke-walk/references/`: `restart-and-preflight.md` (dev-process rules + violation history + socket-cleanup gotcha), `clean-state-checks.md` (pre-handoff verification + error-overlay catalog), `result-format-and-parsing.md` (exact result-block shape + per-status actions), `manifest-authoring.md` (writing patterns + regression-coverage drop-rule + backtick-Copy convention). SKILL.md now keeps the active-verb procedure in-context with one-line refs to the detail docs. No content lost.
 **Priority:** **High** — runtime skill truncation means HARD RULES at the bottom of the file (e.g. § 5b checks 3-6, § 7 result-parsing) silently drop out of Claude's working context. Skill becomes advisory not authoritative.
 **Filed:** 2026-05-09 (Geoff, after Sprint 12 walk-1 broken-page incident).
 
@@ -6312,7 +6462,9 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### BUG-101: `duo open` / `duo edit` sometimes return `{ok: true}` without producing a visible tab
 
-**Status:** ✅ **Both halves shipped (editor in Sprint 9 2026-05-07; browser in Sprint 10 2026-05-07).**
+**Status:** ✅ Sprint 9 + 10 + 13 (editor v1 2026-05-07, browser 2026-05-07, editor v2 2026-05-09 — pending walk).
+
+**Sprint 13 v2 fix (2026-05-09).** Sprint 9's "scratchpad ref" pattern (stash activation in `pendingActivationRef` inside the setFileTabs updater, flush on the next line) was based on a wrong React semantics assumption: the updater function passed to setState DOES NOT run synchronously during dispatch — it runs at commit time. So when the post-setFileTabs `if (pendingActivationRef.current)` check ran, the updater hadn't fired yet and the ref was still `null`. setActiveWorking never got called → the new tab opened but never activated. v2 fix: replaced the ref pattern with a simpler "read latest committed `fileTabs` via `fileTabsRef`, decide activation id synchronously OUTSIDE the updater, then call setFileTabs + setActiveWorking + setFocusedColumn in the same React batch." `fileTabsRef.current = fileTabs` runs on every render. Verified live via `duo selection --pane editor` (which checks the active pane state) returning the new tab's path immediately after `duo edit`. Independent doc-read race remains (multiple MarkdownEditor instances respond to `duo doc read` without a path filter — first reply wins; filed as a separate concern).
 
 **Sprint 10 browser-routed fix (2026-05-07):** Root cause was a payload-shape mismatch. `core/socket-server.ts § case 'open'` fired a defensive supplemental `browser:focus-gained` event (added in BUG-048 v2 to handle the "Duo not foregrounded" case where Electron's programmatic `webContents.focus()` may queue or no-op). The defensive payload was `null`, but Phase 3c BUG-095 had switched the renderer's `onBrowserFocusGained` handler to dereference `payload.slot` — so the supplemental event threw and `setActiveWorking({kind:'browser'})` never fired. The genuine `webContents.on('focus')` event from `browser-manager.ts` already sent `{tabId, slot}`, so the bug only surfaced when programmatic focus was queued (running `duo open` from iTerm or another non-Duo terminal). Two-layer fix: (1) socket-server now sends `{tabId: openedTabId, slot: 'main'}` matching the canonical contract — `duo open` always lands a NEW main-strip tab (BrowserManager appends to `this.tabs`, never to the aux-pinned slot); (2) renderer handler is null-safe via `(payload as ...)?.slot ?? 'main'` so a future regression of this same shape cannot reproduce.
 

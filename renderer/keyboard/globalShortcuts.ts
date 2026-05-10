@@ -81,6 +81,13 @@ export type ShortcutId =
   // makes sense there). Replaced the prior Electron-default ⌘R
   // behavior of reloading the entire app + killing all sessions.
   | 'reloadBrowserTab'
+  // ENH-117 — ⌘⌥V opens a read-only "view source" overlay on the
+  // active editor (markdown source) or canvas (pretty-printed
+  // HTML). Both surfaces listen for the dispatched
+  // 'duo-view-source' CustomEvent; only the active one responds
+  // (gated on isActive). View-source convention from browsers /
+  // many editors.
+  | 'viewSource'
   // Sprint 3 Phase 3b — Split View open/move + promote chords. ⌘\
   // moves the active main tab into the aux slot (or, if the
   // active tab is already in aux, no-op). ⌘⇧\ promotes aux back
@@ -251,6 +258,15 @@ export function matchGlobalShortcut(
   // the keystroke so any Chromium fallback also gets consumed.
   if (meta && !shift && !alt && !ctrl && key === 'r') {
     return { id: 'reloadBrowserTab' }
+  }
+
+  // ENH-117 — ⌘⌥V opens the read-only "view source" overlay on the
+  // active editor or canvas. Use `e.code === 'KeyV'` (not e.key === 'v')
+  // because Option on macOS modifies the produced character — ⌘⌥V
+  // would yield '√' as e.key on some layouts. Same gotcha class as
+  // the existing ⌘⌥M comment chord.
+  if (meta && alt && !shift && !ctrl && e.code === 'KeyV') {
+    return { id: 'viewSource' }
   }
 
   // ENH-080 — ⌘⇧A opens the tab-search palette. Fuzzy search across

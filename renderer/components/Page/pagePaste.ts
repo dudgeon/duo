@@ -65,15 +65,16 @@ export function installPagePasteHandlers(doc: Document, opts: PagePasteOptions =
       const ext = MIME_TO_EXT[file.type] ?? 'png'
       void file.arrayBuffer().then(async (buf) => {
         try {
-          await window.electron.files.saveImageBeside(opts.activeDocPath!, new Uint8Array(buf), ext)
-          // Same v1 trade-off as MarkdownEditor: insert blob URL for
-          // immediate visible render. Markdown source persistence
-          // doesn't apply (canvas is HTML — the saved doc carries
-          // `<img src=blob:...>` which goes stale on reload). v2
-          // path mirrors FOLLOWUP-013 — store the abs path in src,
-          // use a NodeView/postprocessor to hydrate to blob at mount.
+          const result = await window.electron.files.saveImageBeside(opts.activeDocPath!, new Uint8Array(buf), ext)
+          // FOLLOWUP-014 (Sprint 13) — insert with the relative
+          // filename in `data-duo-original-src` and a blob URL in
+          // `src` for immediate render. The serializer at save time
+          // (serialize.ts § attrString) swaps src ← data-duo-
+          // original-src so the saved HTML carries the portable
+          // relative path. imageHydrate.ts will pick this up on
+          // future loads via the MutationObserver if needed.
           const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(buf)], { type: file.type }))
-          doc.execCommand('insertHTML', false, `<img src="${blobUrl}" alt="">`)
+          doc.execCommand('insertHTML', false, `<img src="${blobUrl}" data-duo-original-src="${result.relPath}" alt="">`)
         } catch (err) {
           console.error('[ENH-108 canvas] saveImageBeside failed:', err)
         }
@@ -108,9 +109,11 @@ export function installPagePasteHandlers(doc: Document, opts: PagePasteOptions =
     const ext = MIME_TO_EXT[file.type] ?? 'png'
     void file.arrayBuffer().then(async (buf) => {
       try {
-        await window.electron.files.saveImageBeside(opts.activeDocPath!, new Uint8Array(buf), ext)
+        const result = await window.electron.files.saveImageBeside(opts.activeDocPath!, new Uint8Array(buf), ext)
+        // FOLLOWUP-014 (Sprint 13) — see paste branch above for the
+        // src ↔ data-duo-original-src round-trip rationale.
         const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(buf)], { type: file.type }))
-        doc.execCommand('insertHTML', false, `<img src="${blobUrl}" alt="">`)
+        doc.execCommand('insertHTML', false, `<img src="${blobUrl}" data-duo-original-src="${result.relPath}" alt="">`)
       } catch (err) {
         console.error('[ENH-108 canvas] saveImageBeside failed:', err)
       }

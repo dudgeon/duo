@@ -8,10 +8,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { ViewSourceOverlay } from '../ViewSourceOverlay'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
-import Image from '@tiptap/extension-image'
+import { DuoImage, ImageBlobCache } from './extensions/DuoImage'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Table from '@tiptap/extension-table'
@@ -98,6 +99,12 @@ interface Props {
    *  the active terminal's PTY. `null` props the pill from rendering at
    *  all (e.g. no terminal tabs are open). */
   onSendToDuo?: ((payload: string) => void) | null
+  /** FOLLOWUP-014/walk-2 — true when this editor is the active visible
+   *  tab. Gates IPC handlers (currently `onImageInsert`) that should
+   *  only fire on the user-facing surface. Without the gate, multiple
+   *  mounted editors race to respond and the first reply wins —
+   *  silently delivering content to the wrong file. */
+  isActive?: boolean
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800
@@ -152,7 +159,7 @@ const NULL_ACTIONS: EditorActions = {
   inTable: () => false
 }
 
-export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo }: Props) {
+export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo, isActive }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -176,6 +183,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // reload from disk (loses local edits) or keep mine (next autosave
   // overwrites disk).
   const [externalConflict, setExternalConflict] = useState<{ diskBody: string } | null>(null)
+  // ENH-117 — view-source overlay state. Snapshot of `getMarkdown()` +
+  // frontmatter taken at chord time; the overlay renders read-only.
+  const [viewSource, setViewSource] = useState<string | null>(null)
   // Sprint 6 Phase 4 / MISSING-001 — comment thread state. Sidecar
   // lives at `<path>.md.duo.json` and stores comment bodies + the
   // excerpt/context used to re-anchor commentMark on file load.
@@ -227,6 +237,20 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [lineNumbers])
 
   const hostRef = useRef<HTMLDivElement | null>(null)
+
+  // FOLLOWUP-014 (Sprint 13) — DuoImage NodeView resolves relative
+  // image src → blob URL via files.read on mount. Cache holds blob
+  // URLs keyed by absPath. Reads latest doc path through the
+  // pre-existing pathRef (declared further below alongside the file
+  // load effect). Cache lifetime = component lifetime; revokeAll on
+  // unmount avoids leaking blob URLs into the renderer's memory.
+  const imageBlobCacheRef = useRef<ImageBlobCache>(new ImageBlobCache())
+  useEffect(() => {
+    const cache = imageBlobCacheRef.current
+    return () => {
+      cache.revokeAll()
+    }
+  }, [])
 
   // Preserved across save cycles; body is what the editor edits.
   const frontmatterRef = useRef<string | null>(null)
@@ -316,7 +340,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         linkOnPaste: true,
         HTMLAttributes: { rel: 'noopener noreferrer', class: 'duo-link' }
       }),
-      Image,
+      // FOLLOWUP-014 (Sprint 13) — paste-image v2. DuoImage extends
+      // TipTap's Image with a NodeView that resolves relative `src`
+      // → blob URL via files.read at mount time. Markdown source
+      // stays portable (`![](image-<stamp>.png)`) instead of carrying
+      // the renderer-process-scoped blob URLs of v1.
+      DuoImage.configure({
+        getDocPath: () => pathRef.current,
+        cache: imageBlobCacheRef.current
+      }),
       TaskList,
       TaskItem.configure({ nested: true }),
       Table.configure({ resizable: true }),
@@ -469,26 +501,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         void file.arrayBuffer().then(async (buf) => {
           try {
             const result = await window.electron.files.saveImageBeside(path, new Uint8Array(buf), ext)
-            // Insert at current selection. TipTap's Image extension
-            // renders ![](src) on serialize; tiptap-markdown round-
-            // trips it as a standard markdown image.
-            // ENH-108 walk-rev3 v2 — insert a BLOB URL built from the
-            // paste/drop bytes. duo-asset:// custom protocol returned
-            // 200/correct-bytes (verified via fetch from a file:// page)
-            // but rendering in the renderer at http://localhost:5173/
-            // was silently blocked by Chromium even with corsEnabled +
-            // CORS headers. Blob URLs are same-origin to the renderer
-            // so they render reliably.
-            //
-            // Trade-off: the markdown source stores `![](blob:...)`
-            // which is renderer-process-scoped — on document reload the
-            // blob URL is dead and the image is broken. Acceptable for
-            // v1 (the workflow ask was "paste and see the image") with
-            // FOLLOWUP-013 + a new v2 plan to ship a custom Image
-            // NodeView that stores the abs path in the markdown and
-            // hydrates a blob URL via files.read at mount time.
-            const blobUrl = URL.createObjectURL(new Blob([buf], { type: file.type }))
-            editor?.chain().focus().setImage({ src: blobUrl }).run()
+            // FOLLOWUP-014 (Sprint 13) — insert with the relative
+            // filename. DuoImage's NodeView resolves it against the
+            // doc's parent dir via files.read on mount and hydrates a
+            // blob URL into the rendered <img>. Markdown source stays
+            // portable (`![](image-<stamp>.png)`) — survives reload,
+            // git commit, send to another machine in the repo, etc.
+            editor?.chain().focus().setImage({ src: result.relPath }).run()
           } catch (err) {
             console.error('[ENH-108] saveImageBeside failed:', err)
           }
@@ -511,23 +530,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         void file.arrayBuffer().then(async (buf) => {
           try {
             const result = await window.electron.files.saveImageBeside(path, new Uint8Array(buf), ext)
-            // ENH-108 walk-rev3 v2 — insert a BLOB URL built from the
-            // paste/drop bytes. duo-asset:// custom protocol returned
-            // 200/correct-bytes (verified via fetch from a file:// page)
-            // but rendering in the renderer at http://localhost:5173/
-            // was silently blocked by Chromium even with corsEnabled +
-            // CORS headers. Blob URLs are same-origin to the renderer
-            // so they render reliably.
-            //
-            // Trade-off: the markdown source stores `![](blob:...)`
-            // which is renderer-process-scoped — on document reload the
-            // blob URL is dead and the image is broken. Acceptable for
-            // v1 (the workflow ask was "paste and see the image") with
-            // FOLLOWUP-013 + a new v2 plan to ship a custom Image
-            // NodeView that stores the abs path in the markdown and
-            // hydrates a blob URL via files.read at mount time.
-            const blobUrl = URL.createObjectURL(new Blob([buf], { type: file.type }))
-            editor?.chain().focus().setImage({ src: blobUrl }).run()
+            // FOLLOWUP-014 (Sprint 13) — insert relative filename;
+            // DuoImage hydrates blob URL on render. See handlePaste
+            // above for the rationale.
+            editor?.chain().focus().setImage({ src: result.relPath }).run()
           } catch (err) {
             console.error('[ENH-108] saveImageBeside failed:', err)
           }
@@ -1278,6 +1284,14 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   }, [handleStartNewComment])
 
   // ── Serve doc-read requests with the live buffer ────────────────────────
+  //
+  // BUG-112 (filed 2026-05-09 walk-2) — gate on `isActive` so only the
+  // visible editor responds when no `req.path` is supplied. Pre-fix all
+  // mounted editors raced; first reply won; `duo doc read` would return
+  // an arbitrary tab's content (often whichever was opened first this
+  // session). Same race shape as ENH-125's image-insert race; fixed
+  // identically. With `req.path` supplied, the existing path-filter
+  // already routes to the right editor — no change there.
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onDocRead((req) => {
@@ -1289,6 +1303,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         })
         return
       }
+      if (!req.path && !isActiveRef.current) return // no path filter, not active → ignore
       try {
         const body = editor.storage.markdown.getMarkdown() as string
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
@@ -1762,22 +1777,44 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const pendingWriteRef = useRef<DocWriteRequest | null>(null)
   pendingWriteRef.current = pendingWrite
 
-  // ENH-108 (Sprint 12) — `duo image insert <path>` handler. Mirrors
-  // the handlePaste flow: saveImageBeside (alongside the active doc),
-  // then insert blob URL at caret. v1 trade-off matches paste-image:
-  // markdown source carries `![](blob:...)` which doesn't survive
-  // doc reload — see FOLLOWUP-013 for the v2 plan.
+  // ENH-117 — view-source overlay listener. Capture-phase listener
+  // for the `duo-view-source` window event dispatched by ⌘⌥V.
+  // Gated on `isActive` so only the visible editor responds (one
+  // overlay across the app at a time). Snapshot the markdown source
+  // at chord time so the overlay shows what the editor's storage
+  // currently has — same source the next save would write.
+  useEffect(() => {
+    if (!editor || isNew) return
+    const onViewSource = () => {
+      if (!isActiveRef.current) return
+      const body = editor.storage.markdown.getMarkdown() as string
+      const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
+      setViewSource(full)
+    }
+    window.addEventListener('duo-view-source', onViewSource)
+    return () => window.removeEventListener('duo-view-source', onViewSource)
+  }, [editor, isNew])
+
+  // ENH-108 (Sprint 12) / FOLLOWUP-014 (Sprint 13) — `duo image
+  // insert <path>` handler. Mirrors handlePaste: saveImageBeside +
+  // setImage with the relative filename. DuoImage's NodeView
+  // resolves and renders the blob URL. Markdown source stays
+  // portable.
+  //
+  // FOLLOWUP-014/walk-2 — gated on `isActive` via a ref (so a tab
+  // switch doesn't tear down + re-add the listener; both inactive
+  // tabs are silent; only the visible one responds). Pre-gate every
+  // mounted editor responded, first reply won, image landed in the
+  // wrong file. Same race shape as the doc-read bug.
+  const isActiveRef = useRef(isActive ?? false)
+  isActiveRef.current = isActive ?? false
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onImageInsert(async (req) => {
+      if (!isActiveRef.current) return // silently ignore on inactive tabs
       try {
         const result = await window.electron.files.saveImageBeside(path, req.bytes, req.ext)
-        const mime = ({
-          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-          webp: 'image/webp', svg: 'image/svg+xml', bmp: 'image/bmp', tiff: 'image/tiff'
-        } as Record<string, string>)[req.ext] ?? 'application/octet-stream'
-        const blobUrl = URL.createObjectURL(new Blob([new Uint8Array(req.bytes)], { type: mime }))
-        const attrs: { src: string; alt?: string } = { src: blobUrl }
+        const attrs: { src: string; alt?: string } = { src: result.relPath }
         if (req.alt !== undefined) attrs.alt = req.alt
         editor.chain().focus().setImage(attrs).run()
         window.electron.editor.replyImageInsert({ reqId: req.reqId, ok: true, absPath: result.absPath })
@@ -2036,6 +2073,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           excerpt={newCommentAt.excerpt}
           onSubmit={handleSubmitNewComment}
           onCancel={handleCancelNewComment}
+        />
+      )}
+      {viewSource !== null && (
+        <ViewSourceOverlay
+          source={viewSource}
+          title={path.split('/').pop() ?? path}
+          onClose={() => setViewSource(null)}
         />
       )}
     </div>

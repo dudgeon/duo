@@ -136,6 +136,9 @@ export type DuoCommandName =
   // the View → Pane size menu and ⌘⌥1/2/3 keyboard accelerators.
   // Clamps to the 20–80 range the divider drag uses.
   | 'split'
+  // ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
+  // inner aux 50/50 (when aux is open). On-demand sibling of ENH-126.
+  | 'layout-3way-even'
   // ENH-041 / Sprint 3 — Split View (one-aux companion pane in the
   // canvas). User-facing label is "Split View"; CLI verb is
   // `duo split-view open <path>` / `duo split-view close` /
@@ -1349,6 +1352,15 @@ export const IPC = {
   // View → Pane size menu, ⌘⌥1/2/3/0/9 accelerators, and `duo split
   // <pct>`. Renderer clamps to 20–80 (same range as divider drag).
   SPLIT_SET: 'split:set',
+
+  // ENH-099 — `⌘⌥4` chord + `duo split 3way` preset. Tells the renderer
+  // to snap to the canonical 3-pane even layout: outer terminal/working
+  // = 33/67, inner main/aux = 50/50. Net visual ≈ 33/33/33 across all
+  // three columns. Same target shape as ENH-126's auto-redistribute on
+  // split-open, but on-demand instead of triggered by aux-open. Renderer
+  // applies the inner aux split only if aux is currently open; outer
+  // gets the 33/67 either way.
+  LAYOUT_3WAY_EVEN: 'layout:3way-even',
 
   // ENH-041 / Sprint 3 — Split View (one-aux companion in the canvas).
   // CLI verb `duo split-view open <path>` / `duo split-view close` /

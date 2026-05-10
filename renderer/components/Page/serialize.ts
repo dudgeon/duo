@@ -229,6 +229,19 @@ function attrString(el: Element): string {
   }
   // Always-strip set runs on every element (BUG-083 anchor markers).
   names = names.filter(n => !RUNTIME_ATTRS_TO_ALWAYS_STRIP.has(n))
+
+  // FOLLOWUP-014 — img with `data-duo-original-src` was hydrated by
+  // imageHydrate.ts (raw src was a relative/abs filesystem path; the
+  // canvas displays a blob URL). Swap `src` back to the original at
+  // save time so the saved HTML carries the portable path, not the
+  // ephemeral blob URL. data-duo-original-src itself is dropped from
+  // the output (it's a Duo-internal marker, not a user-visible attr).
+  let imgSrcOverride: string | null = null
+  if (el.tagName === 'IMG' && el.hasAttribute('data-duo-original-src')) {
+    imgSrcOverride = el.getAttribute('data-duo-original-src')
+    names = names.filter(n => n !== 'data-duo-original-src')
+  }
+
   names = names.slice().sort(compareAttrs)
   if (names.length === 0) return ''
   return names.map(n => {
@@ -237,7 +250,9 @@ function attrString(el: Element): string {
     // element. Keeps `duo-just-added` from leaking to disk if a save
     // races the 6s fade. If the resulting class list is empty we drop
     // the attribute entirely so the serialized output stays clean.
-    const value = n === 'class' ? scrubClassValue(raw) : raw
+    const value = n === 'class'
+      ? scrubClassValue(raw)
+      : (n === 'src' && imgSrcOverride !== null) ? imgSrcOverride : raw
     if (n === 'class' && value === '') return ''
     return ` ${n}="${escapeAttr(value)}"`
   }).join('')

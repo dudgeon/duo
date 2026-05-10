@@ -21,7 +21,36 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.6.10 cut 2026-05-09)*
+> *(empty — v0.6.11 cut 2026-05-09)*
+
+---
+
+## v0.6.11 — 2026-05-09 — Paste-image v2 + auto-redistribute panes + view-source
+
+The closing chapter of the image-handling arc that started in v0.6.10 — paste-image is now portable across machines (markdown source carries relative paths, not blob URLs). Plus three feature pulls owner directed mid-sprint: auto-redistribute on split-open (ENH-126), the on-demand 33/33/33 chord pairing (ENH-099), and a read-only view-source overlay (ENH-117 v1; v2 panel-fill queued as FOLLOWUP-015). Five race-class / state-tracking fixes that surfaced during the cut walks landed alongside.
+
+**FOLLOWUP-014 paste-image v2.** v0.6.10 shipped paste-image as a workflow-unblock with a known trade-off: markdown source carried `blob:http://localhost:5173/<uuid>` URLs that died on doc reload. v0.6.11 closes the gap. Markdown source now carries `![](image-<stamp>.png)` (relative filename); the custom `DuoImage` NodeView at `renderer/components/editor/extensions/DuoImage.ts` resolves against the doc's parent dir via `files.read` at mount + hydrates a per-tab blob URL into the rendered `<img>`. The canvas surface mirrors via `imageHydrate.ts` (MutationObserver catches new `<img>` elements + walks the doc on mount) + a serializer hook in `serialize.ts` that swaps `src` ↔ `data-duo-original-src` at save time. Files survive reload, git commit, `cp` to another machine.
+
+**Walk-2 surfaced two latent bugs**, both root-caused + fixed same-day:
+
+- `lastSavedRef` re-baseline in PageTab was firing on every wire-effect re-fire (the wire effect's deps include `handleShortcut` → re-creates when `save` re-creates → re-creates when `dirty` flips). Inserting any content captured the post-insert DOM as the dirty-detection baseline → save saw `htmlChanged=false` → silent autosave no-op. Gated the re-baseline behind `baselinedRef` — fires once per path-mount only.
+- `onImageInsert` IPC subscription raced across all mounted PageTab + MarkdownEditor instances; first reply won; image landed in the wrong file when session-restored tabs were present. Fixed by threading `isActive` through WorkingPane § renderFileTab and ref-gating both handlers. Same race shape repeated for `duo doc read` (BUG-112) — same fix.
+
+**ENH-126 auto-redistribute on aux-open.** Owner-directed feature pulled in mid-sprint after escalation: opening a file in split view auto-redistributes columns. Terminal visible → 33/33/33. Terminal collapsed → main+split 50/50. Both code paths (file-aux `splitViewMoveTabByPath`, browser-aux `splitViewMoveBrowserTab`) trigger it.
+
+**ENH-099 33/33/33 chord.** On-demand sibling of ENH-126. Same canonical layout helper; three triggers (`⌘⌥4` chord, View → Pane size menu entry, `duo split 3way` CLI verb). Walk-3 surfaced a gap (chord only touched file-aux's splitPct, not browser-aux's); walk-4 fix closed it. Now any aux kind (file or browser) gets the 50/50 inner reset.
+
+**ENH-117 view-source v1 (modal).** ⌘⌥V opens a centered read-only modal showing the active surface's raw source (markdown body+frontmatter for editors; pretty-printed HTML for canvases). Active-surface gated. v1 ships as a modal because that composed cleanly with the existing surface architecture, but owner walk-3 surfaced that the intended UX is panel-fill (in-place toggle) + menu/tab-context entries instead of chord-only — that v2 is filed as **FOLLOWUP-015** for a future cut. Memory rule saved: *"ask about surface choice before display-shape decisions"* — don't default to architecturally-clean shapes when the owner's mental model is something else.
+
+**ENH-125 canvas image insert.** Closes the v0.6.10 explicit `(c)-Deferred` parity disposition. PageTab subscribes to the same IPC; canvas tab now responds when active. CLI verb works against either surface.
+
+**BUG-101 v2 — `duo edit` auto-focus** + **BUG-112 — `duo doc read` no-path race fix.** Two race-class fixes in the same family. v2 of BUG-101 corrected a Sprint 9 React semantics assumption (`setState` updaters run at commit, not synchronously). BUG-112 closed a quiet IPC routing race using the same `isActive` gate pattern from ENH-125.
+
+**ENH-116 smoke-walk skill trim.** SKILL.md was 604 lines and getting truncated at runtime, dropping HARD RULES from Claude's working context. Trimmed to 241 lines (60% reduction); detail moved to four reference docs at `.claude/skills/smoke-walk/references/`.
+
+**ENH-127 declined-v1.** Implemented per-Claude-tab `Return → \n` / `⌘Return → \r` intercept; live test confirmed Claude Code's input loop treats `\n` and `\r` identically at the line-discipline level. Renderer-side intercept can't deliver the desired UX. Reverted; tasks.md entry documents four future paths (Claude Code adds raw-newline mode, Duo-side composer window, anti-accidental-submit heuristic, etc.).
+
+**What this is and isn't.** This is the closing chapter of the image-handling arc — paste-image is portable now. It also lands the long-asked-for split-pane auto-redistribute + the chord pairing. NOT in this cut: ENH-117 v2 panel-fill (queued as FOLLOWUP-015), ENH-127 working version (filed declined; future paths documented), ENH-118/119/120 image-handling polish cluster (queued), ENH-122/123/124 visibility-tooling CLI cluster (queued), ENH-110 JSON viewer (queued).
 
 ---
 
