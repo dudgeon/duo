@@ -1235,9 +1235,20 @@ export function App() {
   // expect bytes on disk so an empty seed is fine.
   const onCommitNewFile = useCallback(async (id: string, resolvedPath: string, title: string) => {
     const { type, mime } = classifyFile(resolvedPath)
-    const seed = type === 'page'
-      ? encodeUtf8(htmlBoilerplate(title.replace(/\.[^.]+$/, '')))
-      : new Uint8Array()
+    let seed: Uint8Array
+    if (type === 'page') {
+      seed = encodeUtf8(htmlBoilerplate(title.replace(/\.[^.]+$/, '')))
+    } else if (type === 'json') {
+      // ENH-110 — seed JSON-family files with a parseable empty doc so
+      // the JsonView mounts cleanly into tree mode. YAML gets a
+      // header comment; JSON gets `{}`.
+      const ext = resolvedPath.includes('.') ? resolvedPath.slice(resolvedPath.lastIndexOf('.') + 1).toLowerCase() : ''
+      const yamlSeed = '# YAML document\n'
+      const jsonSeed = '{}\n'
+      seed = encodeUtf8(ext === 'yml' || ext === 'yaml' ? yamlSeed : jsonSeed)
+    } else {
+      seed = new Uint8Array()
+    }
     try {
       await window.electron.files.write(resolvedPath, seed)
     } catch (err) {
@@ -2331,6 +2342,102 @@ export function App() {
     })
   }, [])
 
+  // FOLLOWUP-015 (ENH-117 v2) — View → View source menu fires this
+  // IPC. Re-dispatch as the existing `'duo-view-source'` window event
+  // so MarkdownEditor + PageTab listeners (already handling the ⌘⌥V
+  // chord and the tab-strip right-click) respond identically. Single
+  // event-funnel keeps the toggle / isActive logic in one place.
+  useEffect(() => {
+    return window.electron.layout?.onViewSourceRequest?.(() => {
+      window.dispatchEvent(new CustomEvent('duo-view-source'))
+    })
+  }, [])
+
+  // ENH-124 — `duo layout` reads this function via main's
+  // executeJavaScript. Re-bound on every render so the closure
+  // captures the latest state (cheaper than threading 8+ refs).
+  // Schema: WorkingPane state (active main + aux) + terminal slice
+  // (tab list + active + collapse hint) + navigator slice (cwd /
+  // selection / pinned / collapsed). See core/socket-server.ts
+  // case 'layout' for the contract.
+  // Walk-1 fix (2026-05-10): owner reported the terminal + navigator
+  // slices were too thin compared to the working-pane detail. v2
+  // includes the full terminal tab list (kind / cwd / title) + nav
+  // selection so the snapshot answers "what's the user looking at"
+  // across all three columns symmetrically.
+  useEffect(() => {
+    const activeFileTab = activeWorking.kind === 'file'
+      ? fileTabs.find(t => t.id === activeWorking.id)
+      : null
+    const activeBrowserTab = activeWorking.kind === 'browser'
+      ? browserTabs.find(t => t.isActive)
+      : null
+    const main: Record<string, unknown> | null =
+      activeFileTab
+        ? { kind: activeFileTab.type, path: activeFileTab.path, title: activeFileTab.title, id: activeFileTab.id }
+        : activeBrowserTab
+          ? { kind: 'browser', url: activeBrowserTab.url, title: activeBrowserTab.title, id: `b:${activeBrowserTab.id}` }
+          : null
+    let aux: Record<string, unknown> | null = null
+    if (auxBrowserTab) {
+      aux = {
+        kind: 'browser',
+        url: auxBrowserTab.url,
+        title: auxBrowserTab.title,
+        splitPct: auxBrowserTab.splitPct
+      }
+    } else if (auxState && auxState.paths.length > 0) {
+      const idx = Math.max(0, Math.min(auxState.activeIndex, auxState.paths.length - 1))
+      const auxPath = auxState.paths[idx]
+      const auxFileTab = fileTabs.find(t => t.path === auxPath)
+      aux = {
+        kind: 'file',
+        path: auxPath,
+        title: auxFileTab?.title ?? auxPath.split('/').pop() ?? auxPath,
+        type: auxFileTab?.type ?? 'unknown',
+        splitPct: auxState.splitPct
+      }
+    }
+    const activeTerminal = tabs.find(t => t.id === activeTabId) ?? null
+    const snapshot = {
+      // Working pane (main + aux)
+      active: activeWorking.kind,
+      main,
+      aux,
+      splitPct,
+      focusedColumn,
+      fileTabsCount: fileTabs.length,
+      browserTabsCount: browserTabs.length,
+      // Terminal column — walk-1 expansion. Mirrors `duo nav-state`'s
+      // depth: full list of tabs, active id, kind / cwd / title each.
+      // `collapsed` derived from splitPct (≥ 80 = canvas hidden;
+      // ≤ 20 = terminal hidden — mirror of the `setSplit` chord set).
+      terminal: {
+        activeTabId,
+        activeKind: activeTerminal?.kind ?? null,
+        activeCwd: activeTerminal?.cwd ?? null,
+        activeTitle: activeTerminal?.title ?? null,
+        collapsed: splitPct <= 20,
+        tabs: tabs.map(t => ({ id: t.id, kind: t.kind, cwd: t.cwd, title: t.title }))
+      },
+      // Navigator column — walk-1 expansion. Mirrors `duo nav-state`
+      // shape (cwd / selected / pinned) so callers can introspect
+      // navigator state without a separate verb.
+      navigator: {
+        cwd: nav.state.cwd,
+        selected: nav.state.selected,
+        pinned: nav.state.pinned,
+        collapsed: filesCollapsed,
+        expandedCount: nav.state.expanded.size ?? 0
+      },
+      timestamp: Date.now()
+    }
+    ;(window as unknown as { __duoGetLayout?: () => unknown }).__duoGetLayout = () => snapshot
+    return () => {
+      delete (window as unknown as { __duoGetLayout?: () => unknown }).__duoGetLayout
+    }
+  })
+
   // ENH-041 / Sprint 3 — Split View IPC subscribers. CLI verbs `duo
   // split-view open|close|promote|resize` route through main →
   // preload → here. App.tsx is the source of truth for aux state;
@@ -2924,6 +3031,15 @@ export function App() {
                 void window.electron.browser.closeTab(browserTabId)
                 const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath
                 void openFileSmart(filePath, name, 'canvas')
+              }}
+              // ENH-131 — inverse direction. Right-click on a canvas
+              // tab → "Open in browser" closes the canvas tab and
+              // re-opens the file as a browser tab so scripts run /
+              // buttons fire. Mirrors onEditBrowserTabInCanvas.
+              onOpenCanvasTabInBrowser={(fileTabId, filePath) => {
+                closeFileTab(fileTabId)
+                const name = filePath.slice(filePath.lastIndexOf('/') + 1) || filePath
+                void openFileSmart(filePath, name, 'browser')
               }}
               // ENH-083 (v0.6.5) — collapse-canvas button moved from
               // titlebar into the new-tab cluster.

@@ -33,7 +33,12 @@ for the authoritative usage text.
 | `duo url` / `duo title` | Current URL / title |
 | `duo text [--selector]` | Visible text via `innerText` |
 | `duo ax [--selector] [--format md\|json]` | Accessibility tree — required for canvas apps (Docs/Sheets/Slides/Figma) |
-| `duo dom` | Full HTML |
+| `duo dom` | Full HTML (browser pane, CDP) |
+| `duo dom <selector> [--attr <n>] [--text] [--all] [--computed p1,p2]` | **ENH-122** — query the main RENDERER (React shell) by CSS selector. Default outerHTML; `--attr` reads one attribute; `--text` returns textContent; `--computed` returns getComputedStyle props as JSON; `--all` returns an array of matches. |
+| `duo dom --js "<expr>"` | **ENH-122** — evaluate an arbitrary expression in the renderer scope. Distinct from `duo eval` (browser pane / CDP). |
+| `duo devtools [--browser-pane] [--close]` | **ENH-123** — open / close DevTools on the main renderer or active browser pane. |
+| `duo layout` | **ENH-124** — JSON snapshot of WorkingPane state (active tab kind/path, aux state, splitPct, focused subpane, navigatorCollapsed, tab counts). Third member of the visibility-tooling cluster (with `duo dom` + `duo nav-state`). |
+| `duo edit --reveal` / `duo open --reveal` / `duo view --reveal` | **ENH-130** — after open, auto-expand the working pane if collapsed (splitPct ≥ 75 → 50) + focus main. Use when the agent has just created an artifact for the user. Idempotent. |
 | `duo click <selector>` | Click element |
 | `duo fill <selector> <value>` | Set an input value |
 | `duo focus <selector>` | Focus an element |

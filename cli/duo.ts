@@ -255,6 +255,20 @@ function sendStreamed(
 
 // ── Output helpers ────────────────────────────────────────────────────────────
 
+// BUG-114 (Sprint 14 walk-1) — `duo dom | head -3` (and any other
+// `duo <verb> | head/grep/awk`) crashed with `Error: write EPIPE`
+// when the pipe consumer closed its stdin before the CLI finished
+// writing. Standard Node fix: swallow EPIPE on stdout/stderr so the
+// process exits cleanly. `head -3` is canonical agent-debugging
+// usage; the crash made the CLI feel broken even when it had
+// successfully delivered the requested bytes.
+process.stdout.on('error', (err) => {
+  if ((err as NodeJS.ErrnoException).code === 'EPIPE') process.exit(0)
+})
+process.stderr.on('error', (err) => {
+  if ((err as NodeJS.ErrnoException).code === 'EPIPE') process.exit(0)
+})
+
 function out(value: unknown): void {
   if (typeof value === 'string') process.stdout.write(value + '\n')
   else console.log(JSON.stringify(value, null, 2))
@@ -327,9 +341,13 @@ async function main(): Promise<void> {
         break
       }
       case 'open': {
-        const target = rest[0] ?? die('Usage: duo open <path-or-url>')
-        const resolved = resolveOpenTarget(target)
-        out(await send('open', { url: resolved }))
+        // ENH-130 — `--reveal` expands the working pane (if collapsed)
+        // and focuses main after the open lands. Use this when the
+        // agent just created an artifact for the user to see.
+        const reveal = rest.includes('--reveal')
+        const positional = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo open <path-or-url> [--reveal]')
+        const resolved = resolveOpenTarget(positional)
+        out(await send('open', reveal ? { url: resolved, reveal: true } : { url: resolved }))
         break
       }
       case 'reload': {
@@ -346,9 +364,68 @@ async function main(): Promise<void> {
       case 'title':
         out(await send('title'))
         break
-      case 'dom':
-        out(await send('dom'))
+      case 'dom': {
+        // ENH-122 — `duo dom <selector> [...]` queries the main renderer
+        // (the React shell). Bare `duo dom` keeps the legacy browser-pane
+        // HTML dump (CDP). Disambiguation key: any args at all → renderer.
+        //
+        //   duo dom                                 # browser-pane HTML (legacy)
+        //   duo dom 'img'                           # outerHTML of first match
+        //   duo dom '.ProseMirror' --attr class     # one attribute
+        //   duo dom '.ProseMirror' --text           # textContent
+        //   duo dom 'img' --computed width,height   # getComputedStyle props
+        //   duo dom 'li' --all                      # array of outerHTMLs
+        //   duo dom --js '1 + 1'                    # arbitrary expression
+        if (rest.length === 0) {
+          out(await send('dom'))
+          break
+        }
+        const jsIdx = rest.indexOf('--js')
+        const payload: Record<string, unknown> = {}
+        if (jsIdx !== -1) {
+          // --js consumes the rest of argv as a single expression so
+          // shell-quoted blobs with spaces / parens / object literals
+          // survive intact. Anything before --js is rejected (mixing
+          // selector + js makes no sense).
+          if (jsIdx !== 0) {
+            die('Usage: duo dom --js "<expr>"  (no other positional args)')
+          }
+          const js = rest.slice(jsIdx + 1).join(' ')
+          if (!js) die('Usage: duo dom --js "<expression>"')
+          payload['js'] = js
+        } else {
+          // Selector path. First non-flag arg = selector; flags AFTER it
+          // configure the projection (--attr / --text / --computed / --all).
+          // Walk argv manually so flag VALUES (--attr <name>, --computed
+          // <list>) don't get caught up in the positional scan.
+          const flagsWithValue = new Set(['--attr', '--computed'])
+          const skipNext = new Set<number>()
+          for (let i = 0; i < rest.length; i++) {
+            if (flagsWithValue.has(rest[i])) skipNext.add(i + 1)
+          }
+          const positionals = rest.filter((a, i) => !a.startsWith('--') && !skipNext.has(i))
+          if (positionals.length === 0) {
+            die('Usage: duo dom <selector> [--attr <n>] [--text] [--all] [--computed p1,p2]')
+          }
+          payload['selector'] = positionals[0]
+          const attrIdx = rest.indexOf('--attr')
+          if (attrIdx !== -1) {
+            const v = rest[attrIdx + 1]
+            if (!v) die('Usage: duo dom <selector> --attr <name>')
+            payload['attr'] = v
+          }
+          if (rest.includes('--text')) payload['text'] = true
+          const computedIdx = rest.indexOf('--computed')
+          if (computedIdx !== -1) {
+            const v = rest[computedIdx + 1]
+            if (!v) die('Usage: duo dom <selector> --computed <prop1,prop2,...>')
+            payload['computed'] = v.split(',').map(s => s.trim()).filter(Boolean)
+          }
+          if (rest.includes('--all')) payload['all'] = true
+        }
+        out(await send('dom', payload))
         break
+      }
       case 'text': {
         const selectorIdx = rest.indexOf('--selector')
         const selector = selectorIdx !== -1 ? rest[selectorIdx + 1] : undefined
@@ -483,11 +560,15 @@ async function main(): Promise<void> {
         // ENH-097 — `--canvas` forces canvas-mode mount, overriding the
         // file's `<meta name="duo-open-in" content="browser">` if present.
         // Routing precedence: explicit flag > meta tag > kind default.
+        // ENH-130 — `--reveal` auto-expands the working pane and
+        // focuses main after the open. Use when creating artifacts.
         const canvasFlagIdx = rest.indexOf('--canvas')
-        const target = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo view <path> [--canvas]')
+        const target = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo view <path> [--canvas] [--reveal]')
         const resolved = resolveFilePath(target)
-        const overrideMode = canvasFlagIdx !== -1 ? 'canvas' : undefined
-        out(await send('view', overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }))
+        const payload: Record<string, unknown> = { path: resolved }
+        if (canvasFlagIdx !== -1) payload['mode'] = 'canvas'
+        if (rest.includes('--reveal')) payload['reveal'] = true
+        out(await send('view', payload))
         break
       }
       case 'image': {
@@ -511,13 +592,15 @@ async function main(): Promise<void> {
       case 'edit': {
         // ENH-097 — `--canvas` forces canvas-mode mount, overriding the
         // file's `<meta name="duo-open-in" content="browser">` if present.
-        // Useful for editing playground source after the modality lock
-        // routes the file to browser mode by default.
+        // ENH-130 — `--reveal` auto-expands the working pane and
+        // focuses main after the open. Use when creating artifacts.
         const canvasFlagIdx = rest.indexOf('--canvas')
-        const target = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo edit <path> [--canvas]')
+        const target = rest.find(a => !a.startsWith('--')) ?? die('Usage: duo edit <path> [--canvas] [--reveal]')
         const resolved = resolveFilePath(target)
-        const overrideMode = canvasFlagIdx !== -1 ? 'canvas' : undefined
-        out(await send('edit', overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }))
+        const payload: Record<string, unknown> = { path: resolved }
+        if (canvasFlagIdx !== -1) payload['mode'] = 'canvas'
+        if (rest.includes('--reveal')) payload['reveal'] = true
+        out(await send('edit', payload))
         break
       }
       case 'selection': {
@@ -1067,6 +1150,27 @@ async function main(): Promise<void> {
         out(await send('new-tab', args as Record<string, unknown>))
         break
       }
+      case 'devtools': {
+        // ENH-123 — open DevTools on the main renderer (default) or
+        // the active browser pane. --close closes any open instance
+        // for the chosen target.
+        //
+        //   duo devtools                    # main renderer DevTools
+        //   duo devtools --browser-pane     # active browser tab DevTools
+        //   duo devtools --close            # close renderer DevTools
+        //   duo devtools --browser-pane --close  # close browser DevTools
+        const target = rest.includes('--browser-pane') ? 'browser-pane' : 'renderer'
+        const close = rest.includes('--close')
+        out(await send('devtools', { target, close }))
+        break
+      }
+      case 'layout': {
+        // ENH-124 — JSON snapshot of WorkingPane / terminal /
+        // navigator state. Pairs with `duo nav-state` (file tree) and
+        // `duo dom` (renderer DOM) as the third visibility verb.
+        out(await send('layout', {}))
+        break
+      }
       case 'doctor':
         await runDoctor()
         break
@@ -1369,7 +1473,32 @@ COMMANDS
                                   in the agent's iteration loop.
   url                             Print current URL
   title                           Print current page title
-  dom                             Print full page HTML
+  dom [<selector>] [--attr <n>]   ENH-122 — bare \`duo dom\` prints the
+       [--text] [--all]            browser pane's full HTML (CDP). With
+       [--computed p1,p2]          a selector, queries the main RENDERER
+       [--js "<expr>"]             instead (the React shell — useful when
+                                   debugging editor / canvas / image-
+                                   viewer state). --attr returns one
+                                   attribute. --text returns
+                                   textContent. --all returns an array
+                                   of matches. --computed returns
+                                   getComputedStyle props as a JSON
+                                   object. --js evaluates an arbitrary
+                                   expression in the renderer scope.
+  devtools [--browser-pane]       ENH-123 — open DevTools on the main
+       [--close]                   renderer (default) or the active
+                                   browser pane. --close closes any
+                                   open instance for the target. Sister
+                                   to \`duo dom\` for the 5% of cases
+                                   the targeted query isn't enough.
+  layout                          ENH-124 — JSON snapshot of the
+                                   WorkingPane / terminal / navigator
+                                   state (active main tab kind+path,
+                                   aux state, splitPct, focused
+                                   column, navigator collapsed?).
+                                   Pairs with \`duo nav-state\` and
+                                   \`duo dom\` as the third visibility
+                                   verb.
   text [--selector <css>]         Print visible text (or matched element text)
   ax [--selector <css>] [--format md|json]
                                   Accessibility tree (required for Google Docs

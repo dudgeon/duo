@@ -46,15 +46,96 @@ description: Generate an interactive HTML smoke-walk page for the user to valida
 
 ---
 
+## HARD RULE — Walk every CLI-testable step yourself before handoff
+
+> **If a smoke-walk step CAN be run via the `duo` CLI without a mouse
+> click or visual judgment, the agent MUST run it before handing the
+> walk to the owner.** Mark items as known-PASS in the intro when
+> agent-walked successfully, so the owner can skip them and focus on
+> the genuinely-eyes-on items.
+>
+> CLI-testable categories (run yourself, no exceptions):
+> - `duo dom` / `duo eval` / `duo nav-state` / `duo layout` / `duo
+>   doctor` / `duo url` / `duo title` / any deterministic verb that
+>   returns text or JSON.
+> - Verb sequences with verifiable end-state via the visibility cluster
+>   (e.g. `duo split 80` then `duo edit --reveal foo` then `duo layout`
+>   to confirm `splitPct: 50` + `active: 'file'` — verify the layout
+>   change WITHOUT the user).
+> - Anything where success/failure is a string or JSON shape match.
+>
+> Owner-only categories (genuinely require eyes / hands):
+> - Visual rendering checks ("the panel fills the editor area", "the
+>   tint covers the image", "no quote marks around the blockquote").
+> - Native gestures the agent can't synthesize cleanly (drag-drop from
+>   Finder, keyboard chords with timing, right-click context menus —
+>   menu.popup is a native NSMenu so we can't programmatically click).
+> - Final user-perception calls ("does this feel right", "is the chord
+>   discoverable").
+>
+> **Don't ship a manifest where the agent could have caught a failure.**
+> If the agent walks step 1 and it fails, the agent fixes it before
+> handoff — owner shouldn't see the failure at all. The walk surface
+> is the OWNER's verification of OWNER-judgment items, not a test
+> harness for things the agent should have validated.
+>
+> Owner directive that produced this rule (2026-05-10 walk-2 on
+> v0.6.12-rev2): *"ran step 1; did not confirm the rest -- this is
+> something you should be able to walk for me (and I expect you to)."*
+
+---
+
+## HARD RULE — Never re-walk what the user already verified
+
+> **The manifest contains ONLY items the user has not yet PASSed.**
+>
+> **First walk of a version (`v<VERSION>.json`):** every shipped item
+> needing user verification.
+>
+> **Re-walk (`v<VERSION>-rev<N>.json`, N ≥ 2):** the union of
+> 1. items that FAILed in walk-(N-1), now being re-tested (annotate
+>    the title with `(walk-N — <fix-summary>)`), and
+> 2. carry-forward decision-gate SKIPs that explicitly persist across
+>    walks (e.g. ENH-110-style items the owner deferred), and
+> 3. new items shipped between walks (rare).
+>
+> **It does NOT contain the walk-(N-1) PASS rows.** The user already
+> walked them; making them re-walk is redundant work and visual
+> noise. This applies even when a walk-N fix touches code that also
+> affects the PASS items — trust the prior PASS unless you have
+> specific reason to suspect a regression. If you do suspect one,
+> call it out in the intro; don't hide it inside a re-tested
+> manifest entry.
+>
+> **Same rule for items covered by passing automated tests.** If a
+> regression has CI coverage that passes, it is NOT a smoke-walk
+> item — drop it.
+>
+> Owner directives that produced this rule:
+> - 2026-05-07 walk-2 on v0.6.9: *"WHY AM I SEEING THIS IF YOU TEST
+>   IT AND IT PASSES DON'T SHOW ME THIS."*
+> - 2026-05-10 walk-2 on v0.6.12-rev2: *"why are there stale,
+>   already verified tasks still showing in
+>   docs/dev/smoke-walks/v0.6.12-rev2.html"* / *"I don't want to see
+>   already-walked tasks."*
+
+---
+
 ## Procedure
 
 ### 1. Identify items to validate
 
-Read entries in `tasks.md` flipped to `✅ Shipped <today's date>`
-since the last release tag. Cross-check the most recent dated
-section in `docs/dev/session-log.md`. Cover every BUG-/ENH- that
-plausibly needs user-side verification — small refactors fold
-into the parent item.
+**For a first walk (no prior `rev`):** read entries in `tasks.md`
+flipped to `✅ Shipped <today's date>` since the last release tag.
+Cross-check the most recent dated section in
+`docs/dev/session-log.md`. Cover every BUG-/ENH- that plausibly
+needs user-side verification — small refactors fold into the
+parent item.
+
+**For a re-walk (rev2+):** read the user's pasted walk-(N-1) result
+block from chat (parsed in step 7 of the previous walk). The manifest
+is exactly the FAIL ids + carry-forward SKIP ids. **Do not include
+PASS ids.** See HARD RULE above.
 
 ### 2. Construct a manifest
 
@@ -73,7 +154,13 @@ next sprint`.
 
 Then write a JSON manifest at
 `docs/dev/smoke-walks/v<NEXT_VERSION>.json` (or
-`v<NEXT_VERSION>-rev<N>.json` for re-walks):
+`v<NEXT_VERSION>-rev<N>.json` for re-walks).
+
+**Re-walk reminder (HARD RULE above): the rev<N> manifest contains
+ONLY the walk-(N-1) FAIL items + carry-forward SKIPs. Never copy
+the walk-(N-1) manifest forward.** A first walk has 12 items, walk-2
+should have ~5, walk-3 should have ~2, and so on — items get
+verified out of the rotation, not perpetually re-walked.
 
 ```json
 {
@@ -172,11 +259,18 @@ Quick-pass version:
    localStorage round-trip + clipboard via `pbpaste`. Catches
    localStorage-key collisions (BUG-110), clipboard permission
    failures, secure-context drift.
-4. **Exercise the FIRST failure-prone step the FEATURE walk
-   exercises.** Computer-use granted: screenshot Duo + scan for
-   error overlays. Computer-use denied: at minimum mount the
-   relevant surface via CLI (e.g. `duo edit /tmp/preflight-X.md`).
-5. Restart on uncertainty if many changes since last verified
+4. **Walk EVERY CLI-testable step in the manifest.** Per the HARD
+   RULE at the top of this skill — if a step can be run via `duo
+   <verb>`, the agent runs it before handoff. Capture the actual
+   output; compare against the step's expected result; fix any
+   FAILs before the user sees them. Mark agent-walked items in the
+   manifest's intro so the owner knows which rows they can skim
+   ("agent-walked: ENH-122-SELECTOR, ENH-122-JS, ENH-124-LAYOUT").
+5. **Exercise the FIRST failure-prone visual step.** Computer-use
+   granted: screenshot Duo + scan for error overlays. Computer-use
+   denied: at minimum mount the relevant surface via CLI (e.g. `duo
+   edit /tmp/preflight-X.md`).
+6. Restart on uncertainty if many changes since last verified
    clean state.
 
 ### 6. Hand off to the user

@@ -451,14 +451,241 @@
     font-size: 13px;
   }
   .arch-note strong { color: var(--accent); }
+
+  /* Decision playground — radio cards + comment fields + Copy round-trip.
+     Added 2026-05-10 to convert the static "Open questions" section into
+     an interactive owner-decision surface. Each question has 2-4 option
+     cards with visual examples; comment field per question; structured
+     payload assembled by the Copy button. */
+  .playground-banner {
+    background: color-mix(in srgb, var(--accent) 10%, white);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 24px 0 32px;
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+  .playground-banner strong { color: var(--accent); }
+
+  .decision-card {
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 22px 0;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.02);
+  }
+  .decision-card .q-title {
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin: 0 0 6px;
+  }
+  .decision-card .q-prompt {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 500;
+    font-size: 18px;
+    color: var(--ink);
+    margin: 0 0 14px;
+    line-height: 1.35;
+  }
+  .decision-card .q-context {
+    font-size: 13px;
+    color: var(--ink-mute);
+    margin: 0 0 16px;
+  }
+
+  .q-options {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 0 0 14px;
+  }
+  @media (min-width: 760px) {
+    .q-options.two-col { grid-template-columns: 1fr 1fr; }
+  }
+
+  .q-option {
+    display: block;
+    background: var(--paper);
+    border: 1.5px solid var(--paper-rule);
+    border-radius: 6px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .q-option:hover { border-color: var(--ink-ghost); }
+  .q-option input[type="radio"] {
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .q-option input[type="radio"]:checked + .q-option-body { color: var(--ink); }
+  .q-option:has(input[type="radio"]:checked) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+  }
+  .q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+  .q-option-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+    margin: 0 0 4px;
+  }
+  .q-option-rationale {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    line-height: 1.45;
+    margin: 4px 0 0;
+  }
+  .q-option-preview {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    line-height: 1.5;
+  }
+  .q-option-preview .preview-label {
+    display: block;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--ink-mute);
+    margin: 0 0 6px;
+  }
+  .q-option-preview .mock-tabstrip {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--paper-rule);
+    padding-bottom: 4px;
+  }
+  .q-option-preview .mock-tab {
+    padding: 3px 9px;
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    font-size: 10.5px;
+  }
+  .q-option-preview .mock-tab.active {
+    background: white;
+    color: var(--ink);
+    border-color: var(--ink-ghost);
+  }
+  .q-option-preview .mock-tab .pill {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 5px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 8px;
+    font-size: 9px;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .q-option-preview .mock-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: var(--paper-deep);
+    border: 1px solid var(--paper-rule);
+    border-radius: 4px;
+  }
+  .q-option-preview .mock-btn {
+    padding: 2px 7px;
+    background: white;
+    border: 1px solid var(--paper-rule);
+    border-radius: 3px;
+    font-size: 10px;
+  }
+  .q-option-preview .mock-btn.primary {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .q-option-preview .mock-status {
+    font-size: 10px;
+    color: var(--ink-mute);
+    font-style: italic;
+  }
+  .q-option-preview .mock-status.dirty { color: var(--accent); font-style: normal; font-weight: 600; }
+  .q-option-preview .mock-status.saved { color: var(--pass); font-weight: 600; }
+
+  .q-notes {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 56px;
+    padding: 8px 10px;
+    border: 1px solid var(--paper-rule);
+    border-radius: 4px;
+    background: var(--paper);
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-size: 13px;
+    color: var(--ink);
+    resize: vertical;
+  }
+  .q-notes::placeholder { color: var(--ink-ghost); }
+  .q-notes:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: white;
+  }
+
+  .copy-bar {
+    position: sticky;
+    bottom: 16px;
+    background: var(--paper);
+    border: 1.5px solid var(--accent);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 24px 0 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    z-index: 10;
+  }
+  .copy-bar .copy-meta {
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  .copy-bar .copy-meta strong { color: var(--ink); }
+  .copy-bar button {
+    padding: 8px 16px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .copy-bar button:hover { background: color-mix(in srgb, var(--accent) 80%, black); }
+  .copy-bar button.copied { background: var(--pass); }
 </style>
 </head>
 <body>
 
 <header class="page-head">
-  <h1>Data primitives for canvas — research + roadmap</h1>
-  <div class="meta">Filed 2026-05-07 · Sprint 11+ planning artifact · author: Claude (autonomous, walk-2 standby)</div>
+  <h1>Data primitives for canvas — decision playground</h1>
+  <div class="meta">Filed 2026-05-07 · Refactored to interactive 2026-05-10 · ENH-110 owner-decision gate</div>
 </header>
+
+<div class="playground-banner">
+  <strong>This is now a decision playground.</strong> Scroll past the research mockups to <a href="#decisions" style="color:var(--accent)">§ 5 · Decisions</a> at the bottom. Pick an option for each question, add notes if you want, hit <strong>Copy decisions</strong>, paste back to Claude. Until you do, ENH-110 (JSON viewer) reappears in every smoke walk as an unresolved gate.
+</div>
 
 <div class="intro">
   <strong>What this is.</strong> An owner-facing research doc covering three clustered topics: (1) JSON viewer/editor in canvas (Sprint 11 candidate), (2) image viewing in canvas (deeper roadmap), and (3) other data primitives for the PM persona. Each section: spectrum of options → live mockups → library matrix → recommendation. Ends with a clustered roadmap proposal so this whole theme moves as a unit, not as scattered ENHs.
@@ -470,7 +697,7 @@
 
 <p><strong>Scope.</strong> A user opens <code>response.json</code> in Duo (drag-drop, <code>duo edit</code>, FileTree click, paste-from-clipboard). Today it falls through to the unknown-file preview. We want a dedicated, useful experience.</p>
 
-<h3>The spectrum — four tiers</h3>
+<h3 id="tier-mockups">The spectrum — four tiers</h3>
 
 <div class="mockup-card">
   <div class="mockup-head">Tier 1 · Plain text + indent</div>
@@ -551,7 +778,47 @@
   <div class="mockup-caption">Folding gutter (▾ to collapse arrays/objects), line numbers, breadcrumb at caret, search-and-highlight, status bar with validation state. The full IDE-feel. Appropriate for "I'm editing a config file" but excessive for "I'm reading an API response."</div>
 </div>
 
-<h3>Library candidates</h3>
+<section class="decision-card" data-question-id="json-tier">
+  <div class="q-title">Decision · JSON tier</div>
+  <div class="q-prompt">Tier 3 (interactive collapsible tree) or Tier 2 (syntax-highlighted text)?</div>
+  <p class="q-context">Tier 3 is the workhorse experience for "I just need to read this API response cleanly" but adds ~7 KB (<code>@uiw/react-json-view</code>). Tier 2 is read-only with syntax color, ~30 lines of work + the <code>lowlight</code> dep already in tree.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="json-tier" value="tier-3">
+      <div class="q-option-body">
+        <div class="q-option-title">Tier 3 — Interactive tree (Recommended)</div>
+        <div class="q-option-rationale">~7 KB lib (<code>@uiw/react-json-view</code>). Click chevrons to expand/collapse arrays/objects. Sibling-counts (<code>"7 keys"</code>, <code>"2 items"</code>) when collapsed. Hover row → copy-key/value buttons. Click value → switches to inline edit (gated by the edit-semantics decision below). Workhorse experience for PM persona.</div>
+        <div class="q-option-preview">
+          <span class="preview-label">Tier 3 sample</span>
+          <span style="color:var(--code-key)">▾ "renewals":</span> [ <span style="opacity:.5">2 items</span> ]<br>
+          <span style="color:var(--code-key)">▸ "customer":</span> <span style="color:var(--code-string)">"acme-corp"</span>
+        </div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="json-tier" value="tier-2">
+      <div class="q-option-body">
+        <div class="q-option-title">Tier 2 — Syntax-highlighted text only</div>
+        <div class="q-option-rationale">No new dep. Reuses <code>lowlight</code>'s JSON grammar (already loaded for code blocks). Read-only token coloring. No fold, no inline edit. Lighter shipping target; less interactive.</div>
+        <div class="q-option-preview">
+          <span class="preview-label">Tier 2 sample</span>
+          <span style="color:var(--code-key)">"customer":</span> <span style="color:var(--code-string)">"acme-corp",</span><br>
+          <span style="color:var(--code-key)">"seats":</span> <span style="color:var(--code-number)">14,</span>
+        </div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="json-tier" value="defer">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer — neither this sprint</div>
+        <div class="q-option-rationale">Keep ENH-110 in the queue; pick a different anchor. Decision gate stays open.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="json-tier-notes" placeholder="Notes / caveats / 'I'd rather use library X'…"></textarea>
+</section>
+
+<h3 id="library-matrix">Library candidates</h3>
 
 <table class="lib-matrix">
   <thead>
@@ -602,6 +869,43 @@
   </tbody>
 </table>
 
+<section class="decision-card" data-question-id="library-pick">
+  <div class="q-title">Decision · Library pick (Tier 3 only)</div>
+  <div class="q-prompt">If Tier 3, confirm <code>@uiw/react-json-view</code> as the lib choice — or pivot?</div>
+  <p class="q-context">The matrix above scored four options; recommendation is <code>@uiw/react-json-view</code>. Three reasonable alternatives if you want to redirect:</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="library-pick" value="uiw-react-json-view">
+      <div class="q-option-body">
+        <div class="q-option-title"><code>@uiw/react-json-view</code> (Recommended)</div>
+        <div class="q-option-rationale">~7 KB gz · MIT · React 18 · active · zero deps. Tree + edit + copy-on-hover out of the box. Atelier theming via CSS vars.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="library-pick" value="json-edit-react">
+      <div class="q-option-body">
+        <div class="q-option-title"><code>json-edit-react</code></div>
+        <div class="q-option-rationale">~14 KB gz · MIT · richer edit UX (drag-reorder array items, bulk operations). Heavier. Worth it if edit semantics trend toward "rich".</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="library-pick" value="hand-roll-tier-2">
+      <div class="q-option-body">
+        <div class="q-option-title">Hand-roll Tier 3 (no library)</div>
+        <div class="q-option-rationale">~2-3 days extra work. No external dep. Atelier-native by construction. Risk: maintenance burden, missing edge cases (large files, circular refs, BigInt).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="library-pick" value="defer">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer — pick after the tier decision lands</div>
+        <div class="q-option-rationale">If the tier decision = Tier 2 or Defer, this question is moot. Skip.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="library-pick-notes" placeholder="Notes / 'check codemirror lang-json instead' / etc."></textarea>
+</section>
+
 <h3>Hand-roll vs library — the real tradeoff</h3>
 
 <div class="procons">
@@ -636,6 +940,44 @@
 <div class="arch-note">
   <strong>Architectural note — why a new tab kind, not the canvas iframe.</strong> The canvas iframe (kind: 'page') intentionally blocks scripts so user-authored HTML can't fire side effects. An interactive JSON tree needs scripts. Putting JSON-viewing in the canvas iframe means either (a) breaking the script-block contract for our own primitives (slippery slope) or (b) re-implementing the tree without scripts using only CSS state (unwieldy). A new tab kind <code>'json'</code> gets a React component just like <code>'image'</code> and <code>'pdf'</code> — clean isolation, full interactivity, fits the existing pattern.
 </div>
+
+<section class="decision-card" data-question-id="edit-semantics">
+  <div class="q-title">Decision · Edit semantics (Tier 3 only — skip if tier = Tier 2 / Defer)</div>
+  <div class="q-prompt">Inline edits in the tree — autosave on blur (markdown-editor pattern), or require ⌘S?</div>
+  <p class="q-context">Tier 3 lets the user click a value to edit inline. Once they tab away or click elsewhere, the change either auto-persists (matches the editor's existing autosave) or sits "dirty" until ⌘S (more conservative — explicit confirmation that the JSON is mutated).</p>
+  <div class="q-options two-col">
+    <label class="q-option">
+      <input type="radio" name="edit-semantics" value="autosave">
+      <div class="q-option-body">
+        <div class="q-option-title">Autosave on blur (Recommended)</div>
+        <div class="q-option-rationale">Matches markdown editor's existing pattern. ENH-103 SaveControl shows live state. No mode switching to learn.</div>
+        <div class="q-option-preview">
+          <span class="preview-label">Autosave — toolbar treatment</span>
+          <div class="mock-toolbar">
+            <span style="font-weight:600;font-size:11px;color:var(--ink-soft);">response.json</span>
+            <span class="mock-status saved">✓ Saved · 0.4s ago</span>
+          </div>
+        </div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="edit-semantics" value="explicit-save">
+      <div class="q-option-body">
+        <div class="q-option-title">⌘S only (explicit save)</div>
+        <div class="q-option-rationale">Mutating a JSON value inline can be high-stakes (config files, webhook payloads). Force the user to confirm via ⌘S so accidental clicks don't silently rewrite the file.</div>
+        <div class="q-option-preview">
+          <span class="preview-label">Explicit save — toolbar treatment</span>
+          <div class="mock-toolbar">
+            <span style="font-weight:600;font-size:11px;color:var(--ink-soft);">response.json</span>
+            <span class="mock-status dirty">● Modified</span>
+            <button class="mock-btn primary">Save (⌘S)</button>
+          </div>
+        </div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="edit-semantics-notes" placeholder="Notes / 'autosave fine BUT show a confirm if file > 1MB' / etc."></textarea>
+</section>
 
 <h2>2 · Image viewing in canvas (deeper roadmap)</h2>
 
@@ -733,6 +1075,43 @@
   </tbody>
 </table>
 
+<section class="decision-card" data-question-id="yaml-cohabitation">
+  <div class="q-title">Decision · YAML cohabitation</div>
+  <div class="q-prompt">YAML in the same tab kind as JSON (single chrome, <code>format</code> discriminator), or distinct kinds?</div>
+  <p class="q-context">YAML and JSON are isomorphic for the tree-rendering case (both are key-value-with-arrays trees) — see the YAML row in the matrix above. One <code>kind: 'json'</code> tab type with a <code>format</code> field could serve both. Alternatively, <code>kind: 'json'</code> + <code>kind: 'yaml'</code> as separate tab kinds keeps the mental model simpler at the cost of duplicated chrome / classifier rules / future per-format quirks.</p>
+  <div class="q-options two-col">
+    <label class="q-option">
+      <input type="radio" name="yaml-cohabitation" value="single-kind">
+      <div class="q-option-body">
+        <div class="q-option-title">Single kind, format discriminator (Recommended)</div>
+        <div class="q-option-rationale">One tab kind, classifier maps both <code>.json</code> + <code>.yml</code>/<code>.yaml</code> to it. Tab title shows format pill. ~1 day extra work to add YAML parsing alongside JSON. Cleaner code, fewer tab kinds.</div>
+        <div class="q-option-preview">
+          <span class="preview-label">Tab strip — single kind</span>
+          <div class="mock-tabstrip">
+            <div class="mock-tab active">response.json <span class="pill">json</span></div>
+            <div class="mock-tab">config.yml <span class="pill">yaml</span></div>
+          </div>
+        </div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="yaml-cohabitation" value="distinct-kinds">
+      <div class="q-option-body">
+        <div class="q-option-title">Distinct kinds (<code>'json'</code> + <code>'yaml'</code>)</div>
+        <div class="q-option-rationale">Each format gets its own tab kind. Easier to diverge later if YAML grows format-specific affordances (anchors, multi-doc streams, etc.). More plumbing today.</div>
+        <div class="q-option-preview">
+          <span class="preview-label">Tab strip — distinct kinds</span>
+          <div class="mock-tabstrip">
+            <div class="mock-tab active">response.json</div>
+            <div class="mock-tab">config.yml</div>
+          </div>
+        </div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="yaml-cohabitation-notes" placeholder="Notes / 'YAML out of scope entirely for v1' / etc."></textarea>
+</section>
+
 <h2>4 · Roadmap proposal — clustered</h2>
 
 <p>Sprint 11 was previously scoped around the Obsidian autocomplete thread (B.2 + B.4 + ENH-105) plus split-view crash work (BUG-091 / 093). Adding the JSON viewer doesn't fit that sprint cleanly — it's its own theme. Two options:</p>
@@ -794,17 +1173,107 @@
 
 <p style="margin-top:24px"><strong>Sprints 14+ deeper roadmap (Obsidian content fidelity continues):</strong> backlinks panel · properties panel (Stage 11 D15) · tag pills (B.3) · daily-notes shortcut · SQLite explorer (only if real complaint surfaces) · log viewer (pairs with ENH-082 Terminal Context Bar).</p>
 
-<h2>5 · Open questions for owner</h2>
+<h2 id="decisions">5 · General comments + decisions summary</h2>
 
-<ul>
-  <li><strong>JSON tier — confirm tier 3 vs. tier 2.</strong> Do you want the collapsible tree experience (more interactive, ~7 KB lib added), or is "syntax-highlighted text + line numbers" enough for the v1?</li>
-  <li><strong>JSON edit semantics.</strong> When the user edits a value inline in the tree, do we autosave on blur (matching the markdown autosave pattern) or require ⌘S (so the file isn't silently mutated)?</li>
-  <li><strong>YAML cohabitation.</strong> Is YAML in the same tab kind as JSON acceptable (single chrome, format-discriminated)? Or distinct kinds for cleaner mental model?</li>
-  <li><strong>Sprint 11 vs. Sprint 12 ordering.</strong> Confirm Option A (Obsidian-autocomplete first, data primitives second). Or flip if data primitives are more user-pull right now.</li>
-  <li><strong>Image v2 priority.</strong> Sprint 13 fits, but if PM users hit the limitation often it could move up. Owner pull?</li>
-</ul>
+<p style="margin: 0 0 14px; color: var(--ink-mute); font-size: 13px;">
+  The four live decision questions are inlined above next to their relevant themes — Q1 (tier) and Q4 (library) in § 1, Q2 (edit semantics) right after the recommendation, Q3 (YAML cohabitation) in § 3. The textarea below is for anything that doesn't fit a specific question. Stale questions from the original doc (Sprint 11 vs Sprint 12 ordering · Image v2 priority — both shipped) have been removed. Hit <strong>Copy decisions</strong> at the bottom of the page when you've made your picks.
+</p>
 
-<p style="margin-top:32px; font-size: 12px; color: var(--ink-mute);">— end of research doc · author: Claude (autonomous Sprint 10 walk-2 standby) · 2026-05-07</p>
+<section class="decision-card" data-question-id="general-comments" style="border-color:var(--accent-soft);">
+  <div class="q-title">General comments / open thoughts</div>
+  <div class="q-prompt">Anything else worth saying?</div>
+  <textarea class="q-notes" name="general-notes" placeholder="E.g. 'CSV viewer is more urgent than JSON for my workflow' or 'before any of this, finalize ENH-118 image polish'…" style="min-height:96px;"></textarea>
+</section>
+
+<div class="copy-bar">
+  <div class="copy-meta">
+    <strong id="answered-count">0 / 4</strong> decisions answered.
+    Hit Copy decisions when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+  // FOLLOWUP: Refactored 2026-05-10 from static <ul> to interactive
+  // decision playground. Pattern mirrors the smoke-walk worksheet:
+  // radio choices + per-question notes + bottom Copy button assembles
+  // a structured payload that the user pastes back into the Claude
+  // session. Closes the smoke-walk surface gap that lost ENH-110 for
+  // ~3 sprints (filed 2026-05-07, never surfaced in any walk).
+
+  (function () {
+    // Refactored 2026-05-10 (rev2): cards now inlined alongside the
+    // research themes (Q1+Q4 in § 1, Q2 in the recommendation card,
+    // Q3 in § 3), so the owner can decide as they read instead of
+    // scrolling to a consolidated § 5. The form wrapper was dropped
+    // (cards are independent sections); queries are document-scoped.
+    const counter = document.getElementById('answered-count');
+    const button = document.getElementById('copy-decisions');
+
+    const QUESTIONS = [
+      { id: 'json-tier',          title: 'Q1 · JSON tier' },
+      { id: 'edit-semantics',     title: 'Q2 · Edit semantics' },
+      { id: 'yaml-cohabitation',  title: 'Q3 · YAML cohabitation' },
+      { id: 'library-pick',       title: 'Q4 · Library pick' }
+    ];
+
+    function refreshCount() {
+      let answered = 0;
+      for (const q of QUESTIONS) {
+        if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+      }
+      counter.textContent = answered + ' / ' + QUESTIONS.length;
+    }
+
+    document.addEventListener('change', refreshCount);
+    refreshCount();
+
+    function buildPayload() {
+      const lines = [];
+      lines.push('ENH-110 JSON VIEWER — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+      lines.push('==================================================');
+      lines.push('');
+      for (const q of QUESTIONS) {
+        const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[name="' + q.id + '-notes"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + q.title);
+        if (notes) {
+          for (const line of notes.split('\n')) lines.push('    ' + line);
+        }
+        lines.push('');
+      }
+      const general = (document.querySelector('textarea[name="general-notes"]')?.value || '').trim();
+      if (general) {
+        lines.push('GENERAL COMMENTS');
+        lines.push('----------------');
+        for (const line of general.split('\n')) lines.push(line);
+        lines.push('');
+      }
+      lines.push('---');
+      lines.push('Source: docs/research/data-primitives-canvas.html (decisions inline alongside themes)');
+      return lines.join('\n');
+    }
+
+    button.addEventListener('click', async function () {
+      const payload = buildPayload();
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(function () {
+          button.textContent = 'Copy decisions';
+          button.classList.remove('copied');
+        }, 1400);
+      } catch (err) {
+        console.warn('[ENH-110 playground] clipboard.writeText failed:', err);
+        button.textContent = 'Copy failed — see console';
+      }
+    });
+  })();
+</script>
+
+<p style="margin-top:32px; font-size: 12px; color: var(--ink-mute);">— end of research doc · author: Claude (autonomous Sprint 10 walk-2 standby) · filed 2026-05-07 · refactored to interactive 2026-05-10</p>
 
 </body>
 </html>

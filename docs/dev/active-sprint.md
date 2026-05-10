@@ -1,12 +1,71 @@
 # Active sprint state — Sprint 14 (cut target v0.6.12)
 
-**Theme: TBD — picks open after v0.6.11 cut (2026-05-09 evening).** Sprint 13 closed cleanly with paste-image v2 + auto-redistribute panes + view-source v1 + race-class fixes. Sprint 14 has no anchor commitment yet — owner picks from the queued candidates below in the next planning session.
+**Theme: Developer experience + paper-cut polish + visibility-tooling cluster + image-cluster expansion + JSON/YAML viewer-editor.** Sprint 14 anchored on Sprint 13's close-out recommendation, then expanded 2026-05-10 across multiple owner pulls AND a same-day pull-forward of ENH-110 (JSON/YAML viewer-editor) from v0.6.13.
+
+**Sprint 14 close-out batch (2026-05-10 post-walk-3):**
+- **BUG-115** ✅ Closed — fixture-write race confirmed (BUG-107 normalize() intact). Memory rule + CLAUDE.md § 7d added. No code change.
+- **ENH-128** 🟢 Walk-4 fix — added macOS `sips` shell-out fallback in `convertImageBytes` for HEIC/HEIF/RAW that nativeImage rejects.
+- **ENH-133** 🟢 Walk-4 fix — Shift+Enter in claude tabs now writes Option+Enter byte sequence (newline). Owner directive 2026-05-10.
+- **ENH-110** 🟢 Walk-4 fix — Tier 3 JSON/YAML viewer-editor with tree + raw-text toggle, autosave, large-file fallback, source-mode parse guard. Pulled forward from v0.6.13.
+
+Walk-4 owed before v0.6.12 cut.
+
+## Walk-3 results (2026-05-10) — 4 PASS / 1 FAIL / 3 SKIP
+
+**PASS:**
+- **ENH-110 DECISION GATE** — owner answered all 4 Qs. JSON viewer build deferred to **v0.6.13 P0**. Decisions captured in tasks.md ENH-110 entry.
+- **ENH-129 PDF position** — drop inserts at drop point.
+- **ENH-119 image selection tint** — both surfaces working.
+- **ENH-127 v2 Claude Enter** — plain Enter = newline; ⌘Enter = submit.
+
+**SKIP-trusted (owner: "I trust the agent"):**
+- ENH-122-SELECTOR · ENH-122-JS-AND-LEGACY · ENH-132-ARIA-TAB-ROLES.
+
+**FAIL:**
+- **ENH-128 HEIC drag-drop** — drag fires correctly, but `nativeImage.createFromBuffer` can't decode the owner's HEIC bytes. Console: *"Could not decode image bytes (source MIME: image/heic)"*. Walk-3 fixed the path-to-convert; the convert itself is broken. **AND** the same walk surfaced **BUG-115** — external-conflict dialog fires on first edit (BUG-107 family OR fixture-write race; needs diagnosis). Both filed in tasks.md.
+
+**Verbatim walk-3 result block** preserved at [`docs/dev/smoke-walks/v0.6.12-rev3.results.md`](smoke-walks/v0.6.12-rev3.results.md) for post-compact pickup.
+
+## Cut readiness
+
+**NOT YET READY.** Two blockers:
+1. ENH-128 HEIC decode — diagnose nativeImage limitation OR scope-downgrade (accept HEIC verbatim; let WebKit render it; markdown source carries `.heic`).
+2. BUG-115 dialog regression — diagnose whether it's a fixture-write race (no fix needed; agent behavior change) OR a BUG-107 normalization regression.
+
+Walk-4 after both diagnoses + fixes. Then v0.6.12 cut.
 
 ---
 
-## Status (2026-05-09 — sprint open, no commitment yet)
+## Status
 
-No items committed. Read the **candidate slate** below + the **owner-directed pulls already on owner's mind** before the first work commit lands. Run `/sprint-plan` to get a worksheet for prioritization.
+**P0 — anchors shipped + verified end-to-end (2026-05-09):**
+
+- **ENH-122** `duo dom <selector>` ✅ — renderer-DOM CLI verb. Selectors / `--attr` / `--text` / `--computed` / `--all` / `--js` modes all working. Sister verb: bare `duo dom` keeps the legacy browser-pane HTML dump (CDP).
+- **FOLLOWUP-015 ENH-117 v2** ✅ — `ViewSourceOverlay.tsx` (modal) → `ViewSourcePanel.tsx` (panel-fill). Three triggers funnel into the same `'duo-view-source'` window event with toggle UX.
+
+**P1 — Sprint expansion (2026-05-10):**
+
+- **ENH-118** image-handling conversation ✅ — 4 owner picks captured: GIFs animate (no code), SVG inert via `<img>` (no code), HEIC convert (filed as ENH-128), PDF → link insert (filed as ENH-129).
+- **ENH-110 JSON viewer decision gate** ⏳ — research doc refactored to interactive playground at [`docs/research/data-primitives-canvas.html § 5`](../../docs/research/data-primitives-canvas.html). Owner needs to walk the 4 questions + Copy decisions back. **Carry-forward sprint-to-sprint until closed** — see "Decision gates open" below.
+- **ENH-123** `duo devtools` ⏳ — coming this sprint.
+- **ENH-124** `duo layout` ⏳ — coming this sprint.
+- **BUG-103** blockquote CSS leak ⏳ — coming this sprint.
+
+**Cut readiness:** Pending the P1 work + smoke walk + ENH-110 review.
+
+---
+
+## Decision gates open (carry-forward — appear in every smoke walk until owner closes)
+
+These are owner-decision items that gate downstream code work. They reappear in every smoke-walk manifest until the owner Copy-decisions back. Pattern locked 2026-05-10 after ENH-110 was lost across 3 sprints because its research doc never surfaced as a smoke-walk item.
+
+_None open as of Sprint 14 close-out. ENH-110's gate closed walk-3 (build also shipped same-day in Sprint 14, pulled forward from v0.6.13)._
+
+---
+
+## Carry-overs after this cut (still pending)
+
+Read the **candidate slate** below before the next sprint commits. Owner-directed items still need conversation gates (ENH-118 image-handling discussion before image polish; ENH-127 reconsideration if accidental-submit pain re-surfaces).
 
 ---
 
@@ -14,13 +73,13 @@ No items committed. Read the **candidate slate** below + the **owner-directed pu
 
 ### Owner-directed (already named with intent)
 
-- **FOLLOWUP-015 — ENH-117 v2 panel-fill view-source.** Owner walk-3 surfaced the surface miss on v1: *"view source should occupy the full panel … you should have asked more questions about the intent vs making this modal approach … not urgent to fix but this is bad."* v2 = panel-fill (in-place toggle; replaces the editor / canvas content area) + menu + tab-context entry triggers (not chord-only). Open scope question: read-only-only (~half-day) OR read+write panel-fill with bidi sync (~multi-day, requires CodeMirror integration with TipTap)? Confirm before code.
+- ~~**FOLLOWUP-015 — ENH-117 v2 panel-fill view-source.**~~ — ✅ Shipped Sprint 14 (read-only panel-fill per entry-gate AUQ).
 - **ENH-127 reconsideration.** v1 implemented + reverted same day after live test confirmed Claude Code's input loop treats `\n` and `\r` identically. Future paths documented in tasks.md entry: (1) Claude Code adds raw-newline mode (out of Duo's control; could file upstream), (2) Duo-side composer-window pattern (separate text area outside the terminal), (3) anti-accidental-submit heuristic (delay-based or click-confirm). Pick a direction OR keep declined.
 - **ENH-118 image-type handling discussion.** Owner ask from Sprint 12 walk-rev2: animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently `<img>` tag, scripts blocked). HEIC/RAW reject vs convert? Open question in CLAUDE.md flagged "before Sprint 14 picks up the image-handling polish cluster" — answer this before ENH-119/120 work.
 
 ### Visibility-tooling cluster (saves blind-debugging pain — Sprint 13 surfaced repeatedly)
 
-- **ENH-122 `duo dom <selector>`** — query renderer DOM from CLI. Single CLI verb, ~half-day. Would have prevented several Sprint 13 blind-canvas debugging sessions.
+- ~~**ENH-122 `duo dom <selector>`**~~ — ✅ Shipped Sprint 14.
 - **ENH-123 `duo devtools`** — open the renderer's DevTools from CLI. ~hour. Backstop for the 5% of cases where ENH-122's targeted query isn't enough.
 - **ENH-124 `duo layout`** — structured snapshot of working pane state (active tab kind/path, split state, etc.). ~half-day. Removes ambiguity about WHAT the user is looking at.
 

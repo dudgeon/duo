@@ -31,6 +31,16 @@ export function classifyFile(path: string): {
       return { type: 'image', mime: 'image/svg+xml' }
     case 'pdf':
       return { type: 'pdf', mime: 'application/pdf' }
+    case 'json': case 'jsonl': case 'har': case 'webmanifest':
+      // ENH-110 — JSON-family files open in the JsonView tab kind
+      // (Tier 3 collapsible tree + raw-text toggle). `.har` is HTTP
+      // archive, `.webmanifest` is web app manifest — both JSON.
+      return { type: 'json', mime: 'application/json' }
+    case 'yml': case 'yaml':
+      // ENH-110 — YAML cohabits the same tab kind. JsonView reads the
+      // path extension to pick parser/serializer. Owner pick (decision
+      // gate 2026-05-10): single tab kind with format discriminator.
+      return { type: 'json', mime: 'application/yaml' }
     default:
       return { type: 'unknown', mime: 'application/octet-stream' }
   }

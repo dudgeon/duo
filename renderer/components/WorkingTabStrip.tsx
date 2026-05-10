@@ -71,6 +71,11 @@ interface WorkingTabStripProps {
    *  `<meta duo-open-in="browser">`, so the user can edit the
    *  playground's source while its scripts stay inert. */
   onEditInCanvas?: (browserTabId: number, path: string) => void
+  /** ENH-131 — "Open in browser" entry shown on canvas tabs backed by
+   *  an HTML file. Inverse of `onEditInCanvas` — closes the canvas
+   *  tab and re-opens the same path as a browser tab so scripts run
+   *  / buttons fire (the playground modality). */
+  onOpenInBrowser?: (fileTabId: string, path: string) => void
   /** ENH-083 (v0.6.5) — collapse-canvas button moved from titlebar to
    *  the new-tab cluster. Same pattern as TabBar's terminal-collapse
    *  variant; active (collapsed) state inverts to accent fill. */
@@ -104,6 +109,7 @@ export function WorkingTabStrip({
   onMoveToSplit,
   onMoveBrowserTabToSplit,
   onEditInCanvas,
+  onOpenInBrowser,
   isCanvasCollapsed = false,
   onToggleCanvasCollapsed
 }: WorkingTabStripProps) {
@@ -165,7 +171,10 @@ export function WorkingTabStrip({
       // ENH-097 — pass the callback so the menu builder can decide
       // whether to render the "Edit in canvas" entry (file:// browser
       // tabs only).
-      onEditInCanvas
+      onEditInCanvas,
+      // ENH-131 — inverse direction; menu builder gates on canvas
+      // tabs backed by HTML.
+      onOpenInBrowser
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -244,6 +253,27 @@ export function WorkingTabStrip({
         if (parsedId !== null) onEditInCanvas(parsedId, path)
         return
       }
+      case 'open-in-browser': {
+        // ENH-131 — inverse of edit-in-canvas. Close the canvas tab
+        // and re-open the same HTML file as a browser tab so scripts
+        // run / buttons fire (the playground modality).
+        if (!path || tab.type !== 'page' || !onOpenInBrowser) return
+        onOpenInBrowser(tab.id, path)
+        return
+      }
+      case 'view-source':
+        // FOLLOWUP-015 — activate the right-clicked tab FIRST so the
+        // editor / canvas listener (gated on isActive) responds for
+        // the user's intended tab, not whichever happens to be active
+        // at right-click time. setTimeout(0) defers the dispatch to
+        // after React's commit phase, so isActiveRef has been
+        // refreshed before the event lands. Same window-event funnel
+        // the chord and View menu use.
+        onSelect(tab.id)
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('duo-view-source'))
+        }, 0)
+        return
       case 'trash': {
         if (!path || !onTrashFile) return
         const result = await window.electron.dialog.confirm({
@@ -304,7 +334,10 @@ export function WorkingTabStrip({
           div so it stays pinned at the right edge no matter how many
           tabs are open / how far the user has panned. Pattern mirrors
           TabBar.tsx (terminal strip). */}
-      <div className="flex items-end flex-1 overflow-x-auto scrollbar-none gap-0.5">
+      {/* ENH-132 (Sprint 14, 2026-05-10) — ARIA tablist role for screen
+          readers. Per-tab `role="tab"` + `aria-selected` are set on the
+          WorkingTabItem button. */}
+      <div role="tablist" aria-label="Working pane tabs" className="flex items-end flex-1 overflow-x-auto scrollbar-none gap-0.5">
         {tabs.map(tab => (
           <WorkingTabItem
             key={tab.id}
@@ -452,6 +485,12 @@ function WorkingTabItem({
   return (
     <button
       ref={buttonRef}
+      // ENH-132 — ARIA tab semantics. `role="tab"` + `aria-selected`
+      // turn this from a plain button into a screen-reader-announced
+      // tab ("Smoke walk, tab 6 of 12, selected") instead of just
+      // "Smoke walk, button". Parent has `role="tablist"`.
+      role="tab"
+      aria-selected={tab.isActive}
       onClick={onSelect}
       onContextMenu={onContextMenu}
       draggable={draggable}
@@ -556,8 +595,13 @@ function buildTabMenuTemplate(opts: {
   /** ENH-097 — "Edit in canvas" entry. Shown only on file:// browser
    *  tabs (where path resolves to a local file). */
   onEditInCanvas?: (browserTabId: number, path: string) => void
+  /** ENH-131 (Sprint 14) — inverse of "Edit in canvas". Shown only on
+   *  canvas tabs (`tab.type === 'page'`) backed by an HTML file. Closes
+   *  the canvas tab and re-opens the same path as a browser tab so
+   *  scripts run / buttons fire (the playground modality). */
+  onOpenInBrowser?: (fileTabId: string, path: string) => void
 }): MenuTemplateItem[] {
-  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit, onMoveBrowserTabToSplit, onEditInCanvas } = opts
+  const { tabId, pinned, path, tabs, onTogglePin, onRevealInNavigator, onStartRenameFromTab, onMoveTab, onMoveToSplit, onMoveBrowserTabToSplit, onEditInCanvas, onOpenInBrowser } = opts
   const tab = tabs.find(t => t.id === tabId)
   const items: MenuTemplateItem[] = []
 
@@ -629,6 +673,41 @@ function buildTabMenuTemplate(opts: {
   if (canEditInCanvas) {
     if (items.length > 0) items.push({ type: 'separator' })
     items.push({ id: 'edit-in-canvas', label: 'Edit in canvas' })
+  }
+
+  // ENH-131 — "Open in browser" — inverse of "Edit in canvas". Shown
+  // when the canvas tab is backed by an HTML file. Closes the canvas
+  // tab and re-opens as a browser tab (scripts run, buttons fire).
+  // Useful for: previewing how a playground actually behaves while
+  // editing it in canvas mode, or just shifting an HTML doc to the
+  // browser pane to drive its interactivity.
+  const canOpenInBrowser = !!(
+    onOpenInBrowser
+    && tab
+    && tab.type === 'page'
+    && path
+    && /\.html?$/i.test(path)
+  )
+  if (canOpenInBrowser) {
+    if (items.length > 0) items.push({ type: 'separator' })
+    items.push({ id: 'open-in-browser', label: 'Open in browser' })
+  }
+
+  // FOLLOWUP-015 (ENH-117 v2) — View source on editor / page tabs.
+  // Read-only panel-fill that swaps the editor / canvas content area
+  // for a monospace render of the source. Same surface as the ⌘⌥V
+  // chord and the View → View source menu. Browser tabs have their
+  // own DevTools; not exposed here.
+  if (tab && (tab.type === 'editor' || tab.type === 'page')) {
+    if (items.length > 0) items.push({ type: 'separator' })
+    items.push({
+      id: 'view-source',
+      label: 'View source',
+      // Display-only label — accelerator on a context menu doesn't
+      // bind globally; the chord lives in globalShortcuts.ts. This
+      // just shows the user the chord for muscle-memory training.
+      accelerator: 'CmdOrCtrl+Alt+V'
+    })
   }
 
   if (path && tab) {

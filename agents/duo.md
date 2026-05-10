@@ -138,7 +138,12 @@ empty.
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs |
 | `duo text [--selector]` | Visible text (DOM `innerText`) — DOM pages |
 | `duo ax [--selector] [--format md\|json]` | Accessibility tree — canvas apps (Docs / Sheets / Slides / Figma) |
-| `duo dom` | Full HTML |
+| `duo dom` | Full HTML (browser pane, CDP) |
+| `duo dom <selector> [--attr n] [--text] [--all] [--computed p1,p2]` | **ENH-122** — query the **main RENDERER** (the React shell) by CSS selector. Returns `outerHTML` by default; `--attr` returns one attribute, `--text` returns `textContent`, `--computed` returns getComputedStyle props as an object, `--all` returns an array of matches. Use when debugging editor / canvas / image-viewer state. |
+| `duo dom --js "<expr>"` | **ENH-122** — arbitrary JS expression evaluated in the renderer scope. Distinct from `duo eval` (browser pane / CDP). |
+| `duo devtools [--browser-pane] [--close]` | **ENH-123** — open / close DevTools on the main renderer (default) or active browser pane. Backstop for the 5% of cases where ENH-122's targeted query isn't enough. |
+| `duo layout` | **ENH-124** — JSON snapshot of WorkingPane / terminal / navigator state (active main tab kind+path, aux state, splitPct, focusedColumn, navigatorCollapsed, tab counts). Pairs with `duo nav-state` and `duo dom` as the visibility cluster. |
+| `duo edit --reveal` / `duo open --reveal` / `duo view --reveal` | **ENH-130** — after open, auto-expand the working pane (if collapsed at splitPct ≥ 75) and focus main. **Always pass when you've just CREATED something for the user** — the user shouldn't have to hunt for it. Idempotent if already visible. |
 | `duo click <selector>` / `duo fill <selector> <value>` | DOM interactions |
 | `duo focus <selector>` | Focus before `type`/`key` in canvas apps |
 | `duo type <text>` / `duo key <name> [--modifiers cmd,…]` | Synthesized input |

@@ -324,10 +324,42 @@ html.dark {
     border-radius: 6px;
     padding: 12px 14px;
   }
+  /* ENH-119 (Sprint 14, 2026-05-10) — selection tint on images. Two
+     cases:
+       1. NodeSelection (user clicked the image directly to select
+          it) — TipTap's stock behavior adds `ProseMirror-selectednode`
+          to the rendered <img>.
+       2. TextSelection that spans the image — the DuoImage extension's
+          `imageInRangePlugin` adds the `duo-image-in-range` class via
+          a Decoration.
+     Both cases get the same visible treatment so the user sees the
+     image is part of their selection (otherwise the surrounding text
+     gets the standard ::selection background but the image looks
+     unselected — easy to misread when copying / cutting / deleting). */
+  .duo-editor-prose .ProseMirror-selectednode,
+  .duo-editor-prose img.duo-image-in-range {
+    outline: 3px solid var(--duo-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
   .duo-editor-prose blockquote {
     border-left: 3px solid var(--duo-accent);
     color: var(--duo-ink-soft);
     font-style: normal;
+    /* BUG-103 — Tailwind Typography's `prose` class injects
+       `quotes: "\201C" "\201D" "\2018" "\2019"` + `::before { content:
+       open-quote }` / `::after { content: close-quote }` rules on
+       blockquote paragraphs. Without these resets, every `> some text`
+       line renders with literal "..." curly quotes wrapping it. The
+       border-left chrome already conveys "this is a quote" — we don't
+       need glyphs too. Reset both at the blockquote level so it
+       cascades into the contained <p> elements. */
+    quotes: none;
+  }
+  .duo-editor-prose blockquote p::before,
+  .duo-editor-prose blockquote p::after {
+    content: none;
   }
   .duo-editor-prose ul[data-type="taskList"] { list-style: none; padding-left: 0; }
   .duo-editor-prose ul[data-type="taskList"] li { display: flex; gap: 8px; align-items: baseline; }

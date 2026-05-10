@@ -21,7 +21,107 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.6.11 cut 2026-05-09)*
+> *(empty — v0.6.12 cut 2026-05-10)*
+
+---
+
+## v0.6.12 — 2026-05-10 — JSON/YAML viewer-editor · visibility CLI · view-source panel-fill · image-handling close-out
+
+The JSON/YAML viewer-editor that was queued as v0.6.13 P0 pulled
+forward — owner answered the §3a linting AUQ (tree + raw-text toggle
++ JSON.parse save guard) at walk-3 close-out and the build landed
+same-day across walks 4 → 5 → 6 with iterative UX polish (Edit/Save
+button labels, Revert affordance, banner contrast bump, inline
+CodeMirror linter markers). Plus the visibility-tooling closure
+(`duo dom`), the view-source surface fix (panel-fill, not modal),
+and the long-overdue close-outs of two image-handling threads
+(HEIC convert via macOS `sips`, PDF drops position-aware) and
+the resurrected ENH-127 (`\x1b\r` is the byte Claude Code wants).
+
+**Why this cut lands here.** The original Sprint 14 anchor was just
+ENH-122 + FOLLOWUP-015 (ENH-117 v2). Owner kept pulling more in: the
+Sprint 13 walk-3 backlog (ENH-127, ENH-128, ENH-129, ENH-119, ENH-130,
+ENH-131, ENH-132) all consolidated into this sprint, then ENH-110 +
+ENH-133 pulled forward same-day. By walk-3 the cut was blocked on
+two items (ENH-128 HEIC genuine decode failure + a BUG-115 dialog
+that turned out to be agent-behavior, not code). One session closed
+both, plus the entire ENH-110 build, plus three iteration walks of
+JsonView UX polish.
+
+**Three load-bearing design decisions baked in.**
+
+1. **`@uiw/react-json-view` Tier 3 chosen over Tier 2 (raw-text only)**
+   per the ENH-110 decision-gate playground. Tier 3 (`@uiw/react-json-
+   view/editor`) is interactive collapsible tree with click-to-edit
+   values; Tier 2 would have been a CodeMirror-only experience. Tier 3
+   is the right answer for the PM persona who opens API responses
+   without wanting to read raw JSON. The raw-text toggle (Edit ↔ Save
+   button) is the escape hatch for power-users.
+
+2. **Single tab kind for JSON + YAML** with format implicit from path
+   extension. Owner pick on the YAML cohabitation question — the
+   alternative would have been a separate `kind: 'yaml'` tab. Single
+   kind keeps the dispatch + classifier + state shape simpler; format
+   discriminator is computed via `formatFromPath()` at the start of
+   each render path. Round-trip for YAML is content-only (comments +
+   anchors stripped on save) — documented limitation in skill/SKILL.md.
+
+3. **`sips` shell-out as the HEIC fallback layer**, not `nativeImage.
+   createFromPath`. The diagnostic ladder said try `createFromPath`
+   first (cheap), but both `createFromBuffer` and `createFromPath`
+   share NSImage's HEVC decoder under the hood — the bytes-vs-path
+   distinction was unlikely to matter for HEIC. `sips` uses ImageIO
+   directly and decoded the same iPhone HEIC source that NSImage
+   rejected. Skipped the bytes-vs-path try-first per Occam's razor.
+
+**JsonView walk-4 → 5 → 6 polish.** Walk-4 PASSed the core (open .json,
+edit a value, autosave, reopen → persistence) but FAILed two:
+need a revert affordance, error text needs guidance, "Source" button
+should read "Edit." Walk-5 fixed the three; walk-6 added the
+remaining "Tree" → "Save" rename (force-save on click) + bumped error
+banner contrast (`text-red-100` over `bg-red-950/60`) + CodeMirror
+inline error markers (red gutter dot + squiggly underline at the
+parser-reported position + hover tooltip with the full message).
+Owner walk-6: 3/3 PASS.
+
+**`duo dom` saves blind-debugging time across the project.** Sprint
+12's image-render diagnosis ate 90 minutes because we couldn't see
+what was in the renderer DOM. Sprint 14 used `duo dom` to verify
+ENH-117 v2's panel-fill mounted, ENH-119's image selection tint
+applied, ENH-132's ARIA roles attached, and ENH-110's tree + source
+toggle round-trip — each in seconds rather than 5–15 min of
+hypothesis cycles. The verb is not user-facing, but the cluster
+(`duo dom` + `duo layout` + `duo nav-state` + `duo devtools` from a
+future cut) is a primary visibility primitive for agents working with
+Duo over the socket.
+
+**ENH-127 v2 is the working version.** v1 in v0.6.11 sent `\n` (Claude
+submits on it). v2 sends `\x1b\r` — exactly what Option+Enter natively
+sends — which Claude reads as "literal newline within composition."
+Two intermediate fixes (one filtered to keydown only and got `\x1b\r`
++ a stale `\r` from xterm's keypress dispatch; the third returns
+`false` on all event types and writes only on keydown). Now ships:
+plain Enter = newline, `⌘Enter` = submit. Shell tabs unchanged.
+ENH-133 builds on this — `Shift+Enter` joins plain Enter in the
+newline branch.
+
+**BUG-115 was agent-behavior, not code.** Walk-3 surfaced an
+external-conflict dialog that LOOKED like a BUG-107 regression. The
+3-byte content delta (vs. baseline) ruled out trailing-whitespace
+normalize() drift. The fixture file's mtime confirmed it was
+rewritten by smoke-walk prep WHILE the editor still held the prior
+walk-rev's content. The dialog fired correctly — code is intact.
+CLAUDE.md § 7d + memory rule landed: walk fixtures use unique paths
+per rev, OR the prep step closes the editor's tab first. Removes
+the entire class of false BUG-107 retests.
+
+**What this is and isn't.** This is the close of two long-running
+threads (image-handling polish from Sprint 12+13, ENH-127 from
+Sprint 13's reverted-v1) AND the addition of a wholly new tab kind
+(JSON/YAML viewer-editor). NOT in this cut: ENH-123 `duo devtools` +
+ENH-124 `duo layout` (sister verbs to ENH-122 — coming Sprint 15),
+the Obsidian backlinks panel cluster, ENH-082 Terminal Context Bar,
+BUG-103 blockquote CSS leak (still 🟡 Open).
 
 ---
 

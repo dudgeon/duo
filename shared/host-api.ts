@@ -214,7 +214,14 @@ export interface ElectronFilesAPI {
    *  successive pastes). Returns absolute + relative paths plus the
    *  on-disk size. Caller composes the markdown / HTML insertion
    *  using `relPath`. */
-  saveImageBeside: (activeDocPath: string, bytes: Uint8Array, ext: string) => Promise<FileSaveImageBesideResult>
+  saveImageBeside: (activeDocPath: string, bytes: Uint8Array, ext: string, prefix?: string) => Promise<FileSaveImageBesideResult>
+  /** ENH-128 (Sprint 14) — transcode HEIC / HEIF / RAW source bytes
+   *  to PNG (default) or JPEG (HEIC source). Lives in main because
+   *  Electron's nativeImage API isn't available in the renderer.
+   *  Returns the converted bytes + new extension; caller follows up
+   *  with `saveImageBeside(..., result.bytes, result.ext)`. Throws
+   *  when the source bytes can't be decoded by the platform. */
+  convertImageBytes: (bytes: Uint8Array, sourceMime: string) => Promise<{ bytes: Uint8Array; ext: string }>
   /** Pre-flight read of an HTML file's head (~4KB) to extract Duo's
    *  routing meta tags. Used by the file-open dispatcher to decide
    *  whether an .html file mounts as a browser tab or a canvas tab.
@@ -370,6 +377,13 @@ export interface ElectronLayoutAPI {
    *  even, or `duo split 3way` requests the canonical 3-pane layout
    *  (outer 33/67 + inner aux 50/50 if aux is open). */
   onLayout3wayEven: (cb: () => void) => () => void
+  /** FOLLOWUP-015 — fires when View → View source menu is clicked.
+   *  Renderer dispatches the existing `'duo-view-source'` window
+   *  event so the same MarkdownEditor + PageTab listeners that handle
+   *  the ⌘⌥V chord (owned by globalShortcuts.ts) and the tab-strip
+   *  right-click also handle this entry. Payload-free; the listener's
+   *  isActive gate decides which surface responds. */
+  onViewSourceRequest: (cb: () => void) => () => void
 }
 
 // ENH-041 / Sprint 3 — Split View ("aux") API. Renderer is the

@@ -18,6 +18,53 @@
 
 ---
 
+## 2026-05-10 evening (Sprint 14 close-out + v0.6.12 cut) — BUG-115 closed as agent-behavior · ENH-128 sips fallback · ENH-133 Shift+Enter · ENH-110 JSON/YAML viewer-editor pulled forward from v0.6.13 · 3 walks (4 → 5 → 6) · cut shipped
+
+**Status: v0.6.12 cut shipped 2026-05-10 evening.** Picked up immediately after the morning walk-3 close-out (which left the cut blocked on ENH-128 HEIC genuine decode failure + a BUG-115 dialog of unknown cause). One session diagnosed both, then pulled ENH-110 + ENH-133 forward same-day, then walked the JsonView UX through three iteration rounds.
+
+**Diagnostic close-outs:**
+- **BUG-115** = fixture-write race, NOT BUG-107 regression. Diagnosis: `MarkdownEditor.tsx`'s BUG-107 normalize() is intact at both watcher (line 864) and save-pre-conflict (line 986) paths; the 3-byte content delta from the walk-3 console was non-trailing-whitespace (so normalize() couldn't elide it); fixture file mtime confirmed it was rewritten while the editor held the prior baseline. Resolution: agent-behavior rule (CLAUDE.md § 7d + memory) — never rewrite a fixture file the editor has open in the running dev session. Walk fixtures use unique paths per rev OR the prep step closes the editor's tab first.
+- **ENH-128** = `nativeImage.createFromBuffer` returns empty for owner's iPhone HEIC bytes; layered `sips` shell-out fallback in `electron/files-service.ts § convertImageBytes`. macOS-only branch; falls back when nativeImage decode fails AND source MIME is HEIC/HEIF/RAW family. Verified `/usr/bin/sips` present + walk-4 transcoded the same iPhone HEIC source successfully.
+
+**ENH-133 Shift+Enter pulled forward** (~30 min). Verbal owner directive during cut-planning: *"please also add shift+return remapped to option+return in active claude session."* Filed as ENH-133 in tasks.md the same turn (per "capture verbal directives immediately" memory rule). Implementation: relaxed the existing ENH-127 v2 entry condition in `TerminalPane.tsx § attachCustomKeyEventHandler` to admit Shift+Enter alongside plain Enter; the existing `e.metaKey ? '\r' : '\x1b\r'` byte logic routes Shift+Enter to newline and ⌘⇧Enter to submit.
+
+**ENH-110 JSON/YAML viewer-editor — full build pulled forward** from v0.6.13 P0 (~3 hours). Owner answered the §3a linting AUQ via AskUserQuestion (tree + raw-text toggle + JSON.parse save guard) so the build was no longer blocked. Scaffolding: new `kind: 'json'` `WorkingTabType`, `renderer/components/Json/JsonView.tsx` + `jsonFormat.ts`, `fileClassifier` mapping, `WorkingPane` dispatch branch, ⌘N seed for empty docs. Editor behavior: load file → parse via `formatFromPath` helper → tree mode default with `@uiw/react-json-view/editor` (click-to-edit values + autosave on debounce). Source mode via CodeMirror (`@uiw/react-codemirror` + `@codemirror/lang-json` + `@codemirror/lang-yaml`); save-time `parseSource()` guard refuses invalid; Tier 1+2 fallback for files >1 MB.
+
+**JsonView walk-4 → 5 → 6 polish.** Walk-4 PASSed 3 / FAILed 2 (JSON tree + JSON source) with three concrete asks: revert affordance, friendlier error text, "Source" button rename. Walk-5 added: **Revert** button (visible when source-mode is dirty / has parse error), three-layer error banner (`humanizeParseError` matches V8/js-yaml messages to one-line hints; +5 vitest cases lock the patterns), `Source` → `Edit` button rename. Walk-5 PASSed 2/SKIP 1 with two more asks: `Tree` → `Save` rename + force-save on click, error banner contrast, inline line markers. Walk-6 added: **Save** button (cancels pending autosave + writes synchronously + flips to tree if parse succeeds; stays in source if not), bumped error banner to `text-red-100` over `bg-red-950/60` (WCAG-AA legible), `@codemirror/lint` linter for inline gutter dots + squiggly underlines + hover tooltips at the parser-reported position. Owner walk-6: 3/3 PASS — cut.
+
+**387 vitest cases green** (was 356 pre-session: +6 fileClassifier + +20 jsonFormat + +5 humanizeParseError). Typecheck clean throughout. CLAUDE.md § 7d added (fixture-write race rule). One memory rule landed mid-session: `feedback_no_fixture_rewrite_while_open.md`.
+
+**Cut.** Per owner approval after walk-6. Sprint 14 close-out commits v0.6.12 with: ENH-110 (pulled forward) + ENH-122 (visibility-tooling) + ENH-117 v2 / FOLLOWUP-015 + ENH-119 + ENH-127 v2 + ENH-128 + ENH-129 + ENH-130 + ENH-131 + ENH-132 + ENH-133 + BUG-115 close + ENH-118 decisions. Sprint 15 picks: ENH-123 + ENH-124 (sister verbs to ENH-122), Obsidian backlinks panel cluster, ENH-082 Terminal Context Bar, BUG-103 (still 🟡 Open). Cut blocked on user's `git push --tags` decision.
+
+---
+
+## 2026-05-10 (Sprint 14 walk-3, pre-cut) — large pull-in session: ENH-122/123/124/127v2/128/129/130/131/132 + FOLLOWUP-015 + ENH-117 v2 + ENH-118 conv + ENH-110 playground + ENH-119 + BUG-103 + BUG-114 EPIPE; walk-3 4 PASS / 1 FAIL / 3 SKIP; cut blocked on ENH-128 HEIC + BUG-115
+
+**Status: cut not yet ready.** Walk-3 done with 4 PASS, 1 FAIL (ENH-128 HEIC genuine decode failure), 3 SKIP-trusted. Walk-3 also surfaced BUG-115 (external-conflict dialog regression — needs diagnosis). Verbatim walk-3 result block at [docs/dev/smoke-walks/v0.6.12-rev3.results.md](smoke-walks/v0.6.12-rev3.results.md).
+
+**This session was a marathon.** Started at the v0.6.11 close-out with no Sprint 14 anchor, ended with 14+ items shipped or attempted across visibility tooling, view-source v2, image handling, decision-gate playgrounds, accessibility, agent-reveal flow, browser-from-canvas, and the resurrected ENH-127. Major patterns observed:
+
+- **Owner kept pulling more in.** Every "what's next?" turn turned into another batch of pulls. Sprint 14 absorbed 14+ items vs. the original 2-anchor plan. Cut deferred multiple times.
+- **Three walks (rev1 → rev2 → rev3) with iterative trim.** Rule encoded into smoke-walk SKILL.md mid-session: re-walk manifests contain only walk-(N-1) FAILs + carry-forward SKIPs, never the prior PASS rows. Owner directive: *"why are there stale, already verified tasks still showing in docs/dev/smoke-walks/v0.6.12-rev2.html"*.
+- **Agent-walk-before-handoff rule encoded.** After walk-2 owner directive *"this is something you should be able to walk for me (and I expect you to)"*, smoke-walk SKILL.md got a HARD RULE: agent walks every CLI-testable step before handoff. Walk-3 had 5 of 8 items agent-walked PASS — owner skipped or trusted them; only 3 actually needed eyes.
+
+**Notable threads:**
+
+- **ENH-110 JSON viewer decision gate CLOSED** after the research doc was refactored to an interactive playground (4 multiple-choice questions inline next to themes; Copy-decisions button + structured payload). Owner picks: Tier 3 + Autosave + Single kind + `@uiw/react-json-view`. Build deferred to **v0.6.13 P0** with one open AUQ on linting/format-check scope at start of that sprint.
+- **ENH-127 v2 took 3 fix attempts** (verified live via computer-use). The byte sequence Claude Code accepts as a multi-line newline is `\x1b\r` (ESC+CR — what ⌥Enter natively sends). Initial fix wrote `\n` (Claude submits on it — same v1 mistake). Second fix wrote `\x1b\r` but filtered to `keydown` only — xterm's keypress dispatch then wrote its default `\r` via onData AFTER the pty.write, sending Claude `\x1b\r\r` and submitting on the trailing CR. Third fix returns `false` on ALL event types, writes byte only on keydown. Path 3b (owner pick) now ships: in Claude tabs only, plain Enter = newline, ⌘Enter = submit. Shell tabs unchanged.
+- **ENH-128 HEIC FAIL reveals deeper limitation.** `nativeImage.createFromBuffer` returns empty for the owner's HEIC bytes. Walk-3 fix to switch from `dt.files` to `dt.items` made the drag actually fire (it was a silent no-op pre-fix), but the convert step is broken downstream. Diagnostic plan in tasks.md ENH-128 entry — try `createFromPath` instead, or shell out to macOS `sips`, or scope-downgrade to "accept HEIC verbatim (no transcode); WebKit renders inline since macOS Sequoia."
+- **BUG-115 filed** for the external-conflict dialog regression. May be fixture-write race (Claude rewrote the test file after the editor mounted it; expected behavior — close as agent-process issue) OR BUG-107 normalization regression. Diagnose first.
+
+**Process rules saved to memory mid-session:**
+- "CLI verb discoverability must keep up" — every new `duo` verb lands docs in CLAUDE.md cluster + skill/SKILL.md + agents/duo.md + CLI-COVERAGE.md in the same commit.
+- "Research reports must file a tracked review task" — every research doc must (a) be a playground with multi-choice + visual examples + Copy round-trip and (b) file a review task that surfaces in every smoke walk until owner closes it.
+- (Extended) "Don't smoke-walk what the user already verified" — covers both passing automated tests AND prior-walk PASS rows.
+- "Agent walks every CLI-testable step before handoff" — encoded in smoke-walk SKILL.md as a HARD RULE.
+
+**Pre-compact handoff:** docs/dev/active-sprint.md + tasks.md ENH-110/128 + new BUG-115 entry + this session log entry are the breadcrumbs. Post-compact: owner re-pastes walk-3 results (preserved verbatim at smoke-walks/v0.6.12-rev3.results.md), then I diagnose ENH-128 HEIC + BUG-115, fix both, walk-4, then propose cut.
+
+---
+
 ## 2026-05-09 evening (Sprint 13 + v0.6.11 cut) — paste-image v2 portable across machines · ENH-126 auto-redistribute panes on aux-open · ENH-099 ⌘⌥4 chord pairing · ENH-117 v1 view-source modal · BUG-101 v2 + BUG-112 race fixes · ENH-127 implemented + reverted same day · 4 walks
 
 **Status: v0.6.11 cut shipped 2026-05-09 evening.** Sprint 13 picked up immediately after the v0.6.10 cut (same calendar day). Closed the v0.6.10 known trade-off (paste-image markdown source carried blob URLs that died on reload), landed three feature pulls owner directed mid-sprint (auto-redistribute panes on aux-open, on-demand 33/33/33 chord pairing, read-only view-source overlay), and root-caused five race-class / state-tracking bugs that surfaced during the cut walks.

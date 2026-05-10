@@ -376,33 +376,15 @@ async function main() {
         break;
       }
       case "view": {
-        const canvasFlagIdx = rest.indexOf("--canvas");
-        const target = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo view <path> [--canvas]");
+        const target = rest[0] ?? die("Usage: duo view <path>");
         const resolved = resolveFilePath(target);
-        const overrideMode = canvasFlagIdx !== -1 ? "canvas" : void 0;
-        out(await send("view", overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }));
-        break;
-      }
-      case "image": {
-        const sub = rest[0];
-        const subRest = rest.slice(1);
-        if (sub === "insert") {
-          const target = subRest.find((a) => !a.startsWith("--")) ?? die('Usage: duo image insert <path> [--alt "alt text"]');
-          const resolved = resolveFilePath(target);
-          const altIdx = subRest.indexOf("--alt");
-          const alt = altIdx !== -1 ? subRest[altIdx + 1] : void 0;
-          out(await send("image-insert", alt !== void 0 ? { path: resolved, alt } : { path: resolved }));
-          break;
-        }
-        die('Usage: duo image insert <path> [--alt "alt text"]');
+        out(await send("view", { path: resolved }));
         break;
       }
       case "edit": {
-        const canvasFlagIdx = rest.indexOf("--canvas");
-        const target = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo edit <path> [--canvas]");
+        const target = rest[0] ?? die("Usage: duo edit <path>");
         const resolved = resolveFilePath(target);
-        const overrideMode = canvasFlagIdx !== -1 ? "canvas" : void 0;
-        out(await send("edit", overrideMode ? { path: resolved, mode: overrideMode } : { path: resolved }));
+        out(await send("edit", { path: resolved }));
         break;
       }
       case "selection": {
@@ -429,14 +411,6 @@ async function main() {
           }
           out(await send("theme", { mode }));
         }
-        break;
-      }
-      case "focus-pane": {
-        const target = rest[0];
-        if (target !== "terminal" && target !== "main" && target !== "aux") {
-          die("Usage: duo focus-pane <terminal|main|aux>");
-        }
-        out(await send("focus-pane", { target }));
         break;
       }
       case "packs": {
@@ -477,55 +451,10 @@ async function main() {
         }
         break;
       }
-      case "split-view": {
-        const sub = rest[0];
-        if (sub === void 0 || sub === "state") {
-          out(await send("split-view", {}));
-          break;
-        }
-        if (sub === "open") {
-          const p = rest[1];
-          if (!p) die("Usage: duo split-view open <path>");
-          const resolved = path.isAbsolute(p) ? p : path.resolve(process.cwd(), p);
-          out(await send("split-view", { op: "open", path: resolved }));
-          break;
-        }
-        if (sub === "open-browser") {
-          const idArg = rest[1];
-          if (idArg === void 0) die("Usage: duo split-view open-browser <browser-tab-id>");
-          const browserTabId = Number(idArg);
-          if (!Number.isInteger(browserTabId) || browserTabId < 1) {
-            die("Usage: duo split-view open-browser <browser-tab-id>  (positive integer; from `duo tab` listing)");
-          }
-          out(await send("split-view", { op: "open-browser", browserTabId }));
-          break;
-        }
-        if (sub === "close") {
-          out(await send("split-view", { op: "close" }));
-          break;
-        }
-        if (sub === "promote") {
-          out(await send("split-view", { op: "promote" }));
-          break;
-        }
-        if (sub === "resize") {
-          const pctArg = rest[1];
-          if (pctArg === void 0) die("Usage: duo split-view resize <pct>");
-          const parsed = Number(pctArg);
-          if (!Number.isFinite(parsed)) die("Usage: duo split-view resize <pct>");
-          out(await send("split-view", { op: "resize", pct: parsed }));
-          break;
-        }
-        die(`Unknown split-view sub-verb: ${sub}. Expected: open|open-browser|close|promote|resize|state`);
-      }
       case "split": {
         const arg = rest[0];
         if (arg === void 0) {
-          die("Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy|3way>");
-        }
-        if (arg === "3way" || arg === "3-way" || arg === "even-3way") {
-          out(await send("layout-3way-even", {}));
-          break;
+          die("Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>");
         }
         const presets = {
           even: 50,
@@ -540,7 +469,7 @@ async function main() {
         } else {
           const parsed = Number(arg);
           if (!Number.isFinite(parsed)) {
-            die("Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy|3way>");
+            die("Usage: duo split <pct|even|terminal|canvas|terminal-heavy|canvas-heavy>");
           }
           pct = parsed;
         }
@@ -856,21 +785,6 @@ async function main() {
         runInstall({ system });
         break;
       }
-      case "pack": {
-        const sub = rest[0];
-        if (sub === "list") {
-          out(await send("pack-list", {}));
-          break;
-        }
-        if (sub === "uninstall") {
-          const name = rest[1];
-          if (!name) die("Usage: duo pack uninstall <distro-name>");
-          const removeFolder = rest.includes("--remove-folder");
-          out(await send("pack-uninstall", { name, removeFolder }));
-          break;
-        }
-        die("Usage: duo pack list  |  duo pack uninstall <name> [--remove-folder]");
-      }
       default:
         die(`Unknown command: ${cmd}
 Run duo --help for usage`);
@@ -1121,22 +1035,14 @@ COMMANDS
   close <n>                       Close browser tab N (cannot close the last)
   wait <selector> [--timeout ms]  Wait for element to appear
 
-  view <path> [--canvas]          Open a file in the working pane (new tab,
+  view <path>                     Open a file in the working pane (new tab,
                                   type inferred from extension). Distinct
                                   from \`open\` (which opens a URL/HTML in
-                                  a browser tab). \`--canvas\` (ENH-097)
-                                  forces canvas-mode mount even if the
-                                  file declares <meta duo-open-in="browser">
-                                  \u2014 useful when you want to view or edit
-                                  a playground's source without firing
-                                  its scripts.
-  edit <path> [--canvas]          Open a markdown file in the rich editor
+                                  a browser tab).
+  edit <path>                     Open a markdown file in the rich editor
                                   (Stage 11). For .md files this gives the
                                   Google-Docs-style editing surface; for
                                   other types behaves like \`view\`.
-                                  \`--canvas\` forces canvas-mode mount
-                                  for HTML files (override for editing
-                                  playground source \u2014 see make-playground).
   selection [--pane auto|editor|browser|canvas]
                                   Print the active surface's selection as
                                   JSON. Default --pane auto prefers a
@@ -1151,7 +1057,7 @@ COMMANDS
                                     paragraph, heading_trail, start, end }
                                   - browser: { kind: 'browser', url, text,
                                     surrounding, selector_path }
-                                  - canvas: { kind: 'page', path,
+                                  - canvas: { kind: 'html-canvas', path,
                                     text, html, anchorId, anchorPath,
                                     range, surrounding }
   doc read [path]                 Print the active editor's live buffer
@@ -1186,41 +1092,14 @@ COMMANDS
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
-  focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) \u2014 jump keyboard
-                                  focus to the named pane. CLI parity
-                                  with the \u2318\u2325L (terminal) / \u2318\u2325;
-                                  (main) / \u2318\u2325' (aux) chord set. Aux
-                                  is a no-op when split view is
-                                  closed (renderer logs an info
-                                  hint). Distinct from 'focus
-                                  <selector>' which targets a CSS
-                                  selector in the browser pane.
   split <pct|preset>              Set the split-pane percentage
                                   (terminal column as % of the split
                                   container). Numeric arg clamps to
                                   20\u201380. Presets: even (50), terminal-
                                   heavy (67), canvas-heavy (33),
                                   terminal (80, full-terminal), canvas
-                                  (20, full-canvas), 3way (ENH-099 \u2014
-                                  outer 33/67 + inner aux 50/50;
-                                  matches \u2318\u23254 chord; on-demand
-                                  sibling of ENH-126's redistribute-
-                                  on-aux-open). Mirrors View \u2192 Pane
-                                  size menu and \u2318\u23251/2/3/4/0/9.
-  split-view <op> [args]          ENH-041 / Sprint 3 + Phase 3c \u2014
-                                  Split View aux pane. Sub-verbs:
-                                    open <path>           open file in aux
-                                    open-browser <id>     pin browser tab
-                                                          (id from 'duo tab')
-                                                          into aux. Phase 3c.
-                                    close                 close aux
-                                    promote               move aux back to
-                                                          main, close split
-                                    resize <pct>          set splitPct (0.20\u2013
-                                                          0.80; pct or decimal)
-                                    state (or no sub-verb) print snapshot
-                                  See docs/prd/canvas-split-view-
-                                  research.html for the locked spec.
+                                  (20, full-canvas). Mirrors View \u2192
+                                  Pane size menu and \u2318\u23251/2/3/0/9.
   events [--follow] [--since      Stage 27 \u2014 stream structured events
     <cursor>] [--limit N]         from the bus. Snapshot mode prints
                                   one JSON line per event from the

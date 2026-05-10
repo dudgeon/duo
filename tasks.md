@@ -5827,17 +5827,53 @@ Probably 5-line CSS change. Verify in both light and dark themes — Tailwind Ty
 
 ### ENH-110: JSON viewer/editor as a new canvas tab kind (PM persona — API responses, configs, webhook payloads)
 
-**Status:** ⬜ DRAFT — research doc landed, owner sign-off needed before code (Sprint 12 candidate).
+**Status:** 🟢 **Code shipped 2026-05-10 (Sprint 14 — pulled forward from v0.6.13).** Decision gate closed walk-3; build landed same-day.
+
+**v0.6.12 build summary:**
+- New `kind: 'json'` `WorkingTabType` (shared/types.ts). Single tab kind for JSON + YAML; format implicit from path extension via `formatFromPath()` in [renderer/components/Json/jsonFormat.ts](renderer/components/Json/jsonFormat.ts).
+- `fileClassifier` maps `.json` / `.jsonl` / `.har` / `.webmanifest` → JSON; `.yml` / `.yaml` → YAML. Both route to the same JsonView.
+- [renderer/components/Json/JsonView.tsx](renderer/components/Json/JsonView.tsx) — Tier 3 `@uiw/react-json-view/editor` for tree + click-to-edit values; CodeMirror raw-text mode for source editing (`@uiw/react-codemirror` + `@codemirror/lang-json` + `@codemirror/lang-yaml`); toolbar toggle button between tree and source.
+- Autosave on debounce (800ms — matches MarkdownEditor + PageTab pattern). Source-mode save runs `parseSource()` first and refuses to save invalid input (closes the §3a "missing closed quotes or brackets" AUQ).
+- Tier 1+2 fallback: files >1 MB skip the tree (render cost prohibitive) and drop to read-only source view with a "Read-only (large file)" toolbar chip.
+- ⌘N seeds parseable empties: `{}\n` for JSON, `# YAML document\n` for YAML.
+- 26 vitest cases lock the contracts (6 classifier extensions + 20 jsonFormat parse/serialize/seed/round-trip).
+- Docs: CLAUDE.md glossary row, skill/SKILL.md "Show the user a local file" section. `npm run sync:claude` ran.
+
+**Walk-4 verification owed:** open .json + .yml fixtures, edit a value via tree, autosave fires, reopen → persistence; toggle to source view, edit raw text, save with valid input succeeds, save with invalid input shows error banner + refuses; >1 MB file drops to read-only source mode.
+
+**Earlier history (kept for context).** Decision gate closed 2026-05-10 walk-3:
+
+- **Q1 JSON tier:** Tier 3 (interactive collapsible tree)
+- **Q2 Edit semantics:** Autosave on blur, with a follow-on question for the build sprint: *"should we do some level of linting/format checking on save, eg missing closed quotes or brackets? in the sprint when we build (just log the task for now) please think through options and AUQ to lock in the intent"*
+- **Q3 YAML cohabitation:** Single tab kind with format discriminator
+- **Q4 Library pick:** `@uiw/react-json-view`
+
+**v0.6.13 P0 build scope** (locked from these picks):
+
+1. New `kind: 'json'` WorkingTabType with format discriminator (`'json' | 'yaml'`).
+2. `@uiw/react-json-view` integration — Tier 3 interactive tree, hover-to-copy, click-to-edit values.
+3. File classifier maps `.json` / `.jsonl` / `.har` / `.yml` / `.yaml` to the new kind.
+4. Tier 1+2 fallback for files >~1 MB (configurable threshold) where tree render cost is prohibitive.
+5. Edit semantics — autosave on blur, matching markdown editor's pattern via existing SaveControl.
+6. **Linting/format-check open question** (AUQ at start of v0.6.13): scope of save-time validation. Options: (a) basic JSON.parse sanity check + show inline error markers, (b) full linting via a shared lib (e.g. `jsonlint`), (c) no validation — trust user input + only error if save fails to round-trip. Pick before code work starts.
+
+**Earlier history (kept for context).** Refactored to interactive playground 2026-05-10 to surface the gate after it had been lost across 3 sprints (filed 2026-05-07, never raised in any walk). Owner observation: *"we lost sight of this because it was never raised in a smoke walk—our primary interaction surface."* That observation triggered the new memory rule "research reports must file a tracked review task."
 **Priority:** **Medium** — high pedagogical value for the PM persona who opens API responses / Slack JSON / webhook payloads daily. Today these fall through to the unknown-file preview.
-**Filed:** 2026-05-07.
+**Filed:** 2026-05-07. **Refactored to interactive playground:** 2026-05-10.
 
-**Research doc.** [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) (rich HTML report with mockups, library matrix, hand-roll-vs-library tradeoff). Covers four tiers (plain text → syntax highlight → collapsible tree → full IDE), six libraries evaluated (`@uiw/react-json-view`, `json-edit-react`, `react-json-view`, `react-json-tree`, `@codemirror/lang-json`, `monaco-editor`), and the new-tab-kind architectural recommendation.
+**Research playground.** [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) — rich HTML page with mockups, library matrix, hand-roll-vs-library tradeoff, and an interactive § 5 (4 multiple-choice decision questions, each with visual mockup-per-option, comment fields, and a Copy-decisions button that produces a structured payload for paste-back to Claude). Covers four tiers (plain text → syntax highlight → collapsible tree → full IDE), six libraries evaluated (`@uiw/react-json-view`, `json-edit-react`, `react-json-view`, `react-json-tree`, `@codemirror/lang-json`, `monaco-editor`), and the new-tab-kind architectural recommendation.
 
-**Recommendation (Sprint 12 anchor).** Tier 3 (collapsible interactive tree) via [`@uiw/react-json-view`](https://github.com/uiwjs/react-json-view) (~7 KB gz, MIT, active, zero deps, React 18 native). New tab kind `kind: 'json'` (NOT inside the canvas iframe — script-block contract would defeat the interactive tree). File classifier maps `.json` / `.jsonl` / `.har` to this tab type. Tier 1+2 fallback for files over a configurable threshold (~1 MB) where the tree's render cost is prohibitive.
+**Recommendation (carried from research doc).** Tier 3 (collapsible interactive tree) via [`@uiw/react-json-view`](https://github.com/uiwjs/react-json-view) (~7 KB gz, MIT, active, zero deps, React 18 native). New tab kind `kind: 'json'` (NOT inside the canvas iframe — script-block contract would defeat the interactive tree). File classifier maps `.json` / `.jsonl` / `.har` to this tab type. Tier 1+2 fallback for files over a configurable threshold (~1 MB) where the tree's render cost is prohibitive.
 
-**Open questions for owner.** Tier 3 vs. tier 2? Edit semantics (autosave on blur vs ⌘S only)? YAML cohabitation in the same tab kind? See research doc § 5 for full list.
+**Live decision questions in § 5 of the playground (4 gates):**
+1. Tier 3 (interactive tree) vs Tier 2 (syntax highlight only)?
+2. Edit semantics — autosave on blur vs ⌘S only? (Tier 3 only)
+3. YAML cohabitation — single kind with format discriminator vs distinct kinds?
+4. Library pick — `@uiw/react-json-view` (recommended) vs alternatives vs hand-roll?
 
 **Pairs with.** ENH-111 (data primitives umbrella).
+
+**Process note (2026-05-10).** The original Open Questions section was a static `<ul>` — owner-decision items that never surfaced in a smoke walk. Refactored 2026-05-10 to an interactive Copy-round-trip playground after owner directive. Going forward, all research docs ship as playgrounds with the same pattern (saved as a memory rule: "Research reports must file a tracked review task").
 
 ---
 
@@ -6014,9 +6050,11 @@ Recommend "Reveal in navigator" for the v1 label; revisit during the smoke walk 
 
 ### ENH-122: `duo dom <selector>` — query the renderer's DOM from CLI (Sprint 12 walk-rev3 retro)
 
-**Status:** 🆕 Filed 2026-05-09 from same-day retro.
+**Status:** ✅ **Shipped v0.6.12 (Sprint 14, 2026-05-09).** End-to-end verified via the verb itself: `duo dom <selector>` returns outerHTML / `--attr` / `--text` / `--computed <props>` / `--all`; `duo dom --js "<expr>"` evaluates an arbitrary expression in the main renderer's scope (used during this sprint to verify FOLLOWUP-015's panel-fill mounts). Bare `duo dom` keeps the legacy browser-pane HTML dump (CDP) — disambiguation key is "any args at all → renderer." Implementation routes through a new `queryRendererDom` NavBridge method that calls `mainWindow.webContents.executeJavaScript` with a server-built JSON-stringified expression (selectors / attrs are safe against injection; `--js` mode passes through verbatim so multi-statement blobs work). No `app.isPackaged` gate — the CLI is already trusted via socket auth, and restricting renderer-DOM inspection in production would gimp the agent's ability to help with bug reports.
+
+**Walk-2 + walk-3 step-text fixes (2026-05-10):** Walk-1 used `.tab-strip` which doesn't match (no class with that name). Walk-2 used `[role="tab"]` which ALSO doesn't match (no ARIA role on tabs — surfaces gap filed as ENH-132). Walk-3 uses `button.group` which is reliably attached to every tab in the working / terminal strips. Walk-2 also caught BUG-114 (CLI EPIPE on `duo X | head/grep/awk` pipes); fixed via `process.stdout.on('error', EPIPE → exit 0)` in cli/duo.ts.
 **Priority:** **High** — second-highest-leverage missing tool. Today's blind diagnosis ate ~30 min trying to figure out whether ImageView's `<img>` element was rendered, what its `src` attribute was, and what its computed CSS dimensions were. `duo eval` only sees BROWSER-pane tabs (CDP-attached), not the renderer; the renderer's DOM is locked behind manual DevTools.
-**Filed:** 2026-05-09.
+**Filed:** 2026-05-09. **Shipped:** 2026-05-09.
 
 **What's wanted.** A CLI verb that takes a CSS selector (or arbitrary JS expression scoped to the renderer's window) and returns the result. Mirrors `duo eval` but targets the renderer instead of the browser pane.
 
@@ -6075,9 +6113,9 @@ Reuses existing state via `nav-state` + new IPC for working-pane state. Removes 
 
 ### ENH-119: Selection tint should cover images — visual feedback when an image is in the selected range
 
-**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev4 (ENH-108-PASTE-RENDERS PASS notes).
-**Priority:** Medium — owner ask: "include in next sprint." Today, when a selection range includes an image, the surrounding text gets the selection background but the image itself shows no visual indicator. User can't easily tell whether the image is part of the selection.
-**Filed:** 2026-05-09.
+**Status:** ✅ **Shipped Sprint 14 walk-3 prep (2026-05-10).** Both surfaces (markdown editor + HTML canvas) per editor-canvas parity rule. **Markdown editor:** new ProseMirror plugin in [DuoImage.ts](renderer/components/editor/extensions/DuoImage.ts) that walks every node in `selection.from..selection.to` and decorates image nodes with a `duo-image-in-range` class via `Decoration.node`. NodeSelection (click-to-select-image) already gets `ProseMirror-selectednode` from TipTap stock; both classes share the same CSS rule (orange outline + 2px offset + slight border-radius). **Canvas:** new helper [imageSelectionTint.ts](renderer/components/Page/imageSelectionTint.ts) that listens to `selectionchange` on the iframe document, walks all `<img>` elements, and toggles a `data-duo-image-in-range` attribute based on `range.intersectsNode(img)`. CSS injected into the iframe head (style block with `data-duo-style="duo-image-selection-tint"`). The runtime attribute is added to `RUNTIME_ATTRS_TO_ALWAYS_STRIP` in [serialize.ts](renderer/components/Page/serialize.ts) so it never persists to saved HTML. **Markdown side verified live:** selected all → confirmed exactly 1 image with `duo-image-in-range` in the active editor (out of 27 ProseMirror images across 20+ open editors). Canvas side wired live (style injected + image found in iframe); owner walks the visual drag-select test.
+**Priority:** Medium — owner ask: "include in next sprint."
+**Filed:** 2026-05-09. **Shipped:** 2026-05-10.
 
 **What's wanted.** Inside the markdown editor (and the HTML canvas, per editor-canvas parity rule), when a Selection range covers an `<img>` node, the image should render with a visible selection tint (e.g. a colored overlay or border) so it's obvious the image is in the range. This affects copy / cut / delete operations downstream — without the visual cue, users might cut text expecting the image to come with it (or stay).
 
@@ -6170,9 +6208,207 @@ Both code paths (file-aux open via right-click "Move to Split View" / `⌘/` cho
 
 ---
 
+### BUG-115: External-conflict dialog fires on first edit after open (re-surface of BUG-107 family OR fixture-write race)
+
+**Status:** ✅ **Closed 2026-05-10 (expected behavior; agent-behavior fix only).** Hypothesis 1 (fixture-write race) confirmed. Diagnostic evidence:
+1. `MarkdownEditor.tsx:864` (watcher) and `:986` (save pre-conflict) both still apply BUG-107's `normalize = (s) => s.replace(/\s+$/, '')` — **the BUG-107 fix is intact**.
+2. Console showed `[BUG-107 save-pre-conflict] real diff` AFTER normalization — meaning the 3-byte delta is non-trailing-whitespace **content**, not the kind of drift normalize() ignores.
+3. `/tmp/v2-viewsrc-smoke.md` mtime (May 10 11:38) is LATER than walk-3 — confirming the fixture was rewritten while the editor held its baseline.
+4. The same path appears in walk-rev2 / walk-rev3 / base v0.6.12 manifests, all of which prepare it during walk setup.
+
+**Conclusion.** The dialog fired correctly. The walk-prep pipeline rewrote the fixture while the editor still had the rev2 version open from the previous walk. First edit triggered a real conflict — exactly what BUG-107's design intends.
+
+**Resolution.** Two layered fixes (no code change to MarkdownEditor):
+1. **Walk-rev fixture path uniqueness** — every smoke-walk rev gets a unique fixture path (e.g. `/tmp/walk-{version}-{rev}-{slug}.md` instead of reusing `/tmp/v2-viewsrc-smoke.md` across rev1/rev2/rev3). The smoke-walk skill's manifest authoring convention now mandates this pattern. Removes the race by construction.
+2. **CLAUDE.md § 7c addendum** — agent must not rewrite a fixture file the editor has already opened in the running dev session. Either close the corresponding tab first (`duo tabs` → `duo close <n>`) or use a fresh path. Lifted to a memory rule for cross-session durability.
+
+**Cross-ref:** [BUG-107](tasks.md:5910) (the original Sprint 11 walk-3 normalize fix; intact).
+**Filed:** 2026-05-10. **Closed:** 2026-05-10.
+
+**Owner observation:** *"caught the 'This file changed on disk while you were editing. Reload (loses your edits) or keep yours (next save will overwrite the new disk version).' error on loading the [file] and typing 'return' in it"* — fired during walk-3 testing of ENH-128 on `/tmp/v2-viewsrc-smoke.md`.
+
+**Console diagnostic (verbatim from owner walk-3):**
+```
+MarkdownEditor.tsx:988 [BUG-107 save-pre-conflict] real diff
+  baselineHead: "# View-source v2 panel-fill smoke\n\nThis is a markdown body t"
+  baselineLength: 323
+  diskBodyLength: 326
+  diskHead:     "# View-source v2 panel-fill smoke\n\nThis is a markdown body t"
+  path: "/tmp/v2-viewsrc-smoke.md"
+```
+
+Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — the divergence is somewhere later in the file (likely trailing whitespace OR the last paragraph).
+
+**Two competing hypotheses:**
+
+1. **Fixture-write race (NOT a code regression).** During walk-3 prep, Claude's Bash calls rewrote `/tmp/v2-viewsrc-smoke.md` while the editor had it open from earlier in the session. Editor baseline captured OLD content; disk now has NEW content. First edit triggers conflict — which is CORRECT behavior. If this is the cause, no code fix needed; the right action is for Claude to STOP rewriting fixture files that are already open in the running editor.
+2. **BUG-107 family regression.** Sprint 11 walk-3 fixed BUG-107 by normalizing trailing whitespace in the conflict comparison. If today's edits to MarkdownEditor.tsx (DuoImage plugin / image-in-range / handleAssetPaste / etc.) accidentally broke that normalization, the false-positive returns. Possible culprit: any change that shifted the save() pre-conflict check's baseline-vs-disk comparison.
+
+**Diagnostic plan (post-compact):**
+1. Check git log + bash history for fixture-write commands that touched `/tmp/v2-viewsrc-smoke.md` after the editor first opened it. If found → hypothesis 1; close as "expected behavior; agent should avoid this pattern."
+2. If no fixture-write race: read MarkdownEditor.tsx's save-pre-conflict code (around line 988 per the console) + verify the trailing-whitespace normalization from BUG-107 still applies. If broken → fix + add a vitest fixture.
+3. Reproduce with a fresh file the agent did NOT pre-write — open + immediately type a character + see if the dialog fires.
+
+**Why filed as BUG-115 not as a BUG-107 follow-on entry:** the symptoms are identical to BUG-107 but the trigger / cause may be different. Filing as a sibling lets us close BUG-107 if hypothesis 1 wins, and re-open it if hypothesis 2 does.
+
+**Cross-ref:** [BUG-107](tasks.md:5910) (the original Sprint 11 walk-3 fix).
+
+---
+
+### ENH-128: HEIC / RAW image paste / drop — convert to PNG/JPEG via Electron nativeImage
+
+**Status:** 🟢 **Walk-4 fix landed 2026-05-10** — added macOS `sips` fallback in `convertImageBytes` for the HEIC/HEIF/RAW family when `nativeImage.createFromBuffer` returns empty. Verified `sips` present at `/usr/bin/sips` on owner's Mac. Awaiting walk-4 owner verification with the same iPhone HEIC source that failed walk-3.
+
+**Walk-4 fix details (electron/files-service.ts § convertImageBytes + transcodeViaSips):**
+- Layered fallback: nativeImage decode (fast path) → if empty AND macOS AND HEIC/HEIF/RAW MIME → write bytes to `os.tmpdir()/duo-convert-in-<stamp>.<ext>`, run `sips -s format jpeg <in> --out <out>`, read converted bytes back, clean up both temps. JPEG @ default quality (sips' own; matches Apple Photos export behavior).
+- Skipped Step 1 from the original diagnostic plan (`createFromPath` swap) — same NSImage decoder under the hood as `createFromBuffer`; bytes-vs-path distinction unlikely to matter for HEIC. Went straight to Step 2 (sips) which uses ImageIO directly.
+- Step 3 (scope-downgrade — accept HEIC verbatim) **not needed** if sips works as expected. Kept in pocket if walk-4 surfaces a sips failure mode (e.g. iPhone HEIC variant ImageIO also rejects).
+
+**Walk-1/2/3 history (kept for context).** Walk-1 attempt added MIME map + nativeImage transcode helper but missed two issues: (a) `file.type` is empty for HEIC in Electron's File API, so MIME-based filter rejected the file before transcode could fire — fixed walk-2 with `inferMimeFromName` extension fallback; (b) walk-2 still failed because `handleDrop` used `dt.files` which is empty for native macOS drags from Finder/Photos.app — drags populate `dt.items` instead. Walk-3 switched `handleDrop` to `dt.items` (matches `handlePaste`'s pattern). HEIC drops NOW reach the convert path; walk-4 sips fallback closes the convert step.
+
+**Walk-1/2/3 history (kept for context).** Walk-1 attempt added MIME map + nativeImage transcode helper but missed two issues: (a) `file.type` is empty for HEIC in Electron's File API, so MIME-based filter rejected the file before transcode could fire — fixed walk-2 with `inferMimeFromName` extension fallback; (b) walk-2 still failed because `handleDrop` used `dt.files` which is empty for native macOS drags from Finder/Photos.app — drags populate `dt.items` instead. Walk-3 switched `handleDrop` to `dt.items` (matches `handlePaste`'s pattern). HEIC drops NOW reach the convert path; the convert path itself is broken.
+**Priority:** Medium — closes a real workflow (macOS Photos.app drag-drop = HEIC by default).
+**Filed:** 2026-05-10.
+
+**What's wanted.** When the user pastes / drops a HEIC (or RAW camera image), Duo converts it to PNG (or JPEG) before saving alongside the active doc. Today's MIME map doesn't include HEIC/RAW so they fall through to `.png` with the wrong extension — should be a clean transcode instead.
+
+**Implementation sketch.**
+- Detect `image/heic`, `image/heif`, `image/x-canon-cr2`, `image/x-nikon-nef` etc. on clipboard / drag.
+- Pipe bytes through Electron's `nativeImage.createFromBuffer(bytes)` then `.toJPEG(quality)` or `.toPNG()`.
+- Save the converted bytes via `files.saveImageBeside` with the right extension.
+- Insert with the converted path. Markdown source stays portable.
+- Default: convert to JPEG @ quality 90 for HEIC (matches Apple's typical export). PNG for lossless.
+
+**Open scope question.** Resize cap? HEIC from a modern iPhone is ~4032×3024 — a 5MB JPEG. Acceptable to insert at full resolution? Or cap at e.g. 2048px max dimension? Recommend full resolution v1; revisit if perf complaint surfaces.
+
+**Cross-ref:** [ENH-108](tasks.md:280) (paste-image v1), [ENH-118](tasks.md:6245) (the conversation that filed this).
+
+---
+
+### ENH-132: ARIA tab roles — tabs need `role="tab"` + `role="tablist"` for accessibility
+
+**Status:** ✅ **Shipped Sprint 14 walk-3 prep (2026-05-10).** Owner pulled in alongside ENH-119 after ENH-122 walk-2 surfaced the gap. Added `role="tablist"` + `aria-label` to the parent `<div>` of each tab strip in [WorkingTabStrip.tsx](renderer/components/WorkingTabStrip.tsx) (working + browser tabs share this strip) and [TabBar.tsx](renderer/components/TabBar.tsx) (terminal tabs). Added `role="tab"` + `aria-selected={isActive}` to each per-tab `<button>`. **Agent-verified live:** `duo dom '[role=tab]'` returns 84 elements (every tab across all open editors / terminal panes), `[role=tablist]` returns 2 containers, `[aria-selected=true]` returns 2 (one active per strip). Screen readers (VoiceOver) will now announce "Smoke walk, tab 6 of 12, selected" instead of "Smoke walk, button". **Sister win:** ENH-122-SELECTOR step 5's original `[role="tab"]` selector now matches non-empty too (the walk-2 fail that surfaced this gap).
+**Priority:** Low — accessibility hygiene; not user-blocking.
+**Filed:** 2026-05-10. **Shipped:** 2026-05-10.
+
+**What's wanted.** Add `role="tab"` to every tab `<button>` element in `WorkingTabStrip.tsx`, `TabBar.tsx` (terminal strip), and any browser-pane tab strip rendering. Add `role="tablist"` to the parent `<div>` wrapping each strip. Add `aria-selected="true|false"` per tab based on the existing `tab.isActive` flag. Optional follow-on: `aria-controls` / `aria-labelledby` if there's an obvious panel target per tab.
+
+**Why this surfaced.** Walk-2 test step `duo dom '[role="tab"]' --all | head -1` returned `[]`. Tabs are plain `<button>` today — no ARIA. The smoke walk caught a real accessibility gap as a side effect of debugging visibility tooling.
+
+**Scope.** Three strip components × ~5 lines each (role on the row, role on the wrapper, aria-selected on the active row). ~30-60 min total. Tests: probably none needed; a vitest / RTL test could lock the role assignment per active state if there's appetite.
+
+**Cross-ref.** ENH-122 (the smoke-walk verb that caught this). NOT a Sprint 14 pull — file as a future-sprint item; pulling in this sprint is scope creep.
+
+---
+
+### ENH-133: Shift+Return remap to Option+Return in active Claude tabs
+
+**Status:** 🟢 **Code shipped 2026-05-10** — relaxed the existing ENH-127 v2 entry condition in `TerminalPane.tsx § attachCustomKeyEventHandler` to admit Shift+Enter alongside plain Enter. The existing `e.metaKey ? '\r' : '\x1b\r'` byte logic routes Shift+Enter to ESC+CR (newline) since metaKey is false. ⌘⇧Enter falls into the submit branch (matches "Cmd held = submit"). Awaiting walk-4 owner verification.
+**Priority:** Medium — paper-cut polish; muscle-memory miss every time the user types shift+enter expecting a soft newline.
+**Filed:** 2026-05-10.
+
+**Owner directive (verbatim 2026-05-10):** *"please also add shift+return remapped to option+return in active claude session"*
+
+**Why.** Most apps (Slack, Discord, GitHub comments, gmail, claude.ai web) treat `shift+enter` as "newline within composition." Claude Code's terminal input loop only recognizes plain Enter (pre-ENH-127 default = submit) / `option+enter` (newline) / `⌘+enter` (post-ENH-127 v2 submit). Today, `shift+enter` does nothing useful in a Claude tab — it's a muscle-memory miss for users coming from any modern messaging surface.
+
+**Scope.** Sibling branch in [TerminalPane.tsx](renderer/components/TerminalPane.tsx)'s existing `attachCustomKeyEventHandler` (the ENH-127 v2 surface). Detect `e.key === 'Enter' && e.shiftKey && !e.metaKey && !e.altKey && tab.kind === 'claude'` and forward the same byte sequence Option+Enter sends to the PTY. Active in `claude` tabs only — shell tabs unchanged so existing shell users (e.g. `bash` heredoc with shift+enter expectations) aren't surprised.
+
+**Implementation note.** First step is determining what bytes Option+Enter actually emits in our xterm config — log a control test from `attachCustomKeyEventHandler`'s alt+Enter branch, then mirror those bytes in the new shift+Enter branch. Avoid hard-coding `\x1b\r` without verification.
+
+**Smoke walk item.** `ENH-133-SHIFT-RETURN` — open a claude tab; type "line one"; shift+enter; type "line two"; verify a soft newline lands without submitting; ⌘Enter submits both lines.
+
+**Cross-ref.** ENH-127 (the original Return-key remap; this is a sister handler).
+
+---
+
+### ENH-131: Tab right-click — "Open in browser" (inverse of "Edit in canvas")
+
+**Status:** ✅ **Shipped Sprint 14 (2026-05-10).** Inverse of ENH-097's "Edit in canvas." Right-click on a canvas tab (`tab.type === 'page'`) backed by an HTML file → "Open in browser" entry. Click closes the canvas tab and re-opens the same path as a browser tab so scripts run / buttons fire (the playground modality). Mirrors the existing `onEditBrowserTabInCanvas` flow exactly: WorkingTabStrip menu builder gates on the appropriate tab kind, App.tsx-side handler does `closeFileTab(id)` then `openFileSmart(path, name, 'browser')`.
+
+**Owner directive (verbatim 2026-05-10):** *"I think we have a pattern today to right click on a browser tab (eg playground) and edit in canvas — but i don't think we have the opposite: open/use in a browser tab—we should; AUQ if there are open design/intent decisions; otherwise just build it."*
+
+**Implementation (no AUQ needed — clean mirror of existing pattern):**
+- `WorkingTabStrip.tsx § buildTabContextMenuItems` — new `view-source` entry visibility check + `case 'open-in-browser'` handler. Gate: `tab.type === 'page' && path && /\.html?$/i.test(path)`.
+- `WorkingTabStrip.tsx` component — new `onOpenInBrowser` prop threaded through.
+- `WorkingPane.tsx` — new `onOpenCanvasTabInBrowser` prop threaded through.
+- `App.tsx` — handler closes the file tab + calls `openFileSmart(path, name, 'browser')`.
+
+**Why no design AUQ.** All four reasonable design questions had clean defaults:
+- Naming: "Open in browser" (clean mirror of "Edit in canvas")
+- Tab kinds: gate on `kind: 'page'` only — markdown editor tabs don't get this (markdown isn't a web format)
+- Close behavior: close the canvas tab + reopen as browser (mirror; existing autosave catches recent edits)
+- Meta tag respect: ignore the file's `<meta duo-open-in>` — the user explicitly asked for browser via right-click; honor that
+
+**Cross-refs.** ENH-097 (the inverse direction). Pairs with ENH-130 (`--reveal` flag) — both are "make sure the user sees this artifact" capabilities.
+
+---
+
+### ENH-130: Agent-built-artifact auto-reveal + default playground chrome
+
+**Status:** 🆕 Filed 2026-05-10 from owner directive (Sprint 14 expansion).
+**Priority:** **High** — workflow-defining. When the agent says "I made you X", the user shouldn't have to hunt for it.
+**Filed:** 2026-05-10.
+
+**Owner directive (verbatim):** *"when user says 'make me a playground/html file/markdown doc that does x', even if canvas pane is collapsed, default behavior should be for duo, when complete, to expand the canvas, open the work product in the main pane (browser tab if playground) and bring focus to it. By default, playgrounds should include a 'send to Claude' and copy results/output button. Pull in work to enable this and encode the behavior."*
+
+**Two parts:**
+
+**Part A — Agent reveal verb / flag.** When the agent creates an artifact for the user (via `duo edit` for markdown, `duo open` for HTML/playground, `duo edit --canvas` for HTML in canvas mode), Duo should:
+
+1. Check if the working pane is collapsed (terminal at full width / `splitPct >= 75`). If yes, expand it (e.g. `duo split even` → 50).
+2. Open the file in the main pane (existing `duo edit` / `duo open` behavior).
+3. Focus the pane (existing `duo focus-pane main`).
+
+**Implementation (chosen): new `--reveal` flag on `duo edit` and `duo open`.** Back-compat (default false). Skill mandates `--reveal` when creating artifacts for the user. Server-side: a `revealAfterAction` helper in main.ts that runs the layout check + setSplit + focusPane sequence when the flag is present.
+
+**Part B — Playground default chrome.** Every new playground (HTML file with `<meta name="duo-open-in" content="browser">`) created via `duo html new --playground` (or scaffolded by the agent following make-playground.md) defaults to including:
+
+- **"Send to Claude" button** — uses `data-duo-action="terminal:send"` to push selected text / output / a default payload back to the agent.
+- **"Copy output" button** — uses `navigator.clipboard.writeText` (or the worksheet primitive's pattern) to hand the user a structured payload they can paste back to the agent.
+
+**Implementation (chosen): update `skill/make-playground.md` + canvas templates** to require both buttons in the boilerplate. Update `skill/examples/canvas-templates/playground.html` (or equivalent) to include the chrome.
+
+**Cross-refs.** ENH-122 (`duo dom`) + ENH-124 (`duo layout`) — used by the agent to inspect state before/after `--reveal`. ENH-098 (`duo focus-pane`) — the focus mechanism. ENH-014 (`duo split`) — the expand mechanism.
+
+---
+
+### ENH-129: Accept PDFs on paste / drop — insert as a link to the saved file
+
+**Status:** ✅ **Shipped Sprint 14 walk-3 prep (2026-05-10).** Walk-1 baseline shipped MIME-based PDF detection + saveImageBeside with prefix='pdf'. Walk-2 surfaced two issues: (a) PDF paste worked but the on-disk filename was `pdf-<stamp>-<hash>.pdf` losing the original — fixed walk-2 with `<safe-original-base>-<stamp>-<hash>.pdf` (markdown link label uses original filename verbatim); (b) PDF drag-drop appended to END of doc instead of at the drop point. Walk-3 fix: extracted drop coordinates via ProseMirror's `view.posAtCoords({left: event.clientX, top: event.clientY})` and threaded the resulting position into `handleAssetPaste` as a new `insertPos` param; the insert chain uses `editor.chain().focus(insertPos ?? undefined)` to set caret at the drop point before insertion. Copy-paste path unchanged (passes null insertPos; clipboard inserts naturally at active selection). Same fix applies to image drops as well — net win across all three asset classes.
+**Priority:** Low-medium — narrower workflow than HEIC convert, but trivial implementation.
+**Filed:** 2026-05-10.
+
+**What's wanted.** When the user pastes / drops a PDF (clipboard `application/pdf`), Duo saves the bytes alongside the active doc and inserts a markdown link `[filename.pdf](relative-path.pdf)`. Click opens externally (or in Duo's own PDF viewer if the tab kind exists). Today the paste handler only accepts `image/*` so PDFs are silently dropped.
+
+**Implementation sketch.**
+- Extend the clipboard / drag MIME filter to accept `application/pdf` alongside `image/*`.
+- `files.savePdfBeside` (or generalize `saveImageBeside` to `saveAssetBeside`) writes the bytes with a generated filename (`pdf-<YYYYMMDD-HHMMSS>-<hash>.pdf`).
+- Insert markdown source as `[<original-filename or generated>](relative-path.pdf)`.
+- Render: stock markdown link rendering (already works).
+
+**NOT in scope (per owner pick).** Inline `<embed>` viewer — that was rejected in favor of standard markdown semantics. Could revisit as a separate ENH if owner wants in-line PDF figures later.
+
+**Cross-ref:** [ENH-108](tasks.md:280), [ENH-118](tasks.md:6245).
+
+---
+
 ### ENH-127: Terminal Return-key semantic — per-Claude-tab Return = newline; ⌘Return = submit
 
-**Status:** ❌ **Implemented + reverted same day after live-test failure** (Sprint 13 walk-3, 2026-05-09). Pre-revert flagged risk verified: Claude Code's input loop treats `\n` and `\r` identically at the line-discipline level. The Duo-side intercept fired correctly at the renderer (verified via TerminalPane's `attachCustomKeyEventHandler` — wrote `\n` to the PTY on plain Enter), but Claude Code received `\n` and submitted the prompt the same as it would for `\r`. No way for Duo alone to differentiate Enter-as-newline from Enter-as-submit without Claude Code itself honoring the distinction.
+**Status:** ✅ **v2 SHIPPED + verified live via computer-use (2026-05-10).** v1 (Sprint 13 walk-3) was a renderer-side `\n` vs `\r` byte intercept; failed because Claude Code treats both bytes identically. v2 takes a different approach: in Claude tabs only, plain Enter writes `\x1b\r` (ESC + CR — the byte sequence ⌥Enter natively sends, which Claude reads as a multi-line newline in its input buffer); ⌘Enter writes `\r` (Claude's submit byte). Shell tabs pass through unchanged.
+
+**Two earlier walk-3-prep attempts both failed before the v3 fix landed:**
+
+1. **First attempt (wrong byte):** Wrote `\n` on plain Enter, mirroring v1. Claude submitted (same root cause as v1 — `\n` and `\r` identical to Claude's input loop).
+2. **Second attempt (right byte, wrong event scope):** Switched to `\x1b\r` on plain Enter, but filtered the `attachCustomKeyEventHandler` to `e.type === 'keydown'` only. xterm's KeyDown processing also triggers a `keypress` dispatch which the custom handler also receives — by returning `true` for non-keydown events, I let xterm's default Enter handler fire on keypress and write `\r` via `onData` AFTER my pty.write of `\x1b\r`. Net result: Claude received `\x1b\r\r` and submitted on the trailing `\r`. Diagnosed via temporary `term.onData` debug logging.
+3. **v3 fix (working):** Return `false` for ALL event types (keydown, keypress, keyup) on the intercept condition; only WRITE the byte on keydown so we don't fire 3× per keystroke. xterm's default `\r` write is now suppressed. Verified live: typed `line one` + plain Enter + `line two` + ⌘Enter — Claude received both lines as one prompt, named the conversation "Work on multi-...".
+
+**Discovery enabling Path 3b:** Claude Code natively accepts ⌥Enter (Option+Return) as a multi-line newline in its input buffer. ⌥Enter sends `\x1b\r` (ESC + CR) on macOS — found by adding a temporary `term.onData` debug log and pressing ⌥Enter in a shell tab. Writing the SAME bytes from a custom intercept on plain Enter gives users the multi-line UX without making them remember the ⌥ modifier.
+
+**Owner directive (2026-05-10, walk-2 OTHER NOTES):** *"what ever happened to the `in claude session in terminal, enter >> line break` intent? this was never shipped/does not work and you appear to have just dropped it."*
+
+**Owner Path 3b pick (2026-05-10 plan-mode AUQ):** *"⌘Enter to submit; plain Enter ALWAYS = newline (no timing)"* — predictable, no heuristic latency. Trade-off accepted: every Claude prompt requires ⌘Enter to submit; plain Enter only inserts a newline.
+
+**v1 historical context (kept for the record):** Pre-v1 was implemented + reverted same day after live-test confirmed Claude Code's input loop treats `\n` and `\r` identically at the line-discipline level. The Duo-side intercept fired correctly at the renderer (verified via TerminalPane's `attachCustomKeyEventHandler` — wrote `\n` to the PTY on plain Enter), but Claude Code received `\n` and submitted the prompt the same as it would for `\r`. No way for Duo alone to differentiate Enter-as-newline from Enter-as-submit by byte alone without Claude Code itself honoring the distinction. v2 sidesteps this by NOT writing any submit-triggering byte on plain Enter — the user sees a newline; nothing submits.
 
 **What this means.** A renderer-side keystroke intercept can't deliver the desired UX. The accidental-submit problem is real, but solving it requires one of:
 
@@ -6212,7 +6448,7 @@ The terminal is xterm.js connected to a real PTY (per [PtyManager](electron/pty-
 
 ### ENH-117: Markdown / HTML "view source" — inspect raw markdown / HTML for the active doc
 
-**Status:** 🟡 **PARTIAL — v1 shipped as modal; owner walk-3 wants panel-fill redesign.** Walk-3 owner direction (verbatim 2026-05-09): *"this works, but view source should occupy the full panel (ie the space where text editing normally happens), not a modal; this is a low priority to fully resolve, but view source should have a menu and tab context command to trigger -- not just rely on kb shortcut … same comments [for canvas]; works but not what I want; you should have asked more questions about the intent vs making this modal approach; not urgent to fix but this is bad."*
+**Status:** ✅ **Shipped v0.6.12 (Sprint 14, 2026-05-09).** v1 modal closed by FOLLOWUP-015's v2 panel-fill — read-only source view now replaces the editor's prose area / canvas iframe in-place (same dimensions, same column). Triggers: ⌘⌥V chord (owned by globalShortcuts.ts; WCV-forward path stays working), View → View source menu (no accelerator on the menu so it doesn't conflict with the chord), tab strip right-click → View source (with display-only `⌘⌥V` accelerator label for muscle-memory training). Toggle UX: same chord toggles the panel in/out; Done button or Esc dismisses. Source content is a snapshot at open time — for markdown, `editor.storage.markdown.getMarkdown()` + frontmatter; for canvas, `canvasRef.current.serialize()` (the same pretty-printed HTML the next save would write). Editable view-source (CodeMirror integration with bidi sync) intentionally deferred — explicit owner pick on scope before any code work. Walk-3 owner direction (verbatim 2026-05-09): *"this works, but view source should occupy the full panel (ie the space where text editing normally happens), not a modal; this is a low priority to fully resolve, but view source should have a menu and tab context command to trigger -- not just rely on kb shortcut … same comments [for canvas]; works but not what I want; you should have asked more questions about the intent vs making this modal approach; not urgent to fix but this is bad."*
 
 **v1 (shipped 2026-05-09 walk-3) — modal overlay.** `⌘⌥V` opens a centered modal overlay rendering the active surface's raw source in a monospaced block. Both [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) (markdown body + frontmatter via `editor.storage.markdown.getMarkdown()` + `joinFrontmatter`) and [PageTab.tsx](renderer/components/Page/PageTab.tsx) (pretty-printed HTML via `canvasRef.current.serialize()`) listen for the `duo-view-source` window event dispatched by [useKeyboardShortcuts.ts](renderer/hooks/useKeyboardShortcuts.ts); each gates on `isActive`. Overlay has Copy + Close buttons; Esc / backdrop click dismisses. Atelier-styled. Capability lands; surface is wrong.
 
@@ -6244,9 +6480,17 @@ The terminal is xterm.js connected to a real PTY (per [PtyManager](electron/pty-
 
 ### ENH-118: Image-type handling discussion — beyond PNG (esp. GIF, SVG)
 
-**Status:** 🆕 Filed 2026-05-09 from owner OTHER NOTES on Sprint 12 walk-rev2.
+**Status:** ✅ **CONVERSATION COMPLETE 2026-05-10.** Owner answers (Sprint 14 expansion AUQ):
+
+1. **GIFs** — **animate by default** (today's behavior). Matches user expectation from web / Slack / Discord. No code change needed; document the perf caveat (giant GIFs hammer the renderer compositor) as a known limitation.
+2. **SVG** — **keep `<img src="...svg">`** (today's inert rendering, scripts blocked, no external refs). Document the limitation that SVGs with embedded CSS / fonts may render slightly differently from source intent. No code change needed.
+3. **HEIC / RAW** — **convert to PNG / JPEG via Electron's nativeImage**. Filed as **ENH-128** below (~half-day). macOS Photos.app drag-drop is the workflow this enables.
+4. **PDF** (clipboard `application/pdf` on paste / drop) — **accept + insert as a link** (`[filename.pdf](path)`) rather than `<embed>`. Standard markdown; click opens externally. Filed as **ENH-129** below (~small).
+
+Two picks (1, 2) ship as documentation only — known limitations live in [skill/SKILL.md § image handling](skill/SKILL.md) (and the FAQ once a question lands). Two picks (3, 4) generate new tracked items below; landed in Sprint 14 if scope allows, else Sprint 15.
+
 **Priority:** Medium — owner ask: "after you fix PNG, discuss with owner how to handle other image types, esp GIF and SVG."
-**Filed:** 2026-05-09.
+**Filed:** 2026-05-09. **Conversation complete:** 2026-05-10.
 
 **What's wanted.** ENH-108 v1 handles all common image types via the same path (clipboard → save → insert with `<img>`). The `MIME_TO_EXT` map in [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) covers PNG / JPEG / GIF / WEBP / SVG / BMP / TIFF, and the duo-asset:// protocol handler returns the right MIME for each (so SVG renders as SVG, GIF animates, etc.). But there are open product / safety questions per type:
 
@@ -6269,9 +6513,18 @@ The terminal is xterm.js connected to a real PTY (per [PtyManager](electron/pty-
 
 ### FOLLOWUP-015: ENH-117 v2 — view-source as panel-fill, not modal; menu + tab-context entries
 
-**Status:** 🆕 Filed 2026-05-09 from owner walk-3 feedback on ENH-117 v1.
+**Status:** ✅ **Shipped v0.6.12 (Sprint 14, 2026-05-09).** Owner picked **read-only panel-fill** (~half-day) over the read+write CodeMirror integration (~multi-day) on entry-gate AUQ. v2 reshape: `ViewSourceOverlay.tsx` (fixed-inset modal) replaced by `ViewSourcePanel.tsx` (flex-1 fills its container). Both [MarkdownEditor.tsx](renderer/components/editor/MarkdownEditor.tsx) and [PageTab.tsx](renderer/components/Page/PageTab.tsx) now swap the prose area / canvas iframe area for the panel when `viewSource !== null`; toggling out returns to the live editor / canvas. Toggle UX: same `'duo-view-source'` window-event funnel; chord with the panel already open closes it (returns the previous content). Three triggers all funnel into the same window event:
+
+1. **⌘⌥V chord** — owned by globalShortcuts.ts (WCV-forward path stays working). Unchanged from v1.
+2. **View → View source menu** — new menu entry in `electron/main.ts § View submenu`, no accelerator on the menu (avoids conflict with globalShortcuts ownership). Click sends `IPC.VIEW_SOURCE_REQUEST` (new channel); App.tsx listener re-dispatches the window event.
+3. **Tab strip right-click → View source** — new entry in `WorkingTabStrip.tsx § buildTabContextMenuItems`, gated on `tab.type === 'editor' || 'page'` (browser tabs use DevTools). Display-only `CmdOrCtrl+Alt+V` accelerator label for muscle-memory training (right-click context menu accelerators don't bind globally). Right-click activates the tab first via `onSelect(tab.id)` then `setTimeout(0)`-defers the dispatch so the listener's `isActiveRef` reflects the activated tab.
+
+End-to-end verified via ENH-122 (sister sprint feature): opened a markdown file, dispatched the event, confirmed `[role=region][aria-label^=Source]` mounts; toggled twice, confirmed off→on→off; clicked Done, confirmed close; opened a canvas surface, repeated. Header reads `Source · <filename>`; source body matches the editor's serialization. All 356 vitest tests still green; typecheck clean.
+
+Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a fallback — panel-fill works on every surface).
+
 **Priority:** Low-medium per owner direction (*"not urgent to fix but this is bad"*).
-**Filed:** 2026-05-09.
+**Filed:** 2026-05-09. **Shipped:** 2026-05-09.
 
 **What's wanted (per owner walk-3 verbatim):**
 

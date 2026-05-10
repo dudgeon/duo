@@ -161,7 +161,8 @@ tab.
 | **the canvas** (the slot) | `WorkingPane` / `activeWorking` |
 | **canvas mode** (HTML in canvas iframe — editable, scripts blocked, buttons inert) | `WorkingTab` with `kind: 'page'` (component: `PageTab` in `renderer/components/Page/`) |
 | **browser mode** (HTML in browser pane — scripts run, buttons fire) | `WorkingTab` with `kind: 'browser'` rendered via `BrowserManager` WebContentsView |
-| **a tab** | `WorkingTab` (kinds: `editor`, `page`, `browser`, `image`, `pdf`, ...) |
+| **a tab** | `WorkingTab` (kinds: `editor`, `page`, `browser`, `image`, `pdf`, `json`, ...) |
+| **JSON / YAML viewer-editor** (Tier 3 collapsible tree + raw-text source toggle, autosave on edit) | `WorkingTab` with `kind: 'json'` (component: `JsonView` in `renderer/components/Json/`). Format (json\|yaml) implicit from path extension via `formatFromPath()` — `.json` / `.jsonl` / `.har` / `.webmanifest` parse as JSON; `.yml` / `.yaml` parse as YAML. Both share one tab kind (single-kind decision, ENH-110 walk-3). |
 | **a page** | HTML tab; **defaults to canvas mode** (`kind: 'page'`). Static or read-and-edit content. |
 | **a playground** | HTML tab; **defaults to browser mode** (`kind: 'browser'`) — declared via `<meta name="duo-open-in" content="browser">` in the file's `<head>`. Action runtime: `playgroundActions.ts`; browser-pane CDP injection wired in ENH-094. |
 | **a lesson** | Stage 28 lesson pack at `packs/<name>/{canvases/, lesson-skill/}`. Each canvas in the pack ships with `duo-open-in: browser` (modality lock — ENH-097). |
@@ -209,6 +210,16 @@ See `docs/DECISIONS.md`.
 Every new CLI command updates `cli/duo.ts`, `skill/SKILL.md`,
 `agents/duo.md`, **and** `docs/CLI-COVERAGE.md`. The plumbing
 checklist in item 4 must be touched in full.
+
+### 3a. Visibility-tooling cluster — three CLI verbs to remove agent blind spots
+
+When you're debugging Duo blind (no computer-use, can't take a screenshot, don't know what surface is active), reach for the visibility cluster instead of guessing past ~15 minutes:
+
+- **`duo dom <selector>`** ([ENH-122](tasks.md)) — query the main renderer's DOM. Selectors, `--attr`, `--text`, `--computed`, `--all`, `--js`. Mirrors `duo eval` but for the React shell, not the browser pane.
+- **`duo devtools [--browser-pane] [--close]`** ([ENH-123](tasks.md)) — open Elements / Network / Console for the renderer (default) or active browser tab.
+- **`duo layout`** ([ENH-124](tasks.md)) — JSON snapshot: active main tab kind/path, aux state, splitPct, focusedColumn, navigatorCollapsed, tab counts. Pairs with existing **`duo nav-state`** for file-tree state.
+
+These four verbs (`duo dom` + `duo devtools` + `duo layout` + `duo nav-state`) together answer "what is the user looking at right now?" without computer-use. Reach for them BEFORE building bespoke debug instrumentation.
 
 ### 4. CLI parity with UI — every user-facing feature ships a `duo` counterpart
 
@@ -456,6 +467,31 @@ walk OR a mid-sprint verification handoff. It applies even when
 the user explicitly asks to walk now — the answer is "let me
 verify the app's clean first, give me 30 seconds."
 
+### 7d. NEVER rewrite a fixture file the editor has already opened
+
+Closed BUG-115 (2026-05-10) traced to the same agent-behavior pattern
+across multiple walks: the smoke-walk preparation pipeline rewrites a
+fixture (e.g. `/tmp/v2-viewsrc-smoke.md`) while a previous walk-rev
+still has the editor pointed at the old version. First edit fires
+the BUG-107 file-changed-on-disk dialog **correctly** — the file
+genuinely DID change on disk. The dialog isn't a bug; the agent's
+fixture-rewrite-while-open IS.
+
+**Two valid patterns** for walk-prep fixtures:
+
+1. **Unique paths per walk-rev (preferred)** — every walk-rev's
+   fixtures get a fresh path: `/tmp/walk-{version}-{rev}-{slug}.md`.
+   Removes the race by construction. The smoke-walk skill's manifest
+   convention should generate paths this way.
+2. **Close before rewrite** — if a fixture path must be reused, the
+   prep step closes the editor's existing tab first: `duo tabs` to
+   find the matching tab id → `duo close <n>` → THEN rewrite.
+
+**Never** rewrite a fixture file with `Write` / `echo >` / `cat >`
+while the editor in the running dev session has it open — even if
+the new content is "essentially the same." The byte-level diff
+triggers the watcher's reconciliation path correctly.
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits
@@ -523,20 +559,24 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 14 (cut target v0.6.12) — picks open
+## Active sprint — Sprint 14 (cut target v0.6.12) — close-out batch shipped; walk-4 owed
 
-**v0.6.11 cut shipped 2026-05-09 evening** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.11)). Sprint 13 closed cleanly: paste-image v2 portable across machines, auto-redistribute panes on aux-open, ⌘⌥4 chord pairing, view-source v1 modal, race-class fixes for `duo edit` auto-focus + `duo doc read` no-path, smoke-walk SKILL.md trimmed.
+**Sprint 14 close-out batch (2026-05-10 post-walk-3) — code shipped, walk-4 owed before cut:**
+- **BUG-115** ✅ Closed — fixture-write race, not a BUG-107 regression. The original fix is intact at MarkdownEditor.tsx:864 + :986 (BUG-107 normalize). Agent-behavior fix only: CLAUDE.md § 7d added (never rewrite a fixture file the editor has open) + memory rule.
+- **ENH-128** 🟢 — `nativeImage` → `sips` layered fallback for HEIC/HEIF/RAW. Walk-4 verifies the same iPhone HEIC source that failed walk-3 now transcodes via macOS ImageIO.
+- **ENH-133** 🟢 — Shift+Enter in claude tabs now writes the same byte sequence as Option+Enter (newline). Owner directive 2026-05-10 same-day pull.
+- **ENH-110** 🟢 — Tier 3 JSON/YAML viewer-editor with click-to-edit tree (`@uiw/react-json-view/editor`) + raw-text source toggle (CodeMirror). Single kind for both formats; format implicit from path extension. Autosave on debounce (800ms); source-mode save guards against invalid input. Tier 1+2 fallback for >1 MB files. Pulled forward from v0.6.13 same-day after the §3a linting AUQ was answered (tree + raw-text toggle + JSON.parse guard).
 
-**Sprint 14 has no anchor commitment yet.** Owner picks from the queued candidates next session. Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the full candidate slate. Recommendation if owner just says "pick something": **ENH-122 `duo dom <selector>`** as a half-day P0 because the visibility-tooling pain repeated through Sprint 13. Pair with **FOLLOWUP-015 ENH-117 v2 panel-fill view-source** (small) for a coherent "developer experience + paper-cut polish" sprint shape.
+**v0.6.11 cut shipped 2026-05-09 evening** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.11)). Sprint 14 originally anchored on the recommendation from that close-out: **ENH-122** `duo dom <selector>` ✅ + **FOLLOWUP-015 ENH-117 v2** ✅ panel-fill view-source. Then expanded post-walk-3 with the close-out batch above.
 
-**Owner-named candidates with intent already attached** (skim before the planning conversation): FOLLOWUP-015 (ENH-117 v2 panel-fill — owner walk-3 ask), ENH-127 reconsideration (Claude Code LF/CR collision means renderer-side intercept won't work; future paths in tasks.md), ENH-118 image-type handling (open question — needs answer before image-polish work).
+**Cut readiness:** All Sprint 14 code shipped + 382 vitest tests green + typecheck clean. Walk-4 owed (UI-touching changes per item 7b) — covers ENH-128 retest (HEIC + sips), ENH-133 (shift+enter), ENH-110 (JSON/YAML new kind end-to-end).
+
+**Carried into Sprint 15 candidate slate** (read [docs/dev/active-sprint.md](docs/dev/active-sprint.md)): ENH-123 `duo devtools` + ENH-124 `duo layout` (sister verbs to ENH-122), ENH-127 reconsideration (Claude Code LF/CR collision), ENH-082 Terminal Context Bar, Obsidian backlinks panel / graph view.
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| **Sprint 14 anchor pick** — ENH-122 `duo dom` (visibility tooling), FOLLOWUP-015 ENH-117 v2 (panel-fill view-source per owner walk-3), ENH-110 JSON viewer (PM persona, multi-day), or owner-pick? Run `/sprint-plan 0.6.12` for a worksheet. | First ask of Sprint 14 |
-| **ENH-117 v2 scope** — read-only panel-fill (~half-day) OR read+write panel-fill with bidi sync to TipTap (~multi-day, needs CodeMirror integration)? | Before any FOLLOWUP-015 code work |
 | **ENH-127 direction** — declined entirely OR pivot to one of: Duo-side composer-window pattern (separate text area outside the terminal), anti-accidental-submit heuristic (delay-based or click-confirm), upstream feature request to Claude Code for raw-newline mode? | If accidental-submit pain re-surfaces |
 | **ENH-118 image-type handling** — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before Sprint 14 picks up image-polish (ENH-119/120) |
 | Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 14 |

@@ -258,12 +258,21 @@
   </div>
 </article>
 
-<article class="item" data-keys="view source raw markdown html cmd opt v enh-117 followup-015 modal overlay copy serializer pretty printed read only">
+<article class="item" data-keys="view source raw markdown html cmd opt v enh-117 followup-015 panel fill modal overlay copy serializer pretty printed read only in-place toggle menu tab right-click">
   <div class="num">12</div>
   <div>
     <h3>View raw source for the active editor or canvas (read-only)</h3>
-    <p class="why">Sometimes you want to see what's ACTUALLY in the file — markdown source (with frontmatter) for the editor, pretty-printed HTML (with <code>data-duo-id</code> attrs and the canonical attribute order) for the canvas. Useful for verifying what a paste / agent edit / autosave actually wrote, or for grabbing a chunk to share. <strong>v0.6.11+</strong> ships v1 as a read-only modal; the panel-fill / in-place toggle redesign is queued as FOLLOWUP-015.</p>
-    <p class="how"><strong>Keyboard</strong><code>⌘⌥V</code> on the active editor or canvas opens the source modal. Copy button / Esc / backdrop click dismiss.</p>
+    <p class="why">Sometimes you want to see what's ACTUALLY in the file — markdown source (with frontmatter) for the editor, pretty-printed HTML (with <code>data-duo-id</code> attrs and the canonical attribute order) for the canvas. Useful for verifying what a paste / agent edit / autosave actually wrote, or for grabbing a chunk to share. <strong>v0.6.11</strong> shipped v1 as a centered modal; <strong>v0.6.12+</strong> reshapes it as a panel-fill — the source view replaces the prose / canvas area in the same column / dimensions, with three triggers (chord, View menu entry, tab right-click) all hitting the same toggle.</p>
+    <p class="how"><strong>Keyboard</strong><code>⌘⌥V</code> on the active editor or canvas opens (and re-closes) the source panel. <strong>UI</strong>View → View source menu, or tab right-click → "View source" (with a display-only <code>⌘⌥V</code> accelerator label for muscle-memory training). Done button / Esc dismiss. Read-only — editable view-source (CodeMirror with bidi sync) intentionally deferred per owner entry-gate pick.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="json yaml viewer editor tier 3 collapsible tree react-json-view click edit values codemirror raw text source toggle linter inline error markers gutter dot squiggly underline jsonl har webmanifest yml format discriminator autosave large file fallback revert button parser error humanize hint summary enh-110">
+  <div class="num">13</div>
+  <div>
+    <h3>Open a JSON or YAML file as a viewer-editor</h3>
+    <p class="why">PMs (and everyone else) deal with API responses, configs, webhook payloads, manifests, docker-compose files. Pre-<strong>v0.6.12</strong> they fell through to the "unknown file" preview. <strong>v0.6.12+</strong> ships a Tier 3 collapsible tree (with click-to-edit values, hover-to-copy, type color-coding) for <code>.json</code> / <code>.jsonl</code> / <code>.har</code> / <code>.webmanifest</code> / <code>.yml</code> / <code>.yaml</code>. Single tab kind for both formats — format implicit from path extension. The toolbar <strong>Edit</strong> button flips to a CodeMirror raw-text editor with JSON/YAML syntax highlighting + inline error markers (red gutter dot + squiggly underline at the parser's position + hover tooltip with the full message). Source-mode <strong>Save</strong> button force-saves + flips back to tree if parse succeeds; invalid input shows a three-layer error banner (friendly summary → pattern-matched hint like <em>"Did you forget a closing &#125;?"</em> → faded raw V8 / js-yaml line-column message). <strong>Revert</strong> button restores the last-saved buffer. Files &gt;1 MB drop to a read-only source-only view (tree render cost is prohibitive at scale). Autosave on debounce (800ms) matching the markdown editor.</p>
+    <p class="how"><strong>UI</strong>Double-click a JSON / YAML file in the navigator, or use <code>duo edit foo.json</code>. Tree mode is the default; click a value to edit it; click Edit ↔ Save to flip between tree and raw-text. <strong>Limitation</strong>YAML round-trip is content-only — comments + anchor names are stripped on save. Pure-content YAML preserves exactly.</p>
   </div>
 </article>
 

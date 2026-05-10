@@ -269,21 +269,69 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     term.attachCustomKeyEventHandler((e) => {
       const match = matchGlobalShortcut(e, { inEditableSurface: false })
       if (match) return false
+      // ENH-127 v2 (2026-05-10) — Path 3b: in Claude tabs ONLY, plain
+      // Enter writes a multi-line newline to Claude's input buffer
+      // (no submit); ⌘Enter is the explicit submit gesture.
+      //
+      // KEY DISCOVERY (walk-3, 2026-05-10): Claude Code natively
+      // accepts ⌥Enter (Option+Return) as a multi-line newline in
+      // its input buffer. The byte sequence ⌥Enter sends on macOS is
+      // ESC+CR (`\x1b\r`) — Claude reads ESC as "modified Enter,
+      // append literal newline to buffer" rather than "submit."
+      //
+      // v1 + initial v2 both wrote `\n` on plain Enter, which Claude
+      // treats identically to `\r` (submit). Both failed live test
+      // for the same reason. The fix: write `\x1b\r` on plain Enter
+      // — exactly what the user would get pressing ⌥Enter manually.
+      // Claude shows a newline in the input box; nothing submits.
+      // ⌘Enter writes `\r` (Claude's standard submit byte).
+      //
+      // Verification: walk-3 in dev — typed "test1" + ⌥Enter +
+      // "test2" + ⌘Enter. Claude received both lines as one prompt
+      // and responded "Got it — two test messages received." This
+      // confirms `\x1b\r` is the right byte for "literal newline."
+      //
+      // Shell tabs (`tab.kind === 'shell'`) pass through unchanged —
+      // breaking shell Enter would be far worse than the marginal
+      // win.
+      //
+      // Only fire on keydown (xterm sends both keydown AND keyup;
+      // intercepting both would write the byte twice).
+      // walk-3 v3 fix — we MUST return false for Enter on all event
+      // types (keydown / keypress / keyup) for our intercept to
+      // actually suppress xterm's default `\r` write. Pre-fix we
+      // filtered to keydown only and returned true on the others;
+      // xterm's keypress dispatch then fired its default Enter
+      // handler and wrote `\r` via onData ANYWAY, alongside our
+      // pty.write of `\x1b\r`. Net result on Claude: it received
+      // ESC+CR+CR and submitted on the trailing `\r`.
+      //
+      // Now: for plain Enter / ⌘Enter / Shift+Enter in Claude tabs,
+      // return false on every event type, but only WRITE the byte on
+      // keydown (so we don't write 3 times for keydown+keypress+keyup).
+      //
+      // ENH-133 (2026-05-10) — Shift+Enter joins plain Enter as a
+      // newline gesture. Most messaging surfaces (Slack, Discord, GH
+      // comments, gmail, claude.ai web) treat Shift+Enter as
+      // "newline within composition" — muscle-memory miss before
+      // ENH-133 because Shift+Enter did nothing useful in the
+      // terminal. Implementation: relax the entry condition to admit
+      // Shift+Enter; the existing `e.metaKey ? '\r' : '\x1b\r'` byte
+      // logic already routes shift+Enter to ESC+CR (newline) since
+      // metaKey is false. ⌘⇧Enter → submit (matches the "if Cmd is
+      // held, submit" mental model from ENH-127 v2).
+      if (tab.kind === 'claude' && e.key === 'Enter' && !e.altKey && !e.ctrlKey) {
+        if (e.type === 'keydown') {
+          // No-meta (plain / Shift) Enter → ESC+CR (Option+Enter byte
+          // sequence; Claude reads as multi-line newline).
+          // ⌘Enter / ⌘⇧Enter → CR (submit).
+          const byte = e.metaKey ? '\r' : '\x1b\r'
+          window.electron.pty.write(tab.id, byte)
+        }
+        return false
+      }
       return true
     })
-
-    // ENH-127 was implemented + tested live in walk-3 (2026-05-09) —
-    // the per-Claude-tab Enter → \n / Cmd+Enter → \r intercept fired
-    // correctly at the renderer side, but Claude Code's input loop
-    // treats \n and \r identically at the line-discipline level
-    // (verified: plain Enter still submits to Claude). The Duo-side
-    // intercept can't differentiate without Claude Code itself
-    // honoring the LF/CR distinction. Reverted the intercept; ENH-127
-    // remains filed in tasks.md with the live-test result documented
-    // for any future revisit (e.g. if Claude Code adds a "send raw
-    // newline" mode, or if a different anti-accidental-submit pattern
-    // surfaces — Slack-style ⇧Return-only-submits-when-typing-stops,
-    // a confirmation dialog on submit, etc.).
 
     // Set refs before attempting the first fit so resize/visibility effects
     // still work even if fit throws (e.g. zero-size container on initial mount).

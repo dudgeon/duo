@@ -14,6 +14,7 @@ import { MarkdownEditor } from './editor/MarkdownEditor'
 import { PageTab } from './Page/PageTab'
 import { PdfPreview, UnknownFilePreview } from './FileRenderers'
 import { ImageView } from './ImageView'
+import { JsonView } from './Json/JsonView'
 import { WorkingTabStrip } from './WorkingTabStrip'
 import { useBrowserState } from '../hooks/useBrowserState'
 import { classifyFile } from './fileClassifier'
@@ -141,6 +142,11 @@ interface WorkingPaneProps {
    *  browser tab and re-opens the file in canvas mode (forces
    *  canvas-mode mount even if the file declares browser as default). */
   onEditBrowserTabInCanvas?: (browserTabId: number, path: string) => void
+  /** ENH-131 — "Open in browser" on canvas tabs backed by an HTML file.
+   *  Inverse of `onEditBrowserTabInCanvas` — closes the canvas tab and
+   *  re-opens the same path as a browser tab so scripts run / buttons
+   *  fire (the playground modality). */
+  onOpenCanvasTabInBrowser?: (fileTabId: string, path: string) => void
   /** ENH-083 (v0.6.5) — collapse-canvas pane control, moved from
    *  titlebar to the new-tab cluster. App.tsx owns the splitPct state
    *  and the collapse semantics; WorkingPane just threads the props
@@ -182,6 +188,7 @@ export function WorkingPane({
   onAuxResize,
   onMoveTabToSplit,
   onEditBrowserTabInCanvas,
+  onOpenCanvasTabInBrowser,
   isCanvasCollapsed = false,
   onToggleCanvasCollapsed,
   onAuxTrash
@@ -488,6 +495,17 @@ export function WorkingPane({
     }
     if (tab.type === 'image') return <ImageView tab={asWorkingTab(tab)} />
     if (tab.type === 'pdf') return <PdfPreview tab={asWorkingTab(tab)} />
+    if (tab.type === 'json') {
+      // ENH-110 — JSON / YAML viewer-editor. Tree view default + raw-
+      // text source toggle. Format (json|yaml) is implicit from the
+      // path extension (formatFromPath in jsonFormat.ts).
+      return (
+        <JsonView
+          path={tab.path}
+          onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
+        />
+      )
+    }
     return <UnknownFilePreview tab={asWorkingTab(tab)} />
   }
 
@@ -532,6 +550,7 @@ export function WorkingPane({
         onMoveToSplit={onMoveTabToSplit}
         onMoveBrowserTabToSplit={onMoveBrowserTabToSplit}
         onEditInCanvas={onEditBrowserTabInCanvas}
+        onOpenInBrowser={onOpenCanvasTabInBrowser}
         isCanvasCollapsed={isCanvasCollapsed}
         onToggleCanvasCollapsed={onToggleCanvasCollapsed}
       />

@@ -87,6 +87,39 @@ describe('classifyFile', () => {
     })
   })
 
+  describe('json / yaml — ENH-110 single tab kind with format from extension', () => {
+    it('classifies .json as type=json mime=application/json', () => {
+      expect(classifyFile('/tmp/config.json')).toEqual({
+        type: 'json',
+        mime: 'application/json'
+      })
+    })
+
+    it('classifies .jsonl (JSON Lines) as type=json', () => {
+      expect(classifyFile('/tmp/log.jsonl').type).toBe('json')
+    })
+
+    it('classifies .har (HTTP archive) as type=json', () => {
+      expect(classifyFile('/tmp/network.har').type).toBe('json')
+    })
+
+    it('classifies .webmanifest (web app manifest) as type=json', () => {
+      expect(classifyFile('/tmp/site.webmanifest').type).toBe('json')
+    })
+
+    it('classifies .yml as type=json mime=application/yaml', () => {
+      expect(classifyFile('/tmp/config.yml')).toEqual({
+        type: 'json',
+        mime: 'application/yaml'
+      })
+    })
+
+    it('classifies .yaml as type=json (single tab kind)', () => {
+      expect(classifyFile('/tmp/docker-compose.yaml').type).toBe('json')
+      expect(classifyFile('/tmp/docker-compose.yaml').mime).toBe('application/yaml')
+    })
+  })
+
   describe('unknown / fallback', () => {
     it('files with no extension classify as unknown', () => {
       expect(classifyFile('/tmp/Makefile')).toEqual({

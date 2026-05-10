@@ -19,7 +19,102 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.6.11 cut 2026-05-09. Sprint 14+ work accumulates here.
+> Empty — v0.6.12 cut 2026-05-10. Sprint 15+ work accumulates here.
+
+## [0.6.12] — 2026-05-10
+
+Sprint 14 — JSON/YAML viewer-editor (pulled forward from v0.6.13) +
+visibility-tooling cluster + view-source panel-fill + image-handling
+close-out + per-Claude-tab Return semantics finally working.
+
+### Added
+- **ENH-110 — JSON / YAML viewer-editor as a new `kind: 'json'` tab** —
+  Tier 3 collapsible tree (`@uiw/react-json-view/editor` with click-to-edit
+  values) + raw-text source toggle (CodeMirror with JSON / YAML language
+  extensions + `@codemirror/lint` inline error markers). Single tab kind
+  for both formats; format implicit from path extension (`.json` / `.jsonl`
+  / `.har` / `.webmanifest` → JSON; `.yml` / `.yaml` → YAML). Source-mode
+  save runs `parseSource()` first and refuses to save invalid input;
+  failures show a three-layer error banner (friendly summary → pattern-
+  matched hint → raw V8 / js-yaml message). Revert button restores the
+  last-saved buffer. Files >1 MB drop to a read-only source-only view
+  (tree render cost is prohibitive at scale). Autosave on debounce
+  (800ms) matching MarkdownEditor / PageTab.
+- **ENH-122 — `duo dom <selector>` queries the main renderer's DOM** —
+  selector / `--attr` / `--text` / `--computed <props>` / `--all` modes;
+  `--js "<expr>"` evaluates an arbitrary expression in the renderer
+  scope. Routes through a new `queryRendererDom` NavBridge method using
+  `webContents.executeJavaScript`. Bare `duo dom` keeps the legacy
+  browser-pane HTML dump (CDP) — disambiguation key is "any args at all
+  → renderer." Closes the renderer-DOM blind spot that ate 30+ min of
+  hypothesis-test cycles in Sprint 12.
+- **ENH-117 v2 / FOLLOWUP-015 — view-source replaces the prose / canvas
+  area in-place (was a centered modal in v1)** — same `'duo-view-source'`
+  window-event funnel; three triggers (`⌘⌥V` chord, View menu entry,
+  tab right-click). Read-only per owner entry-gate pick on scope.
+  Toggle UX: same chord re-closes; Done / Esc dismiss.
+- **ENH-119 — selection tint covers images** — both surfaces. Markdown:
+  ProseMirror plugin in `DuoImage.ts` decorates images in the selection
+  range via `Decoration.node`. Canvas: helper at `imageSelectionTint.ts`
+  toggles a `data-duo-image-in-range` attribute on `<img>` based on
+  `range.intersectsNode`. Runtime attribute stripped on save.
+- **ENH-127 v2 — per-Claude-tab Return = newline; ⌘Return = submit**
+  (the v1 reverted in v0.6.11 — this one works). Key discovery:
+  Option+Enter sends `\x1b\r` (ESC+CR) which Claude reads as "literal
+  newline within input"; plain `\n` and `\r` both submit. v2 writes
+  `\x1b\r` on plain Enter and `\r` on `⌘Enter`. Returns `false` on all
+  event types (keydown / keypress / keyup) to suppress xterm's default
+  `\r` write; only writes the byte on keydown to avoid duplicates.
+- **ENH-128 — HEIC / HEIF / RAW paste + drop convert via `sips`
+  fallback** (closes walk-3 FAIL on the v1 attempt). Layered: `nativeImage.
+  createFromBuffer` → if empty AND macOS AND HEIC/HEIF/RAW MIME →
+  spawn `sips -s format jpeg <in> --out <out>`; clean up temps in
+  finally. Walk-4 verified the same iPhone HEIC source that failed
+  walk-3 now transcodes successfully.
+- **ENH-129 — PDF drop inserts at the drop point** — extracted drop
+  coordinates via ProseMirror's `view.posAtCoords` and threaded the
+  position into `handleAssetPaste` as a new `insertPos` param. Same
+  fix benefits image drops too. Original filename preserved as the
+  link label (`<safe-original-base>-<stamp>-<hash>.pdf`).
+- **ENH-130 — `duo edit / open / view --reveal` auto-expands the working
+  pane + focuses main** when creating an artifact for the user. Without
+  it agent-created files can land in a hidden / collapsed canvas and
+  the user has to hunt for them. Idempotent — already-revealed pane
+  stays put, only re-focuses.
+- **ENH-131 — Tab right-click → "Open in browser"** — inverse of
+  ENH-097's "Edit in canvas." Right-click on a `kind: 'page'` tab
+  backed by an HTML file → close the canvas tab + re-open as a browser
+  tab so scripts run / buttons fire. Mirrors the existing canvas-from-
+  browser flow.
+- **ENH-132 — ARIA tab roles** — `role="tablist"` + `aria-label` on each
+  tab strip parent; `role="tab"` + `aria-selected` on each per-tab
+  button. Three strips covered: WorkingTabStrip (working + browser),
+  TabBar (terminal). Screen readers now announce "Smoke walk, tab 6 of
+  12, selected" instead of "Smoke walk, button."
+- **ENH-133 — Shift+Enter in Claude tabs writes a soft newline** (matches
+  Slack / Discord / GitHub / gmail / claude.ai web muscle memory).
+  Relaxed the ENH-127 v2 entry condition to admit `Shift+Enter`; the
+  existing `e.metaKey ? '\r' : '\x1b\r'` byte logic routes Shift+Enter
+  to newline (no metaKey) and `⌘⇧Enter` to submit (matches "Cmd held =
+  submit").
+
+### Changed
+- **ENH-118 — image-handling decisions captured.** Owner-walked the four
+  open questions: GIFs animate by default (no code), SVG inert via
+  `<img>` (no code), HEIC convert (filed as ENH-128 above), PDF →
+  link insert (filed as ENH-129 above). Two doc-only picks live in
+  `skill/SKILL.md`; the other two shipped as features.
+
+### Fixed
+- **BUG-115 — closed as fixture-write race (NOT a BUG-107 regression).**
+  Diagnosis: `MarkdownEditor.tsx`'s BUG-107 normalize() is intact at
+  both watcher and save-pre-conflict paths; the 3-byte content delta
+  was non-trailing-whitespace (so normalize couldn't elide it); fixture
+  file mtime confirmed it was rewritten while the editor held the
+  prior baseline. The dialog fired correctly. Resolution: agent-
+  behavior rule (CLAUDE.md § 7d + memory) — never rewrite a fixture
+  file the editor has open in the running dev session; either close
+  the tab first or use a unique path per walk-rev.
 
 ## [0.6.11] — 2026-05-09
 

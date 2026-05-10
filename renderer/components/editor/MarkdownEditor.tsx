@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { ViewSourceOverlay } from '../ViewSourceOverlay'
+import { ViewSourcePanel } from '../ViewSourcePanel'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import Link from '@tiptap/extension-link'
@@ -124,6 +124,121 @@ const MIME_TO_EXT: Record<string, string> = {
   'image/svg+xml': 'svg',
   'image/bmp': 'bmp',
   'image/tiff': 'tiff'
+}
+
+// ENH-128 (Sprint 14) — HEIC / HEIF / RAW require nativeImage transcode
+// before saving. Listed separately from MIME_TO_EXT so the paste/drop
+// handler can branch on the convert path without the fall-through.
+// Owner pick (ENH-118 conversation 2026-05-10): convert HEIC to JPEG,
+// other RAW formats to PNG. Apple Photos.app uses HEIC by default; this
+// closes the drag-from-Photos workflow.
+const CONVERT_MIMES = new Set([
+  'image/heic',
+  'image/heif',
+  'image/x-canon-cr2',
+  'image/x-canon-cr3',
+  'image/x-nikon-nef',
+  'image/x-sony-arw',
+  'image/x-fuji-raf',
+  'image/x-adobe-dng'
+])
+
+// Walk-1 fix (2026-05-10) — Chrome / Electron's File API often returns
+// `file.type === ""` for HEIC and RAW formats because they're not in
+// the browser's MIME registry. Without an extension fallback the paste/
+// drop handler misses these files entirely (seen in walk-1 — drag a
+// .heic from Photos.app was a silent no-op). Map extension → MIME so
+// the existing CONVERT_MIMES branch fires correctly. Same pattern for
+// PDFs (rare but possible).
+const EXT_TO_MIME: Record<string, string> = {
+  heic: 'image/heic',
+  heif: 'image/heif',
+  cr2: 'image/x-canon-cr2',
+  cr3: 'image/x-canon-cr3',
+  nef: 'image/x-nikon-nef',
+  arw: 'image/x-sony-arw',
+  raf: 'image/x-fuji-raf',
+  dng: 'image/x-adobe-dng',
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  bmp: 'image/bmp',
+  tiff: 'image/tiff',
+  tif: 'image/tiff'
+}
+
+function inferMimeFromName(name: string | undefined, fallback: string): string {
+  if (fallback) return fallback
+  if (!name) return ''
+  const m = name.toLowerCase().match(/\.([a-z0-9]+)$/)
+  return m ? (EXT_TO_MIME[m[1]] ?? '') : ''
+}
+
+// ENH-129 (Sprint 14) — PDFs accepted on paste/drop, saved alongside
+// the doc, inserted as a markdown link `[filename.pdf](relative-path)`.
+// Owner pick (ENH-118): link form, NOT inline `<embed>`. Standard
+// markdown — click opens externally.
+const PDF_MIME = 'application/pdf'
+
+/**
+ * ENH-108 / ENH-128 / ENH-129 — unified asset-paste handler. Three
+ * branches:
+ *   1. PDF (application/pdf) → save bytes verbatim, insert markdown
+ *      LINK `[filename.pdf](relPath)`.
+ *   2. HEIC / HEIF / RAW (CONVERT_MIMES) → transcode bytes via main's
+ *      nativeImage helper, save converted bytes, insert as image.
+ *   3. Plain image (image/*) → existing path unchanged.
+ *
+ * Errors are logged + swallowed; the user sees nothing if we fail
+ * (the file just doesn't appear). Could surface a toast in v2.
+ */
+async function handleAssetPaste(
+  file: File,
+  docPath: string,
+  editor: { chain: () => { focus: (pos?: number) => { setImage: (attrs: { src: string }) => { run: () => unknown }; insertContent: (markdown: string) => { run: () => unknown } } } } | null,
+  // Walk-2 fix (ENH-129) — when the asset arrives via drag-drop, the
+  // caller passes the doc position at the drop client coords (computed
+  // via ProseMirror's view.posAtCoords). We `focus(pos)` to place the
+  // caret at that position before insertion so the asset lands AT the
+  // drop point, not at the editor's prior focus location. Paste
+  // handlers pass null (clipboard inserts naturally at the active
+  // selection — no override needed).
+  insertPos: number | null = null
+): Promise<void> {
+  if (!editor) return
+  const buf = await file.arrayBuffer()
+  const bytes = new Uint8Array(buf)
+  const effectiveMime = inferMimeFromName(file.name, file.type)
+  // Helper — apply the focus(pos) override only when a drop position
+  // was supplied. focus() with no arg restores the prior caret;
+  // focus(pos) sets caret to pos. Three insert sites use this.
+  const focused = () => editor.chain().focus(insertPos ?? undefined)
+  try {
+    if (effectiveMime === PDF_MIME) {
+      const origName = file.name && /\.pdf$/i.test(file.name) ? file.name : 'paste.pdf'
+      const baseName = origName.replace(/\.pdf$/i, '')
+      const safeBase = baseName.replace(/[^a-zA-Z0-9._-]/g, '-')
+      const result = await window.electron.files.saveImageBeside(docPath, bytes, 'pdf', safeBase)
+      focused().insertContent(`[${origName}](${result.relPath})`).run()
+      return
+    }
+    if (CONVERT_MIMES.has(effectiveMime)) {
+      const converted = await window.electron.files.convertImageBytes(bytes, effectiveMime)
+      const result = await window.electron.files.saveImageBeside(docPath, converted.bytes, converted.ext)
+      focused().setImage({ src: result.relPath }).run()
+      return
+    }
+    // Default image path (PNG / JPEG / GIF / WEBP / SVG / BMP / TIFF).
+    const ext = MIME_TO_EXT[effectiveMime] ?? 'png'
+    const result = await window.electron.files.saveImageBeside(docPath, bytes, ext)
+    focused().setImage({ src: result.relPath }).run()
+  } catch (err) {
+    console.error('[ENH-108/128/129] asset paste failed:', err)
+  }
 }
 
 // Module-scope lowlight instance — cheap to construct, shared across tabs.
@@ -488,56 +603,64 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         const cb = event.clipboardData
         if (!cb) return false
         const items = Array.from(cb.items)
-        const imgItem = items.find(it => it.kind === 'file' && it.type.startsWith('image/'))
-        if (!imgItem) return false  // no image — defer to other handlers
-        const file = imgItem.getAsFile()
+        // ENH-108 image / ENH-128 HEIC-RAW / ENH-129 PDF — accept any
+        // of: image/* / a CONVERT_MIMES entry / application/pdf.
+        // Walk-1 fix — also accept files where type is empty but the
+        // extension matches (HEIC / RAW often have empty file.type in
+        // Electron / Chromium).
+        const file = items
+          .map(it => it.kind === 'file' ? it.getAsFile() : null)
+          .find((f): f is File => {
+            if (!f) return false
+            if (f.type.startsWith('image/') || CONVERT_MIMES.has(f.type) || f.type === PDF_MIME) return true
+            const inferred = inferMimeFromName(f.name, '')
+            return inferred.startsWith('image/') || CONVERT_MIMES.has(inferred) || inferred === PDF_MIME
+          })
         if (!file) return false
         if (isNew) {
-          console.warn('[ENH-108] paste-image into untitled doc — save the doc first so we know where to put the image')
+          console.warn('[ENH-108] paste asset into untitled doc — save the doc first so we know where to put it')
           return false
         }
         event.preventDefault()
-        const ext = MIME_TO_EXT[file.type] ?? 'png'
-        void file.arrayBuffer().then(async (buf) => {
-          try {
-            const result = await window.electron.files.saveImageBeside(path, new Uint8Array(buf), ext)
-            // FOLLOWUP-014 (Sprint 13) — insert with the relative
-            // filename. DuoImage's NodeView resolves it against the
-            // doc's parent dir via files.read on mount and hydrates a
-            // blob URL into the rendered <img>. Markdown source stays
-            // portable (`![](image-<stamp>.png)`) — survives reload,
-            // git commit, send to another machine in the repo, etc.
-            editor?.chain().focus().setImage({ src: result.relPath }).run()
-          } catch (err) {
-            console.error('[ENH-108] saveImageBeside failed:', err)
-          }
-        })
+        void handleAssetPaste(file, path, editor)
         return true
       },
       // ENH-108 (Sprint 12) — drag-drop image parity. Same handler as
       // paste; just routes through dataTransfer instead of clipboardData.
-      handleDrop: (_view, event) => {
+      // ENH-128 / ENH-129 (Sprint 14) extend to HEIC + PDF.
+      handleDrop: (view, event) => {
         const dt = event.dataTransfer
         if (!dt) return false
-        const file = Array.from(dt.files).find(f => f.type.startsWith('image/'))
+        // Walk-2 fix — switched from `dt.files` to `dt.items`. Native
+        // macOS drags from Finder / Photos.app populate `dt.items` (each
+        // with kind='file' + getAsFile()), but `dt.files` is often empty
+        // for these drags (browser API quirk). Using items mirrors
+        // handlePaste's pattern + makes HEIC drops from Finder actually
+        // fire. Pre-walk-2 the dt.files path silently no-op'd.
+        const items = Array.from(dt.items)
+        const file = items
+          .map(it => it.kind === 'file' ? it.getAsFile() : null)
+          .find((f): f is File => {
+            if (!f) return false
+            if (f.type.startsWith('image/') || CONVERT_MIMES.has(f.type) || f.type === PDF_MIME) return true
+            const inferred = inferMimeFromName(f.name, '')
+            return inferred.startsWith('image/') || CONVERT_MIMES.has(inferred) || inferred === PDF_MIME
+          })
         if (!file) return false
         if (isNew) {
-          console.warn('[ENH-108] drop-image into untitled doc — save the doc first')
+          console.warn('[ENH-108] drop asset into untitled doc — save the doc first')
           return false
         }
         event.preventDefault()
-        const ext = MIME_TO_EXT[file.type] ?? 'png'
-        void file.arrayBuffer().then(async (buf) => {
-          try {
-            const result = await window.electron.files.saveImageBeside(path, new Uint8Array(buf), ext)
-            // FOLLOWUP-014 (Sprint 13) — insert relative filename;
-            // DuoImage hydrates blob URL on render. See handlePaste
-            // above for the rationale.
-            editor?.chain().focus().setImage({ src: result.relPath }).run()
-          } catch (err) {
-            console.error('[ENH-108] saveImageBeside failed:', err)
-          }
-        })
+        // Walk-2 fix (ENH-129) — extract drop position from client coords
+        // so the asset inserts AT the drop point, not at the prior caret
+        // location. Pre-fix `editor.chain().focus().insertContent(...)`
+        // restored caret to its last-known position (often doc end), so
+        // dragging a PDF to the middle of a long doc inserted the link
+        // at the bottom. Copy-paste worked because clipboard inserts
+        // happen at the active selection naturally.
+        const dropPos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null
+        void handleAssetPaste(file, path, editor, dropPos)
         return true
       }
     },
@@ -1777,19 +1900,26 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const pendingWriteRef = useRef<DocWriteRequest | null>(null)
   pendingWriteRef.current = pendingWrite
 
-  // ENH-117 — view-source overlay listener. Capture-phase listener
-  // for the `duo-view-source` window event dispatched by ⌘⌥V.
+  // ENH-117 / FOLLOWUP-015 — view-source panel listener. Capture-phase
+  // listener for the `duo-view-source` window event dispatched by ⌘⌥V
+  // chord, View → View source menu, and tab right-click → View source.
   // Gated on `isActive` so only the visible editor responds (one
-  // overlay across the app at a time). Snapshot the markdown source
-  // at chord time so the overlay shows what the editor's storage
-  // currently has — same source the next save would write.
+  // panel across the app at a time). Toggle semantics: chord with the
+  // panel already open closes it (returns to the editor). Snapshot
+  // the markdown source at open time so the panel shows what the
+  // editor's storage currently has — same source the next save would
+  // write. v2 (FOLLOWUP-015) made this a panel-fill that replaces the
+  // prose area in-place rather than a centered modal overlay; the
+  // event-firing path is unchanged.
   useEffect(() => {
     if (!editor || isNew) return
     const onViewSource = () => {
       if (!isActiveRef.current) return
-      const body = editor.storage.markdown.getMarkdown() as string
-      const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
-      setViewSource(full)
+      setViewSource(prev => {
+        if (prev !== null) return null
+        const body = editor.storage.markdown.getMarkdown() as string
+        return joinFrontmatter(frontmatterRef.current, body, eolRef.current)
+      })
     }
     window.addEventListener('duo-view-source', onViewSource)
     return () => window.removeEventListener('duo-view-source', onViewSource)
@@ -1996,8 +2126,19 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           rail. Rail mounts only when there's at least one comment
           (parallel to the canvas; an empty rail wastes horizontal
           space). New-file mode skips the rail entirely (no on-disk
-          file means no sidecar). */}
+          file means no sidecar).
+          FOLLOWUP-015 — view-source v2 replaces this entire container
+          (prose + rail) with ViewSourcePanel when active, so source
+          mode owns the full content area. */}
       <div className="flex-1 min-h-0 flex">
+      {viewSource !== null ? (
+        <ViewSourcePanel
+          source={viewSource}
+          title={path.split('/').pop() ?? path}
+          onClose={() => setViewSource(null)}
+        />
+      ) : (
+        <>
         <div
           className="flex-1 overflow-auto"
           onMouseDown={(e) => {
@@ -2060,6 +2201,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             onReopen={handleReopenThread}
           />
         )}
+        </>
+      )}
       </div>
       {/* Stage 15.1 — floating Send → Duo pill, portaled to body. */}
       {onSendToDuo && !newCommentAt && (
@@ -2073,13 +2216,6 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           excerpt={newCommentAt.excerpt}
           onSubmit={handleSubmitNewComment}
           onCancel={handleCancelNewComment}
-        />
-      )}
-      {viewSource !== null && (
-        <ViewSourceOverlay
-          source={viewSource}
-          title={path.split('/').pop() ?? path}
-          onClose={() => setViewSource(null)}
         />
       )}
     </div>

@@ -32,6 +32,8 @@
 
 import Image from '@tiptap/extension-image'
 import type { NodeViewRenderer } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
 
 const MIME_FOR_EXT: Record<string, string> = {
   png: 'image/png',
@@ -229,5 +231,54 @@ export const DuoImage = Image.extend<DuoImageOptions>({
       getDocPath: this.options.getDocPath,
       cache: this.options.cache
     })
+  },
+
+  // ENH-119 (Sprint 14, 2026-05-10) — paint a visible selection tint on
+  // any image that falls inside the user's TextSelection range. Without
+  // this, selecting prose that spans an image gives the surrounding
+  // text a selection background but the image looks unselected — users
+  // can't tell whether ⌘C / ⌘X / Backspace will include the image.
+  // ProseMirror's stock NodeSelection (click-to-select-the-image)
+  // already adds the `ProseMirror-selectednode` class; this plugin
+  // covers the TextSelection case where the image isn't the selection
+  // target but IS within selection.from..selection.to.
+  addProseMirrorPlugins() {
+    return [imageInRangePlugin]
+  }
+})
+
+// ENH-119 — TextSelection-spans-image decoration plugin. Walks every
+// node in the selection range; for each image node, attaches a
+// Decoration that adds the `duo-image-in-range` class to its rendered
+// `<img>`. CSS in renderer/styles/globals.css paints the visible tint.
+//
+// NodeSelection on an image is NOT decorated here — TipTap's stock
+// `ProseMirror-selectednode` class already handles that case (the same
+// CSS rule applies to both classes).
+const imageInRangePluginKey = new PluginKey('duoImageInRange')
+
+const imageInRangePlugin = new Plugin({
+  key: imageInRangePluginKey,
+  props: {
+    decorations(state) {
+      const { selection, doc } = state
+      // Collapsed selection or NodeSelection → nothing to decorate
+      // (NodeSelection's selectednode class fires via ProseMirror's
+      // built-in machinery; no plugin needed).
+      if (selection.empty || selection.from === selection.to) {
+        return DecorationSet.empty
+      }
+      const decorations: Decoration[] = []
+      doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+        if (node.type.name === 'image') {
+          decorations.push(
+            Decoration.node(pos, pos + node.nodeSize, {
+              class: 'duo-image-in-range'
+            })
+          )
+        }
+      })
+      return decorations.length > 0 ? DecorationSet.create(doc, decorations) : DecorationSet.empty
+    }
   }
 })

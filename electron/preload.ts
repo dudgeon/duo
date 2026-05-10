@@ -232,8 +232,13 @@ const api: ElectronAPI = {
     stat: (p) => ipcRenderer.invoke(IPC.FILES_STAT, { path: p }),
 
     // ENH-108 (Sprint 12) — paste-image: save bytes beside active doc.
-    saveImageBeside: (activeDocPath, bytes, ext) =>
-      ipcRenderer.invoke(IPC.FILES_SAVE_IMAGE_BESIDE, { activeDocPath, bytes, ext }),
+    // ENH-129 (Sprint 14) — optional `prefix` for non-image assets
+    // (e.g. 'pdf' produces `pdf-<stamp>-<hash>.pdf`).
+    saveImageBeside: (activeDocPath, bytes, ext, prefix) =>
+      ipcRenderer.invoke(IPC.FILES_SAVE_IMAGE_BESIDE, { activeDocPath, bytes, ext, prefix }),
+    // ENH-128 (Sprint 14) — HEIC / RAW transcode via nativeImage.
+    convertImageBytes: (bytes, sourceMime) =>
+      ipcRenderer.invoke(IPC.FILES_CONVERT_IMAGE_BYTES, { bytes, sourceMime }),
 
     watch: async (paths, cb) => {
       // Give every subscription its own id so pushes can be routed back to
@@ -424,6 +429,14 @@ const api: ElectronAPI = {
       const handler = () => cb()
       ipcRenderer.on(IPC.LAYOUT_3WAY_EVEN, handler)
       return () => ipcRenderer.removeListener(IPC.LAYOUT_3WAY_EVEN, handler)
+    },
+    // FOLLOWUP-015 — bridge for View → View source menu.
+    // Payload-free; renderer fans out to the same window event the
+    // ⌘⌥V chord uses.
+    onViewSourceRequest: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.VIEW_SOURCE_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.VIEW_SOURCE_REQUEST, handler)
     }
   },
 

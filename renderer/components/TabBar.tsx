@@ -82,7 +82,8 @@ export function TabBar({
         focused ? 'bg-accent-soft border-accent' : 'bg-surface-2 border-border'
       ].join(' ')}
     >
-      <div className="flex items-end flex-1 overflow-x-auto scrollbar-none gap-0.5">
+      {/* ENH-132 (Sprint 14, 2026-05-10) — ARIA tablist for screen readers. */}
+      <div role="tablist" aria-label="Terminal tabs" className="flex items-end flex-1 overflow-x-auto scrollbar-none gap-0.5">
         {tabs.map(tab => (
           <Tab
             key={tab.id}
@@ -193,6 +194,9 @@ function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCw
   return (
     <button
       ref={buttonRef}
+      // ENH-132 — ARIA tab semantics. Parent has `role="tablist"`.
+      role="tab"
+      aria-selected={isActive}
       onClick={onSelect}
       onContextMenu={onContextMenu}
       className={[

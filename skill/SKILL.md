@@ -154,7 +154,11 @@ declare friction sites once and stop fighting them.
 | `duo title` | Current page title | plain text |
 | `duo text [--selector <css>]` | Visible text (DOM `innerText`) | plain text |
 | `duo ax [--selector <css>] [--format md\|json]` | **Accessibility tree** — use for canvas apps | Markdown (default) or JSON |
-| `duo dom` | Full page HTML | HTML |
+| `duo dom` | Full page HTML (browser pane, CDP) | HTML |
+| `duo dom <selector> [--attr <n>] [--text] [--all] [--computed p1,p2]` | **ENH-122** — query the **main RENDERER** (the React shell) by CSS selector. Default returns `outerHTML`; `--attr` returns one attribute, `--text` returns `textContent`, `--computed` returns getComputedStyle props as an object, `--all` returns an array of matches. Use this when debugging editor / canvas / image-viewer / pane-layout state — what the user actually sees in the React UI, not browser-pane content. | HTML / JSON |
+| `duo dom --js "<expr>"` | **ENH-122** — arbitrary JS expression evaluated in the renderer scope. Distinct from `duo eval` (browser pane / CDP). | JSON |
+| `duo devtools [--browser-pane] [--close]` | **ENH-123** — open / close DevTools on the main renderer (default) or active browser pane. Backstop for the 5% of cases where ENH-122's targeted `duo dom` query isn't enough and you need full Elements / Network / Console. | JSON `{ok, target, opened}` |
+| `duo layout` | **ENH-124** — JSON snapshot of WorkingPane / terminal / navigator state. Returns `{ active, main: {kind, path/url, title, id}, aux: {kind, path/url, splitPct} \| null, splitPct, focusedColumn, navigatorCollapsed, fileTabsCount, browserTabsCount, timestamp }`. Pairs with `duo nav-state` (file tree state) + `duo dom` (renderer DOM) as the **visibility-tooling cluster** — three independent verbs that together remove ambiguity about WHAT the user is currently looking at. | JSON |
 | `duo click <selector>` | Click element | JSON |
 | `duo fill <selector> <value>` | Set input value (DOM-level) | JSON |
 | `duo focus <selector>` | Focus element (required before `type`/`key` in canvas apps) | JSON |
@@ -333,12 +337,62 @@ Use `duo view <path>` to open any local file in the Viewer/Editor column:
 duo view ~/Documents/prd.md       # markdown → rendered preview
 duo view /tmp/chart.png           # image → inline preview
 duo view ~/tmp/notes.pdf          # pdf → Electron's native viewer
+duo view /tmp/config.json         # JSON / YAML → tree view + raw-text toggle (ENH-110)
+duo view ~/Projects/network.har   # .json / .jsonl / .har / .webmanifest / .yml / .yaml all route to JsonView
 ```
 
 The tab uses the filename as its title; the path is in the tooltip. If the
 file is already open in a tab, `duo view` activates that tab rather than
 creating a duplicate. Unknown types (`.xlsx`, `.mov`, etc.) show a card
 with an "Open with default app" button — don't grind; tell the user.
+
+**JSON / YAML tabs (ENH-110, v0.6.12).** Files with `.json`, `.jsonl`,
+`.har`, `.webmanifest`, `.yml`, or `.yaml` extensions open in a
+collapsible tree view (Tier 3, `@uiw/react-json-view`) with click-to-edit
+values. A toolbar **Source** button flips to a CodeMirror raw-text editor
+with syntax highlighting + inline parse-error markers; the **Tree** button
+flips back (rejecting the switch if the source is unparseable). Single
+tab kind for both formats — format is implicit from the extension. YAML
+round-trip is content-only: comments + anchor names are stripped on
+save (mention this when handing the user a YAML edit). Files >1 MB drop
+to a read-only source view (tree render cost is prohibitive at scale).
+Save semantics match the markdown editor: autosave on debounce, the
+markdown editor's BUG-107 normalize-trailing-whitespace contract, and
+`files.write` underneath. Saving from source mode parses the input
+first and refuses to write if invalid (catches the "missing closed
+quote / bracket" case the owner flagged).
+
+### When you've just CREATED something for the user — always pass `--reveal` (ENH-130)
+
+When you write a file, doc, or playground for the user (`duo edit
+foo.md` after creating it, `duo open playground.html` after generating
+it, `duo edit --canvas page.html` after scaffolding), pass **`--reveal`**
+so Duo auto-expands the working pane (if collapsed) and focuses the
+main pane. Without it, the file may open into a hidden / collapsed
+canvas and the user has to hunt for it.
+
+```bash
+# Created a markdown doc → make sure the user sees it
+duo edit --reveal /tmp/summary.md
+
+# Created an interactive playground → reveal the browser pane
+duo open --reveal /tmp/calculator.html
+
+# Created a canvas-mode HTML page → reveal the canvas
+duo edit --canvas --reveal /tmp/notes.html
+```
+
+Idempotent: if the working pane is already visible at a reasonable
+ratio (`splitPct < 75`), `--reveal` is a no-op for the layout but still
+focuses main. Cheap to over-use; expensive to forget.
+
+**Default for any "make me X" request:** scaffold the file, then open
+with `--reveal`. The user shouldn't have to ask "where did it go?"
+
+For HTML playgrounds you build, also follow the **REQUIRED defaults**
+in [`make-playground.md`](make-playground.md) — every playground
+includes a "Send to Claude" button + a "Copy output" button so the user
+can round-trip without manual select-and-copy.
 
 **Never use** `duo open <path>` for local files — that's the browser
 command (takes URLs and loads them in a browser tab). Two commands, two

@@ -90,6 +90,40 @@ export interface NavBridge {
   /** ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
    *  inner aux 50/50 (when aux is open). On-demand sibling of ENH-126. */
   setLayout3wayEven: () => { ok: boolean; error?: string }
+  /** ENH-122 — query the renderer's DOM from the CLI. Mirrors the
+   *  `duo eval` shape but targets the main renderer (the React shell)
+   *  instead of the browser-pane CDP target. Use cases: inspect what
+   *  TipTap rendered for the active editor, verify image src on a
+   *  pasted asset, confirm a CSS class landed on the right
+   *  ProseMirror node. Selector-based queries are the common path;
+   *  `js` allows arbitrary expressions for the long tail. */
+  queryRendererDom: (req: {
+    selector?: string
+    js?: string
+    attr?: string
+    text?: boolean
+    computed?: string[]
+    all?: boolean
+  }) => Promise<unknown>
+  /** ENH-123 — open / close DevTools on either the main renderer (the
+   *  React shell) or the active browser pane. Backstop for cases
+   *  where ENH-122's targeted query isn't enough. */
+  openDevTools: (opts: { target?: 'renderer' | 'browser-pane'; close?: boolean }) => { ok: boolean; target?: string; opened?: boolean; error?: string }
+  /** ENH-124 — JSON snapshot of the WorkingPane state (active main
+   *  tab, aux tab if open, splitPct, terminal/navigator collapsed,
+   *  focused subpane). Computed on-demand by querying the renderer's
+   *  `window.__duoGetLayout()` exposed by App.tsx — always-fresh,
+   *  no push-and-cache pipeline needed. */
+  getLayout: () => Promise<unknown>
+  /** ENH-130 — used by `duo edit --reveal` and `duo open --reveal` to
+   *  ensure the artifact the agent just created is actually visible
+   *  to the user. Reads layout state via getLayout(); if the working
+   *  pane is collapsed (splitPct >= 75 — terminal-dominant), calls
+   *  setSplit(50) to expose the canvas. Then sends PANE_FOCUS_JUMP
+   *  to focus the main pane. Idempotent — already-visible canvas
+   *  stays at its current ratio; focus jump is harmless if already
+   *  focused. */
+  revealMainPaneIfCollapsed: () => Promise<void>
   /** ENH-041 / Sprint 3 — Split View aux pane. CLI-driven open/close/
    *  promote/resize + state query. State is renderer-authoritative;
    *  the no-arg getter returns main's cached snapshot pushed by the
@@ -369,6 +403,12 @@ export class SocketServer {
         case 'open': {
           const url = args['url'] as string
           if (!url) throw new Error('open requires a url arg')
+          // ENH-130 walk-1 fix — pre-condition the layout BEFORE the
+          // open lands so the open's own focus push isn't overridden
+          // by browser-pane visibility-change events. Same fix as
+          // case 'edit' / case 'view'. See those branches for the
+          // race detail.
+          if (args['reveal']) await this.nav.revealMainPaneIfCollapsed()
           // BUG-067 — for LOCAL FILE paths (file:// URLs pointing at an
           // existing file on disk), route through the renderer's
           // openFileSmart via NavBridge.edit instead of unconditionally
@@ -435,6 +475,8 @@ export class SocketServer {
             openedTabId = browserResult.id
             result = { ...browserResult, routedTo: 'browser' }
           }
+          // ENH-130 — reveal already fired pre-open above (see comment
+          // there). Don't fire twice — would reset focus a second time.
           // BUG-048 v2 — explicit BROWSER_FOCUS_GAINED push.
           // BrowserManager.openTab calls webContents.focus() on the new
           // view, which SHOULD fire `webContents.on('focus')` and route
@@ -494,9 +536,44 @@ export class SocketServer {
           result = this.browser.getActiveTitle()
           break
 
-        case 'dom':
-          result = await this.cdp.getDOM()
+        case 'dom': {
+          // ENH-122 — selector / --js / --attr / --text / --computed /
+          // --all are renderer-DOM queries (they target the main React
+          // shell). Bare `duo dom` keeps the legacy browser-pane HTML
+          // dump (CDP-attached, returns the full document of the active
+          // browser tab). The disambiguation key is "any args at all" —
+          // legacy callers pass nothing.
+          const selector = args['selector'] as string | undefined
+          const js = args['js'] as string | undefined
+          if (selector !== undefined || js !== undefined) {
+            result = await this.nav.queryRendererDom({
+              selector,
+              js,
+              attr: args['attr'] as string | undefined,
+              text: args['text'] as boolean | undefined,
+              computed: args['computed'] as string[] | undefined,
+              all: args['all'] as boolean | undefined
+            })
+          } else {
+            result = await this.cdp.getDOM()
+          }
           break
+        }
+        case 'devtools': {
+          // ENH-123 — main renderer or browser pane DevTools. --close
+          // closes any open instance for the chosen target.
+          const target = (args['target'] as 'renderer' | 'browser-pane' | undefined) ?? 'renderer'
+          const close = args['close'] as boolean | undefined
+          result = this.nav.openDevTools({ target, close })
+          break
+        }
+        case 'layout': {
+          // ENH-124 — JSON snapshot of WorkingPane / terminal /
+          // navigator state. Computed on-demand from the renderer's
+          // window.__duoGetLayout() — see App.tsx for the shape.
+          result = await this.nav.getLayout()
+          break
+        }
 
         case 'text': {
           const selector = args['selector'] as string | undefined
@@ -608,6 +685,15 @@ export class SocketServer {
           // ENH-097 — optional `mode: 'canvas'` overrides the file's
           // `duo-open-in` meta to force canvas-mode mount.
           const mode = args['mode'] as 'canvas' | 'browser' | undefined
+          // ENH-130 walk-1 fix — fire reveal BEFORE the open. Pre-fix
+          // ordering was open → reveal: the open's setActiveWorking +
+          // file-tab focus arrived first, then setSplit(50) flipped
+          // splitPct, then the previously-hidden browser pane became
+          // visible and its `webContents.on('focus')` event fired,
+          // routing focus AWAY from the just-opened file. Reordering
+          // pre-conditions the layout (canvas already visible when
+          // the file mounts), so the file's own focus push wins.
+          if (args['reveal']) await this.nav.revealMainPaneIfCollapsed()
           result = this.nav.view(p, mode)
           break
         }
@@ -615,6 +701,7 @@ export class SocketServer {
           const p = args['path'] as string
           if (!p) throw new Error('edit requires a path arg')
           const mode = args['mode'] as 'canvas' | 'browser' | undefined
+          if (args['reveal']) await this.nav.revealMainPaneIfCollapsed()
           result = this.nav.edit(p, mode)
           break
         }

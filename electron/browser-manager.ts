@@ -620,6 +620,20 @@ export class BrowserManager {
     return this.activeView().webContents.getTitle() || ''
   }
 
+  // ENH-123 — `duo devtools --browser-pane` opens the active browser
+  // tab's DevTools (Elements / Console / Network etc. for that page).
+  // Distinct from main-renderer DevTools (handled in electron/main.ts).
+  openDevTools(opts: { mode?: 'right' | 'bottom' | 'undocked' | 'detach' } = {}): void {
+    this.activeView().webContents.openDevTools({ mode: opts.mode ?? 'right' })
+  }
+  closeDevTools(): void {
+    const wc = this.activeView().webContents
+    if (wc.isDevToolsOpened()) wc.closeDevTools()
+  }
+  isDevToolsOpened(): boolean {
+    return this.activeView().webContents.isDevToolsOpened()
+  }
+
   // ── External-domain routing (BUG-040) ─────────────────────────────────────
   // Consult the user's external-domains.json. If `url`'s host matches
   // a blocklist entry, route through shell.openExternal and push the

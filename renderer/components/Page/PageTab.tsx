@@ -53,7 +53,8 @@ import { installPageSelection, computePageSnapshot } from './pageSelection'
 import { installPlaygroundActions, isPagePathTrusted } from './playgroundActions'
 import { installPagePasteHandlers } from './pagePaste'
 import { installImageHydrate } from './imageHydrate'
-import { ViewSourceOverlay } from '../ViewSourceOverlay'
+import { installImageSelectionTint } from './imageSelectionTint'
+import { ViewSourcePanel } from '../ViewSourcePanel'
 import {
   paintAnchors,
   clearAnchors,
@@ -704,6 +705,12 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       ? () => {}
       : installImageHydrate(doc, { getDocPath: () => path })
 
+    // ENH-119 (Sprint 14, 2026-05-10) — selection tint for images.
+    // Runs in BOTH editable AND read-only canvases (selection still
+    // works for copy in read-only). Cleaned up alongside the other
+    // iframe-side hooks below.
+    const cleanImageSelectionTint = installImageSelectionTint(doc)
+
     // 17c — install the just-added keyframe + class into the iframe
     // stylesheet. Must happen before any markJustAdded call (the
     // recentEdits repaint pass below or the html-op handler later).
@@ -867,6 +874,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       cleanPlaygroundActions()
       cleanPaste()
       cleanImageHydrate()
+      cleanImageSelectionTint()
       cleanAnchorClick()
       cleanAutoStampIds()
       blurred.dispose()
@@ -1055,18 +1063,24 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
   const pageIsActiveRef = useRef(isActive)
   pageIsActiveRef.current = isActive
 
-  // ENH-117 — view-source overlay listener. Capture-phase listener
-  // for the `duo-view-source` window event dispatched by ⌘⌥V. Gated
-  // on `pageIsActiveRef` so only the visible canvas responds (one
-  // overlay across the app at a time). Snapshot via
-  // canvasRef.current?.serialize() — the same pretty-printed form
-  // the next save would write to disk.
+  // ENH-117 / FOLLOWUP-015 — view-source panel listener. Capture-phase
+  // listener for the `duo-view-source` window event dispatched by
+  // ⌘⌥V chord, View → View source menu, and tab right-click → View
+  // source. Gated on `pageIsActiveRef` so only the visible canvas
+  // responds (one panel across the app at a time). Toggle semantics:
+  // chord with the panel already open closes it (returns to the
+  // canvas). Snapshot via `canvasRef.current?.serialize()` — the same
+  // pretty-printed form the next save would write to disk. v2
+  // (FOLLOWUP-015) made this a panel-fill replacing the canvas
+  // iframe in-place rather than a centered modal overlay.
   useEffect(() => {
     if (initialHtml === null) return
     const onViewSource = () => {
       if (!pageIsActiveRef.current) return
-      const html = canvasRef.current?.serialize() ?? ''
-      setViewSource(html)
+      setViewSource(prev => {
+        if (prev !== null) return null
+        return canvasRef.current?.serialize() ?? ''
+      })
     }
     window.addEventListener('duo-view-source', onViewSource)
     return () => window.removeEventListener('duo-view-source', onViewSource)
@@ -1639,7 +1653,18 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           {error}
         </div>
       )}
+      {/* FOLLOWUP-015 — view-source v2 replaces the canvas iframe + rail
+          area with ViewSourcePanel when active, so source mode owns
+          the full content area. Toggle out via Done button or chord. */}
       <div className="flex-1 min-h-0 flex">
+        {viewSource !== null ? (
+          <ViewSourcePanel
+            source={viewSource}
+            title={path.split('/').pop() ?? path}
+            onClose={() => setViewSource(null)}
+          />
+        ) : (
+          <>
         {initialHtml !== null ? (
           <RenderedPage
             ref={canvasRef}
@@ -1676,6 +1701,8 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
             onReopen={handleReopenThread}
           />
         )}
+          </>
+        )}
       </div>
       {/* Stage 17c — floating Send → Duo pill. Stays available even in
           read-only mode — quoting FROM a reference HTML to the active
@@ -1697,13 +1724,6 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           excerpt={newCommentAt.excerpt}
           onSubmit={handleSubmitNewComment}
           onCancel={handleCancelNewComment}
-        />
-      )}
-      {viewSource !== null && (
-        <ViewSourceOverlay
-          source={viewSource}
-          title={path.split('/').pop() ?? path}
-          onClose={() => setViewSource(null)}
         />
       )}
     </div>

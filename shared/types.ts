@@ -139,6 +139,18 @@ export type DuoCommandName =
   // ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
   // inner aux 50/50 (when aux is open). On-demand sibling of ENH-126.
   | 'layout-3way-even'
+  // ENH-123 — `duo devtools [--browser-pane] [--close]` opens the
+  // renderer's DevTools (default) or the active browser pane's DevTools.
+  // Backstop for the 5% of cases where ENH-122's targeted `duo dom`
+  // query isn't enough and you need the full Elements / Network /
+  // Console UI. Sister verb to `duo dom` and `duo layout`.
+  | 'devtools'
+  // ENH-124 — `duo layout` returns a JSON snapshot of the working pane
+  // state (active tab kind/path, split state, focused subpane,
+  // terminal/navigator collapsed?). Pairs with `duo nav-state` (file
+  // tree) and `duo dom` (renderer DOM) to give agents three independent
+  // visibility verbs. Removes ambiguity about WHAT the user is looking at.
+  | 'layout'
   // ENH-041 / Sprint 3 — Split View (one-aux companion pane in the
   // canvas). User-facing label is "Split View"; CLI verb is
   // `duo split-view open <path>` / `duo split-view close` /
@@ -339,6 +351,7 @@ export type WorkingTabType =
   | 'markdown-preview'   // Stage 10 v1 read-only .md (kept as a fallback)
   | 'image'
   | 'pdf'
+  | 'json'               // ENH-110 — JSON / YAML viewer-editor (Tier 3 tree + raw-text toggle). Format (json|yaml) is implicit from the path extension.
   | 'unknown'
 
 export interface WorkingTab {
@@ -460,7 +473,7 @@ export interface SessionStateFileTab {
    *  v1 (would need an autosave layer). */
   path: string
   /** WorkingTabType minus 'browser'. Mirrors the FileTab.type field. */
-  type: 'editor' | 'page' | 'markdown-preview' | 'image' | 'pdf' | 'unknown'
+  type: 'editor' | 'page' | 'markdown-preview' | 'image' | 'pdf' | 'json' | 'unknown'
   mime: string
 }
 
@@ -1132,7 +1145,14 @@ export const IPC = {
   // dir + extension; main generates a unique filename
   // (`image-<YYYYMMDD-HHMMSS>-<hash>.<ext>`), writes the file, returns
   // the absolute path the editor inserts via `![](relative-path)`.
+  // ENH-129 (Sprint 14) — same handler now accepts an optional
+  // `prefix` arg ('image' default, 'pdf' for PDF link insert).
   FILES_SAVE_IMAGE_BESIDE: 'files:save-image-beside',
+  // ENH-128 (Sprint 14) — transcode HEIC / HEIF / RAW to PNG/JPEG via
+  // Electron's nativeImage. Returns converted bytes + ext so the
+  // renderer can call FILES_SAVE_IMAGE_BESIDE with the right
+  // extension. Lives in main because nativeImage is main-only.
+  FILES_CONVERT_IMAGE_BYTES: 'files:convert-image-bytes',
 
   // Stage 24 — pinned WorkingPane tabs persisted to ~/.claude/duo/pins.json.
   PINS_LIST: 'pins:list',
@@ -1361,6 +1381,15 @@ export const IPC = {
   // applies the inner aux split only if aux is currently open; outer
   // gets the 33/67 either way.
   LAYOUT_3WAY_EVEN: 'layout:3way-even',
+
+  // FOLLOWUP-015 (ENH-117 v2) — View → View source menu fires this so
+  // the same `'duo-view-source'` window-event path that ⌘⌥V uses also
+  // serves the menu entry (and any future host-side trigger). Tab-strip
+  // right-click dispatches the window event directly — no main-side
+  // round-trip needed because it's already in the renderer. Single
+  // payload-less channel; the editor / canvas listener decides which
+  // pane responds via its existing `isActive` gate.
+  VIEW_SOURCE_REQUEST: 'view-source:request',
 
   // ENH-041 / Sprint 3 — Split View (one-aux companion in the canvas).
   // CLI verb `duo split-view open <path>` / `duo split-view close` /

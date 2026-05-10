@@ -88,7 +88,12 @@ const RUNTIME_CLASSES_TO_STRIP = new Set([
 const RUNTIME_ATTRS_TO_ALWAYS_STRIP = new Set([
   'data-duo-has-comment',
   'data-duo-comment-active',
-  'data-duo-auto-stamp-installed'
+  'data-duo-auto-stamp-installed',
+  // ENH-119 (Sprint 14, 2026-05-10) — selection tint marker. Set
+  // by imageSelectionTint.ts on every selectionchange when the
+  // image is in the user's selection range. PURELY runtime; must
+  // NOT persist to saved HTML.
+  'data-duo-image-in-range'
 ])
 
 // ── Public API ────────────────────────────────────────────────────────────

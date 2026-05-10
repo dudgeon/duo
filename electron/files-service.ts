@@ -12,12 +12,17 @@
 
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import * as os from 'os'
 import * as crypto from 'crypto'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { shell } from 'electron'
 import type { WebContents } from 'electron'
 import chokidar, { FSWatcher } from 'chokidar'
 import type { DirEntry, FileReadResult, FileWriteResult, FileChangeEvent, FileStatResult, HtmlFileMeta } from '../shared/types'
 import type { FileSaveImageBesideResult } from '../shared/host-api'
+
+const execFileAsync = promisify(execFile)
 
 // Prevent accidentally shipping 50MB of log file over IPC. Renderer should
 // use `openExternal` for payloads this big.
@@ -243,19 +248,96 @@ export class FilesService {
    *  random suffix → 65k options). Returns absolute + relative
    *  paths so the caller can serialize `![](relPath)` into the doc
    *  while the image stays adjacent on disk. */
-  async saveImageBeside(activeDocPath: string, bytes: Uint8Array, ext: string): Promise<FileSaveImageBesideResult> {
+  async saveImageBeside(activeDocPath: string, bytes: Uint8Array, ext: string, prefix: string = 'image'): Promise<FileSaveImageBesideResult> {
     const parentDir = path.dirname(activeDocPath)
     const safeExt = ext.replace(/^\./, '').toLowerCase()
+    const safePrefix = prefix.replace(/[^a-z0-9-]/gi, '').toLowerCase() || 'asset'
     const now = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
     const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
     const hash = crypto.randomBytes(2).toString('hex')
-    const filename = `image-${stamp}-${hash}.${safeExt}`
+    const filename = `${safePrefix}-${stamp}-${hash}.${safeExt}`
     const absPath = path.join(parentDir, filename)
     await fs.mkdir(parentDir, { recursive: true })
     await fs.writeFile(absPath, bytes)
     const st = await fs.stat(absPath)
     return { absPath, relPath: filename, size: st.size }
+  }
+
+  /**
+   * ENH-128 — transcode HEIC / HEIF / RAW (or other Electron-decodable
+   * formats) to PNG or JPEG. Layered fallback:
+   *
+   * 1. `nativeImage.createFromBuffer` — fast path, handles every format
+   *    Electron's bundled decoder understands.
+   * 2. **macOS sips fallback** for HEIC/HEIF/RAW that nativeImage rejects.
+   *    Walk-3 surfaced (2026-05-10) that owner-supplied iPhone HEIC bytes
+   *    return empty from `createFromBuffer` — likely a NSImage-vs-ImageIO
+   *    mismatch in HEVC framework wiring. `sips` uses ImageIO directly
+   *    and decodes the same bytes reliably.
+   * 3. Throw if both paths fail; renderer surfaces the error.
+   *
+   * Format choice: HEIC/HEIF (lossy → JPEG @ 90), everything else → PNG
+   * (lossless preserves the source). Owner pick (ENH-118 conversation
+   * 2026-05-10): convert HEIC to JPEG to match Apple's typical export.
+   */
+  async convertImageBytes(bytes: Uint8Array, sourceMime: string): Promise<{ bytes: Uint8Array; ext: string }> {
+    // Lazy import — `nativeImage` is only available in main process.
+    const { nativeImage } = await import('electron')
+    const img = nativeImage.createFromBuffer(Buffer.from(bytes))
+
+    if (!img.isEmpty()) {
+      const isHeic = /^image\/(heic|heif)$/i.test(sourceMime)
+      if (isHeic) {
+        const jpeg = img.toJPEG(90)
+        return { bytes: new Uint8Array(jpeg), ext: 'jpg' }
+      }
+      const png = img.toPNG()
+      return { bytes: new Uint8Array(png), ext: 'png' }
+    }
+
+    // ENH-128 walk-4 fallback — sips on macOS for HEIC/HEIF/RAW.
+    const isHeicLike = /^image\/(heic|heif|x-canon-cr2|x-nikon-nef|x-sony-arw|x-adobe-dng|x-fuji-raf)$/i.test(sourceMime)
+    if (process.platform === 'darwin' && isHeicLike) {
+      return await this.transcodeViaSips(bytes, sourceMime)
+    }
+
+    throw new Error(`Could not decode image bytes (source MIME: ${sourceMime}). HEIC requires macOS 10.13+; some RAW formats are platform-dependent.`)
+  }
+
+  /**
+   * ENH-128 walk-4 — macOS-only HEIC/RAW transcode via `sips`. Writes
+   * bytes to a temp file, runs `sips -s format jpeg <in> --out <out>`,
+   * reads the converted bytes back. Both temps are cleaned in finally.
+   * Throws with the sips stderr if the tool itself fails (e.g. the
+   * format is genuinely unsupported even by ImageIO).
+   *
+   * Why temp files: `sips` is path-based — no stdin variant. The cost
+   * (one disk round-trip) is irrelevant for paste/drop workflows.
+   */
+  private async transcodeViaSips(bytes: Uint8Array, sourceMime: string): Promise<{ bytes: Uint8Array; ext: string }> {
+    const stamp = `${Date.now()}-${crypto.randomBytes(2).toString('hex')}`
+    // Pick a sensible input extension so sips reads the file with the
+    // right format hint. ImageIO is content-sniffing-tolerant but the
+    // hint helps in edge cases.
+    const inExt = /heic/i.test(sourceMime) ? 'heic'
+      : /heif/i.test(sourceMime) ? 'heif'
+      : sourceMime.replace(/^image\//, '').replace(/[^a-z0-9]/gi, '') || 'bin'
+    const tmpDir = os.tmpdir()
+    const inPath = path.join(tmpDir, `duo-convert-in-${stamp}.${inExt}`)
+    const outPath = path.join(tmpDir, `duo-convert-out-${stamp}.jpg`)
+    try {
+      await fs.writeFile(inPath, bytes)
+      await execFileAsync('sips', ['-s', 'format', 'jpeg', inPath, '--out', outPath])
+      const outBytes = await fs.readFile(outPath)
+      return { bytes: new Uint8Array(outBytes), ext: 'jpg' }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new Error(`sips transcode failed (source MIME: ${sourceMime}): ${msg}`)
+    } finally {
+      await fs.unlink(inPath).catch(() => {})
+      await fs.unlink(outPath).catch(() => {})
+    }
   }
 
   async openExternal(absPath: string): Promise<void> {

@@ -72,6 +72,82 @@ this, the user clicks "Submit" and Duo treats it as "place cursor here."
 
 ---
 
+## REQUIRED defaults — every playground includes these (ENH-130)
+
+Owner directive 2026-05-10: every playground Claude scaffolds for the user
+**must** include two affordances by default. Skip them only when the
+playground's purpose is genuinely incompatible (e.g. a static
+visualization with no output to send / copy — and even then, default to
+including).
+
+### 1. "Send to Claude" button
+
+A button that posts the playground's current output / selection / state
+to the active Claude terminal so the user can hand-off without a copy /
+paste round-trip. Use the `terminal:send` action verb with
+`data-payload-from` (or static `data-text`) so the runtime fills in the
+payload from a form field, output area, or computed value.
+
+```html
+<button class="cta"
+        data-duo-action="terminal:send"
+        data-payload-from="#output"
+        data-text="Here's the playground result:&#10;&#10;"
+        data-enter="false">
+  Send to Claude
+</button>
+```
+
+For a multi-line composed payload, pair with `duo:event` + a
+JS-side handler that builds the text and calls
+`window.duoPlaygroundAction({ verb: 'terminal:send', text: composed })`.
+
+### 2. "Copy output" button
+
+A button that copies the playground's structured output to the system
+clipboard. Use `navigator.clipboard.writeText(...)` — no Duo verb
+needed; it's a plain browser API. Pair with a brief "Copied!" flash
+on the button so the user has feedback.
+
+```html
+<button id="copy-btn" class="cta-secondary">Copy output</button>
+<script>
+  document.getElementById('copy-btn').addEventListener('click', async () => {
+    const out = document.getElementById('output')?.textContent ?? '';
+    await navigator.clipboard.writeText(out);
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy output'; }, 1200);
+  });
+</script>
+```
+
+### Why both
+
+The two patterns are complementary:
+
+- **Send to Claude** is the "round-trip back to the agent" path — works
+  when the user wants to continue a conversation about the playground's
+  result. Friction-free (one click; no clipboard).
+- **Copy output** is the "use this elsewhere" path — works when the
+  user wants to paste into Slack, Notion, the markdown editor, etc.
+  Doesn't require an active Claude terminal.
+
+A playground that hands the user a useful output but offers neither
+button forces them to manual-select + ⌘C, which is hostile UX. Default
+to including both; remove only with explicit reason.
+
+### Reference: data-primitives-canvas decision playground
+
+The interactive § 5 at [`docs/research/data-primitives-canvas.html`](../docs/research/data-primitives-canvas.html)
+is the canonical example of this pattern wired up: 4 multiple-choice
+questions + per-question notes + a sticky bottom Copy-decisions button
+that assembles a structured payload. Reuse the JS pattern (build a
+labeled payload, write it to clipboard, flash the button) for any
+"feedback round-trip" playground.
+
+---
+
 ## Action vocabulary cheat sheet
 
 The playground can drive nine distinct operations. All inherit the trust
