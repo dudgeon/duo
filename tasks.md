@@ -5628,6 +5628,141 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### BUG-117: install-service SessionStart hook write must fail gracefully for enterprise-locked `~/.claude/settings.json`
+
+**Status:** ✅ **Shipped 2026-05-10** — wrapped `installSessionStartHook()` call site in try/catch ([electron/install-service.ts:538-553](electron/install-service.ts)). On failure (read-only settings.json, restrictive enterprise policy, JSON write reject), the catch logs a warn and continues — the rest of the install still completes. Mirrors the existing CLAUDE.md merge graceful-failure pattern at lines 547-553.
+**Priority:** Medium — surfaced by owner during ENH-134 review: *"it is likely that editing ~/.claude/settings.json will fail for many enterprise clients, so ensure this fails gracefully/is treated as optional."*
+**Filed:** 2026-05-10. **Shipped:** 2026-05-10.
+
+**Why this is safe** — the SessionStart hook is the **redundant** priming path. The PATH shim at `~/.claude/bin/claude` (op #11 in install-service) is load-bearing; if Claude Code resolves through the shim, the priming context lands without hooks. The hook just gives Claude Code a second chance to discover the priming when (a) hooks are enabled, (b) the user has Claude Code installed elsewhere AND it's discovered by Claude Code's own boot. So an enterprise install with locked settings.json still gets working Duo + priming as long as the PATH shim install (op #11) succeeds.
+
+**Cross-ref:** ENH-134 (distro-packs planning playground that surfaced this gap). FOLLOWUP-018 (broader sweep of "what other ops should fail gracefully?" — see playground § 4 maintenance recipes).
+
+---
+
+### BUG-116: `scripts/dist-signed.sh` validates the wrong DMG via glob
+
+**Status:** 🟡 Open. Filed 2026-05-10 from v0.6.12 cut close-out.
+**Priority:** Low — non-user-facing; affects build-pipeline confidence only. The new DMG is signed + notarized + stapled correctly; only the launch-smoke validate step picks the wrong file.
+**Filed:** 2026-05-10.
+
+**Symptom.** During the v0.6.12 cut, `bash scripts/dist-signed.sh` ran successfully end-to-end, but the embedded `scripts/validate-dmg-launch.sh` step printed `[validate-launch] DMG: dist/Duo-0.6.8-arm64.dmg` — it picked an OLD DMG (probably first match in a glob inside `dist/`), not the freshly-built `Duo-0.6.12-arm64.dmg`. Static + dynamic launch checks PASSED but were against `0.6.8`, not `0.6.12`. Owner caught it; cut paused; ran `bash scripts/validate-dmg-launch.sh dist/Duo-0.6.12-arm64.dmg` explicitly, which passed.
+
+**Fix.** `dist-signed.sh` should pass the explicit current-version DMG path (computed from `package.json § version`) to `validate-dmg-launch.sh` rather than letting it auto-pick from `dist/`. One-liner change:
+
+```bash
+# in scripts/dist-signed.sh, near the validate step:
+local version
+version=$(node -p "require('./package.json').version")
+bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
+```
+
+**Smoke walk item.** Cut a test DMG (signed unsigned doesn't matter for this test) with multiple older DMGs in `dist/`; verify the validate step prints the NEW DMG path, not an old one.
+
+**Cross-ref:** v0.6.12 cut session (planning file at `~/.claude/plans/task-notification-task-id-brxh7e0lj-tas-quiet-cerf.md` flagged this).
+
+---
+
+### ENH-137: Beginner's Guide to Duo — owner-authored draft + Claude polish + ship as content
+
+**Status:** 🟡 **Open / awaiting owner draft.** Owner directive 2026-05-10 (paraphrased from ENH-134 review): *"we do need a more useful beginners guide to duo; add as a task for me to write the initial version and for you to augment, package for distribution."*
+**Priority:** High — the in-app FAQ is being removed (ENH-135); the welcome banner + first-launch experience needs a friendlier on-ramp than just "click Install."
+**Filed:** 2026-05-10.
+
+**What's wanted.** A beginner's guide to Duo aimed at the primary persona (PMs and other non-engineering knowledge workers). Probably explains:
+- What Duo IS (the workspace + agent pair model)
+- The first 30 seconds (Install banner → click Install → terminal tab → `claude` → ask it about something on your screen)
+- The three-column layout (files / terminal / right-pane polymorphic tabs) and what each is for
+- The flagship Google Docs read/edit success test
+- Where to go from here (link to in-app help / GitHub Issues)
+
+**Two open AUQs:**
+
+1. **Q1 — content surface.** Should it be:
+   - **(a)** A new file in `help/` (e.g. `help/beginners-guide.html`) — direct replacement for the FAQ
+   - **(b)** A new lesson pack at `packs/beginners-guide/` (auto-opens on first launch via PackLoader)
+   - **(c)** Both — pack for the first-launch open + help/ file for the always-on Help-menu surface
+   - Owner-recommended option per ENH-134 review surfaces: probably **(b)** ("perhaps the new beginners guide should ship as a pack?"). But (c) hedges if discoverability matters.
+
+2. **Q2 — process.** Owner writes draft v1; Claude polishes, formats per Atelier voice, paginates if needed, builds the pack/help-file artifact. Each iteration is owner-reviewed.
+
+**Owner action:** write a draft (any format — markdown, prose dump, even a transcript of an explanation). File at `~/.claude/duo/beginners-guide-draft.md` or paste back to a Claude session.
+
+**Claude action (after owner draft lands):** polish the draft, render as HTML matching the Atelier styling (`help/` aesthetic), pick the surface per Q1, ship in the appropriate location, update install-service if needed (e.g., add to default pins.json if (c) is picked).
+
+**Cross-ref:** ENH-135 (FAQ removal — creates the discoverability gap this fills). ENH-134 (planning playground that surfaced this).
+
+---
+
+### ENH-136: Treat `packs/claude-code-basics/` as a template (never fleshed out — empty curriculum skeleton)
+
+**Status:** 🟡 **Open / awaiting owner direction.** Owner directive 2026-05-10 (from ENH-134 review): *"we should treat claude code basics as a template — it was never fleshed out or developed."*
+**Priority:** Medium — content quality (an unfinished pack ships with every Duo install).
+**Filed:** 2026-05-10.
+
+**Today.** `packs/claude-code-basics/` ships in the .app bundle and is mirrored to `~/.claude/duo/packs/claude-code-basics/` on first launch. The pack has 8 canvases (`00-orientation.html` through `07-authoring.html`) but the content was never developed past skeletons. The pack does NOT auto-open on first launch (its `PACK.json § defaults[]` is empty for `openOnFirstLaunch`); it only fires when the user explicitly invokes the lesson skill. So today it's silently inert content shipped to every user.
+
+**Three options:**
+
+1. **(a) Move to `examples/lesson-pack-template/`.** Stop bundling it in the .app. Make it a copy-this-to-make-your-own-curriculum reference for pack authors. Update `pack-builder` skill docs to point at it.
+2. **(b) Add a clear template-only marker.** Keep at `packs/claude-code-basics/`; update `PACK.json § description` to "TEMPLATE — never fleshed out; copy to make your own curriculum"; add a top-of-canvas banner if any user ever opens it.
+3. **(c) Flesh it out into a real lesson.** Owner-side writing exercise.
+
+**Recommended: (a)** — owner has signaled clearly the pack isn't real content. Bundling unfinished content per-user-install is worse than not shipping at all. Move to `examples/` where it serves as a template.
+
+**Owner action:** confirm (a). Claude executes the move + updates references.
+
+**Cross-ref:** ENH-134 (planning playground). ENH-137 (the beginner's guide that will replace the FTUX content gap).
+
+---
+
+### ENH-135: Remove FAQ from default install — move `help/faq.html` somewhere harmless in the repo
+
+**Status:** 🟡 **Open / awaiting owner approval on scope.** Owner directive 2026-05-10 (from ENH-134 review): *"FAQ is not useful; please remove from default install and move it somewhere harmless in the repo."*
+**Priority:** Medium — current FAQ content is stale and the in-app surface gives users a misleading impression of Duo's polish. Scope larger than a single delete because FAQ is woven into multiple surfaces.
+**Filed:** 2026-05-10.
+
+**Today.** `help/faq.html` ships in the .app bundle (`files: help/**/*` in electron-builder.yml) and is copied to `~/.claude/duo/help/faq.html` on first launch. It's woven into:
+
+1. **Default pins.json** ([electron/install-service.ts:520-528](electron/install-service.ts)) — bootstrapped with FAQ + What Duo Does as the two default pinned tabs.
+2. **Browser default landing URL** ([electron/browser-manager.ts § helpUrl line 49](electron/browser-manager.ts)) — `helpUrl('faq.html')` is the default for new browser tabs (⌘T on the browser pane).
+3. **Boot-default first tab** ([electron/main.ts § 305-310](electron/main.ts)) — opens FAQ unconditionally on cold start when no session exists.
+4. **Smoke-walk skill render path** ([electron/main.ts § 332](electron/main.ts)) — smoke-walk pages render `~/.claude/duo/help/faq.html` verbatim.
+
+**The full removal is non-trivial** because of these surfaces. Three sub-questions for owner:
+
+1. **What replaces FAQ as the new-tab landing?**
+   - (a) `what-duo-does.html` (already shipped)
+   - (b) Blank canvas (no default landing — user types a URL)
+   - (c) The new beginner's guide once ENH-137 lands
+   - Recommended: **(b)** for now; switch to (c) when ENH-137 lands. New browser tabs landing on a help page is itself somewhat nag-y.
+
+2. **What replaces FAQ as the boot-default first tab?**
+   - (a) `what-duo-does.html`
+   - (b) Nothing — let session-restore handle it; cold start with no session = empty browser pane
+   - (c) The beginner's guide (ENH-137)
+   - Recommended: **(b)** — first launch already opens the lesson canvas (intro-to-duo); a duplicate help tab is redundant.
+
+3. **What about the default pin?**
+   - (a) Keep pinning What Duo Does (drop FAQ from default pins)
+   - (b) Drop both default pins; user pins what they want
+   - (c) Pin the beginner's guide (ENH-137) instead
+   - Recommended: **(a)** for now — single pin keeps the "Duo has shipped some content" impression on first launch.
+
+**Where to move FAQ in the repo.** Recommended: `docs/legacy/faq.html` — clearly archived; not exported in any way; available for code reference if anyone needs to remember what we used to ship.
+
+**Implementation steps once scope is locked:**
+1. `git mv help/faq.html docs/legacy/faq.html`
+2. Update [electron/install-service.ts:520-528](electron/install-service.ts) to drop FAQ from default pins.json (per Q3-(a))
+3. Update [electron/browser-manager.ts:49](electron/browser-manager.ts) to return `helpUrl('what-duo-does.html')` or `null`/blank per Q1
+4. Update [electron/main.ts:305-310](electron/main.ts) to drop the FAQ-as-first-tab logic per Q2
+5. Update smoke-walk skill template if it cites FAQ directly
+6. Smoke walk: fresh install → verify no FAQ tab opens, no FAQ in default pins, ⌘T new tab lands on the picked replacement.
+
+**Cross-ref:** ENH-134 (planning playground — surgical "modify the install" recipe demonstration). ENH-137 (the beginner's guide that may eventually take FAQ's discovery slot).
+
+---
+
 ### ENH-134: Dogfood the distro-packs pattern for Duo's own defaults — schema unification + main-app refactor (planning artifact)
 
 **Status:** 🟡 **Open / planning.** Interactive playground at [docs/research/dogfood-distro-packs-plan.html](docs/research/dogfood-distro-packs-plan.html) — open in Duo's browser pane via `duo open docs/research/dogfood-distro-packs-plan.html`, walk through § 1–3 (inventory, problem, four options compared via `.option-card` blocks), then answer the 5 inline decisions in § 4 (Q0 option pick + Q1–Q4 AUQs that gate Step 2), hit Copy decisions, paste back to Claude. Surfaces in every smoke walk until owner closes it (per the "research reports must file a tracked review task" memory rule).

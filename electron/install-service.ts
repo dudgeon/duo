@@ -535,7 +535,25 @@ export class InstallService {
       // status (hookConflict surfaces "you have other hooks too").
       // Hook is the redundant safety net — see installShim() below
       // for the load-bearing priming path.
-      await this.installSessionStartHook()
+      //
+      // BUG-117 (2026-05-10) — graceful failure for enterprise
+      // installs where ~/.claude/settings.json is read-only / under
+      // restrictive policy. The hook is NOT load-bearing (the PATH
+      // shim below is the primary priming path; this hook is a
+      // redundant safety net). A write failure should NOT abort the
+      // install — log and continue. Mirrors the existing CLAUDE.md
+      // merge pattern below, which also tolerates a write failure
+      // for the same enterprise reason.
+      try {
+        await this.installSessionStartHook()
+      } catch (err) {
+        console.warn(
+          '[install] SessionStart hook merge failed (likely enterprise-locked settings.json) — skipping. ' +
+          'The PATH shim below remains the primary priming path; hook is a redundant safety net. ' +
+          'Error:',
+          (err as Error)?.message ?? err
+        )
+      }
 
       // Stage 19e ENH-088 — managed Duo block in ~/.claude/CLAUDE.md.
       // Hook-INDEPENDENT primary path (the SessionStart hook above is
