@@ -501,9 +501,8 @@ packs need.
 - **Lessons — runtime contract:** `~/.claude/skills/duo/lesson-runtime.md`
 - **Lessons — canonical template:** `~/.claude/skills/duo/examples/lesson-template/`
 - **Reference templates (mostly playgrounds):** `~/.claude/skills/duo/examples/canvas-templates/`
-- **Stage 28 lessons in the wild:** `~/.claude/duo/packs/intro-to-duo/`,
-  `~/.claude/duo/packs/claude-code-basics/` (note: these were
-  authored before the canonical template existed; refactor to
-  canonical pattern queued).
+- **Stage 28 lesson in the wild:** `~/.claude/duo/packs/intro-to-duo/`
+  (note: pre-canonical structure — authored before the canonical
+  template existed; refactor queued.)
 - **Vocabulary:** see CLAUDE.md § Glossary for the canvas / page /
   playground / lesson hierarchy.

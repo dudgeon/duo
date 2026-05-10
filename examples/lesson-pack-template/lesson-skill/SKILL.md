@@ -1,7 +1,7 @@
-# claude-code-basics lesson skill
+# lesson-pack-template lesson skill
 
 > **You're reading this because the user clicked "Start lesson" on
-> the claude-code-basics orientation canvas.** They want a 30-minute
+> the lesson-pack-template orientation canvas.** They want a 30-minute
 > walkthrough of the seven concept families that make up Anthropic's
 > Claude Code mental model — Mental model, Context, Place, Memory,
 > Capability, Trust, Authoring. Your job: be the lesson agent —
@@ -14,7 +14,7 @@
 ## How this lesson works
 
 The pack ships eight canvases at
-`~/.claude/duo/packs/claude-code-basics/canvases/`:
+`~/.claude/duo/packs/lesson-pack-template/canvases/`:
 
 - `00-orientation.html` — launcher (the user just clicked Start lesson here)
 - `01-mental-model.html` through `07-authoring.html` — one per Family A–G
@@ -124,7 +124,7 @@ ask whether they want a recap of the families they skipped.
 
 ## Cross-references
 
-- `~/.claude/duo/packs/claude-code-basics/canvases/source.md` —
+- `~/.claude/duo/packs/lesson-pack-template/canvases/source.md` —
   full curriculum text. The 7 family canvases summarize this; the
   source has additional detail (Part 0 framing assumptions, the
   "30-minute spine" recommendation, the birdhouse catalog with
@@ -141,13 +141,13 @@ ask whether they want a recap of the families they skipped.
 ## Troubleshooting
 
 - **Family canvas doesn't render.** Check
-  `~/.claude/duo/packs/claude-code-basics/canvases/0N-*.html`
+  `~/.claude/duo/packs/lesson-pack-template/canvases/0N-*.html`
   exists. Likely the pack didn't install — `duo packs` should
   show it; if not, the pack's first-launch defaults didn't fire.
 - **`family-X-done` event doesn't reach you.** Trust gate: the
   canvas must be loaded from a path under `~/.claude/duo/`. Pack
   canvases are; manually-copied canvases elsewhere are inert.
 - **User asks for the source markdown.** Open it via
-  `duo edit ~/.claude/duo/packs/claude-code-basics/canvases/source.md`
+  `duo edit ~/.claude/duo/packs/lesson-pack-template/canvases/source.md`
   — it'll mount in the markdown editor with full search /
   navigation / commenting.

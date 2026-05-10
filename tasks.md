@@ -5857,21 +5857,9 @@ bash scripts/validate-dmg-launch.sh "dist/Duo-${version}-arm64.dmg"
 
 ### ENH-136: Treat `packs/claude-code-basics/` as a template (never fleshed out — empty curriculum skeleton)
 
-**Status:** 🟡 **Open / awaiting owner direction.** Owner directive 2026-05-10 (from ENH-134 review): *"we should treat claude code basics as a template — it was never fleshed out or developed."*
-**Priority:** Medium — content quality (an unfinished pack ships with every Duo install).
-**Filed:** 2026-05-10.
+**Status:** ✅ **Shipped 2026-05-10 (Sprint 15 commit 1).** Owner picked option **(a)** — `git mv packs/claude-code-basics/ examples/lesson-pack-template/`. PACK.json's `name` renamed to `lesson-pack-template` to match the directory; description rewritten as "TEMPLATE — copy this directory ... ." Internal `claude-code-basics` references inside the moved pack (canvas-to-canvas navigation paths, breadcrumb links, SKILL.md cross-refs) bulk-renamed to `lesson-pack-template`. Skill cross-refs in `skill/lesson-runtime.md`, `skill/lesson-flythrough.md`, `skill/make-playground.md`, `skill/examples/curriculum-template/README.md`, and `skill/examples/canvas-templates/lesson-scaffold.html` updated — `claude-code-basics` is no longer "in the wild" so the narrative shifted to "intro-to-duo is the only Stage 28 lesson pack that ships." A new `examples/lesson-pack-template/README.md` walks pack authors through copy-and-customize.
 
-**Today.** `packs/claude-code-basics/` ships in the .app bundle and is mirrored to `~/.claude/duo/packs/claude-code-basics/` on first launch. The pack has 8 canvases (`00-orientation.html` through `07-authoring.html`) but the content was never developed past skeletons. The pack does NOT auto-open on first launch (its `PACK.json § defaults[]` is empty for `openOnFirstLaunch`); it only fires when the user explicitly invokes the lesson skill. So today it's silently inert content shipped to every user.
-
-**Three options:**
-
-1. **(a) Move to `examples/lesson-pack-template/`.** Stop bundling it in the .app. Make it a copy-this-to-make-your-own-curriculum reference for pack authors. Update `pack-builder` skill docs to point at it.
-2. **(b) Add a clear template-only marker.** Keep at `packs/claude-code-basics/`; update `PACK.json § description` to "TEMPLATE — never fleshed out; copy to make your own curriculum"; add a top-of-canvas banner if any user ever opens it.
-3. **(c) Flesh it out into a real lesson.** Owner-side writing exercise.
-
-**Recommended: (a)** — owner has signaled clearly the pack isn't real content. Bundling unfinished content per-user-install is worse than not shipping at all. Move to `examples/` where it serves as a template.
-
-**Owner action:** confirm (a). Claude executes the move + updates references.
+**Why:** the pack's content was never developed past skeletons. Bundling unfinished content per-user-install is worse than not shipping at all. Existing users on v0.6.12 keep the leftover `~/.claude/duo/packs/claude-code-basics/` directory (install-service mirror op only adds; doesn't delete); fresh installs from v0.6.13 onward see only `intro-to-duo/` + the new `duo-default/` (ENH-138).
 
 **Cross-ref:** ENH-134 (planning playground). ENH-137 (the beginner's guide that will replace the FTUX content gap).
 

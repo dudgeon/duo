@@ -1,6 +1,6 @@
 ---
 name: lesson-flythrough
-description: Fly through a Duo lesson end-to-end without manual clicking — read the playground HTML, enumerate `data-duo-action` buttons in canonical order, click each via `duo html click`, observe `duo events --follow`, assert each expected event fires + each expected paint region updates, report pass/fail per step. Use when the user says "fly through this lesson", "test my new lesson", "preview the lesson", "validate the lesson runs", "run the lesson without me", "smoke-test this playground", "step through the lesson automatically", "make sure the lesson works end-to-end", or similar. The harness assumes a CANONICAL lesson structure (paint regions `step-counter` / `step-body` / `step-controls`; events `lesson:step-N-done` / `lesson:done` / `lesson:restart`) — for non-canonical lessons (e.g. multi-canvas curricula like claude-code-basics), adapt the loop or fall back to manual clicking.
+description: Fly through a Duo lesson end-to-end without manual clicking — read the playground HTML, enumerate `data-duo-action` buttons in canonical order, click each via `duo html click`, observe `duo events --follow`, assert each expected event fires + each expected paint region updates, report pass/fail per step. Use when the user says "fly through this lesson", "test my new lesson", "preview the lesson", "validate the lesson runs", "run the lesson without me", "smoke-test this playground", "step through the lesson automatically", "make sure the lesson works end-to-end", or similar. The harness assumes a CANONICAL lesson structure (paint regions `step-counter` / `step-body` / `step-controls`; events `lesson:step-N-done` / `lesson:done` / `lesson:restart`) — for non-canonical lessons (e.g. multi-canvas curricula like the lesson-pack-template example), adapt the loop or fall back to manual clicking.
 ---
 
 # Lesson fly-through harness
@@ -39,10 +39,10 @@ The lesson follows the **canonical pattern** documented in
 
 **For non-canonical lessons** (multi-canvas curricula, lessons that
 predate the canonical template, lessons with branching), adapt the
-loop or fall back to manual fly-through. The pre-template packs
-(`intro-to-duo`, `claude-code-basics`) adopted canonical event
-NAMES in v0.6.1 but their structures aren't fully canonical;
-expect surprises when flying through them.
+loop or fall back to manual fly-through. The pre-template
+`intro-to-duo` pack adopted canonical event names in v0.6.1 but its
+structure isn't fully canonical; expect surprises when flying
+through it.
 
 ---
 
@@ -191,11 +191,11 @@ should be the active working pane tab when the harness runs. If a
 browser tab is active instead, `duo edit` switches to the file tab.
 Verify with `duo nav-state` if uncertain.
 
-**The lesson predates the canonical template.** `intro-to-duo` and
-`claude-code-basics` use `lesson:` event names but have non-canonical
-paint regions or structures. Expect partial passes; treat the
-harness output as "diff between this lesson and the canonical
-shape" rather than pass/fail.
+**The lesson predates the canonical template.** `intro-to-duo`
+uses `lesson:` event names but has non-canonical paint regions or
+structures. Expect partial passes; treat the harness output as
+"diff between this lesson and the canonical shape" rather than
+pass/fail.
 
 ---
 

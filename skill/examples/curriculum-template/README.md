@@ -19,10 +19,14 @@ curriculum-template/
 └── README.md                   ← this file
 ```
 
-You'll also want a `PACK.json` at the pack root — see
-`~/.claude/duo/packs/claude-code-basics/PACK.json` for a multi-
-module example (note: that pack predates this template; future
-multi-module packs should follow the structure below).
+You'll also want a `PACK.json` at the pack root — describing
+your pack's `name`, `version`, `title`, and the `defaults[]`
+that decide which canvas auto-opens on first launch. See
+`~/.claude/duo/packs/intro-to-duo/PACK.json` for the simplest
+shape (single canvas + auto-open). For a multi-canvas reference,
+see the in-repo `examples/lesson-pack-template/PACK.json` — that
+example predates this template, so its event names + paint
+regions aren't fully canonical, but the manifest shape is.
 
 ## How to use it
 

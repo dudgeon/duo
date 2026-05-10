@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "lesson-pack-template",
+  "version": "1.0.0",
+  "title": "Lesson pack template (multi-canvas curriculum)",
+  "description": "TEMPLATE — copy this directory into ~/.claude/duo/packs/<your-pack-name>/ and customize PACK.json (name + title + description), canvases, and lesson-skill to ship your own multi-canvas curriculum. Originally drafted as 'claude-code-basics' (Stage 28); retired from the default install in v0.6.13 because the curriculum content was never fleshed out past skeletons. Kept as an example of a multi-canvas pack shape (orientation launcher + 7 family canvases). For the canonical curriculum pattern, see ~/.claude/skills/duo/examples/curriculum-template/.",
+  "defaults": [
+    {
+      "kind": "canvas",
+      "path": "canvases/00-orientation.html",
+      "openOnFirstLaunch": true
+    }
+  ]
+}

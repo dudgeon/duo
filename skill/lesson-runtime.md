@@ -271,7 +271,7 @@ module canvas is active.
 {
   "schemaVersion": 1,
   "kind": "curriculum",                 // distinguishes from "lesson"
-  "packName": "claude-code-basics",
+  "packName": "your-curriculum-pack",
   "currentModule": "B",                 // null when between modules
   "modules": {
     "A": { "completed": true, "completedAt": "2026-..." },
@@ -358,8 +358,8 @@ the curriculum template is right.
 - **CLI verbs:** `duo events --follow`, `duo events --since <cursor>`,
   `duo html update --selector <sel> --html <html>`,
   `duo html query --selector <sel>`
-- **Stage 28 lessons in the wild:** `~/.claude/duo/packs/intro-to-duo/`,
-  `~/.claude/duo/packs/claude-code-basics/` (note: these were
-  authored before this template existed — they each invented their
-  own structure. The next refactor pass will bring them onto this
-  canonical pattern.)
+- **Stage 28 lesson in the wild:** `~/.claude/duo/packs/intro-to-duo/`
+  (note: pre-canonical structure — authored before this template
+  existed. The `claude-code-basics` multi-canvas pack that also
+  shipped at Stage 28 was retired in v0.6.13 and now lives at
+  `examples/lesson-pack-template/` as a reference shape.)
