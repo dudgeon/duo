@@ -18,6 +18,59 @@
 
 ---
 
+## 2026-05-11 evening (Sprint 17 opened + 8 commits, pre-cut) — Navigator + tab UX polish + diagnostic instrumentation + papercut sweep
+
+**Status: pre-cut.** Owner picked the A+C+D bundle from a 5-option sprint-theme AUQ; combined three coherent buckets into a single sprint since most items were small. Walk + cut pending — owner deferred the walk to a later session ("won't be able to walk for a while longer; please commit your work; then do a doc and breadcrumb sweep, commit and push"). This entry is the breadcrumb half.
+
+**8 commits across 6 task entries + 2 spike commits (one superseded by the next):**
+
+1. **ENH-146** ([`ba79735`](https://github.com/dudgeon/duo/commit/ba79735)) — Atelier kernel for playgrounds. Closes the recurring ~150–200-line CSS authoring tax per playground. New `skill/references/duo-atelier.css` (~200-line kernel covering color tokens + typography + `.intro` + `.decision-card` + `.q-option` family + `.q-notes` + `details.deferred` + `.copy-bar`) + companion `atelier-css.md` documenting the class library + minimal-skeleton template. CLAUDE.md § 11 redirected from "copy the `<style>` block from one of the precedents" to "inline the canonical kernel." `skill/make-playground.md` got the parallel guidance. `package.json § sync:claude` broadened `cp skill/references/*.md` → `cp skill/references/*` so the new `.css` syncs to the installed copy. `electron/install-service.ts` needed no change — `safeOverwriteDirContents` on `skill/references` is generic. Frozen precedent playgrounds (data-primitives-canvas, dogfood-distro-packs-plan) intentionally NOT refactored — they're already authored; kernel is forward-only.
+
+2. **ENH-144** ([`86deaf6`](https://github.com/dudgeon/duo/commit/86deaf6)) — Close-tab focus shifts to LEFT-neighbor file tab. Owner observation: "when close delete tab, focus should shift to prev tab; current behavior, focus shifts to first tab (far left)." Single-spot fix in `renderer/App.tsx § closeFileTab`. Captured `closedIdx` before filtering; after building `next = prev.filter(...)`, if length is 0 fall back to `{ kind: 'browser' }`, else activate `next[Math.min(Math.max(0, closedIdx - 1), next.length - 1)]`. Mirrors Chrome / VS Code / every other tabbed app. Terminal `closeTab` (App.tsx:787) and `BrowserManager.closeTab` already had the left-neighbor pattern; file-tab handler was the gap (was falling straight to `{ kind: 'browser' }` which displays the leftmost browser tab → owner perceived as "focus shifted to far left").
+
+3. **BUG-079** ([`5c6225e`](https://github.com/dudgeon/duo/commit/5c6225e)) — Cycle-entry/exit timing trace instrumentation pass. Added `[BUG-079]`-tagged `console.{debug,log}` lines at: `useKeyboardShortcuts.ts § cycleTabsForward/Backward` entry + dispatch; `WorkingPane.tsx § duo-cycle-working-tab` handler entry + cycleNext + handleSelect; `WorkingPane.tsx § handleSelect` entry + switchTab IPC fire; `browser-manager.ts § switchTab` entry + setBounds + wc.focus + emits + return (with cumulative dt). Verified synthetically via `duo dom --js` dispatching `KeyboardEvent({ key: 'Tab', ctrlKey: true, shiftKey: true })`: total renderer-keydown → switchTab return = ~15ms regardless of pacing. **Hypothesis 1 (IPC blocking) RULED OUT**, **H2 (activeIdRef race) UNLIKELY**, **H3 (direction-asymmetric cycleNext math) RULED OUT**. **H4 (modifier-key release window) STILL OPEN — leading candidate.** New **H5 (keystroke consumed upstream of document listener — xterm / browser pane / TipTap)** surfaced; matches owner's "re-presses" symptom (first press eaten by an upstream consumer, second press bubbles after focus drift). Instrumentation stays in place until next production capture or end-of-Sprint-17.
+
+4. **ENH-147 v1** ([`5e36348`](https://github.com/dudgeon/duo/commit/5e36348)) — Navigator multi-select. Canonical state went from `selected: { path, kind } | null` to `selectedItems: Map<path, kind>` + `primaryPath: string | null` (anchor); singular `selected` is derived for back-compat (computePendingCwd, CLI nav-state, single-target callers all keep working without change). Three new actions: `selectItem` (single-select replaces map), `toggleSelection` (⌘-click adds/removes), `clearSelection`. `FileTree.tsx § onSingleClickRow` reads `e.metaKey` and routes to `toggleSelection`; plain click still single-selects (preserves existing toggle-off-on-re-click Finder convention). `isSelected = state.selectedItems.has(entry.path)` — every entry in the set paints with the existing `bg-accent` solid fill. Right-click on a multi-selected row surfaces "Move N items to Trash…" via `buildTreeMenuTemplate({ batchSize })`. `onTrashBatch` confirms once, loops trashes, refreshes affected parent dirs ONCE at end, clears selection, surfaces failures as summary alert (3 entries + "…" if more). Chokidar removed-event handler prunes the multi-select map so external deletes don't leave phantoms. `useUserClaudeNavigator` mirrors the same state model. ⇧-click range + ⌘-A select-all-visible deferred to **ENH-148** (filed) — both need anchor tracking + design decisions about cross-folder ranges + global shortcut binding.
+
+5. **ENH-143** ([`14c10b0`](https://github.com/dudgeon/duo/commit/14c10b0)) — Close-tab chord discoverability. Owner's idle-thoughts observation "kb shortcut to delete current tab, requires confirmation; candidates cmd-shift-delete, cmd-opt-delete" resolved as: ⌘W (close tab, no fs change) + ⌘⇧⌫ (delete file + close tab) already cover the use cases; the bar was just to make them findable. Added new entry 55b "Close the active tab with ⌘W" to `packs/duo-default/canvases/what-duo-does.html` adjacent to entry 56's "Delete the active file with ⌘⇧⌫" — the two chord-pair entries now sit side-by-side. Body covers no-confirm-by-default, pinned-tab confirm-modal exception, explicit pairing with ⌘⇧⌫. Initial draft referenced a `duo close-tab` verb that doesn't exist for working / terminal tabs; corrected to reference only the existing `duo close <n>` (browser tabs) and filed **FOLLOWUP-020** (CLI parity gap: `duo close-tab` for active working/terminal tab — full CLAUDE.md item 4 plumbing checklist documented).
+
+6. **ENH-084 v4 instrumentation** ([`d0fdc44`](https://github.com/dudgeon/duo/commit/d0fdc44)) — Aux pane focus glow defect carried 3 sprints (v1-v3 all failed). Per task entry's "design the fix from data, not theory" warning: declared `mainColRef` + `auxColRef` and attached them to the main + aux column wrapper divs; new useEffect installs capture-phase document-level listeners for `focusin`, `mousedown`, `blur`. Each handler logs `[ENH-084-v4] <ts> <event> subpane=<m|a|n> target=<descriptor>` via `console.log` single-string format (so the renderer→main forwarder captures the full payload — object args show as `[object Object]` in the dev log even though devtools renders them in full). **NO behavior change.** `focusedSubpane` state remains the v0.6.5 frozen default ('main' always). Verified via synthetic mousedown that the log fires with correct subpane classification. Owner walk procedure documented in tasks.md: split-view open → click around between main and aux for ~60s → captured stream names which event source correctly tracks subpane focus → v4 fix design follows.
+
+7. **BUG-123 v1 + spike pivot** ([`f54f4b5`](https://github.com/dudgeon/duo/commit/f54f4b5) → superseded by [`2d868a6`](https://github.com/dudgeon/duo/commit/2d868a6)) — Owner-corrected mid-AUQ. First commit (`f54f4b5`) was the SPIKE OUTPUT — an A/B/C trade-off about cross-boundary table-cell selection. Owner caught the framing error: *"I just want in table multi cell drag — you claim this is something I would 'lose' but it does not work today — so I think you need to get more grounded in what we have built, how it works (it does not) before you create a new pattern."*
+
+   **Empirical grounding pass after the AUQ:**
+   - Read `node_modules/prosemirror-tables/dist/index.js:2203-2247` — `handleMouseDown$1` DOES create CellSelections correctly when user drags cell-to-cell within a table (registers mousemove + mouseup listeners; `setCellSelection` fires when target moves to a different cell).
+   - Read `:689-695` — `drawCellSelection` adds `class="selectedCell"` to every selected cell via a Decoration.
+   - Read `node_modules/prosemirror-tables/style/tables.css:38-48` — canonical CSS for `.selectedCell:after` with `background: rgba(200, 200, 255, 0.4)` + position: relative on td/th. **Duo NEVER imports this stylesheet.** (`grep prosemirror-tables.*style|tables\.css` across `renderer/` + `main.tsx` returns zero matches.) `duo dom --js` querying all loaded stylesheets for any `.selectedCell` rule returned 0.
+   - Conclusion: in-table multi-cell drag IS working in state — but with NO CSS, the user sees no visual change → perceives "doesn't work."
+   - Cross-boundary drag (cell → outside-table) collapses to a single-cell CellSelection per the `move()` handler logic — separate problem, deferred behind v1 owner walk.
+
+   **Owner AUQ pick (reframed):** "Ship CSS import only" + "Duo accent orange."
+
+   **v1 fix** (`2d868a6`): 9-line addition to `renderer/styles/globals.css` — `position: relative` on `.duo-editor-prose th, td` (anchors the overlay pseudo) + new `.duo-editor-prose .selectedCell:after { content: ''; position: absolute; inset: 0; background: rgb(var(--duo-accent-rgb) / 0.18); pointer-events: none; z-index: 2; }`. Theme-aware via Duo's existing `--duo-accent-rgb` triplet. Verified via `duo dom --js`: rule loaded; manually applying `selectedCell` class to a cell gives `afterBackground: "rgba(198, 106, 46, 0.18) ..."`, `afterPosition: "absolute"`. Overlay wired correctly; will paint on any real CellSelection.
+
+**Memories filed (2 — both triggered by BUG-123):**
+
+- [`feedback_verify_current_behavior_before_proposing_fix.md`](../../memory/feedback_verify_current_behavior_before_proposing_fix.md) — don't claim what would be "lost" by a change based on how code SHOULD work; verify empirically first.
+- [`feedback_auq_descriptions_must_be_short.md`](../../memory/feedback_auq_descriptions_must_be_short.md) — AskUserQuestion UI truncates long descriptions; keep each option's description ≤ 1 sentence (~15 words).
+
+**New tracked items filed during Sprint 17:**
+
+- **BUG-124** — `writeConflictLog` floods dev stderr with ENOENT because `~/.claude/duo/logs/` not mkdir-p'd at install. Manual mkdir applied as workaround; structural fix queued (one-line option: install-service mkdir OR `files.write` mkdir-p generically).
+- **ENH-148** — Navigator multi-select v2: ⇧-click range + ⌘-A select-all-visible + (optional) CLI nav-state extension for `selectedPaths` array.
+- **FOLLOWUP-020** — `duo close-tab` CLI parity gap for active working / terminal tab.
+
+**Items NOT covered this sprint (carry-forward):**
+
+- BUG-093 — Move to Split View renderer crash (carried from Sprint 16). Awaits user-triggered repro.
+- BUG-122 deeper fix — gated on next-repro `last-conflict.log` capture.
+- ENH-137 Beginner's Guide content — owner-authored draft.
+- v0.6.15 enterprise smoke (ENH-141 BANNER-UI + WORK-MACHINE + BUG-119 quit-crash confirmation) on owner's work machine — separate gate from Sprint 17 walk but blocks v0.6.16 cut.
+
+**v0.6.16 cut prep:** awaits owner walk. PACK.json bump (1.0.2 → 1.0.3) per ENH-138 since ENH-143 added entry 55b to `what-duo-does.html`. cut-version skill drafts release notes; signed DMG via `bash scripts/dist-signed.sh`; tag + GitHub Release.
+
+---
+
 ## 2026-05-11 (v0.6.15 cut — Sprint 16 close-out, commits 3-9) — Stability + install/upgrade end-cap + Return-key user toggle
 
 **Status: v0.6.15 cut — tag `v0.6.15` local-only (not yet pushed; awaiting owner blessing).** Nine commits across four theme areas closing the Sprint 16 plan opened at the v0.6.14 hotfix's tail. Auto-mode run; owner directive at session start: "continue through all remaining sprint work, and if all good, please begin cut procedures."

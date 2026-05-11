@@ -619,36 +619,68 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 16 CLOSED (v0.6.15 shipped); next sprint TBD
+## Active sprint — Sprint 17 in progress (8 commits, pre-cut, walk deferred)
+
+**Sprint 17 opened 2026-05-11** (immediately after v0.6.15 cut earlier the same day). Owner picked the **A+C+D bundle** (Navigator + tab UX polish + Diagnostic + instrumentation + Papercut sweep) from a 5-option theme AUQ; combined three small buckets into a single sprint. **Walk deferred** — owner: "won't be able to walk for a while longer; please commit your work; then do a doc and breadcrumb sweep, commit and push." This commit closes that sweep request; v0.6.16 cut waits on the walk.
+
+**8 sprint commits (pre-cut), all on `main`:**
+
+| ID | Headline | Shape |
+|---|---|---|
+| **ENH-146** | `skill/references/duo-atelier.css` kernel + class-library doc + CLAUDE.md § 11 redirect — closes ~200-line CSS authoring tax per playground | Ship |
+| **ENH-144** | Close-tab focus shifts to LEFT-neighbor file tab. One-spot fix in `App.tsx § closeFileTab` (other strips already correct) | Ship |
+| **BUG-079** | Cycle-entry/exit timing trace. Synthetic test: total renderer-keydown → switchTab return = ~15ms regardless of pacing. H1 + H3 ruled out; H4 (modifier release) + new H5 (upstream consumer) lead | Diagnose — fix gated on production repro |
+| **ENH-147 v1** | Navigator multi-select. ⌘-click toggle + multi-row "Move N items to Trash…" + pruning on external delete. ⇧-click + ⌘-A → **ENH-148** | Ship v1 |
+| **ENH-143** | New entry 55b "Close the active tab with ⌘W" in what-duo-does.html. Found CLI parity gap → **FOLLOWUP-020** filed | Ship — docs only |
+| **ENH-084 v4** | `mainColRef` + `auxColRef` + capture-phase focusin/mousedown/blur instrumentation. NO behavior change | Diagnose — fix gated on owner 60s click-around walk |
+| **BUG-123 v1** | Root cause: Duo never imported `prosemirror-tables/style/tables.css`; CellSelection rendered invisibly. 9-line CSS fix in globals.css with Duo accent orange overlay | Ship — owner AUQ pick (after grounding pass corrected my initial A/B/C trade-off framing) |
+
+**Memories filed this sprint (2):** [verify-current-behavior-before-proposing-fix](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_verify_current_behavior_before_proposing_fix.md) + [AUQ descriptions must be short](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_auq_descriptions_must_be_short.md). Both triggered by BUG-123's framing error.
+
+**New tracked items filed:** **BUG-124** (`writeConflictLog` logs-dir mkdir gap), **ENH-148** (multi-select v2: ⇧-click + ⌘-A + CLI parity), **FOLLOWUP-020** (`duo close-tab` CLI parity for active working/terminal tab).
 
 **v0.6.15 shipped 2026-05-11** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.15)) — Sprint 16 close-out (commits 3-9): stability + install/upgrade chapter end-cap + Return-key user toggle. **BUG-119** fsevents SIGABRT on Cmd-Q (disposes moved into `before-quit`). **FOLLOWUP-019** brings BUG-085 + BUG-099's three-layer external-write reconciliation from MarkdownEditor into PageTab (canvas-side silent-edit-loss class closed). **ENH-140 install-service cluster** — orphan cleanup on upgrade (reuses Stage 21e-iii's `installed.json § files` SHA map as diff source) + pin URL auto-migration (PIN_RENAMES rewrites `duo/help/what-duo-does.html` → pack-mirrored location; drops retired-no-successor pins) + op #8 pivot (pins.json bootstraps from each pack's `defaults[].pin: true` instead of hardcoded WDD literal). **BUG-122 defensive hardening + diag enrich** — owner repro of save-conflict banner re-surface on v0.6.14: TTL 2s → 5s, normalize widened (BOM + CRLF + per-line trailing), production-readable log at `~/.claude/duo/logs/last-conflict.log` via new shared `renderer/utils/conflictDiagnostic.ts`, new `duo doc conflict-log` CLI verb. **ENH-142** flips default Claude-tab plain Return from 'newline' (ENH-127 v2) back to 'submit' (universal terminal default); preserves override behind `duo claude-return [submit|newline]` + `duo shift-return [submit|newline]` localStorage toggles.
 
 **v0.6.14 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) — Sprint 16 commits 1+2: enterprise hotfix. **ENH-141** install-path hardening — `duo` CLI reaches PTY $PATH inside Duo terminals + Claude Code sandboxes (SHIM_DIR target `~/.claude/duo/bin/duo`); **BUG-121** closing the last browser tab no longer respawns about:blank in a loop.
 
-**v0.6.13 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.13)) — Sprint 15: FTUX content → packs install-pipeline reshape. `packs/duo-default/` built-in pack ships `what-duo-does.html`; `PackManifest.builtIn` schema flag added; FAQ retired; `packs/claude-code-basics/` → `examples/lesson-pack-template/`.
+**Sprint 17 owner walk owed (gates v0.6.16 cut):**
 
-**Carry-forward to next sprint (owner picks theme):**
+| Test | What to verify |
+|---|---|
+| ENH-144 close-tab focus | Open tabs A B C → activate B → close B → A activates (NOT C, NOT browser) |
+| ENH-147 v1 multi-select | ⌘-click multiple files → each highlights → right-click → "Move N items to Trash…" → confirm batch trashes + clears selection |
+| ENH-143 discoverability | Open what-duo-does.html → find entry 55b "Close the active tab with ⌘W" → reads coherently next to entry 56's ⌘⇧⌫ |
+| BUG-123 v1 cell selection | Markdown file w/ table → drag from A1 to C2 → orange overlay on spanned cells (Apple Numbers / Notion style) |
+| BUG-079 + ENH-084 v4 instrumentation | Passive — capture event streams when the bug surfaces / during a click-around walk |
+| **v0.6.15 enterprise smoke (carry-forward)** | ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation on owner's work machine. Separate gate from Sprint 17 walk but blocks v0.6.16 cut. |
 
-| ID | Title | Status | Est. |
-|---|---|---|---|
-| **BUG-093** | Right-click tab → Move to Split View can crash the renderer. Instrumentation in place since v0.6.7; Sprint 16 CLI repro attempt did not crash. Awaits user-triggered repro for the `[BUG-093]` + `[ErrorBoundary:WorkingPane]` trace combination. | 🟡 carried | ~half-day if real repro lands |
-| **ENH-084 v4** | Aux pane focus glow — 3 prior attempts failed. Task entry warns next attempt needs instrumentation pass + live-click event-stream capture FIRST before any code change. | 🟡 carried | half to full day (risky) |
-| **BUG-079** | ⌃⇧\` reverse tab-cycle latency. Bumped from Sprint 16 to make room for BUG-122. | 🟡 carried | ~half-day diagnosis + fix |
-| **BUG-122 deeper fix** | Save-conflict banner re-surface. Gated on next-repro's `~/.claude/duo/logs/last-conflict.log` contents (read via `duo doc conflict-log`); `firstDiffOffset` + head/tail excerpts will name the live hypothesis (3 or 4) deterministically. | 🟢 P0 when log lands | ~1-3 hr post-data |
-| **ENH-137** | Beginner's Guide content — drops into `packs/duo-default/canvases/beginners-guide.html` via pack-version bump | 🟡 awaiting owner-authored draft | Owner draft + Claude polish + 30 min plumbing |
-| **ENH-141 enterprise smoke** | Owner-side validation on work machine — deferred SKIPs from v0.6.14 walk. Now also covers v0.6.15's BUG-119 quit-crash fix (no more SIGABRT crash dialog on Cmd-Q). | 🟡 carried | Owner walk |
+**Carry-forward to Sprint 18 (post-walk):**
 
-**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the full v0.6.15 cut record + Sprint 16 close-out detail.**
+| ID | Title | Gate |
+|---|---|---|
+| **BUG-079 fix** | Tab-cycle latency — instrumentation captured; awaits prod repro for forensic data | Owner triggers naturally |
+| **ENH-084 v4 fix** | Aux pane focus glow — instrumentation captured; awaits 60s click-around walk | Owner walks (5 min) + pastes captured `[ENH-084-v4]` log |
+| **BUG-093** | Move to Split View renderer crash. Carried from Sprint 16; CLI repro didn't fire | User-triggered repro |
+| **BUG-122 deeper fix** | Save-conflict banner re-surface. Defensive hardening shipped v0.6.15 | Next-repro `last-conflict.log` capture |
+| **BUG-123 v2** | Cross-boundary drag-to-outside-table (collapses to single-cell today). Override `tableEditing()`'s `move()` handler | Owner walks v1; if still feels broken, file v2 spec |
+| **BUG-124** | `writeConflictLog` logs-dir mkdir gap | None — half-day standalone |
+| **ENH-148** | Multi-select v2: ⇧-click + ⌘-A + CLI parity | None — half-day to full-day |
+| **FOLLOWUP-020** | `duo close-tab` for active working/terminal tab — CLI parity for ⌘W | None — half-day with documented checklist |
+| **ENH-137** | Beginner's Guide content | Owner-authored draft |
+| **ENH-141 enterprise smoke** | v0.6.15 work-machine validation | Owner work-machine session |
+
+**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the full Sprint 17 detail + Sprint 16 close-out + v0.6.15 cut record.**
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| **Next sprint theme** — pick from the carry-forward table above. BUG-122 deeper fix is gated on next repro (passive); BUG-093 is gated on user gesture; ENH-137 needs owner draft. ENH-084 v4 instrumentation pass is the only proactive-and-owner-independent item. | Start of next sprint |
+| **Sprint 17 walk timing** — when can owner walk the 4 active tests above? Gates v0.6.16 cut. | Whenever owner has 15-20 min |
+| **BUG-123 v2 direction** — once v1 cell selection is visible, do you still want cross-boundary text spanning (drag-from-cell-into-outside-text)? If yes, ship as ENH-148-style spike-then-fix; if no, close BUG-123. | After owner walks v1 |
 | **ENH-127 direction** — declined entirely OR pivot to one of: Duo-side composer-window pattern (separate text area outside the terminal), anti-accidental-submit heuristic (delay-based or click-confirm), upstream feature request to Claude Code for raw-newline mode? Now lower priority since ENH-142 gave users the per-pref toggle. | If accidental-submit pain re-surfaces |
-| **ENH-118 image-type handling** — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before Sprint 16 picks up image-polish |
+| **ENH-118 image-type handling** — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before any image-polish sprint |
 | Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens |
 | ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into a future sprint |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |
-| Backlinks panel / graph view (Obsidian cluster) — Sprint 16+ anchor? Or defer further? | When wikilinks autocomplete (v0.6.10) usage tells us whether the next-tier capability has demand |
+| Backlinks panel / graph view (Obsidian cluster) — Sprint 18+ anchor? Or defer further? | When wikilinks autocomplete (v0.6.10) usage tells us whether the next-tier capability has demand |

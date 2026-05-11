@@ -1,4 +1,76 @@
-# Active sprint state — Sprint 16 (CLOSED 2026-05-11; v0.6.15 cut)
+# Active sprint state — Sprint 17 (in progress; pre-cut)
+
+**Theme:** **A+C+D bundle — Navigator + tab UX polish + Diagnostic + instrumentation sprint + Papercut sweep.** Owner pick 2026-05-11 from a 5-option AUQ; combined three coherent buckets into a single sprint since most items were small. Walk + cut pending — owner deferred the walk; running breadcrumb sweep before push.
+
+> **Status: 8 sprint commits landed; v0.6.16 cut pending owner walk + sign-off.** Sprint 16 + v0.6.15 cut detail preserved in § "Cut records" below.
+
+## Sprint 17 commits (8, pre-cut)
+
+| Commit | Item | Shape |
+|---|---|---|
+| [`ba79735`](https://github.com/dudgeon/duo/commit/ba79735) | **ENH-146** — `duo-atelier.css` kernel + `atelier-css.md` class library + CLAUDE.md § 11 redirect + `skill/make-playground.md` update + `sync:claude` broadened to `.css` | Ship — closes recurring ~200-line CSS authoring tax per playground |
+| [`86deaf6`](https://github.com/dudgeon/duo/commit/86deaf6) | **ENH-144** — Close-tab focus shift to LEFT-neighbor file tab (was falling straight to `{ kind: 'browser' }`). Terminal + browser strips already correct | Ship — one-spot fix in `App.tsx § closeFileTab` |
+| [`5c6225e`](https://github.com/dudgeon/duo/commit/5c6225e) | **BUG-079** — Instrumented every cycle hop with `[BUG-079]` timing trace. Synthetic test (4 browser tabs, ⌃⇧Tab) measured total renderer keydown → switchTab return at ~15ms regardless of pacing. H1 (IPC) + H3 (direction-asymmetric math) ruled out. H4 (modifier-key release) + new H5 (upstream keystroke consumption) remain | Diagnose-first — fix gated on production repro |
+| [`5e36348`](https://github.com/dudgeon/duo/commit/5e36348) | **ENH-147 v1** — Navigator multi-select: `selectedItems: Map<path, kind>` + `primaryPath` anchor; ⌘-click toggle; multi-row context menu with pluralized "Move N items to Trash…"; chokidar event prunes the map. Both panes (project + ~/.claude) mirrored. ⇧-click range + ⌘-A → **ENH-148** filed | Ship v1 — full Finder UX deferred to next pickup |
+| [`14c10b0`](https://github.com/dudgeon/duo/commit/14c10b0) | **ENH-143** — Discoverability touch: new entry 55b in `what-duo-does.html` for "Close the active tab with ⌘W" adjacent to entry 56's ⌘⇧⌫ delete-file. No new chord (existing ⌘W + ⌘⇧⌫ cover the use cases). Surfaced + filed **FOLLOWUP-020**: `duo close-tab` for active working/terminal tab doesn't exist (CLI parity gap) | Ship — docs only |
+| [`d0fdc44`](https://github.com/dudgeon/duo/commit/d0fdc44) | **ENH-084 v4** — Instrumentation pass. `mainColRef` + `auxColRef` declared + attached; document-level capture-phase listeners on `focusin` + `mousedown` + `blur` with subpane classification. NO behavior change. Single-string log format so renderer→main forwarder captures full payload | Diagnose-first — fix gated on owner 60s click-around walk |
+| [`f54f4b5`](https://github.com/dudgeon/duo/commit/f54f4b5) | **BUG-123 spike** (superseded by next commit) — Initial framing assumed A/B/C trade-offs that turned out to depend on assumed-correct current behavior | — |
+| [`2d868a6`](https://github.com/dudgeon/duo/commit/2d868a6) | **BUG-123 v1 fix** — Root cause: Duo never imported `prosemirror-tables/style/tables.css`; the `.selectedCell` decoration was rendering invisibly. Empirical grounding (after owner correction) found the missing import; 9-line CSS fix in `globals.css` paints the overlay with Duo accent at 18% opacity + position:relative on td/th. Cross-boundary drag-to-outside-table deferred behind v1 owner walk | Ship — owner AUQ pick (CSS only + Duo orange) |
+
+**Memories filed during Sprint 17:**
+
+- [`feedback_verify_current_behavior_before_proposing_fix.md`](../../memory/feedback_verify_current_behavior_before_proposing_fix.md) — don't claim what would be "lost" by a change based on how code SHOULD work; verify empirically first. Triggered by BUG-123 spike where I framed an A/B/C trade-off claiming "Option A loses in-table multi-cell drag" — owner caught: it doesn't work today, so there's nothing to lose. The fix turned out to be much simpler than the redesign I'd proposed.
+- [`feedback_auq_descriptions_must_be_short.md`](../../memory/feedback_auq_descriptions_must_be_short.md) — AskUserQuestion UI truncates long descriptions; keep each option ≤ 1 sentence (~15 words). Long context goes in the chat reply BEFORE the AUQ call.
+
+**New tracked items filed during Sprint 17:**
+
+- **BUG-124** — `writeConflictLog` floods dev stderr with ENOENT because `~/.claude/duo/logs/` isn't mkdir-p'd at install. Manual mkdir applied as workaround; structural fix queued (two-line option: install-service mkdir OR `files.write` mkdir-p generically). Surfaces during ENH-144 verification.
+- **ENH-148** — Navigator multi-select v2: ⇧-click range + ⌘-A select-all-visible + (optional) CLI nav-state extension to expose `selectedPaths` array. Anchor + scope decisions specified.
+- **FOLLOWUP-020** — CLI parity gap. `duo close-tab` for active working / terminal tab doesn't exist. Full plumbing checklist documented (shared/types + socket-server + main + App.tsx + cli/duo.ts + skill + agent + CLI-COVERAGE + what-duo-does entry 55b placeholder swap).
+
+## Owner walk owed before v0.6.16 cut
+
+The walk is **deferred**; owner: "won't be able to walk for a while longer; please commit your work; then do a doc and breadcrumb sweep, commit and push." The breadcrumb sweep is happening now; the walk is the next gate.
+
+When walk-time arrives, the smoke-walk manifest should cover:
+
+1. **ENH-144** — open file tabs A, B, C; activate B; close B; verify A activates (NOT C, NOT browser pane). Edge: close leftmost (A) → B activates. Edge: close the only file tab → falls back to `{ kind: 'browser' }`.
+2. **ENH-147 v1** — ⌘-click multiple files in the navigator; verify each row paints with `bg-accent`; right-click one of the selected rows; verify menu shows "Move N items to Trash…"; click → batch trash + selection clears + parent dirs refresh.
+3. **ENH-143** — open `~/.claude/duo/packs/duo-default/canvases/what-duo-does.html` in canvas mode; search for "Close the active tab"; confirm entry 55b is present + reads coherently adjacent to entry 56's delete-file.
+4. **BUG-123 v1** — open a markdown file with a table; click into A1, drag to C2 mouse-up; verify orange-tinted overlay on cells A1+A2+B1+B2+C1+C2 (Apple-Numbers-style cell selection visual). Edge: drag from cell to text outside the table — selection collapses to a single cell (today's behavior; cross-boundary is deferred to v2).
+5. **ENH-146** — owner's confirmation that future playground generations actually inline the kernel + skip authoring the CSS block. Validated by the next playground I generate post-Sprint-17.
+6. **BUG-079 + ENH-084 v4 instrumentation** — both fire correctly when triggered; capture the streams when the bug surfaces. NO direct walk needed (passive instrumentation).
+7. **Carryover from v0.6.15:** owner's pending enterprise smoke on work machine — ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation. **This is the v0.6.15 carry-forward, not Sprint 17 work** — but flagged so the v0.6.16 cut waits on it too.
+
+## Sprint 17 carry-forward (most likely Sprint 18 candidates)
+
+| ID | Title | Gate |
+|---|---|---|
+| **BUG-079 deep-fix** | Tab-cycle latency. Instrumentation in place; awaits production repro for forensic capture | Owner triggers the latency naturally in normal use; trace lands in dev log |
+| **ENH-084 v4 fix** | Aux pane focus glow. Instrumentation in place; awaits owner ~60s click-around walk between main + aux to capture the event stream | Owner walks (5 min) and pastes back the captured `[ENH-084-v4]` log block |
+| **BUG-093** | Move to Split View renderer crash. Carried from Sprint 16 | User-triggered repro |
+| **BUG-122 deeper fix** | Save-conflict banner re-surface. Defensive hardening already shipped v0.6.15; deeper fix gated on next-repro `~/.claude/duo/logs/last-conflict.log` capture | Next user repro |
+| **BUG-123 v2** | Cross-boundary drag-to-outside-table — `tableEditing()` collapses to single-cell CellSelection when target leaves table; may be tractable via high-priority `handleDOMEvents.mousemove` override | Owner walks v1; if cross-boundary feels broken once cell selection is visible, file v2 follow-up |
+| **BUG-124** | `writeConflictLog` logs-dir mkdir gap | None — half-day standalone |
+| **ENH-148** | Multi-select v2: ⇧-click + ⌘-A + CLI parity | None — half-day to full-day depending on range-select cross-folder decision |
+| **FOLLOWUP-020** | `duo close-tab` for active working/terminal tab — CLI parity for ⌘W | None — half-day with full plumbing checklist |
+| **ENH-137** | Beginner's Guide content (`packs/duo-default/canvases/beginners-guide.html`) | Owner-authored draft |
+| **ENH-141 enterprise smoke** | v0.6.15 work-machine validation | Owner's work-machine session |
+
+## v0.6.16 cut prep
+
+When owner walks + signs off:
+
+1. Walk results land via the smoke-walk skill.
+2. FAIL/SKIP rows trigger fix commits or get deferred + filed.
+3. cut-version skill drafts release notes; owner picks "cut" / "rework" / "defer."
+4. PACK.json bump (1.0.2 → 1.0.3) per ENH-138 — ENH-143 added entry 55b to what-duo-does.html, so existing users get the pack-version notification on next launch.
+5. Cut commits + signed DMG via `bash scripts/dist-signed.sh`.
+6. Push tag + release.
+
+---
+
+## Sprint 16 cut record (CLOSED 2026-05-11; v0.6.15 cut)
 
 **Theme:** **A+B combined — install/upgrade close-out + stability sweep.** Sprint 16 opened 2026-05-10 with commits 1+2 (ENH-141 + BUG-121) shipping as the v0.6.14 same-day enterprise hotfix; commits 3-9 (BUG-119, FOLLOWUP-019, ENH-140 cluster, BUG-122 hardening + diag enrich, ENH-142) shipped as the v0.6.15 close-out 2026-05-11.
 
