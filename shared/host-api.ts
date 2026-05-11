@@ -21,6 +21,7 @@ import type {
   HtmlCommentRequest, HtmlCommentResult,
   HtmlCommentsListRequest, HtmlCommentsListResult,
   ThemeMode, ThemeStateSnapshot,
+  ClaudeKeyPrefsSnapshot,
   SelectionFormat, SelectionFormatStateSnapshot,
   PinEntry, NavPinEntry,
   SessionState,
@@ -422,6 +423,16 @@ export interface ElectronThemeAPI {
   onSet: (cb: (mode: ThemeMode) => void) => () => void
 }
 
+/** Sprint 16 / v0.6.15 — Claude-tab Enter key preferences bridge.
+ *  Mirrors ElectronThemeAPI shape: renderer is the source of truth;
+ *  main caches via pushState so the CLI can read; CLI overrides
+ *  re-broadcast via onSet (payload is partial — only the keys the
+ *  CLI verb touched). */
+export interface ElectronClaudeKeyPrefsAPI {
+  pushState: (snapshot: ClaudeKeyPrefsSnapshot) => void
+  onSet: (cb: (prefs: Partial<ClaudeKeyPrefsSnapshot>) => void) => () => void
+}
+
 // Stage 27 — DuoEvent producer surface for the renderer. Main owns
 // the EventBus singleton; renderer is a producer-only client. Used by
 // the canvas-action `duo:event` verb; future renderer hooks (editor
@@ -810,6 +821,8 @@ export interface ElectronAPI {
   layout: ElectronLayoutAPI
   workingAux: ElectronWorkingAuxAPI
   theme: ElectronThemeAPI
+  // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences.
+  claudeKeyPrefs: ElectronClaudeKeyPrefsAPI
   selectionFormat: ElectronSelectionFormatAPI
   terminal: ElectronTerminalAPI
   keyboard: ElectronKeyboardAPI

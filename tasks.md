@@ -5875,6 +5875,37 @@ On each install / upgrade:
 
 ---
 
+### ENH-142: Claude-tab Enter key prefs — flip Return default to 'submit'; preserve override as user toggle
+
+**Status:** 🟢 **Code complete Sprint 16 commit 9 (2026-05-11).** Owner ask 2026-05-11: *"the claude session return override (turns return into option-return, real submit requires cmd enter), toggle it off (feature toggle as upcoming user preference -- not abandoned feature); enable the same functionality to catch shift-return and treat as option-return (feature toggle, flipped ON)."* Net: ENH-127 v2's plain-Return-newline default is surprising relative to every other terminal in the world; v0.6.15 flips the default but keeps the override + adds CLI parity.
+
+**Two prefs, two new CLI verbs (full CLAUDE.md item 4 plumbing):**
+
+| Pref | Default | Behavior at default | When flipped |
+|---|---|---|---|
+| `claudeReturn` (`duo claude-return`) | `'submit'` | Plain Return in Claude tabs → xterm default (writes `\r`; Claude submits) | `'newline'` — ENH-127 v2 behavior restored: writes `\x1b\r` (ESC+CR; Claude reads as multi-line newline). ⌘Return is the explicit submit. |
+| `shiftReturn` (`duo shift-return`) | `'newline'` | Shift+Return in Claude tabs → writes `\x1b\r` (newline; matches Slack/Discord/claude.ai-web) | `'submit'` — Shift+Return passes through to xterm (writes `\r`; Claude submits) |
+
+**Wire-up (mirrors `duo theme` precedent):**
+- `renderer/hooks/useClaudeKeyPrefs.ts` — singleton hook; localStorage-backed (`duo.claudeReturn.v1` + `duo.shiftReturn.v1`); pushes to main on change; subscribes to CLI overrides.
+- `renderer/components/TerminalPane.tsx` — `TerminalInstance` calls the hook + mirrors values into refs read by `attachCustomKeyEventHandler`. New branching: ⌘Enter always submits; plain Enter consults `claudeReturnRef`; Shift+Enter consults `shiftReturnRef`. Ctrl/Alt-modified keys still pass through.
+- `shared/types.ts` + `shared/host-api.ts` — added `ClaudeReturnMode` / `ShiftReturnMode` / `ClaudeKeyPrefsSnapshot` types, `'claude-return'` + `'shift-return'` to `DuoCommandName`, `CLAUDE_KEY_PREFS_STATE_PUSH` / `CLAUDE_KEY_PREFS_SET` IPC channels, `ElectronClaudeKeyPrefsAPI` bridge surface.
+- `electron/preload.ts` — `claudeKeyPrefs.pushState` + `claudeKeyPrefs.onSet` mirror the theme bridge shape.
+- `electron/main.ts` — `claudeKeyPrefsState` cache + `getClaudeKeyPrefsState` / `setClaudeReturnMode` / `setShiftReturnMode` helpers wired into the NavBridge.
+- `core/socket-server.ts` — new `'claude-return'` + `'shift-return'` dispatch cases (mirror `'theme'`).
+- `cli/duo.ts` — two new verbs + printHelp entries; CLI binary rebuilt.
+- `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` — cheat-sheet rows.
+
+**Effect on existing users:** v0.6.14 users on next upgrade will see plain Return go back to "submit" behavior. Owner explicitly requested this; matches universal terminal expectation. Shift+Return → newline (ENH-133 behavior) is unchanged from current. Per-user pref persists in localStorage; never auto-toggled.
+
+**Defaults framing.** Both prefs are stored in localStorage even when set to default. A new install never writes them (reads return default). A v0.6.14-upgrade user with no prior pref reads default. An owner who flips via `duo claude-return newline` gets the override; their pref persists.
+**Priority:** Medium — paper-cut polish for owner's daily workflow + restores universal terminal expectation. ENH-127 v2 was the right experiment; v0.6.15 settles on a sensible default with the toggle preserved.
+**Filed:** 2026-05-11. **Code complete:** 2026-05-11.
+
+**Cross-ref.** ENH-127 (parent override design — the `\x1b\r` byte sequence discovery). ENH-133 (Shift+Return joining as newline; now toggle-able). `duo theme` (the CLAUDE.md item 4 precedent for this pattern of "agent-tunable runtime setting via CLI"). `useTheme` hook (precedent for the renderer-source-of-truth + main-cache pattern).
+
+---
+
 ### BUG-122: Markdown editor "file changed on disk" banner re-surfaces in v0.6.14
 
 **Status:** 🟢 **Defensive hardening shipped Sprint 16 commit 7 (2026-05-11); deeper-fix gate awaiting next-repro diagnostic.** Three changes target the hypotheses (2)+(3)+(4) cluster without committing to a specific root cause:

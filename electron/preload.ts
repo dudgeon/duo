@@ -25,6 +25,7 @@ import type {
   PageSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
+  ClaudeKeyPrefsSnapshot,
   SelectionFormat,
   SelectionFormatStateSnapshot,
   WorkingAuxSnapshot,
@@ -414,6 +415,23 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, mode: ThemeMode) => cb(mode)
       ipcRenderer.on(IPC.THEME_SET, handler)
       return () => ipcRenderer.removeListener(IPC.THEME_SET, handler)
+    }
+  },
+
+  // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Mirrors
+  // the theme bridge shape: renderer pushState (cache in main); main
+  // re-broadcasts CLI overrides via onSet. The CLI overrides may be
+  // partial (one of the two prefs), so the snapshot type is partial
+  // for onSet.
+  claudeKeyPrefs: {
+    pushState: (snapshot: ClaudeKeyPrefsSnapshot) => {
+      ipcRenderer.send(IPC.CLAUDE_KEY_PREFS_STATE_PUSH, snapshot)
+    },
+
+    onSet: (cb: (prefs: Partial<ClaudeKeyPrefsSnapshot>) => void) => {
+      const handler = (_: IpcRendererEvent, prefs: Partial<ClaudeKeyPrefsSnapshot>) => cb(prefs)
+      ipcRenderer.on(IPC.CLAUDE_KEY_PREFS_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.CLAUDE_KEY_PREFS_SET, handler)
     }
   },
 

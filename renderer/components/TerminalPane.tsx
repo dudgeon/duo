@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { TabSession } from '@shared/types'
 import { matchGlobalShortcut } from '../keyboard/globalShortcuts'
+import { useClaudeKeyPrefs } from '../hooks/useClaudeKeyPrefs'
 
 // scrollback defined here; shared/constants.ts uses Node.js os/path and can't be imported in renderer
 const SCROLLBACK = 10_000
@@ -195,6 +196,17 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<Array<() => void>>([])
+
+  // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs. Mounted in every
+  // TerminalInstance; the hook caches in localStorage + listens for
+  // CLI-driven overrides. Stored in refs so the attachCustomKeyEventHandler
+  // closure (which captures lexically at mount) reads the latest values
+  // on every keystroke without needing to re-attach the handler.
+  const { claudeReturn, shiftReturn } = useClaudeKeyPrefs()
+  const claudeReturnRef = useRef(claudeReturn)
+  claudeReturnRef.current = claudeReturn
+  const shiftReturnRef = useRef(shiftReturn)
+  shiftReturnRef.current = shiftReturn
   // Track the typography state we last applied so the effect below can
   // tell a cozy/font-bump change from an initial mount and avoid
   // redundant fits. `applied` holds "cozy:bump" so either changing
@@ -320,14 +332,38 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
       // logic already routes shift+Enter to ESC+CR (newline) since
       // metaKey is false. ⌘⇧Enter → submit (matches the "if Cmd is
       // held, submit" mental model from ENH-127 v2).
+      // Sprint 16 / v0.6.15 — feature-toggle the Return/Shift+Return
+      // overrides. ENH-127 v2 + ENH-133 shipped both as default-ON
+      // (plain Return → newline, Shift+Return → newline). v0.6.15
+      // flips the default for plain Return to 'submit' (matches every
+      // other terminal in the world) while keeping the override
+      // capability + the Shift+Return → newline default (matches
+      // Slack/Discord/claude.ai web). Settings are localStorage-backed
+      // + CLI-toggleable via `duo claude-return` + `duo shift-return`.
+      //
+      // Cases (Claude tabs only, plain Enter key, no Ctrl/Alt):
+      //   1. ⌘ held (with or without Shift) → submit (`\r`). No toggle —
+      //      ⌘Return is the unambiguous "submit" gesture from ENH-127 v2.
+      //   2. Plain Enter (no modifier) → claudeReturn pref decides:
+      //        'submit' (default) — pass through to xterm (writes `\r`)
+      //        'newline' — write `\x1b\r` (ESC+CR; Claude reads as newline)
+      //   3. Shift+Enter (no Cmd) → shiftReturn pref decides:
+      //        'newline' (default) — write `\x1b\r`
+      //        'submit' — pass through to xterm
       if (tab.kind === 'claude' && e.key === 'Enter' && !e.altKey && !e.ctrlKey) {
-        if (e.type === 'keydown') {
-          // No-meta (plain / Shift) Enter → ESC+CR (Option+Enter byte
-          // sequence; Claude reads as multi-line newline).
-          // ⌘Enter / ⌘⇧Enter → CR (submit).
-          const byte = e.metaKey ? '\r' : '\x1b\r'
-          window.electron.pty.write(tab.id, byte)
+        if (e.metaKey) {
+          // ⌘Enter / ⌘⇧Enter — always submit. No toggle.
+          if (e.type === 'keydown') window.electron.pty.write(tab.id, '\r')
+          return false
         }
+        if (e.shiftKey) {
+          if (shiftReturnRef.current === 'submit') return true  // xterm default
+          if (e.type === 'keydown') window.electron.pty.write(tab.id, '\x1b\r')
+          return false
+        }
+        // Plain Enter.
+        if (claudeReturnRef.current === 'submit') return true  // xterm default
+        if (e.type === 'keydown') window.electron.pty.write(tab.id, '\x1b\r')
         return false
       }
       return true

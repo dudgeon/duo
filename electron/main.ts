@@ -138,6 +138,16 @@ const htmlCommentsListPending = new Map<string, (res: HtmlCommentsListResult) =>
 // Drives `duo theme` reads. Renderer is the source of truth.
 let themeState: ThemeStateSnapshot = { mode: 'system', effective: 'dark' }
 
+// Sprint 16 / v0.6.15 \u2014 most recent Claude-tab Enter key prefs pushed
+// by the renderer. Drives `duo claude-return` / `duo shift-return`
+// reads. Defaults here mirror the renderer hook's defaults
+// (claudeReturn='submit', shiftReturn='newline'); the renderer
+// overwrites on first pushState after mount.
+let claudeKeyPrefsState: import('../shared/types').ClaudeKeyPrefsSnapshot = {
+  claudeReturn: 'submit',
+  shiftReturn: 'newline'
+}
+
 // Stage 15 G19 — Send → Duo payload format. Renderer is the source of
 // truth (persisted in localStorage); main caches the latest snapshot
 // for `duo selection-format` reads. Default 'a' (quote + provenance).
@@ -377,6 +387,10 @@ async function createWindow(): Promise<void> {
     docFind: dispatchDocFind,
     getTheme: getThemeState,
     setTheme: setThemeMode,
+    // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs.
+    getClaudeKeyPrefs: getClaudeKeyPrefsState,
+    setClaudeReturn: setClaudeReturnMode,
+    setShiftReturn: setShiftReturnMode,
     setSplit: setSplit,
     setLayout3wayEven: setLayout3wayEven,
     queryRendererDom: queryRendererDom,
@@ -1288,6 +1302,11 @@ function setupIPC(): void {
     }
   })
 
+  // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs push from the renderer.
+  ipcMain.on(IPC.CLAUDE_KEY_PREFS_STATE_PUSH, (_event, snapshot: import('../shared/types').ClaudeKeyPrefsSnapshot) => {
+    claudeKeyPrefsState = snapshot
+  })
+
   // Stage 15 G19 \u2014 Send \u2192 Duo payload format push from the renderer.
   ipcMain.on(IPC.SELECTION_FORMAT_STATE_PUSH, (_event, snapshot: SelectionFormatStateSnapshot) => {
     selectionFormatState = snapshot
@@ -1659,6 +1678,37 @@ export function setThemeMode(mode: ThemeMode): { ok: boolean; error?: string } {
     return { ok: false, error: 'Duo window not ready' }
   }
   mainWindow.webContents.send(IPC.THEME_SET, mode)
+  return { ok: true }
+}
+
+// Sprint 16 / v0.6.15 — `duo claude-return` / `duo shift-return`
+// CLI verb backing. Reads return the cached state; sets push the
+// new pref(s) back to the renderer over CLAUDE_KEY_PREFS_SET.
+// Renderer hook (useClaudeKeyPrefs) writes to localStorage on
+// receive, so the change survives relaunches.
+export function getClaudeKeyPrefsState(): import('../shared/types').ClaudeKeyPrefsSnapshot {
+  return claudeKeyPrefsState
+}
+
+export function setClaudeReturnMode(mode: import('../shared/types').ClaudeReturnMode): { ok: boolean; error?: string } {
+  if (mode !== 'submit' && mode !== 'newline') {
+    return { ok: false, error: `Invalid claude-return mode: ${mode}. Expected submit|newline.` }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { claudeReturn: mode })
+  return { ok: true }
+}
+
+export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMode): { ok: boolean; error?: string } {
+  if (mode !== 'submit' && mode !== 'newline') {
+    return { ok: false, error: `Invalid shift-return mode: ${mode}. Expected submit|newline.` }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
   return { ok: true }
 }
 

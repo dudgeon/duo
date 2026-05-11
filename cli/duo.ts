@@ -631,6 +631,40 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'claude-return': {
+        // Sprint 16 / v0.6.15 \u2014 `duo claude-return [submit|newline]`.
+        // Toggles Claude-tab plain Return behavior. Default: 'submit'
+        // (matches universal terminal expectation). 'newline' restores
+        // ENH-127 v2 default (writes \x1b\r; Claude reads as multi-line
+        // newline; user must use \u2318Return to submit).
+        const mode = rest[0]
+        if (mode === undefined) {
+          out(await send('claude-return'))
+        } else {
+          if (mode !== 'submit' && mode !== 'newline') {
+            die('Usage: duo claude-return [submit|newline]')
+          }
+          out(await send('claude-return', { mode }))
+        }
+        break
+      }
+      case 'shift-return': {
+        // Sprint 16 / v0.6.15 \u2014 `duo shift-return [submit|newline]`.
+        // Toggles Claude-tab Shift+Return behavior. Default: 'newline'
+        // (matches Slack/Discord/claude.ai-web "shift+enter = newline
+        // within composition" convention). 'submit' disables the
+        // override.
+        const mode = rest[0]
+        if (mode === undefined) {
+          out(await send('shift-return'))
+        } else {
+          if (mode !== 'submit' && mode !== 'newline') {
+            die('Usage: duo shift-return [submit|newline]')
+          }
+          out(await send('shift-return', { mode }))
+        }
+        break
+      }
       case 'focus-pane': {
         // ENH-098 (Sprint 9) \u2014 CLI parity with the \u2318\u2325L/;/' chord set.
         // Distinct from `duo focus <selector>` (CDP focus on a CSS
@@ -1645,6 +1679,19 @@ COMMANDS
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
+  claude-return [submit|newline]  v0.6.15 — toggle Claude-tab plain
+                                  Return behavior. Default 'submit'
+                                  (xterm passthrough; Claude submits).
+                                  'newline' restores ENH-127 v2 behavior
+                                  (writes ESC+CR; Claude reads as multi-
+                                  line newline; user types ⌘Return to
+                                  submit). No arg = print state.
+  shift-return [submit|newline]   v0.6.15 — toggle Claude-tab Shift+Return
+                                  behavior. Default 'newline' (writes
+                                  ESC+CR; matches Slack/Discord/claude.ai
+                                  web). 'submit' disables the override
+                                  (xterm passthrough). No arg = print
+                                  state.
   focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) — jump keyboard
                                   focus to the named pane. CLI parity
                                   with the ⌘⌥L (terminal) / ⌘⌥;

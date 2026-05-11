@@ -43,6 +43,9 @@ import type {
   HtmlCommentsListResult,
   ThemeMode,
   ThemeStateSnapshot,
+  ClaudeReturnMode,
+  ShiftReturnMode,
+  ClaudeKeyPrefsSnapshot,
   SelectionFormat,
   SelectionFormatStateSnapshot,
   NewTabRequest,
@@ -85,6 +88,13 @@ export interface NavBridge {
   getTheme: () => ThemeStateSnapshot
   /** Stage 11 § D33d — CLI-driven theme override. */
   setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
+  /** Sprint 16 / v0.6.15 — current Claude-tab Enter key prefs
+   *  (renderer \u2192 main cache). */
+  getClaudeKeyPrefs: () => ClaudeKeyPrefsSnapshot
+  /** Sprint 16 / v0.6.15 — CLI-driven Return-key override. */
+  setClaudeReturn: (mode: ClaudeReturnMode) => { ok: boolean; error?: string }
+  /** Sprint 16 / v0.6.15 — CLI-driven Shift+Return override. */
+  setShiftReturn: (mode: ShiftReturnMode) => { ok: boolean; error?: string }
   /** ENH-014 — CLI-driven split-pane percentage (clamped 20–80). */
   setSplit: (pct: number) => { ok: boolean; pct?: number; error?: string }
   /** ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
@@ -833,6 +843,36 @@ export class SocketServer {
             // updates asynchronously via THEME_STATE_PUSH but mode is the
             // reliable signal to report back.
             result = { ...this.nav.getTheme(), mode }
+          }
+          break
+        }
+        case 'claude-return': {
+          // Sprint 16 / v0.6.15 — `duo claude-return [submit|newline]`.
+          const mode = args['mode'] as string | undefined
+          if (mode === undefined) {
+            result = this.nav.getClaudeKeyPrefs()
+          } else {
+            if (mode !== 'submit' && mode !== 'newline') {
+              throw new Error('claude-return mode must be submit|newline')
+            }
+            const setResult = this.nav.setClaudeReturn(mode as ClaudeReturnMode)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'claude-return set failed')
+            result = { ...this.nav.getClaudeKeyPrefs(), claudeReturn: mode }
+          }
+          break
+        }
+        case 'shift-return': {
+          // Sprint 16 / v0.6.15 — `duo shift-return [submit|newline]`.
+          const mode = args['mode'] as string | undefined
+          if (mode === undefined) {
+            result = this.nav.getClaudeKeyPrefs()
+          } else {
+            if (mode !== 'submit' && mode !== 'newline') {
+              throw new Error('shift-return mode must be submit|newline')
+            }
+            const setResult = this.nav.setShiftReturn(mode as ShiftReturnMode)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'shift-return set failed')
+            result = { ...this.nav.getClaudeKeyPrefs(), shiftReturn: mode }
           }
           break
         }

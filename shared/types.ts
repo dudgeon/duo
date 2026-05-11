@@ -70,6 +70,11 @@ export type DuoCommandName =
   | 'doc-find'
   // Stage 11 § D33d — theme
   | 'theme'
+  // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Both
+  // accept optional `mode` to set, no arg to read. See
+  // ClaudeKeyPrefsSnapshot for semantics.
+  | 'claude-return'
+  | 'shift-return'
   // Stage 5 v2 (Duo subagent) A24 — open a URL in the system default
   // browser via Electron's shell.openExternal. Used by the agent's web-
   // routing rule for hostnames in ~/.claude/duo/external-domains.json.
@@ -967,6 +972,26 @@ export type DuoSelection =
   | PageSelectionSnapshot
   | null
 
+// Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. ENH-127 v2
+// (v0.6.13) shipped "plain Return → newline" by default; v0.6.15 flips
+// the default to 'submit' (matches universal terminal expectation) but
+// keeps the override capability behind a localStorage / CLI toggle.
+// Shift+Return stays default 'newline' (matches Slack / Discord /
+// claude.ai web convention). Renderer is the source of truth; main
+// caches so `duo claude-return` / `duo shift-return` can read without
+// a renderer RPC. Set via CLAUDE_KEY_PREFS_SET (main → renderer).
+//
+//   'submit'  — plain `\r` written (xterm default; Claude submits)
+//   'newline' — `\x1b\r` written (ESC+CR, the byte ⌥Return natively
+//               sends; Claude reads as multi-line newline)
+export type ClaudeReturnMode = 'submit' | 'newline'
+export type ShiftReturnMode = 'submit' | 'newline'
+
+export interface ClaudeKeyPrefsSnapshot {
+  claudeReturn: ClaudeReturnMode
+  shiftReturn: ShiftReturnMode
+}
+
 // Stage 11 § D33d — theme state mirrored between renderer (owner) and main
 // (cache) so `duo theme` can read without a renderer RPC, and set by
 // dispatching a THEME_SET back down.
@@ -1302,6 +1327,14 @@ export const IPC = {
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
+
+  // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Same
+  // shape as THEME_*: renderer caches state in main; main re-broadcasts
+  // CLI overrides. Single channel for both prefs (claudeReturn +
+  // shiftReturn) — push and set carry the full ClaudeKeyPrefsSnapshot
+  // (or a partial; the renderer hook only updates the keys present).
+  CLAUDE_KEY_PREFS_STATE_PUSH: 'claude-key-prefs:state-push',  // renderer → main
+  CLAUDE_KEY_PREFS_SET: 'claude-key-prefs:set',                // main → renderer
 
   // Stage 15 G19 — Send → Duo payload format (agent-tunable runtime knob)
   SELECTION_FORMAT_STATE_PUSH: 'selection-format:state-push',  // renderer → main
