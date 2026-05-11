@@ -58,7 +58,11 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
 
   const [showAll, setShowAllState] = useState<boolean>(loadShowAll)
   const [expanded, setExpanded] = useState<Set<string>>(loadExpanded)
-  const [selected, setSelected] = useState<NavigatorState['selected']>(null)
+  // ENH-147 — mirror useNavigator's multi-select model (singular
+  // selected derived below for back-compat). User-claude pane is also
+  // a file tree; multi-select applies the same way.
+  const [selectedItems, setSelectedItems] = useState<Map<string, 'file' | 'folder'>>(() => new Map())
+  const [primaryPath, setPrimaryPath] = useState<string | null>(null)
   const [listings, setListings] = useState<Map<string, DirEntry[] | null>>(() => new Map())
   const [curatedRootEntries, setCuratedRootEntries] = useState<DirEntry[] | null>(null)
 
@@ -164,10 +168,27 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   }, [])
 
   const selectItem = useCallback((path: string, kind: 'file' | 'folder') => {
-    setSelected({ path, kind })
+    setSelectedItems(new Map([[path, kind]]))
+    setPrimaryPath(path)
   }, [])
 
-  const clearSelection = useCallback(() => setSelected(null), [])
+  const toggleSelection = useCallback((path: string, kind: 'file' | 'folder') => {
+    setSelectedItems(prev => {
+      const next = new Map(prev)
+      if (next.has(path)) next.delete(path)
+      else next.set(path, kind)
+      return next
+    })
+    setPrimaryPath(prev => {
+      if (selectedItems.has(path)) return prev === path ? null : prev
+      return path
+    })
+  }, [selectedItems])
+
+  const clearSelection = useCallback(() => {
+    setSelectedItems(new Map())
+    setPrimaryPath(null)
+  }, [])
 
   const refresh = useCallback((path: string) => {
     setListings(prev => {
@@ -188,13 +209,27 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   // ever points into ~/.claude (cross-pane reveal isn't supported in
   // v1 — file would be rendered in the project pane only).
   const revealAndSelect = useCallback((filePath: string) => {
-    setSelected({ path: filePath, kind: 'file' })
+    setSelectedItems(new Map([[filePath, 'file']]))
+    setPrimaryPath(filePath)
   }, [])
   const togglePinned = useCallback(() => { /* always pinned */ }, [])
   const toggleShowDotfiles = useCallback(() => { /* always visible */ }, [])
 
+  // ENH-147 — derive singular `selected` from the multi-select map for
+  // back-compat (computePendingCwd, CLI nav-state, single-target callers).
+  const selected: NavigatorState['selected'] = (() => {
+    if (selectedItems.size === 0) return null
+    const primaryKind = primaryPath !== null ? selectedItems.get(primaryPath) : undefined
+    if (primaryPath !== null && primaryKind !== undefined) {
+      return { path: primaryPath, kind: primaryKind }
+    }
+    const [firstPath, firstKind] = selectedItems.entries().next().value as [string, 'file' | 'folder']
+    return { path: firstPath, kind: firstKind }
+  })()
+
   const state: NavigatorState = {
     cwd: userClaudeRoot,
+    selectedItems,
     selected,
     expanded,
     pinned: true,
@@ -204,6 +239,7 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
   const actions: NavigatorActions = {
     navigateTo,
     selectItem,
+    toggleSelection,
     revealAndSelect,
     clearSelection,
     toggleExpand,

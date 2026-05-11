@@ -171,6 +171,43 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     }
   }
 
+  // ENH-147 — batch trash for the multi-select path. Confirms once
+  // ("Move N items to Trash?"), then loops, trashing each in turn.
+  // Failures surface individually but don't abort the batch — owner
+  // can see what landed and what didn't from the surviving rows.
+  // Parent dirs are refreshed AFTER the batch completes; doing it
+  // per-item churns the listings cache for nothing.
+  const onTrashBatch = async (paths: string[]): Promise<void> => {
+    if (paths.length === 0) return
+    const result = await window.electron.dialog.confirm({
+      title: `Move ${paths.length} items to the Trash?`,
+      message: `The ${paths.length} selected items will be moved to the macOS Trash. You can restore them from there.`,
+      buttons: ['Cancel', `Move ${paths.length} items to Trash`],
+      defaultId: 1,
+      cancelId: 0,
+      type: 'warning'
+    })
+    if (result.response !== 1) return
+    const failures: Array<{ path: string; err: string }> = []
+    const dirsToRefresh = new Set<string>()
+    for (const path of paths) {
+      try {
+        await window.electron.files.trash(path)
+        dirsToRefresh.add(parentDir(path))
+      } catch (err) {
+        failures.push({ path, err: err instanceof Error ? err.message : String(err) })
+      }
+    }
+    for (const dir of dirsToRefresh) actions.refresh(dir)
+    actions.clearSelection()
+    if (failures.length > 0) {
+      const summary = failures.length === 1
+        ? `Failed to trash 1 item: ${failures[0].path}\n${failures[0].err}`
+        : `Failed to trash ${failures.length} items:\n${failures.slice(0, 3).map(f => `  ${f.path}: ${f.err}`).join('\n')}${failures.length > 3 ? '\n  …' : ''}`
+      window.alert(summary)
+    }
+  }
+
   // BUG-041 — synthesize a "root" target for whitespace right-clicks.
   // The project cwd is always a directory; the menu's whitespaceMode
   // restricts the items to the New file / New folder / Open terminal
@@ -220,7 +257,10 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // ENH-050 — central handler that maps a chosen menu id back to an
   // action against the given target entry. Stable ids keep the menu
   // template a pure data structure (no closures riding through IPC).
-  const handleMenuChoice = async (chosenId: string, target: DirEntry) => {
+  // ENH-147 — `isBatch` says the right-click landed on a row that's
+  // part of a multi-select set. Currently only `trash` branches on
+  // this; everything else runs single-target.
+  const handleMenuChoice = async (chosenId: string, target: DirEntry, isBatch: boolean = false) => {
     const isFolder = target.kind === 'directory'
     const newTargetDir = isFolder ? target.path : parentDir(target.path)
     switch (chosenId) {
@@ -261,7 +301,14 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         setRenamingPath(target.path)
         return
       case 'trash':
-        await onTrashEntry(target)
+        // ENH-147 — when the right-click landed on a row that's part
+        // of a multi-select set, trash the whole set; else trash just
+        // the clicked target.
+        if (isBatch) {
+          await onTrashBatch(Array.from(state.selectedItems.keys()))
+        } else {
+          await onTrashEntry(target)
+        }
         return
       case 'open-in-split':
         if (!isFolder && onOpenInSplit) onOpenInSplit(target.path)
@@ -271,13 +318,23 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
 
   // ENH-050 — fire native menu on right-click (rows + whitespace). The
   // popup awaits the user's choice; we then dispatch via handleMenuChoice.
+  // ENH-147 — if the right-clicked target is part of the multi-select
+  // set AND the set has more than one entry, the menu surfaces a batch
+  // trash label ("Move N items to Trash..."). The other ops stay
+  // single-target (rename, copy-path, open) since they're inherently
+  // 1:1 and can't meaningfully batch in v1.
   const popupMenu = async (e: React.MouseEvent, target: DirEntry, whitespaceMode: boolean) => {
     e.preventDefault()
+    const inSelection = state.selectedItems.has(target.path)
+    const batchSize = (!whitespaceMode && inSelection && state.selectedItems.size > 1)
+      ? state.selectedItems.size
+      : 0
     const items = buildTreeMenuTemplate({
       target,
       whitespaceMode,
       navPins,
-      onOpenInSplit
+      onOpenInSplit,
+      batchSize
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -286,7 +343,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       y: e.clientY
     })
     if (!result.chosenId) return
-    void handleMenuChoice(result.chosenId, target)
+    void handleMenuChoice(result.chosenId, target, batchSize > 0)
   }
 
   const onWhitespaceContextMenu = (e: React.MouseEvent) => {
@@ -350,8 +407,12 @@ function buildTreeMenuTemplate(opts: {
   whitespaceMode: boolean
   navPins?: NavPinsApi
   onOpenInSplit?: (path: string) => void
+  /** ENH-147 — when > 0, the right-clicked row is part of an N-item
+   *  multi-select. The trash label is pluralized; other items stay as
+   *  single-target wording (only trash batches in v1). */
+  batchSize?: number
 }): MenuTemplateItem[] {
-  const { target, whitespaceMode, navPins, onOpenInSplit } = opts
+  const { target, whitespaceMode, navPins, onOpenInSplit, batchSize = 0 } = opts
   const isFolder = target.kind === 'directory'
   const items: MenuTemplateItem[] = []
 
@@ -396,10 +457,13 @@ function buildTreeMenuTemplate(opts: {
 
     items.push({ type: 'separator' })
     items.push({ id: 'rename', label: 'Rename…' })
-    items.push({
-      id: 'trash',
-      label: isFolder ? 'Move folder to Trash…' : 'Move to Trash…'
-    })
+    // ENH-147 — pluralize the trash label when right-clicked target is
+    // part of a multi-select set. The handler reads the same batchSize
+    // hint via popupMenu's third arg to handleMenuChoice.
+    const trashLabel = batchSize > 1
+      ? `Move ${batchSize} items to Trash…`
+      : (isFolder ? 'Move folder to Trash…' : 'Move to Trash…')
+    items.push({ id: 'trash', label: trashLabel })
   }
 
   return items
@@ -479,7 +543,11 @@ interface TreeNodeProps {
 function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
-  const isSelected = state.selected?.path === entry.path
+  // ENH-147 — read from the multi-select map. Singular `state.selected`
+  // would also work for size 0/1 (since it's derived from the map) but
+  // when size > 1 every selected row needs to paint with the fill, not
+  // just the primary.
+  const isSelected = state.selectedItems.has(entry.path)
   const isRenaming = renamingPath === entry.path
   // Stage 26 PR 3 item 2 — folder rows whose path matches the front
   // terminal's launch CWD render an ambient accent dot. Files don't
@@ -504,7 +572,16 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
   // whitespace-click deselect handler at the FileTree wrapper level
   // (see onWhitespaceClick) so users have multiple ways to clear
   // selection without keyboard (⎋ already worked, see onRowKey).
-  const onSingleClickRow = () => {
+  // ENH-147 — ⌘-click (metaKey) toggles this row's membership in the
+  // multi-select set without affecting other selected rows. Plain
+  // single-click is single-select (replaces the entire set). ⇧-click
+  // (range select) deferred to a follow-up; would require an anchor
+  // and a decision about ranges across expanded folders.
+  const onSingleClickRow = (e: React.MouseEvent) => {
+    if (e.metaKey) {
+      actions.toggleSelection(entry.path, isFolder ? 'folder' : 'file')
+      return
+    }
     if (isSelected) {
       actions.clearSelection()
     } else {

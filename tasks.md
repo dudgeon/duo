@@ -5765,6 +5765,28 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-148: Navigator multi-select v2 — ⇧-click range + ⌘-A select-all (deferred from ENH-147 v1)
+
+**Status:** 🆕 Filed Sprint 17 commit 4 (2026-05-11). ENH-147 v1 shipped ⌘-click + multi-row trash; this entry is the deferred v2 work.
+**Priority:** Medium — completes the standard Finder multi-select pattern.
+**Filed:** 2026-05-11.
+
+**Scope.**
+
+1. **⇧-click range select.** Extend selection from `primaryPath` (the v1 anchor, set by single-click / ⌘-click) to the shift-clicked row. Requires a design decision: does the range collect ALL rows visible between anchor and click (including across expanded folder boundaries)? Or only siblings inside the same parent? Finder takes the first option; some IDE trees take the second.
+   - Affected files: `renderer/hooks/useNavigator.ts` (new `extendSelectionTo(path, kind)` action), `renderer/components/FileTree.tsx § onSingleClickRow` (route on `e.shiftKey`).
+   - Implementation sketch: walk the rendered tree (rootEntries + expanded children, dotfile-filtered) collecting paths between anchor index and clicked index. Pass into `selectAllPaths(paths, kinds)`.
+
+2. **⌘-A select-all-visible.** New global shortcut binding scoped to nav-pane focus. Selects every visible row in the current cwd's listing (top-level only, OR including expanded children — owner decision).
+   - Affected files: `renderer/keyboard/globalShortcuts.ts` (new `'selectAllInNavigator'` chord), `renderer/hooks/useKeyboardShortcuts.ts` (dispatch), `renderer/components/FileTree.tsx` or `FilesPane.tsx` (listener that calls `actions.selectAllVisible(visiblePaths)`).
+   - Safety: cap at "current directory + immediate children" — a tree with thousands of expanded descendants would be a surprise on ⌘-A.
+
+3. **CLI parity** (optional). Extend `NavStateSnapshot` with `selectedPaths: string[]`. Today the CLI's `duo nav-state` returns the singular `selected` field; broadening to a list is forward-compat for agents driving batch deletion via `duo files trash` loops.
+
+**Cross-ref:** ENH-147 (v1 parent — landed 2026-05-11).
+
+---
+
 ### BUG-124: `writeConflictLog` floods dev stderr with ENOENT — `~/.claude/duo/logs/` not mkdir-p'd at install
 
 **Status:** 🆕 Filed 2026-05-11 (discovered during Sprint 17 ENH-144 verification — dev log /tmp/duo-dev-enh142.log shows continuous `ENOENT: rename last-conflict.log.duo.tmp → last-conflict.log` errors).
@@ -5944,9 +5966,28 @@ On each install / upgrade:
 
 ### ENH-147: Navigator multi-select — select multiple files for batch operations
 
-**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Status:** 🟢 **v1 shipped Sprint 17 commit 4 (2026-05-11) — ⌘-click toggle + multi-row trash.** ⇧-click range select + ⌘-A select-all deferred to ENH-148 (filed); they need anchor tracking + design decisions about ranges across expanded folders, which the v1 multi-select model doesn't yet support.
+
+**What v1 delivers:**
+
+- **Multi-select state.** [`renderer/hooks/useNavigator.ts`](renderer/hooks/useNavigator.ts) gains `selectedItems: Map<string, 'file' | 'folder'>` as the canonical selection state + `primaryPath: string | null` for anchor tracking. Singular `selected` is derived for back-compat (computePendingCwd, CLI nav-state, single-target callers).
+- **⌘-click toggle.** [`renderer/components/FileTree.tsx § onSingleClickRow`](renderer/components/FileTree.tsx) reads `e.metaKey` and routes to `actions.toggleSelection(path, kind)` instead of the singular `selectItem`. Plain single-click still single-selects (replaces the entire map). Re-clicking the only-selected row clears (existing Finder-parity convention preserved).
+- **Visual fill on every selected row.** `isSelected = state.selectedItems.has(entry.path)` (was `state.selected?.path === entry.path`). Every entry in the selection set paints with the existing solid `bg-accent` + white text treatment.
+- **Multi-row context menu.** Right-clicking a row that's part of the selection set (size > 1) surfaces a pluralized "Move N items to Trash…" label; `popupMenu` passes `batchSize` to `buildTreeMenuTemplate` and `isBatch` to `handleMenuChoice`. `onTrashBatch` confirms once, loops trashes, refreshes affected parent dirs ONCE at the end, clears selection. Failures surface as a summary alert (path + reason for up to 3, "…" if more).
+- **Right-click on unselected row** stays single-target (current behavior). Did not adopt Finder's "right-click unselected row collapses selection" convention — explicit owner feedback can revisit.
+- **External delete (chokidar event)** also prunes the multi-select map (`renderer/hooks/useNavigator.ts § handleEvent`), so a file deleted from outside Duo doesn't leave a phantom selection.
+- **`useUserClaudeNavigator`** mirrors the same multi-select state so both panes (project tree + ~/.claude tree) behave consistently. <TreeNodes> drives both via the shared NavigatorActions contract.
+
+**Deferred to ENH-148 (next sprint pickup):**
+
+- **⇧-click range select** — needs an explicit anchor + a decision about whether ranges span expanded folder boundaries. Set up `primaryPath` to BE the anchor already (it tracks last-clicked row), but the range-collection logic isn't written.
+- **⌘-A select-all in current directory** — needs a new global shortcut binding (`renderer/keyboard/globalShortcuts.ts`) scoped to nav-pane focus, plus a `selectAllVisible(paths, kinds)` action that respects the dotfile filter.
+- **CLI parity** — `duo nav-state` returns the (singular) `selected` field today. ENH-148 may extend the snapshot to include `selectedPaths: string[]` for completeness, but agents driving deletion would still typically loop `duo nav-state` + `duo files trash` per path; multi-select is primarily-mouse UX.
+
+**Owner observation (verbatim):** *"ENH — enable multi-select in navigator (e.g. to delete multiple files)"*
+
 **Priority:** Medium — workflow gap when cleaning up a directory.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **v1 shipped:** 2026-05-11.
 
 **Owner observation (verbatim):** *"ENH — enable multi-select in navigator (e.g. to delete multiple files)"*
 

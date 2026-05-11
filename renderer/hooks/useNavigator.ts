@@ -22,6 +22,16 @@ const LS_KEY_PINNED = 'duo.nav.pinned'
 
 export interface NavigatorState {
   cwd: string
+  /** ENH-147 — multi-select set. Maps absolute path → kind. Singular
+   *  `selected` below is the derived "primary" view, kept for
+   *  callsites that only care about a single selection (computePendingCwd,
+   *  CLI nav-state's `selected` field). `selectedItems` is canonical for
+   *  rendering: every row checks `selectedItems.has(entry.path)`. */
+  selectedItems: Map<string, 'file' | 'folder'>
+  /** Derived from `selectedItems`. When the map is empty, null. When
+   *  the map has entries, the entry pointed at by `primaryPath` (or
+   *  any entry if primaryPath was removed). Single-click sets this to
+   *  the sole entry; ⌘-click sets this to the newly-added entry. */
   selected: { path: string; kind: 'file' | 'folder' } | null
   expanded: Set<string>
   pinned: boolean
@@ -32,7 +42,12 @@ export interface NavigatorState {
 
 export interface NavigatorActions {
   navigateTo: (path: string) => void
+  /** Single-select: replaces the selection set with exactly this one item.
+   *  Use when the user clicks a row without modifier keys. */
   selectItem: (path: string, kind: 'file' | 'folder') => void
+  /** ENH-147 — multi-select toggle: if `path` is already in selectedItems,
+   *  remove it; else add it. Used for ⌘-click. */
+  toggleSelection: (path: string, kind: 'file' | 'folder') => void
   clearSelection: () => void
   toggleExpand: (path: string) => void
   togglePinned: () => void
@@ -53,7 +68,13 @@ export function useNavigator(initialCwd: string) {
   const [cwd, setCwd] = useState<string>(() => {
     try { return localStorage.getItem(LS_KEY_CWD) || initialCwd } catch { return initialCwd }
   })
-  const [selected, setSelected] = useState<NavigatorState['selected']>(null)
+  // ENH-147 — canonical multi-select map. Singular `selected` is derived
+  // below for back-compat (computePendingCwd, CLI nav-state, anywhere
+  // that expects a single primary item). primaryPath identifies which
+  // entry of selectedItems acts as the "primary" — single-click sets
+  // it to the sole entry; ⌘-click sets it to the newly-added entry.
+  const [selectedItems, setSelectedItems] = useState<Map<string, 'file' | 'folder'>>(() => new Map())
+  const [primaryPath, setPrimaryPath] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(LS_KEY_EXPANDED)
@@ -140,7 +161,16 @@ export function useNavigator(initialCwd: string) {
       })
       ensureListing(parent)
       if (event.kind === 'removed') {
-        setSelected(curr => (curr && curr.path === event.path ? null : curr))
+        // ENH-147 — drop the removed path from the multi-select map; if
+        // it was the primary, advance primary to any remaining entry
+        // (or null if the set emptied).
+        setSelectedItems(curr => {
+          if (!curr.has(event.path)) return curr
+          const next = new Map(curr)
+          next.delete(event.path)
+          return next
+        })
+        setPrimaryPath(curr => (curr === event.path ? null : curr))
       }
     }
 
@@ -172,7 +202,8 @@ export function useNavigator(initialCwd: string) {
 
   const navigateTo = useCallback((path: string) => {
     setCwd(path)
-    setSelected(null)
+    setSelectedItems(new Map())
+    setPrimaryPath(null)
   }, [])
 
   const selectItem = useCallback((path: string, kind: 'file' | 'folder') => {
@@ -181,8 +212,35 @@ export function useNavigator(initialCwd: string) {
     // it now requires an explicit double-click (FileTree) or
     // navigateTo() call. computePendingCwd already returns sel.path
     // for folder selections, so terminal-CWD inheritance is preserved.
-    setSelected({ path, kind })
+    // ENH-147 — single-select replaces the entire multi-select map.
+    setSelectedItems(new Map([[path, kind]]))
+    setPrimaryPath(path)
   }, [])
+
+  const toggleSelection = useCallback((path: string, kind: 'file' | 'folder') => {
+    // ENH-147 — ⌘-click toggle: if path is in the map, remove it; else
+    // add it. Sets primary to the newly-added path; if removing, drops
+    // primary if it pointed at the removed path (next render will
+    // surface the back-compat `selected` as the next remaining entry,
+    // or null if emptied).
+    setSelectedItems(prev => {
+      const next = new Map(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.set(path, kind)
+      }
+      return next
+    })
+    setPrimaryPath(prev => {
+      // If we were removing this path AND it was the primary, drop it.
+      // If we were adding, make it the new primary.
+      if (selectedItems.has(path)) {
+        return prev === path ? null : prev
+      }
+      return path
+    })
+  }, [selectedItems])
 
   const revealAndSelect = useCallback((filePath: string) => {
     // BUG-053 — atomic reveal. Computes the parent dir from filePath,
@@ -196,12 +254,19 @@ export function useNavigator(initialCwd: string) {
     // sets selected=null immediately; selectItem sets it back; if
     // anything between the two reads the state, it sees null).
     // Single-action update eliminates the race.
+    // ENH-147 — also replaces the multi-select map with the revealed
+    // path as the sole entry (consistent with the "atomic single-
+    // select" guarantee callers depend on).
     const dir = filePath.slice(0, filePath.lastIndexOf('/')) || '/'
     setCwd(dir)
-    setSelected({ path: filePath, kind: 'file' })
+    setSelectedItems(new Map([[filePath, 'file']]))
+    setPrimaryPath(filePath)
   }, [])
 
-  const clearSelection = useCallback(() => setSelected(null), [])
+  const clearSelection = useCallback(() => {
+    setSelectedItems(new Map())
+    setPrimaryPath(null)
+  }, [])
 
   const toggleExpand = useCallback((path: string) => {
     setExpanded(prev => {
@@ -224,10 +289,26 @@ export function useNavigator(initialCwd: string) {
     ensureListing(path)
   }, [ensureListing])
 
-  const state: NavigatorState = { cwd, selected, expanded, pinned, showDotfiles, listings }
+  // ENH-147 — derive `selected` for back-compat. Points at the primary
+  // entry of selectedItems when one exists, or any remaining entry if
+  // primaryPath was removed but the map still has members. Null when
+  // the map is empty.
+  const selected: NavigatorState['selected'] = (() => {
+    if (selectedItems.size === 0) return null
+    const primaryKind = primaryPath !== null ? selectedItems.get(primaryPath) : undefined
+    if (primaryPath !== null && primaryKind !== undefined) {
+      return { path: primaryPath, kind: primaryKind }
+    }
+    // primaryPath stale (removed) — surface the first remaining entry.
+    const [firstPath, firstKind] = selectedItems.entries().next().value as [string, 'file' | 'folder']
+    return { path: firstPath, kind: firstKind }
+  })()
+
+  const state: NavigatorState = { cwd, selectedItems, selected, expanded, pinned, showDotfiles, listings }
   const actions: NavigatorActions = {
     navigateTo,
     selectItem,
+    toggleSelection,
     revealAndSelect,
     clearSelection,
     toggleExpand,
