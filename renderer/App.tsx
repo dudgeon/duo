@@ -942,10 +942,21 @@ export function App() {
 
   const closeFileTab = useCallback((id: string) => {
     setFileTabs(prev => {
+      const closedIdx = prev.findIndex(t => t.id === id)
       const next = prev.filter(t => t.id !== id)
-      // If we closed the active file tab, fall back to the browser tab set.
+      // If we closed the active file tab, shift focus to the LEFT neighbor
+      // (the file tab immediately preceding the closed one in tab order),
+      // falling back to the right neighbor if the closed tab was leftmost,
+      // and to the browser tab kind if no file tabs remain. Mirrors the
+      // BrowserManager.closeTab findNonAux walker + the Terminal closeTab
+      // pattern + Chrome / VS Code / every other tabbed app. ENH-144.
       if (activeWorking.kind === 'file' && activeWorking.id === id) {
-        setActiveWorking({ kind: 'browser' })
+        if (next.length === 0) {
+          setActiveWorking({ kind: 'browser' })
+        } else {
+          const targetIdx = Math.min(Math.max(0, closedIdx - 1), next.length - 1)
+          setActiveWorking({ kind: 'file', id: next[targetIdx].id })
+        }
       }
       return next
     })

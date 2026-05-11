@@ -5718,6 +5718,26 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### BUG-124: `writeConflictLog` floods dev stderr with ENOENT — `~/.claude/duo/logs/` not mkdir-p'd at install
+
+**Status:** 🆕 Filed 2026-05-11 (discovered during Sprint 17 ENH-144 verification — dev log /tmp/duo-dev-enh142.log shows continuous `ENOENT: rename last-conflict.log.duo.tmp → last-conflict.log` errors).
+**Priority:** Medium — BUG-122 hardening's diagnostic-log feature is silently broken. `writeConflictLog` is best-effort wrapped in `try/catch`, so the user sees no banner, but the production-readable log at `~/.claude/duo/logs/last-conflict.log` is never written, which defeats the purpose: next BUG-122 repro will have no captured diagnostic.
+**Filed:** 2026-05-11.
+
+**Root cause.** [`renderer/utils/conflictDiagnostic.ts:113`](renderer/utils/conflictDiagnostic.ts:113) writes to `~/.claude/duo/logs/last-conflict.log` via `window.electron.files.write(...)`. The IPC handler's `FilesService.write` writes to a `.tmp` sibling then renames — but the `~/.claude/duo/logs/` directory doesn't exist by default. `~/.claude/duo/` itself is created by `install-service`, but the `logs/` subdir is not. Workaround applied 2026-05-11: `mkdir -p ~/.claude/duo/logs` manually.
+
+**Two fix options:**
+
+1. **`electron/install-service.ts`** — add `~/.claude/duo/logs/` to the install-time mkdir list. Single line; idempotent. Mirrors the existing creation of `~/.claude/duo/packs/`, `~/.claude/duo/help/`, etc.
+
+2. **`electron/files-service.ts § write`** — call `fs.mkdir(path.dirname(target), { recursive: true })` before the temp-rename pattern. More robust generically; not specific to conflict-log. Other surfaces calling `files.write` to a path with a non-existent parent dir would also benefit.
+
+**Recommendation:** ship BOTH — option 1 prevents the specific spam, option 2 makes `files.write` more robust generally. Half-day fix. Surface for next Sprint pickup or roll into a Sprint 17 cleanup commit.
+
+**Cross-ref:** BUG-122 (parent — conflict-log diagnostic feature this exposes broken). FOLLOWUP-019 (PageTab parity for save-pre-conflict — shares the writeConflictLog code path; the silent log-write failure equally affects the canvas surface).
+
+---
+
 ### BUG-121: Closing the last browser tab respawns about:blank in a loop
 
 **Status:** 🟢 Shipped 2026-05-10 in Sprint 16 commit 2 (cut target v0.6.14).
@@ -5989,9 +6009,20 @@ The agent-process failure: a prior session worked on this bug, ran into the TipT
 
 ### ENH-144: Closing a tab should shift focus to the PREVIOUS tab, not the leftmost
 
-**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Status:** ✅ **Shipped Sprint 17 commit 2 (2026-05-11).** Single-spot fix in [`renderer/App.tsx § closeFileTab`](renderer/App.tsx). The other two affected strips (terminal `closeTab` at App.tsx:787 + `BrowserManager.closeTab` at electron/browser-manager.ts:438) **already had the left-neighbor pattern shipped** (terminal: `next[Math.max(0, idx - 1)].id`; browser: `findNonAux(Math.min(idx - 1, this.tabs.length - 1))` walking left first). Only file-tab close was incorrectly falling straight to `{ kind: 'browser' }` instead of activating a sibling file tab — which the owner perceived as "focus shifts to first tab (far left)" because the browser pane then displays whichever tab `BrowserManager.activeIndex` points at (usually the leftmost).
+
+**Implementation.** In `closeFileTab`, capture `closedIdx` via `prev.findIndex` BEFORE filtering, then after building `next = prev.filter(...)`:
+- If `next.length === 0` → fall back to `{ kind: 'browser' }` (no file tabs remain).
+- Else → activate `next[Math.min(Math.max(0, closedIdx - 1), next.length - 1)]` — left-neighbor with right-neighbor fallback when the closed tab was leftmost. The double-clamp matches `BrowserManager.findNonAux`'s pattern: `idx - 1` walks left, then `Math.max(0, ...)` floors at the new leftmost, then `Math.min(..., next.length - 1)` ceilings if the closed tab WAS the leftmost (so idx - 1 = -1 in `prev` but the closed tab's right-neighbor is at index 0 in `next`).
+
+**Aux is intentionally untouched.** AuxBrowserSlot is single-slot; closing it clears aux state (setAuxState(null)) — there's no "next aux tab" to activate. The browser-aux closeTab path also calls `BrowserManager.closeTab` which already handles findNonAux correctly.
+
+**Verification path.** Renderer-only change — HMR picks it up; no restart needed. Test path: open file tabs A → B → C, activate B, close B, verify A activates (NOT C, NOT browser). Then open file tab A, activate A, close A, verify the next file tab to the right activates (right-neighbor fallback for leftmost-close). Then close all file tabs, verify fall-back to browser kind.
+
+**Owner observation (verbatim):** *"ENH — when close delete tab, focus should shift to prev tab; current behavior, focus shifts to first tab (far left)"*
+
 **Priority:** Medium — UX paper cut; every tab close interrupts visual focus state.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Shipped:** 2026-05-11.
 
 **Owner observation (verbatim):** *"ENH — when close delete tab, focus should shift to prev tab; current behavior, focus shifts to first tab (far left)"*
 
