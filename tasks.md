@@ -5877,9 +5877,17 @@ On each install / upgrade:
 
 ### BUG-122: Markdown editor "file changed on disk" banner re-surfaces in v0.6.14
 
-**Status:** 🟡 Open. Filed 2026-05-11 from owner repro on work machine running v0.6.14 production DMG ("fyi I hit the save conflict issue again while editing a markdown file"). Recurring class — BUG-085 (v0.6.7) + BUG-099 (v0.6.8) + BUG-107 (v0.6.9 walk-3) all shipped fixes for various flavors of this banner-fires-during-normal-typing failure mode. v0.6.14 is post-all-three; a new race or a fix that didn't fully land.
+**Status:** 🟢 **Defensive hardening shipped Sprint 16 commit 7 (2026-05-11); deeper-fix gate awaiting next-repro diagnostic.** Three changes target the hypotheses (2)+(3)+(4) cluster without committing to a specific root cause:
+
+1. **TTL bump 2s → 5s** in `recentlyWrittenBodiesRef` + `recentlyWrittenHtmlRef` echo-set cleanup math (`MarkdownEditor.tsx` + `PageTab.tsx`). Hypothesis 3 fix if the work machine's fs sync was slow enough to push chokidar past the prior 2s window. Cheap; no downside if not the root cause.
+2. **Widened echo normalization** via new shared helper `renderer/utils/conflictDiagnostic.ts § normalizeForEchoCompare`. Replaces the inline `.replace(/\s+$/, '')` trailing-only normalize at all 4 sites (markdown watcher + markdown save + canvas watcher + canvas save). New normalize covers: BOM (`﻿`) stripping, CRLF→LF, per-line trailing whitespace, doc-end trailing whitespace. Hypothesis 2+4 partial fix — cloud-sync agents that add BOM or rewrite line endings are now treated as echoes. Conservative: no internal-whitespace or unicode-NFC normalization (those would mask real conflicts; gated on next-repro showing they're needed).
+3. **Production-readable diagnostic log** at `~/.claude/duo/logs/last-conflict.log` — JSON payload with timestamp, path, trigger (`watcher-dirty` / `save-pre-reconcile`), surface (markdown/canvas), lengths, head + tail 80-char excerpts, `firstDiffOffset`, app version. Best-effort write via existing `files.write` IPC (auto-mkdirs the `logs/` dir). On next production repro, owner can `cat ~/.claude/duo/logs/last-conflict.log` and the data tells us hypothesis 2 vs 4 directly (BOM/CRLF diff → hypothesis 2 confirmed → mtime-only echo path next; tiptap round-trip diff → hypothesis 4 → structural-diff fix next).
+
+**Verified live (Sprint 16 dev session):** triggered a real disk-vs-baseline divergence via the FOLLOWUP-019 verification fixtures → `last-conflict.log` landed at the expected path with all fields populated correctly (firstDiffOffset matched the actual divergence position; appVersion stamp present; head/tail excerpts truncated to 80 chars).
+
+**Deeper-fix gate.** Next owner-side trigger: get the next repro's `~/.claude/duo/logs/last-conflict.log` contents back to a dev session. The `diskHead` vs `baselineHead` characters + `firstDiffOffset` value tell us deterministically which hypothesis is live. Owner cloud-sync answer (work-machine OneDrive/iCloud/etc.) feeds into the hypothesis 2 specifics.
 **Priority:** **High** — erodes user trust in the editor's autosave; user sees the conflict banner and clicks through wondering if data is at risk. Owner has hit this on multiple sprints; each fix addresses ONE race window but a new one keeps emerging.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Hardened:** 2026-05-11.
 
 **What's owed first — diagnostic capture.** The fix shape can't be picked without knowing which race window this is. Production DMG runs without console.debug forwarding (ENH-121 only wires `[renderer:log]` in dev), so the next repro needs ONE of:
 

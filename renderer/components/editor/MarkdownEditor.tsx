@@ -53,6 +53,11 @@ import { NewCommentComposer } from './primitives/NewCommentComposer'
 import { formatSendPayload } from './sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { matchGlobalShortcut } from '../../keyboard/globalShortcuts'
+import {
+  normalizeForEchoCompare,
+  computeFirstDiffOffset,
+  writeConflictLog
+} from '../../utils/conflictDiagnostic'
 import type { DocWriteRequest, EditorSelectionSnapshot } from '@shared/types'
 import {
   splitFrontmatter,
@@ -396,9 +401,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     const map = recentlyWrittenBodiesRef.current
     map.set(body, Date.now())
     // Evict expired entries. O(n) per call but n is bounded by the
-    // number of saves within 2 seconds — typically < 5 even for fast
-    // typists.
-    const cutoff = Date.now() - 2000
+    // number of saves within the TTL — typically < 10 even for fast
+    // typists. BUG-122 (Sprint 16) — bumped TTL from 2000ms to 5000ms
+    // after owner repro on a slower work machine; the prior 2s window
+    // wasn't enough to absorb chokidar's `awaitWriteFinish` +
+    // OS-level fs sync delay on every machine.
+    const cutoff = Date.now() - 5000
     for (const [b, ts] of map) {
       if (ts < cutoff) map.delete(b)
     }
@@ -856,13 +864,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // Echo of our own save — `lastSavedBodyRef.current` was
         // updated to the freshly-saved body before chokidar fired.
         // Sprint 11 walk-3 fix (BUG-107) — normalize trailing
-        // whitespace before comparing. The serializer strips
-        // trailing blank lines on round-trip, so disk vs. baseline
-        // can differ by `\n` alone after legit saves. Pre-fix this
-        // surfaced a false conflict whenever the disk file ended
-        // with a blank line.
-        const normalize = (s: string) => s.replace(/\s+$/, '')
-        if (normalize(diskBody) === normalize(lastSavedBodyRef.current)) return
+        // whitespace before comparing. BUG-122 (Sprint 16) — widened
+        // the normalize to cover BOM, CRLF→LF, and per-line trailing
+        // whitespace (shared with PageTab via conflictDiagnostic.ts).
+        // The earlier trailing-only normalize wasn't enough on a work
+        // machine that hit a re-surface; the shared helper documents
+        // the trade-offs.
+        if (normalizeForEchoCompare(diskBody) === normalizeForEchoCompare(lastSavedBodyRef.current)) return
 
         // BUG-099 fix — secondary echo check against the
         // recently-written set. Catches the race where chokidar's
@@ -871,7 +879,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // newer save has already advanced the baseline past this
         // event's body. Without this, the post-fix watcher would
         // false-positive on rapid consecutive saves.
+        // BUG-122 — also check the normalized form against the
+        // recently-written set, so cloud-sync agents that touch the
+        // file (BOM rewrite, line-ending normalization) don't
+        // false-conflict against our just-written body.
         if (recentlyWrittenBodiesRef.current.has(diskBody)) return
+        const normalizedDisk = normalizeForEchoCompare(diskBody)
+        for (const writtenBody of recentlyWrittenBodiesRef.current.keys()) {
+          if (normalizeForEchoCompare(writtenBody) === normalizedDisk) return
+        }
 
         const liveBody = editor.storage.markdown.getMarkdown() as string
         const isDirty = liveBody !== lastSavedBodyRef.current
@@ -903,6 +919,29 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
             diskBodyHead: diskBody.slice(0, 40),
             baselineHead: lastSavedBodyRef.current.slice(0, 40)
+          })
+          // BUG-122 — persist diagnostic to disk so owner can fetch
+          // post-repro on a production DMG (no DevTools required).
+          // Compares against the POST-NORMALIZE forms so the
+          // recorded firstDiffOffset matches what the comparison
+          // actually saw. Best-effort; never blocks the banner.
+          const ndisk = normalizeForEchoCompare(diskBody)
+          const nbase = normalizeForEchoCompare(lastSavedBodyRef.current)
+          void writeConflictLog({
+            ts: new Date().toISOString(),
+            path,
+            trigger: 'watcher-dirty',
+            surface: 'markdown',
+            diskLength: diskBody.length,
+            baselineLength: lastSavedBodyRef.current.length,
+            liveLength: liveBody.length,
+            recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
+            diskHead: ndisk.slice(0, 80),
+            baselineHead: nbase.slice(0, 80),
+            diskTail: ndisk.slice(-80),
+            baselineTail: nbase.slice(-80),
+            firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
+            appVersion: window.electron?.env?.appVersion ?? '?.?.?'
           })
           setExternalConflict({ diskBody })
         }
@@ -983,14 +1022,37 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           // line. Normalize trailing whitespace before comparing —
           // anything more substantive is a real conflict and still
           // surfaces the banner.
-          const normalize = (s: string) => s.replace(/\s+$/, '')
-          if (normalize(diskBody) !== normalize(lastSavedBodyRef.current)) {
+          // BUG-122 — use the shared widened normalize (covers BOM,
+          // CRLF→LF, per-line + doc-end trailing whitespace) so a
+          // cloud-sync agent's harmless touch doesn't trigger a false
+          // save-pre-conflict on the work machine.
+          const ndisk = normalizeForEchoCompare(diskBody)
+          const nbase = normalizeForEchoCompare(lastSavedBodyRef.current)
+          if (ndisk !== nbase) {
             console.log('[BUG-107 save-pre-conflict] real diff', {
               path,
               diskBodyLength: diskBody.length,
               baselineLength: lastSavedBodyRef.current.length,
               diskHead: diskBody.slice(0, 60),
               baselineHead: lastSavedBodyRef.current.slice(0, 60)
+            })
+            // BUG-122 — persist the diagnostic to disk so owner can
+            // fetch it on a production DMG without DevTools open.
+            void writeConflictLog({
+              ts: new Date().toISOString(),
+              path,
+              trigger: 'save-pre-reconcile',
+              surface: 'markdown',
+              diskLength: diskBody.length,
+              baselineLength: lastSavedBodyRef.current.length,
+              liveLength: null,
+              recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
+              diskHead: ndisk.slice(0, 80),
+              baselineHead: nbase.slice(0, 80),
+              diskTail: ndisk.slice(-80),
+              baselineTail: nbase.slice(-80),
+              firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
+              appVersion: window.electron?.env?.appVersion ?? '?.?.?'
             })
             setExternalConflict({ diskBody })
             return

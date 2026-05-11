@@ -70,6 +70,11 @@ import { injectCodeBlockCopyButtons, injectCodeBlockCopyStyle } from '../editor/
 import { formatCanvasSendPayload } from '../editor/sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
 import { decodeUtf8, encodeUtf8 } from '../editor/markdown-io'
+import {
+  normalizeForEchoCompare,
+  computeFirstDiffOffset,
+  writeConflictLog
+} from '../../utils/conflictDiagnostic'
 import type {
   PageSelectionSnapshot,
   HtmlOpRequest,
@@ -406,7 +411,10 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
   const trackRecentlyWrittenHtml = useCallback((html: string) => {
     const map = recentlyWrittenHtmlRef.current
     map.set(html, Date.now())
-    const cutoff = Date.now() - 2000
+    // BUG-122 (Sprint 16) — TTL bumped from 2000ms to 5000ms after
+    // owner repro of the markdown variant. Same conservative widening
+    // applied here for parity.
+    const cutoff = Date.now() - 5000
     for (const [h, ts] of map) {
       if (ts < cutoff) map.delete(h)
     }
@@ -602,20 +610,26 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
         if (cancelled) return
         const diskHtml = decodeUtf8(res.bytes)
 
-        // Echo of our own save. Normalize trailing whitespace before
-        // comparing — chokidar's awaitWriteFinish can fire after we've
-        // written but before any trailing-newline normalization the OS
-        // or downstream tool would apply. Cheaper than a full structural
-        // diff, sufficient for the byte-level echo case.
-        const normalize = (s: string) => s.replace(/\s+$/, '')
-        if (normalize(diskHtml) === normalize(lastSavedRef.current)) return
+        // Echo of our own save. BUG-122 — widened normalize covers
+        // BOM, CRLF→LF, per-line trailing + doc-end trailing
+        // whitespace (shared with MarkdownEditor via
+        // conflictDiagnostic.ts). The original trailing-only normalize
+        // re-surfaced in v0.6.14 on owner's work machine; the wider
+        // form catches the cloud-sync agent's harmless touches.
+        if (normalizeForEchoCompare(diskHtml) === normalizeForEchoCompare(lastSavedRef.current)) return
 
         // Secondary echo check against the recently-written set
         // (BUG-099 mirror). Catches the race where chokidar's event
         // arrived between the write completing and `lastSavedRef`
         // being assigned, OR where a newer save has already advanced
-        // the baseline past this event's body.
+        // the baseline past this event's body. BUG-122 — also check
+        // the normalized form against the recently-written set so a
+        // cloud-sync touch that adds/removes BOM doesn't false-conflict.
         if (recentlyWrittenHtmlRef.current.has(diskHtml)) return
+        const normalizedDisk = normalizeForEchoCompare(diskHtml)
+        for (const writtenHtml of recentlyWrittenHtmlRef.current.keys()) {
+          if (normalizeForEchoCompare(writtenHtml) === normalizedDisk) return
+        }
 
         const handle = canvasRef.current
         const liveHtml = handle?.serialize() ?? ''
@@ -648,6 +662,27 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
             recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
             diskHead: diskHtml.slice(0, 40),
             baselineHead: lastSavedRef.current.slice(0, 40)
+          })
+          // BUG-122 — persist diagnostic to ~/.claude/duo/logs/
+          // last-conflict.log so owner can fetch it post-repro on a
+          // production DMG without DevTools open. Best-effort.
+          const ndisk = normalizeForEchoCompare(diskHtml)
+          const nbase = normalizeForEchoCompare(lastSavedRef.current)
+          void writeConflictLog({
+            ts: new Date().toISOString(),
+            path,
+            trigger: 'watcher-dirty',
+            surface: 'canvas',
+            diskLength: diskHtml.length,
+            baselineLength: lastSavedRef.current.length,
+            liveLength: liveHtml.length,
+            recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
+            diskHead: ndisk.slice(0, 80),
+            baselineHead: nbase.slice(0, 80),
+            diskTail: ndisk.slice(-80),
+            baselineTail: nbase.slice(-80),
+            firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
+            appVersion: window.electron?.env?.appVersion ?? '?.?.?'
           })
           setExternalConflict({ diskHtml })
         }
@@ -716,14 +751,34 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
         try {
           const diskRes = await window.electron.files.read(path)
           const diskHtml = decodeUtf8(diskRes.bytes)
-          const normalize = (s: string) => s.replace(/\s+$/, '')
-          if (normalize(diskHtml) !== normalize(lastSavedRef.current)) {
+          // BUG-122 — widened normalize (shared with MarkdownEditor).
+          const ndisk = normalizeForEchoCompare(diskHtml)
+          const nbase = normalizeForEchoCompare(lastSavedRef.current)
+          if (ndisk !== nbase) {
             console.debug('[FOLLOWUP-019 save-pre-conflict] disk diverged from baseline', {
               path,
               diskHtmlLength: diskHtml.length,
               baselineLength: lastSavedRef.current.length,
               diskHead: diskHtml.slice(0, 60),
               baselineHead: lastSavedRef.current.slice(0, 60)
+            })
+            // BUG-122 — persist diagnostic to disk for production
+            // post-repro inspection (no DevTools required).
+            void writeConflictLog({
+              ts: new Date().toISOString(),
+              path,
+              trigger: 'save-pre-reconcile',
+              surface: 'canvas',
+              diskLength: diskHtml.length,
+              baselineLength: lastSavedRef.current.length,
+              liveLength: null,
+              recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
+              diskHead: ndisk.slice(0, 80),
+              baselineHead: nbase.slice(0, 80),
+              diskTail: ndisk.slice(-80),
+              baselineTail: nbase.slice(-80),
+              firstDiffOffset: computeFirstDiffOffset(ndisk, nbase),
+              appVersion: window.electron?.env?.appVersion ?? '?.?.?'
             })
             setExternalConflict({ diskHtml })
             return
