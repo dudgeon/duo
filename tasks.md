@@ -7233,7 +7233,41 @@ Visual benefit: the control sits with the surface; users find it intuitively whe
 
 ### ENH-084: Aux pane focus indicator — orange glow when active in side pane (parity with main)
 
-**Status:** 🔴 **DEFECT — Sprint 16 declined v4 attempt; carry forward to v0.6.16 instrumentation kickoff.** 2026-05-11 — owner green-lit a v4 attempt for Sprint 16 with a 3-hour bail-out budget. Re-reading the entry's "Why the next attempt should NOT just iterate on these patterns" section made the bail-out unambiguous: v4 needs a captured event-stream from a live click session FIRST (instrument every focus event source, owner clicks around for 60s, design fix from data). That's an instrumentation-then-user-walk-then-fix shape ill-fit to end-of-sprint cut prep; better timed with v0.6.16 kickoff where the smoke-walk infrastructure is fresh. Original three attempts + warning preserved below.
+**Status:** 🟢 **v4 INSTRUMENTATION PASS shipped Sprint 17 commit 6 (2026-05-11); awaiting owner click-around walk for event-stream data.** Three prior v1-v3 fix attempts failed because they assumed a single focus-signal architecture; v4 starts by capturing the actual event stream and designing the fix FROM data.
+
+**What v4 ships (instrumentation only — NO behavior change):**
+
+- **Column refs.** [`renderer/components/WorkingPane.tsx`](renderer/components/WorkingPane.tsx) declares `mainColRef` and `auxColRef` (HTMLDivElement) and attaches them to the main + aux column wrapper divs. The instrumentation uses `ref.current?.contains(target)` to classify each event as `subpane=main` / `subpane=aux` / `subpane=neither`.
+- **Document-level capture-phase listeners.** A new useEffect installs three listeners with `capture: true`:
+  - `focusin` — fires when ANY element (including iframe shells) gains focus.
+  - `mousedown` — fires on every mouse press; catches the click-to-focus pattern the v1 `onMouseDownCapture` was supposed to cover.
+  - `blur` — fires when focus leaves an element; pairs with focusin to track the full transition.
+- **Log format** — single-string args (`[ENH-084-v4] <ts> <event> subpane=<m|a|n> target=<tag#id.cls>`) so the renderer→main forwarder captures the full payload (object args show as `[object Object]` in the dev log even though devtools renders them in full).
+
+**Owner walk procedure (5 min total):**
+
+1. Open Duo dev with split view open (aux pane visible) — `duo split-view open <any-path>` to set up.
+2. Open devtools console; filter on `[ENH-084-v4]`. Or `tail -f /tmp/duo-dev-*.log | grep ENH-084-v4`.
+3. Click around between main and aux for ~60s — single-click rows in main, click into iframe content (canvas surface), click into aux header, click into aux iframe, etc.
+4. Pause, copy the captured log block, paste to Claude.
+
+**What the data names:**
+
+- Which event source FIRES correctly when the user clicks into the aux iframe. If `focusin` reports `subpane=aux` after an aux iframe click → v4 fix uses `focusin`. If `mousedown` does but `focusin` doesn't → v4 uses `mousedown`. If neither → iframe focus isn't propagating to parent doc at all (the v3 hypothesis) and we need a different signal source (CDP focus event from the BrowserManager? `onPageFocusGained` callback? a content-script in the canvas iframe?).
+- The cross-event-source DELTA — when one event fires `subpane=aux` and another fires `subpane=main` for the same physical click, which one wins (later timestamp)? That determines which signal we should reconcile against.
+
+**Hypotheses to confirm/falsify from the data:**
+
+| # | Hypothesis | What the stream shows |
+|---|---|---|
+| 1 | iframe focus doesn't reach parent's focusin | Click into iframe → NO `focusin subpane=aux`, but `mousedown subpane=aux` fires |
+| 2 | mousedown fires on column wrapper, not iframe content | Click in main iframe → `mousedown subpane=main target=<iframe>` (good); click in aux iframe → same with subpane=aux (good); if either misses, hypothesis is right |
+| 3 | column refs are stale | `mousedown subpane=neither` for clicks that should classify; column wrapper re-mounted |
+| 4 | The `onPageFocusGained` callback IS the right signal but it doesn't carry subpane info | The callback fires (visible from PageTab side) but our document listeners miss the iframe click — fix v4 routes `onPageFocusGained` through a subpane prop instead |
+
+**Instrumentation sunset.** Like BUG-079, these traces are intentionally diagnose-only. Once v4 fix lands, remove the listeners in the same commit.
+
+Original three attempts + warning preserved below.
 
 **Status (Sprint 5):** 🔴 **DEFECT — three attempts in v0.6.5 all failed; deferred to v0.6.6 Sprint 5.** Owner direction (2026-05-04, Phase 3 re-walk #2): *"glow never moves to split view -- please log the defect, incl failed attempts to fix it, then move on; this has wasted too much time this sprint."* Logging here as the canonical reference for the next attempt; do NOT ship a v4 without first studying these failures.
 

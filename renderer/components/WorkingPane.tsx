@@ -263,19 +263,68 @@ export function WorkingPane({
   // tabs they've just opened, not tabs from yesterday.
   const [tabOrder, setTabOrder] = useState<string[]>([])
 
-  // ENH-084 (v0.6.5) — DEFECT, deferred to v0.6.6. Three attempts at
-  // exclusive subpane focus all failed; see tasks.md § ENH-084 for the
-  // full history. The state + refs are kept (no harm; they're cheap)
-  // so a v4 attempt can pick up where v3 left off WITHOUT first
-  // reverting + re-adding scaffolding. The gate on WorkingTabStrip is
-  // restored to plain `focused` so the main strip glows correctly
-  // (v3's gate-on-stale-state caused the symptom owner reported:
-  // "glow never moves to split view"). AuxHeader keeps its gate but
-  // since focusedSubpane never updates, aux header simply never
-  // glows in v0.6.5 — accepted regression vs. v1 (where aux DID glow
-  // on click but main was broken). v4 must instrument the event
-  // sources before designing the fix.
+  // ENH-084 (v0.6.5) — DEFECT, deferred to v0.6.6 → carried 3 sprints →
+  // Sprint 17 commit 6 (2026-05-11) v4 INSTRUMENTATION PASS. Three v1-v3
+  // attempts at exclusive subpane focus all failed; see tasks.md § ENH-084
+  // for the full history. The state + refs are kept (no harm; they're
+  // cheap). v4 task entry warning: "design the fix from data, not theory."
+  // The useEffect below installs document-level focusin + mousedown
+  // listeners that log `[ENH-084-v4]` entries identifying which subpane
+  // the event targets (via mainColRef / auxColRef containment). Owner
+  // walks for ~60s clicking between main and aux; the captured stream
+  // names which signal correctly tracks subpane focus. Fix design follows.
   const [focusedSubpane] = useState<'main' | 'aux'>('main')
+
+  // ENH-084 v4 — column refs for the instrumentation pass below.
+  // Attached to the main + aux column wrappers; the focusin / mousedown
+  // listeners use `.contains(target)` to classify each event's subpane.
+  const mainColRef = useRef<HTMLDivElement | null>(null)
+  const auxColRef = useRef<HTMLDivElement | null>(null)
+
+  // ENH-084 v4 — INSTRUMENTATION ONLY. NO behavior change. Logs:
+  //   - focusin    target element + which subpane (main / aux / neither)
+  //   - mousedown  ditto
+  //   - blur       target element + which subpane it left
+  // Plus onPageFocusGained gets its own log when invoked. After owner
+  // walks for 60s, grep [ENH-084-v4] in /tmp/duo-dev-*.log to read the
+  // event stream + decide which signal source is the right driver.
+  useEffect(() => {
+    const subpaneOf = (target: EventTarget | null): 'main' | 'aux' | 'neither' => {
+      if (!(target instanceof Node)) return 'neither'
+      if (mainColRef.current?.contains(target)) return 'main'
+      if (auxColRef.current?.contains(target)) return 'aux'
+      return 'neither'
+    }
+    const describe = (target: EventTarget | null): string => {
+      if (!(target instanceof Element)) return target instanceof Node ? `<${target.nodeName}>` : 'none'
+      const tag = target.tagName.toLowerCase()
+      const id = target.id ? `#${target.id}` : ''
+      const cls = target.className && typeof target.className === 'string'
+        ? `.${target.className.split(/\s+/).slice(0, 2).join('.')}`
+        : ''
+      return `${tag}${id}${cls}`
+    }
+    // Use single-string log args so the renderer→main forwarder
+    // captures the full payload (object args render as [object Object]
+    // in the dev log even though devtools shows them in full).
+    const onFocusin = (e: FocusEvent) => {
+      console.log(`[ENH-084-v4] ${Date.now()} focusin subpane=${subpaneOf(e.target)} target=${describe(e.target)}`)
+    }
+    const onMousedown = (e: MouseEvent) => {
+      console.log(`[ENH-084-v4] ${Date.now()} mousedown subpane=${subpaneOf(e.target)} target=${describe(e.target)}`)
+    }
+    const onBlur = (e: FocusEvent) => {
+      console.log(`[ENH-084-v4] ${Date.now()} blur subpane=${subpaneOf(e.target)} target=${describe(e.target)}`)
+    }
+    document.addEventListener('focusin', onFocusin, true)
+    document.addEventListener('mousedown', onMousedown, true)
+    document.addEventListener('blur', onBlur, true)
+    return () => {
+      document.removeEventListener('focusin', onFocusin, true)
+      document.removeEventListener('mousedown', onMousedown, true)
+      document.removeEventListener('blur', onBlur, true)
+    }
+  }, [])
   // Keep tabOrder reconciled with current strip ids: append unknown
   // ids in their insertion order, drop ids no longer present. The
   // join is the dep — string identity is fine here, list is short.
@@ -605,6 +654,7 @@ export function WorkingPane({
           plumbed in v0.6.5; revisit in Sprint 5 with diagnostic
           instrumentation BEFORE writing the v4 fix. */}
       <div
+        ref={mainColRef}
         className="flex flex-col min-w-0"
         style={splitOpen ? { flex: `${(1 - activeSplitPct) * 100} 0 0%` } : { flex: '1 0 auto' }}
       >
@@ -617,6 +667,7 @@ export function WorkingPane({
             onResize={onAuxResize}
           />
           <div
+            ref={auxColRef}
             className="flex flex-col min-w-0 border-l border-paper-rule"
             style={{ flex: `${activeSplitPct * 100} 0 0%` }}
             // ENH-098 (Sprint 9 walk-1) — marker so focusPane('aux')
