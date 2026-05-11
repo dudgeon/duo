@@ -8,7 +8,8 @@
 
 | Item | Status |
 |---|---|
-| **ENH-141** — drop `duo` CLI into SHIM_DIR (`~/.claude/duo/bin/`) so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits + fold `addToShellPath` into the FirstLaunchBanner [Install] action so the click also auto-wires `~/.local/bin` to `~/.zshrc` for external Terminal/iTerm use | ✅ code complete, smoke walk pending |
+| **ENH-141** — drop `duo` CLI into SHIM_DIR (`~/.claude/duo/bin/`) so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits + fold `addToShellPath` into the FirstLaunchBanner [Install] action so the click also auto-wires `~/.local/bin` to `~/.zshrc` for external Terminal/iTerm use | ✅ code complete, smoke walked 2/PASS 3/SKIP |
+| **BUG-121** — closing the last browser tab respawns about:blank in a loop. Drop the BUG-020 + BUG-096 spawn-replacement guards (motivation retired in v0.6.13's FAQ removal); allow `tabs.length === 0` as a supported empty state; null-guard all `activeView()` callers; address-bar self-heal back to populated state | ✅ code complete, CLI-verified end-to-end |
 
 ## Sprint 16 candidates (carry-forward from Sprint 15)
 

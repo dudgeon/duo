@@ -5718,6 +5718,54 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### BUG-121: Closing the last browser tab respawns about:blank in a loop
+
+**Status:** 🟢 Shipped 2026-05-10 in Sprint 16 commit 2 (cut target v0.6.14).
+**Priority:** P0 — user-visible regression of the v0.6.13 FAQ retirement; surfaced concurrently with the enterprise ENH-141 report.
+**Filed:** 2026-05-10.
+
+**The problem.** Closing a browser tab when (a) it was the only tab, or (b) the only other tab was pinned in Split View aux, immediately spawned a fresh `about:blank` at the rightmost position. User closed it → spawn → close → spawn → ad infinitum. Originally observed in v0.6.14-source on an enterprise machine; reproducible on any install where the user closes the last main-strip tab.
+
+**Root cause.** Two intentional guards in `electron/browser-manager.ts § closeTab`:
+
+- **BUG-020 fix (line 389-410, dating to Stage 10)** — refused to drop below `tabs.length === 1` and spawned `newTabUrl()` to keep the strip non-empty. Original motivation: the boot-time FAQ tab was non-closeable; users had no way to dismiss it on first launch.
+- **BUG-096 fix (line 437-454, Phase 3c)** — refused to leave the main strip without an active tab when an aux tab was pinned; spawned a fresh `about:blank` to fill the main slot.
+
+The BUG-020 motivation evaporated in **v0.6.13 (ENH-135)** when the FAQ retired to `docs/legacy/faq.html` and the boot path stopped auto-opening hard-coded tabs. The replacement is pin-restore + the pack-canvas first-launch hook, which open whatever the install service seeded into `pins.json` (currently the duo-default pack's WDD canvas) — a tab that's fully closeable. The BUG-020 guard kept firing anyway, now without justification.
+
+**The fix.** Drop both spawn-replacement paths. Make `tabs.length === 0` (or `activeIndex === -1` because the only remaining tab is aux-pinned) a first-class supported state:
+
+- `closeTab` — simple splice + non-aux neighbor pick. If `findNonAux` returns -1, set `activeIndex = -1` and emit an empty `BrowserState` (`url: '', title: '', canGoBack/Forward: false, isLoading: false`). The aux tab (if any) keeps its bounds untouched.
+- `activeView()` — now returns `WebContentsView | null`. Pre-fix it threw on the impossible empty state; post-fix every caller (`navigate`, `goBack`, `goForward`, `reload`, `findInPage`, `stopFindInPage`, `getActiveUrl`, `getActiveTitle`, `openDevTools`, `closeDevTools`, `isDevToolsOpened`, `focusActive`, `getState`) guards the null case.
+- `navigate(url)` — when called in the empty state (no active view), self-heals by `addTab(url) + switchTab` instead of throwing. The address bar is the user's primary path out of the empty state.
+- `addTab(url)` — when `activeIndex === -1`, auto-activate the newly-added tab (setBounds + emitState). Mirrors switchTab's bounds + emit path. Lets the renderer's `+` button (which doesn't call switchTab after addTab) work from the empty state.
+- `switchTab` — guard the "shrink current view" line against the empty state.
+- `setBounds()` — already guarded with `tabs.length > 0 && activeId !== auxTabId`; the empty state is a benign no-op.
+
+**Files touched.**
+
+| File | Change |
+|---|---|
+| `electron/browser-manager.ts` | drop both spawn-replacement blocks; nullable `activeView()`; null-guards on all callers; `navigate` self-heal; `addTab` auto-activate from empty state; `switchTab` empty-state guard |
+
+**Verification done (2026-05-10 dev session).**
+
+1. `npm run typecheck` clean — all activeView() consumers retyped via `?.` or explicit null-guards.
+2. End-to-end CLI walk via `duo close`:
+   - Initial state: 2 tabs (WDD + smoke-walk page).
+   - `duo close 2` → 1 tab remains, WDD active. ✅
+   - `duo close 1` → **0 tabs**, no respawn (this is the critical assertion). ✅
+   - `duo open <path>` from empty state → 1 tab, active, url + title correct via `duo url` / `duo title`. ✅
+3. No regressions in CDP attach, off-host routing, or aux-pin flows (no code paths altered for those — only the spawn-replacement blocks + the null guards).
+
+**What this changes for users.**
+
+Closing the last browser tab now leaves the browser pane in an empty state — address bar shows empty URL, the main slot is collapsed (1×1 WCV), the working-pane tab strip shows only file tabs. Typing a URL in the address bar self-heals back to a populated state. Clicking the `+` button from the empty state opens a fresh about:blank and activates it.
+
+**Stale stuck-state recovery.** Users who upgraded into a session-state that already had a stuck about:blank can now close it — the new closeTab path doesn't respawn. No data migration needed; the empty state is reached on next close.
+
+---
+
 ### ENH-141: Drop `duo` CLI into SHIM_DIR so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits
 
 **Status:** 🟢 Shipped 2026-05-10 in Sprint 16 commit 1 (cut target v0.6.14).

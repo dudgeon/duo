@@ -230,6 +230,25 @@ export class BrowserManager {
     // Park off-screen until activated
     view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
 
+    // BUG-121 — auto-activate when filling the empty state. Pre-fix,
+    // tabs.length was always ≥ 1 (the BUG-020 + BUG-096 guards refused
+    // to drop below 1 tab), so `addTab` didn't need to touch
+    // activeIndex — the user's path was always "tab exists" → switch
+    // among existing tabs. Post-fix, activeIndex can be -1 (closed the
+    // last main tab; only aux remains or no tabs at all). Calls into
+    // addTab that don't follow up with switchTab — notably the
+    // renderer's `+` button via useBrowserState.addTab — would
+    // otherwise leave the user with a tab they can't see. Activating
+    // here mirrors switchTab's bounds + state-emit path; downstream
+    // callers (openTab, restoreFromSession) that want a specific tab
+    // active still drive it via switchTab after one or more addTab
+    // calls.
+    if (this.activeIndex === -1) {
+      this.activeIndex = this.tabs.length - 1
+      view.setBounds(this.currentBounds)
+      this.emitState()
+    }
+
     this.wireEvents(view)
     this.wireKeyForwarding(view)
 
@@ -319,8 +338,12 @@ export class BrowserManager {
     }
     if (idx === this.activeIndex) return { ok: true }
 
-    // Shrink current active view
-    this.tabs[this.activeIndex].view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+    // Shrink current active view. BUG-121 — guard against the empty
+    // state (activeIndex === -1 between closeTab and the next addTab/
+    // switchTab self-heal).
+    if (this.activeIndex >= 0 && this.activeIndex < this.tabs.length) {
+      this.tabs[this.activeIndex].view.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+    }
 
     this.activeIndex = idx
     this.tabs[idx].view.setBounds(this.currentBounds)
@@ -378,54 +401,41 @@ export class BrowserManager {
       if (this.closedTabs.length > CLOSED_TAB_CAP) this.closedTabs.shift()
     }
 
-    // BUG-020 fix — closing the last tab no longer hard-fails. Instead,
-    // open a fresh new-tab page first, then close the requested tab.
-    // Net effect: 1 tab remains, but it's a fresh about:blank.
-    // Mirrors Notion's "close last tab → open blank tab" pattern.
-    // Why: the pre-fix behavior left users with no way to dismiss the
-    // boot-time FAQ tab (it's the first/only tab on first launch and
-    // was non-closeable). With the new behavior, ⌘W on the FAQ
-    // replaces it with a blank tab the user can navigate from.
-    if (this.tabs.length === 1) {
-      this.addTab(newTabUrl())
-      // The new tab is appended to this.tabs[]. The original (last)
-      // tab keeps its index; addTab leaves activeIndex unchanged.
-      // Switch to the new tab so the user lands on it after the
-      // close completes.
-      const newTabId = this.tabs[this.tabs.length - 1].id
-      try { await this.switchTab(newTabId) } catch { /* best-effort */ }
-      // The original tab's index may have shifted? No — addTab pushes
-      // to the END, the original is still at index 0 (or wherever).
-      // Re-resolve the close target by id.
-      const newIdx = this.tabs.findIndex(t => t.id === n)
-      if (newIdx === -1) return { ok: true } // race: target already gone
-      const [removed] = this.tabs.splice(newIdx, 1)
-      try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }
-      try { removed.view.webContents.close() } catch { /* ignore */ }
-      // After removing the original, if it was at an index < activeIndex,
-      // shift activeIndex down.
-      if (newIdx < this.activeIndex) this.activeIndex -= 1
-      this.emitTabs()
-      return { ok: true }
-    }
-
+    // BUG-121 (2026-05-10) — closing tabs no longer spawns a replacement
+    // about:blank. The retired BUG-020 + BUG-096 guards used to refuse
+    // to drop below 1 main-strip tab (BUG-020) or below 1 main-strip
+    // tab when an aux tab was pinned (BUG-096), spawning a fresh
+    // about:blank in either case. That created a loop on the work
+    // machine: user closed an about:blank → guard spawned a fresh
+    // about:blank → user closed it → guard spawned another → ad
+    // infinitum.
+    //
+    // Original BUG-020 motivation was "user can't dismiss the
+    // boot-time FAQ tab," but the FAQ retired in v0.6.13 (ENH-135)
+    // and the boot path no longer auto-opens a hard-coded tab — pin-
+    // restore + the pack-canvas first-launch hook open whatever the
+    // install service seeded into pins.json (currently the duo-default
+    // pack's WDD canvas), and that tab is fully closeable.
+    //
+    // Net behavior change: tabs.length === 0 (or only an aux-pinned
+    // tab remains) is now a valid empty state with activeIndex = -1.
+    // The renderer's BrowserRenderer-side bounds-setter still fires,
+    // but main's setBounds() guards on `tabs.length > 0 && activeId
+    // !== auxTabId` so the empty state is a benign no-op. Address-bar
+    // navigation and `duo navigate` in an empty state route through
+    // navigate(), which now calls addTab+switchTab as a self-heal
+    // (see navigate() below). activeView() returns null in the empty
+    // state; goBack/goForward/reload/find/devtools/etc all guard.
     const [removed] = this.tabs.splice(idx, 1)
     try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }
     try { removed.view.webContents.close() } catch { /* ignore */ }
 
-    // If we removed the active tab, activate its neighbor.
     if (idx === this.activeIndex) {
-      // Phase 3c BUG-096 fix — when picking the next main-active tab,
-      // SKIP the aux-pinned tab. Pre-fix, closing the last main-strip
-      // browser tab while another was pinned in aux made the aux tab
-      // the new main-active, then `setBounds(currentBounds)` overwrote
-      // its aux bounds with main bounds — the aux pane went blank
-      // (the WCV repositioned over the now-empty main slot, leaving
-      // aux nothing to render).
+      // The active tab was closed. Pick a neighbor, SKIPPING the aux
+      // tab (its WCV has aux-specific bounds; activating it as main
+      // would overwrite them and leave the aux pane blank — the
+      // Phase 3c findNonAux logic, preserved here).
       const findNonAux = (start: number) => {
-        // Search left first (matches the "prefer left neighbor"
-        // semantics of the pre-fix code); then right if nothing
-        // qualifies on the left.
         for (let j = start; j >= 0; j--) {
           if (this.tabs[j] && this.tabs[j].id !== this.auxTabId) return j
         }
@@ -436,22 +446,12 @@ export class BrowserManager {
       }
       const nextMainIdx = findNonAux(Math.min(idx - 1, this.tabs.length - 1))
       if (nextMainIdx === -1) {
-        // Only the aux tab remains. Spawn a fresh about:blank so the
-        // main pane has something to show; the aux tab keeps its aux
-        // bounds untouched. Mirrors the existing "closing the last
-        // tab → open blank tab" pattern (BUG-020 family).
-        this.addTab(newTabUrl())
-        const blankIdx = this.tabs.findIndex(t => t.id !== this.auxTabId)
-        if (blankIdx !== -1) {
-          this.activeIndex = blankIdx
-          this.tabs[blankIdx].view.setBounds(this.currentBounds)
-          this.emitState()
-          try {
-            await this.cdp.attach(this.tabs[blankIdx].view.webContents)
-          } catch (err) {
-            console.warn('[BrowserManager] CDP attach failed on closeTab blank-spawn:', err)
-          }
-        }
+        // No non-aux tabs remain. Enter the empty state. emitState()
+        // surfaces an empty BrowserState (url='', title='', etc.) so
+        // the renderer's address bar + chrome reflect "no active tab."
+        // The aux tab (if any) keeps its own bounds untouched.
+        this.activeIndex = -1
+        this.emitState()
       } else {
         this.activeIndex = nextMainIdx
         const newActive = this.tabs[nextMainIdx]
@@ -502,7 +502,22 @@ export class BrowserManager {
   // ── Navigation ─────────────────────────────────────────────────────────────
 
   async navigate(url: string): Promise<{ ok: boolean; url: string; title: string }> {
+    // BUG-121 self-heal — typing a URL into the address bar in the
+    // empty state (no active main tab) creates a new tab instead of
+    // throwing. The address bar is the user's primary path back out
+    // of the empty state; making it route through addTab+switchTab is
+    // the simplest fix that doesn't require a new "create then
+    // navigate" IPC verb.
     const view = this.activeView()
+    if (!view) {
+      const entry = this.addTab(url)
+      try { await this.switchTab(entry.id) } catch { /* best-effort */ }
+      return {
+        ok: true,
+        url: entry.view.webContents.getURL() || url,
+        title: entry.view.webContents.getTitle() || ''
+      }
+    }
     // BUG-040 hole-fix: programmatic loadURL doesn't fire `will-navigate`,
     // so the address-bar input path bypassed the off-host route check on
     // first try. Gate here too.
@@ -518,17 +533,21 @@ export class BrowserManager {
   }
 
   goBack(): void {
-    const wc = this.activeView().webContents
+    const view = this.activeView()
+    if (!view) return
+    const wc = view.webContents
     if (wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack()
   }
 
   goForward(): void {
-    const wc = this.activeView().webContents
+    const view = this.activeView()
+    if (!view) return
+    const wc = view.webContents
     if (wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward()
   }
 
   reload(): void {
-    this.activeView().webContents.reload()
+    this.activeView()?.webContents.reload()
   }
 
   // ── Find-in-page (ENH-028) ────────────────────────────────────────────────
@@ -540,41 +559,44 @@ export class BrowserManager {
 
   findInPage(query: string, options?: { findNext?: boolean; forward?: boolean }): void {
     if (!query) return
-    const wc = this.activeView().webContents
-    wc.findInPage(query, {
+    const view = this.activeView()
+    if (!view) return
+    view.webContents.findInPage(query, {
       findNext: options?.findNext,
       forward: options?.forward !== false
     })
   }
 
   stopFindInPage(): void {
-    const wc = this.activeView().webContents
+    const view = this.activeView()
+    if (!view) return
     // 'clearSelection' drops the find highlight without leaving the
     // last-found range selected (which would interfere with the next
     // user keystroke / Send → Duo selection).
-    wc.stopFindInPage('clearSelection')
+    view.webContents.stopFindInPage('clearSelection')
   }
 
   getActiveUrl(): string {
-    return this.activeView().webContents.getURL() || 'about:blank'
+    return this.activeView()?.webContents.getURL() || ''
   }
 
   getActiveTitle(): string {
-    return this.activeView().webContents.getTitle() || ''
+    return this.activeView()?.webContents.getTitle() || ''
   }
 
   // ENH-123 — `duo devtools --browser-pane` opens the active browser
   // tab's DevTools (Elements / Console / Network etc. for that page).
   // Distinct from main-renderer DevTools (handled in electron/main.ts).
   openDevTools(opts: { mode?: 'right' | 'bottom' | 'undocked' | 'detach' } = {}): void {
-    this.activeView().webContents.openDevTools({ mode: opts.mode ?? 'right' })
+    this.activeView()?.webContents.openDevTools({ mode: opts.mode ?? 'right' })
   }
   closeDevTools(): void {
-    const wc = this.activeView().webContents
-    if (wc.isDevToolsOpened()) wc.closeDevTools()
+    const view = this.activeView()
+    if (!view) return
+    if (view.webContents.isDevToolsOpened()) view.webContents.closeDevTools()
   }
   isDevToolsOpened(): boolean {
-    return this.activeView().webContents.isDevToolsOpened()
+    return this.activeView()?.webContents.isDevToolsOpened() ?? false
   }
 
   // ── External-domain routing (BUG-040) ─────────────────────────────────────
@@ -614,7 +636,7 @@ export class BrowserManager {
   // Move keyboard focus to the active browser view. Used by ⌘` pane-cycling.
 
   focusActive(): void {
-    this.activeView().webContents.focus()
+    this.activeView()?.webContents.focus()
   }
 
   // ── Bounds ─────────────────────────────────────────────────────────────────
@@ -794,7 +816,14 @@ export class BrowserManager {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  private activeView(): WebContentsView {
+  // BUG-121 (2026-05-10) — return null in the empty state (zero tabs,
+  // or activeIndex parked at -1 because the only remaining tab is
+  // aux-pinned). All callers now guard the null case; pre-fix, every
+  // caller assumed a non-null active view and the empty state was
+  // architecturally impossible because the BUG-020 + BUG-096 guards
+  // spawned a replacement about:blank.
+  private activeView(): WebContentsView | null {
+    if (this.activeIndex < 0 || this.activeIndex >= this.tabs.length) return null
     return this.tabs[this.activeIndex].view
   }
 
@@ -1035,7 +1064,15 @@ export class BrowserManager {
   }
 
   getState(): BrowserState {
-    const wc = this.activeView().webContents
+    // BUG-121 — emit an empty BrowserState when there's no active main
+    // tab. The renderer's address bar reads url + canGoBack/Forward
+    // from this; an empty url + zeroed nav state is the natural
+    // "nothing to drive" presentation.
+    const view = this.activeView()
+    if (!view) {
+      return { url: '', title: '', canGoBack: false, canGoForward: false, isLoading: false }
+    }
+    const wc = view.webContents
     return {
       url: wc.getURL() || 'about:blank',
       title: wc.getTitle() || '',
