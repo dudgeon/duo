@@ -795,24 +795,25 @@ app.whenReady().then(async () => {
   })
 })
 
-// Stage 21c — flush any pending session-state write before quit so
-// the user's last state lands on disk even on force-quit / cmd-Q
-// during a debounce window.
-app.on('before-quit', () => {
-  void sessionStateService.flush()
-  // Issue #27 — flush pending history writes too.
-  void browserHistory.flush()
-  // ENH-013 — stop polling.
+// BUG-119 — `filesService.dispose()` (chokidar.close → fsevents
+// threadsafe-function release) MUST run before Node env teardown.
+// On darwin `window-all-closed` doesn't fire on Cmd+Q, so disposing
+// there leaks the watcher into env shutdown and `fse_instance_destroy`
+// SIGABRTs against an already-destroyed mutex. `before-quit` is the
+// earliest reliable quit hook on every platform; do all teardown here.
+//
+// Also flushes session-state + browser-history here (Stage 21c +
+// issue #27) so a force-quit during a debounce window doesn't lose
+// the user's last state.
+app.on('before-quit', async () => {
   claudePresence.stop()
+  ptyManager.dispose()
+  await filesService.dispose()
+  await sessionStateService.flush()
+  await browserHistory.flush()
 })
 
 app.on('window-all-closed', () => {
-  ptyManager.dispose()
-  void filesService.dispose()
-  // Best-effort final flush — `before-quit` already fired but the
-  // disk write may still be in flight.
-  void sessionStateService.flush()
-  void browserHistory.flush()
   if (process.platform !== 'darwin') app.quit()
 })
 

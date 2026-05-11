@@ -1,37 +1,70 @@
-# Active sprint state — Sprint 16 (in flight; cut target v0.6.14)
+# Active sprint state — Sprint 16 (in flight; cut target v0.6.15)
 
-**Theme: Install-path hardening.** Opened 2026-05-10 from an enterprise user report exposing that the `duo` CLI was unreachable by name inside Claude Code sandboxes (both install targets — `~/.claude/bin/duo` for `duo install`, `~/.local/bin/duo` for the Electron banner — landed at paths that aren't on PTY $PATH). Sprint 16 commit 1 is the urgent P0 fix (ENH-141); the rest of the sprint's shape depends on owner direction (BUG-119 quit-crash candidate + ENH-140 orphan cleanup pairs naturally with the install-service work just landed).
+**Theme (owner pick 2026-05-10):** **A+B combined — install/upgrade close-out + stability sweep.** Sprint 16 commits 1+2 (ENH-141 install-path hardening + BUG-121 about:blank respawn loop) shipped as v0.6.14 hotfix the same day Sprint 16 opened. The rest of the sprint pairs the natural continuation of the install-hardening chapter (ENH-140 orphan cleanup + pin URL auto-migration + op #8 pivot) with a focused stability pass on genuinely-open recurring bugs (BUG-085 layer-3 + BUG-079 latency probe + BUG-093 clean repro + ENH-084 aux glow v4).
 
-> **Status: Sprint 16 commit 1 in flight (ENH-141).** Code complete, typecheck clean, CLI binary rebuilt, CLI-side install path verified end-to-end via PTY-PATH simulation. Banner-side install end-to-end smoke deferred to v0.6.14 smoke walk (computer-use screenshot capture was OS-level broken during dev verification). Sprint 15 detail in § "Sprint 15 retrospective" below.
+> **Status: v0.6.14 shipped 2026-05-10; v0.6.15 cut target.** Sprint plan locked via 2-stage AUQ (theme pick + B-bucket pick) on 2026-05-10. v0.6.14 deliverables ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) detailed under "v0.6.14 cut record" below. Sprint 15 detail in § "Sprint 15 retrospective".
 
-## Sprint 16 commits so far
+## Sprint 16 commits already shipped (v0.6.14)
 
 | Item | Status |
 |---|---|
-| **ENH-141** — drop `duo` CLI into SHIM_DIR (`~/.claude/duo/bin/`) so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits + fold `addToShellPath` into the FirstLaunchBanner [Install] action so the click also auto-wires `~/.local/bin` to `~/.zshrc` for external Terminal/iTerm use | ✅ code complete, smoke walked 2/PASS 3/SKIP |
-| **BUG-121** — closing the last browser tab respawns about:blank in a loop. Drop the BUG-020 + BUG-096 spawn-replacement guards (motivation retired in v0.6.13's FAQ removal); allow `tabs.length === 0` as a supported empty state; null-guard all `activeView()` callers; address-bar self-heal back to populated state | ✅ code complete, CLI-verified end-to-end |
+| **ENH-141** — drop `duo` CLI into SHIM_DIR (`~/.claude/duo/bin/`) so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits + fold `addToShellPath` into the FirstLaunchBanner [Install] action so the click also auto-wires `~/.local/bin` to `~/.zshrc` for external Terminal/iTerm use | ✅ shipped v0.6.14 (smoke walk 2/PASS 3/SKIP — BANNER-UI + WORK-MACHINE rows pending the enterprise install) |
+| **BUG-121** — closing the last browser tab respawns about:blank in a loop. Dropped BUG-020 + BUG-096 spawn-replacement guards (motivation retired in v0.6.13's FAQ removal); `tabs.length === 0` is now a supported empty state; null-guarded all `activeView()` callers | ✅ shipped v0.6.14 (CLI-verified end-to-end) |
 
-## Sprint 16 candidates (carry-forward from Sprint 15)
+## Sprint 16 remaining plan (post-v0.6.14, cut target v0.6.15)
+
+### A-bucket — Install/upgrade close-out
 
 | ID | Title | Status | Estimate |
 |---|---|---|---|
-| **BUG-119** | fsevents shutdown race — SIGABRT every Duo quit (pre-existing pre-v0.6.13; surfaced at Sprint 15 close-out) | 🟢 P0 candidate — fix is ~10 LOC in `electron/main.ts` (move `filesService.dispose()` from `window-all-closed` to `before-quit`) | ~30 min |
-| **ENH-137** | Beginner's Guide content — drops into `packs/duo-default/canvases/beginners-guide.html` via pack-version bump | 🟡 awaiting owner-authored draft | Owner draft + Claude polish + 30 min plumbing |
-| **ENH-140** | install-service should track + cleanup orphan files on upgrade (provenance manifest at `~/.claude/duo/installed-files.json`) | 🟡 P2 — graceful degradation works today (orphans are inert); meaningful work to do it right | ~half-day |
-| **ENH-139** | PackManifest schema extension for markdown editable / markdown-preview / browser kinds | 🟡 deferred — gated on ENH-137 picking markdown OR a future pack needing explicit browser routing | ~half-day when triggered |
-| **FOLLOWUP: pin URL auto-migration** | install-service detects `pins.json` entries pointing at v(N-1) paths and rewrites to v(N) successors (cleanest fix for the "two WDD tabs" upgrade transient documented in v0.6.13 CHANGELOG) | 🟡 P2 — pairs with ENH-140's provenance manifest | ~1 hr after ENH-140 |
-| **FOLLOWUP: op #8 pivot to pack-defaults iteration** | install-service iterates `packs/*/PACK.json` for `defaults[].pin: true` and seeds pins.json dynamically (removes the hardcoded WDD URL literal that Sprint 15 left as transitional) | 🟡 P2 — depends on owner picking direction | ~1 hr |
+| **BUG-119** | fsevents shutdown race — SIGABRT every Duo quit. Move `filesService.dispose()` from `window-all-closed` into `before-quit` so chokidar releases its native fsevents handle before Electron tears down the V8 isolate. | 🟢 P0 — recommended Sprint 16 commit 1 (smallest, biggest visible win) | ~30 min |
+| **ENH-140** | install-service should track + cleanup orphan files on upgrade. Provenance manifest at `~/.claude/duo/installed-files.json`; mirror op records every path it writes, upgrade op subtracts current-bundle paths from prior-bundle paths and removes the difference. Closes the v0.6.13 known orphans (`help/faq.html` + `packs/claude-code-basics/`). | 🟢 P0 | ~half-day |
+| **FOLLOWUP: pin URL auto-migration** | install-service detects `pins.json` entries pointing at v(N-1) paths (e.g. `~/.claude/duo/help/what-duo-does.html`) and rewrites to v(N) successors (`~/.claude/duo/packs/duo-default/canvases/what-duo-does.html`). Closes the documented "two WDD tabs" transient from v0.6.13 CHANGELOG. | 🟢 P1 — pairs with ENH-140's provenance manifest | ~1 hr |
+| **FOLLOWUP: op #8 pivot to pack-defaults iteration** | install-service iterates `packs/*/PACK.json` for `defaults[].pin: true` entries and seeds pins.json dynamically. Removes the hardcoded WDD URL literal Sprint 15 left as transitional in `install-service.ts § op #8`. | 🟢 P1 | ~1 hr |
 
-## Open questions needing Geoff's input
+**A-bucket total:** ~1 day. End state: enterprise-friendly install + upgrade story closes cleanly — fresh installs land everything in canonical locations, upgrades clean up after themselves, pinned tabs survive content reshuffles.
+
+### B-bucket — Stability sweep (owner picked all 4 candidates 2026-05-10)
+
+| ID | Title | Status | Estimate |
+|---|---|---|---|
+| **BUG-085 layer-3** | Markdown editor external-write reconciliation close-out. Layers 1 (watcher in `MarkdownEditor.tsx`) + 2 (echo guard via BUG-099 `recentlyWrittenBodiesRef`) already shipped in v0.6.7+v0.6.8; **layer 3 owed**: route "rewrite this section" prompts through `duo doc write --replace-selection` instead of raw `Write`. Skill + agent doc updates so future Claude doesn't bypass the editor's TipTap pipeline. | 🟢 P0 — silent data-loss risk (real user trust impact) | ~half-day |
+| **BUG-093 clean-repro investigation** | Right-click tab → Move to Split View crashes the renderer. Instrumented in v0.6.7 (WorkingPane drops to localized error panel; rest of app keeps running). FOLLOWUP-013 is the clean-repro tracking item — needs a reliable trigger sequence to bisect. | 🟢 P0 — when it fires, real crash from real user gesture | ~half-day if repro lands quickly |
+| **BUG-079 tab-cycle latency probe** | ⌃⇧\` reverse-cycle has multi-second latency + requires re-presses (recurring class — BUG-001/021/038/042/076 each shipped fixes; new latency mode emerged). Diagnose: IPC round-trip on WCV focus change OR `activeIdRef` race after BUG-076's `view.webContents.focus()` add. | 🟡 P1 — recurring chord that owner re-flags every few sprints | ~half-day diagnosis + fix |
+| **ENH-084 aux focus glow v4** | Aux pane focus indicator (orange glow when active in side pane). Three v0.6.5 attempts all failed (v1 mousedownCapture missed iframe clicks; v2 gate-removal sacrificed exclusivity; v3 focusin listener didn't reach iframe focus). v4 needs a fresh architectural read — probably tracks main-process focus events via `before-input-event` + an IPC broadcast rather than fighting iframe focus boundaries from the renderer. | 🟡 P2 — owner explicitly green-lit a 4th attempt | ~half to full day (risky; bail-out plan: log v4 defect alongside v1-v3 + move on if no progress within ~3 hr) |
+
+**B-bucket total:** ~1.5–2 days.
+
+**Sprint 16 total budget:** ~2.5–3 days remaining work + cut.
+
+## Recommended commit order
+
+1. **BUG-119** (30 min) — smallest, fixes every-quit crash dialog. Standalone.
+2. **BUG-085 layer-3** (half-day) — skill/agent docs; no renderer code; clean unit-of-work.
+3. **ENH-140 + pin URL auto-migration + op #8 pivot** (~1 day) — A-bucket cluster, all touch `install-service.ts`. Land as one commit (or 2 if op #8 pivot wants its own diff).
+4. **BUG-079 latency probe** (half-day) — diagnostic first via DevTools + `duo dom` instrumentation; pick fix shape after root cause clear.
+5. **BUG-093 clean-repro** (half-day) — bisect via instrumented build. May complete in a single afternoon if repro lands; otherwise file owned findings + move on.
+6. **ENH-084 v4** (last — risky) — set 3-hour bail-out; if no traction, log v4 defect alongside v1-v3 and defer to v0.6.16.
+7. **v0.6.15 cut** via cut-version skill.
+
+## Open questions still needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| Sprint 16 theme — which carry-forwards to commit to vs defer? BUG-119 quit-crash fix is the lowest-effort, highest-visibility win; ENH-137 Beginner's Guide needs owner draft as the gating input. | Start of Sprint 16 |
-| **ENH-118 image-type handling** — animate GIFs by default vs freeze first-frame Slack-style? SVG safety review owed? HEIC/RAW reject vs convert? | Before Sprint 16 picks up any image-polish work |
+| **ENH-137 Beginner's Guide** — when's the owner-authored draft landing? Drops into `packs/duo-default/canvases/beginners-guide.html` via pack-version bump (existing users see it auto-fire). | Surfaces in v0.6.15+ when draft exists |
+| **ENH-118 image-type handling** — animate GIFs by default vs freeze first-frame Slack-style? SVG safety review owed? HEIC/RAW reject vs convert? | Before any image-polish sprint |
 | **ENH-101 expand/collapse chord semantic** — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs full-screen (redundant; kill the chord)? | When the chord re-surfaces |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up — combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before further selection-pill iteration |
 | Backlinks panel / graph view (Obsidian cluster) — anchor for a future sprint? Or defer further? | When wikilinks-autocomplete usage tells us whether the next-tier capability has demand |
+
+## v0.6.14 cut record (2026-05-10)
+
+Shipped same day Sprint 16 opened. [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.6.14) (signed + notarized + stapled + validated DMG).
+
+- **ENH-141** install-path hardening — `cli/duo install` tier-1 target moved from `~/.claude/bin/duo` → `~/.claude/duo/bin/duo` (the SHIM_DIR, already on PTY $PATH for the claude shim). Electron `installCli()` now also drops the SHIM_DIR symlink alongside its `~/.local/bin/duo` copy. FirstLaunchBanner [Install] click now folds `addToShellPath()` for external-terminal use. Reaches PTY $PATH inside both Duo terminals and managed Claude Code installs (where `.zshrc` writes are sandboxed out).
+- **BUG-121** browser-tab respawn — Dropped BUG-020 + BUG-096 spawn-replacement guards (their motivation retired in v0.6.13's FAQ removal). `tabs.length === 0` is now a supported empty state; `activeView()` returns `WebContentsView | null`; all callers null-guarded. Closing the last browser tab no longer triggers an about:blank respawn loop. `navigate()` self-heals from the empty state via addTab+switchTab.
+- **Smoke walk:** 2 PASS / 3 SKIP / 0 FAIL ([results](smoke-walks/v0.6.14.results.md)). 2 of the 3 SKIPs (BANNER-UI + WORK-MACHINE) are deferred to the production smoke on the enterprise install — owed before any "Sprint 16 done" claim.
 
 ---
 

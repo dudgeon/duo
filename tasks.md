@@ -5025,9 +5025,9 @@ c. **PageTab parity (deferred per CLAUDE.md § 4).** Same gap exists for the HTM
 
 ### BUG-103: Markdown editor blockquotes render with literal curly quotation marks instead of left-border style
 
-**Status:** 🟡 Open (filed from idle-thoughts sweep).
+**Status:** ✅ **FIXED** in v0.6.12 (commit `18725c7`, 2026-05-09). Added `quotes: none` + `::before { content: none } / ::after { content: none }` reset at `renderer/styles/globals.css § .duo-editor-prose blockquote` (lines 346-365), neutralizing the Tailwind Typography prose plugin's default curly-quote pseudo-elements. Owner confirmed fixed during Sprint 16 planning (2026-05-10) — status line was stale from the original Sprint 12 fix landing.
 **Priority:** Medium (visible cosmetic bug; affects every blockquote a user types in the markdown editor; blockquotes are a common markdown primitive).
-**Filed:** 2026-05-08 (idle-thoughts sweep).
+**Filed:** 2026-05-08 (idle-thoughts sweep). **Shipped:** 2026-05-09 (v0.6.12).
 
 **Repro.** In the markdown editor (TipTap), type:
 ```markdown
@@ -5875,9 +5875,9 @@ On each install / upgrade:
 
 ### BUG-119: fsevents native-module shutdown race — SIGABRT every time Duo quits
 
-**Status:** 🟡 Open. Filed 2026-05-10 from Sprint 15 close-out (post-v0.6.13 cut). Owner reports the macOS crash dialog appears every time Duo quits.
+**Status:** ✅ **FIXED** in Sprint 16 commit 3 (2026-05-11). Moved `ptyManager.dispose()` + `await filesService.dispose()` (plus the session-state + browser-history flushes) into the `before-quit` hook in [`electron/main.ts`](electron/main.ts) so chokidar releases its fsevents threadsafe function while the mutex is still alive. `window-all-closed` is now just the non-darwin `app.quit()` plumbing. Verified via osascript Quit Apple Event (mimics Cmd-Q lifecycle, fires before-quit): Electron exited with code 0, no new Duo crash report in `~/Library/Logs/DiagnosticReports/`.
 **Priority:** Medium — cosmetic (crash happens AFTER app shutdown; no data loss; sessions/pins persist correctly), but the macOS crash dialog is annoying and looks bad. Not user-facing on a daily basis but unprofessional.
-**Filed:** 2026-05-10.
+**Filed:** 2026-05-10. **Shipped:** 2026-05-11.
 
 **Symptom.** Every quit (Cmd+Q, SIGTERM, or normal close) produces a macOS crash report:
 
