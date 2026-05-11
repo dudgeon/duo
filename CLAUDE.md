@@ -609,21 +609,25 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 16 (pending; cut target v0.6.14)
+## Active sprint — Sprint 16 (in flight; v0.6.14 shipped, cut target for next v0.6.15)
 
-**v0.6.13 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.13)) — Sprint 15 closed: FTUX content → packs install-pipeline reshape. Tag pushed; DMG on GitHub Release. `packs/duo-default/` built-in pack ships `what-duo-does.html`; `PackManifest.builtIn` schema flag added; FAQ retired to `docs/legacy/`; `defaultLandingUrl()` + `helpUrl()` + boot-default tab logic deleted; `packs/claude-code-basics/` → `examples/lesson-pack-template/`. Pack-canvas / pinned-tab idempotency contract ADR documents how the first-launch hook cooperates with pin-restore for upgrade users. BUG-116 (dist-signed DMG version pinning) + BUG-118 (cut-version cli/duo sanity-check) fixed.
+**v0.6.14 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) — Sprint 16 commits 1+2: enterprise hotfix. **ENH-141** install-path hardening — `duo` CLI now reaches PTY $PATH inside Duo terminals and Claude Code sandboxes (SHIM_DIR target `~/.claude/duo/bin/duo` for `cli/duo install` tier-1; Electron `installCli()` also drops the SHIM_DIR symlink alongside its `~/.local/bin/` copy; companion change folds `addToShellPath()` into the FirstLaunchBanner [Install] click). **BUG-121** closing the last browser tab no longer respawns about:blank in a loop (BUG-020 + BUG-096 spawn-replacement guards retired alongside their boot-time-FAQ motivation that evaporated in v0.6.13). Reported by an enterprise user running Duo v0.6.13 inside a managed Claude Code install.
 
-**Sprint 16 candidates — owner picks the theme:**
+**v0.6.13 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.13)) — Sprint 15 closed: FTUX content → packs install-pipeline reshape. `packs/duo-default/` built-in pack ships `what-duo-does.html`; `PackManifest.builtIn` schema flag added; FAQ retired to `docs/legacy/`; `defaultLandingUrl()` + `helpUrl()` + boot-default tab logic deleted; `packs/claude-code-basics/` → `examples/lesson-pack-template/`. Pack-canvas / pinned-tab idempotency contract ADR. BUG-116 (dist-signed DMG version pinning) + BUG-118 (cut-version cli/duo sanity-check) fixed.
+
+**Sprint 16 carry-forward (post-v0.6.14) — owner picks the theme:**
 
 | ID | Title | Status | Est. |
 |---|---|---|---|
 | **BUG-119** | fsevents shutdown race — SIGABRT every Duo quit (pre-existing pre-v0.6.13; surfaced at Sprint 15 close-out) | 🟢 P0 candidate — fix is ~10 LOC in `electron/main.ts` (move `filesService.dispose()` into `before-quit`) | ~30 min |
 | **ENH-137** | Beginner's Guide content — drops into `packs/duo-default/canvases/beginners-guide.html` via pack-version bump | 🟡 awaiting owner-authored draft | Owner draft + Claude polish + 30 min plumbing |
-| **ENH-140** | install-service should track + cleanup orphan files on upgrade (provenance manifest at `~/.claude/duo/installed-files.json`) — pairs with pin-URL auto-migration to close the "two WDD tabs" transient | 🟡 P2 — graceful degradation works today (orphans are inert) | ~half-day |
+| **ENH-140** | install-service should track + cleanup orphan files on upgrade (provenance manifest at `~/.claude/duo/installed-files.json`) — pairs with pin-URL auto-migration to close the "two WDD tabs" transient; would also catch ENH-141's stale `~/.claude/bin/duo` symlinks (FOLLOWUP-013) | 🟡 P2 — graceful degradation works today (orphans are inert) | ~half-day |
 | **ENH-139** | PackManifest schema extension for markdown editable / markdown-preview / browser kinds | 🟡 deferred — gated on ENH-137 picking markdown OR a future pack needing explicit browser routing | ~half-day when triggered |
 | **Op #8 pivot** | install-service iterates `packs/*/PACK.json § defaults[].pin: true` to seed pins.json dynamically (removes hardcoded WDD URL Sprint 15 left as transitional) | 🟡 P2 | ~1 hr |
 
-**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the Sprint 15 retrospective + full Sprint 16 candidate detail + the deliberately-deferred GitHub Release callout (two-tabs upgrade transient).**
+**Production smoke pending: ENH-141 enterprise-install validation.** Owner-deferred SKIPs from the v0.6.14 smoke walk (BANNER-UI + WORK-MACHINE rows) — install the v0.6.14 DMG on the work machine, open a fresh Duo PTY, verify `command -v duo` resolves to `~/.claude/duo/bin/duo` and `duo doctor` succeeds without manual PATH wiring. If anything fails, v0.6.15 hotfixes.
+
+**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the Sprint 15 retrospective + full Sprint 16 candidate detail + the v0.6.14 cut record.**
 
 ## Open questions needing Geoff's input
 
