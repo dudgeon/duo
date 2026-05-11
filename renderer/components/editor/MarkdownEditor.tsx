@@ -911,14 +911,26 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           // length+head data so the next reproduction leaves a paper
           // trail. Don't include full body content to avoid leaking
           // user data into easily-shared logs.
+          // BUG-122 — enriched diagnostic with firstDiffOffset + diff-
+          // window snippet + tail. One-glance useful in dev console.
+          const ndisk0 = normalizeForEchoCompare(diskBody)
+          const nbase0 = normalizeForEchoCompare(lastSavedBodyRef.current)
+          const fd = computeFirstDiffOffset(ndisk0, nbase0)
+          const w = 40
+          const s0 = fd === null ? 0 : Math.max(0, fd - w)
+          const e0 = fd === null ? 0 : fd + w
           console.debug('[BUG-085 conflict] dirty buffer + diverged disk; surfacing banner', {
             path,
             diskBodyLength: diskBody.length,
             baselineLength: lastSavedBodyRef.current.length,
             liveBodyLength: liveBody.length,
             recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
-            diskBodyHead: diskBody.slice(0, 40),
-            baselineHead: lastSavedBodyRef.current.slice(0, 40)
+            firstDiffOffset: fd,
+            diskAtDiff: fd === null ? null : ndisk0.slice(s0, e0),
+            baselineAtDiff: fd === null ? null : nbase0.slice(s0, e0),
+            diskTail: ndisk0.slice(-60),
+            baselineTail: nbase0.slice(-60),
+            hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
           })
           // BUG-122 — persist diagnostic to disk so owner can fetch
           // post-repro on a production DMG (no DevTools required).
@@ -1029,12 +1041,25 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const ndisk = normalizeForEchoCompare(diskBody)
           const nbase = normalizeForEchoCompare(lastSavedBodyRef.current)
           if (ndisk !== nbase) {
+            // BUG-122 — enriched diagnostic. Inline firstDiffOffset +
+            // diff-window snippet (40 chars on each side of the diff
+            // position, post-normalize) so the dev-mode console line
+            // is one-glance useful even without opening the log file.
+            const firstDiff = computeFirstDiffOffset(ndisk, nbase)
+            const diffWindow = 40
+            const start = firstDiff === null ? 0 : Math.max(0, firstDiff - diffWindow)
+            const end = firstDiff === null ? 0 : firstDiff + diffWindow
             console.log('[BUG-107 save-pre-conflict] real diff', {
               path,
               diskBodyLength: diskBody.length,
               baselineLength: lastSavedBodyRef.current.length,
-              diskHead: diskBody.slice(0, 60),
-              baselineHead: lastSavedBodyRef.current.slice(0, 60)
+              firstDiffOffset: firstDiff,
+              diskAtDiff: firstDiff === null ? null : ndisk.slice(start, end),
+              baselineAtDiff: firstDiff === null ? null : nbase.slice(start, end),
+              diskTail: ndisk.slice(-60),
+              baselineTail: nbase.slice(-60),
+              recentlyWrittenSize: recentlyWrittenBodiesRef.current.size,
+              hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
             })
             // BUG-122 — persist the diagnostic to disk so owner can
             // fetch it on a production DMG without DevTools open.

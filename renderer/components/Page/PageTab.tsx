@@ -654,14 +654,26 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           // Dirty buffer — surface conflict; user picks resolution.
           // Diagnostic mirrors MarkdownEditor's. Length + head excerpt
           // only; no full body content (privacy).
+          // BUG-122 — enriched diagnostic with firstDiffOffset + diff
+          // window + tail; mirrors MarkdownEditor's BUG-085 conflict line.
+          const ndisk0 = normalizeForEchoCompare(diskHtml)
+          const nbase0 = normalizeForEchoCompare(lastSavedRef.current)
+          const fd = computeFirstDiffOffset(ndisk0, nbase0)
+          const w = 40
+          const s0 = fd === null ? 0 : Math.max(0, fd - w)
+          const e0 = fd === null ? 0 : fd + w
           console.debug('[FOLLOWUP-019 conflict] dirty canvas + diverged disk; surfacing banner', {
             path,
             diskHtmlLength: diskHtml.length,
             baselineLength: lastSavedRef.current.length,
             liveHtmlLength: liveHtml.length,
             recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
-            diskHead: diskHtml.slice(0, 40),
-            baselineHead: lastSavedRef.current.slice(0, 40)
+            firstDiffOffset: fd,
+            diskAtDiff: fd === null ? null : ndisk0.slice(s0, e0),
+            baselineAtDiff: fd === null ? null : nbase0.slice(s0, e0),
+            diskTail: ndisk0.slice(-60),
+            baselineTail: nbase0.slice(-60),
+            hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
           })
           // BUG-122 — persist diagnostic to ~/.claude/duo/logs/
           // last-conflict.log so owner can fetch it post-repro on a
@@ -755,12 +767,22 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           const ndisk = normalizeForEchoCompare(diskHtml)
           const nbase = normalizeForEchoCompare(lastSavedRef.current)
           if (ndisk !== nbase) {
+            // BUG-122 — enriched inline diagnostic.
+            const fd = computeFirstDiffOffset(ndisk, nbase)
+            const w = 40
+            const s0 = fd === null ? 0 : Math.max(0, fd - w)
+            const e0 = fd === null ? 0 : fd + w
             console.debug('[FOLLOWUP-019 save-pre-conflict] disk diverged from baseline', {
               path,
               diskHtmlLength: diskHtml.length,
               baselineLength: lastSavedRef.current.length,
-              diskHead: diskHtml.slice(0, 60),
-              baselineHead: lastSavedRef.current.slice(0, 60)
+              firstDiffOffset: fd,
+              diskAtDiff: fd === null ? null : ndisk.slice(s0, e0),
+              baselineAtDiff: fd === null ? null : nbase.slice(s0, e0),
+              diskTail: ndisk.slice(-60),
+              baselineTail: nbase.slice(-60),
+              recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
+              hint: 'cat ~/.claude/duo/logs/last-conflict.log for full diagnostic'
             })
             // BUG-122 — persist diagnostic to disk for production
             // post-repro inspection (no DevTools required).

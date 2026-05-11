@@ -861,8 +861,29 @@ async function main(): Promise<void> {
           if (resolved !== undefined) payload.path = resolved
           if (caseSensitive) payload['case-sensitive'] = true
           out(await send('doc-find', payload))
+        } else if (sub === 'conflict-log') {
+          // BUG-122 — print the last-recorded conflict diagnostic.
+          // Read-only file dump; no IPC. The renderer's
+          // writeConflictLog (renderer/utils/conflictDiagnostic.ts)
+          // writes `~/.claude/duo/logs/last-conflict.log` on every
+          // banner-surfacing event (watcher-dirty + save-pre-
+          // reconcile). One-file, latest-only — new conflicts
+          // overwrite the prior log.
+          const logPath = path.join(os.homedir(), '.claude', 'duo', 'logs', 'last-conflict.log')
+          try {
+            const raw = fs.readFileSync(logPath, 'utf8')
+            process.stdout.write(raw)
+            if (!raw.endsWith('\n')) process.stdout.write('\n')
+          } catch (err: any) {
+            if (err?.code === 'ENOENT') {
+              process.stderr.write(`No conflict log yet at ${logPath}\n`)
+              process.stderr.write('(One will be written the next time the save-conflict banner surfaces.)\n')
+              process.exit(0)
+            }
+            die(`Could not read ${logPath}: ${err?.message ?? err}`)
+          }
         } else {
-          die('Usage: duo doc <write|read|goto|find> [...]')
+          die('Usage: duo doc <write|read|goto|find|conflict-log> [...]')
         }
         break
       }
@@ -1611,6 +1632,16 @@ COMMANDS
                                   default. (v1 markdown only; canvas /
                                   browser / terminal find variants
                                   deferred.)
+  doc conflict-log                BUG-122 — print the last save-
+                                  conflict diagnostic at
+                                  ~/.claude/duo/logs/last-conflict.log
+                                  (written by both markdown editor and
+                                  HTML canvas every time the "file
+                                  changed on disk" banner surfaces).
+                                  JSON payload with firstDiffOffset +
+                                  head/tail excerpts; tells you which
+                                  bytes diverged between baseline and
+                                  disk without opening DevTools.
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
