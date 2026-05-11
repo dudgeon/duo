@@ -4798,9 +4798,9 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ### BUG-085: Markdown editor doesn't pick up external writes — and autosave can squash agent edits
 
-**Status:** 🔴 **IMMEDIATE PRIORITY for v0.6.7** (Sprint 6 mid-flight insertion). Owner repro 2026-05-04: wrote some MD; asked Duo to rewrite a section via Send → Duo (chord worked); Claude claimed to have rewritten it; the editor did not present the update. Actual root cause is multi-layered.
-**Priority:** **High** (silent data loss / silent staleness — user trusts what the editor shows; reality on disk diverges; autosave can then overwrite the agent's edits).
-**Filed:** 2026-05-04 (owner repro: see status line above).
+**Status:** ✅ **FIXED** in v0.6.7 (Sprint 6, commit `a4c56dc`, 2026-05-04). All three originally-scoped layers shipped together: (1) `window.electron.files.watch([path], …)` watcher in [`MarkdownEditor.tsx:842`](renderer/components/editor/MarkdownEditor.tsx) — silent reload on clean buffer, non-modal conflict banner on dirty; (2) pre-save reconciliation in `save()` reads disk just-before-write and surfaces the same banner if disk drifted; (3) skill / agent docs (`skill/SKILL.md § Patterns` line 214 CRITICAL block + `agents/duo.md § Things you do NOT do` line 62-70 directive) route "rewrite this section" prompts through `duo doc write --replace-selection|--replace-all`. The PageTab parity called out in note (c) below remains owed — filed as **FOLLOWUP-019**. Status entry was stale at 🔴 IMMEDIATE through Sprints 7-16; status line updated 2026-05-11 during Sprint 16 planning.
+**Priority:** **High** (was — silent data loss / silent staleness — user trusts what the editor shows; reality on disk diverges; autosave can then overwrite the agent's edits).
+**Filed:** 2026-05-04 (owner repro: wrote some MD; asked Duo to rewrite a section via Send → Duo (chord worked); Claude claimed to have rewritten it; the editor did not present the update). **Shipped:** 2026-05-04.
 
 **What's actually broken (three layers).**
 
@@ -6356,6 +6356,30 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 **Code-side delete path.** The v1 modal in `renderer/components/ViewSourceOverlay.tsx` becomes either (a) deleted if v2 replaces it entirely, or (b) kept as a fallback for surfaces where panel-fill is awkward (e.g. browser-pane "view page source" if that ever surfaces).
 
 **Cross-ref:** ENH-117 (parent).
+
+---
+
+### FOLLOWUP-019: BUG-085 PageTab parity — mirror external-write reconciliation to the HTML canvas
+
+**Status:** 🟡 Open. Filed 2026-05-11 from Sprint 16 audit of BUG-085 closure — note (c) in the parent entry was never given a real FOLLOWUP number ("FOLLOWUP-NN: PageTab mirror" was a placeholder). Verified still owed: `grep -nE "files\\.watch" renderer/components/Page/PageTab.tsx` returns nothing; the equivalent in `MarkdownEditor.tsx:842` exists.
+**Priority:** Medium — same class of bug as the parent BUG-085 markdown variant (silent staleness / autosave squashing agent fs-writes), surface is just the HTML canvas instead of the rich markdown editor. Not actively user-flagged because the canvas's primary content path is `duo html *` ops which route through the live PageTab anyway; the gap surfaces when an agent does a raw `Write` against an open `.html` file.
+**Filed:** 2026-05-11.
+
+**What's owed.** Mirror the three layers of BUG-085's fix to [`PageTab.tsx`](renderer/components/Page/PageTab.tsx):
+
+1. **File watcher** — subscribe to `window.electron.files.watch([path], …)` after the initial file load completes (model after `MarkdownEditor.tsx:842`). On change:
+   - Read disk; compare to `lastSavedRef` (the canvas-side analogue of `lastSavedBodyRef`).
+   - Equal → echo of our own save, ignore.
+   - Different + clean buffer → silently reload (`canvasRef.current.setHtml(diskHtml)` or equivalent) + advance baseline + brief "Updated from disk" toast.
+   - Different + dirty buffer → surface non-modal conflict banner with "Reload from disk" / "Keep mine" actions. **Modeled after the markdown editor's banner** — reuse the same styling + copy where possible.
+
+2. **Pre-save reconciliation** — gate `save()` on a disk-read just-before-write. If disk drifted from `lastSavedRef`, surface the banner instead of overwriting. This closes the BUG-099-equivalent race window (chokidar debounce + autosave timer ordering).
+
+3. **Echo guard** — adopt the `recentlyWrittenBodiesRef` Map<string, number> pattern from `MarkdownEditor.tsx` (BUG-099 fix) so multi-save sequences don't false-conflict on stale chokidar events. The canvas writes serialized HTML rather than markdown body bytes, so the Map's key + comparison shape is canvas-specific but the TTL + clear-on-path-change semantics are identical.
+
+**Editor-canvas parity disposition (per CLAUDE.md § 4):** **(a) Mirrored** — explicitly mirroring the markdown editor's BUG-085 + BUG-099 fixes to canvas. The deferred (c) disposition on the parent entry is now upgraded to (a) since the parent has been shipped for 3 sprints.
+
+**Cross-ref.** BUG-085 (parent, ✅ Sprint 6). BUG-099 (markdown editor echo guard, ✅ Sprint 8). [MarkdownEditor.tsx:842](renderer/components/editor/MarkdownEditor.tsx) for the canonical watcher pattern. [PageTab.tsx](renderer/components/Page/PageTab.tsx) for the target surface. Sprint 16 B-bucket — owner picked the originally-stale-status BUG-085 "layer-3" item; the actual owed code work is this entry.
 
 ---
 
