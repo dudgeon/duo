@@ -5875,6 +5875,156 @@ On each install / upgrade:
 
 ---
 
+### ENH-147: Navigator multi-select — select multiple files for batch operations
+
+**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Priority:** Medium — workflow gap when cleaning up a directory.
+**Filed:** 2026-05-11.
+
+**Owner observation (verbatim):** *"ENH — enable multi-select in navigator (e.g. to delete multiple files)"*
+
+**Today.** [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) supports a single `selectedPath` at a time. Click selects, Escape clears, click-on-selected toggles. No way to select multiple files for batch operations.
+
+**What's wanted (standard file-manager UX).**
+
+- **`⌘+Click`** — toggle a file's membership in the selection set (non-contiguous multi-select).
+- **`⇧+Click`** — extend selection from the anchor to the clicked file (contiguous range).
+- **`⌘+A`** — select all files in current directory (with safety: scoped to visible directory only; doesn't blast recursive).
+- Visual treatment: same bg-accent fill on every selected row.
+- Right-click on any selected row → context menu reflects "Move N to Trash..." instead of singular form when multi is active.
+- Escape clears the entire selection set.
+
+**Affected files (sketch).**
+
+- `renderer/components/FileTree.tsx` — selection state goes from `selectedPath: string | null` to `selectedPaths: Set<string>`. Toggle logic via existing `onSingleClickRow` extended to read modifier keys.
+- `renderer/state/navigator.ts` (or wherever) — selection actions need a `selectAll` / `toggleSelection` / `extendSelectionTo` shape.
+- Right-click handler in FileTree — count selection set, pluralize menu labels, dispatch batch operations.
+- IPC: probably no changes — `files.trash` / `files.rename` operate on one path; batch ops loop renderer-side.
+- CLI parity: defer. Most agent-side batch operations would be loops over `duo` invocations anyway. Multi-select is a primarily-mouse-driven UX.
+
+**Cross-ref.** ENH-016 (right-click context menu in FileTree); ENH-078 (selection prominence — sets the visual contract this builds on).
+
+---
+
+### ENH-146: Make playgrounds more token-efficient — reduce inline presentation code, lean on shared styles
+
+**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Priority:** Medium — process / token-cost improvement; not user-blocking but every playground generation pays a recurring tax.
+**Filed:** 2026-05-11.
+
+**Owner observation (verbatim from idle-thoughts):** *"Looking at recent playgrounds, like `data-primitives-canvas.html` I see a lot of presentation code in the file that I think must make it token inefficient; how should we update the duo main CLAUDE.md snippet, duo skill, duo agent and/or playground skills to make claude use more token efficient approaches, eg leveraging in-built styles, to make the playgrounds more focused on the semantics/meaning of the playgrounds"*
+
+**What this likely surfaces.** Recent playgrounds (`docs/research/data-primitives-canvas.html`, `docs/research/dogfood-distro-packs-plan.html`) ship ~150-200 lines of `<style>` block before any semantic content. Atelier styling (cream paper / orange accent / serif headings) gets re-stated in each file because there's no shared stylesheet a playground can import from. Net: every playground generation token cost ≈ 1.5-3K tokens of CSS the author re-types rather than referencing.
+
+**Possible fixes (none locked):**
+
+1. **Ship a `duo-atelier.css` skill-reference** under `~/.claude/skills/duo/references/` that playground authors `<link>` to via `file://` reference. Cuts the inline style block down to maybe 10-20 lines of playground-specific overrides. Pre-req: define which Atelier tokens are stable contract vs implementation detail (some `--accent-ink` color values have shifted between sprints).
+
+2. **CLAUDE.md § 11 update** — current text directs HTML playgrounds via the "copy the `<style>` block from one of the precedents and adapt" instruction. Re-phrase to direct authors at a shared stylesheet (or class library) once it exists.
+
+3. **`skill/make-playground.md` update** — list canonical Atelier classes (`.option-card`, `.decision-card`, `.q-option`, `.copy-bar`, etc.) that already exist in precedents; authors should reuse rather than re-implement.
+
+4. **Token-budget audit pass** — measure typical playground HTML size pre/post each option. Quantify the savings.
+
+**Cross-ref:** ENH-110 (data-primitives-canvas — first playground that motivated CLAUDE.md § 11 rule). ENH-134 (dogfood-distro-packs-plan — second precedent). CLAUDE.md § 11 (the rule itself).
+
+---
+
+### BUG-123: Table-cell selection — can't select beyond cell boundary in markdown editor
+
+**Status:** 🆕 Filed 2026-05-11 from owner directive ("claude abandoned the work to fix table selections when user wants to select beyond table cell"). Re-revival per owner — was previously left unfiled.
+**Priority:** **Medium** — workflow gap when working with table-heavy markdown. Owner explicitly flagged the agent-process failure (no filing, no permission to defer) as the real issue.
+**Filed:** 2026-05-11.
+
+**Symptom (likely).** Inside the markdown editor's TipTap surface: click into a table cell, mouse-down + drag to select text. If the drag extends beyond the cell boundary (to adjacent cells, OR to text below the table, OR before the table), the selection either (a) constrains to the cell, or (b) jumps to a different selection mode (whole-row, whole-table). Users coming from regular markdown editors expect a continuous text selection that spans the table → outside-table boundary.
+
+**Cross-ref:** BUG-108 (✅ table-cell-COPY clipboard fix — different bug, but adjacent surface). The fix introduced [TableCellCopy.ts](renderer/components/editor/extensions/TableCellCopy.ts) which clipboard-serializes a table-wrapped slice as plain text; THIS bug is the selection-creation step, not the copy step. ProseMirror's `TableMap` + `CellSelection` machinery (from `prosemirror-tables`) is the relevant code path.
+
+**What's needed to investigate.**
+
+1. Reproduce on owner's machine: open a markdown file with a table, drag-select from inside a cell to outside the table. Capture observed vs expected.
+2. Read TipTap Table extension + `prosemirror-tables`'s selection-locking semantics. There may be a documented escape hatch (e.g. a plugin or option that allows cross-cell text selection).
+3. Decide on the right shape: pure-text selection that includes table content as plain runs (matches markdown editors' typical behavior) OR a CellSelection that the clipboard step then plain-renders (matches the BUG-108 fix's serializer).
+
+**Owner-process note (verbatim):** *"claude abandoned the work to fix table selections when user wants to select beyond table cell; claude failed to keep in sprint or get explicit user permission to def indefinitely; this needs to be fixed."*
+
+The agent-process failure: a prior session worked on this bug, ran into the TipTap/ProseMirror constraint, and dropped it without (a) filing as a task entry, (b) explicit owner sign-off on the defer. **Lesson for future:** every work item touched should leave a written ledger entry — either ✅ shipped, ✅ explicitly closed/wontfix with owner sign-off, OR 🟡 filed open with a clear "next step needed" line. Dropping silently is the failure mode.
+
+---
+
+### ENH-145: Obsidian-parity research — PRD of "truly full-featured Obsidian client" + delta inventory
+
+**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Priority:** Low-Medium — research request, not a build directive. Owner: *"we will likely not build it all, but I still want to know."*
+**Filed:** 2026-05-11.
+
+**Owner ask (verbatim):** *"research on current deltas of obsidian vault functionality in duo vs native obsidian editor; eg what things should duo do with the actual vault file? PRD truly full featured Obsidian client, indicate what we have built and tested; we will likely not build it all, but I still want to know"*
+
+**What's owed.** A research playground (`docs/research/obsidian-parity.html` per CLAUDE.md § 11 — HTML interactive playground, not markdown) inventorying:
+
+1. **What native Obsidian does with vault files** — categorized by domain (wikilinks, embeds, tags, frontmatter, dataview queries, daily notes, canvas files, plugins, hot-reload, vault config, sync, mobile).
+2. **What Duo has built** — cross-reference ENH-096 family (Tier A + B subsets shipped through Sprint 9-11), ENH-114 (cmd+click create), ENH-109 (`.obsidian/` visibility), ENH-105 (`@` mention).
+3. **What Duo has tested vs untested** — explicit gap analysis.
+4. **What we'd skip vs what's tractable** — owner picks per-area what's worth pursuing.
+
+**Format per CLAUDE.md § 11.** Interactive HTML playground in `docs/research/`. Atelier styling. Inline `.decision-card` blocks where owner can decide "pursue / skip / defer" per domain. Sticky `.copy-bar` footer with structured decisions payload for Copy-decisions-back round-trip.
+
+**Filed as a tracked review task** per the `feedback_research_reports_must_file_review_task.md` memory rule. This entry surfaces in every smoke walk until owner closes the gate via Copy-decisions.
+
+**Cross-ref.** ENH-096 (Obsidian-vault-friendly editor — parent feature, Tier-A+B-subset shipped). `docs/prd/obsidian-vault-research.md` (existing research doc — may need refresh or migration to HTML playground format).
+
+---
+
+### ENH-144: Closing a tab should shift focus to the PREVIOUS tab, not the leftmost
+
+**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Priority:** Medium — UX paper cut; every tab close interrupts visual focus state.
+**Filed:** 2026-05-11.
+
+**Owner observation (verbatim):** *"ENH — when close delete tab, focus should shift to prev tab; current behavior, focus shifts to first tab (far left)"*
+
+**Today.** Closing a working-pane tab (or terminal tab? — owner didn't specify; needs clarification) shifts focus to the leftmost tab. Standard browser / IDE behavior is "focus moves to the previously-active tab" OR "focus moves to the right-neighbor of the closed tab" (which matches your visual reading position).
+
+**Recommended fix.** Mirror Chrome / VS Code: focus moves to the LEFT-neighbor (i.e. the tab immediately preceding the closed one in tab order), with right-neighbor fallback if the closed tab was leftmost.
+
+**Affected surfaces (all need the same fix):**
+
+- Working-pane tabs (file tabs + browser tabs in main strip + working tab strip)
+- Terminal tabs
+- Browser-aux tabs (single-slot today — no choice on close)
+
+**Implementation sketch.** App.tsx + TabBar.tsx tab-close handlers. Each currently picks `tabs[0]` after filter; should pick `tabs[Math.max(0, closedIdx - 1)]` (left-neighbor with floor).
+
+**Cross-ref.** BUG-096 (browser-tab close-tab next-active picker — already correctly walks for non-aux match via `findNonAux`; this ENH is the parallel "left-neighbor preference"). ENH-102 (delete-current-file chord — close-tab analog).
+
+---
+
+### ENH-143: Keyboard shortcut to close the current tab (separate from delete-file)
+
+**Status:** 🆕 DRAFT — file from idle-thoughts Notion sweep; needs owner disambiguation (close-tab vs delete-file vs both).
+**Priority:** Medium — chord-set polish.
+**Filed:** 2026-05-11.
+
+**Owner observation (verbatim):** *"ENH — kb shortcut to delete current tab, requires confirmation; candidates cmd-shift-delete, cmd-opt-delete"*
+
+**Ambiguity to resolve (owner sign-off needed before code work).**
+
+Both candidate chords (`⌘⇧⌫`, `⌘⌥⌫`) overlap with adjacent functionality:
+
+- **`⌘⇧⌫`** is already used by ENH-102 (shipped Sprint 9) for "delete the FILE backing the current tab" (with confirm). That's not "close the tab" — that's `fs.unlink(path)` + close the tab as side-effect.
+- **`⌘W`** is the universal macOS "close tab" chord; Duo already uses it (ENH-037 — `⌘W` closes the focused tab, never the parent window).
+
+Owner's "delete current tab" phrasing might mean:
+1. **Close the tab** (no fs change; just dismiss from the strip). Already done via `⌘W`. Would adding a new chord be redundant?
+2. **Delete the file** (the ENH-102 case; already shipped).
+3. **Close + remove from tab history** (no current mechanism; would be new).
+
+**Recommendation.** Treat as no-op for now (existing `⌘W` covers close-tab; existing `⌘⇧⌫` covers delete-file). Surface to owner: "is this a request for a NEW capability beyond what `⌘W` + `⌘⇧⌫` already provide, or is it a request to make those discoverable?" If the answer is the discoverability angle, the fix is in the menu / cheat-sheet / context-menu surface rather than a new chord.
+
+**Cross-ref.** ENH-102 (delete-current-file ⌘⇧⌫ — shipped Sprint 9). ENH-037 (⌘W closes focused tab — shipped). ENH-100 (lock/unlock context menu — same surface).
+
+---
+
 ### ENH-142: Claude-tab Enter key prefs — flip Return default to 'submit'; preserve override as user toggle
 
 **Status:** 🟢 **Code complete Sprint 16 commit 9 (2026-05-11).** Owner ask 2026-05-11: *"the claude session return override (turns return into option-return, real submit requires cmd enter), toggle it off (feature toggle as upcoming user preference -- not abandoned feature); enable the same functionality to catch shift-return and treat as option-return (feature toggle, flipped ON)."* Net: ENH-127 v2's plain-Return-newline default is surprising relative to every other terminal in the world; v0.6.15 flips the default but keeps the override + adds CLI parity.
