@@ -412,8 +412,31 @@ html.dark {
     padding: 6px 10px;
     min-width: 60px;
     vertical-align: top;
+    /* BUG-123 (Sprint 17 commit 8, 2026-05-11) — position: relative is
+       required for the .selectedCell:after overlay below to sit on the
+       cell. prosemirror-tables ships this in its own style/tables.css,
+       which Duo never imported; merging the position: relative
+       declaration into our existing rule is the minimum needed to make
+       cell selections visible. */
+    position: relative;
   }
   .duo-editor-prose th { background: var(--duo-paper-deep); font-weight: 600; }
+  /* BUG-123 — paint the prosemirror-tables CellSelection. The decoration
+     adds class="selectedCell" to every cell in the CellSelection (see
+     drawCellSelection in node_modules/prosemirror-tables/dist/index.js).
+     Without this rule, the CellSelection state IS created when the user
+     drags from one cell to another, but renders invisibly — symptom owner
+     reported as "can't select beyond cell". Duo accent at 18% opacity
+     matches the navigator/file-tree selection family for visual
+     consistency across the app. */
+  .duo-editor-prose .selectedCell:after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgb(var(--duo-accent-rgb) / 0.18);
+    pointer-events: none;
+    z-index: 2;
+  }
   .duo-editor-prose hr { border-color: var(--duo-paper-rule); }
   /* ENH-096 (B1) — Wikilink decoration. The WikilinkDecorations
      ProseMirror plugin tags every `[[Page Name]]` range with this

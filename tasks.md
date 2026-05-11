@@ -6052,7 +6052,47 @@ On each install / upgrade:
 
 ### BUG-123: Table-cell selection — can't select beyond cell boundary in markdown editor
 
-**Status:** 🟡 **Spike complete Sprint 17 commit 7 (2026-05-11); v2 fix design needs owner-walked repro + scope decision.** Sprint 17 budget didn't fit a code fix (the prosemirror-tables override surface is wider than the AUQ option assumed). Below is the investigation output: what the constraint is, where it lives, three concrete fix shapes, and what the next attempt needs to land.
+**Status:** 🟢 **v1 shipped Sprint 17 commit 8 (2026-05-11) — root cause was missing `.selectedCell` CSS; CellSelection was being created correctly but rendered invisibly.** v2 (cross-boundary drag-to-outside-text) deferred behind owner walk of v1; behavior may now be acceptable now that in-table selection is visible. Previous Spike-with-A/B/C-trade-offs framing was **wrong** — see owner correction below + memory `feedback_verify_current_behavior_before_proposing_fix.md`.
+
+**Owner correction during AUQ (2026-05-11):** *"I just want in table multi cell drag — you claim this is something I would 'lose' but it does not work today — so I think you need to get more grounded in what we have built, how it works (it does not) before you create a new pattern."*
+
+**Empirical findings from grounding pass (2026-05-11):**
+
+1. **prosemirror-tables IS creating CellSelections correctly.** Read [`node_modules/prosemirror-tables/dist/index.js:2203-2247`](node_modules/prosemirror-tables/dist/index.js:2203) — `handleMouseDown$1` registers `mousemove` + `mouseup` listeners on bare-click inside a cell; when the user drags to a different cell, `setCellSelection` fires with an anchor → head CellSelection. Both `tableEditing()` plugin + `CellSelection` class work as designed.
+
+2. **The decoration adds `class="selectedCell"` to every cell in the CellSelection.** Read [`node_modules/prosemirror-tables/dist/index.js:689-695`](node_modules/prosemirror-tables/dist/index.js:689) — `drawCellSelection` returns `Decoration.node(pos, pos + node.nodeSize, { class: 'selectedCell' })` for each selected cell.
+
+3. **The canonical CSS for `.selectedCell` lives at [`node_modules/prosemirror-tables/style/tables.css:38-48`](node_modules/prosemirror-tables/style/tables.css:38)** — a `.selectedCell:after { background: rgba(200, 200, 255, 0.4); ... }` overlay rule with absolute positioning, plus `position: relative` on td/th to anchor the overlay.
+
+4. **Duo NEVER imports that stylesheet.** Grep `prosemirror-tables.*style|tables\.css` across `renderer/` + `main.tsx` returns zero matches. The CellSelection state IS active when users drag cell-to-cell, but with no `.selectedCell` styling, the user sees no change → perceives "doesn't work."
+
+5. **Cross-boundary drag (cell → outside-table) collapses to a single-cell CellSelection.** `move()` handler at [`node_modules/prosemirror-tables/dist/index.js:2234-2243`](node_modules/prosemirror-tables/dist/index.js:2234): when the mouse target is outside any cell, `cellUnderMouse(view, event)` returns null, `!$head || !inSameTable($anchor, $head)` is true, so the CellSelection collapses to start-cell-only. Text outside the table is never selected. **Separate problem from #1-#4; deferred behind owner walk of v1.**
+
+**Owner AUQ pick (2026-05-11):**
+- Q1 (next step): "Ship CSS import only" — defer cross-boundary work
+- Q2 (color): "Duo accent orange" — match nav/file-tree selection family
+
+**v1 fix shipped:** [`renderer/styles/globals.css`](renderer/styles/globals.css) — two surgical additions to the existing `.duo-editor-prose` block:
+
+1. Added `position: relative` to `.duo-editor-prose th, .duo-editor-prose td` (required for the overlay pseudo to anchor on the cell).
+2. New rule `.duo-editor-prose .selectedCell:after { content: ''; position: absolute; inset: 0; background: rgb(var(--duo-accent-rgb) / 0.18); pointer-events: none; z-index: 2; }`.
+
+Both rules carry inline `BUG-123` comments explaining the prosemirror-tables wiring + why position:relative is load-bearing. Duo-accent-rgb resolves to `198 106 46` (light theme) / `224 143 74` (dark theme), so the overlay tracks theme switches automatically.
+
+**Verification:** `duo dom --js` confirmed:
+- The `.selectedCell` rule is in the loaded stylesheets (`count: 1`).
+- A cell with `selectedCell` class added manually: `cellPosition: "relative"`, `afterContent: ""`, `afterBackground: "rgba(198, 106, 46, 0.18) ..."`, `afterPosition: "absolute"`.
+- The overlay is wired correctly; will paint on any real CellSelection.
+
+**Owner walk path:**
+1. Open a markdown file with a table.
+2. Click into cell A1, hold, drag to cell C2.
+3. Expected: cells A1, A2, B1, B2, C1, C2 all show the orange overlay during the drag (matches Apple Numbers / Google Sheets / Notion cell-selection visual).
+4. Release → CellSelection persists as long as you don't click outside.
+
+**v2 (deferred):** if owner finds the cross-boundary drag (cell → outside-table text) still confusing once CellSelection is visible, file a follow-up to override `tableEditing()`'s `move()` handler. The override would let the drag fall through to a normal TextSelection when the target leaves the table. Probably won't matter — the in-table use case is the load-bearing one.
+
+**Editor-canvas parity disposition** (deferred at owner request via Q2-truncation skip): canvas uses raw contentEditable (no CellSelection lock; native browser selection works across cells already). Confirm during a future canvas-table touch; no immediate action.
 
 **What I confirmed during the spike:**
 
