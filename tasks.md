@@ -5875,6 +5875,44 @@ On each install / upgrade:
 
 ---
 
+### BUG-122: Markdown editor "file changed on disk" banner re-surfaces in v0.6.14
+
+**Status:** 🟡 Open. Filed 2026-05-11 from owner repro on work machine running v0.6.14 production DMG ("fyi I hit the save conflict issue again while editing a markdown file"). Recurring class — BUG-085 (v0.6.7) + BUG-099 (v0.6.8) + BUG-107 (v0.6.9 walk-3) all shipped fixes for various flavors of this banner-fires-during-normal-typing failure mode. v0.6.14 is post-all-three; a new race or a fix that didn't fully land.
+**Priority:** **High** — erodes user trust in the editor's autosave; user sees the conflict banner and clicks through wondering if data is at risk. Owner has hit this on multiple sprints; each fix addresses ONE race window but a new one keeps emerging.
+**Filed:** 2026-05-11.
+
+**What's owed first — diagnostic capture.** The fix shape can't be picked without knowing which race window this is. Production DMG runs without console.debug forwarding (ENH-121 only wires `[renderer:log]` in dev), so the next repro needs ONE of:
+
+1. **Owner observation captured live**: which file (`.md` path), what banner copy verbatim, was typing/saving in progress when banner fired, any agent actions immediately before (e.g. `duo doc write` from a CLI session, Notion mirror refresh via `mcp__...__notion-update-page` rewriting `idle-thoughts.md`)?
+2. **DevTools console open** at banner-fire time: pull the existing `[BUG-085 conflict]` / `[BUG-099 ...]` debug lines — they include length + head-excerpt diff data which differentiates "real divergence" from "save echo mis-classified".
+3. **Dev-mode repro on this machine**: open the same file in a fresh `npm run dev` session + recreate the action sequence; the dev log catches the diagnostics automatically (ENH-121 forwarder).
+
+**Hypotheses (cheapest-to-test first).**
+
+1. **Notion mirror race for `idle-thoughts.md`** (CLAUDE.md § "Where to look" — Claude refreshes `idle-thoughts.md` via Notion MCP every time it reads idle-thoughts). If owner was editing `idle-thoughts.md` while a Claude session in another tab fetched the canonical page and rewrote the local mirror, the watcher correctly sees an external write — NOT a bug per se. **Mitigation:** owner-side test: edit a file that has NO Notion mirror (e.g. a fresh `/tmp/repro.md`).
+
+2. **OneDrive / iCloud / Dropbox file-provider on work machine** (per CLAUDE.md § "iCloud File Provider gotcha"). If the work machine syncs `~/Documents/` to OneDrive or similar, the sync agent might be touching mtime/xattrs without changing content. chokidar would still fire (it's not just-mtime-aware), and we'd read disk, normalize trailing whitespace, but if iCloud restored a ` ` (non-breaking space) or BOM the content compare fails. **Diagnostic:** check work machine's cloud-sync state for the file's directory.
+
+3. **`recentlyWrittenBodiesRef` 2-second TTL too short**. Owner's work machine may be slower; chokidar's `awaitWriteFinish.stabilityThreshold` (150ms) + OS-level fs sync delay could push the chokidar event past the 2s window — at which point the secondary echo check misses. **Diagnostic:** does it fire MORE often during rapid consecutive edits? Bumping TTL to 5s is cheap if so.
+
+4. **tiptap-markdown serializer non-idempotency on round-trip**. `getMarkdown()` after `setContent(getMarkdown())` may produce a subtly different string (whitespace inside list items, indent style). BUG-107's `\s+$` normalization only covers trailing — not internal. **Diagnostic:** Capture the FULL `diskBody` + `lastSavedBodyRef.current` from a repro, diff structurally.
+
+5. **`Write` from a parallel Claude Code session in another terminal tab**. CLAUDE.md item 4's directive routes "rewrite this section" through `duo doc write`, but a user-typed prompt might bypass. **Diagnostic:** ask owner whether any Claude Code session had an active task touching that file's path.
+
+**Once diagnostic data lands, the fix path is one of:**
+
+A. **No bug — legit external write** (hypothesis 1, 5). Banner is correct; user needs to know to route through `duo doc write` or kill the parallel writer. Skill/agent doc update.
+
+B. **TTL bump** (hypothesis 3). One-line change: `2000` → `5000` in `recentlyWrittenBodiesRef`'s cutoff math. Verify against actual chokidar timing observed in the diagnostic.
+
+C. **Structural body comparison** (hypothesis 4). Replace `normalize(diskBody) === normalize(lastSavedBodyRef.current)` with a tiptap-aware diff that's tolerant of round-trip-stable markdown. More work, more correct.
+
+D. **External-process detection** (hypothesis 2). Capture `stat.mtime` + content; if mtime changed but content (modulo whitespace + BOM) is byte-identical, treat as echo. Brittle, declines to address the cloud-sync mtime-only writes specifically.
+
+**Cross-ref.** BUG-085 / BUG-099 / BUG-107 (prior family fixes). FOLLOWUP-019 (canvas-side mirror, just shipped). [MarkdownEditor.tsx:842](renderer/components/editor/MarkdownEditor.tsx) (watcher), [MarkdownEditor.tsx § save pre-reconciliation](renderer/components/editor/MarkdownEditor.tsx) (pre-save check), [MarkdownEditor.tsx § recentlyWrittenBodiesRef](renderer/components/editor/MarkdownEditor.tsx) (echo guard map).
+
+---
+
 ### BUG-119: fsevents native-module shutdown race — SIGABRT every time Duo quits
 
 **Status:** ✅ **FIXED** in Sprint 16 commit 3 (2026-05-11). Moved `ptyManager.dispose()` + `await filesService.dispose()` (plus the session-state + browser-history flushes) into the `before-quit` hook in [`electron/main.ts`](electron/main.ts) so chokidar releases its fsevents threadsafe function while the mutex is still alive. `window-all-closed` is now just the non-darwin `app.quit()` plumbing. Verified via osascript Quit Apple Event (mimics Cmd-Q lifecycle, fires before-quit): Electron exited with code 0, no new Duo crash report in `~/Library/Logs/DiagnosticReports/`.
