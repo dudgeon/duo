@@ -317,6 +317,17 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // FOLLOWUP-019 — external-write conflict state. Mirrors MarkdownEditor's
+  // BUG-085 banner. `diskHtml` is the just-read disk content; the banner
+  // offers "Reload from disk" (clobbers local edits) or "Keep mine" (next
+  // save overwrites disk with local). `reloadKey` is bumped on reload so
+  // the iframe remounts cleanly — RenderedPage's wire effect doesn't
+  // re-fire on srcDoc change alone (deps don't include initialHtml), so
+  // the contenteditable + observers would attach to the OLD body without
+  // a key bump. Same approach as a manual remount; user loses iframe
+  // scroll/selection state on reload, which is expected.
+  const [externalConflict, setExternalConflict] = useState<{ diskHtml: string } | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
   // ENH-117 — view-source overlay state. Snapshot of canvas's serialized
   // (pretty-printed) HTML at chord time; the overlay renders read-only.
   const [viewSource, setViewSource] = useState<string | null>(null)
@@ -381,6 +392,25 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
   // The serialized HTML as it was on disk after the last successful read
   // or write. Diff against this to compute `dirty`.
   const lastSavedRef = useRef<string>('')
+
+  // FOLLOWUP-019 — mirror BUG-099's recentlyWrittenBodiesRef into the
+  // canvas. Set of HTML strings we've written recently with a 2s TTL.
+  // Used by the watcher's echo detection alongside `lastSavedRef` so a
+  // chokidar event that arrives between two consecutive autosaves (or
+  // before `lastSavedRef` is updated post-write) is still recognized as
+  // our own write. Same race window as the markdown-editor case: save#1
+  // writes html "A" (baseline=A), save#2 writes html "B" (baseline=B),
+  // chokidar fires for save#1 with disk="A" — but baseline is now "B"
+  // — without the recently-written set this surfaces a false conflict.
+  const recentlyWrittenHtmlRef = useRef<Map<string, number>>(new Map())
+  const trackRecentlyWrittenHtml = useCallback((html: string) => {
+    const map = recentlyWrittenHtmlRef.current
+    map.set(html, Date.now())
+    const cutoff = Date.now() - 2000
+    for (const [h, ts] of map) {
+      if (ts < cutoff) map.delete(h)
+    }
+  }, [])
   const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // BUG-033 v1 (a) — block autosave while a pending agent write
   // (`pendingHtmlOp`) is on screen waiting for user accept/decline.
@@ -536,8 +566,131 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
         setError(err instanceof Error ? err.message : String(err))
       }
     )
+    // FOLLOWUP-019 — fresh path, fresh recently-written set + clear any
+    // stale conflict from the prior path.
+    recentlyWrittenHtmlRef.current.clear()
+    setExternalConflict(null)
     return () => { cancelled = true }
   }, [path])
+
+  // FOLLOWUP-019 — mirror BUG-085's external-write reconciliation to the
+  // canvas. Subscribe to fs change events for the loaded path. On change:
+  //   - read disk; if it matches `lastSavedRef.current` (or the recently-
+  //     written echo set) → ignore (our own save echoing back).
+  //   - if the canvas buffer is clean → silent reload by bumping
+  //     `reloadKey` (forces RenderedPage remount + fresh wire effect) and
+  //     advancing `lastSavedRef`.
+  //   - if the canvas buffer is dirty → surface the conflict banner;
+  //     user picks reload-or-keep-mine.
+  // Skipped until the initial HTML has loaded (no point watching a path
+  // we haven't read yet).
+  useEffect(() => {
+    if (initialHtml === null) return
+
+    let cancelled = false
+    let unwatch: (() => Promise<void>) | null = null
+
+    void window.electron.files.watch([path], (event) => {
+      if (cancelled) return
+      if (event.path !== path) return
+      // External delete — don't reload (read would fail). The user can
+      // save to recreate. Matches MarkdownEditor's behavior + most
+      // editors' convention on external delete.
+      if (event.kind === 'removed') return
+
+      void window.electron.files.read(path).then((res) => {
+        if (cancelled) return
+        const diskHtml = decodeUtf8(res.bytes)
+
+        // Echo of our own save. Normalize trailing whitespace before
+        // comparing — chokidar's awaitWriteFinish can fire after we've
+        // written but before any trailing-newline normalization the OS
+        // or downstream tool would apply. Cheaper than a full structural
+        // diff, sufficient for the byte-level echo case.
+        const normalize = (s: string) => s.replace(/\s+$/, '')
+        if (normalize(diskHtml) === normalize(lastSavedRef.current)) return
+
+        // Secondary echo check against the recently-written set
+        // (BUG-099 mirror). Catches the race where chokidar's event
+        // arrived between the write completing and `lastSavedRef`
+        // being assigned, OR where a newer save has already advanced
+        // the baseline past this event's body.
+        if (recentlyWrittenHtmlRef.current.has(diskHtml)) return
+
+        const handle = canvasRef.current
+        const liveHtml = handle?.serialize() ?? ''
+        const isDirty = liveHtml !== '' && liveHtml !== lastSavedRef.current
+
+        if (!isDirty) {
+          // Clean buffer — silent reload. Set the new initialHtml +
+          // bump reloadKey to force RenderedPage to remount with
+          // fresh wire state. The user keeps no dirty changes
+          // (otherwise we'd be in the dirty branch), so nothing is
+          // lost. Diagnostic mirrors MarkdownEditor's BUG-085 line.
+          console.debug('[FOLLOWUP-019 reload] external write detected on clean canvas; reloading from disk', {
+            path,
+            diskHtmlLength: diskHtml.length,
+            baselineLength: lastSavedRef.current.length
+          })
+          lastSavedRef.current = diskHtml
+          baselinedRef.current = false
+          setInitialHtml(diskHtml)
+          setReloadKey(k => k + 1)
+        } else {
+          // Dirty buffer — surface conflict; user picks resolution.
+          // Diagnostic mirrors MarkdownEditor's. Length + head excerpt
+          // only; no full body content (privacy).
+          console.debug('[FOLLOWUP-019 conflict] dirty canvas + diverged disk; surfacing banner', {
+            path,
+            diskHtmlLength: diskHtml.length,
+            baselineLength: lastSavedRef.current.length,
+            liveHtmlLength: liveHtml.length,
+            recentlyWrittenSize: recentlyWrittenHtmlRef.current.size,
+            diskHead: diskHtml.slice(0, 40),
+            baselineHead: lastSavedRef.current.slice(0, 40)
+          })
+          setExternalConflict({ diskHtml })
+        }
+      }).catch(() => { /* file unreadable / mid-rename — ignore */ })
+    }).then((fn) => {
+      if (cancelled) { void fn(); return }
+      unwatch = fn
+    }).catch(() => { /* watcher unavailable — degrade gracefully */ })
+
+    return () => {
+      cancelled = true
+      if (unwatch) void unwatch()
+    }
+  }, [path, initialHtml])
+
+  // FOLLOWUP-019 — conflict-banner resolution handlers.
+  const resolveConflictReload = useCallback(() => {
+    if (!externalConflict) return
+    // Reload by re-seeding initialHtml + remounting RenderedPage.
+    // Dirty state clears because the user is choosing to drop edits.
+    lastSavedRef.current = externalConflict.diskHtml
+    baselinedRef.current = false
+    setInitialHtml(externalConflict.diskHtml)
+    setReloadKey(k => k + 1)
+    setDirty(false)
+    onDirtyChange?.(false)
+    setExternalConflict(null)
+  }, [externalConflict, onDirtyChange])
+
+  const resolveConflictKeepMine = useCallback(() => {
+    if (!externalConflict) return
+    // Advance the baseline to the disk version so the next save's
+    // pre-reconciliation check passes. Buffer differs from disk
+    // (we kept local edits), so dirty stays true and the immediate
+    // save below overwrites disk with the local version — that's
+    // exactly what "keep mine" means. Explicit save kick because
+    // the autosave timer only arms on edits.
+    lastSavedRef.current = externalConflict.diskHtml
+    setDirty(true)
+    onDirtyChange?.(true)
+    setExternalConflict(null)
+    void saveRef.current()
+  }, [externalConflict, onDirtyChange])
 
   const save = useCallback(async () => {
     const handle = canvasRef.current
@@ -553,6 +706,39 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
       // .html first; if it succeeds, persist the sidecar. Order matters
       // because the sidecar is meaningless without the canvas file.
       if (htmlChanged) {
+        // FOLLOWUP-019 — pre-save reconciliation (mirror BUG-085's
+        // save-side check). chokidar events are debounced and frequently
+        // arrive AFTER the autosave timer has fired; without this read,
+        // an external write racing autosave could be silently overwritten
+        // before the watcher's banner ever surfaced. Read disk just
+        // before writing; if it drifted from baseline, bail and route
+        // through the same conflict banner the watcher uses.
+        try {
+          const diskRes = await window.electron.files.read(path)
+          const diskHtml = decodeUtf8(diskRes.bytes)
+          const normalize = (s: string) => s.replace(/\s+$/, '')
+          if (normalize(diskHtml) !== normalize(lastSavedRef.current)) {
+            console.debug('[FOLLOWUP-019 save-pre-conflict] disk diverged from baseline', {
+              path,
+              diskHtmlLength: diskHtml.length,
+              baselineLength: lastSavedRef.current.length,
+              diskHead: diskHtml.slice(0, 60),
+              baselineHead: lastSavedRef.current.slice(0, 60)
+            })
+            setExternalConflict({ diskHtml })
+            return
+          }
+        } catch {
+          // Can't read disk (file deleted, permissions, etc.) — fall
+          // through to write. The write may also fail; the catch below
+          // surfaces the error. Better than silently aborting the save.
+        }
+
+        // FOLLOWUP-019 — register the just-serialized HTML in the
+        // recently-written set BEFORE the write IPC. If chokidar fires
+        // before the post-write baseline update lands, the watcher's
+        // secondary echo check recognizes the disk content as ours.
+        trackRecentlyWrittenHtml(html)
         await window.electron.files.write(path, encodeUtf8(html))
         lastSavedRef.current = html
       }
@@ -1653,6 +1839,28 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           {error}
         </div>
       )}
+      {externalConflict && (
+        <div className="shrink-0 px-10 py-2.5 text-xs border-b border-amber-900/40 bg-amber-950/30 text-amber-200 flex items-center gap-3">
+          <span className="flex-1">
+            <strong className="font-semibold">This file changed on disk</strong> while you were editing.
+            Reload (loses your edits) or keep yours (next save will overwrite the new disk version).
+          </span>
+          <button
+            type="button"
+            onClick={resolveConflictReload}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Reload from disk
+          </button>
+          <button
+            type="button"
+            onClick={resolveConflictKeepMine}
+            className="px-2 py-1 rounded border border-amber-800/60 hover:border-amber-700 hover:bg-amber-900/30"
+          >
+            Keep mine
+          </button>
+        </div>
+      )}
       {/* FOLLOWUP-015 — view-source v2 replaces the canvas iframe + rail
           area with ViewSourcePanel when active, so source mode owns
           the full content area. Toggle out via Done button or chord. */}
@@ -1667,6 +1875,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           <>
         {initialHtml !== null ? (
           <RenderedPage
+            key={reloadKey}
             ref={canvasRef}
             initialHtml={initialHtml}
             onChange={handleChange}

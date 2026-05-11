@@ -6361,9 +6361,9 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 
 ### FOLLOWUP-019: BUG-085 PageTab parity — mirror external-write reconciliation to the HTML canvas
 
-**Status:** 🟡 Open. Filed 2026-05-11 from Sprint 16 audit of BUG-085 closure — note (c) in the parent entry was never given a real FOLLOWUP number ("FOLLOWUP-NN: PageTab mirror" was a placeholder). Verified still owed: `grep -nE "files\\.watch" renderer/components/Page/PageTab.tsx` returns nothing; the equivalent in `MarkdownEditor.tsx:842` exists.
+**Status:** ✅ **SHIPPED** Sprint 16 commit 4 (2026-05-11). All three layers mirrored from `MarkdownEditor.tsx` into [`PageTab.tsx`](renderer/components/Page/PageTab.tsx): (1) **File watcher useEffect** subscribed via `window.electron.files.watch([path], …)` after `initialHtml` lands — echo-guards against `lastSavedRef` + `recentlyWrittenHtmlRef`, branches on dirty (clean → silent reload via `setInitialHtml(diskHtml)` + `setReloadKey(k+1)` to force RenderedPage remount; dirty → surface conflict banner). (2) **Pre-save reconciliation** in `save()` reads disk just-before-write; if disk drifted from baseline, sets `externalConflict` and returns without writing. (3) **`recentlyWrittenHtmlRef`** Map with 2s TTL (BUG-099 mirror) registered via `trackRecentlyWrittenHtml(html)` before every IPC write. **Conflict banner** mirrors MarkdownEditor's amber styling + copy. **Verified live via CLI:** `duo edit --canvas /tmp/foo.html` + external write → dev log shows `[FOLLOWUP-019 reload]` for clean buffer + `[FOLLOWUP-019 conflict]` for dirty buffer + 5x `[FOLLOWUP-019 save-pre-conflict]` (autosave retrying + bailing correctly); `duo dom '.bg-amber-950\\/30' --all` confirms banner DOM with the two action buttons.
 **Priority:** Medium — same class of bug as the parent BUG-085 markdown variant (silent staleness / autosave squashing agent fs-writes), surface is just the HTML canvas instead of the rich markdown editor. Not actively user-flagged because the canvas's primary content path is `duo html *` ops which route through the live PageTab anyway; the gap surfaces when an agent does a raw `Write` against an open `.html` file.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Shipped:** 2026-05-11.
 
 **What's owed.** Mirror the three layers of BUG-085's fix to [`PageTab.tsx`](renderer/components/Page/PageTab.tsx):
 
