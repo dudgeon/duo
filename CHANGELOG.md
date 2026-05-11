@@ -19,7 +19,55 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.6.13 cut 2026-05-10. Sprint 16+ work accumulates here.
+> Empty — v0.6.14 cut 2026-05-10. Sprint 16+ work accumulates here.
+
+## [0.6.14] — 2026-05-10
+
+Sprint 16 commits 1 + 2 — two P0 hotfixes from the same enterprise-
+machine session. Install-path hardening so `duo` works inside Duo
+PTYs and Claude Code sandboxes without `.zshrc` edits; close-last-
+browser-tab loop fix.
+
+### Fixed
+- **ENH-141** — `duo` CLI is now reachable by name inside Duo PTYs
+  and Claude Code sandboxes. Pre-fix, both install paths landed at
+  directories that aren't on PTY `$PATH` (`~/.claude/bin/duo` for
+  `duo install`, `~/.local/bin/duo` for the Electron FirstLaunchBanner).
+  Inside a sandboxed Claude Code session that blocks `.zshrc` writes,
+  the CLI was only reachable by absolute path. The fix drops the
+  binary at `~/.claude/duo/bin/duo` (SHIM_DIR) — the dir
+  `core/pty-manager.ts` prepends to PATH at every PTY spawn for the
+  `claude` shim — so `duo` works immediately inside Duo with no
+  shell-rc edit. Reported by an enterprise user running Duo v0.6.13
+  inside a managed Claude Code install.
+- **BUG-121** — closing the last browser tab (or the only main-strip
+  tab when an aux tab was pinned) no longer respawns a fresh
+  about:blank in a loop. The BUG-020 + BUG-096 spawn-replacement
+  guards retired alongside their motivation (the boot-time FAQ tab
+  that retired in v0.6.13 ENH-135). `tabs.length === 0` is now a
+  supported empty state — address bar empty, main slot collapsed,
+  typing a URL self-heals back to a populated tab.
+
+### Changed
+- **ENH-141 companion** — FirstLaunchBanner's [Install] action also
+  auto-appends a fenced `export PATH="$HOME/.local/bin:$PATH"` block
+  to your shell rc (zsh / bash / fish) so the CLI works from external
+  Terminal / iTerm too. Was previously a separate dismissible
+  "Add to PATH" button row that users skipped. The banner success
+  state surfaces the wire-up result inline (rc file written, already
+  present, or manual fallback).
+- **`duo install` tier-1 target** changed from `~/.claude/bin/duo`
+  to `~/.claude/duo/bin/duo`. `duo doctor`'s known-targets list now
+  shows both old and new paths so stale pre-ENH-141 symlinks are
+  visible.
+
+### Known issues
+- Pre-ENH-141 stale `~/.claude/bin/duo` symlinks are not auto-cleaned
+  on upgrade (FOLLOWUP-013). They're harmless — just unused files.
+  Manually `rm` if you want a clean tree.
+- BUG-119 (fsevents shutdown race producing SIGABRT every Duo quit)
+  surfaced at Sprint 15 close-out is still open — visible in
+  Console but doesn't affect normal usage.
 
 ## [0.6.13] — 2026-05-10
 
@@ -1181,7 +1229,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.6.14...HEAD
+[0.6.14]: https://github.com/dudgeon/duo/releases/tag/v0.6.14
 [0.6.1]: https://github.com/dudgeon/duo/releases/tag/v0.6.1
 [0.6.0]: https://github.com/dudgeon/duo/releases/tag/v0.6.0
 [0.5.6]: https://github.com/dudgeon/duo/releases/tag/v0.5.6

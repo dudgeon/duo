@@ -18,6 +18,34 @@
 
 ---
 
+## 2026-05-10 evening (v0.6.14 cut — Sprint 16 commits 1+2) — Install-path hardening + browser-tab close-loop fix; same-day enterprise hotfix
+
+**Status: v0.6.14 cut — tag `v0.6.14` local-only (not yet pushed; awaiting owner blessing).** Two P0 hotfixes from the same enterprise-machine session, bundled into a same-day cut.
+
+**ENH-141** — `duo` CLI now reaches PTY $PATH inside Duo terminals and Claude Code sandboxes. The pre-fix install paths (`~/.claude/bin/duo` for `duo install`, `~/.local/bin/duo` for the FirstLaunchBanner) both landed at directories that aren't on PTY $PATH; inside Claude Code's sandbox the `.zshrc` workaround was blocked by dotfile write-deny, so the agent could only call `duo` by absolute path. Fixed by dropping the CLI at `~/.claude/duo/bin/duo` (SHIM_DIR), which `core/pty-manager.ts` prepends to every PTY's $PATH for the `claude` shim. Companion change folds `addToShellPath()` into the FirstLaunchBanner [Install] action so `~/.zshrc` gets the fence in one click — was previously a separate dismissible button row that users skipped, leaving external Terminal / iTerm sessions broken even after [Install].
+
+**BUG-121** — closing the last browser tab respawned a fresh about:blank in a loop. Two guards (BUG-020 + BUG-096) in `browser-manager.ts § closeTab` refused to drop below 1 main-strip tab and spawned `about:blank` to fill the slot. Original BUG-020 motivation ("can't dismiss the boot-time FAQ tab") retired in v0.6.13 (ENH-135) when the FAQ moved to `docs/legacy/`. The guards kept firing anyway. Dropped both spawn-replacement paths; `tabs.length === 0` is now a supported empty state with `activeIndex = -1` and an empty `BrowserState` emit. All `activeView()` callers null-guarded; `navigate(url)` self-heals via `addTab+switchTab` when called in the empty state (lets the address bar still work). `addTab` auto-activates when filling the empty state so the renderer's `+` button still works.
+
+**Commits behind this cut:**
+
+| Commit | Item |
+|---|---|
+| `1518be5` | **ENH-141** — install-path hardening (SHIM_DIR target + auto-`.zshrc` wire in the FirstLaunchBanner [Install] click). CLI binary rebuilt + committed alongside source. |
+| `2053a11` | **BUG-121** — drop BUG-020 + BUG-096 spawn-replacement guards; allow zero browser tabs; null-guard all `activeView()` callers; `navigate` self-heal + `addTab` auto-activate from empty state. |
+| `<this commit>` | **release: v0.6.14** — CHANGELOG + RELEASES + roadmap + session-log + `packs/duo-default/PACK.json` version bump (1.0.0 → 1.0.1). Tag `v0.6.14` local-only. |
+| `<next commit>` | **chore: bump to v0.6.15** for next sprint. |
+
+**Smoke walk shape.** Single walk page at `docs/dev/smoke-walks/v0.6.14.html`. Owner result: 2 PASS / 3 SKIP / 0 FAIL. The two PASS rows covered the CLI-side install path end-to-end (agent-walked). The three SKIPs were the owner's explicit framing: "won't know til we test on enterprise install." BUG-121 wasn't in the walk (filed and fixed AFTER the walk-1 page generated); verified instead via direct `duo close` CLI walk: open 2 tabs → close 2 → close 1 → `count: 0` (the critical non-respawn assertion) → `duo open` from empty → 1 tab active. Walk receipt at `docs/dev/smoke-walks/v0.6.14.results.md`.
+
+**Carry-forward to the rest of Sprint 16.**
+
+- **BUG-119** — fsevents shutdown race producing SIGABRT every Duo quit. Pre-existing pre-v0.6.13; surfaced at Sprint 15 close-out; still owed.
+- **ENH-140** — install-service should track + cleanup orphan files on upgrade. P2. Pairs naturally with the install-path hardening just landed (a future orphan-cleanup pass would also catch pre-ENH-141 stale `~/.claude/bin/duo` symlinks).
+- **ENH-137** — Beginner's Guide content. Gated on owner-authored draft.
+- **FOLLOWUP-013** — clean up stale `~/.claude/bin/duo` symlinks on upgrade. Filed in `tasks.md § ENH-141`.
+
+---
+
 ## 2026-05-10 night (v0.6.13 cut — Sprint 15 close-out) — FTUX content → packs (install-pipeline reshape); 6 commits behind the cut
 
 **Status: v0.6.13 cut — tag `v0.6.13` local-only (not yet pushed; awaiting owner blessing).** Sprint 15 ships the FTUX-content / packs partition principle that ENH-134's planning playground surfaced. The cut hits these surfaces:

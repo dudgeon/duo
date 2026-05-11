@@ -21,7 +21,62 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.6.13 cut 2026-05-10)*
+> *(empty — v0.6.14 cut 2026-05-10)*
+
+---
+
+## v0.6.14 — 2026-05-10 — Install-path hardening + browser-tab close fix (enterprise hotfix)
+
+Two P0 fixes from the same enterprise-machine session, bundled into
+a same-day hotfix.
+
+**ENH-141** — the `duo` CLI was unreachable by name inside Claude
+Code sandboxes because both install paths landed at directories that
+aren't on PTY `$PATH`. The agent inside a sandboxed PTY could only
+call `duo` by absolute path — the whole "Claude drives Duo" premise
+breaks. The fix drops the CLI at `~/.claude/duo/bin/duo` (SHIM_DIR
+— the dir `core/pty-manager.ts` already prepends to PATH for the
+`claude` shim). Inside any Duo terminal `duo` now works immediately
+with no `.zshrc` edit. The companion change folds the
+previously-separate Add-to-PATH banner button into the [Install]
+click, so external Terminal / iTerm sessions also get wired in one
+action.
+
+**BUG-121** — closing the last browser tab respawned a fresh
+about:blank in a loop. Two guards (BUG-020 + BUG-096) in
+`browser-manager.ts § closeTab` refused to drop below 1 main-strip
+tab and spawned `about:blank` to fill the slot. Original BUG-020
+motivation ("can't dismiss the boot-time FAQ tab") retired in
+v0.6.13 (ENH-135) when the FAQ moved to `docs/legacy/`. The guards
+kept firing anyway. Fixed by dropping both spawn-replacement paths
+and making `tabs.length === 0` a supported empty state. Surfaced
+during the ENH-141 session; an example of a deferred-motivation
+guard that outlived its purpose by exactly one sprint.
+
+**Why this lands as a hotfix and not a planned sprint.** Enterprise
+users running Duo inside a managed Claude Code install were
+structurally locked out by ENH-141 — even the workaround (manually
+editing `.zshrc`) was blocked by the sandbox's dotfile write-deny.
+BUG-121 was discovered while debugging ENH-141 (user closed an
+about:blank that kept respawning). Holding either fix for normal
+sprint cadence meant another week of broken sandboxed installs.
+
+**What this is and isn't.**
+
+This is a hotfix release — two narrowly-scoped P0 fixes, no new
+capability, no schema changes. ENH-141 changed the `duo install`
+tier-1 target from `~/.claude/bin/duo` to `~/.claude/duo/bin/duo`;
+pre-ENH-141 stale symlinks are harmless (just unused files) and
+will get cleaned by a future ENH-140 orphan-cleanup pass
+(FOLLOWUP-013). BUG-121 is a behavior change for one specific edge
+case (last browser tab close); a stuck about:blank from a prior
+session-state can now be dismissed on upgrade without manual
+intervention.
+
+**Sprint 16 status.** ENH-141 + BUG-121 ship as commits 1 and 2.
+Remaining candidates (BUG-119 fsevents quit-crash, ENH-140 install-
+service orphan cleanup, ENH-137 Beginner's Guide content) carry
+forward at the owner's pick.
 
 ---
 
