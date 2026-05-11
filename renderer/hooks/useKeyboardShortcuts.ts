@@ -292,6 +292,7 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'cycleTabsForward':
         case 'cycleTabsBackward': {
           const delta = (id === 'cycleTabsBackward' ? -1 : 1) as 1 | -1
+          console.debug('[BUG-079]', Date.now(), 'shortcut entry', { id, delta, pane })
           // BUG-021 + BUG-038 v3 — read both tabs and activePaneFocus
           // from refs so the cycle sees CURRENT state at keystroke
           // time, not a useEffect-closure snapshot. cycleNext is a
@@ -300,6 +301,7 @@ export function useKeyboardShortcuts(opts: Options) {
           const tabs = tabsRef.current
           if (pane === 'terminal' && tabs.length > 0) {
             const nextId = cycleNext(tabs, activeTabIdRef.current, delta)
+            console.debug('[BUG-079]', Date.now(), 'terminal cycle setActiveTabId', { nextId })
             if (nextId) opts.setActiveTabId(nextId)
           } else {
             // BUG-038 v4 — when pane is 'working' (or anything
@@ -312,6 +314,7 @@ export function useKeyboardShortcuts(opts: Options) {
             // CustomEvent and let WorkingPane do the right thing.
             // Mirrors the duo-tree-start-rename pattern: avoids
             // lifting mergedTabs state up to App just to read it.
+            console.debug('[BUG-079]', Date.now(), 'dispatch duo-cycle-working-tab')
             window.dispatchEvent(new CustomEvent('duo-cycle-working-tab', { detail: { delta } }))
           }
           return

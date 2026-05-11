@@ -4648,9 +4648,56 @@ Symmetric for `⌘⇧\\` (expected: promote aux back to main; actual: nothing).
 
 ### BUG-079: ⌃⇧\` tab-cycle has multi-second latency + requires re-presses (recurring observation)
 
-**Status:** 🆕 Filed — surfaced again in v0.6.5 Phase 5 re-walk (2026-05-04).
+**Status:** 🟢 **Instrumented in Sprint 17 commit 3 (2026-05-11); awaiting production repro for forensic capture.** Owner-pick path: "diagnose first, fix from data." Synthetic-keystroke testing ruled out the renderer + main-process code path entirely; remaining hypotheses are OS-level or upstream of `document.addEventListener('keydown', ...)`.
+
+**Synthetic-test findings (2026-05-11 — instrumentation pass).** Added `[BUG-079]`-tagged timing traces at every cycle hop:
+
+- **Renderer** (`hooks/useKeyboardShortcuts.ts § cycleTabsForward/Backward case`) — entry log (delta + pane + tabsLen), dispatch-log when working-pane CustomEvent fires.
+- **Renderer** (`components/WorkingPane.tsx § duo-cycle-working-tab handler`) — handler entry, cycleNext result, before/after handleSelect.
+- **Renderer** (`components/WorkingPane.tsx § handleSelect`) — entry log + switchTab-IPC-fire log when browser kind.
+- **Main** (`electron/browser-manager.ts § switchTab`) — entry, after setBounds, after wc.focus(), after emits, return (with cumulative dt).
+
+Fired via `duo dom --js 'document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", code: "Tab", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true }))'` against the dev session with 4 browser tabs open, focus on working pane. Measured:
+
+| Hop | Latency |
+|---|---|
+| Renderer entry → dispatchEvent → WorkingPane handler entry | <1ms |
+| WorkingPane handler entry → cycleNext returned | 1ms |
+| cycleNext → handleSelect → switchTab IPC fire | <1ms |
+| switchTab IPC fire (renderer) → switchTab entry (main) | <1ms (IPC round-trip negligible) |
+| switchTab entry → wc.focus() return | 1-2ms |
+| switchTab entry → emits | 2ms |
+| switchTab entry → return (after cdp.attach await) | **8-50ms** total |
+
+**Total renderer-keydown to switchTab-return: ~15ms.** Synthetic 3-press cycle (with 200ms spacing — human cadence) showed same ~1ms per renderer hop; no accumulated lag. Synthetic 5-press burst (within 1ms) saw 4/5 cycles land on FILE tabs (no switchTab IPC fired for those — handleSelect's `'file'` branch is fully synchronous) but no latency on any of them.
+
+**Hypothesis status post-instrumentation:**
+
+| # | Hypothesis | Status |
+|---|---|---|
+| 1 | IPC round-trip on focus change blocks | **RULED OUT** — IPC and switchTab complete in <15ms in synthetic test |
+| 2 | activeIdRef race after BUG-076 fix | **UNLIKELY** — back-to-back synthetic cycles correctly advance to different targets |
+| 3 | cycleNext direction=-1 different code path | **RULED OUT** — same math (`(idx + delta + len) % len`); cycleNext is pure |
+| 4 | Modifier-key release window (OS doesn't deliver Tab while ⌃+⇧ held) | **STILL OPEN — leading candidate** |
+
+**Two additional hypotheses surfaced by the data:**
+
+5. **Keystroke consumed by something OTHER than the renderer's document listener.** xterm.js's `attachCustomKeyEventHandler` (TerminalPane), the browser pane's WebContentsView (which has its own webContents intercepting keys), or a TipTap/CodeMirror editor's ProseMirror keymap could swallow the keystroke before it bubbles to `document`. If the focused element is inside one of those subsystems and they consume the key, the global shortcut matcher never fires. Owner's "requires re-presses" symptom fits this: first press is eaten by xterm/iframe/editor; second press (after focus drift from the no-op) bubbles correctly.
+
+6. **OS-level keystroke delivery throttling.** macOS may batch / coalesce repeated keystrokes when modifiers are held. Not directly observable from our trace; needs system-level instrumentation (e.g. `ioreg` / `Accessibility Inspector`).
+
+**What to do on next production repro:**
+
+1. Open Duo dev; open devtools console; filter on `[BUG-079]`.
+2. Open browser pane, multiple tabs; focus the working pane.
+3. Try to reproduce the chord-latency pattern.
+4. **If a press silently no-ops (cycle didn't advance):** check the dev log for that timestamp — was there a `[BUG-079] shortcut entry` line? If NO line, the keystroke was consumed upstream (hypothesis 5). If YES line, the cycle ran — check for the `[BUG-079] switchTab return` follow-up.
+5. **If a press succeeds but with >100ms delay:** the gap between `shortcut entry` and `switchTab return` is the suspect segment. Read each `[BUG-079]` hop's timestamp to isolate.
+
+**Instrumentation sunset.** These traces are intentionally diagnose-only. Once a production capture lands and the bug is named, remove the instrumentation in the same fix commit. If no repro happens by end of Sprint 17, decide then whether to keep (low ROI) or remove (cleaner code).
+
 **Priority:** Medium (UX friction on a heavily-used chord; recurring class — owner has flagged variants of this multiple sprints).
-**Filed:** 2026-05-04 (owner re-walk verbatim: *"ctrl-shift~ real latency (>2 seconds)/reattempts required before tabs cycled back"*).
+**Filed:** 2026-05-04 (owner re-walk verbatim: *"ctrl-shift~ real latency (>2 seconds)/reattempts required before tabs cycled back"*). **Instrumented:** 2026-05-11.
 
 **Symptom.** ⌃⇧\` (the reverse-direction tab cycle, mirror of ⌃Tab) takes >2 seconds to react and frequently requires re-pressing before any tab switch occurs. ⌃Tab forward-cycle is acceptably responsive.
 

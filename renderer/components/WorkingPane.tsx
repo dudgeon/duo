@@ -326,10 +326,12 @@ export function WorkingPane({
 
   const handleSelect = (id: string) => {
     const parsed = parseId(id)
+    console.debug('[BUG-079]', Date.now(), 'handleSelect entry', { id, parsedKind: parsed.kind })
     if (parsed.kind === 'file') {
       setActiveWorking({ kind: 'file', id: parsed.id })
     } else {
       setActiveWorking({ kind: 'browser' })
+      console.debug('[BUG-079]', Date.now(), 'invoking switchTab IPC', { browserId: parsed.id })
       void switchTab(parsed.id)
     }
   }
@@ -359,9 +361,11 @@ export function WorkingPane({
       const ce = e as CustomEvent<{ delta: 1 | -1 }>
       const delta = ce.detail?.delta
       if (delta !== 1 && delta !== -1) return
+      console.debug('[BUG-079]', Date.now(), 'WorkingPane handler entry', { delta, prevActive: activeIdRef.current })
       const tabs = mergedTabsRef.current
       if (tabs.length === 0) return
       const nextId = cycleNext(tabs, activeIdRef.current, delta)
+      console.debug('[BUG-079]', Date.now(), 'cycleNext returned', { nextId, tabsLen: tabs.length })
       if (nextId) {
         // BUG-076 v2 (v0.6.5) — optimistically update activeIdRef
         // BEFORE the React re-render lands. handleSelect dispatches
@@ -375,7 +379,9 @@ export function WorkingPane({
         // user's intent immediately; React state catches up on the
         // next render.
         activeIdRef.current = nextId
+        console.debug('[BUG-079]', Date.now(), 'calling handleSelect', { nextId })
         handleSelect(nextId)
+        console.debug('[BUG-079]', Date.now(), 'handleSelect returned (sync part complete)')
       }
     }
     window.addEventListener('duo-cycle-working-tab', handler)

@@ -324,6 +324,8 @@ export class BrowserManager {
   }
 
   async switchTab(n: number): Promise<{ ok: boolean; error?: string }> {
+    const t0 = Date.now()
+    console.log('[BUG-079]', t0, 'switchTab entry', { n, currentActive: this.activeIndex, tabsLen: this.tabs.length })
     const idx = this.tabs.findIndex(t => t.id === n)
     if (idx === -1) return { ok: false, error: `No tab with id ${n}` }
     // Phase 3c — refuse to switch the main strip's active tab to a tab
@@ -336,7 +338,10 @@ export class BrowserManager {
     if (n === this.auxTabId) {
       return { ok: false, error: `Tab ${n} is pinned in Split View aux. Use \`duo split-view promote\` to return it to main first.` }
     }
-    if (idx === this.activeIndex) return { ok: true }
+    if (idx === this.activeIndex) {
+      console.log('[BUG-079]', Date.now(), 'switchTab no-op (idx === activeIndex)', { idx })
+      return { ok: true }
+    }
 
     // Shrink current active view. BUG-121 — guard against the empty
     // state (activeIndex === -1 between closeTab and the next addTab/
@@ -347,6 +352,7 @@ export class BrowserManager {
 
     this.activeIndex = idx
     this.tabs[idx].view.setBounds(this.currentBounds)
+    console.log('[BUG-079]', Date.now(), 'after setBounds', { dt: Date.now() - t0 })
 
     // BUG-076 (v0.6.5) — focus the new active view's webContents.
     // Without this, OS focus stays on the previous (now-shrunk-to-1×1)
@@ -361,17 +367,20 @@ export class BrowserManager {
     // transfer for free. Earlier inline focus() calls at addTab /
     // openExisting sites are now redundant but harmless.
     this.tabs[idx].view.webContents.focus()
+    console.log('[BUG-079]', Date.now(), 'after wc.focus()', { dt: Date.now() - t0 })
 
     // Emit UI updates first — CDP attach is best-effort and must not block
     // the state/tab-strip updates the renderer needs.
     this.emitState()
     this.emitTabs()
+    console.log('[BUG-079]', Date.now(), 'after emits', { dt: Date.now() - t0 })
 
     try {
       await this.cdp.attach(this.tabs[idx].view.webContents)
     } catch (err) {
       console.warn('[BrowserManager] CDP attach failed on switchTab:', err)
     }
+    console.log('[BUG-079]', Date.now(), 'switchTab return', { dt: Date.now() - t0 })
     return { ok: true }
   }
 
