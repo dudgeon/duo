@@ -13,16 +13,16 @@
 
 ## Sprint 16 remaining plan (post-v0.6.14, cut target v0.6.15)
 
-### A-bucket — Install/upgrade close-out
+### A-bucket — Install/upgrade close-out ✅ shipped Sprint 16 commits 3 + 5
 
 | ID | Title | Status | Estimate |
 |---|---|---|---|
-| **BUG-119** | fsevents shutdown race — SIGABRT every Duo quit. Move `filesService.dispose()` from `window-all-closed` into `before-quit` so chokidar releases its native fsevents handle before Electron tears down the V8 isolate. | 🟢 P0 — recommended Sprint 16 commit 1 (smallest, biggest visible win) | ~30 min |
-| **ENH-140** | install-service should track + cleanup orphan files on upgrade. Provenance manifest at `~/.claude/duo/installed-files.json`; mirror op records every path it writes, upgrade op subtracts current-bundle paths from prior-bundle paths and removes the difference. Closes the v0.6.13 known orphans (`help/faq.html` + `packs/claude-code-basics/`). | 🟢 P0 | ~half-day |
-| **FOLLOWUP: pin URL auto-migration** | install-service detects `pins.json` entries pointing at v(N-1) paths (e.g. `~/.claude/duo/help/what-duo-does.html`) and rewrites to v(N) successors (`~/.claude/duo/packs/duo-default/canvases/what-duo-does.html`). Closes the documented "two WDD tabs" transient from v0.6.13 CHANGELOG. | 🟢 P1 — pairs with ENH-140's provenance manifest | ~1 hr |
-| **FOLLOWUP: op #8 pivot to pack-defaults iteration** | install-service iterates `packs/*/PACK.json` for `defaults[].pin: true` entries and seeds pins.json dynamically. Removes the hardcoded WDD URL literal Sprint 15 left as transitional in `install-service.ts § op #8`. | 🟢 P1 | ~1 hr |
+| **BUG-119** | fsevents shutdown race — SIGABRT every Duo quit. Moved `filesService.dispose()` + `ptyManager.dispose()` + flushes into `before-quit` so chokidar releases its native fsevents handle before V8 isolate teardown. Verified via osascript Quit Apple Event: no new crash report. | ✅ Sprint 16 commit 3 | ~30 min (actual) |
+| **ENH-140** | Orphan file cleanup on upgrade. **Design simplified:** reused existing `installed.json § files` SHA map (Stage 21e-iii) rather than a new `installed-files.json`. `cleanupOrphans(prevShas, newFiles)` runs post-write — matched-SHA orphans deleted, customized files preserved + logged. Empty-dir sweep handles `help/` etc. when last contained file retires. Verified live with injected fake files (matched-SHA → deleted ✅; mismatched-SHA → preserved ✅). **Known limitation:** v0.6.13/v0.6.14 legacy orphans (`help/faq.html`, retired pack dirs) aren't tracked in prevShas so they don't auto-clean; v0.6.15+ retirements going forward do. | ✅ Sprint 16 commit 5 | ~half-day |
+| **FOLLOWUP: pin URL auto-migration** | `migrateStalePinUrls()` walks pins.json on every install, rewrites known v(N-1)→v(N) renames (PIN_RENAMES map: `duo/help/what-duo-does.html` → `duo/packs/duo-default/canvases/what-duo-does.html`), drops pins for retired-no-successor entries (`duo/help/faq.html` → null). Idempotent. Verified live: owner's stale `help/what-duo-does.html` pin migrated correctly + other user-pins preserved. Closes the documented "two WDD tabs" transient. | ✅ Sprint 16 commit 5 | ~1 hr |
+| **FOLLOWUP: op #8 pivot to pack-defaults iteration** | `bootstrapPinsFromPackDefaults(sourceRoot)` reads each `packs/*/PACK.json` and seeds pins.json from `defaults[].kind === 'canvas' && defaults[].pin === true` entries. Pin title extracted from each canvas's `<title>` element (falls back to pack.title). Replaces hardcoded WDD literal. Verified live: renamed pins.json away → install → seeded with `What Duo Does` pin from duo-default pack manifest. | ✅ Sprint 16 commit 5 | ~1 hr |
 
-**A-bucket total:** ~1 day. End state: enterprise-friendly install + upgrade story closes cleanly — fresh installs land everything in canonical locations, upgrades clean up after themselves, pinned tabs survive content reshuffles.
+**A-bucket total:** ~1 day. End state achieved: enterprise-friendly install + upgrade story closes cleanly — fresh installs bootstrap pins dynamically from pack manifests, upgrades clean up after themselves, stale pinned tabs auto-migrate.
 
 ### B-bucket — Stability sweep (owner picked all 4 candidates 2026-05-10)
 

@@ -59,6 +59,7 @@
 // canonical skill/, agents/, cli/ directories that ship outside asar).
 
 import * as fs from 'fs/promises'
+import type { Dirent } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
@@ -518,36 +519,22 @@ export class InstallService {
         )
       }
 
-      // ENH-003 (v0.3.1) + ENH-138 (Sprint 15) — bootstrap pins.json
-      // with What Duo Does pre-pinned. Bootstrap-only: never clobber
-      // a user's existing pin set. The pin URL points at the
-      // duo-default pack canvas (mirrored to
-      // `~/.claude/duo/packs/duo-default/canvases/what-duo-does.html`
-      // by the pack-mirror op above). Once the user opens the tab
-      // (auto-fired by BUG-057's first-launch pin restore), the
-      // strip renders it with the pin glyph + sorts leftmost.
-      //
-      // ENH-135 (Sprint 15) — FAQ removed from default pins. The
-      // FAQ content was retired to `docs/legacy/faq.html`; the
-      // default install no longer ships or references it.
-      //
-      // Future direction: this hardcoded literal is the last
-      // duplicate of pack-default-pinning behavior in install-
-      // service. A follow-up will iterate `packs/*/PACK.json` for
-      // entries with `defaults[].pin: true` and seed pins.json from
-      // them, removing this hardcoded URL entirely.
-      try {
-        await fs.access(PINS_PATH)
-      } catch {
-        const wddUrl = `file://${path.join(PACKS_DEST_DIR, 'duo-default', 'canvases', 'what-duo-does.html')}`
-        const defaultPins = {
-          version: 1,
-          pins: [
-            { kind: 'browser', ref: wddUrl, title: 'Duo — What Duo Does' }
-          ]
-        }
-        await fs.writeFile(PINS_PATH, JSON.stringify(defaultPins, null, 2) + '\n')
-      }
+      // Sprint 16 op #8 pivot — bootstrap pins.json from packs/*/PACK.json
+      // defaults[].pin: true (was hardcoded WDD URL literal; that drift-
+      // prone duplication of pack-default-pinning shape is now gone).
+      // Fresh install only — `await fs.access(PINS_PATH)` short-circuits
+      // when a user pins.json already exists. Upgrade users go through
+      // migrateStalePinUrls() instead (next block).
+      await this.bootstrapPinsFromPackDefaults(sourceRoot)
+
+      // Sprint 16 — pin URL auto-migration. Existing users may have
+      // pins.json entries pointing at v(N-1) paths that moved or were
+      // retired in this cut (e.g. v0.6.12 → v0.6.13 moved
+      // `help/what-duo-does.html` → `packs/duo-default/canvases/`).
+      // Rewrites known renames + drops pins pointing at files retired
+      // with no successor (FAQ in v0.6.13). Closes the v0.6.13 known-
+      // issue "two WDD tabs on upgrade".
+      await this.migrateStalePinUrls()
 
       // Stage 19b — SessionStart hook merge. Idempotent: replaces our
       // own duo-tagged entry on re-run; leaves any non-Duo
@@ -651,6 +638,18 @@ export class InstallService {
       for (const r of fileResults) {
         if (r.sha) newFiles[r.relPath] = r.sha
         if (r.outcome === 'preserved-conflict') preservedConflicts.push(r.relPath)
+      }
+
+      // ENH-140 — orphan cleanup. Files present in prevShas (last
+      // install's SHA map) but absent from newFiles (this install's)
+      // are retired by the current bundle. Delete IFF the on-disk SHA
+      // still matches the prior recorded SHA (user didn't customize).
+      // User-modified copies are preserved in place + reported. Empty
+      // directories left behind are removed via best-effort rmdir.
+      // Best-effort: any single failure is logged + skipped — doesn't
+      // block the install.
+      if (prevShas) {
+        await this.cleanupOrphans(prevShas, newFiles)
       }
 
       // Provenance — last write wins. Updated on every successful run
@@ -1067,6 +1066,257 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
    * extended object form (`{host, reason}`). Comparison key is the
    * `host` string in both cases.
    */
+  /**
+   * Sprint 16 — known v(N-1) → v(N) pin path renames. Used by
+   * `migrateStalePinUrls` to rewrite existing users' pins.json
+   * entries that pointed at files we moved or retired in this cut.
+   *
+   * Keys are old absolute paths under `~/.claude/duo/`; values are
+   * either a new path (rename) or null (retired with no successor —
+   * drop the pin entirely). Matched against the SUFFIX of each pin
+   * `ref` after stripping any `file://` prefix, so the same map
+   * works regardless of how the pin was originally written.
+   */
+  private readonly PIN_RENAMES: Record<string, string | null> = {
+    // ENH-138 (v0.6.13) — WDD canvas moved from help/ into the
+    // built-in duo-default pack.
+    'duo/help/what-duo-does.html': 'duo/packs/duo-default/canvases/what-duo-does.html',
+    // ENH-135 (v0.6.13) — FAQ retired entirely (moved to
+    // docs/legacy/ in the repo; no longer installed for users).
+    // Drop any pin pointing at the old location.
+    'duo/help/faq.html': null
+  }
+
+  /**
+   * Sprint 16 — bootstrap pins.json from each pack's PACK.json on a
+   * fresh install. Replaces the prior hardcoded WDD URL literal in
+   * op #8. Iterates every pack with `defaults[].kind === 'canvas'`
+   * AND `defaults[].pin === true`; pulls each canvas's pin title from
+   * its `<title>` element (falls back to the pack title) so the
+   * existing "Duo — What Duo Does" display string is preserved
+   * without a hardcoded literal.
+   *
+   * Bootstrap-only: returns early if pins.json already exists. The
+   * upgrade case goes through `migrateStalePinUrls` instead.
+   */
+  private async bootstrapPinsFromPackDefaults(sourceRoot: string): Promise<void> {
+    try {
+      await fs.access(PINS_PATH)
+      return  // user pins.json already exists; never clobber
+    } catch { /* fresh install — proceed */ }
+
+    const pins: Array<{ kind: 'browser'; ref: string; title: string }> = []
+    const packsSrcDir = await this.resolvePacksSrcDir(sourceRoot)
+    if (!packsSrcDir) {
+      // No packs source directory found — write an empty pins.json so
+      // the file exists (later code paths read it expecting valid JSON).
+      await fs.writeFile(PINS_PATH, JSON.stringify({ version: 1, pins: [] }, null, 2) + '\n')
+      return
+    }
+
+    let entries: Dirent[]
+    try {
+      entries = await fs.readdir(packsSrcDir, { withFileTypes: true })
+    } catch {
+      // Unreadable — write an empty pins.json and return.
+      await fs.writeFile(PINS_PATH, JSON.stringify({ version: 1, pins }, null, 2) + '\n')
+      return
+    }
+
+    for (const e of entries) {
+      if (!e.isDirectory()) continue
+      const packName = e.name
+      const manifestPath = path.join(packsSrcDir, packName, 'PACK.json')
+      let manifest: { defaults?: Array<{ kind?: string; path?: string; pin?: boolean }>; title?: string } | null = null
+      try {
+        const raw = await fs.readFile(manifestPath, 'utf8')
+        manifest = JSON.parse(raw)
+      } catch { continue /* missing / malformed — skip pack */ }
+      if (!manifest?.defaults) continue
+      for (const def of manifest.defaults) {
+        if (def.kind !== 'canvas' || def.pin !== true || !def.path) continue
+        // Pin ref points at the INSTALLED location (PACKS_DEST_DIR),
+        // not the source — the user opens the installed copy.
+        const destPath = path.join(PACKS_DEST_DIR, packName, def.path)
+        const ref = `file://${destPath}`
+        const title = await this.extractCanvasTitle(path.join(packsSrcDir, packName, def.path))
+          ?? manifest.title
+          ?? packName
+        pins.push({ kind: 'browser', ref, title })
+      }
+    }
+
+    await fs.writeFile(PINS_PATH, JSON.stringify({ version: 1, pins }, null, 2) + '\n')
+  }
+
+  /** Locate the packs/ source directory across dev + prod layouts. */
+  private async resolvePacksSrcDir(sourceRoot: string): Promise<string | null> {
+    const candidates = [path.join(sourceRoot, 'packs')]
+    const res = this.resourcesRoot()
+    if (res) candidates.push(path.join(res, 'packs'))
+    for (const c of candidates) {
+      try {
+        await fs.access(c)
+        return c
+      } catch { continue }
+    }
+    return null
+  }
+
+  /** Best-effort `<title>` extraction from an HTML file. Returns null
+   *  on read failure / missing title element. Used to preserve the
+   *  existing per-canvas pin title without a hardcoded literal. */
+  private async extractCanvasTitle(htmlPath: string): Promise<string | null> {
+    try {
+      const raw = await fs.readFile(htmlPath, 'utf8')
+      const m = raw.match(/<title[^>]*>([^<]*)<\/title>/i)
+      return m ? m[1].trim() : null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Sprint 16 — rewrite stale v(N-1) pin URLs in an existing user's
+   * pins.json. For each entry whose ref ends with a known renamed path
+   * (PIN_RENAMES map above), rewrite to the new location. For each
+   * entry whose ref ends with a known retirement (PIN_RENAMES value =
+   * null), drop the entry.
+   *
+   * Idempotent: pins already pointing at new paths are untouched.
+   * Conservative: only acts on PIN_RENAMES entries — unknown stale
+   * pins (e.g. pointing at user files that moved) are preserved.
+   *
+   * Safe-mode: if pins.json is unparseable, leave it alone — don't
+   * clobber an in-progress user edit.
+   */
+  private async migrateStalePinUrls(): Promise<void> {
+    let raw: string
+    try {
+      raw = await fs.readFile(PINS_PATH, 'utf8')
+    } catch {
+      return  // no pins.json — nothing to migrate (op #8 will bootstrap)
+    }
+
+    let parsed: { version?: number; pins?: Array<{ kind?: string; ref?: string; title?: string }> }
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      console.warn('[install-service] pins.json unparseable; skipping pin-url migration')
+      return
+    }
+    if (!Array.isArray(parsed.pins)) return
+
+    const claudeDir = path.join(HOME, '.claude')
+    let changed = false
+    const newPins: Array<{ kind?: string; ref?: string; title?: string }> = []
+
+    for (const pin of parsed.pins) {
+      const ref = pin.ref
+      if (typeof ref !== 'string') {
+        newPins.push(pin)
+        continue
+      }
+      // Strip file:// prefix + ~/.claude/ prefix to get the relative
+      // path under .claude/ — that's the suffix our PIN_RENAMES keys
+      // are written against.
+      const localPath = ref.startsWith('file://') ? ref.slice('file://'.length) : ref
+      let relUnderClaude: string | null = null
+      if (localPath.startsWith(claudeDir + path.sep)) {
+        relUnderClaude = localPath.slice(claudeDir.length + 1)
+      }
+
+      if (relUnderClaude !== null && Object.prototype.hasOwnProperty.call(this.PIN_RENAMES, relUnderClaude)) {
+        const successor = this.PIN_RENAMES[relUnderClaude]
+        if (successor === null) {
+          // Retired with no successor — drop the entry.
+          console.log(`[install-service] migrating pins.json: dropping retired entry ${relUnderClaude}`)
+          changed = true
+          continue
+        }
+        // Rename — rewrite ref.
+        const newRef = `file://${path.join(claudeDir, successor)}`
+        if (newRef !== ref) {
+          console.log(`[install-service] migrating pins.json: ${relUnderClaude} -> ${successor}`)
+          newPins.push({ ...pin, ref: newRef })
+          changed = true
+          continue
+        }
+      }
+      newPins.push(pin)
+    }
+
+    if (!changed) return
+    const next = { ...parsed, pins: newPins }
+    await fs.writeFile(PINS_PATH, JSON.stringify(next, null, 2) + '\n')
+  }
+
+  /**
+   * ENH-140 — delete files that were in the previous install's SHA map
+   * but aren't in this install's. Only deletes when the on-disk SHA
+   * still matches the prior recorded SHA (i.e. user didn't customize).
+   * User-modified copies stay in place; the user can remove them by
+   * hand if they want.
+   *
+   * After per-file deletion, walks the unique parent directories and
+   * tries `fs.rmdir` (non-recursive) on each — succeeds only when the
+   * directory has become empty. Cleans up `help/` and similar after
+   * their last contained file is retired.
+   *
+   * Best-effort throughout: any single failure is logged + skipped.
+   */
+  private async cleanupOrphans(
+    prevShas: Record<string, string>,
+    newFiles: Record<string, string>
+  ): Promise<void> {
+    const orphanedKeys = Object.keys(prevShas).filter(k => !(k in newFiles))
+    if (orphanedKeys.length === 0) return
+
+    const claudeDir = path.join(HOME, '.claude')
+    const parentDirs = new Set<string>()
+
+    for (const relPath of orphanedKeys) {
+      const absPath = path.join(claudeDir, relPath)
+      try {
+        const diskSha = await this.computeFileSha(absPath)
+        if (diskSha !== prevShas[relPath]) {
+          console.log(`[install-service] preserving customized orphan: ${relPath} (disk SHA differs from prior install)`)
+          continue
+        }
+        await fs.unlink(absPath)
+        console.log(`[install-service] cleaned up orphan file: ${relPath}`)
+        parentDirs.add(path.dirname(absPath))
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException)?.code
+        if (code === 'ENOENT') {
+          // Already gone — count its parent for empty-dir cleanup
+          // anyway in case other orphans in that dir landed.
+          parentDirs.add(path.dirname(absPath))
+          continue
+        }
+        console.warn(`[install-service] orphan cleanup failed for ${relPath}:`, (err as Error)?.message ?? err)
+      }
+    }
+
+    // Empty-dir cleanup — process deepest first so nested empties cascade.
+    const sortedDirs = [...parentDirs].sort((a, b) => b.length - a.length)
+    for (const dir of sortedDirs) {
+      // Never try to remove ~/.claude/ itself or anything above it.
+      if (!dir.startsWith(claudeDir + path.sep)) continue
+      try {
+        await fs.rmdir(dir)  // non-recursive: only succeeds when empty
+        console.log(`[install-service] removed empty orphan dir: ${path.relative(claudeDir, dir)}`)
+        // Walk up: parent of this dir may now be empty too.
+        const parent = path.dirname(dir)
+        if (parent.startsWith(claudeDir + path.sep)) {
+          try { await fs.rmdir(parent) } catch { /* not empty — fine */ }
+        }
+      } catch {
+        // Not empty (still has content) or permission — fine, skip.
+      }
+    }
+  }
+
   private async bootstrapOrMergeExternalDomains(): Promise<void> {
     const bundled = (__DUO_BOOTSTRAP_EXTERNAL_DOMAINS__ as readonly string[]) ?? []
     let existing: Array<string | { host: string; reason?: string }> | null = null
