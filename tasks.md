@@ -5718,6 +5718,63 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-140: install-service should track + cleanup orphan files on upgrade
+
+**Status:** 🟡 Open. Filed 2026-05-10 from Sprint 15 close-out — surfaced when ENH-135 retired `help/faq.html` and ENH-136 retired `packs/claude-code-basics/` but install-service's mirror op kept the v0.6.12 copies on every existing user's disk.
+**Priority:** Low — graceful degradation works today (orphan files are inert; stale pins still resolve). But the longer-term install hygiene story is "upgrade should leave the user's `~/.claude/duo/` in the shape the current bundle defines, not as the union of every version ever installed."
+**Filed:** 2026-05-10.
+
+**Today's behavior (post-v0.6.13).** `electron/install-service.ts § safeOverwriteDirContents` recurses into source directories and copies / overwrites files at destination. It does NOT delete destination files that aren't present in source. Net: every retired file from any prior cut accumulates in the user's `~/.claude/duo/` forever:
+
+- `~/.claude/duo/help/faq.html` — retired in v0.6.13, still on disk for every v0.6.12 upgrade user.
+- `~/.claude/duo/help/what-duo-does.html` — moved into the pack in v0.6.13; old copy still on disk.
+- `~/.claude/duo/packs/claude-code-basics/` — retired in v0.6.13, full pack folder still on disk.
+- Any future retirements: same story.
+
+**Why this matters.**
+
+1. **Stale pin URLs keep resolving** — v0.6.12 users' `pins.json` entries pointing at the OLD `help/...` URLs still work (file exists), so they see stale v0.6.12 content forever unless they manually re-pin. Sprint 15's first-launch hook + idempotency contract mitigates this for the WDD case (delivers new content as a fresh tab alongside the stale-pinned old one), but the stale pin itself never gets cleaned up.
+2. **Disk usage drift** — minor today, but every retired bundle adds inert bytes. Multiple years of cuts compound.
+3. **User confusion** — `ls ~/.claude/duo/packs/` shows `claude-code-basics/` on upgrade users despite the pack no longer being part of Duo. Same for `~/.claude/duo/help/faq.html` on a fresh user-mirror inspection.
+
+**Proposed design — provenance manifest at `~/.claude/duo/installed-files.json`:**
+
+Mirror the Stage 21d distro-pack-service pattern ([`electron/distro-pack-service.ts § InstalledFilesManifest`](electron/distro-pack-service.ts)):
+
+```jsonc
+// ~/.claude/duo/installed-files.json
+{
+  "version": "0.6.13",
+  "installedAt": "2026-05-10T...",
+  "files": [
+    "help/canvas-actions-demo.html",
+    "packs/duo-default/PACK.json",
+    "packs/duo-default/canvases/what-duo-does.html",
+    "packs/intro-to-duo/...",
+    // ...every file install-service writes
+  ]
+}
+```
+
+On each install / upgrade:
+
+1. Read the prior manifest (if any). Diff against the bundle's current file set.
+2. **Deleted-from-bundle files** (in prior manifest, not in current bundle): delete from `~/.claude/duo/` IFF the on-disk SHA matches the prior manifest's recorded SHA (i.e. user didn't customize). User-modified copies are preserved at `~/.claude/duo/.retired/<original-path>` with a session-log entry pointing at them.
+3. **Pin-cleanup pass**: walk `pins.json` for entries pointing at now-deleted files. Either (a) auto-rewrite to the new location if a successor file is present (the WDD case: `help/what-duo-does.html` → `packs/duo-default/canvases/what-duo-does.html`), OR (b) drop the pin entirely with a session-log entry the user can review.
+4. Write the new manifest.
+
+**Migration path (this is the hard part).** v0.6.13 ships without the manifest. v0.6.14's first install creates the manifest from scratch (treats the v0.6.13 install as the new baseline). v0.6.14 → v0.6.15 upgrades start using the diff-based delete. So the first "retirement" caught by this mechanism is whatever the v0.6.14 cut retires, NOT FAQ / claude-code-basics. Those v0.6.13-retired-but-still-on-disk-orphans need a one-time migration in v0.6.14 — a hardcoded list of "known orphans" to opportunistically delete (with the same SHA-match safety net) on first launch.
+
+**Smoke-test plan for the eventual fix.**
+
+1. Fresh v0.6.13 install: `~/.claude/duo/installed-files.json` doesn't exist yet (this is the migration baseline cut).
+2. Upgrade to v0.6.14: manifest gets created from v0.6.14's bundle. Hardcoded one-time migration deletes `help/faq.html`, `help/what-duo-does.html`, and `packs/claude-code-basics/` IFF unchanged from their v0.6.12 SHAs (preserves any user edits to `~/.claude/duo/.retired/`). Pin-cleanup rewrites WDD pin URL.
+3. Cut v0.6.15 that retires a new file. Upgrade. Manifest diff catches it. Orphan deleted. Pin (if any) cleaned up.
+
+**Cross-ref:** ENH-138 (Sprint 15 — the install-pipeline reshape that surfaced this gap). ENH-135 (FAQ retirement — first concrete orphan). ENH-136 (claude-code-basics retirement — second concrete orphan). `docs/dev/active-sprint.md § Sprint 15 carry-over` (where the pin-migration follow-up was first noted). `electron/distro-pack-service.ts § InstalledFilesManifest` (existing pattern to model after — Stage 21d distro packs already do this).
+
+---
+
 ### BUG-119: fsevents native-module shutdown race — SIGABRT every time Duo quits
 
 **Status:** 🟡 Open. Filed 2026-05-10 from Sprint 15 close-out (post-v0.6.13 cut). Owner reports the macOS crash dialog appears every time Duo quits.

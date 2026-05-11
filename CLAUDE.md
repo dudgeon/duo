@@ -609,46 +609,31 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 15 (cut target v0.6.13) — repo cleanup close-out + FTUX-content-→-packs migration
+## Active sprint — Sprint 16 (pending; cut target v0.6.14)
 
-**v0.6.12 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.12)) — JSON/YAML viewer-editor (ENH-110) + visibility CLI (ENH-122) + view-source panel-fill (ENH-117 v2) + image-handling close-out + per-Claude-tab Return semantics. After the cut, an extensive post-cut cleanup pass landed:
+**v0.6.13 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.13)) — Sprint 15 closed: FTUX content → packs install-pipeline reshape. Tag pushed; DMG on GitHub Release. `packs/duo-default/` built-in pack ships `what-duo-does.html`; `PackManifest.builtIn` schema flag added; FAQ retired to `docs/legacy/`; `defaultLandingUrl()` + `helpUrl()` + boot-default tab logic deleted; `packs/claude-code-basics/` → `examples/lesson-pack-template/`. Pack-canvas / pinned-tab idempotency contract ADR documents how the first-launch hook cooperates with pin-restore for upgrade users. BUG-116 (dist-signed DMG version pinning) + BUG-118 (cut-version cli/duo sanity-check) fixed.
 
-- **Repo-root cleanup** — rm `RESUME.md`, mv `duo-brief.md` → `docs/`, rm stray PNG, prune old DMGs from `dist/` (ce74481).
-- **README refactor** — 535 → 168 lines, end-user-focused; new `docs/dev/CONTRIBUTING.md` (412 lines) carries the dev content (32eab90).
-- **tasks.md trim** — pruned BUG-001..BUG-017 era entries (-697 lines) per file's own pruning policy (e4ff756).
-- **CLAUDE.md § 11 rule** — planning artifacts default to HTML interactive playgrounds, never plain markdown (650609b).
-- **BUG-117 enterprise-friendly install hardening** — wrapped `installSessionStartHook()` in try/catch so install survives enterprise-locked `~/.claude/settings.json` (bf8db68).
-- **Stale cli/duo binary fix** — v0.6.12 cut committed pre-rebuild copy missing ENH-130's `--reveal` flag (8d1f96e).
+**Sprint 16 candidates — owner picks the theme:**
 
-**Sprint 15 P0 commitments — all decisions captured 2026-05-10 close-out via [docs/research/dogfood-distro-packs-plan.html § 5](docs/research/dogfood-distro-packs-plan.html):**
+| ID | Title | Status | Est. |
+|---|---|---|---|
+| **BUG-119** | fsevents shutdown race — SIGABRT every Duo quit (pre-existing pre-v0.6.13; surfaced at Sprint 15 close-out) | 🟢 P0 candidate — fix is ~10 LOC in `electron/main.ts` (move `filesService.dispose()` into `before-quit`) | ~30 min |
+| **ENH-137** | Beginner's Guide content — drops into `packs/duo-default/canvases/beginners-guide.html` via pack-version bump | 🟡 awaiting owner-authored draft | Owner draft + Claude polish + 30 min plumbing |
+| **ENH-140** | install-service should track + cleanup orphan files on upgrade (provenance manifest at `~/.claude/duo/installed-files.json`) — pairs with pin-URL auto-migration to close the "two WDD tabs" transient | 🟡 P2 — graceful degradation works today (orphans are inert) | ~half-day |
+| **ENH-139** | PackManifest schema extension for markdown editable / markdown-preview / browser kinds | 🟡 deferred — gated on ENH-137 picking markdown OR a future pack needing explicit browser routing | ~half-day when triggered |
+| **Op #8 pivot** | install-service iterates `packs/*/PACK.json § defaults[].pin: true` to seed pins.json dynamically (removes hardcoded WDD URL Sprint 15 left as transitional) | 🟡 P2 | ~1 hr |
 
-The **"FTUX content → packs / plumbing → install-service"** boundary principle is **ADOPTED** (Q1). Sprint 15 ships the **NOW-SKELETON migration** (Q2) — create `packs/duo-default/` with `builtIn: true` flag (Q3 FLAG-IN-PACK-JSON), migrate `what-duo-does.html` into it, retire op #8's hardcoded default-pins literal. ENH-137 Beginner's Guide drops into the same pack later when owner-authored draft is ready.
-
-| ID | Title | Notes |
-|---|---|---|
-| **ENH-138** | Move FTUX-loadable HTML/markdown into `packs/duo-default/` (NOW-SKELETON migration) | P0; Q1+Q2+Q3 captured |
-| **ENH-135** | Remove FAQ from default install + move to `docs/legacy/` | P0; folds into ENH-138 sub-tasks |
-| **ENH-136** | Treat `packs/claude-code-basics/` as a template (move to `examples/`) | P0; awaiting owner option-(a) confirmation |
-| **BUG-118** | cut-version skill should sanity-check cli/duo binary | P0; ~30 min |
-| **BUG-116** | `dist-signed.sh` validates wrong DMG via glob | P1; ~30 min |
-| **ENH-137** | Beginner's Guide content (owner draft + Claude polish) | 🟡 awaiting owner draft |
-| **ENH-139** | PackManifest schema extension for markdown/playground kinds | 🟡 deferred; gated on ENH-137 markdown choice |
-
-**Confirmation captured (ENH-134 owner general-comment):** pack defaults work for HTML canvas + HTML playground (via `<meta duo-open-in>`) on v1 schema. Markdown editable + markdown locked need ENH-139 schema extension before they can ship as pack defaults.
-
-**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the recommended commit order + open AUQs.**
+**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the Sprint 15 retrospective + full Sprint 16 candidate detail + the deliberately-deferred GitHub Release callout (two-tabs upgrade transient).**
 
 ## Open questions needing Geoff's input
 
 | Question | Priority |
 |---|---|
-| **ENH-136 confirmation** — option (a) move `packs/claude-code-basics/` → `examples/lesson-pack-template/`? Surface at start of next session before code work. | Sprint 15 P0 |
-| **ENH-138 default-landing-URL pivot** — `browser-manager.ts:49` becomes broken after FAQ removal. Pivot to `null` (blank canvas — recommended) or to the pack canvas? | Sprint 15 sub-AUQ |
-| **ENH-138 boot-default first tab** — `electron/main.ts:305-310` opens FAQ unconditionally; remove entirely (recommended) OR replace with the pack canvas? | Sprint 15 sub-AUQ |
+| **Sprint 16 theme** — pick from the candidate table above. BUG-119 quit-crash fix is the lowest-effort, highest-visibility win; ENH-137 Beginner's Guide needs owner draft. | Start of Sprint 16 |
 | **ENH-127 direction** — declined entirely OR pivot to one of: Duo-side composer-window pattern (separate text area outside the terminal), anti-accidental-submit heuristic (delay-based or click-confirm), upstream feature request to Claude Code for raw-newline mode? | If accidental-submit pain re-surfaces |
-| **ENH-118 image-type handling** — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before Sprint 14 picks up image-polish (ENH-119/120) |
-| Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens; not blocking Sprint 14 |
+| **ENH-118 image-type handling** — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before Sprint 16 picks up image-polish |
+| Cross-machine cohort validation — does a real pack builder walk Duo's [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) end-to-end on a non-Geoff Mac? | Closes FOLLOWUP-011 cleanly when it happens |
 | ENH-101 expand/collapse chord semantic — rail-collapse (new behavior orthogonal to ⌘⌥0/9) vs. full-screen (redundant; kill the chord)? | Before scoping the chord into a future sprint |
 | Stage 17a.5 directions A/E (template gallery / registry) | Before any code work on templates |
 | BUG-024 follow-up: combine Send → Duo + Comment pills (single split-pill or hover flyout)? | Before any further selection-pill iteration |
-| Backlinks panel / graph view (Obsidian cluster) — Sprint 14+ anchor? Or defer further? | When wikilinks autocomplete (v0.6.10) usage tells us whether the next-tier capability has demand |
+| Backlinks panel / graph view (Obsidian cluster) — Sprint 16+ anchor? Or defer further? | When wikilinks autocomplete (v0.6.10) usage tells us whether the next-tier capability has demand |
