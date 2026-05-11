@@ -6132,9 +6132,25 @@ The agent-process failure: a prior session worked on this bug, ran into the TipT
 
 ### ENH-143: Keyboard shortcut to close the current tab (separate from delete-file)
 
-**Status:** 🆕 DRAFT — file from idle-thoughts Notion sweep; needs owner disambiguation (close-tab vs delete-file vs both).
+**Status:** ✅ **Shipped Sprint 17 commit 5 (2026-05-11) as discoverability touch — no new chord.** Resolution: ⌘W (close tab, no fs change) + ⌘⇧⌫ (delete file + close tab) already cover the use cases owner asked about; the bar was just to make them discoverable. Original 3 chord-conflict hypotheses (close vs delete-file vs close-tab-history) collapsed to "the existing chords were just hard to find." Sprint-17 instinct: ship the discoverability touch without a new chord; if owner finds a missing case, re-open with new scope.
+
+**What v1 delivers:**
+
+- **New entry 55b in `packs/duo-default/canvases/what-duo-does.html`** — "Close the active tab with ⌘W" article, placed adjacent to entry 56's existing "Delete the active file with ⌘⇧⌫". The two chord-pair entries now sit side-by-side in the Workspace setup category. The body covers the universal-macOS framing, the no-confirm-by-default rule, the pinned-tab confirm-modal exception, and the explicit pairing with ⌘⇧⌫.
+- **CLI parity gap surfaced** → FOLLOWUP-020 filed. The new entry initially referenced `duo close-tab` for working-pane tabs; that verb doesn't exist. Updated the entry to reference only `duo close <n>` (browser tabs) and leave a placeholder pointing at FOLLOWUP-020 for the working / terminal close-active-tab CLI parity work.
+
+**What was considered and skipped:**
+
+- **New chord** (`⌘⌥W`, `⌘⇧W`, etc.) — owner's "requires confirmation" phrasing suggested a NEW close-with-confirm chord, but ⌘⇧⌫ already provides destructive-confirm semantics (file → Trash) and ⌘W's silent close is the universal expectation. No third chord is warranted; the gap was discoverability.
+- **Right-click context-menu surfacing** — tab right-click menus already include a "Close" item that fires the same action as ⌘W (via WorkingTabStrip and TabBar menu builders). The chord IS visible in the menu accelerator label. No further surfacing needed; the canvas entry is the discoverable docs.
+- **Cheat-sheet help menu** — Duo doesn't ship a unified keyboard shortcut help surface today. The what-duo-does canvas IS the cheat-sheet (categorized, searchable via `data-keys`). Building a separate help-menu surface would be a bigger refactor; skipped.
+
+**Pack-version bump deferred to next cut.** PACK.json is still at 1.0.2 (cut for v0.6.15). The next cut bumps it per the cut-version skill Step 4 (ENH-138 — pack-version-bump fires the per-user banner via installed-packs.json).
+
+**Owner observation (verbatim):** *"ENH — kb shortcut to delete current tab, requires confirmation; candidates cmd-shift-delete, cmd-opt-delete"*
+
 **Priority:** Medium — chord-set polish.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Shipped:** 2026-05-11.
 
 **Owner observation (verbatim):** *"ENH — kb shortcut to delete current tab, requires confirmation; candidates cmd-shift-delete, cmd-opt-delete"*
 
@@ -6716,6 +6732,37 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 **Code-side delete path.** The v1 modal in `renderer/components/ViewSourceOverlay.tsx` becomes either (a) deleted if v2 replaces it entirely, or (b) kept as a fallback for surfaces where panel-fill is awkward (e.g. browser-pane "view page source" if that ever surfaces).
 
 **Cross-ref:** ENH-117 (parent).
+
+---
+
+### FOLLOWUP-020: CLI parity gap — no `duo close-tab` for active working / terminal tab
+
+**Status:** 🆕 Filed 2026-05-11 (discovered during Sprint 17 ENH-143 discoverability work).
+**Priority:** Medium — CLAUDE.md item 4 parity rule violation. Agents can't dismiss the active working-pane tab or terminal tab from the CLI.
+**Filed:** 2026-05-11.
+
+**Today.** `duo close <n>` closes a BROWSER tab by id (from `duo tabs`). No CLI counterpart to `⌘W`'s "close the focused tab" for either:
+- The active working-pane file tab (markdown editor, HTML canvas, image, PDF, JSON viewer)
+- The active terminal tab
+
+Both surfaces have UI-only close affordances (✕ button on tab strip + ⌘W chord). An agent wanting to script "open + edit + close" workflows has to use right-click → Move to Trash (destructive) or leave tabs accumulating.
+
+**What to ship:**
+
+1. `duo close-tab` — closes the focused working-pane tab (whichever kind). Mirrors the ⌘W chord on the working strip.
+2. `duo close-terminal-tab [<n>]` — closes the focused terminal tab if no arg, or the Nth terminal tab.
+3. Pinned-tab gating — confirm prompt parity: refuse the close, OR add `--force` to bypass.
+
+**Affected files** (CLAUDE.md item 4 plumbing checklist):
+- `shared/types.ts § DuoCommandName` — add `'close-tab'`, `'close-terminal-tab'`.
+- `core/socket-server.ts` — new dispatch cases.
+- `electron/main.ts` — bridge exposes a closeActiveWorkingTab + closeTerminalTab callable.
+- `renderer/App.tsx` — wire the IPC handlers (renderer owns the active-tab identity).
+- `cli/duo.ts` — verbs + printHelp.
+- `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md` — cheat-sheet rows.
+- `packs/duo-default/canvases/what-duo-does.html` — replace the "tracked in FOLLOWUP-020" placeholder in entry 55b with the actual verbs.
+
+**Cross-ref:** ENH-143 (parent discoverability work that surfaced the gap). ENH-037 (⌘W chord; the UI side of this CLI gap). CLAUDE.md item 4 (the parity rule this violates).
 
 ---
 
