@@ -5718,6 +5718,56 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-141: Drop `duo` CLI into SHIM_DIR so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits
+
+**Status:** 🟢 Shipped 2026-05-10 in Sprint 16 commit 1 (cut target v0.6.14).
+**Priority:** P0 — load-bearing for enterprise users running Duo inside a Claude Code sandbox that blocks `.zshrc` writes.
+**Filed:** 2026-05-10 from an enterprise user report (Darwin 25.4.0, zsh, Duo v0.6.13).
+
+**The problem.** Both install paths placed the CLI somewhere that's NOT on PATH inside Duo PTYs:
+
+- `duo install` (CLI self-install) wrote to `~/.claude/bin/duo` — sandbox-writable, but `~/.claude/bin/` was never prepended to any shell's $PATH. Net: symlink existed, `duo: command not found`.
+- `electron/install-service.ts § installCli()` wrote to `~/.local/bin/duo` — needs the user to add `~/.local/bin/` to their shell rc, which Claude Code's sandbox blocks (write-deny on dotfiles outside cwd).
+
+Result: inside a Duo PTY, with Claude Code running under a sandbox, the agent could call `duo` only by absolute path. The whole "agent-driven Duo" premise breaks.
+
+**The fix.** `core/pty-manager.ts:42` already prepends `~/.claude/duo/bin/` (SHIM_DIR) to PATH at every PTY spawn — that's how the `claude` shim works. We piggyback on that:
+
+1. **`cli/duo.ts § runInstall()`** — change tier-1 target from `~/.claude/bin/duo` → `~/.claude/duo/bin/duo`. Now `duo install` from inside a sandboxed PTY drops the CLI somewhere PTY $PATH already finds.
+2. **`electron/install-service.ts § installCli()`** — after the existing `~/.local/bin/duo` copy, ALSO create a symlink at `~/.claude/duo/bin/duo` pointing to it. The FirstLaunchBanner [Install] action now wires BOTH placements in one click.
+3. **Updated PATH-hint messaging** — `duo install` now distinguishes "inside Duo PTYs this dir is already on PATH" vs "external Terminal/iTerm needs this `export PATH=...`".
+
+**Companion change (same commit).** Folded `addToShellPath()` into `install-service.run()` so the FirstLaunchBanner's [Install] click also auto-appends the `~/.local/bin` PATH fence to the user's `.zshrc` (was previously a separate dismissible button row that users skipped). Eliminates the click-trap for non-sandboxed users who also want `duo` from external terminals. New field `InstallResult.pathWiringResult` surfaces the outcome in the success banner; the standalone `install.addToShellPath()` IPC stays for the rare retry case.
+
+**Backward compatibility.** Pre-ENH-141 installs that placed `~/.claude/bin/duo` are not auto-cleaned — the file's harmless (just unused). `duo doctor`'s known-targets list now includes both old and new paths so the diagnostic surfaces stale state.
+
+**Files touched.**
+
+| File | Change |
+|---|---|
+| `cli/duo.ts` | tier-1 target → SHIM_DIR; updated PATH-hint copy; `doctor` lists both old and new targets |
+| `cli/duo` | regenerated via `npm run build:cli` |
+| `electron/install-service.ts` | `installCli()` drops SHIM_DIR symlink; `run()` auto-invokes `addToShellPath()`; top-block docs updated |
+| `shared/host-api.ts` | `InstallResult.pathWiringResult?: AddToShellPathResult` added |
+| `renderer/components/FirstLaunchBanner.tsx` | dropped separate [Add to PATH] button; success row surfaces `pathWiringResult` inline; welcome copy mentions both placements |
+| `docs/CLI-COVERAGE.md` | `duo install` row updated with SHIM_DIR rationale |
+| `docs/DECISIONS.md` | sandbox-tolerant-transport ADR § 3 revised with the ENH-141 amendment |
+
+**Verification done (2026-05-10 owner machine).**
+
+1. `npm run typecheck` clean.
+2. `npm run build:cli` regenerated the binary; committed alongside source.
+3. CLI install path tested end-to-end: deleted SHIM_DIR/duo → ran `./cli/duo install` → symlink created at `~/.claude/duo/bin/duo`; PATH-hint messaging correct.
+4. PTY-PATH simulation: `env -i PATH=$HOME/.claude/duo/bin /bin/bash -c 'command -v duo'` resolves correctly — confirming `duo` is callable by name with only SHIM_DIR on PATH.
+5. Electron-side install path verified via code review + typecheck; full end-to-end smoke (banner [Update] click → SHIM_DIR symlink appears + zshrc fence appended) deferred to v0.6.14 smoke walk (screenshot capture was failing at OS level during dev verification; the work-machine install will be the production check).
+
+**Out of scope for this commit.**
+
+- Cleanup of stale `~/.claude/bin/duo` symlinks on upgrade. (Filed as FOLLOWUP-013.)
+- `duo doctor` version-reporting bug (the CLI/app both report 0.1.0 instead of the actual version in some environments). Separate issue, surfaced during ENH-141 work; filed as BUG-120.
+
+---
+
 ### ENH-140: install-service should track + cleanup orphan files on upgrade
 
 **Status:** 🟡 Open. Filed 2026-05-10 from Sprint 15 close-out — surfaced when ENH-135 retired `help/faq.html` and ENH-136 retired `packs/claude-code-basics/` but install-service's mirror op kept the v0.6.12 copies on every existing user's disk.

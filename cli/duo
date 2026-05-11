@@ -976,7 +976,7 @@ function runInstall(opts = {}) {
   if (opts.system) {
     targets.push("/usr/local/bin/duo");
   } else {
-    targets.push(path.join(os.homedir(), ".claude", "bin", "duo"));
+    targets.push(path.join(os.homedir(), ".claude", "duo", "bin", "duo"));
     targets.push(path.join(os.homedir(), ".local", "bin", "duo"));
   }
   for (const target of targets) {
@@ -992,7 +992,8 @@ function runInstall(opts = {}) {
       const userPath = (process.env.PATH ?? "").split(":");
       if (!userPath.includes(dir)) {
         out("");
-        out("Add this to your shell rc to put `duo` on PATH:");
+        out("Inside Duo PTYs this dir is already on PATH (no action needed).");
+        out("For external terminals (Terminal/iTerm), add to your shell rc:");
         out(`  export PATH="${dir}:$PATH"`);
       }
       return;
@@ -1002,7 +1003,7 @@ function runInstall(opts = {}) {
   if (opts.system) {
     die("Could not install duo. Try: sudo ln -sf " + self + " /usr/local/bin/duo");
   }
-  die("Could not install duo. Try: ln -sf " + self + " ~/.claude/bin/duo");
+  die("Could not install duo. Try: ln -sf " + self + " ~/.claude/duo/bin/duo");
 }
 async function runDoctor() {
   const lines = [];
@@ -1081,6 +1082,11 @@ async function runDoctor() {
   }
   lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` \u2192 ${cliReal}` : ""}`);
   const knownInstallTargets = [
+    // ENH-141 — SHIM_DIR (auto-prepended to PTY $PATH; primary target).
+    path.join(os.homedir(), ".claude", "duo", "bin", "duo"),
+    // Pre-ENH-141 sandbox-writable target (still listed for diagnosing
+    // stale installs — the dir was never on PATH so the symlink was
+    // effectively dead).
     path.join(os.homedir(), ".claude", "bin", "duo"),
     path.join(os.homedir(), ".local", "bin", "duo"),
     "/usr/local/bin/duo"

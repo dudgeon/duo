@@ -1260,15 +1260,26 @@ function resolveOpenTarget(target: string): string {
 
 // Symlinks this binary to a sandbox-safe location.
 //
-// Stage 20 — install path order is now sandbox-aware:
-//   1. ~/.claude/bin/duo  (default; Claude Code's macOS sandbox can
-//                          write under ~/.claude/, so this stays
-//                          functional inside a `claude` PTY)
-//   2. ~/.local/bin/duo   (common community alt)
-//   3. /usr/local/bin/duo (only with --system; needs sudo + outside
-//                          the sandbox; not recommended)
-// See docs/DECISIONS.md → *Sandbox-tolerant transport and install
-// paths*.
+// ENH-141 — install path order is now PTY-PATH-aware:
+//   1. ~/.claude/duo/bin/duo  (default; this dir is prepended to PATH
+//                              inside every Duo PTY by PtyManager, so
+//                              the binary is immediately reachable by
+//                              name without touching the user's shell
+//                              rc. Critical for Claude Code sandboxes
+//                              where modifying ~/.zshrc is blocked.)
+//   2. ~/.local/bin/duo       (common community alt; needs ~/.local/bin
+//                              on PATH — typically wired by the
+//                              FirstLaunchBanner's install action which
+//                              auto-appends a fenced block to ~/.zshrc.)
+//   3. /usr/local/bin/duo     (only with --system; needs sudo + outside
+//                              the sandbox; not recommended.)
+//
+// The previous tier-1 target `~/.claude/bin/duo` was retired in
+// ENH-141: that dir was sandbox-writable but never on $PATH for Duo
+// PTYs or external shells, so the symlink existed but `duo` was still
+// "command not found." Reported by an enterprise user running
+// Duo v0.6.13 inside a managed Claude Code install. See
+// docs/DECISIONS.md → *Sandbox-tolerant transport and install paths*.
 function runInstall(opts: { system?: boolean } = {}): void {
   // process.argv[1] is the script that was invoked (cli/duo), not the Node
   // binary at process.execPath. fs.realpathSync resolves any already-existing
@@ -1278,7 +1289,7 @@ function runInstall(opts: { system?: boolean } = {}): void {
   if (opts.system) {
     targets.push('/usr/local/bin/duo')
   } else {
-    targets.push(path.join(os.homedir(), '.claude', 'bin', 'duo'))
+    targets.push(path.join(os.homedir(), '.claude', 'duo', 'bin', 'duo'))
     targets.push(path.join(os.homedir(), '.local', 'bin', 'duo'))
   }
 
@@ -1289,10 +1300,17 @@ function runInstall(opts: { system?: boolean } = {}): void {
       fs.symlinkSync(self, target)
       out(`Installed: ${target} → ${self}`)
       const dir = path.dirname(target)
+      // The SHIM_DIR target (~/.claude/duo/bin) is on PATH only inside
+      // Duo PTYs (PtyManager prepends it at spawn time). For external
+      // shells, surface the same shell-rc hint the secondary
+      // ~/.local/bin path would. Users running `duo install` from
+      // Terminal/iTerm need to either add the dir to their rc OR run
+      // Duo's banner-driven [Install] which auto-wires ~/.local/bin.
       const userPath = (process.env.PATH ?? '').split(':')
       if (!userPath.includes(dir)) {
         out('')
-        out('Add this to your shell rc to put `duo` on PATH:')
+        out('Inside Duo PTYs this dir is already on PATH (no action needed).')
+        out('For external terminals (Terminal/iTerm), add to your shell rc:')
         out(`  export PATH="${dir}:$PATH"`)
       }
       return
@@ -1303,7 +1321,7 @@ function runInstall(opts: { system?: boolean } = {}): void {
   if (opts.system) {
     die('Could not install duo. Try: sudo ln -sf ' + self + ' /usr/local/bin/duo')
   }
-  die('Could not install duo. Try: ln -sf ' + self + ' ~/.claude/bin/duo')
+  die('Could not install duo. Try: ln -sf ' + self + ' ~/.claude/duo/bin/duo')
 }
 
 // Stage 20 — `duo doctor`. CLI-side health check that names the
@@ -1394,6 +1412,11 @@ async function runDoctor(): Promise<void> {
   try { cliReal = fs.realpathSync(cliPath) } catch { /* */ }
   lines.push(`  CLI invoked as: ${cliPath}${cliReal && cliReal !== cliPath ? ` → ${cliReal}` : ''}`)
   const knownInstallTargets = [
+    // ENH-141 — SHIM_DIR (auto-prepended to PTY $PATH; primary target).
+    path.join(os.homedir(), '.claude', 'duo', 'bin', 'duo'),
+    // Pre-ENH-141 sandbox-writable target (still listed for diagnosing
+    // stale installs — the dir was never on PATH so the symlink was
+    // effectively dead).
     path.join(os.homedir(), '.claude', 'bin', 'duo'),
     path.join(os.homedir(), '.local', 'bin', 'duo'),
     '/usr/local/bin/duo'

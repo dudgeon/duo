@@ -662,6 +662,13 @@ export interface InstallResult {
    *  they're missing). Empty array = all writable files were either
    *  unchanged or freshly created. */
   preservedConflicts?: string[]
+  /** ENH-141 — when the CLI installs successfully but `~/.local/bin`
+   *  isn't already on the user's PATH, `run()` auto-wires their shell
+   *  rc as part of the same install action (previously a separate
+   *  dismissible "Add to PATH" button that users skipped, leaving
+   *  them with `duo: command not found` from external terminals).
+   *  Undefined if PATH was already wired or the CLI didn't install. */
+  pathWiringResult?: AddToShellPathResult
 }
 
 export interface ElectronInstallAPI {

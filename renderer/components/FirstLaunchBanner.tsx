@@ -24,8 +24,10 @@ export function FirstLaunchBanner() {
   const [phase, setPhase] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [dismissed, setDismissed] = useState(false)
-  // ENH-017 — local state for the inline "Add to PATH" follow-up.
-  const [pathPhase, setPathPhase] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
+  // ENH-141 — PATH wiring now happens inline inside `install.run()`, not
+  // as a follow-up click. We just surface whatever the install service
+  // returned so the user sees what was added to ~/.zshrc (or the
+  // manual fallback line if the auto-wire failed).
   const [pathResult, setPathResult] = useState<AddToShellPathResult | null>(null)
 
   useEffect(() => {
@@ -60,26 +62,29 @@ export function FirstLaunchBanner() {
     const result = await window.electron.install.run()
     if (result.ok && result.status) {
       setStatus(result.status)
+      // ENH-141 — install.run() now auto-wires shell PATH inline when
+      // CLI installs but ~/.local/bin isn't already on PATH. Stash the
+      // result so the success-state UI can show the user what was
+      // added to their rc file (or the manual fallback if it failed).
+      setPathResult(result.pathWiringResult ?? null)
       setPhase('success')
       // Auto-dismiss after ~3s ONLY when there's nothing more for the
       // user to do. We hold the banner open if:
-      //   - CLI installed but PATH missing — user needs to copy a
-      //     shell-rc snippet
       //   - CLI couldn't install — user may want to retry / debug
+      //   - PATH wire-up failed — user needs the manual fallback line
+      //   - PATH wire-up succeeded with a fresh append — user needs
+      //     to read the "open a new terminal" note
       //   - Stage 19b: a non-Duo SessionStart hook already exists, so
       //     the user should know our hook will run alongside theirs
       const cli = result.status.cli
       const priming = result.status.priming
-      // ENH-017 — when CLI installed but not on PATH, hold the banner
-      // so the user can click the new "Add to PATH" button.
+      const pwr = result.pathWiringResult
       const cliStable = !cli || (cli.installed && cli.onPath) || !cli.installed
-      // Hold the banner if priming has a hook conflict (user should
-      // notice their other hooks will run alongside ours) OR if the
-      // shim couldn't install because Claude Code wasn't found on
-      // PATH (the load-bearing priming mechanism is missing — they
-      // should install Claude Code and re-run).
+      // Hold open when PATH was wired this run OR when wiring failed,
+      // so the user sees what changed / what to fix.
+      const pathStable = !pwr || (pwr.ok === true && pwr.alreadyPresent === true)
       const primingStable = !priming?.hookConflict && (!priming || priming.shimInstalled)
-      if (cliStable && primingStable) {
+      if (cliStable && pathStable && primingStable) {
         setTimeout(() => {
           setDismissed(true)
         }, 3000)
@@ -91,31 +96,23 @@ export function FirstLaunchBanner() {
   }
 
   // Success path may need the user's eyes longer than the rest when a
-  // follow-up note applies (hook conflict, claude not detected). Each
-  // such note renders as a separate row below the main banner line.
-  // v0.4.5: dropped the duo-CLI-on-PATH hint entirely — the CLI is
-  // designed to run inside Duo's own terminals (whose PTYs inherit
-  // ~/.local/bin via priming), not from external shells. Surfacing
-  // a "fix your PATH" warning to non-technical users for an
-  // intentionally-internal CLI was confusing without being load-bearing.
+  // follow-up note applies (hook conflict, claude not detected, PATH
+  // wired). Each such note renders as a separate row below the main
+  // banner line.
   const cli = status.cli
   const priming = status.priming
   const showHookConflictNote = phase === 'success' && priming?.hookConflict
   const showShimMissingNote = phase === 'success' && priming && !priming.shimInstalled
-  // ENH-017 — show the "Add to PATH" row when the CLI is installed but
-  // its directory isn't on the user's external-shell PATH. Inside Duo
-  // PTYs the binary works because PtyManager prepends ~/.local/bin;
-  // this row offers to also wire it up for external Terminal/iTerm
-  // sessions where users hit "duo: command not found".
-  const showAddToPathNote = phase === 'success' && cli?.installed && cli.onPath === false
-  const expandRow = showHookConflictNote || showShimMissingNote || showAddToPathNote
-
-  const handleAddToPath = async () => {
-    setPathPhase('running')
-    const result = await window.electron.install.addToShellPath()
-    setPathResult(result)
-    setPathPhase(result.ok ? 'done' : 'error')
-  }
+  // ENH-141 — show the PATH note when install.run() touched the user's
+  // shell rc (or tried to and failed). Pre-fix this was a separate
+  // dismissible button; the auto-wire path collapses that into one
+  // step. Three sub-cases the success row distinguishes:
+  //   1. ok + newly appended → tell the user what file changed and
+  //      to open a new terminal.
+  //   2. ok + alreadyPresent → reassuring no-op confirmation.
+  //   3. !ok → show the manual `export PATH=...` fallback.
+  const showPathNote = phase === 'success' && pathResult !== null
+  const expandRow = showHookConflictNote || showShimMissingNote || showPathNote
 
   return (
     <div
@@ -166,7 +163,7 @@ export function FirstLaunchBanner() {
             </>
           ) : (
             <>
-              <strong>Welcome to Duo.</strong> Set up the files Duo needs to work with Claude — they go in <code className="font-mono text-[12px]">~/.claude/</code>, and we won't touch any of your existing files.
+              <strong>Welcome to Duo.</strong> Set up the files Duo needs to work with Claude — agent files go in <code className="font-mono text-[12px]">~/.claude/</code>, the <code className="font-mono text-[12px]">duo</code> CLI lands in <code className="font-mono text-[12px]">~/.local/bin/</code>, and a single PATH line is appended to your shell rc so the CLI works from any terminal.
             </>
           )}
         </span>
@@ -213,44 +210,22 @@ export function FirstLaunchBanner() {
         </p>
       )}
 
-      {showAddToPathNote && (
-        <div className="text-[12px] ml-7 text-accent-ink leading-snug flex items-start gap-3">
-          <div className="flex-1">
-            {pathPhase === 'idle' && (
-              <>
-                <strong>Use <code className="font-mono">duo</code> from outside the app?</strong> Inside Duo's terminals it works automatically. To use it from Terminal / iTerm too, add <code className="font-mono">~/.local/bin</code> to your shell PATH.
-              </>
-            )}
-            {pathPhase === 'running' && <>Updating shell config…</>}
-            {pathPhase === 'done' && pathResult?.ok && (
-              <>
-                {pathResult.alreadyPresent ? (
-                  <>
-                    <strong>Already done.</strong> The Duo PATH block is already in <code className="font-mono">{pathResult.rcFile}</code>. If <code className="font-mono">duo</code> still isn't found, open a new terminal.
-                  </>
-                ) : (
-                  <>
-                    <strong>Done.</strong> Added <code className="font-mono">~/.local/bin</code> to <code className="font-mono">{pathResult.rcFile}</code>. Open a new terminal (or run <code className="font-mono">source {pathResult.rcFile}</code>) to pick it up.
-                  </>
-                )}
-              </>
-            )}
-            {pathPhase === 'error' && (
-              <>
-                <strong>Couldn't update shell config:</strong> {pathResult?.error ?? 'unknown error'}. Add this line manually: <code className="font-mono">export PATH="$HOME/.local/bin:$PATH"</code>
-              </>
-            )}
-          </div>
-          {pathPhase === 'idle' && (
-            <button
-              type="button"
-              onClick={() => void handleAddToPath()}
-              className="shrink-0 px-3 h-7 rounded text-xs font-medium bg-accent text-white hover:bg-accent-ink transition-colors"
-            >
-              Add to PATH
-            </button>
+      {showPathNote && pathResult && (
+        <p className="text-[12px] ml-7 text-accent-ink leading-snug">
+          {pathResult.ok && pathResult.alreadyPresent ? (
+            <>
+              <strong>PATH already wired.</strong> The Duo PATH block was already in <code className="font-mono">{pathResult.rcFile}</code>. If <code className="font-mono">duo</code> still isn't found from a terminal, open a new one.
+            </>
+          ) : pathResult.ok ? (
+            <>
+              <strong>Added <code className="font-mono">~/.local/bin</code> to your PATH</strong> in <code className="font-mono">{pathResult.rcFile}</code>. Open a new terminal (or run <code className="font-mono">source {pathResult.rcFile}</code>) to pick it up.
+            </>
+          ) : (
+            <>
+              <strong>Couldn't update your shell config:</strong> {pathResult.error ?? 'unknown error'}. Add this line manually to your shell rc: <code className="font-mono">export PATH="$HOME/.local/bin:$PATH"</code>
+            </>
           )}
-        </div>
+        </p>
       )}
 
       {phase === 'running' && (

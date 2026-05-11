@@ -8,7 +8,11 @@
 //     reference HTMLs; the bundle copy still works as a fallback)
 //   - installed.json provenance file at ~/.claude/duo/installed.json
 //   - cli/duo binary → ~/.local/bin/duo (Phase 2; chmod 755) plus a
-//     PATH check so the banner can surface a shell-rc hint when needed
+//     PATH check so the banner can surface a shell-rc hint when needed.
+//     ENH-141: also drops a symlink at ~/.claude/duo/bin/duo (SHIM_DIR),
+//     which PtyManager prepends to PATH inside every Duo PTY — so the
+//     CLI works inside Duo immediately without any shell-rc edit. The
+//     ~/.local/bin/ copy still lands for external Terminal/iTerm use.
 //   - skill/priming.md → ~/.claude/duo/priming.md (Stage 19b; bootstrap
 //     only — never clobber user edits)
 //   - PATH shim at ~/.claude/duo/bin/claude (Stage 19b; PRD D6/D12–D14):
@@ -76,6 +80,14 @@ const HELP_DEST_DIR = path.join(DUO_DIR, 'help')
 const PACKS_DEST_DIR = path.join(DUO_DIR, 'packs')
 const CLI_DEST_DIR = path.join(HOME, '.local', 'bin')
 const CLI_DEST_PATH = path.join(CLI_DEST_DIR, 'duo')
+// ENH-141 — secondary CLI placement inside SHIM_DIR (~/.claude/duo/bin),
+// which PtyManager prepends to PATH at PTY spawn. The Unix-bin copy at
+// CLI_DEST_PATH still lands for external Terminal/iTerm use (auto-wired
+// to ~/.zshrc by addToShellPath), but the SHIM_DIR symlink ensures the
+// CLI works inside every Duo PTY without ANY shell-rc modification —
+// the load-bearing fix for Claude Code sandboxes that block .zshrc
+// writes. See user report 2026-05-10 (enterprise environment).
+const CLI_SHIM_PATH = path.join(SHIM_DIR, 'duo')
 const PRIMING_PATH = path.join(DUO_DIR, 'priming.md')
 const PINS_PATH = path.join(DUO_DIR, 'pins.json')
 const SETTINGS_PATH = path.join(HOME, '.claude', 'settings.json')
@@ -600,6 +612,30 @@ export class InstallService {
       // not installed in the result.
       const cli = await this.installCli()
 
+      // ENH-141 — auto-wire shell PATH if CLI installed but its dir
+      // isn't already on $PATH. Pre-fix this was a separate banner
+      // row with an [Add to PATH] button that users dismissed without
+      // clicking, leaving them with `duo: command not found` from
+      // external terminals. Folding the wire-up into the same install
+      // click keeps the one-click promise without changing the
+      // consent surface — the [Install] button copy discloses both
+      // actions in FirstLaunchBanner. Idempotent: addToShellPath's
+      // fence-marker check is a no-op when the block is already
+      // present. Best-effort: a failed wire-up doesn't block the
+      // install — the result surfaces the failure so the banner can
+      // show the manual `export PATH=...` fallback.
+      let pathWiringResult: AddToShellPathResult | undefined
+      if (cli.installed && cli.onPath === false) {
+        try {
+          pathWiringResult = await this.addToShellPath()
+        } catch (err) {
+          pathWiringResult = {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err)
+          }
+        }
+      }
+
       // Read priming status fresh so the result reflects what we
       // actually installed (hook merge could have hit a conflict).
       const priming = await this.primingStatus()
@@ -634,6 +670,7 @@ export class InstallService {
       return {
         ok: true,
         preservedConflicts: preservedConflicts.length > 0 ? preservedConflicts : undefined,
+        pathWiringResult,
         status: {
           installed: true,
           version: provenance.version,
@@ -929,6 +966,23 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
       await fs.mkdir(CLI_DEST_DIR, { recursive: true })
       await fs.copyFile(source, CLI_DEST_PATH)
       await fs.chmod(CLI_DEST_PATH, 0o755)
+
+      // ENH-141 — also drop a symlink at SHIM_DIR/duo so the CLI is
+      // immediately reachable by name inside any Duo PTY (PtyManager
+      // prepends SHIM_DIR to PATH at spawn). Best-effort: a failure
+      // here doesn't break the primary install — the CLI is still at
+      // CLI_DEST_PATH and can be wired via addToShellPath. Idempotent:
+      // unlink-then-symlink so re-install on an already-installed
+      // system replaces a stale symlink (e.g. pointing at an old
+      // location after upgrade).
+      try {
+        await fs.mkdir(SHIM_DIR, { recursive: true })
+        try { await fs.unlink(CLI_SHIM_PATH) } catch { /* doesn't exist */ }
+        await fs.symlink(CLI_DEST_PATH, CLI_SHIM_PATH)
+      } catch (err) {
+        console.warn('[install-service] could not create SHIM_DIR/duo symlink:', (err as Error)?.message ?? err)
+      }
+
       return {
         installed: true,
         path: CLI_DEST_PATH,

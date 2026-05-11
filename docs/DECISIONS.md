@@ -866,12 +866,23 @@ clarifies and supersedes that framing.
    instructs the agent to run `duo doctor` on the first failed
    command so the sandbox failure mode is named, not inferred.
 
-3. **Sandbox-safe install path.** ✅ shipped. Change `duo install` to prefer
-   `~/.claude/bin/duo` (the `~/.claude/` tree is writable under
-   Claude Code's sandbox), fall back to `~/.local/bin/duo`, and
-   only touch `/usr/local/bin/duo` on explicit opt-in. Emit a
-   one-line `export PATH=…` fragment for the user's rc after a
-   successful install.
+3. **Sandbox-safe install path.** ✅ shipped Stage 20; **revised
+   ENH-141 (2026-05-10)** after an enterprise user report found the
+   original tier-1 target was dead. The Stage-20 default
+   `~/.claude/bin/duo` was sandbox-writable but **never on $PATH**
+   for Duo PTYs or external shells, so the symlink existed and
+   `duo` was still "command not found" inside the Claude Code
+   sandbox. ENH-141 changes the default tier-1 target to
+   `~/.claude/duo/bin/duo` (SHIM_DIR), which `core/pty-manager.ts`
+   prepends to PATH at every PTY spawn — the binary is therefore
+   immediately reachable by name inside any Duo terminal without
+   any shell-rc edit. Tier-2 (`~/.local/bin/duo`) and tier-3
+   (`/usr/local/bin/duo`) are unchanged. The Electron-side
+   FirstLaunchBanner [Install] action ALSO now drops the SHIM_DIR
+   symlink during the install, alongside its primary `~/.local/bin/`
+   copy. PATH-hint copy from `duo install` was updated to clarify
+   that the SHIM_DIR target is auto-on-PATH inside Duo PTYs and the
+   shell-rc append is only needed for external Terminal/iTerm use.
 
 4. **Ship a recommended Claude Code settings fragment.** In
    `skill/SKILL.md`, add a "Troubleshooting → Claude Code sandbox"

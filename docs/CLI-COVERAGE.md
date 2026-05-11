@@ -109,7 +109,7 @@ for the authoritative usage text.
 | Verb | What it does |
 |---|---|
 | `duo doctor` | Stage 20 — health-check both transports (Unix socket + TCP fallback), report app/CLI version match, `$DUO_SESSION` presence, install path, skill files. First move when a `duo` command fails — names the sandbox failure mode instead of silent failures. Exits 0 if either transport reaches the app. |
-| `duo install [--system]` | Symlink CLI into a sandbox-safe location. Default order: `~/.claude/bin/duo` → `~/.local/bin/duo`. `--system` forces `/usr/local/bin/duo` (sudo + outside Claude Code's sandbox). Prints a `export PATH=...` hint when the chosen target isn't already on PATH. |
+| `duo install [--system]` | Symlink CLI into a sandbox-safe location. ENH-141 default order: `~/.claude/duo/bin/duo` (SHIM_DIR — auto-prepended to PATH inside every Duo PTY by `core/pty-manager.ts`) → `~/.local/bin/duo`. `--system` forces `/usr/local/bin/duo` (sudo + outside Claude Code's sandbox). Prints a shell-rc hint scoped to external Terminal/iTerm use when the dir isn't already on the calling shell's PATH (inside Duo PTYs it always is — no action needed). |
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 

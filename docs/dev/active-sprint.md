@@ -1,8 +1,14 @@
-# Active sprint state — Sprint 16 (pending; cut target v0.6.14)
+# Active sprint state — Sprint 16 (in flight; cut target v0.6.14)
 
-**Theme: TBD.** Sprint 15 closed 2026-05-10 with the v0.6.13 cut shipping the install-pipeline boundary reshape (FTUX content → packs). Sprint 16 opens with two known follow-ups + whatever the owner picks next.
+**Theme: Install-path hardening.** Opened 2026-05-10 from an enterprise user report exposing that the `duo` CLI was unreachable by name inside Claude Code sandboxes (both install targets — `~/.claude/bin/duo` for `duo install`, `~/.local/bin/duo` for the Electron banner — landed at paths that aren't on PTY $PATH). Sprint 16 commit 1 is the urgent P0 fix (ENH-141); the rest of the sprint's shape depends on owner direction (BUG-119 quit-crash candidate + ENH-140 orphan cleanup pairs naturally with the install-service work just landed).
 
-> **Status: Sprint 15 closed.** v0.6.13 tag pushed to origin; DMG uploaded to GitHub Release. `docs/dev/session-log.md` has the close-out entry. The Sprint 15 detail moved to § "Sprint 15 retrospective" below for reference.
+> **Status: Sprint 16 commit 1 in flight (ENH-141).** Code complete, typecheck clean, CLI binary rebuilt, CLI-side install path verified end-to-end via PTY-PATH simulation. Banner-side install end-to-end smoke deferred to v0.6.14 smoke walk (computer-use screenshot capture was OS-level broken during dev verification). Sprint 15 detail in § "Sprint 15 retrospective" below.
+
+## Sprint 16 commits so far
+
+| Item | Status |
+|---|---|
+| **ENH-141** — drop `duo` CLI into SHIM_DIR (`~/.claude/duo/bin/`) so it works inside Duo PTYs and Claude Code sandboxes without `.zshrc` edits + fold `addToShellPath` into the FirstLaunchBanner [Install] action so the click also auto-wires `~/.local/bin` to `~/.zshrc` for external Terminal/iTerm use | ✅ code complete, smoke walk pending |
 
 ## Sprint 16 candidates (carry-forward from Sprint 15)
 
