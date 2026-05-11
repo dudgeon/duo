@@ -269,6 +269,18 @@ palette tokens (`--paper`, `--ink`, `--accent`) in inline styles.
 The user's theme toggle (`theme:set`) flips the variables; hard-
 coded `#ffffff` won't follow.
 
+**Inline the Atelier kernel — don't re-author CSS from scratch.**
+The canonical stylesheet is
+[`~/.claude/skills/duo/references/duo-atelier.css`](references/duo-atelier.css)
+(ENH-146). Copy its full contents into the playground's `<style>`
+block as the first thing inside it; add per-playground overrides
+AFTER. The kernel ships color tokens + typography + the class
+library (`.intro`, `.decision-card`, `.q-option`, `.q-notes`,
+`.copy-bar`, `details.deferred`) — common patterns you'd otherwise
+re-type for every playground. Class library + minimal-skeleton
+template documented at
+[`references/atelier-css.md`](references/atelier-css.md).
+
 ---
 
 ## Lessons specifically — the canonical pattern

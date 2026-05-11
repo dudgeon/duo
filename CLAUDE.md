@@ -542,8 +542,18 @@ write it as an HTML page at `docs/research/<slug>.html`, NOT as
 - `<meta name="duo-open-in" content="browser">` so it routes to the
   browser pane (interactive). `<meta name="duo-editable" content="false">`
   for read-only.
-- Atelier styling (cream paper / orange accent / serif headings — copy
-  the `<style>` block from one of the precedents and adapt).
+- **Atelier styling — inline the canonical kernel** at
+  [`~/.claude/skills/duo/references/duo-atelier.css`](skill/references/duo-atelier.css)
+  into the `<style>` block of every new playground. The kernel covers
+  the universal patterns (color tokens, typography, `.intro`,
+  `.decision-card`, `.q-option`, `.q-notes`, `.copy-bar`,
+  `details.deferred`). Per-playground overrides go AFTER the kernel
+  in the same `<style>` block. The class library and a minimal-
+  skeleton template are documented at
+  [`skill/references/atelier-css.md`](skill/references/atelier-css.md).
+  Do NOT copy a whole `<style>` block from one of the precedents
+  (ENH-146 — that pattern wasted ~200 lines of authoring tokens per
+  playground).
 - Body sections — context, current state with **diagrams** (ASCII art
   in `<pre>`, comparison cards via CSS grid, inventory tables with
   semantic color tags), problem statement, options compared side-by-

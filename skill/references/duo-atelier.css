@@ -1,0 +1,297 @@
+/* duo-atelier.css — canonical Atelier kernel for Duo HTML playgrounds.
+ *
+ * Inline this stylesheet (copy-paste) into the <style> block of any
+ * playground (docs/research/*.html, planning playgrounds, decision
+ * artifacts per CLAUDE.md § 11). Per-playground overrides go AFTER
+ * this kernel in the same <style> block.
+ *
+ * Atelier color/typography tokens align with Duo's app shell:
+ *   cream paper / orange accent / italic-serif headings.
+ *
+ * Class library (each class is opt-in — only inline what you use):
+ *   header.page-head + .meta + .meta .pill   page banner + pill tags
+ *   .intro                                   leading callout block
+ *   .decision-card                           owner-decision block (with .q-* children)
+ *   .q-options / .q-option / .q-option-body  radio-list pattern
+ *   .q-option-title .recommend-tag           highlight the recommended option
+ *   .q-option-rationale                      per-option explanation
+ *   .q-notes                                 free-form textarea per decision
+ *   details.deferred                         collapsed "extras" / deferred reasoning
+ *   .copy-bar                                sticky Copy-decisions footer
+ *
+ * For per-playground patterns not in the kernel (tables, recipe cards,
+ * timeline diagrams, etc.), author them inline AFTER this block. If
+ * the same pattern recurs across multiple playgrounds, propose adding
+ * it to this kernel.
+ */
+
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+body {
+  padding: 32px 40px 96px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+/* — Page head — */
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+header.page-head .meta {
+  color: var(--ink-mute);
+  font-size: 13px;
+}
+header.page-head .meta .pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
+
+/* — Intro block — */
+.intro {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 28px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+
+/* — Headings — */
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-weight: 600;
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+
+/* — Prose — */
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--paper-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+/* — Decision card (owner-decision block) — */
+.decision-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.decision-card .q-context {
+  font-size: 13px;
+  color: var(--ink-mute);
+  margin: 0 0 14px;
+}
+
+/* — Per-option radio list — */
+.q-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.q-option {
+  display: block;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(100% - 22px);
+}
+.q-option-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--ink);
+  margin: 0 0 3px;
+}
+.q-option-title .recommend-tag {
+  font-size: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.q-option-rationale {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  margin: 3px 0 0;
+}
+
+/* — Free-form notes per decision — */
+.q-notes {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+
+/* — Deferred / collapsed extras — */
+details.deferred {
+  margin: 22px 0;
+  padding: 12px 16px;
+  background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 6px;
+}
+details.deferred summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 13.5px;
+}
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* — Sticky Copy-decisions footer — */
+.copy-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 9px 18px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }

@@ -5908,9 +5908,21 @@ On each install / upgrade:
 
 ### ENH-146: Make playgrounds more token-efficient — reduce inline presentation code, lean on shared styles
 
-**Status:** 🆕 Filed 2026-05-11 from idle-thoughts Notion sweep.
+**Status:** ✅ **Shipped Sprint 17 commit 1 (2026-05-11).** Owner pick (AUQ 2026-05-11): "Just ship duo-atelier.css + skill/CLAUDE.md updates" (option 2 from the original "possible fixes" list — no decision playground, no audit pass). Net deliverable: canonical kernel + class-library doc + CLAUDE.md § 11 redirect + skill/make-playground.md redirect.
+
+- **`skill/references/duo-atelier.css`** — canonical ~200-line kernel covering color tokens, typography, `.intro`, `.decision-card`, `.q-option`/`.q-options`/`.q-option-body`/`.q-option-title`/`.recommend-tag`/`.q-option-rationale`, `.q-notes`, `details.deferred`, `.copy-bar`. Inline into the `<style>` block of every new playground (copy-paste); per-playground overrides go AFTER. Compared to the two existing precedents (data-primitives-canvas.html: 670 lines; dogfood-distro-packs-plan.html: 345 lines) the kernel saves roughly 150-470 lines of CSS authoring per playground.
+- **`skill/references/atelier-css.md`** — class-library doc with: usage flow, table of classes-in-the-kernel and what each does, list of patterns NOT in the kernel (inventory tables, recipe cards, comparison cards, pipeline diagrams, confirm callouts) that stay inline, minimal-skeleton template, decisions-payload convention, "when the kernel needs to grow" rules.
+- **CLAUDE.md § 11** — replaced "Atelier styling (cream paper / orange accent / serif headings — copy the `<style>` block from one of the precedents and adapt)" with explicit directive to inline `~/.claude/skills/duo/references/duo-atelier.css` + a NOT-instruction against the old copy-from-precedent pattern.
+- **`skill/make-playground.md`** — added "Inline the Atelier kernel — don't re-author CSS from scratch" guidance pointing at both reference files.
+- **`package.json § sync:claude`** — broadened `cp skill/references/*.md` to `cp skill/references/*` so .css (and any future asset type) syncs to `~/.claude/skills/duo/references/`. Confirmed via `npm run sync:claude` post-edit.
+- **`electron/install-service.ts`** — no changes needed; `safeOverwriteDirContents(sourceRoot/skill/references, SKILLS_DUO_DIR/references, ...)` already does a generic copy, so packaged installs pick up `.css` automatically.
+
+**Deferred (acceptable per owner's "just ship" answer):**
+- (4) Token-budget audit pass to quantify before/after savings. The kernel structure makes the savings self-evident on the next playground generation; an audit isn't gating anything.
+- Refactoring the existing two playgrounds (data-primitives-canvas.html, dogfood-distro-packs-plan.html) to use the kernel. These are frozen artifacts; rewriting them adds churn for no incremental token savings (they're already authored). The kernel is forward-only.
+
 **Priority:** Medium — process / token-cost improvement; not user-blocking but every playground generation pays a recurring tax.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Shipped:** 2026-05-11.
 
 **Owner observation (verbatim from idle-thoughts):** *"Looking at recent playgrounds, like `data-primitives-canvas.html` I see a lot of presentation code in the file that I think must make it token inefficient; how should we update the duo main CLAUDE.md snippet, duo skill, duo agent and/or playground skills to make claude use more token efficient approaches, eg leveraging in-built styles, to make the playgrounds more focused on the semantics/meaning of the playgrounds"*
 
