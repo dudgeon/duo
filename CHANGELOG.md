@@ -19,7 +19,109 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.6.14 cut 2026-05-10. Sprint 16+ work accumulates here.
+> Empty — v0.6.15 cut 2026-05-11. Sprint 17+ work accumulates here.
+
+## [0.6.15] — 2026-05-11
+
+Sprint 16 close-out. A+B combined theme: install/upgrade chapter
+end-cap + stability sweep. Plus a same-sprint user-toggle pivot for
+the Claude Return-key behavior introduced in v0.6.13.
+
+### Added
+
+- **`duo claude-return [submit|newline]`** and **`duo shift-return
+  [submit|newline]`** — toggle Claude-tab Enter key behavior per user
+  preference. Both prefs persist in localStorage; bridged via the
+  same theme-style IPC pattern (renderer source of truth, main
+  caches, CLI overrides re-broadcast). ENH-142.
+- **`duo doc conflict-log`** — print the most recent save-conflict
+  diagnostic JSON at `~/.claude/duo/logs/last-conflict.log`. One
+  keystroke beats opening DevTools. BUG-122.
+- **Production-readable save-conflict diagnostic log.** Markdown
+  editor + HTML canvas now write `~/.claude/duo/logs/last-conflict.log`
+  on every "file changed on disk" banner. JSON payload: timestamp,
+  path, trigger (watcher-dirty / save-pre-reconcile), surface
+  (markdown / canvas), lengths, head/tail 80-char excerpts (post-
+  normalize), `firstDiffOffset`, app version. Best-effort write;
+  never blocks the banner.
+
+### Changed
+
+- **Default Claude-tab Return behavior: now `submit` (was `newline`).**
+  ENH-127 v2 (v0.6.13) made plain Return insert a multi-line newline
+  in Claude tabs with ⌘Return as the explicit submit. Owner feedback:
+  surprising relative to every other terminal in the world. v0.6.15
+  flips the default; the override capability stays behind the new
+  `duo claude-return newline` toggle. Shift+Return → newline is
+  unchanged (ENH-133 default).
+- **Echo normalization for "file changed on disk" detection widened.**
+  Was trailing whitespace only (BUG-107 v0.6.9). Now also catches BOM
+  prefixes, CRLF→LF line endings, per-line trailing whitespace. Both
+  the markdown editor's `recentlyWrittenBodiesRef` and the HTML
+  canvas's `recentlyWrittenHtmlRef` got a TTL bump 2s → 5s on top
+  (the original 2s could be undershot on slower machines). BUG-122.
+- **`install-service` op #8 — pins.json bootstrap now iterates each
+  pack's `PACK.json § defaults[].pin: true`** instead of the
+  hardcoded WDD URL literal Sprint 15 left as transitional. Each
+  pin's title is extracted from the canvas's `<title>` element so
+  the display string survives without a hardcoded literal.
+
+### Fixed
+
+- **BUG-119 — fsevents SIGABRT crash on every Cmd-Q.** Disposes
+  (`ptyManager.dispose() + filesService.dispose()` + flushes) moved
+  from `window-all-closed` into `before-quit` so chokidar releases
+  its native threadsafe function while the mutex is still alive. On
+  darwin `window-all-closed` doesn't fire on Cmd-Q, so the prior
+  shape leaked watchers into Node env teardown and SIGABRTed. macOS
+  crash dialog no longer appears on quit.
+- **FOLLOWUP-019 — HTML canvas now reconciles external file writes
+  like the markdown editor has since v0.6.7.** All three layers of
+  BUG-085 + BUG-099's fix mirrored from `MarkdownEditor.tsx` into
+  `PageTab.tsx`: file watcher with clean/dirty branching, pre-save
+  reconciliation read-disk before write, and `recentlyWrittenHtmlRef`
+  echo guard. Closes the canvas-side silent-edit-loss class that the
+  original Sprint 6 work left as deferred parity.
+- **ENH-140 — install-service auto-cleanup of orphan files on
+  upgrade.** Files retired by the current bundle are deleted on next
+  install if their on-disk SHA still matches the prior recorded SHA
+  (i.e. user hasn't customized). Customized files are preserved in
+  place + logged. Empty parent directories swept up after.
+- **Pin URL auto-migration on upgrade.** `pins.json` entries pointing
+  at v(N-1) paths (e.g. `~/.claude/duo/help/what-duo-does.html`) get
+  rewritten to v(N) successors (the pack-mirrored location). Closes
+  the v0.6.13 "two WDD tabs on upgrade" known issue. Entries pointing
+  at retired-no-successor paths (FAQ) get dropped. Idempotent;
+  conservative — only acts on known PIN_RENAMES entries.
+
+### Internal
+
+- Filed FOLLOWUP-019 as the named follow-up that BUG-085's note (c)
+  had left as an unnamed placeholder ("FOLLOWUP-NN: PageTab mirror").
+- Audit corrected stale task statuses: BUG-085 (✅ Sprint 6 — entry
+  was stuck at 🔴 IMMEDIATE for three sprints), BUG-103 (✅ v0.6.12).
+
+### Known issues — carry-forward to v0.6.16
+
+- **BUG-093** (Right-click tab → Move to Split View can crash the
+  renderer) — instrumentation in place; CLI repro attempted this
+  cut, did not trigger crash. Awaiting a user-triggered reproduction
+  for the `[BUG-093]` trace + `[ErrorBoundary:WorkingPane]` stack
+  combination the fix needs.
+- **ENH-084** (aux pane focus glow) — v4 declined this cut. The task
+  entry explicitly warns the next attempt should start with a live-
+  click event-stream capture pass before any code change; mistimed
+  for end-of-sprint.
+- **BUG-079** (⌃⇧\` tab-cycle latency) — bumped to v0.6.16 to make
+  room for BUG-122 swap-in.
+- **BUG-122 deeper fix** — gated on the next production repro's
+  `~/.claude/duo/logs/last-conflict.log` contents. The v0.6.15
+  hardening (TTL + normalize + diagnostic log) should narrow the
+  hypothesis space; the `firstDiffOffset` + head/tail excerpts in
+  the log file name the root cause deterministically.
+- **ENH-141 enterprise smoke** — owner-side validation owed on the
+  work machine that surfaced the original install-path-hardening
+  report (deferred SKIPs from the v0.6.14 walk).
 
 ## [0.6.14] — 2026-05-10
 

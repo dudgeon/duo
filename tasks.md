@@ -6905,7 +6905,9 @@ Visual benefit: the control sits with the surface; users find it intuitively whe
 
 ### ENH-084: Aux pane focus indicator — orange glow when active in side pane (parity with main)
 
-**Status:** 🔴 **DEFECT — three attempts in v0.6.5 all failed; deferred to v0.6.6 Sprint 5.** Owner direction (2026-05-04, Phase 3 re-walk #2): *"glow never moves to split view -- please log the defect, incl failed attempts to fix it, then move on; this has wasted too much time this sprint."* Logging here as the canonical reference for the next attempt; do NOT ship a v4 without first studying these failures.
+**Status:** 🔴 **DEFECT — Sprint 16 declined v4 attempt; carry forward to v0.6.16 instrumentation kickoff.** 2026-05-11 — owner green-lit a v4 attempt for Sprint 16 with a 3-hour bail-out budget. Re-reading the entry's "Why the next attempt should NOT just iterate on these patterns" section made the bail-out unambiguous: v4 needs a captured event-stream from a live click session FIRST (instrument every focus event source, owner clicks around for 60s, design fix from data). That's an instrumentation-then-user-walk-then-fix shape ill-fit to end-of-sprint cut prep; better timed with v0.6.16 kickoff where the smoke-walk infrastructure is fresh. Original three attempts + warning preserved below.
+
+**Status (Sprint 5):** 🔴 **DEFECT — three attempts in v0.6.5 all failed; deferred to v0.6.6 Sprint 5.** Owner direction (2026-05-04, Phase 3 re-walk #2): *"glow never moves to split view -- please log the defect, incl failed attempts to fix it, then move on; this has wasted too much time this sprint."* Logging here as the canonical reference for the next attempt; do NOT ship a v4 without first studying these failures.
 
 **Failed attempts:**
 
@@ -7164,9 +7166,9 @@ These haven't surfaced as bugs because they're either hover-states (transient, l
 
 ### FOLLOWUP-013: BUG-093 clean-repro investigation (right-click → Move to Split View renderer crash)
 
-**Status:** 🆕 Filed (Sprint 8 Phase 4, 2026-05-06).
+**Status:** 🟡 **Sprint 16 attempt: could not reproduce via CLI; carry forward to v0.6.16.** 2026-05-11 — fired `⌘/` (splitViewToggle chord) via synthetic KeyboardEvent dispatched to document; full instrumentation trace fired correctly (`[BUG-093] ENTRY → beginning swap → COMMITTED`) with no ErrorBoundary trigger, no React error overlay, no renderer crash. Tried variants: canvas with pre-seeded bullets + comment thread, fresh-via-`duo html new` canvas (mid-injection), dirty-buffer + sidecar-dirty swap. None crashed. The original v0.6.7 rev3 repro was user-typed bullets + a comment; my CLI synthesis can't fully simulate the dynamic typing state (autosave debouncer pending mid-keystroke, MutationObserver firing on user input, etc.). Instrumentation remains in place; the next user-triggered crash will leave the forensic trace the task entry's "fix path" depends on.
 **Priority:** **High** — BUG-093 fires from a real user gesture and crashes the WorkingPane.
-**Filed:** 2026-05-06.
+**Filed:** 2026-05-06. **Re-attempted:** 2026-05-11.
 
 **What this follow-up does.** v0.6.7 shipped instrumentation around `splitViewMoveTabByPath` + an inline `ErrorBoundary` around `<WorkingPane>`. The crash hasn't been re-observed since the rev3 walk that surfaced it. This follow-up drives the clean-repro:
 1. Open Duo dev with devtools console visible, filtered on `[BUG-093]` and `[ErrorBoundary:WorkingPane]`.

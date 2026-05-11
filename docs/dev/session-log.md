@@ -18,6 +18,40 @@
 
 ---
 
+## 2026-05-11 (v0.6.15 cut — Sprint 16 close-out, commits 3-9) — Stability + install/upgrade end-cap + Return-key user toggle
+
+**Status: v0.6.15 cut — tag `v0.6.15` local-only (not yet pushed; awaiting owner blessing).** Nine commits across four theme areas closing the Sprint 16 plan opened at the v0.6.14 hotfix's tail. Auto-mode run; owner directive at session start: "continue through all remaining sprint work, and if all good, please begin cut procedures."
+
+**Sprint 16's A-bucket (install/upgrade close-out) + B-bucket (stability sweep) bundled together with two same-sprint interrupts:**
+
+1. **BUG-119** ([`4f47017`](https://github.com/dudgeon/duo/commit/4f47017)) — fsevents SIGABRT crash dialog on every Cmd-Q. Moved `ptyManager.dispose() + filesService.dispose()` + flushes from `window-all-closed` (which doesn't fire on Cmd-Q on darwin) into `before-quit` so chokidar releases its native threadsafe function while the mutex is still alive. Verified via osascript Quit Apple Event — Electron exits clean, no new crash report in `~/Library/Logs/DiagnosticReports/`.
+
+2. **FOLLOWUP-019** ([`d6b6129`](https://github.com/dudgeon/duo/commit/d6b6129)) — mirrors BUG-085 + BUG-099's three-layer external-write reconciliation from `MarkdownEditor.tsx` into `PageTab.tsx`. Same data-loss class (silent staleness + autosave squashing fs-writes), just the HTML canvas surface that BUG-085 note (c) deferred. New shared shape: file watcher useEffect + `recentlyWrittenHtmlRef` + pre-save reconciliation + amber "Reload from disk / Keep mine" banner. Verified live: clean-buffer silent reload + dirty-buffer conflict banner + autosave bailing on disk drift — all three branches fire with full diagnostic logs.
+
+3. **ENH-140 install-service cluster** ([`f57bc95`](https://github.com/dudgeon/duo/commit/f57bc95)) — three install-service changes bundled. ENH-140 orphan cleanup on upgrade reuses `installed.json § files` (Stage 21e-iii SHA map) as the diff source — matched-SHA orphans `fs.unlink`'d, customized files preserved + logged, empty parent dirs swept up. Pin URL auto-migration rewrites known v(N-1) paths in `pins.json` to v(N) successors (PIN_RENAMES map: WDD canvas pack rename; FAQ drop). Op #8 pivot — `bootstrapPinsFromPackDefaults` reads each pack's `PACK.json` and seeds pins from `defaults[].pin: true` entries; pin titles extracted from canvas `<title>` element. All three verified live via `install.run()` IPC: pin migrated, fake-orphan deleted on matched SHA, fake-customized preserved on mismatched SHA.
+
+4. **BUG-122** ([`d2937be`](https://github.com/dudgeon/duo/commit/d2937be) + [`f77b6c0`](https://github.com/dudgeon/duo/commit/f77b6c0)) — same-sprint interrupt. Owner repro on v0.6.14 production DMG of the "file changed on disk" banner re-surfacing during normal markdown editing. Cloud-sync hypothesis (2) ruled out by owner (no iCloud sync on work machine). Defensive hardening shipped: shared helper `renderer/utils/conflictDiagnostic.ts` with `normalizeForEchoCompare` (widened from trailing-only to also strip BOM + CRLF→LF + per-line trailing whitespace), `computeFirstDiffOffset` for tight diff diagnostics, `writeConflictLog` for production-readable disk log at `~/.claude/duo/logs/last-conflict.log`; TTL on `recentlyWrittenBodiesRef` + `recentlyWrittenHtmlRef` bumped 2s → 5s. New `duo doc conflict-log` CLI verb dumps the log in one keystroke (full CLAUDE.md item 4 plumbing — added to skill + agent cheat-sheet + CLI-COVERAGE; CLI binary rebuilt). Deeper fix gated on next-repro log capture; hypotheses 3 (TTL race) + 4 (tiptap round-trip non-idempotency) remain alive.
+
+5. **ENH-142** ([`6637f01`](https://github.com/dudgeon/duo/commit/6637f01)) — same-sprint interrupt. Owner ask: "the claude session return override (turns return into option-return, real submit requires cmd enter), toggle it off (feature toggle as upcoming user preference -- not abandoned feature); enable the same functionality to catch shift-return and treat as option-return (feature toggle, flipped ON)." Default Claude-tab plain Return flipped from 'newline' (ENH-127 v2) → 'submit' (matches universal terminal expectation). Default Shift+Return stays 'newline' (ENH-133 unchanged). Both behind localStorage + `duo claude-return [submit|newline]` + `duo shift-return [submit|newline]` CLI toggles. Full plumbing modeled on the `duo theme` precedent: new `useClaudeKeyPrefs` hook, IPC bridge, main-process cache + helpers, NavBridge interface extension, socket dispatch cases, CLI verbs, skill/agent docs.
+
+**Two B-bucket items deferred to v0.6.16:**
+
+- **BUG-093** (Move to Split View renderer crash) — attempted CLI repro via synthetic `⌘/` KeyboardEvent. Full instrumentation trace fires correctly (`[BUG-093] ENTRY → beginning swap → COMMITTED`); no ErrorBoundary trigger; no crash. Tried variants (pre-seeded canvas, fresh canvas via `duo html new`, dirty buffer + sidecar dirty). None crashed. The original rev3 repro was user-typed bullets + a comment; CLI synthesis can't fully simulate the dynamic typing state. FOLLOWUP-013 updated with the no-repro outcome. Instrumentation remains in place; next user-triggered crash leaves the forensic trace.
+
+- **ENH-084 v4** (aux pane focus glow) — declined per the task entry's own "do NOT ship a v4 without first studying these failures" guidance. Three prior attempts (onMouseDownCapture, gate-removal, focusin listener) all failed in v0.6.5; the entry recommends an instrumentation pass with a live click session before any code change, which is mistimed for end-of-sprint cut prep.
+
+**Bonus housekeeping (Sprint 16 also produced):**
+
+- Stale task statuses audited + corrected: BUG-085 had been stuck at 🔴 IMMEDIATE for three sprints despite shipping in Sprint 6 (commit `a4c56dc`); BUG-103 had been stuck at 🟡 Open despite shipping in v0.6.12 (commit `18725c7`).
+- FOLLOWUP-019 properly filed as the named follow-up that BUG-085 note (c) had left as an unnamed placeholder ("FOLLOWUP-NN: PageTab mirror").
+- BUG-079 (⌃⇧\` tab-cycle latency) explicitly bumped to v0.6.16 to make room for BUG-122 swap-in.
+
+**Cut deliverables (this session):** v0.6.15 tag, CHANGELOG `[0.6.15]` section, RELEASES.md prose entry, what-duo-does.html ENH-142 entry (item 19c), `packs/duo-default/PACK.json` version 1.0.1 → 1.0.2, roadmap.html version history line, this session-log entry. Signed DMG: pending Step 4.5.
+
+**v0.6.16 punch list:** BUG-093 user-triggered repro capture; ENH-084 v4 instrumentation pass + event-stream capture; BUG-079 latency probe; BUG-122 deeper fix once next repro's `last-conflict.log` lands; ENH-137 Beginner's Guide owner-authored draft; ENH-141 enterprise smoke owner-side validation on work machine.
+
+---
+
 ## 2026-05-10 evening (v0.6.14 cut — Sprint 16 commits 1+2) — Install-path hardening + browser-tab close-loop fix; same-day enterprise hotfix
 
 **Status: v0.6.14 cut — tag `v0.6.14` local-only (not yet pushed; awaiting owner blessing).** Two P0 hotfixes from the same enterprise-machine session, bundled into a same-day cut.

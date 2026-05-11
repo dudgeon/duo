@@ -21,7 +21,139 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.6.14 cut 2026-05-10)*
+> *(empty — v0.6.15 cut 2026-05-11)*
+
+---
+
+## v0.6.15 — 2026-05-11 — Sprint 16 close-out: stability + install/upgrade chapter end-cap + Return-key user toggle
+
+Nine commits across four theme areas closing the install/upgrade
+chapter Sprint 15 opened, fixing two real data-loss bug classes
+(fsevents quit crash + save-conflict re-surface), bringing the HTML
+canvas to parity with the markdown editor's external-write
+reconciliation, and shipping a user toggle for the Claude-tab Enter
+key behavior that ENH-127 v2 made too-clever-by-half.
+
+**The Return-key pivot is the most user-visible change.** ENH-127 v2
+(v0.6.13) shipped plain-Return-as-newline-in-Claude-tabs as the
+default with ⌘Return as the explicit submit. The reasoning was
+"protect against accidental submits during long multi-line prompts"
+— and the byte-sequence discovery (`\x1b\r` = the bytes ⌥Return
+sends natively, which Claude reads as "literal newline, don't
+submit") was the real find. But the owner-reported surprise was
+real: every other terminal in the world treats Return as submit;
+muscle memory wins. v0.6.15 flips the default to `submit` while
+preserving the override capability behind `duo claude-return
+[submit|newline]` + a localStorage pref. The companion Shift+Return
+→ newline default (ENH-133) is unchanged (matches Slack / Discord /
+claude.ai-web convention). Owner framing: "feature toggle as
+upcoming user preference — not abandoned feature."
+
+**Stability + data-loss-class fixes.** BUG-119 traced the macOS
+crash dialog on every Cmd-Q to chokidar's fsevents native module
+trying to release its threadsafe function during Node env teardown
+— a race window opened by disposing watchers in `window-all-closed`,
+which doesn't fire on Cmd-Q on darwin (gated to non-darwin platforms
+for `app.quit()` plumbing). Moving the disposes into `before-quit`
+closes the race window deterministically; Electron exits cleanly,
+no crash report. FOLLOWUP-019 brought BUG-085 + BUG-099's
+three-layer external-write reconciliation (file watcher with clean/
+dirty branching + pre-save reconciliation read-disk before write +
+recently-written echo guard) from `MarkdownEditor.tsx` into
+`PageTab.tsx`. Same data-loss class as the markdown variant — the
+canvas just hadn't been fixed in the original Sprint 6 work
+(disposition (c) Deferred at the time, upgraded to (a) Mirrored
+here). The conflict banner UI also lands canvas-side: same amber
+"Reload from disk" / "Keep mine" actions.
+
+**BUG-122 — re-surface of the "file changed on disk" banner on
+v0.6.14 production DMG.** Owner hit it editing a regular markdown
+file on the work machine (no Notion mirror, no parallel agent, no
+iCloud sync). The console-log diagnostic shipped previously
+(`[BUG-107 save-pre-conflict]`) showed only lengths + first 60
+chars — useless when the diff is mid-document or at the tail.
+Defensive hardening this cut: TTL bumped 2s → 5s
+(`recentlyWrittenBodiesRef` + `recentlyWrittenHtmlRef`), echo
+normalization widened from trailing-only to also strip BOM,
+normalize CRLF→LF, and strip per-line trailing whitespace (shared
+helper `renderer/utils/conflictDiagnostic.ts`), and a production-
+readable diagnostic log persists every conflict to
+`~/.claude/duo/logs/last-conflict.log` with `firstDiffOffset` +
+head/tail 80-char excerpts (post-normalize). The new `duo doc
+conflict-log` verb dumps it in one keystroke — no DevTools required
+on the production DMG. The deeper fix is gated on the diagnostic
+data the next repro leaves behind. Hypotheses still alive: 3 (slow-
+machine race, addressed defensively by the TTL bump) and 4
+(tiptap-markdown serializer round-trip non-idempotency, hard to
+confirm without a real diff snapshot).
+
+**Install/upgrade close-out — the chapter Sprint 15 opened.** ENH-140
+gives Duo its first real orphan-cleanup story on upgrade. Design
+simplified from the original PRD: rather than introduce a new
+`installed-files.json` manifest, reused `installed.json § files`
+(the Stage 21e-iii SHA-per-file map already maintained). Diff
+prior-install keys vs current-install keys; for each orphan, check
+the on-disk SHA against the prior recorded SHA — if it matches, the
+file is user-untouched and gets `fs.unlink`'d; if it differs, the
+user customized it and we preserve in place + log. Empty parent
+directories swept up after via non-recursive `fs.rmdir` (succeeds
+only when truly empty — never strays).
+
+**Pin URL auto-migration on upgrade.** Closes the v0.6.13 "two WDD
+tabs on upgrade" known issue. `migrateStalePinUrls` walks `pins.json`
+on every install; for each entry whose ref ends with a known v(N-1)
+path (PIN_RENAMES map: `duo/help/what-duo-does.html` →
+`duo/packs/duo-default/canvases/what-duo-does.html` from Sprint 15's
+ENH-138; `duo/help/faq.html` → null from Sprint 15's ENH-135),
+either rewrite to the new location or drop the entry. Idempotent;
+conservative — only acts on known renames, never touches unknown
+stale pins.
+
+**Op #8 pivot to pack-defaults iteration — final touch.**
+`install-service.ts § op #8` had been hardcoding the WDD URL +
+title literal since v0.6.13 as a transitional shape.
+`bootstrapPinsFromPackDefaults` now reads each `packs/<name>/
+PACK.json` on fresh install and seeds `pins.json` from
+`defaults[].kind === 'canvas' && defaults[].pin === true`. Pin
+titles extracted from each canvas's `<title>` element via
+`extractCanvasTitle()` — preserves the existing display string
+("Duo — What Duo Does") without a hardcoded literal. Future
+packs with `pin: true` defaults pick up the same seeding shape
+automatically.
+
+**What this is and isn't.** This is the close-out cut of the
+install/upgrade story that Sprints 15 + 16 opened together —
+v0.6.15+ users get the right install hygiene going forward.
+v0.6.13/v0.6.14 legacy orphans (`help/faq.html`,
+`packs/claude-code-basics/`) weren't tracked in `installed.json`
+when Sprint 15 retired them, so they're invisible to the
+diff-based cleanup and stay on disk inert. They can be removed by
+hand; documented as a known limitation rather than aggressively
+hard-deleted (the user-customization risk would require a known-
+SHA list per legacy version, which is itself drift-prone).
+
+The Return-key pivot is owner-driven, surfacing the toggle
+infrastructure (CLI verbs + localStorage prefs + IPC bridge) that
+v0.6.16+ user preferences can follow as a precedent. Existing
+users will see plain Return start submitting again on upgrade
+without warning — the previous v0.6.13 default lasted ~6 days
+across versions, not long enough to expect users had built habit
+around.
+
+BUG-122's defensive hardening is *not* a confirmed fix. It's a
+TTL widening + normalization broadening that addresses the most
+likely hypotheses without committing to a specific root cause.
+The new diagnostic log is the actual investigation tool; deeper
+fix waits for the next repro's `last-conflict.log` contents to
+name the hypothesis deterministically.
+
+**What's queued for v0.6.16:** BUG-093 (Move to Split View
+renderer crash — instrumentation in place since v0.6.7, awaiting
+user-triggered repro), ENH-084 (aux pane focus glow v4 — needs a
+live-click event-stream capture pass before any code change),
+BUG-079 (⌃⇧\` tab-cycle latency — bumped to make room for BUG-122
+this sprint), and BUG-122's deeper fix once the next production
+repro leaves a log file behind.
 
 ---
 

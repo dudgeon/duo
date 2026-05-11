@@ -1,8 +1,38 @@
-# Active sprint state — Sprint 16 (in flight; cut target v0.6.15)
+# Active sprint state — Sprint 16 (CLOSED 2026-05-11; v0.6.15 cut)
 
-**Theme (owner pick 2026-05-10):** **A+B combined — install/upgrade close-out + stability sweep.** Sprint 16 commits 1+2 (ENH-141 install-path hardening + BUG-121 about:blank respawn loop) shipped as v0.6.14 hotfix the same day Sprint 16 opened. The rest of the sprint pairs the natural continuation of the install-hardening chapter (ENH-140 orphan cleanup + pin URL auto-migration + op #8 pivot) with a focused stability pass on genuinely-open recurring bugs (BUG-085 layer-3 + BUG-079 latency probe + BUG-093 clean repro + ENH-084 aux glow v4).
+**Theme:** **A+B combined — install/upgrade close-out + stability sweep.** Sprint 16 opened 2026-05-10 with commits 1+2 (ENH-141 + BUG-121) shipping as the v0.6.14 same-day enterprise hotfix; commits 3-9 (BUG-119, FOLLOWUP-019, ENH-140 cluster, BUG-122 hardening + diag enrich, ENH-142) shipped as the v0.6.15 close-out 2026-05-11.
 
-> **Status: v0.6.14 shipped 2026-05-10; v0.6.15 cut target.** Sprint plan locked via 2-stage AUQ (theme pick + B-bucket pick) on 2026-05-10. v0.6.14 deliverables ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) detailed under "v0.6.14 cut record" below. Sprint 15 detail in § "Sprint 15 retrospective".
+> **Status: v0.6.15 cut 2026-05-11.** Both v0.6.14 + v0.6.15 detailed in § "Cut records" below. Sprint 15 detail in § "Sprint 15 retrospective".
+
+## v0.6.15 cut record (2026-05-11)
+
+Sprint 16 close-out commits 3-9. Auto-mode run; owner directive at session start: "continue through all remaining sprint work, and if all good, please begin cut procedures."
+
+| Commit | Item |
+|---|---|
+| [`4f47017`](https://github.com/dudgeon/duo/commit/4f47017) | **BUG-119** — fsevents SIGABRT on Cmd-Q. Disposes moved into `before-quit`; verified clean exit via osascript Quit Apple Event. |
+| [`5991c43`](https://github.com/dudgeon/duo/commit/5991c43) | **BUG-085 audit + FOLLOWUP-019 filing.** Stale status correction (BUG-085 shipped Sprint 6); FOLLOWUP-019 named for what BUG-085 note (c) had left as "FOLLOWUP-NN" placeholder. |
+| [`d6b6129`](https://github.com/dudgeon/duo/commit/d6b6129) | **FOLLOWUP-019** — canvas-side external-write reconciliation. Mirrors BUG-085 + BUG-099 to PageTab.tsx. Verified live (clean reload + dirty banner + pre-save bail). |
+| [`f57bc95`](https://github.com/dudgeon/duo/commit/f57bc95) | **ENH-140 + pin URL auto-migration + op #8 pivot.** Three install-service changes in one cluster commit. Reuses `installed.json § files` SHA map for orphan diff; rewrites stale pins.json entries via PIN_RENAMES; bootstraps pins.json from each pack's `defaults[].pin: true`. |
+| [`d55b314`](https://github.com/dudgeon/duo/commit/d55b314) | **BUG-122 filed.** Same-sprint interrupt: owner repro of the "file changed on disk" banner re-surfacing on v0.6.14 production DMG. |
+| [`d2937be`](https://github.com/dudgeon/duo/commit/d2937be) | **BUG-122 defensive hardening.** Shared `conflictDiagnostic.ts` helper; TTL 2s → 5s; widened normalize; production-readable disk log. |
+| [`f77b6c0`](https://github.com/dudgeon/duo/commit/f77b6c0) | **BUG-122 diagnostic enrichment + `duo doc conflict-log` verb.** Inline `firstDiffOffset` + tail excerpts in console; new CLI verb dumps the log file in one keystroke. |
+| [`6637f01`](https://github.com/dudgeon/duo/commit/6637f01) | **ENH-142** — Claude-tab Enter key prefs. Plain Return default flipped 'newline' → 'submit'; Shift+Return → newline stays default; both behind `duo claude-return` + `duo shift-return` CLI toggles. |
+
+**Two B-bucket items deferred to v0.6.16:**
+
+- **BUG-093** — Move to Split View renderer crash. CLI repro attempted via synthetic `⌘/` chord; no crash, full instrumentation trace fired correctly (`[BUG-093] ENTRY → beginning swap → COMMITTED`). FOLLOWUP-013 updated with the no-repro outcome; instrumentation remains in place. Original v0.6.7 rev3 repro was user-typed bullets + comment, hard to simulate fully via CLI.
+- **ENH-084 v4** — Aux pane focus glow. Declined per task entry's own "do NOT ship a v4 without studying these failures" guidance; needs instrumentation pass + live-click event-stream capture first (mistimed for end-of-sprint).
+
+**v0.6.16 punch list carried forward:**
+- BUG-093 — awaiting user-triggered crash + the `[BUG-093]` + `[ErrorBoundary:WorkingPane]` log combination.
+- ENH-084 v4 — instrumentation pass first.
+- BUG-079 — ⌃⇧\` tab-cycle latency (bumped from this sprint).
+- BUG-122 deeper fix — gated on next-repro `~/.claude/duo/logs/last-conflict.log` contents.
+- ENH-141 enterprise smoke — owner-side validation on work machine.
+- ENH-137 Beginner's Guide — owner-authored draft pending.
+
+---
 
 ## Sprint 16 commits already shipped (v0.6.14)
 

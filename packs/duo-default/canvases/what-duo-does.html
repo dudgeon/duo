@@ -429,6 +429,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="claude tab return key submit newline shift option enh-142 enh-127 enh-133">
+  <div class="num">19c</div>
+  <div>
+    <h3>Tune the Return key in Claude tabs</h3>
+    <p class="why">Inside Claude Code tabs only: by default plain <strong>Return</strong> submits (universal terminal behavior); <strong>Shift+Return</strong> inserts a soft newline (matches Slack / Discord / claude.ai-web). If you want the v0.6.13 behavior where Return inserts a newline and ⌘Return submits, you can flip that pref. Shell tabs are never affected. <strong>v0.6.15+</strong></p>
+    <p class="how"><strong>CLI</strong><code>duo claude-return [submit|newline]</code> to flip plain Return; <code>duo shift-return [submit|newline]</code> to flip Shift+Return. No-arg = print current state. Each pref persists per-user in localStorage.</p>
+  </div>
+</article>
+
 <article class="item" data-keys="cycle terminal tabs ctrl tab keyboard">
   <div class="num">20</div>
   <div>
