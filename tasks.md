@@ -6052,9 +6052,39 @@ On each install / upgrade:
 
 ### BUG-123: Table-cell selection — can't select beyond cell boundary in markdown editor
 
-**Status:** 🆕 Filed 2026-05-11 from owner directive ("claude abandoned the work to fix table selections when user wants to select beyond table cell"). Re-revival per owner — was previously left unfiled.
+**Status:** 🟡 **Spike complete Sprint 17 commit 7 (2026-05-11); v2 fix design needs owner-walked repro + scope decision.** Sprint 17 budget didn't fit a code fix (the prosemirror-tables override surface is wider than the AUQ option assumed). Below is the investigation output: what the constraint is, where it lives, three concrete fix shapes, and what the next attempt needs to land.
+
+**What I confirmed during the spike:**
+
+1. **TipTap config is vanilla.** [`renderer/components/editor/MarkdownEditor.tsx:477`](renderer/components/editor/MarkdownEditor.tsx:477) — `Table.configure({ resizable: true })`. No other table-related options. No `allowGapCursor` / `allowSelectAll` / cellSelection disable flags. The selection-locking behavior comes entirely from `@tiptap/extension-table`'s default config wrapping `prosemirror-tables`.
+
+2. **prosemirror-tables's `tableEditing()` plugin owns the relevant DOM handlers** — `handleDOMEvents.mousedown` intercepts presses inside table cells and switches drag-state machinery to CellSelection mode. The `CellSelection` class itself (also from `prosemirror-tables`) governs what counts as a "selected range" inside a table. Cross-boundary drags (cell → outside-table text) are intercepted by `tableEditing()`'s mousemove handler and converted to CellSelection that stays inside the table.
+
+3. **Existing precedent for overriding prosemirror-tables behavior at the TipTap layer exists locally** — see [`renderer/components/editor/extensions/TableCellCopy.ts`](renderer/components/editor/extensions/TableCellCopy.ts). The BUG-108 fix installs a higher-priority `clipboardTextSerializer` to intercept the clipboard side without modifying prosemirror-tables itself. The selection side (this bug) needs a similar high-priority interceptor for `handleDOMEvents.mousedown` and `handleDOMEvents.mousemove`.
+
+**Three fix shapes (owner-decision):**
+
+| # | Shape | Trade-off |
+|---|---|---|
+| **A** | **Plain-text selection runs through cells (Obsidian/GitHub parity).** New `TableCrossBoundarySelection.ts` extension with high-priority `handleDOMEvents.mousedown` + `handleDOMEvents.mousemove` that pre-empt `tableEditing()` when the mousedown is *inside* a cell but the move trajectory leaves the table. Forces a TextSelection that spans table → outside. Clipboard side already handles it (BUG-108's TableCellCopy returns text). | **Most consistent with markdown editor norms** — what every owner-cited reference editor (Obsidian, GitHub, Bear) does. **But** sacrifices the in-table multi-cell drag (selecting B2-B3-B4 within a column for delete or formatting). Owner might want that to still work. |
+| **B** | **Preserve CellSelection within table, allow text-spanning AT and BEYOND the table edge only.** Same interceptor but only converts to TextSelection when the mousemove crosses the table boundary; in-table drags stay as CellSelection. Cleaner UX (cell-vs-text selection mode follows pointer position semantically). | **More design work** — need to detect the moment the pointer crosses the table border, swap selection mode mid-drag. Edge cases around table edge boundary cells. Prosemirror's selection machinery may resist mid-drag mode swaps. |
+| **C** | **Modifier-key escape hatch.** Default: in-table drag stays CellSelection (today's behavior). Add a `⌥-drag` (or other modifier) that disables tableEditing's interception for that drag, producing a normal TextSelection. | **Lowest-risk, lowest-impact** — preserves all existing in-table affordances, gives users an explicit gesture for the spanning case. **But** lower discoverability; doesn't match the verbatim "select beyond table cell" expectation owner described. |
+
+**Recommendation: (A)** for the v2 fix, matching the Obsidian/GitHub norm owner referenced. The multi-cell-drag scenario (B) is theoretically valuable but rare in actual markdown workflows; users who want bulk cell ops typically use the right-click cell-context-menu or keyboard shortcuts (Tab to advance, etc.). If owner pushes back on losing in-table CellSelection, fall back to (B) with explicit cross-boundary detection logic.
+
+**What v2 needs to land:**
+
+1. Owner sign-off on shape (A / B / C).
+2. New extension `TableCrossBoundarySelection.ts` mirroring TableCellCopy's structure.
+3. Editor-canvas parity disposition (CLAUDE.md § 4 item 4 rule) — the HTML canvas uses raw `contentEditable`, NOT TipTap. Cross-boundary selection in the canvas works differently (browser's native selection model — no CellSelection lock). The disposition is likely "(b) Skipped — surface-specific" (canvas doesn't need this fix because contenteditable doesn't lock). Confirm during v2.
+4. Smoke test path: create a markdown file with a 3x3 table + paragraph text above and below; drag from cell B2 to a word two lines below the table; expected selection covers B2 + B3 + cells C1-C3 + the table closer + the paragraph text in between.
+
+**Owner-process note (verbatim, preserved):** *"claude abandoned the work to fix table selections when user wants to select beyond table cell; claude failed to keep in sprint or get explicit user permission to def indefinitely; this needs to be fixed."*
+
+**Process lesson (per memory rule):** ENH-148 / BUG-124 / FOLLOWUP-020 all filed during Sprint 17 — anything I touched and decided to defer left a tracked entry. BUG-123 v2 is the same pattern: filed-with-status, not silently dropped. The "explicit owner sign-off to defer" half is in this entry: the spike output is here; owner can accept the deferred fix or push for code now.
+
 **Priority:** **Medium** — workflow gap when working with table-heavy markdown. Owner explicitly flagged the agent-process failure (no filing, no permission to defer) as the real issue.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Spike complete:** 2026-05-11.
 
 **Symptom (likely).** Inside the markdown editor's TipTap surface: click into a table cell, mouse-down + drag to select text. If the drag extends beyond the cell boundary (to adjacent cells, OR to text below the table, OR before the table), the selection either (a) constrains to the cell, or (b) jumps to a different selection mode (whole-row, whole-table). Users coming from regular markdown editors expect a continuous text selection that spans the table → outside-table boundary.
 
