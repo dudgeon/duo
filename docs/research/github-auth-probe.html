@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<title>GitHub auth probe — which method works on this Mac?</title>
+<style>
+  /* — Atelier kernel (verbatim from ~/.claude/skills/duo/references/duo-atelier.css) — */
+  :root {
+    --paper: #fbf8f1;
+    --paper-deep: #f3ede0;
+    --paper-edge: #e8e0cb;
+    --paper-rule: #d9cea8;
+    --ink: #2b2620;
+    --ink-soft: #4a4238;
+    --ink-mute: #6f6557;
+    --ink-ghost: #9a9080;
+    --accent: #c46a1c;
+    --accent-soft: #f4d9b6;
+    --pass: #4a7d3e;
+    --fail: #b13e3a;
+    --warn: #b07527;
+    --code-bg: #2b2823;
+    --code-ink: #e8e0cb;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  body { padding: 32px 40px 120px; max-width: 980px; margin: 0 auto; }
+
+  header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+  header.page-head h1 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-style: italic; font-weight: 500;
+    margin: 0 0 4px; font-size: 26px;
+  }
+  header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+  header.page-head .meta .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    background: var(--accent-soft); color: var(--accent);
+    font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    margin-right: 6px;
+  }
+
+  .intro {
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+    font-size: 13.5px; color: var(--ink-soft);
+  }
+  .intro strong { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 600; margin: 36px 0 12px;
+    font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+  }
+  h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+  h4 { margin: 16px 0 6px; font-size: 13.5px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; background: var(--paper-deep);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; line-height: 1.5;
+    background: var(--code-bg); color: var(--code-ink);
+    padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+  .decision-card {
+    background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+    border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+  }
+  .decision-card .q-title {
+    font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--accent); margin: 0 0 6px;
+  }
+  .decision-card .q-prompt {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 500; font-size: 17px; color: var(--ink);
+    margin: 0 0 12px; line-height: 1.35;
+  }
+  .decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+  .q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+  .q-option {
+    display: block; background: var(--paper); border: 1.5px solid var(--paper-rule);
+    border-radius: 5px; padding: 10px 12px; cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .q-option:hover { border-color: var(--ink-ghost); }
+  .q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+  .q-option:has(input[type="radio"]:checked) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+  }
+  .q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+  .q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+  .q-option-title .recommend-tag {
+    font-size: 10px; background: var(--accent-soft); color: var(--accent);
+    text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+    padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+  }
+  .q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+  .q-notes {
+    width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+    border-radius: 4px; padding: 8px 10px;
+    font-family: inherit; font-size: 12.5px; color: var(--ink);
+    resize: vertical; min-height: 50px;
+  }
+  .q-notes:focus { outline: 1.5px solid var(--accent); }
+
+  details.deferred {
+    margin: 22px 0; padding: 12px 16px;
+    background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px;
+  }
+  details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+  details.deferred[open] summary { color: var(--ink); }
+  details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+
+  .copy-bar {
+    position: sticky; bottom: 0;
+    margin: 32px -40px -120px; padding: 16px 40px;
+    background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+    border-top: 1.5px solid var(--paper-rule);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  }
+  .copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+  .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+  .copy-bar button {
+    background: var(--accent); color: white;
+    border: none; border-radius: 5px; padding: 9px 18px;
+    font-family: inherit; font-size: 13.5px; font-weight: 600;
+    cursor: pointer; transition: background 0.12s;
+  }
+  .copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+  .copy-bar button.copied { background: var(--pass); }
+
+  /* — Per-playground patterns — */
+
+  /* Method card */
+  .method-card {
+    background: var(--paper); border: 1.5px solid var(--paper-rule);
+    border-radius: 6px; padding: 16px 18px; margin: 14px 0;
+  }
+  .method-card .method-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin: 0 0 10px;
+  }
+  .method-card h3 {
+    margin: 0; font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 600; font-size: 17px; color: var(--ink);
+  }
+  .method-card h3 .label {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-style: normal;
+    color: var(--accent); font-size: 13px; margin-right: 8px;
+  }
+  .method-card .tag {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 10px; white-space: nowrap;
+  }
+  .method-card .tag.easy   { background: color-mix(in srgb, var(--pass) 18%, transparent); color: var(--pass); }
+  .method-card .tag.medium { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+  .method-card .tag.hard   { background: color-mix(in srgb, var(--fail) 18%, transparent); color: var(--fail); }
+  .method-card .what { font-size: 13px; color: var(--ink-soft); margin: 0 0 10px; }
+  .method-card .steps { font-size: 12.5px; color: var(--ink-soft); margin: 0 0 8px; }
+  .method-card .steps ol { padding-left: 20px; margin: 4px 0 0; }
+  .method-card .steps li { margin: 3px 0; }
+  .method-card .probe-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--accent); margin: 12px 0 4px;
+  }
+  .method-card pre { margin: 4px 0 8px; }
+  .method-card .expect {
+    font-size: 12px; color: var(--ink-mute); margin: 4px 0 8px;
+    font-style: italic;
+  }
+
+  /* Status radios — short row, simpler than full decision-card */
+  .status-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin: 10px 0 6px;
+  }
+  .status-row label.status {
+    background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+    border-radius: 5px; padding: 6px 8px; font-size: 12px;
+    cursor: pointer; text-align: center;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .status-row label.status:hover { border-color: var(--ink-ghost); }
+  .status-row label.status input[type="radio"] {
+    margin-right: 4px; accent-color: var(--accent);
+  }
+  .status-row label.status:has(input:checked) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--paper-deep));
+    font-weight: 600;
+  }
+
+  /* Probe block (big shell snippet) */
+  .probe-shell {
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-radius: 6px; padding: 14px 18px; margin: 12px 0 24px;
+  }
+  .probe-shell h4 { margin: 0 0 8px; }
+  .probe-shell .probe-hint { font-size: 12.5px; color: var(--ink-mute); margin: 0 0 8px; }
+  .probe-shell pre { margin: 8px 0 0; }
+  .probe-paste {
+    width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+    border-radius: 4px; padding: 10px 12px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--ink);
+    resize: vertical; min-height: 110px; margin-top: 8px;
+  }
+  .probe-paste:focus { outline: 1.5px solid var(--accent); }
+
+  /* Diagram (ASCII) */
+  .diagram {
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-radius: 6px; padding: 14px 18px; margin: 12px 0 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    color: var(--ink-soft); white-space: pre; overflow-x: auto;
+  }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>GitHub auth probe — which method works on this Mac?</h1>
+  <div class="meta">
+    <span class="pill">ENH-149</span>
+    Status: <strong>open / awaiting owner walk on enterprise machine</strong> · filed 2026-05-12 · author: Claude
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A walk-through for testing every plausible GitHub-auth path on a Mac so Duo can pick a sensible default for its upcoming <code>File &gt; Clone…</code> / <code>duo clone</code> flow. The target user is a beginner on an enterprise-managed machine. The goal: a one-time browser SSO handoff, no PAT / no SSH key setup, ideally with no admin install and no Homebrew dependency. Walk this on your <strong>work machine</strong>, mark which methods worked, hit <strong>Copy decisions</strong>, paste back to Claude.
+</div>
+
+<h2 id="why">§ 1 · Why this matters (and the persona)</h2>
+<p>
+Duo's persona is a beginner who's paired with Claude Code. Cloning a repo from a URL has to be a no-think operation — open menu, paste URL, click sign-in, done. The two friction points on enterprise Macs are usually:
+</p>
+<ul>
+  <li><strong>No Homebrew.</strong> Lots of corp Macs forbid brew (no admin) or have it installed in the wrong place / wrong arch.</li>
+  <li><strong>SAML-SSO orgs.</strong> The token must be authorized for the org via a SAML browser handoff, not just account-authenticated.</li>
+</ul>
+<p>
+So the playground asks: <em>what's the cheapest, most-likely-to-work-on-a-stock-corp-Mac path?</em>
+</p>
+
+<div class="diagram">┌──────────────────────────────────────────────────────────────────────┐
+│                  How "duo clone &lt;url&gt;" runs the auth                  │
+└──────────────────────────────────────────────────────────────────────┘
+
+ User clicks "File → Clone…"  OR  runs:  duo clone https://github.com/dudgeon/duo
+        │
+        ▼
+ ┌─────────────────────────────┐    not authed yet?
+ │  Duo checks credential helper├──────────────► open browser → OAuth → token in keychain
+ │  (gh / GCM / osxkeychain)    │                                   │
+ └─────────────────────────────┘                                   ▼
+        │                                            (helper stores token)
+        ▼
+ ┌─────────────────────────────┐
+ │   git clone &lt;url&gt; &lt;dest&gt;     │   ◄── credentials transparent to user
+ └─────────────────────────────┘
+        │
+        ▼
+   Folder opens in Duo, navigator root re-points, status chip shows "main ✓"</div>
+
+<h2 id="env">§ 2 · One-shot environment probe</h2>
+<p>
+Open a Duo terminal in <em>any</em> folder on the work machine and paste this whole block. It does not change anything — just reports what's installed and how git is currently set up. Copy the output into the textarea below; Claude will read it back from the Copy-decisions payload.
+</p>
+
+<div class="probe-shell">
+  <h4>Paste this into a Duo terminal</h4>
+  <div class="probe-hint">No changes, no installs. Safe to run on a managed machine.</div>
+  <pre><code>{
+  echo "=== HOST ==="
+  sw_vers | sed 's/^/  /'
+  uname -m | sed 's/^/  arch: /'
+  echo "  shell: $SHELL"
+  echo "  PATH (entries):"; tr ':' '\n' &lt;&lt;&lt; "$PATH" | sed 's/^/    /'
+
+  echo
+  echo "=== gh CLI ==="
+  if command -v gh &gt;/dev/null 2&gt;&amp;1; then
+    echo "  path: $(command -v gh)"
+    gh --version 2&gt;&amp;1 | sed 's/^/  /'
+    echo "  auth status:"; gh auth status 2&gt;&amp;1 | sed 's/^/    /'
+  else
+    echo "  not installed"
+  fi
+
+  echo
+  echo "=== git ==="
+  git --version | sed 's/^/  /'
+  echo "  credential.helper:"
+  git config --get-all credential.helper       2&gt;&amp;1 | sed 's/^/    global: /'
+  git config --get-all --system credential.helper 2&gt;&amp;1 | sed 's/^/    system: /'
+  echo "  github-specific helpers:"
+  git config --get-all credential."https://github.com".helper 2&gt;&amp;1 | sed 's/^/    /'
+
+  echo
+  echo "=== SSH ==="
+  if [ -d "$HOME/.ssh" ]; then
+    echo "  ~/.ssh exists; keys:"
+    ls -1 "$HOME"/.ssh/id_* 2&gt;/dev/null | sed 's/^/    /' || echo "    (no id_* keys)"
+    echo "  agent (ssh-add -l):"
+    ssh-add -l 2&gt;&amp;1 | sed 's/^/    /'
+    echo "  reach github (5s timeout):"
+    ssh -o BatchMode=yes -o ConnectTimeout=5 -T git@github.com 2&gt;&amp;1 | sed 's/^/    /'
+  else
+    echo "  ~/.ssh does not exist"
+  fi
+
+  echo
+  echo "=== Git Credential Manager ==="
+  if command -v git-credential-manager &gt;/dev/null 2&gt;&amp;1; then
+    echo "  path: $(command -v git-credential-manager)"
+    git-credential-manager --version 2&gt;&amp;1 | sed 's/^/  /'
+  else
+    echo "  not installed"
+  fi
+
+  echo
+  echo "=== Homebrew ==="
+  if command -v brew &gt;/dev/null 2&gt;&amp;1; then
+    echo "  path: $(command -v brew)"
+    brew --version 2&gt;&amp;1 | head -1 | sed 's/^/  /'
+  else
+    echo "  not installed"
+  fi
+} 2&gt;&amp;1</code></pre>
+  <textarea class="probe-paste" name="env-probe-output" placeholder="Paste the terminal output here..."></textarea>
+</div>
+
+<h2 id="methods">§ 3 · Method cards — try each, mark which work</h2>
+<p>
+Try the methods in roughly the order below. <strong>Stop as soon as one works cleanly</strong> — you don't have to test all five. The earlier methods are the ones we'd prefer to default to. For each method: read the steps, run the probe in a terminal, mark the result, jot what happened.
+</p>
+
+<!-- METHOD A — gh CLI via brew -->
+<section class="method-card">
+  <div class="method-head">
+    <h3><span class="label">A</span> gh CLI installed via Homebrew + <code>gh auth login --web</code></h3>
+    <span class="tag easy">Easiest if brew exists</span>
+  </div>
+  <p class="what">The baseline on your work machine (you confirmed <code>brew install gh</code> already worked there). One-time browser handoff stores an OAuth token in macOS Keychain; <code>git push</code> Just Works afterward because <code>gh</code> registers itself as the credential helper.</p>
+  <div class="steps">
+    <ol>
+      <li>Authenticate: <code>gh auth login --web</code> → pick HTTPS → press Enter → it opens a browser to <code>github.com/login/device</code> with a code → click Authorize.</li>
+      <li><strong>If your work GitHub org uses SAML SSO:</strong> after authorizing, open <code>https://github.com/settings/tokens</code> → find the new <em>gh CLI</em> token → click "Configure SSO" → authorize for your org.</li>
+      <li>Run the probe below to confirm.</li>
+    </ol>
+  </div>
+  <div class="probe-label">Probe</div>
+<pre><code>gh auth status
+gh repo clone dudgeon/duo /tmp/duo-probe-A
+ls /tmp/duo-probe-A/.git &amp;&amp; rm -rf /tmp/duo-probe-A</code></pre>
+  <p class="expect">Expect: "Logged in to github.com as &lt;you&gt;" + clone completes with no prompt.</p>
+  <div class="status-row">
+    <label class="status"><input type="radio" name="method-a" value="works">  Works</label>
+    <label class="status"><input type="radio" name="method-a" value="blocked"> IT-blocked</label>
+    <label class="status"><input type="radio" name="method-a" value="not-tested"> Not tested</label>
+    <label class="status"><input type="radio" name="method-a" value="not-present"> No brew/gh</label>
+  </div>
+  <textarea class="q-notes" name="method-a-notes" placeholder="Notes — token scope issues, SAML flow weirdness, etc."></textarea>
+</section>
+
+<!-- METHOD B — gh CLI via signed PKG -->
+<section class="method-card">
+  <div class="method-head">
+    <h3><span class="label">B</span> gh CLI installed via signed <code>.pkg</code> from github.com/cli/cli/releases (no brew)</h3>
+    <span class="tag easy">Best for clean machines</span>
+  </div>
+  <p class="what">The official gh release ships a signed + notarized <code>.pkg</code> installer that drops <code>/usr/local/bin/gh</code> and a man page. No Homebrew, no Xcode CLT needed. On most managed Macs this installs without admin password because it's a per-user pkg under <code>/usr/local</code>. After install, same <code>gh auth login --web</code> handoff as A.</p>
+  <div class="steps">
+    <ol>
+      <li>Find the latest release page (we'd open this in the Duo browser pane): <code>https://github.com/cli/cli/releases/latest</code>.</li>
+      <li>Download the <code>gh_*_macOS_arm64.pkg</code> file (or <code>_amd64</code> on Intel — the probe in § 2 tells you which arch).</li>
+      <li>Double-click the <code>.pkg</code> → Installer.app walks you through it. If your machine rejects the install with "needs admin," try the tarball alternative in the details block below.</li>
+      <li>Run <code>gh auth login --web</code> as in method A.</li>
+    </ol>
+  </div>
+  <div class="probe-label">Probe</div>
+<pre><code># In a fresh terminal (so PATH picks up /usr/local/bin):
+gh --version
+gh auth status
+gh repo clone dudgeon/duo /tmp/duo-probe-B
+ls /tmp/duo-probe-B/.git &amp;&amp; rm -rf /tmp/duo-probe-B</code></pre>
+  <p class="expect">Expect: gh version reports + clone succeeds. If <code>gh: command not found</code>, the PKG installed somewhere not on PATH — check <code>/usr/local/bin/gh</code> and <code>/opt/homebrew/bin/gh</code>.</p>
+  <details class="deferred" style="margin-top:8px;">
+    <summary>Fallback: tarball (no admin install needed)</summary>
+    <div class="deferred-body">
+      <p>If the PKG is blocked: download the <code>gh_*_macOS_arm64.zip</code> from the same releases page, unzip, and copy <code>bin/gh</code> into a folder you own (e.g. <code>~/.local/bin/gh</code>). Add that folder to <code>PATH</code> via <code>~/.zshrc</code>. Same <code>gh auth login --web</code> flow afterward.</p>
+<pre><code>mkdir -p ~/.local/bin
+cd ~/Downloads &amp;&amp; unzip gh_*_macOS_arm64.zip
+mv gh_*/bin/gh ~/.local/bin/
+echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.zshrc
+exec zsh   # reload PATH
+gh --version</code></pre>
+    </div>
+  </details>
+  <div class="status-row">
+    <label class="status"><input type="radio" name="method-b" value="works">  Works</label>
+    <label class="status"><input type="radio" name="method-b" value="blocked"> IT-blocked</label>
+    <label class="status"><input type="radio" name="method-b" value="not-tested"> Not tested</label>
+    <label class="status"><input type="radio" name="method-b" value="tarball-only"> Tarball-only worked</label>
+  </div>
+  <textarea class="q-notes" name="method-b-notes" placeholder="Notes — did the PKG install need admin password? Did Gatekeeper complain? etc."></textarea>
+</section>
+
+<!-- METHOD C — GCM -->
+<section class="method-card">
+  <div class="method-head">
+    <h3><span class="label">C</span> Git Credential Manager (no gh dependency)</h3>
+    <span class="tag medium">Plain git, OAuth in browser</span>
+  </div>
+  <p class="what">GCM ships an OAuth-in-browser flow that triggers when you <code>git clone https://&lt;authed-repo&gt;</code>. No <code>gh</code> binary needed. Useful if gh is blocked entirely. Apple's bundled git uses <code>osxkeychain</code> by default, NOT GCM — so this typically requires installing GCM separately.</p>
+  <div class="steps">
+    <ol>
+      <li>Install GCM. Options, easiest first: <code>brew install --cask git-credential-manager</code> (if brew exists), OR download the signed PKG from <a href="https://github.com/git-ecosystem/git-credential-manager/releases/latest">git-ecosystem/git-credential-manager/releases/latest</a> (look for <code>gcm-osx-*.pkg</code>).</li>
+      <li>After install: <code>git-credential-manager configure</code> — this rewrites your global git config to route GitHub URLs through GCM.</li>
+      <li>Probe by cloning a private repo over HTTPS — GCM should pop a browser window the first time.</li>
+    </ol>
+  </div>
+  <div class="probe-label">Probe</div>
+<pre><code>git-credential-manager --version
+git config --get-all credential.https://github.com.helper
+git clone https://github.com/dudgeon/duo /tmp/duo-probe-C
+ls /tmp/duo-probe-C/.git &amp;&amp; rm -rf /tmp/duo-probe-C</code></pre>
+  <p class="expect">Expect: browser pops up on first clone, you click Authorize, clone completes. Subsequent clones use the cached token silently.</p>
+  <div class="status-row">
+    <label class="status"><input type="radio" name="method-c" value="works">  Works</label>
+    <label class="status"><input type="radio" name="method-c" value="blocked"> IT-blocked</label>
+    <label class="status"><input type="radio" name="method-c" value="not-tested"> Not tested</label>
+    <label class="status"><input type="radio" name="method-c" value="install-blocked"> Install blocked</label>
+  </div>
+  <textarea class="q-notes" name="method-c-notes" placeholder="Notes — did the install work without admin? Did the browser flow complete?"></textarea>
+</section>
+
+<!-- METHOD D — SSH -->
+<section class="method-card">
+  <div class="method-head">
+    <h3><span class="label">D</span> SSH keys (corporate-issued or self-generated)</h3>
+    <span class="tag medium">Setup-heavy, but already common at work</span>
+  </div>
+  <p class="what">Lots of enterprises pre-provision SSH keys; the user may already have one. Once <code>~/.ssh/id_*</code> exists and is registered on github.com, <code>git clone git@github.com:owner/repo</code> works with no token, no browser. SAML-SSO orgs require an extra "Authorize this key for &lt;org&gt;" step in GitHub settings.</p>
+  <div class="steps">
+    <ol>
+      <li>The § 2 probe showed whether <code>~/.ssh/id_*</code> exists and whether <code>ssh -T git@github.com</code> recognizes you. If both are good, you're probably done.</li>
+      <li>If no key: <code>ssh-keygen -t ed25519 -C "you@work.example.com"</code> → press enter at each prompt → copy <code>~/.ssh/id_ed25519.pub</code> to <a href="https://github.com/settings/keys">github.com/settings/keys</a>.</li>
+      <li>For SAML-SSO orgs: at <code>https://github.com/settings/keys</code>, click "Configure SSO" next to the key and authorize each org you need.</li>
+    </ol>
+  </div>
+  <div class="probe-label">Probe</div>
+<pre><code>ssh -T git@github.com   # expect: "Hi &lt;you&gt;! You've successfully authenticated..."
+git clone git@github.com:dudgeon/duo /tmp/duo-probe-D
+ls /tmp/duo-probe-D/.git &amp;&amp; rm -rf /tmp/duo-probe-D</code></pre>
+  <p class="expect">Expect: ssh test prints "Hi &lt;username&gt;!", clone succeeds. If clone hits "Permission denied (publickey)" but ssh -T worked, it's a SAML-SSO authorization issue, not a key issue.</p>
+  <div class="status-row">
+    <label class="status"><input type="radio" name="method-d" value="works">  Works</label>
+    <label class="status"><input type="radio" name="method-d" value="blocked"> IT-blocked</label>
+    <label class="status"><input type="radio" name="method-d" value="not-tested"> Not tested</label>
+    <label class="status"><input type="radio" name="method-d" value="needs-saml"> Works after SAML</label>
+  </div>
+  <textarea class="q-notes" name="method-d-notes" placeholder="Notes — was the key pre-existing? Did SAML-SSO authorization come up?"></textarea>
+</section>
+
+<!-- METHOD E — plain HTTPS / osxkeychain -->
+<section class="method-card">
+  <div class="method-head">
+    <h3><span class="label">E</span> Plain HTTPS + osxkeychain helper (zero-setup baseline)</h3>
+    <span class="tag hard">Works only for public repos / PAT</span>
+  </div>
+  <p class="what">Apple's bundled git registers the <code>osxkeychain</code> credential helper by default. Cloning a <strong>public</strong> repo over HTTPS needs no auth at all. Private repos prompt for username + password, but GitHub disabled password auth in 2021 — so on a fully clean machine, this path requires a PAT (Personal Access Token). The owner explicitly does NOT want this path; we include it as the "what does zero setup give you" baseline.</p>
+  <div class="steps">
+    <ol>
+      <li>No install needed. The probe just tries a clone.</li>
+      <li>If asked for password: STOP. We don't want the user touching PATs.</li>
+    </ol>
+  </div>
+  <div class="probe-label">Probe</div>
+<pre><code>git clone https://github.com/dudgeon/duo /tmp/duo-probe-E      # public — should just work
+ls /tmp/duo-probe-E/.git &amp;&amp; rm -rf /tmp/duo-probe-E</code></pre>
+  <p class="expect">Public repos: succeeds with no prompt. Private repos: prompts for username/password — failure case.</p>
+  <div class="status-row">
+    <label class="status"><input type="radio" name="method-e" value="works-public">  Public OK</label>
+    <label class="status"><input type="radio" name="method-e" value="prompts">  Prompts for PAT</label>
+    <label class="status"><input type="radio" name="method-e" value="blocked"> IT-blocked</label>
+    <label class="status"><input type="radio" name="method-e" value="not-tested"> Not tested</label>
+  </div>
+  <textarea class="q-notes" name="method-e-notes" placeholder="Notes."></textarea>
+</section>
+
+<h2 id="recommendation">§ 4 · Recommendation</h2>
+<section class="decision-card" data-question-id="default-path">
+  <div class="q-title">Q1 · What should Duo default to for <code>duo clone</code> on a clean enterprise Mac?</div>
+  <div class="q-prompt">Given the methods above, what's the install + auth path Duo's <code>File → Clone…</code> should take when no auth is set up yet?</div>
+  <p class="q-context">Pick after walking the methods. The pick determines what the FTUX setup flow looks like, what the <code>duo doctor</code> health check probes for, and whether we bundle / detect / skip gh.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="default-path" value="gh-pkg">
+      <div class="q-option-body">
+        <div class="q-option-title">B — Detect gh; if missing, download the official signed PKG <span class="recommend-tag">My lean</span></div>
+        <div class="q-option-rationale">Most universal: no brew dependency, signed + notarized, installs cleanly on managed Macs in most cases. After install, <code>gh auth login --web</code> is the friendliest browser-SSO flow. Falls back to the tarball if PKG is blocked.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="default-path" value="gh-bundled">
+      <div class="q-option-body">
+        <div class="q-option-title">B' — Bundle <code>gh</code> binary inside the Duo.app, no system install at all</div>
+        <div class="q-option-rationale">Most aggressive — every Duo install includes a ~15MB gh binary; no admin / no installer / no PATH munging. Authoritative install path; only downside is keeping gh's version current with Duo releases.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="default-path" value="gcm">
+      <div class="q-option-body">
+        <div class="q-option-title">C — Detect GCM; install if missing; use plain <code>git clone</code></div>
+        <div class="q-option-rationale">Avoids gh entirely. Simpler dep tree, but loses gh's PR/issue verbs which we'd want for tier 3/4 features later.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="default-path" value="detect-prefer-gh">
+      <div class="q-option-body">
+        <div class="q-option-title">Detect-and-prefer — use whatever's already installed (gh &gt; GCM &gt; ssh-config), only install gh if none</div>
+        <div class="q-option-rationale">Respects what the work environment already gave the user. Most "polite" path; complexity is in the fallback ladder.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="default-path" value="other">
+      <div class="q-option-body">
+        <div class="q-option-title">Other — describe in notes</div>
+        <div class="q-option-rationale">e.g. "ship gh-bundled AND register GCM as backup," or "make the install path itself a choice in the FTUX wizard."</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="default-path-notes" placeholder="Notes — corporate Mac specifics, IT-policy gotchas, your gut after walking..."></textarea>
+</section>
+
+<section class="decision-card" data-question-id="ghe">
+  <div class="q-title">Q2 · GitHub Enterprise Server support</div>
+  <div class="q-prompt">Does the work machine target a private GitHub Enterprise Server (e.g. <code>github.example-corp.com</code>), or only public github.com?</div>
+  <p class="q-context"><code>gh auth login --hostname &lt;ghe-host&gt;</code> handles GHE; we need to expose this in the <code>duo clone</code> / <code>duo gh-auth</code> verbs if it's relevant. Skip if not.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="ghe" value="public-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Public github.com only — skip GHE for v1</div>
+        <div class="q-option-rationale">Defer GHE support; revisit if a real enterprise user needs it.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="ghe" value="ghe-too">
+      <div class="q-option-body">
+        <div class="q-option-title">GHE matters — wire <code>--hostname</code> into <code>duo gh-auth</code> from day 1</div>
+        <div class="q-option-rationale">Cheap to add; opens the door to enterprise cohorts whose code lives on a private GHE.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="ghe" value="unknown">
+      <div class="q-option-body">
+        <div class="q-option-title">Unknown — investigate during walk</div>
+        <div class="q-option-rationale">If your work machine's <code>git remote -v</code> on any cloned repo points to a non-github.com host, the answer is "GHE too."</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="ghe-notes" placeholder="If GHE: what hostname? Same auth methods work?"></textarea>
+</section>
+
+<h2 id="config-checker">§ 5 · Future-scope sketch — integration config-checker manifest</h2>
+<p>
+The owner raised a second topic: enterprise distro packs should be able to declare which integrations matter (gh, brew, Jira PATs, Confluence PATs), and Duo should give pack authors a low-effort way to ship "is this set up?" probes — <strong>without Duo managing the secrets themselves</strong>. This § sketches the shape; not committing to it yet.
+</p>
+
+<details class="deferred" open>
+  <summary>Proposed pattern — <code>integrations[]</code> in PACK.json + per-integration probe scripts</summary>
+  <div class="deferred-body">
+    <p>Each pack's <code>PACK.json</code> grows an <code>integrations</code> array. Each entry names a small executable probe that the pack ships, plus the env / config keys the integration expects to exist. Duo runs the probes on demand (e.g. as part of <code>duo doctor</code>) and renders a status panel. Secrets never touch Duo.</p>
+<pre><code>{
+  "name": "acme-corp-pack",
+  "integrations": [
+    {
+      "id": "github",
+      "label": "GitHub access for our org",
+      "probe": "checkers/github.sh",
+      "required": true,
+      "setupDoc": "docs/setup/github.html"
+    },
+    {
+      "id": "jira",
+      "label": "Jira ACME-INC instance",
+      "probe": "checkers/jira.sh",
+      "required": false,
+      "needsEnv": ["JIRA_API_TOKEN", "JIRA_BASE_URL"],
+      "setupDoc": "docs/setup/jira.html"
+    },
+    {
+      "id": "confluence",
+      "label": "Confluence wiki",
+      "probe": "checkers/confluence.sh",
+      "required": false,
+      "needsEnv": ["CONFLUENCE_API_TOKEN", "CONFLUENCE_BASE_URL"],
+      "setupDoc": "docs/setup/confluence.html"
+    }
+  ]
+}
+</code></pre>
+    <p><strong>Probe contract.</strong> A probe is any executable (shell script, Node, Python, compiled binary) the pack ships at the declared path. Duo runs it and reads JSON from stdout:</p>
+<pre><code>{
+  "status": "ok" | "missing" | "misconfigured" | "unreachable" | "blocked",
+  "summary": "Authenticated as geoff@acme.com",
+  "detail": "Token has scopes: repo, read:org. SAML SSO authorized.",
+  "fixDoc": "docs/setup/github.html#sso"
+}
+</code></pre>
+    <p><strong>What Duo provides (the framework).</strong></p>
+    <ul>
+      <li><code>duo doctor --integrations</code> — runs every installed pack's probes, prints a status table.</li>
+      <li>A small <strong>Doctor</strong> panel surface (canvas-rendered) that lists the integrations with their statuses + "open setup doc" links.</li>
+      <li>A pack-builder skill helper: <code>/pack-builder add-integration &lt;id&gt;</code> scaffolds a probe stub, adds the manifest entry, and links the setup doc.</li>
+      <li>An <code>integrations</code> field in <code>installed.json</code> recording last-run status per integration (for fast Doctor-panel rendering without re-running probes on every open).</li>
+    </ul>
+    <p><strong>What Duo deliberately doesn't do.</strong></p>
+    <ul>
+      <li>Store, prompt for, or rotate secrets. Secrets live in the user's existing tools — macOS Keychain, 1Password, an env-var manager, whatever IT mandates.</li>
+      <li>Phone home with integration status. Probes run locally; results stay local.</li>
+      <li>Ship default probes. Each pack ships its own; <code>acme-corp-pack</code>'s GitHub probe is different from <code>beta-cohort-pack</code>'s.</li>
+    </ul>
+    <p><strong>Sequencing relative to this playground.</strong> The auth-probe playground is a manual one-off — the owner walks it once on the work machine and we lock in a default. The config-checker manifest is the <em>generalization</em> of that playground: instead of the owner manually checking gh / GCM / ssh, a pack author writes a probe script that does it once and ships it. The two are independent but related — file the config-checker as a separate ENH (ENH-150, sketched below) once the auth probe answers Q1 above.</p>
+  </div>
+</details>
+
+<h2 id="tasks">§ 6 · Tracked tasks filed alongside this artifact</h2>
+<ul style="font-size:13px;">
+  <li><strong>ENH-149</strong> — this playground (open until owner walks on the work machine + Copy-decisions back).</li>
+  <li><strong>ENH-150</strong> (sketch only, not yet filed) — Integration config-checker manifest for distro packs (the § 5 sketch). File after ENH-149's Q1 answer lands.</li>
+  <li><strong>ENH-151</strong> (sketch only) — <code>duo clone &lt;url&gt; [&lt;path&gt;]</code> + <code>File &gt; Clone…</code> menu + <code>duo gh-auth</code>. Implementation depends on Q1.</li>
+  <li><strong>ENH-152</strong> (sketch only) — Navigator git status overlay: root chip ("main ✓" / "main · 2 ahead" / etc.) + per-file dirty dot. Independent of auth path; can ship in parallel.</li>
+</ul>
+
+<h3>Reference reading</h3>
+<ul style="font-size:13px;">
+  <li><a href="https://cli.github.com/manual/gh_auth_login">gh auth login</a> — the browser OAuth handoff doc.</li>
+  <li><a href="https://github.com/cli/cli/releases/latest">github.com/cli/cli/releases/latest</a> — gh PKG / zip downloads.</li>
+  <li><a href="https://github.com/git-ecosystem/git-credential-manager">git-ecosystem/git-credential-manager</a> — GCM project + macOS install instructions.</li>
+  <li><a href="https://docs.github.com/en/enterprise-cloud@latest/authentication/authenticating-with-saml-single-sign-on">GitHub SAML SSO authentication</a> — what the "Configure SSO" step actually does.</li>
+  <li><a href="../../CLAUDE.md">CLAUDE.md § 4 — CLI parity with UI</a> — every new menu item gets a <code>duo</code> verb counterpart.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 7</span> probes + decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+  (function () {
+    const counter = document.getElementById('answered-count');
+    const button  = document.getElementById('copy-decisions');
+
+    const METHODS = [
+      { id: 'method-a', title: 'A · gh CLI via Homebrew + gh auth login --web' },
+      { id: 'method-b', title: 'B · gh CLI via signed PKG (no brew)' },
+      { id: 'method-c', title: 'C · Git Credential Manager + plain git clone' },
+      { id: 'method-d', title: 'D · SSH keys' },
+      { id: 'method-e', title: 'E · Plain HTTPS + osxkeychain (baseline)' },
+    ];
+    const DECISIONS = [
+      { id: 'default-path', title: 'Q1 · What should Duo default to on a clean enterprise Mac?' },
+      { id: 'ghe',          title: 'Q2 · GitHub Enterprise Server support?' },
+    ];
+    const ALL = METHODS.concat(DECISIONS);
+
+    function refreshCount() {
+      let answered = 0;
+      for (const q of ALL) {
+        if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+      }
+      counter.textContent = answered + ' / ' + ALL.length;
+    }
+    document.addEventListener('change', refreshCount);
+    refreshCount();
+
+    function buildPayload() {
+      const lines = [];
+      lines.push('ENH-149 GITHUB-AUTH-PROBE — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+      lines.push('============================================================');
+      lines.push('');
+
+      const env = (document.querySelector('textarea[name="env-probe-output"]')?.value || '').trim();
+      if (env) {
+        lines.push('--- § 2 ENVIRONMENT PROBE OUTPUT ---');
+        for (const line of env.split('\n')) lines.push(line);
+        lines.push('');
+      }
+
+      lines.push('--- § 3 METHOD RESULTS ---');
+      for (const m of METHODS) {
+        const checked = document.querySelector('input[name="' + m.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[name="' + m.id + '-notes"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + m.title);
+        if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      }
+      lines.push('');
+
+      lines.push('--- § 4 DECISIONS ---');
+      for (const q of DECISIONS) {
+        const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[name="' + q.id + '-notes"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + q.title);
+        if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+        lines.push('');
+      }
+
+      lines.push('---');
+      lines.push('Source: docs/research/github-auth-probe.html');
+      return lines.join('\n');
+    }
+
+    button.addEventListener('click', async function () {
+      const payload = buildPayload();
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(function () {
+          button.textContent = 'Copy decisions';
+          button.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        button.textContent = 'Copy failed';
+        console.error(err);
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
