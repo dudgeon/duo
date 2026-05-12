@@ -5765,6 +5765,44 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-149: GitHub auth probe playground — pick Duo's `duo clone` default for enterprise Macs
+
+**Status:** 🆕 Filed Sprint 17 (2026-05-12). Planning artifact at [`docs/research/github-auth-probe.html`](research/github-auth-probe.html). Ships in the next release so the owner can walk it on their work machine.
+**Priority:** P1 for the GitHub-integration sprint — gates the install / FTUX shape for `duo clone` + `File → Clone…`. Independent of the navigator git-status work (ENH-152 sketch).
+**Filed:** 2026-05-12.
+
+**What's wanted.** A `File → Clone repo…` menu entry + `duo clone <url> [<path>]` CLI verb that lets a beginner clone a GitHub repo via a one-time browser SSO handoff — no PAT, no SSH key setup, ideally no admin / no Homebrew dependency. The hard part is picking what to install (and how) on a clean enterprise Mac. This playground walks the owner through 5 candidate methods on the work machine and round-trips the results.
+
+**Methods covered in the playground.**
+- **A** — gh CLI via Homebrew + `gh auth login --web` (works on owner's work machine today).
+- **B** — gh CLI via official signed `.pkg` from `github.com/cli/cli/releases` (no brew). Tarball fallback for admin-blocked installs.
+- **B'** — Bundle gh inside Duo.app (no system install at all).
+- **C** — Git Credential Manager + plain `git clone` (no gh dependency).
+- **D** — SSH keys (corporate-issued or self-generated).
+- **E** — Plain HTTPS + osxkeychain (zero-setup baseline; works for public repos only).
+
+**Decisions the playground rounds back.**
+- Q1 — what's the default install + auth path for a clean enterprise Mac? My lean: **B (detect gh; install official PKG if missing; tarball fallback)** — universal, no brew dep, signed + notarized, still gives us gh's PR/issue verbs for tier-3/4 GitHub features later.
+- Q2 — does the work machine target GitHub Enterprise Server (`github.<corp>.com`)? If yes, wire `--hostname` into `duo gh-auth` from v1.
+- Plus the raw § 2 environment probe output (what's already installed, paths, helpers, ssh state).
+
+**Cross-refs / sketched-but-not-yet-filed.**
+- **ENH-150 (sketch)** — Integration config-checker manifest for distro packs. Each pack declares `integrations[]` in PACK.json (id + label + probe script path + setupDoc); each probe is an executable returning JSON status. Duo runs probes via `duo doctor --integrations` and renders a Doctor panel. **Duo never stores secrets** — they live wherever they live (keychain, env, 1Password). Generalization of this playground: the manual probe becomes a pack-shipped probe. File this once ENH-149 Q1 lands. Sketch in § 5 of the playground.
+- **ENH-151 (sketch)** — `duo clone <url> [<path>]` + `File → Clone…` menu + `duo gh-auth`. Implementation depends on Q1. CLI parity per CLAUDE.md § 4.
+- **ENH-152 (sketch)** — Navigator git status overlay: branch chip on the root ("main ✓" / "main · 2 ahead" / "main · modified"), per-file dirty dot on changed paths only (clean stays invisible per owner directive). fsevents-driven incremental refresh. Independent of ENH-151; can ship in parallel.
+
+**Affected files (planning artifact only).**
+- `docs/research/github-auth-probe.html` — the playground itself (atelier-styled, opens in browser pane via `duo open <path>`).
+
+**Trigger to close ENH-149.** Owner walks the playground on the enterprise work machine, hits Copy decisions, pastes back. Claude synthesizes:
+1. Files ENH-150 / 151 / 152 with concrete scopes informed by what worked.
+2. If Q1 selects B or B', stages the gh detection / download / bundling work for the next sprint.
+3. If GHE is needed, factors that into ENH-151's verb shape.
+
+**Why this is a playground, not a markdown doc** (per CLAUDE.md § 11). Owner-decision-shaped artifact; needs to round-trip 7 inputs (5 methods + 2 decisions + raw probe output) back to Claude in one Copy-decisions click. Markdown doc would sit on a list page un-walked; HTML page opens in Duo's browser pane and the decisions get parsed automatically.
+
+---
+
 ### ENH-148: Navigator multi-select v2 — ⇧-click range + ⌘-A select-all (deferred from ENH-147 v1)
 
 **Status:** 🆕 Filed Sprint 17 commit 4 (2026-05-11). ENH-147 v1 shipped ⌘-click + multi-row trash; this entry is the deferred v2 work.
