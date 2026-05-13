@@ -5765,9 +5765,54 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-150: Integration primitive for distro packs — Doctor panel + probe runner + setup-chain walker
+
+**Status:** 🆕 Filed Sprint 17 (2026-05-13). v2 planning artifact at [`docs/research/integration-primitive-design.html`](research/integration-primitive-design.html). Supersedes the § 5 sketch in ENH-149's playground.
+**Priority:** P1 for the GitHub-integration thread. Becomes the substrate for **ENH-151** (`duo clone`) and the framework every enterprise distro pack will use to declare gh / brew / Jira / Confluence / etc. integrations.
+**Filed:** 2026-05-13.
+
+**Origin.** Owner pushback during ENH-149 walk-back: my "Duo never installs" over-correction dropped the dependency-chain pattern (brew → gh) that IS the enterprise install path when the pack maker says so. The refined principle: **detect → validate → guide → optionally run (with explicit consent)**. The framework runs probes; the pack supplies every command Duo executes; switching from "personal Mac" to "enterprise Mac" is a pack swap, not a code change.
+
+**What ships in the framework (Duo main).**
+- PACK.json schema gains `integrations: PackIntegration[]` with `id` / `label` / `priority` / `required` / `probe` / `requires` / `setupDoc` / `setupSteps`.
+- `SetupStep` discriminated union: `{type:"depends"}` / `{type:"run"}` / `{type:"tell"}`.
+- Probe runner — invokes pack-shipped executables, parses stdout JSON `{status, summary, detail, fixHint, version}`, treats non-zero exit / non-JSON as `unreachable`.
+- Chain walker — resolves `depends` recursively, orders steps, drives confirm-before-run for `run` steps.
+- New `WorkingTab kind: "doctor"` — canvas-rendered Doctor panel with integration list + expanded chain view.
+- CLI verbs: `duo doctor --integrations` / `duo doctor inspect <id>` / `duo doctor fix <id>` / `duo doctor open` (CLAUDE.md § 4 parity).
+- IPC channels: `integrations-list` (snapshot), `integration-run-step` (PTY-piped run with cancel).
+
+**What pack builders add (content).**
+- Their own `integrations[]` entries in PACK.json.
+- Probe scripts at `checkers/<id>.sh` (or wherever the entry's `probe` field points).
+- `setupSteps[]` declarations with their org-specific install commands.
+- Setup docs (HTML/markdown) the `tell` steps link to.
+- Optional `priority` to override another pack's integration entry.
+
+**Open decisions (owner walks playground, paste back):**
+- **Q1** — `run` step confirm UX (per-step / bulk preview / pack-author declared per step). Recommended: per-step.
+- **Q2** — Override resolution when packs declare same id (explicit `priority` field / last-loaded / explicit `extends` / no-auto-override-error). Recommended: explicit `priority`.
+- **Q3** — First-launch posture (auto-open Doctor / status banner / passive). Recommended: auto-open if any `required` integration is missing.
+- **Q4** — Probe trust model (sandbox no-net / trust-the-pack / signed-only / user-grants-on-install). Recommended: sandbox no-net + 10s timeout (matches canvas-action precedent).
+- Plus general comments / schema-naming pushback.
+
+**Sketched implementation sub-ENHs (filed concrete once decisions lock):**
+- **ENH-150a** — Default Duo pack ships `integrations[]` entries for git / brew / github (probes + setupSteps + setup docs).
+- **ENH-150b** — Doctor panel UI (canvas-rendered WorkingTab + run-step UI + confirm dialog + chain expanded view).
+- **ENH-153** — First-launch Doctor auto-open + status banner pattern (final shape per Q3).
+
+**Cross-ref chain.**
+- **ENH-149** (now ✅ closed by this synthesis) — auth probe that surfaced the principle.
+- **ENH-151** (sketch) — `duo clone <url>` + `File → Clone…` menu. Depends on ENH-150a's `github` integration entry.
+- **ENH-152** (sketch) — Navigator git status overlay. Independent — no integration-primitive dep; ships in parallel.
+
+**Why a playground (not a markdown doc) — CLAUDE.md § 11.** Owner-decision-shaped artifact with 4 decisions + general comments + UI mockup walk. Mockups grounded in Duo's actual app palette (cream paper + ochre `#C66A2E` accent + 8px status dots + 12–13px row text — same tokens as `renderer/styles/globals.css`). Round-trips via Copy-decisions back to Claude in one click.
+
+---
+
 ### ENH-149: GitHub auth probe playground — pick Duo's `duo clone` default for enterprise Macs
 
-**Status:** 🆕 Filed Sprint 17 (2026-05-12). Planning artifact at [`docs/research/github-auth-probe.html`](research/github-auth-probe.html). Ships in the next release so the owner can walk it on their work machine.
+**Status:** ✅ **CLOSED 2026-05-13** — owner walked the playground on the enterprise work machine, reported: "neither brew nor gh were pre-installed; both required deliberate user action via the org's self-service catalog; Duo cannot assume gh exists on a fresh enterprise Mac, nor can Duo install it — the installation path goes through the enterprise software catalog, not a shell script." Closes with the principle **detect → validate → guide → optionally run (with pack-author consent + explicit user confirmation)**. Synthesis filed as **ENH-150 v2 integration primitive** at [`docs/research/integration-primitive-design.html`](research/integration-primitive-design.html) — covers the framework, pack-content model, UI mockups, and 4 follow-on decisions. Original-recommendation B (install gh PKG if missing) is REJECTED; the playground's "B" path is wrong because enterprise Macs don't take inbound binaries from the internet. Final default: detect-only at the framework level; install commands come from pack-supplied `setupSteps[]`. Original playground stays in-repo as the walk-back artifact.
 **Priority:** P1 for the GitHub-integration sprint — gates the install / FTUX shape for `duo clone` + `File → Clone…`. Independent of the navigator git-status work (ENH-152 sketch).
 **Filed:** 2026-05-12.
 

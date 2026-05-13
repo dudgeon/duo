@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<title>Integration primitive — design playground (ENH-150)</title>
+<style>
+  /* — Atelier kernel (verbatim from ~/.claude/skills/duo/references/duo-atelier.css) — */
+  :root {
+    --paper: #fbf8f1;
+    --paper-deep: #f3ede0;
+    --paper-edge: #e8e0cb;
+    --paper-rule: #d9cea8;
+    --ink: #2b2620;
+    --ink-soft: #4a4238;
+    --ink-mute: #6f6557;
+    --ink-ghost: #9a9080;
+    --accent: #c46a1c;
+    --accent-soft: #f4d9b6;
+    --pass: #4a7d3e;
+    --fail: #b13e3a;
+    --warn: #b07527;
+    --code-bg: #2b2823;
+    --code-ink: #e8e0cb;
+
+    /* Real-app token aliases — used by the UI mockups in § 5 so they
+       match Duo's renderer. Same values as renderer/styles/globals.css
+       :root tokens (--duo-paper / --duo-accent / etc). */
+    --duo-paper: #FBF8EE;
+    --duo-paper-deep: #F0E9D6;
+    --duo-paper-rule: #D4C8A6;
+    --duo-ink: #1A1410;
+    --duo-ink-soft: #3D352A;
+    --duo-ink-mute: #7B6F58;
+    --duo-ink-ghost: #B8AB8E;
+    --duo-accent: #C66A2E;
+    --duo-accent-soft: #F2D9B8;
+    --duo-mark: #F0CB6A;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.55;
+  }
+  body { padding: 32px 40px 120px; max-width: 1000px; margin: 0 auto; }
+
+  header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+  header.page-head h1 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 26px;
+  }
+  header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+  header.page-head .meta .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 10px;
+    background: var(--accent-soft); color: var(--accent);
+    font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    margin-right: 6px;
+  }
+
+  .intro {
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+    font-size: 13.5px; color: var(--ink-soft);
+  }
+  .intro strong { color: var(--ink); font-weight: 600; }
+
+  h2 {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+    border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+  }
+  h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+  h4 { margin: 16px 0 6px; font-size: 13.5px; }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 24px; }
+  li { margin: 4px 0; }
+  code {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12.5px; background: var(--paper-deep);
+    padding: 1px 5px; border-radius: 3px;
+  }
+  pre {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; line-height: 1.5;
+    background: var(--code-bg); color: var(--code-ink);
+    padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+  .decision-card {
+    background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+    border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+  }
+  .decision-card .q-title {
+    font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--accent); margin: 0 0 6px;
+  }
+  .decision-card .q-prompt {
+    font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 500; font-size: 17px; color: var(--ink);
+    margin: 0 0 12px; line-height: 1.35;
+  }
+  .decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+  .q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+  .q-option {
+    display: block; background: var(--paper);
+    border: 1.5px solid var(--paper-rule); border-radius: 5px;
+    padding: 10px 12px; cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .q-option:hover { border-color: var(--ink-ghost); }
+  .q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+  .q-option:has(input[type="radio"]:checked) {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+  }
+  .q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+  .q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+  .q-option-title .recommend-tag {
+    font-size: 10px; background: var(--accent-soft); color: var(--accent);
+    text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+    padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+  }
+  .q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+  .q-notes {
+    width: 100%; background: var(--paper); border: 1px solid var(--paper-rule);
+    border-radius: 4px; padding: 8px 10px;
+    font-family: inherit; font-size: 12.5px; color: var(--ink);
+    resize: vertical; min-height: 50px;
+  }
+  .q-notes:focus { outline: 1.5px solid var(--accent); }
+
+  details.deferred {
+    margin: 22px 0; padding: 12px 16px;
+    background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px;
+  }
+  details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+  details.deferred[open] summary { color: var(--ink); }
+  details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+
+  .copy-bar {
+    position: sticky; bottom: 0;
+    margin: 32px -40px -120px; padding: 16px 40px;
+    background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+    border-top: 1.5px solid var(--paper-rule);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  }
+  .copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+  .copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+  .copy-bar button {
+    background: var(--accent); color: white;
+    border: none; border-radius: 5px; padding: 9px 18px;
+    font-family: inherit; font-size: 13.5px; font-weight: 600;
+    cursor: pointer; transition: background 0.12s;
+  }
+  .copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+  .copy-bar button.copied { background: var(--pass); }
+
+  /* — Per-playground patterns — */
+
+  .diagram {
+    background: var(--paper-deep); border: 1px solid var(--paper-rule);
+    border-radius: 6px; padding: 16px 20px; margin: 12px 0 22px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; line-height: 1.65;
+    color: var(--ink-soft); white-space: pre; overflow-x: auto;
+  }
+
+  /* Two-column layer cards (framework | pack content) */
+  .layer-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    margin: 14px 0 22px;
+  }
+  .layer-card {
+    background: var(--paper); border: 1.5px solid var(--paper-rule);
+    border-radius: 6px; padding: 14px 18px;
+  }
+  .layer-card h3 {
+    margin: 0 0 6px; font-family: "New York", "Iowan Old Style", Georgia, serif;
+    font-weight: 600; font-size: 16px;
+  }
+  .layer-card .layer-tag {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 10px; margin-left: 6px;
+  }
+  .layer-card .layer-tag.framework { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+  .layer-card .layer-tag.content   { background: color-mix(in srgb, var(--pass) 18%, transparent); color: var(--pass); }
+  .layer-card ul { padding-left: 20px; }
+  .layer-card li { font-size: 12.5px; margin: 4px 0; }
+  .layer-card code { font-size: 12px; }
+
+  /* Mockup frame — meant to evoke a Duo app surface */
+  .mockup {
+    margin: 14px 0 22px;
+    background: var(--duo-paper); border: 1.5px solid var(--duo-paper-rule);
+    border-radius: 8px; overflow: hidden;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04), 0 6px 18px -10px rgba(0,0,0,0.18);
+  }
+  .mockup-caption {
+    font-size: 11.5px; color: var(--ink-mute);
+    margin: 4px 0 4px; font-style: italic;
+  }
+  .mockup-chrome {
+    background: var(--duo-paper-deep);
+    border-bottom: 1px solid var(--duo-paper-rule);
+    padding: 6px 14px; font-size: 11.5px;
+    color: var(--duo-ink-mute); display: flex; align-items: center; gap: 10px;
+  }
+  .mockup-chrome .dots { display: inline-flex; gap: 5px; }
+  .mockup-chrome .dots span {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--duo-paper-rule);
+  }
+  .mockup-chrome .dots span:nth-child(1) { background: #e85e54; }
+  .mockup-chrome .dots span:nth-child(2) { background: #f5b132; }
+  .mockup-chrome .dots span:nth-child(3) { background: #46c156; }
+  .mockup-chrome .title {
+    font-weight: 600; color: var(--duo-ink); font-size: 12px;
+  }
+  .mockup-body { padding: 18px 22px; background: var(--duo-paper); color: var(--duo-ink); }
+  .mockup-body h2.surface-h {
+    border: none; padding: 0; margin: 0 0 6px;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    font-style: normal; font-weight: 600; font-size: 17px;
+    color: var(--duo-ink);
+  }
+  .mockup-body .surface-sub {
+    color: var(--duo-ink-mute); font-size: 12.5px; margin: 0 0 18px;
+  }
+
+  /* Doctor-panel row (mock) — mirrors FileTree row + status-dot pattern from renderer */
+  .dr-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; font-size: 13px; color: var(--duo-ink);
+    border-bottom: 1px solid var(--duo-paper-rule);
+  }
+  .dr-row:last-child { border-bottom: none; }
+  .dr-row .dr-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dr-row .dr-dot.ok  { background: var(--pass); }
+  .dr-row .dr-dot.warn{ background: var(--warn); }
+  .dr-row .dr-dot.fail{ background: var(--fail); }
+  .dr-row .dr-dot.idle{ background: var(--duo-ink-ghost); }
+  .dr-row .dr-name { font-weight: 600; min-width: 140px; }
+  .dr-row .dr-detail { color: var(--duo-ink-mute); font-size: 12px; flex: 1; }
+  .dr-row .dr-action {
+    background: transparent; color: var(--duo-accent);
+    border: 1px solid color-mix(in srgb, var(--duo-accent) 50%, var(--duo-paper-rule));
+    font-size: 11.5px; font-weight: 600;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer;
+  }
+  .dr-row .dr-action:hover {
+    background: color-mix(in srgb, var(--duo-accent) 10%, var(--duo-paper));
+  }
+  .dr-row .dr-action.primary {
+    background: var(--duo-accent); color: white; border-color: var(--duo-accent);
+  }
+  .dr-row .dr-action.primary:hover {
+    background: color-mix(in srgb, black 8%, var(--duo-accent));
+  }
+  .dr-row .dr-required {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--fail); padding: 1px 6px; border-radius: 8px;
+    background: color-mix(in srgb, var(--fail) 14%, transparent);
+  }
+  .dr-row .dr-optional {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--duo-ink-mute); padding: 1px 6px; border-radius: 8px;
+    background: var(--duo-paper-deep);
+  }
+
+  /* Setup-chain step list (mock) */
+  .chain {
+    border: 1px solid var(--duo-paper-rule); border-radius: 6px;
+    margin: 12px 0; background: var(--duo-paper);
+  }
+  .chain .chain-header {
+    background: var(--duo-paper-deep); border-bottom: 1px solid var(--duo-paper-rule);
+    padding: 8px 14px; font-size: 12px; color: var(--duo-ink);
+  }
+  .chain .chain-header .chain-name {
+    font-weight: 700; color: var(--duo-accent); font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .chain .step {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 14px; border-bottom: 1px solid var(--duo-paper-rule);
+    font-size: 12.5px;
+  }
+  .chain .step:last-child { border-bottom: none; }
+  .chain .step .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--duo-paper-deep); color: var(--duo-ink-mute);
+    font-weight: 700; font-size: 11px; flex-shrink: 0;
+  }
+  .chain .step.done .step-num { background: var(--pass); color: white; }
+  .chain .step.active .step-num { background: var(--duo-accent); color: white; }
+  .chain .step .step-body { flex: 1; }
+  .chain .step .step-kind {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--duo-ink-mute); margin-right: 6px;
+  }
+  .chain .step .step-kind.kind-run  { color: var(--duo-accent); }
+  .chain .step .step-kind.kind-tell { color: var(--pass); }
+  .chain .step .step-title { font-weight: 600; color: var(--duo-ink); display: inline; }
+  .chain .step .step-cmd {
+    display: block; margin: 6px 0 4px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; background: var(--code-bg); color: var(--code-ink);
+    padding: 6px 10px; border-radius: 4px;
+  }
+  .chain .step .step-explain { color: var(--duo-ink-mute); font-size: 11.5px; margin: 4px 0 0; }
+  .chain .step .step-actions { margin-top: 8px; display: flex; gap: 8px; }
+  .chain .step .step-actions .dr-action { font-size: 11px; padding: 3px 8px; }
+
+  /* Modal-mockup variant (slightly narrower body, drop shadow) */
+  .modal-mock { max-width: 560px; margin: 14px auto 22px; }
+
+  /* CLI mockup */
+  .cli-block {
+    background: var(--code-bg); color: var(--code-ink);
+    border-radius: 6px; padding: 14px 18px; margin: 12px 0 18px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11.5px; line-height: 1.55; white-space: pre; overflow-x: auto;
+  }
+  .cli-block .cli-prompt { color: #88b6e0; }
+  .cli-block .cli-ok    { color: #88c896; }
+  .cli-block .cli-warn  { color: #d4a55a; }
+  .cli-block .cli-fail  { color: #d97a76; }
+  .cli-block .cli-dim   { color: #8a8579; }
+
+  /* Inventory table */
+  table.ops { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 12.5px; }
+  table.ops th, table.ops td {
+    border: 1px solid var(--paper-rule);
+    padding: 6px 10px; text-align: left; vertical-align: top;
+  }
+  table.ops th { background: var(--paper-deep); font-weight: 600; color: var(--ink); }
+  table.ops td.dim { color: var(--ink-mute); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Integration primitive — design playground</h1>
+  <div class="meta">
+    <span class="pill">ENH-150 v2</span>
+    Status: <strong>open / awaiting owner walk before intent lock</strong> · filed 2026-05-13 · supersedes the § 5 sketch in <a href="github-auth-probe.html">github-auth-probe.html</a>
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A complete shape proposal for the integration primitive Duo will ship for distro packs — covering what lives in the main framework, what pack builders supply, how the two compose, and how it surfaces to the user (Doctor panel + inline pointers + CLI). Mockups are grounded in Duo's actual app palette (same Atelier tokens). Four shape decisions are open at the bottom; walk through and pick before I file the concrete ENHs and start the build.
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="principle">§ 1 · The principle (refined)</h2>
+
+<p>
+After your enterprise walk and pushback on my "never install" over-correction, the principle that holds across every Mac (personal, enterprise self-service, locked-down) is:
+</p>
+
+<div style="background: var(--paper); border-left: 4px solid var(--accent); padding: 12px 18px; margin: 12px 0; font-size: 13.5px;">
+  <strong>Detect → validate → guide → optionally run (with consent).</strong>
+  Duo never invents an install command. It runs probes the pack author shipped. When a probe says "missing," it surfaces the remediation steps the pack author declared. Those steps come in two flavors: <strong>tell</strong> (instructions the user follows) and <strong>run</strong> (a pack-authored command Duo can execute on the user's behalf with explicit confirmation). The framework is the engine; the pack is the content. Switching from "personal Mac" to "enterprise Mac" is a pack swap, not a code change.
+</div>
+
+<p>
+This keeps your three boundary cases working without code branches:
+</p>
+<ul>
+  <li><strong>Personal Mac</strong> — default Duo pack ships standard public-internet install commands (e.g. <code>/bin/bash -c "$(curl -fsSL …install.sh)"</code> for brew). User confirms each <code>run</code> step.</li>
+  <li><strong>Enterprise Mac</strong> — IT-supplied pack overrides those entries. Its brew install step might be <code>open "macappsto://app/com.acme.SelfService"</code> or simply a <code>tell</code> step pointing at the org's catalog. gh's install step might be <code>brew install gh</code> (because the IT pack knows brew is the right path) or another catalog entry.</li>
+  <li><strong>Locked-down Mac</strong> — pack ships only <code>tell</code> steps. Duo runs nothing; it surfaces the org's runbook URL.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="architecture">§ 2 · Architecture — two layers</h2>
+
+<div class="diagram">┌──────────────────────────────────────────────────────────────────────────┐
+│                       FRAMEWORK (ships in Duo main)                      │
+│  · Manifest schema: PACK.json `integrations[]`                           │
+│  · Probe runner — executes probe scripts, reads JSON status              │
+│  · Setup-chain walker — resolves `depends`, orders steps                 │
+│  · UI: Doctor panel (canvas surface) + inline pointer strip              │
+│  · CLI: `duo doctor` / `duo doctor --integrations` / `duo doctor fix ID` │
+│  · Trust model: probe sandbox + per-run confirmation prompts             │
+└──────────────────────────────────────────────────────────────────────────┘
+                         ▲                                  ▲
+              calls probes│                                 │renders
+              runs steps  │                                 │status + actions
+                         ▼                                  ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                    PACK CONTENT (ships per pack author)                  │
+│  · `integrations[]` array in PACK.json                                   │
+│  · `checkers/<id>.sh` probe scripts (the pack ships them)                │
+│  · `setupSteps[]` declarations — `run` / `tell` / `depends`              │
+│  · Setup docs (HTML / markdown) the `tell` steps link to                 │
+│  · Optional override of another pack's integration (priority field)      │
+└──────────────────────────────────────────────────────────────────────────┘
+
+Default Duo pack ships its own integrations[] entries (gh, brew).
+Enterprise packs override them. Lock semantics decided in § 8 Q2.</div>
+
+<p>
+The framework is content-agnostic: it knows how to ask a probe "are you OK?" and how to walk a remediation chain, but it doesn't know what Homebrew is, what gh is, or how to install either of them. Every concrete install command lives in pack content.
+</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="framework">§ 3 · What ships in Duo main (the framework)</h2>
+
+<h3>3a · PACK.json schema additions</h3>
+<p>
+The PackManifest gets one new optional top-level field:
+</p>
+<pre><code>// shared/types.ts — additions
+export interface PackManifest {
+  // ...existing fields (name, version, defaults[], etc.)...
+  integrations?: PackIntegration[];   // NEW
+}
+
+export interface PackIntegration {
+  id: string;                          // "github", "brew", "jira", etc.
+  label: string;                       // "GitHub CLI" — shown in Doctor panel
+  priority?: number;                   // override resolution; default = 0
+  required?: boolean;                  // true → fail-fast on first launch
+  probe: string;                       // relative path to executable probe
+  requires?: string[];                 // declared deps (binaries on $PATH)
+  setupDoc?: string;                   // relative path to setup HTML/MD
+  setupSteps?: SetupStep[];            // ordered remediation chain
+}
+
+export type SetupStep =
+  | { type: "depends"; integrationId: string }
+  | { type: "run"; description: string; command: string;
+      confirmText?: string; timeout?: number }
+  | { type: "tell"; text: string; link?: string;
+      copyCommand?: string; waitForUserSignal?: boolean };</code></pre>
+
+<h3>3b · Probe contract</h3>
+<p>
+A probe is any executable the pack ships at <code>checkers/&lt;id&gt;.sh</code> (or any path declared in <code>integration.probe</code>). The framework invokes it with no arguments, captures stdout, parses as JSON:
+</p>
+<pre><code>// probe contract — stdout JSON
+{
+  "status": "ok" | "missing" | "misconfigured" | "unreachable" | "blocked",
+  "summary": "Authenticated as you@acme.com",      // 1-line for Doctor row
+  "detail": "Hosts: github.com, ghe.acme.com",     // 1-2 lines for expanded view
+  "fixHint": "Run `gh auth login --web` to add another host",  // optional
+  "version": "2.45.0"                              // optional, surfaced in Doctor
+}</code></pre>
+<p>
+Non-zero exit code or non-JSON output is treated as <code>{status: "unreachable", detail: stderr}</code>. Probes get a 10-second default timeout. Probes are never given network access by Duo (they can do their own outbound, but Duo doesn't inject any token / env that would let a malicious probe phone home). See § 8 Q4 for the trust-model decision.
+</p>
+
+<h3>3c · CLI verbs (per CLAUDE.md § 4 plumbing checklist)</h3>
+<table class="ops">
+  <thead><tr><th>Verb</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>duo doctor</code></td><td>Existing health check, extended with an "Integrations" section that lists each integration + status dot + summary line.</td></tr>
+    <tr><td><code>duo doctor --integrations</code></td><td>Integration section only — agent-friendly subset of <code>doctor</code>.</td></tr>
+    <tr><td><code>duo doctor inspect &lt;id&gt;</code></td><td>Print one integration's full detail + remediation chain (read-only).</td></tr>
+    <tr><td><code>duo doctor fix &lt;id&gt;</code></td><td>Walk the remediation chain in the terminal — prompt before each <code>run</code> step; print <code>tell</code> steps and pause for user signal; resolve <code>depends</code> recursively.</td></tr>
+    <tr><td><code>duo doctor open</code></td><td>Open the Doctor panel in the canvas (mirrors the menu entry).</td></tr>
+  </tbody>
+</table>
+
+<h3>3d · IPC + renderer surfaces</h3>
+<ul>
+  <li><strong>IPC channel <code>integrations-list</code></strong> — main returns current snapshot (id, status, summary, last-probed-at). Renderer pushes on pack install/uninstall + every probe re-run.</li>
+  <li><strong>IPC channel <code>integration-run-step</code></strong> — renderer invokes for each <code>run</code> step; main runs the command with PTY pipe so output streams to the panel; user can cancel.</li>
+  <li><strong>Doctor panel</strong> — a new <code>kind: "doctor"</code> WorkingTab (sibling of <code>page</code> / <code>browser</code> / <code>editor</code>). Renders the integrations list, expands on click to show the chain mockup in § 5b, owns the run-step UI.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="pack-content">§ 4 · What pack builders add (the content)</h2>
+
+<div class="layer-grid">
+  <div class="layer-card">
+    <h3>Framework <span class="layer-tag framework">Duo main</span></h3>
+    <p style="margin:0 0 6px; font-size:12.5px; color:var(--ink-mute);">Engine. Same for every Duo install.</p>
+    <ul>
+      <li>Schema + validator</li>
+      <li>Probe runner (sandboxed)</li>
+      <li>Chain walker (depends-resolution)</li>
+      <li>Doctor panel UI</li>
+      <li>CLI verbs</li>
+      <li>Confirm-before-run dialog</li>
+    </ul>
+  </div>
+  <div class="layer-card">
+    <h3>Pack content <span class="layer-tag content">Pack author</span></h3>
+    <p style="margin:0 0 6px; font-size:12.5px; color:var(--ink-mute);">Substance. Different per org / use-case.</p>
+    <ul>
+      <li><code>integrations[]</code> array in PACK.json</li>
+      <li><code>checkers/&lt;id&gt;.sh</code> probe scripts</li>
+      <li><code>setupSteps[]</code> per integration</li>
+      <li><code>setupDoc</code> HTML / markdown</li>
+      <li>Optional <code>priority</code> override of another pack's id</li>
+    </ul>
+  </div>
+</div>
+
+<h3>4a · A concrete pack entry — the default Duo pack's "github"</h3>
+<pre><code>// packs/duo-default/PACK.json — integration excerpt
+{
+  "integrations": [
+    {
+      "id": "brew",
+      "label": "Homebrew",
+      "required": false,
+      "probe": "checkers/brew.sh",
+      "setupDoc": "setup/brew.html",
+      "setupSteps": [
+        { "type": "tell",
+          "text": "On a personal Mac you can install Homebrew with the official script:",
+          "copyCommand": "/bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"",
+          "link": "https://brew.sh",
+          "waitForUserSignal": true },
+        { "type": "tell",
+          "text": "On an enterprise Mac without curl-bash access, ask IT for the brew install — they usually push it via self-service. Then come back here.",
+          "waitForUserSignal": true }
+      ]
+    },
+    {
+      "id": "github",
+      "label": "GitHub CLI (gh)",
+      "required": false,
+      "probe": "checkers/gh.sh",
+      "setupDoc": "setup/github.html",
+      "setupSteps": [
+        { "type": "depends", "integrationId": "brew" },
+        { "type": "run",
+          "description": "Install gh via Homebrew",
+          "command": "brew install gh",
+          "confirmText": "Duo will run `brew install gh` in a terminal. OK?" },
+        { "type": "tell",
+          "text": "Authenticate gh with GitHub via the browser. This opens a one-time SSO handoff and stores a token in your macOS Keychain.",
+          "copyCommand": "gh auth login --web",
+          "waitForUserSignal": true },
+        { "type": "tell",
+          "text": "If your work uses SAML SSO, visit github.com/settings/tokens and click \"Configure SSO\" next to the gh-cli token to authorize it for your org.",
+          "link": "https://github.com/settings/tokens",
+          "waitForUserSignal": true }
+      ]
+    }
+  ]
+}</code></pre>
+
+<h3>4b · An enterprise pack overriding the default</h3>
+<pre><code>// packs/acme-corp/PACK.json — overrides + extends
+{
+  "integrations": [
+    {
+      "id": "brew",
+      "label": "Homebrew (ACME-approved)",
+      "priority": 10,
+      "probe": "checkers/brew.sh",
+      "setupSteps": [
+        { "type": "tell",
+          "text": "Open the ACME Self-Service app and install \"Homebrew\". This is the only approved install path on ACME-managed Macs.",
+          "link": "macappsto://app/com.acme.SelfService",
+          "waitForUserSignal": true }
+      ]
+    },
+    {
+      "id": "github",
+      "label": "GitHub access for ACME",
+      "priority": 10,
+      "probe": "checkers/gh.sh",
+      "setupSteps": [
+        { "type": "depends", "integrationId": "brew" },
+        { "type": "run",
+          "description": "Install gh via Homebrew",
+          "command": "brew install gh",
+          "confirmText": "ACME-approved install path. OK?" },
+        { "type": "tell",
+          "text": "Authenticate against github.com AND ghe.acme.com — both are required for ACME engineering work.",
+          "copyCommand": "gh auth login --web --hostname github.com && gh auth login --web --hostname ghe.acme.com",
+          "waitForUserSignal": true }
+      ]
+    },
+    {
+      "id": "jira",
+      "label": "ACME Jira",
+      "required": true,
+      "probe": "checkers/jira.sh",
+      "setupSteps": [
+        { "type": "tell",
+          "text": "Generate a Jira API token at https://acme.atlassian.net/secure/ManageProfile.jspa, then store it in your Keychain. Duo will pick it up from the JIRA_API_TOKEN env var.",
+          "link": "https://acme.atlassian.net/secure/ManageProfile.jspa" }
+      ]
+    }
+  ]
+}</code></pre>
+<p>
+Override resolution: when both packs declare <code>integrations[].id === "brew"</code>, the pack with the higher <code>priority</code> wins. The default Duo pack uses <code>priority: 0</code>; enterprise packs use higher numbers. § 8 Q2 captures the precise tie-breaking rule.
+</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="mockups">§ 5 · UI mockups — grounded in Duo's actual app</h2>
+<p>
+Cream paper background, ochre <code>#C66A2E</code> accent, 8px status dots, 12–13px row text — same tokens the real app uses. The frames below are what shows up in the canvas working pane.
+</p>
+
+<h3>5a · Doctor panel — landing view</h3>
+<div class="mockup-caption">When the user opens the Doctor panel (via menu, CLI, or inline pointer click). Lists every installed integration across all packs with rolled-up status.</div>
+<div class="mockup">
+  <div class="mockup-chrome">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="title">Duo · Doctor · Integrations</div>
+  </div>
+  <div class="mockup-body">
+    <h2 class="surface-h">Integrations</h2>
+    <p class="surface-sub">Run by the <code>duo-default</code> and <code>acme-corp</code> packs. Click a row to see remediation steps.</p>
+
+    <div style="border:1px solid var(--duo-paper-rule); border-radius:6px; overflow:hidden;">
+      <div class="dr-row">
+        <span class="dr-dot ok"></span>
+        <span class="dr-name">git</span>
+        <span class="dr-detail">2.43.0 · credential.helper: osxkeychain</span>
+        <span class="dr-optional">Optional</span>
+        <button class="dr-action">Re-check</button>
+      </div>
+      <div class="dr-row">
+        <span class="dr-dot fail"></span>
+        <span class="dr-name">Homebrew</span>
+        <span class="dr-detail">Not installed · enterprise pack: install via ACME Self-Service</span>
+        <span class="dr-optional">Optional</span>
+        <button class="dr-action primary">Set up</button>
+      </div>
+      <div class="dr-row">
+        <span class="dr-dot fail"></span>
+        <span class="dr-name">GitHub CLI</span>
+        <span class="dr-detail">Not installed · depends on Homebrew</span>
+        <span class="dr-optional">Optional</span>
+        <button class="dr-action primary">Set up</button>
+      </div>
+      <div class="dr-row">
+        <span class="dr-dot fail"></span>
+        <span class="dr-name">ACME Jira</span>
+        <span class="dr-detail">JIRA_API_TOKEN not in env</span>
+        <span class="dr-required">Required</span>
+        <button class="dr-action primary">Set up</button>
+      </div>
+      <div class="dr-row">
+        <span class="dr-dot warn"></span>
+        <span class="dr-name">Confluence</span>
+        <span class="dr-detail">Token present but unreachable from this network</span>
+        <span class="dr-optional">Optional</span>
+        <button class="dr-action">Diagnose</button>
+      </div>
+    </div>
+
+    <p style="font-size:11.5px; color:var(--duo-ink-mute); margin-top:14px;">
+      <strong style="color:var(--duo-ink);">5 integrations</strong> across 2 packs · last probed 24s ago · <a href="#" style="color:var(--duo-accent);">Re-check all</a>
+    </p>
+  </div>
+</div>
+
+<h3>5b · Doctor panel — expanded chain view (clicking "GitHub CLI" set up)</h3>
+<div class="mockup-caption">Same panel surface; the integration row expands inline (or pushes onto a sub-view) to show the chain. Every <code>depends</code> resolves recursively; <code>run</code> steps have a confirm-before-run button; <code>tell</code> steps have a "Done — re-check" button to advance after the user does the manual part.</div>
+<div class="mockup">
+  <div class="mockup-chrome">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="title">Duo · Doctor · GitHub CLI · setup</div>
+  </div>
+  <div class="mockup-body">
+    <h2 class="surface-h">Set up GitHub CLI</h2>
+    <p class="surface-sub">From the <code>acme-corp</code> pack (overrides <code>duo-default</code>). 4 steps · 2 require your input.</p>
+
+    <div class="chain">
+      <div class="chain-header">
+        Integration: <span class="chain-name">github</span> · depends on <span class="chain-name">brew</span>
+      </div>
+
+      <div class="step done">
+        <div class="step-num">✓</div>
+        <div class="step-body">
+          <span class="step-kind">DEPENDS</span>
+          <span class="step-title">Homebrew (resolved earlier)</span>
+          <div class="step-explain">Brew probe now reports OK · /opt/homebrew/bin/brew · 4.2.6</div>
+        </div>
+      </div>
+
+      <div class="step active">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <span class="step-kind kind-run">RUN</span>
+          <span class="step-title">Install gh via Homebrew</span>
+          <code class="step-cmd">brew install gh</code>
+          <div class="step-explain">ACME-approved install path. Duo will run this in a terminal and stream output here.</div>
+          <div class="step-actions">
+            <button class="dr-action primary">Run with confirm</button>
+            <button class="dr-action">I'll do it myself</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <span class="step-kind kind-tell">TELL</span>
+          <span class="step-title">Authenticate gh against both hosts</span>
+          <code class="step-cmd">gh auth login --web --hostname github.com && gh auth login --web --hostname ghe.acme.com</code>
+          <div class="step-explain">Opens a browser. Run this in your terminal — Duo can't drive the browser handoff for you. Both hosts are required for ACME engineering work.</div>
+          <div class="step-actions">
+            <button class="dr-action">Copy command</button>
+            <button class="dr-action">Done — re-check</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <span class="step-kind kind-tell">TELL</span>
+          <span class="step-title">SAML SSO authorization (if your org requires it)</span>
+          <div class="step-explain">Visit <a href="#" style="color:var(--duo-accent);">github.com/settings/tokens</a> → click "Configure SSO" next to the gh-cli token → authorize for your org.</div>
+          <div class="step-actions">
+            <button class="dr-action">Open page</button>
+            <button class="dr-action">Done — re-check</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p style="font-size:11.5px; color:var(--duo-ink-mute);">
+      <a href="#" style="color:var(--duo-accent);">← Back to integrations</a> · <a href="#" style="color:var(--duo-accent);">Read setup doc</a> · <a href="#" style="color:var(--duo-accent);">View probe source</a>
+    </p>
+  </div>
+</div>
+
+<h3>5c · Inline pointer in <code>File → Clone…</code> modal</h3>
+<div class="mockup-caption">When the user opens <code>File → Clone…</code> and gh isn't set up. Doesn't duplicate the setup UI inline; deflects to the Doctor panel which is the canonical surface. Clone field stays disabled until the integration resolves OK.</div>
+<div class="mockup modal-mock">
+  <div class="mockup-chrome">
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="title">Clone a repository</div>
+  </div>
+  <div class="mockup-body">
+    <h2 class="surface-h">Clone a repository</h2>
+    <p class="surface-sub" style="margin-bottom:14px;">Paste a GitHub URL, pick where to put it, and Duo will open the folder.</p>
+
+    <div style="background: color-mix(in srgb, var(--fail) 8%, var(--duo-paper)); border: 1px solid color-mix(in srgb, var(--fail) 40%, var(--duo-paper-rule)); border-radius: 6px; padding: 10px 14px; margin: 0 0 14px; display: flex; align-items: center; gap: 10px;">
+      <span class="dr-dot fail"></span>
+      <div style="flex:1; font-size:12.5px; color:var(--duo-ink);">
+        <strong>GitHub CLI isn't set up.</strong>
+        <span style="color:var(--duo-ink-mute);">Cloning needs it — open Doctor to walk through the steps.</span>
+      </div>
+      <button class="dr-action primary">Open Doctor</button>
+    </div>
+
+    <label style="display:block; font-size:11.5px; font-weight:600; color:var(--duo-ink-mute); text-transform:uppercase; letter-spacing:0.04em; margin: 8px 0 4px;">URL</label>
+    <input disabled placeholder="https://github.com/dudgeon/duo" style="width:100%; padding:8px 10px; border:1px solid var(--duo-paper-rule); border-radius:4px; background:var(--duo-paper-deep); color:var(--duo-ink-ghost); font-size:13px; font-family:inherit;">
+
+    <label style="display:block; font-size:11.5px; font-weight:600; color:var(--duo-ink-mute); text-transform:uppercase; letter-spacing:0.04em; margin: 14px 0 4px;">Destination</label>
+    <input disabled value="~/Code/" style="width:100%; padding:8px 10px; border:1px solid var(--duo-paper-rule); border-radius:4px; background:var(--duo-paper-deep); color:var(--duo-ink-ghost); font-size:13px; font-family:inherit;">
+
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px;">
+      <button class="dr-action">Cancel</button>
+      <button class="dr-action" disabled style="opacity:0.4; cursor:not-allowed;">Clone</button>
+    </div>
+  </div>
+</div>
+
+<h3>5d · CLI: <code>duo doctor --integrations</code></h3>
+<div class="mockup-caption">Agent-friendly text surface. Same data as the panel; one line per integration; no actions (action verbs are <code>duo doctor fix &lt;id&gt;</code>).</div>
+<div class="cli-block"><span class="cli-prompt">$</span> duo doctor --integrations
+<span class="cli-dim">─── Integrations (across 2 packs) ─────────────────────────────────</span>
+<span class="cli-ok">  ●</span> git                  2.43.0 · credential.helper: osxkeychain          <span class="cli-dim">[optional]</span>
+<span class="cli-fail">  ●</span> brew                 not installed                                       <span class="cli-dim">[optional · acme-corp]</span>
+<span class="cli-fail">  ●</span> github               not installed · depends on brew                    <span class="cli-dim">[optional · acme-corp]</span>
+<span class="cli-fail">  ●</span> jira                 JIRA_API_TOKEN not in env                           <span class="cli-fail">[required · acme-corp]</span>
+<span class="cli-warn">  ●</span> confluence           reachable: no (token present but network blocked)   <span class="cli-dim">[optional · acme-corp]</span>
+<span class="cli-dim">─── 5 integrations · 1 required missing ──────────────────────────</span>
+<span class="cli-dim">Next:</span> duo doctor fix jira
+       duo doctor inspect github</div>
+
+<h3>5e · CLI: <code>duo doctor fix &lt;id&gt;</code> (walk the chain)</h3>
+<div class="cli-block"><span class="cli-prompt">$</span> duo doctor fix github
+<span class="cli-dim">─── github · GitHub CLI (acme-corp pack) ──────────────────────────</span>
+Resolving depends → brew
+
+<span class="cli-fail">  ●</span> brew is missing. Step 1: TELL
+     Open the ACME Self-Service app and install "Homebrew".
+     Link: macappsto://app/com.acme.SelfService
+
+     <span class="cli-warn">[Press Enter when done, or 'q' to quit]</span>
+
+<span class="cli-prompt">⏎</span>
+Re-checking brew...   <span class="cli-ok">OK</span>  (/opt/homebrew/bin/brew 4.2.6)
+
+Continuing with github setup chain:
+
+  Step 2: RUN
+     Install gh via Homebrew
+     <span style="color:#d4a55a;">$ brew install gh</span>
+
+     ACME-approved install path. OK?
+     <span class="cli-warn">[y/N]</span> <span class="cli-ok">y</span>
+     Running...
+     ==> Downloading https://ghcr.io/v2/homebrew/core/gh/manifests/2.45.0
+     ==> Pouring gh--2.45.0.arm64_sonoma.bottle.tar.gz
+     <span class="cli-ok">  ✓ gh installed (/opt/homebrew/bin/gh)</span>
+
+  Step 3: TELL
+     Authenticate gh against both hosts.
+     <span style="color:#d4a55a;">$ gh auth login --web --hostname github.com && \\
+       gh auth login --web --hostname ghe.acme.com</span>
+
+     <span class="cli-warn">[Press Enter when done, or 'q' to quit]</span>
+</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="example">§ 6 · Worked example: enterprise gh setup, end-to-end</h2>
+<p>
+Putting it all together — what a clean enterprise Mac user experiences from first launch through being able to run <code>duo clone</code>:
+</p>
+<div class="diagram">┌───────────────────────────────────────────────────────────────────────┐
+│  1.  User installs Duo (DMG from IT-approved catalog).                │
+│      ACME pack ships INSIDE the Duo.app or alongside as DISTRO pack.  │
+│                                                                       │
+│  2.  First launch: PackLoader scans packs/, builds combined            │
+│      integrations[] list (resolves priority overrides).               │
+│      § 8 Q3: does Duo proactively open Doctor panel here?             │
+│                                                                       │
+│  3.  Background probe run: every integration's probe.                 │
+│      Results stream into installed.json for fast Doctor renders.      │
+│                                                                       │
+│  4a. User → File → Clone… → modal sees gh status=missing →            │
+│      shows the § 5c inline pointer with "Open Doctor" button.         │
+│  4b. OR user → Help → Run Duo Doctor → opens § 5a panel directly.     │
+│                                                                       │
+│  5.  Doctor panel renders. User clicks "Set up" on GitHub CLI.        │
+│      § 5b chain view appears. Step 1 (depends → brew) shows as the    │
+│      next actionable step.                                            │
+│                                                                       │
+│  6.  Brew chain runs:                                                 │
+│      - Step 1 (TELL): "Open ACME Self-Service" + macappsto:// link.    │
+│      - User clicks the link, installs brew, clicks "Done — re-check". │
+│      - Brew probe re-runs → OK.                                       │
+│                                                                       │
+│  7.  Github chain runs:                                               │
+│      - Step 2 (RUN): "brew install gh" — user clicks Run with confirm.│
+│      - Confirm dialog shows the command. User clicks Run.             │
+│      - Duo spawns a PTY, streams output into the chain step UI.       │
+│      - Probe re-runs → status=missing-auth (gh installed but no auth).│
+│      - Step 3 (TELL): "gh auth login --web …" with Copy command.      │
+│      - User runs in their own terminal. Browser SSO flow.             │
+│      - User clicks "Done — re-check". Probe → OK.                     │
+│                                                                       │
+│  8.  Doctor panel rolls up: all green. File → Clone… modal's red banner│
+│      disappears (live updates via integrations-list IPC).             │
+│      User pastes URL and clones.                                      │
+└───────────────────────────────────────────────────────────────────────┘</div>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="default-pack">§ 7 · What the default Duo pack ships</h2>
+<p>
+The default <code>packs/duo-default/</code> ships a baseline set of integrations that cover the personal-Mac case so Duo isn't useless until someone writes a pack. Enterprise packs override on top.
+</p>
+<table class="ops">
+  <thead><tr><th>id</th><th>label</th><th>Required?</th><th>What the default pack provides</th></tr></thead>
+  <tbody>
+    <tr><td><code>git</code></td><td>Git</td><td>No</td><td>Probe checks for the system git + credential helper. No <code>setupSteps</code> — system git is pre-installed on every Mac.</td></tr>
+    <tr><td><code>brew</code></td><td>Homebrew</td><td>No</td><td>Probe checks <code>brew --version</code>. setupSteps point at the official curl-bash install script + a "wait for the user to run it" tell step.</td></tr>
+    <tr><td><code>github</code></td><td>GitHub CLI (gh)</td><td>No</td><td>depends → brew; run → <code>brew install gh</code>; tell → <code>gh auth login --web</code>; tell → SAML SSO authorization note.</td></tr>
+    <tr><td class="dim">future</td><td class="dim">…</td><td class="dim">—</td><td class="dim">Optional additions as needed: ssh-agent, GCM, Node, etc. Anything the default pack adds is opt-out-able by enterprise packs.</td></tr>
+  </tbody>
+</table>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="decisions">§ 8 · Decisions to lock before I file the ENHs</h2>
+<p>
+Four shape decisions where I want your steer. Each one's "recommended" is what I'd ship if you didn't push back — feel free to redirect.
+</p>
+
+<section class="decision-card" data-question-id="run-confirm-ux">
+  <div class="q-title">Q1 · Confirm UX for `run` steps</div>
+  <div class="q-prompt">When a setup chain has multiple <code>run</code> steps, does Duo confirm each one individually, or ask once and then run the rest?</div>
+  <p class="q-context">Affects trust posture + friction. Per-step is safest (user sees every command); bulk is smoothest. Pack authors can flag a step as "never auto-run" regardless.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="run-confirm-ux" value="per-step">
+      <div class="q-option-body">
+        <div class="q-option-title">Per-step confirm <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Every <code>run</code> step pops a confirm dialog showing the exact command. User clicks Run or Skip. Maximum transparency; matches enterprise security posture (every install action is explicit). Most chains have 1–2 run steps so friction is contained.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="run-confirm-ux" value="bulk-with-preview">
+      <div class="q-option-body">
+        <div class="q-option-title">One bulk confirm — preview the whole chain, then run all <code>run</code> steps in sequence</div>
+        <div class="q-option-rationale">Show the user EVERY command up front; one Run-all button starts the chain. Each step still streams output. Smoother for trusted packs; loses the "wait, what's that one doing?" interrupt point mid-chain.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="run-confirm-ux" value="pack-declares">
+      <div class="q-option-body">
+        <div class="q-option-title">Pack author declares per-step: <code>confirmMode: "always" | "once-per-chain" | "never"</code></div>
+        <div class="q-option-rationale">Most flexible — trusted org packs can flag their install steps as "once-per-chain"; security-sensitive ones stay "always". Adds a schema field + per-step decision burden on pack authors.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="run-confirm-ux-notes" placeholder="Notes — security posture, user-trust tolerance, etc."></textarea>
+</section>
+
+<section class="decision-card" data-question-id="override-semantics">
+  <div class="q-title">Q2 · Override resolution when multiple packs declare the same integration id</div>
+  <div class="q-prompt">When the default Duo pack ships <code>integrations.brew</code> AND an enterprise pack also ships <code>integrations.brew</code>, who wins?</div>
+  <p class="q-context">Affects how packs compose. Pack authors need a predictable model.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="override-semantics" value="explicit-priority">
+      <div class="q-option-body">
+        <div class="q-option-title">Explicit <code>priority</code> field (highest wins; ties broken by load order) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Each integration entry has a <code>priority: number</code> (default 0). Default Duo pack uses 0; enterprise packs use higher numbers (10, 100). Predictable, declarative, lets a pack explicitly say "I want to override this." Pack-builder skill validates priorities and warns on collisions.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="override-semantics" value="last-loaded-wins">
+      <div class="q-option-body">
+        <div class="q-option-title">Last-loaded-wins (order of PackLoader's scan determines the winner)</div>
+        <div class="q-option-rationale">Simplest implementation; no schema change. <strong>Cons:</strong> PackLoader's scan order is alphabetical by directory name today — fragile, and an enterprise pack named "acme-corp" would lose to "duo-default" by alphabet.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="override-semantics" value="explicit-extends">
+      <div class="q-option-body">
+        <div class="q-option-title">Explicit <code>extends</code> field — override entry must declare which pack's id it overrides</div>
+        <div class="q-option-rationale">Strictest: <code>{ "id": "brew", "extends": "duo-default", ... }</code>. Forces pack authors to be explicit; great for audit + sanity. <strong>Cons:</strong> more verbose; couples enterprise packs to the default pack's name.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="override-semantics" value="union-conflict">
+      <div class="q-option-body">
+        <div class="q-option-title">No automatic override — duplicate ids are a validation error; pack author must rename or explicitly mark <code>override: true</code></div>
+        <div class="q-option-rationale">Loudest. Forces conflicts to be human-resolved at pack-build time. <strong>Cons:</strong> friction for enterprise authors who legitimately want to swap commands.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="override-semantics-notes" placeholder="Notes — examples of expected conflicts, audit needs..."></textarea>
+</section>
+
+<section class="decision-card" data-question-id="first-launch-posture">
+  <div class="q-title">Q3 · First-launch posture for the Doctor panel</div>
+  <div class="q-prompt">When Duo finishes its first launch and detects that an integration marked <code>required: true</code> is missing, what happens?</div>
+  <p class="q-context">Beginner-on-enterprise persona: surfacing setup proactively trains the user that Duo can help them; staying quiet respects "I'll set it up when I need it."</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="first-launch-posture" value="auto-open">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-open Doctor panel on first launch (if ANY required integration is missing) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">High-visibility welcome experience for enterprise users. The Doctor panel opens as a working tab automatically; user can dismiss/close at any time. Subsequent launches don't re-prompt unless a previously-OK integration regresses.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="first-launch-posture" value="status-banner">
+      <div class="q-option-body">
+        <div class="q-option-title">Show a status banner at the top of the renderer — "1 required integration needs setup → Open Doctor"</div>
+        <div class="q-option-rationale">Less invasive; respects the user's "let me poke around first" instinct. Banner persists until dismissed or until the integration resolves.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="first-launch-posture" value="passive">
+      <div class="q-option-body">
+        <div class="q-option-title">Stay quiet — only surface when a feature actually hits the missing dep (e.g. File → Clone shows the inline pointer)</div>
+        <div class="q-option-rationale">Most "polite"; least proactive. The user only sees Doctor when they try to do something that needs it. <strong>Cons:</strong> a user who never tries File → Clone never realizes they could have GitHub support.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="first-launch-posture-notes" placeholder="Notes — enterprise vs personal posture, what triggers a re-surface..."></textarea>
+</section>
+
+<section class="decision-card" data-question-id="probe-trust">
+  <div class="q-title">Q4 · Probe trust model</div>
+  <div class="q-prompt">Probes are arbitrary executables that pack authors ship. What constraints does Duo enforce when running them?</div>
+  <p class="q-context">Same security question Stage 23's canvas-action trust model wrestled with. Pack authors are not always trusted (someone downloads "acme-corp.dpack" from a Slack channel — a malicious probe could exfiltrate env vars).</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="probe-trust" value="sandbox-no-net">
+      <div class="q-option-body">
+        <div class="q-option-title">Run in a sandbox with no network access, no env-var inheritance, 10s timeout <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">macOS Seatbelt or similar: probe gets a clean env, no NETWORK_OUTBOUND, no $HOME secrets. Output limited to stdout. Most probes only need to <code>which gh</code> + <code>gh --version</code> + read a config file. Matches the canvas-action precedent. Pack authors can request capabilities explicitly via a probe-manifest field.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="probe-trust" value="trust-the-pack">
+      <div class="q-option-body">
+        <div class="q-option-title">Trust the pack — probes inherit Duo's env + full network access</div>
+        <div class="q-option-rationale">Simplest; pack author is implicitly trusted at install-time. <strong>Cons:</strong> a malicious or compromised pack can phone home with anything in the user's env.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="probe-trust" value="signed-packs-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Only packs signed by a trusted CA can ship probes; unsigned packs can ship <code>tell</code>-only setupSteps</div>
+        <div class="q-option-rationale">Strongest audit story for enterprise distribution. <strong>Cons:</strong> high friction for the personal-pack-author case; introduces a signing pipeline that doesn't exist today.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="probe-trust" value="user-grants-on-install">
+      <div class="q-option-body">
+        <div class="q-option-title">User grants probe-execution permission per-pack at install time (one-time prompt)</div>
+        <div class="q-option-rationale">Same model as macOS Accessibility / Screen Recording. Pack install asks "Allow this pack to run probe scripts?" User decides. Decisions cached in <code>installed.json</code>.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="probe-trust-notes" placeholder="Notes — comparable precedents (canvas-action trust, Chrome extension perms, etc.)..."></textarea>
+</section>
+
+<section class="decision-card" data-question-id="general-comments" style="border-color:var(--accent-soft);">
+  <div class="q-title">General comments / shape pushback</div>
+  <div class="q-prompt">Anything you want to push back on, ask about, or add?</div>
+  <p class="q-context">E.g.: schema-field naming (<code>setupSteps</code> vs <code>setup</code> vs <code>remediation</code>), Doctor-panel placement (own canvas tab vs sidebar vs menu), whether <code>required: true</code> is even a useful concept, missing integration types you'd want to model, etc.</p>
+  <textarea class="q-notes" name="general-notes" placeholder="Open thoughts, naming pushback, missing surfaces, etc." style="min-height:120px;"></textarea>
+</section>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="implementation">§ 9 · Implementation breakdown — which ENHs, in what order</h2>
+<p>
+Once decisions lock, I'd file these as concrete entries and propose them as a Sprint 18+ thread. Each builds on the prior:
+</p>
+<table class="ops">
+  <thead><tr><th>ENH</th><th>Scope</th><th>Depends on</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>ENH-150</strong></td>
+      <td>Manifest schema + probe runner + chain walker + IPC. Headless. <code>duo doctor --integrations</code> + <code>duo doctor inspect</code> + <code>duo doctor fix</code> CLI verbs. No UI yet — agent-only surface.</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>ENH-150a</strong></td>
+      <td>Default Duo pack ships <code>integrations[]</code> with git/brew/github. Includes the probes (checkers/*.sh) + setup docs (setup/*.html).</td>
+      <td>ENH-150 schema</td>
+    </tr>
+    <tr>
+      <td><strong>ENH-150b</strong></td>
+      <td>Doctor panel (canvas-rendered <code>WorkingTab kind:"doctor"</code>) + run-step UI + confirm dialog + chain expanded view. Menu entry: Help → Run Duo Doctor.</td>
+      <td>ENH-150 IPC</td>
+    </tr>
+    <tr>
+      <td><strong>ENH-151</strong></td>
+      <td><code>duo clone &lt;url&gt;</code> CLI verb + <code>File → Clone…</code> menu + inline pointer strip when github integration ≠ ok. Thin wrapper over <code>gh repo clone</code>.</td>
+      <td>ENH-150a github integration</td>
+    </tr>
+    <tr>
+      <td><strong>ENH-152</strong></td>
+      <td>Navigator git status overlay (root chip, per-file dirty dots). Independent — no integration-primitive dep; just <code>git status --porcelain</code> + fsevents.</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong>ENH-153</strong></td>
+      <td>Doctor panel first-launch auto-open behavior + status banner pattern (final shape pending Q3 answer).</td>
+      <td>ENH-150b panel</td>
+    </tr>
+  </tbody>
+</table>
+
+<details class="deferred">
+  <summary>Sequencing note — how this fits with Sprint 17 walk-back + v0.6.16</summary>
+  <div class="deferred-body">
+    <p>Sprint 17 is still open (walk pending on ENH-144/147/143/123). The integration-primitive thread is a Sprint 18+ candidate. I wouldn't merge ENH-150 framework work until Sprint 17's walk closes and v0.6.16 cuts — keeps the merged-but-unverified surface area bounded.</p>
+    <p>One natural slicing: Sprint 18 = ENH-150 + ENH-150a (headless framework + default pack). Sprint 19 = ENH-150b (Doctor panel UI). Sprint 20 = ENH-151 (clone) + ENH-152 (navigator status). ENH-153 folds into whichever sprint owns first-launch UX.</p>
+  </div>
+</details>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<h2 id="cross-refs">§ 10 · Cross-refs</h2>
+<ul style="font-size:13px;">
+  <li><a href="github-auth-probe.html"><code>docs/research/github-auth-probe.html</code></a> — the prior playground that surfaced the detect-only / pack-supplied-install principle.</li>
+  <li><a href="../../tasks.md"><code>ENH-149</code></a> — auth probe (CLOSES on owner Copy-decisions-back from auth probe walk; this playground is the synthesis).</li>
+  <li><a href="../../skill/references/distro-v1-schema.json"><code>skill/references/distro-v1-schema.json</code></a> — Stage 21d distro pack schema; this is where the new <code>integrations[]</code> field gets added.</li>
+  <li><a href="../../packs/duo-default/"><code>packs/duo-default/</code></a> — where the default pack's integrations will live (alongside <code>canvases/</code>).</li>
+  <li><a href="../../core/pack-loader.ts"><code>core/pack-loader.ts</code></a> — the loader that scans packs/ and builds the runtime registry; integrations[] resolution lands here.</li>
+  <li><a href="../../CLAUDE.md">CLAUDE.md § 4 — CLI parity with UI</a> — every Doctor-panel action gets a <code>duo doctor</code> verb counterpart.</li>
+  <li><a href="../../CLAUDE.md">CLAUDE.md § 3a — Visibility tooling</a> — Doctor panel is in the same family as <code>duo dom</code> / <code>duo devtools</code> / <code>duo layout</code> / <code>duo nav-state</code>.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 5</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+  (function () {
+    const counter = document.getElementById('answered-count');
+    const button  = document.getElementById('copy-decisions');
+
+    const QUESTIONS = [
+      { id: 'run-confirm-ux',     title: 'Q1 · Confirm UX for `run` steps' },
+      { id: 'override-semantics', title: 'Q2 · Override resolution when multiple packs declare the same id' },
+      { id: 'first-launch-posture', title: 'Q3 · First-launch posture for the Doctor panel' },
+      { id: 'probe-trust',        title: 'Q4 · Probe trust model' },
+    ];
+
+    function refreshCount() {
+      let answered = 0;
+      for (const q of QUESTIONS) {
+        if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+      }
+      // General comments contributes if any text is present
+      const general = (document.querySelector('textarea[name="general-notes"]')?.value || '').trim();
+      const totalParts = QUESTIONS.length + 1;
+      const answeredTotal = answered + (general ? 1 : 0);
+      counter.textContent = answeredTotal + ' / ' + totalParts;
+    }
+    document.addEventListener('change', refreshCount);
+    document.addEventListener('input', refreshCount);
+    refreshCount();
+
+    function buildPayload() {
+      const lines = [];
+      lines.push('ENH-150 INTEGRATION PRIMITIVE — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+      lines.push('============================================================');
+      lines.push('');
+
+      for (const q of QUESTIONS) {
+        const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[name="' + q.id + '-notes"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + q.title);
+        if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+        lines.push('');
+      }
+
+      const general = (document.querySelector('textarea[name="general-notes"]')?.value || '').trim();
+      if (general) {
+        lines.push('GENERAL COMMENTS / SHAPE PUSHBACK');
+        lines.push('----------------------------------');
+        for (const line of general.split('\n')) lines.push(line);
+        lines.push('');
+      }
+
+      lines.push('---');
+      lines.push('Source: docs/research/integration-primitive-design.html');
+      return lines.join('\n');
+    }
+
+    button.addEventListener('click', async function () {
+      const payload = buildPayload();
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(function () {
+          button.textContent = 'Copy decisions';
+          button.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        button.textContent = 'Copy failed';
+        console.error(err);
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>
