@@ -11,6 +11,7 @@
 // shell. EACCES / ENOENT surface as typed errors that the renderer can show.
 
 import * as fs from 'fs/promises'
+import { realpathSync } from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
@@ -70,7 +71,22 @@ export class FilesService {
   // Map subscription id → watcher + target webContents. Each renderer-side
   // `watch()` call gets its own id so multiple nav views / preview panes can
   // watch overlapping paths without interfering.
-  private watchers = new Map<string, { fsw: FSWatcher; wc: WebContents }>()
+  private watchers = new Map<
+    string,
+    {
+      fsw: FSWatcher
+      wc: WebContents
+      // FOLLOWUP-019 → BUG-125. Map from realpath → caller's input path.
+      // chokidar follows symlinks by default and emits events with the
+      // resolved path (e.g. /private/tmp/foo on macOS, where /tmp is a
+      // symlink to /private/tmp). The renderer-side `event.path !== path`
+      // guards in PageTab + MarkdownEditor would drop those events and
+      // the canvas/editor would stay stale. Resolving once at watch-start
+      // and remapping events back to the caller's string keeps the guard
+      // honest without forcing every renderer to realpath() its own paths.
+      resolvedToOriginal: Map<string, string>
+    }
+  >()
 
   async list(absPath: string): Promise<DirEntry[]> {
     const entries = await fs.readdir(absPath, { withFileTypes: true })
@@ -383,6 +399,21 @@ export class FilesService {
     // currently-visible subtree. Recursive watches on e.g. node_modules are a
     // CPU + event-rate disaster. Callers pass the specific directories they
     // want observed (current nav folder + expanded descendants).
+    // FOLLOWUP-019 → BUG-125. Build the realpath→original map BEFORE handing
+    // paths to chokidar. realpathSync throws on a path that doesn't exist
+    // yet (e.g. a fresh `duo edit` for a file we're about to create); the
+    // identity fallback handles that case + any non-symlinked path. Either
+    // way, the original string is always a valid lookup key.
+    const resolvedToOriginal = new Map<string, string>()
+    for (const p of paths) {
+      try {
+        resolvedToOriginal.set(realpathSync(p), p)
+      } catch {
+        // ignore — fall through to identity mapping
+      }
+      resolvedToOriginal.set(p, p)
+    }
+
     const fsw = chokidar.watch(paths, {
       ignoreInitial: true,
       depth: 0,
@@ -407,7 +438,12 @@ export class FilesService {
 
     const send = (kind: FileChangeEvent['kind'], p: string) => {
       if (wc.isDestroyed()) return
-      const event: FileChangeEvent = { kind, path: p }
+      // BUG-125 — map back to the caller's input path so renderer-side
+      // equality checks survive symlink resolution. Fallback to the raw
+      // chokidar path if we never saw it at watch-start (subscribers using
+      // a single-path watcher don't go through updateWatchPaths anyway).
+      const original = resolvedToOriginal.get(p) ?? p
+      const event: FileChangeEvent = { kind, path: original }
       wc.send(pushChannel, { id, event })
     }
 
@@ -421,7 +457,7 @@ export class FilesService {
       console.warn('[FilesService] watch error:', err instanceof Error ? err.message : err)
     })
 
-    this.watchers.set(id, { fsw, wc })
+    this.watchers.set(id, { fsw, wc, resolvedToOriginal })
   }
 
   async updateWatchPaths(id: string, paths: string[]): Promise<void> {
@@ -437,6 +473,19 @@ export class FilesService {
     const next = new Set(paths)
     for (const p of prev) if (!next.has(p)) w.fsw.unwatch(p)
     for (const p of next) if (!prev.has(p)) w.fsw.add(p)
+
+    // BUG-125 — keep resolvedToOriginal in sync. Rebuild from the new path
+    // set so stale mappings (from a path that was removed) don't shadow a
+    // fresh subscription to the same realpath.
+    w.resolvedToOriginal.clear()
+    for (const p of paths) {
+      try {
+        w.resolvedToOriginal.set(realpathSync(p), p)
+      } catch {
+        // ignore — identity fallback below covers it
+      }
+      w.resolvedToOriginal.set(p, p)
+    }
   }
 
   async stopWatch(id: string): Promise<void> {
