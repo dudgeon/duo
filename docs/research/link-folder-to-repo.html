@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<meta name="duo-editable" content="false">
+<title>ENH-154 · Link a local folder to a GitHub repo — planning playground</title>
+<style>
+/* — Atelier kernel (verbatim copy of skill/references/duo-atelier.css) — */
+
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+body {
+  padding: 32px 40px 96px;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 6px;
+}
+
+.intro {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin-bottom: 28px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600;
+  margin: 36px 0 12px;
+  font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-weight: 600;
+  margin: 22px 0 8px;
+  font-size: 15px;
+}
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+  background: var(--paper-deep);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+.decision-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500;
+  font-size: 17px;
+  color: var(--ink);
+  margin: 0 0 12px;
+  line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+
+.q-notes {
+  width: 100%;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--ink);
+  resize: vertical;
+  min-height: 50px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+
+details.deferred {
+  margin: 22px 0;
+  padding: 12px 16px;
+  background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+
+.copy-bar {
+  position: sticky;
+  bottom: 0;
+  margin: 32px -40px -96px;
+  padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 9px 18px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground overrides — */
+
+.use-cases {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 14px 0 6px;
+}
+.use-case {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 12px 14px;
+}
+.use-case h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.use-case p { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
+
+.flow-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px 18px;
+  margin: 14px 0;
+}
+.flow-card h3 {
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  color: var(--accent);
+}
+.flow-card .lede {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin: 0 0 12px;
+}
+.flow-card pre {
+  margin: 0 0 4px;
+  font-size: 11px;
+}
+
+table.pre-state {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 12.5px;
+}
+table.pre-state th,
+table.pre-state td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--paper-rule);
+  vertical-align: top;
+}
+table.pre-state th {
+  background: var(--paper-deep);
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+table.pre-state td code { font-size: 11.5px; }
+.risk-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.risk-tag.safe { background: #dceadb; color: var(--pass); }
+.risk-tag.warn { background: #f4e2c3; color: var(--warn); }
+.risk-tag.danger { background: #f4d5d3; color: var(--fail); }
+
+.modal-mock {
+  background: #fff;
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 16px;
+  margin: 10px 0;
+  font-size: 12.5px;
+  max-width: 540px;
+  box-shadow: 0 6px 14px -8px rgba(0,0,0,0.12);
+}
+.modal-mock .mock-title {
+  font-weight: 600;
+  font-size: 13.5px;
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+.modal-mock .mock-row { margin: 6px 0; }
+.modal-mock .mock-row label { display: inline-block; min-width: 90px; color: var(--ink-mute); font-size: 12px; }
+.modal-mock .mock-row .mock-field {
+  display: inline-block;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+}
+.modal-mock .mock-radio { margin-right: 14px; color: var(--ink-soft); }
+.modal-mock .mock-radio.selected { color: var(--accent); font-weight: 600; }
+.modal-mock .mock-buttons {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.modal-mock .mock-btn {
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--paper-rule);
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.modal-mock .mock-btn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Link a local folder to a GitHub repo — design playground</h1>
+  <div class="meta">
+    <span class="pill">ENH-154</span>
+    <span class="pill">PLANNING</span>
+    Filed 2026-05-13 · branch <code>claude/github-integration-planning-rPdVY</code>
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> An owner-decision playground for the <em>"this folder isn't on GitHub yet — put it there"</em> flow. You picked "playground it first" when I offered four GitHub-integration features (status overlay, clone, right-click GitHub menu, link-to-repo). This artifact rounds the link-to-repo edges back so coding can start with the shape locked. 5 decisions + general comments. Hit <strong>Copy decisions</strong> when done.
+</div>
+
+<h2>Context</h2>
+
+<p>Today Duo can <em>open</em> a folder, edit it, and run terminals inside it — but it has no path from "folder exists on disk" to "folder is a tracked GitHub repo." Users hit this in four flavors:</p>
+
+<div class="use-cases">
+  <div class="use-case">
+    <h4>U1 · Brand-new folder, never on GitHub</h4>
+    <p>Beginner started a project locally. Wants it on GitHub for backup + sharing. Not a git repo yet.</p>
+  </div>
+  <div class="use-case">
+    <h4>U2 · Existing folder + existing remote</h4>
+    <p>Folder of code from a teammate / old machine. Repo exists on GitHub already. Wants to connect the two.</p>
+  </div>
+  <div class="use-case">
+    <h4>U3 · Local git repo, no remote yet</h4>
+    <p>Already <code>git init</code>'d (maybe by a tool, maybe by you). Need to attach a GitHub remote — new or existing.</p>
+  </div>
+  <div class="use-case">
+    <h4>U4 · Distro pack publishing</h4>
+    <p>Pack builder finished a pack via the workshop. Needs to push it to org / personal GitHub so a cohort can install from it. Crosses paths with ENH-149's gh-auth story.</p>
+  </div>
+</div>
+
+<p>"Link to GitHub" needs to handle all four without being four different flows. The decisions below shape <em>how</em>.</p>
+
+<h2>The two flows, visualized</h2>
+
+<div class="flow-card">
+  <h3>Flow A · Create new GitHub repo from this folder</h3>
+  <p class="lede">Folder isn't on GitHub yet. We make it.</p>
+<pre>┌──────────────────┐    ┌────────────────────┐    ┌─────────────────────┐    ┌──────────────────┐
+│ git init         │ →  │ git add . + commit │ →  │ gh repo create      │ →  │ git push -u      │
+│ (if not a repo)  │    │ (if no commits)    │    │   --source=. --push │    │ (sets upstream)  │
+└──────────────────┘    └────────────────────┘    └─────────────────────┘    └──────────────────┘
+                                                  │ name + visibility
+                                                  │ pulled from modal
+                                                  └─→ remote URL returned</pre>
+</div>
+
+<div class="flow-card">
+  <h3>Flow B · Connect to an existing GitHub repo</h3>
+  <p class="lede">Repo already exists on GitHub. We wire the local folder to it.</p>
+<pre>┌──────────────────┐    ┌──────────────────────┐    ┌──────────────────────┐    ┌───────────────────────┐
+│ git init         │ →  │ git remote add       │ →  │ git fetch origin     │ →  │ Decide: push, pull,   │
+│ (if not a repo)  │    │   origin &lt;url&gt;       │    │ (probe remote state) │    │ or branch-only?       │
+└──────────────────┘    └──────────────────────┘    └──────────────────────┘    └───────────────────────┘
+                                                                                │
+                  remote-has-commits + local-has-commits → conflict gate ───────┘
+                  remote-empty + local-has-commits        → push -u
+                  remote-has-commits + local-empty        → fast-forward pull</pre>
+</div>
+
+<p>Flow B's conflict gate is the genuinely-hard case. The other three branches are mechanical. See <strong>Decision 2</strong> for the policy.</p>
+
+<h2>Pre-state inventory</h2>
+
+<p>Before running either flow, we read what's already true about the folder. The matrix below is what the modal's preview section displays:</p>
+
+<table class="pre-state">
+  <thead>
+    <tr>
+      <th>Pre-state</th>
+      <th>Flow A (new) reaction</th>
+      <th>Flow B (existing) reaction</th>
+      <th>Risk</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>.git/</code> absent</td>
+      <td>Run <code>git init</code> in pipeline</td>
+      <td>Run <code>git init</code> in pipeline</td>
+      <td><span class="risk-tag safe">Safe</span></td>
+    </tr>
+    <tr>
+      <td><code>.git/</code> present, no commits</td>
+      <td>Stage + initial commit, then push</td>
+      <td>Add remote, fetch; remote-empty → push, remote-has-content → pull</td>
+      <td><span class="risk-tag safe">Safe</span></td>
+    </tr>
+    <tr>
+      <td><code>.git/</code> present, has commits, no remote</td>
+      <td>Push existing history as new repo</td>
+      <td>Add remote, fetch; potential conflict on push</td>
+      <td><span class="risk-tag warn">Confirm</span></td>
+    </tr>
+    <tr>
+      <td><code>.git/</code> present, has remote already</td>
+      <td>Refuse OR offer "replace remote"</td>
+      <td>Refuse OR offer "replace remote with &lt;new-url&gt;"</td>
+      <td><span class="risk-tag danger">Block</span></td>
+    </tr>
+    <tr>
+      <td>Uncommitted changes in working tree</td>
+      <td>Stage + commit (initial only)</td>
+      <td>Block until user commits / stashes</td>
+      <td><span class="risk-tag warn">Confirm</span></td>
+    </tr>
+    <tr>
+      <td>Empty folder (no files at all)</td>
+      <td>Allowed — pushes empty repo + README skeleton</td>
+      <td>Allowed — fetches whatever's on the remote</td>
+      <td><span class="risk-tag safe">Safe</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<p>The cells marked <span class="risk-tag warn">Confirm</span> and <span class="risk-tag danger">Block</span> are what <strong>Decision 2</strong> dials in.</p>
+
+<h2>Modal mock — current draft (will adapt to Q1)</h2>
+
+<div class="modal-mock">
+  <div class="mock-title">Link folder to GitHub</div>
+  <div class="mock-row">
+    <span class="mock-radio selected">⦿ Create new repo</span>
+    <span class="mock-radio">○ Connect to existing repo</span>
+  </div>
+  <div class="mock-row">
+    <label>Folder</label> <span class="mock-field">~/projects/my-pack</span>
+  </div>
+  <div class="mock-row">
+    <label>Repo name</label> <span class="mock-field">my-pack</span>
+  </div>
+  <div class="mock-row">
+    <label>Owner</label> <span class="mock-field">dudgeon ▾</span>
+  </div>
+  <div class="mock-row">
+    <label>Host</label> <span class="mock-field">github.com ▾</span>
+  </div>
+  <div class="mock-row">
+    <label>Visibility</label>
+    <span class="mock-radio selected">⦿ Private</span>
+    <span class="mock-radio">○ Public</span>
+  </div>
+  <div class="mock-row" style="margin-top: 10px; color: var(--ink-mute); font-size: 11.5px;">
+    Pipeline: git init → git add . → git commit -m "Initial commit" → gh repo create --source=. --push
+  </div>
+  <div class="mock-buttons">
+    <span class="mock-btn">Cancel</span>
+    <span class="mock-btn primary">Create + push</span>
+  </div>
+</div>
+
+<div class="modal-mock" style="margin-top: 14px;">
+  <div class="mock-title">Link folder to GitHub</div>
+  <div class="mock-row">
+    <span class="mock-radio">○ Create new repo</span>
+    <span class="mock-radio selected">⦿ Connect to existing repo</span>
+  </div>
+  <div class="mock-row">
+    <label>Folder</label> <span class="mock-field">~/projects/inherited-thing</span>
+  </div>
+  <div class="mock-row">
+    <label>Remote URL</label> <span class="mock-field">https://github.com/acme/inherited-thing.git</span>
+  </div>
+  <div class="mock-row" style="margin-top: 10px; color: var(--ink-mute); font-size: 11.5px;">
+    Pipeline: git init → git remote add origin … → git fetch origin → (conflict gate per Decision 2)
+  </div>
+  <div class="mock-buttons">
+    <span class="mock-btn">Cancel</span>
+    <span class="mock-btn primary">Connect</span>
+  </div>
+</div>
+
+<h2>Decisions</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · Entry-point shape</div>
+  <h3 class="q-prompt">One menu entry with new-vs-existing radio, two separate entries, or CLI-first?</h3>
+  <p class="q-context">Where the user reaches for "link this." Affects the File menu, FileTree context menu, and whether <code>duo gh-link</code> is the primary surface vs. a wrapper.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="entry-shape" value="unified-modal">
+      <div class="q-option-body">
+        <div class="q-option-title">Unified modal with new-vs-existing radio <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Single "Link to GitHub…" menu entry (File menu + folder right-click). Modal opens with the radio at top — flips form fields below. One verb: <code>duo gh-link [path]</code> opens the modal; <code>--new &lt;name&gt;</code> / <code>--existing &lt;url&gt;</code> skip the radio. Tidiest UX; mirrors Cursor / GitHub Desktop.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="entry-shape" value="two-entries">
+      <div class="q-option-body">
+        <div class="q-option-title">Two separate menu items</div>
+        <div class="q-option-rationale">"Create new GitHub repo from this folder…" + "Connect to existing GitHub repo…" as distinct entries everywhere they appear. More discoverable; more menu clutter. CLI splits into <code>duo gh-new</code> + <code>duo gh-link</code>.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="entry-shape" value="cli-first">
+      <div class="q-option-body">
+        <div class="q-option-title">CLI-first; modal is a thin wrapper</div>
+        <div class="q-option-rationale"><code>duo gh-link --new &lt;name&gt;</code> / <code>--existing &lt;url&gt;</code> are the canonical surface. File menu entry just opens a terminal with the verb pre-typed. Lean for terminal-first users; surfaces less to GUI-only users.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="entry-shape" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · Pre-state risk policy</div>
+  <h3 class="q-prompt">When the folder is already a git repo / has a different remote / has uncommitted changes — what do we do?</h3>
+  <p class="q-context">The genuinely-hard part of this feature. Each of the <span class="risk-tag warn">Confirm</span> / <span class="risk-tag danger">Block</span> cells in the pre-state table follows one of these three policies.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="risk-policy" value="warn-confirm">
+      <div class="q-option-body">
+        <div class="q-option-title">Warn + confirm <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Show the risk inline ("This folder is already a git repo with 12 commits and remote <code>origin = …old-url…</code>") + an explicit confirm checkbox ("I understand this will replace the remote"). Proceed only after the checkbox is ticked. Matches Duo's house style (trash-confirm, pack-install-confirm).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="risk-policy" value="block-explain">
+      <div class="q-option-body">
+        <div class="q-option-title">Block + explain</div>
+        <div class="q-option-rationale">Refuse to proceed; modal shows the conflict + suggests what the user should do (e.g. "Run <code>git remote remove origin</code> first, then re-open this dialog"). Safest; most friction. Conservative pick if you want to keep v1 surface tiny.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="risk-policy" value="plow-ahead">
+      <div class="q-option-body">
+        <div class="q-option-title">Plow ahead</div>
+        <div class="q-option-rationale">Trust the user; just do the operation. Lowest friction; highest "oh no" potential when an existing remote gets silently replaced. Probably wrong for v1 but offered for completeness.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="risk-policy" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · Default visibility for new repos</div>
+  <h3 class="q-prompt">When the user picks "create new repo," what's the default visibility?</h3>
+  <p class="q-context">Tiny but consequential — accidental-public-push is the canonical "oh no" moment in onboarding flows. Modal still surfaces the choice; this is just what's pre-selected.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="visibility-default" value="private">
+      <div class="q-option-body">
+        <div class="q-option-title">Private by default <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Minimizes leak risk. User flips to public deliberately when they want public. Mirrors GitHub Desktop + Cursor + the gh CLI's recent change to default-private.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="visibility-default" value="public">
+      <div class="q-option-body">
+        <div class="q-option-title">Public by default</div>
+        <div class="q-option-rationale">Matches the older gh CLI default and reflects open-source-first culture. Higher accident risk for enterprise users; safer for personal-OSS-first users.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="visibility-default" value="ask-each-time">
+      <div class="q-option-body">
+        <div class="q-option-title">No default — radio starts unselected</div>
+        <div class="q-option-rationale">Forces a deliberate pick on every link. "Create + push" button stays disabled until visibility is set. Most friction; most accident-proof.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="visibility-default" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · Multi-host gh / GitHub Enterprise</div>
+  <h3 class="q-prompt">Should the modal expose a host picker — and when?</h3>
+  <p class="q-context">Crosses ENH-149's enterprise-Mac story. Your work-machine ended up not running gh at all in the end; if it gets installed it'll likely be configured against <code>github.com</code> only. But the cohort distribution scenario (U4) is exactly where GHE hosts show up.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="multi-host" value="auto-from-gh-status">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto from <code>gh auth status</code> <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Probe <code>gh auth status</code> at modal-open. If one host is logged in → no picker (use that host). If two+ hosts → show picker pre-selected to the host of the folder's nearest existing remote (or the first listed). Zero friction for the personal-Mac case; correct for the enterprise case.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="multi-host" value="always-github-com">
+      <div class="q-option-body">
+        <div class="q-option-title">Always github.com (defer GHE entirely for v1)</div>
+        <div class="q-option-rationale">Modal has no host field. Existing-repo flow extracts host from the URL the user pastes (so GHE URLs still work for that flow). New-repo flow hardcodes github.com. Smallest v1; punts U4-on-GHE to a later sprint.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="multi-host" value="always-show-picker">
+      <div class="q-option-body">
+        <div class="q-option-title">Always show host picker</div>
+        <div class="q-option-rationale">Modal always shows the host dropdown, even for users with only one host. Discoverable; most clutter. Worth picking if you want the enterprise affordance front-and-center from v1.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="multi-host" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · Post-link behavior</div>
+  <h3 class="q-prompt">After "Create + push" / "Connect" succeeds, what happens next?</h3>
+  <p class="q-context">The 5 seconds after the operation finishes. Small UX move that signals success and points at the next action.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="post-link" value="push-and-open-browser">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-push + open the new repo in system browser <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">For new-repo flow, push the initial commit + <code>shell.openExternal(repoUrl)</code> in the system browser (per CLAUDE.md bounce-list rule). For existing-repo flow, just confirm the connection without auto-opening. Small celebration; correct exit.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="post-link" value="push-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-push, no browser open</div>
+        <div class="q-option-rationale">Push for new-repo, fetch for existing-repo, then close the modal. Toast confirms success with a link to the repo URL (click to open in system browser). Quieter.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="post-link" value="link-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Just link; user pushes manually later</div>
+        <div class="q-option-rationale">Set up the remote + first commit (new flow) or the remote alone (existing flow), but don't push. User uses Source Control panel / terminal to push when ready. Most cautious; least magical. Matches Cursor's older "git init" flow.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="post-link" placeholder="Notes (optional)…"></textarea>
+</section>
+
+<h2>General comments / shape pushback</h2>
+<p>Anything not captured by the 5 decisions above — naming pushback (<code>duo gh-link</code> vs <code>duo link</code> vs <code>duo publish</code>?), use-case I missed, surface I shouldn't ship, edge case I should explore before coding.</p>
+<textarea class="q-notes" data-decision="general-notes" placeholder="Free-form notes…" style="min-height: 90px;"></textarea>
+
+<details class="deferred">
+  <summary>What we're explicitly NOT deciding here (defer / out-of-scope)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>gh authentication path.</strong> Closed by ENH-149 → ENH-150 v2: pack-supplied <code>integrations[]</code> + Doctor panel. If gh isn't authed when the user opens "Link to GitHub," modal points at Doctor (or runs <code>gh auth login --web</code> inline per ENH-150 Q3).</li>
+      <li><strong>SSH key flow.</strong> v1 assumes HTTPS + gh's web auth. SSH-only users have to drop to terminal. Re-open if the work-machine ends up needing SSH-only.</li>
+      <li><strong>Git LFS.</strong> Defer; large-file users can run <code>git lfs install</code> manually before linking.</li>
+      <li><strong>Submodules.</strong> If a folder has submodules, link the top-level only. Sub-paths show up unchanged.</li>
+      <li><strong>Branch protection / templates / .gitignore boilerplate.</strong> v1 doesn't seed README / .gitignore / LICENSE / branch rules. Users get a blank repo; <code>gh repo create</code>'s template flags can come later.</li>
+      <li><strong>Pull / fetch conflict resolution.</strong> If Flow B hits a conflict (remote has commits + local has commits + no fast-forward path), v1 surfaces the conflict and points at terminal. We don't ship merge UI.</li>
+      <li><strong>Unlink.</strong> "Remove remote" / "Forget the link" — easy enough via <code>git remote remove origin</code> in terminal. Modal could expose it later; not v1.</li>
+    </ul>
+  </div>
+</details>
+
+<h2>Affected files (sketch — will firm up after decisions land)</h2>
+<ul>
+  <li><code>cli/duo.ts</code> — new <code>gh-link</code> verb. Flags depend on Q1: either single verb with <code>--new</code> / <code>--existing</code>, or split into <code>gh-link</code> + <code>gh-new</code>.</li>
+  <li><code>shared/types.ts</code> — add <code>gh-link</code> to <code>DuoCommandName</code>; add IPC channel for the link operation + state-snapshot for in-progress pipeline.</li>
+  <li><code>electron/main.ts</code> — IPC handler that spawns gh / git child processes; menu entry under File menu.</li>
+  <li><code>electron/socket-server.ts</code> — bridge case for the CLI verb.</li>
+  <li><code>electron/preload.ts</code> — renderer API for invoking the link operation + subscribing to pipeline progress.</li>
+  <li><code>renderer/components/LinkRepoModal/</code> — new modal component (or reuses an existing dialog primitive if one exists). Form, pipeline preview, progress, success state.</li>
+  <li><code>renderer/components/FileTree.tsx</code> — context menu entry on folder rows ("Link to GitHub…").</li>
+  <li><code>skill/SKILL.md</code> + <code>agents/duo.md</code> — verb cheat-sheet entry (per CLAUDE.md § 4 plumbing checklist).</li>
+  <li><code>docs/CLI-COVERAGE.md</code> — verb inventory update.</li>
+</ul>
+
+<h2>Cross-references</h2>
+<ul>
+  <li><strong>ENH-149</strong> ✅ closed — gh auth probe playground. Established the <em>detect → validate → guide → optionally run</em> principle this feature inherits.</li>
+  <li><strong>ENH-150</strong> 🆕 filed — integration primitive for distro packs (Doctor panel + probe runner). gh auth check lives there; "Link to GitHub" with un-authed gh routes to Doctor.</li>
+  <li><strong>ENH-151</strong> (B in this sprint's cluster) — <code>duo clone</code> + File → Clone…. Shares gh auth probe + bounce-list with this feature; complementary direction (URL → folder vs. folder → URL).</li>
+  <li><strong>ENH-152</strong> (A in this sprint's cluster) — Navigator git status overlay. Once linking succeeds, the root chip immediately reflects "main · clean" / "main · ahead" / etc.</li>
+  <li><strong>ENH-155</strong> (C+D in this sprint's cluster) — Right-click "Open on GitHub" + "Copy GitHub URL" + bounce-list update. After linking, both context-menu entries become available on the just-linked folder.</li>
+</ul>
+
+<h2>Why a playground (not a markdown doc) — CLAUDE.md § 11</h2>
+<p>Owner-decision-shaped artifact: 5 decisions × 3 options each = 15 axes, plus 6 pre-state cells, plus general comments. Markdown would sit on a list page un-walked. Playground opens in Duo's browser pane via <code>duo open docs/research/link-folder-to-repo.html</code>, decisions round-trip in one Copy-decisions click, modal mocks live next to the radios that shape them.</p>
+
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 5</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+  (function () {
+    const counter = document.getElementById('answered-count');
+    const button  = document.getElementById('copy-decisions');
+
+    const QUESTIONS = [
+      { id: 'entry-shape',        title: 'Q1 · Entry-point shape' },
+      { id: 'risk-policy',        title: 'Q2 · Pre-state risk policy' },
+      { id: 'visibility-default', title: 'Q3 · Default visibility for new repos' },
+      { id: 'multi-host',         title: 'Q4 · Multi-host gh / GHE' },
+      { id: 'post-link',          title: 'Q5 · Post-link behavior' },
+    ];
+
+    function refreshCount() {
+      let answered = 0;
+      for (const q of QUESTIONS) {
+        if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+      }
+      const general = (document.querySelector('textarea[data-decision="general-notes"]')?.value || '').trim();
+      const totalParts = QUESTIONS.length + 1;
+      const answeredTotal = answered + (general ? 1 : 0);
+      counter.textContent = answeredTotal + ' / ' + totalParts;
+    }
+    document.addEventListener('change', refreshCount);
+    document.addEventListener('input', refreshCount);
+    refreshCount();
+
+    function buildPayload() {
+      const lines = [];
+      lines.push('ENH-154 LINK FOLDER TO GITHUB — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+      lines.push('=================================================================');
+      lines.push('');
+
+      for (const q of QUESTIONS) {
+        const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+        const value = checked ? checked.value : '(no pick)';
+        const notes = (document.querySelector('textarea[data-decision="' + q.id + '"]')?.value || '').trim();
+        lines.push('[' + value.toUpperCase() + '] ' + q.title);
+        if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+        lines.push('');
+      }
+
+      const general = (document.querySelector('textarea[data-decision="general-notes"]')?.value || '').trim();
+      if (general) {
+        lines.push('GENERAL COMMENTS / SHAPE PUSHBACK');
+        lines.push('----------------------------------');
+        for (const line of general.split('\n')) lines.push(line);
+        lines.push('');
+      }
+
+      lines.push('---');
+      lines.push('Source: docs/research/link-folder-to-repo.html');
+      return lines.join('\n');
+    }
+
+    button.addEventListener('click', async function () {
+      const payload = buildPayload();
+      try {
+        await navigator.clipboard.writeText(payload);
+        button.textContent = 'Copied!';
+        button.classList.add('copied');
+        setTimeout(function () {
+          button.textContent = 'Copy decisions';
+          button.classList.remove('copied');
+        }, 2000);
+      } catch (err) {
+        button.textContent = 'Copy failed';
+        console.error(err);
+      }
+    });
+  })();
+</script>
+
+</body>
+</html>

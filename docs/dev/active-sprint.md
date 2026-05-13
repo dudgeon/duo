@@ -17,6 +17,23 @@
 | [`f54f4b5`](https://github.com/dudgeon/duo/commit/f54f4b5) | **BUG-123 spike** (superseded by next commit) — Initial framing assumed A/B/C trade-offs that turned out to depend on assumed-correct current behavior | — |
 | [`2d868a6`](https://github.com/dudgeon/duo/commit/2d868a6) | **BUG-123 v1 fix** — Root cause: Duo never imported `prosemirror-tables/style/tables.css`; the `.selectedCell` decoration was rendering invisibly. Empirical grounding (after owner correction) found the missing import; 9-line CSS fix in `globals.css` paints the overlay with Duo accent at 18% opacity + position:relative on td/th. Cross-boundary drag-to-outside-table deferred behind v1 owner walk | Ship — owner AUQ pick (CSS only + Duo orange) |
 
+## Side branch — GitHub-integration planning (`claude/github-integration-planning-rPdVY`)
+
+**Status:** Parallel planning thread, NOT on main. Opened 2026-05-13 after ENH-149 closed + ENH-150 was filed. Owner answered a 4-feature AUQ (status overlay / clone / right-click GitHub menu + bounce-list / link folder to repo) picking all four; said "playground it first" for the link-folder-to-repo decision.
+
+| ID | Title | This-branch deliverable |
+|---|---|---|
+| **ENH-151** | `duo clone <url>` + File → Clone… modal | Promoted from sketch in tasks.md — full top-level entry with plumbing checklist; interim auth-missing UX defined (Doctor swap-in later) |
+| **ENH-152** | Navigator git status overlay (root chip first; per-file dots follow-up) | Promoted from sketch in tasks.md — sliced into ENH-152a (root chip) + ENH-152b follow-up; clean stays invisible per owner directive |
+| **ENH-154** | Link a local folder to a GitHub repo (new or existing) | Planning playground at [`../research/link-folder-to-repo.html`](../research/link-folder-to-repo.html); 5 owner decisions pending Copy-decisions paste-back |
+| **ENH-155** | Right-click GitHub menu (Open on GitHub + Copy GitHub URL) + bounce-list update | Filed; small surface (CLAUDE.md SSO bounce requirement bundled) |
+
+**Coding gate.** All four wait until owner walks ENH-154's playground AND the deferred Sprint 17 walk lands. Avoids piling new walk debt on top of v0.6.16's already-deferred close-out walk.
+
+**When the gate clears.** Sequence is probably ENH-152 root chip → ENH-155 → ENH-151 → ENH-154 (chip first because every other feature reads `git remote` / `git rev-parse`; a shared `core/git/` helper extracted from the chip work is a no-regrets refactor for the rest).
+
+---
+
 **Memories filed during Sprint 17:**
 
 - [`feedback_verify_current_behavior_before_proposing_fix.md`](../../memory/feedback_verify_current_behavior_before_proposing_fix.md) — don't claim what would be "lost" by a change based on how code SHOULD work; verify empirically first. Triggered by BUG-123 spike where I framed an A/B/C trade-off claiming "Option A loses in-table multi-cell drag" — owner caught: it doesn't work today, so there's nothing to lose. The fix turned out to be much simpler than the redesign I'd proposed.
@@ -38,9 +55,10 @@ When walk-time arrives, the smoke-walk manifest should cover:
 2. **ENH-147 v1** — ⌘-click multiple files in the navigator; verify each row paints with `bg-accent`; right-click one of the selected rows; verify menu shows "Move N items to Trash…"; click → batch trash + selection clears + parent dirs refresh.
 3. **ENH-143** — open `~/.claude/duo/packs/duo-default/canvases/what-duo-does.html` in canvas mode; search for "Close the active tab"; confirm entry 55b is present + reads coherently adjacent to entry 56's delete-file.
 4. **BUG-123 v1** — open a markdown file with a table; click into A1, drag to C2 mouse-up; verify orange-tinted overlay on cells A1+A2+B1+B2+C1+C2 (Apple-Numbers-style cell selection visual). Edge: drag from cell to text outside the table — selection collapses to a single cell (today's behavior; cross-boundary is deferred to v2).
-5. **ENH-146** — owner's confirmation that future playground generations actually inline the kernel + skip authoring the CSS block. Validated by the next playground I generate post-Sprint-17.
+5. **ENH-146** — owner's confirmation that future playground generations actually inline the kernel + skip authoring the CSS block. Validated by the next playground I generate post-Sprint-17. (ENH-154 playground in walk-item 8 is the first one — confirms the kernel-inline pattern works in practice.)
 6. **BUG-079 + ENH-084 v4 instrumentation** — both fire correctly when triggered; capture the streams when the bug surfaces. NO direct walk needed (passive instrumentation).
 7. **Carryover from v0.6.15:** owner's pending enterprise smoke on work machine — ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation. **This is the v0.6.15 carry-forward, not Sprint 17 work** — but flagged so the v0.6.16 cut waits on it too.
+8. **ENH-154 playground walk (off-Sprint-17, on side branch merged to main)** — `duo open docs/research/link-folder-to-repo.html`. Walk 5 decision cards (entry-point shape · pre-state risk policy · default visibility · multi-host gh · post-link behavior); decide each radio; add any general-comments. Hit **Copy decisions** and paste back. Gates coding on ENH-151 / ENH-152 / ENH-154 / ENH-155 (the GitHub-integration cluster). Also doubles as the ENH-146 kernel-inline validation per walk-item 5.
 
 ## Sprint 17 carry-forward (most likely Sprint 18 candidates)
 
