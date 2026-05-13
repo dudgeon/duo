@@ -218,6 +218,8 @@ export function composeManagedClaudeMdBlock(version: string): string {
     '## Duo workspace integration',
     '',
     'Duo (https://github.com/dudgeon/duo) is installed on this machine — a desktop app pairing Claude Code terminals with an embedded browser, file tree, markdown editor, and HTML canvas. When the user references Duo\'s surfaces ("the browser pane", "the editor", "what\'s selected", a `duo` CLI verb), reach for the **`duo` skill** at `~/.claude/skills/duo/SKILL.md` or delegate multi-step CLI sequences to the **`duo` subagent**. If a `duo` command hangs or returns `ECONNREFUSED`, see `~/.claude/skills/duo/references/sandbox-troubleshooting.md`. For enterprise / managed Claude Code installs (hooks disabled, restrictive permissions), see `~/.claude/skills/duo/references/enterprise-deployments.md`.',
+    '',
+    `*Auto-managed by Duo v${version}. Re-runs on every Duo install/upgrade; the version above is the source of truth for whether the latest block landed.*`,
     '<!-- duo:end -->'
   ].join('\n')
 }
