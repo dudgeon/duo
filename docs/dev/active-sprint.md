@@ -55,9 +55,10 @@ When walk-time arrives, the smoke-walk manifest should cover:
 2. **ENH-147 v1** — ⌘-click multiple files in the navigator; verify each row paints with `bg-accent`; right-click one of the selected rows; verify menu shows "Move N items to Trash…"; click → batch trash + selection clears + parent dirs refresh.
 3. **ENH-143** — open `~/.claude/duo/packs/duo-default/canvases/what-duo-does.html` in canvas mode; search for "Close the active tab"; confirm entry 55b is present + reads coherently adjacent to entry 56's delete-file.
 4. **BUG-123 v1** — open a markdown file with a table; click into A1, drag to C2 mouse-up; verify orange-tinted overlay on cells A1+A2+B1+B2+C1+C2 (Apple-Numbers-style cell selection visual). Edge: drag from cell to text outside the table — selection collapses to a single cell (today's behavior; cross-boundary is deferred to v2).
-5. **ENH-146** — owner's confirmation that future playground generations actually inline the kernel + skip authoring the CSS block. Validated by the next playground I generate post-Sprint-17.
+5. **ENH-146** — owner's confirmation that future playground generations actually inline the kernel + skip authoring the CSS block. Validated by the next playground I generate post-Sprint-17. (ENH-154 playground in walk-item 8 is the first one — confirms the kernel-inline pattern works in practice.)
 6. **BUG-079 + ENH-084 v4 instrumentation** — both fire correctly when triggered; capture the streams when the bug surfaces. NO direct walk needed (passive instrumentation).
 7. **Carryover from v0.6.15:** owner's pending enterprise smoke on work machine — ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation. **This is the v0.6.15 carry-forward, not Sprint 17 work** — but flagged so the v0.6.16 cut waits on it too.
+8. **ENH-154 playground walk (off-Sprint-17, on side branch merged to main)** — `duo open docs/research/link-folder-to-repo.html`. Walk 5 decision cards (entry-point shape · pre-state risk policy · default visibility · multi-host gh · post-link behavior); decide each radio; add any general-comments. Hit **Copy decisions** and paste back. Gates coding on ENH-151 / ENH-152 / ENH-154 / ENH-155 (the GitHub-integration cluster). Also doubles as the ENH-146 kernel-inline validation per walk-item 5.
 
 ## Sprint 17 carry-forward (most likely Sprint 18 candidates)
 
