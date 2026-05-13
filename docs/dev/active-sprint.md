@@ -17,6 +17,23 @@
 | [`f54f4b5`](https://github.com/dudgeon/duo/commit/f54f4b5) | **BUG-123 spike** (superseded by next commit) — Initial framing assumed A/B/C trade-offs that turned out to depend on assumed-correct current behavior | — |
 | [`2d868a6`](https://github.com/dudgeon/duo/commit/2d868a6) | **BUG-123 v1 fix** — Root cause: Duo never imported `prosemirror-tables/style/tables.css`; the `.selectedCell` decoration was rendering invisibly. Empirical grounding (after owner correction) found the missing import; 9-line CSS fix in `globals.css` paints the overlay with Duo accent at 18% opacity + position:relative on td/th. Cross-boundary drag-to-outside-table deferred behind v1 owner walk | Ship — owner AUQ pick (CSS only + Duo orange) |
 
+## Side branch — GitHub-integration planning (`claude/github-integration-planning-rPdVY`)
+
+**Status:** Parallel planning thread, NOT on main. Opened 2026-05-13 after ENH-149 closed + ENH-150 was filed. Owner answered a 4-feature AUQ (status overlay / clone / right-click GitHub menu + bounce-list / link folder to repo) picking all four; said "playground it first" for the link-folder-to-repo decision.
+
+| ID | Title | This-branch deliverable |
+|---|---|---|
+| **ENH-151** | `duo clone <url>` + File → Clone… modal | Promoted from sketch in tasks.md — full top-level entry with plumbing checklist; interim auth-missing UX defined (Doctor swap-in later) |
+| **ENH-152** | Navigator git status overlay (root chip first; per-file dots follow-up) | Promoted from sketch in tasks.md — sliced into ENH-152a (root chip) + ENH-152b follow-up; clean stays invisible per owner directive |
+| **ENH-154** | Link a local folder to a GitHub repo (new or existing) | Planning playground at [`../research/link-folder-to-repo.html`](../research/link-folder-to-repo.html); 5 owner decisions pending Copy-decisions paste-back |
+| **ENH-155** | Right-click GitHub menu (Open on GitHub + Copy GitHub URL) + bounce-list update | Filed; small surface (CLAUDE.md SSO bounce requirement bundled) |
+
+**Coding gate.** All four wait until owner walks ENH-154's playground AND the deferred Sprint 17 walk lands. Avoids piling new walk debt on top of v0.6.16's already-deferred close-out walk.
+
+**When the gate clears.** Sequence is probably ENH-152 root chip → ENH-155 → ENH-151 → ENH-154 (chip first because every other feature reads `git remote` / `git rev-parse`; a shared `core/git/` helper extracted from the chip work is a no-regrets refactor for the rest).
+
+---
+
 **Memories filed during Sprint 17:**
 
 - [`feedback_verify_current_behavior_before_proposing_fix.md`](../../memory/feedback_verify_current_behavior_before_proposing_fix.md) — don't claim what would be "lost" by a change based on how code SHOULD work; verify empirically first. Triggered by BUG-123 spike where I framed an A/B/C trade-off claiming "Option A loses in-table multi-cell drag" — owner caught: it doesn't work today, so there's nothing to lose. The fix turned out to be much simpler than the redesign I'd proposed.

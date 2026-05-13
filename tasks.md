@@ -5765,6 +5765,130 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-155: Right-click GitHub menu on FileTree + bounce-list update — "Open on GitHub" + "Copy GitHub URL"
+
+**Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "C+D" in the GitHub-integration cluster AUQ. Independent of ENH-150 (no Doctor / probe dependency). Ships in parallel with ENH-151 / ENH-152 / ENH-154.
+**Priority:** P2 — small surface, high "feels right" payoff. Half-day to a day.
+**Filed:** 2026-05-13.
+
+**What ships.**
+- **Right-click "Open on GitHub"** on folder rows + file rows in FileTree. Folder → `github.com/<owner>/<repo>/tree/<sha>/<rel-path>`. File → `github.com/<owner>/<repo>/blob/<sha>/<rel-path>` (with `#L<start>-L<end>` if a selection exists in the editor). Uses `shell.openExternal()` so the URL bounces through the system browser (matches CLAUDE.md SSO requirement).
+- **Right-click "Copy GitHub URL"** — same plumbing, writes URL to clipboard via `clipboard.writeText()`.
+- **`fork.config.default.json` bounce-list update** — add `github.com` + `*.github.com` to `externalDomains` so ANY github link clicked inside Duo's browser pane bounces system-browser-side (owner's SSO requirement; not just the menu entries).
+- Both menu entries hide / no-op when the folder isn't a tracked git repo with a GitHub remote (no remote → grey out + tooltip "Not a GitHub-tracked repo. Use Link to GitHub… first" pointing at ENH-154).
+
+**Plumbing checklist (CLAUDE.md § 4).** Touches: `renderer/components/FileTree.tsx` (context menu items), `electron/main.ts` (URL builder reads `git remote get-url origin` + `git rev-parse HEAD`), `shared/types.ts` (IPC channel), `electron/preload.ts` (renderer API), `electron/socket-server.ts` (CLI bridge), `cli/duo.ts` (`duo gh-open [path]` + `duo gh-url [path] [--line <n[-m]>]` for CLI parity), `skill/SKILL.md` + `agents/duo.md` verb cheat-sheet, `docs/CLI-COVERAGE.md`, `fork.config.default.json` externalDomains.
+
+**Dependencies.** None. Pairs naturally with ENH-152 (status overlay surfaces the remote chip; this menu opens / copies the URL). Pairs with ENH-154 (link first, then "Open on GitHub" lights up).
+
+**Cross-ref.** ENH-152 (status overlay) — both read `git remote` + `git rev-parse`; consider sharing a `git-repo-info` helper in `core/`. ENH-154 (link folder) — the modal's success state should hint "Open on GitHub" / "Copy URL" now work on this folder.
+
+---
+
+### ENH-154: Link a local folder to a GitHub repo (new or existing) — `duo gh-link` + "Link to GitHub…" modal
+
+**Status:** 🆕 Filed Sprint 17 (2026-05-13). Planning artifact at [`docs/research/link-folder-to-repo.html`](research/link-folder-to-repo.html). 5 owner decisions pending; coding gated on Copy-decisions paste-back.
+**Priority:** P1 for the GitHub-integration cluster — closes the "folder isn't on GitHub yet" gap. Pairs with ENH-151 (URL → folder direction; this is folder → URL).
+**Filed:** 2026-05-13.
+
+**Origin.** Owner ask 2026-05-13 during the GitHub-integration scoping AUQ: *"want command to link a local folder to a repo, either new or existing; not sure how this should work…"* → picked "playground it first" for the shape. The 4 use cases the playground enumerates: (U1) brand-new folder never on GitHub, (U2) folder + existing remote URL, (U3) local git repo without remote, (U4) distro pack publishing (crosses ENH-149 gh-auth path).
+
+**Two flows.**
+- **Flow A (new repo)** — `git init` → `git add . + commit` → `gh repo create --source=. --push`. Result: folder is now a tracked GitHub repo at `github.com/<owner>/<name>`.
+- **Flow B (connect to existing)** — `git init` → `git remote add origin <url>` → `git fetch origin` → conflict gate (remote-empty → push, remote-has-content + local-empty → pull, remote-has-content + local-has-content → confirm per Q2).
+
+**5 open decisions (owner walks playground, paste back):**
+- **Q1 · Entry-point shape** — single modal w/ new-vs-existing radio (recommended) / two separate menu items / CLI-first with thin modal wrapper.
+- **Q2 · Pre-state risk policy** — warn + confirm (recommended) / block + explain / plow ahead. Covers: already-a-git-repo, already-has-different-remote, has-uncommitted-changes.
+- **Q3 · Default visibility for new repos** — private (recommended) / public / no default (force pick).
+- **Q4 · Multi-host gh / GHE** — auto from `gh auth status` (recommended) / always github.com (defer GHE) / always show picker.
+- **Q5 · Post-link behavior** — auto-push + open in system browser (recommended) / auto-push only / link-only (user pushes manually).
+
+**Plumbing surface (CLAUDE.md § 4, sketch — firms up after decisions).**
+- `cli/duo.ts` — `duo gh-link [path]` verb. Flags shape depends on Q1.
+- `shared/types.ts` — `DuoCommandName` extension; IPC channel for link operation + pipeline-progress state snapshot.
+- `electron/main.ts` — IPC handler spawning gh / git child processes; File menu entry; pipeline-runner with cancel.
+- `electron/socket-server.ts` — CLI bridge case.
+- `electron/preload.ts` — renderer API for invoke + subscribe-to-progress.
+- `renderer/components/LinkRepoModal/` — new modal (form, pipeline preview, progress, success state).
+- `renderer/components/FileTree.tsx` — folder right-click "Link to GitHub…".
+- `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md` — verb registration.
+
+**Dependencies / cross-refs.**
+- **ENH-149** ✅ closed — gh auth probe; established detect→validate→guide→optionally run principle this feature inherits.
+- **ENH-150** — integration primitive (Doctor panel). gh-auth-missing case routes to Doctor; this feature consumes ENH-150a's `github` integration entry.
+- **ENH-151** — `duo clone`. Shares gh auth probe + bounce-list with this feature; complementary direction.
+- **ENH-152** — Navigator status overlay. Root chip immediately reflects linked state after success.
+- **ENH-155** — Right-click "Open on GitHub" / "Copy GitHub URL". Lights up on the just-linked folder.
+
+**Why a playground, not a markdown doc** (per CLAUDE.md § 11). Owner-decision-shaped artifact: 5 decisions × ~3 options + 6 pre-state cells + general comments. Modal mocks live next to the radios that shape them; decisions round-trip via Copy-decisions in one click.
+
+**Affected files (planning artifact only — this entry).** `docs/research/link-folder-to-repo.html` — the playground itself (atelier-styled, opens in browser pane via `duo open <path>`).
+
+**Trigger to close ENH-154.** Owner walks playground on a Mac (personal or work; the decisions don't depend on which), hits Copy decisions, pastes back. Claude synthesizes:
+1. Locks the 5 decisions into ENH-154 follow-on entries (or merges into this entry's "Final shape" section).
+2. Codes the modal + CLI verb + plumbing on `claude/github-integration-planning-rPdVY`.
+3. Smoke-walks alongside ENH-151 / ENH-152 / ENH-155 once the cluster lands.
+
+---
+
+### ENH-153: First-launch Doctor auto-open + status banner pattern (final shape per ENH-150 Q3)
+
+**Status:** 🆕 Sketched — depends on ENH-150 Q3 decision (auto-open / banner / passive). Will firm up after owner walks integration-primitive playground.
+**Priority:** P1 for FTUX once ENH-150 lands.
+**Filed:** 2026-05-13 (cross-ref from ENH-150).
+
+**What this is.** The first-launch posture for Duo when one of the active distro pack's `integrations[]` entries probes as `missing` AND is marked `required`. Three shapes on the table per ENH-150's Q3: auto-open the Doctor canvas tab / passive status banner with click-to-open / fully passive (rely on user to find Doctor via menu).
+
+**Cross-ref.** ENH-150 (parent — integration primitive playground).
+
+---
+
+### ENH-152: Navigator git status overlay — root chip + per-file dirty dots (owner-directive: clean stays invisible)
+
+**Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "A" in the GitHub-integration cluster AUQ. **Slice:** root chip first; per-file dots follow-up (per owner pick).
+**Priority:** P1 for ambient git visibility — "is this folder a repo?" + "is it clean?" answered without opening terminal.
+**Filed:** 2026-05-13. Promoted from sketch (was referenced in ENH-149 § cross-refs and ENH-150 cross-ref list).
+
+**Slice 1 — Root chip (this entry).**
+- FileTree root row gets a small chip next to the folder name:
+  - **Not a repo** → no chip (current behavior).
+  - **Clean + up-to-date with remote** → no chip (owner directive: clean stays invisible).
+  - **Dirty** → `main · modified` chip (orange `#c46a1c` accent matching atelier accent).
+  - **Diverged from remote** → `main · 2 ahead` / `main · 3 behind` / `main · 2↑ 1↓`.
+  - **Detached HEAD** → `(detached) · 3 modified` if dirty, otherwise no chip.
+- fsevents-driven refresh: watch `.git/HEAD`, `.git/index`, `.git/refs/remotes/origin/<branch>`. Throttle 300ms.
+- IPC: `git-status-root` snapshot push from main → renderer on change.
+
+**Slice 2 — Per-file dirty dots (follow-up entry).** Will file as ENH-152b when slice 1 ships. Same data source (`git status --porcelain=v2`); per-path dot in FileTree row.
+
+**Plumbing surface (CLAUDE.md § 4).** `core/git/` (new — repo-info reader; shared with ENH-155 URL builder), `electron/main.ts` (fsevents watcher + status reader), `shared/types.ts` (`GitRepoStatus` snapshot type + IPC channel), `electron/preload.ts` (renderer subscribe API), `renderer/components/FileTree.tsx` (chip render), `cli/duo.ts` (`duo git-status [path]` for CLI parity returning the same snapshot JSON), `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md`.
+
+**Independent of ENH-150** — no integration primitive / Doctor dependency. The chip just reads `.git/`; no probe runner involved.
+
+**Cross-ref.** ENH-149 (gh auth playground that surfaced this sketch). ENH-150 (parallel; not gating). ENH-151 (clone — once cloned, the chip immediately shows `main · clean`-less = no chip + branch tracked). ENH-154 (link — after link succeeds, chip reflects the new state). ENH-155 (right-click GitHub menu — both read `git remote` + `git rev-parse`; share `core/git/` helper).
+
+---
+
+### ENH-151: `duo clone <url>` + File → Clone… modal — wraps `gh repo clone`
+
+**Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "B" in the GitHub-integration cluster AUQ. Independent of ENH-150 sequencing (will route to Doctor if gh isn't authed, but doesn't block on Doctor landing first).
+**Priority:** P1 for the GitHub-integration cluster — completes the URL → folder direction (ENH-154 covers folder → URL).
+**Filed:** 2026-05-13. Promoted from sketch (was referenced in ENH-149 § cross-refs and ENH-150 cross-ref list).
+
+**What ships.**
+- **`duo clone <url> [<path>]`** CLI verb. Wraps `gh repo clone <url> <path>`; on success, opens the cloned folder in Duo's navigator via `duo open <path>`. If `gh` is missing or un-authed, prints a one-line pointer at the Doctor panel (per ENH-150's surfacing pattern) instead of a stacktrace.
+- **File → Clone…** menu entry. Modal: URL paste field + target path (defaults to `~/<repo-name>` derived from URL) + Clone button. Same routing-to-Doctor when gh isn't authed.
+- **Auth-missing UX (v1 interim, before ENH-150's Doctor panel lands):** modal shows a plain "Run `gh auth login --web` in a terminal, then re-open this dialog" pointer. ENH-150 Doctor swap is a tiny patch later — same modal, just opens Doctor instead of showing the text pointer.
+
+**Plumbing surface (CLAUDE.md § 4).** `cli/duo.ts` (clone verb), `shared/types.ts` (DuoCommandName + IPC channel + clone-progress snapshot), `electron/main.ts` (IPC handler spawning `gh repo clone` child process + open-in-navigator on success + menu entry), `electron/socket-server.ts` (CLI bridge), `electron/preload.ts` (renderer API), `renderer/components/CloneRepoModal/` (new modal), `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md`.
+
+**Dependencies.** Shares gh-auth probe with ENH-154 (consider a shared `core/gh-auth.ts` helper). No hard dependency on ENH-150 / ENH-150a landing first — interim "run `gh auth login --web`" pointer is good enough for v1 until Doctor swaps in.
+
+**Cross-ref.** ENH-149 ✅ closed (auth probe). ENH-150 (Doctor panel — modal points there once available). ENH-152 (status chip — visible the moment the clone finishes). ENH-154 (link — complementary direction). ENH-155 (right-click GitHub menu — available immediately after clone).
+
+---
+
 ### ENH-150: Integration primitive for distro packs — Doctor panel + probe runner + setup-chain walker
 
 **Status:** 🆕 Filed Sprint 17 (2026-05-13). v2 planning artifact at [`docs/research/integration-primitive-design.html`](research/integration-primitive-design.html). Supersedes the § 5 sketch in ENH-149's playground.
