@@ -50,6 +50,32 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
   var lastText = '';
   var timer = null;
 
+  // ENH-156a — hoisted so BOTH the pill-click handler and the
+  // selectionchange observer can populate selector_path. Previously
+  // the click handler emitted '' (line 125) because the function
+  // was scoped inside emit().
+  function selectorFor(el) {
+    if (!el || el.nodeType !== 1) return '';
+    var parts = [];
+    var cur = el;
+    while (cur && cur.nodeType === 1 && cur !== document.body) {
+      var s = cur.tagName.toLowerCase();
+      if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
+        s += '#' + cur.id;
+        parts.unshift(s);
+        break;
+      }
+      var parent = cur.parentNode;
+      if (parent && parent.children) {
+        var idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
+        if (idx > 0) s += ':nth-child(' + idx + ')';
+      }
+      parts.unshift(s);
+      cur = cur.parentNode;
+    }
+    return parts.join(' > ');
+  }
+
   // BUG-006 — in-page pill DOM. Lazily created on first emit() with a
   // selection. position:fixed; very high z-index so it sits above page
   // chrome. Pointer events are mousedown (matches the renderer-DOM
@@ -117,12 +143,10 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
             url: location.href,
             text: text,
             surrounding: surrounding,
-            // selector_path omitted — not needed for the send-payload
-            // formatter, and re-computing here would duplicate the
-            // observer's selectorFor() helper. Renderer's cached
-            // snapshot still has the path if anything downstream
-            // wants it.
-            selector_path: ''
+            // ENH-156a — populated so the renderer emits the
+            // selector provenance line. selectorFor is hoisted
+            // at the top of the IIFE.
+            selector_path: selectorFor(focus)
           };
         }
       }
@@ -210,27 +234,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
     }
     var surrounding = '';
     if (block && block.innerText) surrounding = String(block.innerText).slice(0, 1000);
-    function selectorFor(el) {
-      if (!el || el.nodeType !== 1) return '';
-      var parts = [];
-      var cur = el;
-      while (cur && cur.nodeType === 1 && cur !== document.body) {
-        var s = cur.tagName.toLowerCase();
-        if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
-          s += '#' + cur.id;
-          parts.unshift(s);
-          break;
-        }
-        var parent = cur.parentNode;
-        if (parent && parent.children) {
-          var idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
-          if (idx > 0) s += ':nth-child(' + idx + ')';
-        }
-        parts.unshift(s);
-        cur = cur.parentNode;
-      }
-      return parts.join(' > ');
-    }
+    // selectorFor is hoisted at the top of the IIFE (ENH-156a).
     lastText = text;
     try {
       window.duoSelectionPush(JSON.stringify({

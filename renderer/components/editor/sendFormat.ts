@@ -178,6 +178,30 @@ function browserProvenance(
   return snapshot.url
 }
 
+/**
+ * Wrap a surrounding-block string in a fenced code block tagged
+ * `context` so Claude can recognize the provenance. Uses 4-backtick
+ * fences so triple-backticks INSIDE the surrounding (markdown pages,
+ * code samples) round-trip cleanly — vanishingly rare to find 4+
+ * consecutive backticks in real prose. Trims trailing whitespace
+ * inside the fence so the closing line stays on its own row.
+ */
+function browserContextBlock(surrounding: string): string {
+  const body = surrounding.replace(/\s+$/, '')
+  return `\n\`\`\`\`context\n${body}\n\`\`\`\`\n`
+}
+
+/**
+ * ENH-156a — Format A v2: quoted selection + provenance, optionally
+ * followed by `> @ <selector_path>` and a fenced ```context``` block
+ * carrying the enclosing-block surrounding text. The snapshot's
+ * selector_path / surrounding fields are produced by the page-side
+ * observer in cdp-bridge.ts. Both extra lines are emitted only when
+ * the fields are present and non-empty, keeping the baseline shape
+ * intact for collapsed / synthetic selections that lack them. The
+ * `surrounding === text` short-circuit skips emitting the context
+ * block when the selection IS the whole block (no extra signal).
+ */
 function formatBrowserA(
   snapshot: BrowserSelectionSnapshot,
   ctx?: BrowserFormatContext
@@ -187,7 +211,16 @@ function formatBrowserA(
     .split('\n')
     .map((line) => `> ${line}`)
     .join('\n')
-  return `${quoted}\n> (${browserProvenance(snapshot, ctx)})\n`
+  let out = `${quoted}\n> (${browserProvenance(snapshot, ctx)})\n`
+  const selector = snapshot.selector_path?.trim()
+  if (selector) {
+    out += `> @ ${selector}\n`
+  }
+  const surrounding = snapshot.surrounding?.trim()
+  if (surrounding && surrounding !== text.trim()) {
+    out += browserContextBlock(surrounding)
+  }
+  return out
 }
 
 function formatBrowserB(snapshot: BrowserSelectionSnapshot): string {
