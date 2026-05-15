@@ -894,6 +894,22 @@ export class SocketServer {
           result = { target: focusResult.target ?? target }
           break
         }
+        case 'inspect': {
+          // ENH-156b — toggle / set element-inspect mode in the
+          // active browser pane. No arg → toggle; `off=true` → force
+          // off; `on=true` → force on. Returns the resulting state.
+          // While active, hover renders an outline + click ships a
+          // BrowserInspectSnapshot to the renderer, which formats it
+          // and writes the payload to the active terminal — same
+          // egress path as the Send → Duo pill.
+          let next: boolean | 'toggle'
+          if (args['off'] === true) next = false
+          else if (args['on'] === true) next = true
+          else next = 'toggle'
+          const active = this.browser.setInspectMode(next)
+          result = { active }
+          break
+        }
         case 'send': {
           const text = args['text'] as string
           if (typeof text !== 'string') throw new Error('send requires a text arg')

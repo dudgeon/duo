@@ -1247,6 +1247,26 @@ async function main(): Promise<void> {
         out(await send('layout', {}))
         break
       }
+      case 'inspect': {
+        // ENH-156b — toggle element-inspect mode in the active
+        // browser pane. No arg → toggle; --on / --off force a state.
+        // Mirrors Chrome devtools' Inspect Element (⌘⇧C inside Duo
+        // also fires this from the WCV via the keystroke forwarder).
+        //
+        //   duo inspect              # toggle
+        //   duo inspect --on         # force on
+        //   duo inspect --off        # force off
+        //
+        // While active, hover an element to outline it; click to ship
+        // its tag + selector + heading trail + innerText + key attrs
+        // to the active terminal as a structured paste. ESC exits
+        // without picking.
+        const on = rest.includes('--on')
+        const off = rest.includes('--off')
+        if (on && off) die('Usage: duo inspect [--on|--off]')
+        out(await send('inspect', { on, off }))
+        break
+      }
       case 'doctor':
         await runDoctor()
         break
@@ -1667,6 +1687,16 @@ COMMANDS
                                    Pairs with \`duo nav-state\` and
                                    \`duo dom\` as the third visibility
                                    verb.
+  inspect [--on|--off]            ENH-156b — element-inspect mode in the
+                                   active browser pane. No arg toggles;
+                                   --on / --off force. While active,
+                                   hover any element → orange outline;
+                                   click → ships tag + selector + heading
+                                   trail + innerText + key attrs to the
+                                   active terminal as a structured paste.
+                                   ESC exits without picking. Chord ⌘⇧C
+                                   inside the WCV is the keystroke
+                                   equivalent.
   text [--selector <css>]         Print visible text (or matched element text)
   ax [--selector <css>] [--format md|json]
                                   Accessibility tree (required for Google Docs

@@ -942,6 +942,15 @@ function setupIPC(): void {
     browserManager?.setOverlayMuted(payload.muted)
   })
 
+  // ENH-156b — element-inspect-mode toggle. Renderer calls this when the
+  // user fires ⌘⇧C (or, in a follow-up, clicks the toolbar toggle).
+  // Accepts a boolean or 'toggle' so the renderer doesn't need to read
+  // current state first. BrowserManager.setInspectMode pushes
+  // BROWSER_INSPECT_MODE back to the renderer with the new state.
+  ipcMain.on(IPC.BROWSER_INSPECT_SET_MODE, (_event, payload: { mode: boolean | 'toggle' }) => {
+    browserManager?.setInspectMode(payload.mode)
+  })
+
   // BUG-048 v3 — renderer-driven OS focus reclaim. The ⌘` toggle
   // computes its direction in the renderer first, then asks main to
   // pull OS focus from a WebContentsView (if needed) so a subsequent

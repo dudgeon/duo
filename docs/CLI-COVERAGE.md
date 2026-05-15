@@ -38,6 +38,7 @@ for the authoritative usage text.
 | `duo dom --js "<expr>"` | **ENH-122** — evaluate an arbitrary expression in the renderer scope. Distinct from `duo eval` (browser pane / CDP). |
 | `duo devtools [--browser-pane] [--close]` | **ENH-123** — open / close DevTools on the main renderer or active browser pane. |
 | `duo layout` | **ENH-124** — JSON snapshot of WorkingPane state (active tab kind/path, aux state, splitPct, focused subpane, navigatorCollapsed, tab counts). Third member of the visibility-tooling cluster (with `duo dom` + `duo nav-state`). |
+| `duo inspect [--on\|--off]` | **ENH-156b** — toggle element-inspect mode in the active browser pane. No arg toggles; `--on` / `--off` force a state. While active: hover an element → 2px orange outline + tag/dims tooltip; click → snapshot `{tag, selector_path, headingTrail, innerText, attrs}` shipped to active terminal as a structured paste; ESC exits without picking. Selection-pill suppressed (mode lock). Chord parity: ⌘⇧C inside WCV. |
 | `duo edit --reveal` / `duo open --reveal` / `duo view --reveal` | **ENH-130** — after open, auto-expand the working pane if collapsed (splitPct ≥ 75 → 50) + focus main. Use when the agent has just created an artifact for the user. Idempotent. |
 | `duo click <selector>` | Click element |
 | `duo fill <selector> <value>` | Set an input value |

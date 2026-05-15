@@ -2,10 +2,21 @@
 // page-side observer captured them. Tests pin the emitted shape so a
 // future Format-A change can't silently strip the DOM context that
 // Claude needs to know where the selection came from.
+//
+// ENH-156b — formatBrowserInspectPayload tests pin the inspect-mode
+// paste shape (tag/headline + heading trail + selector + attrs +
+// fenced innerText block). Different signal than the selection
+// formatter: addressable unit is an element, not a text range.
 
 import { describe, it, expect } from 'vitest'
-import { formatBrowserSendPayload } from './sendFormat'
-import type { BrowserSelectionSnapshot } from '@shared/types'
+import {
+  formatBrowserSendPayload,
+  formatBrowserInspectPayload
+} from './sendFormat'
+import type {
+  BrowserSelectionSnapshot,
+  BrowserInspectSnapshot
+} from '@shared/types'
 
 const baseSnap: BrowserSelectionSnapshot = {
   kind: 'browser',
@@ -122,5 +133,121 @@ describe('formatBrowserSendPayload — Format B (unchanged)', () => {
       surrounding: 'big surrounding block'
     }
     expect(formatBrowserSendPayload(snap, 'b')).toBe('selected text ')
+  })
+})
+
+describe('formatBrowserInspectPayload — Format A (ENH-156b)', () => {
+  const baseInspect: BrowserInspectSnapshot = {
+    kind: 'inspect',
+    url: 'https://example.com/article',
+    pageTitle: 'Article',
+    tag: 'button',
+    selector_path: 'html > body > form > button:nth-child(3)',
+    headingTrail: ['Sign up', 'Step 2'],
+    innerText: 'Continue',
+    attrs: {
+      id: 'submit',
+      role: 'button',
+      'aria-label': 'Continue'
+    }
+  }
+
+  it('emits headline with tag + #id + provenance', () => {
+    const out = formatBrowserInspectPayload(baseInspect, 'a')
+    expect(out).toContain('> <inspect> button#submit  @ https://example.com/article — "Article"')
+  })
+
+  it('emits the heading trail line when present', () => {
+    const out = formatBrowserInspectPayload(baseInspect, 'a')
+    expect(out).toContain('> section: Sign up > Step 2\n')
+  })
+
+  it('skips heading-trail line when trail is empty', () => {
+    const snap = { ...baseInspect, headingTrail: [] }
+    const out = formatBrowserInspectPayload(snap, 'a')
+    expect(out).not.toContain('> section:')
+  })
+
+  it('emits selector line', () => {
+    const out = formatBrowserInspectPayload(baseInspect, 'a')
+    expect(out).toContain('> selector: html > body > form > button:nth-child(3)\n')
+  })
+
+  it('skips selector line when selector_path empty', () => {
+    const snap = { ...baseInspect, selector_path: '' }
+    const out = formatBrowserInspectPayload(snap, 'a')
+    expect(out).not.toContain('> selector:')
+  })
+
+  it('emits attrs line excluding id (id is on the headline)', () => {
+    const out = formatBrowserInspectPayload(baseInspect, 'a')
+    expect(out).toContain('> attrs: ')
+    expect(out).toContain('role="button"')
+    expect(out).toContain('aria-label="Continue"')
+    // id is rendered in the headline, not the attrs line
+    const attrsLine = out.split('\n').find((l) => l.startsWith('> attrs:'))!
+    expect(attrsLine).not.toContain('id=')
+  })
+
+  it('skips attrs line when no attrs (besides id)', () => {
+    const snap = { ...baseInspect, attrs: { id: 'submit' } }
+    const out = formatBrowserInspectPayload(snap, 'a')
+    expect(out).not.toContain('> attrs:')
+  })
+
+  it('emits fenced ```text``` block carrying innerText', () => {
+    const out = formatBrowserInspectPayload(baseInspect, 'a')
+    expect(out).toContain('````text\n')
+    expect(out).toContain('Continue')
+    expect(out).toMatch(/````\n$/)
+  })
+
+  it('skips fenced block when innerText empty/whitespace', () => {
+    const snap = { ...baseInspect, innerText: '   ' }
+    const out = formatBrowserInspectPayload(snap, 'a')
+    expect(out).not.toContain('````')
+  })
+
+  it('headline omits #id when not present', () => {
+    const snap = { ...baseInspect, attrs: { role: 'button' } }
+    const out = formatBrowserInspectPayload(snap, 'a')
+    expect(out).toMatch(/> <inspect> button  @ /)
+    expect(out).not.toContain('button#')
+  })
+
+  it('headline omits title quote when pageTitle missing', () => {
+    const snap = { ...baseInspect, pageTitle: undefined }
+    const out = formatBrowserInspectPayload(snap, 'a')
+    expect(out).toContain('@ https://example.com/article\n')
+    expect(out).not.toContain('— "')
+  })
+
+  it('full shape — headline + trail + selector + attrs + fenced text', () => {
+    const out = formatBrowserInspectPayload(baseInspect, 'a')
+    expect(out).toBe(
+      '> <inspect> button#submit  @ https://example.com/article — "Article"\n' +
+      '> section: Sign up > Step 2\n' +
+      '> selector: html > body > form > button:nth-child(3)\n' +
+      '> attrs: role="button", aria-label="Continue"\n' +
+      '\n' +
+      '````text\n' +
+      'Continue\n' +
+      '````\n'
+    )
+  })
+})
+
+describe('formatBrowserInspectPayload — Format B', () => {
+  it('emits innerText + trailing space', () => {
+    const snap: BrowserInspectSnapshot = {
+      kind: 'inspect',
+      url: 'https://example.com',
+      tag: 'p',
+      selector_path: 'p',
+      headingTrail: [],
+      innerText: 'hello world',
+      attrs: {}
+    }
+    expect(formatBrowserInspectPayload(snap, 'b')).toBe('hello world ')
   })
 })

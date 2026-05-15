@@ -9,7 +9,7 @@ import { useBrowserState } from '../hooks/useBrowserState'
 import { useBrowserSelection } from '../hooks/useBrowserSelection'
 import { useSelectionFormat } from '../hooks/useSelectionFormat'
 import { SendToDuoPill, type PillAnchorRect } from './editor/primitives/SendToDuoPill'
-import { formatBrowserSendPayload } from './editor/sendFormat'
+import { formatBrowserSendPayload, formatBrowserInspectPayload } from './editor/sendFormat'
 import type { BrowserFindResult } from '@shared/types'
 
 interface BrowserRendererProps {
@@ -106,6 +106,33 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
       handleSendToDuoClick(snapshot)
     })
   }, [handleSendToDuoClick])
+
+  // ENH-156b — subscribe to inspect-mode element clicks. Page-side
+  // INSPECT_OBSERVER_IIFE captures the snapshot when the user clicks
+  // an outlined element while inspect mode is active; the snapshot
+  // arrives here via the duoInspectClick binding → BrowserManager
+  // IPC. We format it (carries the page title from BrowserState into
+  // the provenance line, same as the selection formatter) and ship
+  // to the active terminal — same egress path as the Send → Duo
+  // pill. `null` = ESC was pressed; just no-op (the page-side IIFE
+  // also flips inspect mode off in that case).
+  useEffect(() => {
+    if (!onSendToDuo) return
+    const subscribe = window.electron.browser.onInspectClick
+    if (typeof subscribe !== 'function') {
+      console.warn('[BrowserRenderer] window.electron.browser.onInspectClick missing — preload likely stale; restart Electron to enable inspect mode.')
+      return
+    }
+    return subscribe((snapshot) => {
+      if (!snapshot) return
+      const withTitle: import('@shared/types').BrowserInspectSnapshot = {
+        ...snapshot,
+        pageTitle: snapshot.pageTitle ?? state.title ?? undefined
+      }
+      const payload = formatBrowserInspectPayload(withTitle, selectionFormat)
+      onSendToDuo(payload)
+    })
+  }, [onSendToDuo, selectionFormat, state.title])
 
   // Stage 15.3 — ⌘D listener. Same shape as MarkdownEditor + PageTab.
   // Browser pane is mounted whenever activeWorking.kind === 'browser';

@@ -19,6 +19,7 @@
 import type {
   MarkdownSelectionSnapshot,
   BrowserSelectionSnapshot,
+  BrowserInspectSnapshot,
   PageSelectionSnapshot,
   SelectionFormat
 } from '@shared/types'
@@ -235,6 +236,82 @@ export function formatBrowserSendPayload(
   switch (format) {
     case 'a': return capLength(formatBrowserA(snapshot, ctx))
     case 'b': return capLength(formatBrowserB(snapshot))
+    case 'c': return formatC()
+  }
+}
+
+// ── Browser inspect variant (ENH-156b) ─────────────────────────────────────
+
+/**
+ * ENH-156b — Format-A inspect payload. The user clicked an element
+ * while inspect mode was active; the page-side IIFE captured the
+ * shape (tag + selector + heading trail + innerText + key attrs) and
+ * shipped it to the renderer. Here we render it as a structured
+ * paste the agent can read at a glance:
+ *
+ *     > <inspect> button#submit  @ https://example.com — "Form Page"
+ *     > section: Sign up > Step 2
+ *     > selector: html > body > form > button:nth-child(3)
+ *     > attrs: id=submit, role=button, aria-label="Continue"
+ *     ````text
+ *     Continue
+ *     ````
+ *
+ * The fenced block carries `innerText` so multi-line content survives
+ * intact (button labels are usually short; rich text blocks the user
+ * picks may be 100s of words). Same 4-backtick fence the selection
+ * formatter uses, for the same reason (triple-backticks inside the
+ * captured text should round-trip).
+ */
+function formatInspectA(snapshot: BrowserInspectSnapshot): string {
+  const lines: string[] = []
+  const tag = snapshot.tag || 'element'
+  const id = snapshot.attrs['id'] ? `#${snapshot.attrs['id']}` : ''
+  const title = snapshot.pageTitle?.trim()
+  const provenance = title ? `${snapshot.url} — "${title}"` : snapshot.url
+  lines.push(`> <inspect> ${tag}${id}  @ ${provenance}`)
+  if (snapshot.headingTrail && snapshot.headingTrail.length > 0) {
+    lines.push(`> section: ${snapshot.headingTrail.join(' > ')}`)
+  }
+  if (snapshot.selector_path) {
+    lines.push(`> selector: ${snapshot.selector_path}`)
+  }
+  const attrPairs: string[] = []
+  for (const [k, v] of Object.entries(snapshot.attrs)) {
+    if (k === 'id') continue // already on the headline
+    attrPairs.push(`${k}=${JSON.stringify(v)}`)
+  }
+  if (attrPairs.length > 0) {
+    lines.push(`> attrs: ${attrPairs.join(', ')}`)
+  }
+  let out = lines.join('\n') + '\n'
+  const text = snapshot.innerText?.trim()
+  if (text) {
+    out += `\n\`\`\`\`text\n${text}\n\`\`\`\`\n`
+  }
+  return out
+}
+
+function formatInspectB(snapshot: BrowserInspectSnapshot): string {
+  // Format B — terse: just the innerText with a trailing space so
+  // the agent can append a verb without backspacing. Matches the
+  // selection-side Format B contract.
+  return (snapshot.innerText || '') + ' '
+}
+
+/**
+ * ENH-156b — entry point parallel to formatBrowserSendPayload, used
+ * by BrowserRenderer when an inspect-click snapshot lands. Honors
+ * the same SelectionFormat toggle (a / b / c) so the agent's
+ * runtime preference applies to both flows.
+ */
+export function formatBrowserInspectPayload(
+  snapshot: BrowserInspectSnapshot,
+  format: SelectionFormat
+): string {
+  switch (format) {
+    case 'a': return capLength(formatInspectA(snapshot))
+    case 'b': return capLength(formatInspectB(snapshot))
     case 'c': return formatC()
   }
 }
