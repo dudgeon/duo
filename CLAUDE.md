@@ -653,26 +653,28 @@ routed around ad hoc.
 
 **v0.6.14 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) — Sprint 16 commits 1+2: enterprise hotfix. **ENH-141** install-path hardening — `duo` CLI reaches PTY $PATH inside Duo terminals + Claude Code sandboxes (SHIM_DIR target `~/.claude/duo/bin/duo`); **BUG-121** closing the last browser tab no longer respawns about:blank in a loop.
 
-**Sprint 17 / v0.7.0 owner walk owed (gates the cut):**
+**Sprint 17 / v0.7.0 owner walk owed (gates the cut).** See the **explicit walk doc at [`docs/dev/walks/v0.7.0-walk.md`](docs/dev/walks/v0.7.0-walk.md)** for plain-English descriptions, exact repro steps, expected-pass criteria, and failure-mode notes for each of the 18 items. Summary of what's in scope:
 
-| Test | What to verify |
-|---|---|
-| ENH-144 close-tab focus | Open tabs A B C → activate B → close B → A activates (NOT C, NOT browser) |
-| ENH-147 v1 multi-select | ⌘-click multiple files → each highlights → right-click → "Move N items to Trash…" → confirm batch trashes + clears selection |
-| ENH-143 discoverability | Open what-duo-does.html → find entry 55b "Close the active tab with ⌘W" → reads coherently next to entry 56's ⌘⇧⌫. Now also names `duo close-tab` + `duo close-terminal-tab` (FOLLOWUP-020 close-out). |
-| BUG-123 v1 cell selection | Markdown file w/ table → drag from A1 to C2 → orange overlay on spanned cells (Apple Numbers / Notion style) |
-| BUG-079 + ENH-084 v4 instrumentation | Passive — capture event streams when the bug surfaces / during a click-around walk |
-| ENH-156 verb-split (HTML default routing) | `duo open <html>` → browser pane; `duo edit <html>` → canvas mode; meta declaration no longer consulted |
-| BUG-125 watcher symlink fix | `/tmp/foo.md` edits propagate to the open canvas/editor (4 sub-tests covering clean / dirty × HTML / markdown × symlinked / non-symlinked) |
-| ENH-158 boot CLI shim self-heal | `~/.claude/duo/bin/duo` recreated on every app boot; check `~/.claude/duo/logs/install-shim.log` for activity |
-| ENH-159 browser DOM-context send | Select page text in browser pane → Send → Duo → quoted text + selector_path + heading trail + capped surrounding land in active terminal. Inspect mode (⌘⇧C) outlines + click-selects. |
-| ENH-160 .pkg installer | macOS-only: `bash scripts/build-pkg.sh --pack examples/distro-pack-template/` → opens in Installer → drops pack into `~/.claude/duo/extra-packs/<pack-name>/` |
-| **ENH-152a git status chip** | Open a dirty repo in Navigator → chip "branch · modified" appears above tree; switch to clean repo → chip hides; cycle: add commit unpushed → "branch · 1 ahead" |
-| **ENH-151 clone CLI** | `duo clone https://github.com/dudgeon/duo /tmp/duo-clone-test` succeeds. `duo clone owner/private-repo --json` returns `{ ok:false, errorKind: 'auth-missing' }` when gh isn't logged in. `duo gh-auth` returns JSON snapshot. |
-| **FOLLOWUP-025 Clone modal** | `⌘⇧K` opens the Clone modal; paste URL + adjust parent dir + Clone → success banner + Navigator jumps to the new folder. Auth-missing banner shows when `gh auth status` reports no session. |
-| **FOLLOWUP-020 close-tab CLI** | `duo close-tab` closes the focused working-pane tab (parity with ⌘W); `duo close-terminal-tab 2` closes the 2nd terminal tab. Pinned-tab gating still surfaces the Cancel / Close-anyway dialog. |
-| **BUG-124 logs-dir mkdir** | `~/.claude/duo/logs/` exists after a fresh app boot; dev-stderr no longer floods with `ENOENT: rename last-conflict.log.duo.tmp → last-conflict.log` on conflict-banner repros |
-| **v0.6.15 enterprise smoke (carry-forward)** | ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation on owner's work machine. Separate gate from Sprint 17 walk but blocks v0.7.0 cut. |
+| # | ID | One-line summary | Where |
+|---|---|---|---|
+| 1 | ENH-144 | Close-tab focus shifts to LEFT-neighbor file tab | on main |
+| 2 | ENH-147 v1 | Navigator ⌘-click multi-select + batch trash | on main |
+| 3 | ENH-143 | ⌘W entry 55b in what-duo-does.html (+ new CLI verbs) | on main |
+| 4 | BUG-123 v1 | Markdown table cell selection paints orange | on main |
+| 5 | BUG-079 + ENH-084 v4 | Passive instrumentation (no behavior change) | on main |
+| 6 | ENH-156 | HTML verb-split: `duo open`→browser, `duo edit`→canvas | on main |
+| 7 | BUG-125 | Watcher reload on symlinked paths (/tmp/foo) | **PR #49** |
+| 8 | ENH-158 | Boot-time CLI shim self-heal at `~/.claude/duo/bin/duo` | **PR #52** |
+| 9 | ENH-159 | Browser send carries DOM context + ⌘⇧C inspect mode | **PR #51** |
+| 10 | ENH-160 | `scripts/build-pkg.sh` .pkg installer for distro packs | **PR #50** |
+| 11 | ENH-152a | Navigator git status root chip (clean stays invisible) | on main |
+| 12 | ENH-151 | `duo clone`, `duo gh-auth`, `duo git-status` CLI verbs | on main |
+| 13 | FOLLOWUP-025 | `⌘⇧K` File→Clone… modal (UI for ENH-151) | on main |
+| 14 | FOLLOWUP-020 | `duo close-tab` + `duo close-terminal-tab` CLI | on main |
+| 15 | BUG-124 | `~/.claude/duo/logs/` mkdir-p at boot | on main |
+| 16 | v0.6.15 enterprise smoke | ENH-141 + BUG-119 on owner's work machine | carry-forward |
+| 17 | ENH-154 playground | 5 owner decisions on `duo gh-link` shape | gates ENH-154 |
+| 18 | ENH-150 playground | 4 owner decisions on Doctor panel framework | gates ENH-150 |
 
 **Carry-forward to Sprint 18 (post-walk):**
 
