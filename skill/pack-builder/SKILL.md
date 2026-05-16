@@ -170,17 +170,51 @@ no signing.
 
 ### Path 2 — `.pkg` installer (corporate IT, polished UX)
 
+Build a macOS Installer `.pkg` that bundles the canonical signed
+`Duo.app` (copied from `/Applications/Duo.app` on the build machine —
+the inner code signature + notarization travel intact inside the
+payload) plus the pack folder. A postinstall script in the `.pkg`
+drops the pack into the installing user's
+`~/.claude/duo/extra-packs/<pack-name>/`, and Duo's install service
+picks it up on next launch.
+
+The `scripts/build-pkg.sh` wrapper handles `pkgbuild` + `productbuild`:
+
 ```bash
-# (deferred — pack-builder pkg flow lands in a follow-up sprint.)
-# Manual recipe meanwhile:
-#   1. Download canonical Duo.app from upstream releases (unmodified,
-#      signature intact).
-#   2. Bundle Duo.app + your pack folder into a .pkg with productbuild.
-#   3. Sign the .pkg with your distro's Developer ID Installer cert.
-#   4. (Optional) Notarize with notarytool.
-# .pkg postinstall script copies Duo.app to /Applications + drops
-# the pack into ~/.claude/duo/extra-packs/<distro-name>/.
+# 1. Install the canonical signed Duo DMG on the build machine so
+#    /Applications/Duo.app is what you want to bundle.
+# 2. From the Duo repo root:
+bash scripts/build-pkg.sh --pack ~/Documents/<pack-name>/
+# 3. Output lands in dist/<pack-name>-<pack-version>-installer.pkg.
 ```
+
+Flags (see `bash scripts/build-pkg.sh --help`):
+
+- `--pack <dir>` (required) — pack folder; reads name + version from
+  `.claude-plugin/plugin.json`.
+- `--output <path>` — override default output location.
+- `--identifier <rdns>` — package identifier; default
+  `com.duo.distro.<pack-name>.installer`.
+- `--sign-identity <name>` — Developer ID **Installer** cert common
+  name. Omit for an unsigned `.pkg`.
+- `--duo-app <path>` — source `Duo.app` if not at the default
+  `/Applications/Duo.app` (e.g. forks with a renamed bundle).
+
+**Signed vs. unsigned `.pkg`.** The `.pkg`'s own signature is
+independent of the inner `Duo.app`'s signature. Without
+`--sign-identity` the produced `.pkg` is unsigned: Gatekeeper will
+warn at install (`"unidentified developer"`), but right-click → Open
+bypasses on a personal Mac and MDM-managed installs (Jamf / Munki /
+Kandji) typically bypass Gatekeeper anyway. The inner `Duo.app`
+remains signed + notarized regardless, so Gatekeeper is happy at app
+launch every time. Producing an unsigned `.pkg` is the normal path
+when the build machine can't get a Developer ID Installer cert.
+
+**Notarization.** Not supported by an unsigned `.pkg`. If you have
+the Installer cert, sign with `--sign-identity` then notarize
+manually with `xcrun notarytool submit <pkg> --apple-id ... --wait`
+followed by `xcrun stapler staple <pkg>`. Not wrapped by this script
+because notarization credential management is org-specific.
 
 ### Path 3 — Fork + compile (early-adopter / pre-DMG-approval)
 

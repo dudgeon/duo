@@ -5842,6 +5842,51 @@ Verified the gap empirically:
 
 ---
 
+### ENH-160: `scripts/build-pkg.sh` — Path-1 `.pkg` installer wrapper (closes Stage 21d-ii deferral)
+
+**Status:** ✅ Shipped on branch `claude/enterprise-github-setup-ldT7t` (2026-05-15). Closes the deferral at `skill/pack-builder/SKILL.md:174` ("deferred — pack-builder pkg flow lands in a follow-up sprint.") scoped originally in `docs/prd/stage-21d-distro-packs.md:479-484`.
+**Priority:** P1 — unblocks Geoff's at-work enterprise distribution (signed DMG-approved environment where pack distribution via `.pkg` is the natural fit; no Developer ID Installer cert available, so unsigned `.pkg` is the target shape).
+**Filed:** 2026-05-15.
+
+**Origin.** Geoff got at-work approval to run the signed Duo DMG and asked: "how do I bundle Duo + our pack content for internal distribution?" — recalled that Path 1 (`.pkg` installer) was the preferred shape from the Stage 21d PRD but couldn't remember if the build-pkg automation shipped (it hadn't). Decided to build it now on the enterprise-setup branch.
+
+**What ships.**
+- New shell script at [`scripts/build-pkg.sh`](scripts/build-pkg.sh) — wraps `pkgbuild` + `productbuild` (+ optional `productsign`) into a single command.
+- Bundles canonical signed `Duo.app` from `/Applications/Duo.app` on the build machine (the inner code signature + notarization travel intact inside the payload via `ditto`).
+- Bakes a postinstall script that resolves the installing user via `stat -f "%Su" /dev/console` + `dscl . -read /Users/<u> NFSHomeDirectory`, then `cp -R` + `chown` the pack into `$HOME/.claude/duo/extra-packs/<pack-name>/` where Duo's install service discovers it on next launch.
+- Pre-build sanity check via `codesign --verify --deep --strict` on the staged `Duo.app` — fails-soft (warns, continues) if signature didn't survive ditto (rare) or source is a dev build (intentional).
+- Atomic-replace semantics: postinstall `rm -rf` any prior `<pack-name>/` directory before placing the new one (Duo's install service does its own atomic-replace too on name+version change, but clearing here keeps `extra-packs/` clean).
+- Default output `dist/<pack-name>-<pack-version>-installer.pkg`; overridable via `--output`.
+
+**Flags.**
+- `--pack <dir>` (required) — reads `name` + `version` from `<pack-dir>/.claude-plugin/plugin.json`.
+- `--output <pkg-path>` — override default location.
+- `--identifier <rdns>` — override default `com.duo.distro.<pack-name>.installer`.
+- `--sign-identity <name>` — Developer ID **Installer** cert common name; omit for unsigned `.pkg` (the normal path for shops without an Installer cert).
+- `--duo-app <path>` — override `/Applications/Duo.app` source (forks with renamed bundles).
+
+**Signing semantics.** The `.pkg`'s own signature is independent of the inner `Duo.app`'s. Without `--sign-identity` the `.pkg` is unsigned: Gatekeeper warns at install time but (a) right-click → Open bypasses on a personal Mac, (b) MDM-managed installs typically bypass Gatekeeper anyway, (c) the inner signed+notarized `Duo.app` keeps Gatekeeper happy at every app launch post-install. **Notarization** of the `.pkg` is not wrapped (requires `xcrun notarytool` + org-specific Apple ID credentials); doc points users at the manual `notarytool submit … && stapler staple` recipe if their org has the Installer cert.
+
+**Doc updates.**
+- [`skill/pack-builder/SKILL.md`](skill/pack-builder/SKILL.md) § Path 2 — replaced the "deferred" stub with concrete `scripts/build-pkg.sh` instructions + signing semantics + notarization handoff.
+- [`distro-pack-builder/playground.md`](distro-pack-builder/playground.md) § Step 9 § Path 1 — made the aspirational `walk the build-pkg step` reference real, points at the script.
+
+**Plumbing checklist (CLAUDE.md § 4).** No `duo` CLI verb added — pack-building is a developer-tool workflow exposed via the pack-builder skill, not an end-user feature. Pattern matches the existing `pack-builder` skill (validate / build-zip / version-bump are all skill-driven, no `duo` counterparts). If owner-feedback wants CLI parity later, the natural verb would be `duo pack build <pack-dir> --kind pkg`. Sketched below as a future filing.
+
+**Smoke-walk owed (Mac-only — can't run pkgbuild on the dev environment).**
+1. On Mac with signed Duo.app at `/Applications/Duo.app`: `bash scripts/build-pkg.sh --pack examples/distro-pack-template/`. Expect `dist/duo-distro-pack-template-1.0.0-installer.pkg` to land (~150MB — most of that is Duo.app).
+2. Double-click the produced `.pkg`. Expect Gatekeeper "unidentified developer" warning. Right-click → Open. Walk the Installer flow.
+3. Verify `/Applications/Duo.app` is installed (or replaced if pre-existing).
+4. Verify `~/.claude/duo/extra-packs/duo-distro-pack-template/` exists + is owned by the installing user.
+5. Launch Duo. Verify the template's example skill + agent show up in the discovery sweep (or in `duo pack list`).
+6. Test atomic-replace: bump the template's plugin.json version to 1.0.1, rebuild, reinstall. Verify `extra-packs/duo-distro-pack-template/` is replaced (not duplicated).
+
+**Cross-ref.** Stage 21d-ii (`docs/prd/stage-21d-distro-packs.md`) — original scope. `electron/distro-pack-service.ts` — the install-service that consumes the dropped pack. CLAUDE.md "Locked decisions" → Distribution / cert row → Stage 21d ✅ → now plumbing-complete for Path 1.
+
+**Followup if surfaced.** Sketched CLI verb (not filed): `duo pack build <pack-dir> --kind pkg|zip` wrapping `scripts/build-pkg.sh` + the existing zip recipe. File only if a real builder requests it; for now the skill is the canonical entry point.
+
+---
+
 ### ENH-155: Right-click GitHub menu on FileTree + bounce-list update — "Open on GitHub" + "Copy GitHub URL"
 
 **Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "C+D" in the GitHub-integration cluster AUQ. Independent of ENH-150 (no Doctor / probe dependency). Ships in parallel with ENH-151 / ENH-152 / ENH-154.

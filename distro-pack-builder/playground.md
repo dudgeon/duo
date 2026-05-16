@@ -286,13 +286,30 @@ Three artifact shapes (pick one or build several):
 ### `.pkg` installer (path 1 — IT mass-deploy)
 
 Best for: corporate platform teams shipping to a Mac fleet via
-Jamf / Munki / Kandji. Users don't unzip; the pkg writes the
-pack to `~/.claude/duo/extra-packs/<name>/` directly.
+Jamf / Munki / Kandji. Users don't unzip; the `.pkg` bundles
+`Duo.app` + your pack and the postinstall script writes the pack
+to `~/.claude/duo/extra-packs/<name>/` directly.
 
-In Claude Code with `/pack-builder` open, walk the **build-pkg**
-step. Output is a signed `.pkg` (you supply the Developer ID
-Installer cert; or unsigned `.pkg` if your IT tool is configured
-to trust unsigned).
+```bash
+# From the Duo repo root, with the canonical signed Duo.app already
+# installed at /Applications/Duo.app on this build machine:
+bash scripts/build-pkg.sh --pack ~/Documents/<your-pack-dir>/
+# → dist/<pack-name>-<pack-version>-installer.pkg
+```
+
+The wrapper script handles `pkgbuild` + `productbuild` and bakes a
+postinstall script that drops the pack into the installing user's
+`~/.claude/duo/extra-packs/<pack-name>/`. The inner `Duo.app`'s
+signature + notarization travel intact inside the payload, so once
+installed Gatekeeper is satisfied at every app launch.
+
+If your org has a Developer ID **Installer** cert, pass
+`--sign-identity "Developer ID Installer: ..."` to produce a signed
+`.pkg`. Without that flag the `.pkg` itself is unsigned —
+Gatekeeper warns at install time but right-click → Open bypasses
+on a personal Mac and MDM-managed installs typically bypass
+Gatekeeper anyway. See `bash scripts/build-pkg.sh --help` and
+`skill/pack-builder/SKILL.md § Path 2` for the full flag list.
 
 ### Drop-in zip (path 2 — manual install)
 

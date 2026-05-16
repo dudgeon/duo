@@ -18,6 +18,20 @@
 | [`2d868a6`](https://github.com/dudgeon/duo/commit/2d868a6) | **BUG-123 v1 fix** — Root cause: Duo never imported `prosemirror-tables/style/tables.css`; the `.selectedCell` decoration was rendering invisibly. Empirical grounding (after owner correction) found the missing import; 9-line CSS fix in `globals.css` paints the overlay with Duo accent at 18% opacity + position:relative on td/th. Cross-boundary drag-to-outside-table deferred behind v1 owner walk | Ship — owner AUQ pick (CSS only + Duo orange) |
 | _(pending sha)_ | **ENH-156** — HTML verb-split: `duo open <html>` → browser pane (interactive default); `duo edit <html>` → canvas mode (source-editable). Renderer's `openFileSmart` strips the `<meta duo-open-in>` consultation; CLI adds `--canvas` override for open + `--browser` override for edit; server passes mode through nav.edit. ENH-157 filed as the prioritized follow-up (browser-pane comment support — `duo html comment` currently canvas-only, surfaced by the new default). Doc sweep across CLAUDE.md / vocabulary.md / make-page.md / make-playground.md / SKILL.md / agents/duo.md / CLI-COVERAGE.md | Ship — owner pick (option 2 from the verb-split AUQ: ship now, file browser-comments ENH for Sprint 18) |
 
+## Side branch — Enterprise-setup (`claude/enterprise-github-setup-ldT7t`)
+
+**Status:** Parallel branch, NOT on main. Opened 2026-05-15 from owner question "I got at-work DMG approval — can we bundle Duo + a distro pack as a `.pkg` for internal distribution?" Branch surfaced two prior-art gaps: cut-version + DMG-bundling don't quite fit the at-work zip-only Git workflow (see chat for the tradeoffs), but the Path-1 `.pkg` automation that Stage 21d-ii scoped + then deferred IS the natural shape. Built it.
+
+| ID | Title | Shape |
+|---|---|---|
+| **ENH-160** | `scripts/build-pkg.sh` Path-1 `.pkg` installer wrapper | Closes the Stage 21d-ii deferral. Bundles `/Applications/Duo.app` (signature intact via `ditto`) + the pack folder, bakes a postinstall that drops the pack into the installing user's `~/.claude/duo/extra-packs/<name>/`. Default produces an unsigned `.pkg` — the normal path for shops without a Developer ID Installer cert. `--sign-identity` flag for shops that have one. SKILL.md § Path 2 + playground.md § Step 9 § Path 1 updated to point at the script. |
+
+**Smoke-walk gate.** Owner walks the build-pkg flow on a Mac (can't run `pkgbuild` on the Linux dev environment that built this); 6-step procedure in the ENH-160 tasks.md entry. Until that walk lands the branch stays draft.
+
+**Branch disposition.** Side branch from main (NOT a Sprint 17 commit since the work is orthogonal to Sprint 17's A+C+D theme). Merge candidate post-walk; no v0.6.16 cut blocker because the artifact lives outside the Duo runtime (it's a build-tool wrapper).
+
+---
+
 ## Side branch — GitHub-integration planning (`claude/github-integration-planning-rPdVY`)
 
 **Status:** Parallel planning thread, NOT on main. Opened 2026-05-13 after ENH-149 closed + ENH-150 was filed. Owner answered a 4-feature AUQ (status overlay / clone / right-click GitHub menu + bounce-list / link folder to repo) picking all four; said "playground it first" for the link-folder-to-repo decision.
