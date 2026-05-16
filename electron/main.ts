@@ -789,6 +789,20 @@ app.whenReady().then(async () => {
   }
   void createWindow()
 
+  // BUG-124 — ensure ~/.claude/duo/logs/ exists at boot so the renderer's
+  // writeConflictLog (renderer/utils/conflictDiagnostic.ts) can write to it
+  // without flooding dev stderr with ENOENT noise on first conflict. The
+  // FilesService.write path already does mkdir-p of the parent dir on each
+  // call, but this lifts the guarantee up to boot-time so the dir is
+  // present even before any first conflict surfaces. Fire-and-forget;
+  // failure here is recorded by the FilesService write retry.
+  void nodeFs.mkdir(
+    join(homedir(), '.claude', 'duo', 'logs'),
+    { recursive: true }
+  ).catch((err) => {
+    console.warn('[main] BUG-124 logs-dir mkdir failed:', err?.message ?? err)
+  })
+
   // Stage 18b — scan distro packs once on boot. Loader is defensive
   // (missing dir = empty registry; malformed manifests surface as
   // per-pack errors; never throws). The first-launch defaults hook

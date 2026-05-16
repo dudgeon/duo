@@ -6073,11 +6073,13 @@ Verified the gap empirically:
 
 ### BUG-124: `writeConflictLog` floods dev stderr with ENOENT — `~/.claude/duo/logs/` not mkdir-p'd at install
 
-**Status:** 🆕 Filed 2026-05-11 (discovered during Sprint 17 ENH-144 verification — dev log /tmp/duo-dev-enh142.log shows continuous `ENOENT: rename last-conflict.log.duo.tmp → last-conflict.log` errors).
-**Priority:** Medium — BUG-122 hardening's diagnostic-log feature is silently broken. `writeConflictLog` is best-effort wrapped in `try/catch`, so the user sees no banner, but the production-readable log at `~/.claude/duo/logs/last-conflict.log` is never written, which defeats the purpose: next BUG-122 repro will have no captured diagnostic.
+**Status:** ✅ Shipped Sprint 17 (2026-05-16) — boot-time mkdir-p of `~/.claude/duo/logs/` added to [`electron/main.ts § app.whenReady()`](electron/main.ts) (fire-and-forget). Ships in v0.7.0.
+**Priority:** Medium — BUG-122 hardening's diagnostic-log feature was silently broken until this fix. `writeConflictLog` is best-effort wrapped in `try/catch`, so the user saw no banner, but the production-readable log at `~/.claude/duo/logs/last-conflict.log` was never written, which defeated the purpose: BUG-122 repros captured no diagnostic.
 **Filed:** 2026-05-11.
 
-**Root cause.** [`renderer/utils/conflictDiagnostic.ts:113`](renderer/utils/conflictDiagnostic.ts:113) writes to `~/.claude/duo/logs/last-conflict.log` via `window.electron.files.write(...)`. The IPC handler's `FilesService.write` writes to a `.tmp` sibling then renames — but the `~/.claude/duo/logs/` directory doesn't exist by default. `~/.claude/duo/` itself is created by `install-service`, but the `logs/` subdir is not. Workaround applied 2026-05-11: `mkdir -p ~/.claude/duo/logs` manually.
+**Root cause.** [`renderer/utils/conflictDiagnostic.ts:113`](renderer/utils/conflictDiagnostic.ts:113) writes to `~/.claude/duo/logs/last-conflict.log` via `window.electron.files.write(...)`. `~/.claude/duo/` itself is created by `install-service` on FirstLaunchBanner install, but the `logs/` subdir was not pre-created — even though `FilesService.write` does mkdir-p of the parent dir on each call, the per-call mkdir was apparently insufficient under some race or path condition. Workaround applied 2026-05-11: `mkdir -p ~/.claude/duo/logs` manually.
+
+**Fix.** Lift the invariant *"`~/.claude/duo/logs/` exists"* to boot-time via a fire-and-forget `fs.mkdir(...)` in `app.whenReady()` after `createWindow()`. Pattern mirrors the boot-time pack-loader scan + auto-update check that already sit in that hook. Cheap (~1ms on warm cache); transparent to the renderer.
 
 **Two fix options:**
 
