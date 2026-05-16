@@ -27,7 +27,8 @@ vi.mock('electron', () => ({
 
 import {
   composeManagedClaudeMdBlock,
-  planClaudeMdMerge
+  planClaudeMdMerge,
+  planCliShim
 } from './install-service'
 
 describe('composeManagedClaudeMdBlock', () => {
@@ -194,6 +195,48 @@ describe('planClaudeMdMerge', () => {
         newBlock
       })
       expect(result.action).toBe('replaced')
+    })
+  })
+})
+
+// ENH-156 — pure-function tests for the SHIM_DIR/duo planner. The
+// boot-time self-heal (ensureCliShim) wraps planCliShim with I/O; the
+// decision matrix is what's worth testing in unit form.
+
+describe('planCliShim', () => {
+  const desired = '/Applications/Duo.app/Contents/Resources/cli/duo'
+
+  it('missing shim → create', () => {
+    expect(planCliShim({ kind: 'missing' }, desired)).toEqual({ kind: 'create' })
+  })
+
+  it('current symlink pointing at desired target → no-op', () => {
+    expect(
+      planCliShim({ kind: 'symlink', target: desired }, desired)
+    ).toEqual({ kind: 'no-op' })
+  })
+
+  it('symlink pointing at a stale target → replace', () => {
+    expect(
+      planCliShim({ kind: 'symlink', target: '/old/path/duo' }, desired)
+    ).toEqual({ kind: 'replace' })
+  })
+
+  it('broken symlink at any target → replace (even when target string matches)', () => {
+    // The broken-symlink case always replaces — recreates so a moved
+    // Duo.app gets a working link.
+    expect(
+      planCliShim({ kind: 'broken-symlink', target: desired }, desired)
+    ).toEqual({ kind: 'replace' })
+    expect(
+      planCliShim({ kind: 'broken-symlink', target: '/old' }, desired)
+    ).toEqual({ kind: 'replace' })
+  })
+
+  it('non-symlink file/dir at shim path → refuse-non-symlink', () => {
+    // User wrote something there manually; we never overwrite.
+    expect(planCliShim({ kind: 'non-symlink' }, desired)).toEqual({
+      kind: 'refuse-non-symlink'
     })
   })
 })

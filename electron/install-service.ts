@@ -88,7 +88,16 @@ const CLI_DEST_PATH = path.join(CLI_DEST_DIR, 'duo')
 // CLI works inside every Duo PTY without ANY shell-rc modification —
 // the load-bearing fix for Claude Code sandboxes that block .zshrc
 // writes. See user report 2026-05-10 (enterprise environment).
+//
+// ENH-156 — SHIM_DIR/duo is now the SOLE canonical CLI location. Boot-
+// time `ensureCliShim()` self-heals it on every app launch; the symlink
+// target is the in-app CLI binary (Duo.app/Contents/Resources/cli/duo)
+// rather than ~/.local/bin/duo, so auto-updates carry the CLI forward
+// automatically. See docs/DECISIONS.md → "Boot-time self-healing CLI
+// shim — SHIM_DIR/duo as the sole canonical CLI location".
 const CLI_SHIM_PATH = path.join(SHIM_DIR, 'duo')
+const SHIM_LOG_DIR = path.join(DUO_DIR, 'logs')
+const SHIM_LOG_PATH = path.join(SHIM_LOG_DIR, 'install-shim.log')
 const PRIMING_PATH = path.join(DUO_DIR, 'priming.md')
 const PINS_PATH = path.join(DUO_DIR, 'pins.json')
 const SETTINGS_PATH = path.join(HOME, '.claude', 'settings.json')
@@ -274,6 +283,55 @@ export function planClaudeMdMerge(input: ClaudeMdMergeInput): ClaudeMdMergeResul
     managed: true,
     action: 'appended'
   }
+}
+
+// ENH-156 — pure-function planning for the SHIM_DIR/duo symlink. Split
+// out so the decision logic is unit-testable without filesystem fakes;
+// the I/O wrapper (ensureCliShim) just applies the planned action.
+
+export type ShimState =
+  /** SHIM_DIR/duo does not exist. */
+  | { kind: 'missing' }
+  /** Exists as a symlink whose target resolves to a real file. */
+  | { kind: 'symlink'; target: string }
+  /** Exists as a symlink whose target does not exist (dangling). */
+  | { kind: 'broken-symlink'; target: string }
+  /** Exists as a regular file or directory — NOT a symlink. The user
+   *  put something here manually; we refuse to clobber. */
+  | { kind: 'non-symlink' }
+
+export type ShimPlan =
+  | { kind: 'create' }
+  | { kind: 'replace' }
+  | { kind: 'no-op' }
+  | { kind: 'refuse-non-symlink' }
+
+export function planCliShim(state: ShimState, desiredTarget: string): ShimPlan {
+  if (state.kind === 'missing') return { kind: 'create' }
+  if (state.kind === 'non-symlink') return { kind: 'refuse-non-symlink' }
+  // symlink (current or broken) — heal if target differs from desired.
+  if (state.target === desiredTarget) {
+    // Broken symlink that nominally points at the right target still
+    // replaces (no-op symlink ops are cheap; this catches the case
+    // where Duo.app moved and the path is technically "the same string"
+    // but won't resolve until the symlink is rewritten to point at the
+    // new physical location). For target-equal-and-resolves, no-op.
+    return state.kind === 'symlink' ? { kind: 'no-op' } : { kind: 'replace' }
+  }
+  return { kind: 'replace' }
+}
+
+export interface EnsureCliShimResult {
+  ok: boolean
+  /** What ensureCliShim did (or refused to do). */
+  action: 'no-op' | 'created' | 'replaced' | 'no-source' | 'refused' | 'error'
+  /** Absolute path of the shim we tried to manage. */
+  shimPath: string
+  /** Absolute path of the desired symlink target (the in-app CLI
+   *  binary), when known. */
+  target?: string
+  /** When ok=false: short user-readable explanation. */
+  error?: string
 }
 
 export class InstallService {
@@ -933,6 +991,101 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
   }
 
   /**
+   * ENH-156 — locate the in-app CLI source binary. Used by both
+   * `ensureCliShim()` (the boot-time self-heal) and `installCli()`
+   * (the FirstLaunchBanner-triggered binary copy).
+   *
+   * In dev (`npm run dev`), cli/duo lives at `<app.getAppPath()>/cli/duo`.
+   * In prod (asar bundle), cli/ ships as extraResources at
+   * `<resourcesPath>/cli/duo`. Returns null when neither candidate
+   * exists (e.g. dev session where `npm run build:cli` was never run).
+   */
+  private async findCliSource(): Promise<string | null> {
+    const candidates: string[] = []
+    candidates.push(path.join(app.getAppPath(), 'cli', 'duo'))
+    const res = this.resourcesRoot()
+    if (res) candidates.push(path.join(res, 'cli', 'duo'))
+    for (const c of candidates) {
+      try {
+        const st = await fs.stat(c)
+        if (st.isFile()) return c
+      } catch {
+        continue
+      }
+    }
+    return null
+  }
+
+  /**
+   * ENH-156 — boot-time self-heal for SHIM_DIR/duo. Idempotent. Called
+   * from `app.whenReady()` in `electron/main.ts` so the symlink
+   * invariant (*SHIM_DIR/duo points at the current Duo.app's CLI
+   * binary*) is true on every launch, regardless of upgrade path or
+   * prior install state.
+   *
+   * Failure modes:
+   *  - No source binary found → no-op, logs to install-shim.log.
+   *  - SHIM_DIR/duo exists as a regular file (user wrote something
+   *    there manually) → refused, logs.
+   *  - mkdir / symlink failed (rare; permission issues) → logs +
+   *    returns ok=false. Renderer continues; Duo PTYs will still
+   *    spawn but bare `duo` won't resolve until next successful
+   *    self-heal or manual `duo install`.
+   *
+   * Logs are persistent at ~/.claude/duo/logs/install-shim.log
+   * (timestamp + message; appended). Agents debugging
+   * `command not found` can read this file directly.
+   */
+  async ensureCliShim(): Promise<EnsureCliShimResult> {
+    const source = await this.findCliSource()
+    if (!source) {
+      const err = `no CLI binary found at ${path.join(app.getAppPath(), 'cli', 'duo')} or resourcesPath/cli/duo`
+      await this.writeShimLog(err)
+      return { ok: false, action: 'no-source', shimPath: CLI_SHIM_PATH, error: err }
+    }
+    const state = await readShimState(CLI_SHIM_PATH)
+    const plan = planCliShim(state, source)
+
+    if (plan.kind === 'no-op') {
+      return { ok: true, action: 'no-op', shimPath: CLI_SHIM_PATH, target: source }
+    }
+    if (plan.kind === 'refuse-non-symlink') {
+      const err = `${CLI_SHIM_PATH} exists but is not a symlink; refusing to overwrite`
+      await this.writeShimLog(err)
+      return { ok: false, action: 'refused', shimPath: CLI_SHIM_PATH, target: source, error: err }
+    }
+
+    try {
+      await fs.mkdir(SHIM_DIR, { recursive: true })
+      if (plan.kind === 'replace') {
+        try { await fs.unlink(CLI_SHIM_PATH) } catch { /* race; symlink gone */ }
+      }
+      await fs.symlink(source, CLI_SHIM_PATH)
+      return {
+        ok: true,
+        action: plan.kind === 'create' ? 'created' : 'replaced',
+        shimPath: CLI_SHIM_PATH,
+        target: source
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      await this.writeShimLog(`symlink ${CLI_SHIM_PATH} → ${source}: ${msg}`)
+      return { ok: false, action: 'error', shimPath: CLI_SHIM_PATH, target: source, error: msg }
+    }
+  }
+
+  private async writeShimLog(message: string): Promise<void> {
+    try {
+      await fs.mkdir(SHIM_LOG_DIR, { recursive: true })
+      const ts = new Date().toISOString()
+      await fs.appendFile(SHIM_LOG_PATH, `[${ts}] ${message}\n`)
+    } catch {
+      // Last-resort: console only. Nothing else we can do.
+    }
+    console.warn('[install-service] ensureCliShim:', message)
+  }
+
+  /**
    * Phase 2 — copy cli/duo to ~/.local/bin/duo, chmod 0o755.
    *
    * Source: <sourceRoot>/cli/duo in dev, <resourcesPath>/cli/duo in
@@ -968,21 +1121,14 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
       await fs.copyFile(source, CLI_DEST_PATH)
       await fs.chmod(CLI_DEST_PATH, 0o755)
 
-      // ENH-141 — also drop a symlink at SHIM_DIR/duo so the CLI is
-      // immediately reachable by name inside any Duo PTY (PtyManager
-      // prepends SHIM_DIR to PATH at spawn). Best-effort: a failure
-      // here doesn't break the primary install — the CLI is still at
-      // CLI_DEST_PATH and can be wired via addToShellPath. Idempotent:
-      // unlink-then-symlink so re-install on an already-installed
-      // system replaces a stale symlink (e.g. pointing at an old
-      // location after upgrade).
-      try {
-        await fs.mkdir(SHIM_DIR, { recursive: true })
-        try { await fs.unlink(CLI_SHIM_PATH) } catch { /* doesn't exist */ }
-        await fs.symlink(CLI_DEST_PATH, CLI_SHIM_PATH)
-      } catch (err) {
-        console.warn('[install-service] could not create SHIM_DIR/duo symlink:', (err as Error)?.message ?? err)
-      }
+      // ENH-156 — also (re)create the SHIM_DIR/duo symlink. Delegates
+      // to ensureCliShim() so the FirstLaunchBanner path and the
+      // boot-time self-heal path share the same logic + the same
+      // persistent log file. Fire-and-forget: a shim failure here
+      // doesn't break the primary install (the user can still invoke
+      // ~/.local/bin/duo by absolute path); the failure is recorded
+      // in install-shim.log and the next app boot will retry.
+      void this.ensureCliShim()
 
       return {
         installed: true,
@@ -1658,5 +1804,39 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
     }
 
     return { ok: true, rcFile, shell, alreadyPresent: false }
+  }
+}
+
+/**
+ * ENH-156 — inspect SHIM_DIR/duo and return a structured state for
+ * `planCliShim`. Exported for testing the I/O wrapper indirectly (the
+ * pure planner is the primary test surface).
+ *
+ * `lstat` rather than `stat` so we see the symlink itself rather than
+ * what it points at. For symlinks, we then `stat` to detect the
+ * dangling case (`stat` follows the link; ENOENT on `stat` after
+ * successful `lstat` means broken).
+ */
+export async function readShimState(shimPath: string): Promise<ShimState> {
+  let lst
+  try {
+    lst = await fs.lstat(shimPath)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code
+    if (code === 'ENOENT') return { kind: 'missing' }
+    throw err
+  }
+  if (!lst.isSymbolicLink()) return { kind: 'non-symlink' }
+  let target: string
+  try {
+    target = await fs.readlink(shimPath)
+  } catch {
+    return { kind: 'broken-symlink', target: '' }
+  }
+  try {
+    await fs.stat(shimPath)
+    return { kind: 'symlink', target }
+  } catch {
+    return { kind: 'broken-symlink', target }
   }
 }

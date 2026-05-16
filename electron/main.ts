@@ -806,6 +806,24 @@ app.whenReady().then(async () => {
     console.warn('[main] BUG-124 logs-dir mkdir failed:', err?.message ?? err)
   })
 
+  // ENH-158 — boot-time self-heal for ~/.claude/duo/bin/duo (SHIM_DIR
+  // CLI shim). Independent of FirstLaunchBanner so upgrades + non-
+  // banner-clicked installs still get a working `duo` reachable by
+  // bare name inside every Duo PTY (PtyManager prepends SHIM_DIR to
+  // PATH at spawn). Fire-and-forget; the only consequence of a
+  // failure here is bare `duo` not resolving on the next PTY spawn,
+  // and the failure is recorded at ~/.claude/duo/logs/install-shim.log.
+  // See docs/DECISIONS.md → "Boot-time self-healing CLI shim".
+  void installService.ensureCliShim().then((result) => {
+    if (!result.ok) {
+      console.warn('[main] ensureCliShim:', result.action, result.error)
+    } else if (result.action !== 'no-op') {
+      console.log(`[main] ensureCliShim: ${result.action} ${result.shimPath} → ${result.target}`)
+    }
+  }).catch((err) => {
+    console.warn('[main] ensureCliShim threw:', err)
+  })
+
   // Stage 18b — scan distro packs once on boot. Loader is defensive
   // (missing dir = empty registry; malformed manifests surface as
   // per-pack errors; never throws). The first-launch defaults hook

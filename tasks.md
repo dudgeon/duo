@@ -441,6 +441,33 @@ Pair with BUG-081 fix in v0.6.7. Sprint shape:
 
 ## Enhancement opportunities
 
+### ENH-156: Boot-time self-healing CLI shim — SHIM_DIR/duo as the sole canonical CLI location
+
+**Status:** 🚧 In flight Sprint 17 (2026-05-16) on branch `claude/new-session-MVuCt`. Ships in v0.6.16.
+**Priority:** P0 — closes a load-bearing silent-failure surface in the install routine that bit an enterprise user on v0.6.15 and produced the exact `command not found` → "sandbox is blocking duo" misdiagnosis that ENH-141 was supposed to prevent.
+
+**Origin.** User reported a Claude Code session diagnosing `duo: command not found` inside a Claude Code sandbox on Duo v0.6.15. Diagnostic on the user's machine surfaced four overlapping install vestiges (only `~/.claude/duo/bin/claude` present, no `duo` entry; stale `~/.local/bin/duo` symlink into April dev checkout; obsolete `# Duo CLI` fence in `~/.zshrc`; FirstLaunchBanner had shown a *"Couldn't update your shell config"* error on a prior upgrade). ENH-141's SHIM_DIR/duo symlink had failed silently (`console.warn` only) and the FirstLaunchBanner didn't re-fire on upgrade, so the user upgraded across multiple Duo versions with a non-functional CLI shim.
+
+**Decision.** See [docs/DECISIONS.md → "Boot-time self-healing CLI shim — SHIM_DIR/duo as the sole canonical CLI location"](docs/DECISIONS.md). Summary:
+
+1. SHIM_DIR/duo (`~/.claude/duo/bin/duo`) becomes the sole canonical CLI location; auto-recreated on every `app.whenReady()`.
+2. Symlink target is the in-app CLI binary (`Duo.app/Contents/Resources/cli/duo` in prod), so auto-updates carry the CLI forward.
+3. Failures append to `~/.claude/duo/logs/install-shim.log` (timestamp + reason), readable by users + agents debugging `command not found`.
+4. `~/.local/bin/duo` copy stays as the secondary external-terminal target; best-effort.
+5. Skill / agent docs collapse the three-target recovery list down to `~/.claude/duo/bin/duo` (guaranteed-present post-boot-self-heal).
+
+**Implementation.**
+
+1. ✅ `electron/install-service.ts` — new `ensureCliShim()` method + `planCliShim()` pure helper + `readShimState()` helper. Refactors silent `console.warn`-only symlink block out of `installCli` so boot path + banner-triggered path share logic. Persistent log at `~/.claude/duo/logs/install-shim.log`.
+2. ✅ `electron/main.ts` — call `installService.ensureCliShim()` from `app.whenReady()`, after `createWindow()`. Fire-and-forget with logging.
+3. ✅ `skill/SKILL.md` + `agents/duo.md` — collapse three-target recovery list down to `~/.claude/duo/bin/duo` (auto-created on every Duo launch).
+4. ✅ `electron/install-service.test.ts` — unit tests for `planCliShim` covering missing / current symlink / stale symlink / broken symlink / non-symlink-file states.
+5. ✅ ADR locked in `docs/DECISIONS.md`.
+
+**Follow-up filed.** **FOLLOWUP-021** — opt-in `duo install --clean` that strips known-old fence markers from `~/.zshrc` (`# Duo CLI`, etc.) + retires the dead Stage-20 `~/.claude/bin/duo` symlink path. Out of scope for v0.6.16 to keep the change minimal; gated on whether the user-facing pain shows up post-self-heal.
+
+---
+
 ### ENH-001: New HTML canvases should default to stable IDs
 
 **Status:** ✅ Shipped 2026-04-26 (v0.3.1)
@@ -7205,6 +7232,31 @@ Both surfaces have UI-only close affordances (✕ button on tab strip + ⌘W cho
 - `packs/duo-default/canvases/what-duo-does.html` — replace the "tracked in FOLLOWUP-020" placeholder in entry 55b with the actual verbs.
 
 **Cross-ref:** ENH-143 (parent discoverability work that surfaced the gap). ENH-037 (⌘W chord; the UI side of this CLI gap). CLAUDE.md item 4 (the parity rule this violates).
+
+---
+
+### FOLLOWUP-021: `duo install --clean` — strip old fence markers + retire dead Stage-20 shim path
+
+**Status:** 🆕 Filed 2026-05-16 (scoped out of ENH-156 to keep blast radius minimal).
+**Priority:** Low — gated on whether self-heal alone is enough; revisit if reports surface where users see stale `~/.local/bin/duo` symlinks or vestigial `# Duo CLI` fences in `~/.zshrc` causing confusion.
+**Filed:** 2026-05-16.
+
+**Today.** ENH-156's boot-time self-heal makes SHIM_DIR/duo correct on every Duo launch, but leaves prior install artifacts in place:
+- Old-style `# Duo CLI` fences in `~/.zshrc` (the pre-ENH-141 marker style; the current `addToShellPath` writes a different `# >>> duo PATH >>>` marker and doesn't recognize the old one).
+- Stale `~/.local/bin/duo` symlinks pointing into versioned dev-checkout directories (e.g. `Documents/duo-main-0_6_13/cli/duo`) that no longer exist or are wrong.
+- Dead `~/.claude/bin/duo` from the retired Stage-20 install path.
+
+These don't break Duo (SHIM_DIR/duo is the load-bearing path and self-heals), but they're noise that confuses subsequent diagnosis attempts (the screenshot's other Claude session was misled by exactly this kind of vestigial state).
+
+**What to ship.** A new `duo install --clean` flag that:
+1. Strips known-old fence markers from the user's shell rc (`# Duo CLI`, any other documented vintages). Preserves anything else.
+2. Removes `~/.claude/bin/duo` (the dead Stage-20 path) if it exists.
+3. Validates `~/.local/bin/duo` actually points at a current binary; if symlink target is non-existent or a versioned-dev-checkout path, removes it.
+4. Reports what was cleaned + what was left alone.
+
+Opt-in, never auto-cleans on boot — users may have manual customizations and we don't want to strip without consent.
+
+**Cross-ref:** ENH-156 (boot-time self-heal; this is its opt-in cleanup companion). [docs/DECISIONS.md → "Boot-time self-healing CLI shim"](docs/DECISIONS.md) "Trade-offs accepted" section.
 
 ---
 
