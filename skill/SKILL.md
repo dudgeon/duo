@@ -59,19 +59,25 @@ If this fails with:
   Ask the user to launch it and retry.
 - **`duo: command not found`** (or `bash: duo: command not found`) —
   the CLI isn't on your shell's `$PATH`, but may still be installed.
-  **Don't give up.** Check the install locations Duo uses:
+  **Don't give up.** The canonical install location is
+  `~/.claude/duo/bin/duo` — Duo recreates this symlink on every app
+  launch (ENH-156 boot-time self-heal), so it should exist whenever
+  the app has run. Try it directly:
 
   ```bash
-  ls -l ~/.claude/bin/duo ~/.local/bin/duo /usr/local/bin/duo 2>/dev/null
+  ls -l ~/.claude/duo/bin/duo
   echo "DUO_SESSION=$DUO_SESSION  DUO_SOCKET=$DUO_SOCKET"
+  ~/.claude/duo/bin/duo doctor
   ```
 
-  If any path resolves, invoke `duo` by full path (e.g.
-  `~/.claude/bin/duo open <path>`). If `DUO_SOCKET` is set, the
+  If the symlink resolves, invoke `duo` by full path (e.g.
+  `~/.claude/duo/bin/duo open <path>`). If `DUO_SOCKET` is set, the
   app IS running and the bridge is reachable — the only thing
-  missing is PATH. If none of the paths resolve AND `DUO_SESSION`
-  is unset, ask the user to run `duo install` from a non-sandboxed
-  shell (Terminal.app outside Claude Code, or a plain Duo terminal).
+  missing is PATH. If `~/.claude/duo/bin/duo` does not resolve,
+  read `~/.claude/duo/logs/install-shim.log` for the boot-time
+  self-heal failure reason (permissions, missing source binary, or
+  a non-symlink file at that path); ask the user to relaunch Duo,
+  then retry.
 
 - **`Socket error: connect EPERM`**, **`ECONNREFUSED`**, or a hang
   ending in `Timeout waiting for response`, or every subsequent
@@ -210,7 +216,7 @@ declare friction sites once and stop fighting them.
 | `duo nav pin <path>` / `duo nav unpin <path>` | **Stage 26 PR 2 (ENH-010)** — pin / unpin a file or folder to the navigator's "Pinned" section (bottom of left pane). Persists at `~/.claude/duo/nav-pins.json` (separate from Stage 24's tab pins). Mirrors the right-click "Pin to navigator" / "Unpin from navigator" actions. | JSON: `{ok, pinned, pins}` |
 | `duo nav pins` | **Stage 26 PR 2 (ENH-010)** — list all navigator pins. | JSON array of `{path, kind, title}` |
 | `duo doctor` | **Stage 20** — health-check both transports (Unix socket + TCP fallback), report app/CLI version match, `$DUO_SESSION` presence, install path, skill files. **Run this first when any `duo` command fails** — it names the sandbox failure mode instead of leaving you guessing. Exits 0 if either transport is reachable. | text |
-| `duo install [--system]` | Symlink the CLI into a sandbox-safe location: `~/.claude/bin/duo` by default (writable from a sandboxed Claude Code PTY), `~/.local/bin/duo` as fallback. `--system` forces `/usr/local/bin/duo` (sudo + outside the sandbox; not recommended for Claude Code use). | text |
+| `duo install [--system]` | Symlink the CLI into `~/.claude/duo/bin/duo` (the sandbox-safe SHIM_DIR auto-prepended to every Duo PTY's `$PATH`), with `~/.local/bin/duo` as fallback for external-terminal use. Duo also auto-creates the SHIM_DIR symlink on every app boot (ENH-158); manual `duo install` is only needed when self-heal can't run (no Duo.app, or first install from outside Duo). `--system` forces `/usr/local/bin/duo` (sudo; not recommended for Claude Code use). | text |
 | `duo git-status [<path>]` | **ENH-152a** — git status snapshot for a directory (defaults to `$HOME`). Backs the Navigator root chip ("clean stays invisible" per owner directive); also useful directly to agents who want to make decisions about a checkout's state before proposing edits. | JSON: `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind }` |
 | `duo clone <url> [<dir>] [--json]` | **ENH-151** — clone a GitHub repo. Uses `gh repo clone` when gh is authenticated (handles HTTPS + SSH transparently); falls back to plain `git clone` for public repos. `<url>` accepts gh shorthand (owner/repo) when gh is available, full HTTPS/SSH URL otherwise. With `--json`, structured CloneResult — branch on `errorKind` ∈ `{ bad-url, auth-missing, clone-failed }`. | text \| JSON when `--json` |
 | `duo gh-auth` | **ENH-151** — probe `gh auth status`. Tell agents whether `duo clone` will succeed on private repos before they try. | JSON: `{ ghInstalled, authenticated, host, user, ghNotFound }` |
@@ -627,31 +633,45 @@ sandboxed Claude Code subshell often misses these — the skill loaded
    `DUO_SOCKET=<path>` resolves to a real socket, the bridge is up.
    In either case, the only missing piece is PATH — the binary is on
    the machine.
-2. **Look in the install locations.** In order of likelihood:
+2. **Look in the canonical install location first.** SHIM_DIR/duo is
+   auto-created on every Duo launch (ENH-156); if Duo has run once,
+   this should exist:
 
    ```bash
-   ls -l ~/.claude/bin/duo ~/.local/bin/duo /usr/local/bin/duo 2>/dev/null
+   ls -l ~/.claude/duo/bin/duo
    ```
 
-   `~/.claude/bin/duo` is the default install (sandbox-writable).
-   `~/.local/bin/duo` is the Linux-style fallback. `/usr/local/bin/duo`
-   needs sudo to install but works without `$DUO_SESSION` shell-init
-   support — this is what `duo install --system` produces.
+   Secondary install locations (still surface them if SHIM_DIR/duo
+   is missing — useful for diagnosing stale installs):
+
+   ```bash
+   ls -l ~/.local/bin/duo /usr/local/bin/duo 2>/dev/null
+   ```
+
+   `~/.local/bin/duo` is the FirstLaunchBanner's secondary install
+   for external-terminal use. `/usr/local/bin/duo` needs sudo to
+   install — this is what `duo install --system` produces.
 
 3. **If found, invoke by full path.** Example:
 
    ```bash
-   ~/.claude/bin/duo open /path/to/file.md
+   ~/.claude/duo/bin/duo open /path/to/file.md
    ```
 
    Don't shadow your shell with `export PATH=...` — too easy to
    forget to undo. Just use the absolute path for the call.
 
-4. **If NONE of the paths resolve and `DUO_SESSION` is unset**, the
-   CLI was never installed (or got removed). Ask the user to run
+4. **If SHIM_DIR/duo doesn't exist** despite Duo having launched,
+   read `~/.claude/duo/logs/install-shim.log` for the boot-time
+   self-heal failure reason. Common causes: a non-symlink file at
+   that path (user wrote something there manually); missing CLI
+   source binary inside `Duo.app/Contents/Resources/cli/`.
+
+5. **If NONE of the paths resolve and `DUO_SESSION` is unset**, the
+   CLI was never installed (or got removed). Ask the user to launch
+   Duo (the boot-time self-heal will recreate SHIM_DIR/duo) or run
    `duo install` from a non-sandboxed shell (Duo's own terminal, or
-   Terminal.app outside Claude Code). The install command symlinks
-   into `~/.claude/bin/duo` and works inside the sandbox.
+   Terminal.app outside Claude Code).
 
 **Don't fall back to native `open <path>`** as a substitute — it
 opens the file in macOS's default app, NOT in Duo. The user wants

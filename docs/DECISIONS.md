@@ -764,6 +764,54 @@ Cross-references: ENH-138 (Sprint 15 — established the FTUX-content / pack bou
 
 ---
 
+### Boot-time self-healing CLI shim — SHIM_DIR/duo as the sole canonical CLI location
+
+**Status:** 🟢 Locked 2026-05-16 (ENH-156; ships in v0.6.16).
+**Raised:** 2026-05-16 — Sprint 17 in-flight. An enterprise user on v0.6.15 reported `duo: command not found` from inside a Claude Code sandbox. Diagnostic surfaced four overlapping install vestiges on their machine: `~/.claude/duo/bin/` contained only the `claude` shim (no `duo` entry); `~/.local/bin/duo` was a stale symlink into a versioned dev-checkout path from April; `~/.zshrc` had an obsolete `# Duo CLI` fence (different marker than the current `# >>> duo PATH >>>` style) pointing at `Documents/duo-main-0_6_13/cli`; the FirstLaunchBanner had shown a *"Couldn't update your shell config"* error on a recent upgrade. The diagnosing Claude session compounded the problem by misreading `command not found` as a sandbox block and escalating to a subagent — the exact hallucination pattern ENH-141 was supposed to close.
+
+**Resolves:** the architectural fragility that lets a working install rot across versions without surfacing — and that leaves the most load-bearing piece of the install (the SHIM_DIR/duo symlink) silently failing on `console.warn` while the user-facing banner advertises success.
+
+**Decision.** SHIM_DIR/duo (`~/.claude/duo/bin/duo`) becomes the sole canonical, **boot-time-self-healing** location for the `duo` CLI:
+
+1. **Single canonical location.** SHIM_DIR/duo is what `PtyManager` prepends to every PTY's `$PATH` (already, since ENH-141) AND what the skill/agent docs name as the universal recovery path for `command not found`. The Stage-20-era `~/.claude/bin/duo` target is fully retired from docs (was already retired from install).
+2. **Boot-time self-heal.** Every `app.whenReady()` calls `installService.ensureCliShim()` — checks SHIM_DIR/duo's state, recreates if missing/stale, no-ops if current. Independent of FirstLaunchBanner: upgrades that don't re-fire the install routine still get a working `duo`. Cost: one `lstat` per boot in the no-op case.
+3. **Symlink directly into the in-app CLI binary.** SHIM_DIR/duo → `<app.getAppPath()>/cli/duo` (dev) or `<resourcesPath>/cli/duo` (prod). NOT into `~/.local/bin/duo`. Two benefits: (a) auto-updates work because the in-app path moves with the app on every Squirrel update; (b) the failure mode "user deletes Duo.app" produces a correctly-broken symlink that `duo doctor` can name, rather than a stale symlink into a vanished dev checkout (this user's exact April-stale-link pattern).
+4. **Loud-on-failure logging.** Failed shim creation appends to `~/.claude/duo/logs/install-shim.log` with timestamp + error (in addition to the existing `console.warn`). Persistent, user-readable, agent-readable. Closes the silent-fail surface that hid this user's situation across three Duo versions.
+5. **Existing `~/.local/bin/duo` copy stays** — for external-terminal users who want bare-name `duo` outside Duo PTYs. Best-effort, secondary, not load-bearing. Failure here is a UX inconvenience (user uses `~/.claude/duo/bin/duo` explicitly), not a broken install.
+6. **`addToShellPath` is deprioritized but not removed.** Same rationale — for external-terminal users only; failure surfaces a banner with the manual fallback, but bare `duo` inside Duo PTYs is unaffected by whether the shell-rc dance succeeds.
+
+**Why this option won.**
+
+- **Sandbox-tolerant by construction.** SHIM_DIR lives inside `~/.claude/`, which Claude Code's Seatbelt sandbox includes in its writable namespace. The shim creation succeeds even from a sandboxed Bash subshell (though boot-time self-heal runs in the unsandboxed Electron main process, this property matters for `duo install` re-runs from inside Claude Code).
+- **Self-healing replaces "install ran once correctly forever."** The old model assumed FirstLaunchBanner's `install.run()` would fire successfully on first launch and the result would persist. Reality: users upgrade across Duo versions that bump install logic (ENH-141 reshaped the targets; old fence markers become unrecognizable; old symlinks point into renamed dev checkouts). Boot-time self-heal makes the invariant — *SHIM_DIR/duo points at the current Duo.app's CLI* — true on every launch, regardless of upgrade path or prior install state.
+- **No new shell-rc edits.** The whole `addToShellPath` failure surface (different shell rc files, missing parent dirs, .zshrc owned by root, etc.) is bypassed for the load-bearing path. Inside Duo PTYs, `PtyManager` already prepends SHIM_DIR — no shell-rc cooperation required.
+- **Symlink-to-in-app survives app updates.** The previous symlink target was `~/.local/bin/duo`, which is itself a copy of the binary. Auto-update would replace `Duo.app/Contents/Resources/cli/duo` but NOT `~/.local/bin/duo` until the install routine re-ran. Direct symlink into the app resources means the CLI is the current version on next launch automatically.
+
+**Why not the alternatives.**
+
+- **Bundle a `postinstall` script that runs on every app update (no boot-time check).** Squirrel auto-update on macOS doesn't reliably run postinstall hooks across all update mechanisms (DMG drop-in, Squirrel-delta, in-place rebuild). Boot-time check covers every update path uniformly.
+- **Add a UI-surfaced "Reinstall" button.** Adds a click. The user shouldn't have to think about it.
+- **Strip `~/.local/bin/duo` entirely (single-target install).** Would break external-terminal users (Terminal.app, iTerm outside Duo) who rely on bare `duo`. Keeping it as secondary is cheap and preserves that affordance.
+- **Persistent banner on shim-creation failure.** Considered for v1; deferred. The current `console.warn` + log file gives operators / agents enough to diagnose; a persistent banner introduces dismiss-state complexity. Revisit if reports surface where users miss the log file.
+
+**Trade-offs accepted.**
+
+- **One `lstat` per app boot.** Negligible (< 1 ms on warm cache, runs after `createWindow()`).
+- **Symlink target is an absolute path inside `Duo.app`** — if the user runs Duo from a non-`/Applications` path (e.g. `~/Downloads/Duo.app`), the shim will reflect that. Acceptable: the shim is recreated every boot from `app.getAppPath()`, so moving Duo.app → relaunching → new shim points at the new location.
+- **Old stale install artifacts (e.g. this user's `~/.local/bin/duo` April symlink, obsolete `~/.zshrc` fences) are NOT auto-cleaned.** Migration-and-strip was scoped out for v1 to keep the change blast radius minimal. Documented as a follow-up (FOLLOWUP-021): an opt-in `duo install --clean` that strips fences with known-old markers + retires `~/.claude/bin/duo` (the dead Stage-20 path).
+- **The skill/agent docs' recovery-path advice points at one location now** (`~/.claude/duo/bin/duo`). Previously they listed three (`~/.claude/bin/duo`, `~/.local/bin/duo`, `/usr/local/bin/duo`) and asked the agent to pick the one that resolves. The new advice is shorter and harder to misroute, at the cost of being less of a "find any of these" recovery path — but the new path is **guaranteed** to exist post-boot-self-heal, so the recovery doesn't need fan-out.
+
+**Implementation.**
+
+1. **`electron/install-service.ts`** — new `ensureCliShim()` method + `planCliShim()` pure helper + `readShimState()` helper. Refactors the silent `console.warn`-only symlink block out of `installCli` so the boot path and the FirstLaunchBanner-triggered path go through the same logic. Persistent log at `~/.claude/duo/logs/install-shim.log`.
+2. **`electron/main.ts`** — call `installService.ensureCliShim()` from `app.whenReady()`, after `createWindow()`. Fire-and-forget with logging.
+3. **`skill/SKILL.md` + `agents/duo.md`** — collapse the three-target recovery list down to `~/.claude/duo/bin/duo` (with a note that this is auto-created on every Duo launch).
+4. **`electron/install-service.test.ts`** — unit tests for `planCliShim` covering the four state transitions (missing → create, current symlink → no-op, stale symlink → replace, non-symlink file → refuse).
+
+Cross-references: ENH-141 (the predecessor; established SHIM_DIR-on-PATH but left the symlink creation silent + first-launch-gated), `core/pty-manager.ts:42` (the `SHIM_DIR:$PATH` prepend that makes this design work), open ADR *Sandbox-tolerant transport and install paths for the `duo` CLI* item 3 (this decision closes that item's "ENH-141 next-step" thread).
+
+---
+
 ## Open ADRs (pending decision)
 
 ### Sandbox-tolerant transport and install paths for the `duo` CLI
