@@ -8,38 +8,16 @@
 // render a chip when isRepo === false or when dirty === false &&
 // ahead === 0 && behind === 0. The probe still returns the full
 // snapshot — display gating is the renderer's job, not the probe's.
+//
+// GitStatusSnapshot is shared with the renderer via shared/host-api.ts.
+// formatGitStatusChip (the pure formatter the renderer reaches for)
+// also lives there.
 
 import { execGit } from './exec'
+import type { GitStatusSnapshot } from '../../shared/host-api'
 
-export interface GitStatusSnapshot {
-  /** True if `cwd` (or any parent) is inside a git work tree. */
-  isRepo: boolean
-  /** Absolute path to the repo's work-tree root, when isRepo. */
-  workTreeRoot?: string
-  /** Current branch name (e.g. "main"). Empty string in detached-HEAD
-   *  state — the renderer can show the short SHA instead via `head`. */
-  branch: string
-  /** Short SHA of HEAD. Always present when isRepo, including detached. */
-  head: string
-  /** True if `git status --porcelain` returned ANY lines (staged or
-   *  unstaged, including untracked). Untracked-only counts as dirty
-   *  per the chip's semantics: the renderer's "are there changes
-   *  worth flagging?" signal. */
-  dirty: boolean
-  /** Number of files with staged/unstaged/untracked changes. Useful
-   *  for the tooltip; the chip itself just shows `*` or "modified". */
-  changedCount: number
-  /** Number of commits HEAD is ahead of its upstream tracking branch.
-   *  0 when no upstream is set or there's nothing to push. */
-  ahead: number
-  /** Number of commits HEAD is behind its upstream tracking branch.
-   *  0 when no upstream is set or there's nothing to pull. */
-  behind: number
-  /** When isRepo === false: short reason ("not-a-repo", "git-not-
-   *  found", "git-error"). Lets the caller distinguish "no git
-   *  installed at all" from "this folder isn't a repo." */
-  reason?: 'not-a-repo' | 'git-not-found' | 'git-error'
-}
+export type { GitStatusSnapshot } from '../../shared/host-api'
+export { formatGitStatusChip } from '../../shared/host-api'
 
 const NOT_REPO: GitStatusSnapshot = {
   isRepo: false,
@@ -119,25 +97,3 @@ export async function getGitStatus(cwd: string): Promise<GitStatusSnapshot> {
   }
 }
 
-/**
- * Compose the chip's display string per owner directive: clean stays
- * invisible. Returns empty string when nothing's worth flagging;
- * caller renders the chip iff the result is non-empty.
- *
- * Examples (visible cases):
- *   "main · modified"            (dirty, no upstream divergence)
- *   "main · 2 ahead"             (clean, 2 commits unpushed)
- *   "main · 2 ahead, 3 behind"   (clean, divergent)
- *   "main · modified, 2 ahead"   (dirty + divergent)
- *   "abc1234 · modified"         (detached HEAD, dirty)
- */
-export function formatGitStatusChip(snap: GitStatusSnapshot): string {
-  if (!snap.isRepo) return ''
-  if (!snap.dirty && snap.ahead === 0 && snap.behind === 0) return ''
-  const ref = snap.branch || snap.head
-  const parts: string[] = []
-  if (snap.dirty) parts.push('modified')
-  if (snap.ahead > 0) parts.push(`${snap.ahead} ahead`)
-  if (snap.behind > 0) parts.push(`${snap.behind} behind`)
-  return `${ref} · ${parts.join(', ')}`
-}

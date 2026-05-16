@@ -1162,6 +1162,22 @@ function setupIPC(): void {
     return { response: result.response }
   })
 
+  // ENH-152a — git status probe for the Navigator root chip.
+  ipcMain.handle(IPC.GIT_STATUS, async (_event, { cwd }: { cwd: string }) => {
+    const { getGitStatus } = await import('../core/git/status')
+    return getGitStatus(cwd)
+  })
+
+  // ENH-151 — clone wrapper (gh + git fallback) + gh-auth probe.
+  ipcMain.handle(IPC.GIT_CLONE, async (_event, req: import('../shared/host-api').CloneRequest) => {
+    const { runClone } = await import('../core/git/clone')
+    return runClone(req)
+  })
+  ipcMain.handle(IPC.GH_AUTH_STATUS, async () => {
+    const { probeGhAuth } = await import('../core/git/auth')
+    return probeGhAuth()
+  })
+
   // Stage 21c Phase 2 — session state restored across relaunches.
   ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
     return sessionStateService.load()

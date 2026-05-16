@@ -18,7 +18,8 @@
 // `duo file rename / trash`.
 
 import { useEffect, useRef, useState } from 'react'
-import type { DirEntry, MenuTemplateItem, NavPinEntry } from '@shared/types'
+import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from '@shared/types'
+import { formatGitStatusChip } from '@shared/host-api'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
 
@@ -102,6 +103,36 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // in rename mode; null means no row is being renamed. Local to the tree
   // because rename is a transient renderer-side state (no IPC mirror).
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
+
+  // ENH-152a — git status for the navigator's current cwd. Refreshed
+  // on cwd change + on window focus (the cheap-and-correct invalidation
+  // story; fsevents-driven invalidation is a v2). Owner directive: clean
+  // stays invisible — formatGitStatusChip returns '' for clean repos.
+  const [gitChip, setGitChip] = useState<string>('')
+  const [gitSnap, setGitSnap] = useState<GitStatusSnapshot | null>(null)
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return // pinned/user-claude pane — no chip
+    let cancelled = false
+    const refresh = async () => {
+      try {
+        const snap = await window.electron.git.status(state.cwd)
+        if (cancelled) return
+        setGitSnap(snap)
+        setGitChip(formatGitStatusChip(snap))
+      } catch {
+        if (cancelled) return
+        setGitChip('')
+        setGitSnap(null)
+      }
+    }
+    void refresh()
+    const onFocus = () => { void refresh() }
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [state.cwd, rootEntriesOverride])
 
   // ENH-026 — accept rename requests from outside the tree (e.g. the
   // WorkingPane tab strip's right-click menu). App.tsx dispatches a
@@ -371,6 +402,29 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       onContextMenu={onWhitespaceContextMenu}
       onClick={onWhitespaceClick}
     >
+      {/* ENH-152a — git status chip. Only renders when there's
+          something worth flagging (dirty / ahead / behind). Clean repos
+          + non-repos show nothing per owner directive. */}
+      {gitChip && (
+        <div
+          className="px-3 py-1 mb-1 text-[11px] font-mono text-muted-foreground border-b border-border/40 truncate"
+          title={
+            gitSnap
+              ? `Branch: ${gitSnap.branch || gitSnap.head}${
+                  gitSnap.workTreeRoot ? `\nRoot: ${gitSnap.workTreeRoot}` : ''
+                }${
+                  gitSnap.dirty ? `\n${gitSnap.changedCount} changed file(s)` : ''
+                }${
+                  gitSnap.ahead ? `\n${gitSnap.ahead} commit(s) ahead` : ''
+                }${
+                  gitSnap.behind ? `\n${gitSnap.behind} commit(s) behind` : ''
+                }`
+              : gitChip
+          }
+        >
+          {gitChip}
+        </div>
+      )}
       <TreeNodes
         entries={rootEntries}
         depth={0}

@@ -641,6 +641,14 @@ const api: ElectronAPI = {
     writeText: (text) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_TEXT, text) as Promise<void>,
     // ENH-111 (Sprint 12) — image-to-clipboard for image viewer.
     writeImage: (p) => ipcRenderer.invoke(IPC.CLIPBOARD_WRITE_IMAGE, p) as Promise<boolean>
+  },
+  // ENH-151 / ENH-152a — GitHub integration. status powers the
+  // Navigator root chip; clone wraps gh repo clone / git clone for
+  // the File → Clone… modal; ghAuth probes gh auth status.
+  git: {
+    status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
+    clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),
+    ghAuth: () => ipcRenderer.invoke(IPC.GH_AUTH_STATUS)
   }
 }
 

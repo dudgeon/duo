@@ -1465,7 +1465,12 @@ export const IPC = {
   /** Phase 3c — release the aux-pinned tab back to the main strip.
    *  Renderer call; main flips the BrowserManager flag and switches
    *  the strip's active tab to the released one. */
-  BROWSER_RELEASE_AUX_TAB: 'browser:release-aux-tab'
+  BROWSER_RELEASE_AUX_TAB: 'browser:release-aux-tab',
+  // ENH-152a — git status probe for the Navigator root chip. renderer → main.
+  GIT_STATUS: 'git:status',
+  // ENH-151 — clone wrapper + gh auth probe. renderer → main.
+  GIT_CLONE: 'git:clone',
+  GH_AUTH_STATUS: 'gh:auth-status'
 } as const
 
 

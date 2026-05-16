@@ -840,6 +840,74 @@ export interface ElectronAPI {
   clipboard: ElectronClipboardAPI
   sessionState: ElectronSessionStateAPI
   events: ElectronEventsAPI
+  // ENH-151 / ENH-152a — GitHub integration: status (Navigator root
+  // chip) + clone (File → Clone… modal) + ghAuth (auth probe).
+  git: ElectronGitAPI
+}
+
+// ENH-151 / ENH-152a — GitHub integration host API.
+export interface GitStatusSnapshot {
+  isRepo: boolean
+  workTreeRoot?: string
+  branch: string
+  head: string
+  dirty: boolean
+  changedCount: number
+  ahead: number
+  behind: number
+  reason?: 'not-a-repo' | 'git-not-found' | 'git-error'
+}
+
+/**
+ * ENH-152a — compose the Navigator chip's display string per owner
+ * directive: clean stays invisible. Returns empty string when nothing's
+ * worth flagging; caller renders the chip iff the result is non-empty.
+ * Lives in shared/ rather than core/git/ so the renderer can import
+ * it directly (the renderer can't reach into core/).
+ */
+export function formatGitStatusChip(snap: GitStatusSnapshot): string {
+  if (!snap.isRepo) return ''
+  if (!snap.dirty && snap.ahead === 0 && snap.behind === 0) return ''
+  const ref = snap.branch || snap.head
+  const parts: string[] = []
+  if (snap.dirty) parts.push('modified')
+  if (snap.ahead > 0) parts.push(`${snap.ahead} ahead`)
+  if (snap.behind > 0) parts.push(`${snap.behind} behind`)
+  return `${ref} · ${parts.join(', ')}`
+}
+
+export interface CloneRequest {
+  url: string
+  targetDir?: string
+  cwd?: string
+}
+
+export interface CloneResult {
+  ok: boolean
+  clonedTo?: string
+  errorKind?: 'bad-url' | 'auth-missing' | 'clone-failed'
+  error?: string
+  via?: 'gh' | 'git'
+}
+
+export interface GhAuthStatus {
+  ghInstalled: boolean
+  authenticated: boolean
+  host?: string
+  user?: string
+  ghNotFound: boolean
+}
+
+export interface ElectronGitAPI {
+  /** ENH-152a — get a git status snapshot for a directory. Renderer
+   *  uses this for the Navigator root chip. */
+  status(cwd: string): Promise<GitStatusSnapshot>
+  /** ENH-151 — clone a GitHub repo via gh / git. Used by the
+   *  File → Clone… modal. */
+  clone(req: CloneRequest): Promise<CloneResult>
+  /** ENH-151 — probe `gh auth status`. Used by the Clone modal's
+   *  pre-flight. */
+  ghAuth(): Promise<GhAuthStatus>
 }
 
 declare global {

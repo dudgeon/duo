@@ -5923,19 +5923,19 @@ Verified the gap empirically:
 
 ### ENH-152: Navigator git status overlay — root chip + per-file dirty dots (owner-directive: clean stays invisible)
 
-**Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "A" in the GitHub-integration cluster AUQ. **Slice:** root chip first; per-file dots follow-up (per owner pick).
+**Status:** ✅ Slice 1 (root chip) shipped 2026-05-16 in v0.7.0 cleanup cut. Slice 2 (per-file dots) → ENH-152b, deferred to Sprint 18. Picked by owner as candidate "A" in the GitHub-integration cluster AUQ.
 **Priority:** P1 for ambient git visibility — "is this folder a repo?" + "is it clean?" answered without opening terminal.
-**Filed:** 2026-05-13. Promoted from sketch (was referenced in ENH-149 § cross-refs and ENH-150 cross-ref list).
+**Filed:** 2026-05-13. Promoted from sketch (was referenced in ENH-149 § cross-refs and ENH-150 cross-ref list). Slice 1 shipped 2026-05-16.
 
-**Slice 1 — Root chip (this entry).**
+**Slice 1 — Root chip (this entry). ✅ SHIPPED.**
 - FileTree root row gets a small chip next to the folder name:
   - **Not a repo** → no chip (current behavior).
   - **Clean + up-to-date with remote** → no chip (owner directive: clean stays invisible).
   - **Dirty** → `main · modified` chip (orange `#c46a1c` accent matching atelier accent).
   - **Diverged from remote** → `main · 2 ahead` / `main · 3 behind` / `main · 2↑ 1↓`.
   - **Detached HEAD** → `(detached) · 3 modified` if dirty, otherwise no chip.
-- fsevents-driven refresh: watch `.git/HEAD`, `.git/index`, `.git/refs/remotes/origin/<branch>`. Throttle 300ms.
-- IPC: `git-status-root` snapshot push from main → renderer on change.
+- ✅ **Shipped:** `core/git/status.ts` (Node-side getGitStatus probe) + `formatGitStatusChip` formatter in `shared/host-api.ts` + IPC channel `git:status` (renderer pulls; no main→renderer push in v1) + `renderer/components/FileTree.tsx` chip render + `duo git-status [<path>]` CLI verb.
+- ✅ **Refresh story (v1):** poll on cwd change + on window focus. Cheap and correct; fsevents-driven invalidation (`.git/HEAD`, `.git/index`, `.git/refs/remotes/origin/<branch>` throttle 300ms) → ENH-152c.
 
 **Slice 2 — Per-file dirty dots (follow-up entry).** Will file as ENH-152b when slice 1 ships. Same data source (`git status --porcelain=v2`); per-path dot in FileTree row.
 
@@ -5949,14 +5949,17 @@ Verified the gap empirically:
 
 ### ENH-151: `duo clone <url>` + File → Clone… modal — wraps `gh repo clone`
 
-**Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "B" in the GitHub-integration cluster AUQ. Independent of ENH-150 sequencing (will route to Doctor if gh isn't authed, but doesn't block on Doctor landing first).
+**Status:** ✅ CLI surface shipped 2026-05-16 in v0.7.0 cleanup cut (`duo clone`, `duo gh-auth`). File → Clone… modal → **FOLLOWUP-025**, deferred to Sprint 18.
 **Priority:** P1 for the GitHub-integration cluster — completes the URL → folder direction (ENH-154 covers folder → URL).
-**Filed:** 2026-05-13. Promoted from sketch (was referenced in ENH-149 § cross-refs and ENH-150 cross-ref list).
+**Filed:** 2026-05-13. CLI surface shipped 2026-05-16.
 
-**What ships.**
-- **`duo clone <url> [<path>]`** CLI verb. Wraps `gh repo clone <url> <path>`; on success, opens the cloned folder in Duo's navigator via `duo open <path>`. If `gh` is missing or un-authed, prints a one-line pointer at the Doctor panel (per ENH-150's surfacing pattern) instead of a stacktrace.
-- **File → Clone…** menu entry. Modal: URL paste field + target path (defaults to `~/<repo-name>` derived from URL) + Clone button. Same routing-to-Doctor when gh isn't authed.
-- **Auth-missing UX (v1 interim, before ENH-150's Doctor panel lands):** modal shows a plain "Run `gh auth login --web` in a terminal, then re-open this dialog" pointer. ENH-150 Doctor swap is a tiny patch later — same modal, just opens Doctor instead of showing the text pointer.
+**What shipped (CLI surface, v1).**
+- ✅ **`duo clone <url> [<path>] [--json]`** — wraps `gh repo clone` when gh is authenticated, falls back to plain `git clone` for public repos. Structured CloneResult { ok, clonedTo, errorKind, error, via } with errorKind ∈ { bad-url, auth-missing, clone-failed }. Agents branch on errorKind via `--json`.
+- ✅ **`duo gh-auth`** — probes `gh auth status`. JSON snapshot { ghInstalled, authenticated, host, user, ghNotFound } used by the future modal pre-flight + by `duo doctor` once ENH-150 lands.
+- ✅ Shared utilities at `core/git/`: `exec.ts` (spawn wrapper), `clone.ts` (gh→git fallback runner), `auth.ts` (probe), reused by ENH-152a.
+- ✅ Plumbing: `shared/types.ts` (DuoCommandName + IPC channels), `core/socket-server.ts` (CLI bridge), `electron/main.ts` + `electron/preload.ts` (renderer IPC ready for the modal), `cli/duo.ts` (verb + help) + binary rebuild, `skill/SKILL.md` / `agents/duo.md` / `docs/CLI-COVERAGE.md` (discoverability).
+
+**Deferred to FOLLOWUP-025 (File → Clone… modal).** Renderer-side modal + File menu entry. The CLI is the spec; renderer IPC handlers are already wired (`window.electron.git.clone` / `window.electron.git.ghAuth`), so the modal is a pure-UI follow-up that doesn't need new main-process work. The auth-missing UX was originally going to route to the Doctor panel; since Doctor (ENH-150) is also deferred, the modal can ship with the interim "Run `gh auth login` in a terminal" pointer or wait for Doctor — either is small.
 
 **Plumbing surface (CLAUDE.md § 4).** `cli/duo.ts` (clone verb), `shared/types.ts` (DuoCommandName + IPC channel + clone-progress snapshot), `electron/main.ts` (IPC handler spawning `gh repo clone` child process + open-in-navigator on success + menu entry), `electron/socket-server.ts` (CLI bridge), `electron/preload.ts` (renderer API), `renderer/components/CloneRepoModal/` (new modal), `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md`.
 
@@ -7088,6 +7091,24 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 **Code-side delete path.** The v1 modal in `renderer/components/ViewSourceOverlay.tsx` becomes either (a) deleted if v2 replaces it entirely, or (b) kept as a fallback for surfaces where panel-fill is awkward (e.g. browser-pane "view page source" if that ever surfaces).
 
 **Cross-ref:** ENH-117 (parent).
+
+---
+
+### FOLLOWUP-025: File → Clone… modal (renderer-side, paired with ENH-151's CLI)
+
+**Status:** 🆕 Filed 2026-05-16 (scoped out of v0.7.0 cleanup cut alongside ENH-151's CLI surface).
+**Priority:** P2 — the CLI is the spec for v1; the modal is a discoverability + non-agent-user affordance.
+**Filed:** 2026-05-16.
+
+**Today.** ENH-151's CLI shipped (`duo clone <url> [<path>]`, `duo gh-auth`). The renderer-side IPC handlers + preload exposures (`window.electron.git.clone`, `window.electron.git.ghAuth`) are already wired — pure-UI follow-up.
+
+**What to ship.**
+1. `renderer/components/CloneModal/CloneModal.tsx` — minimal modal with URL input + target-path input (defaults derived from URL) + Clone button + auth-missing banner.
+2. File → "Clone…" menu entry in `electron/main.ts` (native macOS menu) + IPC channel for the menu→renderer push.
+3. Keyboard shortcut entry in `renderer/keyboard/globalShortcuts.ts` — propose `⌘⇧K` (free today).
+4. Auth-missing UX: until ENH-150's Doctor panel lands, modal shows "Run `gh auth login` in a Duo terminal, then re-open this dialog." After Doctor lands, swap the pointer to open Doctor at the GitHub-integration row.
+
+**Cross-ref.** ENH-151 (parent — CLI shipped). ENH-150 (Doctor panel — modal points there when it ships).
 
 ---
 

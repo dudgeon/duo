@@ -193,6 +193,9 @@ empty.
 | `duo nav pins` | Stage 26 PR 2 (ENH-010) — list all navigator pins (JSON: `[{path, kind, title}]`). |
 | `duo doctor` | Stage 20 — health-check both transports (Unix socket + TCP fallback), report app/CLI version match, `$DUO_SESSION` presence, install path, skill files. **Run this first** when any `duo` command fails — it names the sandbox failure mode instead of leaving you guessing. Exits 0 if either transport is reachable. |
 | `duo install [--system]` | Symlink CLI into a sandbox-safe location: `~/.claude/bin/duo` by default (writable from a sandboxed Claude Code PTY), `~/.local/bin/duo` as fallback. Pass `--system` to force `/usr/local/bin` (sudo + outside sandbox; not recommended for Claude Code use). |
+| `duo git-status [<path>]` | **ENH-152a** — git status snapshot for a directory (defaults to `$HOME`). Returns JSON `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind }`. Backs the Navigator root chip; agents can also use it to decide a checkout's state before proposing edits (e.g. don't propose a commit when `dirty: false`). |
+| `duo clone <url> [<dir>] [--json]` | **ENH-151** — clone a GitHub repo. Uses `gh repo clone` when gh is authenticated (handles HTTPS + SSH transparently); falls back to plain `git clone` for public repos. `<url>` accepts gh shorthand (owner/repo) when gh is available, full HTTPS/SSH URL otherwise. `--json` prints the structured CloneResult `{ ok, clonedTo, errorKind, error, via }` with `errorKind` ∈ `{ bad-url, auth-missing, clone-failed }`. |
+| `duo gh-auth` | **ENH-151** — probe `gh auth status`. Returns `{ ghInstalled, authenticated, host, user, ghNotFound }`. Use before `duo clone` on a private repo to know whether auth needs to happen first. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:
