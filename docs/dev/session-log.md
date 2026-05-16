@@ -18,6 +18,34 @@
 
 ---
 
+## 2026-05-16 (Sprint 17 commit #9 — ENH-156 HTML verb-split + ENH-157 filed)
+
+**Status: pre-cut.** Mid-Sprint-17 side-conversation that landed a substantial routing change in one pass. Owner ask 2026-05-16: *"duo open, for html files, should default to the browser; duo edit should be the command to edit an html file."* Stated outcome: *"make an html artifact that explains x and open it for me — and for that to open in browser."*
+
+**Verified the gap empirically before scoping.** Today `duo open <html>` and `duo edit <html>` both route through the SAME `openFileSmart` (`renderer/App.tsx`); both honor the `<meta duo-open-in>` declaration; the verb name is ignored for routing. HTML without the meta lands in canvas under EITHER verb. The two verbs are functionally identical for HTML; `duo edit --canvas` is the only way to force canvas mode for a file that has the meta. The user's intuition that `duo edit` already did something different for HTML was wrong — they're aliases.
+
+**Owner question — comments in the browser.** Mid-discussion the owner flagged: *"will add comment still work in the duo browser? this is important — we (user and claude) still need to be able to add/view comments to local html in the duo browser."* Verified: `dispatchHtmlComment` in `electron/main.ts:2114` only reaches PageTab (`renderer/components/Page/PageTab.tsx:1724`); BrowserRenderer + browser-manager have NO comment listener. **Comments on browser-pane HTML don't work today and never did.** The verb-split would make the gap more visible (browser becomes the HTML default), so we filed **ENH-157** (browser-pane comments via CDP injection — mirrors ENH-094's playgroundActions pattern) as the prioritized Sprint-18 follow-up. Owner picked **option 2** from the verb-split AUQ ("ship verb-split now; track browser-pane comments as the immediate follow-up").
+
+**What shipped (ENH-156).**
+
+- `cli/duo.ts § case 'open'` — adds `--canvas` flag; CLI now always passes `mode: 'canvas' | 'browser'` explicitly (no more "absent mode = caller intent ambiguous"); browser is the default for the open verb.
+- `cli/duo.ts § case 'edit'` — defaults `mode: 'canvas'` for the edit verb; `--browser` is the symmetric override (rare); `--canvas` accepted as deprecated no-op for backwards compat with pre-ENH-156 scripts.
+- `core/socket-server.ts § case 'open'` — for `file://` URLs, routes via `nav.edit(path, mode)` with effective mode = `mode ?? 'browser'` for HTML, `undefined` for non-HTML (renderer classifier picks the natural surface). Web URLs unchanged (always browser tab). `routedToEditor` boolean renamed to `resolvedLocally` to reflect the broader scope (HTML-via-edit + HTML-via-canvas + non-HTML-via-classifier all set it true).
+- `core/socket-server.ts § case 'edit'` — unchanged (just passes mode through; the CLI's always-explicit-mode change is enough).
+- `renderer/App.tsx § openFileSmart` — STRIPPED the `getHtmlMeta` pre-flight + meta-driven branch. New 18-line implementation: for HTML, `mode === 'canvas'` → openFile (canvas tab); otherwise → browser pane (BUG-059 de-dupe preserved). For non-HTML, openFile (classifier). The `<meta duo-open-in>` declaration is no longer consulted anywhere in the routing path.
+- Docs sweep: CLAUDE.md (Glossary playground/page rows + Modality lock section + Working Style § 11 dropping the meta-declaration step), `skill/references/vocabulary.md` (full verb-driven rewrite of the modality section + vocab table), `skill/make-playground.md` (mandatory-meta language removed; "duo open = browser, duo edit = canvas" framing throughout), `skill/make-page.md` (Routing section rewritten), `skill/SKILL.md` (open + edit rows + verb cheat sheet), `agents/duo.md` (open + edit cheat-sheet entries + worksheet open snippet), `docs/CLI-COVERAGE.md` (open + edit + view rows).
+- `npm run build:cli` → CLI binary rebuilt + committed.
+- `npm run sync:claude` → propagated skill + agent edits to `~/.claude/`.
+- Filed **ENH-156** (verb-split) + **ENH-157** (browser-pane comments) in tasks.md with full plumbing checklists.
+
+**Zero regression for existing HTML files.** Survey: every `.html` file in the repo either declares `duo-open-in="browser"` (continues to land in browser; behavior preserved) or lacks the meta and is a static doc / design / template that's strictly better in browser mode (FAQ.html, what-duo-does.html, design exports, lesson templates, etc.). No file in the repo relied on the canvas-default routing for files without the meta.
+
+**Typecheck clean.** No new tests added — the change is routing semantics, not behavior the unit tests would catch. Owner walk gates the v0.6.16 cut (walk-item 9 in active-sprint.md covers the three scenarios that matter: open-no-meta-html → browser; edit-html → canvas; open-with-meta-html unchanged; plus the `--canvas` override + double-click parity edges).
+
+**Carry-forward.** ENH-157 (browser-pane comments) tracked as Sprint 18 anchor candidate — the prerequisite to fully close the "make artifact + open + comment in one surface" outcome.
+
+---
+
 ## 2026-05-11 evening (Sprint 17 opened + 8 commits, pre-cut) — Navigator + tab UX polish + diagnostic instrumentation + papercut sweep
 
 **Status: pre-cut.** Owner picked the A+C+D bundle from a 5-option sprint-theme AUQ; combined three coherent buckets into a single sprint since most items were small. Walk + cut pending — owner deferred the walk to a later session ("won't be able to walk for a while longer; please commit your work; then do a doc and breadcrumb sweep, commit and push"). This entry is the breadcrumb half.

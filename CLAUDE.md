@@ -163,22 +163,28 @@ tab.
 | **browser mode** (HTML in browser pane — scripts run, buttons fire) | `WorkingTab` with `kind: 'browser'` rendered via `BrowserManager` WebContentsView |
 | **a tab** | `WorkingTab` (kinds: `editor`, `page`, `browser`, `image`, `pdf`, `json`, ...) |
 | **JSON / YAML viewer-editor** (Tier 3 collapsible tree + raw-text source toggle, autosave on edit) | `WorkingTab` with `kind: 'json'` (component: `JsonView` in `renderer/components/Json/`). Format (json\|yaml) implicit from path extension via `formatFromPath()` — `.json` / `.jsonl` / `.har` / `.webmanifest` parse as JSON; `.yml` / `.yaml` parse as YAML. Both share one tab kind (single-kind decision, ENH-110 walk-3). |
-| **a page** | HTML tab; **defaults to canvas mode** (`kind: 'page'`). Static or read-and-edit content. |
-| **a playground** | HTML tab; **defaults to browser mode** (`kind: 'browser'`) — declared via `<meta name="duo-open-in" content="browser">` in the file's `<head>`. Action runtime: `playgroundActions.ts`; browser-pane CDP injection wired in ENH-094. |
-| **a lesson** | Stage 28 lesson pack at `packs/<name>/{canvases/, lesson-skill/}`. Each canvas in the pack ships with `duo-open-in: browser` (modality lock — ENH-097). |
+| **a page** | HTML opened in canvas mode (`kind: 'page'`) — source-editable, scripts blocked, buttons inert. Reached via `duo edit <html>` (the verb that says "modify the source") — ENH-156 verb-driven routing. |
+| **a playground** | HTML opened in browser mode (`kind: 'browser'`) — scripts run, buttons fire, the user interacts with the running surface. Reached via `duo open <html>` (the verb that says "show me the thing") — ENH-156 verb-driven routing. Action runtime: `playgroundActions.ts`; browser-pane CDP injection wired in ENH-094. |
+| **a lesson** | Stage 28 lesson pack at `packs/<name>/{canvases/, lesson-skill/}`. Each canvas in the pack opens in browser mode by default (via `duo open`); inspecting/modifying the source uses `duo edit`. |
 | **the navigator** | `FileTree` / `useNavigator` |
 | **the terminal** | `TerminalPane` / `tabs[]` |
 | **a terminal tab** | `TabSession` |
 
-**Modality lock — playground = browser, canvas mode = inert edit (ENH-097, 2026-05-06).**
+**Modality is verb-driven (ENH-156, 2026-05-16).**
 
-A playground is an HTML file that opens in browser mode by default — declared via `<meta name="duo-open-in" content="browser">`. Scripts run, buttons fire, the user **interacts** with the running surface. Canvas mode is the override for **editing** the same file's source — buttons render but clicks place a cursor (no `allow-scripts` in the canvas iframe).
+The same HTML source file flips between two surfaces depending on which verb opens it:
 
-The override surfaces:
-- CLI: `duo edit --canvas <path>` forces canvas mode regardless of the file's `duo-open-in` declaration.
-- UI: right-click a `file://` browser tab → "Edit in canvas."
+- **`duo open <path>` → browser mode** (`kind: 'browser'`). Scripts run, buttons fire, the user **interacts** with the running surface. This is the default for "show me the thing."
+- **`duo edit <path>` → canvas mode** (`kind: 'page'`). Source-editable, scripts blocked, buttons render but clicks place a cursor (no `allow-scripts` in the canvas iframe). This is the default for "modify the source."
 
-User-facing guidance lives in [`skill/references/vocabulary.md`](skill/references/vocabulary.md). Pre-ENH-097, the page/playground split was content-only — both rendered as `kind: 'page'` (canvas iframe) with parent-side click delegation faking interactivity. Post-ENH-097, the split is **modality-level**: page → canvas iframe, playground → browser pane. The same source file can flip between modes via the meta declaration + override.
+Overrides:
+- `duo open --canvas <path>` → force canvas mode (rare; for inspecting a playground's source without firing scripts).
+- `duo edit --browser <path>` → force browser mode (rare; symmetric).
+- UI: right-click a `file://` browser tab → "Edit in canvas" (same as `duo edit`).
+
+History — pre-ENH-097, the page/playground split was content-only (both rendered as canvas iframe with parent-side click delegation faking interactivity). ENH-097 made the split **modality-level** via `<meta name="duo-open-in" content="browser">` declarations. ENH-156 (2026-05-16) flipped that to **verb-driven** — the meta declaration is no longer consulted; the verb decides surface. Existing meta declarations on user HTML files are harmless under the new default (HTML already lands in browser via `duo open`).
+
+User-facing guidance lives in [`skill/references/vocabulary.md`](skill/references/vocabulary.md).
 
 ## Build commands
 
@@ -539,9 +545,13 @@ write it as an HTML page at `docs/research/<slug>.html`, NOT as
 
 **The shape — model after [`docs/research/data-primitives-canvas.html`](docs/research/data-primitives-canvas.html) (ENH-110, the precedent) and [`docs/research/dogfood-distro-packs-plan.html`](docs/research/dogfood-distro-packs-plan.html) (ENH-134):**
 
-- `<meta name="duo-open-in" content="browser">` so it routes to the
-  browser pane (interactive). `<meta name="duo-editable" content="false">`
-  for read-only.
+- No meta declaration needed for routing — ENH-156 made HTML routing
+  verb-driven. `duo open <path>` lands the playground in the browser
+  pane (interactive) by default; `duo edit <path>` is the path to its
+  canvas-mode source view. `<meta name="duo-editable" content="false">`
+  is still honored for the read-only canvas-mode case (ENH-106).
+  Legacy `<meta name="duo-open-in" content="browser">` on existing
+  artifacts is harmless — it's no longer consulted.
 - **Atelier styling — inline the canonical kernel** at
   [`~/.claude/skills/duo/references/duo-atelier.css`](skill/references/duo-atelier.css)
   into the `<style>` block of every new playground. The kernel covers

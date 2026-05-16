@@ -33,8 +33,8 @@ description: Author a basic HTML page that lives in Duo's canvas (the right pane
 
 | Surface | Use when |
 |---|---|
-| **Page** (canvas-rendered HTML) | The artifact is HTML you want rendered cleanly inside the canvas slot. Static content, light styling, embedded data. Same iframe runtime as a playground; just no interactivity. Adding buttons later → it becomes a playground without changing tabs. |
-| **Browser tab** | The artifact is a static reference document the user wants to read uninterrupted (long FAQ, what-duo-does page). Browser-tab routing keeps form inputs and links functional natively. Use `<meta name="duo-open-in" content="browser">` to direct Duo to open the file in a browser tab instead of as a page. |
+| **Page** (canvas-mode HTML, reached via `duo edit <path>`) | The artifact is HTML you want to read or edit as source — diagrams, multi-column layouts, styled comparison tables, dashboards (without buttons). Same iframe runtime as a playground; just no interactivity (scripts blocked). |
+| **Playground** (browser-mode HTML, reached via `duo open <path>`) | The artifact is meant to be interacted with — static reference documents the user reads uninterrupted (long FAQ, what-duo-does page), explainers with diagrams, or anything that benefits from scripts running and links/buttons being natively functional. The default for "show me the rendered thing." |
 | **Markdown editor** | The artifact is text-first prose the user wants to edit collaboratively with the agent. Use markdown when the content is *the point*, not the visual structure. |
 
 A page is the right answer when you want an HTML-shaped artifact
@@ -140,35 +140,45 @@ addressable elements.
 
 ---
 
-## Routing & mode meta tags
+## Routing — verb-driven (ENH-156)
 
-Two meta tags control how Duo opens an HTML file. Both go in `<head>`.
+The verb that opens the file decides its surface:
 
-### `<meta name="duo-open-in" content="browser|canvas">`
+- **`duo open <path>` → browser mode.** Scripts run, buttons fire,
+  the user **interacts** with the running surface. This is the
+  default for "show me the rendered thing." Use this for explainers,
+  playgrounds, FAQ-style reference docs, anything the user looks at
+  rather than edits.
+- **`duo edit <path>` → canvas mode.** Source-editable, scripts
+  blocked, buttons render but clicks place a cursor. Use this for
+  modifying the HTML source itself.
 
-Routes the file to the chosen surface on open. `browser` opens via
-`file://` URL in a browser tab — useful for read-only reference docs
-that benefit from native form-input behaviour. `canvas` (or omitted)
-opens as a page in Duo's canvas.
+No meta declaration is needed for routing — the verb is the signal.
+The legacy `<meta name="duo-open-in" content="browser">` declaration
+is no longer consulted; existing declarations on user files are
+harmless.
 
-Use `browser` for: long-form reading, content with embedded media,
-pages that include forms whose default submit behavior should fire.
-
-Use `canvas` for: anything you want rendered as a page in the canvas
-slot, especially anything that uses `data-duo-pane` repaint regions.
+Rare overrides:
+- `duo open --canvas <path>` — force canvas mount (inspect source
+  without firing scripts).
+- `duo edit --browser <path>` — force browser mount (symmetric).
+- UI: right-click a `file://` browser tab → "Edit in canvas"
+  (equivalent to `duo edit`).
 
 ### `<meta name="duo-default-editable" content="false">`
 
-Soft hint: the page mounts read-only by default, but a toolbar toggle
-lets the user flip into edit mode at runtime. Their choice persists
-per-path in localStorage. **Recommended for any page that's primarily
-display** — it prevents accidental cursor placement and content
-edits when the user clicks around.
+Soft hint for canvas mode (`duo edit`): the page mounts read-only
+by default, but a toolbar toggle lets the user flip into edit mode
+at runtime. Their choice persists per-path in localStorage.
+**Recommended for any page that's primarily display** — it prevents
+accidental cursor placement and content edits when the user clicks
+around in canvas mode.
 
-There's a related hard-lock variant `<meta name="duo-editable" content="false">`
-that hides the toolbar toggle entirely. Use the hard lock for system
-reference HTMLs (FAQ, what-duo-does); use `duo-default-editable` for
-display-oriented pages the user might occasionally want to annotate.
+There's a related hard-lock variant `<meta name="duo-editable"
+content="false">` that hides the toolbar toggle entirely. Use the
+hard lock for system reference HTMLs (FAQ, what-duo-does); use
+`duo-default-editable` for display-oriented pages the user might
+occasionally want to annotate.
 
 ---
 

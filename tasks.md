@@ -5765,6 +5765,83 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ---
 
+### ENH-156: HTML verb-split — `duo open <html>` → browser; `duo edit <html>` → canvas
+
+**Status:** 🟡 In progress Sprint 18 (2026-05-16). Owner picked option (a) from the verb-split assessment + option 2 ordering (ship verb-split now; browser-pane comments as the immediate follow-up = ENH-157).
+**Priority:** P0 for Sprint 18 — addresses the "make an HTML artifact and open it for me" outcome that today silently routes to canvas when the agent forgets `<meta duo-open-in="browser">`.
+**Filed:** 2026-05-16.
+
+**Origin.** Owner ask 2026-05-16: *"duo open, for html files, should default to the browser; duo edit should be the command to edit an html file (or other asset that should be default read/interact-only, like images)."* Stated outcome: *"make an html artifact that explains x and open it for me — and for that to open in browser."*
+
+Verified the gap empirically:
+- Today `duo open <html>` and `duo edit <html>` route through the SAME `openFileSmart` (`renderer/App.tsx:897-937`) — both honor the `<meta duo-open-in="browser">` declaration; verb name is ignored for routing.
+- For an HTML file WITHOUT the meta, both verbs land in canvas (`kind: 'page'`) where the buttons / scripts are inert.
+- The only way to force canvas today is `duo edit --canvas` or right-click → "Edit in canvas."
+- The two verbs are functionally identical for HTML; `duo edit` is a verbose alias.
+
+**What ships.**
+- `duo open <html>` → ALWAYS the browser pane. No meta consultation. Scripts run, buttons fire.
+- `duo edit <html>` → ALWAYS the canvas tab (`kind: 'page'`). Source-editable, scripts blocked, buttons inert.
+- `duo open --canvas <html>` → new override flag for the rare case where the caller wants browser-default-overridden to canvas. Same shape as today's `duo edit --canvas`.
+- `duo edit --browser <html>` → symmetric override (lands in browser via `duo edit` if you want that). Probably never used by agents but documented for completeness.
+- `<meta name="duo-open-in" content="browser">` becomes a no-op (deprecated). Existing files keep their declarations — harmless under the new default. NOT mass-removed (no churn benefit).
+- Navigator double-click on `.html` files → browser pane (matches new `duo open` default; Working Style § 4 CLI/UI parity).
+- Right-click "Edit in canvas" on a browser-tab continues to exist (UI shortcut for the canvas mode).
+- Non-HTML routing unchanged: `.md` → editor, images → image viewer tab, JSON / YAML → JsonView, etc.
+- `duo edit <image.png>` (and other no-editor assets) → falls through to the same viewer as `duo open` with an explicit note ("no editor surface for this type; opened in viewer"). PRD-documented asymmetry.
+
+**Comments are canvas-only until ENH-157 ships.** Verified `dispatchHtmlComment` (`electron/main.ts:2114`) only reaches PageTab (`renderer/components/Page/PageTab.tsx:1724`); BrowserRenderer + browser-manager have no comment listener. Today, `duo html comment` on a browser-mounted playground times out with "no active canvas." Under the new default, EVERY HTML opened via `duo open` mounts in browser — so commenting requires `duo edit` (which lands in canvas where PageTab subscribes). ENH-157 closes that gap.
+
+**Plumbing surface (CLAUDE.md § 4).**
+- `cli/duo.ts` — `case 'open'` adds `--canvas` flag handling; `case 'edit'` defaults mode='canvas' for HTML; `printHelp()` updated.
+- `core/socket-server.ts` — `case 'open'` strips the meta pre-flight for HTML and always routes to browser; `case 'edit'` always passes mode='canvas' for HTML.
+- `renderer/App.tsx` `openFileSmart` — for HTML: `mode === 'canvas'` → canvas tab; otherwise → browser pane. Meta lookup removed.
+- `cli/duo` binary rebuilt via `npm run build:cli`.
+- Docs: CLAUDE.md (Glossary playground row + Working Style § 11), `skill/references/vocabulary.md`, `skill/examples/make-playground.md` + `make-page.md`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`.
+- `npm run sync:claude` to propagate.
+
+**Migration.** Zero regression for existing files — survey confirmed every HTML file in the repo either (a) declares `duo-open-in="browser"` already (continues to land in browser), or (b) lacks the meta and is a static doc / design / template that's strictly better in browser mode. No existing file relied on canvas-default routing.
+
+**Dependencies.** None. Independent of ENH-150 / Doctor / GitHub-integration cluster. Closes the meta-discipline footgun that drove ENH-097's modality lock pattern.
+
+**Cross-ref.** ENH-097 (modality lock — the meta-based mechanism this verb-split supersedes for the verb path; meta survives as a deprecated hint). ENH-157 (browser-pane comments — the prerequisite follow-up so commenting works on `duo open`-mounted HTML without forcing a `duo edit` mode switch). BUG-067 (smart-router routing for `duo open` — the routing-label code path here gets simpler).
+
+---
+
+### ENH-157: Comments in the browser pane — CDP-injected sidecar overlay for `file://` HTML
+
+**Status:** 🆕 Filed Sprint 18 (2026-05-16) as the prioritized follow-up to ENH-156.
+**Priority:** P1 for Sprint 18 — once ENH-156 ships, the "make artifact + open + comment" outcome only fully closes when comments work on browser-pane HTML. Without this, `duo html comment` on a `duo open`-mounted file requires the caller to first `duo edit` (mode-switch friction).
+**Filed:** 2026-05-16.
+
+**Origin.** Owner directive during ENH-156 scoping: *"will add comment still work in the duo browser? this is important — we (user and claude) still need to be able to add/view comments to local html in the duo browser."* Verified the gap: `dispatchHtmlComment` in `electron/main.ts:2114` only reaches PageTab (`renderer/components/Page/PageTab.tsx:1724`). BrowserRenderer + browser-manager have NO comment listener. Browser-pane comments don't work today — and never did. ENH-156 makes the gap more visible by moving the HTML default to browser.
+
+**What ships.**
+- `duo html comment` + `duo html comments` work on HTML mounted in the browser pane (CDP-injected `file://` URLs).
+- Sidecar (`<name>.duo.json`) reads + writes route through main, same shape as canvas-mode sidecar plumbing today.
+- Comment anchors (`data-duo-id` resolution) work the same way they do in PageTab — resolved against the live DOM inside the WebContentsView via CDP.
+- Visual overlay (the comment dots + thread cards) injected via CDP `Page.addScriptToEvaluateOnNewDocument` + a runtime-injected toolbar — mirrors ENH-094's `playgroundActions` CDP-injection pattern.
+- Comments visible across canvas ↔ browser mode flips on the same file (sidecar is the single source of truth; both surfaces read the same `<name>.duo.json`).
+- Right-click "Add comment" on a selected element in the browser pane (UI shortcut) — same surface as canvas's selection-pill flow.
+
+**Plumbing surface (CLAUDE.md § 4).**
+- `electron/browser-manager.ts` — CDP injection for the sidecar runtime (mirror `playgroundActions` injection).
+- `electron/main.ts` `dispatchHtmlComment` / `dispatchHtmlCommentsList` — route to browser pane when the target `file://` URL matches an active browser tab; fall back to canvas (PageTab) otherwise.
+- `renderer/components/BrowserRenderer.tsx` — wire the comment-overlay's data-duo-id resolution + anchor rendering for the browser surface.
+- `shared/types.ts` — extend the comment IPC contract if needed.
+- `cli/duo.ts` — no CLI changes (existing `duo html comment` / `duo html comments` verbs work as-is; routing change is server-side).
+- `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md` — update notes to reflect that comments now work in both surfaces.
+
+**Constraints.**
+- `file://` only (per current `duo html comment` scope). Web URLs out of scope.
+- Sidecar path resolution from a browser-pane URL: strip `file://` prefix + decodeURI to recover the on-disk path; same shape as `core/socket-server.ts:446-487` already does for the open routing.
+
+**Dependencies.** Lands after ENH-156 (the verb-split exposes the gap and shifts the default surface). Could ship independently, but the user-visible value only materializes once browser is the HTML default.
+
+**Cross-ref.** ENH-156 (the verb-split that makes this load-bearing). ENH-094 (`playgroundActions` CDP injection — the established pattern for browser-pane overlays). The canvas-side comment pipeline in PageTab (`renderer/components/Page/PageTab.tsx:1720-1810`) as the parity reference.
+
+---
+
 ### ENH-155: Right-click GitHub menu on FileTree + bounce-list update — "Open on GitHub" + "Copy GitHub URL"
 
 **Status:** 🆕 Filed Sprint 17 (2026-05-13) on branch `claude/github-integration-planning-rPdVY`. Picked by owner as candidate "C+D" in the GitHub-integration cluster AUQ. Independent of ENH-150 (no Doctor / probe dependency). Ships in parallel with ENH-151 / ENH-152 / ENH-154.

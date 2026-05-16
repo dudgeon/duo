@@ -2,9 +2,9 @@
 
 **Theme:** **A+C+D bundle — Navigator + tab UX polish + Diagnostic + instrumentation sprint + Papercut sweep.** Owner pick 2026-05-11 from a 5-option AUQ; combined three coherent buckets into a single sprint since most items were small. Walk + cut pending — owner deferred the walk; running breadcrumb sweep before push.
 
-> **Status: 8 sprint commits landed; v0.6.16 cut pending owner walk + sign-off.** Sprint 16 + v0.6.15 cut detail preserved in § "Cut records" below.
+> **Status: 9 sprint commits landed (incl. ENH-156 verb-split + ENH-157 filing); v0.6.16 cut pending owner walk + sign-off.** Sprint 16 + v0.6.15 cut detail preserved in § "Cut records" below.
 
-## Sprint 17 commits (8, pre-cut)
+## Sprint 17 commits (9, pre-cut)
 
 | Commit | Item | Shape |
 |---|---|---|
@@ -16,6 +16,7 @@
 | [`d0fdc44`](https://github.com/dudgeon/duo/commit/d0fdc44) | **ENH-084 v4** — Instrumentation pass. `mainColRef` + `auxColRef` declared + attached; document-level capture-phase listeners on `focusin` + `mousedown` + `blur` with subpane classification. NO behavior change. Single-string log format so renderer→main forwarder captures full payload | Diagnose-first — fix gated on owner 60s click-around walk |
 | [`f54f4b5`](https://github.com/dudgeon/duo/commit/f54f4b5) | **BUG-123 spike** (superseded by next commit) — Initial framing assumed A/B/C trade-offs that turned out to depend on assumed-correct current behavior | — |
 | [`2d868a6`](https://github.com/dudgeon/duo/commit/2d868a6) | **BUG-123 v1 fix** — Root cause: Duo never imported `prosemirror-tables/style/tables.css`; the `.selectedCell` decoration was rendering invisibly. Empirical grounding (after owner correction) found the missing import; 9-line CSS fix in `globals.css` paints the overlay with Duo accent at 18% opacity + position:relative on td/th. Cross-boundary drag-to-outside-table deferred behind v1 owner walk | Ship — owner AUQ pick (CSS only + Duo orange) |
+| _(pending sha)_ | **ENH-156** — HTML verb-split: `duo open <html>` → browser pane (interactive default); `duo edit <html>` → canvas mode (source-editable). Renderer's `openFileSmart` strips the `<meta duo-open-in>` consultation; CLI adds `--canvas` override for open + `--browser` override for edit; server passes mode through nav.edit. ENH-157 filed as the prioritized follow-up (browser-pane comment support — `duo html comment` currently canvas-only, surfaced by the new default). Doc sweep across CLAUDE.md / vocabulary.md / make-page.md / make-playground.md / SKILL.md / agents/duo.md / CLI-COVERAGE.md | Ship — owner pick (option 2 from the verb-split AUQ: ship now, file browser-comments ENH for Sprint 18) |
 
 ## Side branch — GitHub-integration planning (`claude/github-integration-planning-rPdVY`)
 
@@ -59,6 +60,12 @@ When walk-time arrives, the smoke-walk manifest should cover:
 6. **BUG-079 + ENH-084 v4 instrumentation** — both fire correctly when triggered; capture the streams when the bug surfaces. NO direct walk needed (passive instrumentation).
 7. **Carryover from v0.6.15:** owner's pending enterprise smoke on work machine — ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation. **This is the v0.6.15 carry-forward, not Sprint 17 work** — but flagged so the v0.6.16 cut waits on it too.
 8. **ENH-154 playground walk (off-Sprint-17, on side branch merged to main)** — `duo open docs/research/link-folder-to-repo.html`. Walk 5 decision cards (entry-point shape · pre-state risk policy · default visibility · multi-host gh · post-link behavior); decide each radio; add any general-comments. Hit **Copy decisions** and paste back. Gates coding on ENH-151 / ENH-152 / ENH-154 / ENH-155 (the GitHub-integration cluster). Also doubles as the ENH-146 kernel-inline validation per walk-item 5.
+9. **ENH-156 — verb-split (HTML default routing).** Three tests:
+   - `duo open /tmp/verb-test-playground.html` (an HTML with NO `duo-open-in` meta) → should land in the BROWSER PANE (pre-ENH-156 behavior: would have landed in canvas). Scripts should run if the page has any. Verify via `duo layout` → `main.kind: 'browser'` + `main.url: file://…`.
+   - `duo edit /tmp/verb-test-playground.html` (same file) → should land in CANVAS MODE (PageTab). Buttons render but clicks place a cursor. Verify via `duo layout` → `main.kind: 'page'` + `main.path: /tmp/verb-test-playground.html`.
+   - `duo open docs/research/link-folder-to-repo.html` (HAS `duo-open-in="browser"` meta — should continue working identically) → browser pane (no regression from existing playgrounds).
+   - Edge: double-click a `.html` file in the navigator → browser pane (CLI/UI parity with `duo open`).
+   - Edge: `duo open /tmp/verb-test-playground.html --canvas` → forces canvas mount (rare override case).
 
 ## Sprint 17 carry-forward (most likely Sprint 18 candidates)
 
@@ -74,6 +81,7 @@ When walk-time arrives, the smoke-walk manifest should cover:
 | **FOLLOWUP-020** | `duo close-tab` for active working/terminal tab — CLI parity for ⌘W | None — half-day with full plumbing checklist |
 | **ENH-137** | Beginner's Guide content (`packs/duo-default/canvases/beginners-guide.html`) | Owner-authored draft |
 | **ENH-141 enterprise smoke** | v0.6.15 work-machine validation | Owner's work-machine session |
+| **ENH-157** | Comments in the browser pane (CDP-injected sidecar overlay) — closes the gap ENH-156 exposed: `duo html comment` is canvas-only today, so users who `duo open` a playground must `duo edit` to comment. CDP-injection pattern mirrors ENH-094's playground actions; sidecar reads route through main, same shape as canvas-mode plumbing. P1 — load-bearing for "make artifact + open + comment" outcome | None — Sprint 18 anchor candidate. Half-to-full sprint of work. |
 
 ## v0.6.16 cut prep
 

@@ -887,52 +887,42 @@ export function App() {
     console.log('[BUG-101 openFile]', { path, title })
   }, [])
 
-  // Smart file-open dispatcher: pre-flights HTML files for the
-  // `<meta name="duo-open-in" content="browser">` routing hint. When
-  // present, the file lands in a browser tab via `file://` URL instead
-  // of the canvas. Used by system reference HTMLs (FAQ, What Duo Does)
-  // and any user file that opts in. Non-HTML files skip the pre-flight
-  // entirely (cheap fast path). On read failure or no meta present,
-  // falls through to the canvas as before.
+  // ENH-156 — verb-driven file open dispatcher.
+  // - HTML routes to the browser pane (interactive, scripts run) by
+  //   default. `mode === 'canvas'` overrides to the canvas tab
+  //   (source-editable, scripts blocked) — used by `duo edit` and
+  //   the right-click "Edit in canvas" entry.
+  // - Non-HTML routes via openFile's classifier (`.md` → TipTap
+  //   editor; image → viewer; JSON → JsonView; etc.). The mode
+  //   arg is HTML-specific; ignored for other types.
+  // - The legacy `<meta name="duo-open-in" content="browser">` is
+  //   no longer consulted — verb decides surface. Existing meta
+  //   declarations on user files are harmless under the new default
+  //   (HTML already lands in browser via `duo open`).
   const openFileSmart = useCallback(async (path: string, title: string, mode?: 'canvas' | 'browser') => {
     const lower = path.toLowerCase()
-    // ENH-097 — explicit canvas-mode override wins over the file's
-    // `duo-open-in` meta. Used by `duo edit --canvas <path>` and the
-    // right-click "Edit in canvas" entry on browser tabs. The override
-    // skips the meta-tag branch entirely and routes the file to the
-    // canvas iframe (kind: 'page') for editing.
-    if (mode === 'canvas') {
-      openFile(path, title)
+    const isHtml = lower.endsWith('.html') || lower.endsWith('.htm')
+    if (isHtml && mode !== 'canvas') {
+      const fileUrl = `file://${encodeURI(path)}`
+      // BUG-059 — de-dupe local files routed to the browser pane.
+      // file:// URLs ARE local files (the FAQ, What Duo Does, any
+      // user-authored HTML); opening one twice should activate the
+      // existing tab rather than spawning a duplicate. Web URLs
+      // (http/https) keep duplicate-allowed (multiple tabs on the
+      // same site is a legitimate browser pattern); this branch
+      // only fires for local HTML so the filter is by construction.
+      const existing = (await window.electron.browser.getTabs())
+        .find(t => t.url === fileUrl)
+      if (existing) {
+        await window.electron.browser.switchTab(existing.id)
+      } else {
+        await window.electron.browser.addTab(fileUrl)
+      }
+      setActiveWorking({ kind: 'browser' })
+      setFocusedColumn('working')
       return
     }
-    if (lower.endsWith('.html') || lower.endsWith('.htm')) {
-      try {
-        const meta = await window.electron.files.getHtmlMeta(path)
-        if (meta?.openIn === 'browser' || mode === 'browser') {
-          const fileUrl = `file://${encodeURI(path)}`
-          // BUG-059 — de-dupe local files routed to the browser pane via
-          // `<meta duo-open-in="browser">`. file:// URLs ARE local files
-          // (FAQ, What Duo Does, user-authored HTML opened in browser
-          // mode); opening one twice should activate the existing tab.
-          // Web URLs (http/https) stay duplicate-allowed — multiple
-          // tabs on the same site is a legitimate browser pattern. The
-          // file://-only filter is intentional (and the only case
-          // openFileSmart can produce).
-          const existing = (await window.electron.browser.getTabs())
-            .find(t => t.url === fileUrl)
-          if (existing) {
-            await window.electron.browser.switchTab(existing.id)
-          } else {
-            await window.electron.browser.addTab(fileUrl)
-          }
-          setActiveWorking({ kind: 'browser' })
-          setFocusedColumn('working')
-          return
-        }
-      } catch {
-        // Fall through to canvas on any IPC / parse failure.
-      }
-    }
+    // Canvas mode for HTML, OR any non-HTML (classifier picks).
     openFile(path, title)
   }, [openFile])
 
@@ -1063,7 +1053,9 @@ export function App() {
         }
         // Stage 27 — `editor:open` opens an arbitrary file in whichever
         // surface fits. `data-mode` forces the surface; absent, defer
-        // to openFileSmart which honors `<meta name="duo-open-in">`.
+        // to openFileSmart which routes HTML to browser by default
+        // (ENH-156 verb-driven; the `<meta duo-open-in>` declaration
+        // is no longer consulted).
         case 'editor:open': {
           const trimmed = action.path.trim()
           if (!trimmed) return { ok: false, error: 'editor:open requires a non-empty data-path' }
@@ -1075,7 +1067,7 @@ export function App() {
           const absPath = trimmed.startsWith('~/') ? `${home}/${trimmed.slice(2)}` : trimmed
           const title = absPath.slice(absPath.lastIndexOf('/') + 1) || absPath
           if (action.mode === 'browser') {
-            // Force browser regardless of meta hint.
+            // Force browser pane (HTML default under ENH-156).
             const fileUrl = absPath.startsWith('http://') || absPath.startsWith('https://')
               ? absPath
               : `file://${encodeURI(absPath)}`
@@ -1091,7 +1083,8 @@ export function App() {
             openFile(absPath, title)
             return { ok: true }
           }
-          // Default: smart routing (honors duo-open-in meta).
+          // Default: verb-driven routing (HTML → browser per ENH-156;
+          // non-HTML → natural surface via classifier).
           await openFileSmart(absPath, title)
           return { ok: true }
         }
@@ -1274,7 +1267,8 @@ export function App() {
   }, [])
 
   // Called by MarkdownPreview when the user clicks an internal link.
-  // Routes through openFileSmart so duo-open-in:browser is honored.
+  // Routes through openFileSmart — HTML lands in the browser pane by
+  // default (ENH-156); non-HTML routes via the classifier.
   const onOpenMarkdown = useCallback((path: string) => {
     const name = path.slice(path.lastIndexOf('/') + 1) || path
     void openFileSmart(path, name)
@@ -1297,10 +1291,9 @@ export function App() {
   }, [revealChip])
 
   // Stage 10 Phase 6: `duo view <path>` from the CLI. Open as a file tab.
-  // Routes through openFileSmart so duo-open-in:browser is honored
-  // when the agent runs `duo view ~/.claude/duo/help/faq.html` etc.
-  // ENH-097 — `mode` carries an optional `--canvas` override that
-  // forces canvas-mode mount even when the file declares browser mode.
+  // Routes through openFileSmart — HTML lands in the browser pane by
+  // default (ENH-156 verb-driven); non-HTML routes via the classifier.
+  // `mode` carries the CLI flag override (`--canvas` / `--browser`).
   useEffect(() => {
     return window.electron.nav.onView((p, mode) => {
       const name = p.slice(p.lastIndexOf('/') + 1) || p
@@ -1308,10 +1301,11 @@ export function App() {
     })
   }, [openFileSmart])
 
-  // Stage 11: `duo edit <path>` from the CLI. Same dispatch as view — the
-  // classifier routes `.md` to the editor tab type; other types open in
-  // their usual preview. duo-open-in:browser still honored unless the
-  // CLI passed `--canvas` (ENH-097), which forces canvas mode.
+  // Stage 11: `duo edit <path>` from the CLI. ENH-156 — verb-driven
+  // mode: the CLI passes `mode: 'canvas'` for HTML by default (the new
+  // semantic of `duo edit` is "edit the source"), or `mode: 'browser'`
+  // on `--browser` override. Non-HTML files route via the classifier
+  // (`.md` → TipTap editor; image → viewer) regardless of mode.
   //
   // BUG-106 (Sprint 10) — pre-flight existence so `duo edit
   // <non-existent-path>` doesn't ENOENT in the editor. Pre-create

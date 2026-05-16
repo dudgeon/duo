@@ -253,9 +253,15 @@ async function main() {
       }
       case "open": {
         const reveal = rest.includes("--reveal");
-        const positional = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo open <path-or-url> [--reveal]");
+        const canvasOverride = rest.includes("--canvas");
+        const positional = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo open <path-or-url> [--canvas] [--reveal]");
         const resolved = resolveOpenTarget(positional);
-        out(await send("open", reveal ? { url: resolved, reveal: true } : { url: resolved }));
+        const payload = {
+          url: resolved,
+          mode: canvasOverride ? "canvas" : "browser"
+        };
+        if (reveal) payload["reveal"] = true;
+        out(await send("open", payload));
         break;
       }
       case "reload": {
@@ -447,11 +453,10 @@ async function main() {
         break;
       }
       case "edit": {
-        const canvasFlagIdx = rest.indexOf("--canvas");
-        const target = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo edit <path> [--canvas] [--reveal]");
+        const browserOverride = rest.includes("--browser");
+        const target = rest.find((a) => !a.startsWith("--")) ?? die("Usage: duo edit <path> [--browser] [--reveal]");
         const resolved = resolveFilePath(target);
-        const payload = { path: resolved };
-        if (canvasFlagIdx !== -1) payload["mode"] = "canvas";
+        const payload = { path: resolved, mode: browserOverride ? "browser" : "canvas" };
         if (rest.includes("--reveal")) payload["reveal"] = true;
         out(await send("edit", payload));
         break;
@@ -1188,10 +1193,18 @@ USAGE
 
 COMMANDS
   navigate <url>                  Navigate active tab to URL
-  open <path-or-url>              Open a local file or URL in a NEW browser
-                                  tab and activate it. Useful for showing the
-                                  user generated HTML artifacts or
-                                  prototypes.
+  open <path-or-url> [--canvas]   Open a local file or URL. HTML files
+       [--reveal]                  default to the browser pane (scripts run,
+                                   interactive) \u2014 use this when showing the
+                                   user a generated explainer / playground.
+                                   Non-HTML files route to their natural
+                                   surface (.md \u2192 editor, image \u2192 viewer).
+                                   --canvas (ENH-156) forces canvas-mode
+                                   mount for HTML (source-editable, scripts
+                                   blocked) \u2014 rare override for inspecting
+                                   the playground's HTML source.
+                                   --reveal expands the working pane if
+                                   collapsed.
   reload                          Reload the active browser tab in place
                                   (no URL needed). Pair for "duo navigate"
                                   in the agent's iteration loop.
@@ -1260,13 +1273,20 @@ COMMANDS
                                   \u2014 useful when you want to view or edit
                                   a playground's source without firing
                                   its scripts.
-  edit <path> [--canvas]          Open a markdown file in the rich editor
-                                  (Stage 11). For .md files this gives the
-                                  Google-Docs-style editing surface; for
-                                  other types behaves like \`view\`.
-                                  \`--canvas\` forces canvas-mode mount
-                                  for HTML files (override for editing
-                                  playground source \u2014 see make-playground).
+  edit <path> [--browser]         Open a file for editing its source.
+       [--reveal]                  HTML defaults to canvas mode (ENH-156)
+                                   \u2014 buttons inert, scripts blocked, the
+                                   document is editable. .md files open
+                                   in the TipTap rich editor (Stage 11).
+                                   Images / PDFs / JSON fall through to
+                                   their natural viewers (no editor
+                                   surface exists for those types).
+                                   --browser forces browser mode for
+                                   HTML (rare override; symmetric with
+                                   \`duo open --canvas\`).
+                                   --canvas accepted as deprecated
+                                   no-op (the default for HTML now).
+                                   --reveal expands the working pane.
   selection [--pane auto|editor|browser|canvas]
                                   Print the active surface's selection as
                                   JSON. Default --pane auto prefers a

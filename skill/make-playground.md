@@ -10,20 +10,22 @@ description: Add interactivity to a Duo page — buttons that drive Duo, form in
 > verbs, form inputs piped through `data-payload-from`, events
 > emitted via `duo:event`. The interactive tier on top of `make-page`.
 >
-> **Modality lock — playgrounds default to BROWSER mode** (added
-> 2026-05-06, ENH-097). A playground HTML file MUST declare
-> `<meta name="duo-open-in" content="browser">` in `<head>`. The
-> file opens in Duo's browser pane; scripts run; buttons fire.
-> The user **interacts** with the running surface — they don't edit
-> source while it's running. Editing the source = open the same file
-> in canvas mode (override). See [`references/vocabulary.md`](references/vocabulary.md).
+> **Modality is verb-driven** (ENH-156, 2026-05-16; supersedes the
+> meta-declared modality lock from ENH-097). The verb decides:
+> `duo open <path>` → browser pane (scripts run, buttons fire); `duo
+> edit <path>` → canvas iframe (source-editable, scripts blocked).
+> No `<meta name="duo-open-in">` declaration is needed — playgrounds
+> just need to be opened via `duo open`. The user **interacts** with
+> the running surface — they don't edit source while it's running.
+> Editing the source = open the same file via `duo edit` (or right-
+> click → "Edit in canvas"). See [`references/vocabulary.md`](references/vocabulary.md).
 >
 > **Vocabulary lock** (see [`references/vocabulary.md`](references/vocabulary.md)):
 > - **canvas (the slot)** — the right pane (type-agnostic)
-> - **canvas mode** — HTML tab in the canvas iframe; editable, scripts blocked, buttons inert
-> - **browser mode** — HTML tab in the browser pane; scripts run, buttons fire
-> - **page** — HTML tab, defaults to canvas mode (read-only or editable doc) — see `make-page`
-> - **playground** — HTML tab with interactivity, defaults to **browser mode** — THIS skill
+> - **canvas mode** — HTML tab in the canvas iframe; editable, scripts blocked, buttons inert. Reached via `duo edit`.
+> - **browser mode** — HTML tab in the browser pane; scripts run, buttons fire. Reached via `duo open`.
+> - **page** — HTML opened via `duo edit` (canvas mode) — see `make-page`
+> - **playground** — HTML opened via `duo open` (browser mode) — THIS skill
 > - **lesson** — playground + paired guide skill — see § Lessons specifically
 > - **start tab** — a playground that auto-opens on first launch
 >
@@ -367,10 +369,11 @@ demonstrates a complete two-step tutorial:
 <!DOCTYPE html>
 <html>
 <head>
-  <!-- Required for playgrounds — opens in browser pane so scripts run + buttons fire. -->
-  <meta name="duo-open-in" content="browser">
-  <!-- Soft default for the canvas-mode override path: when the user opens this
-       file in canvas mode to edit, the canvas mounts read-only by default. -->
+  <!-- Playgrounds open in browser mode via `duo open <path>` —
+       no meta declaration needed for routing (ENH-156 verb-driven). -->
+  <!-- Soft default for the canvas-mode override path: when the user
+       opens this file via `duo edit` to modify the source, the canvas
+       mounts read-only by default (ENH-106). -->
   <meta name="duo-default-editable" content="false">
   <style>/* Atelier palette tokens, padded layout, etc. */</style>
 </head>
@@ -416,17 +419,17 @@ event-loop, see the lesson-template at
 
 ---
 
-## Browser-mode is the default — all playgrounds open in the browser pane
+## Verb-driven modality — `duo open` = browser, `duo edit` = canvas
 
-**Modality lock (2026-05-06, ENH-097).** All playgrounds run in browser mode. The `<meta name="duo-open-in" content="browser">` declaration is **mandatory** on every playground HTML file. The user opens the file via `duo open <path>` (or by clicking it in the navigator) and the file lands in the browser pane as a real Chromium tab — scripts run, buttons fire their `data-duo-action` handlers, form inputs are live, events stream to Claude via `duo events --follow`.
+**ENH-156 (2026-05-16).** The verb decides the surface. Playgrounds open in browser mode via `duo open <path>` (or file-tree double-click) — the file lands in Duo's browser pane as a real Chromium tab, scripts run, buttons fire their `data-duo-action` handlers, form inputs are live, events stream to Claude via `duo events --follow`.
 
-The previous ambiguous era — where playgrounds without the meta tag opened in the canvas iframe and relied on parent-side click delegation to fake interactivity — is over. A playground without the meta tag is a misconfigured playground; the canvas iframe blocks scripts (`allow-scripts` is off; see `make-page` § Sandboxing) and the user can't fully interact with the surface there.
+No `<meta name="duo-open-in">` declaration is needed (and any existing declarations are ignored). The verb is the signal. The previous ambiguous era — where playgrounds without the meta tag opened in the canvas iframe and relied on parent-side click delegation to fake interactivity — is over because `duo open` now ALWAYS produces a real browser tab for HTML.
 
-**Editing a playground's source — the canvas-mode override.** When the user wants to mutate a playground's HTML source, they open the same file in canvas mode. The `<meta duo-open-in="browser">` defaults the file to browser, so canvas mode requires an explicit override:
-- CLI: `duo edit --canvas <path>` (forces canvas mount; the `--canvas` flag overrides the meta-declared default).
-- UI: right-click a browser tab whose URL is `file://…` → "Edit in canvas." Same effect.
+**Editing a playground's source — `duo edit`.** When the user wants to mutate a playground's HTML source, they open the same file via `duo edit <path>` (or right-click a browser tab whose URL is `file://…` → "Edit in canvas"). The file mounts in the canvas iframe — buttons render but **clicks place a cursor instead of firing handlers** (no `allow-scripts` in the iframe). The user edits the HTML source via contentEditable + markdown shortcuts. Save reflects in the running browser tab if it's still open (the file watcher reloads the browser tab — same path as BUG-085 reconciliation for markdown).
 
-In canvas mode, the buttons render but **clicks place a cursor instead of firing handlers** (no `allow-scripts` in the iframe; the parent click delegation is gated to `kind: 'page'` tabs that came from the canvas-default path). The user edits the HTML source via contentEditable + markdown shortcuts. Save reflects in the running browser tab if it's still open (the file watcher reloads the browser tab — same path as BUG-085 reconciliation for markdown).
+Rare overrides:
+- `duo open --canvas <path>` — force canvas mount via the open verb (useful for inspecting a playground's source without firing its scripts).
+- `duo edit --browser <path>` — force browser mount via the edit verb (symmetric override).
 
 ### The escape hatch — `window.duoPlaygroundAction`
 
@@ -455,7 +458,7 @@ This unlocks the **live-event pattern** for any user interaction: the page's exi
 
 ### Reference implementations
 
-The smoke-walk page (`.claude/skills/smoke-walk/`) and the worksheet primitive (`.claude/skills/worksheet/`) are the reference implementations. Both ship `<meta name="duo-open-in" content="browser">` and use the inline-JS escape hatch for live event emission.
+The smoke-walk page (`.claude/skills/smoke-walk/`) and the worksheet primitive (`.claude/skills/worksheet/`) are the reference implementations. Both open in browser mode via `duo open` (ENH-156 verb-driven; no meta declaration required) and use the inline-JS escape hatch for live event emission.
 
 ---
 
@@ -478,11 +481,11 @@ The practical mismatch:
   attribute pattern is our equivalent — same outcome (publish a
   discoverable agent-action), declarative not imperative, no JS
   required.
-- **Browser-tab content (`<meta name="duo-open-in" content="browser">`)
-  CAN run scripts.** A page Duo opens in browser mode could
-  theoretically register WebMCP tools. The CDP-driven browser
-  reading we already do (`duo eval`, `duo dom`, `duo text`) would
-  let an agent discover those tools.
+- **Browser-mode HTML (opened via `duo open`) CAN run scripts.**
+  A playground Duo opens in browser mode could theoretically register
+  WebMCP tools. The CDP-driven browser reading we already do (`duo
+  eval`, `duo dom`, `duo text`) would let an agent discover those
+  tools.
 
 **Author guidance for v1 (today):**
 

@@ -27,7 +27,7 @@ for the authoritative usage text.
 | Verb | What it does |
 |---|---|
 | `duo navigate <url>` | Navigate the active browser tab |
-| `duo open <path-or-url>` | New browser tab with a file or URL; activates it (Stage 8) |
+| `duo open <path-or-url> [--canvas] [--reveal]` | **ENH-156** — verb-driven mode. HTML files → browser pane (interactive, scripts run). Non-HTML files → natural surface (.md → editor, image → viewer). Web URLs → new browser tab. `--canvas` is a rare override that forces canvas-mode mount for HTML (inspect source without firing scripts). The legacy `<meta duo-open-in>` declaration is no longer consulted. |
 | `duo reload` | Reload the active browser tab in place — pair for `navigate` without a URL (Stage 20) |
 | `duo external <url>` | Opens the URL in the macOS default browser via Electron `shell.openExternal`. Used by the `duo` subagent for hostnames listed in `~/.claude/duo/external-domains.json` — sites known not to render well in the embedded `WebContentsView` (Claude.ai, ChatGPT, banking sites, etc.). NOT used for general navigation; the default route is always Duo. http(s) and mailto schemes only. |
 | `duo url` / `duo title` | Current URL / title |
@@ -56,7 +56,7 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
-| `duo view <path> [--canvas]` | Open a file in the Viewer/Editor column (inferred by extension). HTML routes per `<meta duo-open-in>`. `--canvas` (ENH-097) forces canvas-mode mount even when the file declares browser mode. |
+| `duo view <path> [--canvas]` | Legacy verb — open a file in the Viewer/Editor column. HTML routing is meta-driven (pre-ENH-156 behavior). **Prefer `duo open` (browser-mode HTML) or `duo edit` (canvas-mode HTML).** `--canvas` forces canvas-mode mount. |
 | `duo reveal <path>` | Move the file navigator to `<path>`, flash a chip |
 | `duo ls [path]` | List directory contents (JSON) |
 | `duo nav state` | Navigator state: cwd, selection, expanded, pinned |
@@ -69,7 +69,7 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
-| `duo edit <path> [--canvas]` | Open a `.md` in the rich editor; `.html` per `<meta duo-open-in>` (canvas or browser). `--canvas` (ENH-097) forces canvas-mode mount — required for editing a playground's source (playgrounds default to browser per the modality lock). |
+| `duo edit <path> [--browser] [--reveal]` | **ENH-156** — verb-driven mode. HTML files → canvas mode (source-editable, scripts blocked). `.md` → TipTap rich editor. Images / PDFs / JSON fall through to their natural viewers. `--browser` is a rare override that forces browser-mode mount for HTML (symmetric with `duo open --canvas`). `--canvas` accepted as deprecated no-op (the default for HTML now). |
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection. `auto` (default) prefers a non-empty browser highlight, then a non-empty canvas selection, falling back to the editor's cached selection. Returns the unified `DuoSelection` shape (`kind: 'editor' \| 'browser' \| 'page'`). Stage 17c adds the canvas branch. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits). Optional path pins the read to a specific file. |
 | `duo doc write [--replace-selection\|--replace-all] [--text\|stdin]` | Apply text to the active editor |

@@ -132,7 +132,7 @@ empty.
 |---|---|
 | `duo url` / `duo title` | Current URL / title (orient) |
 | `duo navigate <url>` | Active tab → URL |
-| `duo open <path-or-url>` | New browser tab + activate |
+| `duo open <path-or-url> [--canvas] [--reveal]` | **ENH-156** — HTML lands in browser pane (interactive, scripts run). Non-HTML routes to natural surface. `--canvas` forces canvas-mode override for HTML (inspect source without firing scripts). Web URLs always → browser tab. |
 | `duo reload` | Reload the active browser tab in place (no URL needed; pair for `navigate`) |
 | `duo external <url>` | Open in macOS default browser (listed hostnames only) |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs |
@@ -155,8 +155,8 @@ empty.
 | `duo wait <selector> [--timeout ms]` | Block until element appears |
 | `duo nav state` | `{ cwd, selected, expanded, pinned }` |
 | `duo ls [path]` | List directory (defaults to nav cwd) |
-| `duo view <path> [--canvas]` | Open file in Viewer/Editor column (markdown / page / image / pdf). HTML routes per `<meta duo-open-in>`. `--canvas` (ENH-097) forces canvas-mode mount. |
-| `duo edit <path> [--canvas]` | Open `.md` in rich editor; `.html` per `<meta duo-open-in>` (canvas or browser). `--canvas` forces canvas-mode mount — required for editing a playground's source (playgrounds default to browser). |
+| `duo view <path> [--canvas]` | Legacy verb — open file in Viewer/Editor column. Prefer `duo open` (browser-mode HTML) or `duo edit` (canvas-mode HTML) for ENH-156 verb-driven routing. |
+| `duo edit <path> [--browser] [--reveal]` | **ENH-156** — HTML lands in canvas mode (source-editable, scripts blocked). `.md` → TipTap editor. `--browser` rare override forces browser-mode mount for HTML. `--canvas` accepted as deprecated no-op. |
 | `duo html new <path.html> [--title "…"]` | Stage 17a — create new HTML file from boilerplate + open in canvas |
 | `duo html query <css>` | Stage 17b — list elements in the active canvas (id, tag, text, classes) |
 | `duo html get --id <duo-id>` / `--selector <css>` | Stage 17b — read outerHTML + text of one element |
@@ -300,9 +300,9 @@ node .claude/skills/worksheet/generate.mjs \
   docs/dev/worksheets/<name>.json \
   docs/dev/worksheets/<name>.html
 
-# Open in browser pane (clipboard + Send-to-Claude need full Chromium;
-# the worksheet declares <meta name="duo-open-in" content="browser">
-# but duo open accepts the file path either way).
+# Open in browser pane (clipboard + Send-to-Claude need full Chromium).
+# ENH-156: `duo open <html>` always lands in the browser pane — no meta
+# declaration needed.
 duo open docs/dev/worksheets/<name>.html
 ```
 

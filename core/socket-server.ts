@@ -413,6 +413,12 @@ export class SocketServer {
         case 'open': {
           const url = args['url'] as string
           if (!url) throw new Error('open requires a url arg')
+          // ENH-156 — verb-driven mode. CLI passes mode='browser' by
+          // default (or 'canvas' on --canvas override). For HTML file://
+          // paths the verb decides the surface; the legacy `<meta name=
+          // "duo-open-in" content="browser">` declaration is no longer
+          // consulted.
+          const mode = args['mode'] as 'canvas' | 'browser' | undefined
           // ENH-130 walk-1 fix — pre-condition the layout BEFORE the
           // open lands so the open's own focus push isn't overridden
           // by browser-pane visibility-change events. Same fix as
@@ -423,64 +429,47 @@ export class SocketServer {
           // existing file on disk), route through the renderer's
           // openFileSmart via NavBridge.edit instead of unconditionally
           // landing in the browser pane. The renderer's smart router
-          // already does the right thing per file kind: .md / non-HTML
-          // → markdown editor (canvas tab), .html WITHOUT
-          // `<meta duo-open-in="browser">` → editor, .html WITH the
-          // meta → browser pane. Web URLs (http/https/etc.) keep the
-          // existing browser-tab behavior. Bare hostnames are pre-
-          // resolved to https:// by the CLI's resolveOpenTarget()
-          // before we ever see them, so this branch is purely about
-          // file:// inputs. See BUG-067 in tasks.md.
-          // BUG-067 follow-up — the response's `routedTo` label needs
-          // to match where the file ACTUALLY lands. The renderer's
-          // openFileSmart routes .html files with `<meta duo-open-in=
-          // "browser">` to the browser pane and everything else to
-          // the editor. To label accurately without an IPC round-trip
-          // back from the renderer, pre-flight the HTML meta here in
-          // main using `filesService.getHtmlMeta` (the SAME function
-          // openFileSmart calls). For non-HTML files the meta lookup
-          // is skipped — they always go to the editor. The renderer
-          // path is unchanged; only the label-on-the-wire is now
-          // accurate.
-          let routedToEditor = false
+          // handles HTML browser-mode de-dupe (BUG-059), focus, and
+          // the non-HTML classifier (.md → editor, image → viewer).
+          // ENH-156 — HTML routing flipped to verb-driven: pass the
+          // CLI-supplied mode through to openFileSmart so HTML lands
+          // where `duo open` (browser default) or `duo open --canvas`
+          // says, ignoring any `<meta duo-open-in>` declaration.
+          // Web URLs (http/https/etc.) keep the existing browser-tab
+          // path; bare hostnames are pre-resolved by the CLI's
+          // resolveOpenTarget() before we ever see them.
+          let resolvedLocally = false
           if (url.startsWith('file://')) {
             try {
               const localPath = decodeURI(url.slice('file://'.length))
               if (fs.existsSync(localPath)) {
-                // Determine where openFileSmart will route this:
-                // .html files with duo-open-in=browser → browser pane;
-                // everything else (.md, .html without meta, .png, etc.)
-                // → editor. Pre-flighted here so the response label
-                // mirrors the actual destination.
                 const lower = localPath.toLowerCase()
-                let willRouteToBrowser = false
-                if (lower.endsWith('.html') || lower.endsWith('.htm')) {
-                  try {
-                    const meta = await this.files.getHtmlMeta(localPath)
-                    willRouteToBrowser = meta?.openIn === 'browser'
-                  } catch {
-                    // getHtmlMeta failure → assume editor (matches the
-                    // renderer's openFileSmart fallback in App.tsx).
-                  }
-                }
-                const editResult = this.nav.edit(localPath)
+                const isHtml = lower.endsWith('.html') || lower.endsWith('.htm')
+                // ENH-156 routing: HTML respects the CLI mode (browser
+                // default; canvas on --canvas override). Non-HTML
+                // ignores mode — the renderer's classifier picks the
+                // natural surface for the extension.
+                const effectiveMode: 'canvas' | 'browser' | undefined =
+                  isHtml ? (mode ?? 'browser') : undefined
+                const editResult = this.nav.edit(localPath, effectiveMode)
                 if (editResult.ok) {
-                  result = {
-                    ok: true,
-                    url,
-                    routedTo: willRouteToBrowser ? 'browser' : 'editor'
-                  }
-                  routedToEditor = true
+                  const routedTo =
+                    effectiveMode === 'browser' ? 'browser' :
+                    effectiveMode === 'canvas' ? 'canvas' :
+                    'editor'
+                  result = { ok: true, url, routedTo }
+                  resolvedLocally = true
                 }
               }
             } catch {
-              // Fall through to the browser path on decode / fs failure.
+              // Fall through to the browser-tab path on decode / fs failure.
             }
           }
           let openedTabId: number | null = null
-          if (!routedToEditor) {
+          if (!resolvedLocally) {
             // http(s) URLs + bare hostnames (already https://-prefixed by
-            // resolveOpenTarget on the CLI side) all land here.
+            // resolveOpenTarget on the CLI side) all land here. Also a
+            // last-resort path for file:// URLs that failed to resolve.
             const browserResult = await this.browser.openTab(url)
             openedTabId = browserResult.id
             result = { ...browserResult, routedTo: 'browser' }
@@ -514,7 +503,7 @@ export class SocketServer {
           // always lands a NEW main-strip tab (BrowserManager.openTab
           // appends to `this.tabs`, never to the aux-pinned slot), so
           // `slot: 'main'` is always correct for this path.
-          if (!routedToEditor && this.eventSink && openedTabId !== null) {
+          if (!resolvedLocally && this.eventSink && openedTabId !== null) {
             this.eventSink(
               'browser:focus-gained',
               { tabId: openedTabId, slot: 'main' }

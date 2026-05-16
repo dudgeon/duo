@@ -147,7 +147,7 @@ declare friction sites once and stop fighting them.
 | Command | Purpose | Output |
 |---|---|---|
 | `duo navigate <url>` | Navigate the **active tab** to URL | JSON: `{ok, url, title}` |
-| `duo open <path-or-url>` | Open a local file or URL in a **new** tab, activate it. Use for showing the user agent-generated artifacts. | JSON: `{ok, id, url, title}` |
+| `duo open <path-or-url> [--canvas] [--reveal]` | Open a local file or URL. **HTML always lands in the browser pane** (ENH-156 verb-driven: scripts run, buttons fire, the user **interacts** with the running surface). Non-HTML routes to its natural surface (`.md` → editor, image → viewer). `--canvas` is a rare override that forces canvas-mode mount for HTML (inspect source without firing scripts). The legacy `<meta duo-open-in>` declaration is no longer consulted. | JSON: `{ok, url, routedTo}` |
 | `duo reload` | Reload the active browser tab in place (no URL). Pair for `duo navigate` in iteration loops — agent edits an artifact, user runs `duo reload` to see the result without typing the URL again. | JSON: `{ok, url, title}` |
 | `duo external <url>` | Open `<url>` in the **macOS default browser** (via Electron's `shell.openExternal`). Used for hostnames listed in `~/.claude/duo/external-domains.json` — sites that don't render well in Duo's embedded `WebContentsView` (Claude.ai, ChatGPT, banking, sites that block Electron UAs). NOT the default route — Duo handles everything not on the list. http(s) and mailto schemes only. | JSON: `{ok, opened}` |
 | `duo url` | Current URL | plain text |
@@ -171,8 +171,8 @@ declare friction sites once and stop fighting them.
 | `duo network [--since <ms>] [--filter <regex>] [--limit N]` | HTTP request lifecycle (URL, method, status, mime, encoded length, error text). `--filter` is a regex against the URL. | NDJSON |
 | `duo tabs` / `duo tab <n>` / `duo close <n>` | List / switch / close browser tabs | JSON |
 | `duo wait <selector> [--timeout <ms>]` | Wait for element | JSON |
-| `duo view <path> [--canvas]` | Open a local file as a new tab in the Viewer/Editor (`.md` → rich markdown editor, `.html` → HTML canvas OR browser pane per `<meta duo-open-in>`, image → inline, pdf → native viewer). Distinct from `duo open` (browser/URL). **`--canvas` (ENH-097)** forces canvas-mode mount even if the HTML file declares `duo-open-in: browser` — used to view or edit a playground's source without firing its scripts. | JSON: `{ok}` |
-| `duo edit <path> [--canvas]` | Open a `.md` in the rich markdown editor (Google-Docs-feel, TipTap/ProseMirror) or a `.html` in the **HTML canvas** OR browser pane (per `duo-open-in` meta). Returns `{ok}`. Behaves like `view` for other types. **`--canvas`** (ENH-097) forces canvas-mode mount for HTML files — required for editing playground source, which routes to browser by default. | JSON: `{ok}` |
+| `duo view <path> [--canvas]` | Open a local file in the working pane (legacy verb — `duo open` and `duo edit` are preferred). For `.md` → rich markdown editor; for `.html` → mode is meta-driven (legacy behavior); for image / pdf → natural viewer. **Prefer `duo open` for HTML you want to display + `duo edit` for HTML you want to modify.** | JSON: `{ok}` |
+| `duo edit <path> [--browser] [--reveal]` | Open a file for editing its source. **HTML always lands in canvas mode** (ENH-156 verb-driven: source-editable, scripts blocked, buttons render but inert). `.md` opens in the TipTap rich editor. Images / PDFs / JSON fall through to their natural viewers (no editor surface). `--browser` is a rare override that forces browser-mode mount for HTML (symmetric with `duo open --canvas`). `--canvas` accepted as deprecated no-op (the default for HTML now). | JSON: `{ok}` |
 | `duo html new <path.html> [--title "…"]` | **Stage 17a** — create a new `.html` from boilerplate and open it in the HTML canvas. Path must end in `.html`/`.htm`. | JSON: `{ok, path}` |
 | `duo html query <css>` | **Stage 17b** — list elements matching the selector inside the active canvas. Returns `[{id, tag, text, classes}]` (text truncated to 200 chars; use `get` for full content). | JSON array |
 | `duo html get --id <duo-id>` (or `--selector <css>`) | Read `outerHTML` + `textContent` of one element. | JSON `{id, tag, html, text}` |
@@ -369,10 +369,10 @@ quote / bracket" case the owner flagged).
 
 When you write a file, doc, or playground for the user (`duo edit
 foo.md` after creating it, `duo open playground.html` after generating
-it, `duo edit --canvas page.html` after scaffolding), pass **`--reveal`**
-so Duo auto-expands the working pane (if collapsed) and focuses the
-main pane. Without it, the file may open into a hidden / collapsed
-canvas and the user has to hunt for it.
+it, `duo edit notes.html` after scaffolding HTML to mutate), pass
+**`--reveal`** so Duo auto-expands the working pane (if collapsed)
+and focuses the main pane. Without it, the file may open into a
+hidden / collapsed canvas and the user has to hunt for it.
 
 ```bash
 # Created a markdown doc → make sure the user sees it
@@ -381,8 +381,8 @@ duo edit --reveal /tmp/summary.md
 # Created an interactive playground → reveal the browser pane
 duo open --reveal /tmp/calculator.html
 
-# Created a canvas-mode HTML page → reveal the canvas
-duo edit --canvas --reveal /tmp/notes.html
+# Created an HTML page meant to be read-and-edited in canvas mode
+duo edit --reveal /tmp/notes.html
 ```
 
 Idempotent: if the working pane is already visible at a reasonable
@@ -397,14 +397,21 @@ in [`make-playground.md`](make-playground.md) — every playground
 includes a "Send to Claude" button + a "Copy output" button so the user
 can round-trip without manual select-and-copy.
 
-**Never use** `duo open <path>` for local files — that's the browser
-command (takes URLs and loads them in a browser tab). Two commands, two
-columns:
+**Verb cheat sheet (ENH-156 verb-driven mode):**
 
-- `duo open <url-or-path>` → **browser tab** (URLs, HTML artifacts you want
-  to render live, file:// URLs when you explicitly want browser rendering).
-- `duo view <path>` → **editor/preview tab** (the normal answer for local
-  files the user wants to read / edit).
+- `duo open <path>` — show the user the rendered/running thing. HTML
+  → browser pane (interactive). `.md` → markdown editor. Image → viewer.
+  This is the default for "make me X and show me." Web URLs land in
+  a browser tab.
+- `duo edit <path>` — modify the source. HTML → canvas mode (source-
+  editable, scripts blocked). `.md` → TipTap editor (same as `duo open`
+  for `.md`; markdown has only one editor surface). Use when the user
+  (or you) plans to mutate the file.
+
+Rare overrides:
+- `duo open --canvas <path>` — inspect a playground's HTML source
+  without firing its scripts.
+- `duo edit --browser <path>` — symmetric override; rarely needed.
 
 ### Navigate the user's file browser ("show me where that lives")
 
