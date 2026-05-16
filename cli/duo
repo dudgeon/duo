@@ -953,6 +953,13 @@ async function main() {
         out(await send("layout", {}));
         break;
       }
+      case "inspect": {
+        const on = rest.includes("--on");
+        const off = rest.includes("--off");
+        if (on && off) die("Usage: duo inspect [--on|--off]");
+        out(await send("inspect", { on, off }));
+        break;
+      }
       case "doctor":
         await runDoctor();
         break;
@@ -1235,7 +1242,7 @@ COMMANDS
                                    user a generated explainer / playground.
                                    Non-HTML files route to their natural
                                    surface (.md \u2192 editor, image \u2192 viewer).
-                                   --canvas (ENH-156) forces canvas-mode
+                                   --canvas (ENH-159) forces canvas-mode
                                    mount for HTML (source-editable, scripts
                                    blocked) \u2014 rare override for inspecting
                                    the playground's HTML source.
@@ -1272,6 +1279,16 @@ COMMANDS
                                    Pairs with \`duo nav-state\` and
                                    \`duo dom\` as the third visibility
                                    verb.
+  inspect [--on|--off]            ENH-159b \u2014 element-inspect mode in the
+                                   active browser pane. No arg toggles;
+                                   --on / --off force. While active,
+                                   hover any element \u2192 orange outline;
+                                   click \u2192 ships tag + selector + heading
+                                   trail + innerText + key attrs to the
+                                   active terminal as a structured paste.
+                                   ESC exits without picking. Chord \u2318\u21E7C
+                                   inside the WCV is the keystroke
+                                   equivalent.
   text [--selector <css>]         Print visible text (or matched element text)
   ax [--selector <css>] [--format md|json]
                                   Accessibility tree (required for Google Docs
@@ -1310,7 +1327,7 @@ COMMANDS
                                   a playground's source without firing
                                   its scripts.
   edit <path> [--browser]         Open a file for editing its source.
-       [--reveal]                  HTML defaults to canvas mode (ENH-156)
+       [--reveal]                  HTML defaults to canvas mode (ENH-159)
                                    \u2014 buttons inert, scripts blocked, the
                                    document is editable. .md files open
                                    in the TipTap rich editor (Stage 11).

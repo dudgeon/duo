@@ -113,6 +113,31 @@ export class BrowserManager {
       this.window.webContents.send(IPC.BROWSER_SEND_TO_DUO_CLICK, snapshot)
     })
 
+    // ENH-159b — element-inspect-mode wiring. Two pushes back to the
+    // renderer:
+    //   - BROWSER_INSPECT_CLICK: the snapshot of the clicked element
+    //     (or null = ESC exit). Renderer formats it via
+    //     formatBrowserInspectPayload and routes to the active
+    //     terminal — same egress as the Send → Duo pill.
+    //   - BROWSER_INSPECT_MODE: the canonical on/off state. Pushed
+    //     whenever the bridge flips state itself (ESC exit) OR when
+    //     renderer/CLI calls setInspectMode through this manager.
+    //     Subscribers (the toolbar toggle button when it lands)
+    //     read this to reflect the truth.
+    this.cdp.onBrowserInspectClick((snapshot) => {
+      if (this.window.isDestroyed()) return
+      // Re-add the `kind: 'inspect'` discriminator. Page-side IIFE
+      // emits the body fields only — the renderer-facing contract
+      // (host-api.ts § BrowserAPI.onInspectClick) carries a typed
+      // discriminated snapshot.
+      const tagged = snapshot === null ? null : { kind: 'inspect' as const, ...snapshot }
+      this.window.webContents.send(IPC.BROWSER_INSPECT_CLICK, tagged)
+    })
+    this.cdp.onInspectModeChange((active) => {
+      if (this.window.isDestroyed()) return
+      this.window.webContents.send(IPC.BROWSER_INSPECT_MODE, active)
+    })
+
     // ENH-094 (Sprint 5) — playground action click in browser pane.
     // Parse the attribute bundle into a typed PlaygroundAction (using
     // the shared parser the canvas-side runtime also uses), then
@@ -648,6 +673,40 @@ export class BrowserManager {
     this.activeView()?.webContents.focus()
   }
 
+  // ── Inspect mode (ENH-159b) ────────────────────────────────────────────────
+
+  /**
+   * ENH-159b — toggle / set element-inspect mode in the active browser
+   * page. The page-side INSPECT_OBSERVER_IIFE reads `__duoInspectActive`
+   * on every mouse/key event and bails when false, so flipping the flag
+   * is the only switch needed. Pushes BROWSER_INSPECT_MODE to the
+   * renderer so the toolbar toggle button (when it lands) and any
+   * future affordance reflect the truth without polling.
+   *
+   * Accepts `'toggle'` so the CLI verb `duo inspect` (no flag) can
+   * flip without first reading state.
+   *
+   * Returns the new active state.
+   */
+  setInspectMode(input: boolean | 'toggle'): boolean {
+    const next = input === 'toggle' ? !this.cdp.getInspectMode() : input
+    const changed = this.cdp.setInspectMode(next)
+    if (!this.window.isDestroyed()) {
+      // Always push, even when unchanged — keeps a freshly-mounted
+      // subscriber in sync. Renderer dedupes if it cares.
+      this.window.webContents.send(IPC.BROWSER_INSPECT_MODE, next)
+    }
+    // Suppress unused-var when we don't need `changed` downstream.
+    void changed
+    return next
+  }
+
+  /** ENH-159b — read the cached inspect-mode state. Sister to
+   *  setInspectMode for the toggle path + any state-read use case. */
+  getInspectMode(): boolean {
+    return this.cdp.getInspectMode()
+  }
+
   // ── Bounds ─────────────────────────────────────────────────────────────────
 
   setBounds(bounds: BrowserBounds): void {
@@ -971,6 +1030,12 @@ export class BrowserManager {
         // had been used once (focus moves to WCV after pick) it stopped
         // working entirely.
         input.code === 'KeyA' ||
+        // ENH-159b — ⌘⇧C toggles inspect mode (Chrome devtools parity).
+        // Without forwarding, Chromium routes ⌘⇧C to its own developer-
+        // tools shortcut, which doesn't surface in WebContentsView, so
+        // the renderer never sees the keystroke. Gated on Shift to
+        // avoid colliding with plain ⌘C = copy.
+        (input.shift && input.code === 'KeyC') ||
         // ENH-098 (Sprint 9 walk-1 re-pick) — pane-jump chords ⌘⇧L/;/'.
         // Originally ⌘⌥L/;/' but owner's window manager intercepts
         // meta+alt at the system level so chord never reaches the

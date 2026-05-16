@@ -195,6 +195,15 @@ export type DuoCommandName =
   // browser pane). The pane-jump verb routes through the bridge's
   // focusPane() back to the renderer via PANE_FOCUS_JUMP IPC.
   | 'focus-pane'
+  // ENH-159b — `duo inspect [--off]` toggles browser-pane element
+  // inspect mode: hover renders an outline, click captures the
+  // element's snapshot (tag + selector_path + heading trail +
+  // innerText + key attrs) and sends it to the active terminal so
+  // Claude can act on the element without text selection. Mirrors
+  // Chrome devtools' Inspect Element (⌘⇧C) but routes the result to
+  // the agent loop instead of devtools UI. While active, the
+  // selection observer's Send → Duo pill is suppressed (mode lock).
+  | 'inspect'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -955,6 +964,37 @@ export interface BrowserSelectionPush {
   rect: BrowserSelectionRect | null
 }
 
+// ENH-159b — element-inspect snapshot. Captured by the page-side
+// INSPECT_OBSERVER_IIFE when the user clicks an outlined element
+// while `duo inspect` mode is active. Distinct from
+// BrowserSelectionSnapshot (which is text-range-centric); here the
+// addressable unit is a single element. Field shape is locked at
+// AUQ 2026-05-15: tag + selector_path + headingTrail + innerText +
+// key attrs, no outerHTML (kept lean — agents that want the full
+// HTML can `duo dom <selector>`).
+export interface BrowserInspectSnapshot {
+  kind: 'inspect'
+  /** Page URL the element belongs to. */
+  url: string
+  /** Optional page title — carried into the provenance line. */
+  pageTitle?: string
+  /** Lowercased tag name (e.g. 'div', 'button', 'a'). */
+  tag: string
+  /** Best-effort CSS path to the element. Same `selectorFor` helper
+   *  the SELECTION_OBSERVER_IIFE uses, so both flows produce
+   *  comparable paths the agent can feed to `duo dom <selector>`. */
+  selector_path: string
+  /** H1–H6 section trail in document order, outermost first. Empty
+   *  when the page has no preceding headings. */
+  headingTrail: string[]
+  /** Element `innerText`, capped (~2000 chars) for paste hygiene. */
+  innerText: string
+  /** Key attributes the agent likely cares about: id, role,
+   *  aria-label, href, src, name, type, data-testid. Only emitted
+   *  when present and non-empty. */
+  attrs: Record<string, string>
+}
+
 /** Markdown editor (Stage 11) selection — TipTap/ProseMirror-backed. */
 export type MarkdownSelectionSnapshot = EditorSelectionSnapshot & { kind: 'editor' }
 
@@ -1152,6 +1192,22 @@ export const IPC = {
   // forwards trusted actions over this channel; renderer dispatches
   // to the same handlePlaygroundAction the canvas runtime feeds.
   BROWSER_PLAYGROUND_ACTION: 'browser:playground-action',
+
+  // ENH-159b — element-inspect mode plumbing. Three channels:
+  //   - SET_MODE (renderer/CLI → main): turn inspect on/off (or
+  //     'toggle'). Main owns the canonical state; calls
+  //     cdp.setInspectMode(on) to flip the page-side
+  //     `__duoInspectActive` flag.
+  //   - MODE (main → renderer): broadcast on every state change so
+  //     the toolbar toggle button (and any future affordance)
+  //     reflects the truth without each subscriber polling.
+  //   - CLICK (main → renderer): a snapshot of the element the user
+  //     clicked while in inspect mode. The renderer formats it and
+  //     hands the payload to the active terminal — same egress path
+  //     as the Send → Duo pill.
+  BROWSER_INSPECT_SET_MODE: 'browser:inspect-set-mode',
+  BROWSER_INSPECT_MODE: 'browser:inspect-mode',
+  BROWSER_INSPECT_CLICK: 'browser:inspect-click',
 
   // Stage 27 — renderer → main: emit a DuoEvent into the bus. Powers
   // the canvas-action `duo:event` verb. Main owns the EventBus

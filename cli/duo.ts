@@ -344,7 +344,7 @@ async function main(): Promise<void> {
         // ENH-130 — `--reveal` expands the working pane (if collapsed)
         // and focuses main after the open lands. Use this when the
         // agent just created an artifact for the user to see.
-        // ENH-156 — `duo open <html>` defaults to the browser pane
+        // ENH-159 — `duo open <html>` defaults to the browser pane
         // (interactive, scripts run). `--canvas` is an override that
         // forces canvas-mode mount (source-editable, scripts blocked).
         // For non-HTML files (.md, images, etc.), `mode` is ignored by
@@ -603,7 +603,7 @@ async function main(): Promise<void> {
         break
       }
       case 'edit': {
-        // ENH-156 — `duo edit <html>` defaults to canvas mode (source-
+        // ENH-159 — `duo edit <html>` defaults to canvas mode (source-
         // editable, scripts blocked, buttons inert). `--browser`
         // forces browser mode (interactive) for symmetry with
         // `duo open --canvas`. For non-HTML files, `mode` is ignored
@@ -613,7 +613,7 @@ async function main(): Promise<void> {
         // verb name decides surface.
         // `--canvas` is accepted as a deprecated no-op (it's the
         // default for HTML now) for backwards compat with pre-
-        // ENH-156 scripts.
+        // ENH-159 scripts.
         // ENH-130 — `--reveal` auto-expands the working pane and
         // focuses main after the open. Use when creating artifacts.
         const browserOverride = rest.includes('--browser')
@@ -1247,6 +1247,26 @@ async function main(): Promise<void> {
         out(await send('layout', {}))
         break
       }
+      case 'inspect': {
+        // ENH-159b — toggle element-inspect mode in the active
+        // browser pane. No arg → toggle; --on / --off force a state.
+        // Mirrors Chrome devtools' Inspect Element (⌘⇧C inside Duo
+        // also fires this from the WCV via the keystroke forwarder).
+        //
+        //   duo inspect              # toggle
+        //   duo inspect --on         # force on
+        //   duo inspect --off        # force off
+        //
+        // While active, hover an element to outline it; click to ship
+        // its tag + selector + heading trail + innerText + key attrs
+        // to the active terminal as a structured paste. ESC exits
+        // without picking.
+        const on = rest.includes('--on')
+        const off = rest.includes('--off')
+        if (on && off) die('Usage: duo inspect [--on|--off]')
+        out(await send('inspect', { on, off }))
+        break
+      }
       case 'doctor':
         await runDoctor()
         break
@@ -1630,7 +1650,7 @@ COMMANDS
                                    user a generated explainer / playground.
                                    Non-HTML files route to their natural
                                    surface (.md → editor, image → viewer).
-                                   --canvas (ENH-156) forces canvas-mode
+                                   --canvas (ENH-159) forces canvas-mode
                                    mount for HTML (source-editable, scripts
                                    blocked) — rare override for inspecting
                                    the playground's HTML source.
@@ -1667,6 +1687,16 @@ COMMANDS
                                    Pairs with \`duo nav-state\` and
                                    \`duo dom\` as the third visibility
                                    verb.
+  inspect [--on|--off]            ENH-159b — element-inspect mode in the
+                                   active browser pane. No arg toggles;
+                                   --on / --off force. While active,
+                                   hover any element → orange outline;
+                                   click → ships tag + selector + heading
+                                   trail + innerText + key attrs to the
+                                   active terminal as a structured paste.
+                                   ESC exits without picking. Chord ⌘⇧C
+                                   inside the WCV is the keystroke
+                                   equivalent.
   text [--selector <css>]         Print visible text (or matched element text)
   ax [--selector <css>] [--format md|json]
                                   Accessibility tree (required for Google Docs
@@ -1705,7 +1735,7 @@ COMMANDS
                                   a playground's source without firing
                                   its scripts.
   edit <path> [--browser]         Open a file for editing its source.
-       [--reveal]                  HTML defaults to canvas mode (ENH-156)
+       [--reveal]                  HTML defaults to canvas mode (ENH-159)
                                    — buttons inert, scripts blocked, the
                                    document is editable. .md files open
                                    in the TipTap rich editor (Stage 11).

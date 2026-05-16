@@ -193,6 +193,15 @@ export function useKeyboardShortcuts(opts: Options) {
           window.dispatchEvent(new CustomEvent('duo-send-to-duo', { detail: { pane } }))
           return
         }
+        case 'toggleInspectMode': {
+          // ENH-159b — ⌘⇧C flips browser-pane inspect mode. Main is
+          // source of truth; we call the toggle path so the renderer
+          // doesn't have to read state first. Main pushes
+          // BROWSER_INSPECT_MODE back so any UI subscriber (toolbar
+          // toggle button when it lands) updates.
+          window.electron.browser.setInspectMode('toggle')
+          return
+        }
         case 'startComment': {
           // Sprint 6 BUG-081 — ⌘⌥M dispatches a CustomEvent the active
           // editing surface listens for. Mirrors the sendToDuo pattern

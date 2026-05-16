@@ -199,6 +199,28 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, action: Parameters<typeof cb>[0]) => cb(action)
       ipcRenderer.on(IPC.BROWSER_PLAYGROUND_ACTION, handler)
       return () => ipcRenderer.removeListener(IPC.BROWSER_PLAYGROUND_ACTION, handler)
+    },
+
+    // ENH-159b — element-inspect mode plumbing.
+    //   - setInspectMode: renderer → main toggle/set (boolean or 'toggle').
+    //   - onInspectMode: main → renderer push of the canonical state
+    //     (drives the toolbar toggle button when it lands).
+    //   - onInspectClick: main → renderer push of the captured element
+    //     snapshot (or null = ESC exit). Renderer formats + writes
+    //     to the active terminal.
+    setInspectMode: (mode) =>
+      ipcRenderer.send(IPC.BROWSER_INSPECT_SET_MODE, { mode }),
+
+    onInspectMode: (cb) => {
+      const handler = (_: IpcRendererEvent, active: Parameters<typeof cb>[0]) => cb(active)
+      ipcRenderer.on(IPC.BROWSER_INSPECT_MODE, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_INSPECT_MODE, handler)
+    },
+
+    onInspectClick: (cb) => {
+      const handler = (_: IpcRendererEvent, snapshot: Parameters<typeof cb>[0]) => cb(snapshot)
+      ipcRenderer.on(IPC.BROWSER_INSPECT_CLICK, handler)
+      return () => ipcRenderer.removeListener(IPC.BROWSER_INSPECT_CLICK, handler)
     }
   },
 

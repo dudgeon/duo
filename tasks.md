@@ -5923,6 +5923,37 @@ Verified the gap empirically:
 **What ships.**
 - **Right-click "Open on GitHub"** on folder rows + file rows in FileTree. Folder → `github.com/<owner>/<repo>/tree/<sha>/<rel-path>`. File → `github.com/<owner>/<repo>/blob/<sha>/<rel-path>` (with `#L<start>-L<end>` if a selection exists in the editor). Uses `shell.openExternal()` so the URL bounces through the system browser (matches CLAUDE.md SSO requirement).
 - **Right-click "Copy GitHub URL"** — same plumbing, writes URL to clipboard via `clipboard.writeText()`.
+---
+
+### ENH-159: Browser send-to-Claude carries DOM context + Inspect mode hover-and-click element snapshot
+
+**Status:** 🚧 In flight Sprint 17 (2026-05-15) on branch `claude/add-dom-context-send-yP1lv` (PR #51). Ships in v0.7.0. (Renumbered from ENH-156 after collision with main verb-split.) Layer (a) — paste-format fix — shipped. Layer (b) — inspect mode — shipped. Security hardening (prompt-injection defense) applied during review.
+**Priority:** P1 — pair-work signal gap. Today Send → Duo strips DOM provenance the observer already captured; without it Claude only knows URL + page title, not where on the page the span came from. Inspect mode extends this with click-to-pick-an-element when text selection is the wrong primitive.
+**Filed:** 2026-05-15.
+
+**Origin.** Owner probe 2026-05-15: *"does the send-to-Claude/duo select-and-send flow include DOM information that would help Claude know where in the DOM the selected span was from?"* Then expanded scope: *"include intent for an inspect mode, where hovering over an element renders an outline of the element; the user can then click to select the element, and send it to Duo."*
+
+**Owner-locked design (AUQ 2026-05-15).**
+- **Paste format:** selector line + fenced surrounding (Format A v2). Dynamic fence length (security hardening) so adversary-controlled DOM cannot close the fence early.
+- **Inspect triggers:** `duo inspect [--off]` CLI, ⌘⇧C global keystroke, toolbar toggle button. Browser-pane context-menu entry → FOLLOWUP-022.
+- **Element payload:** tag + selector_path + ancestor heading trail + capped innerText + key attrs (id, role, aria-label, href). No outerHTML.
+- **Interaction model:** mode lock — inspect pauses the selection observer. ESC exits. Text-select disabled while inspect is on.
+
+**Layer (a) — ENH-159a: paste-format fix.** `renderer/components/editor/sendFormat.ts` — Format A v2 appends `> @ <selector_path>` + fenced `context` block carrying `surrounding`. `electron/cdp-bridge.ts` populates `selector_path` in the in-page pill click payload. Tests pin the emitted shape.
+
+**Layer (b) — ENH-159b: inspect mode.** `shared/types.ts` adds `BrowserInspectSnapshot` + `inspect` DuoCommandName + new IPC channels. `electron/cdp-bridge.ts` adds `INSPECT_OBSERVER_IIFE` (2px accent-orange outline on hover, dims tooltip, click captures snapshot, ESC exits). `electron/main.ts` + `electron/socket-server.ts` + `cli/duo.ts` route `duo inspect [--off]` verb. Mode-lock guard on selection observer.
+
+**Security hardening (review pass).** All DOM-controlled fields (`pageTitle`, `selector_path`, heading-trail elements, attribute values) are sanitized via `sanitizeLine()` (strips CR/LF/U+2028/U+2029) before interpolation. Fenced blocks (`innerText`, `surrounding`) use dynamic fence length via `fenceFor()` — max(4, longestBacktickRun + 1) — so a page containing `\`\`\`\`` literally cannot close the fence early. 3 regression tests added covering each vector.
+
+**Deferred follow-ups.**
+- **FOLLOWUP-022** — Browser-pane context-menu "Inspect element here…" entry. Half-day standalone post-merge.
+- **FOLLOWUP-023** — Toolbar toggle button (crosshair icon) in browser-pane address-bar area.
+- **FOLLOWUP-024** — `useInspectMode` hook to consolidate renderer-side state subscription + toggle action.
+
+**Smoke walk owed.** (1) `duo inspect` → hover any page element → orange outline appears → click → terminal receives the tag + selector + heading trail + innerText payload, (2) ⌘⇧C from the renderer also toggles, (3) ESC exits cleanly, (4) selection observer paused while inspect is on (no Send → Duo pill).
+
+**Cross-ref.** `docs/DECISIONS.md § Editor-agnostic primitives` (BrowserSelectionSnapshot shape contract). BUG-006 (in-page pill v2 + observer payload). ENH-094 (page-side click runtime — companion CDP IIFE pattern). ENH-122/123/124 (visibility-tooling cluster — `duo inspect` belongs in this family).
+
 - **`fork.config.default.json` bounce-list update** — add `github.com` + `*.github.com` to `externalDomains` so ANY github link clicked inside Duo's browser pane bounces system-browser-side (owner's SSO requirement; not just the menu entries).
 - Both menu entries hide / no-op when the folder isn't a tracked git repo with a GitHub remote (no remote → grey out + tooltip "Not a GitHub-tracked repo. Use Link to GitHub… first" pointing at ENH-154).
 

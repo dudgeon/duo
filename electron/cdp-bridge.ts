@@ -10,7 +10,8 @@ import type {
   BrowserErrorEntry,
   NetworkEntry,
   BrowserSelectionSnapshot,
-  BrowserSelectionPush
+  BrowserSelectionPush,
+  BrowserInspectSnapshot
 } from '../shared/types'
 
 const CONSOLE_RING_SIZE = 500
@@ -49,6 +50,32 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
   window.__duoSelectionObserver = true;
   var lastText = '';
   var timer = null;
+
+  // ENH-159a — hoisted so BOTH the pill-click handler and the
+  // selectionchange observer can populate selector_path. Previously
+  // the click handler emitted '' (line 125) because the function
+  // was scoped inside emit().
+  function selectorFor(el) {
+    if (!el || el.nodeType !== 1) return '';
+    var parts = [];
+    var cur = el;
+    while (cur && cur.nodeType === 1 && cur !== document.body) {
+      var s = cur.tagName.toLowerCase();
+      if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
+        s += '#' + cur.id;
+        parts.unshift(s);
+        break;
+      }
+      var parent = cur.parentNode;
+      if (parent && parent.children) {
+        var idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
+        if (idx > 0) s += ':nth-child(' + idx + ')';
+      }
+      parts.unshift(s);
+      cur = cur.parentNode;
+    }
+    return parts.join(' > ');
+  }
 
   // BUG-006 — in-page pill DOM. Lazily created on first emit() with a
   // selection. position:fixed; very high z-index so it sits above page
@@ -117,12 +144,10 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
             url: location.href,
             text: text,
             surrounding: surrounding,
-            // selector_path omitted — not needed for the send-payload
-            // formatter, and re-computing here would duplicate the
-            // observer's selectorFor() helper. Renderer's cached
-            // snapshot still has the path if anything downstream
-            // wants it.
-            selector_path: ''
+            // ENH-159a — populated so the renderer emits the
+            // selector provenance line. selectorFor is hoisted
+            // at the top of the IIFE.
+            selector_path: selectorFor(focus)
           };
         }
       }
@@ -148,6 +173,13 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
     // confusing). Defaults to false until main pushes a value, so
     // the first selection on a fresh page is suppressed cleanly.
     if (!window.__duoClaudeLive) { hidePill(); return; }
+    // ENH-159b mode lock — when inspect mode is active, the user is
+    // picking an element, not a text range. The Send → Duo pill
+    // would be a confusing second affordance on the same page; the
+    // inspect outline owns the visual chrome. Selection observer
+    // still RUNS (it'd be lossier to tear it down) but its pill
+    // stays hidden until the mode flips back off.
+    if (window.__duoInspectActive) { hidePill(); return; }
     var el = ensurePill();
     // Make pill visible to measure its size, then position relative to
     // the selection's viewport-relative rect. Place above the selection
@@ -210,27 +242,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
     }
     var surrounding = '';
     if (block && block.innerText) surrounding = String(block.innerText).slice(0, 1000);
-    function selectorFor(el) {
-      if (!el || el.nodeType !== 1) return '';
-      var parts = [];
-      var cur = el;
-      while (cur && cur.nodeType === 1 && cur !== document.body) {
-        var s = cur.tagName.toLowerCase();
-        if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
-          s += '#' + cur.id;
-          parts.unshift(s);
-          break;
-        }
-        var parent = cur.parentNode;
-        if (parent && parent.children) {
-          var idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
-          if (idx > 0) s += ':nth-child(' + idx + ')';
-        }
-        parts.unshift(s);
-        cur = cur.parentNode;
-      }
-      return parts.join(' > ');
-    }
+    // selectorFor is hoisted at the top of the IIFE (ENH-159a).
     lastText = text;
     try {
       window.duoSelectionPush(JSON.stringify({
@@ -252,6 +264,246 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
   document.addEventListener('selectionchange', schedule, true);
   window.addEventListener('scroll', schedule, true);
   window.addEventListener('resize', schedule);
+})();`
+
+// ENH-159b — page-side observer for element-inspect mode. Mirrors the
+// shape of SELECTION_OBSERVER_IIFE (idempotent install, single
+// overlay div, binding emit on click) but the addressable unit is
+// an element, not a text range. Inactive by default; flipped on by
+// main calling Runtime.evaluate('window.__duoInspectActive = true')
+// — see CdpBridge.setInspectMode below. When active:
+//
+//   - mousemove → outlines the element under the cursor with a 2px
+//     accent-orange border (Duo brand), plus a small tag-name +
+//     selector tooltip floating near the cursor.
+//   - click   → captures a BrowserInspectSnapshot (tag, selector_path,
+//     headingTrail, capped innerText, key attrs) and emits via the
+//     duoInspectClick binding. The click is preventDefault'd so the
+//     page itself doesn't react.
+//   - ESC     → emits a null snapshot (sentinel: "exit without
+//     picking"). Main flips __duoInspectActive back off in response.
+//
+// The selector_path helper and key-attribute list mirror the
+// SELECTION_OBSERVER_IIFE so payloads from the two flows feel
+// homogeneous to the agent. Heading trail walks all preceding
+// document-order H1–H6 and keeps the deepest per level — same
+// approach docs/note-style apps use to render section breadcrumbs.
+//
+// Exported for unit testing (the IIFE executes in the page context
+// after CDP attach, so we assert structural invariants on the
+// source string just like cdp-bridge.test.ts does for the selection
+// observer).
+export const INSPECT_OBSERVER_IIFE = `(function () {
+  if (window.__duoInspectObserver) return;
+  window.__duoInspectObserver = true;
+
+  // Mirrors SELECTION_OBSERVER_IIFE's selectorFor — kept verbatim so
+  // the two flows produce comparable paths the agent can feed back
+  // through 'duo dom <selector>'. Duplicated rather than hoisted
+  // across IIFEs because each IIFE is its own page-context bundle.
+  function selectorFor(el) {
+    if (!el || el.nodeType !== 1) return '';
+    var parts = [];
+    var cur = el;
+    while (cur && cur.nodeType === 1 && cur !== document.body) {
+      var s = cur.tagName.toLowerCase();
+      if (cur.id && /^[A-Za-z][A-Za-z0-9_-]*$/.test(cur.id)) {
+        s += '#' + cur.id;
+        parts.unshift(s);
+        break;
+      }
+      var parent = cur.parentNode;
+      if (parent && parent.children) {
+        var idx = Array.prototype.indexOf.call(parent.children, cur) + 1;
+        if (idx > 0) s += ':nth-child(' + idx + ')';
+      }
+      parts.unshift(s);
+      cur = cur.parentNode;
+    }
+    return parts.join(' > ');
+  }
+
+  // Walk document-order H1–H6 and keep the deepest per level that
+  // appears BEFORE the target. Headings BELOW the target don't
+  // describe the section it's in. Returns outermost-first array
+  // suitable for paste as 'H1 > H2 > H3'. Empty when the page has
+  // no preceding headings.
+  function headingTrailFor(el) {
+    var trail = ['', '', '', '', '', ''];
+    var headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    for (var i = 0; i < headings.length; i++) {
+      var h = headings[i];
+      var pos = h.compareDocumentPosition(el);
+      var hIsBeforeEl = !!(pos & Node.DOCUMENT_POSITION_FOLLOWING);
+      if (!hIsBeforeEl) break;
+      var level = parseInt(h.tagName.charAt(1), 10) - 1;
+      if (level < 0 || level > 5) continue;
+      trail[level] = String(h.innerText || h.textContent || '').trim().slice(0, 80);
+      for (var j = level + 1; j < 6; j++) trail[j] = '';
+    }
+    var out = [];
+    for (var k = 0; k < trail.length; k++) {
+      if (trail[k]) out.push(trail[k]);
+    }
+    return out;
+  }
+
+  // Capture key attrs an agent likely cares about. Kept short on
+  // purpose — outerHTML is the full-fat option (deferred to
+  // 'duo dom <selector>' when needed).
+  var KEY_ATTRS = ['id', 'role', 'aria-label', 'aria-labelledby', 'href', 'src', 'name', 'type', 'data-testid', 'data-duo-id'];
+  function captureAttrs(el) {
+    var out = {};
+    for (var i = 0; i < KEY_ATTRS.length; i++) {
+      var name = KEY_ATTRS[i];
+      var v = el.getAttribute && el.getAttribute(name);
+      if (v != null && v !== '') out[name] = String(v);
+    }
+    return out;
+  }
+
+  // Single overlay div positioned absolutely over the hovered
+  // element. pointer-events:none so it doesn't eat the mousemove /
+  // click we want to receive. !important on every property so the
+  // page's own CSS can't override (matches the pill's style
+  // hygiene).
+  var overlay = null;
+  function ensureOverlay() {
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.setAttribute('data-duo-inspect-overlay', '1');
+    var s = overlay.style;
+    s.setProperty('position', 'fixed', 'important');
+    s.setProperty('z-index', '2147483647', 'important');
+    s.setProperty('top', '0px', 'important');
+    s.setProperty('left', '0px', 'important');
+    s.setProperty('width', '0px', 'important');
+    s.setProperty('height', '0px', 'important');
+    s.setProperty('display', 'none', 'important');
+    s.setProperty('pointer-events', 'none', 'important');
+    // Duo accent orange — matches the brand kernel
+    // (skill/references/duo-atelier.css --accent: #f97316).
+    s.setProperty('outline', '2px solid #f97316', 'important');
+    s.setProperty('outline-offset', '-1px', 'important');
+    s.setProperty('background', 'rgba(249, 115, 22, 0.08)', 'important');
+    s.setProperty('box-sizing', 'border-box', 'important');
+    s.setProperty('transition', 'none', 'important');
+    document.documentElement.appendChild(overlay);
+    return overlay;
+  }
+  var tooltip = null;
+  function ensureTooltip() {
+    if (tooltip) return tooltip;
+    tooltip = document.createElement('div');
+    tooltip.setAttribute('data-duo-inspect-tooltip', '1');
+    var s = tooltip.style;
+    s.setProperty('position', 'fixed', 'important');
+    s.setProperty('z-index', '2147483647', 'important');
+    s.setProperty('display', 'none', 'important');
+    s.setProperty('top', '0px', 'important');
+    s.setProperty('left', '0px', 'important');
+    s.setProperty('padding', '4px 8px', 'important');
+    s.setProperty('font', "500 11px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", 'important');
+    s.setProperty('color', '#ffffff', 'important');
+    s.setProperty('background', '#1f1f1f', 'important');
+    s.setProperty('border-radius', '4px', 'important');
+    s.setProperty('pointer-events', 'none', 'important');
+    s.setProperty('max-width', '320px', 'important');
+    s.setProperty('white-space', 'nowrap', 'important');
+    s.setProperty('overflow', 'hidden', 'important');
+    s.setProperty('text-overflow', 'ellipsis', 'important');
+    s.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.25)', 'important');
+    document.documentElement.appendChild(tooltip);
+    return tooltip;
+  }
+  function hideAll() {
+    if (overlay) overlay.style.setProperty('display', 'none', 'important');
+    if (tooltip) tooltip.style.setProperty('display', 'none', 'important');
+  }
+
+  function isOurChrome(el) {
+    if (!el || el.nodeType !== 1) return false;
+    if (el === overlay || el === tooltip) return true;
+    var p = el;
+    while (p && p.nodeType === 1) {
+      if (p.hasAttribute && (p.hasAttribute('data-duo-inspect-overlay') || p.hasAttribute('data-duo-inspect-tooltip'))) return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+
+  var current = null;
+  function paint(el) {
+    if (!el || isOurChrome(el)) { hideAll(); return; }
+    current = el;
+    var r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) { hideAll(); return; }
+    var ov = ensureOverlay();
+    ov.style.setProperty('display', 'block', 'important');
+    ov.style.setProperty('top', r.top + 'px', 'important');
+    ov.style.setProperty('left', r.left + 'px', 'important');
+    ov.style.setProperty('width', r.width + 'px', 'important');
+    ov.style.setProperty('height', r.height + 'px', 'important');
+    var tt = ensureTooltip();
+    var tag = el.tagName.toLowerCase();
+    var idPart = el.id ? '#' + el.id : '';
+    var classPart = '';
+    if (el.classList && el.classList.length > 0) {
+      classPart = '.' + Array.prototype.slice.call(el.classList, 0, 2).join('.');
+    }
+    var dims = Math.round(r.width) + ' × ' + Math.round(r.height);
+    tt.textContent = tag + idPart + classPart + '  ' + dims;
+    tt.style.setProperty('display', 'block', 'important');
+    var ttTop = r.top - 28;
+    if (ttTop < 8) ttTop = r.bottom + 6;
+    var ttLeft = r.left;
+    if (ttLeft < 8) ttLeft = 8;
+    var maxLeft = window.innerWidth - 280;
+    if (ttLeft > maxLeft) ttLeft = maxLeft;
+    tt.style.setProperty('top', ttTop + 'px', 'important');
+    tt.style.setProperty('left', ttLeft + 'px', 'important');
+  }
+
+  function onMove(e) {
+    if (!window.__duoInspectActive) { hideAll(); return; }
+    paint(e.target);
+  }
+  function onClick(e) {
+    if (!window.__duoInspectActive) return;
+    var el = e.target;
+    if (isOurChrome(el)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var tag = el && el.tagName ? el.tagName.toLowerCase() : '';
+    var text = '';
+    if (el && el.innerText) text = String(el.innerText).slice(0, 2000);
+    else if (el && el.textContent) text = String(el.textContent).slice(0, 2000);
+    var payload = {
+      url: location.href,
+      tag: tag,
+      selector_path: selectorFor(el),
+      headingTrail: headingTrailFor(el),
+      innerText: text,
+      attrs: captureAttrs(el)
+    };
+    try { window.duoInspectClick(JSON.stringify(payload)); } catch (err) {}
+  }
+  function onKey(e) {
+    if (!window.__duoInspectActive) return;
+    if (e.key === 'Escape' || e.keyCode === 27) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { window.duoInspectClick(JSON.stringify(null)); } catch (err) {}
+    }
+  }
+  // Capture-phase so we beat the page's own handlers. addEventListener
+  // on document so the listeners survive subtree mutations.
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('click', onClick, true);
+  document.addEventListener('keydown', onKey, true);
+  // Tab switch / page nav: pause if the flag flipped off while away.
+  // The mode-lock check inside the handlers makes this a no-op when
+  // inactive — listeners stay installed cheaply.
 })();`
 
 // ENH-094 (Sprint 5) — page-side click forwarder for `[data-duo-action]`
@@ -486,6 +738,19 @@ export class CdpBridge {
   // tab's URL) before forwarding, mirroring the canvas-side gate
   // applied in PageTab.tsx.
   private browserPlaygroundActionListener: ((bundle: { attrs: Record<string, string>; payloadFromValue?: unknown }) => void) | null = null
+  // ENH-159b — element-inspect click. The INSPECT_OBSERVER_IIFE
+  // captures clicks while inspect mode is active and ships either a
+  // BrowserInspectSnapshot (without the `kind` discriminator —
+  // re-added here) or null (ESC = "exit without picking"). Single
+  // subscriber pattern matches the other browser observers.
+  private browserInspectListener: ((snapshot: Omit<BrowserInspectSnapshot, 'kind'> | null) => void) | null = null
+  // ENH-159b — canonical inspect-mode state. Source of truth lives in
+  // main; renderer reflects it via BROWSER_INSPECT_MODE pushes. The
+  // CdpBridge keeps the state so injectInspectObserver can re-apply
+  // the page-side `__duoInspectActive` flag after a frame nav (same
+  // pattern as latestClaudeLive).
+  private latestInspectActive: boolean = false
+  private inspectModeListener: ((active: boolean) => void) | null = null
 
   /** Stage 15.2 — register a single subscriber for live browser-
    *  selection pushes. BrowserManager calls this once on construction
@@ -527,6 +792,24 @@ export class CdpBridge {
    *  forwards trusted actions to the renderer over IPC. */
   onBrowserPlaygroundAction(cb: (bundle: { attrs: Record<string, string>; payloadFromValue?: unknown }) => void): void {
     this.browserPlaygroundActionListener = cb
+  }
+
+  /** ENH-159b — register a single subscriber for in-page inspect-mode
+   *  clicks. The payload is the captured snapshot (without `kind`,
+   *  re-added in the bindingCalled handler) or null when the user
+   *  pressed ESC to exit without picking. BrowserManager subscribes
+   *  + forwards over IPC.BROWSER_INSPECT_CLICK. */
+  onBrowserInspectClick(cb: (snapshot: Omit<BrowserInspectSnapshot, 'kind'> | null) => void): void {
+    this.browserInspectListener = cb
+  }
+
+  /** ENH-159b — register a subscriber for inspect-mode state changes
+   *  the bridge initiates (today: ESC exits inspect mode page-side;
+   *  the bridge flips its cached state and notifies main so the
+   *  renderer toolbar updates). Single subscriber pattern, same as
+   *  the others. */
+  onInspectModeChange(cb: (active: boolean) => void): void {
+    this.inspectModeListener = cb
   }
 
   /** Stage 15.2 — emit the current selection state to whoever is
@@ -573,6 +856,49 @@ export class CdpBridge {
     try {
       await this.dbg().sendCommand('Runtime.evaluate', {
         expression: `window.__duoClaudeLive = ${JSON.stringify(this.latestClaudeLive)};`,
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch { /* ignore */ }
+  }
+
+  /** ENH-159b — flip the page-side `__duoInspectActive` flag so the
+   *  INSPECT_OBSERVER_IIFE starts or stops responding to mouse +
+   *  keystroke events. Same shape as setClaudeLive: cache the latest
+   *  state, push to the page, and re-apply on next inject (in case
+   *  this fires before attach completes). Returns whether the
+   *  state changed (caller decides whether to notify subscribers). */
+  setInspectMode(active: boolean): boolean {
+    const changed = this.latestInspectActive !== active
+    this.latestInspectActive = active
+    try {
+      void this.dbg().sendCommand('Runtime.evaluate', {
+        expression: `window.__duoInspectActive = ${JSON.stringify(active)};`,
+        returnByValue: true,
+        awaitPromise: false
+      })
+    } catch {
+      // Debugger not attached yet; next injectInspectObserver run
+      // will pick up the latest value via applyInspectActiveToPage.
+    }
+    return changed
+  }
+
+  /** ENH-159b — read the cached inspect-mode state. Used by the
+   *  socket-server's `case 'inspect'` for the toggle path. */
+  getInspectMode(): boolean {
+    return this.latestInspectActive
+  }
+
+  /** ENH-159b — internal helper: re-applies the latest inspect flag
+   *  to a freshly-injected IIFE. Parallel to applyClaudeLiveToPage.
+   *  Without this, a new page would see `__duoInspectActive`
+   *  undefined → falsy → inspect mode silently disabled across
+   *  navigations. */
+  private async applyInspectActiveToPage(): Promise<void> {
+    try {
+      await this.dbg().sendCommand('Runtime.evaluate', {
+        expression: `window.__duoInspectActive = ${JSON.stringify(this.latestInspectActive)};`,
         returnByValue: true,
         awaitPromise: false
       })
@@ -636,6 +962,27 @@ export class CdpBridge {
       })
     } catch (err) {
       console.warn('[CdpBridge] playground runtime inject failed:', (err as Error).message)
+    }
+  }
+
+  /** ENH-159b — inject (or re-inject) the inspect-mode observer
+   *  into the active page's main world. Idempotent thanks to the
+   *  IIFE's `__duoInspectObserver` guard. The IIFE installs document-
+   *  level mousemove / click / keydown listeners but each one bails
+   *  immediately when `window.__duoInspectActive` is false — so
+   *  injecting on every page is cheap. Re-applies the active-flag
+   *  right after inject so a page that navigates while inspect mode
+   *  is on stays consistent. */
+  private async injectInspectObserver(): Promise<void> {
+    try {
+      await this.dbg().sendCommand('Runtime.evaluate', {
+        expression: INSPECT_OBSERVER_IIFE,
+        returnByValue: true,
+        awaitPromise: false
+      })
+      await this.applyInspectActiveToPage()
+    } catch (err) {
+      console.warn('[CdpBridge] inspect observer inject failed:', (err as Error).message)
     }
   }
 
@@ -729,6 +1076,18 @@ export class CdpBridge {
     } catch (err) {
       console.warn('[CdpBridge] Runtime.addBinding(duoPlaygroundAction) failed:', (err as Error).message)
     }
+    // ENH-159b — sixth binding for in-page inspect-mode clicks. The
+    // INSPECT_OBSERVER_IIFE calls window.duoInspectClick(json) on
+    // click (full snapshot) or ESC (null sentinel). Failure here is
+    // soft — inspect mode silently no-ops; selection observer still
+    // works.
+    try {
+      await webContents.debugger.sendCommand('Runtime.addBinding', {
+        name: 'duoInspectClick'
+      })
+    } catch (err) {
+      console.warn('[CdpBridge] Runtime.addBinding(duoInspectClick) failed:', (err as Error).message)
+    }
     // Tab switch resets the pill — the new tab's selection state is
     // unknown until its observer reports.
     this.emitBrowserSelection({ snapshot: null, rect: null })
@@ -740,6 +1099,8 @@ export class CdpBridge {
     await this.injectPathLinkForwarder()
     // ENH-094 — same lifecycle for the playground runtime forwarder.
     await this.injectPlaygroundRuntime()
+    // ENH-159b — same lifecycle for the inspect-mode observer.
+    await this.injectInspectObserver()
   }
 
   detach(): void {
@@ -1171,6 +1532,27 @@ export class CdpBridge {
         this.browserSendToDuoListener?.(snapshot)
         return
       }
+      if (p.name === 'duoInspectClick') {
+        // ENH-159b — inspect-mode click (or null = ESC exit).
+        // Payload is the captured snapshot fields minus `kind`. Parse
+        // defensively and forward. On null, also flip the cached
+        // inspect-mode state off + notify the mode-change listener so
+        // main can update its source-of-truth + push to the renderer
+        // toolbar.
+        try {
+          const body = JSON.parse(p.payload ?? 'null') as
+            | null
+            | Omit<BrowserInspectSnapshot, 'kind'>
+          this.browserInspectListener?.(body)
+          if (body === null) {
+            const changed = this.setInspectMode(false)
+            if (changed) this.inspectModeListener?.(false)
+          }
+        } catch {
+          // Bad payload — drop. Don't flip mode on parse error.
+        }
+        return
+      }
       if (p.name === 'duoPlaygroundAction') {
         // ENH-094 (Sprint 5) — page-side `data-duo-action` click in
         // browser pane. Payload is `{attrs: Record<string,string>,
@@ -1235,6 +1617,11 @@ export class CdpBridge {
         void this.injectSelectionObserver()
         void this.injectPathLinkForwarder()
         void this.injectPlaygroundRuntime()
+        // ENH-159b — same lifecycle: re-inject the inspect observer
+        // on top-frame nav. The injector also re-applies the
+        // cached __duoInspectActive flag so a page that navigates
+        // mid-inspect-session stays consistent.
+        void this.injectInspectObserver()
       }
     }
   }
