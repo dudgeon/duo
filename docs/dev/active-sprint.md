@@ -1,8 +1,56 @@
-# Active sprint state — Sprint 17 (in progress; pre-cut)
+# Active sprint state — Sprint 17 morphed into v0.7.0 cleanup cut (walk done; cut NOT approved)
 
-**Theme:** **A+C+D bundle — Navigator + tab UX polish + Diagnostic + instrumentation sprint + Papercut sweep.** Owner pick 2026-05-11 from a 5-option AUQ; combined three coherent buckets into a single sprint since most items were small. Walk + cut pending — owner deferred the walk; running breadcrumb sweep before push.
+**Theme:** Sprint 17 (A+C+D bundle) expanded into the v0.7.0 cleanup cut on 2026-05-16. Cleanup absorbed 4 PR cleanups (PRs #49 / #50 / #51 / #52 — all squash-merged) + 3 new features built same-day (BUG-124 logs-dir mkdir, ENH-152a Navigator git chip, ENH-151 `duo clone` CLI) + FOLLOWUP-020 close-tab CLI + FOLLOWUP-025 Clone modal.
 
-> **Status: 9 sprint commits landed (incl. ENH-156 verb-split + ENH-157 filing); v0.6.16 cut pending owner walk + sign-off.** Sprint 16 + v0.6.15 cut detail preserved in § "Cut records" below.
+> **Status: Walk DONE 2026-05-16 — 4 PASS / 9 FAIL / 5 SKIP (18 items). Cut NOT approved.** Owner directive: file PRDs for complex failures, refresh breadcrumbs, do NOT start fixes. Compaction next.
+
+## v0.7.0 walk results summary (2026-05-16)
+
+**Full results + diagnostics:** [`docs/dev/smoke-walks/v0.7.0.results.md`](smoke-walks/v0.7.0.results.md)
+
+**PASS (4 — remove from rev2):**
+- ENH-144 close-tab focus
+- ENH-147 v1 multi-select
+- BUG-079 + ENH-084 v4 passive instrumentation
+- FOLLOWUP-020 close-tab CLI
+
+**FAIL (9 — 4 PRDs + 3 BUGs filed; no fixes started):**
+- ENH-143 close-tab doc — placeholder text still references "tracked in FOLLOWUP-020"; **BUG-126 filed** for ⌘F canvas-mode search narrowing-stuck-on-first-char.
+- BUG-123 v1 cell paint — table never rendered; **BUG-127 filed** for paste-into-code-block class.
+- ENH-156 verb-split — walk-instruction failure (jargon: "seed a fixture without the meta declaration"); feature likely PASS but unvalidated.
+- BUG-125 watcher symlink — step 5 fail (clean canvas got conflict banner); **v2 PRD: `docs/prd/bug-125-canvas-baseline-v2.md`** — canvas baseline tracks Duo runtime injection (data-duo-id, data-duo-style) vs. disk content; need normalize layer.
+- ENH-159 DOM context + inspect — partial PASS on send-format; **v2 PRD: `docs/prd/enh-159-inspect-mode-v2.md`** — click-to-freeze UX redesign, right-click entry points (browser-pane + tab-strip), selection-observer pause regression fix.
+- ENH-152a git chip — owner rejected clean-stays-invisible directive; chip didn't appear on dirty (BUG-125 v2 interference); **PRD: `docs/prd/github-integration-cluster-v2.md`** — comprehensive GH-cluster mockups covering ENH-152a v2 always-visible chip + ENH-151 + ENH-154 + ENH-155 + ENH-150.
+- FOLLOWUP-025 Clone modal — CSS bleed-through, wrong default cwd, chord-only entry; **v2 PRD: `docs/prd/followup-025-clone-modal-v2.md`** — CSS fix + default-cwd + File menu + right-click entry points.
+- BUG-124 logs-dir mkdir — AMBIGUOUS owner-FAIL; evidence (pasted `last-conflict.log` JSON) shows the logging feature working. Probably mismark; confirm next session.
+- ENH-150 playground decisions — playground renders blank; **BUG-128 filed**.
+
+**SKIP (5):**
+- ENH-158 boot CLI shim — walk-instruction unclarity; agent-PASS via symlink-existence check.
+- ENH-160 .pkg installer — defer until enterprise upgrades to v0.7.
+- ENH-152a + ENH-151 CLI agent-PASS — owner trusted agent verification.
+- v0.6.15 enterprise smoke — needs version-context clarification.
+- ENH-154 playground decisions — blocked on GH-cluster v2 work.
+
+**Bugs filed during walk:** BUG-126 (⌘F canvas-search narrowing) · BUG-127 (paste-into-code-block) · BUG-128 (ENH-150 playground blank).
+
+**PRDs filed today (not started; gated on owner-decisions in each PRD):**
+- [`docs/prd/github-integration-cluster-v2.md`](../prd/github-integration-cluster-v2.md)
+- [`docs/prd/enh-159-inspect-mode-v2.md`](../prd/enh-159-inspect-mode-v2.md)
+- [`docs/prd/followup-025-clone-modal-v2.md`](../prd/followup-025-clone-modal-v2.md)
+- [`docs/prd/bug-125-canvas-baseline-v2.md`](../prd/bug-125-canvas-baseline-v2.md)
+
+**Walk-instruction quality (memory candidate):** three walk items failed not because the feature failed but because instructions were unclear (ENH-156 "fixture", ENH-158 + v0.6.15 "which machine"). Next sprint: walk-step language must assume zero context.
+
+**Next-session priorities (post-compaction reading):**
+1. Read [`docs/dev/smoke-walks/v0.7.0.results.md`](smoke-walks/v0.7.0.results.md) for the full walk detail.
+2. Owner walks the 4 v2 PRDs above + answers the open decisions.
+3. Confirm BUG-124 pass/fail with owner.
+4. Choose: ship a v0.7.1 patch with the small bug fixes (ENH-143 placeholder, BUG-128 playground blank, BUG-126 ⌘F search, BUG-127 paste-into-code-block) and defer the v2 design work to Sprint 18, OR roll the v2 design work into the v0.7.0 cut (delays cut significantly).
+
+---
+
+> **Pre-walk Sprint 17 detail (preserved below for archive — superseded by walk results above).** Sprint 16 + v0.6.15 cut detail preserved in § "Cut records" further down.
 
 ## Sprint 17 commits (9, pre-cut)
 

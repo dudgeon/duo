@@ -5927,7 +5927,8 @@ Verified the gap empirically:
 
 ### ENH-159: Browser send-to-Claude carries DOM context + Inspect mode hover-and-click element snapshot
 
-**Status:** 🚧 In flight Sprint 17 (2026-05-15) on branch `claude/add-dom-context-send-yP1lv` (PR #51). Ships in v0.7.0. (Renumbered from ENH-156 after collision with main verb-split.) Layer (a) — paste-format fix — shipped. Layer (b) — inspect mode — shipped. Security hardening (prompt-injection defense) applied during review.
+**Status:** ✅ v1 Shipped 2026-05-16 (PR #51 merged). **v2 PRD filed 2026-05-16** at [`docs/prd/enh-159-inspect-mode-v2.md`](prd/enh-159-inspect-mode-v2.md) — walk surfaced 4 owner asks: click-to-freeze UX (don't auto-send on click), right-click entry points (browser-pane + tab-strip), selection-observer pause regression, walk-instruction fix.
+**Walk result (2026-05-16):** Steps 2–5 PASS (DOM-context paste works). Step 7 FAIL (CLI-only toggle). Step 10 owner UX-redesign feedback (click-to-freeze). Step 12 FAIL (selection observer not pausing).
 **Priority:** P1 — pair-work signal gap. Today Send → Duo strips DOM provenance the observer already captured; without it Claude only knows URL + page title, not where on the page the span came from. Inspect mode extends this with click-to-pick-an-element when text selection is the wrong primitive.
 **Filed:** 2026-05-15.
 
@@ -6026,7 +6027,7 @@ Verified the gap empirically:
 
 ### ENH-152: Navigator git status overlay — root chip + per-file dirty dots (owner-directive: clean stays invisible)
 
-**Status:** ✅ Slice 1 (root chip) shipped 2026-05-16 in v0.7.0 cleanup cut. Slice 2 (per-file dots) → ENH-152b, deferred to Sprint 18. Picked by owner as candidate "A" in the GitHub-integration cluster AUQ.
+**Status:** ⚠️ v1 Slice 1 shipped 2026-05-16 BUT owner rejected the clean-stays-invisible directive on walk: *"no visual indication that duo/ is root of a github repo in the navigator view (very bad)"*. **v2 design (always-visible repo-root chip + dirty indicator) filed in the GitHub-integration cluster v2 PRD** at [`docs/prd/github-integration-cluster-v2.md § 1`](prd/github-integration-cluster-v2.md). Walk also reported: chip never appeared on dirty repos (likely BUG-125 v2 baseline issue interfering with file-change detection). Slice 2 (per-file dirty dots) → ENH-152b, deferred to Sprint 18.
 **Priority:** P1 for ambient git visibility — "is this folder a repo?" + "is it clean?" answered without opening terminal.
 **Filed:** 2026-05-13. Promoted from sketch (was referenced in ENH-149 § cross-refs and ENH-150 cross-ref list). Slice 1 shipped 2026-05-16.
 
@@ -6177,9 +6178,66 @@ Verified the gap empirically:
 
 ---
 
+### BUG-128: `docs/research/integration-primitive-design.html` playground renders blank
+
+**Status:** 🆕 Filed 2026-05-16 (discovered during v0.7.0 walk).
+**Priority:** Medium — blocks ENH-150 owner decisions. Without the playground rendering, the 4 decisions can't be walked.
+**Filed:** 2026-05-16.
+
+**Symptom.** Owner during v0.7.0 walk: *"playground is actual blank page"*. `duo open docs/research/integration-primitive-design.html` lands in the browser pane (per ENH-156 default), but the page itself shows no content.
+
+**Investigation owed.** Check the file's actual content — empty? Or has a content-blocking script error? Or a missing CSS reference? Likely a small fix once root cause is identified.
+
+---
+
+### BUG-127: Paste of markdown text into TipTap editor lands in code block instead of rendering as markdown
+
+**Status:** 🆕 Filed 2026-05-16 (discovered during v0.7.0 walk testing BUG-123 v1).
+**Priority:** Medium — paste workflow is core to editor UX; landing in code block is unexpected for most paste sources. Owner: *"common failure mode where pasting text into markdown editor, exp markdown text, lands inside a code block — unwanted behavior."*
+**Filed:** 2026-05-16.
+
+**Symptom.** Owner pasted a markdown table fixture (`| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n...`) into a markdown editor tab. Instead of rendering as a TipTap table, the text landed inside a code block (` ``` `).
+
+**Suspected.** TipTap's paste handler may be defaulting to code-block insertion for multi-line text that LOOKS like code (leading `|`, fixed-width columns). Either the paste-as-markdown plugin is mis-detecting the format, OR the editor's `handlePaste` is sending text through the wrong transform.
+
+**Repro.**
+1. `duo edit /tmp/walk-paste-test.md`.
+2. Copy a markdown table block into your clipboard (e.g. from another markdown file).
+3. ⌘V into the editor.
+4. **Expected:** table renders as a TipTap-managed table (rows/columns).
+5. **Actual:** text lands inside a code block.
+
+**Cross-ref.** BUG-123 v1 walk failure traces back to this — the table never rendered because the paste created a code block. BUG-123 v1 itself can't be validated until BUG-127 is fixed.
+
+---
+
+### BUG-126: `⌘F` find search in canvas mode stops narrowing after the first character
+
+**Status:** 🆕 Filed 2026-05-16 (discovered during v0.7.0 walk testing ENH-143).
+**Priority:** Medium — find-in-page is core navigation; broken narrowing makes it useless.
+**Filed:** 2026-05-16.
+
+**Symptom.** Owner during ENH-143 walk (opened what-duo-does.html in canvas mode and used ⌘F to find "entry"): *"⌘F opened search, attempted search ... for 'entry', search bar accepted full entry query, but stopped narrowing search after the 'e' character (ie showed all e's as highlighted), but ignored subsequent characters. closing search bar left all of the e's highlighted"*.
+
+**Suspected.** The canvas-mode iframe's find-in-page handler is firing once per first-character but not updating the highlighted-match set on subsequent keystrokes. Closing the find bar isn't clearing the highlights either — separate cleanup bug.
+
+**Repro.**
+1. `duo edit ~/.claude/duo/packs/duo-default/canvases/what-duo-does.html` (canvas mode).
+2. Press ⌘F.
+3. Type "entry" character-by-character in the search bar.
+4. **Expected:** highlights narrow as you type (`e` → 100s of hits → `en` → 50s → `ent` → 20s → `entr` → 5 → `entry` → 3 exact matches).
+5. **Actual:** after first `e`, narrowing stops; subsequent characters typed but highlight set stays at first-character matches.
+6. Close find bar.
+7. **Expected:** highlights clear.
+8. **Actual:** highlights remain.
+
+**Cross-ref.** Filed during ENH-143 walk-out. ENH-143 itself is mostly PASS (entry 55b exists + reads coherently); the remaining placeholder "tracked in FOLLOWUP-020" reference was supposedly removed but owner still saw it — small content fix to follow.
+
+---
+
 ### BUG-125: Canvas + markdown editor don't auto-reload on external `Write` against symlinked paths (FOLLOWUP-019 regression class)
 
-**Status:** ✅ Shipped 2026-05-13 (Sprint 17).
+**Status:** ✅ v1 Shipped 2026-05-13 (Sprint 17). **v2 PRD filed 2026-05-16** at [`docs/prd/bug-125-canvas-baseline-v2.md`](prd/bug-125-canvas-baseline-v2.md) — walk surfaced a deeper bug: canvas baseline tracking includes Duo runtime injection (data-duo-id, data-duo-style) so external writes that don't preserve them trigger a (wrong) conflict banner for clean buffers.
 **Priority:** High — silently breaks the FOLLOWUP-019 / BUG-085 "watcher detects external write → silent reload (clean) or banner (dirty)" promise for any file opened via a symlinked path. On macOS the most common path is `/tmp/foo` (which fsevents-followed chokidar reports as `/private/tmp/foo`).
 **Filed + fixed:** 2026-05-13. Reported by owner: "when Claude updates canvases (md, html) it generally defaults to do so in the file system, and the canvas view does not pick up the change."
 
@@ -6200,6 +6258,7 @@ The symptom matches the owner's report exactly: canvas stays stale until you cli
 ### BUG-124: `writeConflictLog` floods dev stderr with ENOENT — `~/.claude/duo/logs/` not mkdir-p'd at install
 
 **Status:** ✅ Shipped Sprint 17 (2026-05-16) — boot-time mkdir-p of `~/.claude/duo/logs/` added to [`electron/main.ts § app.whenReady()`](electron/main.ts) (fire-and-forget). Ships in v0.7.0.
+**Walk result (2026-05-16):** AMBIGUOUS — owner marked FAIL but the pasted notes show a valid `last-conflict.log` file was written + read successfully. The conflict-log writing feature IS working. The "FAIL" likely reflects the BUG-125 v2 issue (conflict banner appearing inappropriately on clean canvas reload — the log evidence proves BUG-125's baseline-vs-disk diff). Next session: confirm pass-vs-fail with owner; probably re-mark PASS.
 **Priority:** Medium — BUG-122 hardening's diagnostic-log feature was silently broken until this fix. `writeConflictLog` is best-effort wrapped in `try/catch`, so the user saw no banner, but the production-readable log at `~/.claude/duo/logs/last-conflict.log` was never written, which defeated the purpose: BUG-122 repros captured no diagnostic.
 **Filed:** 2026-05-11.
 
@@ -6378,7 +6437,7 @@ On each install / upgrade:
 
 ### ENH-147: Navigator multi-select — select multiple files for batch operations
 
-**Status:** 🟢 **v1 shipped Sprint 17 commit 4 (2026-05-11) — ⌘-click toggle + multi-row trash.** ⇧-click range select + ⌘-A select-all deferred to ENH-148 (filed); they need anchor tracking + design decisions about ranges across expanded folders, which the v1 multi-select model doesn't yet support.
+**Status:** ✅ **v1 shipped Sprint 17 commit 4 (2026-05-11) + walk-PASS 2026-05-16.** Owner walked v0.7.0 cleanup-cut walk: PASS — ⌘-click multi-select + batch trash works as spec'd. ⇧-click range select + ⌘-A select-all deferred to ENH-148 (filed); they need anchor tracking + design decisions about ranges across expanded folders, which the v1 multi-select model doesn't yet support.
 
 **What v1 delivers:**
 
@@ -6579,7 +6638,7 @@ The agent-process failure: a prior session worked on this bug, ran into the TipT
 
 ### ENH-144: Closing a tab should shift focus to the PREVIOUS tab, not the leftmost
 
-**Status:** ✅ **Shipped Sprint 17 commit 2 (2026-05-11).** Single-spot fix in [`renderer/App.tsx § closeFileTab`](renderer/App.tsx). The other two affected strips (terminal `closeTab` at App.tsx:787 + `BrowserManager.closeTab` at electron/browser-manager.ts:438) **already had the left-neighbor pattern shipped** (terminal: `next[Math.max(0, idx - 1)].id`; browser: `findNonAux(Math.min(idx - 1, this.tabs.length - 1))` walking left first). Only file-tab close was incorrectly falling straight to `{ kind: 'browser' }` instead of activating a sibling file tab — which the owner perceived as "focus shifts to first tab (far left)" because the browser pane then displays whichever tab `BrowserManager.activeIndex` points at (usually the leftmost).
+**Status:** ✅ **Shipped Sprint 17 commit 2 (2026-05-11) + walk-PASS 2026-05-16.** Owner walked v0.7.0 cleanup-cut walk: PASS — close-tab focus shifts to left-neighbor as spec'd. Single-spot fix in [`renderer/App.tsx § closeFileTab`](renderer/App.tsx). The other two affected strips (terminal `closeTab` at App.tsx:787 + `BrowserManager.closeTab` at electron/browser-manager.ts:438) **already had the left-neighbor pattern shipped** (terminal: `next[Math.max(0, idx - 1)].id`; browser: `findNonAux(Math.min(idx - 1, this.tabs.length - 1))` walking left first). Only file-tab close was incorrectly falling straight to `{ kind: 'browser' }` instead of activating a sibling file tab — which the owner perceived as "focus shifts to first tab (far left)" because the browser pane then displays whichever tab `BrowserManager.activeIndex` points at (usually the leftmost).
 
 **Implementation.** In `closeFileTab`, capture `closedIdx` via `prev.findIndex` BEFORE filtering, then after building `next = prev.filter(...)`:
 - If `next.length === 0` → fall back to `{ kind: 'browser' }` (no file tabs remain).
@@ -6614,7 +6673,8 @@ The agent-process failure: a prior session worked on this bug, ran into the TipT
 
 ### ENH-143: Keyboard shortcut to close the current tab (separate from delete-file)
 
-**Status:** ✅ **Shipped Sprint 17 commit 5 (2026-05-11) as discoverability touch — no new chord.** Resolution: ⌘W (close tab, no fs change) + ⌘⇧⌫ (delete file + close tab) already cover the use cases owner asked about; the bar was just to make them discoverable. Original 3 chord-conflict hypotheses (close vs delete-file vs close-tab-history) collapsed to "the existing chords were just hard to find." Sprint-17 instinct: ship the discoverability touch without a new chord; if owner finds a missing case, re-open with new scope.
+**Status:** ⚠️ **Shipped Sprint 17 commit 5 (2026-05-11) + walk-FAIL 2026-05-16.** Owner walked v0.7.0: explanation exists in entry 55b BUT *"still references tollowup 020"* placeholder text. Tiny content fix owed — the FOLLOWUP-020 placeholder text in `packs/duo-default/canvases/what-duo-does.html` still hasn't been fully scrubbed (a separate instance must exist somewhere; the entry 55b line itself was updated in [ce7d85d](https://github.com/dudgeon/duo/commit/ce7d85d) but owner's grep apparently caught another). **Also: BUG-126 filed during this walk** — `⌘F` search in canvas mode stops narrowing after first character.
+Resolution: ⌘W (close tab, no fs change) + ⌘⇧⌫ (delete file + close tab) already cover the use cases owner asked about; the bar was just to make them discoverable. Original 3 chord-conflict hypotheses (close vs delete-file vs close-tab-history) collapsed to "the existing chords were just hard to find." Sprint-17 instinct: ship the discoverability touch without a new chord; if owner finds a missing case, re-open with new scope.
 
 **What v1 delivers:**
 
@@ -7219,7 +7279,7 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 
 ### FOLLOWUP-025: File → Clone… modal (renderer-side, paired with ENH-151's CLI)
 
-**Status:** ✅ Shipped 2026-05-16 in v0.7.0 cleanup cut. New `renderer/components/CloneModal.tsx` + `⌘⇧K` shortcut + `NAV_OPEN_CLONE_MODAL` IPC channel + renderer subscriber. Native File menu entry → still deferred (FOLLOWUP-026 if pursued), but the modal is reachable via `⌘⇧K` + via `window.electron.git.openCloneModal()` IPC.
+**Status:** ⚠️ v1 Shipped 2026-05-16 BUT walk-FAIL 2026-05-16 — three issues. **v2 PRD filed** at [`docs/prd/followup-025-clone-modal-v2.md`](prd/followup-025-clone-modal-v2.md): (1) CSS rendering bug — `bg-black/40` backdrop bleeds through modal body (owner attached screenshot); (2) defaults to `~/Documents` instead of current Navigator cwd; (3) chord-only entry (⌘⇧K) unacceptable per owner — needs File menu "Clone GitHub Repo…" + right-click Navigator "Clone GitHub repo here…" entry points.
 **Priority:** P2 — the CLI is the spec for v1; the modal is a discoverability + non-agent-user affordance.
 **Filed:** 2026-05-16. **Shipped:** 2026-05-16.
 
@@ -7237,7 +7297,7 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 
 ### FOLLOWUP-020: CLI parity gap — no `duo close-tab` for active working / terminal tab
 
-**Status:** ✅ Shipped 2026-05-16 in v0.7.0 cleanup cut. Two new verbs (`duo close-tab` + `duo close-terminal-tab [<n>]`) routing through new NavBridge methods (`closeActiveWorkingTab`, `closeTerminalTab`) + new IPC channels (`NAV_CLOSE_ACTIVE_WORKING_TAB`, `NAV_CLOSE_TERMINAL_TAB`) + renderer subscribers in `App.tsx` that reuse the existing `closeFileTab` / `closeTab` paths (pinned-tab gating preserved via `dialog.confirm`).
+**Status:** ✅ Shipped 2026-05-16 + walk-PASS 2026-05-16. Owner walked v0.7.0 cleanup-cut: PASS — `duo close-tab` + `duo close-terminal-tab [<n>]` work as spec'd, pinned-tab confirm flow preserved. Two new verbs routing through new NavBridge methods (`closeActiveWorkingTab`, `closeTerminalTab`) + new IPC channels (`NAV_CLOSE_ACTIVE_WORKING_TAB`, `NAV_CLOSE_TERMINAL_TAB`) + renderer subscribers in `App.tsx` that reuse the existing `closeFileTab` / `closeTab` paths (pinned-tab gating preserved via `dialog.confirm`).
 **Priority:** Medium — CLAUDE.md item 4 parity rule violation. Agents can't dismiss the active working-pane tab or terminal tab from the CLI.
 **Filed:** 2026-05-11. **Shipped:** 2026-05-16.
 
