@@ -100,6 +100,20 @@ export interface NavBridge {
   /** ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
    *  inner aux 50/50 (when aux is open). On-demand sibling of ENH-126. */
   setLayout3wayEven: () => { ok: boolean; error?: string }
+  /** FOLLOWUP-020 — close the focused working-pane tab. Mirrors ⌘W
+   *  on the working strip. Renderer applies the pinned-tab gate
+   *  (uses dialog.confirm before unpinning). Returns { ok: true }
+   *  even when nothing was closed (no active tab); error only when
+   *  the renderer isn't reachable. */
+  closeActiveWorkingTab: () => { ok: boolean; error?: string }
+  /** FOLLOWUP-020 — close a terminal tab. `n` omitted closes the
+   *  focused terminal tab; `n` provided (1-indexed) closes that
+   *  specific tab. */
+  closeTerminalTab: (n?: number) => { ok: boolean; error?: string }
+  /** FOLLOWUP-025 — open the File → Clone… modal in the renderer.
+   *  Triggered by the native File menu entry + CLI parity for
+   *  `duo clone --modal` (future). */
+  openCloneModal: () => { ok: boolean; error?: string }
   /** ENH-122 — query the renderer's DOM from the CLI. Mirrors the
    *  `duo eval` shape but targets the main renderer (the React shell)
    *  instead of the browser-pane CDP target. Use cases: inspect what
@@ -1214,6 +1228,22 @@ export class SocketServer {
           // when it lands GitHub integrations.
           const { probeGhAuth } = await import('./git/auth')
           result = await probeGhAuth()
+          break
+        }
+        case 'close-tab': {
+          // FOLLOWUP-020 — close the focused working-pane tab. Mirrors
+          // ⌘W on the working strip. Renderer applies the pinned-tab
+          // gate (dialog.confirm) so a CLI close of a pinned tab still
+          // surfaces the same confirmation.
+          result = this.nav.closeActiveWorkingTab()
+          break
+        }
+        case 'close-terminal-tab': {
+          // FOLLOWUP-020 — close a terminal tab. `n` omitted closes the
+          // focused terminal tab; `n` provided (1-indexed) closes the
+          // specific tab.
+          const n = args['n'] as number | undefined
+          result = this.nav.closeTerminalTab(n)
           break
         }
 

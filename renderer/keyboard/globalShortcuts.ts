@@ -49,6 +49,10 @@ export type ShortcutId =
   | 'newMarkdownFile'
   | 'newClaudeTab'
   | 'closeTab'
+  // FOLLOWUP-025 — File → Clone… modal trigger. ⌘⇧K binds it from
+  // the renderer; the native File menu's "Clone…" entry also dispatches
+  // the same modal-open. Pure-UI complement to ENH-151's CLI.
+  | 'openCloneModal'
   | 'focusAddressBar'
   | 'focusBreadcrumbEdit'
   | 'openFind'
@@ -190,6 +194,11 @@ export function matchGlobalShortcut(
   // ⌘L — focus address bar (Chrome parity).
   if (meta && !shift && !alt && !ctrl && key === 'l') {
     return { id: 'focusAddressBar' }
+  }
+
+  // FOLLOWUP-025 — ⌘⇧K: File → Clone… modal.
+  if (meta && shift && !alt && !ctrl && key === 'k') {
+    return { id: 'openCloneModal' }
   }
 
   // Stage 26 PR 3 item 8 — ⌘⇧G "Go to folder" (Finder parity).

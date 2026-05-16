@@ -103,6 +103,12 @@ export type DuoCommandName =
   | 'git-status'
   | 'clone'
   | 'gh-auth'
+  // FOLLOWUP-020 — `duo close-tab` closes the focused working-pane
+  // tab; `duo close-terminal-tab [<n>]` closes the focused terminal
+  // tab (or the Nth terminal tab when an index is supplied). Closes
+  // the CLI parity gap surfaced during ENH-143 discoverability work.
+  | 'close-tab'
+  | 'close-terminal-tab'
   // Stage 17b Phase C — agent read/write verbs against the active
   // canvas: `duo html query/get/set/replace/append/remove/attr`. All
   // routed through a single `html-op` socket command with a
@@ -1470,7 +1476,15 @@ export const IPC = {
   GIT_STATUS: 'git:status',
   // ENH-151 — clone wrapper + gh auth probe. renderer → main.
   GIT_CLONE: 'git:clone',
-  GH_AUTH_STATUS: 'gh:auth-status'
+  GH_AUTH_STATUS: 'gh:auth-status',
+  // FOLLOWUP-020 — main → renderer pushes to close the focused
+  // working / terminal tab. Pairs with the ⌘W chord (App.tsx)
+  // closing the same surface; this is the CLI-driven counterpart.
+  NAV_CLOSE_ACTIVE_WORKING_TAB: 'nav:close-active-working-tab',
+  NAV_CLOSE_TERMINAL_TAB: 'nav:close-terminal-tab',
+  // FOLLOWUP-025 — main → renderer push triggered from the File
+  // menu "Clone…" entry. Renderer opens the CloneModal.
+  NAV_OPEN_CLONE_MODAL: 'nav:open-clone-modal'
 } as const
 
 

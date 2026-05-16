@@ -400,6 +400,9 @@ async function createWindow(): Promise<void> {
     splitViewOpen: splitViewOpen,
     splitViewOpenBrowser: splitViewOpenBrowser,
     splitViewClose: splitViewClose,
+    closeActiveWorkingTab: closeActiveWorkingTab,
+    closeTerminalTab: closeTerminalTab,
+    openCloneModal: openCloneModal,
     splitViewPromote: splitViewPromote,
     splitViewResize: splitViewResize,
     getSplitViewState: getSplitViewState,
@@ -1960,6 +1963,38 @@ export function splitViewClose(): { ok: boolean; error?: string } {
     return { ok: false, error: 'Duo window not ready' }
   }
   mainWindow.webContents.send(IPC.WORKING_AUX_CLOSE, null)
+  return { ok: true }
+}
+
+// FOLLOWUP-020 — close the focused working-pane tab (CLI parity for ⌘W
+// on the working strip). The renderer applies the pinned-tab gate +
+// the actual tab-removal logic; this just pushes the trigger.
+export function closeActiveWorkingTab(): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, null)
+  return { ok: true }
+}
+
+// FOLLOWUP-020 — close a terminal tab. `n` omitted → focused tab; `n`
+// supplied (1-indexed) → that specific terminal tab. Renderer owns
+// tab identity, so the index resolution happens there.
+export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.NAV_CLOSE_TERMINAL_TAB, typeof n === 'number' ? { n } : null)
+  return { ok: true }
+}
+
+// FOLLOWUP-025 — open the renderer's File → Clone… modal. Triggered
+// by the native File menu entry + future `duo clone --modal` parity.
+export function openCloneModal(): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, null)
   return { ok: true }
 }
 

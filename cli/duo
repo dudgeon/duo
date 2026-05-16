@@ -999,6 +999,19 @@ async function main() {
         out(await send("gh-auth", {}));
         break;
       }
+      case "close-tab": {
+        out(await send("close-tab", {}));
+        break;
+      }
+      case "close-terminal-tab": {
+        const arg = rest[0];
+        const n = arg ? Number.parseInt(arg, 10) : void 0;
+        if (arg && (Number.isNaN(n) || n < 1)) {
+          die("Usage: duo close-terminal-tab [<n>]   (n is 1-indexed)");
+        }
+        out(await send("close-terminal-tab", n !== void 0 ? { n } : {}));
+        break;
+      }
       default:
         die(`Unknown command: ${cmd}
 Run duo --help for usage`);
@@ -1598,6 +1611,19 @@ COMMANDS
                                   ghNotFound } so agents can decide
                                   whether \`duo clone\` will work
                                   on private repos before they try.
+
+  close-tab                       FOLLOWUP-020 \u2014 close the focused
+                                  working-pane tab (file editor /
+                                  canvas / image viewer / browser-
+                                  mode HTML). CLI parity for \u2318W.
+                                  Pinned tabs still surface the
+                                  Cancel / Close-anyway confirm
+                                  dialog before closing.
+
+  close-terminal-tab [<n>]        FOLLOWUP-020 \u2014 close a terminal
+                                  tab. No arg closes the focused
+                                  one; <n> (1-indexed) closes that
+                                  specific terminal tab.
 
 FLAGS
   --version, -v    Print version

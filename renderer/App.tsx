@@ -10,6 +10,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
+import { CloneModal } from './components/CloneModal'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
@@ -282,6 +283,11 @@ export function App() {
   const [isDraggingSplit, setIsDraggingSplit] = useState(false)
 
   const [filesCollapsed, setFilesCollapsed] = useState(false)
+  // FOLLOWUP-025 — File → Clone… modal visibility. Opened by ⌘⇧K
+  // (via useKeyboardShortcuts) AND by the native File menu entry's
+  // IPC push (window.electron.nav.onOpenCloneModal). Closed by the
+  // modal's own Cancel/Esc/Done; opens are idempotent.
+  const [cloneModalOpen, setCloneModalOpen] = useState(false)
   const lastAutoCollapseState = useRef(false)
 
   // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
@@ -1301,6 +1307,81 @@ export function App() {
     })
   }, [openFileSmart])
 
+  // FOLLOWUP-020 — `duo close-tab` from the CLI. Closes the focused
+  // working-pane tab (file/canvas/viewer or browser-mode HTML tab).
+  // Mirrors the ⌘W chord on the working strip — same pinned-tab gate
+  // applies because we call into the same closeFileTab / browser.closeTab
+  // paths the keystroke uses.
+  useEffect(() => {
+    return window.electron.nav.onCloseActiveWorkingTab(() => {
+      if (activeWorking.kind === 'file') {
+        const ft = fileTabs.find(f => f.id === activeWorking.id)
+        if (ft && pins.some(p => p.kind === 'file' && p.ref === ft.path)) {
+          void (async () => {
+            const result = await window.electron.dialog.confirm({
+              title: `Close pinned tab "${ft.title}"?`,
+              message: 'This tab is pinned. Closing it removes the pin and the tab.',
+              buttons: ['Cancel', 'Close tab'],
+              defaultId: 1,
+              cancelId: 0,
+              type: 'warning'
+            })
+            if (result.response === 1) closeFileTab(ft.id)
+          })()
+          return
+        }
+        closeFileTab(activeWorking.id)
+      } else if (activeWorking.kind === 'browser') {
+        void (async () => {
+          const btabs = await window.electron.browser.getTabs()
+          const active = btabs.find(t => t.isActive)
+          if (!active) return
+          if (active.url && pins.some(p => p.kind === 'browser' && p.ref === active.url)) {
+            const label = active.title || active.url
+            const result = await window.electron.dialog.confirm({
+              title: `Close pinned tab "${label}"?`,
+              message: 'This tab is pinned. Closing it removes the pin and the tab.',
+              buttons: ['Cancel', 'Close tab'],
+              defaultId: 1,
+              cancelId: 0,
+              type: 'warning'
+            })
+            if (result.response !== 1) return
+          }
+          await window.electron.browser.closeTab(active.id)
+        })()
+      }
+    })
+  }, [activeWorking, fileTabs, pins, closeFileTab])
+
+  // FOLLOWUP-025 — File → Clone… modal trigger. Fires from the native
+  // File menu entry's IPC push. ⌘⇧K hits the same modal via the
+  // keyboard shortcut dispatch (useKeyboardShortcuts § openCloneModal).
+  useEffect(() => {
+    return window.electron.nav.onOpenCloneModal(() => {
+      setCloneModalOpen(true)
+    })
+  }, [])
+
+  // FOLLOWUP-020 — `duo close-terminal-tab [<n>]` from the CLI.
+  // n omitted → close the focused terminal tab; n supplied (1-indexed)
+  // → close that specific tab. Mirrors the ⌘W chord when focusedColumn
+  // === 'terminal'.
+  useEffect(() => {
+    return window.electron.nav.onCloseTerminalTab((n) => {
+      let targetId: string
+      if (typeof n === 'number') {
+        // n is 1-indexed per the CLI verb's contract.
+        const idx = n - 1
+        if (idx < 0 || idx >= tabs.length) return
+        targetId = tabs[idx].id
+      } else {
+        targetId = activeTabId
+      }
+      closeTab(targetId)
+    })
+  }, [tabs, activeTabId, closeTab])
+
   // Stage 11: `duo edit <path>` from the CLI. ENH-156 — verb-driven
   // mode: the CLI passes `mode: 'canvas'` for HTML by default (the new
   // semantic of `duo edit` is "edit the source"), or `mode: 'browser'`
@@ -2154,6 +2235,10 @@ export function App() {
     activeTabId,
     setActiveTabId,
     toggleFilesColumn: () => setFilesCollapsed(prev => !prev),
+    // FOLLOWUP-025 — ⌘⇧K opens the File → Clone… modal. Pure-UI
+    // complement to ENH-151's CLI (`duo clone <url>`). Same handler
+    // backs the native File menu entry's IPC push.
+    openCloneModal: () => setCloneModalOpen(true),
     // ⌘+ / ⌘- / ⌘0 — bump / shrink / reset terminal font size for the
     // active tab. Browser-focus forwarding intentionally skips these so
     // ⌘+/- keeps its native page-zoom behavior inside a browser tab.
@@ -2670,6 +2755,17 @@ export function App() {
           external` (or another shell.openExternal call) routes a
           URL to the system browser. */}
       <ExternalRedirectedBanner />
+
+      {/* FOLLOWUP-025 — File → Clone… modal (⌘⇧K). Pure-UI complement
+          to ENH-151's CLI. On successful clone, navigate the navigator
+          to the new folder so the user lands there. */}
+      <CloneModal
+        open={cloneModalOpen}
+        onClose={() => setCloneModalOpen(false)}
+        onCloned={(clonedTo) => {
+          nav.actions.navigateTo(clonedTo)
+        }}
+      />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div

@@ -37,6 +37,9 @@ interface Options {
   activeTabId: string
   setActiveTabId: (id: string) => void
   toggleFilesColumn?: () => void
+  /** FOLLOWUP-025 — ⌘⇧K opens the File → Clone… modal. Pure-UI
+   *  complement to ENH-151's `duo clone` CLI. */
+  openCloneModal?: () => void
   togglePaneFocus?: () => void
   adjustTerminalFontBump?: (delta: number | 'reset') => void
   /** Stage 26 PR 3 item 8 — flip the navigator breadcrumb into the
@@ -222,6 +225,10 @@ export function useKeyboardShortcuts(opts: Options) {
         case 'toggleFilesColumn':
           opts.toggleFilesColumn?.()
           return
+        case 'openCloneModal':
+          // FOLLOWUP-025 — File → Clone… modal trigger.
+          opts.openCloneModal?.()
+          return
         case 'togglePaneFocus':
           opts.togglePaneFocus?.()
           return
@@ -376,6 +383,7 @@ export function useKeyboardShortcuts(opts: Options) {
     opts.activeTabId,
     opts.setActiveTabId,
     opts.toggleFilesColumn,
+    opts.openCloneModal,
     opts.togglePaneFocus,
     opts.splitViewToggle,
     opts.splitViewPromote,

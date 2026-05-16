@@ -7096,9 +7096,9 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 
 ### FOLLOWUP-025: File → Clone… modal (renderer-side, paired with ENH-151's CLI)
 
-**Status:** 🆕 Filed 2026-05-16 (scoped out of v0.7.0 cleanup cut alongside ENH-151's CLI surface).
+**Status:** ✅ Shipped 2026-05-16 in v0.7.0 cleanup cut. New `renderer/components/CloneModal.tsx` + `⌘⇧K` shortcut + `NAV_OPEN_CLONE_MODAL` IPC channel + renderer subscriber. Native File menu entry → still deferred (FOLLOWUP-026 if pursued), but the modal is reachable via `⌘⇧K` + via `window.electron.git.openCloneModal()` IPC.
 **Priority:** P2 — the CLI is the spec for v1; the modal is a discoverability + non-agent-user affordance.
-**Filed:** 2026-05-16.
+**Filed:** 2026-05-16. **Shipped:** 2026-05-16.
 
 **Today.** ENH-151's CLI shipped (`duo clone <url> [<path>]`, `duo gh-auth`). The renderer-side IPC handlers + preload exposures (`window.electron.git.clone`, `window.electron.git.ghAuth`) are already wired — pure-UI follow-up.
 
@@ -7114,9 +7114,9 @@ Code-side delete path: `ViewSourceOverlay.tsx` removed entirely (no need for a f
 
 ### FOLLOWUP-020: CLI parity gap — no `duo close-tab` for active working / terminal tab
 
-**Status:** 🆕 Filed 2026-05-11 (discovered during Sprint 17 ENH-143 discoverability work).
+**Status:** ✅ Shipped 2026-05-16 in v0.7.0 cleanup cut. Two new verbs (`duo close-tab` + `duo close-terminal-tab [<n>]`) routing through new NavBridge methods (`closeActiveWorkingTab`, `closeTerminalTab`) + new IPC channels (`NAV_CLOSE_ACTIVE_WORKING_TAB`, `NAV_CLOSE_TERMINAL_TAB`) + renderer subscribers in `App.tsx` that reuse the existing `closeFileTab` / `closeTab` paths (pinned-tab gating preserved via `dialog.confirm`).
 **Priority:** Medium — CLAUDE.md item 4 parity rule violation. Agents can't dismiss the active working-pane tab or terminal tab from the CLI.
-**Filed:** 2026-05-11.
+**Filed:** 2026-05-11. **Shipped:** 2026-05-16.
 
 **Today.** `duo close <n>` closes a BROWSER tab by id (from `duo tabs`). No CLI counterpart to `⌘W`'s "close the focused tab" for either:
 - The active working-pane file tab (markdown editor, HTML canvas, image, PDF, JSON viewer)

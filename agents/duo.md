@@ -196,6 +196,8 @@ empty.
 | `duo git-status [<path>]` | **ENH-152a** — git status snapshot for a directory (defaults to `$HOME`). Returns JSON `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind }`. Backs the Navigator root chip; agents can also use it to decide a checkout's state before proposing edits (e.g. don't propose a commit when `dirty: false`). |
 | `duo clone <url> [<dir>] [--json]` | **ENH-151** — clone a GitHub repo. Uses `gh repo clone` when gh is authenticated (handles HTTPS + SSH transparently); falls back to plain `git clone` for public repos. `<url>` accepts gh shorthand (owner/repo) when gh is available, full HTTPS/SSH URL otherwise. `--json` prints the structured CloneResult `{ ok, clonedTo, errorKind, error, via }` with `errorKind` ∈ `{ bad-url, auth-missing, clone-failed }`. |
 | `duo gh-auth` | **ENH-151** — probe `gh auth status`. Returns `{ ghInstalled, authenticated, host, user, ghNotFound }`. Use before `duo clone` on a private repo to know whether auth needs to happen first. |
+| `duo close-tab` | **FOLLOWUP-020** — close the focused working-pane tab (file/canvas/viewer/browser-mode HTML). CLI parity for the ⌘W chord on the working strip. Pinned-tab gating still routes through a `dialog.confirm`. Returns `{ ok }`. |
+| `duo close-terminal-tab [<n>]` | **FOLLOWUP-020** — close a terminal tab. No arg → focused tab; `<n>` (1-indexed) → that specific terminal tab. Returns `{ ok }`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

@@ -248,6 +248,8 @@ export interface ElectronNavAPI {
    *  Main returns this on `duo nav state`. */
   pushState: (snapshot: NavStateSnapshot) => void
   /** Subscribe to `duo reveal <path>` commands coming in from the CLI. */
+  /** Subscribe to "main → renderer" nav-state push (legacy alias).
+   *  Subscribe-style callback returning an unsubscribe fn. */
   onReveal: (cb: (path: string) => void) => () => void
   /** Subscribe to `duo view <path>` commands coming in from the CLI.
    *  ENH-097 — `mode` carries an optional override ('canvas' forces
@@ -256,6 +258,16 @@ export interface ElectronNavAPI {
   /** Subscribe to `duo edit <path>` commands coming in from the CLI.
    *  See onView for the optional `mode` override. */
   onEdit: (cb: (path: string, mode?: 'canvas' | 'browser') => void) => () => void
+  /** FOLLOWUP-020 — close the focused working-pane tab. Renderer
+   *  applies the pinned-tab gate (dialog.confirm) + the actual tab-
+   *  removal. CLI parity for ⌘W. */
+  onCloseActiveWorkingTab: (cb: () => void) => () => void
+  /** FOLLOWUP-020 — close a terminal tab. `n` omitted → focused tab;
+   *  `n` supplied (1-indexed) → that specific terminal tab. */
+  onCloseTerminalTab: (cb: (n?: number) => void) => () => void
+  /** FOLLOWUP-025 — File → Clone… modal trigger. Renderer opens the
+   *  CloneModal component. */
+  onOpenCloneModal: (cb: () => void) => () => void
 }
 
 export interface ElectronEditorAPI {

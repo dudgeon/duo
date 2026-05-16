@@ -214,6 +214,8 @@ declare friction sites once and stop fighting them.
 | `duo git-status [<path>]` | **ENH-152a** — git status snapshot for a directory (defaults to `$HOME`). Backs the Navigator root chip ("clean stays invisible" per owner directive); also useful directly to agents who want to make decisions about a checkout's state before proposing edits. | JSON: `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind }` |
 | `duo clone <url> [<dir>] [--json]` | **ENH-151** — clone a GitHub repo. Uses `gh repo clone` when gh is authenticated (handles HTTPS + SSH transparently); falls back to plain `git clone` for public repos. `<url>` accepts gh shorthand (owner/repo) when gh is available, full HTTPS/SSH URL otherwise. With `--json`, structured CloneResult — branch on `errorKind` ∈ `{ bad-url, auth-missing, clone-failed }`. | text \| JSON when `--json` |
 | `duo gh-auth` | **ENH-151** — probe `gh auth status`. Tell agents whether `duo clone` will succeed on private repos before they try. | JSON: `{ ghInstalled, authenticated, host, user, ghNotFound }` |
+| `duo close-tab` | **FOLLOWUP-020** — close the focused working-pane tab (file editor / canvas / image viewer / browser-mode HTML). CLI parity for the ⌘W chord. Pinned-tab gating still routes through a confirm dialog (CLI close of a pinned tab still surfaces the same Cancel / Close anyway prompt). | JSON: `{ ok }` |
+| `duo close-terminal-tab [<n>]` | **FOLLOWUP-020** — close a terminal tab. No arg closes the focused terminal tab; `<n>` (1-indexed) closes that specific terminal tab. Refuses to close the LAST terminal tab (same constraint as the in-app ⌘W on the terminal strip). | JSON: `{ ok }` |
 
 ## Patterns
 

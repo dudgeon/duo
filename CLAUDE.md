@@ -629,9 +629,9 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 17 in progress (8 commits, pre-cut, walk deferred)
+## Active sprint — Sprint 17 morphed into v0.7.0 cleanup cut (15+ commits, pre-cut, walk deferred)
 
-**Sprint 17 opened 2026-05-11** (immediately after v0.6.15 cut earlier the same day). Owner picked the **A+C+D bundle** (Navigator + tab UX polish + Diagnostic + instrumentation + Papercut sweep) from a 5-option theme AUQ; combined three small buckets into a single sprint. **Walk deferred** — owner: "won't be able to walk for a while longer; please commit your work; then do a doc and breadcrumb sweep, commit and push." This commit closes that sweep request; v0.6.16 cut waits on the walk.
+**Sprint 17 opened 2026-05-11** (immediately after v0.6.15 cut earlier the same day). Owner originally picked the **A+C+D bundle** (Navigator + tab UX polish + Diagnostic + instrumentation + Papercut sweep). On **2026-05-16** the sprint expanded into the **v0.7.0 cleanup cut**: 4 PRs cleaned (BUG-125, ENH-158/159/160), 3 new code features landed on main (BUG-124, ENH-152a Navigator git status chip, ENH-151 `duo clone` CLI + FOLLOWUP-025 Clone modal), and the parity-rule violation surfaced during ENH-143 was closed (FOLLOWUP-020 `duo close-tab` / `duo close-terminal-tab`). Walk + cut still pending — owner deferred the walk.
 
 **8 sprint commits (pre-cut), all on `main`:**
 
@@ -653,16 +653,26 @@ routed around ad hoc.
 
 **v0.6.14 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) — Sprint 16 commits 1+2: enterprise hotfix. **ENH-141** install-path hardening — `duo` CLI reaches PTY $PATH inside Duo terminals + Claude Code sandboxes (SHIM_DIR target `~/.claude/duo/bin/duo`); **BUG-121** closing the last browser tab no longer respawns about:blank in a loop.
 
-**Sprint 17 owner walk owed (gates v0.6.16 cut):**
+**Sprint 17 / v0.7.0 owner walk owed (gates the cut):**
 
 | Test | What to verify |
 |---|---|
 | ENH-144 close-tab focus | Open tabs A B C → activate B → close B → A activates (NOT C, NOT browser) |
 | ENH-147 v1 multi-select | ⌘-click multiple files → each highlights → right-click → "Move N items to Trash…" → confirm batch trashes + clears selection |
-| ENH-143 discoverability | Open what-duo-does.html → find entry 55b "Close the active tab with ⌘W" → reads coherently next to entry 56's ⌘⇧⌫ |
+| ENH-143 discoverability | Open what-duo-does.html → find entry 55b "Close the active tab with ⌘W" → reads coherently next to entry 56's ⌘⇧⌫. Now also names `duo close-tab` + `duo close-terminal-tab` (FOLLOWUP-020 close-out). |
 | BUG-123 v1 cell selection | Markdown file w/ table → drag from A1 to C2 → orange overlay on spanned cells (Apple Numbers / Notion style) |
 | BUG-079 + ENH-084 v4 instrumentation | Passive — capture event streams when the bug surfaces / during a click-around walk |
-| **v0.6.15 enterprise smoke (carry-forward)** | ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation on owner's work machine. Separate gate from Sprint 17 walk but blocks v0.6.16 cut. |
+| ENH-156 verb-split (HTML default routing) | `duo open <html>` → browser pane; `duo edit <html>` → canvas mode; meta declaration no longer consulted |
+| BUG-125 watcher symlink fix | `/tmp/foo.md` edits propagate to the open canvas/editor (4 sub-tests covering clean / dirty × HTML / markdown × symlinked / non-symlinked) |
+| ENH-158 boot CLI shim self-heal | `~/.claude/duo/bin/duo` recreated on every app boot; check `~/.claude/duo/logs/install-shim.log` for activity |
+| ENH-159 browser DOM-context send | Select page text in browser pane → Send → Duo → quoted text + selector_path + heading trail + capped surrounding land in active terminal. Inspect mode (⌘⇧C) outlines + click-selects. |
+| ENH-160 .pkg installer | macOS-only: `bash scripts/build-pkg.sh --pack examples/distro-pack-template/` → opens in Installer → drops pack into `~/.claude/duo/extra-packs/<pack-name>/` |
+| **ENH-152a git status chip** | Open a dirty repo in Navigator → chip "branch · modified" appears above tree; switch to clean repo → chip hides; cycle: add commit unpushed → "branch · 1 ahead" |
+| **ENH-151 clone CLI** | `duo clone https://github.com/dudgeon/duo /tmp/duo-clone-test` succeeds. `duo clone owner/private-repo --json` returns `{ ok:false, errorKind: 'auth-missing' }` when gh isn't logged in. `duo gh-auth` returns JSON snapshot. |
+| **FOLLOWUP-025 Clone modal** | `⌘⇧K` opens the Clone modal; paste URL + adjust parent dir + Clone → success banner + Navigator jumps to the new folder. Auth-missing banner shows when `gh auth status` reports no session. |
+| **FOLLOWUP-020 close-tab CLI** | `duo close-tab` closes the focused working-pane tab (parity with ⌘W); `duo close-terminal-tab 2` closes the 2nd terminal tab. Pinned-tab gating still surfaces the Cancel / Close-anyway dialog. |
+| **BUG-124 logs-dir mkdir** | `~/.claude/duo/logs/` exists after a fresh app boot; dev-stderr no longer floods with `ENOENT: rename last-conflict.log.duo.tmp → last-conflict.log` on conflict-banner repros |
+| **v0.6.15 enterprise smoke (carry-forward)** | ENH-141 BANNER-UI + WORK-MACHINE rows + BUG-119 quit-crash confirmation on owner's work machine. Separate gate from Sprint 17 walk but blocks v0.7.0 cut. |
 
 **Carry-forward to Sprint 18 (post-walk):**
 
@@ -673,11 +683,16 @@ routed around ad hoc.
 | **BUG-093** | Move to Split View renderer crash. Carried from Sprint 16; CLI repro didn't fire | User-triggered repro |
 | **BUG-122 deeper fix** | Save-conflict banner re-surface. Defensive hardening shipped v0.6.15 | Next-repro `last-conflict.log` capture |
 | **BUG-123 v2** | Cross-boundary drag-to-outside-table (collapses to single-cell today). Override `tableEditing()`'s `move()` handler | Owner walks v1; if still feels broken, file v2 spec |
-| **BUG-124** | `writeConflictLog` logs-dir mkdir gap | None — half-day standalone |
 | **ENH-148** | Multi-select v2: ⇧-click + ⌘-A + CLI parity | None — half-day to full-day |
-| **FOLLOWUP-020** | `duo close-tab` for active working/terminal tab — CLI parity for ⌘W | None — half-day with documented checklist |
+| **ENH-152b** | Per-file dirty dots in Navigator (Slice 2 of ENH-152) — same data source as the root chip | None — half-day |
+| **ENH-152c** | fsevents-driven invalidation of the git status chip (replace focus-poll) | None — half-day |
+| **ENH-157** | Comments in browser pane (CDP-injected sidecar) — exposed by ENH-156 verb-split | Half-to-full sprint |
+| **FOLLOWUP-021** | `duo install --clean` — strip vestigial install fences + dead Stage-20 shim paths | None — half-day |
+| **FOLLOWUP-026** | Native File menu "Clone…" entry (renderer modal exists at ⌘⇧K via FOLLOWUP-025; menu entry deferred) | None — half-day |
 | **ENH-137** | Beginner's Guide content | Owner-authored draft |
 | **ENH-141 enterprise smoke** | v0.6.15 work-machine validation | Owner work-machine session |
+
+**Shipped in v0.7.0 cleanup cut (no longer carry-forward):** BUG-124 (logs-dir mkdir) · FOLLOWUP-020 (`duo close-tab` CLI) · FOLLOWUP-019 (canvas external-write reconciliation — actually shipped Sprint 16, status was stale).
 
 **Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the full Sprint 17 detail + Sprint 16 close-out + v0.6.15 cut record.**
 
@@ -685,7 +700,7 @@ routed around ad hoc.
 
 | Question | Priority |
 |---|---|
-| **Sprint 17 walk timing** — when can owner walk the 4 active tests above? Gates v0.6.16 cut. | Whenever owner has 15-20 min |
+| **Sprint 17 / v0.7.0 walk timing** — when can owner walk the test matrix above (now 13+ items)? Gates v0.7.0 cut. | Whenever owner has 30-45 min |
 | **BUG-123 v2 direction** — once v1 cell selection is visible, do you still want cross-boundary text spanning (drag-from-cell-into-outside-text)? If yes, ship as ENH-148-style spike-then-fix; if no, close BUG-123. | After owner walks v1 |
 | **ENH-127 direction** — declined entirely OR pivot to one of: Duo-side composer-window pattern (separate text area outside the terminal), anti-accidental-submit heuristic (delay-based or click-confirm), upstream feature request to Claude Code for raw-newline mode? Now lower priority since ENH-142 gave users the per-pref toggle. | If accidental-submit pain re-surfaces |
 | **ENH-118 image-type handling** — animate GIFs by default (today's behavior) or freeze first-frame Slack-style? SVG safety review owed (currently rendered via `<img>`, scripts blocked)? HEIC/RAW reject vs. convert? | Before any image-polish sprint |

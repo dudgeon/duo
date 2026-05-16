@@ -116,6 +116,8 @@ for the authoritative usage text.
 | `duo git-status [<path>]` | **ENH-152a** — git status snapshot for a directory (defaults to `$HOME`). Returns JSON: `{ isRepo, workTreeRoot, branch, head, dirty, changedCount, ahead, behind, reason? }`. Backs the Navigator root chip (rendered via `formatGitStatusChip` in `shared/host-api.ts`; clean stays invisible per owner directive). Also surfaced to agents for decisions like "is this checkout dirty before I propose an edit?". |
 | `duo clone <url> [<dir>] [--json]` | **ENH-151** — clone a GitHub repo. Uses `gh repo clone` when gh is authenticated; falls back to `git clone` for public repos. `<url>` accepts gh shorthand (`owner/repo`) when gh is present, full HTTPS/SSH URL otherwise. Plain output prints `Cloned via gh\|git → <path>` on success; `--json` returns structured CloneResult `{ ok, clonedTo, errorKind: 'bad-url'\|'auth-missing'\|'clone-failed', error, via }` so agents can branch. Exits non-zero on failure. |
 | `duo gh-auth` | **ENH-151** — probe `gh auth status`. Returns JSON `{ ghInstalled, authenticated, host?, user?, ghNotFound }`. Pre-flight for `duo clone` on private repos + future Doctor panel's GitHub-integration row. |
+| `duo close-tab` | **FOLLOWUP-020** — close the focused working-pane tab (file editor / canvas / image viewer / browser-mode HTML). CLI parity for the ⌘W chord. Pinned-tab gating routes through `dialog.confirm`. Returns `{ ok }`. |
+| `duo close-terminal-tab [<n>]` | **FOLLOWUP-020** — close a terminal tab. No arg → focused tab; `<n>` (1-indexed) → that specific terminal tab. Returns `{ ok }`. |
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 

@@ -290,6 +290,28 @@ const api: ElectronAPI = {
       }
       ipcRenderer.on(IPC.NAV_EDIT, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_EDIT, handler)
+    },
+
+    // FOLLOWUP-020 — close-active-working-tab + close-terminal-tab
+    // pushes. Renderer applies the actual close logic (pinned-tab gate,
+    // tab identity resolution).
+    onCloseActiveWorkingTab: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_CLOSE_ACTIVE_WORKING_TAB, handler)
+    },
+    onCloseTerminalTab: (cb) => {
+      const handler = (_: IpcRendererEvent, payload: { n?: number } | null) => {
+        cb(payload?.n)
+      }
+      ipcRenderer.on(IPC.NAV_CLOSE_TERMINAL_TAB, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_CLOSE_TERMINAL_TAB, handler)
+    },
+    // FOLLOWUP-025 — File → Clone… modal trigger.
+    onOpenCloneModal: (cb) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NAV_OPEN_CLONE_MODAL, handler)
+      return () => ipcRenderer.removeListener(IPC.NAV_OPEN_CLONE_MODAL, handler)
     }
   },
 

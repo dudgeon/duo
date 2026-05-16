@@ -1316,6 +1316,26 @@ async function main(): Promise<void> {
         out(await send('gh-auth', {}))
         break
       }
+      case 'close-tab': {
+        // FOLLOWUP-020 — close the focused working-pane file/canvas/
+        // viewer tab. CLI parity for the ⌘W chord on the working strip.
+        // Pinned-tab gating is the renderer's job (dialog.confirm); a
+        // CLI close of a pinned tab still surfaces the confirmation.
+        out(await send('close-tab', {}))
+        break
+      }
+      case 'close-terminal-tab': {
+        // FOLLOWUP-020 — close a terminal tab.
+        //   duo close-terminal-tab       → close the focused terminal tab
+        //   duo close-terminal-tab <n>   → close the Nth terminal tab (1-indexed)
+        const arg = rest[0]
+        const n = arg ? Number.parseInt(arg, 10) : undefined
+        if (arg && (Number.isNaN(n) || n! < 1)) {
+          die('Usage: duo close-terminal-tab [<n>]   (n is 1-indexed)')
+        }
+        out(await send('close-terminal-tab', n !== undefined ? { n } : {}))
+        break
+      }
 
       default:
         die(`Unknown command: ${cmd}\nRun duo --help for usage`)
@@ -1986,6 +2006,19 @@ COMMANDS
                                   ghNotFound } so agents can decide
                                   whether \`duo clone\` will work
                                   on private repos before they try.
+
+  close-tab                       FOLLOWUP-020 — close the focused
+                                  working-pane tab (file editor /
+                                  canvas / image viewer / browser-
+                                  mode HTML). CLI parity for ⌘W.
+                                  Pinned tabs still surface the
+                                  Cancel / Close-anyway confirm
+                                  dialog before closing.
+
+  close-terminal-tab [<n>]        FOLLOWUP-020 — close a terminal
+                                  tab. No arg closes the focused
+                                  one; <n> (1-indexed) closes that
+                                  specific terminal tab.
 
 FLAGS
   --version, -v    Print version
