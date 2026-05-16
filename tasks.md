@@ -6074,6 +6074,26 @@ Verified the gap empirically:
 
 ---
 
+### BUG-125: Canvas + markdown editor don't auto-reload on external `Write` against symlinked paths (FOLLOWUP-019 regression class)
+
+**Status:** ✅ Shipped 2026-05-13 (Sprint 17).
+**Priority:** High — silently breaks the FOLLOWUP-019 / BUG-085 "watcher detects external write → silent reload (clean) or banner (dirty)" promise for any file opened via a symlinked path. On macOS the most common path is `/tmp/foo` (which fsevents-followed chokidar reports as `/private/tmp/foo`).
+**Filed + fixed:** 2026-05-13. Reported by owner: "when Claude updates canvases (md, html) it generally defaults to do so in the file system, and the canvas view does not pick up the change."
+
+**Root cause.** [`electron/files-service.ts § startWatch`](electron/files-service.ts) passes the caller's `paths` straight to `chokidar.watch()`. chokidar follows symlinks by default and emits 'change' events with the **resolved** path. Both [`renderer/components/Page/PageTab.tsx:603`](renderer/components/Page/PageTab.tsx:603) and [`renderer/components/editor/MarkdownEditor.tsx:852`](renderer/components/editor/MarkdownEditor.tsx:852) then guard with `if (event.path !== path) return` — silently dropping every event whose path was symlink-resolved. The watcher subscription LOOKS attached but never reaches the reload branch.
+
+The symptom matches the owner's report exactly: canvas stays stale until you click the tab away and back. Files opened via Geoff's actual project paths (no symlinks) probably DO reload, which is why the FOLLOWUP-019 verification on `/tmp/foo.html` worked — wait, /tmp IS symlinked, so the verification commit's check may have been a different path or the dev environment masked it. Either way, prod surfaces it.
+
+**Fix.** [`electron/files-service.ts § startWatch + updateWatchPaths`](electron/files-service.ts) — maintain a `Map<resolvedPath, originalCallerPath>` per watcher. Populate at watch-start via `realpathSync` (try/catch — file may not exist yet). Remap event paths back to the caller's input string before sending. Transparent to the renderer: PageTab + MarkdownEditor's path-equality guards keep working unchanged.
+
+**Companion skill update.** Extended the CRITICAL block in [`skill/SKILL.md § Patterns`](skill/SKILL.md) and the "What you do NOT do" block in [`agents/duo.md`](agents/duo.md) to mirror the markdown "never `Write`/`Edit` an open file" rule for `.html` files in the canvas. Even with the watcher fix, the right path is for Claude to mutate the live canvas through `duo html set/replace/append/remove/attr` — that produces the highlighted-edit visual and avoids the autosave-overwrite race entirely.
+
+**Verification owed (gates v0.6.16 cut):** owner walk — open a .html file in canvas, externally `Write` to it via Claude Code's filesystem tool, confirm the canvas reloads silently (clean buffer) or surfaces the conflict banner (dirty buffer). Repeat with a .md file in the markdown editor. Both surfaces should now behave identically.
+
+**Cross-ref:** FOLLOWUP-019 (parent — three-layer external-write reconciliation that this fix unblocks), BUG-085 (original markdown-side bug FOLLOWUP-019 mirrored), BUG-107 / BUG-115 / BUG-122 (related conflict-banner family).
+
+---
+
 ### BUG-124: `writeConflictLog` floods dev stderr with ENOENT — `~/.claude/duo/logs/` not mkdir-p'd at install
 
 **Status:** ✅ Shipped Sprint 17 (2026-05-16) — boot-time mkdir-p of `~/.claude/duo/logs/` added to [`electron/main.ts § app.whenReady()`](electron/main.ts) (fire-and-forget). Ships in v0.7.0.

@@ -68,6 +68,15 @@ inside the app, so its presence is the canonical "am I inside Duo" signal.
   the file is open in the editor, call `duo nav state` first — check the
   `working` tabs before reaching for `Write`. The conflict banner from
   BUG-085's v1 fix is a safety net, not the happy path.
+- **Same rule for `.html` files open in Duo's canvas.** Apply mutations via
+  the `duo html` verbs (`set` / `replace` / `append` / `remove` / `attr`
+  against `data-duo-id` anchors; `new` to seed fresh files). A filesystem
+  `Write` against an open canvas has the same silent-overwrite class as the
+  markdown case, AND it skips the highlighted-edit visual the user relies on
+  to see what changed. If a whole-document rewrite is awkward through the
+  `duo html` verbs, close the tab (`duo tabs` then `duo close <n>`),
+  `Write`, then `duo edit <path>` to reopen in canvas mode
+  (post-ENH-156 verb-driven default).
 
 ## Tools
 

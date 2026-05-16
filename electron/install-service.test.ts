@@ -49,6 +49,15 @@ describe('composeManagedClaudeMdBlock', () => {
     const block = composeManagedClaudeMdBlock('1.2.3')
     expect(block).toContain('enterprise-deployments.md')
   })
+
+  it('surfaces the version in the rendered body so a plain read post-install confirms which Duo wrote it', () => {
+    const block = composeManagedClaudeMdBlock('1.2.3')
+    // BUG-125 follow-up: the HTML-comment marker is invisible in
+    // rendered markdown. Inspecting whether the latest install
+    // landed should not require reading the source. The footer
+    // line is the user-visible source of truth.
+    expect(block).toMatch(/\*Auto-managed by Duo v1\.2\.3\./)
+  })
 })
 
 describe('planClaudeMdMerge', () => {
