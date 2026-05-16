@@ -55,7 +55,7 @@ describe('SELECTION_OBSERVER_IIFE — BUG-056 pill gating regression', () => {
     expect(matches.length).toBe(1)
   })
 
-  it('ENH-156b — showPillFor also bails when __duoInspectActive (mode lock)', () => {
+  it('ENH-159b — showPillFor also bails when __duoInspectActive (mode lock)', () => {
     // Mode lock: while inspect mode is on, the user is picking an
     // element, not selecting text. The Send → Duo pill is suppressed
     // so the inspect outline owns the visual chrome. This regression
@@ -64,7 +64,7 @@ describe('SELECTION_OBSERVER_IIFE — BUG-056 pill gating regression', () => {
   })
 })
 
-describe('INSPECT_OBSERVER_IIFE — ENH-156b structural invariants', () => {
+describe('INSPECT_OBSERVER_IIFE — ENH-159b structural invariants', () => {
   it('installs the re-injection guard at the top', () => {
     // Same idempotency pattern as SELECTION_OBSERVER_IIFE. Without it
     // page navigations would stack listeners.

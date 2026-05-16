@@ -121,15 +121,15 @@ export interface ElectronBrowserAPI {
    *  (BrowserManager) before forwarding — untrusted paths are dropped
    *  with a console warning, never reach the renderer. */
   onPlaygroundAction: (cb: (action: PlaygroundAction) => void) => () => void
-  /** ENH-156b — element-inspect mode toggle. Accepts a boolean or
+  /** ENH-159b — element-inspect mode toggle. Accepts a boolean or
    *  'toggle'. Main is source of truth; pushes back via
    *  `onInspectMode` so the toolbar (when it lands) reflects the
    *  state without polling. */
   setInspectMode: (mode: boolean | 'toggle') => void
-  /** ENH-156b — main → renderer push of the canonical inspect-mode
+  /** ENH-159b — main → renderer push of the canonical inspect-mode
    *  state. Fires on every flip (renderer call OR page-side ESC). */
   onInspectMode: (cb: (active: boolean) => void) => () => void
-  /** ENH-156b — main → renderer push of the captured element snapshot
+  /** ENH-159b — main → renderer push of the captured element snapshot
    *  the user clicked while in inspect mode. `null` means the user
    *  pressed ESC to exit without picking. The renderer formats the
    *  snapshot via `formatBrowserInspectPayload` and routes it to the

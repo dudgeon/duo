@@ -195,7 +195,7 @@ export type DuoCommandName =
   // browser pane). The pane-jump verb routes through the bridge's
   // focusPane() back to the renderer via PANE_FOCUS_JUMP IPC.
   | 'focus-pane'
-  // ENH-156b — `duo inspect [--off]` toggles browser-pane element
+  // ENH-159b — `duo inspect [--off]` toggles browser-pane element
   // inspect mode: hover renders an outline, click captures the
   // element's snapshot (tag + selector_path + heading trail +
   // innerText + key attrs) and sends it to the active terminal so
@@ -964,7 +964,7 @@ export interface BrowserSelectionPush {
   rect: BrowserSelectionRect | null
 }
 
-// ENH-156b — element-inspect snapshot. Captured by the page-side
+// ENH-159b — element-inspect snapshot. Captured by the page-side
 // INSPECT_OBSERVER_IIFE when the user clicks an outlined element
 // while `duo inspect` mode is active. Distinct from
 // BrowserSelectionSnapshot (which is text-range-centric); here the
@@ -1193,7 +1193,7 @@ export const IPC = {
   // to the same handlePlaygroundAction the canvas runtime feeds.
   BROWSER_PLAYGROUND_ACTION: 'browser:playground-action',
 
-  // ENH-156b — element-inspect mode plumbing. Three channels:
+  // ENH-159b — element-inspect mode plumbing. Three channels:
   //   - SET_MODE (renderer/CLI → main): turn inspect on/off (or
   //     'toggle'). Main owns the canonical state; calls
   //     cdp.setInspectMode(on) to flip the page-side

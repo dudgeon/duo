@@ -139,7 +139,7 @@ export type ShortcutId =
   // active file isn't inside a vault, the overlay still opens but
   // shows a "no vault detected" empty state.
   | 'vaultQuickSwitcher'
-  // ENH-156b — ⌘⇧C toggles browser-pane element-inspect mode
+  // ENH-159b — ⌘⇧C toggles browser-pane element-inspect mode
   // (Chrome devtools parity). Hover an element to outline; click to
   // ship its snapshot (tag + selector + heading trail + innerText
   // + key attrs) to the active terminal. ESC exits without picking.
@@ -390,7 +390,7 @@ export function matchGlobalShortcut(
     return { id: 'splitViewToggle' }
   }
 
-  // ENH-156b — ⌘⇧C toggles browser-pane element-inspect mode (Chrome
+  // ENH-159b — ⌘⇧C toggles browser-pane element-inspect mode (Chrome
   // devtools' Inspect Element chord). Uses `e.code === 'KeyC'`
   // because the matched character can drift between layouts (shift+c
   // is still 'C' on US but other layouts vary). The browser-pane's

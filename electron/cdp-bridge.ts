@@ -51,7 +51,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
   var lastText = '';
   var timer = null;
 
-  // ENH-156a — hoisted so BOTH the pill-click handler and the
+  // ENH-159a — hoisted so BOTH the pill-click handler and the
   // selectionchange observer can populate selector_path. Previously
   // the click handler emitted '' (line 125) because the function
   // was scoped inside emit().
@@ -144,7 +144,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
             url: location.href,
             text: text,
             surrounding: surrounding,
-            // ENH-156a — populated so the renderer emits the
+            // ENH-159a — populated so the renderer emits the
             // selector provenance line. selectorFor is hoisted
             // at the top of the IIFE.
             selector_path: selectorFor(focus)
@@ -173,7 +173,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
     // confusing). Defaults to false until main pushes a value, so
     // the first selection on a fresh page is suppressed cleanly.
     if (!window.__duoClaudeLive) { hidePill(); return; }
-    // ENH-156b mode lock — when inspect mode is active, the user is
+    // ENH-159b mode lock — when inspect mode is active, the user is
     // picking an element, not a text range. The Send → Duo pill
     // would be a confusing second affordance on the same page; the
     // inspect outline owns the visual chrome. Selection observer
@@ -242,7 +242,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
     }
     var surrounding = '';
     if (block && block.innerText) surrounding = String(block.innerText).slice(0, 1000);
-    // selectorFor is hoisted at the top of the IIFE (ENH-156a).
+    // selectorFor is hoisted at the top of the IIFE (ENH-159a).
     lastText = text;
     try {
       window.duoSelectionPush(JSON.stringify({
@@ -266,7 +266,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
   window.addEventListener('resize', schedule);
 })();`
 
-// ENH-156b — page-side observer for element-inspect mode. Mirrors the
+// ENH-159b — page-side observer for element-inspect mode. Mirrors the
 // shape of SELECTION_OBSERVER_IIFE (idempotent install, single
 // overlay div, binding emit on click) but the addressable unit is
 // an element, not a text range. Inactive by default; flipped on by
@@ -738,13 +738,13 @@ export class CdpBridge {
   // tab's URL) before forwarding, mirroring the canvas-side gate
   // applied in PageTab.tsx.
   private browserPlaygroundActionListener: ((bundle: { attrs: Record<string, string>; payloadFromValue?: unknown }) => void) | null = null
-  // ENH-156b — element-inspect click. The INSPECT_OBSERVER_IIFE
+  // ENH-159b — element-inspect click. The INSPECT_OBSERVER_IIFE
   // captures clicks while inspect mode is active and ships either a
   // BrowserInspectSnapshot (without the `kind` discriminator —
   // re-added here) or null (ESC = "exit without picking"). Single
   // subscriber pattern matches the other browser observers.
   private browserInspectListener: ((snapshot: Omit<BrowserInspectSnapshot, 'kind'> | null) => void) | null = null
-  // ENH-156b — canonical inspect-mode state. Source of truth lives in
+  // ENH-159b — canonical inspect-mode state. Source of truth lives in
   // main; renderer reflects it via BROWSER_INSPECT_MODE pushes. The
   // CdpBridge keeps the state so injectInspectObserver can re-apply
   // the page-side `__duoInspectActive` flag after a frame nav (same
@@ -794,7 +794,7 @@ export class CdpBridge {
     this.browserPlaygroundActionListener = cb
   }
 
-  /** ENH-156b — register a single subscriber for in-page inspect-mode
+  /** ENH-159b — register a single subscriber for in-page inspect-mode
    *  clicks. The payload is the captured snapshot (without `kind`,
    *  re-added in the bindingCalled handler) or null when the user
    *  pressed ESC to exit without picking. BrowserManager subscribes
@@ -803,7 +803,7 @@ export class CdpBridge {
     this.browserInspectListener = cb
   }
 
-  /** ENH-156b — register a subscriber for inspect-mode state changes
+  /** ENH-159b — register a subscriber for inspect-mode state changes
    *  the bridge initiates (today: ESC exits inspect mode page-side;
    *  the bridge flips its cached state and notifies main so the
    *  renderer toolbar updates). Single subscriber pattern, same as
@@ -862,7 +862,7 @@ export class CdpBridge {
     } catch { /* ignore */ }
   }
 
-  /** ENH-156b — flip the page-side `__duoInspectActive` flag so the
+  /** ENH-159b — flip the page-side `__duoInspectActive` flag so the
    *  INSPECT_OBSERVER_IIFE starts or stops responding to mouse +
    *  keystroke events. Same shape as setClaudeLive: cache the latest
    *  state, push to the page, and re-apply on next inject (in case
@@ -884,13 +884,13 @@ export class CdpBridge {
     return changed
   }
 
-  /** ENH-156b — read the cached inspect-mode state. Used by the
+  /** ENH-159b — read the cached inspect-mode state. Used by the
    *  socket-server's `case 'inspect'` for the toggle path. */
   getInspectMode(): boolean {
     return this.latestInspectActive
   }
 
-  /** ENH-156b — internal helper: re-applies the latest inspect flag
+  /** ENH-159b — internal helper: re-applies the latest inspect flag
    *  to a freshly-injected IIFE. Parallel to applyClaudeLiveToPage.
    *  Without this, a new page would see `__duoInspectActive`
    *  undefined → falsy → inspect mode silently disabled across
@@ -965,7 +965,7 @@ export class CdpBridge {
     }
   }
 
-  /** ENH-156b — inject (or re-inject) the inspect-mode observer
+  /** ENH-159b — inject (or re-inject) the inspect-mode observer
    *  into the active page's main world. Idempotent thanks to the
    *  IIFE's `__duoInspectObserver` guard. The IIFE installs document-
    *  level mousemove / click / keydown listeners but each one bails
@@ -1076,7 +1076,7 @@ export class CdpBridge {
     } catch (err) {
       console.warn('[CdpBridge] Runtime.addBinding(duoPlaygroundAction) failed:', (err as Error).message)
     }
-    // ENH-156b — sixth binding for in-page inspect-mode clicks. The
+    // ENH-159b — sixth binding for in-page inspect-mode clicks. The
     // INSPECT_OBSERVER_IIFE calls window.duoInspectClick(json) on
     // click (full snapshot) or ESC (null sentinel). Failure here is
     // soft — inspect mode silently no-ops; selection observer still
@@ -1099,7 +1099,7 @@ export class CdpBridge {
     await this.injectPathLinkForwarder()
     // ENH-094 — same lifecycle for the playground runtime forwarder.
     await this.injectPlaygroundRuntime()
-    // ENH-156b — same lifecycle for the inspect-mode observer.
+    // ENH-159b — same lifecycle for the inspect-mode observer.
     await this.injectInspectObserver()
   }
 
@@ -1533,7 +1533,7 @@ export class CdpBridge {
         return
       }
       if (p.name === 'duoInspectClick') {
-        // ENH-156b — inspect-mode click (or null = ESC exit).
+        // ENH-159b — inspect-mode click (or null = ESC exit).
         // Payload is the captured snapshot fields minus `kind`. Parse
         // defensively and forward. On null, also flip the cached
         // inspect-mode state off + notify the mode-change listener so
@@ -1617,7 +1617,7 @@ export class CdpBridge {
         void this.injectSelectionObserver()
         void this.injectPathLinkForwarder()
         void this.injectPlaygroundRuntime()
-        // ENH-156b — same lifecycle: re-inject the inspect observer
+        // ENH-159b — same lifecycle: re-inject the inspect observer
         // on top-frame nav. The injector also re-applies the
         // cached __duoInspectActive flag so a page that navigates
         // mid-inspect-session stays consistent.

@@ -113,7 +113,7 @@ export class BrowserManager {
       this.window.webContents.send(IPC.BROWSER_SEND_TO_DUO_CLICK, snapshot)
     })
 
-    // ENH-156b — element-inspect-mode wiring. Two pushes back to the
+    // ENH-159b — element-inspect-mode wiring. Two pushes back to the
     // renderer:
     //   - BROWSER_INSPECT_CLICK: the snapshot of the clicked element
     //     (or null = ESC exit). Renderer formats it via
@@ -673,10 +673,10 @@ export class BrowserManager {
     this.activeView()?.webContents.focus()
   }
 
-  // ── Inspect mode (ENH-156b) ────────────────────────────────────────────────
+  // ── Inspect mode (ENH-159b) ────────────────────────────────────────────────
 
   /**
-   * ENH-156b — toggle / set element-inspect mode in the active browser
+   * ENH-159b — toggle / set element-inspect mode in the active browser
    * page. The page-side INSPECT_OBSERVER_IIFE reads `__duoInspectActive`
    * on every mouse/key event and bails when false, so flipping the flag
    * is the only switch needed. Pushes BROWSER_INSPECT_MODE to the
@@ -701,7 +701,7 @@ export class BrowserManager {
     return next
   }
 
-  /** ENH-156b — read the cached inspect-mode state. Sister to
+  /** ENH-159b — read the cached inspect-mode state. Sister to
    *  setInspectMode for the toggle path + any state-read use case. */
   getInspectMode(): boolean {
     return this.cdp.getInspectMode()
@@ -1030,7 +1030,7 @@ export class BrowserManager {
         // had been used once (focus moves to WCV after pick) it stopped
         // working entirely.
         input.code === 'KeyA' ||
-        // ENH-156b — ⌘⇧C toggles inspect mode (Chrome devtools parity).
+        // ENH-159b — ⌘⇧C toggles inspect mode (Chrome devtools parity).
         // Without forwarding, Chromium routes ⌘⇧C to its own developer-
         // tools shortcut, which doesn't surface in WebContentsView, so
         // the renderer never sees the keystroke. Gated on Shift to

@@ -107,7 +107,7 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
     })
   }, [handleSendToDuoClick])
 
-  // ENH-156b — subscribe to inspect-mode element clicks. Page-side
+  // ENH-159b — subscribe to inspect-mode element clicks. Page-side
   // INSPECT_OBSERVER_IIFE captures the snapshot when the user clicks
   // an outlined element while inspect mode is active; the snapshot
   // arrives here via the duoInspectClick binding → BrowserManager

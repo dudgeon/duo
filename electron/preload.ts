@@ -201,7 +201,7 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.BROWSER_PLAYGROUND_ACTION, handler)
     },
 
-    // ENH-156b — element-inspect mode plumbing.
+    // ENH-159b — element-inspect mode plumbing.
     //   - setInspectMode: renderer → main toggle/set (boolean or 'toggle').
     //   - onInspectMode: main → renderer push of the canonical state
     //     (drives the toolbar toggle button when it lands).

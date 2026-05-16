@@ -194,7 +194,7 @@ export function useKeyboardShortcuts(opts: Options) {
           return
         }
         case 'toggleInspectMode': {
-          // ENH-156b — ⌘⇧C flips browser-pane inspect mode. Main is
+          // ENH-159b — ⌘⇧C flips browser-pane inspect mode. Main is
           // source of truth; we call the toggle path so the renderer
           // doesn't have to read state first. Main pushes
           // BROWSER_INSPECT_MODE back so any UI subscriber (toolbar

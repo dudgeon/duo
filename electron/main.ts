@@ -942,7 +942,7 @@ function setupIPC(): void {
     browserManager?.setOverlayMuted(payload.muted)
   })
 
-  // ENH-156b — element-inspect-mode toggle. Renderer calls this when the
+  // ENH-159b — element-inspect-mode toggle. Renderer calls this when the
   // user fires ⌘⇧C (or, in a follow-up, clicks the toolbar toggle).
   // Accepts a boolean or 'toggle' so the renderer doesn't need to read
   // current state first. BrowserManager.setInspectMode pushes
