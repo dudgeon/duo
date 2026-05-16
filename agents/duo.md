@@ -75,7 +75,8 @@ inside the app, so its presence is the canonical "am I inside Duo" signal.
   markdown case, AND it skips the highlighted-edit visual the user relies on
   to see what changed. If a whole-document rewrite is awkward through the
   `duo html` verbs, close the tab (`duo tabs` then `duo close <n>`),
-  `Write`, then `duo open --canvas <path>` to reopen.
+  `Write`, then `duo edit <path>` to reopen in canvas mode
+  (post-ENH-156 verb-driven default).
 
 ## Tools
 
