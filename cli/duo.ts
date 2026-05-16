@@ -1274,6 +1274,48 @@ async function main(): Promise<void> {
         }
         die('Usage: duo pack list  |  duo pack uninstall <name> [--remove-folder]')
       }
+      case 'git-status': {
+        // ENH-152a — git status probe for the Navigator root chip.
+        //   duo git-status [<path>]   — defaults to $HOME.
+        // Returns the full GitStatusSnapshot JSON; the renderer
+        // filters down to the chip via formatGitStatusChip.
+        const cwd = rest[0]
+        out(await send('git-status', cwd ? { cwd } : {}))
+        break
+      }
+      case 'clone': {
+        // ENH-151 — `gh repo clone` (preferred) / `git clone` fallback.
+        //   duo clone <url> [<target-dir>]
+        // Probes `gh auth status` first; falls back to git for public
+        // repos. Non-zero exit on failure; --json outputs the structured
+        // result so agents can branch on errorKind (bad-url / auth-missing
+        // / clone-failed).
+        const url = rest[0]
+        if (!url) die('Usage: duo clone <url> [<target-dir>]')
+        const targetDir = rest[1] && !rest[1].startsWith('--') ? rest[1] : undefined
+        const result = (await send('clone', { url, targetDir })) as {
+          ok: boolean
+          clonedTo?: string
+          errorKind?: string
+          error?: string
+          via?: string
+        }
+        if (rest.includes('--json')) {
+          out(JSON.stringify(result, null, 2))
+        } else if (result.ok) {
+          out(`Cloned via ${result.via} → ${result.clonedTo}`)
+        } else {
+          die(`clone failed (${result.errorKind ?? 'unknown'}): ${result.error ?? 'no detail'}`)
+        }
+        break
+      }
+      case 'gh-auth': {
+        // ENH-151 — `gh auth status` probe. JSON-only output; used by
+        // the Clone modal + future Doctor panel.
+        //   duo gh-auth
+        out(await send('gh-auth', {}))
+        break
+      }
 
       default:
         die(`Unknown command: ${cmd}\nRun duo --help for usage`)
@@ -1915,6 +1957,35 @@ COMMANDS
                                   --system to force /usr/local/bin
                                   (needs sudo; not recommended for
                                   Claude Code use).
+
+  git-status [<path>]             ENH-152a — git status snapshot for
+                                  a directory (defaults to $HOME).
+                                  Returns JSON: { isRepo, branch,
+                                  head, dirty, changedCount, ahead,
+                                  behind, workTreeRoot }. Powers the
+                                  Navigator root chip; agents can
+                                  also use it to make decisions
+                                  about a checkout's state before
+                                  proposing edits.
+
+  clone <url> [<dir>] [--json]    ENH-151 — clone a GitHub repo via
+                                  \`gh repo clone\` when gh is
+                                  authenticated, falling back to
+                                  \`git clone\`. <url> accepts gh
+                                  shorthand (owner/repo) when gh is
+                                  available, otherwise needs the
+                                  full HTTPS/SSH URL. --json prints
+                                  the structured CloneResult so
+                                  agents can branch on errorKind
+                                  (bad-url / auth-missing /
+                                  clone-failed).
+
+  gh-auth                         ENH-151 — probe \`gh auth status\`.
+                                  Prints JSON { ghInstalled,
+                                  authenticated, host, user,
+                                  ghNotFound } so agents can decide
+                                  whether \`duo clone\` will work
+                                  on private repos before they try.
 
 FLAGS
   --version, -v    Print version

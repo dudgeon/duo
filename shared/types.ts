@@ -96,6 +96,13 @@ export type DuoCommandName =
   // Stage 21d-iii — distro pack management.
   | 'pack-list'
   | 'pack-uninstall'
+  // ENH-151 / ENH-152a — GitHub integration. `git-status` powers the
+  // Navigator root chip; `clone` wraps `gh repo clone` / `git clone`;
+  // `gh-auth` probes `gh auth status` so the renderer Clone modal can
+  // pre-flight the auth UX.
+  | 'git-status'
+  | 'clone'
+  | 'gh-auth'
   // Stage 17b Phase C — agent read/write verbs against the active
   // canvas: `duo html query/get/set/replace/append/remove/attr`. All
   // routed through a single `html-op` socket command with a

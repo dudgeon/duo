@@ -1186,6 +1186,36 @@ export class SocketServer {
           result = await uninstallPack(name, { removePackFolder: removeFolder })
           break
         }
+        case 'git-status': {
+          // ENH-152a — git status probe for the Navigator root chip.
+          // Returns the full GitStatusSnapshot; renderer's
+          // formatGitStatusChip gates the display ("clean stays invisible").
+          const cwd = (args['cwd'] as string) || process.env.HOME || process.cwd()
+          const { getGitStatus } = await import('./git/status')
+          result = await getGitStatus(cwd)
+          break
+        }
+        case 'clone': {
+          // ENH-151 — wraps `gh repo clone` (preferred) or `git clone`.
+          // Failure-mode shape lets the renderer distinguish bad-url
+          // (retry input) from auth-missing (bounce to gh auth login)
+          // from clone-failed (generic).
+          const url = args['url'] as string
+          const targetDir = args['targetDir'] as string | undefined
+          const cwd = args['cwd'] as string | undefined
+          if (!url) throw new Error('clone requires a url arg')
+          const { runClone } = await import('./git/clone')
+          result = await runClone({ url, targetDir, cwd })
+          break
+        }
+        case 'gh-auth': {
+          // ENH-151 — probe `gh auth status`. Used by the renderer
+          // Clone modal to pre-flight the auth UX + by `duo doctor`
+          // when it lands GitHub integrations.
+          const { probeGhAuth } = await import('./git/auth')
+          result = await probeGhAuth()
+          break
+        }
 
         default:
           return { id, ok: false, error: `Unknown command: ${cmd}` }
