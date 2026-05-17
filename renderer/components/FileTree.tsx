@@ -19,7 +19,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from '@shared/types'
-import { formatGitStatusChip } from '@shared/host-api'
+import { formatGitStatusChip, formatGitStatusTooltip, repoBasenameFor } from '@shared/host-api'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
 import type { NavPinsApi } from '../hooks/useNavPins'
 
@@ -104,10 +104,18 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // because rename is a transient renderer-side state (no IPC mirror).
   const [renamingPath, setRenamingPath] = useState<string | null>(null)
 
-  // ENH-152a — git status for the navigator's current cwd. Refreshed
-  // on cwd change + on window focus (the cheap-and-correct invalidation
-  // story; fsevents-driven invalidation is a v2). Owner directive: clean
-  // stays invisible — formatGitStatusChip returns '' for clean repos.
+  // ENH-152a v2 — git status for the navigator's current cwd.
+  // Refreshed on cwd change + on window focus. fsevents-driven
+  // invalidation (Q7 proto, ENH-152c) is a follow-up.
+  //
+  // v2 changes from v1:
+  // - chip is ALWAYS visible when in a git repo (v1 hid clean state;
+  //   owner rejected at v0.7.0 walk: "no visual indication that duo/
+  //   is root of a github repo in the navigator view — very bad").
+  // - The chip is rendered inline on the repo-root row IF the root
+  //   is visible in the current tree, else as a slim-top ribbon
+  //   banner above the tree (per locked prototype-Q1 SLIM-TOP +
+  //   prototype-Q2 BREADCRUMB-DEEP trigger).
   const [gitChip, setGitChip] = useState<string>('')
   const [gitSnap, setGitSnap] = useState<GitStatusSnapshot | null>(null)
   useEffect(() => {
@@ -133,6 +141,18 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       window.removeEventListener('focus', onFocus)
     }
   }, [state.cwd, rootEntriesOverride])
+
+  // ENH-152a v2 — show the ribbon WHENEVER cwd is inside a git repo.
+  // Duo's tree shows children-of-cwd (not cwd itself as a row), so
+  // the prototype's "inline chip on root row" case (peer-repos under
+  // a parent cwd) doesn't apply with the current navigator shape —
+  // there's no row for the cwd folder to anchor a chip to. The
+  // ribbon is the indicator for both `cwd === workTreeRoot` AND
+  // `cwd deeper than workTreeRoot` (proto-Q2 BREADCRUMB-DEEP rule
+  // collapses to "always show ribbon when in repo").
+  const isInRepo = !!gitSnap?.isRepo
+  const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
+  const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
 
   // ENH-026 — accept rename requests from outside the tree (e.g. the
   // WorkingPane tab strip's right-click menu). App.tsx dispatches a
@@ -356,6 +376,36 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           void window.electron.nav.openCloneModal?.({ path: target.path })
         }
         return
+      case 'open-on-github':
+      case 'copy-github-url': {
+        // ENH-155 — compose the GitHub URL for the right-clicked
+        // path. Both menu items go through the same probe; one opens
+        // the URL via shell, the other copies to clipboard. If the
+        // remote isn't a GitHub host (gitlab/bitbucket/self-hosted),
+        // url is null and we silently no-op (the menu item shouldn't
+        // have appeared in that case anyway, but this is a belt-and-
+        // suspenders guard).
+        if (!gitSnap?.workTreeRoot) return
+        const branch = gitSnap.branch || gitSnap.head
+        try {
+          const result = await window.electron.git.githubUrlFor({
+            cwd: state.cwd,
+            workTreeRoot: gitSnap.workTreeRoot,
+            branch,
+            absPath: target.path,
+            isFolder
+          })
+          if (!result.url) return
+          if (chosenId === 'open-on-github') {
+            await window.electron.files.openExternal(result.url)
+          } else {
+            try { await window.electron.clipboard.writeText(result.url) } catch { /* permission */ }
+          }
+        } catch {
+          // Probe failed — silent. User can retry; nothing destructive.
+        }
+        return
+      }
     }
   }
 
@@ -372,12 +422,19 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     const batchSize = (!whitespaceMode && inSelection && state.selectedItems.size > 1)
       ? state.selectedItems.size
       : 0
+    // ENH-155 — right-click target is in a GH repo when we have a
+    // gitSnap with workTreeRoot AND the target path is under it.
+    // Host check (github.com vs gitlab.com) happens lazily inside
+    // the handler when the user actually clicks the menu item.
+    const inGhRepo = !!gitSnap?.isRepo && !!gitSnap.workTreeRoot &&
+      target.path.startsWith(gitSnap.workTreeRoot)
     const items = buildTreeMenuTemplate({
       target,
       whitespaceMode,
       navPins,
       onOpenInSplit,
-      batchSize
+      batchSize,
+      inGhRepo
     })
     if (items.length === 0) return
     const result = await window.electron.menu.popup({
@@ -414,27 +471,25 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       onContextMenu={onWhitespaceContextMenu}
       onClick={onWhitespaceClick}
     >
-      {/* ENH-152a — git status chip. Only renders when there's
-          something worth flagging (dirty / ahead / behind). Clean repos
-          + non-repos show nothing per owner directive. */}
-      {gitChip && (
+      {/* ENH-152a v2 — git status ribbon. SLIM-TOP per proto-Q1.
+          Renders only when the user has navigated INSIDE the repo
+          root (proto-Q2 BREADCRUMB-DEEP) — the root row isn't in the
+          visible tree, so the ribbon acts as a proxy for it. When
+          the root IS visible in the tree, the inline chip on the root
+          row covers the indicator (rendered inside TreeNodes via
+          isRepoRoot+chipText props). Clean repos still show a chip
+          per v2 walk-rev2 directive ("always visible"); only
+          non-repos (gitChip === '') stay hidden. */}
+      {gitChip && isInRepo && (
         <div
-          className="px-3 py-1 mb-1 text-[11px] font-mono text-muted-foreground border-b border-border/40 truncate"
-          title={
-            gitSnap
-              ? `Branch: ${gitSnap.branch || gitSnap.head}${
-                  gitSnap.workTreeRoot ? `\nRoot: ${gitSnap.workTreeRoot}` : ''
-                }${
-                  gitSnap.dirty ? `\n${gitSnap.changedCount} changed file(s)` : ''
-                }${
-                  gitSnap.ahead ? `\n${gitSnap.ahead} commit(s) ahead` : ''
-                }${
-                  gitSnap.behind ? `\n${gitSnap.behind} commit(s) behind` : ''
-                }`
-              : gitChip
-          }
+          className="px-3 py-1.5 mb-1 text-[11px] font-mono text-ink-mute border-b border-paper-rule bg-paper-deep flex items-center gap-2 cursor-default"
+          title={chipTooltip}
+          data-duo-git-ribbon="1"
         >
-          {gitChip}
+          <span className="text-accent" aria-hidden="true">⎇</span>
+          <span className="font-medium text-ink">{repoName || 'repo'}</span>
+          <span className="text-ink-mute">·</span>
+          <span className="truncate flex-1">{gitChip}</span>
         </div>
       )}
       <TreeNodes
@@ -477,6 +532,12 @@ function buildTreeMenuTemplate(opts: {
    *  multi-select. The trash label is pluralized; other items stay as
    *  single-target wording (only trash batches in v1). */
   batchSize?: number
+  /** ENH-155 — true when the right-clicked path is inside a git repo
+   *  with a GitHub remote. Caller computes this from the cached
+   *  GitStatusSnapshot + a (lazy) hostname check; we don't probe per
+   *  right-click. When true, the menu adds "Open on GitHub" + "Copy
+   *  GitHub URL" items. */
+  inGhRepo?: boolean
 }): MenuTemplateItem[] {
   const { target, whitespaceMode, navPins, onOpenInSplit, batchSize = 0 } = opts
   const isFolder = target.kind === 'directory'
@@ -503,6 +564,20 @@ function buildTreeMenuTemplate(opts: {
     }
   }
   items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
+
+  // ENH-155 — "Open on GitHub" + "Copy GitHub URL". Only shown when
+  // the row's path is inside a git repo with a GitHub remote. The
+  // handler queries window.electron.git.githubUrlFor; if the
+  // composed URL is null (non-GitHub host) we suppress both items.
+  // Owner v1-Q5 SHOW-ALWAYS rule: render regardless of auth state
+  // (URLs work for public repos without auth). The opts.gitSnap +
+  // opts.inGhRepo flags are computed by the caller (FileTree) so
+  // builders don't redo the probe.
+  if (opts.inGhRepo) {
+    items.push({ type: 'separator' })
+    items.push({ id: 'open-on-github', label: 'Open on GitHub' })
+    items.push({ id: 'copy-github-url', label: 'Copy GitHub URL' })
+  }
 
   // FOLLOWUP-025 v2 — "Clone GitHub repo here…" on folders and
   // whitespace only (owner Q2 picked folders-only — cleaner mental

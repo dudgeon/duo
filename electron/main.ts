@@ -778,6 +778,32 @@ app.whenReady().then(async () => {
             })
           }
         }
+        // ENH-159 v2 walk-rev3 — "Select element" right-click entry on
+        // browser pane. Owner Q4 picked: right-click → State B (enters
+        // inspect mode, no pre-frozen element). User then clicks-to-
+        // freeze the element under cursor normally. Owner walk-rev3:
+        // *"right click >> inspect element loads the default browser
+        // tools ... it also makes me wonder if we should use a
+        // different term, like 'select element'."* — we adopt
+        // "Select element" to avoid colliding with Chromium's native
+        // "Inspect Element" devtools menu item (which we already hide
+        // via showInspectElement: !app.isPackaged in prod).
+        //
+        // Show only on browser-pane WCVs (not main renderer, not
+        // canvas iframes): both are skipped here so the menu item
+        // doesn't appear in surfaces where inspect mode doesn't apply.
+        const isCanvasIframeForInspect = parameters.frameURL && parameters.frameURL.startsWith('about:srcdoc')
+        const isMainRendererForInspect = mainWindow !== null && wc === mainWindow.webContents
+        const isBrowserPane = !isMainRendererForInspect && !isCanvasIframeForInspect
+        if (isBrowserPane && browserManager) {
+          const bm = browserManager
+          items.push({
+            label: 'Select element',
+            click: () => {
+              try { bm.setInspectMode(true) } catch { /* manager gone */ }
+            }
+          })
+        }
         return items
       }
     })
@@ -1206,6 +1232,20 @@ function setupIPC(): void {
   ipcMain.handle(IPC.GH_AUTH_STATUS, async () => {
     const { probeGhAuth } = await import('../core/git/auth')
     return probeGhAuth()
+  })
+
+  // ENH-155 — compose a GitHub URL for a file/folder. Renderer
+  // right-click handler calls this with absPath + isFolder; main
+  // shells out to git remote + composes via composeGitHubUrl.
+  ipcMain.handle(IPC.GIT_GITHUB_URL_FOR, async (_event, req: {
+    cwd: string
+    workTreeRoot: string
+    branch: string
+    absPath: string
+    isFolder: boolean
+  }) => {
+    const { gitHubUrlFor } = await import('../core/git/remote-url')
+    return gitHubUrlFor(req)
   })
 
   // Stage 21c Phase 2 — session state restored across relaunches.

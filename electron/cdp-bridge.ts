@@ -452,6 +452,12 @@ export const INSPECT_OBSERVER_IIFE = `(function () {
   }
   function positionPill(el) {
     var p = ensurePill();
+    // ENH-159 v2 walk-rev3 — when no Claude session is live, the
+    // Send→Duo paste has nowhere to land. Mirror SELECTION_OBSERVER's
+    // existing 'if (!window.__duoClaudeLive) hidePill()' guard so the
+    // inspect pill follows the same rule: no Claude → no pill. The
+    // user has to start a Claude session first.
+    if (!window.__duoClaudeLive) { hidePill(); return; }
     p.style.setProperty('display', 'inline-flex', 'important');
     var r = el.getBoundingClientRect();
     var pw = p.offsetWidth || 96;

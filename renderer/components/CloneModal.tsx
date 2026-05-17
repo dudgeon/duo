@@ -212,28 +212,51 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
         />
 
-        {result && (
-          <div
-            className={
-              result.ok
-                ? 'mb-3 px-3 py-2 rounded text-xs bg-emerald-950/30 border border-emerald-700/40 text-emerald-200'
-                : 'mb-3 px-3 py-2 rounded text-xs bg-red-950/30 border border-red-700/40 text-red-200'
-            }
-          >
-            {result.ok ? (
-              <>
-                <strong>Cloned via {result.via}</strong> → <code className="font-mono">{result.clonedTo}</code>
-              </>
-            ) : (
-              <>
-                <strong>Clone failed ({result.errorKind ?? 'unknown'}):</strong>{' '}
-                {result.error ?? 'no detail'}
-                {result.errorKind === 'auth-missing' && (
-                  <div className="mt-1 opacity-80">
-                    Run <code className="font-mono">gh auth login</code> in a Duo terminal, then retry.
-                  </div>
-                )}
-              </>
+        {result && result.ok && (
+          // FOLLOWUP-025 v2 walk-rev3 — owner: "cloning a repo can seem
+          // mysterious, so I think the clone process deserves some more
+          // feedback to the user and a message, post success, about
+          // what they should/can do next; not too heavy, but also not
+          // completely opaque." Replaced the 1-liner with a clearer
+          // confirmation + next-step suggestions. Navigator is already
+          // navigated to the new folder by App.tsx's onCloned handler.
+          <div className="mb-3 px-4 py-3 rounded bg-emerald-950/30 border border-emerald-700/40">
+            <div className="flex items-start gap-2">
+              <span className="text-emerald-300 text-base leading-none" aria-hidden="true">✓</span>
+              <div className="flex-1 min-w-0">
+                <div className="text-emerald-200 font-semibold text-sm">
+                  Cloned via {result.via}
+                </div>
+                <div className="text-emerald-300/80 text-xs mt-1 font-mono break-all">
+                  {result.clonedTo}
+                </div>
+              </div>
+            </div>
+            <div className="text-emerald-200/90 text-xs mt-3 leading-relaxed">
+              <strong className="text-emerald-200">Navigator is now showing the new folder.</strong>{' '}
+              You can:
+              <ul className="mt-1 ml-4 list-disc text-emerald-200/80 space-y-0.5">
+                <li>Click any file in the navigator to open it.</li>
+                <li>
+                  Right-click the repo folder → <em>Open terminal here</em>{' '}
+                  for a shell at the repo root.
+                </li>
+                <li>
+                  Press <kbd className="font-mono bg-emerald-900/40 px-1 rounded">⌘O</kbd>{' '}
+                  to jump to any file by name.
+                </li>
+              </ul>
+            </div>
+          </div>
+        )}
+        {result && !result.ok && (
+          <div className="mb-3 px-3 py-2 rounded text-xs bg-red-950/30 border border-red-700/40 text-red-200">
+            <strong>Clone failed ({result.errorKind ?? 'unknown'}):</strong>{' '}
+            {result.error ?? 'no detail'}
+            {result.errorKind === 'auth-missing' && (
+              <div className="mt-1 opacity-80">
+                Run <code className="font-mono">gh auth login</code> in a Duo terminal, then retry.
+              </div>
             )}
           </div>
         )}

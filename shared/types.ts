@@ -1533,6 +1533,8 @@ export const IPC = {
   // ENH-151 — clone wrapper + gh auth probe. renderer → main.
   GIT_CLONE: 'git:clone',
   GH_AUTH_STATUS: 'gh:auth-status',
+  // ENH-155 — compose a GitHub URL for a file/folder path. renderer → main.
+  GIT_GITHUB_URL_FOR: 'git:github-url-for',
   // FOLLOWUP-020 — main → renderer pushes to close the focused
   // working / terminal tab. Pairs with the ⌘W chord (App.tsx)
   // closing the same surface; this is the CLI-driven counterpart.

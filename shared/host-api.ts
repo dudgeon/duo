@@ -893,21 +893,60 @@ export interface GitStatusSnapshot {
 }
 
 /**
- * ENH-152a — compose the Navigator chip's display string per owner
- * directive: clean stays invisible. Returns empty string when nothing's
- * worth flagging; caller renders the chip iff the result is non-empty.
- * Lives in shared/ rather than core/git/ so the renderer can import
- * it directly (the renderer can't reach into core/).
+ * ENH-152a v2 — compose the Navigator chip's display string. Locked
+ * owner decisions (v0.7.0-rev2/rev3 gates):
+ *
+ * - branch-only-clean format (v1-Q1): clean=`main`, dirty=`main · 3
+ *   modified`, diverged=`main · 2 ahead, 1 behind`, both=
+ *   `main · 3 modified, 2 ahead, 1 behind`.
+ * - Always visible when in a repo (v1 changed: empty-on-clean
+ *   directive was rejected at v0.7.0 walk). Non-repos still return ''.
+ *
+ * Returns '' iff snap.isRepo === false. Callers should check the
+ * empty-string sentinel to decide whether to render the chip.
  */
 export function formatGitStatusChip(snap: GitStatusSnapshot): string {
   if (!snap.isRepo) return ''
-  if (!snap.dirty && snap.ahead === 0 && snap.behind === 0) return ''
   const ref = snap.branch || snap.head
   const parts: string[] = []
-  if (snap.dirty) parts.push('modified')
+  if (snap.dirty) parts.push(`${snap.changedCount} modified`)
   if (snap.ahead > 0) parts.push(`${snap.ahead} ahead`)
   if (snap.behind > 0) parts.push(`${snap.behind} behind`)
+  if (parts.length === 0) return ref
   return `${ref} · ${parts.join(', ')}`
+}
+
+/**
+ * ENH-152a v2 — compose the Navigator chip's hover-tooltip per owner
+ * prototype-Q3 PLAIN-ENGLISH pick: "Main branch of '<repo>' repo" +
+ * an optional second line with dirty/ahead/behind summary so users
+ * who hover get more state than the chip alone shows.
+ *
+ * `repoName` is the basename of the repo root (e.g. 'duo' for
+ * /Users/.../duo/). Empty string returns a tooltip without quoting.
+ */
+export function formatGitStatusTooltip(snap: GitStatusSnapshot, repoName: string): string {
+  if (!snap.isRepo) return ''
+  const ref = snap.branch || snap.head
+  const repoLabel = repoName ? `'${repoName}' repo` : 'repo'
+  const lines: string[] = [`${ref} branch of ${repoLabel}`]
+  const summary: string[] = []
+  if (snap.dirty) summary.push(`${snap.changedCount} modified file${snap.changedCount === 1 ? '' : 's'}`)
+  if (snap.ahead > 0) summary.push(`${snap.ahead} commit${snap.ahead === 1 ? '' : 's'} ahead`)
+  if (snap.behind > 0) summary.push(`${snap.behind} commit${snap.behind === 1 ? '' : 's'} behind`)
+  if (summary.length > 0) lines.push(summary.join(' · '))
+  return lines.join('\n')
+}
+
+/**
+ * ENH-152a v2 — extract the repo basename for tooltip + ribbon usage.
+ * From `/Users/me/code/duo` returns 'duo'. Empty string on falsy input.
+ */
+export function repoBasenameFor(workTreeRoot: string | null | undefined): string {
+  if (!workTreeRoot) return ''
+  const trimmed = workTreeRoot.replace(/\/+$/, '')
+  const idx = trimmed.lastIndexOf('/')
+  return idx >= 0 ? trimmed.slice(idx + 1) : trimmed
 }
 
 export interface CloneRequest {
@@ -932,6 +971,19 @@ export interface GhAuthStatus {
   ghNotFound: boolean
 }
 
+export interface GitHubUrlRequest {
+  cwd: string
+  workTreeRoot: string
+  branch: string
+  absPath: string
+  isFolder: boolean
+}
+
+export interface GitHubUrlResult {
+  url: string | null
+  host: string | null
+}
+
 export interface ElectronGitAPI {
   /** ENH-152a — get a git status snapshot for a directory. Renderer
    *  uses this for the Navigator root chip. */
@@ -942,6 +994,12 @@ export interface ElectronGitAPI {
   /** ENH-151 — probe `gh auth status`. Used by the Clone modal's
    *  pre-flight. */
   ghAuth(): Promise<GhAuthStatus>
+  /** ENH-155 — compose a GitHub URL for a file/folder. Powers the
+   *  Navigator right-click "Open on GitHub" / "Copy GitHub URL"
+   *  menu items. Returns null url when the remote isn't a GitHub
+   *  host (gitlab.com, bitbucket.org, etc.) so callers can suppress
+   *  the menu items. */
+  githubUrlFor(req: GitHubUrlRequest): Promise<GitHubUrlResult>
 }
 
 declare global {

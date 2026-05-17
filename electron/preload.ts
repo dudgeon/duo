@@ -702,7 +702,8 @@ const api: ElectronAPI = {
   git: {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
     clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),
-    ghAuth: () => ipcRenderer.invoke(IPC.GH_AUTH_STATUS)
+    ghAuth: () => ipcRenderer.invoke(IPC.GH_AUTH_STATUS),
+    githubUrlFor: (req) => ipcRenderer.invoke(IPC.GIT_GITHUB_URL_FOR, req)
   }
 }
 

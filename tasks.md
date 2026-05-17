@@ -160,12 +160,58 @@ Walk-FAIL on rev1 was about the pill still appearing during text-select while in
 
 ### GATE-GH-CLUSTER-PROTO: GH-cluster visual prototype — owner-approval gate before code
 
-**Status:** 🟡 **Awaiting owner walk + approval.** Builds on locked GATE-GH-CLUSTER-v2 decisions.
-**Playground:** [`docs/research/gh-cluster-prototype.html`](docs/research/gh-cluster-prototype.html) — *(to be created — multi-option visual prototype)*.
-**Filed:** 2026-05-17.
-**Blocks:** All GH-cluster implementation (ENH-152a v2, ENH-152b, ENH-152c, ENH-155).
+**Status:** ✅ **Closed 2026-05-17 (walked rev3).** Owner walked + locked 4 prototype decisions. ENH-152a v2 chip + ribbon + ENH-155 GH-menu implementation shipped in the same session. ENH-152b per-file dots + ENH-152c fsevents-driven refresh deferred as follow-ups (see ENH-152b / ENH-152c below).
+**Playground:** [`docs/research/gh-cluster-prototype.html`](docs/research/gh-cluster-prototype.html) — 4 decisions.
+**Filed:** 2026-05-17. **Walked + closed:** 2026-05-17.
 
-The prototype shows side-by-side visual options for the chip-vs-ribbon spatial logic + tooltip wording + interaction model, with each option labeled so owner can pick. Owner picks; implementation proceeds.
+**Locked decisions (v0.7.0-rev3 walk):**
+- **Q1:** SLIM-TOP ribbon — distinct row above the tree (paper-deep bg, `⎇` icon, repo name + chip text).
+- **Q2:** BREADCRUMB-DEEP trigger (collapsed to "always-show when in repo" given Duo's tree shows children-of-cwd, not cwd itself).
+- **Q3:** PLAIN-ENGLISH tooltip — "main branch of 'duo' repo" + optional second line with state summary.
+- **Q4:** STATUS-DIFF dot tooltip — "Modified · +24 / −7 lines" (DEFERRED — see ENH-152b).
+
+**Implementation (this PR):**
+- [`shared/host-api.ts`](shared/host-api.ts) — `formatGitStatusChip` rewritten for always-visible v2 shape (clean → `main`; dirty → `main · 3 modified`; diverged → `main · 2 ahead, 1 behind`). New `formatGitStatusTooltip(snap, repoName)` for Q3. New `repoBasenameFor(workTreeRoot)`. New `GitHubUrlRequest` / `GitHubUrlResult` types.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — ribbon renders whenever cwd is in a repo (atelier-tokened: `bg-paper-deep` + `text-ink-mute` — NOT shadcn tokens that would no-op). Right-click menu adds "Open on GitHub" / "Copy GitHub URL" when target is in a GH repo (`inGhRepo` flag computed from cached snapshot). Handler invokes `window.electron.git.githubUrlFor` + opens via `shell.openExternal` or copies to clipboard.
+- [`core/git/remote-url.ts`](core/git/remote-url.ts) (new) — `parseRemoteUrl` / `isGitHubHost` / `composeGitHubUrl` / `gitHubUrlFor`. Recognises github.com + github.* enterprise hosts (Q4 yes-detect). 22 vitest cases passing.
+- [`electron/main.ts`](electron/main.ts) — `GIT_GITHUB_URL_FOR` ipcMain handler.
+- [`electron/preload.ts`](electron/preload.ts) — `window.electron.git.githubUrlFor` bridge.
+- [`shared/types.ts`](shared/types.ts) — `IPC.GIT_GITHUB_URL_FOR` channel.
+
+**Verification (live dev):**
+
+- Ribbon renders with `⎇ Documents · main · 34 modified` (my Documents folder is a git repo) ✓
+- Tooltip says "main branch of 'Documents' repo\n34 modified files" (plain-English per Q3) ✓
+- `githubUrlFor` against duo/README.md → `https://github.com/dudgeon/duo/blob/main/README.md` ✓
+- `githubUrlFor` against duo/docs/ folder → `https://github.com/dudgeon/duo/tree/main/docs` ✓
+
+**Deferred to follow-up tasks:**
+- **ENH-152b** (per-file dirty dots): touches the FileTree row-rendering for every file row + per-file `git diff --numstat` for line-diff tooltips (Q4 STATUS-DIFF). 1 dev day.
+- **ENH-152c** (fsevents-driven refresh): replace focus-poll with chokidar/watcher event invalidation; debounced 250ms. 0.5 day.
+
+Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether to land them pre-cut or in v0.7.1.
+
+### ENH-152b: Per-file dirty dots in Navigator (Slice 2 of GH-cluster)
+
+**Status:** 🟡 **Filed 2026-05-17.** GH-cluster Phase 2 — gated decisions already locked (Q4 STATUS-DIFF dot tooltip with line-diff).
+**Implementation estimate:** 1 dev day.
+**Decisions (locked in GATE-GH-CLUSTER-PROTO):**
+- Dot semantics: any-change (staged OR unstaged OR untracked → same dot).
+- Dot tooltip: "Modified · +24 / −7 lines" — STATUS-DIFF per Q4.
+
+**What ships:** small `●` next to dirty file rows in `renderer/components/FileTree.tsx`. Data source: a Map<absPath, {status: 'M'|'U'|'S', plus: number, minus: number}> built from `git status --porcelain` + `git diff --numstat`. Refresh trigger: same as the root chip (focus-poll today; fsevents-driven once ENH-152c lands).
+
+**Why deferred from GH-cluster v1 PR:** the FileTree row-rendering touches MANY paths and needs a separate refactor to wire the per-file status map through. Out of scope for the v0.7.0 cut prep.
+
+### ENH-152c: fsevents-driven invalidation of Navigator git status (Slice 3 of GH-cluster)
+
+**Status:** 🟡 **Filed 2026-05-17.** GH-cluster Phase 3 polish.
+**Implementation estimate:** 0.5 dev day.
+**Decision (locked in GATE-GH-CLUSTER-v2 Q7):** FSEVENTS-DEBOUNCED at 250ms.
+
+**What ships:** wire a chokidar watcher (already used in `electron/files-service.ts`) to invalidate the git status cache. Renderer re-polls on watcher event with 250ms debounce. Drops the existing window-focus-poll path.
+
+**Why deferred:** fsevents wiring needs careful coordination with the existing files-service watcher to avoid duplicate subscriptions. Out of scope for v0.7.0 cut prep — focus-poll already works.
 
 ---
 
