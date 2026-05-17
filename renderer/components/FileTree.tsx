@@ -17,7 +17,8 @@
 // uses shell.trashItem after a window.confirm. Both have CLI parity at
 // `duo file rename / trash`.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { DirEntry, MenuTemplateItem, NavPinEntry, GitStatusSnapshot } from '@shared/types'
 import { formatGitStatusChip, formatGitStatusTooltip, repoBasenameFor } from '@shared/host-api'
 import type { NavigatorState, NavigatorActions } from '../hooks/useNavigator'
@@ -977,35 +978,12 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
               const snap = childRepoMap.get(entry.path)!
               const chip = formatGitStatusChip(snap)
               if (!chip) return null
-              const folderRepoName = entry.name
-              const tooltip = formatGitStatusTooltip(snap, folderRepoName)
-              const isDiverged = snap.ahead > 0 || snap.behind > 0
-              const isDirty = snap.dirty
-              const iconColorClass = isDiverged
-                ? 'text-warn'
-                : isDirty
-                  ? 'text-accent'
-                  : 'text-ink-mute'
               return (
-                <span
-                  className="shrink-0 relative inline-flex items-center group/repo-icon"
-                  data-duo-folder-repo-icon="1"
-                  data-duo-folder-repo-chip="1"
-                  title={tooltip}
-                >
-                  <span
-                    className={`text-[11px] leading-none cursor-default ${iconColorClass} hover:text-accent transition-colors`}
-                    aria-label={tooltip}
-                  >
-                    ⎇
-                  </span>
-                  <span
-                    className="absolute right-full mr-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-mono rounded bg-accent-soft text-accent-ink font-semibold whitespace-nowrap pointer-events-none opacity-0 -translate-x-1 group-hover/repo-icon:opacity-100 group-hover/repo-icon:translate-x-0 transition-[opacity,transform] duration-150 shadow-md z-10"
-                    data-duo-folder-repo-chip-popover="1"
-                  >
-                    {chip}
-                  </span>
-                </span>
+                <FolderRepoChip
+                  snap={snap}
+                  chip={chip}
+                  folderName={entry.name}
+                />
               )
             })()}
             {/* ENH-152b — per-file dirty dot. ANY-CHANGE semantics
@@ -1176,6 +1154,93 @@ function RenameInput({ initial, isFolder, onCommit, onCancel }: RenameInputProps
       }}
       className="flex-1 min-w-0 bg-surface-3 border border-accent rounded px-1 py-0 text-[12px] text-zinc-100 outline-none"
     />
+  )
+}
+
+// ENH-152a v2 round-2 — small ⎇ icon + portal-positioned chip popover.
+// The chip can extend leftward beyond the navigator's scroll container
+// (which clips with overflow-auto), so the popover renders into
+// document.body via portal at a viewport-fixed coordinate. The chip's
+// right edge sits just left of the icon; the chip extends leftward as
+// far as its content needs. On hover, opacity fades in.
+type FolderRepoChipProps = {
+  snap: GitStatusSnapshot
+  chip: string
+  folderName: string
+}
+function FolderRepoChip({ snap, chip, folderName }: FolderRepoChipProps) {
+  const iconRef = useRef<HTMLSpanElement>(null)
+  const popoverRef = useRef<HTMLSpanElement>(null)
+  const [iconRect, setIconRect] = useState<DOMRect | null>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  const isDiverged = snap.ahead > 0 || snap.behind > 0
+  const isDirty = snap.dirty
+  const iconColorClass = isDiverged
+    ? 'text-warn'
+    : isDirty
+      ? 'text-accent'
+      : 'text-ink-mute'
+  const tooltip = formatGitStatusTooltip(snap, folderName)
+  const updateRect = () => {
+    const r = iconRef.current?.getBoundingClientRect()
+    if (r) setIconRect(r)
+  }
+  // Two-pass measure: render the popover offscreen first, then on the
+  // synchronous useLayoutEffect pass measure its width and clamp the
+  // left edge into the viewport. Without this clamp, long branch names
+  // (e.g. "claude/implement-session-share-J02X3 · 1 modified") extend
+  // off the viewport left when the navigator panel is narrow — chip
+  // anchored at icon.left - 4 by default, but if (icon.left - 4 -
+  // chipWidth) < 8, we shift right to keep the chip's left edge at 8.
+  // The chip may then overlap the working pane; that's fine for a
+  // pointer-events:none hover popover.
+  useLayoutEffect(() => {
+    if (!iconRect || !popoverRef.current) {
+      setPos(null)
+      return
+    }
+    const popoverWidth = popoverRef.current.getBoundingClientRect().width
+    const desiredLeft = iconRect.left - 4 - popoverWidth
+    const minLeft = 8
+    setPos({
+      left: Math.max(desiredLeft, minLeft),
+      top: iconRect.top + iconRect.height / 2,
+    })
+  }, [iconRect])
+  return (
+    <span
+      className="shrink-0 inline-flex items-center"
+      data-duo-folder-repo-icon="1"
+      data-duo-folder-repo-chip="1"
+      title={tooltip}
+      onMouseEnter={updateRect}
+      onMouseMove={iconRect ? undefined : updateRect}
+      onMouseLeave={() => { setIconRect(null); setPos(null) }}
+    >
+      <span
+        ref={iconRef}
+        className={`text-[11px] leading-none cursor-default ${iconColorClass} hover:text-accent transition-colors`}
+        aria-label={tooltip}
+      >
+        ⎇
+      </span>
+      {iconRect && createPortal(
+        <span
+          ref={popoverRef}
+          className="fixed px-1.5 py-0.5 text-[10px] font-mono rounded bg-accent-soft text-accent-ink font-semibold whitespace-nowrap pointer-events-none shadow-md z-[9999] transition-opacity duration-150"
+          data-duo-folder-repo-chip-popover="1"
+          style={{
+            top: pos?.top ?? 0,
+            left: pos?.left ?? -9999,
+            opacity: pos ? 1 : 0,
+            transform: 'translateY(-50%)',
+          }}
+        >
+          {chip}
+        </span>,
+        document.body
+      )}
+    </span>
   )
 }
 

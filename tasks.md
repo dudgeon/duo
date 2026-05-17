@@ -193,9 +193,10 @@ Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether 
 
 ### ENH-152a v2 peer-repos: Repo-root icon + hover-revealed chip popover (modified-Option-B)
 
-**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Two rounds:
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Three rounds:
 - **Round 1 (initial fix):** owner caught the gap in rev4 walk: *"in navigator, if multiple folders are visible that are the root of repos, they should have an inline indicator of this status — you never built this."* Shipped inline chip on every repo-root folder row.
 - **Round 2 (occlusion fix, rev5):** inline chips occluded long folder names. Built a 5-option playground at [`docs/research/repo-chip-occlusion-fix.html`](docs/research/repo-chip-occlusion-fix.html); owner picked **modified Option B**: small right-aligned git icon (always visible, state-colored) + chip floats in as a popover when hovering the ICON specifically (not the row). Folder-name reading is undisturbed.
+- **Round 3 (left-truncation fix, post-rev5):** the round-2 chip popover anchored via CSS `absolute right-full` was getting clipped on its LEFT side by the navigator's `overflow-auto` scroll container — long branch names ("claude/implement-session-share-J02X3 · 1 modified") had their first ~15 chars cut off. Fix: extracted `FolderRepoChip` subcomponent; popover now renders via `createPortal(..., document.body)` with `position: fixed` and viewport-coordinate placement (right edge at icon left minus 4px, vertically centered on icon). Portal escapes ALL parent overflow contexts. Chip can now extend arbitrarily far left without truncation.
 
 **Final UI (locked):**
 - Right-aligned `⎇` icon on every repo-root folder row.
@@ -209,7 +210,7 @@ Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether 
 - [`core/git/scan.ts`](core/git/scan.ts) (new) — `scanReposIn(parentDir, childNames)` does cheap `.git/` fs.stat detection, then parallel `getGitStatus` for confirmed candidates. Returns Map<childName, GitStatusSnapshot>.
 - [`electron/main.ts`](electron/main.ts) — `IPC.GIT_SCAN_REPOS_IN` handler.
 - [`electron/preload.ts`](electron/preload.ts) — `window.electron.git.scanReposIn(req)` bridge.
-- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — useEffect on cwd/rootEntries change probes children; result re-keyed by absolute path; passed through TreeNodes → TreeNode → inline chip rendering with same `formatGitStatusChip` + `formatGitStatusTooltip` formatters used by the ribbon. Aterlier-tokened pill.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — useEffect on cwd/rootEntries change probes children; result re-keyed by absolute path; passed through TreeNodes → TreeNode → `FolderRepoChip` subcomponent rendering with same `formatGitStatusChip` + `formatGitStatusTooltip` formatters used by the ribbon. Atelier-tokened pill rendered via portal (round 3) so the popover escapes the navigator scroll-container's overflow clipping.
 
 **Verification (live dev, Navigator at `~/Documents/GitHub`):**
 
