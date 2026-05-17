@@ -113,7 +113,18 @@ const worksheetManifest = {
   title: typeof manifest.title === 'string' && manifest.title.length > 0
     ? manifest.title
     : `Smoke walk · v${version}`,
-  intro_html: `
+  intro_html: typeof manifest.intro === 'string' && manifest.intro.length > 0
+    // Per-manifest intro override — used to surface walk-specific
+    // routing instructions (e.g. dual-path decision-gate handling for
+    // v0.7.0-rev2). Markdown-style markers in the source: ** → <strong>,
+    // newlines → <br>. Keep it simple; complex formatting authors HTML.
+    ? manifest.intro
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n/g, '<br>')
+      .replace(/^/, '<p>')
+      .replace(/$/, '</p>')
+    : `
     <strong>How this works.</strong>
     For each item below, walk the steps in the running Duo, then toggle
     <em>Pass</em>, <em>Fail</em>, or <em>Skip</em>. Add notes on any
