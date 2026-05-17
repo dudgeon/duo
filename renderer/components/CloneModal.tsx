@@ -61,12 +61,15 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   const [auth, setAuth] = useState<GhAuthStatus | null>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
 
-  // Reset state every time the modal opens; pre-fetch the gh-auth
-  // status so the auth-missing banner can render up front rather than
-  // after the user clicks Clone. The parent input re-seeds from the
-  // current defaultParent prop (right-click context / Navigator cwd /
-  // fallback) so reopening the modal in a different context picks up
-  // the right starting value.
+  // Reset state on the open-transition (false → true) ONLY. The
+  // `defaultParent` is intentionally NOT in the dep array — it changes
+  // whenever Navigator's cwd changes (which happens automatically on
+  // successful clone, because onCloned navigates to the new folder).
+  // If `defaultParent` were in the deps, the post-clone cwd change
+  // would re-fire this effect and call setResult(null), nuking the
+  // success panel mid-render. The result: owner saw "stale-unchanged
+  // modal" instead of the success state. Walk-rev3 reported this; fix
+  // is to scope the reset to open-transitions only.
   useEffect(() => {
     if (!open) return
     setUrl('')
@@ -78,7 +81,9 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
     // Focus the URL field on next tick so the modal mount completes first.
     const h = setTimeout(() => urlInputRef.current?.focus(), 0)
     return () => clearTimeout(h)
-  }, [open, defaultParent])
+    // defaultParent intentionally omitted from deps — see comment above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Derive the repo name from the URL as the user types — keeps the
   // landing folder predictable without a separate "compute" step.
@@ -212,6 +217,46 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
         />
 
+        {busy && (
+          // FOLLOWUP-025 v2 walk-rev3 — owner: "the 'cloning' status
+          // message is incredibly brief". The button-label-only
+          // "Cloning…" was hard to notice. This is a more substantial
+          // in-progress panel that shows ABOVE the inputs while the
+          // clone runs — same surface area as the success panel will
+          // occupy, so the visual transition is "panel appears →
+          // panel updates to green checkmark" rather than "small
+          // button label → small green text flash → disappear".
+          <div className="mb-3 px-4 py-3 rounded bg-paper-deep border border-paper-rule">
+            <div className="flex items-center gap-3">
+              <span className="text-accent" aria-hidden="true">
+                <svg
+                  className="animate-spin h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.25" />
+                  <path
+                    d="M22 12a10 10 0 0 1-10 10"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="text-ink font-semibold text-sm">Cloning…</div>
+                <div className="text-ink-mute text-xs mt-0.5 font-mono break-all">
+                  {targetDir}
+                </div>
+              </div>
+            </div>
+            <div className="text-ink-mute text-xs mt-2 leading-relaxed">
+              This can take a few seconds for small repos, longer for big ones.
+              Don't dismiss the modal until it finishes.
+            </div>
+          </div>
+        )}
         {result && result.ok && (
           // FOLLOWUP-025 v2 walk-rev3 — owner: "cloning a repo can seem
           // mysterious, so I think the clone process deserves some more

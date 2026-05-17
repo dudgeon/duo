@@ -39,14 +39,28 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
         height: Math.round(r.height)
       })
     }
+    const park = () => {
+      // FOLLOWUP-025 v2 walk-rev3 — park the WCV off-screen while a
+      // full-viewport renderer modal (Clone modal) is open. WCVs are
+      // native OS overlays that paint ABOVE the renderer regardless
+      // of z-index, so a `fixed inset-0 z-50` modal would otherwise
+      // be partially occluded by the browser pane WCV. Modal-close
+      // fires `duo-wcv-restore` which re-runs send() against the
+      // current DOM rect.
+      window.electron.browser.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+    }
 
     send()
     const ro = new ResizeObserver(send)
     ro.observe(el)
     window.addEventListener('resize', send)
+    window.addEventListener('duo-wcv-park', park)
+    window.addEventListener('duo-wcv-restore', send)
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', send)
+      window.removeEventListener('duo-wcv-park', park)
+      window.removeEventListener('duo-wcv-restore', send)
       // Hide the WebContentsView when this renderer unmounts (file tab took
       // over). 1×1 keeps the view alive (SSO, audio, etc.) but invisible.
       window.electron.browser.setBounds({ x: 0, y: 0, width: 1, height: 1 })

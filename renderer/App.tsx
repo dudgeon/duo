@@ -288,6 +288,21 @@ export function App() {
   // IPC push (window.electron.nav.onOpenCloneModal). Closed by the
   // modal's own Cancel/Esc/Done; opens are idempotent.
   const [cloneModalOpen, setCloneModalOpen] = useState(false)
+  // FOLLOWUP-025 v2 walk-rev3 — when the Clone modal opens, park the
+  // browser-pane WCV off-screen so it doesn't paint over the modal.
+  // WCVs are native OS overlays that beat the renderer's z-index
+  // stacking; without this hack the modal renders partially occluded
+  // (owner: "if I alt-tab away, and return, it is partially occluded
+  // on the left by the canvas, which should be under it"). Restore
+  // on close — BrowserRenderer's `duo-wcv-restore` listener re-runs
+  // its DOM-rect measurement to put the WCV back in its proper place.
+  useEffect(() => {
+    if (cloneModalOpen) {
+      window.dispatchEvent(new CustomEvent('duo-wcv-park'))
+    } else {
+      window.dispatchEvent(new CustomEvent('duo-wcv-restore'))
+    }
+  }, [cloneModalOpen])
   const lastAutoCollapseState = useRef(false)
 
   // BUG-048 v3 — focusedColumn is mirrored into a ref alongside the
