@@ -76,6 +76,7 @@ import {
   computeFirstDiffOffset,
   writeConflictLog
 } from '../../utils/conflictDiagnostic'
+import { normalize as normalizeDuoHtml, externalStrippedDuoIds } from '../../../core/html/duo-normalize'
 import type {
   PageSelectionSnapshot,
   HtmlOpRequest,
@@ -642,7 +643,44 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
 
         const handle = canvasRef.current
         const liveHtml = handle?.serialize() ?? ''
-        const isDirty = liveHtml !== '' && liveHtml !== lastSavedRef.current
+        // BUG-125 v2 — dirty check uses normalize() so user edits that
+        // only differ from baseline in duo-injected attrs (data-duo-id
+        // re-stamp) don't read as dirty.
+        const isDirty = liveHtml !== '' && normalizeDuoHtml(liveHtml) !== normalizeDuoHtml(lastSavedRef.current)
+
+        // BUG-125 v2 — additional clean-buffer reload path: even when
+        // disk-byte-unequal to baseline, if normalize() matches, the
+        // external write didn't change user-meaningful content
+        // (probably just stripped duo-injections). Silent reload —
+        // this is the exact case the v0.7.0 walk caught.
+        // EXCEPTION: Q2 = "conflict-banner" — if disk strips
+        // data-duo-id anchors that the baseline owned, surface the
+        // conflict so user can pick (preserves comment-anchor data).
+        if (!isDirty && normalizeDuoHtml(diskHtml) === normalizeDuoHtml(lastSavedRef.current)) {
+          if (externalStrippedDuoIds(lastSavedRef.current, diskHtml)) {
+            // Anchor-loss case — fall through to dirty path so the
+            // banner fires. The user's buffer IS still effectively
+            // clean, but the external write would lose anchor data.
+            console.debug('[BUG-125 v2] external write stripped duo-id anchors; surfacing conflict for owner choice', {
+              path,
+              baselineLength: lastSavedRef.current.length,
+              diskLength: diskHtml.length
+            })
+            setExternalConflict({ diskHtml })
+            return
+          }
+          // Pure cosmetic normalize-equal — silent reload.
+          console.debug('[BUG-125 v2 reload] disk differs byte-wise but normalizes to baseline; silent reload', {
+            path,
+            diskHtmlLength: diskHtml.length,
+            baselineLength: lastSavedRef.current.length
+          })
+          lastSavedRef.current = diskHtml
+          baselinedRef.current = false
+          setInitialHtml(diskHtml)
+          setReloadKey(k => k + 1)
+          return
+        }
 
         if (!isDirty) {
           // Clean buffer — silent reload. Set the new initialHtml +

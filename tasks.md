@@ -40,16 +40,30 @@
 
 ### GATE-BUG-125-v2: Canvas baseline tracking — Option B normalize layer
 
-**Status:** ⏳ **In progress 2026-05-17.** Owner walked, decisions captured.
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Owner walked, decisions captured, implementation landed same day. Closes the false-positive conflict-banner class.
 **Playground:** [`docs/research/bug-125-canvas-baseline-v2.html`](docs/research/bug-125-canvas-baseline-v2.html) — 4 decisions.
-**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17.
-**Implementation estimate:** 1 dev day.
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17. **Shipped:** 2026-05-17.
 
 **Locked decisions:**
 - **Q1:** Option B — normalize before comparison. `core/html/duo-normalize.ts` helper + 2 call-site swaps + vitest.
 - **Q2:** Conflict banner (anchor-loss warning) when external write strips `data-duo-id`. The banner surfaces "data-duo-id anchors removed by external write — accept (loses anchors) or keep current (overwrites external)".
 - **Q3:** Medium scope — strip `data-duo-*` attributes/elements AND DOM serialization round-trip (eliminates pretty-print + tag-case differences). Skip Q3-wide (whitespace inside text nodes).
-- **Q4:** Investigate markdown editor parity as part of this PR (audit TipTap extensions for round-trip-surviving injection; if found, add markdown normalize helper alongside the HTML one).
+- **Q4:** Investigate markdown editor parity. **Audited in this PR — NOT APPLICABLE to markdown.** Round-trip via `editor.storage.markdown.getMarkdown()` is byte-stable for well-formed markdown source (verified live: input `# Title\n\nSome paragraph...` returns identical text from `getMarkdown()`, no `data-duo-*` injection survives serialization). The asymmetry: canvas baseline = serialized DOM (carries Duo injections); markdown baseline = pure markdown source (no DOM intermediary). Canvas-side normalize is sufficient.
+
+**Implementation:**
+- [`core/html/duo-normalize.ts`](core/html/duo-normalize.ts) (new) — pure helpers: `normalize(html)` strips `data-duo-*` attrs from every element + removes `[data-duo-style]` / `[data-duo-injected]` elements + re-serializes via `outerHTML` (case-stable, idempotent). `normalizedEqual(a, b)` for fast-path byte-compare then normalize-compare. `externalStrippedDuoIds(baseline, disk)` for the Q2 anchor-loss detection.
+- [`core/html/duo-normalize.test.ts`](core/html/duo-normalize.test.ts) (new) — 19 vitest cases (jsdom env), all passing: data-duo-id strip, multi-attr strip, non-duo data-* preserved, style+injected removal, idempotency, malformed input safe, user-meaningful content preserved, normalizedEqual byte-fast-path + normalize-equal, externalStrippedDuoIds across all 4 baseline/disk states.
+- [`renderer/components/Page/PageTab.tsx`](renderer/components/Page/PageTab.tsx) — watcher reconciliation now uses `normalize()` for the dirty-check (`liveHtml` vs `lastSavedRef.current`) AND adds an early-return reload branch: when buffer is clean AND `normalize(disk) === normalize(baseline)`, silent reload regardless of byte-difference. Q2 path: if `externalStrippedDuoIds()` returns true, fall through to conflict banner so user can pick.
+- [`tsconfig.web.json`](tsconfig.web.json) — added `core/html/**/*` to include so the renderer's relative import resolves.
+
+**Verification (live dev session):**
+1. Seeded `/tmp/bug125-v2-walk.html` with `<!DOCTYPE html><html><body><p>before</p></body></html>` (54 bytes).
+2. `duo edit` → canvas mounts; runtime injects `data-duo-id` on `<p>`.
+3. External `printf > /tmp/bug125-v2-walk.html` with `...<p>after</p>...`.
+4. Canvas reloaded silently — `<p data-duo-id="01KRV0CGCZNWVS1GBT2B2VHX5X">after</p>` rendered.
+5. `duo dom --js` confirms no conflict banner element in the renderer (`[class*=conflict], [class*=banner]` → 0 matches).
+
+**Cross-ref.** BUG-125 v1 (PR #49 — symlink watcher path remap, shipped Sprint 17). v2 fixes the deeper baseline-tracking layer v1 surfaced.
 
 ### GATE-FOLLOWUP-025-v2: Clone modal fix-list
 

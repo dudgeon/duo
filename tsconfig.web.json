@@ -15,7 +15,8 @@
   },
   "include": [
     "renderer/**/*",
-    "shared/**/*"
+    "shared/**/*",
+    "core/html/**/*"
   ],
   "exclude": ["node_modules"]
 }
