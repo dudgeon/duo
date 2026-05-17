@@ -1540,7 +1540,12 @@ export const IPC = {
   NAV_CLOSE_TERMINAL_TAB: 'nav:close-terminal-tab',
   // FOLLOWUP-025 — main → renderer push triggered from the File
   // menu "Clone…" entry. Renderer opens the CloneModal.
-  NAV_OPEN_CLONE_MODAL: 'nav:open-clone-modal'
+  NAV_OPEN_CLONE_MODAL: 'nav:open-clone-modal',
+  // FOLLOWUP-025 v2 — renderer → main request to open the Clone modal
+  // (used by the Navigator right-click "Clone GitHub repo here…"
+  // menu item). Main echoes via NAV_OPEN_CLONE_MODAL with the same
+  // payload so App.tsx's subscriber handles both paths uniformly.
+  NAV_OPEN_CLONE_MODAL_REQUEST: 'nav:open-clone-modal-request'
 } as const
 
 

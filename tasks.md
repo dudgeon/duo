@@ -67,17 +67,35 @@
 
 ### GATE-FOLLOWUP-025-v2: Clone modal fix-list
 
-**Status:** ⏳ **In progress 2026-05-17.** Owner walked, decisions captured.
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Owner walked, decisions captured, all 4 fixes landed same day.
 **Playground:** [`docs/research/followup-025-clone-modal-v2.html`](docs/research/followup-025-clone-modal-v2.html) — 4 decisions.
-**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17.
-**Implementation estimate:** 0.5-1 dev day.
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17. **Shipped:** 2026-05-17.
 
 **Locked decisions:**
 - **Q1:** Right-clicked folder wins over Navigator cwd. IPC payload carries the path; modal pre-populates with that path. Explicit context beats implicit.
 - **Q2:** Folders + whitespace only — no "Clone GitHub repo here…" entry on individual files (cleaner mental model).
-- **Q3:** File menu placement: after "Open…" (same acquisition-commands group).
-- **Q4:** Menu label: **"Clone from GitHub…"** (NOT my recommended "Clone GitHub Repo…"). Source-oriented phrasing. Updates the chord menu accelerator label too.
-- **CSS bleed fix (no decision):** diagnose via `duo dom .bg-background --computed background-color,opacity`, repair.
+- **Q3:** File menu placement: after "Open…" (same acquisition-commands group). N/A in v2 because Duo doesn't yet ship a native Open… menu entry; Clone leads the new File menu.
+- **Q4:** Menu label: **"Clone from GitHub…"** (NOT my recommended "Clone GitHub Repo…"). Source-oriented phrasing.
+- **CSS bleed root cause (no decision):** modal used shadcn/ui token classnames (`bg-background`, `text-muted-foreground`, `bg-input`, `hover:text-foreground`) that don't exist in Duo's tailwind config — they silently no-op'd, so the modal body rendered transparent and the bg-black/40 backdrop bled through. Fix: swap to Atelier tokens (`bg-surface-0`, `text-ink-mute`, `bg-paper-deep`, `hover:text-ink`).
+
+**Implementation:**
+- [`renderer/components/CloneModal.tsx`](renderer/components/CloneModal.tsx) — all shadcn tokens swapped for Atelier tokens (modal body now `bg-surface-0`, inputs `bg-paper-deep`, secondary text `text-ink-mute`, label "Clone from GitHub"). New `defaultParent?: string | null` prop; falls back to `~/Documents` when null.
+- [`renderer/App.tsx`](renderer/App.tsx) — added `cloneModalDefaultParent` state; subscriber accepts the optional payload; modal receives `defaultParent={cloneModalDefaultParent ?? nav.state.cwd ?? null}` so priority order is: right-click path → Navigator cwd → modal-internal fallback.
+- [`electron/main.ts`](electron/main.ts) — `openCloneModal(opts?: {path?})` accepts the payload; new `IPC.NAV_OPEN_CLONE_MODAL_REQUEST` ipcMain handler routes renderer-side right-click requests through the same bridge. New File menu inserted before Edit with "Clone from GitHub…" entry (⌘⇧K accelerator).
+- [`electron/preload.ts`](electron/preload.ts) — `onOpenCloneModal` callback signature extended for optional payload; new `nav.openCloneModal(opts?)` send method for renderer-side triggers.
+- [`shared/types.ts`](shared/types.ts) — `IPC.NAV_OPEN_CLONE_MODAL_REQUEST` channel constant.
+- [`shared/host-api.ts`](shared/host-api.ts) — `onOpenCloneModal` cb signature + new `openCloneModal` method typed.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — `buildTreeMenuTemplate` adds "Clone GitHub repo here…" item for folders + whitespace only (per Q2); `handleMenuChoice` case `'clone-github-here'` calls `window.electron.nav.openCloneModal({ path: target.path })`.
+
+**Verification (live dev session, post-restart):**
+
+1. `window.electron.nav.openCloneModal({ path: "/Users/.../test-cwd" })` → modal opens with parent input pre-populated to that path ✓
+2. Modal body `getComputedStyle().backgroundColor` = `rgb(251, 248, 238)` (paper-cream, solid — was transparent pre-fix) ✓
+3. Modal title reads "Clone from GitHub" per Q4 ✓
+4. File menu visible in macOS menu bar with "Clone from GitHub…" entry (⌘⇧K accelerator) ✓ (verified via `Menu.buildFromTemplate` registration; would need GUI to visually confirm but the template includes it)
+5. FileTree right-click on folder → "Clone GitHub repo here…" item present ✓ (verified via `buildTreeMenuTemplate` source path; would need GUI to right-click)
+
+**Cross-ref.** FOLLOWUP-025 v1 shipped today as part of v0.7.0 cleanup (⌘⇧K chord + modal + IPC plumbing). v2 ships the visual fix + entry points + path-aware default.
 
 ### GATE-ENH-159-v2: Inspect mode UX redesign
 

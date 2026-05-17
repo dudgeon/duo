@@ -1263,6 +1263,14 @@ function setupIPC(): void {
     navState = snapshot
   })
 
+  // FOLLOWUP-025 v2 — renderer-initiated Clone modal trigger
+  // (FileTree right-click "Clone GitHub repo here…"). Just forwards
+  // to the openCloneModal bridge so all triggers (CLI verb, native
+  // menu, renderer right-click) converge on the same path.
+  ipcMain.on(IPC.NAV_OPEN_CLONE_MODAL_REQUEST, (_event, opts?: { path?: string } | null) => {
+    openCloneModal(opts ?? undefined)
+  })
+
   // Stage 11 — selection snapshot push from the active editor.
   ipcMain.on(IPC.EDITOR_SELECTION_PUSH, (_event, snapshot: EditorSelectionSnapshot | null) => {
     editorSelection = snapshot
@@ -1448,6 +1456,26 @@ function installAppMenu(): void {
           ]
         }]
       : []),
+    {
+      // FOLLOWUP-025 v2 — native File menu with "Clone from GitHub…"
+      // entry. Owner Q4 picked the label "Clone from GitHub…" over
+      // "Clone GitHub Repo…". Q3 placement (after Open…) is moot
+      // because Duo doesn't yet ship a native Open… menu entry; Clone
+      // leads. Other File-menu items (New File, Open, Close) can be
+      // added later — out of scope for v2 fix-list.
+      // Accelerator ⌘⇧K matches the in-app chord (renderer's
+      // useKeyboardShortcuts § openCloneModal). The native menu
+      // accelerator beats the renderer's keydown handler, but they
+      // both call the same openCloneModal() IPC path.
+      label: 'File',
+      submenu: [
+        {
+          label: 'Clone from GitHub…',
+          accelerator: 'CmdOrCtrl+Shift+K',
+          click: () => { openCloneModal() }
+        }
+      ]
+    },
     {
       label: 'Edit',
       submenu: [
@@ -2017,11 +2045,15 @@ export function closeTerminalTab(n?: number): { ok: boolean; error?: string } {
 
 // FOLLOWUP-025 — open the renderer's File → Clone… modal. Triggered
 // by the native File menu entry + future `duo clone --modal` parity.
-export function openCloneModal(): { ok: boolean; error?: string } {
+// v2: optional `path` arg pre-populates the modal's parent-directory
+// input. Used by the Navigator right-click → "Clone GitHub repo
+// here…" path (owner Q1: right-click context wins over Navigator cwd).
+export function openCloneModal(opts?: { path?: string }): { ok: boolean; error?: string } {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  mainWindow.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, null)
+  const payload = opts?.path ? { path: opts.path } : null
+  mainWindow.webContents.send(IPC.NAV_OPEN_CLONE_MODAL, payload)
   return { ok: true }
 }
 

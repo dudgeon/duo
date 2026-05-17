@@ -1357,8 +1357,14 @@ export function App() {
   // FOLLOWUP-025 — File → Clone… modal trigger. Fires from the native
   // File menu entry's IPC push. ⌘⇧K hits the same modal via the
   // keyboard shortcut dispatch (useKeyboardShortcuts § openCloneModal).
+  // v2: payload may carry a `path` to override the default parent
+  // directory (right-click → "Clone GitHub repo here…" passes the
+  // right-clicked folder). Falls back to Navigator's cwd, then to
+  // ~/Documents per CloneModal's internal default.
+  const [cloneModalDefaultParent, setCloneModalDefaultParent] = useState<string | null>(null)
   useEffect(() => {
-    return window.electron.nav.onOpenCloneModal(() => {
+    return window.electron.nav.onOpenCloneModal((payload?: { path?: string }) => {
+      setCloneModalDefaultParent(payload?.path ?? null)
       setCloneModalOpen(true)
     })
   }, [])
@@ -2780,7 +2786,11 @@ export function App() {
           to the new folder so the user lands there. */}
       <CloneModal
         open={cloneModalOpen}
-        onClose={() => setCloneModalOpen(false)}
+        defaultParent={cloneModalDefaultParent ?? nav.state.cwd ?? null}
+        onClose={() => {
+          setCloneModalOpen(false)
+          setCloneModalDefaultParent(null)
+        }}
         onCloned={(clonedTo) => {
           nav.actions.navigateTo(clonedTo)
         }}

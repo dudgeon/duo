@@ -5,12 +5,28 @@
 // just composes inputs + result display around it. Auth-missing UX
 // directs the user at `gh auth login` until ENH-150's Doctor panel
 // lands; swap the pointer when that ships.
+//
+// v2 (post-v0.7.0 walk):
+// - All shadcn/ui token classnames swapped for Atelier tokens. The
+//   prior `bg-background` / `text-muted-foreground` / `bg-input`
+//   classes don't exist in this project's tailwind config — they
+//   silently no-op, so the modal body rendered as transparent and the
+//   bg-black/40 backdrop bled through. Atelier tokens are
+//   `bg-surface-0`, `text-ink-mute`, etc.
+// - `defaultParent` prop accepts the cwd to pre-populate the target
+//   directory input. Priority order in App.tsx: right-click IPC payload
+//   path → Navigator cwd → ~/Documents (this component's own fallback).
+//   Owner Q1 decision: right-click context wins over Navigator cwd.
 
 import { useEffect, useRef, useState } from 'react'
 import type { CloneResult, GhAuthStatus } from '@shared/types'
 
 interface CloneModalProps {
   open: boolean
+  /** Optional pre-populated parent directory. When null/undefined the
+   *  modal falls back to ~/Documents. App.tsx supplies the
+   *  right-click context path OR the Navigator's current cwd. */
+  defaultParent?: string | null
   onClose: () => void
   /** Called with the cloned-folder absolute path on success. Parent
    *  decides whether to navigate the file tree there (recommended) or
@@ -18,9 +34,9 @@ interface CloneModalProps {
   onCloned: (clonedTo: string) => void
 }
 
-/** Default target-dir parent — packs land beside the user's other
- *  projects rather than dumping into $HOME. Pre-populates the target
- *  input so the user only needs to confirm or pick a different parent. */
+/** Fallback target-dir parent when neither right-click context nor
+ *  Navigator cwd are available. Stays at ~/Documents so cold-start
+ *  before Navigator hydrates still produces a sensible default. */
 const DEFAULT_PARENT = '~/Documents'
 
 /** Pull a sensible folder name out of a clone URL. Mirrors the
@@ -36,9 +52,9 @@ function deriveRepoName(url: string): string {
   return name
 }
 
-export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
+export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModalProps) {
   const [url, setUrl] = useState('')
-  const [targetParent, setTargetParent] = useState(DEFAULT_PARENT)
+  const [targetParent, setTargetParent] = useState(defaultParent ?? DEFAULT_PARENT)
   const [repoName, setRepoName] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<CloneResult | null>(null)
@@ -47,10 +63,14 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
 
   // Reset state every time the modal opens; pre-fetch the gh-auth
   // status so the auth-missing banner can render up front rather than
-  // after the user clicks Clone.
+  // after the user clicks Clone. The parent input re-seeds from the
+  // current defaultParent prop (right-click context / Navigator cwd /
+  // fallback) so reopening the modal in a different context picks up
+  // the right starting value.
   useEffect(() => {
     if (!open) return
     setUrl('')
+    setTargetParent(defaultParent ?? DEFAULT_PARENT)
     setRepoName('')
     setResult(null)
     setBusy(false)
@@ -58,7 +78,7 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
     // Focus the URL field on next tick so the modal mount completes first.
     const h = setTimeout(() => urlInputRef.current?.focus(), 0)
     return () => clearTimeout(h)
-  }, [open])
+  }, [open, defaultParent])
 
   // Derive the repo name from the URL as the user types — keeps the
   // landing folder predictable without a separate "compute" step.
@@ -139,14 +159,14 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
       }}
     >
       <div
-        className="bg-background border border-border rounded-lg shadow-xl w-[480px] max-w-[90vw] p-5"
+        className="bg-surface-0 border border-border rounded-lg shadow-xl w-[480px] max-w-[90vw] p-5 text-ink"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold">Clone GitHub repo</h2>
+          <h2 className="text-base font-semibold text-ink">Clone from GitHub</h2>
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground"
+            className="text-ink-mute hover:text-ink"
             onClick={onClose}
             disabled={busy}
             aria-label="Close"
@@ -163,7 +183,7 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
           </div>
         )}
 
-        <label className="block text-xs text-muted-foreground mb-1" htmlFor="clone-url">
+        <label className="block text-xs text-ink-mute mb-1" htmlFor="clone-url">
           Repository URL or <code className="font-mono">owner/repo</code>
         </label>
         <input
@@ -175,10 +195,10 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
           onKeyDown={handleKeyDown}
           placeholder="https://github.com/owner/repo or owner/repo"
           disabled={busy}
-          className="w-full px-2 py-1 mb-3 bg-input border border-border rounded text-sm font-mono"
+          className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
         />
 
-        <label className="block text-xs text-muted-foreground mb-1" htmlFor="clone-target">
+        <label className="block text-xs text-ink-mute mb-1" htmlFor="clone-target">
           Parent directory (final path: {targetDir || <em className="opacity-50">enter a URL first</em>})
         </label>
         <input
@@ -189,7 +209,7 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
           onKeyDown={handleKeyDown}
           placeholder="~/Documents"
           disabled={busy}
-          className="w-full px-2 py-1 mb-3 bg-input border border-border rounded text-sm font-mono"
+          className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
         />
 
         {result && (
@@ -223,7 +243,7 @@ export function CloneModal({ open, onClose, onCloned }: CloneModalProps) {
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="px-3 py-1 text-sm border border-border rounded hover:bg-accent/10 disabled:opacity-50"
+            className="px-3 py-1 text-sm border border-border rounded text-ink hover:bg-accent/10 disabled:opacity-50"
           >
             {result?.ok ? 'Done' : 'Cancel'}
           </button>

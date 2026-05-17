@@ -330,10 +330,20 @@ const api: ElectronAPI = {
       return () => ipcRenderer.removeListener(IPC.NAV_CLOSE_TERMINAL_TAB, handler)
     },
     // FOLLOWUP-025 — File → Clone… modal trigger.
+    // v2: payload may carry an optional `path` to pre-populate the
+    // modal's parent-dir input (owner Q1 right-click-wins decision).
     onOpenCloneModal: (cb) => {
-      const handler = () => cb()
+      const handler = (_event: unknown, payload?: { path?: string } | null) => cb(payload ?? undefined)
       ipcRenderer.on(IPC.NAV_OPEN_CLONE_MODAL, handler)
       return () => ipcRenderer.removeListener(IPC.NAV_OPEN_CLONE_MODAL, handler)
+    },
+    // FOLLOWUP-025 v2 — renderer-side trigger for "Clone GitHub repo
+    // here…" from the FileTree right-click menu. Sends to main, which
+    // echoes the NAV_OPEN_CLONE_MODAL IPC back to the renderer with the
+    // path payload. The roundtrip keeps the modal-open logic in one
+    // place (App.tsx's onOpenCloneModal subscriber).
+    openCloneModal: (opts?: { path?: string }) => {
+      ipcRenderer.send(IPC.NAV_OPEN_CLONE_MODAL_REQUEST, opts ?? null)
     }
   },
 

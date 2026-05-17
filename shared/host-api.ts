@@ -280,8 +280,16 @@ export interface ElectronNavAPI {
    *  `n` supplied (1-indexed) → that specific terminal tab. */
   onCloseTerminalTab: (cb: (n?: number) => void) => () => void
   /** FOLLOWUP-025 — File → Clone… modal trigger. Renderer opens the
-   *  CloneModal component. */
-  onOpenCloneModal: (cb: () => void) => () => void
+   *  CloneModal component. v2: optional payload carries a `path` to
+   *  pre-populate the modal's parent-dir input (owner Q1 right-click
+   *  context wins over Navigator cwd). */
+  onOpenCloneModal: (cb: (payload?: { path?: string }) => void) => () => void
+  /** FOLLOWUP-025 v2 — renderer-initiated request to open the Clone
+   *  modal (Navigator right-click → "Clone GitHub repo here…"). The
+   *  main process echoes back via NAV_OPEN_CLONE_MODAL so all
+   *  trigger paths (CLI / native menu / right-click) converge on
+   *  App.tsx's onOpenCloneModal subscriber. */
+  openCloneModal: (opts?: { path?: string }) => void
 }
 
 export interface ElectronEditorAPI {

@@ -344,6 +344,18 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       case 'open-in-split':
         if (!isFolder && onOpenInSplit) onOpenInSplit(target.path)
         return
+      case 'clone-github-here':
+        // FOLLOWUP-025 v2 — Navigator right-click → "Clone GitHub repo
+        // here…". Open the modal with the target path as the default
+        // parent (owner Q1: right-click context wins). Folders pass
+        // their own path; whitespace passes the current Navigator cwd
+        // via newTargetDir (which equals target.path on whitespace
+        // since whitespace's synthesized DirEntry uses the cwd as
+        // path). For files: NOT reachable — Q2 picked folders-only.
+        if (isFolder) {
+          void window.electron.nav.openCloneModal?.({ path: target.path })
+        }
+        return
     }
   }
 
@@ -491,6 +503,17 @@ function buildTreeMenuTemplate(opts: {
     }
   }
   items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
+
+  // FOLLOWUP-025 v2 — "Clone GitHub repo here…" on folders and
+  // whitespace only (owner Q2 picked folders-only — cleaner mental
+  // model than per-file). The handler sends NAV_OPEN_CLONE_MODAL with
+  // the target path; the modal pre-populates the parent-dir input
+  // with that path (owner Q1: right-click context wins over Navigator
+  // cwd).
+  if (isFolder || whitespaceMode) {
+    items.push({ type: 'separator' })
+    items.push({ id: 'clone-github-here', label: 'Clone GitHub repo here…' })
+  }
 
   if (!whitespaceMode) {
     items.push({ id: 'copy-path', label: 'Copy path' })
