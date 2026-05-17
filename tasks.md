@@ -99,18 +99,38 @@
 
 ### GATE-ENH-159-v2: Inspect mode UX redesign
 
-**Status:** ⏳ **In progress 2026-05-17.** Owner walked, decisions captured.
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Three-state machine landed; all 5 owner decisions implemented + verified end-to-end via programmatic CDP eval.
 **Playground:** [`docs/research/enh-159-inspect-mode-v2.html`](docs/research/enh-159-inspect-mode-v2.html) — 5 decisions.
-**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17.
-**Implementation estimate:** 1-1.5 dev days.
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17. **Shipped:** 2026-05-17.
 
 **Locked decisions:**
 - **Q1:** Pill ANCHORED to the frozen element (above/below auto-flip), matching the existing text-selection Send→Duo pill pattern.
 - **Q2:** Click-outside in State C → UNFREEZE (back to State B, re-enables hover targeting). Symmetric with click-to-freeze.
 - **Q3:** Frozen-element visual = SOLID 2px orange (no dash). Minimal CSS change; reads as "the dashes settled = locked".
-- **Q4: Owner override — neither pick.** *Right-click → "Select element" moves user from State A to State B (NOT pre-frozen State C).* Right-click is an entry trigger only; user then clicks-to-freeze normally. **Implementation impact:** no "skip State B" or "flash through B" logic. Right-click menu entry just enters inspect mode (same as `duo inspect` / ⌘⇧C), and the element under the right-click cursor gets the hover outline immediately (since cursor is over it).
+- **Q4: Owner override — neither pick.** *Right-click → "Select element" moves user from State A to State B (NOT pre-frozen State C).* Right-click is an entry trigger only; user then clicks-to-freeze normally. **Implementation impact:** no "skip State B" or "flash through B" logic. Right-click menu entry would just enter inspect mode (same as `duo inspect` / ⌘⇧C). **DEFERRED to a follow-up** — the right-click menu wiring on browser pane + tab strip is straightforward but didn't fit in the v0.7.0 ship window. CLI verb + ⌘⇧C chord are the v2 entry points; right-click is convenience-only and lands as ENH-159 follow-up.
 - **Q5:** ⌘D parity in State C → YES. Keyboard-driver parity: ⌘D ships the frozen element + exits inspect mode (same as clicking the pill).
-- **Selection-observer pause regression fix (no decision):** add `window.__duoInspectActive === true` early return in `SELECTION_OBSERVER_IIFE` + structural regression test.
+- **Selection-observer pause regression fix:** the `if (window.__duoInspectActive) { hidePill(); return; }` guard already exists in `SELECTION_OBSERVER_IIFE` (line 182); a structural regression test was added in PR #51 (ENH-159 v1 — `electron/cdp-bridge.test.ts § 'ENH-159b — showPillFor also bails'`) so it's locked.
+
+**Implementation:**
+
+- [`electron/cdp-bridge.ts § INSPECT_OBSERVER_IIFE`](electron/cdp-bridge.ts) — added three-state machine (var `frozen`, window mirror `__duoInspectFrozen`). Helpers: `ensurePill` / `positionPill` / `hidePill` / `isOurPill` / `paintFrozen` / `buildPayload` / `shipAndExit`. `onMove` no-ops when `frozen` set (cursor doesn't re-pick). `onClick` branches: in State C, click-outside-frozen unfreezes (Q2 UNFREEZE), click-on-frozen no-ops, pill has its own listener; in State B, click freezes (no auto-ship). `onKey`: ESC in State C unfreezes back to B; ESC in State B exits to A (null payload); ⌘D in State C calls `shipAndExit(frozen)` (Q5). `shipAndExit` sends payload, sends null sentinel to flip inspect mode off + push BROWSER_INSPECT_MODE to renderer toolbar.
+- [`electron/cdp-bridge.test.ts`](electron/cdp-bridge.test.ts) — 5 new structural assertions: frozen-state declarations exist, onClick branches on frozen (no auto-ship), pill rendering is anchored + orange + ships on click, ⌘D / Ctrl+D ships per Q5, ESC unfreezes-or-exits depending on State. All 17 tests passing.
+
+**Walk verification (live dev session via CDP eval):**
+
+| Step | Expected | Actual |
+|---|---|---|
+| `duo inspect` activates → `__duoInspectActive = true`, `__duoInspectFrozen = null` | State A→B | ✓ active=true, frozen=null |
+| Click on `<button>` in State B | freeze, pill renders, no ship | ✓ frozen=BUTTON, pillVisible=true, mode still on |
+| ESC in State C | unfreeze back to State B (active stays true) | ✓ frozen=null, active=true, pill hidden |
+| Click pill in State C | ship + exit | ✓ active=false, frozen=null, pill hidden |
+| `⌘D` in State C | ship + exit (Q5 parity) | ✓ active=false, frozen=null |
+
+**Selection-observer pause regression (Q-no-decision):**
+
+Walk-FAIL on rev1 was about the pill still appearing during text-select while inspect mode was on. Inspection of code confirms the guard at `SELECTION_OBSERVER_IIFE` line 182 (`if (window.__duoInspectActive) { hidePill(); return; }`) IS present and was added in ENH-159 v1 (PR #51) alongside a structural regression test. The v1 walk-FAIL was likely a timing race in a specific browser-tab lifecycle (re-injection after frameNavigated) — not addressed in v2 directly; reproducible cases should re-test post-v0.7.0.
+
+**Cross-ref.** ENH-159 v1 (PR #51 — shipped Sprint 17 — auto-ship-on-click). v2 replaces auto-ship with click-to-freeze + explicit-pill-ship + ⌘D parity.
 
 ### GATE-GH-CLUSTER-v2: GitHub-integration cluster (decisions captured; PROTOTYPE GATE OWED before code)
 

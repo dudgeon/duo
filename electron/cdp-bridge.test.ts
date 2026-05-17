@@ -119,6 +119,59 @@ describe('INSPECT_OBSERVER_IIFE — ENH-159b structural invariants', () => {
     expect(INSPECT_OBSERVER_IIFE).toContain('#f97316')
   })
 
+  it('ENH-159 v2 — frozen-state machine declarations exist', () => {
+    // Three-state machine: var `frozen` tracks the locked element;
+    // null for State A/B, an element for State C. Window mirror
+    // (__duoInspectFrozen) lets the host introspect state.
+    expect(INSPECT_OBSERVER_IIFE).toContain('var frozen = null;')
+    expect(INSPECT_OBSERVER_IIFE).toContain('window.__duoInspectFrozen = null;')
+  })
+
+  it('ENH-159 v2 — onClick branches on frozen state (no-auto-ship)', () => {
+    // The whole point of v2: clicking in State B should FREEZE, not
+    // ship. Clicking in State C outside the frozen element should
+    // UNFREEZE. The pill handles the explicit ship.
+    const onClickBlock = INSPECT_OBSERVER_IIFE.match(/function onClick\(e\) \{([\s\S]*?)\n  \}/)![1]
+    // Branches on `frozen`
+    expect(onClickBlock).toContain('if (frozen)')
+    // Unfreeze path on click-outside (Q2 = UNFREEZE)
+    expect(onClickBlock).toContain('frozen = null')
+    // State B → C transition stores the clicked element
+    expect(onClickBlock).toContain('frozen = el')
+    // No auto-ship — duoInspectClick is NOT called from onClick body
+    // anymore (only shipAndExit calls it, fired by pill or ⌘D).
+    expect(onClickBlock).not.toContain('duoInspectClick')
+  })
+
+  it('ENH-159 v2 — pill is the explicit ship affordance (anchored, orange)', () => {
+    // Q1 picked ANCHORED. The pill rendering should reference
+    // positionPill() which computes top/left relative to the frozen
+    // element. Owner directive: orange pill matches brand kernel.
+    expect(INSPECT_OBSERVER_IIFE).toContain('function ensurePill()')
+    expect(INSPECT_OBSERVER_IIFE).toContain('function positionPill(')
+    expect(INSPECT_OBSERVER_IIFE).toContain('Send to Duo')
+    // Pill click calls shipAndExit (the ship-and-clear-state path).
+    const pillBlock = INSPECT_OBSERVER_IIFE.match(/function ensurePill\(\) \{([\s\S]*?)\n  \}/)![1]
+    expect(pillBlock).toContain('shipAndExit(frozen)')
+  })
+
+  it('ENH-159 v2 — ⌘D / Ctrl+D ships frozen element (Q5 parity)', () => {
+    // Q5 picked YES-PARITY. ⌘D in State C should ship + exit. Match
+    // the modifier check + key check pattern in onKey.
+    const onKeyBlock = INSPECT_OBSERVER_IIFE.match(/function onKey\(e\) \{([\s\S]*?)\n  \}/)![1]
+    expect(onKeyBlock).toContain('e.metaKey || e.ctrlKey')
+    expect(onKeyBlock).toMatch(/e\.key === 'd'|e\.key === 'D'/)
+    expect(onKeyBlock).toContain('shipAndExit(frozen)')
+  })
+
+  it('ENH-159 v2 — ESC unfreezes in State C, exits in State B', () => {
+    // ESC in C goes back to B (clear frozen). ESC in B exits inspect
+    // mode entirely (sends null payload). The branch is on `frozen`.
+    const onKeyBlock = INSPECT_OBSERVER_IIFE.match(/function onKey\(e\) \{([\s\S]*?)\n  \}/)![1]
+    expect(onKeyBlock).toMatch(/Escape[\s\S]*?if \(frozen\)[\s\S]*?frozen = null/)
+    expect(onKeyBlock).toContain("duoInspectClick(JSON.stringify(null))")
+  })
+
   it('selectorFor produces a non-empty path for nested elements', () => {
     // Construct a minimal mock DOM and run the IIFE's selectorFor
     // logic via Function constructor. This is the closest we can

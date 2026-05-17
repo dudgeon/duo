@@ -416,9 +416,132 @@ export const INSPECT_OBSERVER_IIFE = `(function () {
     document.documentElement.appendChild(tooltip);
     return tooltip;
   }
+  // ENH-159 v2 — "Send to Duo" pill, anchored to the frozen element
+  // when in State C. Owner Q1 picked ANCHORED (over fixed-corner /
+  // both). Visually distinct from the hover overlay — orange pill
+  // with white text, similar to the Send→Duo pill the selection
+  // observer renders.
+  var pill = null;
+  function ensurePill() {
+    if (pill) return pill;
+    pill = document.createElement('button');
+    pill.setAttribute('data-duo-inspect-pill', '1');
+    pill.textContent = 'Send to Duo';
+    var s = pill.style;
+    s.setProperty('position', 'fixed', 'important');
+    s.setProperty('z-index', '2147483647', 'important');
+    s.setProperty('display', 'none', 'important');
+    s.setProperty('top', '0px', 'important');
+    s.setProperty('left', '0px', 'important');
+    s.setProperty('padding', '4px 10px', 'important');
+    s.setProperty('font', "600 11px/1.3 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", 'important');
+    s.setProperty('color', '#ffffff', 'important');
+    s.setProperty('background', '#f97316', 'important');
+    s.setProperty('border', 'none', 'important');
+    s.setProperty('border-radius', '12px', 'important');
+    s.setProperty('cursor', 'pointer', 'important');
+    s.setProperty('box-shadow', '0 2px 8px rgba(0,0,0,0.25)', 'important');
+    s.setProperty('pointer-events', 'auto', 'important');
+    pill.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (frozen) shipAndExit(frozen);
+    }, true);
+    document.documentElement.appendChild(pill);
+    return pill;
+  }
+  function positionPill(el) {
+    var p = ensurePill();
+    p.style.setProperty('display', 'inline-flex', 'important');
+    var r = el.getBoundingClientRect();
+    var pw = p.offsetWidth || 96;
+    var ph = p.offsetHeight || 22;
+    var gap = 6;
+    var pad = 8;
+    var top = r.top - ph - gap;
+    if (top < pad) top = r.bottom + gap;
+    var left = r.left + r.width - pw;
+    if (left < pad) left = pad;
+    var maxLeft = window.innerWidth - pw - pad;
+    if (left > maxLeft) left = maxLeft;
+    p.style.setProperty('top', top + 'px', 'important');
+    p.style.setProperty('left', left + 'px', 'important');
+  }
+  function hidePill() {
+    if (pill) pill.style.setProperty('display', 'none', 'important');
+  }
+  function isOurPill(el) {
+    var p = el;
+    while (p && p.nodeType === 1) {
+      if (p.hasAttribute && p.hasAttribute('data-duo-inspect-pill')) return true;
+      p = p.parentNode;
+    }
+    return false;
+  }
+
   function hideAll() {
     if (overlay) overlay.style.setProperty('display', 'none', 'important');
     if (tooltip) tooltip.style.setProperty('display', 'none', 'important');
+    hidePill();
+  }
+
+  // ENH-159 v2 — repaint the overlay in "frozen" style (solid 2px,
+  // same color, no opacity wash difference — owner Q3 picked SOLID-2PX
+  // over thicker/filled). The visual delta vs. hover state is subtle
+  // by design — reads as "the dashes settled = locked".
+  function paintFrozen(el) {
+    if (!el) return;
+    current = el;
+    var r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) { hideAll(); return; }
+    var ov = ensureOverlay();
+    ov.style.setProperty('display', 'block', 'important');
+    ov.style.setProperty('top', r.top + 'px', 'important');
+    ov.style.setProperty('left', r.left + 'px', 'important');
+    ov.style.setProperty('width', r.width + 'px', 'important');
+    ov.style.setProperty('height', r.height + 'px', 'important');
+    // Brighter overlay fill to read as "selected".
+    ov.style.setProperty('background', 'rgba(249, 115, 22, 0.18)', 'important');
+    // Hide hover-only tooltip; pill replaces its information role.
+    if (tooltip) tooltip.style.setProperty('display', 'none', 'important');
+    positionPill(el);
+  }
+
+  // ENH-159 v2 — build the structured paste payload from a captured
+  // element (extracted from onClick so shipAndExit can reuse it).
+  function buildPayload(el) {
+    if (!el) return null;
+    var tag = el && el.tagName ? el.tagName.toLowerCase() : '';
+    var text = '';
+    if (el && el.innerText) text = String(el.innerText).slice(0, 2000);
+    else if (el && el.textContent) text = String(el.textContent).slice(0, 2000);
+    return {
+      url: location.href,
+      tag: tag,
+      selector_path: selectorFor(el),
+      headingTrail: headingTrailFor(el),
+      innerText: text,
+      attrs: captureAttrs(el)
+    };
+  }
+
+  // ENH-159 v2 — ship + exit. Called by pill click, ⌘D (Q5 parity),
+  // or any other path that signals "the user picked this element,
+  // send it." Tears down ALL inspect chrome AND turns off inspect
+  // mode (owner Q5: ⌘D ships AND exits — "same outcome" as pill click).
+  // Two binding calls: payload ships to terminal; null tells main to
+  // toggle inspect mode off + push BROWSER_INSPECT_MODE to renderer
+  // toolbar. Local flag flip ensures the next mousemove doesn't repaint
+  // before the main-side toggle completes.
+  function shipAndExit(el) {
+    var payload = buildPayload(el);
+    if (!payload) return;
+    frozen = null;
+    window.__duoInspectFrozen = null;
+    window.__duoInspectActive = false;
+    hideAll();
+    try { window.duoInspectClick(JSON.stringify(payload)); } catch (err) {}
+    try { window.duoInspectClick(JSON.stringify(null)); } catch (err) {}
   }
 
   function isOurChrome(el) {
@@ -433,8 +556,14 @@ export const INSPECT_OBSERVER_IIFE = `(function () {
   }
 
   var current = null;
+  // ENH-159 v2 — frozen state (State C). null = State A or B; element
+  // = State C with that element locked. '__duoInspectFrozen' mirrors
+  // this on window so debugging + future agents can introspect.
+  var frozen = null;
+  window.__duoInspectFrozen = null;
+
   function paint(el) {
-    if (!el || isOurChrome(el)) { hideAll(); return; }
+    if (!el || isOurChrome(el) || isOurPill(el)) { hideAll(); return; }
     current = el;
     var r = el.getBoundingClientRect();
     if (r.width === 0 && r.height === 0) { hideAll(); return; }
@@ -444,6 +573,7 @@ export const INSPECT_OBSERVER_IIFE = `(function () {
     ov.style.setProperty('left', r.left + 'px', 'important');
     ov.style.setProperty('width', r.width + 'px', 'important');
     ov.style.setProperty('height', r.height + 'px', 'important');
+    ov.style.setProperty('background', 'rgba(249, 115, 22, 0.08)', 'important');
     var tt = ensureTooltip();
     var tag = el.tagName.toLowerCase();
     var idPart = el.id ? '#' + el.id : '';
@@ -464,36 +594,80 @@ export const INSPECT_OBSERVER_IIFE = `(function () {
     tt.style.setProperty('left', ttLeft + 'px', 'important');
   }
 
+  // ENH-159 v2 — three-state machine:
+  //   State A (inspect OFF) — onMove no-ops (guard on __duoInspectActive).
+  //   State B (inspect ON, no frozen element) — hover paints overlay,
+  //     click freezes (transition to C), ESC exits to A.
+  //   State C (inspect ON, frozen element) — overlay locked on
+  //     'frozen', pill visible, mousemove no-ops (cursor doesn't
+  //     re-pick), click on pill ships + exits to A, click outside
+  //     unfreezes back to B, ESC unfreezes back to B (or to A from B).
   function onMove(e) {
     if (!window.__duoInspectActive) { hideAll(); return; }
+    // State C — cursor movement doesn't re-pick the element. Re-pin
+    // the overlay to the frozen rect in case it moved (e.g., page
+    // scroll, dynamic content above repositioning).
+    if (frozen) { paintFrozen(frozen); return; }
     paint(e.target);
   }
   function onClick(e) {
     if (!window.__duoInspectActive) return;
     var el = e.target;
     if (isOurChrome(el)) return;
+    // Pill click is handled by the pill's own listener (which calls
+    // shipAndExit). Don't double-handle here; the pill's click is
+    // captured + stopPropagation'd before bubbling to document.
+    if (isOurPill(el)) return;
     e.preventDefault();
     e.stopPropagation();
-    var tag = el && el.tagName ? el.tagName.toLowerCase() : '';
-    var text = '';
-    if (el && el.innerText) text = String(el.innerText).slice(0, 2000);
-    else if (el && el.textContent) text = String(el.textContent).slice(0, 2000);
-    var payload = {
-      url: location.href,
-      tag: tag,
-      selector_path: selectorFor(el),
-      headingTrail: headingTrailFor(el),
-      innerText: text,
-      attrs: captureAttrs(el)
-    };
-    try { window.duoInspectClick(JSON.stringify(payload)); } catch (err) {}
+    if (frozen) {
+      // State C: clicking outside the frozen element OR its
+      // descendants → unfreeze (back to State B). Owner Q2 picked
+      // UNFREEZE over no-op/re-select.
+      if (el !== frozen && !frozen.contains(el)) {
+        frozen = null;
+        window.__duoInspectFrozen = null;
+        hidePill();
+        // Repaint as a fresh hover state on whatever's under the
+        // cursor now.
+        paint(el);
+        return;
+      }
+      // Click on the frozen element itself (or descendants) → no-op.
+      // The pill is the explicit "ship it" affordance.
+      return;
+    }
+    // State B → State C transition: freeze + render pill. Don't ship.
+    frozen = el;
+    window.__duoInspectFrozen = el;
+    paintFrozen(el);
   }
   function onKey(e) {
     if (!window.__duoInspectActive) return;
+    // ESC: State C → State B (unfreeze); State B → State A (exit).
     if (e.key === 'Escape' || e.keyCode === 27) {
       e.preventDefault();
       e.stopPropagation();
+      if (frozen) {
+        frozen = null;
+        window.__duoInspectFrozen = null;
+        hidePill();
+        // Stay in inspect mode — clear the locked visual; next
+        // mousemove will paint fresh hover.
+        if (overlay) overlay.style.setProperty('background', 'rgba(249, 115, 22, 0.08)', 'important');
+        return;
+      }
+      // No frozen element — full exit. Main process receives null
+      // payload and clears __duoInspectActive.
       try { window.duoInspectClick(JSON.stringify(null)); } catch (err) {}
+      return;
+    }
+    // ENH-159 v2 Q5 — ⌘D in State C ships the frozen element. Keyboard
+    // parity with the pill click for users who prefer the keyboard.
+    if (frozen && (e.metaKey || e.ctrlKey) && (e.key === 'd' || e.key === 'D')) {
+      e.preventDefault();
+      e.stopPropagation();
+      shipAndExit(frozen);
     }
   }
   // Capture-phase so we beat the page's own handlers. addEventListener
