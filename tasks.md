@@ -6370,6 +6370,40 @@ Verified the gap empirically:
 
 ---
 
+### BUG-130: Browser pane `file://` tabs don't auto-reload when the underlying file is mutated via CLI
+
+**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 walk of ENH-159 v2 inspect mode).
+**Priority:** Medium — breaks the "agent mutates a file, user sees the change" feedback loop. Currently the user has to manually press ⌘R / reload after every CLI mutation.
+**Filed:** 2026-05-17.
+
+**Symptom.** Owner during ENH-159 v2 inspect walk: *"in the 2nd or third step, where you add a button to the html canvas via cli, the button did not immediately appear — user had to manually hit refresh."*
+
+**Root cause.** Browser-pane tabs showing `file://` URLs use Chromium's normal page-load lifecycle. Chromium does NOT auto-reload `file://` pages when the underlying file changes on disk (this is by design — file:// is treated like any HTTP URL). When the agent mutates the file via `duo write` / `duo html append` / a shell `printf` / etc., the browser pane keeps showing the stale version until the user hits ⌘R or right-click → Reload.
+
+Compare with **canvas mode** (kind: 'page'): canvas mounts a contentEditable iframe with srcdoc, AND the renderer's file-watcher hooks the FOLLOWUP-019/BUG-125-v2 reconciliation path that auto-reloads on external write. Browser mode has no equivalent.
+
+**Affected flows.**
+- Walk-rev4 ENH-159 v2 step 2: `duo open /tmp/test.html` → modify file via CLI → browser tab stays stale.
+- Any agent workflow: "the user is looking at this page in the browser pane, I'll edit the file" → user sees no change.
+- ENH-156 `duo open` is now the agent's default surface for HTML files — this gap matters more after that change.
+
+**Suggested fix.**
+
+1. **Browser-pane file-watcher.** When the active browser tab's URL is `file://...`, register a chokidar watcher (reuse `electron/files-service.ts`) on the file path. On change → `webContents.reload()` for that tab.
+2. **Lifecycle.** Watch starts on tab activation (or on tab nav to a `file://` URL). Stops on tab close or nav to a non-`file://` URL.
+3. **Debounce.** Same 250ms debounce as the existing file-watchers to avoid thrashing on rapid writes (e.g. an agent running multi-line `duo html append` in a loop).
+4. **Echo-guard.** If Duo itself mutated the file (via `duo html *` ops), the page should reload — that's the point. No echo-guard needed.
+5. **Optional polish.** Subtle visual "↻ reloading" hint in the tab strip during the reload window, so the user knows the change came in.
+
+**Estimate:** 0.5 dev day. Mirrors the canvas-mode file-watcher pattern (PageTab's external-write reconciliation) but simpler — no dirty-buffer to reconcile.
+
+**Cross-ref.**
+- ENH-156 (`duo open` → browser mode default for HTML) — makes this gap more visible.
+- FOLLOWUP-019 / BUG-125 v2 — canvas-mode external-write reconciliation that the browser pane currently lacks.
+- BUG-107 / BUG-085 — markdown editor's external-write reconciliation.
+
+---
+
 ### BUG-129: `duo open` / file-tab open should error when target file doesn't exist, not silently render a blank page
 
 **Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev2 walk handoff).
