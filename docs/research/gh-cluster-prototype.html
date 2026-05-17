@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>GH-cluster prototype — chip / ribbon / tooltip visual options</title>
+<style>
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 980px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; font-size: 12px; font-weight: 700; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Mockup styling: navigator pane visualization — */
+.nav-mock {
+  background: #1a1410;
+  color: #e8e0cb;
+  border-radius: 8px;
+  padding: 0;
+  width: 320px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 13px;
+  margin: 12px 0;
+  border: 1px solid #3a3328;
+  overflow: hidden;
+}
+.nav-mock .nav-header {
+  background: #221c16;
+  padding: 8px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b8ab8e;
+  border-bottom: 1px solid #3a3328;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.nav-mock .breadcrumb { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: #b8ab8e; padding: 6px 12px; background: #1f1812; border-bottom: 1px solid #3a3328; }
+.nav-mock .ribbon {
+  background: linear-gradient(180deg, #2a2218 0%, #1f1812 100%);
+  border-bottom: 1px solid #3a3328;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  cursor: context-menu;
+}
+.nav-mock .ribbon:hover { background: linear-gradient(180deg, #322920 0%, #261d15 100%); }
+.nav-mock .ribbon .ribbon-icon { color: #c46a1c; font-size: 14px; }
+.nav-mock .ribbon .ribbon-text { font-size: 12.5px; color: #e8e0cb; font-weight: 500; flex: 1; }
+.nav-mock .ribbon .ribbon-chip {
+  background: rgba(196, 106, 28, 0.18);
+  color: #c46a1c;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.nav-mock .ribbon .ribbon-chip.clean { background: rgba(74, 125, 62, 0.18); color: #88c277; }
+.nav-mock .ribbon .ribbon-chip.diverged { background: rgba(176, 117, 39, 0.18); color: #d4a368; }
+.nav-mock .tree { padding: 6px 0; }
+.nav-mock .row {
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  position: relative;
+}
+.nav-mock .row.root { font-weight: 600; }
+.nav-mock .row .indent { width: 16px; display: inline-block; }
+.nav-mock .row .icon { color: #b8ab8e; font-size: 12px; }
+.nav-mock .row .chip {
+  background: rgba(196, 106, 28, 0.18);
+  color: #c46a1c;
+  font-family: ui-monospace, monospace;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  margin-left: auto;
+  margin-right: 4px;
+}
+.nav-mock .row .chip.clean { background: rgba(74, 125, 62, 0.18); color: #88c277; }
+.nav-mock .row .chip.diverged { background: rgba(176, 117, 39, 0.18); color: #d4a368; }
+.nav-mock .row .dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #c46a1c;
+  margin-left: auto;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.nav-mock .row .dot.green { background: #88c277; }
+.nav-mock .row.muted { color: #7b6f58; }
+
+/* — Tooltip mockup — */
+.tooltip-mock {
+  position: relative;
+  display: inline-block;
+}
+.tooltip-mock::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fbf8f1;
+  color: #2b2620;
+  font-size: 12px;
+  font-family: -apple-system, system-ui, sans-serif;
+  padding: 6px 10px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  border: 1px solid #d9cea8;
+  z-index: 10;
+}
+.tooltip-mock::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #d9cea8;
+}
+
+/* — Side-by-side comparison — */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin: 16px 0;
+}
+.compare-cell {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px;
+}
+.compare-cell .label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 8px;
+}
+.compare-cell .desc {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+
+/* — Context-menu mockup — */
+.menu-mock {
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 6px 0;
+  width: 220px;
+  font-size: 12px;
+  font-family: -apple-system, system-ui, sans-serif;
+  margin: 8px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+.menu-mock .item { padding: 4px 12px; }
+.menu-mock .item.highlight { background: var(--accent); color: white; }
+.menu-mock .sep { border-top: 1px solid var(--paper-rule); margin: 4px 0; }
+.callout {
+  background: var(--accent-soft);
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  margin: 14px 0;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.callout strong { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>GH-cluster prototype — chip / ribbon / tooltip visual options</h1>
+  <div class="meta">
+    <span class="pill">Prototype gate</span>
+    <span class="pill">4 decisions</span>
+    Filed 2026-05-17 · approval blocks ENH-152a v2 / ENH-152b / ENH-152c / ENH-155 implementation
+  </div>
+</header>
+
+<div class="intro">
+  <strong>Why this exists.</strong> You walked the v1 cluster playground and locked 7 decisions. Three of those (Q1 chip text, Q3 placement, Q6 dot semantics) added <strong>new requirements not in the original spec</strong>: tooltip on the chip, tooltip on the dot, and most importantly — a <strong>context-aware presentation</strong> that shifts between an inline chip (when the repo root is visible in the tree) and a banner/ribbon (when the user has navigated INSIDE the repo root and the root is no longer visible). Your directive: <em>"before building, make a prototype html artifact/playground reflecting your understanding of the intent, then get my approval; make multiple options (visually) if there is ambiguity."</em>
+  <br><br>
+  This prototype shows what I think you meant. <strong>4 decisions</strong>: confirm the ribbon vs. chip switching trigger, pick a visual style for the ribbon, pick tooltip wording, pick interaction model.
+</div>
+
+<h2>1 · The two-state spatial logic</h2>
+
+<p>Today's Navigator can be in one of three positions for any open repo:</p>
+
+<ol>
+  <li><strong>Repo root IS the topmost row</strong> in the tree → show inline chip next to it.</li>
+  <li><strong>Repo root is somewhere in the visible tree, but with siblings</strong> → still show inline chip (this is the same as case 1 — multiple repos visible).</li>
+  <li><strong>Repo root is NOT in the visible tree</strong> (user navigated into the repo so the breadcrumb is `~/repos/duo/src/` rather than `~/repos/`) → no chip is reachable; show a <strong>ribbon banner</strong> above the tree that acts as a proxy for the repo root.</li>
+</ol>
+
+<h3>1A · Case "root visible" — inline chip (no controversy, this is the spec)</h3>
+
+<div class="nav-mock">
+  <div class="nav-header">Navigator <span style="color:#7b6f58;">~/repos</span></div>
+  <div class="breadcrumb">~/repos</div>
+  <div class="tree">
+    <div class="row root">
+      <span class="icon">📁</span>
+      <span>duo</span>
+      <span class="chip tooltip-mock" data-tooltip="Main branch of 'duo' repo">main</span>
+    </div>
+    <div class="row"><span class="indent"></span><span class="icon">📁</span>docs</div>
+    <div class="row"><span class="indent"></span><span class="icon">📁</span>electron</div>
+    <div class="row"><span class="indent"></span><span class="icon">📁</span>renderer</div>
+    <div class="row"><span class="indent"></span><span class="icon">📄</span>tasks.md</div>
+    <div class="row root" style="margin-top: 6px;">
+      <span class="icon">📁</span>
+      <span>other-repo</span>
+      <span class="chip">main · 3 modified</span>
+    </div>
+  </div>
+</div>
+
+<p>Inline chip behavior: hover shows tooltip ("Main branch of '{repo}' repo"). Right-click on the folder OR on the chip → menu with "Open on GitHub", "Copy GitHub URL", "Clone GitHub repo here…", etc.</p>
+
+<h3>1B · Case "root NOT visible" — ribbon banner</h3>
+
+<p>User navigated inside `duo/` so the breadcrumb is now `~/repos/duo/renderer/` and the `duo` folder isn't in the visible tree. We need a ribbon banner above the tree showing the same git state.</p>
+
+<div class="compare-grid">
+  <div class="compare-cell">
+    <div class="label">Option A · Slim ribbon (right-clickable as proxy for root)</div>
+    <div class="desc">Single-row strip above the tree. Repo name + chip + right-click menu items match the root-folder menu.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos/duo/renderer</div>
+      <div class="ribbon">
+        <span class="ribbon-icon">⎇</span>
+        <span class="ribbon-text">duo</span>
+        <span class="ribbon-chip">main · 3 modified</span>
+      </div>
+      <div class="tree">
+        <div class="row"><span class="icon">📁</span>components</div>
+        <div class="row"><span class="icon">📁</span>hooks</div>
+        <div class="row"><span class="icon">📄</span>App.tsx<span class="dot"></span></div>
+        <div class="row muted"><span class="icon">📄</span>main.tsx</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-cell">
+    <div class="label">Option B · Full row "phantom root" (acts visually like a root folder row)</div>
+    <div class="desc">Renders a virtual root-folder row at the top with the same chevron + chip style as a real folder row. Visually less differentiated from the tree.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos/duo/renderer</div>
+      <div class="tree">
+        <div class="row root" style="background: #261d15; border-bottom: 1px solid #3a3328; padding: 6px 12px;">
+          <span class="icon">📁</span>
+          <span>duo</span>
+          <span class="chip">main · 3 modified</span>
+        </div>
+        <div class="row"><span class="indent"></span><span class="icon">📁</span>components</div>
+        <div class="row"><span class="indent"></span><span class="icon">📁</span>hooks</div>
+        <div class="row"><span class="indent"></span><span class="icon">📄</span>App.tsx<span class="dot"></span></div>
+        <div class="row muted"><span class="indent"></span><span class="icon">📄</span>main.tsx</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="compare-grid">
+  <div class="compare-cell">
+    <div class="label">Option C · Breadcrumb-integrated chip (chip in the breadcrumb row)</div>
+    <div class="desc">Adds the chip to the existing breadcrumb without a separate ribbon. Saves vertical space; trade-off is the breadcrumb gets visually heavier.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb" style="display: flex; align-items: center; justify-content: space-between;">
+        <span>~/repos/<strong style="color:#e8e0cb;">duo</strong>/renderer</span>
+        <span class="ribbon-chip">main · 3 modified</span>
+      </div>
+      <div class="tree">
+        <div class="row"><span class="icon">📁</span>components</div>
+        <div class="row"><span class="icon">📁</span>hooks</div>
+        <div class="row"><span class="icon">📄</span>App.tsx<span class="dot"></span></div>
+        <div class="row muted"><span class="icon">📄</span>main.tsx</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-cell">
+    <div class="label">Option D · Footer ribbon (bottom of Navigator)</div>
+    <div class="desc">VS Code pattern. Out of the way; doesn't compete with file rows. Trade-off: less discoverable; you have to look down.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos/duo/renderer</div>
+      <div class="tree">
+        <div class="row"><span class="icon">📁</span>components</div>
+        <div class="row"><span class="icon">📁</span>hooks</div>
+        <div class="row"><span class="icon">📄</span>App.tsx<span class="dot"></span></div>
+        <div class="row muted"><span class="icon">📄</span>main.tsx</div>
+      </div>
+      <div class="ribbon" style="border-top: 1px solid #3a3328; border-bottom: none;">
+        <span class="ribbon-icon">⎇</span>
+        <span class="ribbon-text">duo</span>
+        <span class="ribbon-chip">main · 3 modified</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Ribbon visual style</div>
+  <div class="q-prompt">Which ribbon-vs-chip presentation do you want when the repo root is NOT in the visible tree?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-ribbon-style" value="slim-top">
+      <div class="q-option-body">
+        <div class="q-option-title">A · Slim top ribbon (own row above tree, distinct from file rows) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Clearly "this is the repo root context, not a file row". Right-clickable. Single row of vertical space.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-ribbon-style" value="phantom-root">
+      <div class="q-option-body">
+        <div class="q-option-title">B · Phantom root row (same styling as a real folder row)</div>
+        <div class="q-option-rationale">Maximum consistency with tree — but visually says "this is a folder I can expand", which isn't quite true.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-ribbon-style" value="breadcrumb-chip">
+      <div class="q-option-body">
+        <div class="q-option-title">C · Breadcrumb-integrated chip</div>
+        <div class="q-option-rationale">Most space-efficient. Trade-off: the chip becomes harder to right-click without context. Less interactive surface.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-ribbon-style" value="footer-ribbon">
+      <div class="q-option-body">
+        <div class="q-option-title">D · Footer ribbon (bottom)</div>
+        <div class="q-option-rationale">VS Code pattern. Out of the way; less discoverable.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>2 · When does the ribbon appear?</h2>
+
+<div class="callout">
+  <strong>The trigger logic.</strong> The ribbon appears IFF the repo root is not a visible row in the current Navigator tree. Two implementations differ on what "visible" means:
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · Ribbon trigger condition</div>
+  <div class="q-prompt">When exactly should the ribbon appear?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-trigger" value="breadcrumb-deep">
+      <div class="q-option-body">
+        <div class="q-option-title">When breadcrumb is deeper than the repo root <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Simplest rule: if the user has cd-ed into the repo (breadcrumb shows a path INSIDE the repo root), show the ribbon. Doesn't depend on scroll position.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-trigger" value="root-not-in-viewport">
+      <div class="q-option-body">
+        <div class="q-option-title">When the repo-root row is scrolled out of viewport</div>
+        <div class="q-option-rationale">More dynamic — ribbon appears when you scroll past the root. Trade-off: behavior changes with window resize / scroll; harder to predict.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-trigger" value="always-show">
+      <div class="q-option-body">
+        <div class="q-option-title">Always show the ribbon when in a repo (even when root visible)</div>
+        <div class="q-option-rationale">Maximum visibility. Trade-off: duplicates the chip-on-root-row signal. Visually heavier.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>3 · Tooltip wording</h2>
+
+<p>The chip and the ribbon both need a hover tooltip. Same wording or different?</p>
+
+<div class="compare-grid">
+  <div class="compare-cell">
+    <div class="label">Option A · "Main branch of 'duo' repo" (matches your verbatim note)</div>
+    <div class="desc">Direct, plain English. Repo name in quotes.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos</div>
+      <div class="tree">
+        <div class="row root">
+          <span class="icon">📁</span>
+          <span>duo</span>
+          <span class="chip tooltip-mock" data-tooltip="Main branch of 'duo' repo">main</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-cell">
+    <div class="label">Option B · "main · 3 commits ahead of origin · 1 behind" (state-rich)</div>
+    <div class="desc">Reads the git state into the tooltip — branch name, ahead/behind counts, modified files count.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos</div>
+      <div class="tree">
+        <div class="row root">
+          <span class="icon">📁</span>
+          <span>duo</span>
+          <span class="chip diverged tooltip-mock" data-tooltip="main · 2 ahead · 1 behind · 3 modified files">main · 2 ahead</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · Tooltip wording strategy</div>
+  <div class="q-prompt">What does the chip / ribbon hover tooltip say?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3-tooltip" value="plain-english">
+      <div class="q-option-body">
+        <div class="q-option-title">Plain English (matches your note): "Main branch of 'duo' repo"</div>
+        <div class="q-option-rationale">Most accessible. Doesn't crowd info.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-tooltip" value="state-rich">
+      <div class="q-option-body">
+        <div class="q-option-title">State-rich: "main · 2 ahead · 1 behind · 3 modified files" <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Hover reveals full state; chip stays compact. Best info-per-pixel.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-tooltip" value="combined">
+      <div class="q-option-body">
+        <div class="q-option-title">Combined: "Main branch of 'duo' repo · 2 commits ahead, 3 modified files"</div>
+        <div class="q-option-rationale">Owner-friendly framing + state. Slightly more verbose.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>4 · Per-file dot tooltips (Q6 follow-up)</h2>
+
+<p>You said dots should "provide additional context" via tooltip. Which shape?</p>
+
+<div class="compare-grid">
+  <div class="compare-cell">
+    <div class="label">Option A · Status word: "Modified" / "Untracked" / "Staged"</div>
+    <div class="desc">Single-word tooltip. Cheapest.</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos/duo</div>
+      <div class="tree">
+        <div class="row"><span class="icon">📄</span>tasks.md<span class="dot tooltip-mock" data-tooltip="Modified"></span></div>
+        <div class="row"><span class="icon">📄</span>new-file.ts<span class="dot tooltip-mock" data-tooltip="Untracked"></span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="compare-cell">
+    <div class="label">Option B · Status + line-diff: "Modified · +24 / −7 lines"</div>
+    <div class="desc">Status + per-file line-count diff against HEAD. More cost (extra git call per dirty file).</div>
+    <div class="nav-mock">
+      <div class="nav-header">Navigator</div>
+      <div class="breadcrumb">~/repos/duo</div>
+      <div class="tree">
+        <div class="row"><span class="icon">📄</span>tasks.md<span class="dot tooltip-mock" data-tooltip="Modified · +24 / −7 lines"></span></div>
+        <div class="row"><span class="icon">📄</span>new-file.ts<span class="dot tooltip-mock" data-tooltip="Untracked · 142 lines"></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q4 · Per-file dot tooltip content</div>
+  <div class="q-prompt">What does the dot tooltip say?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q4-dot-tooltip" value="status-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Status word only ("Modified" / "Untracked" / "Staged")</div>
+        <div class="q-option-rationale">Cheapest. Single git status pass already has this info.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-dot-tooltip" value="status-diff">
+      <div class="q-option-body">
+        <div class="q-option-title">Status + line-diff ("Modified · +24 / −7 lines") <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Information-dense; matches IDE expectations. Extra git numstat call per dirty file (cached + debounced via fsevents).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q4-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>5 · Right-click interaction model</h2>
+
+<p>Both the chip (Case A) and the ribbon (Case B) should be right-clickable AS IF they were the repo-root folder. The right-click menu items live in a single menu definition, used for: (a) the root-row folder itself; (b) the inline chip on the root row; (c) the ribbon when root is out of view.</p>
+
+<div class="menu-mock">
+  <div class="item">Open in editor</div>
+  <div class="item">Open in canvas</div>
+  <div class="sep"></div>
+  <div class="item highlight">Open on GitHub</div>
+  <div class="item highlight">Copy GitHub URL</div>
+  <div class="sep"></div>
+  <div class="item">Clone GitHub repo here…</div>
+  <div class="sep"></div>
+  <div class="item">New folder…</div>
+  <div class="item">Reveal in Finder</div>
+</div>
+
+<p>Items in <span style="background: var(--accent); color: white; padding: 1px 6px; border-radius: 3px;">orange</span> are GH-specific (ENH-155). Other items mirror the existing folder-row context menu.</p>
+
+<h2>6 · Summary of locked v1 decisions (carrying forward, not re-asking)</h2>
+
+<ul>
+  <li>Chip text format: clean=<code>main</code>, dirty=<code>main · 3 modified</code>, diverged=<code>main · 2 ahead, 1 behind</code>.</li>
+  <li>No icon next to chip text (text-only).</li>
+  <li>Inline chip placement when root visible — Q1 above covers when root NOT visible.</li>
+  <li>GH Enterprise hosts: detected via remote URL prefix.</li>
+  <li>Auth-failure: menu items show regardless (public-repo URLs don't need auth).</li>
+  <li>Dirty dot: any-change semantics (staged/unstaged/untracked → one dot).</li>
+  <li>Refresh trigger: fsevents-driven, debounced 250ms.</li>
+</ul>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 4</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button  = document.getElementById('copy-decisions');
+
+  const QUESTIONS = [
+    { id: 'q1-ribbon-style',  title: 'Q1 · Ribbon visual style' },
+    { id: 'q2-trigger',       title: 'Q2 · Ribbon trigger condition' },
+    { id: 'q3-tooltip',       title: 'Q3 · Tooltip wording strategy' },
+    { id: 'q4-dot-tooltip',   title: 'Q4 · Per-file dot tooltip content' },
+  ];
+
+  function refreshCount() {
+    let answered = 0;
+    for (const q of QUESTIONS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QUESTIONS.length;
+  }
+  document.addEventListener('change', refreshCount);
+  document.addEventListener('input', refreshCount);
+  refreshCount();
+
+  function buildPayload() {
+    const lines = [];
+    lines.push('GH-CLUSTER PROTOTYPE — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('========================================================');
+    lines.push('');
+    for (const q of QUESTIONS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/gh-cluster-prototype.html');
+    return lines.join('\n');
+  }
+
+  button.addEventListener('click', async function () {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(function () {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
