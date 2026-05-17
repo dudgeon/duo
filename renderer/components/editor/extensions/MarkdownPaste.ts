@@ -44,6 +44,50 @@ function elementFromString(html: string): HTMLElement {
   return wrap
 }
 
+// BUG-127 round 2 — detect when pasted HTML is essentially text-wrapped-
+// in-thin-tags (browsers / Google Docs / Notion sometimes emit a
+// `<meta charset>` + `<span>` / `<pre>` / `<div>` wrap around markdown
+// source). If the HTML's textContent contains block-level markdown
+// markers AND the HTML's structure is thin (no <table>/<ul>/<ol>/<h1-6>
+// of its own), prefer the markdown-parsed version of the textContent
+// over the raw HTML — otherwise the HTML path renders the markdown
+// source as literal text with <br> linebreaks (Google Docs "copy as
+// markdown" symptom).
+//
+// Tags considered "thin wrappers" (don't carry structural meaning):
+//   <meta>, <html>, <head>, <body>, <div>, <span>, <p>, <br>, <pre>,
+//   <code>, <font>, <b>, <strong>, <i>, <em>, <u>
+//
+// Tags considered "real structure" (use the HTML path as-is):
+//   <table>, <ul>, <ol>, <li>, <h1>-<h6>, <blockquote>, <hr>, <img>,
+//   <a> (when the href is meaningful)
+function htmlIsWrappedMarkdownText(html: string): string | null {
+  if (!html) return null
+  const wrap = document.createElement('div')
+  wrap.innerHTML = html
+  const STRUCTURAL = /^(TABLE|UL|OL|LI|H[1-6]|BLOCKQUOTE|HR|IMG|A|FIGURE|PICTURE|VIDEO|AUDIO|IFRAME)$/
+  const els = wrap.querySelectorAll('*')
+  for (const el of els) {
+    if (STRUCTURAL.test(el.tagName)) return null
+  }
+  // Convert <br> to \n and <p>/<div> boundaries to \n\n before
+  // extracting textContent. Plain textContent loses linebreak signal
+  // (Google Docs "copy as markdown" emits <span>line1<br>line2</span>
+  // which textContent → "line1line2", losing the markdown table
+  // structure).
+  for (const br of wrap.querySelectorAll('br')) {
+    br.replaceWith(document.createTextNode('\n'))
+  }
+  for (const block of wrap.querySelectorAll('p, div, pre')) {
+    // Append a trailing newline if not already present at boundary.
+    block.appendChild(document.createTextNode('\n\n'))
+  }
+  // Decode HTML entities by reading textContent (browser handles &lt; etc.).
+  const text = (wrap.textContent || '').replace(/\n{3,}/g, '\n\n').trim()
+  if (!looksBlockLevel(text)) return null
+  return text
+}
+
 export const MarkdownPaste = Extension.create({
   name: 'markdownPaste',
   // Higher priority than tiptap-markdown's `markdownClipboard` plugin
@@ -60,6 +104,25 @@ export const MarkdownPaste = Extension.create({
       new Plugin({
         key: new PluginKey('markdownPasteBlockAware'),
         props: {
+          // BUG-127 round 2 — Google Docs "copy as markdown" + similar
+          // sources emit clipboards with text/html data that wraps the
+          // markdown source in thin tags (<meta>/<span>/<pre>/<br>).
+          // PM uses the HTML path when text/html is present, so our
+          // clipboardTextParser (below) never sees the markdown source
+          // — it just renders as literal text with <br> linebreaks.
+          // Intercept the HTML before parsing: if it's wrapped-markdown,
+          // replace with the markdown-parsed HTML so the table/list/etc.
+          // renders correctly. If the HTML has real structure (a true
+          // <table>, <ul>, etc.), pass through unchanged.
+          transformPastedHTML: (html: string) => {
+            const storage = editor.storage as Record<string, unknown>
+            const md = storage['markdown'] as { parser?: { parse: (text: string, opts?: { inline?: boolean }) => string } } | undefined
+            const parser = md?.parser
+            if (!parser) return html
+            const text = htmlIsWrappedMarkdownText(html)
+            if (text === null) return html
+            return parser.parse(text, { inline: false })
+          },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           clipboardTextParser: ((text: string, $context: any, plain: boolean) => {
             if (plain) return null

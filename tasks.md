@@ -40,39 +40,80 @@
 
 ### GATE-BUG-125-v2: Canvas baseline tracking — Option B normalize layer
 
-**Status:** 🟡 Awaiting owner walk.
+**Status:** ⏳ **In progress 2026-05-17.** Owner walked, decisions captured.
 **Playground:** [`docs/research/bug-125-canvas-baseline-v2.html`](docs/research/bug-125-canvas-baseline-v2.html) — 4 decisions.
-**Filed:** 2026-05-17.
-**Blocks:** BUG-125 v2 implementation (estimate 1 dev day).
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17.
+**Implementation estimate:** 1 dev day.
 
-Decisions cover: which resolution option (A/B/C), data-duo-id round-trip behavior, normalization scope, markdown editor parity.
+**Locked decisions:**
+- **Q1:** Option B — normalize before comparison. `core/html/duo-normalize.ts` helper + 2 call-site swaps + vitest.
+- **Q2:** Conflict banner (anchor-loss warning) when external write strips `data-duo-id`. The banner surfaces "data-duo-id anchors removed by external write — accept (loses anchors) or keep current (overwrites external)".
+- **Q3:** Medium scope — strip `data-duo-*` attributes/elements AND DOM serialization round-trip (eliminates pretty-print + tag-case differences). Skip Q3-wide (whitespace inside text nodes).
+- **Q4:** Investigate markdown editor parity as part of this PR (audit TipTap extensions for round-trip-surviving injection; if found, add markdown normalize helper alongside the HTML one).
 
 ### GATE-FOLLOWUP-025-v2: Clone modal fix-list
 
-**Status:** 🟡 Awaiting owner walk.
+**Status:** ⏳ **In progress 2026-05-17.** Owner walked, decisions captured.
 **Playground:** [`docs/research/followup-025-clone-modal-v2.html`](docs/research/followup-025-clone-modal-v2.html) — 4 decisions.
-**Filed:** 2026-05-17.
-**Blocks:** FOLLOWUP-025 v2 implementation (estimate 0.5-1 dev day).
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17.
+**Implementation estimate:** 0.5-1 dev day.
 
-Decisions cover: right-click-folder default vs. Navigator cwd, file vs. folder context-menu entry, File menu placement, menu label wording. CSS bleed-through fix needs no decision (diagnose + repair during implementation).
+**Locked decisions:**
+- **Q1:** Right-clicked folder wins over Navigator cwd. IPC payload carries the path; modal pre-populates with that path. Explicit context beats implicit.
+- **Q2:** Folders + whitespace only — no "Clone GitHub repo here…" entry on individual files (cleaner mental model).
+- **Q3:** File menu placement: after "Open…" (same acquisition-commands group).
+- **Q4:** Menu label: **"Clone from GitHub…"** (NOT my recommended "Clone GitHub Repo…"). Source-oriented phrasing. Updates the chord menu accelerator label too.
+- **CSS bleed fix (no decision):** diagnose via `duo dom .bg-background --computed background-color,opacity`, repair.
 
 ### GATE-ENH-159-v2: Inspect mode UX redesign
 
-**Status:** 🟡 Awaiting owner walk.
+**Status:** ⏳ **In progress 2026-05-17.** Owner walked, decisions captured.
 **Playground:** [`docs/research/enh-159-inspect-mode-v2.html`](docs/research/enh-159-inspect-mode-v2.html) — 5 decisions.
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17.
+**Implementation estimate:** 1-1.5 dev days.
+
+**Locked decisions:**
+- **Q1:** Pill ANCHORED to the frozen element (above/below auto-flip), matching the existing text-selection Send→Duo pill pattern.
+- **Q2:** Click-outside in State C → UNFREEZE (back to State B, re-enables hover targeting). Symmetric with click-to-freeze.
+- **Q3:** Frozen-element visual = SOLID 2px orange (no dash). Minimal CSS change; reads as "the dashes settled = locked".
+- **Q4: Owner override — neither pick.** *Right-click → "Select element" moves user from State A to State B (NOT pre-frozen State C).* Right-click is an entry trigger only; user then clicks-to-freeze normally. **Implementation impact:** no "skip State B" or "flash through B" logic. Right-click menu entry just enters inspect mode (same as `duo inspect` / ⌘⇧C), and the element under the right-click cursor gets the hover outline immediately (since cursor is over it).
+- **Q5:** ⌘D parity in State C → YES. Keyboard-driver parity: ⌘D ships the frozen element + exits inspect mode (same as clicking the pill).
+- **Selection-observer pause regression fix (no decision):** add `window.__duoInspectActive === true` early return in `SELECTION_OBSERVER_IIFE` + structural regression test.
+
+### GATE-GH-CLUSTER-v2: GitHub-integration cluster (decisions captured; PROTOTYPE GATE OWED before code)
+
+**Status:** 🟡→⏳→🟡 **Decisions captured 2026-05-17, but owner requires a prototype playground BEFORE implementation.** New gate filed below as GATE-GH-CLUSTER-PROTO.
+**Playground (v1, walked):** [`docs/research/github-integration-cluster-v2.html`](docs/research/github-integration-cluster-v2.html) — 7 decisions.
+**Filed:** 2026-05-17. **Decisions locked:** 2026-05-17. **Re-gated:** 2026-05-17 (owner asked for prototype).
+**Blocks:** ENH-152a v2, ENH-155, ENH-152b, ENH-152c. Estimate 2-3 dev days for cluster once prototype lands.
+
+**Locked decisions:**
+- **Q1:** BRANCH-ONLY-CLEAN chip format. Clean=`[main]`, Dirty=`[main · 3 modified]`, Diverged=`[main · 2 ahead, 1 behind]`. **Plus tooltip:** hover shows "Main branch of '{repo-name}' repo" (or similar).
+- **Q2:** TEXT-ONLY chip (no icon). Saves visual noise.
+- **Q3:** ROOT-ROW placement — **PLUS new owner-added spatial logic (substantial):**
+  - If the repo-root folder IS visible in the Navigator tree → pill next to that folder's row (the original spec).
+  - **If the user has navigated INSIDE the repo root (root folder NOT visible in current Navigator view)** → display a **banner/ribbon ABOVE the tree** showing the same git state, and the banner is right-clickable + interactable as though it were the repo-root folder itself (right-click → "Open in GH", "Clone…", same context-menu items as the root folder would offer).
+  - Owner: *"ask me questions if this does not make sense; before building, make a prototype html artifact/playground reflecting your understanding of the intent, then get my approval; make multiple options (visually) if there is ambiguity and you need to show them."*
+- **Q4:** YES-DETECT GitHub Enterprise via remote URL prefix (`git remote get-url origin` returning `https://github.foo.com/...`).
+- **Q5:** SHOW-ALWAYS right-click menu items regardless of auth state. URLs work without auth for public repos.
+- **Q6:** ANY-CHANGE dot semantics (staged OR unstaged OR untracked → same dot). **Plus tooltip:** dot tooltip provides additional context (e.g. "Modified · 3 lines changed since last commit" or similar — TBD in prototype).
+- **Q7:** FSEVENTS-DEBOUNCED refresh (250ms debounce). Real-time updates without thrashing.
+
+**New constraints from owner notes that need to be visible in the prototype:**
+1. Tooltip on the repo-root chip (Q1).
+2. Tooltip on per-file dirty dots (Q6).
+3. Context-aware presentation: pill (root visible) vs. ribbon (root not visible).
+4. Ribbon must be right-clickable/interactable as proxy for the repo-root folder.
+5. Right-click on repo root → "Open on GitHub" option (already ENH-155 scope, confirmed by owner).
+
+### GATE-GH-CLUSTER-PROTO: GH-cluster visual prototype — owner-approval gate before code
+
+**Status:** 🟡 **Awaiting owner walk + approval.** Builds on locked GATE-GH-CLUSTER-v2 decisions.
+**Playground:** [`docs/research/gh-cluster-prototype.html`](docs/research/gh-cluster-prototype.html) — *(to be created — multi-option visual prototype)*.
 **Filed:** 2026-05-17.
-**Blocks:** ENH-159 v2 implementation (estimate 1-1.5 dev days).
+**Blocks:** All GH-cluster implementation (ENH-152a v2, ENH-152b, ENH-152c, ENH-155).
 
-Decisions cover: pill position in State C (anchored vs. corner), click-outside behavior, frozen-element visual, right-click pre-freeze flow, ⌘D parity. Selection-observer pause regression fix needs no decision (one-line guard).
-
-### GATE-GH-CLUSTER-v2: GitHub-integration cluster
-
-**Status:** 🟡 Awaiting owner walk.
-**Playground:** [`docs/research/github-integration-cluster-v2.html`](docs/research/github-integration-cluster-v2.html) — 7 decisions.
-**Filed:** 2026-05-17.
-**Blocks:** ENH-152a v2 (always-visible chip), ENH-155 (right-click GH menu), ENH-152b (per-file dots), ENH-152c (fsevents invalidation). Estimate 2-3 dev days for cluster.
-
-Decisions cover: chip text format, icon/text, placement, GH enterprise support, auth-failure handling, dot semantics, refresh trigger.
+The prototype shows side-by-side visual options for the chip-vs-ribbon spatial logic + tooltip wording + interaction model, with each option labeled so owner can pick. Owner picks; implementation proceeds.
 
 ---
 
@@ -6231,6 +6272,45 @@ Verified the gap empirically:
 
 ---
 
+### BUG-129: `duo open` / file-tab open should error when target file doesn't exist, not silently render a blank page
+
+**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev2 walk handoff).
+**Priority:** Medium — silent-fail-as-blank-page wastes the user's time and is a class of bug rather than a one-shot ("did the playground break?" vs "is the path wrong?").
+**Filed:** 2026-05-17.
+
+**Symptom.** Owner ran `duo open docs/research/bug-125-canvas-baseline-v2.html` from a terminal whose cwd was `~/Documents/GitHub/` (not `~/Documents/GitHub/duo/`). The relative path resolved to `file:///Users/geoffreydudgeon/Documents/GitHub/docs/research/bug-125-canvas-baseline-v2.html` — a path that doesn't exist on disk. Result: Duo opened a browser tab pointing at the bogus `file://` URL and rendered a **blank white page**. No error surfaced; no toast, no fallback to a 404-style "file not found" panel.
+
+Owner: *"opening a file that does not exist should not open a white page — it should say, 'that file does not exist'."*
+
+**Why this matters beyond the one stumble.** Today's class of failure:
+- Agent-authored walk instructions with relative paths silently mis-route based on the user's terminal cwd.
+- `duo open` and `duo edit` are agent-controlled too; a typo or stale path mis-routes silently.
+- The user has no visible signal that anything is wrong — they see a blank tab and assume the playground is broken.
+
+**Expected.** When `duo open <path>` (or any file-open path: navigator click, `duo edit`, tab restoration from session, etc.) targets a `file://` URL that doesn't resolve to a real file:
+1. Pre-flight check via `fs.statSync` (or async equivalent) in the open path BEFORE assigning the tab URL.
+2. If the file is missing, surface a clear error:
+   - For CLI: return `{ ok: false, error: "File not found: <path>" }` (current `duo open` already has the JSON-result shape).
+   - For UI: render an in-tab "File not found" panel with the resolved path + a copy-path button + a "close tab" affordance. Same shape as the existing error states in PageTab / MarkdownEditor.
+3. Do NOT create a tab pointing at the bogus URL. (If the tab was already created, replace its content; don't leave a dead tab around.)
+
+**Suspected fix locations.**
+- `electron/main.ts § BROWSER_ADD_TAB` / `BROWSER_NAVIGATE` handlers — `file://` URLs should be stat-checked.
+- `electron/socket-server.ts § case 'open'` — verb dispatch should validate the path argument before forwarding to BrowserManager.
+- `renderer/components/BrowserRenderer.tsx` — render a friendly fallback when the page load fails (Chromium's `did-fail-load` event).
+- Mirror the same check in `duo edit` path for file-tab opens (PageTab / MarkdownEditor already handle "file doesn't exist YET" for new-file flows — distinguish typo-class from new-file-class).
+
+**Repro (deterministic).**
+1. From any cwd, run: `duo open ~/nonexistent-file.html`.
+2. Expected: CLI prints an error JSON; no tab is opened.
+3. Actual: a browser tab opens with a blank white page; no error message.
+
+**Cross-ref.**
+- Triggered by the v0.7.0-rev2 walk's relative-path mistake in walk steps (now corrected to absolute paths in the manifest, but the underlying class of bug remains).
+- BUG-128 was filed on a "playground renders blank" symptom that turned out to be the same class (mis-resolved path → bogus URL → blank tab → "playground broken" theory). With BUG-129 fixed, BUG-128 closes as no-repro by construction.
+
+---
+
 ### BUG-128: `docs/research/integration-primitive-design.html` playground renders blank
 
 **Status:** 🟡 Filed 2026-05-16 (discovered during v0.7.0 walk). **Post-walk investigation 2026-05-16: NOT REPRODUCING** in current session.
@@ -6253,7 +6333,27 @@ Verified the gap empirically:
 
 ### BUG-127: Paste of markdown text into TipTap editor lands in code block instead of rendering as markdown
 
-**Status:** ✅ **Fixed 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Root cause: PMDOMParser.parseSlice produced a Slice with natural openStart/openEnd matching the cursor's node depth. When the cursor was inside a list-item or blockquote, PM's replaceSelection tried to fit the table into the destination's content model — squashing it to inline `<code>`-wrapped text. **Fix:** [`renderer/components/editor/extensions/MarkdownPaste.ts`](renderer/components/editor/extensions/MarkdownPaste.ts) — for block-level paste, wrap the parsed slice with `new Slice(content, 0, 0)` so PM treats it as fully-closed block content and lifts enclosing nodes as needed. Inline paste keeps the natural openness (bold-word-mid-sentence still works).
+**Status:** ✅ **Fixed 2026-05-17 (rounds 1+2, both shipped same day).** Two distinct paste paths needed fixing — round 1 caught the slice-context-fit problem when destination is a list-item; round 2 caught the HTML-clipboard-wins problem when the source (Google Docs "copy as markdown", browser extensions, Notion etc.) emits clipboard with both text/plain AND text/html data and PM uses the HTML path.
+
+**Round 1 fix (slice openness).** PMDOMParser.parseSlice produced a Slice with natural openStart/openEnd matching the cursor's node depth. When pasting inside a list-item or blockquote, PM's replaceSelection tried to fit the table into the destination's content model — squashing it to inline `<code>`-wrapped text. Fix: for block-level paste, wrap the parsed slice with `new Slice(content, 0, 0)` so PM treats it as fully-closed block content and lifts enclosing nodes as needed. Inline paste keeps the natural openness (bold-word-mid-sentence still works).
+
+**Round 2 fix (HTML path bypassed markdown).** When clipboard has text/html, PM uses the HTML path; our `clipboardTextParser` never fires; the result lands as literal text-with-`<br>`s (no table parsed). Fix: added `transformPastedHTML` hook + new `htmlIsWrappedMarkdownText(html)` helper. Helper detects when HTML is "thin-wrapped text" (just `<meta>/<span>/<pre>/<br>/<p>/<div>` around content — no real `<table>`/`<ul>`/`<h1-6>`/etc.) AND the textContent (with `<br>`→`\n` and `<p>/<div>` boundaries → `\n\n` conversion) is block-level markdown. If so, transformPastedHTML returns the markdown-it-parsed HTML instead of the raw clipboard HTML. Real HTML tables pass through unchanged.
+
+**Walk verification (post-fix):**
+
+- Round 1 (bullet + real-newline markdown table) → renders as proper `<table>` inside list-item ✓
+- Round 2 case A: clipboard with `<pre>` wrap around markdown source → renders as TipTap table ✓
+- Round 2 case B: clipboard with `<span>line1<br>line2<br>line3</span>` (Google Docs shape) → renders as TipTap table ✓
+- Regression check: real HTML `<table>` copy → passes through unchanged (1 table, no double-parse) ✓
+- Regression check: `**bold-inline**` paste mid-sentence → inline `<strong>` (not block-promoted) ✓
+
+**Walk-rev2 walk-instruction caveat.** Owner's rev2 walk-FAIL on the bullet-paste test was caused by a walk-instruction error (used literal `⏎` U+23CE chars instead of real newlines in the manifest's example), NOT a code bug. The "google docs copy as markdown" symptom owner described was the real round-2 bug.
+
+**Files touched:**
+
+- [`renderer/components/editor/extensions/MarkdownPaste.ts`](renderer/components/editor/extensions/MarkdownPaste.ts) — added `transformPastedHTML` Plugin prop + `htmlIsWrappedMarkdownText` helper.
+
+**Cross-refs.** BUG-026 (the parent — block-aware paste). The two-round fix means BUG-127 closes both the slice-fit AND the HTML-bypass classes.
 **Priority:** Medium — paste workflow is core to editor UX; landing in code block is unexpected for most paste sources. Owner: *"common failure mode where pasting text into markdown editor, exp markdown text, lands inside a code block — unwanted behavior."*
 **Filed:** 2026-05-16. **Fixed:** 2026-05-17.
 
