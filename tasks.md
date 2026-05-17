@@ -160,7 +160,7 @@ Walk-FAIL on rev1 was about the pill still appearing during text-select while in
 
 ### GATE-GH-CLUSTER-PROTO: GH-cluster visual prototype — owner-approval gate before code
 
-**Status:** ✅ **Closed 2026-05-17 (walked rev3).** Owner walked + locked 4 prototype decisions. ENH-152a v2 chip + ribbon + ENH-155 GH-menu implementation shipped in the same session. ENH-152b per-file dots + ENH-152c fsevents-driven refresh deferred as follow-ups (see ENH-152b / ENH-152c below).
+**Status:** ✅ **Closed 2026-05-17 (walked rev3 prototype gate; walked rev4 implementation; rev4 FAIL fix shipped same-day).** Owner walked + locked 4 prototype decisions, then walked GH-CLUSTER-PHASE-1 in rev4 and reported the ribbon was working but right-click on the ribbon didn't show "Open on GitHub" — that was an omission I missed (wired the menu items on file/folder rows but not the ribbon itself). Fix landed same session: ribbon now right-clickable, opens same NSMenu as the repo-root folder, including GH items. ENH-152b per-file dots + ENH-152c fsevents-driven refresh remain deferred follow-ups (see ENH-152b / ENH-152c below).
 **Playground:** [`docs/research/gh-cluster-prototype.html`](docs/research/gh-cluster-prototype.html) — 4 decisions.
 **Filed:** 2026-05-17. **Walked + closed:** 2026-05-17.
 
@@ -6367,6 +6367,53 @@ Verified the gap empirically:
 3. **CLI parity** (optional). Extend `NavStateSnapshot` with `selectedPaths: string[]`. Today the CLI's `duo nav-state` returns the singular `selected` field; broadening to a list is forward-compat for agents driving batch deletion via `duo files trash` loops.
 
 **Cross-ref:** ENH-147 (v1 parent — landed 2026-05-11).
+
+---
+
+### BUG-131: `⌘A` is a no-op inside playground text fields — should select all text
+
+**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 FOLLOWUP-025 walk).
+**Priority:** Medium — basic-affordance gap. Owner used the Clone modal's URL/parent inputs and reported ⌘A doesn't select all text in those fields.
+**Filed:** 2026-05-17.
+
+**Symptom.** Owner: *"in text field in playground, cmd-a is no op; should select all text."*
+
+**Likely cause.** Renderer-side keyboard global-shortcut matcher intercepts ⌘A before it reaches the input element. Browser default ⌘A in a text input = select all. Duo currently doesn't have a ⌘A binding for tree-select or any other action, so it should fall through to the input.
+
+**Investigation owed.** Check `renderer/keyboard/globalShortcuts.ts` — does ⌘A match any global action? If yes, suppress when `isInEditableSurface(doc)` is true. If no, find what's swallowing the keystroke (could be a `preventDefault` somewhere in the modal or input wrapper).
+
+**Repro.**
+1. Open the Clone modal (⌘⇧K or File → Clone from GitHub…).
+2. Type some text in the URL or parent-dir input.
+3. Press ⌘A.
+4. Expected: text in the input gets selected (highlighted).
+5. Actual: nothing happens.
+
+**Scope.** Probably affects ALL renderer inputs (not just CloneModal) — should check markdown editor's prose inputs, FindBar input, address bar in browser pane, etc. before fixing.
+
+---
+
+### ENH-162: Clone modal — handle destination-already-contains-repo collision
+
+**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 FOLLOWUP-025 walk).
+**Priority:** Medium — error path is currently bare ("Clone failed" with whatever gh/git emitted, which may be cryptic).
+**Filed:** 2026-05-17.
+
+**Symptom.** Owner: *"file as future enh: error handling when selected destination already contains that repo."*
+
+**What's owed.** When the user picks a parent directory + repo name combo that already contains a folder of that name (whether it's the same repo or unrelated content), the clone attempt fails. Today's error path:
+
+- `gh repo clone` exits non-zero with "destination path already exists and is not an empty directory."
+- We surface `result.errorKind = 'clone-failed'` + `result.error = <stderr>` in the red error panel.
+
+**v2 improvements:**
+1. **Pre-flight check.** Before invoking gh/git, check if `<parentDir>/<repoName>` already exists. If yes, show an inline warning BEFORE the user clicks Clone: *"`~/code/duo` already exists. Pick a different parent or rename."*
+2. **Detect existing-repo case.** If the existing folder IS a clone of the same repo (check `git remote get-url origin` matches the URL), offer "Open existing folder" instead of cloning.
+3. **Friendlier error message.** When clone fails on destination collision, recognize it (parse stderr for "already exists") and render: *"`<path>` already exists. Pick a different parent or remove the existing folder first."* with a "Reveal in Finder" button.
+
+**Estimate:** 0.5 dev day.
+
+**Cross-ref.** FOLLOWUP-025 v2 (parent task — the Clone modal that walks owner through cloning a repo).
 
 ---
 

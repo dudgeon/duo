@@ -472,19 +472,30 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       onClick={onWhitespaceClick}
     >
       {/* ENH-152a v2 — git status ribbon. SLIM-TOP per proto-Q1.
-          Renders only when the user has navigated INSIDE the repo
-          root (proto-Q2 BREADCRUMB-DEEP) — the root row isn't in the
-          visible tree, so the ribbon acts as a proxy for it. When
-          the root IS visible in the tree, the inline chip on the root
-          row covers the indicator (rendered inside TreeNodes via
-          isRepoRoot+chipText props). Clean repos still show a chip
-          per v2 walk-rev2 directive ("always visible"); only
-          non-repos (gitChip === '') stay hidden. */}
-      {gitChip && isInRepo && (
+          v2 walk-rev4 FAIL fix: ribbon now right-clickable. Synthesizes
+          a DirEntry for gitSnap.workTreeRoot + reuses popupMenu so the
+          ribbon's context menu is identical to right-clicking the
+          repo-root folder itself, including "Open on GitHub" / "Copy
+          GitHub URL" (the items owner expected at walk-rev4 and didn't
+          see — they only worked on file/folder rows, not the ribbon).
+          Tooltip also now includes the full workTreeRoot path so the
+          user can see where the .git lives (helps when the ribbon
+          surprises them by showing in a directory they didn't realize
+          was a git repo). */}
+      {gitChip && isInRepo && gitSnap?.workTreeRoot && (
         <div
-          className="px-3 py-1.5 mb-1 text-[11px] font-mono text-ink-mute border-b border-paper-rule bg-paper-deep flex items-center gap-2 cursor-default"
-          title={chipTooltip}
+          className="px-3 py-1.5 mb-1 text-[11px] font-mono text-ink-mute border-b border-paper-rule bg-paper-deep flex items-center gap-2 cursor-context-menu hover:bg-paper-edge transition-colors"
+          title={`${chipTooltip}\n${gitSnap.workTreeRoot}`}
           data-duo-git-ribbon="1"
+          onContextMenu={(e) => {
+            if (!gitSnap?.workTreeRoot) return
+            const ribbonEntry: DirEntry = {
+              name: repoName || 'repo',
+              path: gitSnap.workTreeRoot,
+              kind: 'directory'
+            }
+            void popupMenu(e, ribbonEntry, false)
+          }}
         >
           <span className="text-accent" aria-hidden="true">⎇</span>
           <span className="font-medium text-ink">{repoName || 'repo'}</span>
