@@ -1218,10 +1218,28 @@ function FolderRepoChip({ snap, chip, folderName }: FolderRepoChipProps) {
     >
       <span
         ref={iconRef}
-        className={`text-[11px] leading-none cursor-default ${iconColorClass} hover:text-accent transition-colors`}
+        className={`inline-flex items-center justify-center cursor-default ${iconColorClass} hover:text-accent transition-colors`}
         aria-label={tooltip}
+        style={{ width: 11, height: 11 }}
       >
-        ⎇
+        {/* Lucide git-branch (owner pick, ENH-152a v2 round-5).
+            stroke-width 2.25 reads cleanly at 11px. */}
+        <svg
+          width="11"
+          height="11"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <line x1="6" x2="6" y1="3" y2="15" />
+          <circle cx="18" cy="6" r="3" />
+          <circle cx="6" cy="18" r="3" />
+          <path d="M18 9a9 9 0 0 1-9 9" />
+        </svg>
       </span>
       {iconRect && createPortal(
         <span

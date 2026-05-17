@@ -193,15 +193,16 @@ Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether 
 
 ### ENH-152a v2 peer-repos: Repo-root icon + hover-revealed chip popover (modified-Option-B)
 
-**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Three rounds:
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Five rounds:
 - **Round 1 (initial fix):** owner caught the gap in rev4 walk: *"in navigator, if multiple folders are visible that are the root of repos, they should have an inline indicator of this status — you never built this."* Shipped inline chip on every repo-root folder row.
 - **Round 2 (occlusion fix, rev5):** inline chips occluded long folder names. Built a 5-option playground at [`docs/research/repo-chip-occlusion-fix.html`](docs/research/repo-chip-occlusion-fix.html); owner picked **modified Option B**: small right-aligned git icon (always visible, state-colored) + chip floats in as a popover when hovering the ICON specifically (not the row). Folder-name reading is undisturbed.
 - **Round 3 (left-truncation fix, post-rev5):** the round-2 chip popover anchored via CSS `absolute right-full` was getting clipped on its LEFT side by the navigator's `overflow-auto` scroll container — long branch names ("claude/implement-session-share-J02X3 · 1 modified") had their first ~15 chars cut off. Fix: extracted `FolderRepoChip` subcomponent; popover now renders via `createPortal(..., document.body)` with `position: fixed` and viewport-coordinate placement. Portal escapes ALL parent overflow contexts.
 - **Round 4 (position-below-row, post-round-3):** round-3 chip still rendered horizontally next to the icon — for very long branch names + narrow navigators, the chip got clamped to viewport-left=8 which felt visually disconnected from the row. Owner picked: chip renders directly **below the row**, left-aligned with the row content (via `closest('button')` row-rect lookup), extending rightward into the working pane area as needed. No clipping; visually tied to the folder it describes; same pointer-events:none hover behavior.
+- **Round 5 (icon glyph swap, post-round-4):** the placeholder `⎇` was actually macOS's option-key symbol, not a git icon. Built [`docs/research/repo-icon-glyph-options.html`](docs/research/repo-icon-glyph-options.html) with 7 candidates (Lucide git-branch / fork / commit-horizontal, Octicons git-branch filled, Octicons repo, custom branch-dots, current). Owner picked **A · Lucide `git-branch`** — the canonical "branch off the main line" used by VS Code, Vercel, Linear, etc. Inlined as 11×11 SVG with stroke-width 2.25 and `stroke="currentColor"` so state colors (ink-mute / accent / warn) inherit cleanly.
 
 **Final UI (locked):**
-- Right-aligned `⎇` icon on every repo-root folder row.
-- Icon color reflects state: ink-mute (clean), accent (dirty), warn (diverged).
+- Right-aligned **Lucide `git-branch` SVG** (11px, stroke-width 2.25) on every repo-root folder row — replaces the placeholder `⎇` glyph (which was actually macOS's option-key symbol). Owner picked from [`docs/research/repo-icon-glyph-options.html`](docs/research/repo-icon-glyph-options.html); VS Code / Vercel / Linear all use the same Lucide icon, so it reads universally as "git."
+- Icon color reflects state: ink-mute (clean), accent (dirty), warn (diverged). `stroke="currentColor"` so all states inherit cleanly.
 - On icon-hover: chip fades in (opacity, 150ms) directly **below the row**, left-aligned with the row content. Rendered via `createPortal` to `document.body` with `position: fixed` so it escapes the navigator's scroll-container overflow. Long branch names extend rightward into the working pane area.
 - Popover is `pointer-events-none` so it doesn't block clicks.
 - Chip is full-text (no truncation).

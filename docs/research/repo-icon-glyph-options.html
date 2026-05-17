@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Repo-root glyph options — pick the icon for the Navigator's ⎇ slot</title>
+<style>
+/* ===== Atelier kernel (inlined) ===== */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px; margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, system-ui, sans-serif;
+  font-weight: 600; margin: 22px 0 8px; font-size: 15px;
+}
+p { margin: 8px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px; background: var(--paper-deep);
+  padding: 1px 5px; border-radius: 3px;
+}
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper);
+  border: 1px solid var(--paper-rule); border-radius: 4px;
+  padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+  color: var(--ink); resize: vertical; min-height: 50px; margin-top: 8px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar {
+  position: sticky; bottom: 0;
+  margin: 32px -40px -96px; padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none;
+  border-radius: 5px; padding: 9px 18px; font-family: inherit;
+  font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ===== Per-playground overrides ===== */
+
+/* Mock navigator strip — visually approximates Duo's actual nav rows
+   so each candidate icon is judged in real context. Dark surface,
+   muted text, ⎇ slot at the row's right edge. */
+.nav-mock {
+  background: #0f0f10;
+  border: 1px solid #2a2a2c;
+  border-radius: 8px;
+  padding: 8px 0;
+  margin: 8px 0 16px;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+.nav-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 12px 2px 18px;
+  font-size: 13px; color: #c4c4c8;
+  line-height: 1.4;
+}
+.nav-row .chev { color: #8a8a8e; width: 10px; }
+.nav-row .ficon {
+  width: 12px; height: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #d4a76b;
+}
+.nav-row .ficon svg { width: 12px; height: 12px; }
+.nav-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nav-row .git-slot {
+  flex: 0 0 auto;
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nav-row .git-slot.clean { color: #6f6f73; }
+.nav-row .git-slot.dirty { color: #c46a1c; }
+.nav-row .git-slot.diverged { color: #b07527; }
+.nav-row .git-slot svg {
+  /* Render at 11px to match Duo's text-[11px] sizing */
+  width: 11px; height: 11px;
+}
+.nav-row .git-slot .glyph-char {
+  font-size: 11px;
+  line-height: 1;
+  font-family: -apple-system, system-ui, sans-serif;
+}
+
+/* Comparison panel — show each icon at 11px (actual) and 24px (zoom)
+   side by side so micro-detail loss is obvious. */
+.zoom-row {
+  display: grid;
+  grid-template-columns: 50px 50px 1fr;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--paper-rule);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.zoom-row:last-child { border-bottom: none; }
+.zoom-row .actual {
+  width: 28px; height: 28px;
+  background: #0f0f10;
+  border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #c46a1c;
+}
+.zoom-row .actual svg { width: 11px; height: 11px; }
+.zoom-row .actual .glyph-char { font-size: 11px; line-height: 1; }
+.zoom-row .zoom {
+  width: 40px; height: 40px;
+  background: #0f0f10;
+  border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: #c46a1c;
+}
+.zoom-row .zoom svg { width: 24px; height: 24px; }
+.zoom-row .zoom .glyph-char { font-size: 24px; line-height: 1; }
+.zoom-row .label-cell strong { color: var(--ink); font-weight: 600; }
+
+/* SVG source preview (collapsed) */
+.svg-source {
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 8px 10px; border-radius: 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px; line-height: 1.45; overflow-x: auto;
+  margin-top: 8px;
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Repo-root glyph options — Navigator git indicator</h1>
+  <div class="meta">
+    <span class="pill">Sprint 17</span>
+    <span class="pill">ENH-152a v2 round-5</span>
+    Currently using <code>⎇</code> (macOS option-key glyph) — not actually a git symbol. Pick a more recognizable replacement.
+  </div>
+</header>
+
+<div class="intro">
+  <strong>Why this matters.</strong> The repo-root indicator sits next to every git-repo folder
+  in the Navigator. It's small (11px), needs to read as "this folder is a git repo" at a glance,
+  and changes color (ink-mute → accent → warn) to reflect state. <strong>The current <code>⎇</code> is
+  the wrong glyph</strong> — it's macOS's option-key symbol, not a git icon. Below: six candidates
+  rendered at the actual 11px size (top of each row) and a 24px zoom (next to it) so micro-detail
+  loss is visible. Pick which works best.
+</div>
+
+<h2>Side-by-side comparison</h2>
+<p>Each candidate at <strong>11px</strong> (actual Duo nav size) and <strong>24px</strong> (zoom).
+All shown in the "dirty" accent-orange state.</p>
+
+<div style="background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 12px 16px;">
+
+  <div class="zoom-row">
+    <div class="actual"><span class="glyph-char">⎇</span></div>
+    <div class="zoom"><span class="glyph-char">⎇</span></div>
+    <div class="label-cell"><strong>0 · Current: <code>⎇</code> (Unicode option-key)</strong> — baseline. Generic, easy to mistake for keyboard shortcut.</div>
+  </div>
+
+  <div class="zoom-row">
+    <div class="actual">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="6" x2="6" y1="3" y2="15"/>
+        <circle cx="18" cy="6" r="3"/>
+        <circle cx="6" cy="18" r="3"/>
+        <path d="M18 9a9 9 0 0 1-9 9"/>
+      </svg>
+    </div>
+    <div class="zoom">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="6" x2="6" y1="3" y2="15"/>
+        <circle cx="18" cy="6" r="3"/>
+        <circle cx="6" cy="18" r="3"/>
+        <path d="M18 9a9 9 0 0 1-9 9"/>
+      </svg>
+    </div>
+    <div class="label-cell"><strong>A · Lucide <code>git-branch</code></strong> — the canonical "branch off the main line" visual. Used by VS Code, Linear, Vercel. Most universally read as git.</div>
+  </div>
+
+  <div class="zoom-row">
+    <div class="actual">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="18" r="3"/>
+        <circle cx="6" cy="6" r="3"/>
+        <circle cx="18" cy="6" r="3"/>
+        <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/>
+        <path d="M12 12v3"/>
+      </svg>
+    </div>
+    <div class="zoom">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="18" r="3"/>
+        <circle cx="6" cy="6" r="3"/>
+        <circle cx="18" cy="6" r="3"/>
+        <path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/>
+        <path d="M12 12v3"/>
+      </svg>
+    </div>
+    <div class="label-cell"><strong>B · Lucide <code>git-fork</code></strong> — Y-shape (two parents → child). GitHub's "fork" icon family. Implies "repo I could fork" more than "git folder."</div>
+  </div>
+
+  <div class="zoom-row">
+    <div class="actual">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <line x1="3" x2="9" y1="12" y2="12"/>
+        <line x1="15" x2="21" y1="12" y2="12"/>
+      </svg>
+    </div>
+    <div class="zoom">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <line x1="3" x2="9" y1="12" y2="12"/>
+        <line x1="15" x2="21" y1="12" y2="12"/>
+      </svg>
+    </div>
+    <div class="label-cell"><strong>C · Lucide <code>git-commit-horizontal</code></strong> — node-on-a-line. Reads as "commit" or "node" more than "branch." Simplest shape.</div>
+  </div>
+
+  <div class="zoom-row">
+    <div class="actual">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
+      </svg>
+    </div>
+    <div class="zoom">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
+      </svg>
+    </div>
+    <div class="label-cell"><strong>D · GitHub Octicons <code>git-branch</code> (filled)</strong> — GitHub's own glyph. Solid fill = denser, reads strong at 11px even with state-color. The same icon GitHub.com uses inline.</div>
+  </div>
+
+  <div class="zoom-row">
+    <div class="actual">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/>
+      </svg>
+    </div>
+    <div class="zoom">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/>
+      </svg>
+    </div>
+    <div class="label-cell"><strong>E · GitHub Octicons <code>repo</code></strong> — book-with-bookmark. Reads as "repository" (the noun) rather than "branch." Same icon GitHub.com uses to label repos.</div>
+  </div>
+
+  <div class="zoom-row">
+    <div class="actual">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="6" cy="6" r="2.5"/>
+        <circle cx="6" cy="18" r="2.5"/>
+        <circle cx="18" cy="6" r="2.5"/>
+        <path d="M6 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M6 12h6a3 3 0 0 0 3-3V8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+      </svg>
+    </div>
+    <div class="zoom">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="6" cy="6" r="2.5"/>
+        <circle cx="6" cy="18" r="2.5"/>
+        <circle cx="18" cy="6" r="2.5"/>
+        <path d="M6 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M6 12h6a3 3 0 0 0 3-3V8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+      </svg>
+    </div>
+    <div class="label-cell"><strong>F · Custom "branch dots" (filled circles + line)</strong> — same git-branch composition as A but with solid circles. More visual weight at 11px; harder to lose when the navigator is busy.</div>
+  </div>
+
+</div>
+
+<h2>In Navigator context</h2>
+<p>Each candidate rendered in a mock nav row (the row's right-edge slot, accent-color for dirty state).</p>
+
+<div class="nav-mock">
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty"><span class="glyph-char">⎇</span></span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>
+      </svg>
+    </span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9v2c0 .6-.4 1-1 1H7c-.6 0-1-.4-1-1V9"/><path d="M12 12v3"/>
+      </svg>
+    </span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><line x1="3" x2="9" y1="12" y2="12"/><line x1="15" x2="21" y1="12" y2="12"/>
+      </svg>
+    </span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.251 2.251 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.493 2.493 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
+      </svg>
+    </span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty">
+      <svg viewBox="0 0 16 16" fill="currentColor">
+        <path d="M2 2.5A2.5 2.5 0 0 1 4.5 0h8.75a.75.75 0 0 1 .75.75v12.5a.75.75 0 0 1-.75.75h-2.5a.75.75 0 0 1 0-1.5h1.75v-2h-8a1 1 0 0 0-.714 1.7.75.75 0 1 1-1.072 1.05A2.495 2.495 0 0 1 2 11.5Zm10.5-1h-8a1 1 0 0 0-1 1v6.708A2.486 2.486 0 0 1 4.5 9h8ZM5 12.25a.25.25 0 0 1 .25-.25h3.5a.25.25 0 0 1 .25.25v3.25a.25.25 0 0 1-.4.2l-1.45-1.087a.249.249 0 0 0-.3 0L5.4 15.7a.25.25 0 0 1-.4-.2Z"/>
+      </svg>
+    </span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    </span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty">
+      <svg viewBox="0 0 24 24" fill="currentColor">
+        <circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/>
+        <path d="M6 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M6 12h6a3 3 0 0 0 3-3V8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+      </svg>
+    </span>
+  </div>
+</div>
+<p style="font-size: 12.5px; color: var(--ink-mute); margin-top: -8px;">Rows in order: <strong>0</strong> (current), <strong>A</strong> Lucide branch, <strong>B</strong> Lucide fork, <strong>C</strong> Lucide commit, <strong>D</strong> Octicons branch (filled), <strong>E</strong> Octicons repo, <strong>F</strong> custom branch-dots.</p>
+
+<h2>Multi-row context — same icon repeated, varied state</h2>
+<p>How does the chosen icon scan when 6+ repo-rows are visible? Below: <strong>option A (Lucide git-branch)</strong> shown across clean / dirty / diverged states.</p>
+
+<div class="nav-mock">
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="name">duo</span>
+    <span class="git-slot dirty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="name">figma-cli-skill</span>
+    <span class="git-slot clean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="name">markdown-feedback</span>
+    <span class="git-slot dirty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="name">project-microsite</span>
+    <span class="git-slot clean"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="name">session-share</span>
+    <span class="git-slot dirty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+  </div>
+  <div class="nav-row">
+    <span class="chev">▸</span>
+    <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+    <span class="name">space-jam</span>
+    <span class="git-slot diverged"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+  </div>
+</div>
+
+<h2>Decision</h2>
+
+<div class="decision-card" data-q-id="glyph">
+  <div class="q-title">Q · Pick the glyph</div>
+  <div class="q-prompt">Which icon replaces <code>⎇</code> in the Navigator's repo-root indicator slot?</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-glyph" value="0-current-keep"><div class="q-option-body">
+      <div class="q-option-title">0 · Keep <code>⎇</code> (no change)</div>
+      <div class="q-option-rationale">Stick with the option-key glyph. Saves work but doesn't read as git.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-glyph" value="A-lucide-branch"><div class="q-option-body">
+      <div class="q-option-title">A · Lucide <code>git-branch</code> (stroke) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Most universally read as "git." VS Code / Vercel / Linear / countless dev tools use this exact icon. Renders cleanly at 11px with stroke-width 2.25.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-glyph" value="B-lucide-fork"><div class="q-option-body">
+      <div class="q-option-title">B · Lucide <code>git-fork</code></div>
+      <div class="q-option-rationale">Y-shape (3 circles + connector). Reads as "fork" specifically rather than "git folder."</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-glyph" value="C-lucide-commit"><div class="q-option-body">
+      <div class="q-option-title">C · Lucide <code>git-commit-horizontal</code></div>
+      <div class="q-option-rationale">Node-on-a-line. Simplest. Less obviously "branch" than A; more "commit point."</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-glyph" value="D-octicons-branch-filled"><div class="q-option-body">
+      <div class="q-option-title">D · GitHub Octicons <code>git-branch</code> (filled)</div>
+      <div class="q-option-rationale">GitHub's own icon. Solid fill = more visual weight at 11px. Reads strongly even with state-color.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-glyph" value="E-octicons-repo"><div class="q-option-body">
+      <div class="q-option-title">E · GitHub Octicons <code>repo</code> (book)</div>
+      <div class="q-option-rationale">Same icon GitHub.com uses to label repos. Reads as "repository" (noun) rather than "git state." Different semantic.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-glyph" value="F-custom-dots"><div class="q-option-body">
+      <div class="q-option-title">F · Custom branch-dots (filled circles)</div>
+      <div class="q-option-rationale">Same composition as A but with solid circles. Heavier at 11px; harder to lose against busy nav backgrounds.</div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="Notes / pixel-peeped observations / alternative I'd like to see…"></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 1 decision answered</div>
+  <button id="copy-btn" type="button">Copy decision</button>
+</div>
+
+<script>
+  const radios = document.querySelectorAll('input[type="radio"]')
+  const notesEls = document.querySelectorAll('.q-notes')
+  const answeredEl = document.getElementById('answered-count')
+  const copyBtn = document.getElementById('copy-btn')
+
+  function refreshAnswered() {
+    const groups = new Set()
+    radios.forEach(r => { if (r.checked) groups.add(r.name) })
+    answeredEl.textContent = String(groups.size)
+  }
+  radios.forEach(r => r.addEventListener('change', refreshAnswered))
+
+  copyBtn.addEventListener('click', async () => {
+    const card = document.querySelector('.decision-card')
+    const qTitle = card.querySelector('.q-prompt').textContent.trim()
+    const checked = card.querySelector('input[type="radio"]:checked')
+    const value = checked ? checked.value : 'UNANSWERED'
+    const optionTitle = checked ? checked.closest('.q-option').querySelector('.q-option-title').textContent.trim() : '—'
+    const notes = card.querySelector('.q-notes').value.trim()
+
+    const payload = [
+      `[${value}] ${qTitle}`,
+      `  → ${optionTitle}`,
+      notes ? `  notes: ${notes}` : null,
+    ].filter(Boolean).join('\n')
+
+    try {
+      await navigator.clipboard.writeText(payload)
+      copyBtn.textContent = 'Copied ✓'
+      copyBtn.classList.add('copied')
+      setTimeout(() => { copyBtn.textContent = 'Copy decision'; copyBtn.classList.remove('copied') }, 1800)
+    } catch (e) {
+      alert('Copy failed: ' + e.message)
+    }
+  })
+
+  refreshAnswered()
+</script>
+
+</body>
+</html>
