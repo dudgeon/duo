@@ -629,19 +629,35 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 17 / v0.7.0 cleanup cut (walk DONE 2026-05-16; cut NOT approved — 4 PRDs filed)
+## Active sprint — Sprint 17 / v0.7.0 cleanup cut (rev5 walk-in-progress; cut not yet approved)
 
-**Walk result: 4 PASS · 9 FAIL · 5 SKIP (18 items).** Owner directive at walk close: file PRDs for complex failures, refresh breadcrumbs, do NOT start fixes, prepare for compaction. See [`docs/dev/smoke-walks/v0.7.0.results.md`](docs/dev/smoke-walks/v0.7.0.results.md) for full results and [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) for the post-walk summary + next-session priorities.
+> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state; this section is a one-paragraph mirror.
 
-**v0.7.0 PRDs filed today (not started; gated on owner-decisions in each):**
-- [`docs/prd/github-integration-cluster-v2.md`](docs/prd/github-integration-cluster-v2.md) — repo-root chip always-visible + Clone modal v2 + right-click GH menu + per-file dots (responds to owner: *"make an html artifact that actually shows the planned github integration features"*).
-- [`docs/prd/enh-159-inspect-mode-v2.md`](docs/prd/enh-159-inspect-mode-v2.md) — click-to-freeze UX + right-click entry points + selection-pause fix.
-- [`docs/prd/followup-025-clone-modal-v2.md`](docs/prd/followup-025-clone-modal-v2.md) — CSS fix + default-cwd + File/right-click entry points.
-- [`docs/prd/bug-125-canvas-baseline-v2.md`](docs/prd/bug-125-canvas-baseline-v2.md) — HTML normalize layer for canvas baseline tracking.
+**Status (2026-05-17 evening):** Marathon close-out session. All four 🟡 v0.7.0 decision gates closed (BUG-125 v2, FOLLOWUP-025 v2, ENH-159 v2, GH-cluster v2 + prototype + occlusion-fix). 5 walk-revs (rev1→rev5) walked. Cut blocked only on owner confirming rev5 PASS for the GH-CLUSTER-PHASE-2 item now using the **modified-Option-B** chip-occlusion fix (small ⎇ icon + hover-revealed popover) per owner's same-session pick.
 
-**New BUGs filed during walk:** BUG-126 (⌘F canvas-search narrowing) · BUG-127 (paste-into-code-block) · BUG-128 (ENH-150 playground blank).
+**Major incident filed (2026-05-17):** owner caught me silently dismissing 6 of 20 locked playground decisions. Memory at [`feedback_never_silently_dismiss_locked_decisions.md`](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_never_silently_dismiss_locked_decisions.md). New rule: every implementation push after a playground walk must explicitly map each locked Q → ship/defer/cannot-ship, AND any defer needs explicit owner yes BEFORE writing code.
 
-**Sprint 17 expanded into v0.7.0 cleanup cut** on 2026-05-16: 4 PRs cleaned + merged (BUG-125 #49, ENH-160 #50, ENH-159 #51, ENH-158 #52), 3 new code features landed on main (BUG-124 logs-dir mkdir, ENH-152a Navigator chip v1, ENH-151 `duo clone` CLI + FOLLOWUP-025 Clone modal v1), and FOLLOWUP-020 `duo close-tab`/`duo close-terminal-tab` shipped.
+**The 15 commits in today's close-out arc:**
+
+| Hash | Headline |
+|---|---|
+| [3c8d615](https://github.com/dudgeon/duo/commit/3c8d615) | BUG-126 + BUG-127 round 1 + 4 PRD-as-playground conversions + 🟡 gate-tracking + cut-version Step 0 hard-block |
+| [b160dde](https://github.com/dudgeon/duo/commit/b160dde) | BUG-127 round 2 — `transformPastedHTML` hook |
+| [05f2175](https://github.com/dudgeon/duo/commit/05f2175) | GH-cluster visual prototype playground |
+| [65fd292](https://github.com/dudgeon/duo/commit/65fd292) | BUG-125 v2 — `core/html/duo-normalize.ts` + 19 vitest |
+| [c86489d](https://github.com/dudgeon/duo/commit/c86489d) | FOLLOWUP-025 v2 — Atelier CSS fix + 3 entry points + default-cwd |
+| [e52b39e](https://github.com/dudgeon/duo/commit/e52b39e) | ENH-159 v2 — inspect three-state machine |
+| [391b6a6](https://github.com/dudgeon/duo/commit/391b6a6) | rev3 FAIL fixes + GH-cluster Phase 1 (ribbon + ENH-155) |
+| [0599f0d](https://github.com/dudgeon/duo/commit/0599f0d) | FOLLOWUP-025 v2 follow-up — success-panel persist + in-progress panel + WCV park |
+| [17b78a1](https://github.com/dudgeon/duo/commit/17b78a1) | BUG-130 filed |
+| [ba2b1e8](https://github.com/dudgeon/duo/commit/ba2b1e8) | BUG-130 elevated + roadmap entry |
+| [c6a9d1b](https://github.com/dudgeon/duo/commit/c6a9d1b) | rev4 FAIL fix — ribbon right-clickable |
+| [c7e82e1](https://github.com/dudgeon/duo/commit/c7e82e1) | **GH-cluster Phase 2 full bundle** — per-folder chip + per-file dots + fsevents refresh |
+| [9bb15fd](https://github.com/dudgeon/duo/commit/9bb15fd) | **Repo-chip occlusion fix** — modified-Option-B (small icon + hover popover) |
+
+**Memories filed today (2):** [feedback_never_silently_dismiss_locked_decisions](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_never_silently_dismiss_locked_decisions.md) · [feedback_dont_smoke_walk_passing_automated_tests](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_dont_smoke_walk_passing_automated_tests.md) (updated with rev3 incident).
+
+**New tracked items filed:** BUG-129 (`duo open` nonexistent file) · BUG-130 (browser-pane `file://` auto-reload — elevated to architectural, roadmap'd) · BUG-131 (⌘A no-op in playground inputs) · ENH-162 (Clone modal destination collision UX).
 
 **8 sprint commits (pre-cut), all on `main`:**
 
@@ -663,50 +679,30 @@ routed around ad hoc.
 
 **v0.6.14 shipped 2026-05-10** ([release](https://github.com/dudgeon/duo/releases/tag/v0.6.14)) — Sprint 16 commits 1+2: enterprise hotfix. **ENH-141** install-path hardening — `duo` CLI reaches PTY $PATH inside Duo terminals + Claude Code sandboxes (SHIM_DIR target `~/.claude/duo/bin/duo`); **BUG-121** closing the last browser tab no longer respawns about:blank in a loop.
 
-**v0.7.0 walk: DONE 2026-05-16.** Final tally: 4 PASS · 9 FAIL · 5 SKIP. **Cut not approved.** Owner reviews the 4 PRDs above + decides whether to push v0.7.0 forward (apply fixes) or cut a narrower v0.7.0 patch and defer the v2 design work to Sprint 18.
+**Walk-rev arc (5 revs in one session, all ✅ except rev5-in-progress):**
 
-| # | ID | Status | Note |
-|---|---|---|---|
-| 1 | ENH-144 close-tab focus | ✅ PASS | — |
-| 2 | ENH-147 v1 multi-select | ✅ PASS | — |
-| 3 | ENH-143 close-tab doc | ❌ FAIL | placeholder text still references "FOLLOWUP-020"; **BUG-126** filed for ⌘F canvas-mode search |
-| 4 | BUG-123 v1 cell paint | ❌ FAIL | table didn't render; **BUG-127** filed for paste-into-code-block |
-| 5 | BUG-079 + ENH-084 v4 passive | ✅ PASS | — |
-| 6 | ENH-156 verb-split | ❌ FAIL | walk-instruction issue (jargon "fixture"); feature likely PASS |
-| 7 | BUG-125 watcher symlink | ❌ FAIL | step 5 fail; **v2 PRD: canvas baseline tracking** |
-| 8 | ENH-158 boot CLI shim | ⏭ SKIP | walk-instruction unclarity; agent-PASS via shim-existence |
-| 9 | ENH-159 DOM context + inspect | ❌ FAIL | send works; **v2 PRD: click-to-freeze + entry points** |
-| 10 | ENH-160 .pkg installer | ⏭ SKIP | defer to enterprise upgrade window |
-| 11 | ENH-152a git chip | ❌ FAIL | owner rejected clean-stays-invisible; **PRD: GH-cluster v2** |
-| 12 | ENH-151 + 152a CLI | ⏭ SKIP | owner trusted agent verification |
-| 13 | FOLLOWUP-025 Clone modal | ❌ FAIL | CSS bleed + wrong cwd + chord-only; **v2 PRD: modal fix-list** |
-| 14 | FOLLOWUP-020 close-tab CLI | ✅ PASS | — |
-| 15 | BUG-124 logs-dir mkdir | ❓ AMBIGUOUS | owner marked FAIL but evidence shows working; confirm next session |
-| 16 | v0.6.15 enterprise smoke | ⏭ SKIP | needs version-context clarification |
-| 17 | ENH-154 playground | ⏭ SKIP | blocked on GH-cluster v2 work |
-| 18 | ENH-150 playground | ❌ FAIL | playground renders blank; **BUG-128** filed |
-
-**Carry-forward to Sprint 18 (post-walk):**
-
-| ID | Title | Gate |
+| Walk | Result | Action taken |
 |---|---|---|
-| **BUG-079 fix** | Tab-cycle latency — instrumentation captured; awaits prod repro for forensic data | Owner triggers naturally |
-| **ENH-084 v4 fix** | Aux pane focus glow — instrumentation captured; awaits 60s click-around walk | Owner walks (5 min) + pastes captured `[ENH-084-v4]` log |
-| **BUG-093** | Move to Split View renderer crash. Carried from Sprint 16; CLI repro didn't fire | User-triggered repro |
-| **BUG-122 deeper fix** | Save-conflict banner re-surface. Defensive hardening shipped v0.6.15 | Next-repro `last-conflict.log` capture |
-| **BUG-123 v2** | Cross-boundary drag-to-outside-table (collapses to single-cell today). Override `tableEditing()`'s `move()` handler | Owner walks v1; if still feels broken, file v2 spec |
-| **ENH-148** | Multi-select v2: ⇧-click + ⌘-A + CLI parity | None — half-day to full-day |
-| **ENH-152b** | Per-file dirty dots in Navigator (Slice 2 of ENH-152) — same data source as the root chip | None — half-day |
-| **ENH-152c** | fsevents-driven invalidation of the git status chip (replace focus-poll) | None — half-day |
-| **ENH-157** | Comments in browser pane (CDP-injected sidecar) — exposed by ENH-156 verb-split | Half-to-full sprint |
-| **FOLLOWUP-021** | `duo install --clean` — strip vestigial install fences + dead Stage-20 shim paths | None — half-day |
-| **FOLLOWUP-026** | Native File menu "Clone…" entry (renderer modal exists at ⌘⇧K via FOLLOWUP-025; menu entry deferred) | None — half-day |
-| **ENH-137** | Beginner's Guide content | Owner-authored draft |
-| **ENH-141 enterprise smoke** | v0.6.15 work-machine validation | Owner work-machine session |
+| **rev1** (2026-05-16) | 4 PASS · 9 FAIL · 5 SKIP | 4 PRDs filed as playgrounds; compaction |
+| **rev2** | All 4 gate decisions locked + earlier FAILs addressed | BUG-125 v2 + FOLLOWUP-025 v2 + ENH-159 v2 + GH-cluster v2 implementations shipped |
+| **rev3** | 5 PASS · 2 FAIL · 4 SKIP | Success-panel persist + Claude-live guard + right-click "Select element" shipped same-session |
+| **rev4** | 2 PASS · 1 FAIL · 2 SKIP | Ribbon right-clickable + tooltip workTreeRoot path + dismissal audit triggered |
+| **rev5** | In progress (paused on chip occlusion) | GH-cluster Phase 2 full bundle shipped + modified-Option-B icon/popover shipped |
 
-**Shipped in v0.7.0 cleanup cut (no longer carry-forward):** BUG-124 (logs-dir mkdir) · FOLLOWUP-020 (`duo close-tab` CLI) · FOLLOWUP-019 (canvas external-write reconciliation — actually shipped Sprint 16, status was stale).
+**Currently owed:** owner confirms rev5 PASS for GH-CLUSTER-PHASE-2 item with the modified-B icon/popover fix. Then cut.
 
-**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for the full Sprint 17 detail + Sprint 16 close-out + v0.6.15 cut record.**
+**Filed during today (not blocking cut):**
+
+| ID | Status |
+|---|---|
+| **BUG-129** (`duo open` nonexistent file) | 🟡 Filed |
+| **BUG-130** (browser-pane `file://` auto-reload — architectural) | 🟡 Filed + roadmap'd |
+| **BUG-131** (⌘A no-op in playground inputs) | 🟡 Filed |
+| **ENH-162** (Clone modal destination-collision UX) | 🟡 Filed |
+
+**Carry-forward to Sprint 18:** BUG-079 (tab-cycle latency, needs prod repro) · ENH-084 v4 (aux glow, needs 60s walk) · BUG-093 (split crash) · BUG-122 deeper fix (next-repro log) · ENH-148 (multi-select v2) · ENH-157 (browser-pane comments) · FOLLOWUP-021 (`duo install --clean`) · ENH-137 (Beginner's Guide) · ENH-141 enterprise smoke.
+
+**Read [docs/dev/active-sprint.md](docs/dev/active-sprint.md) for full session arc + commit inventory + decisions audit.**
 
 ## Open questions needing Geoff's input
 

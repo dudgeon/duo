@@ -667,7 +667,7 @@ Pair with BUG-081 fix in v0.6.7. Sprint shape:
 
 ### ENH-156: Boot-time self-healing CLI shim — SHIM_DIR/duo as the sole canonical CLI location
 
-**Status:** 🚧 In flight Sprint 17 (2026-05-16) on branch `claude/new-session-MVuCt`. Ships in v0.6.16.
+**Status:** ✅ **Renumbered → ENH-158 + shipped Sprint 17 as part of v0.7.0 cleanup-cut PR #52** (commit 5cbc189). Self-healing of `~/.claude/duo/bin/duo` symlink on app boot — strip dead Stage-20 shim paths + drop the SHIM_DIR canonical symlink. Owner walked rev2 + agent-confirmed shim exists. The ENH-156 number was reused for the HTML verb-split (see the OTHER ENH-156 entry); this ID is preserved for historical pointer.
 **Priority:** P0 — closes a load-bearing silent-failure surface in the install routine that bit an enterprise user on v0.6.15 and produced the exact `command not found` → "sandbox is blocking duo" misdiagnosis that ENH-141 was supposed to prevent.
 
 **Origin.** User reported a Claude Code session diagnosing `duo: command not found` inside a Claude Code sandbox on Duo v0.6.15. Diagnostic on the user's machine surfaced four overlapping install vestiges (only `~/.claude/duo/bin/claude` present, no `duo` entry; stale `~/.local/bin/duo` symlink into April dev checkout; obsolete `# Duo CLI` fence in `~/.zshrc`; FirstLaunchBanner had shown a *"Couldn't update your shell config"* error on a prior upgrade). ENH-141's SHIM_DIR/duo symlink had failed silently (`console.warn` only) and the FirstLaunchBanner didn't re-fire on upgrade, so the user upgraded across multiple Duo versions with a non-functional CLI shim.
@@ -6018,7 +6018,7 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ### ENH-156: HTML verb-split — `duo open <html>` → browser; `duo edit <html>` → canvas
 
-**Status:** 🟡 In progress Sprint 18 (2026-05-16). Owner picked option (a) from the verb-split assessment + option 2 ordering (ship verb-split now; browser-pane comments as the immediate follow-up = ENH-157).
+**Status:** ✅ **Shipped 2026-05-16 (commit 7a34e7e, ships in v0.7.0).** Verb-driven routing replaced the `<meta name="duo-open-in">` consultation. `duo open` → browser pane (interactive, scripts run); `duo edit` → canvas mode (source-editable). Overrides: `--canvas` / `--browser`. UI right-click "Edit in canvas" mirrors `duo edit`. Companion: ENH-157 (browser-pane comments) was filed as the follow-up exposed by this split — deferred to a future sprint (see ENH-157 entry below).
 **Priority:** P0 for Sprint 18 — addresses the "make an HTML artifact and open it for me" outcome that today silently routes to canvas when the agent forgets `<meta duo-open-in="browser">`.
 **Filed:** 2026-05-16.
 
