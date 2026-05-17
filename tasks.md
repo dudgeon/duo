@@ -6372,9 +6372,9 @@ Verified the gap empirically:
 
 ### BUG-130: Browser pane `file://` tabs don't auto-reload when the underlying file is mutated via CLI
 
-**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 walk of ENH-159 v2 inspect mode).
-**Priority:** Medium — breaks the "agent mutates a file, user sees the change" feedback loop. Currently the user has to manually press ⌘R / reload after every CLI mutation.
-**Filed:** 2026-05-17.
+**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 walk of ENH-159 v2 inspect mode). Filed to roadmap as **L2-PLAYGROUND-AUTORELOAD** — architectural, not QOL.
+**Priority:** **High (architectural).** Owner framing: *"if we are going to use chromium for playground, with the agent mutating the playground, refreshing needs to be automated, or we need to use something other than chromium for playgrounds."*
+**Filed:** 2026-05-17. **Roadmap entry:** [`docs/roadmap.html § L2-PLAYGROUND-AUTORELOAD`](docs/roadmap.html).
 
 **Symptom.** Owner during ENH-159 v2 inspect walk: *"in the 2nd or third step, where you add a button to the html canvas via cli, the button did not immediately appear — user had to manually hit refresh."*
 

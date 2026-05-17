@@ -1012,6 +1012,19 @@
     <h2 class="phase-heading" id="phase-backlog">Backlog (no fixed order)</h2>
     <p class="phase-tagline">Pull in when convenient or tied to a specific feature.</p>
 
+    <article class="stage pending" id="backlog-playground-autoreload" data-id="backlog-playground-autoreload">
+      <h3>Browser-pane <code>file://</code> auto-reload (BUG-130) <span class="glyph pending"></span></h3>
+      <div class="status-line">🟡 <strong>Filed 2026-05-17 — architectural, not QOL.</strong> Owner directive: <em>"if we are going to use chromium for playground, with the agent mutating the playground, refreshing needs to be automated, or we need to use something other than chromium for playgrounds."</em> Currently the browser pane shows stale content after any CLI / agent mutation of the file on disk; user has to manually ⌘R. This breaks the core agent-driven-playground feedback loop that ENH-156 (verb-split, `duo open` → browser pane default) and Stage 28 (lesson packs as live playgrounds) both lean on.</div>
+      <p class="blurb">When an agent edits an HTML file the user is looking at in the browser pane — common during inspect / debug / playground iteration — the page stays stale. Chromium doesn't natively auto-reload <code>file://</code> URLs on disk change (this is by design — file:// is treated like any HTTP URL). Canvas mode (kind: 'page') has FOLLOWUP-019 / BUG-125 v2 reconciliation that handles this; browser mode has no equivalent. Now that ENH-156 makes <code>duo open</code> the default surface for HTML files, the gap is on the hot path.</p>
+      <ul class="subitems">
+        <li><span class="glyph pending"></span><span class="label"><strong>Approach A — chokidar watcher on active file:// tab (recommended).</strong> When the active browser tab's URL is <code>file://...</code>, register a chokidar watcher (reuse <code>electron/files-service.ts</code>) on the file path. On change → <code>webContents.reload()</code> for that tab, debounced 250ms. Lifecycle: watch on tab nav-to-file://; stop on tab close or nav-to-non-file://. Estimate ~half-day. Mirrors the canvas-mode external-write pattern but simpler (no dirty-buffer to reconcile).</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Approach B — switch playgrounds off Chromium entirely.</strong> Use a different rendering surface (e.g. an Electron BrowserWindow with custom http:// server fronting the local files, or a WCV with a content-script extension that intercepts file:// loads). More invasive; opens unrelated complexity around devtools / sandboxing. Reserved as the fallback if Approach A has untenable edge cases.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Optional polish</strong> — subtle "↻ reloading" hint in the tab strip during reload window, so the user knows the change came in.</span></li>
+        <li><span class="glyph pending"></span><span class="label"><strong>Edge cases to handle</strong>: (a) rapid multi-line writes via <code>duo html append</code> in a loop → debounce. (b) Concurrent watchers on the same file from canvas-mode AND browser-mode on different tabs — should both reload. (c) Watcher cleanup on app quit (no orphaned chokidar handles).</span></li>
+      </ul>
+      <div class="comment"><label>Comment</label><textarea data-key="backlog-playground-autoreload" placeholder="comment / question / note"></textarea><div class="saved-hint">saved</div></div>
+    </article>
+
     <article class="stage pending" id="backlog" data-id="backlog">
       <h3>Backlog items</h3>
       <ul class="subitems">
