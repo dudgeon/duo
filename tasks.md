@@ -196,14 +196,15 @@ Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether 
 **Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Three rounds:
 - **Round 1 (initial fix):** owner caught the gap in rev4 walk: *"in navigator, if multiple folders are visible that are the root of repos, they should have an inline indicator of this status — you never built this."* Shipped inline chip on every repo-root folder row.
 - **Round 2 (occlusion fix, rev5):** inline chips occluded long folder names. Built a 5-option playground at [`docs/research/repo-chip-occlusion-fix.html`](docs/research/repo-chip-occlusion-fix.html); owner picked **modified Option B**: small right-aligned git icon (always visible, state-colored) + chip floats in as a popover when hovering the ICON specifically (not the row). Folder-name reading is undisturbed.
-- **Round 3 (left-truncation fix, post-rev5):** the round-2 chip popover anchored via CSS `absolute right-full` was getting clipped on its LEFT side by the navigator's `overflow-auto` scroll container — long branch names ("claude/implement-session-share-J02X3 · 1 modified") had their first ~15 chars cut off. Fix: extracted `FolderRepoChip` subcomponent; popover now renders via `createPortal(..., document.body)` with `position: fixed` and viewport-coordinate placement (right edge at icon left minus 4px, vertically centered on icon). Portal escapes ALL parent overflow contexts. Chip can now extend arbitrarily far left without truncation.
+- **Round 3 (left-truncation fix, post-rev5):** the round-2 chip popover anchored via CSS `absolute right-full` was getting clipped on its LEFT side by the navigator's `overflow-auto` scroll container — long branch names ("claude/implement-session-share-J02X3 · 1 modified") had their first ~15 chars cut off. Fix: extracted `FolderRepoChip` subcomponent; popover now renders via `createPortal(..., document.body)` with `position: fixed` and viewport-coordinate placement. Portal escapes ALL parent overflow contexts.
+- **Round 4 (position-below-row, post-round-3):** round-3 chip still rendered horizontally next to the icon — for very long branch names + narrow navigators, the chip got clamped to viewport-left=8 which felt visually disconnected from the row. Owner picked: chip renders directly **below the row**, left-aligned with the row content (via `closest('button')` row-rect lookup), extending rightward into the working pane area as needed. No clipping; visually tied to the folder it describes; same pointer-events:none hover behavior.
 
 **Final UI (locked):**
 - Right-aligned `⎇` icon on every repo-root folder row.
 - Icon color reflects state: ink-mute (clean), accent (dirty), warn (diverged).
-- On icon-hover: chip slides in from the right (translate-x + opacity, 150ms transition) as a floating popover (absolute positioned, `shadow-md`, `z-10`).
-- Popover is `pointer-events-none` when hidden so it doesn't block clicks.
-- Chip is full-text (no truncation) — popover floats over the row's empty space.
+- On icon-hover: chip fades in (opacity, 150ms) directly **below the row**, left-aligned with the row content. Rendered via `createPortal` to `document.body` with `position: fixed` so it escapes the navigator's scroll-container overflow. Long branch names extend rightward into the working pane area.
+- Popover is `pointer-events-none` so it doesn't block clicks.
+- Chip is full-text (no truncation).
 - `title` attribute on the wrapper provides keyboard/screenreader access.
 
 **Implementation:**

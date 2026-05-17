@@ -1185,26 +1185,25 @@ function FolderRepoChip({ snap, chip, folderName }: FolderRepoChipProps) {
     const r = iconRef.current?.getBoundingClientRect()
     if (r) setIconRect(r)
   }
-  // Two-pass measure: render the popover offscreen first, then on the
-  // synchronous useLayoutEffect pass measure its width and clamp the
-  // left edge into the viewport. Without this clamp, long branch names
-  // (e.g. "claude/implement-session-share-J02X3 · 1 modified") extend
-  // off the viewport left when the navigator panel is narrow — chip
-  // anchored at icon.left - 4 by default, but if (icon.left - 4 -
-  // chipWidth) < 8, we shift right to keep the chip's left edge at 8.
-  // The chip may then overlap the working pane; that's fine for a
-  // pointer-events:none hover popover.
+  // Position the popover directly below the row (below the folder
+  // name), left-aligned with the row's content. The chip then extends
+  // rightward; long branch names like "claude/implement-session-
+  // share-J02X3 · 1 modified" can extend past the navigator into the
+  // working pane area — fine because the popover is pointer-events:
+  // none and disappears on mouseleave. Avoids the horizontal-overflow
+  // problem that round-3's right-anchored variant had on narrow
+  // navigators.
   useLayoutEffect(() => {
-    if (!iconRect || !popoverRef.current) {
+    if (!iconRect || !iconRef.current) {
       setPos(null)
       return
     }
-    const popoverWidth = popoverRef.current.getBoundingClientRect().width
-    const desiredLeft = iconRect.left - 4 - popoverWidth
-    const minLeft = 8
+    const rowButton = iconRef.current.closest('button')
+    const rowRect = rowButton?.getBoundingClientRect()
+    const chipLeft = rowRect ? rowRect.left : iconRect.left
     setPos({
-      left: Math.max(desiredLeft, minLeft),
-      top: iconRect.top + iconRect.height / 2,
+      left: Math.max(chipLeft, 8),
+      top: iconRect.bottom + 2,
     })
   }, [iconRect])
   return (
@@ -1233,7 +1232,6 @@ function FolderRepoChip({ snap, chip, folderName }: FolderRepoChipProps) {
             top: pos?.top ?? 0,
             left: pos?.left ?? -9999,
             opacity: pos ? 1 : 0,
-            transform: 'translateY(-50%)',
           }}
         >
           {chip}
