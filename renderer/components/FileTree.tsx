@@ -961,26 +961,50 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
           >
             <FileIcon entry={entry} />
             <span className="truncate">{entry.name}</span>
-            {/* ENH-152a v2 peer-repos — inline chip on folder rows
-                that are themselves git repo roots. Playground § 1A
-                "root visible" case: when navigator's cwd contains
-                multiple repos as children, each gets its chip. The
-                chip text is formatted by formatGitStatusChip (same
-                shape as the ribbon's chip). Tooltip plain-English
-                per proto-Q3. */}
+            {/* ENH-152a v2 peer-repos — modified-Option-B per owner's
+                rev5 pick: instead of inline chip (which occluded long
+                folder names), show a small right-aligned git icon
+                that's always visible + a floating chip popover that
+                appears on icon hover (NOT row hover — so reading the
+                folder name doesn't trigger the chip).
+                State-colored icon for at-a-glance:
+                  clean → ink-mute (subtle)
+                  dirty → accent (orange, attention)
+                  diverged → warn (amber)
+                Chip stays full-text (no truncation). Tooltip on the
+                wrapper for keyboard/screenreader access. */}
             {isFolder && childRepoMap?.has(entry.path) && (() => {
               const snap = childRepoMap.get(entry.path)!
               const chip = formatGitStatusChip(snap)
               if (!chip) return null
               const folderRepoName = entry.name
               const tooltip = formatGitStatusTooltip(snap, folderRepoName)
+              const isDiverged = snap.ahead > 0 || snap.behind > 0
+              const isDirty = snap.dirty
+              const iconColorClass = isDiverged
+                ? 'text-warn'
+                : isDirty
+                  ? 'text-accent'
+                  : 'text-ink-mute'
               return (
                 <span
-                  className="shrink-0 ml-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-accent-soft text-accent-ink font-semibold"
-                  title={tooltip}
+                  className="shrink-0 relative inline-flex items-center group/repo-icon"
+                  data-duo-folder-repo-icon="1"
                   data-duo-folder-repo-chip="1"
+                  title={tooltip}
                 >
-                  {chip}
+                  <span
+                    className={`text-[11px] leading-none cursor-default ${iconColorClass} hover:text-accent transition-colors`}
+                    aria-label={tooltip}
+                  >
+                    ⎇
+                  </span>
+                  <span
+                    className="absolute right-full mr-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-mono rounded bg-accent-soft text-accent-ink font-semibold whitespace-nowrap pointer-events-none opacity-0 -translate-x-1 group-hover/repo-icon:opacity-100 group-hover/repo-icon:translate-x-0 transition-[opacity,transform] duration-150 shadow-md z-10"
+                    data-duo-folder-repo-chip-popover="1"
+                  >
+                    {chip}
+                  </span>
                 </span>
               )
             })()}

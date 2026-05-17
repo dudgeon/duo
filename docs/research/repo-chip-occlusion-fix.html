@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Repo-chip occlusion fix · option mockups</title>
+<style>
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 980px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; }
+p { margin: 8px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Navigator mockup styling — */
+.nav {
+  background: #1a1410;
+  color: #e8e0cb;
+  border-radius: 8px;
+  width: 380px;
+  font-family: -apple-system, system-ui, sans-serif;
+  font-size: 13px;
+  border: 1px solid #3a3328;
+  overflow: hidden;
+}
+.nav .nav-header {
+  background: #221c16;
+  padding: 8px 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #b8ab8e;
+  border-bottom: 1px solid #3a3328;
+}
+.nav .breadcrumb {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #b8ab8e;
+  padding: 6px 12px;
+  background: #1f1812;
+  border-bottom: 1px solid #3a3328;
+}
+.nav .tree { padding: 6px 0; }
+.nav .row {
+  padding: 5px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  position: relative;
+  cursor: default;
+  transition: background-color 0.12s;
+}
+.nav .row:hover { background: #261d15; }
+.nav .row .icon { color: #b8ab8e; font-size: 11px; flex-shrink: 0; }
+.nav .row .name { color: #e8e0cb; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav .row .chip {
+  background: rgba(196, 106, 28, 0.18);
+  color: #d4a368;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* — Option A · truncate chip with ellipsis — */
+.opt-a .chip {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* — Option B · chip visible only on row hover (fade-in) — */
+.opt-b .chip {
+  opacity: 0;
+  transform: translateX(8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+.opt-b .row:hover .chip {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* — Option C · two-line layout: name on row 1, chip on row 2 — */
+.opt-c .row {
+  display: block;
+  padding: 5px 12px 6px;
+}
+.opt-c .row .row-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.opt-c .row .name { flex: 1; }
+.opt-c .row .chip-row {
+  margin-top: 2px;
+  padding-left: 18px;
+  font-size: 9.5px;
+  display: flex;
+  align-items: center;
+}
+.opt-c .row .chip {
+  font-size: 9.5px;
+  padding: 0 5px;
+  background: transparent;
+  color: #c4a684;
+  border: 1px solid rgba(196, 106, 28, 0.35);
+  border-radius: 2px;
+}
+
+/* — Option D · compress-on-hover: chip is full, shrinks to dot on row hover — */
+.opt-d .chip {
+  transition: max-width 0.22s ease, padding 0.22s ease, font-size 0.22s ease;
+  max-width: 200px;
+  overflow: hidden;
+}
+.opt-d .row:hover .chip {
+  max-width: 14px;
+  padding: 1px 4px;
+  font-size: 9px;
+}
+.opt-d .row:hover .chip::after {
+  content: " ⋯";
+}
+.opt-d .row:hover .chip > span { display: none; }
+
+/* — Option E · smart truncate: shorten BRANCH while keeping state — */
+.opt-e .chip { max-width: 140px; }
+.opt-e .chip .branch {
+  display: inline-block;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.opt-e .chip .state { color: #d4a368; }
+
+/* — Mockup labels — */
+.mockup-block {
+  margin: 16px 0;
+}
+.mockup-block .label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+.mockup-block .desc {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-bottom: 8px;
+  line-height: 1.45;
+}
+.mockup-block .interaction-hint {
+  font-size: 11px;
+  color: var(--ink-mute);
+  font-style: italic;
+  margin-top: 6px;
+}
+
+/* Two-up compare layout */
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 16px 0;
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Repo-chip occlusion fix · option mockups</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">2 questions</span>
+    Filed 2026-05-17 · v0.7.0 GH-cluster polish · 5 visual options
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The bug.</strong> Shipped peer-repo inline chips in v0.7.0 (ENH-152a v2). On rows where the folder name is long OR the branch name is long (or both), the chip and name visually collide. Owner: <em>"the repo pins now occlude their associated folder names; please make a mockup of some options to mitigate; use animations if helpful."</em>
+  <br><br>
+  <strong>Test cases below use these rows</strong> (real names from owner's <code>~/Documents/GitHub</code>):
+  <ul style="margin: 4px 0 0; padding-left: 22px;">
+    <li><code>duo</code> + <code>main · 6 modified</code> — fits comfortably</li>
+    <li><code>figma-cli-skill</code> + <code>claude/figma-cli-skill-4FkZg</code> — long branch, medium name</li>
+    <li><code>markdown-feedback</code> + <code>main · 1 modified</code> — clean fit</li>
+    <li><code>project-microsite</code> + <code>claude/implement-design-demo-rJ0fm</code> — long branch + long name</li>
+    <li><code>session-share</code> + <code>claude/implement-session-share-J02X3 · 1 modified</code> — worst case: long branch + state</li>
+  </ul>
+  <br>
+  <strong>Hover any row in the mockups below to see the animation</strong> (options B, D have hover-driven behavior).
+</div>
+
+<h2>0 · Today (the bug — for reference)</h2>
+
+<div class="mockup-block">
+  <div class="label">Today: chip + name fight for the same row, chip wins</div>
+  <div class="desc">The chip is <code>flex-shrink: 0</code> and right-aligned, so when both don't fit the name gets truncated by overflow. This is what owner saw.</div>
+  <div class="nav">
+    <div class="nav-header">Navigator</div>
+    <div class="breadcrumb">~/Documents/GitHub</div>
+    <div class="tree opt-today">
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">duo</span>
+        <span class="chip">main · 6 modified</span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">figma-cli-skill</span>
+        <span class="chip">claude/figma-cli-skill-4FkZg</span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">markdown-feedback</span>
+        <span class="chip">main · 1 modified</span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">project-microsite</span>
+        <span class="chip">claude/implement-design-demo-rJ0fm</span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">session-share</span>
+        <span class="chip">claude/implement-session-share-J02X3 · 1 modified</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>1 · Five mitigation options</h2>
+
+<div class="compare-grid">
+  <div class="mockup-block">
+    <div class="label">Option A · Truncate chip with ellipsis</div>
+    <div class="desc">Hard cap the chip width (~120px). Long branch names truncate with "…"; hover the chip → full tooltip. Folder name always wins on visibility. No animation.</div>
+    <div class="nav">
+      <div class="nav-header">A · Truncated chip</div>
+      <div class="breadcrumb">~/Documents/GitHub</div>
+      <div class="tree opt-a">
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">duo</span>
+          <span class="chip" title="main · 6 modified">main · 6 modified</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">figma-cli-skill</span>
+          <span class="chip" title="claude/figma-cli-skill-4FkZg">claude/figma-cli-skill-4FkZg</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">markdown-feedback</span>
+          <span class="chip" title="main · 1 modified">main · 1 modified</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">project-microsite</span>
+          <span class="chip" title="claude/implement-design-demo-rJ0fm">claude/implement-design-demo-rJ0fm</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">session-share</span>
+          <span class="chip" title="claude/implement-session-share-J02X3 · 1 modified">claude/implement-session-share-J02X3 · 1 modified</span>
+        </div>
+      </div>
+    </div>
+    <div class="interaction-hint">Hover any chip → see full content via native tooltip.</div>
+  </div>
+
+  <div class="mockup-block">
+    <div class="label">Option B · Chip visible only on row hover</div>
+    <div class="desc">Chip is hidden by default; appears (slide + fade in) when the row is hovered. Folder name has the entire row width when unfocused. At-a-glance scanning loses the dirty/branch signal — trade for visual cleanliness.</div>
+    <div class="nav">
+      <div class="nav-header">B · Hover-reveal</div>
+      <div class="breadcrumb">~/Documents/GitHub</div>
+      <div class="tree opt-b">
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">duo</span>
+          <span class="chip">main · 6 modified</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">figma-cli-skill</span>
+          <span class="chip">claude/figma-cli-skill-4FkZg</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">markdown-feedback</span>
+          <span class="chip">main · 1 modified</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">project-microsite</span>
+          <span class="chip">claude/implement-design-demo-rJ0fm</span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">session-share</span>
+          <span class="chip">claude/implement-session-share-J02X3 · 1 modified</span>
+        </div>
+      </div>
+    </div>
+    <div class="interaction-hint">Hover each row → chip slides in from the right.</div>
+  </div>
+</div>
+
+<div class="compare-grid">
+  <div class="mockup-block">
+    <div class="label">Option C · Two-line per row (chip on its own line below the name)</div>
+    <div class="desc">Folder name on line 1, chip indented on line 2. Always visible; full text. Trade: doubles the vertical height of repo-root rows (non-repo rows stay 1 line). Most info, most space.</div>
+    <div class="nav">
+      <div class="nav-header">C · Two-line</div>
+      <div class="breadcrumb">~/Documents/GitHub</div>
+      <div class="tree opt-c">
+        <div class="row">
+          <div class="row-top"><span class="icon">📁</span><span class="name">duo</span></div>
+          <div class="chip-row"><span class="chip">main · 6 modified</span></div>
+        </div>
+        <div class="row">
+          <div class="row-top"><span class="icon">📁</span><span class="name">figma-cli-skill</span></div>
+          <div class="chip-row"><span class="chip">claude/figma-cli-skill-4FkZg</span></div>
+        </div>
+        <div class="row">
+          <div class="row-top"><span class="icon">📁</span><span class="name">markdown-feedback</span></div>
+          <div class="chip-row"><span class="chip">main · 1 modified</span></div>
+        </div>
+        <div class="row">
+          <div class="row-top"><span class="icon">📁</span><span class="name">project-microsite</span></div>
+          <div class="chip-row"><span class="chip">claude/implement-design-demo-rJ0fm</span></div>
+        </div>
+        <div class="row">
+          <div class="row-top"><span class="icon">📁</span><span class="name">session-share</span></div>
+          <div class="chip-row"><span class="chip">claude/implement-session-share-J02X3 · 1 modified</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="interaction-hint">No animation — always visible, indented under each name.</div>
+  </div>
+
+  <div class="mockup-block">
+    <div class="label">Option D · Compress-on-hover (chip shrinks to a dot when you hover the row)</div>
+    <div class="desc">Chip is full-width by default (at-a-glance scanning works). When you hover a row to read it, the chip animates to a small "⋯" so the folder name takes the full width. Best-of-both, but the hover transition can feel busy.</div>
+    <div class="nav">
+      <div class="nav-header">D · Compress-on-hover</div>
+      <div class="breadcrumb">~/Documents/GitHub</div>
+      <div class="tree opt-d">
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">duo</span>
+          <span class="chip" title="main · 6 modified"><span>main · 6 modified</span></span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">figma-cli-skill</span>
+          <span class="chip" title="claude/figma-cli-skill-4FkZg"><span>claude/figma-cli-skill-4FkZg</span></span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">markdown-feedback</span>
+          <span class="chip" title="main · 1 modified"><span>main · 1 modified</span></span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">project-microsite</span>
+          <span class="chip" title="claude/implement-design-demo-rJ0fm"><span>claude/implement-design-demo-rJ0fm</span></span>
+        </div>
+        <div class="row">
+          <span class="icon">📁</span>
+          <span class="name">session-share</span>
+          <span class="chip" title="claude/implement-session-share-J02X3 · 1 modified"><span>claude/implement-session-share-J02X3 · 1 modified</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="interaction-hint">Hover each row → chip shrinks to a "⋯", revealing the full folder name.</div>
+  </div>
+</div>
+
+<div class="mockup-block">
+  <div class="label">Option E · Smart truncate: shorten BRANCH only, keep state suffix intact</div>
+  <div class="desc">Cap the chip width; truncate the branch portion (with "…") but keep the "· N modified" / "· 2 ahead" suffix readable. State info is what most users actually need at-a-glance. Tooltip shows full branch.</div>
+  <div class="nav">
+    <div class="nav-header">E · Smart truncate (branch only)</div>
+    <div class="breadcrumb">~/Documents/GitHub</div>
+    <div class="tree opt-e">
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">duo</span>
+        <span class="chip" title="main · 6 modified"><span class="branch">main</span><span class="state"> · 6 modified</span></span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">figma-cli-skill</span>
+        <span class="chip" title="claude/figma-cli-skill-4FkZg"><span class="branch">claude/figma-…</span></span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">markdown-feedback</span>
+        <span class="chip" title="main · 1 modified"><span class="branch">main</span><span class="state"> · 1 modified</span></span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">project-microsite</span>
+        <span class="chip" title="claude/implement-design-demo-rJ0fm"><span class="branch">claude/impl…</span></span>
+      </div>
+      <div class="row">
+        <span class="icon">📁</span>
+        <span class="name">session-share</span>
+        <span class="chip" title="claude/implement-session-share-J02X3 · 1 modified"><span class="branch">claude/imp…</span><span class="state"> · 1 modified</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="interaction-hint">No animation; chip always shows state, branch truncates.</div>
+</div>
+
+<h2>2 · Pick an option</h2>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Chip mitigation strategy</div>
+  <div class="q-prompt">Which option ships?</div>
+  <p class="q-context">Trade-offs at a glance:</p>
+  <ul style="margin: 0 0 12px; padding-left: 22px; font-size: 13px; color: var(--ink-soft);">
+    <li><strong>A</strong> simple, full chip when it fits / truncates when it doesn't, tooltip for full.</li>
+    <li><strong>B</strong> cleanest visual, but loses at-a-glance scanning.</li>
+    <li><strong>C</strong> most info, doubles row height for repo rows.</li>
+    <li><strong>D</strong> at-a-glance preserved, hover transition can feel busy.</li>
+    <li><strong>E</strong> always-visible state (the most useful bit) + branch truncates — closest to "do what most users need."</li>
+  </ul>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-strategy" value="truncate-ellipsis">
+      <div class="q-option-body">
+        <div class="q-option-title">A · Truncate chip with ellipsis</div>
+        <div class="q-option-rationale">Cap chip width (~120px). Long content truncates with "…"; full text in tooltip. Simplest fix.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-strategy" value="hover-reveal">
+      <div class="q-option-body">
+        <div class="q-option-title">B · Hover-reveal (chip hidden by default)</div>
+        <div class="q-option-rationale">Cleanest unfocused state. Trade-off: no at-a-glance dirty/branch signal until you hover each row.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-strategy" value="two-line">
+      <div class="q-option-body">
+        <div class="q-option-title">C · Two-line per row (chip below name)</div>
+        <div class="q-option-rationale">Always-visible full info. Doubles vertical density for repo-root rows.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-strategy" value="compress-on-hover">
+      <div class="q-option-body">
+        <div class="q-option-title">D · Compress-on-hover (chip shrinks to "⋯" on hover)</div>
+        <div class="q-option-rationale">Best-of-both: at-a-glance visible, full name on hover. Hover transition can feel busy on rapid scroll.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-strategy" value="smart-truncate">
+      <div class="q-option-body">
+        <div class="q-option-title">E · Smart truncate (truncate BRANCH only, keep state) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Truncates the long branch name but keeps "· N modified" / "· 2 ahead" intact — the state info is what most users want at a glance. Tooltip shows the full branch. Closest match to "always-visible, never occluded."</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes / variations / 'combine A+E' etc..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · Chip max width (optional tuning)</div>
+  <div class="q-prompt">How much horizontal space should the chip get?</div>
+  <p class="q-context">Most relevant for A and E. Width tradeoff: bigger = more branch text visible, smaller = more name visible.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-width" value="narrow">
+      <div class="q-option-body">
+        <div class="q-option-title">Narrow (~100px)</div>
+        <div class="q-option-rationale">Most folder name visible. Long branches get heavy truncation.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-width" value="medium">
+      <div class="q-option-body">
+        <div class="q-option-title">Medium (~140px) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Balanced. Branch like "claude/figma-cli-skill" mostly fits; longer ones truncate.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-width" value="wide">
+      <div class="q-option-body">
+        <div class="q-option-title">Wide (~180px)</div>
+        <div class="q-option-rationale">Most branches fit. Folder names get truncated more often when both are long.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-width" value="proportional">
+      <div class="q-option-body">
+        <div class="q-option-title">Proportional (40% of available row width)</div>
+        <div class="q-option-rationale">Adapts to navigator pane width. Better on wider navigator; less predictable.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 2</span> decisions answered.
+    Hit Copy when ready.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button = document.getElementById('copy-decisions');
+  const QS = [
+    { id: 'q1-strategy', title: 'Q1 · Chip mitigation strategy' },
+    { id: 'q2-width', title: 'Q2 · Chip max width' }
+  ];
+  function refresh() {
+    let answered = 0;
+    for (const q of QS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QS.length;
+  }
+  document.addEventListener('change', refresh);
+  document.addEventListener('input', refresh);
+  refresh();
+  function buildPayload() {
+    const lines = [];
+    lines.push('REPO-CHIP OCCLUSION FIX — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('=================================================');
+    lines.push('');
+    for (const q of QS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/repo-chip-occlusion-fix.html');
+    return lines.join('\n');
+  }
+  button.addEventListener('click', async () => {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(() => {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

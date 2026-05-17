@@ -191,9 +191,19 @@ Walk-FAIL on rev1 was about the pill still appearing during text-select while in
 
 Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether to land them pre-cut or in v0.7.1.
 
-### ENH-152a v2 peer-repos: Inline chip on child folder rows that are repo roots
+### ENH-152a v2 peer-repos: Repo-root icon + hover-revealed chip popover (modified-Option-B)
 
-**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Owner caught the gap in rev4 walk: *"in navigator, if multiple folders are visible that are the root of repos, they should have an inline indicator of this status — you never built this."* Playground § 1A "root visible" case was promised but I'd only shipped the ribbon (cwd-in-repo). Fix lands per-folder chip on every visible folder row that is itself a git repo root.
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Two rounds:
+- **Round 1 (initial fix):** owner caught the gap in rev4 walk: *"in navigator, if multiple folders are visible that are the root of repos, they should have an inline indicator of this status — you never built this."* Shipped inline chip on every repo-root folder row.
+- **Round 2 (occlusion fix, rev5):** inline chips occluded long folder names. Built a 5-option playground at [`docs/research/repo-chip-occlusion-fix.html`](docs/research/repo-chip-occlusion-fix.html); owner picked **modified Option B**: small right-aligned git icon (always visible, state-colored) + chip floats in as a popover when hovering the ICON specifically (not the row). Folder-name reading is undisturbed.
+
+**Final UI (locked):**
+- Right-aligned `⎇` icon on every repo-root folder row.
+- Icon color reflects state: ink-mute (clean), accent (dirty), warn (diverged).
+- On icon-hover: chip slides in from the right (translate-x + opacity, 150ms transition) as a floating popover (absolute positioned, `shadow-md`, `z-10`).
+- Popover is `pointer-events-none` when hidden so it doesn't block clicks.
+- Chip is full-text (no truncation) — popover floats over the row's empty space.
+- `title` attribute on the wrapper provides keyboard/screenreader access.
 
 **Implementation:**
 - [`core/git/scan.ts`](core/git/scan.ts) (new) — `scanReposIn(parentDir, childNames)` does cheap `.git/` fs.stat detection, then parallel `getGitStatus` for confirmed candidates. Returns Map<childName, GitStatusSnapshot>.
