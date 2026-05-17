@@ -143,16 +143,113 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   }, [state.cwd, rootEntriesOverride])
 
   // ENH-152a v2 — show the ribbon WHENEVER cwd is inside a git repo.
-  // Duo's tree shows children-of-cwd (not cwd itself as a row), so
-  // the prototype's "inline chip on root row" case (peer-repos under
-  // a parent cwd) doesn't apply with the current navigator shape —
-  // there's no row for the cwd folder to anchor a chip to. The
-  // ribbon is the indicator for both `cwd === workTreeRoot` AND
-  // `cwd deeper than workTreeRoot` (proto-Q2 BREADCRUMB-DEEP rule
-  // collapses to "always show ribbon when in repo").
+  // (proto-Q1 SLIM-TOP + proto-Q2 BREADCRUMB-DEEP, collapsed to
+  // "always show ribbon when in repo".)
+  //
+  // v2 walk-rev4 follow-up: ALSO probe each child folder of cwd for
+  // being a separate git repo root (peer-repos case from playground
+  // § 1A "root visible — inline chip"). When user is at `~/repos`
+  // and that contains `duo/` + `other-repo/` (both repo roots), each
+  // gets an inline chip on its row. Independent of the ribbon: the
+  // ribbon fires when CWD-itself is in a repo; the per-folder chips
+  // fire on CHILD-FOLDERS that are repos.
   const isInRepo = !!gitSnap?.isRepo
   const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
   const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
+
+  // Per-folder repo-status map for inline chips on child folder rows.
+  // Keyed by absolute path. Populated on cwd change + window focus.
+  const [childRepoMap, setChildRepoMap] = useState<Map<string, GitStatusSnapshot>>(new Map())
+
+  // Per-file dirty-status map for the dots + STATUS-DIFF tooltips
+  // (ENH-152b). Keyed by absolute path. Populated when cwd is in a
+  // repo (uses gitSnap.workTreeRoot).
+  const [dirtyFileMap, setDirtyFileMap] = useState<Map<string, { status: string; plus: number; minus: number }>>(new Map())
+
+  // Combined refresh tick — bump it to force re-fetch of all three
+  // git probes (root status, child repos, dirty files). ENH-152c
+  // fsevents watcher pushes this; window-focus also bumps as a
+  // belt-and-suspenders fallback.
+  const [gitRefreshTick, setGitRefreshTick] = useState(0)
+
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return
+    if (!rootEntries || rootEntries.length === 0) {
+      setChildRepoMap(new Map())
+      return
+    }
+    let cancelled = false
+    const childNames = rootEntries
+      .filter((e) => e.kind === 'directory')
+      .map((e) => e.name)
+    void window.electron.git.scanReposIn({ parentDir: state.cwd, childNames })
+      .then((record) => {
+        if (cancelled) return
+        // Re-key by absolute path so TreeNode's `entry.path` lookup
+        // matches. Main process returned `{ childName: snapshot }`;
+        // we build `${cwd}/${childName} → snapshot`.
+        const byPath = new Map<string, GitStatusSnapshot>()
+        for (const [name, snap] of Object.entries(record)) {
+          byPath.set(`${state.cwd}/${name}`, snap)
+        }
+        setChildRepoMap(byPath)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setChildRepoMap(new Map())
+      })
+    return () => { cancelled = true }
+    // rootEntries reference identity is stable per cwd; we depend on
+    // its length so a remote update (new folder appears) triggers
+    // re-scan.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.cwd, rootEntriesOverride, rootEntries?.length, gitRefreshTick])
+
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return
+    if (!gitSnap?.isRepo || !gitSnap.workTreeRoot) {
+      setDirtyFileMap(new Map())
+      return
+    }
+    let cancelled = false
+    void window.electron.git.dirtyFilesFor({ workTreeRoot: gitSnap.workTreeRoot })
+      .then((record) => {
+        if (cancelled) return
+        setDirtyFileMap(new Map(Object.entries(record)))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setDirtyFileMap(new Map())
+      })
+    return () => { cancelled = true }
+  }, [gitSnap?.workTreeRoot, gitSnap?.isRepo, rootEntriesOverride, gitRefreshTick])
+
+  // ENH-152c — fsevents-driven invalidation. Start a watcher on the
+  // work-tree when we enter a repo; stop on leaving or unmount. The
+  // main-process watcher fires GIT_WATCH_INVALIDATE (debounced
+  // 250ms) on file changes; we bump gitRefreshTick to re-fetch all
+  // three git probes (root status, child repos, dirty files).
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return
+    if (!gitSnap?.isRepo || !gitSnap.workTreeRoot) {
+      void window.electron.git.watchStop()
+      return
+    }
+    let cancelled = false
+    void window.electron.git.watchStart({
+      workTreeRoot: gitSnap.workTreeRoot,
+      cwd: state.cwd
+    }).catch(() => null)
+    const unsubscribe = window.electron.git.onWatchInvalidate(() => {
+      if (cancelled) return
+      setGitRefreshTick((t) => t + 1)
+    })
+    return () => {
+      cancelled = true
+      unsubscribe()
+      void window.electron.git.watchStop().catch(() => null)
+    }
+  }, [gitSnap?.workTreeRoot, gitSnap?.isRepo, state.cwd, rootEntriesOverride])
 
   // ENH-026 — accept rename requests from outside the tree (e.g. the
   // WorkingPane tab strip's right-click menu). App.tsx dispatches a
@@ -517,6 +614,8 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         activeTerminalCwd={activeTerminalCwd}
         openFilePaths={openFilePaths}
         activeFilePath={activeFilePath}
+        childRepoMap={childRepoMap}
+        dirtyFileMap={dirtyFileMap}
       />
     </div>
   )
@@ -651,9 +750,17 @@ interface TreeNodesProps {
   /** Stage 26 PR 3 item 3 — open / active file signals. */
   openFilePaths?: ReadonlySet<string>
   activeFilePath?: string | null
+  /** ENH-152a v2 (peer-repos) — for each child folder that IS itself
+   *  a git repo root, the snapshot to render as an inline chip on
+   *  that row. Keyed by absolute path. Folders not in the map render
+   *  without a chip. */
+  childRepoMap?: ReadonlyMap<string, GitStatusSnapshot>
+  /** ENH-152b — per-file dirty status. Keyed by absolute path. Files
+   *  not in the map are clean (no dot). */
+  dirtyFileMap?: ReadonlyMap<string, { status: string; plus: number; minus: number }>
 }
 
-export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: TreeNodesProps) {
+export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }
@@ -679,6 +786,8 @@ export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContex
           activeTerminalCwd={activeTerminalCwd}
           openFilePaths={openFilePaths}
           activeFilePath={activeFilePath}
+          childRepoMap={childRepoMap}
+          dirtyFileMap={dirtyFileMap}
         />
       ))}
     </>
@@ -701,9 +810,13 @@ interface TreeNodeProps {
   /** Stage 26 PR 3 item 3 — open / active file signals. */
   openFilePaths?: ReadonlySet<string>
   activeFilePath?: string | null
+  /** ENH-152a v2 peer-repos — per-folder repo-status map. */
+  childRepoMap?: ReadonlyMap<string, GitStatusSnapshot>
+  /** ENH-152b — per-file dirty-status map. */
+  dirtyFileMap?: ReadonlyMap<string, { status: string; plus: number; minus: number }>
 }
 
-function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null }: TreeNodeProps) {
+function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
   // ENH-147 — read from the multi-select map. Singular `state.selected`
@@ -848,6 +961,57 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
           >
             <FileIcon entry={entry} />
             <span className="truncate">{entry.name}</span>
+            {/* ENH-152a v2 peer-repos — inline chip on folder rows
+                that are themselves git repo roots. Playground § 1A
+                "root visible" case: when navigator's cwd contains
+                multiple repos as children, each gets its chip. The
+                chip text is formatted by formatGitStatusChip (same
+                shape as the ribbon's chip). Tooltip plain-English
+                per proto-Q3. */}
+            {isFolder && childRepoMap?.has(entry.path) && (() => {
+              const snap = childRepoMap.get(entry.path)!
+              const chip = formatGitStatusChip(snap)
+              if (!chip) return null
+              const folderRepoName = entry.name
+              const tooltip = formatGitStatusTooltip(snap, folderRepoName)
+              return (
+                <span
+                  className="shrink-0 ml-1 px-1.5 py-0.5 text-[10px] font-mono rounded bg-accent-soft text-accent-ink font-semibold"
+                  title={tooltip}
+                  data-duo-folder-repo-chip="1"
+                >
+                  {chip}
+                </span>
+              )
+            })()}
+            {/* ENH-152b — per-file dirty dot. ANY-CHANGE semantics
+                per Q6 (single orange dot for staged/unstaged/
+                untracked). STATUS-DIFF tooltip per proto-Q4. Files
+                only; the active-file dot below is a separate signal
+                (this dot fires on dirty state, that one on "is this
+                the front tab"). */}
+            {!isFolder && dirtyFileMap?.has(entry.path) && (() => {
+              const dirty = dirtyFileMap.get(entry.path)!
+              const statusLabel = dirty.status === '?' ? 'Untracked' :
+                dirty.status === 'M' ? 'Modified' :
+                dirty.status === 'A' ? 'Added (staged)' :
+                dirty.status === 'D' ? 'Deleted' :
+                dirty.status === 'R' ? 'Renamed' :
+                dirty.status === 'U' ? 'Unmerged' :
+                'Changed'
+              const diffPart = dirty.status === '?'
+                ? `${dirty.plus} line${dirty.plus === 1 ? '' : 's'}`
+                : `+${dirty.plus} / -${dirty.minus} lines`
+              const tooltip = `${statusLabel} · ${diffPart}`
+              return (
+                <span
+                  aria-label="Dirty file"
+                  title={tooltip}
+                  className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent"
+                  data-duo-file-dirty-dot="1"
+                />
+              )
+            })()}
             {/* Stage 26 PR 3 item 2 — ambient signal: this folder is
                 the front terminal's launch CWD. A small accent dot
                 inline with the name; doesn't overlap selection's
@@ -917,6 +1081,8 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
           onCommitRename={onCommitRename}
           onCancelRename={onCancelRename}
           onOpenClaudeIn={onOpenClaudeIn}
+          childRepoMap={childRepoMap}
+          dirtyFileMap={dirtyFileMap}
         />
       )}
     </>

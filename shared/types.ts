@@ -1535,6 +1535,19 @@ export const IPC = {
   GH_AUTH_STATUS: 'gh:auth-status',
   // ENH-155 — compose a GitHub URL for a file/folder path. renderer → main.
   GIT_GITHUB_URL_FOR: 'git:github-url-for',
+  // ENH-152a v2 (peer-repos) — batch probe of which children of a
+  // parent directory are themselves git repo roots. renderer → main.
+  GIT_SCAN_REPOS_IN: 'git:scan-repos-in',
+  // ENH-152b — per-file dirty status + line-diff for a work-tree.
+  // renderer → main.
+  GIT_DIRTY_FILES_FOR: 'git:dirty-files-for',
+  // ENH-152c — fsevents-driven invalidation. Renderer subscribes via
+  // GIT_WATCH_START(workTreeRoot); main starts a chokidar watcher
+  // and pushes GIT_WATCH_INVALIDATE (debounced 250ms) when any file
+  // in the work-tree changes. Renderer bumps its refresh tick.
+  GIT_WATCH_START: 'git:watch-start',
+  GIT_WATCH_STOP: 'git:watch-stop',
+  GIT_WATCH_INVALIDATE: 'git:watch-invalidate',
   // FOLLOWUP-020 — main → renderer pushes to close the focused
   // working / terminal tab. Pairs with the ⌘W chord (App.tsx)
   // closing the same surface; this is the CLI-driven counterpart.

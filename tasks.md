@@ -191,27 +191,49 @@ Walk-FAIL on rev1 was about the pill still appearing during text-select while in
 
 Both filed below; tracked but not blocking v0.7.0 cut. Owner can decide whether to land them pre-cut or in v0.7.1.
 
+### ENH-152a v2 peer-repos: Inline chip on child folder rows that are repo roots
+
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Owner caught the gap in rev4 walk: *"in navigator, if multiple folders are visible that are the root of repos, they should have an inline indicator of this status — you never built this."* Playground § 1A "root visible" case was promised but I'd only shipped the ribbon (cwd-in-repo). Fix lands per-folder chip on every visible folder row that is itself a git repo root.
+
+**Implementation:**
+- [`core/git/scan.ts`](core/git/scan.ts) (new) — `scanReposIn(parentDir, childNames)` does cheap `.git/` fs.stat detection, then parallel `getGitStatus` for confirmed candidates. Returns Map<childName, GitStatusSnapshot>.
+- [`electron/main.ts`](electron/main.ts) — `IPC.GIT_SCAN_REPOS_IN` handler.
+- [`electron/preload.ts`](electron/preload.ts) — `window.electron.git.scanReposIn(req)` bridge.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — useEffect on cwd/rootEntries change probes children; result re-keyed by absolute path; passed through TreeNodes → TreeNode → inline chip rendering with same `formatGitStatusChip` + `formatGitStatusTooltip` formatters used by the ribbon. Aterlier-tokened pill.
+
+**Verification (live dev, Navigator at `~/Documents/GitHub`):**
+
+Scan found 7 repo-children in 499ms; all 7 rendered inline chips with correct branch/dirty state:
+- duo → `main · 6 modified`
+- figma-cli-skill → `claude/figma-cli-skill-4FkZg`
+- markdown-feedback → `main · 1 modified`
+- project-microsite → `claude/implement-design-demo-rJ0fm`
+- rollout → `main`
+- session-share → `claude/implement-session-share-J02X3 · 1 modified`
+- space-jam → `main · 1 modified, 2 behind`
+
 ### ENH-152b: Per-file dirty dots in Navigator (Slice 2 of GH-cluster)
 
-**Status:** 🟡 **Filed 2026-05-17.** GH-cluster Phase 2 — gated decisions already locked (Q4 STATUS-DIFF dot tooltip with line-diff).
-**Implementation estimate:** 1 dev day.
-**Decisions (locked in GATE-GH-CLUSTER-PROTO):**
-- Dot semantics: any-change (staged OR unstaged OR untracked → same dot).
-- Dot tooltip: "Modified · +24 / −7 lines" — STATUS-DIFF per Q4.
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Locked decisions: any-change semantics (Q6), STATUS-DIFF tooltip (proto-Q4).
 
-**What ships:** small `●` next to dirty file rows in `renderer/components/FileTree.tsx`. Data source: a Map<absPath, {status: 'M'|'U'|'S', plus: number, minus: number}> built from `git status --porcelain` + `git diff --numstat`. Refresh trigger: same as the root chip (focus-poll today; fsevents-driven once ENH-152c lands).
+**Implementation:**
+- [`core/git/scan.ts`](core/git/scan.ts) — `getDirtyFilesFor(workTreeRoot)`: runs `git status --porcelain` + `git diff --numstat HEAD`. For untracked files, counts lines via fs.readFile (capped 64KB). Returns Map<absPath, {status, plus, minus}>.
+- [`electron/main.ts`](electron/main.ts) — `IPC.GIT_DIRTY_FILES_FOR` handler.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — dirtyFileMap state + useEffect on workTreeRoot/refresh-tick. TreeNode renders the small accent dot on file rows whose absPath is in the map; tooltip reads status word + line diff per Q4.
 
-**Why deferred from GH-cluster v1 PR:** the FileTree row-rendering touches MANY paths and needs a separate refactor to wire the per-file status map through. Out of scope for the v0.7.0 cut prep.
+**Verification (live dev, Navigator inside duo/ repo, electron/ folder expanded):**
+- `main.ts` → dot with tooltip "Modified · +91 / -0 lines"
+- `preload.ts` → dot with tooltip "Modified · +10 / -1 lines"
 
 ### ENH-152c: fsevents-driven invalidation of Navigator git status (Slice 3 of GH-cluster)
 
-**Status:** 🟡 **Filed 2026-05-17.** GH-cluster Phase 3 polish.
-**Implementation estimate:** 0.5 dev day.
-**Decision (locked in GATE-GH-CLUSTER-v2 Q7):** FSEVENTS-DEBOUNCED at 250ms.
+**Status:** ✅ **Shipped 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Locked decision: FSEVENTS-DEBOUNCED at 250ms (Q7).
 
-**What ships:** wire a chokidar watcher (already used in `electron/files-service.ts`) to invalidate the git status cache. Renderer re-polls on watcher event with 250ms debounce. Drops the existing window-focus-poll path.
-
-**Why deferred:** fsevents wiring needs careful coordination with the existing files-service watcher to avoid duplicate subscriptions. Out of scope for v0.7.0 cut prep — focus-poll already works.
+**Implementation:**
+- [`electron/main.ts`](electron/main.ts) — `IPC.GIT_WATCH_START` handler installs a chokidar watcher. **Important deviation from naive design:** watches **`state.cwd` at depth 1**, NOT the full `workTreeRoot`. Reason: huge work-trees (e.g. user has `~/Documents` as a git repo — a real case we hit during testing) overwhelm chokidar with thousands of inotify watches and lock up the IPC socket. Bounded watch = scope = the rows the navigator can actually display. Trade-off: deeper-than-cwd changes don't trigger immediate refresh; window-focus poll still picks them up. New IPC channels: `GIT_WATCH_START`, `GIT_WATCH_STOP`, `GIT_WATCH_INVALIDATE`.
+- [`electron/preload.ts`](electron/preload.ts) — `watchStart`, `watchStop`, `onWatchInvalidate` bridge methods.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — `gitRefreshTick` state; useEffect subscribes on cwd change to invalidate events; tick bump re-fetches ribbon status + child-repo map + dirty-files map.
+- Ignored patterns: `.git`, `node_modules`, `.next`, `.cache`, `.turbo`, `dist`, `build`, `out`, `.duo`, `.obsidian`, `.DS_Store`, `*.log`.
 
 ---
 

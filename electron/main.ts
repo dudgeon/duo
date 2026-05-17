@@ -1248,6 +1248,108 @@ function setupIPC(): void {
     return gitHubUrlFor(req)
   })
 
+  // ENH-152a v2 (peer-repos) — batch probe of which children of
+  // `parentDir` are git repo roots. Returns a record of
+  // { childName: GitStatusSnapshot } for repo-children only.
+  ipcMain.handle(IPC.GIT_SCAN_REPOS_IN, async (_event, req: {
+    parentDir: string
+    childNames: string[]
+  }) => {
+    const { scanReposIn } = await import('../core/git/scan')
+    const m = await scanReposIn(req.parentDir, req.childNames)
+    return Object.fromEntries(m)
+  })
+
+  // ENH-152b — per-file dirty status + line-diff for a work-tree.
+  // Returns a record of { absPath: { status, plus, minus } }.
+  ipcMain.handle(IPC.GIT_DIRTY_FILES_FOR, async (_event, req: {
+    workTreeRoot: string
+  }) => {
+    const { getDirtyFilesFor } = await import('../core/git/scan')
+    const m = await getDirtyFilesFor(req.workTreeRoot)
+    return Object.fromEntries(m)
+  })
+
+  // ENH-152c — fsevents-driven invalidation. Single watcher per
+  // renderer (the navigator only shows one repo at a time). Renderer
+  // calls START with the work-tree path; we replace any prior watcher
+  // and emit INVALIDATE on debounced file events. STOP tears down.
+  let gitWatcher: import('chokidar').FSWatcher | null = null
+  let gitWatcherTimer: NodeJS.Timeout | null = null
+  let gitWatchedPath: string | null = null
+  const stopGitWatcher = async () => {
+    if (gitWatcher) {
+      try { await gitWatcher.close() } catch { /* ignore */ }
+      gitWatcher = null
+    }
+    if (gitWatcherTimer) {
+      clearTimeout(gitWatcherTimer)
+      gitWatcherTimer = null
+    }
+    gitWatchedPath = null
+  }
+  ipcMain.handle(IPC.GIT_WATCH_START, async (_event, req: { workTreeRoot: string; cwd: string }) => {
+    if (!req.workTreeRoot || !req.cwd) return { ok: false }
+    // Watch ONLY the current navigator cwd at depth 1 — exactly the
+    // rows the user can see. NOT the full workTreeRoot, because that
+    // can be enormous (e.g. user has ~/Documents as a git repo →
+    // recursive watch would overwhelm chokidar with thousands of
+    // inotify watches and lock up the IPC socket under load).
+    //
+    // Trade-off: changes deeper than the current cwd don't trigger
+    // an immediate refresh. The existing window-focus poll picks
+    // those up when the user tab-switches back.
+    if (gitWatchedPath === req.cwd) return { ok: true, reused: true }
+    await stopGitWatcher()
+    gitWatchedPath = req.cwd
+    const chokidar = await import('chokidar')
+    const fsw = chokidar.watch(req.cwd, {
+      ignoreInitial: true,
+      depth: 1,
+      ignored: [
+        /(^|[/\\])\.git([/\\]|$)/,
+        /(^|[/\\])node_modules([/\\]|$)/,
+        /(^|[/\\])\.next([/\\]|$)/,
+        /(^|[/\\])\.cache([/\\]|$)/,
+        /(^|[/\\])\.turbo([/\\]|$)/,
+        /(^|[/\\])dist([/\\]|$)/,
+        /(^|[/\\])build([/\\]|$)/,
+        /(^|[/\\])out([/\\]|$)/,
+        /(^|[/\\])\.duo([/\\]|$)/,
+        /(^|[/\\])\.obsidian([/\\]|$)/,
+        /\.DS_Store$/,
+        /\.log$/
+      ],
+      awaitWriteFinish: {
+        stabilityThreshold: 150,
+        pollInterval: 50
+      },
+      usePolling: false
+    })
+    const fireInvalidate = () => {
+      if (mainWindow?.webContents.isDestroyed()) return
+      mainWindow?.webContents.send(IPC.GIT_WATCH_INVALIDATE)
+    }
+    const scheduleInvalidate = () => {
+      if (gitWatcherTimer) clearTimeout(gitWatcherTimer)
+      gitWatcherTimer = setTimeout(fireInvalidate, 250)
+    }
+    fsw.on('add', scheduleInvalidate)
+    fsw.on('change', scheduleInvalidate)
+    fsw.on('unlink', scheduleInvalidate)
+    fsw.on('addDir', scheduleInvalidate)
+    fsw.on('unlinkDir', scheduleInvalidate)
+    fsw.on('error', (err) => {
+      console.warn('[ENH-152c] git watcher error:', err instanceof Error ? err.message : err)
+    })
+    gitWatcher = fsw
+    return { ok: true, reused: false }
+  })
+  ipcMain.handle(IPC.GIT_WATCH_STOP, async () => {
+    await stopGitWatcher()
+    return { ok: true }
+  })
+
   // Stage 21c Phase 2 — session state restored across relaunches.
   ipcMain.handle(IPC.SESSION_STATE_LOAD, () => {
     return sessionStateService.load()

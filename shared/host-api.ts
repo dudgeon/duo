@@ -1000,6 +1000,31 @@ export interface ElectronGitAPI {
    *  host (gitlab.com, bitbucket.org, etc.) so callers can suppress
    *  the menu items. */
   githubUrlFor(req: GitHubUrlRequest): Promise<GitHubUrlResult>
+  /** ENH-152a v2 (peer-repos) — for each named child of parentDir
+   *  that's a git repo root, return its GitStatusSnapshot. Non-repo
+   *  children are absent from the result map. Powers the inline chip
+   *  on peer-repo folder rows when the user is browsing a parent
+   *  directory containing multiple repos. */
+  scanReposIn(req: { parentDir: string; childNames: string[] }): Promise<Record<string, GitStatusSnapshot>>
+  /** ENH-152b — per-file dirty status + line-diff map keyed by
+   *  absolute path. Powers the per-file dirty dots in the Navigator
+   *  tree, with STATUS-DIFF tooltip ("Modified · +24 / −7 lines"). */
+  dirtyFilesFor(req: { workTreeRoot: string }): Promise<Record<string, { status: string; plus: number; minus: number }>>
+  /** ENH-152c — start a bounded fs watcher on the current navigator
+   *  cwd (depth 1 — only the visible rows). Replaces any prior
+   *  watcher. Main process emits GIT_WATCH_INVALIDATE pushes
+   *  (debounced 250ms) when any file changes; renderer bumps its
+   *  refresh tick to re-fetch git status + dirty files +
+   *  child-repo maps. workTreeRoot is passed for context but the
+   *  watch target is cwd (avoids overwhelming chokidar when the
+   *  work-tree is huge — e.g. user has ~/Documents as a git repo). */
+  watchStart(req: { workTreeRoot: string; cwd: string }): Promise<{ ok: boolean; reused?: boolean }>
+  /** ENH-152c — stop the active watcher. Called on cwd change to
+   *  a non-repo OR on unmount. */
+  watchStop(): Promise<{ ok: boolean }>
+  /** ENH-152c — subscribe to debounced invalidation events from the
+   *  active watcher. Returns a cleanup function. */
+  onWatchInvalidate(cb: () => void): () => void
 }
 
 declare global {

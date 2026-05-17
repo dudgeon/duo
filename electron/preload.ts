@@ -703,7 +703,16 @@ const api: ElectronAPI = {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
     clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),
     ghAuth: () => ipcRenderer.invoke(IPC.GH_AUTH_STATUS),
-    githubUrlFor: (req) => ipcRenderer.invoke(IPC.GIT_GITHUB_URL_FOR, req)
+    githubUrlFor: (req) => ipcRenderer.invoke(IPC.GIT_GITHUB_URL_FOR, req),
+    scanReposIn: (req) => ipcRenderer.invoke(IPC.GIT_SCAN_REPOS_IN, req),
+    dirtyFilesFor: (req) => ipcRenderer.invoke(IPC.GIT_DIRTY_FILES_FOR, req),
+    watchStart: (req) => ipcRenderer.invoke(IPC.GIT_WATCH_START, req),
+    watchStop: () => ipcRenderer.invoke(IPC.GIT_WATCH_STOP),
+    onWatchInvalidate: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.GIT_WATCH_INVALIDATE, handler)
+      return () => ipcRenderer.removeListener(IPC.GIT_WATCH_INVALIDATE, handler)
+    }
   }
 }
 
