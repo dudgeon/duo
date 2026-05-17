@@ -15,7 +15,7 @@
 
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { DOMParser as PMDOMParser } from '@tiptap/pm/model'
+import { DOMParser as PMDOMParser, Slice } from '@tiptap/pm/model'
 
 const BLOCK_MARKERS = [
   /^\s{0,3}#{1,6}\s/m,    // ATX heading
@@ -69,10 +69,26 @@ export const MarkdownPaste = Extension.create({
             if (!parser) return null
             const inline = !looksBlockLevel(text)
             const html = parser.parse(text, { inline })
-            return PMDOMParser.fromSchema(editor.schema).parseSlice(
+            // BUG-127 — for BLOCK-level paste (tables, headings, code
+            // fences, lists), force the slice's openStart/openEnd to
+            // 0 so PM treats it as fully-closed block content. Without
+            // this, the slice's natural openness (matching the cursor's
+            // node depth) causes PM's `replaceSelection` to try to
+            // squash the block into the destination's content model —
+            // pasting a table inside a list-item collapsed the table
+            // to per-line <code>-wrapped paragraphs. Closing the slice
+            // forces PM to lift the enclosing nodes as needed. Inline
+            // paste keeps the natural openness so a bold word lands
+            // mid-sentence correctly.
+            const parseOpts = inline
+              ? { preserveWhitespace: true as const, context: $context }
+              : { preserveWhitespace: true as const }
+            const parsed = PMDOMParser.fromSchema(editor.schema).parseSlice(
               elementFromString(html),
-              { preserveWhitespace: true, context: $context }
+              parseOpts
             )
+            if (inline) return parsed
+            return new Slice(parsed.content, 0, 0)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
           }) as any
         }

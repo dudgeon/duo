@@ -137,6 +137,31 @@ block from chat (parsed in step 7 of the previous walk). The manifest
 is exactly the FAIL ids + carry-forward SKIP ids. **Do not include
 PASS ids.** See HARD RULE above.
 
+**Always include 🟡 owner-decision gates.** Scan `tasks.md` for
+`Status:** 🟡 Awaiting` entries. Each one is a playground requiring
+owner walk + Copy-decisions round-trip. These items MUST appear in
+every smoke-walk manifest (first walk or any re-walk) until the
+owner closes the gate. They appear in the manifest with the playground
+path as the steps:
+
+```json
+{
+  "id": "GATE-BUG-125-v2",
+  "title": "DECISION GATE — BUG-125 v2 canvas baseline (4 decisions)",
+  "what_fixes": "Owner-decision gate. Walk the playground, pick a radio for each decision card, copy-paste back to Claude. Implementation blocked until decisions land.",
+  "steps": [
+    "Open the playground: `duo open docs/research/bug-125-canvas-baseline-v2.html`",
+    "Read the 4 decision cards. Pick a radio for each + add any notes.",
+    "Click **Copy decisions** at the bottom; paste back.",
+    "Mark PASS if you copy-paste; SKIP only if you want to defer the gate longer (blocks the cut)."
+  ]
+}
+```
+
+The cut-version skill's Step 0 enforces the same — gates must close
+before any cut. Smoke-walk manifests surface them so they don't
+disappear silently.
+
 ### 2. Construct a manifest
 
 **Precondition — verify package.json matches the in-progress

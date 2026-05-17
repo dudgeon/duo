@@ -2279,24 +2279,43 @@ export function App() {
     // ENH-023 + ENH-028 — find-in-document / find-in-page. Branch
     // by active surface: browser pane uses `webContents.findInPage`
     // via BrowserRenderer's local find bar; markdown editor uses
-    // ProseMirror's text-search via MarkdownEditor's find bar.
-    // Canvas / preview / image surfaces don't implement find in v1
-    // — events are a no-op when those are active.
+    // ProseMirror's text-search via MarkdownEditor's find bar; canvas
+    // (kind: 'page') uses PageFindBar's iframe text-walker + CSS Custom
+    // Highlight API (BUG-126). Preview / image surfaces still no-op.
+    //
+    // The activeWorking discriminator is the PANE type ('file' vs.
+    // 'browser'); the tab-level type ('editor', 'page', 'image', etc.)
+    // lives on the file tab itself. Look it up to branch correctly.
     openFind: () => {
+      const activeFileType = activeWorking.kind === 'file'
+        ? fileTabs.find(f => f.id === activeWorking.id)?.type
+        : null
       const evt = activeWorking.kind === 'browser'
         ? 'duo-browser-find-open'
+        : activeFileType === 'page'
+        ? 'duo-page-find-open'
         : 'duo-editor-find-open'
       window.dispatchEvent(new CustomEvent(evt))
     },
     findNext: () => {
+      const activeFileType = activeWorking.kind === 'file'
+        ? fileTabs.find(f => f.id === activeWorking.id)?.type
+        : null
       const evt = activeWorking.kind === 'browser'
         ? 'duo-browser-find-next'
+        : activeFileType === 'page'
+        ? 'duo-page-find-next'
         : 'duo-editor-find-next'
       window.dispatchEvent(new CustomEvent(evt))
     },
     findPrev: () => {
+      const activeFileType = activeWorking.kind === 'file'
+        ? fileTabs.find(f => f.id === activeWorking.id)?.type
+        : null
       const evt = activeWorking.kind === 'browser'
         ? 'duo-browser-find-prev'
+        : activeFileType === 'page'
+        ? 'duo-page-find-prev'
         : 'duo-editor-find-prev'
       window.dispatchEvent(new CustomEvent(evt))
     }

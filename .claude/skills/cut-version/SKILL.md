@@ -57,6 +57,28 @@ the notes; if the notes feel anemic, the version doesn't get cut.
 
 ## The procedure
 
+### Step 0 — Scan for open 🟡 owner-decision gates (HARD BLOCK)
+
+**Before drafting notes, anything else — scan `tasks.md` for `🟡 Awaiting`
+status entries.** These are owner-decision gates (PRDs converted to
+playgrounds per CLAUDE.md § 11) that block the cut.
+
+```bash
+grep -B1 "Status:\*\* 🟡 Awaiting" tasks.md
+```
+
+**If any 🟡 gates exist:**
+- **STOP.** Do not draft notes; do not propose the cut.
+- Report each gate's playground path to the user.
+- Tell the user: "Cut blocked — N owner-decision gates open. Walk each playground in Duo (`duo open <path>`), copy decisions back, then I'll implement + we cut."
+- If user explicitly overrides ("cut anyway, defer these gates to next version"), accept — but warn that the v2 work is now deferred.
+
+**Why this gate exists.** Owner-decision PRDs without playground gates
+historically got lost across sprints (ENH-110 was deferred 3 sprints
+as a markdown PRD; the moment it became a playground, decisions
+landed in one session). The 🟡 status is the forgetting-protection
+structure — the cut-version skill is the enforcement point.
+
 ### Step 1 — Draft release notes (the litmus test)
 
 This is the load-bearing step. Draft notes BEFORE bumping anything,

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>FOLLOWUP-025 v2 — Clone modal fix-list · decision playground</title>
+<style>
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground overrides — */
+.issue {
+  background: var(--paper-deep);
+  border-left: 3px solid var(--accent);
+  padding: 14px 18px;
+  margin: 18px 0;
+  border-radius: 0 5px 5px 0;
+}
+.issue h3 { margin-top: 0; color: var(--accent); }
+.issue .verbatim {
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin: 8px 0;
+}
+.bleed-mockup {
+  background: rgba(0,0,0,0.55);
+  position: relative;
+  padding: 32px 24px;
+  border-radius: 5px;
+  margin: 12px 0;
+  border: 1px solid var(--paper-rule);
+}
+.bleed-mockup .bg-text {
+  position: absolute; inset: 0;
+  padding: 12px;
+  color: rgba(255,255,255,0.55);
+  font-size: 11px;
+  font-family: ui-monospace, monospace;
+  z-index: 0;
+}
+.bleed-mockup .modal-box {
+  position: relative;
+  z-index: 1;
+  background: rgba(251, 248, 241, 0.4); /* the bug: should be 1.0 opacity */
+  border: 1px solid var(--paper-rule);
+  padding: 18px 22px;
+  border-radius: 6px;
+  max-width: 360px;
+  margin: 0 auto;
+  backdrop-filter: blur(2px);
+}
+.bleed-mockup .modal-box .title { font-weight: 700; margin-bottom: 8px; }
+.bleed-mockup .modal-box .input { background: var(--paper); border: 1px solid var(--paper-rule); padding: 6px 8px; border-radius: 3px; margin-bottom: 8px; font-size: 12px; font-family: ui-monospace, monospace; }
+.bleed-mockup-label { font-size: 11px; color: var(--ink-mute); text-align: center; margin-top: 6px; }
+.menu-mockup {
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 6px 0;
+  width: 240px;
+  font-size: 12px;
+  font-family: -apple-system, system-ui, sans-serif;
+  margin: 8px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.menu-mockup .item { padding: 4px 12px; }
+.menu-mockup .item.highlight { background: var(--accent); color: white; }
+.menu-mockup .item.shortcut { color: var(--ink-mute); float: right; font-size: 11px; }
+.menu-mockup .sep { border-top: 1px solid var(--paper-rule); margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>FOLLOWUP-025 v2 — Clone modal fix-list</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">4 questions</span>
+    Filed 2026-05-16 · v0.7.0 walk surfaced · parent FOLLOWUP-025 v1 shipped today (⌘⇧K)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The bug.</strong> Clone modal v1 shipped today: ⌘⇧K opens a modal with URL input + parent-dir input, runs <code>duo clone</code>, lands the new repo as a Navigator focus. Owner walked v0.7.0 and flagged three independent fixes — small in code, each needs a tiny design call.
+  <br><br>
+  This playground covers the focused fix-list. Broader GitHub-integration context lives in the <code>github-integration-cluster-v2</code> playground.
+</div>
+
+<h2>Issue 1 · CSS rendering regression (the bleed-through)</h2>
+
+<div class="issue">
+  <div class="verbatim">"there are visual artifacts/garbage when the modal renders" — owner v0.7.0 walk</div>
+  <p>The <code>bg-black/40</code> backdrop is bleeding through what should be a solid modal body. Underlying smoke-walk page text is visible through the modal.</p>
+</div>
+
+<div class="bleed-mockup">
+  <div class="bg-text">
+    walk item 12 · FOLLOWUP-025 Clone modal — happy path · seed a clone target ... ⌘⇧K to invoke clone-from-clipboard · expected modal with URL + parent-dir inputs ...
+  </div>
+  <div class="modal-box">
+    <div class="title">Clone GitHub Repo</div>
+    <div class="input">https://github.com/dudgeon/duo.git</div>
+    <div class="input">~/Documents</div>
+    <button style="background: var(--accent); color: white; border: none; padding: 6px 14px; border-radius: 4px;">Clone</button>
+  </div>
+  <div class="bleed-mockup-label">↑ Approximate repro: modal body's background is translucent, page bleeds through</div>
+</div>
+
+<p><strong>Suspected causes (in likelihood order):</strong></p>
+<ol>
+  <li><strong>Tailwind variable not resolving inside modal subtree</strong> — modal lives in renderer's React shell; if <code>bg-background</code> CSS variable resolves to <code>transparent</code> in this subtree (z-index parent? CSS-variable scope?), the body looks empty.</li>
+  <li><strong>Stacking-context / mix-blend-mode interference</strong> — body container has opacity or blend-mode somewhere up the chain.</li>
+  <li><strong>WCV occlusion</strong> — unlikely; screenshot shows modal as front layer with text bleeding through, not behind WCV.</li>
+</ol>
+<p><strong>Fix is probably one CSS line</strong> once root cause is found via <code>duo dom .bg-background --computed background-color,opacity</code> on the modal element. No decision needed for THIS issue — just diagnose and fix.</p>
+
+<h2>Issue 2 · Default parent directory</h2>
+
+<div class="issue">
+  <p>Today, the modal hardcodes <code>const DEFAULT_PARENT = '~/Documents'</code> as the parent dir for clones. Owner wants the Navigator's current cwd to win when present.</p>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Right-clicked folder vs. Navigator cwd</div>
+  <div class="q-prompt">If the user right-clicked a folder and chose "Clone GitHub repo here…", should the modal default to THAT folder?</div>
+  <p class="q-context">Question: does explicit context (the right-clicked folder) win over implicit (Navigator's current cwd)?</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-right-click-default" value="right-click-wins">
+      <div class="q-option-body">
+        <div class="q-option-title">Right-clicked folder wins <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Explicit context beats implicit. IPC payload carries the path; modal pre-populates input. Most intuitive.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-right-click-default" value="cwd-always">
+      <div class="q-option-body">
+        <div class="q-option-title">Always use Navigator cwd, ignore right-click context</div>
+        <div class="q-option-rationale">Simpler. Right-click triggers the same modal as the chord. Pick if you find context-aware defaults confusing.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · Right-click on a FILE (not folder)</div>
+  <div class="q-prompt">Should "Clone GitHub repo here…" appear when right-clicking on a file (not a folder)?</div>
+  <p class="q-context">If yes, the default parent would be the file's enclosing folder. Trade-off: visibility vs. mental-model simplicity.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-file-rightclick" value="folders-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Folders / whitespace only <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Simpler mental model: "clone INTO this folder". On file, no entry — user right-clicks the parent.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-file-rightclick" value="files-too">
+      <div class="q-option-body">
+        <div class="q-option-title">Files too (uses enclosing folder)</div>
+        <div class="q-option-rationale">More discoverable. Risk: confusing semantic ("clone into this file"). Need clear label.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>Issue 3 · Entry points beyond ⌘⇧K</h2>
+
+<div class="issue">
+  <div class="verbatim">"chord as only entry to modal is unacceptable; preferred: File &gt; Clone github repo, backup: rightclick in navigator &gt;&gt; clone github repo" — owner v0.7.0 walk</div>
+  <p>Proposal: ship ALL THREE (File menu + right-click + chord). Decisions below cover the cosmetic choices.</p>
+</div>
+
+<h3>3a — Native File menu placement</h3>
+
+<div class="menu-mockup">
+  <div class="item">New File <span class="shortcut">⌘N</span></div>
+  <div class="item">New Folder…</div>
+  <div class="sep"></div>
+  <div class="item">Open… <span class="shortcut">⌘O</span></div>
+  <div class="item highlight">Clone GitHub Repo… <span class="shortcut" style="color: rgba(255,255,255,0.7);">⌘⇧K</span></div>
+  <div class="sep"></div>
+  <div class="item">Close Tab <span class="shortcut">⌘W</span></div>
+  <div class="item">Quit <span class="shortcut">⌘Q</span></div>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · File menu placement</div>
+  <div class="q-prompt">Where in the File menu does "Clone GitHub Repo…" go?</div>
+  <p class="q-context">All three options are unambiguous; pick on aesthetic grounds.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3-menu-placement" value="after-open">
+      <div class="q-option-body">
+        <div class="q-option-title">After "Open…" (same group) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Sits with other file-acquisition commands. Matches the mockup above.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-menu-placement" value="own-section">
+      <div class="q-option-body">
+        <div class="q-option-title">Own section (separator before and after)</div>
+        <div class="q-option-rationale">Emphasizes it's distinct from file-open. Adds menu clutter.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-menu-placement" value="bottom">
+      <div class="q-option-body">
+        <div class="q-option-title">Bottom of menu, before Quit</div>
+        <div class="q-option-rationale">Less prominent. Pick if you want chord to remain primary surface.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q4 · Menu label wording</div>
+  <div class="q-prompt">What does the menu item say?</div>
+  <p class="q-context">Trade-off: specificity (GitHub-specific) vs. extensibility (works for any git host).</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q4-label" value="clone-github-repo">
+      <div class="q-option-body">
+        <div class="q-option-title">"Clone GitHub Repo…" <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Specific. Matches our current scope (gh + git clone). Re-label later if we add gitlab/bitbucket.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-label" value="clone-from-github">
+      <div class="q-option-body">
+        <div class="q-option-title">"Clone from GitHub…"</div>
+        <div class="q-option-rationale">Source-oriented phrasing. Same meaning, marginally different grammar.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-label" value="git-clone">
+      <div class="q-option-body">
+        <div class="q-option-title">"Git Clone…"</div>
+        <div class="q-option-rationale">Most extensible. Vaguer — less obvious to a user who doesn't know git terminology.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q4-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h3>3b — Right-click Navigator (no decision; ship as below)</h3>
+
+<div class="menu-mockup">
+  <div class="item">Open in editor</div>
+  <div class="item">Open in canvas</div>
+  <div class="sep"></div>
+  <div class="item highlight">Clone GitHub repo here…</div>
+  <div class="sep"></div>
+  <div class="item">New folder…</div>
+  <div class="item">Move to Trash…</div>
+</div>
+
+<p>Placement: between the "Open in" group and "New folder" group. Only on folder / whitespace per Q2.</p>
+
+<h2>4 · Implementation outline (once decisions land)</h2>
+
+<ul>
+  <li><code>renderer/components/CloneModal.tsx</code> — fix the CSS bleed (Issue 1, diagnostic via duo dom), accept a <code>defaultParent</code> prop (Issue 2).</li>
+  <li><code>renderer/App.tsx</code> — wire <code>defaultParent</code> from Navigator state OR right-click IPC payload (per Q1).</li>
+  <li><code>electron/main.ts</code> — add File menu MenuItem (per Q3/Q4); extend <code>NAV_OPEN_CLONE_MODAL</code> channel to carry an optional path.</li>
+  <li><code>renderer/components/FileTree.tsx § buildTreeMenuTemplate</code> — add "Clone GitHub repo here…" context menu item (per Q2 scope).</li>
+  <li><code>electron/preload.ts</code> — extend <code>onOpenCloneModal</code> callback signature to receive optional path.</li>
+  <li>Smoke walk regression items.</li>
+</ul>
+
+<p>Estimate: <strong>0.5-1 dev day</strong>.</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 4</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button  = document.getElementById('copy-decisions');
+
+  const QUESTIONS = [
+    { id: 'q1-right-click-default', title: 'Q1 · Right-clicked folder vs. Navigator cwd' },
+    { id: 'q2-file-rightclick',     title: 'Q2 · Right-click on a FILE (not folder)' },
+    { id: 'q3-menu-placement',      title: 'Q3 · File menu placement' },
+    { id: 'q4-label',               title: 'Q4 · Menu label wording' },
+  ];
+
+  function refreshCount() {
+    let answered = 0;
+    for (const q of QUESTIONS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QUESTIONS.length;
+  }
+  document.addEventListener('change', refreshCount);
+  document.addEventListener('input', refreshCount);
+  refreshCount();
+
+  function buildPayload() {
+    const lines = [];
+    lines.push('FOLLOWUP-025 v2 — CLONE MODAL FIX-LIST — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('===========================================================');
+    lines.push('');
+    for (const q of QUESTIONS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/followup-025-clone-modal-v2.html');
+    return lines.join('\n');
+  }
+
+  button.addEventListener('click', async function () {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(function () {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

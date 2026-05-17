@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>GitHub-integration cluster v2 · decision playground</title>
+<style>
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground overrides — */
+.tree-mock {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 12px 16px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.tree-mock .root { color: var(--ink); font-weight: 700; }
+.tree-mock .chip {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+}
+.tree-mock .chip-clean { background: color-mix(in srgb, var(--pass) 18%, var(--paper)); color: var(--pass); }
+.tree-mock .chip-diverged { background: color-mix(in srgb, var(--warn) 18%, var(--paper)); color: var(--warn); }
+.tree-mock .child { color: var(--ink-soft); padding-left: 16px; }
+.tree-mock .dot {
+  display: inline-block;
+  background: var(--accent);
+  color: white;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.menu-mock {
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 6px 0;
+  width: 240px;
+  font-size: 12px;
+  font-family: -apple-system, system-ui, sans-serif;
+  margin: 8px 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.menu-mock .item { padding: 4px 12px; }
+.menu-mock .item.new { background: var(--accent-soft); color: var(--ink); font-weight: 500; }
+.menu-mock .sep { border-top: 1px solid var(--paper-rule); margin: 4px 0; }
+.compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 14px 0;
+}
+.compare > div {
+  background: var(--paper-deep);
+  border-radius: 5px;
+  padding: 12px 14px;
+}
+.compare .label { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>GitHub-integration cluster v2</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">7 questions</span>
+    Filed 2026-05-16 · v0.7.0 walk surfaced · scope: 4 features
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The directive.</strong> Owner: <em>"make an html artifact that actually shows the planned github integration features, listed out with mockups of the planned experience, so that I can know what I'm looking for — it looks like you did nothing here."</em>
+  <br><br>
+  This playground covers the whole cluster: <strong>(1) Navigator repo-root chip always-visible</strong> · <strong>(2) Clone modal v2</strong> (cross-ref: separate playground for the 4 modal-specific decisions) · <strong>(3) Right-click "Open on GitHub" / "Copy GitHub URL"</strong> · <strong>(4) Per-file dirty dots</strong>.
+</div>
+
+<h2>1 · Navigator repo-root chip (ENH-152a v2)</h2>
+
+<p><strong>Today (broken).</strong> Chip only renders when dirty AND only on focus-poll. Owner walked v0.7.0 and rejected the clean-stays-invisible directive: <em>"no visual indication that duo/ is root of a github repo in the navigator view — very bad."</em></p>
+
+<p><strong>v2 shape — always visible when in a git repo.</strong> Three states based on git status:</p>
+
+<div class="tree-mock">
+<div class="root">📁 duo <span class="chip chip-clean">main</span></div>
+<div class="child">├─ docs/</div>
+<div class="child">├─ electron/</div>
+<div class="child">├─ renderer/</div>
+<div class="child">└─ tasks.md</div>
+<br>
+<div class="root">📁 duo <span class="chip">main · 3 modified</span></div>
+<div class="child">├─ docs/</div>
+<div class="child">├─ electron/</div>
+<div class="child">├─ renderer/</div>
+<div class="child">│&nbsp; └─ App.tsx <span class="dot"></span></div>
+<div class="child">└─ tasks.md <span class="dot"></span></div>
+<br>
+<div class="root">📁 duo <span class="chip chip-diverged">main · 2 ahead, 1 behind</span></div>
+<div class="child">├─ docs/</div>
+<div class="child">└─ ...</div>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Chip text format</div>
+  <div class="q-prompt">What does the always-visible repo-root chip say in each state?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-chip-format" value="branch-only-clean">
+      <div class="q-option-body">
+        <div class="q-option-title">Clean: <code>[main]</code> · Dirty: <code>[main · 3 modified]</code> · Diverged: <code>[main · 2 ahead, 1 behind]</code> <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Most readable. Branch name always present. Verbose dirty/diverged copy uses words instead of arrows. Matches the mockup above.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-chip-format" value="symbol-style">
+      <div class="q-option-body">
+        <div class="q-option-title">Apple-style symbols: <code>[main]</code> · <code>[main ●3]</code> · <code>[main ↑2 ↓1]</code></div>
+        <div class="q-option-rationale">Compact. Mimics Xcode source-control badge. Less self-explanatory; relies on user knowing symbols.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-chip-format" value="branch-only-always">
+      <div class="q-option-body">
+        <div class="q-option-title">Always just <code>[main]</code>; dirty count in separate hover-tooltip</div>
+        <div class="q-option-rationale">Cleanest visual. Hides modified-count behind hover (requires mouseover to see). Pick if you want max minimalism.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · Icon + text vs. text-only</div>
+  <div class="q-prompt">Should the chip include a git-branch icon?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-icon" value="text-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Text-only chip (no icon) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Already obvious — chip is right next to folder. Icon adds visual noise without info gain.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-icon" value="icon-prefix">
+      <div class="q-option-body">
+        <div class="q-option-title">Icon prefix: <code>⎇ main</code> (git-branch glyph)</div>
+        <div class="q-option-rationale">Signals "this is a git thing" at a glance. Trade-off: adds a glyph render that may not match all platforms.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · Chip placement</div>
+  <div class="q-prompt">Where exactly does the chip live in the Navigator?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3-placement" value="root-row">
+      <div class="q-option-body">
+        <div class="q-option-title">Inline on the root folder row (right-aligned) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Spatially tied to the repo it describes. Easy to scan across multiple panes / projects.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-placement" value="above-tree">
+      <div class="q-option-body">
+        <div class="q-option-title">Small badge above the tree (current implementation)</div>
+        <div class="q-option-rationale">Doesn't crowd file rows. Visually disconnected from "the folder is a repo." Pick if root row gets too busy.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-placement" value="footer-status">
+      <div class="q-option-body">
+        <div class="q-option-title">Footer status bar at bottom of Navigator</div>
+        <div class="q-option-rationale">VS Code pattern. Out of the way. Adds new chrome surface (footer bar doesn't exist today).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>2 · Clone modal v2</h2>
+
+<p>Cross-referenced — the 4 modal-specific decisions live in a focused playground at <code>docs/research/followup-025-clone-modal-v2.html</code>. Walk that one separately. This section is here for cluster context only.</p>
+
+<p><strong>Summary of changes:</strong> fix CSS bleed-through, default to Navigator cwd (right-click overrides), File menu entry, right-click Navigator entry, ⌘⇧K stays.</p>
+
+<h2>3 · Right-click "Open on GitHub" / "Copy GitHub URL" (ENH-155)</h2>
+
+<p>New Navigator right-click items, only shown when the path is inside a git repo with a GitHub remote:</p>
+
+<div class="menu-mock">
+  <div class="item">Open in editor</div>
+  <div class="item">Open in canvas</div>
+  <div class="sep"></div>
+  <div class="item">Clone GitHub repo here…</div>
+  <div class="sep"></div>
+  <div class="item new">Open on GitHub</div>
+  <div class="item new">Copy GitHub URL</div>
+  <div class="sep"></div>
+  <div class="item">New folder…</div>
+  <div class="item">Move to Trash…</div>
+</div>
+
+<p><strong>URL shape.</strong> Files → <code>https://github.com/&lt;owner&gt;/&lt;repo&gt;/blob/&lt;branch&gt;/&lt;rel-path&gt;</code>. Folders → <code>/tree/</code> instead of <code>/blob/</code>. Resolves <code>git remote get-url origin</code> + <code>git rev-parse --abbrev-ref HEAD</code> via the existing <code>core/git/</code> helpers ENH-152a uses.</p>
+
+<div class="decision-card">
+  <div class="q-title">Q4 · GitHub Enterprise support</div>
+  <div class="q-prompt">Should "Open on GitHub" work for <code>github.&lt;company&gt;.com</code> enterprise hosts?</div>
+  <p class="q-context">Detect via gh auth host (<code>gh auth status</code> returns the host of the authenticated config) vs. URL prefix match.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q4-enterprise" value="yes-detect">
+      <div class="q-option-body">
+        <div class="q-option-title">Yes — detect via remote URL prefix <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Simplest. If <code>remote get-url</code> returns <code>https://github.foo.com/...</code>, use that host. No special config needed.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-enterprise" value="github-com-only">
+      <div class="q-option-body">
+        <div class="q-option-title">No — github.com only (v1)</div>
+        <div class="q-option-rationale">Hide menu item for enterprise hosts. Ship enterprise support as ENH-XXX later.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q4-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q5 · Auth-failure case</div>
+  <div class="q-prompt">If <code>gh auth status</code> reports no auth, should the right-click menu items still appear?</div>
+  <p class="q-context">Public repo links don't require auth. Only writes need auth.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q5-auth" value="show-always">
+      <div class="q-option-body">
+        <div class="q-option-title">Show menu items regardless of auth state <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">URLs work without auth (read-only). Removing the menu surprises users with public repos.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q5-auth" value="hide-no-auth">
+      <div class="q-option-body">
+        <div class="q-option-title">Hide if no auth</div>
+        <div class="q-option-rationale">Stricter — assumes private repos. Risk: hides functionality for public-repo workflows.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q5-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>4 · Per-file dirty dots (ENH-152b)</h2>
+
+<p>Small <code>●</code> next to file names that are dirty. Same data source as the root chip (<code>git status --porcelain</code>). Shown in the cluster mockup above.</p>
+
+<div class="decision-card">
+  <div class="q-title">Q6 · Dot semantics</div>
+  <div class="q-prompt">What state(s) should the dot indicate?</div>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q6-dot-semantics" value="any-change">
+      <div class="q-option-body">
+        <div class="q-option-title">Any change (staged OR unstaged OR untracked) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Single dot, single color. "This file isn't committed yet." Simplest mental model.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q6-dot-semantics" value="color-coded">
+      <div class="q-option-body">
+        <div class="q-option-title">Color-coded (orange = unstaged, green = staged, blue = untracked)</div>
+        <div class="q-option-rationale">VS Code-like. More info-dense. Trade-off: adds visual complexity; users have to learn the legend.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q6-dot-semantics" value="unstaged-only">
+      <div class="q-option-body">
+        <div class="q-option-title">Unstaged only (matches Xcode 'M' badge semantics)</div>
+        <div class="q-option-rationale">Quietest. Hides untracked files from dot signal. Risk: invisible new files.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q6-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q7 · Refresh trigger</div>
+  <div class="q-prompt">When should git status re-poll for chip + dots?</div>
+  <p class="q-context">Today's ENH-152a polls on focus-back. Per-file dots multiply that cost.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q7-refresh" value="fsevents-debounced">
+      <div class="q-option-body">
+        <div class="q-option-title">fsevents-driven, debounced 250ms <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Real-time updates as files change. Debounce prevents thrashing on rapid edits. Most performant.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q7-refresh" value="focus-poll">
+      <div class="q-option-body">
+        <div class="q-option-title">Focus-back poll only (current behavior)</div>
+        <div class="q-option-rationale">Cheapest. Stale until you tab away and back. Pick if fsevents is unreliable in some envs.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q7-refresh" value="interval-30s">
+      <div class="q-option-body">
+        <div class="q-option-title">Interval poll every 30s</div>
+        <div class="q-option-rationale">Predictable. Always stale up to 30s. Pick only if fsevents + focus-poll both rejected.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q7-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>5 · Implementation order (once decisions land)</h2>
+
+<ol>
+  <li><strong>Repo-root chip always-visible</strong> (ENH-152a v2) — small CSS + FileTree update. ~half-day.</li>
+  <li><strong>Right-click "Open on GitHub" / "Copy GitHub URL"</strong> (ENH-155) — context menu item + <code>core/git/remote-url.ts</code> helper. ~half-day.</li>
+  <li><strong>Per-file dirty dots</strong> (ENH-152b) — Slice 2 of ENH-152. ~1 day.</li>
+  <li><strong>fsevents-driven invalidation</strong> (ENH-152c) — if Q7 picks fsevents. ~half-day.</li>
+</ol>
+
+<p>Total: <strong>~2-3 dev days</strong> for the cluster (modal work tracked separately in FOLLOWUP-025 v2 playground).</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 7</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button  = document.getElementById('copy-decisions');
+
+  const QUESTIONS = [
+    { id: 'q1-chip-format',    title: 'Q1 · Chip text format' },
+    { id: 'q2-icon',           title: 'Q2 · Icon + text vs. text-only' },
+    { id: 'q3-placement',      title: 'Q3 · Chip placement' },
+    { id: 'q4-enterprise',     title: 'Q4 · GitHub Enterprise support' },
+    { id: 'q5-auth',           title: 'Q5 · Auth-failure case' },
+    { id: 'q6-dot-semantics',  title: 'Q6 · Dot semantics' },
+    { id: 'q7-refresh',        title: 'Q7 · Refresh trigger' },
+  ];
+
+  function refreshCount() {
+    let answered = 0;
+    for (const q of QUESTIONS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QUESTIONS.length;
+  }
+  document.addEventListener('change', refreshCount);
+  document.addEventListener('input', refreshCount);
+  refreshCount();
+
+  function buildPayload() {
+    const lines = [];
+    lines.push('GH-INTEGRATION CLUSTER v2 — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('=========================================================');
+    lines.push('');
+    for (const q of QUESTIONS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/github-integration-cluster-v2.html');
+    return lines.join('\n');
+  }
+
+  button.addEventListener('click', async function () {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(function () {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

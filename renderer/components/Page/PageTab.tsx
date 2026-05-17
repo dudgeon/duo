@@ -55,6 +55,7 @@ import { installPagePasteHandlers } from './pagePaste'
 import { installImageHydrate } from './imageHydrate'
 import { installImageSelectionTint } from './imageSelectionTint'
 import { ViewSourcePanel } from '../ViewSourcePanel'
+import { PageFindBar } from './PageFindBar'
 import {
   paintAnchors,
   clearAnchors,
@@ -491,6 +492,14 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     rect: PillAnchorRect
   } | null>(null)
 
+  // BUG-126 — canvas-mode ⌘F find bar state. Mirrors MarkdownEditor's
+  // findOpen/setFindOpen; the bar's match-walking + highlight live in
+  // PageFindBar (which drives pageFind.ts against the iframe doc).
+  const [findOpen, setFindOpen] = useState(false)
+  // The iframe element isn't a reactive ref; capture it in state so
+  // PageFindBar re-mounts with the live iframe after each reload.
+  const [findIframe, setFindIframe] = useState<HTMLIFrameElement | null>(null)
+
   const getDoc = useCallback(() => canvasRef.current?.getDocument() ?? null, [])
 
   // Sprint 6 BUG-081 — forward-reference handleStartNewComment via a
@@ -903,6 +912,12 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     // Defensive — if a previous wiring is still in place (path change
     // mid-flight), tear it down before rebuilding.
     wireCleanupRef.current?.()
+
+    // BUG-126 — capture the iframe element for PageFindBar. handleReady
+    // fires after the iframe is wired, so getIframeElement is non-null
+    // here. Store in state so the bar mounts (or re-mounts on reload).
+    const el = canvasRef.current?.getIframeElement?.() ?? null
+    setFindIframe(el)
 
     const onSelChange = () => bumpVersion()
     doc.addEventListener('selectionchange', onSelChange)
@@ -1347,6 +1362,45 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
     }
     window.addEventListener('duo-view-source', onViewSource)
     return () => window.removeEventListener('duo-view-source', onViewSource)
+  }, [initialHtml])
+
+  // BUG-126 — canvas-mode ⌘F find. Mirrors MarkdownEditor's editor-find
+  // event listeners. The bar lives inside this tab's chrome (mounted in
+  // the JSX below); the events come from App.tsx's openFind dispatch.
+  // Only the active page tab handles these (pageIsActiveRef guard).
+  useEffect(() => {
+    if (initialHtml === null) return
+    const onOpen = () => {
+      if (!pageIsActiveRef.current) return
+      setFindOpen(true)
+    }
+    const onClose = () => {
+      if (!pageIsActiveRef.current) return
+      setFindOpen(false)
+    }
+    // Next/prev are handled inside PageFindBar via its own keyboard
+    // bindings + buttons. We still listen here for ⌘G / ⌘⇧F dispatched
+    // from outside the find input (e.g. when focus is in the canvas).
+    // The bar reads its own state, so we just open it as a side-effect
+    // of next/prev when not already open.
+    const onNext = () => {
+      if (!pageIsActiveRef.current) return
+      setFindOpen(true)
+    }
+    const onPrev = () => {
+      if (!pageIsActiveRef.current) return
+      setFindOpen(true)
+    }
+    window.addEventListener('duo-page-find-open', onOpen)
+    window.addEventListener('duo-page-find-close', onClose)
+    window.addEventListener('duo-page-find-next', onNext)
+    window.addEventListener('duo-page-find-prev', onPrev)
+    return () => {
+      window.removeEventListener('duo-page-find-open', onOpen)
+      window.removeEventListener('duo-page-find-close', onClose)
+      window.removeEventListener('duo-page-find-next', onNext)
+      window.removeEventListener('duo-page-find-prev', onPrev)
+    }
   }, [initialHtml])
 
   useEffect(() => {
@@ -1937,6 +1991,19 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
             Keep mine
           </button>
         </div>
+      )}
+      {/* BUG-126 — canvas find bar. Sits between the toolbar/banners and
+          the iframe area, matching MarkdownEditor's FindBar placement.
+          Hidden when viewSource panel is active (the view-source surface
+          gets its own search affordance through the renderer's built-in
+          text-find on its own textarea content). */}
+      {viewSource === null && (
+        <PageFindBar
+          iframe={findIframe}
+          open={findOpen}
+          onClose={() => setFindOpen(false)}
+          reloadTick={reloadKey}
+        />
       )}
       {/* FOLLOWUP-015 — view-source v2 replaces the canvas iframe + rail
           area with ViewSourcePanel when active, so source mode owns

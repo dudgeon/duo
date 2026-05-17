@@ -23,6 +23,59 @@
 > prune candidate: closed BUG-018..BUG-040 era entries once their
 > lessons similarly internalize.
 
+## 🟡 OPEN OWNER-DECISION GATES — v0.7.0 cut blocked until walked
+
+> **Forgetting-protection.** Each gate below is a playground that owner
+> must walk (radio + Copy decisions) before the gated implementation
+> work starts. These appear in every smoke walk manifest until owner
+> closes them. The v0.7.0 cut is blocked until all four are walked.
+>
+> **How to walk:** `duo open <path>` opens the playground in Duo's
+> browser pane. Pick a radio for each decision card, add any notes,
+> hit "Copy decisions" at the bottom, paste back to Claude.
+>
+> **Status convention.** 🟡 = awaiting owner walk. Once walked + decisions
+> copied, status flips to ⏳ In progress (Claude implementing), then
+> ✅ Shipped after the smoke walk closes.
+
+### GATE-BUG-125-v2: Canvas baseline tracking — Option B normalize layer
+
+**Status:** 🟡 Awaiting owner walk.
+**Playground:** [`docs/research/bug-125-canvas-baseline-v2.html`](docs/research/bug-125-canvas-baseline-v2.html) — 4 decisions.
+**Filed:** 2026-05-17.
+**Blocks:** BUG-125 v2 implementation (estimate 1 dev day).
+
+Decisions cover: which resolution option (A/B/C), data-duo-id round-trip behavior, normalization scope, markdown editor parity.
+
+### GATE-FOLLOWUP-025-v2: Clone modal fix-list
+
+**Status:** 🟡 Awaiting owner walk.
+**Playground:** [`docs/research/followup-025-clone-modal-v2.html`](docs/research/followup-025-clone-modal-v2.html) — 4 decisions.
+**Filed:** 2026-05-17.
+**Blocks:** FOLLOWUP-025 v2 implementation (estimate 0.5-1 dev day).
+
+Decisions cover: right-click-folder default vs. Navigator cwd, file vs. folder context-menu entry, File menu placement, menu label wording. CSS bleed-through fix needs no decision (diagnose + repair during implementation).
+
+### GATE-ENH-159-v2: Inspect mode UX redesign
+
+**Status:** 🟡 Awaiting owner walk.
+**Playground:** [`docs/research/enh-159-inspect-mode-v2.html`](docs/research/enh-159-inspect-mode-v2.html) — 5 decisions.
+**Filed:** 2026-05-17.
+**Blocks:** ENH-159 v2 implementation (estimate 1-1.5 dev days).
+
+Decisions cover: pill position in State C (anchored vs. corner), click-outside behavior, frozen-element visual, right-click pre-freeze flow, ⌘D parity. Selection-observer pause regression fix needs no decision (one-line guard).
+
+### GATE-GH-CLUSTER-v2: GitHub-integration cluster
+
+**Status:** 🟡 Awaiting owner walk.
+**Playground:** [`docs/research/github-integration-cluster-v2.html`](docs/research/github-integration-cluster-v2.html) — 7 decisions.
+**Filed:** 2026-05-17.
+**Blocks:** ENH-152a v2 (always-visible chip), ENH-155 (right-click GH menu), ENH-152b (per-file dots), ENH-152c (fsevents invalidation). Estimate 2-3 dev days for cluster.
+
+Decisions cover: chip text format, icon/text, placement, GH enterprise support, auth-failure handling, dot semantics, refresh trigger.
+
+---
+
 ## DRAFT — Sprint-9+ candidates from idle-thoughts sweep (2026-05-06)
 
 > Filed during the v0.6.8 cut close-out sweep. Each entry below is a
@@ -6180,58 +6233,58 @@ Verified the gap empirically:
 
 ### BUG-128: `docs/research/integration-primitive-design.html` playground renders blank
 
-**Status:** 🆕 Filed 2026-05-16 (discovered during v0.7.0 walk).
+**Status:** 🟡 Filed 2026-05-16 (discovered during v0.7.0 walk). **Post-walk investigation 2026-05-16: NOT REPRODUCING** in current session.
 **Priority:** Medium — blocks ENH-150 owner decisions. Without the playground rendering, the 4 decisions can't be walked.
 **Filed:** 2026-05-16.
 
 **Symptom.** Owner during v0.7.0 walk: *"playground is actual blank page"*. `duo open docs/research/integration-primitive-design.html` lands in the browser pane (per ENH-156 default), but the page itself shows no content.
 
-**Investigation owed.** Check the file's actual content — empty? Or has a content-blocking script error? Or a missing CSS reference? Likely a small fix once root cause is identified.
+**Investigation 2026-05-16 (post-walk).** Reproduced via `duo open` + `duo edit` in dev session against the same file. Browser pane: page renders with 66 body children, 13745px scroll height, 27838 chars visible text, header element present, atelier-styled body (paper bg #fbf8f1, dark ink #2b2620), display:block + opacity:1 + visibility:visible. Canvas pane: identical render via canvas iframe (scripts blocked per ENH-156 verb-routing, but page CSS + DOM still load). **The page is not blank.**
+
+**Hypotheses for the walk-time blank state (owner verification needed before fix):**
+1. Stale tab — owner had a previously-opened tab pointing at an empty or different file; the active surface didn't actually load the playground.
+2. Iframe load race — first canvas-mount of an HTML file with file:// + large `<style>` block may have transient empty-frame state before the body paints.
+3. Inspect-mode interference — ENH-159 inspect mode was being walked in the same session; a freeze-frame from inspect might have left a stale screenshot up.
+4. Scroll-position — page is 13745px tall; if the viewport happened to be at a region of `display:none` decision-card content, owner might have read "blank" where it was "below-fold whitespace."
+
+**Next step.** Owner re-opens the playground in a fresh dev session and confirms — if blank repeats, capture `duo dom 'body' --js '(...)'` snapshot before reporting. If renders fine, close as no-repro.
 
 ---
 
 ### BUG-127: Paste of markdown text into TipTap editor lands in code block instead of rendering as markdown
 
-**Status:** 🆕 Filed 2026-05-16 (discovered during v0.7.0 walk testing BUG-123 v1).
+**Status:** ✅ **Fixed 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Root cause: PMDOMParser.parseSlice produced a Slice with natural openStart/openEnd matching the cursor's node depth. When the cursor was inside a list-item or blockquote, PM's replaceSelection tried to fit the table into the destination's content model — squashing it to inline `<code>`-wrapped text. **Fix:** [`renderer/components/editor/extensions/MarkdownPaste.ts`](renderer/components/editor/extensions/MarkdownPaste.ts) — for block-level paste, wrap the parsed slice with `new Slice(content, 0, 0)` so PM treats it as fully-closed block content and lifts enclosing nodes as needed. Inline paste keeps the natural openness (bold-word-mid-sentence still works).
 **Priority:** Medium — paste workflow is core to editor UX; landing in code block is unexpected for most paste sources. Owner: *"common failure mode where pasting text into markdown editor, exp markdown text, lands inside a code block — unwanted behavior."*
-**Filed:** 2026-05-16.
+**Filed:** 2026-05-16. **Fixed:** 2026-05-17.
 
 **Symptom.** Owner pasted a markdown table fixture (`| A | B | C |\n|---|---|---|\n| 1 | 2 | 3 |\n...`) into a markdown editor tab. Instead of rendering as a TipTap table, the text landed inside a code block (` ``` `).
 
-**Suspected.** TipTap's paste handler may be defaulting to code-block insertion for multi-line text that LOOKS like code (leading `|`, fixed-width columns). Either the paste-as-markdown plugin is mis-detecting the format, OR the editor's `handlePaste` is sending text through the wrong transform.
+**Verification (dev session, programmatic paste via ClipboardEvent):**
 
-**Repro.**
-1. `duo edit /tmp/walk-paste-test.md`.
-2. Copy a markdown table block into your clipboard (e.g. from another markdown file).
-3. ⌘V into the editor.
-4. **Expected:** table renders as a TipTap-managed table (rows/columns).
-5. **Actual:** text lands inside a code block.
+- Empty editor + table paste → renders as proper `<div class="tableWrapper"><table>...</table></div>` ✓
+- Inside list-item + table paste → renders as `<ul><li><p>first item</p><div class="tableWrapper"><table>...</table></div></li></ul>` ✓ (table lifted into list-item context)
+- Inline paste of `**bold-mid**` mid-sentence → still renders as `<strong>bold-mid</strong>` inline ✓ (no regression)
 
-**Cross-ref.** BUG-123 v1 walk failure traces back to this — the table never rendered because the paste created a code block. BUG-123 v1 itself can't be validated until BUG-127 is fixed.
+**Cross-ref.** BUG-123 v1 walk failure traces back to this — the table never rendered because the paste created a code block. With BUG-127 fixed, BUG-123 v1 should re-walk successfully.
 
 ---
 
 ### BUG-126: `⌘F` find search in canvas mode stops narrowing after the first character
 
-**Status:** 🆕 Filed 2026-05-16 (discovered during v0.7.0 walk testing ENH-143).
-**Priority:** Medium — find-in-page is core navigation; broken narrowing makes it useless.
-**Filed:** 2026-05-16.
+**Status:** ✅ **Fixed 2026-05-17 (Sprint 17 / v0.7.0 cut prep).** Root cause: canvas mode (`kind: 'page'`) had no Duo-managed find handler — ⌘F fell through to Chromium's broken native find on the iframe contentDocument (App.tsx `openFind` only branched between 'browser' and editor-fallback). **Fix:** new `renderer/components/Page/pageFind.ts` (CSS Custom Highlight API text-walker) + `renderer/components/Page/PageFindBar.tsx` (mirror of editor FindBar) + PageTab mount + App.tsx event branch for `activeFileType === 'page'`. Verified via programmatic dispatch in dev: query 'e' → 4056 matches, 'en' → 406, 'ent' → 173; narrowing works per keystroke. Close button + ESC clear highlights cleanly.
+**Priority:** Medium — find-in-page is core navigation; broken narrowing made it useless.
+**Filed:** 2026-05-16. **Fixed:** 2026-05-17.
 
-**Symptom.** Owner during ENH-143 walk (opened what-duo-does.html in canvas mode and used ⌘F to find "entry"): *"⌘F opened search, attempted search ... for 'entry', search bar accepted full entry query, but stopped narrowing search after the 'e' character (ie showed all e's as highlighted), but ignored subsequent characters. closing search bar left all of the e's highlighted"*.
+**Why the original "stops narrowing" symptom.** Chromium's native ⌘F on a sandboxed iframe contentDocument processes the first keystroke but the find session loses sync when the iframe's contentEditable body re-renders. Cleanup also broken because the native find bar doesn't own the highlight state.
 
-**Suspected.** The canvas-mode iframe's find-in-page handler is firing once per first-character but not updating the highlighted-match set on subsequent keystrokes. Closing the find bar isn't clearing the highlights either — separate cleanup bug.
+**Implementation summary.**
 
-**Repro.**
-1. `duo edit ~/.claude/duo/packs/duo-default/canvases/what-duo-does.html` (canvas mode).
-2. Press ⌘F.
-3. Type "entry" character-by-character in the search bar.
-4. **Expected:** highlights narrow as you type (`e` → 100s of hits → `en` → 50s → `ent` → 20s → `entr` → 5 → `entry` → 3 exact matches).
-5. **Actual:** after first `e`, narrowing stops; subsequent characters typed but highlight set stays at first-character matches.
-6. Close find bar.
-7. **Expected:** highlights clear.
-8. **Actual:** highlights remain.
+- `pageFind.ts` — pure helpers: `findMatchesInDoc(doc, query)` walks text nodes via TreeWalker; `paintHighlights(win, doc, state)` uses CSS Custom Highlight API (no DOM mutation); `scrollToCurrent` centers the active match; `installFindStyles` injects highlight CSS into iframe `<head>`.
+- `PageFindBar.tsx` — React bar with input, ↑/↓/⏎/⎋/⌘G/⌘⇧F/⌘F keybindings; mounts above the canvas iframe area when `findOpen === true`.
+- `PageTab.tsx` — `findOpen` + `findIframe` state; iframe captured in `handleReady`; window event listeners for `duo-page-find-open/close/next/prev`.
+- `App.tsx § openFind/findNext/findPrev` — branch when `activeFileType === 'page'` to dispatch `duo-page-find-*` events.
 
-**Cross-ref.** Filed during ENH-143 walk-out. ENH-143 itself is mostly PASS (entry 55b exists + reads coherently); the remaining placeholder "tracked in FOLLOWUP-020" reference was supposedly removed but owner still saw it — small content fix to follow.
+**Sandbox-safe.** CSS Custom Highlight API doesn't require `allow-scripts`. The canvas iframe's `sandbox="allow-same-origin allow-popups allow-forms"` is unchanged.
 
 ---
 

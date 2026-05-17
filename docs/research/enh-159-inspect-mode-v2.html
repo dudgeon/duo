@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>ENH-159 v2 — Inspect mode UX redesign · decision playground</title>
+<style>
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground overrides — */
+.state-diagram {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+.state-card {
+  background: var(--paper-deep);
+  border: 2px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+.state-card.state-a { border-color: var(--ink-ghost); }
+.state-card.state-b { border-color: var(--warn); }
+.state-card.state-c { border-color: var(--accent); }
+.state-card .state-label {
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+}
+.state-card.state-a .state-label { color: var(--ink-mute); }
+.state-card.state-b .state-label { color: var(--warn); }
+.state-card.state-c .state-label { color: var(--accent); }
+.state-card h4 { margin: 0 0 6px; font-size: 13.5px; }
+.state-card ul { font-size: 12px; padding-left: 16px; margin: 6px 0 0; color: var(--ink-soft); }
+.state-card .transition {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--paper-rule);
+  font-size: 11.5px;
+  color: var(--ink-mute);
+}
+.state-card .transition strong { color: var(--ink); font-weight: 600; }
+.pill-mock {
+  position: relative;
+  background: var(--paper);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  min-height: 80px;
+}
+.pill-mock .pill-box {
+  display: inline-block;
+  background: var(--accent);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.pill-mock .element-frame {
+  border: 2px solid var(--accent);
+  padding: 8px 12px;
+  border-radius: 3px;
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-size: 12px;
+}
+.pill-mock-label { font-size: 11px; color: var(--ink-mute); margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>ENH-159 v2 — Inspect mode UX redesign</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">5 questions</span>
+    Filed 2026-05-16 · v0.7.0 walk surfaced · parent ENH-159 v1 shipped today (PR #51)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The bug.</strong> ENH-159 v1 shipped today: <code>duo inspect</code> + ⌘⇧C toggle inspect mode in the browser pane. Click an element → captures DOM context + auto-ships to terminal. Walk fail: (a) auto-ship is wrong — owner wants click-to-freeze + explicit ship; (b) CLI-only toggle is too narrow — needs right-click entry; (c) selection-observer doesn't pause during inspect mode — pill still appears on text-select.
+  <br><br>
+  <strong>Note:</strong> the CLI verb shape + DOM-context paste format passed the walk. This v2 is purely about the UI flow + entry points + observer fix.
+</div>
+
+<h2>1 · The three-state machine (proposed)</h2>
+
+<div class="state-diagram">
+  <div class="state-card state-a">
+    <div class="state-label">State A · OFF (default)</div>
+    <h4>Normal browsing</h4>
+    <ul>
+      <li>Selection observer active</li>
+      <li>Hover = nothing visual</li>
+      <li>Click = page interaction</li>
+      <li>Text-select → Send→Duo pill</li>
+    </ul>
+    <div class="transition"><strong>→ B</strong> via <code>duo inspect</code> / ⌘⇧C / right-click "Toggle inspect"</div>
+  </div>
+  <div class="state-card state-b">
+    <div class="state-label">State B · ON, hovering</div>
+    <h4>Picking an element</h4>
+    <ul>
+      <li>Selection observer PAUSED</li>
+      <li>Hover = orange outline + tooltip</li>
+      <li>Click = freeze element (→ C)</li>
+      <li>ESC = exit (→ A)</li>
+    </ul>
+    <div class="transition"><strong>→ C</strong> via click on element<br><strong>→ A</strong> via ESC</div>
+  </div>
+  <div class="state-card state-c">
+    <div class="state-label">State C · ON, frozen</div>
+    <h4>Confirm-and-send</h4>
+    <ul>
+      <li>Outline LOCKED (4px solid)</li>
+      <li>Send-to-Duo pill near element</li>
+      <li>Click pill = ship + exit (→ A)</li>
+      <li>ESC = unfreeze (→ B)</li>
+    </ul>
+    <div class="transition"><strong>→ A</strong> via pill click<br><strong>→ B</strong> via ESC or click-outside (per Q2)</div>
+  </div>
+</div>
+
+<p>The shape mirrors Chrome DevTools' element picker (click selects + locks, ESC exits) but adds an explicit "ship it" affordance instead of auto-ship.</p>
+
+<h2>2 · Decisions</h2>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Pill position in State C</div>
+  <div class="q-prompt">Where does the "Send to Duo" pill render when an element is frozen?</div>
+
+  <div class="pill-mock">
+    <div class="element-frame">Frozen &lt;button&gt; element</div>
+    <div class="pill-box" style="position:absolute; top: 8px; right: 12px;">📨 Send to Duo</div>
+    <div class="pill-mock-label">↑ Option B: fixed top-right corner of browser pane</div>
+  </div>
+
+  <div class="pill-mock" style="text-align: center;">
+    <div class="pill-box" style="display: block; width: fit-content; margin: 0 auto 4px;">📨 Send to Duo</div>
+    <div class="element-frame">Frozen &lt;button&gt; element</div>
+    <div class="pill-mock-label">↑ Option A: anchored above element (matches existing text-selection pill pattern)</div>
+  </div>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-pill-position" value="anchored">
+      <div class="q-option-body">
+        <div class="q-option-title">Anchored to element (above/below) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Discoverable — pill is RIGHT THERE next to what you selected. Matches existing text-selection Send→Duo pill. Risk: occludes nearby content; needs above/below auto-flip.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-pill-position" value="fixed-corner">
+      <div class="q-option-body">
+        <div class="q-option-title">Fixed corner (top-right)</div>
+        <div class="q-option-rationale">Never occludes the element. Consistent location. Less obvious as "this pill ships THIS element."</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-pill-position" value="both">
+      <div class="q-option-body">
+        <div class="q-option-title">Anchored if no occlusion; fall back to corner</div>
+        <div class="q-option-rationale">Smart but adds layout complexity. Pick if you've seen both fail individually.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · Click-outside in State C</div>
+  <div class="q-prompt">If user clicks outside the locked element while in State C, what happens?</div>
+  <p class="q-context">Trade-off: unfreeze gives a "pick another one" path (back to State B); no-op prevents accidental re-pick.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-click-outside" value="unfreeze">
+      <div class="q-option-body">
+        <div class="q-option-title">Unfreeze (back to State B) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Symmetric with click-to-freeze. Click-outside-pill-and-element is the natural "I changed my mind" gesture.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-click-outside" value="no-op">
+      <div class="q-option-body">
+        <div class="q-option-title">No-op (only pill or ESC can change frozen)</div>
+        <div class="q-option-rationale">More deliberate — user must explicitly ship or cancel. Harder to accidentally lose the pick.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-click-outside" value="reselect">
+      <div class="q-option-body">
+        <div class="q-option-title">Re-select the new element directly</div>
+        <div class="q-option-rationale">Click-outside swaps frozen element. Saves one click vs. "unfreeze then re-hover-and-click." Risk: surprising if user just wanted to dismiss.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · Frozen-element visual</div>
+  <div class="q-prompt">How does the locked element look different from the hover outline?</div>
+  <p class="q-context">Today: 2px orange dashed outline on hover. The frozen visual should clearly say "this one is locked".</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3-frozen-visual" value="solid-2px">
+      <div class="q-option-body">
+        <div class="q-option-title">Solid 2px orange (same color, no dash) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Minimal visual change; reads as "the dashes settled = locked". Lowest CSS complexity.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-frozen-visual" value="thick-4px">
+      <div class="q-option-body">
+        <div class="q-option-title">Thick 4px solid orange</div>
+        <div class="q-option-rationale">More pronounced. Pick if 2px doesn't read as "definitely locked" in testing.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-frozen-visual" value="filled-overlay">
+      <div class="q-option-body">
+        <div class="q-option-title">Outline + translucent fill (orange overlay on element)</div>
+        <div class="q-option-rationale">Most prominent. Risk: obscures element content. Closest to "selected" CSS pattern.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q4 · Right-click context-menu entry</div>
+  <div class="q-prompt">Right-click "Inspect element here" — skip State B or pass through it?</div>
+  <p class="q-context">User right-clicks an element → context menu shows "Inspect element here" → ??? Two flows:</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q4-rightclick-flow" value="straight-to-c">
+      <div class="q-option-body">
+        <div class="q-option-title">Straight to State C (pre-frozen) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Right-click is already the "pick this one" gesture. Skipping B is less surprising — user expects the click to have already chosen.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-rightclick-flow" value="flash-through-b">
+      <div class="q-option-body">
+        <div class="q-option-title">Flash through State B briefly (~200ms) then lock</div>
+        <div class="q-option-rationale">Makes the state machine visible. Adds animation complexity. Pick if you want the inspect mode to feel "explained" via the flash.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q4-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q5 · ⌘D parity in State C</div>
+  <div class="q-prompt">Should ⌘D (Send→Duo) ship the frozen element when in State C?</div>
+  <p class="q-context">Today ⌘D ships the text selection (or no-op if nothing selected). In State C there's no text selection but there IS a frozen element. Should ⌘D ship it?</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q5-cmd-d" value="yes-parity">
+      <div class="q-option-body">
+        <div class="q-option-title">Yes — ⌘D ships frozen element + exits inspect <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Keyboard-driver parity. Mouse-user clicks pill; keyboard-user hits ⌘D. Same outcome.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q5-cmd-d" value="no-pill-only">
+      <div class="q-option-body">
+        <div class="q-option-title">No — only pill ships in State C</div>
+        <div class="q-option-rationale">Stricter mental model: "pill ships elements, ⌘D ships selections, they don't overlap." Risk: keyboard users have to mouse.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q5-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>3 · Fix the selection-observer pause regression (no decision needed)</h2>
+
+<p><strong>Walk step 12 fail:</strong> inspect mode on; user selects text; the Send → Duo pill still appears. Both observers run independently.</p>
+
+<p><strong>Fix:</strong> add early return in <code>electron/cdp-bridge.ts § SELECTION_OBSERVER_IIFE</code> that checks <code>window.__duoInspectActive === true</code>. One-liner. Add structural regression test that asserts the IIFE source contains the guard.</p>
+
+<h2>4 · Implementation outline (once decisions land)</h2>
+
+<ul>
+  <li><code>electron/cdp-bridge.ts § INSPECT_OBSERVER_IIFE</code> — extend with three-state machine. New events: <code>inspect-freeze</code> (B→C), <code>inspect-unfreeze</code> (C→B), <code>inspect-send</code> (C→A with payload).</li>
+  <li><code>electron/cdp-bridge.ts § SELECTION_OBSERVER_IIFE</code> — <code>__duoInspectActive</code> guard + regression test.</li>
+  <li><code>electron/main.ts</code> — browser-pane + browser-tab-strip right-click integration (per §2.2).</li>
+  <li><code>renderer/components/BrowserRenderer.tsx</code> — render the locked-element pill (anchored or corner per Q1).</li>
+  <li><code>cli/duo.ts</code> + <code>agents/duo.md</code> + <code>skill/SKILL.md</code> + <code>docs/CLI-COVERAGE.md</code> — doc the new state machine for agents (<code>duo inspect</code> still toggles, new <code>BROWSER_INSPECT_STATE</code> push for agent observability).</li>
+</ul>
+
+<p>Estimate: <strong>1-1.5 dev days</strong> for the state machine + entry points + observer fix + tests.</p>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 5</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button  = document.getElementById('copy-decisions');
+
+  const QUESTIONS = [
+    { id: 'q1-pill-position',   title: 'Q1 · Pill position in State C' },
+    { id: 'q2-click-outside',   title: 'Q2 · Click-outside in State C' },
+    { id: 'q3-frozen-visual',   title: 'Q3 · Frozen-element visual' },
+    { id: 'q4-rightclick-flow', title: 'Q4 · Right-click context-menu entry' },
+    { id: 'q5-cmd-d',           title: 'Q5 · ⌘D parity in State C' },
+  ];
+
+  function refreshCount() {
+    let answered = 0;
+    for (const q of QUESTIONS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QUESTIONS.length;
+  }
+  document.addEventListener('change', refreshCount);
+  document.addEventListener('input', refreshCount);
+  refreshCount();
+
+  function buildPayload() {
+    const lines = [];
+    lines.push('ENH-159 v2 — INSPECT MODE UX REDESIGN — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('===========================================================');
+    lines.push('');
+    for (const q of QUESTIONS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/enh-159-inspect-mode-v2.html');
+    return lines.join('\n');
+  }
+
+  button.addEventListener('click', async function () {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(function () {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

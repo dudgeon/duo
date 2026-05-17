@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>BUG-125 v2 — canvas baseline tracking · decision playground</title>
+<style>
+/* — Atelier kernel (verbatim from ~/.claude/skills/duo/references/duo-atelier.css) — */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground overrides — */
+.evidence {
+  background: var(--code-bg);
+  color: var(--code-ink);
+  padding: 14px 16px;
+  border-radius: 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  margin: 12px 0;
+  overflow-x: auto;
+}
+.evidence .hi { background: var(--accent); color: white; padding: 1px 4px; border-radius: 2px; }
+.diag {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  align-items: center;
+  margin: 14px 0;
+}
+.diag-col {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+.diag-col .label { font-weight: 700; font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+.diag-arrow { font-size: 20px; color: var(--ink-ghost); text-align: center; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>BUG-125 v2 — canvas baseline tracking</h1>
+  <div class="meta">
+    <span class="pill">Decision gate</span>
+    <span class="pill">4 questions</span>
+    Filed 2026-05-16 · v0.7.0 walk surfaced · parent BUG-125 v1 shipped PR #49
+  </div>
+</header>
+
+<div class="intro">
+  <strong>The bug.</strong> BUG-125 v1 (PR #49 — symlink-resolved watcher path remap) was supposed to make external writes to canvas-mode HTML files reload silently when the buffer is clean. Walk found: the conflict banner still fires on clean buffers.
+  <br><br>
+  <strong>Root cause.</strong> The canvas baseline isn't the disk content — it's the <em>live serialized DOM after Duo's runtime modifications</em> (data-duo-id anchors, image-selection-tint &lt;style&gt; element, pretty-print formatting). When the watcher compares baseline vs. disk for an external write, they differ — even when no user edits happened.
+</div>
+
+<h2>1 · Evidence (from owner's pasted last-conflict.log during v0.7.0 walk)</h2>
+
+<pre class="evidence">{
+  "ts": "2026-05-16T20:45:59.774Z",
+  "path": "/tmp/bug125-walk.html",
+  "trigger": "save-pre-reconcile",
+  "surface": "canvas",
+  "diskLength": 56,           <span class="hi">// what was on disk</span>
+  "baselineLength": 415,      <span class="hi">// what Duo tracked as baseline</span>
+  "diskHead":     "&lt;!DOCTYPE html&gt;&lt;html&gt;&lt;body&gt;&lt;p&gt;external&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;",
+  "baselineHead": "&lt;!doctype html&gt;\n&lt;html&gt;\n  &lt;head&gt;\n    &lt;style data-duo-style=\"duo-image-selection-t..."
+}</pre>
+
+<div class="diag">
+  <div class="diag-col">
+    <div class="label">Disk (56 bytes)</div>
+    plain HTML written by external <code>printf</code> — no Duo modification
+  </div>
+  <div class="diag-arrow">≠</div>
+  <div class="diag-col">
+    <div class="label">Baseline (415 bytes)</div>
+    <code>data-duo-id="..."</code> + injected <code>&lt;style data-duo-style&gt;</code> + DOMParser pretty-print
+  </div>
+</div>
+
+<p>The pre-save reconciliation correctly sees they differ → fires the conflict banner. The bug is the comparison model: <strong>byte-equality on a baseline that includes Duo's own injections</strong>.</p>
+
+<p>This isn't unique to symlinked paths — BUG-125 v1 fixed the watcher path-resolution layer but didn't notice the deeper baseline-divergence layer. Any external write to ANY open canvas-mode HTML would trigger the same false-positive banner.</p>
+
+<h2>2 · Three resolution options compared</h2>
+
+<h3>Option A — Always reload on external write (canvas is a view of disk)</h3>
+<p>Conflict banner fires <strong>only</strong> when buffer is dirty. Clean buffer + any external write → silent reload, no questions asked. Duo's runtime modifications get re-applied to the new DOM on mount.</p>
+<p><strong>Pros:</strong> matches owner mental model — "canvas is a view of the file." External writes win.</p>
+<p><strong>Cons:</strong> if the user (or agent) linked comments to <code>data-duo-id</code> anchors, those anchors break on every external write. Comment-anchor data tied to vanishing IDs.</p>
+
+<h3>Option B — Normalize before comparison <span style="background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;">Recommended</span></h3>
+<p>Pre-save reconciliation calls <code>normalize(disk) === normalize(baseline)</code> instead of byte-equality. Helper at <code>core/html/duo-normalize.ts</code>:</p>
+<ol>
+  <li>Parse HTML (DOMParser).</li>
+  <li>Strip <code>data-duo-*</code> attributes from all elements.</li>
+  <li>Remove <code>&lt;style data-duo-style&gt;</code> and other Duo-owned injected elements.</li>
+  <li>Re-serialize with consistent formatting.</li>
+</ol>
+<p><strong>Pros:</strong> data-duo-id anchors preserved across external writes (Duo re-applies them on next mount). Conflict only fires when user-meaningful content differs.</p>
+<p><strong>Cons:</strong> Brittle if new Duo injection lands later without updating the normalizer. Adds a pure helper + 2 call-site swaps (vitest-able).</p>
+
+<h3>Option C — Extend the existing echo-guard</h3>
+<p>The conflict log shows <code>recentlyWrittenSize: 0</code> — the echo-guard tracks bytes of Duo's own saves, doesn't match external writes. Extend it to: <em>"if normalize(disk) === normalize(baseline), treat as echo of current state."</em></p>
+<p><strong>Pros:</strong> Unifies with the existing recently-written guard. One code path.</p>
+<p><strong>Cons:</strong> Essentially Option B + a misleading code location. Echo-guard is about <em>our own writes</em>; this is about <em>byte-equivalence after stripping Duo content</em>. Different concept living in the wrong place.</p>
+
+<div class="decision-card">
+  <div class="q-title">Q1 · Resolution option</div>
+  <div class="q-prompt">Which approach should we ship?</div>
+  <p class="q-context">All three close the false-positive class. Trade-off is between owner mental model (A) vs. anchor preservation (B/C).</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q1-option" value="A">
+      <div class="q-option-body">
+        <div class="q-option-title">A · Always reload on external write</div>
+        <div class="q-option-rationale">Simplest. Loses data-duo-id anchors on every external write. Pick if comment anchors are not load-bearing.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-option" value="B">
+      <div class="q-option-body">
+        <div class="q-option-title">B · Normalize before comparison <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Adds <code>core/html/duo-normalize.ts</code> helper. Preserves anchors. Vitest-testable. ~1 dev day.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q1-option" value="C">
+      <div class="q-option-body">
+        <div class="q-option-title">C · Extend echo-guard with normalize</div>
+        <div class="q-option-rationale">Same fix as B with worse code organization. Pick only if you want a single check-point.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q1-notes" placeholder="Notes / pushback / pick a different shape..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q2 · data-duo-id round-trip</div>
+  <div class="q-prompt">When autosave persists data-duo-id to disk, what happens if an external Write later strips them?</div>
+  <p class="q-context">If Option B ships: after a normal canvas autosave, disk has the data-duo-id anchors. The next external write that strips them is genuinely changing the file (an agent's comment-anchor references would break). Two interpretations:</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q2-roundtrip" value="silent-reload">
+      <div class="q-option-body">
+        <div class="q-option-title">Silent reload (treat as overwrite)</div>
+        <div class="q-option-rationale">Stripped data-duo-ids → Duo re-injects fresh ones on next mount. Old anchor references go stale. Simpler mental model: canvas is a view of disk.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q2-roundtrip" value="conflict-banner">
+      <div class="q-option-body">
+        <div class="q-option-title">Conflict banner (anchor-loss warning) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Surface the conflict so user can pick — accept external (lose anchors) or keep current (overwrite external). Aligns with "external destruction of user data should warn."</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q2-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q3 · Normalization scope</div>
+  <div class="q-prompt">How aggressive should the normalize() helper be?</div>
+  <p class="q-context">Wider normalization = fewer false-positive conflicts but more risk of missing a real change.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q3-scope" value="narrow">
+      <div class="q-option-body">
+        <div class="q-option-title">Narrow · just data-duo-* attributes/elements</div>
+        <div class="q-option-rationale">Strips only Duo-owned injection. Pretty-print differences still trigger conflict. Most conservative.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-scope" value="medium">
+      <div class="q-option-body">
+        <div class="q-option-title">Medium · data-duo-* + DOM serialization round-trip <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Both sides go through the same DOMParser → serialize cycle. Eliminates pretty-print + tag-case differences too. Best balance.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q3-scope" value="wide">
+      <div class="q-option-body">
+        <div class="q-option-title">Wide · normalize whitespace inside text nodes too</div>
+        <div class="q-option-rationale">Most permissive. Risk: an external edit that only changes a paragraph's spacing won't trigger. Skip unless we see false-positives at the medium level.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q3-notes" placeholder="Notes..."></textarea>
+</div>
+
+<div class="decision-card">
+  <div class="q-title">Q4 · Markdown editor parity</div>
+  <div class="q-prompt">Does the TipTap markdown editor have the same baseline-divergence pattern?</div>
+  <p class="q-context">Markdown source-of-truth round-trips through TipTap → markdown → TipTap. If any extension injects characters that survive round-trip, the same fix shape applies.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="q4-md-parity" value="investigate">
+      <div class="q-option-body">
+        <div class="q-option-title">Investigate as part of this PR <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Spend ~1 hour auditing TipTap extensions for round-trip-surviving injection. If found, add a markdown normalize helper alongside. Closes both surfaces in one cut.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-md-parity" value="defer">
+      <div class="q-option-body">
+        <div class="q-option-title">Ship canvas fix only; file follow-up for markdown</div>
+        <div class="q-option-rationale">Faster v0.7.0 ship. Risk: markdown surface has the same class of bug latent.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="q4-md-parity" value="not-applicable">
+      <div class="q-option-body">
+        <div class="q-option-title">Not applicable — markdown is byte-exact</div>
+        <div class="q-option-rationale">Pick if you know from prior work the markdown surface doesn't inject anything that survives serialization.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" name="q4-notes" placeholder="Notes..."></textarea>
+</div>
+
+<h2>3 · Implementation outline (once decisions land)</h2>
+
+<ul>
+  <li><code>core/html/duo-normalize.ts</code> (new) — pure helper, vitest-testable with fixture HTML.</li>
+  <li><code>renderer/components/Page/PageTab.tsx § save-pre-reconcile</code> — swap byte-equality for <code>normalize(disk) === normalize(baseline)</code>.</li>
+  <li><code>renderer/components/Page/PageTab.tsx § file-watcher reload branch</code> — same swap.</li>
+  <li><code>renderer/utils/conflictDiagnostic.ts</code> — capture both raw + normalized lengths in the log.</li>
+  <li>Vitest fixtures — normalize() preserves user content, strips data-duo-id, idempotent on pre-normalized input.</li>
+  <li>Smoke walk regression items — covering: clean buffer + external simple-write (silent reload), clean + different-content external (per Q1), external that strips data-duo-id (per Q2).</li>
+</ul>
+
+<p>Estimate: <strong>1 dev day</strong> for normalize + reconciliation hook + tests. Markdown parity adds ~1 hour if Q4 picks investigate.</p>
+
+<details class="deferred">
+  <summary>Why not just disable file-watching on canvas-mode files?</summary>
+  <div class="deferred-body">
+    <p>Considered and rejected. The owner explicitly relies on the watcher to pick up Claude's filesystem edits to canvas files (FOLLOWUP-019). Disabling reload would silently lose external edits to clean buffers — a regression on the very pattern BUG-125 was supposed to fix.</p>
+  </div>
+</details>
+
+<!-- ─────────────────────────────────────────────────────────── -->
+<div class="copy-bar">
+  <div class="copy-meta">
+    <span id="answered-count">0 / 4</span> decisions answered.
+    Hit Copy when ready, then paste back to Claude.
+  </div>
+  <button id="copy-decisions" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count');
+  const button  = document.getElementById('copy-decisions');
+
+  const QUESTIONS = [
+    { id: 'q1-option',       title: 'Q1 · Resolution option' },
+    { id: 'q2-roundtrip',    title: 'Q2 · data-duo-id round-trip' },
+    { id: 'q3-scope',        title: 'Q3 · Normalization scope' },
+    { id: 'q4-md-parity',    title: 'Q4 · Markdown editor parity' },
+  ];
+
+  function refreshCount() {
+    let answered = 0;
+    for (const q of QUESTIONS) {
+      if (document.querySelector('input[name="' + q.id + '"]:checked')) answered++;
+    }
+    counter.textContent = answered + ' / ' + QUESTIONS.length;
+  }
+  document.addEventListener('change', refreshCount);
+  document.addEventListener('input', refreshCount);
+  refreshCount();
+
+  function buildPayload() {
+    const lines = [];
+    lines.push('BUG-125 v2 — CANVAS BASELINE TRACKING — DECISIONS (' + new Date().toISOString().slice(0, 10) + ')');
+    lines.push('===============================================================');
+    lines.push('');
+    for (const q of QUESTIONS) {
+      const checked = document.querySelector('input[name="' + q.id + '"]:checked');
+      const value = checked ? checked.value : '(no pick)';
+      const notes = (document.querySelector('textarea[name="' + q.id.replace(/^(q\d+)-.+$/, '$1') + '-notes"]')?.value || '').trim();
+      lines.push('[' + value.toUpperCase() + '] ' + q.title);
+      if (notes) for (const line of notes.split('\n')) lines.push('    ' + line);
+      lines.push('');
+    }
+    lines.push('---');
+    lines.push('Source: docs/research/bug-125-canvas-baseline-v2.html');
+    return lines.join('\n');
+  }
+
+  button.addEventListener('click', async function () {
+    const payload = buildPayload();
+    try {
+      await navigator.clipboard.writeText(payload);
+      button.textContent = 'Copied!';
+      button.classList.add('copied');
+      setTimeout(function () {
+        button.textContent = 'Copy decisions';
+        button.classList.remove('copied');
+      }, 2000);
+    } catch (err) {
+      button.textContent = 'Copy failed';
+      console.error(err);
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
