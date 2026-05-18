@@ -6405,6 +6405,20 @@ Verified the gap empirically:
 
 ---
 
+### ENH-163: Rename "Send → Duo" pill to "Send → agent"
+
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut prep).**
+
+**Source:** Owner idle-thought 2026-05-17: *"'send to duo' pill should say 'send to agent' (really claude, but we don't know if user is running codex/other agent)."*
+
+**Why:** "Send → Duo" was ambiguous. The pill's actual semantic is "send this selection to the agent running in the active terminal" — which could be Claude, Codex, Aider, or even just a shell. Generic "agent" framing matches the egress path (the front terminal's PTY) without presuming which agent the user has running there.
+
+**Change:** Single-line default-parameter swap at [`renderer/components/editor/primitives/SendToDuoPill.tsx`](renderer/components/editor/primitives/SendToDuoPill.tsx). All 3 call sites (browser pane, canvas, markdown editor) use the default — no overrides. Internal class names (`.duo-send-pill`), comments, and code stage references still say "Send → Duo" — intentional, not user-visible.
+
+**Verification owed (rev6 walk):** select text in (a) markdown editor, (b) HTML canvas in edit mode, (c) browser pane → confirm pill label reads "Send → agent" in all three.
+
+---
+
 ### BUG-132: Right-click "Open on GitHub" was a no-op — wrong IPC
 
 **Status:** ✅ **Fixed 2026-05-17 (Sprint 17 / v0.7.0 rev5 walk-blocker).**

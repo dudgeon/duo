@@ -37,7 +37,11 @@ export interface SendToDuoPillProps {
   /** Click handler — host formats the payload and writes it to the
    *  active terminal's PTY. */
   onClick: () => void
-  /** Optional label override (default: "Send → Duo"). */
+  /** Optional label override (default: "Send → agent").
+   *  Renamed from "Send → Duo" 2026-05-17 per owner idle-thought:
+   *  the destination is the agent running in the active terminal
+   *  (Claude / Codex / etc), not "Duo" itself. Generic phrasing
+   *  works for whatever agent the user has in the front PTY. */
   label?: string
 }
 
@@ -64,7 +68,7 @@ function computePosition(rect: PillAnchorRect, pillSize: { width: number; height
   return { top, left, placement: placeAbove ? 'above' : 'below' }
 }
 
-export function SendToDuoPill({ rect, onClick, label = 'Send → Duo' }: SendToDuoPillProps) {
+export function SendToDuoPill({ rect, onClick, label = 'Send → agent' }: SendToDuoPillProps) {
   // Measure the pill once it mounts so we can position it precisely.
   // Default size is a reasonable estimate so first paint isn't misplaced
   // by more than a few pixels.
