@@ -41,6 +41,16 @@ export const MarkdownLinkShortcuts = Extension.create({
         handler: ({ state, range, match }) => {
           const text = match[1]
           const url = (match[2] ?? '').trim()
+          // CRITICAL — TipTap's InputRule plugin treats `handler === null`
+          // as a sentinel for "abort this rule" (see node_modules/
+          // @tiptap/core/src/InputRule.ts line 157: `if (handler === null
+          // || !tr.steps.length) return`). Returning `null` from a
+          // successful handler discards the transaction silently. Walk-2
+          // hit this exact bug — the InputRule fired, my TR was built,
+          // but the `return null` flag caused the plugin to skip the
+          // dispatch. The replacement: return early with `null` ONLY for
+          // the abort path (empty text); otherwise mutate `state.tr` and
+          // return nothing (undefined).
           if (!text) return null
           const tr = state.tr
           tr.replaceWith(
@@ -50,7 +60,6 @@ export const MarkdownLinkShortcuts = Extension.create({
           )
           // Make sure subsequent typing doesn't inherit the link mark.
           tr.removeStoredMark(linkType)
-          return null
         }
       })
     ]

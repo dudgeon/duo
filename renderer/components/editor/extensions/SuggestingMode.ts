@@ -12,8 +12,9 @@
 // it on every render without re-creating the extension. The
 // ProseMirror plugin reads from storage each transaction.
 
-import { Extension, type Editor } from '@tiptap/core'
+import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey, Selection, type Transaction } from '@tiptap/pm/state'
+import type { EditorView } from '@tiptap/pm/view'
 import { Mapping } from '@tiptap/pm/transform'
 
 export interface SuggestingModeStorage {
@@ -48,19 +49,31 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
   // they stay visible struck-through. The parser's substitution
   // fold (adjacent del+ins → `{~~old~>new~~}`) handles the
   // type-over-selection case automatically at serialize time.
-  addKeyboardShortcuts() {
-    const ext = this
-    return {
-      Backspace: () => wrapAsDeletion(ext, 'backspace'),
-      Delete: () => wrapAsDeletion(ext, 'delete')
-    }
-  },
+  // Phase 4c handled inside the PM plugin's `handleKeyDown` (below)
+  // rather than via `addKeyboardShortcuts`. Walk-2 surfaced that the
+  // TipTap keymap aggregation can be shadowed by peer extensions even
+  // at high priority — `handleKeyDown` is a per-plugin hook that runs
+  // BEFORE the keymap pipeline, giving us a clean intercept.
 
   addProseMirrorPlugins() {
     const ext = this
     return [
       new Plugin({
         key: new PluginKey('duo-suggesting-mode'),
+
+        props: {
+          // BUG-138 Phase 4c walk-2 fix — capture Backspace/Delete here
+          // (props.handleKeyDown), which fires BEFORE PM's keymap plugin
+          // chain. Returns true when handled (default is suppressed) and
+          // false when Suggesting is off or the cursor is in a code
+          // block etc., so default behavior runs in those paths.
+          handleKeyDown(view, event) {
+            if (!ext.storage.enabled) return false
+            if (event.key !== 'Backspace' && event.key !== 'Delete') return false
+            const direction: 'backspace' | 'delete' = event.key === 'Backspace' ? 'backspace' : 'delete'
+            return wrapAsDeletionWithView(ext, view, direction)
+          }
+        },
 
         // Phase 4b — appendTransaction watches for user-driven inserts
         // and stamps InsertionMark on the newly-inserted ranges. PM's
@@ -149,6 +162,10 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
  * when Suggesting is on. Returns `true` to swallow the keystroke
  * (so the default delete doesn't run), `false` to pass through.
  *
+ * Walk-2 refactor: takes an `EditorView` directly (callable from
+ * `props.handleKeyDown` in the PM plugin) rather than reaching for
+ * the editor via `ext.editor`. Same logic, cleaner signature.
+ *
  * Behavior:
  *   - Suggesting off → return false (default delete behavior).
  *   - In a code block → return false (CM tokens don't belong in
@@ -162,14 +179,13 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
  *   - No previous/next character (boundary) → return false (let
  *     default delete handle node-merging logic).
  */
-function wrapAsDeletion(
-  ext: { storage: SuggestingModeStorage; editor: Editor | null },
+function wrapAsDeletionWithView(
+  ext: { storage: SuggestingModeStorage },
+  view: EditorView,
   direction: 'backspace' | 'delete'
 ): boolean {
   if (!ext.storage.enabled) return false
-  const editor = ext.editor
-  if (!editor || editor.isDestroyed) return false
-  const state = editor.state
+  const state = view.state
   const schema = state.schema
   const DelMark = schema.marks.deletionMark
   if (!DelMark) return false
@@ -192,7 +208,7 @@ function wrapAsDeletion(
       Selection.near(state.doc.resolve(to))
     )
     tr.setMeta(META_AUTO, true)
-    editor.view.dispatch(tr)
+    view.dispatch(tr)
     return true
   }
 
@@ -208,7 +224,7 @@ function wrapAsDeletion(
       Selection.near(state.doc.resolve(prevPos))
     )
     tr.setMeta(META_AUTO, true)
-    editor.view.dispatch(tr)
+    view.dispatch(tr)
     return true
   } else {
     // delete-forward
@@ -220,7 +236,7 @@ function wrapAsDeletion(
       Selection.near(state.doc.resolve(nextPos))
     )
     tr.setMeta(META_AUTO, true)
-    editor.view.dispatch(tr)
+    view.dispatch(tr)
     return true
   }
 }
