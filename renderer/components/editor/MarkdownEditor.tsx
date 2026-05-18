@@ -38,6 +38,7 @@ import { MarkdownPaste } from './extensions/MarkdownPaste'
 import { BulletListWithMarker } from './extensions/BulletListWithMarker'
 import { FindHighlight } from './extensions/FindHighlight'
 import { ListIndentShortcuts } from './extensions/ListIndentShortcuts'
+import { MarkdownLinkShortcuts } from './extensions/MarkdownLinkShortcuts'
 import { FencedCodeBlockEnter } from './extensions/FencedCodeBlockEnter'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
@@ -463,6 +464,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         linkOnPaste: true,
         HTMLAttributes: { rel: 'noopener noreferrer', class: 'duo-link' }
       }),
+      // BUG-137 — adds the markdown-link input rule (`[text](url)`)
+      // + ⌘K keyboard shortcut. Companion to Link.configure above.
+      MarkdownLinkShortcuts,
       // FOLLOWUP-014 (Sprint 13) — paste-image v2. DuoImage extends
       // TipTap's Image with a NodeView that resolves relative `src`
       // → blob URL via files.read at mount time. Markdown source

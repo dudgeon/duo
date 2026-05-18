@@ -6463,6 +6463,28 @@ Also caught + filed:
 
 ---
 
+### BUG-137: Markdown link editing — `[text](url)` not parsed; ⌘K is a no-op
+
+**Status:** ✅ **Shipped 2026-05-18 (post-v0.7.0-cut).**
+
+**Symptom.** Owner: *"link editing in markdown seems broken; is not parsing `[markdown_link](url)`, and is ignoring cmd-k kb shortcut."*
+
+Two specific failures:
+1. Typing `[text](url)` directly into the markdown editor stays as literal characters — no link mark applied. TipTap's `@tiptap/extension-link` ships `autolink: true` (raw URL → link) and `linkOnPaste: true` (paste a URL onto selected text → link) but NO input rule for the markdown `[text](url)` syntax.
+2. ⌘K (toolbar hint reads "Link (⌘K)") was wired to a button onClick, but no keyboard binding registered ⌘K to the same `setLink` flow. The chord was unmapped at every layer (no `globalShortcuts` row, no TipTap `addKeyboardShortcuts` entry on any extension).
+
+**Fix.** New extension at [`renderer/components/editor/extensions/MarkdownLinkShortcuts.ts`](renderer/components/editor/extensions/MarkdownLinkShortcuts.ts). No state; just two `addX` hooks:
+1. `addInputRules` — `markInputRule({ find: /\[([^\]]+)\]\(([^)]*)\)$/, type: schema.marks.link, getAttributes: (m) => ({ href: m[2] }) })`. Fires when the user types the closing `)`; converts the matched `[text](url)` to text wrapped in a link mark.
+2. `addKeyboardShortcuts` — `Mod-k` calls `window.prompt('Link URL', current ?? 'https://')` and routes to `editor.chain().focus().extendMarkRange('link').setLink({ href }).run()`. Empty string → `unsetLink()`. Same code path as the toolbar button's `insertLink` callback.
+
+Wired into `MarkdownEditor.tsx`'s extensions array right after `Link.configure(...)` so the two are paired.
+
+**Editor-canvas parity rule (per CLAUDE.md § 7).** **(c) Deferred** — canvas-side `[text](url)` parsing + ⌘K wiring queued for Sprint 18. The canvas uses its own DOM-mutation actions path (`canvasEditorActions.ts`), not TipTap, so the same extension shape doesn't apply. Cross-ref: BUG-061 (markdown parsing broken in HTML canvas — sibling parsing-gap class).
+
+**Verification owed.** Real-keystroke test required (synthetic events don't trigger TipTap input rules or keymaps cleanly): (a) type `[example](https://example.com)` in any markdown file → "example" should render as a clickable link, (b) press ⌘K with text selected → prompt should appear, accept URL → selection becomes a link.
+
+---
+
 ### BUG-136: Clone modal shows false "gh not authenticated" banner — execGit doesn't find `gh` on macOS Electron's stripped PATH
 
 **Status:** ✅ **Shipped 2026-05-18 (post-v0.7.0-cut).**
