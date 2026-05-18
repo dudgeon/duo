@@ -30,6 +30,7 @@ import { EditorToolbar } from './EditorToolbar'
 import { SuggestingBanner } from './SuggestingBanner'
 import { TrackedChangesRail } from './TrackedChangesRail'
 import { collectTrackedChanges, countTrackedChanges, type TrackedRange } from './trackedChanges'
+import { FrontmatterPanel } from './FrontmatterPanel'
 import { useAutosavePreference } from './autosavePreference'
 import { buildTiptapEditorActions } from './tiptapEditorActions'
 import type { EditorActions } from './EditorActions'
@@ -405,6 +406,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
   // Preserved across save cycles; body is what the editor edits.
   const frontmatterRef = useRef<string | null>(null)
+  // BUG-139 — state mirror of frontmatterRef so the Properties panel
+  // re-renders on change. The ref stays the autoritative source for
+  // the save path; this state just gates the panel UI.
+  const [frontmatterState, setFrontmatterState] = useState<string | null>(null)
+  // BUG-139 — collapsed state for the Properties panel; synced from
+  // sidecar.frontmatterPanelCollapsed on load, persists on toggle.
+  const [frontmatterCollapsed, setFrontmatterCollapsed] = useState(false)
   const eolRef = useRef<'\n' | '\r\n'>('\n')
   // The markdown body as it was on disk after the last successful read or
   // write. Used to compute `dirty` by diffing against the live editor content
@@ -811,6 +819,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     recentlyWrittenBodiesRef.current.clear()
     if (isNew) {
       frontmatterRef.current = null
+      setFrontmatterState(null)
+      setFrontmatterCollapsed(false)
       eolRef.current = '\n'
       lastSavedBodyRef.current = ''
       editor.commands.setContent('', false)
@@ -866,6 +876,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         sidecarRef.current = migration.sidecar
         // BUG-138 Phase 4 — sync Suggesting state from sidecar on load.
         setSuggestingMode(migration.sidecar.suggestingMode === true)
+        // BUG-139 — sync the Properties panel state from sidecar +
+        // the just-loaded frontmatter string.
+        setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed === true)
+        setFrontmatterState(split.frontmatter)
 
         // Second-arg `false` suppresses an update event so the initial load
         // doesn't count as a user edit.
@@ -1000,6 +1014,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             baselineLength: lastSavedBodyRef.current.length
           })
           frontmatterRef.current = split.frontmatter
+          setFrontmatterState(split.frontmatter)
           eolRef.current = split.eol
           editor.commands.setContent(preprocessSubstitutions(diskBody), false)
           // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
@@ -1488,6 +1503,34 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       suggestingMode: next
     })
   }, [suggestingMode, persistSidecarMutation])
+
+  /** BUG-139 — commit a Properties-panel edit. Updates the
+   *  frontmatter ref + state mirror, marks the editor dirty, and
+   *  schedules an autosave. `next === null` clears the frontmatter
+   *  block entirely. */
+  const handleFrontmatterChange = useCallback((next: string | null) => {
+    frontmatterRef.current = next
+    setFrontmatterState(next)
+    setDirty(true)
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current)
+    autosaveTimerRef.current = setTimeout(() => {
+      autosaveTimerRef.current = null
+      void saveRef.current()
+    }, AUTOSAVE_DEBOUNCE_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** BUG-139 — flip the Properties panel's collapsed flag. */
+  const toggleFrontmatterCollapsed = useCallback(() => {
+    setFrontmatterCollapsed(prev => {
+      const next = !prev
+      persistSidecarMutation({
+        ...sidecarRef.current,
+        frontmatterPanelCollapsed: next
+      })
+      return next
+    })
+  }, [persistSidecarMutation])
 
   /** Update [data-duo-comment-active] on every comment span so the
    *  active thread reads stronger than its siblings. BUG-087 fix —
@@ -2343,6 +2386,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         autosaveOn={autosaveOn}
         onToggleAutosave={toggleAutosave}
       />
+      {/* BUG-139 — Properties panel for YAML frontmatter. Always
+          visible (collapsed or expanded) when the file has a
+          frontmatter block; shows "+ Add properties" when empty.
+          Skipped in isNew mode (no file yet). */}
+      {!isNew && (
+        <FrontmatterPanel
+          frontmatter={frontmatterState}
+          onChange={handleFrontmatterChange}
+          collapsed={frontmatterCollapsed}
+          onToggleCollapsed={toggleFrontmatterCollapsed}
+        />
+      )}
       {/* BUG-138 Phase 4d — bulk banner above the editor body when
           the doc carries one or more tracked-change marks. Recomputes
           via trackedChangesCount on toolbarVersion bumps (every

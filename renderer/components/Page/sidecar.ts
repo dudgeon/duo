@@ -35,6 +35,10 @@ export interface SidecarV1 {
    *  off; toggled via the editor toolbar's "Suggest" button or
    *  the ⌘⌥T chord. Additive on the v1 schema. */
   suggestingMode?: boolean
+  /** BUG-139 — collapsed state of the Properties panel above the
+   *  editor body. Default false (expanded). Per-doc; persists
+   *  across reopens. Additive on the v1 schema. */
+  frontmatterPanelCollapsed?: boolean
   properties?: Record<string, unknown>
 }
 
