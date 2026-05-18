@@ -27,6 +27,8 @@ import { Markdown } from 'tiptap-markdown'
 import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
+import { SuggestingBanner } from './SuggestingBanner'
+import { countTrackedChanges } from './trackedChanges'
 import { useAutosavePreference } from './autosavePreference'
 import { buildTiptapEditorActions } from './tiptapEditorActions'
 import type { EditorActions } from './EditorActions'
@@ -1412,6 +1414,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadsTick, editor])
 
+  /** BUG-138 Phase 4d — count of tracked-change marks (insert / delete
+   *  / highlight) in the doc. Drives the SuggestingBanner's mount.
+   *  Recomputes on every toolbarVersion bump (which fires on
+   *  selectionUpdate + update — i.e. any time the doc could have
+   *  changed). */
+  const trackedChangesCount = useMemo(() => {
+    if (!editor) return 0
+    return countTrackedChanges(editor.state.doc)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toolbarVersion, editor])
+
   /** Adapt to the CommentRail primitive's expected shape. Number is
    *  1-based document order, mirroring the canvas convention. */
   const railThreads = useMemo<CommentThread[]>(() => {
@@ -2309,6 +2322,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         autosaveOn={autosaveOn}
         onToggleAutosave={toggleAutosave}
       />
+      {/* BUG-138 Phase 4d — bulk banner above the editor body when
+          the doc carries one or more tracked-change marks. Recomputes
+          via trackedChangesCount on toolbarVersion bumps (every
+          selectionUpdate / update); hides itself at count=0. */}
+      <SuggestingBanner editor={editor} count={trackedChangesCount} />
       {/* ENH-023 — find bar drops down between toolbar and prose
           when ⌘F is pressed. Closed state renders nothing. */}
       <FindBar editor={editor} open={findOpen} onClose={() => setFindOpen(false)} />
