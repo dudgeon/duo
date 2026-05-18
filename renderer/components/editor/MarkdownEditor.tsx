@@ -1431,12 +1431,23 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // Apply the mark BEFORE persisting — if the user edited between
     // start-comment and submit, the range may have shifted; PM will
     // map the original from/to through the intervening transactions.
-    editor.commands.applyCommentMark(at.commentId, at.range.from, at.range.to)
+    // BUG-138 — the mark now carries full metadata + body. We still
+    // write the sidecar entry below for now (legacy path); Phase 2's
+    // migration step + Phase 1b's serializer will phase the sidecar
+    // out. During the transition window both stores hold the data.
+    const ts = new Date().toISOString()
+    const author = 'user'
+    editor.commands.applyCommentMark({
+      commentId: at.commentId,
+      author,
+      ts,
+      body: trimmed
+    }, at.range.from, at.range.to)
     const entry: SidecarComment = {
       id: `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       anchorId: at.commentId,
-      author: 'user',
-      ts: new Date().toISOString(),
+      author,
+      ts,
       body: trimmed,
       excerpt: at.excerpt,
       contextBefore: at.contextBefore,

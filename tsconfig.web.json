@@ -16,7 +16,8 @@
   "include": [
     "renderer/**/*",
     "shared/**/*",
-    "core/html/**/*"
+    "core/html/**/*",
+    "core/markdown/**/*"
   ],
   "exclude": ["node_modules"]
 }

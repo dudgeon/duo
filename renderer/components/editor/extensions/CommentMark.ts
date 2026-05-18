@@ -1,68 +1,55 @@
-// Sprint 6 Phase 4 (MISSING-001 / Stage 14a) — TipTap mark extension
-// for inline comment anchors in the markdown editor. Mirrors the
-// canvas-side `data-duo-comment-id` model used by `commentAnchors.ts`,
-// but lives at the ProseMirror layer instead of in the iframe DOM.
+// BUG-138 / Stage 14a (refactor) — TipTap mark extension for inline
+// comments. Anchored to a range of text; carries the full comment
+// payload (id, author, ts, body, replyTo) as attributes.
 //
-// What it gives us:
-//   - A `commentMark` mark with a single `commentId` attribute. When a
-//     range is wrapped in this mark, the rendered span carries
-//     `data-duo-comment-id="<id>"` and the `duo-comment-anchor-text`
-//     class — the same hooks `installCommentAnchorStyles` styles in
-//     the iframe (light + dark variants are mirrored in
-//     `globals.css` for the parent renderer).
-//   - Position-tracking for free. ProseMirror's mark system maps the
-//     mark range across every transaction: typing inside the mark
-//     extends it, typing right at the boundary stays inside (default
-//     inclusive/exclusive heuristic); deletes and pastes adjust the
-//     range automatically. Heavy edits (paste-across, delete-across)
-//     can still produce orphans — the rail surfaces those gracefully.
-//   - `addCommand` exposes `applyCommentMark(commentId, from?, to?)`
-//     and `removeCommentMark(commentId)` so PageTab-equivalent
-//     handlers can wrap selections + tear down resolved threads.
+// CriticMarkup notation: `{==anchored text==}{>>id:c-01|author:claude|ts:...|body<<}`
+// The HighlightMark + this CommentMark are adjacent in the doc when an
+// anchored comment is present; the serializer folds the pair into a
+// single `{==…==}{>>…<<}` block.
 //
-// Persistence note. tiptap-markdown is configured with `html: false`
-// in MarkdownEditor (line ~212) so unknown HTML elements are stripped
-// on serialize. That means the `<span data-duo-comment-id>` does NOT
-// round-trip through the .md source — comments live in the sidecar
-// (`<file>.md.duo.json`) and are re-applied on file load by walking
-// the parsed doc and matching excerpts. This keeps the user's
-// markdown source clean (no stray comment spans on disk) and aligns
-// with how the canvas stores comments in its sidecar rather than
-// inline in the .html.
+// History.
+//   v1 (pre-BUG-138): `commentId` was the only attribute. Body lived in
+//   the `<file>.md.duo.json` sidecar. Comments stripped on serialize;
+//   re-anchored on load via excerpt + context match.
+//   v2 (BUG-138 Q-1·A locked 2026-05-18): all metadata + body inline.
+//   Sidecar's `comments[]` deprecated. Round-trips through CriticMarkup.
 
 import { Mark, mergeAttributes } from '@tiptap/core'
 
 export interface CommentMarkAttributes {
-  commentId: string
+  commentId: string | null
+  author: string | null
+  ts: string | null
+  body: string | null
+  replyTo: string | null
 }
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     commentMark: {
-      /** Apply a comment mark with the given id. If `from`/`to` are
-       *  omitted, the current selection is used. No-op when the
-       *  range is collapsed (a comment with no anchored text is
-       *  ill-defined). Returns true on success. */
-      applyCommentMark: (commentId: string, from?: number, to?: number) => ReturnType
-      /** Remove every commentMark with the given id. Used when a
-       *  thread is resolved (visual cleanup) — the sidecar entry
-       *  itself is updated separately. */
+      /** Apply a comment mark with full metadata + body. If `from`/`to`
+       *  are omitted, uses current selection. No-op when collapsed.
+       *  Returns true on success. */
+      applyCommentMark: (
+        attrs: { commentId: string; author: string; ts: string; body: string; replyTo?: string },
+        from?: number,
+        to?: number
+      ) => ReturnType
+      /** Remove every commentMark with the given id. */
       removeCommentMark: (commentId: string) => ReturnType
+      /** Update body / metadata for an existing comment (e.g. edit a
+       *  thread reply). Range stays where the mark already is. */
+      updateCommentMark: (
+        commentId: string,
+        patch: { body?: string; ts?: string }
+      ) => ReturnType
     }
   }
 }
 
-export const CommentMark = Mark.create<{}, { commentId: string | null }>({
+export const CommentMark = Mark.create<{}, {}>({
   name: 'commentMark',
-
-  // Marks keep their boundaries when typing AT the boundary — this
-  // makes "type at the end of a commented word" extend the comment
-  // anchor. If users want unbounded boundaries they can resolve +
-  // re-anchor; this is the more useful default for comment threads.
   inclusive: true,
-
-  // Don't merge into adjacent marks of the same type with a different
-  // id — two distinct comments on adjacent text must stay distinct.
   excludes: '',
 
   addAttributes() {
@@ -70,20 +57,33 @@ export const CommentMark = Mark.create<{}, { commentId: string | null }>({
       commentId: {
         default: null,
         parseHTML: (el) => el.getAttribute('data-duo-comment-id'),
-        renderHTML: (attrs) => {
-          if (!attrs.commentId) return {}
-          return { 'data-duo-comment-id': attrs.commentId as string }
-        }
+        renderHTML: (attrs) => attrs.commentId ? { 'data-duo-comment-id': attrs.commentId as string } : {}
+      },
+      author: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-duo-author'),
+        renderHTML: (attrs) => attrs.author ? { 'data-duo-author': attrs.author as string } : {}
+      },
+      ts: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-duo-ts'),
+        renderHTML: (attrs) => attrs.ts ? { 'data-duo-ts': attrs.ts as string } : {}
+      },
+      body: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-duo-comment-body'),
+        renderHTML: (attrs) => attrs.body ? { 'data-duo-comment-body': attrs.body as string } : {}
+      },
+      replyTo: {
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-duo-comment-reply-to'),
+        renderHTML: (attrs) => attrs.replyTo ? { 'data-duo-comment-reply-to': attrs.replyTo as string } : {}
       }
     }
   },
 
   parseHTML() {
-    return [
-      {
-        tag: 'span[data-duo-comment-id]'
-      }
-    ]
+    return [{ tag: 'span[data-duo-comment-id]' }]
   },
 
   renderHTML({ HTMLAttributes }) {
@@ -98,8 +98,8 @@ export const CommentMark = Mark.create<{}, { commentId: string | null }>({
 
   addCommands() {
     return {
-      applyCommentMark: (commentId, from, to) => ({ tr, dispatch, state }) => {
-        if (!commentId) return false
+      applyCommentMark: (attrs, from, to) => ({ tr, dispatch, state }) => {
+        if (!attrs.commentId) return false
         const range = (typeof from === 'number' && typeof to === 'number')
           ? { from, to }
           : { from: state.selection.from, to: state.selection.to }
@@ -107,7 +107,13 @@ export const CommentMark = Mark.create<{}, { commentId: string | null }>({
         if (dispatch) {
           const markType = state.schema.marks.commentMark
           if (!markType) return false
-          tr.addMark(range.from, range.to, markType.create({ commentId }))
+          tr.addMark(range.from, range.to, markType.create({
+            commentId: attrs.commentId,
+            author: attrs.author,
+            ts: attrs.ts,
+            body: attrs.body,
+            replyTo: attrs.replyTo ?? null
+          }))
           dispatch(tr)
         }
         return true
@@ -132,39 +138,67 @@ export const CommentMark = Mark.create<{}, { commentId: string | null }>({
           dispatch(tr)
         }
         return true
+      },
+
+      updateCommentMark: (commentId, patch) => ({ tr, dispatch, state }) => {
+        const markType = state.schema.marks.commentMark
+        if (!markType) return false
+        let found = false
+        state.doc.descendants((node, pos) => {
+          node.marks.forEach((m) => {
+            if (m.type === markType && m.attrs.commentId === commentId) {
+              found = true
+              const next = {
+                ...m.attrs,
+                body: patch.body ?? m.attrs.body,
+                ts: patch.ts ?? m.attrs.ts
+              }
+              if (dispatch) {
+                tr.removeMark(pos, pos + node.nodeSize, markType)
+                tr.addMark(pos, pos + node.nodeSize, markType.create(next))
+              }
+            }
+          })
+        })
+        if (dispatch && found) dispatch(tr)
+        return found
       }
     }
   }
 })
 
 /** Walk the editor doc and return every range that carries a
- *  commentMark, grouped by commentId. Result is ordered by
- *  document position. Used by the rail's thread builder + the
- *  scroll-to-anchor handler. */
+ *  commentMark, grouped by commentId. Result is ordered by document
+ *  position. Used by the rail's thread builder + scroll-to-anchor. */
 export function collectCommentRanges(
   doc: import('@tiptap/pm/model').Node
-): Map<string, { from: number; to: number; text: string }> {
-  const out = new Map<string, { from: number; to: number; text: string }>()
+): Map<string, { from: number; to: number; text: string; attrs: CommentMarkAttributes }> {
+  const out = new Map<string, { from: number; to: number; text: string; attrs: CommentMarkAttributes }>()
   doc.descendants((node, pos) => {
     if (!node.isText) return
     for (const m of node.marks) {
       if (m.type.name !== 'commentMark') continue
       const id = m.attrs.commentId as string | null
       if (!id) continue
+      const attrs: CommentMarkAttributes = {
+        commentId: m.attrs.commentId,
+        author: m.attrs.author,
+        ts: m.attrs.ts,
+        body: m.attrs.body,
+        replyTo: m.attrs.replyTo
+      }
       const existing = out.get(id)
       const from = pos
       const to = pos + node.nodeSize
       if (existing) {
-        // Same comment can span multiple text nodes (different inline
-        // marks intersecting); collapse to the outer range and
-        // concatenate text.
         out.set(id, {
           from: Math.min(existing.from, from),
           to: Math.max(existing.to, to),
-          text: existing.text + (node.text ?? '')
+          text: existing.text + (node.text ?? ''),
+          attrs: existing.attrs
         })
       } else {
-        out.set(id, { from, to, text: node.text ?? '' })
+        out.set(id, { from, to, text: node.text ?? '', attrs })
       }
     }
   })

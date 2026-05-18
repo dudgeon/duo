@@ -189,7 +189,17 @@ export function applyCommentMarksFromSidecar(
     if (idx < 0) continue
     const range = textRangeToPm(idx, idx + excerpt.length)
     if (!range) continue
-    const ok = editor.commands.applyCommentMark(c.anchorId, range.from, range.to)
+    // BUG-138 — applyCommentMark now takes full metadata. Sidecar
+    // entries from v0.6.7 era stored author + ts + body; map them
+    // through. Legacy entries without these fields get empty strings;
+    // the next save migrates them to inline CriticMarkup.
+    const ok = editor.commands.applyCommentMark({
+      commentId: c.anchorId,
+      author: c.author ?? '',
+      ts: c.ts ?? '',
+      body: c.body ?? '',
+      replyTo: undefined
+    }, range.from, range.to)
     if (ok) applied += 1
   }
   return applied
