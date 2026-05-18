@@ -12,8 +12,8 @@
 // it on every render without re-creating the extension. The
 // ProseMirror plugin reads from storage each transaction.
 
-import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey, type Transaction } from '@tiptap/pm/state'
+import { Extension, type Editor } from '@tiptap/core'
+import { Plugin, PluginKey, Selection, type Transaction } from '@tiptap/pm/state'
 import { Mapping } from '@tiptap/pm/transform'
 
 export interface SuggestingModeStorage {
@@ -30,6 +30,19 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
     return {
       enabled: false,
       getAuthor: () => ''
+    }
+  },
+
+  // Phase 4c — Backspace + Delete intercept. When Suggesting is on,
+  // instead of removing characters, wrap them with DeletionMark so
+  // they stay visible struck-through. The parser's substitution
+  // fold (adjacent del+ins → `{~~old~>new~~}`) handles the
+  // type-over-selection case automatically at serialize time.
+  addKeyboardShortcuts() {
+    const ext = this
+    return {
+      Backspace: () => wrapAsDeletion(ext, 'backspace'),
+      Delete: () => wrapAsDeletion(ext, 'delete')
     }
   },
 
@@ -113,3 +126,82 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
     ]
   }
 })
+
+/**
+ * Phase 4c — implement Backspace/Delete as "wrap with DeletionMark"
+ * when Suggesting is on. Returns `true` to swallow the keystroke
+ * (so the default delete doesn't run), `false` to pass through.
+ *
+ * Behavior:
+ *   - Suggesting off → return false (default delete behavior).
+ *   - In a code block → return false (CM tokens don't belong in
+ *     fenced code; let the user delete normally).
+ *   - Non-empty selection → wrap the range with DeletionMark, then
+ *     move the cursor past the marked range. Return true.
+ *   - Empty selection on Backspace → select the previous character +
+ *     wrap with DeletionMark + park cursor right after.
+ *   - Empty selection on Delete → select the next character + wrap +
+ *     park cursor right before.
+ *   - No previous/next character (boundary) → return false (let
+ *     default delete handle node-merging logic).
+ */
+function wrapAsDeletion(
+  ext: { storage: SuggestingModeStorage; editor: Editor | null },
+  direction: 'backspace' | 'delete'
+): boolean {
+  if (!ext.storage.enabled) return false
+  const editor = ext.editor
+  if (!editor || editor.isDestroyed) return false
+  const state = editor.state
+  const schema = state.schema
+  const DelMark = schema.marks.deletionMark
+  if (!DelMark) return false
+
+  const { from, to, $from } = state.selection
+  // Code block check: don't wrap deletions inside code blocks.
+  const parent = $from.parent
+  if (parent.type.name === 'codeBlock') return false
+
+  const author = ext.storage.getAuthor() || 'agent'
+  const ts = new Date().toISOString()
+  const mark = DelMark.create({ author, ts })
+
+  if (from !== to) {
+    // Non-empty selection. Wrap with DeletionMark + collapse cursor
+    // to the end of the marked range.
+    const tr = state.tr.addMark(from, to, mark).setSelection(
+      Selection.near(state.doc.resolve(to))
+    )
+    tr.setMeta(META_AUTO, true)
+    editor.view.dispatch(tr)
+    return true
+  }
+
+  if (direction === 'backspace') {
+    if (from <= 1) return false  // doc start; let default handle
+    const prevPos = from - 1
+    // If the previous character is already inside a deletion mark, fall
+    // through to the default delete (so the user can actually back out
+    // of the marked range).
+    const $prev = state.doc.resolve(prevPos)
+    if (DelMark.isInSet($prev.marks())) return false
+    const tr = state.tr.addMark(prevPos, from, mark).setSelection(
+      Selection.near(state.doc.resolve(prevPos))
+    )
+    tr.setMeta(META_AUTO, true)
+    editor.view.dispatch(tr)
+    return true
+  } else {
+    // delete-forward
+    const nextPos = to + 1
+    if (nextPos > state.doc.content.size) return false  // doc end
+    const $next = state.doc.resolve(to)
+    if (DelMark.isInSet($next.marks())) return false
+    const tr = state.tr.addMark(to, nextPos, mark).setSelection(
+      Selection.near(state.doc.resolve(nextPos))
+    )
+    tr.setMeta(META_AUTO, true)
+    editor.view.dispatch(tr)
+    return true
+  }
+}
