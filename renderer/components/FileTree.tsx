@@ -154,9 +154,19 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // gets an inline chip on its row. Independent of the ribbon: the
   // ribbon fires when CWD-itself is in a repo; the per-folder chips
   // fire on CHILD-FOLDERS that are repos.
-  const isInRepo = !!gitSnap?.isRepo
   const repoName = repoBasenameFor(gitSnap?.workTreeRoot ?? null)
   const chipTooltip = gitSnap ? formatGitStatusTooltip(gitSnap, repoName) : ''
+
+  // BUG-135 — ribbon strictness. Computed AFTER gitRefreshTick is
+  // declared below so the effect's dep list can reference it. The
+  // raw `gitSnap.isRepo` returns true whenever git status climbs
+  // upward and finds ANY `.git` — even if the matched repo is many
+  // levels up and the path crosses one or more "container folders"
+  // full of peer-repos (e.g. `~/Documents` tracked as a repo +
+  // `~/Documents/GitHub/<many-repos>` makes every descendant of
+  // GitHub falsely "inside Documents"). The per-folder chip already
+  // applies a strict repo-root check; the ribbon must match.
+  const [ribbonSuppressed, setRibbonSuppressed] = useState(false)
 
   // Per-folder repo-status map for inline chips on child folder rows.
   // Keyed by absolute path. Populated on cwd change + window focus.
@@ -172,6 +182,61 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
   // fsevents watcher pushes this; window-focus also bumps as a
   // belt-and-suspenders fallback.
   const [gitRefreshTick, setGitRefreshTick] = useState(0)
+
+  // BUG-135 — suppress the ribbon when the climb from cwd up to
+  // gitSnap.workTreeRoot crosses an intermediate folder containing
+  // ≥2 peer-repo children. See the comment block above
+  // `ribbonSuppressed` for the full rationale.
+  useEffect(() => {
+    if (rootEntriesOverride !== undefined) return
+    if (!gitSnap?.isRepo || !gitSnap.workTreeRoot) {
+      setRibbonSuppressed(false)
+      return
+    }
+    const cwd = state.cwd
+    const repoRoot = gitSnap.workTreeRoot
+    if (cwd === repoRoot) {
+      setRibbonSuppressed(false)
+      return
+    }
+    let cancelled = false
+    const check = async () => {
+      const intermediates: string[] = []
+      let current = parentDir(cwd)
+      while (current && current !== repoRoot && current !== '/') {
+        intermediates.push(current)
+        const next = parentDir(current)
+        if (next === current) break
+        current = next
+      }
+      for (const folder of intermediates) {
+        if (cancelled) return
+        try {
+          const entries = await window.electron.files.list(folder)
+          const childDirs = entries
+            .filter((e: { kind?: string }) => e.kind === 'directory')
+            .map((e: { name: string }) => e.name)
+          if (childDirs.length < 2) continue
+          const reposIn = await window.electron.git.scanReposIn({ parentDir: folder, childNames: childDirs })
+          const repoCount = Object.values(reposIn).filter((s) => (s as GitStatusSnapshot)?.isRepo).length
+          if (repoCount >= 2) {
+            if (!cancelled) setRibbonSuppressed(true)
+            return
+          }
+        } catch {
+          // Soft-fail; keep checking subsequent levels.
+        }
+      }
+      if (!cancelled) setRibbonSuppressed(false)
+    }
+    void check()
+    return () => { cancelled = true }
+  }, [state.cwd, gitSnap?.isRepo, gitSnap?.workTreeRoot, rootEntriesOverride, gitRefreshTick])
+
+  // BUG-135 — effective "in repo" gate. The ribbon and the dependent
+  // right-click GitHub menu items + per-file dirty dots all consult
+  // this rather than the raw `gitSnap.isRepo`.
+  const isInRepo = !!gitSnap?.isRepo && !ribbonSuppressed
 
   useEffect(() => {
     if (rootEntriesOverride !== undefined) return
@@ -208,7 +273,10 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
 
   useEffect(() => {
     if (rootEntriesOverride !== undefined) return
-    if (!gitSnap?.isRepo || !gitSnap.workTreeRoot) {
+    // BUG-135 — skip dirty-file probing when the ribbon is suppressed.
+    // The probe would return a map of files inside a falsely-claimed
+    // ancestor repo, leading to stray dirty dots on every file row.
+    if (!gitSnap?.isRepo || !gitSnap.workTreeRoot || ribbonSuppressed) {
       setDirtyFileMap(new Map())
       return
     }
@@ -223,7 +291,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         setDirtyFileMap(new Map())
       })
     return () => { cancelled = true }
-  }, [gitSnap?.workTreeRoot, gitSnap?.isRepo, rootEntriesOverride, gitRefreshTick])
+  }, [gitSnap?.workTreeRoot, gitSnap?.isRepo, ribbonSuppressed, rootEntriesOverride, gitRefreshTick])
 
   // ENH-152c — fsevents-driven invalidation. Start a watcher on the
   // work-tree when we enter a repo; stop on leaving or unmount. The
@@ -543,7 +611,12 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     // handler when the user actually clicks.
     const isFolderTarget = target.kind === 'directory'
     const peerSnap = isFolderTarget ? childRepoMap?.get(target.path) : undefined
-    const inGhRepo = (!!gitSnap?.isRepo && !!gitSnap.workTreeRoot &&
+    // BUG-135 — suppress the "(a)" branch when the ribbon is
+    // suppressed (cwd's gitSnap claims a repo via a falsely-climbed
+    // workTreeRoot through a peer-repo container). The peerSnap
+    // branch stays unconditionally — when the user right-clicks an
+    // ACTUAL peer-repo root, the menu items still apply.
+    const inGhRepo = (!!gitSnap?.isRepo && !ribbonSuppressed && !!gitSnap.workTreeRoot &&
       target.path.startsWith(gitSnap.workTreeRoot)) || !!peerSnap?.isRepo
     const items = buildTreeMenuTemplate({
       target,
