@@ -845,14 +845,20 @@ export function App() {
 
   // Stage 10 Phase 6: push navigator-state snapshots to the main process
   // so `duo nav state` can read the current value without a renderer RPC.
+  // ENH-148 — selectedPaths carries the full multi-select set; the
+  // singular `selected` stays as the primary for back-compat callsites
+  // (computePendingCwd, CLI `duo nav-state` consumers).
   useEffect(() => {
+    const selectedPaths = Array.from(nav.state.selectedItems.entries())
+      .map(([path, kind]) => ({ path, kind }))
     window.electron.nav.pushState({
       cwd: nav.state.cwd,
       selected: nav.state.selected,
+      selectedPaths,
       expanded: [...nav.state.expanded],
       pinned: nav.state.pinned
     })
-  }, [nav.state.cwd, nav.state.selected, nav.state.expanded, nav.state.pinned])
+  }, [nav.state.cwd, nav.state.selected, nav.state.selectedItems, nav.state.expanded, nav.state.pinned])
 
   // ── File-open from the navigator ───────────────────────────────────────────
 

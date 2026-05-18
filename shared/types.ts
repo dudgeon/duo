@@ -687,6 +687,11 @@ export interface FileWatchPush {
 export interface NavStateSnapshot {
   cwd: string
   selected: { path: string; kind: 'file' | 'folder' } | null
+  /** ENH-148 — full multi-select set. Singular `selected` above stays
+   *  for back-compat (it's the primary). Empty array when nothing is
+   *  selected; when populated, the primary's path appears in this
+   *  list too. */
+  selectedPaths?: { path: string; kind: 'file' | 'folder' }[]
   expanded: string[]                    // absolute paths
   pinned: boolean
 }

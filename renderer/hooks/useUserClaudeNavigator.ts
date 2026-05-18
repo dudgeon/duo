@@ -185,6 +185,26 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
     })
   }, [selectedItems])
 
+  // ENH-148 — range/select-all parity with the project pane. The
+  // user-claude pane uses the same TreeNodes renderer, so it must
+  // satisfy the same NavigatorActions contract. Implementations
+  // mirror useNavigator.ts.
+  const selectRange = useCallback((paths: string[], kinds: Array<'file' | 'folder'>, newPrimary: string) => {
+    if (paths.length === 0) return
+    const map = new Map<string, 'file' | 'folder'>()
+    for (let i = 0; i < paths.length; i++) map.set(paths[i], kinds[i] ?? 'file')
+    setSelectedItems(map)
+    setPrimaryPath(newPrimary)
+  }, [])
+
+  const selectAllVisible = useCallback((paths: string[], kinds: Array<'file' | 'folder'>) => {
+    if (paths.length === 0) return
+    const map = new Map<string, 'file' | 'folder'>()
+    for (let i = 0; i < paths.length; i++) map.set(paths[i], kinds[i] ?? 'file')
+    setSelectedItems(map)
+    setPrimaryPath(paths[0])
+  }, [])
+
   const clearSelection = useCallback(() => {
     setSelectedItems(new Map())
     setPrimaryPath(null)
@@ -240,6 +260,8 @@ export function useUserClaudeNavigator(home: string): UserClaudeNavigatorApi {
     navigateTo,
     selectItem,
     toggleSelection,
+    selectRange,
+    selectAllVisible,
     revealAndSelect,
     clearSelection,
     toggleExpand,

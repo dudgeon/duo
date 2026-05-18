@@ -48,6 +48,17 @@ export interface NavigatorActions {
   /** ENH-147 — multi-select toggle: if `path` is already in selectedItems,
    *  remove it; else add it. Used for ⌘-click. */
   toggleSelection: (path: string, kind: 'file' | 'folder') => void
+  /** ENH-148 — ⇧-click range-select. Replaces the current selection
+   *  with every path in `paths` (with matching `kinds`). Caller
+   *  computes the range via the visible/flattened row list so the
+   *  hook stays surface-agnostic. Sets `primaryPath` to the final
+   *  entry in the supplied list (the shift-clicked row). */
+  selectRange: (paths: string[], kinds: Array<'file' | 'folder'>, newPrimary: string) => void
+  /** ENH-148 — ⌘-A select-all. Same shape as `selectRange` but
+   *  expressed as a separate verb so the dispatcher's intent is
+   *  legible at the call site (FileTree's keyboard handler). Sets
+   *  `primaryPath` to the first entry. */
+  selectAllVisible: (paths: string[], kinds: Array<'file' | 'folder'>) => void
   clearSelection: () => void
   toggleExpand: (path: string) => void
   togglePinned: () => void
@@ -263,6 +274,33 @@ export function useNavigator(initialCwd: string) {
     setPrimaryPath(filePath)
   }, [])
 
+  /** ENH-148 — ⇧-click range-select. Replaces the entire selection
+   *  with the supplied paths in one update so partial states never
+   *  leak through React's batching. */
+  const selectRange = useCallback((paths: string[], kinds: Array<'file' | 'folder'>, newPrimary: string) => {
+    if (paths.length === 0) return
+    const map = new Map<string, 'file' | 'folder'>()
+    for (let i = 0; i < paths.length; i++) {
+      map.set(paths[i], kinds[i] ?? 'file')
+    }
+    setSelectedItems(map)
+    setPrimaryPath(newPrimary)
+  }, [])
+
+  /** ENH-148 — ⌘-A select all visible rows. Same shape as selectRange
+   *  but the primary becomes the FIRST entry (most-natural anchor for
+   *  follow-up ⇧-click extends). Caller decides the cap (see the spec:
+   *  current directory + immediate children). */
+  const selectAllVisible = useCallback((paths: string[], kinds: Array<'file' | 'folder'>) => {
+    if (paths.length === 0) return
+    const map = new Map<string, 'file' | 'folder'>()
+    for (let i = 0; i < paths.length; i++) {
+      map.set(paths[i], kinds[i] ?? 'file')
+    }
+    setSelectedItems(map)
+    setPrimaryPath(paths[0])
+  }, [])
+
   const clearSelection = useCallback(() => {
     setSelectedItems(new Map())
     setPrimaryPath(null)
@@ -309,6 +347,8 @@ export function useNavigator(initialCwd: string) {
     navigateTo,
     selectItem,
     toggleSelection,
+    selectRange,
+    selectAllVisible,
     revealAndSelect,
     clearSelection,
     toggleExpand,

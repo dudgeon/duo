@@ -655,11 +655,82 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     actions.clearSelection()
   }
 
+  // ENH-148 — flatten the visible tree (rootEntries + expanded
+  // children, dotfile-filtered) into a single ordered list in render
+  // order. The walker is depth-first matching what TreeNodes itself
+  // renders. Returns `null` when the rootEntries aren't loaded.
+  const flattenVisibleRows = (): Array<{ path: string; kind: 'file' | 'folder' }> | null => {
+    if (!rootEntries) return null
+    const out: Array<{ path: string; kind: 'file' | 'folder' }> = []
+    const walk = (entries: DirEntry[]) => {
+      for (const e of entries) {
+        if (!shouldShow(e, state.showDotfiles)) continue
+        const kind: 'file' | 'folder' = e.kind === 'directory' ? 'folder' : 'file'
+        out.push({ path: e.path, kind })
+        if (e.kind === 'directory' && state.expanded.has(e.path)) {
+          const children = state.listings.get(e.path)
+          if (children) walk(children)
+        }
+      }
+    }
+    walk(rootEntries)
+    return out
+  }
+
+  // ENH-148 — ⇧-click range select handler. Computes the slice of the
+  // flattened visible-row list between the current primary selection
+  // (state.selected.path, derived from primaryPath in useNavigator)
+  // and the shift-clicked entry. If no anchor exists yet, falls back
+  // to a single-select.
+  const extendSelectionTo = (entry: DirEntry) => {
+    const kind: 'file' | 'folder' = entry.kind === 'directory' ? 'folder' : 'file'
+    const anchor = state.selected?.path ?? null
+    if (!anchor) {
+      actions.selectItem(entry.path, kind)
+      return
+    }
+    const rows = flattenVisibleRows()
+    if (!rows) {
+      actions.selectItem(entry.path, kind)
+      return
+    }
+    const anchorIdx = rows.findIndex(r => r.path === anchor)
+    const targetIdx = rows.findIndex(r => r.path === entry.path)
+    if (anchorIdx === -1 || targetIdx === -1) {
+      actions.selectItem(entry.path, kind)
+      return
+    }
+    const lo = Math.min(anchorIdx, targetIdx)
+    const hi = Math.max(anchorIdx, targetIdx)
+    const slice = rows.slice(lo, hi + 1)
+    const paths = slice.map(r => r.path)
+    const kinds = slice.map(r => r.kind)
+    actions.selectRange(paths, kinds, entry.path)
+  }
+
+  // ENH-148 — container-level ⌘-A handler. Fires when any row inside
+  // the FileTree has keyboard focus (bubbling from onRowKey). Selects
+  // every top-level row in the current cwd (NOT expanded descendants
+  // — the spec's safety cap: "current directory + immediate children"
+  // means don't sweep huge expanded trees on ⌘-A).
+  const onContainerKey = (e: React.KeyboardEvent) => {
+    if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
+    if (e.key !== 'a' && e.code !== 'KeyA') return
+    if (!rootEntries || rootEntries.length === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    const visible = rootEntries.filter(en => shouldShow(en, state.showDotfiles))
+    const paths = visible.map(en => en.path)
+    const kinds = visible.map((en): 'file' | 'folder' => en.kind === 'directory' ? 'folder' : 'file')
+    actions.selectAllVisible(paths, kinds)
+  }
+
   return (
     <div
       className="flex-1 overflow-auto scrollbar-none py-1"
       onContextMenu={onWhitespaceContextMenu}
       onClick={onWhitespaceClick}
+      onKeyDown={onContainerKey}
     >
       {/* ENH-152a v2 — git status ribbon. SLIM-TOP per proto-Q1.
           v2 walk-rev4 FAIL fix: ribbon now right-clickable. Synthesizes
@@ -700,6 +771,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         actions={actions}
         onOpenFile={onOpenFile}
         onContextMenu={(e, entry) => { void popupMenu(e, entry, false) }}
+        onRangeSelect={extendSelectionTo}
         renamingPath={renamingPath}
         onCommitRename={onCommitRename}
         onCancelRename={() => setRenamingPath(null)}
@@ -831,6 +903,10 @@ interface TreeNodesProps {
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
   onContextMenu: (e: React.MouseEvent, entry: DirEntry) => void
+  /** ENH-148 — ⇧-click range-select handler. Defined at the FileTree
+   *  scope (where rootEntries + listings are available) and passed
+   *  down so per-row click handlers can call it. */
+  onRangeSelect?: (entry: DirEntry) => void
   /** Stage 26 item 6 — inline rename state passed down. `undefined` means
    *  this tree (e.g. user-claude pane) doesn't support rename. */
   renamingPath?: string | null
@@ -853,7 +929,7 @@ interface TreeNodesProps {
   dirtyFileMap?: ReadonlyMap<string, { status: string; plus: number; minus: number }>
 }
 
-export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodesProps) {
+export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContextMenu, onRangeSelect, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodesProps) {
   if (entries === null || entries === undefined) {
     return <div className="px-3 py-1 text-[11px] text-zinc-600">Loading…</div>
   }
@@ -872,6 +948,7 @@ export function TreeNodes({ entries, depth, state, actions, onOpenFile, onContex
           actions={actions}
           onOpenFile={onOpenFile}
           onContextMenu={onContextMenu}
+          onRangeSelect={onRangeSelect}
           renamingPath={renamingPath}
           onCommitRename={onCommitRename}
           onCancelRename={onCancelRename}
@@ -894,6 +971,9 @@ interface TreeNodeProps {
   actions: NavigatorActions
   onOpenFile: (entry: DirEntry) => void
   onContextMenu: (e: React.MouseEvent, entry: DirEntry) => void
+  /** ENH-148 — ⇧-click range-select handler. Provided by the host
+   *  FileTree (where the flattened-rows walker lives). */
+  onRangeSelect?: (entry: DirEntry) => void
   renamingPath?: string | null
   onCommitRename?: (entry: DirEntry, newName: string) => Promise<boolean>
   onCancelRename?: () => void
@@ -909,7 +989,7 @@ interface TreeNodeProps {
   dirtyFileMap?: ReadonlyMap<string, { status: string; plus: number; minus: number }>
 }
 
-function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodeProps) {
+function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, onRangeSelect, renamingPath, onCommitRename, onCancelRename, onOpenClaudeIn, activeTerminalCwd = null, openFilePaths, activeFilePath = null, childRepoMap, dirtyFileMap }: TreeNodeProps) {
   const isFolder = entry.kind === 'directory'
   const isExpanded = isFolder && state.expanded.has(entry.path)
   // ENH-147 — read from the multi-select map. Singular `state.selected`
@@ -943,10 +1023,15 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
   // selection without keyboard (⎋ already worked, see onRowKey).
   // ENH-147 — ⌘-click (metaKey) toggles this row's membership in the
   // multi-select set without affecting other selected rows. Plain
-  // single-click is single-select (replaces the entire set). ⇧-click
-  // (range select) deferred to a follow-up; would require an anchor
-  // and a decision about ranges across expanded folders.
+  // single-click is single-select (replaces the entire set).
+  // ENH-148 — ⇧-click extends selection from the primary anchor to
+  // this row across the visible row order (Finder behavior). The
+  // walker lives at FileTree scope and is passed in via onRangeSelect.
   const onSingleClickRow = (e: React.MouseEvent) => {
+    if (e.shiftKey && onRangeSelect) {
+      onRangeSelect(entry)
+      return
+    }
     if (e.metaKey) {
       actions.toggleSelection(entry.path, isFolder ? 'folder' : 'file')
       return
@@ -985,6 +1070,9 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
       e.preventDefault()
       actions.clearSelection()
     }
+    // ENH-148 — ⌘-A is handled at the FileTree container's onKeyDown
+    // (which has access to rootEntries for the safety cap). The
+    // keystroke bubbles up naturally.
   }
 
   // Two-sibling layout: chevron button + row button. The wrapping div
@@ -1171,6 +1259,7 @@ function TreeNode({ entry, depth, state, actions, onOpenFile, onContextMenu, ren
           actions={actions}
           onOpenFile={onOpenFile}
           onContextMenu={onContextMenu}
+          onRangeSelect={onRangeSelect}
           renamingPath={renamingPath}
           onCommitRename={onCommitRename}
           onCancelRename={onCancelRename}
