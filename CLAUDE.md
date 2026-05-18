@@ -629,11 +629,28 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 17 / v0.7.0 cleanup cut (rev5 walk-in-progress; cut not yet approved)
+## Active sprint — Sprint 18 / v0.7.1 "Browser-pane completion"
 
 > **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state; this section is a one-paragraph mirror.
 
-**Status (2026-05-17 evening):** Marathon close-out session. All four 🟡 v0.7.0 decision gates closed (BUG-125 v2, FOLLOWUP-025 v2, ENH-159 v2, GH-cluster v2 + prototype + occlusion-fix). 5 walk-revs (rev1→rev5) walked. Cut blocked only on owner confirming rev5 PASS for the GH-CLUSTER-PHASE-2 item now using the **modified-Option-B** chip-occlusion fix (small ⎇ icon + hover-revealed popover) per owner's same-session pick.
+**Status (2026-05-18, post-v0.7.0-cut):** Sprint planning complete. **v0.7.0 shipped** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.0); signed+notarized DMG, all rev8 items PASS). Sprint 18 pull list (owner-confirmed):
+
+- **BUG-130** — Browser pane `file://` auto-reload (architectural; agent edits → tab doesn't refresh).
+- **ENH-157** — Browser-pane comments — CDP-injected sidecar overlay for file:// HTML.
+- **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity).
+- **ENH-164** — `duo terminal new --kind claude` CLI verb.
+
+**Theme:** Close the browser-pane-as-first-class-surface story Sprint 17 opened (Send → agent + inspect + clone + GH menu). Sprint 18 finishes the chapter with auto-reload, comments-in-page, multi-select polish, and an agent-side claude-spawn verb. **Cut goal: v0.7.1.**
+
+**Stretch (if BUG-130 lands fast):** BUG-079 (tab-cycle latency — needs prod repro), FOLLOWUP-021 (`duo install --clean`).
+
+**Deferred (need decision walks first):** ENH-118 image handling · ENH-127 composer-window direction · BUG-123 v2 cross-boundary cell selection · Stage 17a.5 template gallery · Backlinks/graph view · ENH-137 Beginner's Guide · ENH-141 enterprise smoke.
+
+---
+
+### Previously — Sprint 17 / v0.7.0 (shipped 2026-05-18)
+
+Marathon close-out session 2026-05-17 → 2026-05-18. All four 🟡 v0.7.0 decision gates closed (BUG-125 v2, FOLLOWUP-025 v2, ENH-159 v2, GH-cluster v2 + prototype + occlusion-fix). 8 walk-revs (rev1→rev8) walked. v0.7.0 cut 2026-05-18 with signed + notarized DMG ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.0)).
 
 **Major incident filed (2026-05-17):** owner caught me silently dismissing 6 of 20 locked playground decisions. Memory at [`feedback_never_silently_dismiss_locked_decisions.md`](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_never_silently_dismiss_locked_decisions.md). New rule: every implementation push after a playground walk must explicitly map each locked Q → ship/defer/cannot-ship, AND any defer needs explicit owner yes BEFORE writing code.
 
