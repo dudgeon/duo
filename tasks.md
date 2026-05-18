@@ -6426,6 +6426,8 @@ Verified the gap empirically:
 
 **Class of issue:** the misnamed `files.openExternal` (which is actually `shell.openPath` for local files) was an attractive footgun. Other callers (FileRenderers, ImageView, FileTree:438) are all using it correctly for local paths. Long-term cleanup possibility: rename `files.openExternal` → `files.openPath` for clarity. Filed as FOLLOWUP-026 (post-cut).
 
+**Rev2 (peer-repo case):** owner walked rev1 and reported that the file-inside-cwd-repo path now works, but right-clicking a **peer-repo folder** (e.g. navigator at `~/Documents/GitHub`, right-click on `project-microsite/`) was still a no-op. Diagnosis via in-flight `[BUG-132 DIAG]` console traces: `handleMenuChoice` ran with `chosenId='open-on-github'`, the case branch entered, but `gitSnap.workTreeRoot` was `/Users/geoffreydudgeon/Documents` (the user's outer Documents folder happens to be a git repo with no GitHub remote) instead of `~/Documents/GitHub/project-microsite`. `githubUrlFor` correctly returned `{url:null}` because `git remote get-url origin` in `~/Documents/GitHub` climbed to the outer Documents repo's remote — a personal repo with no GitHub host. Fix: when the right-clicked target is a folder that's a peer-repo (present in `childRepoMap`), prefer that snapshot over `gitSnap`; pass `effectiveSnap.workTreeRoot` as BOTH the cwd and workTreeRoot to `githubUrlFor` (so the git command runs from inside the correct repo). Also widened `inGhRepo` calc in `popupMenu` to include `peerSnap.isRepo` so the menu items show up correctly when the cwd itself is not in any GitHub repo (or in an unrelated outer repo).
+
 ---
 
 ### FOLLOWUP-026: Rename `files.openExternal` → `files.openPath` for clarity

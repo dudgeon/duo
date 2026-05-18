@@ -476,19 +476,28 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         return
       case 'open-on-github':
       case 'copy-github-url': {
-        // ENH-155 — compose the GitHub URL for the right-clicked
-        // path. Both menu items go through the same probe; one opens
-        // the URL via shell, the other copies to clipboard. If the
-        // remote isn't a GitHub host (gitlab/bitbucket/self-hosted),
-        // url is null and we silently no-op (the menu item shouldn't
-        // have appeared in that case anyway, but this is a belt-and-
-        // suspenders guard).
-        if (!gitSnap?.workTreeRoot) return
-        const branch = gitSnap.branch || gitSnap.head
+        // ENH-155 / BUG-132 — compose the GitHub URL for the right-
+        // clicked path. Both items go through the same probe; one
+        // opens, the other copies. If the remote isn't a GitHub host,
+        // url is null and we silently no-op.
+        //
+        // BUG-132 (rev2): pick the right repo snapshot. When the
+        // navigator is at a parent directory (e.g. ~/Documents/GitHub)
+        // and the user right-clicks a peer-repo folder, gitSnap
+        // reflects the OUTER directory's repo (if any) — wrong remote.
+        // childRepoMap holds per-peer-repo snapshots; prefer those
+        // when the target is a peer-repo root.
+        const peerSnap = isFolder ? childRepoMap?.get(target.path) : undefined
+        const effectiveSnap = peerSnap?.isRepo ? peerSnap : gitSnap
+        if (!effectiveSnap?.workTreeRoot) return
+        const branch = effectiveSnap.branch || effectiveSnap.head
         try {
           const result = await window.electron.git.githubUrlFor({
-            cwd: state.cwd,
-            workTreeRoot: gitSnap.workTreeRoot,
+            // Run `git remote get-url origin` from the actual repo's
+            // root, not state.cwd — state.cwd may be the parent of a
+            // peer-repo (or even unrelated entirely).
+            cwd: effectiveSnap.workTreeRoot,
+            workTreeRoot: effectiveSnap.workTreeRoot,
             branch,
             absPath: target.path,
             isFolder
@@ -523,12 +532,19 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     const batchSize = (!whitespaceMode && inSelection && state.selectedItems.size > 1)
       ? state.selectedItems.size
       : 0
-    // ENH-155 — right-click target is in a GH repo when we have a
-    // gitSnap with workTreeRoot AND the target path is under it.
-    // Host check (github.com vs gitlab.com) happens lazily inside
-    // the handler when the user actually clicks the menu item.
-    const inGhRepo = !!gitSnap?.isRepo && !!gitSnap.workTreeRoot &&
-      target.path.startsWith(gitSnap.workTreeRoot)
+    // ENH-155 / BUG-132 (rev2) — target is "in a GH repo" when EITHER:
+    //   (a) cwd's gitSnap covers it (file/folder inside cwd's repo), OR
+    //   (b) the target IS a peer-repo root (childRepoMap has its snap).
+    // (b) is the case where the navigator is at a parent dir (e.g.
+    // ~/Documents/GitHub) and the user right-clicks a peer-repo folder
+    // — gitSnap might be null or reflect an unrelated outer repo, but
+    // the peer-repo itself has a valid remote we want to expose.
+    // The host check (github.com vs gitlab.com) happens lazily in the
+    // handler when the user actually clicks.
+    const isFolderTarget = target.kind === 'directory'
+    const peerSnap = isFolderTarget ? childRepoMap?.get(target.path) : undefined
+    const inGhRepo = (!!gitSnap?.isRepo && !!gitSnap.workTreeRoot &&
+      target.path.startsWith(gitSnap.workTreeRoot)) || !!peerSnap?.isRepo
     const items = buildTreeMenuTemplate({
       target,
       whitespaceMode,
