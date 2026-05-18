@@ -6465,9 +6465,46 @@ Also caught + filed:
 
 ### BUG-138 / Stage 14b–d: Markdown comments + track-changes via CriticMarkup — agent-visible + portable + unified Stage 14 chapter
 
-**Status:** 🟡 **Awaiting owner-decision gate** — 6 decisions in [`docs/research/markdown-criticmarkup-comments-trackchanges.html`](docs/research/markdown-criticmarkup-comments-trackchanges.html). Filed 2026-05-18. Sprint 18 anchor item. **HIGH priority** — architectural correctness + agent-visibility violation.
+**Status:** 🟢 **Gate decisions locked 2026-05-18.** Implementation phase. Sprint 18 anchor. **HIGH priority** — architectural correctness + agent-visibility violation.
 
 **Scope expanded 2026-05-18 (owner directive).** *"If it makes sense to pull in track changes intent and knock all of these out together, let's do that (incl a duo verb for the agent to use track changes for own changes — so will need author attribution at least for human and agent)."* This ticket now covers what was previously Stage 14b (track-changes parser/serializer + visual), 14c (Suggesting toolbar mode), and 14d (agent CLI surface) — all of which share CriticMarkup machinery with BUG-138's comment-storage migration. One coherent v0.7.1+ chapter rather than four staged pieces.
+
+**Locked decisions (owner walk of [`docs/research/markdown-criticmarkup-comments-trackchanges.html`](docs/research/markdown-criticmarkup-comments-trackchanges.html), 2026-05-18):**
+
+| Q | Decision | Rationale |
+|---|---|---|
+| Q1 · Body shape | **A · Pipe-delimited prefix** | `{>>id:c-01\|author:claude\|ts:2026-05-18T12:34:56Z\|reply-to:c-00?\|body text<<}`. Parser splits first N `\|`s for metadata; body is everything after the last metadata `\|`. Bodies CAN contain `\|`. |
+| Q2 · Track-changes scope | **A · All five operations** | Comment + insert + delete + substitute + highlight. Maximum value from the parser/serializer lift. Stages 14b/14c/14d ship together. |
+| Q3 · Author attribution | **B · Named** | `dudgeon` (human) + `claude` (agent). Human name from new `duo author [<name>]` setting (defaults to `$USER`). Agent name from agent-context (CLI sets via env or arg). Forward-compatible with codex/etc. |
+| Q4 · Agent CLI verbs | **A · Explicit per-op** | `duo doc insert/delete/substitute/comment/accept/reject <file> [--at \|--range \|--anchor]`. Anchor formats: `heading:"X"` / `line:42` / `text:"exact"` / `range:from-to`. Same shape as existing Stage 11 anchor verbs. |
+| Q5 · Migration trigger | **A · Auto-migrate on first load, silent** | If sidecar has `comments[]` AND body has no CriticMarkup, migrate immediately. Sidecar's `comments[]` cleared post-write. No UI. |
+| Q6 · Backward-read | **A · Read-both-until-touched, then inline-only** | First open: read CriticMarkup from body + comments from sidecar; merge. First save: write CriticMarkup; clear `sidecar.comments[]`. Sidecar comments-reading deprecated in v0.9.0. |
+
+**Implementation phases:**
+
+**Phase 1 — Parser/serializer + visual rendering (foundation).**
+- 5 TipTap marks/extensions: `InsertionMark`, `DeletionMark`, `HighlightMark`, `SubstitutionMark` (or composite delete+insert), refactor existing `CommentMark` to round-trip structured body.
+- `criticMarkup.ts` shared module: `parseCriticMarkup(text) → ops[]`, `serializeOps(ops) → text`, `parseStructuredBody(text) → {id, author, ts, replyTo, body}`.
+- Markdown-IO integration: tiptap-markdown extension that recognizes CriticMarkup syntax on parse + emits on serialize.
+- Visual rendering matches the playground's preview styling (insert=green, delete=strikethrough red, substitute=stacked, highlight=yellow, comment=accent rail-anchored).
+- Tests: round-trip for each operation; nested cases; edge cases (`|` in body, multi-line bodies, replies-to-replies).
+
+**Phase 2 — Migration + author identity.**
+- Migration helper: on file load, detect sidecar-only state; walk doc to re-anchor each sidecar comment; write CriticMarkup inline; clear sidecar's `comments[]`.
+- `duo author [<name>]` CLI verb — read/set the human author identity (localStorage + sidecar default). Agent context populates author for CLI-driven edits.
+
+**Phase 3 — Agent CLI verbs.**
+- `duo doc insert/delete/substitute/comment/accept/reject` + anchor resolution (reuse Stage 11 `--anchor` parsing).
+- Full plumbing checklist per CLAUDE.md § 4 (shared/types, preload, main, socket-server, cli/duo, skill/SKILL.md, agents/duo.md cheat-sheet, CLI-COVERAGE.md).
+
+**Phase 4 — Suggesting toolbar mode + Accept/Reject UX.**
+- Per-doc Suggesting toggle (state in sidecar). When ON, all interactive edits auto-wrap as CriticMarkup with current author.
+- Banner above editor: *"N suggestions"* with global Accept-all / Reject-all.
+- Per-suggestion accept/reject controls in the comment rail (same primitive as Stage 14a).
+
+**Editor-canvas parity (per CLAUDE.md § 7).** **(c) Deferred.** Canvas-side HTML CAN persist comments + track-changes in-file via custom data attrs (e.g. `<span data-duo-comment-id="c-01" data-duo-author="claude">…</span>`). The architectural argument is the same; the syntax differs. File as sibling BUG-139 after Phase 1 lands so we share what we learn.
+
+**Cross-ref.** Stage 14a (comments shipped v0.6.7, sidecar-based — now superseded). MISSING-001 (original comments placeholder). BUG-061 (markdown parsing broken in HTML canvas — sibling parsing-gap class).
 
 **Symptom.** Owner: *"you did not build markdown comments correctly; comments are supposed to be persisted in the markdown file itself, using criticMarkup notation (and adding opinionated extensions if needed) — NOT as a separate json file that needs to travel with the markdown file or be lost. even more worrying, comments that sit outside the file will not be obvious to the agent when it inspects the file!!"*
 
