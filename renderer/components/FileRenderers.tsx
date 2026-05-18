@@ -28,7 +28,7 @@ export function UnknownFilePreview({ tab }: { tab: WorkingTab }) {
     if (!path) return
     setOpening(true)
     try {
-      await window.electron.files.openExternal(path)
+      await window.electron.files.openPath(path)
     } finally {
       setOpening(false)
     }

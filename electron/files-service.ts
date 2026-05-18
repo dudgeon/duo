@@ -356,7 +356,12 @@ export class FilesService {
     }
   }
 
-  async openExternal(absPath: string): Promise<void> {
+  /** FOLLOWUP-026 — renamed from openExternal. Opens a local file
+   *  path via shell.openPath (OS picks the default app for the
+   *  extension). For URLs, use the agent-side openExternalUrl helper
+   *  in main.ts (which routes through shell.openExternal with scheme
+   *  validation) — the two are NOT interchangeable. */
+  async openPath(absPath: string): Promise<void> {
     // shell.openPath resolves with '' on success, error string on failure
     const err = await shell.openPath(absPath)
     if (err) throw new Error(err)

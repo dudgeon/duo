@@ -231,7 +231,7 @@ const api: ElectronAPI = {
 
     write: (p, bytes) => ipcRenderer.invoke(IPC.FILES_WRITE, { path: p, bytes }),
 
-    openExternal: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_EXTERNAL, { path: p }),
+    openPath: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_PATH, { path: p }),
 
     openExternalUrl: (url) => ipcRenderer.invoke(IPC.FILES_OPEN_EXTERNAL_URL, { url }),
 

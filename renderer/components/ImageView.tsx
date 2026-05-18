@@ -179,7 +179,7 @@ export function ImageView({ tab }: { tab: WorkingTab }) {
 
   const openInDefault = useCallback(() => {
     if (!path) return
-    void window.electron.files.openExternal(path)
+    void window.electron.files.openPath(path)
   }, [path])
 
   const revealInFinder = useCallback(() => {

@@ -193,9 +193,12 @@ export interface ElectronFilesAPI {
   /** Stage 11 — write a file atomically (tmp + rename). Creates parent dirs
    *  if needed. Caller sends raw bytes. */
   write: (path: string, bytes: Uint8Array) => Promise<FileWriteResult>
-  openExternal: (path: string) => Promise<void>
+  /** FOLLOWUP-026 — renamed from openExternal: opens a local file
+   *  path via shell.openPath (the OS picks the default app for that
+   *  extension). Distinct from openExternalUrl which is for URLs. */
+  openPath: (path: string) => Promise<void>
   /** BUG-132 — open an http/https/mailto URL via shell.openExternal.
-   *  Distinct from openExternal (which routes through shell.openPath
+   *  Distinct from openPath (which routes through shell.openPath
    *  for local file paths). Used by the Navigator's right-click
    *  "Open on GitHub" + future URL-opening surfaces. */
   openExternalUrl: (url: string) => Promise<{ ok: boolean; opened?: string; error?: string }>

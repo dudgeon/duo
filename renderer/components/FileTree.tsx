@@ -435,7 +435,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
         try { await window.electron.clipboard.writeText(target.path) } catch { /* permission denied */ }
         return
       case 'open-with-default':
-        await window.electron.files.openExternal(target.path)
+        await window.electron.files.openPath(target.path)
         return
       case 'pin':
         if (navPins) {
