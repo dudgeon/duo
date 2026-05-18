@@ -51,6 +51,11 @@ const KIND_CLASS: Record<TrackedRange['kind'], string> = {
 
 export function TrackedChangesRail({ editor, ranges, onJumpTo, currentAuthor = '' }: Props) {
   const [filter, setFilter] = useState<Filter>('all')
+  // BUG-138 walk-1 follow-up — owner ask: way to collapse the
+  // track-changes rail. Same chevron pattern as the Properties panel.
+  // State is transient (component-local) — re-mounts when ranges go
+  // from 0 → ≥1, so toggling Suggesting off + back on re-expands.
+  const [collapsed, setCollapsed] = useState(false)
 
   // Pre-compute the counts per filter bucket so the chips can show
   // disabled state + counts.
@@ -83,12 +88,24 @@ export function TrackedChangesRail({ editor, ranges, onJumpTo, currentAuthor = '
     <div
       className="flex flex-col gap-1.5 px-2 py-2 border-b border-border bg-surface-1"
       data-duo-tc-rail="1"
+      data-duo-tc-collapsed={collapsed ? 'true' : 'false'}
     >
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-          Track changes ({ranges.length})
-        </span>
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            setCollapsed(c => !c)
+          }}
+          className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-zinc-500 hover:text-zinc-300"
+          title={collapsed ? 'Expand track changes' : 'Collapse track changes'}
+        >
+          <span className={`inline-block transition-transform ${collapsed ? '' : 'rotate-90'}`}>›</span>
+          <span>Track changes ({ranges.length})</span>
+        </button>
       </div>
+      {!collapsed && (
+      <>
       <div className="flex items-center gap-1 px-1 -mt-0.5" data-duo-tc-filter-row="1">
         <FilterChip label="All" count={ranges.length} active={filter === 'all'} onSelect={() => setFilter('all')} />
         <FilterChip label="Mine" count={buckets.mine} active={filter === 'mine'} disabled={buckets.mine === 0} onSelect={() => setFilter('mine')} />
@@ -108,6 +125,8 @@ export function TrackedChangesRail({ editor, ranges, onJumpTo, currentAuthor = '
             onJumpTo={onJumpTo}
           />
         ))
+      )}
+      </>
       )}
     </div>
   )

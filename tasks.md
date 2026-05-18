@@ -23,6 +23,80 @@
 > prune candidate: closed BUG-018..BUG-040 era entries once their
 > lessons similarly internalize.
 
+## Recent (v0.7.1 walk-1 fixes — 2026-05-18)
+
+### BUG-138 walk-1 FAIL: Phase 4b — typed text wraps as one-CM-token-per-character
+
+**Status:** 🟡 **Filed 2026-05-18 walk-1; walk-1 fix shipped same-day. Awaiting walk-2.**
+
+**Symptom (owner walk-1):** *"inserted text is spaced far too far apart (between characters) ... inspecting source, looks like duo split the inserted work into one edit per character."*
+
+**Root cause.** `SuggestingMode.appendTransaction` stamped a fresh `ts = new Date().toISOString()` on every character's TR. ProseMirror compares marks by `type + attrs` deep-equality; distinct `ts` per char → distinct marks → no text-node merging → JSON serializes as N text nodes each with its own mark → CM serializer emits `{++a++}{++b++}{++c++}` instead of one `{++abc++}`. Visual artifact: the per-char wrappers add per-char layout-break opportunities that look like wide letter-spacing.
+
+**Walk-1 fix.** Drop `ts` from auto-stamped non-comment marks. Standard CriticMarkup tokens (`{++text++}` / `{--text--}` / `{==text==}`) carry no metadata anyway — Phase 1's serializer would lose the `ts` on save regardless. Mark schema's `ts` attribute stays (Phase 4's TipTap-side rail filter still reads it when present), but Suggesting auto-stamp now passes only `{ author }`. Same fix applied to `wrapAsDeletion`. PM merges across consecutive same-author marks → one mark, one CM token on save.
+
+**Files touched:** [`renderer/components/editor/extensions/SuggestingMode.ts`](renderer/components/editor/extensions/SuggestingMode.ts) lines 81–92 (appendTransaction) + lines 168–175 (wrapAsDeletion).
+
+---
+
+### BUG-138 walk-1 FAIL: Phase 4c — Backspace/Delete not intercepted (shadowed by another extension)
+
+**Status:** 🟡 **Filed 2026-05-18 walk-1; walk-1 fix shipped same-day. Awaiting walk-2.**
+
+**Symptom (owner walk-1):** *"deletion was just normal, non-tracked; no deletion added to the track changes rail."*
+
+**Root cause.** TipTap's keymap dispatches keyboard shortcuts in extension-priority order. The default Extension.priority is 100. StarterKit's nodes (paragraph, list-item, blockquote, code-block) all register their own `Backspace` handlers (unindent list, exit code block, merge node boundaries) at default priority. With ties, dispatch order is roughly registration order — SuggestingMode landed AFTER StarterKit so its handler was effectively shadowed.
+
+**Walk-1 fix.** Set `priority: 1000` on the SuggestingMode extension. TipTap evaluates higher priority FIRST. When Suggesting is OFF, our handler short-circuits `return false` immediately → default behavior runs as normal. When Suggesting is ON, our `wrapAsDeletion` runs and consumes the keystroke. Bonus: also fixes any other Backspace/Delete handler ordering hazard for the same reason (no other extension can pre-empt us).
+
+**Files touched:** [`renderer/components/editor/extensions/SuggestingMode.ts`](renderer/components/editor/extensions/SuggestingMode.ts) — `priority: 1000` added to the `Extension.create({...})` block.
+
+---
+
+### BUG-138 follow-up — collapsible Track Changes rail (owner ask)
+
+**Status:** ✅ **Shipped 2026-05-18 (walk-1 follow-up).**
+
+**Source (owner walk-1):** *"need way to collapse the track changes rail (can just reenable track changes to reveal it)."*
+
+**Implementation.** Same chevron-collapse pattern as the Properties panel (BUG-139). `TrackedChangesRail` header is now a clickable button — chevron rotates 90° on expand, hidden on collapse. State is transient (component-local `useState`) — the rail re-mounts when ranges go from 0 → ≥1 (i.e. toggling Suggesting off + back on with fresh edits re-expands). DOM exposes `[data-duo-tc-collapsed]` for `duo dom` introspection.
+
+**Files touched:** [`renderer/components/editor/TrackedChangesRail.tsx`](renderer/components/editor/TrackedChangesRail.tsx) — added `collapsed` state + chevron button + conditional render for the filter row + cards.
+
+---
+
+### BUG-139 — design decisions locked (walk-1 gate closed)
+
+**Status:** ✅ **Walk-1 closed 2026-05-18.** Owner walked [docs/research/frontmatter-panel-design.html](docs/research/frontmatter-panel-design.html) + Copy-decisions returned 4 of 5 picks. Q1 left unanswered (no strong preference); 4 locked decisions become the v1.1 spec:
+
+| Q | Topic | Locked option |
+|---|---|---|
+| Q1 | Row density / key-column layout | **NO PICK** — owner deferred. v1 stays (100px key column, one-line rows). Re-raise if pain re-surfaces. |
+| Q2 | Type-specific value rendering | **A · Stay uniform mono.** v1 default. No styled booleans / nulls / dates / array chips. Keeps the panel predictable; nothing screams "click me". |
+| Q3 | Per-property edit affordance | **C · Keep raw-YAML only.** No per-row inline-edit, no add/remove-row affordances. Edit raw is the single editing surface. Smaller surface area; fewer edge cases (validation per row, nested-type editors). |
+| Q4 | Default expanded vs collapsed | **B · Always collapsed on first open.** Prose-first. Header row "Properties (N)" is still visible; click chevron to expand. Friendlier for prose-heavy workflows where frontmatter is metadata you rarely touch. **Implementation diff:** flip `sidecar.frontmatterPanelCollapsed === true` default to `true` when the field is undefined (currently undefined ⇒ false). |
+| Q5 | Long-value truncation | **B · Click to expand row inline.** Single-line by default with ellipsis; click → row expands to multi-line view with left accent border + the full value visible. Click again to collapse. |
+
+**Implementation:** Q4 + Q5 land in v1.1 (a small follow-up commit). Q2 + Q3 are NO-OPs (already match v1 behavior). Q1 stays at v1 default until owner re-raises.
+
+---
+
+### BUG-141: Settings.json banner wording misleading — implied each version pollutes the file
+
+**Status:** ✅ **Shipped 2026-05-18 (walk-1 OTHER NOTES follow-up).**
+
+**Source (owner walk-1 OTHER NOTES):** *"when updating duo agents, saw this message, 'Heads-up: you had existing entries in ~/.claude/settings.json. Duo added its setup alongside them — nothing was overwritten.' now concerned that every version update is polluting the user's settings.json."*
+
+**Root cause investigation.** The actual install logic at [`electron/install-service.ts`](electron/install-service.ts) lines 968–982 is correct: every install (first-launch + every upgrade) REMOVES the prior duo-tagged SessionStart entry and re-adds a single fresh entry with the current version marker. User's other hooks are filtered through untouched. No pollution — at most ONE Duo entry, ever.
+
+The banner's wording read like Duo just NOW added something to the file when actually we're just confirming co-existence with the user's other hooks. Phrasing made owner worry about cumulative pollution.
+
+**Walk-1 fix.** Reworded the banner in [`renderer/components/FirstLaunchBanner.tsx`](renderer/components/FirstLaunchBanner.tsx): *"your ~/.claude/settings.json already had other SessionStart hooks; Duo's run alongside them and your existing entries are untouched. On future upgrades Duo only replaces its own entry — it does not re-add or duplicate."* Spells out the upgrade-cycle semantic so the message is reassuring (not alarming).
+
+**Verification.** Pure copy change; install behavior was already correct. Live-verified post-upgrade by reading `~/.claude/settings.json` — exactly ONE duo-tagged SessionStart entry, all other entries preserved.
+
+---
+
 ## 🟡 OPEN OWNER-DECISION GATES — v0.7.0 cut blocked until walked
 
 > **Forgetting-protection.** Each gate below is a playground that owner
@@ -6580,6 +6654,14 @@ The opinionated extension is the structured prefix: `id:<ulid>|author:<name>|ts:
 
 ### BUG-137: Markdown link editing — `[text](url)` not parsed; ⌘K is a no-op
 
+**Status:** 🟡 **Shipped 2026-05-18; v0.7.1 walk-1 FAIL → fixes shipped same-day.** Walk-1 surfaced four sub-issues: (1) link displayed the URL instead of the bracketed text, (2) no hover tooltip showing the URL, (3) ⌘K reported as no-op, (4) owner-added scope: clicking the toolbar link button on an existing link should edit (in-place) instead of being a no-op. Plus a fifth owner ask: collapsible track-changes rail (filed as part of BUG-138 follow-ups). Walk-1 fixes:
+
+- **(1) URL-as-text** — root cause: `markInputRule` picks the LAST capture group as the kept text. My regex captured `[(text), (url)]` → URL was kept. Walk-1 fix: replaced `markInputRule` with a custom `InputRule` whose handler does `tr.replaceWith(range, schema.text(match[1], [linkType.create({ href: match[2] })]))`. Now the matched `[text](url)` becomes just `text` with the link mark.
+- **(2) Tooltip** — `@tiptap/extension-link` renders `<a href="…">text</a>` with no title attribute. Walk-1 fix: `.extend({ renderHTML({ HTMLAttributes }) { return ['a', { ...HTMLAttributes, title: HTMLAttributes.href ?? null }, 0] } })` chained onto `Link.configure(...)` so every link gets its href as a native browser tooltip.
+- **(3) ⌘K** — handler IS registered + reachable (no other Mod-k binding shadowing it). Walk-1 fix: bumped extension `priority: 1000` so it's first in the keymap dispatch order. Also: `extendMarkRange('link')` before `setLink({href})` so a collapsed-caret-inside-an-existing-link edits the whole span in place rather than partially.
+- **(4) Edit existing link via toolbar** — already supported in v1 via `actions.currentLinkHref()` + `extendMarkRange('link')` but reported as broken; the priority bump + extendMarkRange combo from (3) fixes it transitively (the toolbar's `insertLink` callback goes through the same `setLink` path).
+
+**Original entry (pre-walk-1):**
 **Status:** ✅ **Shipped 2026-05-18 (post-v0.7.0-cut).**
 
 **Symptom.** Owner: *"link editing in markdown seems broken; is not parsing `[markdown_link](url)`, and is ignoring cmd-k kb shortcut."*

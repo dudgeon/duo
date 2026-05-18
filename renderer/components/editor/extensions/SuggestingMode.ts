@@ -25,6 +25,16 @@ const META_AUTO = 'duo-suggesting-auto'
 
 export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
   name: 'suggestingMode',
+  // BUG-138 Phase 4c walk-1 fix — bump priority so Backspace/Delete
+  // reach our keymap handler BEFORE StarterKit / List / Code-block /
+  // Table extensions claim them. Default priority is 100; many
+  // built-in extensions register handlers for Backspace (unindent
+  // list, exit code block, merge node boundaries, etc.) and would
+  // shadow our handler silently. Priority 1000 keeps us at the
+  // front of the keymap dispatch order when Suggesting is ON; our
+  // handler returns `false` when Suggesting is OFF so default
+  // behavior remains untouched in that path.
+  priority: 1000,
 
   addStorage() {
     return {
@@ -78,8 +88,15 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
           // re-mark (it's a programmatic load, not a user edit).
           if (userTr.getMeta('preventUpdate')) return null
 
+          // BUG-138 walk-1 fix — DON'T stamp `ts` per-TR. PM compares
+          // marks by type + attrs deep-equality; a fresh `ts` per
+          // character makes every char's mark distinct, which breaks
+          // text-node merging and produces `{++a++}{++b++}{++c++}` on
+          // serialize instead of one `{++abc++}`. Only `author` ever
+          // varies across a real Suggesting session; ts on non-comment
+          // CM ops isn't even part of the standard tokens, so we drop
+          // it here and let the schema default (`ts: null`) merge.
           const author = storage.getAuthor() || 'agent'
-          const ts = new Date().toISOString()
 
           const tr = newState.tr
           let modified = false
@@ -113,7 +130,7 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
                 return !skip
               })
               if (skip) return
-              tr.addMark(finalStart, finalEnd, insMark.create({ author, ts }))
+              tr.addMark(finalStart, finalEnd, insMark.create({ author }))
               modified = true
             })
           }
@@ -162,9 +179,11 @@ function wrapAsDeletion(
   const parent = $from.parent
   if (parent.type.name === 'codeBlock') return false
 
+  // BUG-138 walk-1 fix — same merge-killing concern as Phase 4b. Don't
+  // stamp ts on the deletion mark; same-author single mark merges
+  // across consecutive Backspace strokes.
   const author = ext.storage.getAuthor() || 'agent'
-  const ts = new Date().toISOString()
-  const mark = DelMark.create({ author, ts })
+  const mark = DelMark.create({ author })
 
   if (from !== to) {
     // Non-empty selection. Wrap with DeletionMark + collapse cursor

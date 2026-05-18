@@ -200,7 +200,7 @@ export function FirstLaunchBanner() {
 
       {showHookConflictNote && (
         <p className="text-[12px] ml-7 text-accent-ink leading-snug">
-          <strong>Heads-up:</strong> you had existing entries in <code className="font-mono">~/.claude/settings.json</code>. Duo added its setup alongside them — nothing was overwritten.
+          <strong>Heads-up:</strong> your <code className="font-mono">~/.claude/settings.json</code> already had other <code className="font-mono">SessionStart</code> hooks; Duo's run alongside them and your existing entries are untouched. On future upgrades Duo only replaces its own entry — it does not re-add or duplicate.
         </p>
       )}
 

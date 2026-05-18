@@ -500,7 +500,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+        // BUG-137 walk-1 follow-up — render the href on each anchor's
+        // `title` so hover surfaces the URL as a native tooltip.
+        // mergeAttributes (in Link.renderHTML) merges these into the
+        // per-mark attrs, so each `<a>` gets its own dynamic title via
+        // the attrs path below (overridden by attrs.title when present;
+        // since Link only sets `href`, the static title here would be
+        // applied uniformly — we want the per-link href as title, so
+        // we override renderHTML on the extension instance).
         HTMLAttributes: { rel: 'noopener noreferrer', class: 'duo-link' }
+      }).extend({
+        renderHTML({ HTMLAttributes }) {
+          // Same shape as the default Link.renderHTML but with the href
+          // copied to a `title` attribute so hover-tooltips show the URL.
+          const href = (HTMLAttributes.href as string | undefined) ?? ''
+          return ['a', { ...HTMLAttributes, title: href || null }, 0]
+        }
       }),
       // BUG-137 — adds the markdown-link input rule (`[text](url)`)
       // + ⌘K keyboard shortcut. Companion to Link.configure above.
