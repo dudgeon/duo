@@ -25,6 +25,38 @@
 
 ---
 
+## v0.7.1 — 2026-05-18 — Sprint 18: Markdown source-of-truth — comments + track-changes + frontmatter visible inline
+
+**Why this version lands here.** Sprint 18 was the "markdown source-of-truth" chapter. Comments + track-changes used to live in sidecar JSON beside each `.md`; v0.7.1 moves them inline via CriticMarkup tokens (`{++…++}` for insertions, `{--…--}` for deletions, `{~~old~>new~~}` for substitutions, `{==…==}` for highlights, `{>>id|author|ts|body<<}` for comments with Duo's opinionated pipe-delimited metadata extension). The agent can now see + write tracked edits through the same `duo doc *` CLI shape it uses for everything else; existing sidecar comments silently auto-migrate on first load.
+
+Frontmatter joined the same story. The editor used to hide YAML frontmatter entirely; v0.7.1 surfaces every key in a Properties panel above the prose (chevron-collapse persisted per-doc; "Edit raw" toggle for free-form YAML editing; "+ Add properties" for empty files). Closes "Duo HIDES frontmatter" as an architectural class.
+
+PATCH bump (0.7.0 → 0.7.1) — the post-v0.7.0 cut chose 0.7.1 as the next dev version before the sprint scope was fully known. The actual work that landed is MINOR-class (genuinely new user-visible capabilities: tracked changes, Suggesting mode, 6 new agent verbs, frontmatter panel, browser-pane auto-reload). Cutting under v0.7.1 keeps the dev-build identity consistent with what was smoke-walked. Future cuts should err MINOR on the post-cut bump when the next sprint's scope is uncertain.
+
+**Three key decisions baked in:**
+
+- **Pipe-delimited comment metadata (Q1·A from the BUG-138 playground).** `{>>id:c-01|author:dudgeon|ts:2026-05-18T12:00:00Z|body<<}` — opinionated extension to standard CriticMarkup. Bodies that don't start with a known meta-key parse as legacy comments with empty metadata; round-trip is two-way at zero migration cost.
+- **All five CM ops (Q2·A).** Insertion + deletion + substitution + highlight + comment. The substitution fold (`{~~old~>new~~}`) is a serializer-side artifact — it stays as adjacent DeletionMark + InsertionMark in the editor and re-collapses on save. Phase 1's parser splits it back into del+ins on parse.
+- **Suggesting is a per-doc mode (Phase 4).** Toggled via a pencil toolbar icon (⌘⌥T). When ON: typing wraps as insertion, Backspace wraps as deletion. When OFF: normal editing. The mode persists in `sidecar.suggestingMode` so a reviewer can leave a doc in Suggesting=on for the next session.
+
+**What this is and isn't.** v0.7.1 is the foundation: marks render, marks serialize, the agent can edit via CLI, the human can edit via Suggesting + Accept/Reject. v1.1 is the polish round — owner walk locked four decisions for the Properties panel (default-collapsed, click-to-expand long values, raw-YAML-only editing, uniform mono values). Comment-thread inline rendering (showing replies inside the editor body rather than only in the rail) is queued; today's migration collapses multi-entry threads into one anchored comment with `↪ @author <ts>:` prose separators in the body.
+
+**The cut took four smoke walks.** Two same-day bugs ate three of them, and both reveal something about the architecture:
+
+- **`Transaction.setSelection` threw a RangeError** because my Backspace handler built the Selection by resolving against `state.doc` (pre-`addMark`); the TR holds a different doc after addMark, and PM rejects Selections that point at the wrong doc version. The fix is mechanical (`tr.setSelection(Selection.near(tr.doc.resolve(...)))`), but the lesson is that PM's immutability boundary is real: never reach for `state.doc` to build positions for an already-mutated transaction.
+- **`window.prompt` throws unconditionally in Electron renderers** (`prompt() is and will not be supported`). Built `LinkPromptModal` as the portal-based replacement. Same `Promise<string | null>` shape; same Enter-saves / Esc-cancels semantics; no API surface for callers to change. Filed as a memory rule for the future-class of "renderer-internal browser APIs that quietly aren't implemented."
+
+The third walk-failure was less an architectural lesson and more a wake-up: I committed three fixes to BUG-138 Phase 4c without ever exercising the Backspace keystroke. Each typechecked; each looked right; each failed owner's walk. Once I requested computer-use and reproduced the keystroke, the root cause (the RangeError) was visible inside five minutes. Memory rule filed: when a smoke-walk item needs real keystrokes, request computer-use access and verify live BEFORE handoff. Three failed walks of the same bug is the symptom this rule prevents.
+
+**The numbers:**
+- 30 commits since v0.7.0
+- 147 new unit tests across the BUG-138 chapter (CriticMarkup parser, migration, docEdit, frontmatter parser)
+- 4 smoke-walk revs (1st: 6P 3F 2S; 2nd: 2P 2F 2S; 3rd: 2F 2S; 4th: 1P)
+- 1 design-options playground (Q1 deferred, Q2-5 locked for v1.1)
+- 2 architectural follow-ups already in flight: comment-thread inline rendering (defer to Phase 5) + frontmatter v1.1 (the 4 locked design decisions)
+
+---
+
 ## v0.7.0 — 2026-05-18 — Sprint 17: GitHub-integration cluster + multi-pane Send → agent polish
 
 **Why this version lands here.** Sprint 17 was the "GitHub-integration cluster" sprint — bringing first-class git status + clone + per-folder peer-repo affordances into the Navigator, plus the inspect / send-to-agent surface in the browser pane. v0.7.0 closes the chapter where Duo learned how to be a Git-and-GitHub-aware shell for the agent.

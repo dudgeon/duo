@@ -217,8 +217,8 @@
   <div class="num">7</div>
   <div>
     <h3>Add comments to a document — markdown editor or HTML canvas</h3>
-    <p class="why">Both surfaces have the same comment UX. Select text, then any of: press <code>⌘⌥M</code> (Google Docs parity), right-click and pick "Comment", or click the 💬 button on the toolbar. Comments persist in a sidecar (<code>&lt;file&gt;.md.duo.json</code> or <code>.html.duo.json</code>) — the source file stays clean. The commented text shows a soft orange highlight. Click rail thread → anchor strengthens; click anchored text → rail thread focuses (bidirectional). Resolve a thread and the body highlight disappears. Closing + reopening the file rebuilds the rail with comments + decorations re-applied.</p>
-    <p class="how"><strong>UI</strong>Select text → <code>⌘⌥M</code> / right-click "Comment" / toolbar 💬 → write → ⌘+Enter. <strong>CLI</strong><code>duo html comment --id &lt;duo-id&gt; --body "…"</code> (canvas only)</p>
+    <p class="why">Both surfaces have the same comment UX. Select text, then any of: press <code>⌘⌥M</code> (Google Docs parity), right-click and pick "Comment", or click the 💬 button on the toolbar. <strong>Markdown comments persist inline as CriticMarkup</strong> (<code>{==anchor==}{&gt;&gt;id|author|ts|body&lt;&lt;}</code>) so they travel with the file — visible to the agent, git-diffable, no sidecar needed. HTML canvas still uses a sidecar. The commented text shows a soft orange highlight. Click rail thread → anchor strengthens; click anchored text → rail thread focuses. Resolve a thread and the body highlight disappears.</p>
+    <p class="how"><strong>UI</strong>Select text → <code>⌘⌥M</code> / right-click "Comment" / toolbar 💬 → write → ⌘+Enter. <strong>CLI (markdown)</strong><code>duo doc comment &lt;file&gt; --anchor "&lt;text&gt;" --body "…"</code><strong>CLI (canvas)</strong><code>duo html comment --id &lt;duo-id&gt; --body "…"</code></p>
   </div>
 </article>
 
@@ -276,6 +276,24 @@
   </div>
 </article>
 
+<article class="item" data-keys="track changes suggesting mode criticmarkup insertion deletion substitution review reviewer mode toggle pencil icon cmd alt t shortcut author dudgeon">
+  <div class="num">14</div>
+  <div>
+    <h3>Suggest changes in a markdown doc (track-changes)</h3>
+    <p class="why">Toggle the pencil icon in the toolbar (or press <code>⌘⌥T</code>) to enter Suggesting mode. With Suggesting ON, typing wraps your new text as a CriticMarkup insertion (<code>{++…++}</code>) and Backspace/Delete wraps as a deletion (<code>{--…--}</code>) instead of removing characters. A bulk banner above the body shows "N suggestions · Accept all · Reject all"; the per-suggestion rail on the right has ✓/✗ buttons + All/Mine/Agent/Others filter chips so a reviewer can sweep by author. The mode persists per-doc in the sidecar, so you can leave a file in Suggesting=on for the next session. The agent participates via <code>duo doc insert</code> / <code>duo doc delete</code> / <code>duo doc substitute</code> / <code>duo doc accept</code> / <code>duo doc reject</code>; everything round-trips through the same CriticMarkup tokens on disk.</p>
+    <p class="how"><strong>UI</strong>Click the pencil icon in the toolbar (or <code>⌘⌥T</code>) → type / Backspace as usual. <strong>CLI</strong><code>duo author "Geoff"</code> sets your identity; <code>duo doc insert &lt;file&gt; --after "X" --text "..."</code> / <code>duo doc accept &lt;file&gt; --match "X"</code> etc. for agent-driven flows.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="frontmatter properties panel yaml metadata title author published collapsible edit raw bug-139">
+  <div class="num">15</div>
+  <div>
+    <h3>See and edit YAML frontmatter as Properties</h3>
+    <p class="why">Every <code>.md</code> with a frontmatter block shows a Properties panel above the prose. Structured key:value rows render the parsed YAML; click the chevron to collapse (state persists per-doc); click "Edit raw" to flip to a YAML textarea with live parse-error feedback. Files without frontmatter show a "+ Add properties" call-to-action. Closes the architectural gap where the markdown editor used to hide the YAML block entirely.</p>
+    <p class="how"><strong>UI</strong>Open any <code>.md</code> with frontmatter — panel mounts automatically. Click "Edit raw" for free-form YAML edits.</p>
+  </div>
+</article>
+
 <h2 class="cat">Browsing the web</h2>
 <p class="cat-tagline">An embedded Chromium pane. Tabs, address bar, the same shortcuts you'd expect.</p>
 
@@ -283,7 +301,7 @@
   <div class="num">10</div>
   <div>
     <h3>Open a browser tab</h3>
-    <p class="why">A real Chromium tab inside Duo. Logged-in sessions persist between launches.</p>
+    <p class="why">A real Chromium tab inside Duo. Logged-in sessions persist between launches. Local <code>file://</code> tabs auto-reload when the underlying file mutates (<strong>v0.7.1+</strong>) — so an agent editing a playground via the CLI shows the result without you hitting ⌘R.</p>
     <p class="how"><strong>UI</strong>Click <code>&gt;</code> on the working pane's split-button (right of the tab strip), or ⌘T while the browser pane has focus. <strong>CLI</strong><code>duo open &lt;url&gt;</code></p>
   </div>
 </article>

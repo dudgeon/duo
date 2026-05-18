@@ -19,7 +19,57 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.0 cut 2026-05-18.
+> Empty — v0.7.1 cut 2026-05-18.
+
+## [0.7.1] — 2026-05-18
+
+Sprint 18 — markdown source-of-truth chapter. Comments + track-changes move from sidecar JSON to inline CriticMarkup tokens; the frontmatter Properties panel surfaces what the editor used to hide; the browser pane closes its file:// auto-reload gap; navigator multi-select gets the ⇧-click + ⌘-A polish.
+
+### Added
+
+- **BUG-138** — Markdown comments + track-changes via inline CriticMarkup. Four-phase chapter:
+  - **Phase 1** — Parser/serializer for all 5 ops (`{++…++}` / `{--…--}` / `{~~old~>new~~}` / `{==…==}` / `{>>id\|author\|ts\|body<<}`) with Duo's opinionated pipe-delimited metadata extension. 4 TipTap marks + tiptap-markdown integration. 65 unit tests.
+  - **Phase 2** — Silent sidecar→inline migration on first load when a file has sidecar comments AND zero CM tokens. `duo author [<name>]` CLI verb + full 8-touchpoint plumbing. 22 unit tests. Closes "comments invisible to agent inspecting the file" (owner directive).
+  - **Phase 3** — Six agent CLI verbs: `duo doc insert / delete / substitute / comment / accept / reject`. Disk-only edits via pure helpers (`core/markdown/docEdit.ts`); anchor matching against the stripped-CM view of the body; overlap-safe (refuses when the resolved range crosses an existing CM token). 31 unit tests.
+  - **Phase 4** — Suggesting toolbar toggle (⌘⌥T) + auto-wrap typed text as `{++…++}` (via `appendTransaction`) + auto-wrap Backspace/Delete as `{--…--}` (via `props.handleKeyDown` at priority 1000) + bulk banner "N suggestions · Accept all · Reject all" + per-suggestion rail with ✓/✗ buttons + All/Mine/Agent/Others author-filter chips. Rail collapsible via chevron header.
+- **BUG-139** — Frontmatter Properties panel above the markdown editor body. Always-visible when a file has YAML frontmatter; chevron-collapse persisted per-doc; "Edit raw" toggle reveals a textarea with live parse-error feedback; "+ Add properties" call-to-action for files without frontmatter. 17 parser tests.
+- **ENH-148** — Navigator multi-select v2: ⇧-click range select (Finder-style, depth-first across expanded folders) + ⌘-A select-all (capped at cwd's immediate children, not the whole expanded tree) + `duo nav-state` exposes the full `selectedPaths: [{path, kind}]` array for CLI parity.
+- **BUG-130** — Browser-pane `file://` tabs auto-reload when the underlying file mutates. chokidar watcher per file:// tab (250ms debounce); idempotent across nav-in-page; cleaned up on tab close. Parity gap with canvas mode closed; matters more after ENH-156 routed `duo open <html>` to browser by default.
+- **`duo author [<name>]`** CLI verb — read or set the human author identity used to stamp CriticMarkup marks. Defaults to `$USER` on a fresh install. Agents use `DUO_AUTHOR` env var on per-op verbs (Phase 3).
+- **Follow-ups (walk-1 owner asks):**
+  - Suggest toolbar icon is a Lucide pencil-line with an accent fill-dot at the tip when ON (replaces wide "✎ Suggest" text label that broke the toolbar's fixed-width-button rhythm).
+  - Track Changes rail is collapsible via the chevron header.
+  - Git ribbon icon matches the per-folder repo chip's Lucide git-branch SVG (was unicode `⎇`).
+  - Design-options playground at [`docs/research/frontmatter-panel-design.html`](docs/research/frontmatter-panel-design.html) — 5 decision cards for v1.1 refinements.
+
+### Changed
+
+- **BUG-135** — Git ribbon suppresses when the climb from cwd up to the matched repo root crosses an intermediate folder containing ≥2 peer-repo children. Aligns the ribbon's strictness with the per-folder chip's. Closes the false-positive where `~/Documents/GitHub/stoop` falsely claimed it was inside `~/Documents`'s repo. Same suppression applies to right-click "Open on GitHub" / "Copy GitHub URL" + per-file dirty dots.
+- **BUG-141** — Settings.json banner wording reworded to make the upgrade-cycle semantic explicit: "Duo only replaces its own entry — it does not re-add or duplicate." Install behavior was already correct; the message read like Duo polluted the file on every version update.
+- **BUG-139 design decisions locked (walk-1 gate):** 4 of 5 picks captured for v1.1. Q1 (row density) deferred; Q2=A (uniform mono values, no type styling), Q3=C (raw-YAML-only editing, no per-row inline edit), Q4=B (default collapsed on first open), Q5=B (click-to-expand long values inline).
+- **Editor toolbar `flex-nowrap` + per-Btn `shrink-0`** so narrow-canvas widths scroll the toolbar horizontally rather than wrapping or compressing buttons.
+
+### Fixed
+
+- **BUG-136** — Clone modal's false "gh not authenticated" banner. Root cause: Electron's `execGit` PATH didn't include `/opt/homebrew/bin` so `gh` wasn't findable. `WELL_KNOWN_BIN_DIRS` now prepended to PATH for all execGit calls.
+- **BUG-137** — Markdown link editing. Three walks of fixes in v0.7.1:
+  - **walk-1:** replaced `markInputRule` with custom `InputRule` so `[text](url)` becomes just `text` (the bracketed label) instead of the URL.
+  - **walk-2:** removed sentinel `return null` from the InputRule handler — TipTap's plugin treats null as "abort this rule" and was discarding the built transaction silently.
+  - **walk-3:** built `LinkPromptModal` (portal-based React modal) to replace `window.prompt`. Electron renderers throw `prompt() is and will not be supported` on every call; both the toolbar link button and ⌘K were silently no-ops. Modal saves on Enter, cancels on Esc, includes a "Remove link" action. Plus: every link now renders its href as a native `title` tooltip on hover; `extendMarkRange('link')` before `setLink` so in-place edits update the whole span (not split it).
+- **BUG-138 Phase 4c walk-3** — `Transaction.setSelection` throwing `RangeError: Selection passed to setSelection must point at the current document`. Root cause: my code built the Selection by resolving against `state.doc` (pre-`addMark`); the TR holds a new doc after addMark. Fix: split the chain — build `tr` first, then `tr.setSelection(Selection.near(tr.doc.resolve(...)))`.
+- **BUG-138 Phase 4b walk-1** — typed text wrapped as one CM token PER CHARACTER (`{++a++}{++b++}{++c++}`). Root cause: `appendTransaction` stamped a fresh `ts` per TR; PM compares marks by attrs deep-equality so per-char ts → distinct marks → no text-node merging. Fix: drop `ts` from auto-stamped non-comment marks (standard CM tokens don't carry metadata anyway).
+- **ENH-164** — Closed as already-shipped via `duo new-tab --claude --cwd <path>` (Stage 19c D27, 2026-04-26). The verb existed; the gap was discoverability. Memory rule updated to cite the canonical verb instead of the brittle `duo send "claude\n"` workaround.
+
+### Internal / Architecture
+
+- New `core/markdown/criticmarkup.ts` — pure parser/serializer for all 5 CM ops + Duo's pipe-delimited comment-body extension.
+- New `core/markdown/docEdit.ts` — pure helpers for the agent CLI verbs. Stripped-CM-view position mapping + range-overlap detection.
+- New `core/markdown/frontmatter.ts` — split/join helpers in `core/` so socket-server's doc-edit case doesn't need to import from `renderer/`.
+- New `renderer/components/editor/extensions/SuggestingMode.ts` — TipTap extension with `props.handleKeyDown` (priority 1000) for the Backspace/Delete intercept + `appendTransaction` for the typed-text auto-wrap.
+- New `renderer/components/editor/LinkPromptModal.tsx` — portal-based replacement for window.prompt; `requestLinkPrompt(currentHref): Promise<string | null>`.
+- New `renderer/components/editor/TrackedChangesRail.tsx` + `trackedChanges.ts` — per-suggestion rail with kind/author/excerpt cards + filter chips + collapsible header.
+- New `renderer/components/editor/FrontmatterPanel.tsx` + `frontmatterParser.ts` — Properties panel + defensive YAML parser.
+- New memory rule: [`feedback_use_computer_use_for_keystroke_tests.md`](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_use_computer_use_for_keystroke_tests.md) — when a smoke-walk item needs real keystrokes, request computer-use access (apps: `["Electron"]`) and verify live BEFORE handoff.
 
 ## [0.7.0] — 2026-05-18
 
@@ -1383,6 +1433,7 @@ the agent-driven HTML canvas, and the visual identity.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
 [Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.0...HEAD
+[0.7.1]: https://github.com/dudgeon/duo/releases/tag/v0.7.1
 [0.7.0]: https://github.com/dudgeon/duo/releases/tag/v0.7.0
 [0.6.15]: https://github.com/dudgeon/duo/releases/tag/v0.6.15
 [0.6.14]: https://github.com/dudgeon/duo/releases/tag/v0.6.14

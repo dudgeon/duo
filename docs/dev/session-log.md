@@ -18,6 +18,42 @@
 
 ---
 
+## 2026-05-18 (v0.7.1 cut — Sprint 18: markdown source-of-truth chapter — 4 smoke-walk revs)
+
+**v0.7.1 cut.** Theme: comments + track-changes + frontmatter all visible inline. 30 commits since v0.7.0 (cut earlier same day). Four smoke-walk revs to converge; the last three blocked on two recurring same-day bugs in the Suggesting + link-edit flows.
+
+### What landed (Sprint 18 inventory)
+
+- **BUG-138 (the chapter)** — 4 phases:
+  - **Phase 1** — CriticMarkup parser/serializer + 4 TipTap marks + tiptap-markdown integration + CSS rendering. New core module at [`core/markdown/criticmarkup.ts`](../../core/markdown/criticmarkup.ts) + bridge at [`renderer/components/editor/markdownCriticMarkup.ts`](../../renderer/components/editor/markdownCriticMarkup.ts). 65 unit tests.
+  - **Phase 2** — sidecar→inline auto-migration + `duo author [<name>]` CLI verb. New [`migrateSidecarCommentsToInline.ts`](../../renderer/components/editor/migrateSidecarComments.ts) + load-path consolidation via `Promise.all([fileRead, sidecarRead])` so migration can splice the body before setContent. 22 tests.
+  - **Phase 3** — 6 agent CLI verbs (`duo doc insert / delete / substitute / comment / accept / reject`) backed by pure [`core/markdown/docEdit.ts`](../../core/markdown/docEdit.ts) + a single `doc-edit` socket command with discriminated `op` arg. 31 tests.
+  - **Phase 4** — Suggesting toolbar toggle (pencil icon · ⌘⌥T) + per-doc `sidecar.suggestingMode` persistence + auto-wrap typed text as `{++…++}` (`appendTransaction`) + auto-wrap Backspace/Delete as `{--…--}` (`props.handleKeyDown` at priority 1000) + bulk banner + per-suggestion rail with ✓/✗ + All/Mine/Agent/Others filter chips + collapsible chevron header.
+- **BUG-139** — Frontmatter Properties panel above the markdown editor body. Always-visible when frontmatter exists; chevron-collapse persisted per-doc; Edit raw textarea with live parse-error feedback; "+ Add properties" for empty files. 17 parser tests. Design-options playground walked + 4 of 5 decisions locked for v1.1.
+- **ENH-148** — Navigator multi-select v2: ⇧-click range select (Finder-style across expanded folders) + ⌘-A select-all (capped at cwd's immediate children) + `nav-state.selectedPaths` CLI parity.
+- **BUG-130** — Browser-pane `file://` auto-reload. chokidar watcher per file:// tab, 250ms debounce, idempotent across nav-in-page. Roadmap-class architectural fix.
+- **BUG-135** — Git ribbon strictness. Suppresses when the climb from cwd to the matched repo root crosses a folder with ≥2 peer-repo children. Closes the `~/Documents/GitHub/stoop` false-positive class.
+- **BUG-136** — `gh-auth` PATH augmentation. `WELL_KNOWN_BIN_DIRS` prepended.
+- **BUG-137** — Markdown link editing. Three rounds: walk-1 replaced `markInputRule` with custom InputRule (URL was being kept as link text); walk-2 dropped the `return null` from the handler (TipTap treats null as abort-this-rule); walk-3 built [`LinkPromptModal`](../../renderer/components/editor/LinkPromptModal.tsx) because Electron renderers throw on `window.prompt`. Plus `extendMarkRange('link')` for in-place edits + `title=href` for hover tooltips.
+- **BUG-141** — Settings.json banner wording reworded to clarify the upgrade-cycle semantic (Duo replaces its own entry; doesn't add cumulatively).
+- **ENH-164** — Closed as already-shipped via `duo new-tab --claude --cwd <path>` (Stage 19c D27, 2026-04-26).
+- **3 follow-ups from walk-1:** Suggest toolbar icon (Lucide pencil-line + active-dot, replaces wide "✎ Suggest" text); collapsible Track Changes rail; git ribbon icon swapped to match the per-folder repo chip's Lucide git-branch SVG.
+
+### Smoke-walk arc (4 revs)
+
+- **rev1** (11 items): 6 PASS · 3 FAIL · 2 SKIP. FAILs: BUG-137 (URL-as-text + ⌘K no-op + edit-existing-link), BUG-138 Phase 4b (per-char `{++…++}` from `ts` stamp killing PM mark merging), BUG-138 Phase 4c (Backspace not intercepted).
+- **rev2** (6 items): 2 PASS · 2 FAIL · 2 SKIP. Phase 4b + TC-rail-collapse passed. BUG-137 + Phase 4c still failing — walk-1 fixes hadn't actually exercised the keystroke; both were guesses that typechecked.
+- **rev3** (4 items): 2 FAIL · 2 SKIP. After three failed walks of the same Phase 4c bug, owner: *"same failure; it's like you're not even testing these features, which you can easily do via computer use so you don't waste my time three times with the same bug."*
+- **rev4** (1 item): 1 PASS. After requesting computer-use access and actually reproducing the keystrokes:
+  - **Phase 4c root cause:** `Transaction.setSelection` threw `RangeError: Selection passed to setSelection must point at the current document` because my code resolved positions against `state.doc` (pre-`addMark`); TR holds a new doc after addMark. Fix: build TR first, then `tr.setSelection(Selection.near(tr.doc.resolve(...)))`.
+  - **BUG-137 ⌘K root cause:** `window.prompt` throws unconditionally in Electron renderers (`prompt() is and will not be supported`). Built `LinkPromptModal` as the Promise-based replacement.
+
+### Memory rule filed
+
+[`feedback_use_computer_use_for_keystroke_tests.md`](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_use_computer_use_for_keystroke_tests.md) — when a smoke-walk item needs real keystrokes (Backspace intercept, ⌘K, paste, IME composition), the agent requests computer-use access (apps: `["Electron"]` — the dev target, NOT `"Duo"` which is the packaged app) and verifies live BEFORE handoff. Three failed walks of the same bug is the symptom this rule prevents.
+
+---
+
 ## 2026-05-18 (v0.7.0 cut — Sprint 17 release; rev6-rev2 + rev7 + rev8 walks closed)
 
 **v0.7.0 cut as [`v0.7.0` tag](https://github.com/dudgeon/duo/releases/tag/v0.7.0).** Theme: GitHub-integration cluster + multi-pane Send → agent polish. 60 commits since v0.6.15.
