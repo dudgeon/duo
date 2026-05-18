@@ -9,6 +9,7 @@
 
 import { WebContentsView, session, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
+import * as chokidar from 'chokidar'
 import type { BrowserTab, BrowserState, BrowserBounds } from '../shared/types'
 import type { ExternalRedirectedPush, PlaygroundAction } from '../shared/host-api'
 import { IPC } from '../shared/types'
@@ -79,6 +80,14 @@ export class BrowserManager {
   // setWindowOpenHandler consult the service and route matching URLs
   // through shell.openExternal instead of the embedded browser.
   private externalDomains: ExternalDomainsService | null = null
+  // BUG-130 — per-tab file:// watcher. Browser-pane tabs showing
+  // local file:// URLs auto-reload when the underlying file is
+  // mutated (canvas-mode has the equivalent via PageTab's external-
+  // write reconciliation; this closes the parity gap for browser
+  // mode). Keyed by tab id. Value carries the watched path + a
+  // close handle so we can detach on nav-away / close. 250ms debounce
+  // matches the existing files-service watchers.
+  private fileWatchers: Map<number, { path: string; close: () => Promise<void>; timer: NodeJS.Timeout | null }> = new Map()
 
   constructor(
     window: BrowserWindow,
@@ -472,6 +481,8 @@ export class BrowserManager {
     // (see navigate() below). activeView() returns null in the empty
     // state; goBack/goForward/reload/find/devtools/etc all guard.
     const [removed] = this.tabs.splice(idx, 1)
+    // BUG-130 — drop the file:// watcher before tearing down the view.
+    this.stopFileWatcher(removed.id)
     try { this.window.contentView.removeChildView(removed.view) } catch { /* ignore */ }
     try { removed.view.webContents.close() } catch { /* ignore */ }
 
@@ -650,6 +661,91 @@ export class BrowserManager {
   // post-redirect banner. Returns true when routed (caller should
   // preventDefault on the underlying navigation). Returns false when
   // either no service is wired or the host doesn't match.
+
+  // BUG-130 — start or refresh the file:// auto-reload watcher for a
+  // tab. Called from `did-navigate` (and `did-navigate-in-page`, which
+  // also fires for SPA-style hash changes on a file:// host). Idempotent
+  // when the URL hasn't actually changed paths.
+  private syncFileWatcher(tabId: number, url: string): void {
+    const targetPath = (() => {
+      if (!url.startsWith('file://')) return null
+      try {
+        const u = new URL(url)
+        return decodeURIComponent(u.pathname)
+      } catch {
+        return null
+      }
+    })()
+
+    const existing = this.fileWatchers.get(tabId)
+    if (!targetPath) {
+      if (existing) {
+        if (existing.timer) clearTimeout(existing.timer)
+        void existing.close().catch(() => null)
+        this.fileWatchers.delete(tabId)
+      }
+      return
+    }
+    if (existing && existing.path === targetPath) {
+      // No-op — already watching the right file.
+      return
+    }
+    if (existing) {
+      if (existing.timer) clearTimeout(existing.timer)
+      void existing.close().catch(() => null)
+      this.fileWatchers.delete(tabId)
+    }
+
+    let watcher: chokidar.FSWatcher | null = null
+    try {
+      watcher = chokidar.watch(targetPath, {
+        persistent: true,
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 }
+      })
+    } catch (err) {
+      console.warn('[BUG-130] failed to start file:// watcher:', err)
+      return
+    }
+
+    const state: { path: string; close: () => Promise<void>; timer: NodeJS.Timeout | null } = {
+      path: targetPath,
+      close: async () => { try { await watcher?.close() } catch { /* noop */ } },
+      timer: null
+    }
+    const reload = () => {
+      // The tab may have been closed between fire + debounce. Look up
+      // by id rather than capturing the view, so we don't fire reload
+      // on a torn-down WebContents.
+      const tab = this.tabs.find(t => t.id === tabId)
+      if (!tab) {
+        if (state.timer) clearTimeout(state.timer)
+        void state.close().catch(() => null)
+        this.fileWatchers.delete(tabId)
+        return
+      }
+      if (!tab.view.webContents.isDestroyed()) {
+        try { tab.view.webContents.reload() } catch { /* tab gone */ }
+      }
+    }
+    watcher.on('change', () => {
+      if (state.timer) clearTimeout(state.timer)
+      state.timer = setTimeout(reload, 250)
+    })
+    watcher.on('error', (err) => {
+      console.warn('[BUG-130] file:// watcher error:', err)
+    })
+    this.fileWatchers.set(tabId, state)
+  }
+
+  // Stop + drop a tab's file:// watcher. Called on tab close.
+  private stopFileWatcher(tabId: number): void {
+    const existing = this.fileWatchers.get(tabId)
+    if (!existing) return
+    if (existing.timer) clearTimeout(existing.timer)
+    void existing.close().catch(() => null)
+    this.fileWatchers.delete(tabId)
+  }
 
   private routeOffHostIfMatched(url: string): boolean {
     if (!this.externalDomains) return false
@@ -966,6 +1062,19 @@ export class BrowserManager {
     wc.on('page-title-updated', emit)
     wc.on('did-start-loading', emit)
     wc.on('did-stop-loading', emit)
+
+    // BUG-130 — file:// auto-reload watcher. Sync on every commit-class
+    // navigation so leaving a file:// URL stops the watcher and arriving
+    // at one starts a fresh one. `did-navigate-in-page` covers hash
+    // changes on file:// hosts too.
+    const syncWatch = (_e?: unknown, navUrl?: string) => {
+      const tab = this.tabs.find(t => t.view === view)
+      if (!tab) return
+      const url = navUrl ?? wc.getURL()
+      this.syncFileWatcher(tab.id, url)
+    }
+    wc.on('did-navigate', syncWatch)
+    wc.on('did-navigate-in-page', syncWatch)
     // ENH-028 found-in-page wiring — Electron emits this every time
     // findInPage's match state updates (intermediate while still
     // scanning, then once with finalUpdate=true). Forward to the
