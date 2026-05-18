@@ -639,6 +639,7 @@ routed around ad hoc.
 - **ENH-157** — Browser-pane comments — CDP-injected sidecar overlay for file:// HTML.
 - **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity).
 - **ENH-164** — `duo terminal new --kind claude` CLI verb.
+- **BUG-135** — Git ribbon activates for cwd that's not a repo root (per-folder icon correct; ribbon needs to match strictness).
 
 **Theme:** Close the browser-pane-as-first-class-surface story Sprint 17 opened (Send → agent + inspect + clone + GH menu). Sprint 18 finishes the chapter with auto-reload, comments-in-page, multi-select polish, and an agent-side claude-spawn verb. **Cut goal: v0.7.1.**
 

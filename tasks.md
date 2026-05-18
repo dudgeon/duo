@@ -6463,6 +6463,42 @@ Also caught + filed:
 
 ---
 
+### BUG-135: Git ribbon (and dependent menu actions) activate for navigator cwd even when cwd is not a repo root
+
+**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.0-cut).** Sprint 18 pull (owner-confirmed 2026-05-18).
+**Priority:** Medium — alignment fix; ribbon should match per-folder icon's strictness.
+
+**Symptom.** Owner screenshot: navigator at `~/Documents/GitHub/stoop`. Git ribbon at the top reads `⎇ Documents · main · 34 m…` — claims `stoop` is part of the `~/Documents` repo. Right-click context menu items "Open on GitHub" + "Copy GitHub URL" also activate for files inside `stoop`. But `stoop` itself isn't a repo root.
+
+Owner: *"github repo ribbon shows for folder even if folder is not a repo root; so do the context menu actions for that folder and its contents."*
+
+**Owner clarification (2026-05-18 AUQ):** *"this has nothing to do with terminal CWD; when I look at a folder in navigator, it correctly shows no gh logo, but when I click into that folder it shows the ribbon."*
+
+**Root cause — the precise mismatch.** The per-folder `⎇` icon (rendered by `FolderRepoChip` from `childRepoMap`) uses STRICT repo-root detection (`getGitStatus(child).isRepo === true && workTreeRoot === child`) → stoop correctly gets no icon when shown as a row. But the RIBBON uses `gitSnap = window.electron.git.status(state.cwd)`, which climbs up the directory tree until it finds ANY `.git`. When `~/Documents/.git` exists (owner versions Documents), every descendant — including stoop — resolves to "inside the Documents repo." So clicking INTO stoop activates the ribbon claiming Documents, even though the per-folder check correctly said "stoop is not a repo."
+
+**Fix shape — align ribbon to per-folder-icon strictness.** The ribbon should suppress when the gitSnap's `workTreeRoot` is NOT a "natural" ancestor of cwd — defined precisely as:
+
+> **Show ribbon iff `cwd` is at-or-inside a repo root, AND the path from `cwd` up to that repo root does NOT cross a folder that itself contains 2+ peer-repo children.**
+
+For owner's case: cwd=`stoop`, repo=`~/Documents`. The path crosses `~/Documents/GitHub`, which contains multiple peer-repo children (duo, figma-cli-skill, project-microsite, rollout, session-share, space-jam — all repo roots per the childRepoMap we already compute). So GitHub is clearly a "container folder" and the ribbon must suppress.
+
+For duo project: cwd=`~/Documents/GitHub/duo/electron`, repo=`~/Documents/GitHub/duo`. The path is just `electron → duo`. Duo is the repo root, no peer-repo container crossed → ribbon shows.
+
+**Implementation sketch.**
+1. When computing `gitSnap` in `FileTree.tsx`, walk from `state.cwd` up to `gitSnap.workTreeRoot`. At each intermediate level, scan that level's children for peer-repos (we can reuse the existing `scanReposIn` helper from `core/git/scan.ts`).
+2. If any intermediate level has ≥2 peer-repo children, treat the ribbon as suppressed (`isInRepo = false` from the ribbon's perspective).
+3. Same suppression applies to the per-file dirty dots + the right-click "Open on GitHub" / "Copy GitHub URL" menu items (they all gate on `inGhRepo` / `gitSnap`).
+4. Cache the result per cwd — only re-probe on cwd change or window focus (same lifecycle as gitSnap).
+
+**Affected surfaces (all share gitSnap):**
+- Git ribbon at top of navigator (`renderer/components/FileTree.tsx § isInRepo + gitSnap.workTreeRoot`).
+- Right-click "Open on GitHub" + "Copy GitHub URL" on files/folders inside the cwd's "claimed" repo.
+- Per-file dirty dots (ENH-152b) — would highlight every file under stoop as dirty per Documents's git status.
+
+**Cross-ref:** BUG-132 rev2 (peer-repo case — same gitSnap-climbs-wrong-way pattern, different surface).
+
+---
+
 ### BUG-134: Send→agent pill click no-op on non-CDP-attached tab
 
 **Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev7 FAIL fix).**

@@ -14,6 +14,7 @@
    - **ENH-157** — Browser-pane comments (CDP-injected sidecar overlay for file:// HTML).
    - **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity).
    - **ENH-164** — `duo terminal new --kind claude` CLI verb.
+   - **BUG-135** — Git ribbon activates for cwd that's not a repo root (climbs to a "container folder" ancestor; per-folder icon already detects correctly — ribbon needs to match).
 3. **Stretch (if room):** BUG-079 (tab-cycle latency — needs prod repro), FOLLOWUP-021 (`duo install --clean`).
 4. **NOT in this sprint** (deferred): ENH-137 Beginner's Guide; ENH-141 enterprise smoke; ENH-118 / ENH-127 / Stage 17a.5 / Backlinks / BUG-123 v2 — all need owner-decision playgrounds first.
 
@@ -81,6 +82,20 @@ When the agent edits a `file://` HTML file via `duo html *` or filesystem write,
 - Returns `{ok: true, id: <uuid>, kind: '...'}` so callers can poll for claudePresence detection.
 
 **Plumbing per CLAUDE.md § 4 plumbing checklist** — shared/types, preload, main, socket-server, cli/duo, skill/SKILL.md + agents/duo.md cheat-sheets, CLI-COVERAGE.md.
+
+---
+
+### BUG-135 — Git ribbon activates for cwd that's not a repo root
+
+**Status:** 🟡 Open · filed 2026-05-18 post-cut.
+
+**Why it matters.** Owner observation: navigator at `~/Documents/GitHub/stoop` (which is NOT a repo root). The per-folder `⎇` icon correctly does NOT show on stoop when seen from the parent listing — strict repo-root detection works. But when user clicks INTO stoop, the ribbon at the top of the navigator reads `⎇ Documents · main · 34 m…`, claiming Documents (owner versions ~/Documents). The right-click "Open on GitHub" menu items also activate. Per-file dirty dots would too.
+
+**Mismatch source.** Per-folder icon uses strict workTreeRoot===child check; ribbon uses `git.status(cwd)` which climbs up.
+
+**Fix shape (owner-aligned).** Walk from cwd up to gitSnap.workTreeRoot. If any intermediate level contains ≥2 peer-repo children (a "container folder" pattern — same scan used by childRepoMap), the ribbon suppresses (along with the right-click menu items + per-file dots, all of which gate on gitSnap).
+
+**Implementation:** reuse `core/git/scan.ts § scanReposIn` at each intermediate level; cache per cwd; re-probe on cwd / focus.
 
 ---
 
