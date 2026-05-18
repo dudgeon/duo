@@ -18,6 +18,7 @@
 // so it's evaluated before any peer extension's Mod-k.
 
 import { Extension, InputRule } from '@tiptap/core'
+import { requestLinkPrompt } from '../LinkPromptModal'
 
 /** Match `[text](url)` at the end of typed input. The trailing `)`
  *  triggers the rule. `text` is the link label; `url` is the href.
@@ -67,22 +68,25 @@ export const MarkdownLinkShortcuts = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      // ⌘K — open the link prompt. Uses window.prompt (same code path
-      // as the toolbar's insertLink button). Pre-fills with the current
-      // link's href when the selection sits on an existing link;
-      // extends the mark over the whole link span so an in-place edit
-      // updates the existing link rather than splitting it.
+      // ⌘K — open the link prompt. Uses requestLinkPrompt (a Promise-
+      // based custom modal) because Electron renderers THROW on
+      // window.prompt with "prompt() is and will not be supported."
+      // (walk-3 root cause). Pre-fills with the current link's href
+      // when the cursor sits on an existing link; extendMarkRange
+      // before setLink so a collapsed-cursor in-place edit updates
+      // the whole span rather than splitting it.
       'Mod-k': () => {
         const editor = this.editor
         const current = editor.getAttributes('link').href as string | undefined
-        const url = window.prompt('Link URL', current ?? 'https://')
-        if (url === null) return true // user cancelled — still consume the chord
-        const trimmed = url.trim()
-        if (trimmed === '') {
-          editor.chain().focus().extendMarkRange('link').unsetLink().run()
-        } else {
-          editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run()
-        }
+        requestLinkPrompt(current ?? 'https://').then((url) => {
+          if (url === null) return // cancel
+          const trimmed = url.trim()
+          if (trimmed === '') {
+            editor.chain().focus().extendMarkRange('link').unsetLink().run()
+          } else {
+            editor.chain().focus().extendMarkRange('link').setLink({ href: trimmed }).run()
+          }
+        })
         return true
       }
     }

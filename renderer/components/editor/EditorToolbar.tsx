@@ -11,6 +11,7 @@
 
 import type { EditorActions } from './EditorActions'
 import { SaveControl } from './SaveControl'
+import { requestLinkPrompt } from './LinkPromptModal'
 
 interface Props {
   actions: EditorActions
@@ -48,10 +49,13 @@ export function EditorToolbar({
   }
 
   const insertLink = () => {
+    // BUG-137 walk-3 fix — Electron renderers throw on window.prompt;
+    // route through the LinkPromptModal Promise helper instead.
     const prev = actions.currentLinkHref()
-    const url = window.prompt('Link URL', prev ?? 'https://')
-    if (url === null) return
-    actions.setLink(url.trim() === '' ? null : url)
+    void requestLinkPrompt(prev ?? 'https://').then((url) => {
+      if (url === null) return
+      actions.setLink(url.trim() === '' ? null : url)
+    })
   }
 
   return (

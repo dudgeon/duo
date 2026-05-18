@@ -62,11 +62,10 @@ export const SuggestingMode = Extension.create<unknown, SuggestingModeStorage>({
         key: new PluginKey('duo-suggesting-mode'),
 
         props: {
-          // BUG-138 Phase 4c walk-2 fix — capture Backspace/Delete here
-          // (props.handleKeyDown), which fires BEFORE PM's keymap plugin
-          // chain. Returns true when handled (default is suppressed) and
-          // false when Suggesting is off or the cursor is in a code
-          // block etc., so default behavior runs in those paths.
+          // BUG-138 Phase 4c — capture Backspace/Delete BEFORE PM's
+          // keymap plugins. With priority 1000, my plugin is first in
+          // the array; handleKeyDown gets the event first; returns true
+          // to consume when Suggesting is on, false otherwise.
           handleKeyDown(view, event) {
             if (!ext.storage.enabled) return false
             if (event.key !== 'Backspace' && event.key !== 'Delete') return false
@@ -201,12 +200,17 @@ function wrapAsDeletionWithView(
   const author = ext.storage.getAuthor() || 'agent'
   const mark = DelMark.create({ author })
 
+  // BUG-138 walk-3 fix — after `tr.addMark(...)`, the TR has a NEW doc
+  // (immutable update). Building the Selection from `state.doc` (the
+  // pre-addMark doc) makes PM throw `RangeError: Selection passed to
+  // setSelection must point at the current document`. Build the TR
+  // first, then resolve positions against `tr.doc` for the Selection.
+
   if (from !== to) {
     // Non-empty selection. Wrap with DeletionMark + collapse cursor
     // to the end of the marked range.
-    const tr = state.tr.addMark(from, to, mark).setSelection(
-      Selection.near(state.doc.resolve(to))
-    )
+    const tr = state.tr.addMark(from, to, mark)
+    tr.setSelection(Selection.near(tr.doc.resolve(to)))
     tr.setMeta(META_AUTO, true)
     view.dispatch(tr)
     return true
@@ -220,9 +224,8 @@ function wrapAsDeletionWithView(
     // of the marked range).
     const $prev = state.doc.resolve(prevPos)
     if (DelMark.isInSet($prev.marks())) return false
-    const tr = state.tr.addMark(prevPos, from, mark).setSelection(
-      Selection.near(state.doc.resolve(prevPos))
-    )
+    const tr = state.tr.addMark(prevPos, from, mark)
+    tr.setSelection(Selection.near(tr.doc.resolve(prevPos)))
     tr.setMeta(META_AUTO, true)
     view.dispatch(tr)
     return true
@@ -232,9 +235,8 @@ function wrapAsDeletionWithView(
     if (nextPos > state.doc.content.size) return false  // doc end
     const $next = state.doc.resolve(to)
     if (DelMark.isInSet($next.marks())) return false
-    const tr = state.tr.addMark(to, nextPos, mark).setSelection(
-      Selection.near(state.doc.resolve(nextPos))
-    )
+    const tr = state.tr.addMark(to, nextPos, mark)
+    tr.setSelection(Selection.near(tr.doc.resolve(nextPos)))
     tr.setMeta(META_AUTO, true)
     view.dispatch(tr)
     return true

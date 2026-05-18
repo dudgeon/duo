@@ -11,6 +11,7 @@ import { FirstLaunchBanner } from './components/FirstLaunchBanner'
 import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import { CloneModal } from './components/CloneModal'
+import { LinkPromptModal } from './components/editor/LinkPromptModal'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
@@ -2821,6 +2822,10 @@ export function App() {
           nav.actions.navigateTo(clonedTo)
         }}
       />
+      {/* BUG-137 walk-3 follow-up — replacement for window.prompt
+          (Electron renderers throw on the native prompt API). Self-
+          contained; listens for 'duo-link-prompt-request' events. */}
+      <LinkPromptModal />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div
