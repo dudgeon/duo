@@ -6463,6 +6463,63 @@ Also caught + filed:
 
 ---
 
+### BUG-138: Markdown comments persisted in sidecar JSON instead of in-file CriticMarkup — invisible to agent and lost when file moves
+
+**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.0-cut).** Sprint 18 **HIGH priority** — architectural correctness + agent-visibility violation.
+
+**Symptom.** Owner: *"you did not build markdown comments correctly; comments are supposed to be persisted in the markdown file itself, using criticMarkup notation (and adding opinionated extensions if needed) — NOT as a separate json file that needs to travel with the markdown file or be lost. even more worrying, comments that sit outside the file will not be obvious to the agent when it inspects the file!!"*
+
+**Current architecture (wrong).** Markdown comments live in `<file>.md.duo.json § comments[]`. On save, the markdown editor strips comment marks (configured `html: false` in tiptap-markdown — see [`markdownComments.ts`](renderer/components/editor/markdownComments.ts)). The sidecar JSON is the source of truth; on reopen, comments re-anchor by finding `excerpt` + `contextBefore`/`contextAfter` in the parsed doc.
+
+**Why this is broken.**
+1. **Comments are LOST when the markdown file moves without its sidecar.** Drag-to-Finder, copy to another machine, share via email — the sidecar doesn't travel. Comments vanish silently.
+2. **Comments are INVISIBLE to the agent.** When Claude does `Read <file>.md`, it sees clean markdown with no indication that comments exist. The agent has no way to know it should also `Read <file>.md.duo.json`. This violates Duo's core "agent sees what the user sees" premise.
+3. **Not portable across editors.** Any other markdown editor (Obsidian, VS Code, IA Writer) renders the file as if there are no comments.
+4. **Bug 17 ENH-024 + Stage 14a's "markdown source-of-truth" goal is violated** by storing the marks side-channel.
+
+**Correct architecture (CriticMarkup, in-file).**
+
+The standard syntax for markdown comments / edits:
+- `{>>comment body<<}` — standalone comment placed at a position.
+- `{==highlighted text==}{>>comment body<<}` — comment anchored to selected text.
+- `{++insertion++}`, `{--deletion--}`, `{~~old~>new~~}` — edit operations (Stage 14b track-changes territory; in-scope for the comment refactor since the parser/serializer is the same).
+
+CriticMarkup doesn't standardize metadata (id, author, ts, replies). Owner's "opinionated extension" call-out means we define a Duo-specific structured comment body:
+
+```
+{>>id:c-01HXYZ|author:dudgeon|ts:2026-05-18T12:34:56Z|comment body text<<}
+{>>id:c-01HXAB|author:claude|ts:2026-05-18T12:35:10Z|reply-to:c-01HXYZ|reply body<<}
+```
+
+The opinionated extension is the structured prefix: `id:<ulid>|author:<name>|ts:<iso>|reply-to:<id>?|<body>`. Body starts after the last `|`. Parser splits on the FIRST few `|` until it hits `body`-shaped content. Robust to bodies containing `|` since fixed metadata fields come first.
+
+**Migration path.**
+1. **Phase 1 — Reader.** Markdown parser learns to recognize CriticMarkup `{==…==}{>>id:…|…<<}` blocks during load. They become TipTap comment marks (same `CommentMark` extension as today). Re-anchor logic shifts from sidecar-walks-doc to parser-knows-position.
+2. **Phase 2 — Writer.** Markdown serializer emits CriticMarkup on save. Comment threads become sequences of `{>>id:c1|…<<} {>>reply-to:c1|…<<}` blocks at the anchor position.
+3. **Phase 3 — Sidecar migration.** On first load of a file that has comments in the sidecar AND no CriticMarkup in the body, migrate: insert CriticMarkup at the re-anchored positions, save the file, clear `sidecar.comments[]` (preserve `recentEdits` and other fields). One-shot per file.
+4. **Phase 4 — Deprecate `SidecarComment`.** Once the codebase doesn't read `sidecar.comments` anymore, remove the field from the schema. Older sidecars with the field are tolerated (we just ignore it post-migration).
+
+**Files affected (rough estimate, scope check before committing):**
+- `renderer/components/editor/extensions/CommentMark.ts` — parser/serializer hook (`addCommands` for setComment now must round-trip CriticMarkup).
+- `renderer/components/editor/markdownComments.ts` — re-anchor logic; some becomes obsolete.
+- `renderer/components/editor/markdown-io.ts` — parse/serialize via tiptap-markdown — likely a new custom rule.
+- `renderer/components/Page/sidecar.ts` — deprecate `comments[]` field.
+- `renderer/components/editor/MarkdownEditor.tsx` — drop the `applyCommentMarksFromSidecar` callsites.
+- Migration helper (new module).
+- Tests: existing `markdownComments.test.ts` rewrites; add new `criticMarkupRoundTrip.test.ts`.
+
+**Editor-canvas parity rule (per CLAUDE.md § 7).** **(c) Deferred.** Canvas-side HTML CAN persist comments in-file (via custom data attrs or comment elements) — the architectural argument is the same: agent-visibility + portability. But the migration shape differs (HTML attrs, not CriticMarkup). File as a sibling bug (BUG-139) AFTER the markdown fix shape is locked, so we share what we learn.
+
+**Pre-implementation gate (per CLAUDE.md § 11).** Build a playground at `docs/research/markdown-comments-criticmarkup.html` with the proposed structured-body syntax + 3-4 decision cards:
+1. Body structure: `id|author|ts|reply-to?|body` vs alternative shape?
+2. Anchor strategy: always wrap as `{==text==}{>>…<<}` even for floating comments, vs allow standalone `{>>…<<}`?
+3. Migration trigger: auto on first load, or banner prompt, or CLI verb?
+4. Backward read: should we still TOLERATE old sidecar-only comments on read (until user touches the file) or hard-cut?
+
+**Cross-ref:** BUG-061 (markdown parsing broken in HTML canvas — sibling parsing-gap class); Stage 14a (commit rail primitive history); MISSING-001 (the original "comments" placeholder that turned into the sidecar architecture).
+
+---
+
 ### BUG-137: Markdown link editing — `[text](url)` not parsed; ⌘K is a no-op
 
 **Status:** ✅ **Shipped 2026-05-18 (post-v0.7.0-cut).**

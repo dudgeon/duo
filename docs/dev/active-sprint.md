@@ -9,9 +9,10 @@
 ## 🔥 Post-compaction me: read this first
 
 1. **v0.7.0 just shipped** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.0), signed+notarized DMG attached). Theme was GitHub-integration cluster + Send → agent rename. Sprint 17 fully closed (rev8 walk PASSED).
-2. **Sprint 18 plan: "Browser-pane completion."** Pull list (owner-confirmed 2026-05-18):
+2. **Sprint 18 plan: "Browser-pane completion + comment-storage rearchitecture."** Pull list (owner-confirmed 2026-05-18):
+   - **BUG-138** *(HIGH — architectural correctness + agent-visibility)* — Markdown comments persist in sidecar JSON; should be inline CriticMarkup with opinionated metadata extension. Comments invisible to agent when reading the file; lost when file moves. **Requires owner-decision playground BEFORE code** (body structure, anchor strategy, migration trigger, backward-read tolerance — 4 decisions).
    - **BUG-130** — Browser pane `file://` auto-reload (architectural; on roadmap).
-   - **ENH-157** — Browser-pane comments (CDP-injected sidecar overlay for file:// HTML).
+   - **ENH-157** — Browser-pane comments (CDP-injected sidecar overlay for file:// HTML) — **revisit shape AFTER BUG-138 lands** (canvas comment-storage may want the same in-file approach; sidecar architecture is being rethought).
    - **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity).
    - **ENH-164** — `duo terminal new --kind claude` CLI verb.
    - **BUG-135** — Git ribbon activates for cwd that's not a repo root (climbs to a "container folder" ancestor; per-folder icon already detects correctly — ribbon needs to match).

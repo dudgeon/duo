@@ -635,8 +635,9 @@ routed around ad hoc.
 
 **Status (2026-05-18, post-v0.7.0-cut):** Sprint planning complete. **v0.7.0 shipped** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.0); signed+notarized DMG, all rev8 items PASS). Sprint 18 pull list (owner-confirmed):
 
+- **BUG-138** *(HIGH — architectural correctness + agent-visibility)* — Markdown comments persist in sidecar JSON; must be inline CriticMarkup. Comments invisible to agent when reading the file; lost when file moves. Pre-implementation playground gate (4 decisions: body structure, anchor strategy, migration trigger, backward-read tolerance).
 - **BUG-130** — Browser pane `file://` auto-reload (architectural; agent edits → tab doesn't refresh).
-- **ENH-157** — Browser-pane comments — CDP-injected sidecar overlay for file:// HTML.
+- **ENH-157** — Browser-pane comments (defer shape decision until BUG-138 lands — same architectural argument may apply to HTML canvas comments too).
 - **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity).
 - **ENH-164** — `duo terminal new --kind claude` CLI verb.
 - **BUG-135** — Git ribbon activates for cwd that's not a repo root (per-folder icon correct; ribbon needs to match strictness).
