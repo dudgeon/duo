@@ -461,7 +461,14 @@ async function createWindow(): Promise<void> {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     }
-    cdpBridge.setClaudeLive(state === 'claude' || state === 'starting')
+    const live = state === 'claude' || state === 'starting'
+    cdpBridge.setClaudeLive(live)
+    // BUG-133 — also broadcast to ALL browser tabs (not just the
+    // CdpBridge-attached one). Fixes the stale `__duoClaudeLive` gate
+    // on non-active panes (main pane keeps showing the pill after
+    // user switches away from a Claude terminal because CDP attach
+    // points elsewhere — usually aux or the last-switched main tab).
+    if (browserManager) browserManager.broadcastClaudeLive(live)
   })
 
   // Once the renderer reports its bounds, attach CDP to the active tab

@@ -872,6 +872,29 @@ export class BrowserManager {
     }
   }
 
+  // ── Multi-tab CDP-adjacent state pushes ────────────────────────────────────
+
+  /** BUG-133 — push `window.__duoClaudeLive` to EVERY browser tab's
+   *  webContents, not just whichever one CdpBridge happens to be
+   *  attached to. Without this, the Send→agent pill's claude-live
+   *  gate goes stale on non-active tabs (main pane stays "claude=true"
+   *  after the user switches away from a Claude terminal, because
+   *  CdpBridge.setClaudeLive only pushes to the currently-attached
+   *  WC — usually aux or the last-switched main tab).
+   *
+   *  Uses webContents.executeJavaScript (no CDP required) so it works
+   *  on every browser tab regardless of CDP attachment state. */
+  broadcastClaudeLive(live: boolean): void {
+    const expr = `window.__duoClaudeLive = ${JSON.stringify(live)};`
+    for (const { view } of this.tabs) {
+      const wc = view.webContents
+      if (wc.isDestroyed()) continue
+      // executeJavaScript may reject (page navigated away mid-call,
+      // crashed, etc.). Soft-fail per-tab.
+      wc.executeJavaScript(expr, true).catch(() => { /* ignore */ })
+    }
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
   dispose(): void {
