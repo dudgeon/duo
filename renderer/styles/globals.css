@@ -712,11 +712,6 @@ html.dark {
     outline: 2px solid var(--duo-accent);
     outline-offset: 3px;
   }
-  .duo-send-pill__arrow {
-    font-size: 12px;
-    line-height: 1;
-    opacity: 0.92;
-  }
   @keyframes duo-send-pill-in {
     from { opacity: 0; transform: translateY(2px); }
     to { opacity: 1; transform: translateY(0); }

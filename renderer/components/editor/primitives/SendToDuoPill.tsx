@@ -112,7 +112,6 @@ export function SendToDuoPill({ rect, onClick, label = 'Send → agent' }: SendT
       aria-label={label}
     >
       <span className="duo-send-pill__label">{label}</span>
-      <span className="duo-send-pill__arrow" aria-hidden="true">↗</span>
     </button>,
     document.body
   )
