@@ -10,6 +10,7 @@
 //
 // Phase 4f (next) layers author-filter chips on top of this.
 
+import { useMemo, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import { acceptTrackedChange, rejectTrackedChange, type TrackedRange } from './trackedChanges'
 
@@ -19,6 +20,21 @@ interface Props {
   /** Optional click handler to scroll the editor to the change. v1
    *  uses a simple PM coords-at-pos jump via the editor view. */
   onJumpTo?: (range: TrackedRange) => void
+  /** BUG-138 Phase 4f — current human author identity. Drives the
+   *  "Mine" filter chip. When empty/null, "Mine" matches nothing. */
+  currentAuthor?: string
+}
+
+type Filter = 'all' | 'mine' | 'agent' | 'others'
+
+const AGENT_NAMES = new Set(['agent', 'claude'])
+
+function classifyAuthor(author: string | null, currentAuthor: string): 'mine' | 'agent' | 'other' | 'none' {
+  if (!author || author.trim().length === 0) return 'none'
+  const a = author.trim()
+  if (currentAuthor && a === currentAuthor.trim()) return 'mine'
+  if (AGENT_NAMES.has(a.toLowerCase())) return 'agent'
+  return 'other'
 }
 
 const KIND_LABEL: Record<TrackedRange['kind'], string> = {
@@ -33,7 +49,34 @@ const KIND_CLASS: Record<TrackedRange['kind'], string> = {
   highlight: 'text-amber-300 bg-amber-500/10'
 }
 
-export function TrackedChangesRail({ editor, ranges, onJumpTo }: Props) {
+export function TrackedChangesRail({ editor, ranges, onJumpTo, currentAuthor = '' }: Props) {
+  const [filter, setFilter] = useState<Filter>('all')
+
+  // Pre-compute the counts per filter bucket so the chips can show
+  // disabled state + counts.
+  const buckets = useMemo(() => {
+    let mine = 0, agent = 0, others = 0, none = 0
+    for (const r of ranges) {
+      const cls = classifyAuthor(r.author, currentAuthor)
+      if (cls === 'mine') mine++
+      else if (cls === 'agent') agent++
+      else if (cls === 'other') others++
+      else none++
+    }
+    return { mine, agent, others, none }
+  }, [ranges, currentAuthor])
+
+  const filteredRanges = useMemo(() => {
+    if (filter === 'all') return ranges
+    return ranges.filter(r => {
+      const cls = classifyAuthor(r.author, currentAuthor)
+      if (filter === 'mine') return cls === 'mine'
+      if (filter === 'agent') return cls === 'agent'
+      if (filter === 'others') return cls === 'other'
+      return false
+    })
+  }, [ranges, filter, currentAuthor])
+
   if (!editor || ranges.length === 0) return null
 
   return (
@@ -41,18 +84,65 @@ export function TrackedChangesRail({ editor, ranges, onJumpTo }: Props) {
       className="flex flex-col gap-1.5 px-2 py-2 border-b border-border bg-surface-1"
       data-duo-tc-rail="1"
     >
-      <div className="text-[10px] uppercase tracking-wider text-zinc-500 px-1">
-        Track changes ({ranges.length})
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] uppercase tracking-wider text-zinc-500">
+          Track changes ({ranges.length})
+        </span>
       </div>
-      {ranges.map((range, idx) => (
-        <TrackedChangeCard
-          key={`${range.kind}-${range.from}-${range.to}-${idx}`}
-          editor={editor}
-          range={range}
-          onJumpTo={onJumpTo}
-        />
-      ))}
+      <div className="flex items-center gap-1 px-1 -mt-0.5" data-duo-tc-filter-row="1">
+        <FilterChip label="All" count={ranges.length} active={filter === 'all'} onSelect={() => setFilter('all')} />
+        <FilterChip label="Mine" count={buckets.mine} active={filter === 'mine'} disabled={buckets.mine === 0} onSelect={() => setFilter('mine')} />
+        <FilterChip label="Agent" count={buckets.agent} active={filter === 'agent'} disabled={buckets.agent === 0} onSelect={() => setFilter('agent')} />
+        <FilterChip label="Others" count={buckets.others} active={filter === 'others'} disabled={buckets.others === 0} onSelect={() => setFilter('others')} />
+      </div>
+      {filteredRanges.length === 0 ? (
+        <div className="px-1 py-3 text-[11px] text-zinc-500 italic">
+          No changes match this filter.
+        </div>
+      ) : (
+        filteredRanges.map((range, idx) => (
+          <TrackedChangeCard
+            key={`${range.kind}-${range.from}-${range.to}-${idx}`}
+            editor={editor}
+            range={range}
+            onJumpTo={onJumpTo}
+          />
+        ))
+      )}
     </div>
+  )
+}
+
+interface FilterChipProps {
+  label: string
+  count: number
+  active: boolean
+  disabled?: boolean
+  onSelect: () => void
+}
+
+function FilterChip({ label, count, active, disabled, onSelect }: FilterChipProps) {
+  return (
+    <button
+      type="button"
+      className={[
+        'px-1.5 py-0.5 rounded text-[10px] transition-colors',
+        active
+          ? 'bg-accent/20 text-accent'
+          : disabled
+            ? 'text-zinc-600 cursor-not-allowed'
+            : 'text-zinc-400 hover:text-zinc-200 hover:bg-surface-3'
+      ].join(' ')}
+      onMouseDown={(e) => {
+        e.preventDefault()
+        if (!disabled) onSelect()
+      }}
+      disabled={disabled}
+      data-duo-tc-filter={label.toLowerCase()}
+      data-active={active ? 'true' : 'false'}
+    >
+      {label} {count > 0 && <span className="opacity-70">{count}</span>}
+    </button>
   )
 }
 

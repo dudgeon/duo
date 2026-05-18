@@ -2480,6 +2480,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             editor={editor}
             ranges={trackedChangesList}
             onJumpTo={handleJumpToTrackedChange}
+            currentAuthor={authorOrLegacy}
           />
         )}
         {/* Sprint 6 Phase 4 / MISSING-001 — comment rail. Mirrors the
