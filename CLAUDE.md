@@ -629,18 +629,26 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 18 / v0.7.1 "Browser-pane completion"
+## Active sprint — Sprint 18 / v0.7.1 "Markdown source-of-truth + browser-pane completion"
 
 > **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state; this section is a one-paragraph mirror.
 
-**Status (2026-05-18, post-v0.7.0-cut):** Sprint planning complete. **v0.7.0 shipped** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.0); signed+notarized DMG, all rev8 items PASS). Sprint 18 pull list (owner-confirmed):
+**Status (2026-05-18 evening):** **Phase 1 of BUG-138 SHIPPED** ([429b024](https://github.com/dudgeon/duo/commit/429b024) — CriticMarkup parser + 4 TipTap marks + visual rendering, 65 tests). Owner verified visuals. **All gates locked + plan documented** for compaction continuation. See [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) for the full delivery order + per-phase implementation plans.
 
-- **BUG-138** *(HIGH — architectural correctness + agent-visibility)* — Markdown comments persist in sidecar JSON; must be inline CriticMarkup. Comments invisible to agent when reading the file; lost when file moves. Pre-implementation playground gate (4 decisions: body structure, anchor strategy, migration trigger, backward-read tolerance).
-- **BUG-130** — Browser pane `file://` auto-reload (architectural; agent edits → tab doesn't refresh).
-- **ENH-157** — Browser-pane comments (defer shape decision until BUG-138 lands — same architectural argument may apply to HTML canvas comments too).
-- **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity).
-- **ENH-164** — `duo terminal new --kind claude` CLI verb.
-- **BUG-135** — Git ribbon activates for cwd that's not a repo root (per-folder icon correct; ribbon needs to match strictness).
+**Sprint 18 delivery order (LOCKED 2026-05-18):**
+
+1. **BUG-138 Phase 2** — sidecar→inline migration + `duo author [<name>]` verb. Foundational; must land before users save modified files.
+2. **BUG-138 Phase 3** — agent CLI verbs (`duo doc insert / delete / substitute / comment / accept / reject`). Uses author identity from Phase 2.
+3. **BUG-138 Phase 4** — Suggesting toolbar toggle + Accept/Reject UX (rail + bulk banner). The visible payoff of the whole chapter.
+4. **BUG-139** — Frontmatter Properties panel. Option B locked (collapsible panel + raw-YAML toggle). Same architectural class as BUG-138 (content invisible via editor).
+5. **BUG-135** — Git ribbon strictness (path-traversal heuristic).
+6. **ENH-164** — `duo terminal new --kind claude` verb.
+7. **ENH-148** — Multi-select v2 (⇧-click + ⌘-A + CLI parity).
+8. **BUG-130** — Browser pane `file://` auto-reload (architectural; may slip to Sprint 19).
+
+Locked decisions from [`docs/research/markdown-criticmarkup-comments-trackchanges.html`](docs/research/markdown-criticmarkup-comments-trackchanges.html): pipe-delimited body, all-5 ops, named author, per-op CLI, silent auto-migrate, read-both-until-touched.
+
+**Cut target:** v0.7.1. MINOR if BUG-138 lands fully; PATCH if only the smaller items.
 
 **Theme:** Close the browser-pane-as-first-class-surface story Sprint 17 opened (Send → agent + inspect + clone + GH menu). Sprint 18 finishes the chapter with auto-reload, comments-in-page, multi-select polish, and an agent-side claude-spawn verb. **Cut goal: v0.7.1.**
 

@@ -6463,6 +6463,36 @@ Also caught + filed:
 
 ---
 
+### BUG-139: Markdown editor HIDES YAML frontmatter — user can't see or edit it
+
+**Status:** 🟢 **Decision locked, implementation pending.** Filed 2026-05-18. Owner-directed Sprint 18 pull: *"you also need to pull frontmatter handling into this sprint for md files; I am only now realizing that duo HIDES frontmatter, which is a big problem."*
+**Priority:** Medium — same architectural class as BUG-138 (content invisible via the editor).
+**Fix shape (locked 2026-05-18, owner pick):** **B · Collapsible Properties panel + raw-YAML toggle.** Always-visible panel above the editor showing the YAML rendered as key:value rows. Click "Edit raw" to flip the panel into a textarea where the user can edit the raw YAML directly. On save, the YAML is re-prepended via the existing `joinFrontmatter` helper. Option C (typed-UI typed inputs per key, Obsidian-style) is the v2 evolution — out of scope for Sprint 18.
+
+**Symptom.** When the user opens a markdown file with YAML frontmatter (a top `---\n…\n---` block), the editor renders ONLY the body. The frontmatter is stripped on load, captured in a ref, and re-prepended on save. The user has no way to see, edit, or even know frontmatter exists by looking at the editor.
+
+The frontmatter IS preserved on save round-trip — it's stored in [`markdown-io.ts § splitFrontmatter`](renderer/components/editor/markdown-io.ts) and re-joined in `joinFrontmatter`. So data isn't lost; it's just invisible to the user.
+
+**Why this matters.**
+- Frontmatter often carries critical metadata: tags, dates, status, custom properties, Obsidian-specific fields. Users can't edit any of it without dropping to view-source or using another editor.
+- Same agent-visibility class as BUG-138 — the agent doing `Read foo.md` sees frontmatter inline; the user editing in Duo sees only the body. Asymmetry.
+- The PRD already flagged this as deferred: *"The frontmatter properties panel (PRD D15) will later render a typed UI over the same raw YAML."* Owner pulled it forward to Sprint 18.
+
+**Fix shape options:**
+
+| Option | Behavior | Trade-off |
+|---|---|---|
+| A · Inline YAML code block at top | Don't strip on load; let TipTap render the `---\n…\n---` as a fenced code block (yaml lang). User sees + edits raw YAML. | Simplest. Mostly free. Trivial round-trip. Lacks structured UI. |
+| B · Collapsible "Properties" panel above editor (read-only v1) | Always-visible panel showing the YAML rendered nicely (key: value rows). Click an "Edit raw" button to flip to textarea. | Cleaner UI; explicit affordance. Adds chrome. |
+| C · Obsidian-style Properties panel — typed key/value rows, edit-in-place | Each frontmatter key gets a row with the right input type (text / date / tags-multiselect / etc.). Save serializes back to YAML. | Best UX; biggest scope. Matches Obsidian's pattern. |
+| D · View-source-overlay parity — frontmatter shows in source view only | Today's behavior + a small banner above the editor: "This file has frontmatter (N keys) — `Cmd+Opt+V` to view source." Cheapest. | Doesn't actually solve the "user can't edit" problem; just adds discoverability. |
+
+**My recommendation: B (collapsible panel with raw-YAML toggle).** Strikes the balance — frontmatter is visible by default, simple to implement, room for C as a v2 enhancement once a real typed-UI library is wired in.
+
+**Cross-ref.** BUG-138 (sidecar comments architectural class — same "invisible via editor" problem). PRD D15 (original frontmatter panel deferral, now activated).
+
+---
+
 ### BUG-138 / Stage 14b–d: Markdown comments + track-changes via CriticMarkup — agent-visible + portable + unified Stage 14 chapter
 
 **Status:** 🟢 **Gate decisions locked 2026-05-18.** Implementation phase. Sprint 18 anchor. **HIGH priority** — architectural correctness + agent-visibility violation.
