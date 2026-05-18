@@ -1167,17 +1167,24 @@ export class CdpBridge {
   }
 
   async attach(webContents: WebContents): Promise<void> {
-    if (this.wc && this.wc !== webContents) {
-      try { this.wc.debugger.detach() } catch { /* already detached */ }
-    }
+    // BUG-134 — keep debuggers attached to ALL browser tabs we've ever
+    // attached to (not just the most recent). The previous behavior
+    // (detach on switch) meant the page-side `window.duoSendToDuoClick`
+    // binding was removed from non-active tabs, so the in-page pill's
+    // click handler silently failed when the user clicked main-pane
+    // pill while CDP was attached to aux (or another tab). With all
+    // debuggers attached, binding-call events from any tab reach
+    // handleCdpEvent. The primary `this.wc` is still tracked for
+    // Runtime.evaluate calls (those go to the front tab).
     this.wc = webContents
     if (!webContents.debugger.isAttached()) {
       webContents.debugger.attach('1.3')
     }
 
-    // Subscribe to CDP events exactly once per attach — the listener is
-    // re-bound on every reattach because debugger messages route to whoever
-    // currently holds the attachment.
+    // Subscribe to CDP events on THIS wc's debugger. removeAllListeners
+    // is bounded to this wc only — other attached debuggers keep their
+    // listeners. Each listener routes to handleCdpEvent; events from
+    // any attached page route correctly.
     webContents.debugger.removeAllListeners('message')
     webContents.debugger.on('message', (_event, method, params) => {
       this.handleCdpEvent(method, params)

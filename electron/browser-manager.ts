@@ -277,6 +277,17 @@ export class BrowserManager {
     this.wireEvents(view)
     this.wireKeyForwarding(view)
 
+    // BUG-134 — attach CDP to every new browser tab so its
+    // page-side selection observer + Send→agent pill binding is
+    // registered immediately, not deferred until the user activates
+    // it via switchTab. Previously, aux-pinned tabs (which can be
+    // created without ever going through switchTab) had no CDP attach,
+    // so their pill click handlers fired into a missing binding.
+    // Best-effort: failures are non-fatal (CDP is a UX layer).
+    this.cdp.attach(view.webContents).catch((err) => {
+      console.warn('[BrowserManager] CDP attach failed on addTab:', err)
+    })
+
     // BUG-040 — if the initial URL is off-host, route it externally
     // and leave the tab on about:blank. Avoids a brief load-then-bounce
     // in the embedded view (which would steal focus + flicker).
