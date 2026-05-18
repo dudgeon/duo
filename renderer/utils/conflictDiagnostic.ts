@@ -30,16 +30,29 @@ import { encodeUtf8 } from '../components/editor/markdown-io'
  *   - Trailing whitespace per line (editors / linters strip them silently)
  *   - Trailing whitespace at document end (tiptap-markdown round-trip
  *     normalization; original BUG-107)
+ *   - **Markdown soft-break ≡ space** (BUG-122 hypothesis 4, confirmed
+ *     2026-05-18 v0.7.2 walk) — a single `\n` inside a paragraph
+ *     (between two non-blank lines) is semantically equivalent to a
+ *     space in CommonMark. tiptap-markdown's serializer collapses these
+ *     to spaces on round-trip; the baseline ends up with ` ` while the
+ *     disk still has the original `\n`. Without this step the conflict
+ *     detector fires a false-positive banner on every save after the
+ *     first load of any file whose source has soft-breaks.
  *
- * Conservative — doesn't touch internal whitespace or unicode
- * normalization (would mask real conflicts). If the BUG-122 next-repro
- * data shows we need NFC/NFD normalization, expand here.
+ * Conservative — doesn't touch real paragraph breaks (`\n\n+`), unicode
+ * normalization (NFC/NFD), or other whitespace runs. Preserves enough
+ * structure that REAL external edits (added paragraph, missing block,
+ * changed content) still surface as a banner. Soft-break collapse runs
+ * on BOTH sides identically, so an external edit that only flips
+ * soft-break-vs-space is the one case we silently accept — that's a
+ * cosmetic-only diff in markdown, no information loss.
  */
 export function normalizeForEchoCompare(s: string): string {
   return s
     .replace(/^\uFEFF/, '')         // strip leading BOM
     .replace(/\r\n/g, '\n')         // CRLF → LF
     .replace(/[ \t]+$/gm, '')       // per-line trailing whitespace
+    .replace(/([^\n])\n(?!\n)/g, '$1 ') // soft-break inside paragraph → space
     .replace(/\s+$/, '')            // document-end trailing whitespace
 }
 

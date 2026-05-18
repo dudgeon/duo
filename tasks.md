@@ -7569,7 +7569,11 @@ Owner's "delete current tab" phrasing might mean:
 
 ### BUG-122: Markdown editor "file changed on disk" banner re-surfaces in v0.6.14
 
-**Status:** 🔴 **NEXT-REPRO DIAGNOSTIC CAPTURED 2026-05-18 (v0.7.2 smoke walk) — hypothesis 4 confirmed.** Owner hit the banner while adding a comment to `/tmp/walk-v0.7.2-frontmatter.md` (fixture written by Claude's `Write` tool for the v0.7.2 walk). Diagnostic log:
+**Status:** 🟢 **HYPOTHESIS 4 FIX SHIPPED 2026-05-18 (v0.7.2 walk session).** Extended `normalizeForEchoCompare` in `renderer/utils/conflictDiagnostic.ts` to collapse intra-paragraph soft-breaks (single `\n` between non-blank lines) to a single space before the disk-vs-baseline compare. 15 new vitest tests in `conflictDiagnostic.test.ts` (8 BUG-122 hypothesis-4 cases + 4 pre-existing-invariant cases + 3 computeFirstDiffOffset cases — all pass). Real-edit detection unchanged: added paragraph break, added content, changed content all still flip the banner.
+
+Old status (kept for context):
+
+🔴 **NEXT-REPRO DIAGNOSTIC CAPTURED 2026-05-18 (v0.7.2 smoke walk) — hypothesis 4 confirmed.** Owner hit the banner while adding a comment to `/tmp/walk-v0.7.2-frontmatter.md` (fixture written by Claude's `Write` tool for the v0.7.2 walk). Diagnostic log:
 
 ```
 {
