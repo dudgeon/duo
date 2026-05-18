@@ -28,6 +28,13 @@ export interface SidecarV1 {
    *  v1 schema — readers without this field treat all threads as
    *  open. */
   resolvedThreads?: Record<string, ResolvedThreadRecord>
+  /** BUG-138 Phase 4 — Suggesting mode toggle. When `true`, typing
+   *  in the editor wraps new text as CriticMarkup insertions and
+   *  deletions wrap as deletions (instead of editing the doc
+   *  directly). Per-doc state; persists across reopens. Default
+   *  off; toggled via the editor toolbar's "Suggest" button or
+   *  the ⌘⌥T chord. Additive on the v1 schema. */
+  suggestingMode?: boolean
   properties?: Record<string, unknown>
 }
 

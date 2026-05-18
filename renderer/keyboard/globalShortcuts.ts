@@ -79,6 +79,11 @@ export type ShortcutId =
   // CustomEvent — same indirection as sendToDuo so the global hook
   // stays free of surface-specific state.
   | 'startComment'
+  // BUG-138 Phase 4 — ⌘⌥T toggles Suggesting mode on the active
+  // markdown editor (typing wraps as track-changes). Dispatches
+  // 'duo-toggle-suggesting' CustomEvent so the global hook stays
+  // surface-agnostic; only the active markdown editor responds.
+  | 'toggleSuggesting'
   // Sprint 6 BUG-084 — ⌘R reloads the active BROWSER tab (Chrome
   // parity). Gated to browser tabs in dispatch — does NOT reload
   // markdown editor / canvas / terminal panes (no "reload" concept
@@ -260,6 +265,14 @@ export function matchGlobalShortcut(
   // for the splitView shortcuts (Slash vs '?').
   if (meta && alt && !shift && !ctrl && e.code === 'KeyM') {
     return { id: 'startComment' }
+  }
+
+  // BUG-138 Phase 4 — ⌘⌥T toggles Suggesting mode on the active
+  // markdown editor. Use `e.code === 'KeyT'` (Option modifies the
+  // produced character on macOS — same gotcha class as ⌘⌥M / ⌘⌥V).
+  // No native ⌘⌥T conflict on macOS by default.
+  if (meta && alt && !shift && !ctrl && e.code === 'KeyT') {
+    return { id: 'toggleSuggesting' }
   }
 
   // Sprint 6 BUG-084 — ⌘R reloads the active BROWSER tab (Chrome

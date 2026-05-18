@@ -15,6 +15,13 @@ import type { BlockKind, EditorActions, Mark } from './EditorActions'
 export interface TiptapEditorActionsOptions {
   startComment?: () => void
   canStartComment?: () => boolean
+  /** BUG-138 Phase 4 — Suggesting mode hooks. `suggestingOn` is read
+   *  on every toolbar render (toolbarVersion bumps cover the state
+   *  change); `toggleSuggesting` flips the per-doc state in the
+   *  sidecar. Optional so hosts without track-changes UX can leave
+   *  the toolbar button hidden. */
+  suggestingOn?: boolean
+  toggleSuggesting?: () => void
 }
 
 export function buildTiptapEditorActions(
@@ -90,6 +97,9 @@ export function buildTiptapEditorActions(
     // No `extras` — those are canvas-only (PRD H28).
     // Sprint 6 Phase 4 / MISSING-001 — comment hooks.
     startComment: opts?.startComment,
-    canStartComment: opts?.canStartComment
+    canStartComment: opts?.canStartComment,
+    // BUG-138 Phase 4 — Suggesting mode hooks.
+    suggestingOn: opts?.suggestingOn,
+    toggleSuggesting: opts?.toggleSuggesting
   }
 }

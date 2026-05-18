@@ -169,6 +169,26 @@ export function EditorToolbar({
           </>
         )}
 
+        {/* BUG-138 Phase 4a — Suggesting mode toggle. When on, typing
+            wraps as CriticMarkup insertions and deletions as deletions
+            (the actual intercept lands in 4b/4c). For 4a the button
+            is visible + persists state per-doc so the owner can see
+            the front door before the typing intercept ships. */}
+        {actions.toggleSuggesting && (
+          <>
+            <Sep />
+            <Btn
+              onMouseDown={() => actions.toggleSuggesting?.()}
+              title={actions.suggestingOn ? 'Suggesting: ON — typing wraps as track-changes (⌘⌥T)' : 'Suggesting: off (⌘⌥T)'}
+              data-active={actions.suggestingOn ? 'true' : 'false'}
+            >
+              <span className={`text-[11px] font-medium ${actions.suggestingOn ? 'text-accent' : ''}`}>
+                {actions.suggestingOn ? '✎ Suggesting' : '✎ Suggest'}
+              </span>
+            </Btn>
+          </>
+        )}
+
         <div className="ml-auto flex items-center">
           <SaveControl
             dirty={dirty}

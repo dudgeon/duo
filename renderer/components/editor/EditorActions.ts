@@ -99,4 +99,13 @@ export interface EditorActions {
   // selection (with a duo-id anchor) is required.
   startComment?: () => void
   canStartComment?: () => boolean
+
+  // BUG-138 Phase 4 — Suggesting mode toggle. When on, typing wraps
+  // new text as `{++…++}` insertions and deletions wrap as `{--…--}`
+  // (Phase 4b/4c). Phase 4a only ships the toggle + persistence; the
+  // intercept lands in 4b. Optional because the canvas doesn't have
+  // an analog (HTML doesn't support CriticMarkup tracking the same
+  // way) — toolbar hides the toggle when undefined.
+  suggestingOn?: boolean
+  toggleSuggesting?: () => void
 }

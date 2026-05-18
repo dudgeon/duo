@@ -334,6 +334,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const sidecarDirtyRef = useRef(false)
   const [threadsTick, setThreadsTick] = useState(0)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+  // BUG-138 Phase 4 — Suggesting mode. Mirrors sidecar.suggestingMode
+  // but lives in component state so the toolbar re-renders on toggle.
+  // Synced on file load + every toggle.
+  const [suggestingMode, setSuggestingMode] = useState(false)
   const [newCommentAt, setNewCommentAt] = useState<{
     commentId: string
     range: { from: number; to: number }
@@ -349,6 +353,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // editorActions closure stable while always invoking the latest
   // handler; the ref's `.current` is updated on each render below.
   const startCommentRef = useRef<() => void>(() => {})
+  // BUG-138 Phase 4 — forward-ref for the Suggesting toggle (same
+  // pattern as startCommentRef — keeps editorActions closures stable
+  // while always invoking the latest closure that captures fresh
+  // `suggestingMode` state via the useCallback dep array).
+  const toggleSuggestingRef = useRef<() => void>(() => {})
   // ENH-023 — find bar visibility. ⌘F opens; ⎋ inside the input
   // closes (handled in FindBar). The extension's storage flips
   // `open` for any callers that need to gate behavior on it (e.g.
@@ -721,10 +730,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           canStartComment: () => {
             const sel = editor.state.selection
             return sel.from !== sel.to
-          }
+          },
+          // BUG-138 Phase 4 — Suggesting mode toggle. Read by the
+          // toolbar on every render via `actions.suggestingOn`.
+          // suggestingMode state changes trigger a re-render of this
+          // component, which rebuilds editorActions through this
+          // useMemo (suggestingMode is in the dep array).
+          suggestingOn: suggestingMode,
+          toggleSuggesting: () => toggleSuggestingRef.current()
         })
       : NULL_ACTIONS,
-    [editor]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor, suggestingMode]
   )
   const [toolbarVersion, setToolbarVersion] = useState(0)
   useEffect(() => {
@@ -839,6 +856,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           console.warn(`[duo-md] ${migration.orphans} sidecar comment(s) could not be re-anchored; kept as orphans`)
         }
         sidecarRef.current = migration.sidecar
+        // BUG-138 Phase 4 — sync Suggesting state from sidecar on load.
+        setSuggestingMode(migration.sidecar.suggestingMode === true)
 
         // Second-arg `false` suppresses an update event so the initial load
         // doesn't count as a user edit.
@@ -1419,6 +1438,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /** BUG-138 Phase 4 — flip the Suggesting mode flag in the sidecar
+   *  and the local state mirror. Triggered by the toolbar button OR
+   *  the ⌘⌥T chord. */
+  const toggleSuggestingMode = useCallback(() => {
+    const next = !suggestingMode
+    setSuggestingMode(next)
+    persistSidecarMutation({
+      ...sidecarRef.current,
+      suggestingMode: next
+    })
+  }, [suggestingMode, persistSidecarMutation])
+
   /** Update [data-duo-comment-active] on every comment span so the
    *  active thread reads stronger than its siblings. BUG-087 fix —
    *  also re-apply on every editor transaction. ProseMirror manages
@@ -1578,12 +1609,29 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // canvas right-click both fire 'duo-start-comment' window events
   // which the listener below picks up.
   startCommentRef.current = handleStartNewComment
+  // BUG-138 Phase 4 — keep the suggestion-toggle ref pointed at the
+  // latest closure so the toolbar button always toggles against the
+  // current state (without re-running editorActions useMemo
+  // unnecessarily).
+  toggleSuggestingRef.current = toggleSuggestingMode
 
   useEffect(() => {
     const handler = () => handleStartNewComment()
     window.addEventListener('duo-start-comment', handler)
     return () => window.removeEventListener('duo-start-comment', handler)
   }, [handleStartNewComment])
+
+  // BUG-138 Phase 4 — ⌘⌥T chord listener. Only the active markdown
+  // editor responds (matches isActive prop). Toggles the per-doc
+  // Suggesting mode flag in the sidecar.
+  useEffect(() => {
+    const handler = () => {
+      if (!isActive) return
+      toggleSuggestingRef.current()
+    }
+    window.addEventListener('duo-toggle-suggesting', handler)
+    return () => window.removeEventListener('duo-toggle-suggesting', handler)
+  }, [isActive])
 
   // ── Serve doc-read requests with the live buffer ────────────────────────
   //

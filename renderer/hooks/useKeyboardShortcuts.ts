@@ -212,6 +212,14 @@ export function useKeyboardShortcuts(opts: Options) {
           window.dispatchEvent(new CustomEvent('duo-start-comment', { detail: { pane } }))
           return
         }
+        case 'toggleSuggesting': {
+          // BUG-138 Phase 4 — ⌘⌥T dispatches a CustomEvent the active
+          // markdown editor listens for. Surface-side handler reads
+          // its own active flag + toggles the per-doc state in the
+          // sidecar (no-op outside a markdown editor).
+          window.dispatchEvent(new CustomEvent('duo-toggle-suggesting', { detail: { pane } }))
+          return
+        }
         case 'reloadBrowserTab': {
           // Sprint 6 BUG-084 — ⌘R reloads the active browser tab when
           // the working pane has a browser tab focused; otherwise
