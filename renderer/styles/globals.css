@@ -1046,6 +1046,55 @@ html.dark {
   border-bottom-color: #E08F4A;
 }
 
+/* ─────────────────────────────────────────────────────────────────────
+   BUG-138 / Stage 14b — CriticMarkup track-changes visual rendering.
+   Four marks (insertion / deletion / highlight / comment-anchor); their
+   data-attrs come from each mark's renderHTML in extensions/*Mark.ts.
+   Styling matches the playground at
+   docs/research/markdown-criticmarkup-comments-trackchanges.html.
+   ───────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Insertion: green underline tint */
+  .ProseMirror [data-duo-insertion] {
+    background: color-mix(in srgb, #4a7d3e 12%, transparent);
+    color: #2c5524;
+    border-bottom: 1px solid color-mix(in srgb, #4a7d3e 55%, transparent);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+
+  /* Deletion: red strikethrough */
+  .ProseMirror [data-duo-deletion] {
+    background: color-mix(in srgb, #b13e3a 12%, transparent);
+    color: #7d2622;
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+
+  /* Highlight: amber background tint (standalone — not anchor for a comment) */
+  .ProseMirror [data-duo-highlight] {
+    background: color-mix(in srgb, #b07527 22%, transparent);
+    padding: 0 2px;
+    border-radius: 2px;
+  }
+}
+
+/* Dark-mode parity */
+[data-theme="dark"] .ProseMirror [data-duo-insertion] {
+  background: rgba(110, 184, 92, 0.16);
+  color: #b9e0a4;
+  border-bottom-color: rgba(110, 184, 92, 0.55);
+}
+[data-theme="dark"] .ProseMirror [data-duo-deletion] {
+  background: rgba(217, 90, 86, 0.16);
+  color: #e9b1ae;
+}
+[data-theme="dark"] .ProseMirror [data-duo-highlight] {
+  background: rgba(224, 143, 74, 0.28);
+}
+
 /* Sprint 11 — SuggestionPopover (`[[` wikilink, `@` mention).
    Mounted via React Portal to <body>; absolute-positioned via
    inline style above the trigger DOMRect. */

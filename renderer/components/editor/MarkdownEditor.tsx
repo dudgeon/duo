@@ -39,6 +39,9 @@ import { BulletListWithMarker } from './extensions/BulletListWithMarker'
 import { FindHighlight } from './extensions/FindHighlight'
 import { ListIndentShortcuts } from './extensions/ListIndentShortcuts'
 import { MarkdownLinkShortcuts } from './extensions/MarkdownLinkShortcuts'
+import { InsertionMark } from './extensions/InsertionMark'
+import { DeletionMark } from './extensions/DeletionMark'
+import { HighlightMark } from './extensions/HighlightMark'
 import { FencedCodeBlockEnter } from './extensions/FencedCodeBlockEnter'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
@@ -83,6 +86,11 @@ import {
   captureExcerptContext,
   scrollToCommentAnchor
 } from './markdownComments'
+import {
+  applyCriticMarkupFromText,
+  serializeWithCriticMarkup,
+  preprocessSubstitutions
+} from './markdownCriticMarkup'
 
 interface Props {
   path: string
@@ -532,6 +540,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       // above); re-applied on file load by `applyCommentMarksFromSidecar`
       // matching sidecar excerpts back to the parsed doc.
       CommentMark,
+      // BUG-138 / Stage 14b — CriticMarkup marks for track-changes
+      // + comments. Round-trip via markdownCriticMarkup.ts at the
+      // setContent / serialize boundaries (wired below).
+      InsertionMark,
+      DeletionMark,
+      HighlightMark,
       // ENH-096 (B1) — Wikilink decoration plugin. Recognizes
       // `[[Page Name]]` patterns in the doc and renders them as
       // styled clickable spans. cmd+click fires `duo-wikilink-open`
@@ -804,13 +818,21 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
         // Second-arg `false` suppresses an update event so the initial load
         // doesn't count as a user edit.
-        editor.commands.setContent(split.body, false)
+        editor.commands.setContent(preprocessSubstitutions(split.body), false)
+
+        // BUG-138 Phase 1b — convert CriticMarkup tokens in the loaded
+        // body to TipTap marks. Must run BEFORE the markdown-baseline
+        // capture so the baseline reflects the marked state (otherwise
+        // the next serialize would re-emit CM tokens AND the post-
+        // tokenized body would diff against the raw-token baseline,
+        // producing a spurious dirty state).
+        applyCriticMarkupFromText(editor)
 
         // Capture the serializer's view of the loaded doc as the baseline.
         // Markdown round-trip isn't byte-exact (list markers, whitespace);
         // using what the editor itself serializes avoids a spurious "dirty"
         // state the instant the user types a single character.
-        lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+        lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
 
         // Sprint 6 Phase 4 — re-apply comment marks now the body is in
         // the doc. Idempotent if the sidecar branch already ran (it
@@ -893,7 +915,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           if (normalizeForEchoCompare(writtenBody) === normalizedDisk) return
         }
 
-        const liveBody = editor.storage.markdown.getMarkdown() as string
+        const liveBody = serializeWithCriticMarkup(editor)
         const isDirty = liveBody !== lastSavedBodyRef.current
 
         if (!isDirty) {
@@ -907,8 +929,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           })
           frontmatterRef.current = split.frontmatter
           eolRef.current = split.eol
-          editor.commands.setContent(diskBody, false)
-          lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+          editor.commands.setContent(preprocessSubstitutions(diskBody), false)
+          // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
+          applyCriticMarkupFromText(editor)
+          lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
         } else {
           // Dirty buffer — surface conflict; user picks resolution.
           // BUG-099 diagnostic — log the conflict-surface event with
@@ -976,8 +1000,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // Sprint 6 BUG-085 — conflict-banner resolution handlers.
   const resolveConflictReload = useCallback(() => {
     if (!editor || !externalConflict) return
-    editor.commands.setContent(externalConflict.diskBody, false)
-    lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+    editor.commands.setContent(preprocessSubstitutions(externalConflict.diskBody), false)
+    // BUG-138 Phase 1b — apply CriticMarkup→marks before baseline.
+    applyCriticMarkupFromText(editor)
+    lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
     // Sprint 6 Phase 4 — re-apply comment marks after setContent
     // wipes them. Same idempotent pass that runs on initial load.
     applyCommentMarksFromSidecar(editor, sidecarRef.current)
@@ -1009,7 +1035,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     if (saving) return
 
     // Pull current body markdown from tiptap-markdown storage.
-    const body = editor.storage.markdown.getMarkdown() as string
+    const body = serializeWithCriticMarkup(editor)
     const bodyChanged = body !== lastSavedBodyRef.current
     if (!bodyChanged && !dirty && !sidecarDirtyRef.current) return
 
@@ -1149,7 +1175,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
 
     const handler = () => {
       if (!loaded) return
-      const body = editor.storage.markdown.getMarkdown() as string
+      const body = serializeWithCriticMarkup(editor)
       const isDirty = body !== lastSavedBodyRef.current
       setDirty(isDirty)
       // Sprint 10 ENH-103 — clear any prior save-failure indicator on
@@ -1530,7 +1556,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       }
       if (!req.path && !isActiveRef.current) return // no path filter, not active → ignore
       try {
-        const body = editor.storage.markdown.getMarkdown() as string
+        const body = serializeWithCriticMarkup(editor)
         const full = joinFrontmatter(frontmatterRef.current, body, eolRef.current)
         const isDirty = body !== lastSavedBodyRef.current
         window.electron.editor.replyDocRead({
@@ -1599,15 +1625,15 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           const diskText = decodeUtf8(diskRead.bytes)
           const diskSplit = splitFrontmatter(diskText)
           const diskBody = diskSplit.body
-          const editorBody = editor.storage.markdown.getMarkdown() as string
+          const editorBody = serializeWithCriticMarkup(editor)
           if (diskBody !== editorBody) {
             const editorIsDirty = editorBody !== lastSavedBodyRef.current
             if (!editorIsDirty) {
               // Clean buffer behind disk — safe to reload.
               frontmatterRef.current = diskSplit.frontmatter
               eolRef.current = diskSplit.eol
-              editor.commands.setContent(diskBody, false)
-              lastSavedBodyRef.current = editor.storage.markdown.getMarkdown() as string
+              editor.commands.setContent(preprocessSubstitutions(diskBody), false)
+              lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
               didReload = true
             } else {
               // Dirty buffer + diverged disk = real conflict. Don't
@@ -1643,7 +1669,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         })
 
         // Build a markdown line index for line/heading-line mapping.
-        const md = editor.storage.markdown.getMarkdown() as string
+        const md = serializeWithCriticMarkup(editor)
         const mdLines = md.split('\n')
         // Match each heading to its source line by walking md and
         // looking for `^#{1,6}\s+<text>` lines in order.
@@ -1869,7 +1895,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
           // Reuse onDocGoto's line-walk logic in miniature: walk the
           // doc, count newlines, position at start of the matching
           // block. Lines are 1-indexed and clamped to the last line.
-          const md = editor.storage.markdown.getMarkdown() as string
+          const md = serializeWithCriticMarkup(editor)
           const mdLines = md.split('\n')
           const targetLine = Math.min(Math.max(1, detail.line), mdLines.length)
           let line = 1
@@ -1910,7 +1936,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         return
       }
       try {
-        const body = editor.storage.markdown.getMarkdown() as string
+        const body = serializeWithCriticMarkup(editor)
         const lines = body.split('\n')
         const haystackLines = req.caseSensitive ? lines : lines.map(l => l.toLowerCase())
         const needle = req.caseSensitive ? req.query : req.query.toLowerCase()
@@ -2019,7 +2045,7 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       if (!isActiveRef.current) return
       setViewSource(prev => {
         if (prev !== null) return null
-        const body = editor.storage.markdown.getMarkdown() as string
+        const body = serializeWithCriticMarkup(editor)
         return joinFrontmatter(frontmatterRef.current, body, eolRef.current)
       })
     }

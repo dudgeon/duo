@@ -28,6 +28,38 @@ import {
   serializeCommentBody
 } from '../../../core/markdown/criticmarkup'
 
+// ── PRE-PROCESS: shield substitution tokens from tiptap-markdown strikethrough ──
+//
+// markdown-it (under tiptap-markdown) sees `{~~old~>new~~}` and matches
+// the outer `~~…~~` pair as a strikethrough mark — wiping the `~~`
+// delimiters and applying strike to the inner text. The CM token is
+// destroyed before our applyCriticMarkupFromText walker can see it.
+//
+// Fix: before passing markdown to setContent, replace substitution
+// tokens with a sentinel form using non-printing control chars
+// ( / ) that markdown-it emits as literal text. The walker
+// recognizes the sentinel pattern and reconstructs the substitution.
+//
+// Other ops (`{++…++}`, `{--…--}`, `{==…==}`, `{>>…<<}`) round-trip
+// cleanly through markdown-it without this trick.
+
+const SUB_OPEN_SENTINEL = '\u0001\u0002'   // SOH+STX (2 chars) — replaces `~~` in `{~~`
+const SUB_CLOSE_SENTINEL = '\u001e\u001d'  // RS+GS (2 chars) — replaces `~~` in `~~}`
+
+export function preprocessSubstitutions(source: string): string {
+  // Replace `{~~old~>new~~}` with `{<SOH>old~>new<STX>}` — survives
+  // markdown-it strikethrough because the inner content no longer
+  // starts/ends with `~~`.
+  return source.replace(/\{~~([^]*?)~~\}/g, `{${SUB_OPEN_SENTINEL}$1${SUB_CLOSE_SENTINEL}}`)
+}
+
+export function restoreSubstitutionsInText(text: string): string {
+  // Inverse — used by tests / debug to verify the sentinel cycle.
+  return text
+    .replace(new RegExp(`\\{${SUB_OPEN_SENTINEL}`, 'g'), '{~~')
+    .replace(new RegExp(`${SUB_CLOSE_SENTINEL}\\}`, 'g'), '~~}')
+}
+
 // ── PARSE: walk doc text for CriticMarkup tokens, convert to marks ──────────
 
 /**
@@ -48,7 +80,14 @@ export function applyCriticMarkupFromText(editor: Editor): number {
     if (!node.isText) return
     const text = node.text ?? ''
     if (text.indexOf('{') === -1) return // fast-path
-    hits.push({ from: pos, text })
+    // Restore substitution tokens that were sentinel-encoded by
+    // preprocessSubstitutions so the parser can recognize them. We
+    // operate on the LOCAL text here; the actual PM transaction below
+    // uses the same offset math (sentinels and `~~` are the same length).
+    const restored = text
+      .replace(new RegExp(`\\{${SUB_OPEN_SENTINEL}`, 'g'), '{~~')
+      .replace(new RegExp(`${SUB_CLOSE_SENTINEL}\\}`, 'g'), '~~}')
+    hits.push({ from: pos, text: restored })
   })
   if (hits.length === 0) return 0
 
@@ -139,6 +178,29 @@ export function materializeCriticMarkupToJSON(editor: Editor): unknown {
   if (!editor || editor.isDestroyed) return editor?.getJSON()
   const docJson = editor.getJSON() as DocJSON
   return transformDoc(docJson)
+}
+
+/**
+ * Drop-in replacement for `editor.storage.markdown.getMarkdown()`. Walks
+ * the editor's doc, materializes CM marks as CriticMarkup text in a
+ * temporary cloned doc, runs tiptap-markdown's serializer on the temp
+ * doc, and returns the resulting markdown string. The live editor state
+ * is NOT mutated.
+ */
+export function serializeWithCriticMarkup(editor: Editor): string {
+  if (!editor || editor.isDestroyed) return ''
+  // Storage check: tiptap-markdown's Markdown extension stores a
+  // serializer on editor.storage.markdown. If the extension isn't
+  // registered (shouldn't happen in MarkdownEditor) we fall back to
+  // getJSON-stringify so callers don't see a hard fail.
+  const storage = (editor.storage as { markdown?: { serializer?: { serialize: (doc: unknown) => string }; getMarkdown?: () => string } }).markdown
+  if (!storage?.serializer) {
+    return storage?.getMarkdown?.() ?? ''
+  }
+  const materialized = materializeCriticMarkupToJSON(editor)
+  const schemaCtor = (editor.schema as { nodeFromJSON: (j: unknown) => unknown }).nodeFromJSON
+  const tempDoc = schemaCtor.call(editor.schema, materialized)
+  return storage.serializer.serialize(tempDoc)
 }
 
 // ── Internal: JSON walker ───────────────────────────────────────────────────
