@@ -23,6 +23,7 @@ import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
 import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
 import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
+import { useAuthor } from './hooks/useAuthor'
 import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
@@ -254,6 +255,10 @@ export function App() {
   // it here is what bootstraps the renderer→main pushState so CLI
   // reads return the persisted value rather than the default.
   useSelectionFormat()
+  // BUG-138 Phase 2 — bootstrap the author identity hook so the main
+  // process always has a fresh AUTHOR snapshot for `duo author` reads.
+  // Editor components reach the same identity via useAuthor on demand.
+  useAuthor()
 
   // Stage 19c — first tab on app launch defaults to a vanilla shell, not
   // claude. Rationale: today the user lands in the same place they always

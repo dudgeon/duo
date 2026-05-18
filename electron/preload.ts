@@ -25,6 +25,7 @@ import type {
   PageSelectionSnapshot,
   ThemeMode,
   ThemeStateSnapshot,
+  AuthorStateSnapshot,
   ClaudeKeyPrefsSnapshot,
   SelectionFormat,
   SelectionFormatStateSnapshot,
@@ -55,6 +56,8 @@ const api: ElectronAPI = {
   env: {
     HOME: process.env.HOME ?? '',
     SHELL: process.env.SHELL ?? '/bin/zsh',
+    // BUG-138 Phase 2 — default human author identity for CriticMarkup.
+    USER: process.env.USER ?? '',
     appVersion: APP_VERSION,
     isDev: IS_DEV
   },
@@ -471,6 +474,21 @@ const api: ElectronAPI = {
       const handler = (_: IpcRendererEvent, mode: ThemeMode) => cb(mode)
       ipcRenderer.on(IPC.THEME_SET, handler)
       return () => ipcRenderer.removeListener(IPC.THEME_SET, handler)
+    }
+  },
+
+  // BUG-138 Phase 2 — author identity for CriticMarkup attribution.
+  // Same shape as the theme bridge: renderer pushState (cache in
+  // main); main re-broadcasts CLI overrides via onSet.
+  author: {
+    pushState: (snapshot: AuthorStateSnapshot) => {
+      ipcRenderer.send(IPC.AUTHOR_STATE_PUSH, snapshot)
+    },
+
+    onSet: (cb: (author: string) => void) => {
+      const handler = (_: IpcRendererEvent, author: string) => cb(author)
+      ipcRenderer.on(IPC.AUTHOR_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.AUTHOR_SET, handler)
     }
   },
 

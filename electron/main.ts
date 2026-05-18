@@ -148,6 +148,15 @@ let claudeKeyPrefsState: import('../shared/types').ClaudeKeyPrefsSnapshot = {
   shiftReturn: 'newline'
 }
 
+// BUG-138 Phase 2 \u2014 author identity (CriticMarkup attribution).
+// Renderer owns localStorage('duo:author') + pushes the current value
+// on mount. Default '' until the renderer's first pushState arrives.
+// `duo author` reads from this cache; `duo author "<name>"` re-emits
+// to the renderer over AUTHOR_SET which then persists to localStorage.
+let authorState: import('../shared/types').AuthorStateSnapshot = {
+  author: ''
+}
+
 // Stage 15 G19 — Send → Duo payload format. Renderer is the source of
 // truth (persisted in localStorage); main caches the latest snapshot
 // for `duo selection-format` reads. Default 'a' (quote + provenance).
@@ -387,6 +396,9 @@ async function createWindow(): Promise<void> {
     docFind: dispatchDocFind,
     getTheme: getThemeState,
     setTheme: setThemeMode,
+    // BUG-138 Phase 2 — author identity (CriticMarkup attribution).
+    getAuthor: getAuthorState,
+    setAuthor: setAuthor,
     // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs.
     getClaudeKeyPrefs: getClaudeKeyPrefsState,
     setClaudeReturn: setClaudeReturnMode,
@@ -1532,6 +1544,13 @@ function setupIPC(): void {
     claudeKeyPrefsState = snapshot
   })
 
+  // BUG-138 Phase 2 — author identity push from the renderer.
+  ipcMain.on(IPC.AUTHOR_STATE_PUSH, (_event, snapshot: import('../shared/types').AuthorStateSnapshot) => {
+    if (snapshot && typeof snapshot.author === 'string') {
+      authorState = snapshot
+    }
+  })
+
   // Stage 15 G19 \u2014 Send \u2192 Duo payload format push from the renderer.
   ipcMain.on(IPC.SELECTION_FORMAT_STATE_PUSH, (_event, snapshot: SelectionFormatStateSnapshot) => {
     selectionFormatState = snapshot
@@ -1954,6 +1973,31 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
     return { ok: false, error: 'Duo window not ready' }
   }
   mainWindow.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
+  return { ok: true }
+}
+
+// BUG-138 Phase 2 — `duo author` reads the cached value; writes
+// dispatch AUTHOR_SET to the renderer which persists to localStorage
+// and pushes a fresh state back over AUTHOR_STATE_PUSH.
+export function getAuthorState(): import('../shared/types').AuthorStateSnapshot {
+  return authorState
+}
+
+export function setAuthor(author: string): { ok: boolean; error?: string } {
+  const trimmed = (author ?? '').trim()
+  if (trimmed.length === 0) {
+    return { ok: false, error: 'author name must be a non-empty string' }
+  }
+  if (trimmed.length > 64) {
+    return { ok: false, error: 'author name must be 64 characters or fewer' }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  // Update the cache eagerly so `duo author` reads the new value even
+  // before the renderer's AUTHOR_STATE_PUSH echo arrives.
+  authorState = { author: trimmed }
+  mainWindow.webContents.send(IPC.AUTHOR_SET, trimmed)
   return { ok: true }
 }
 

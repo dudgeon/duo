@@ -21,6 +21,7 @@ import type {
   HtmlCommentRequest, HtmlCommentResult,
   HtmlCommentsListRequest, HtmlCommentsListResult,
   ThemeMode, ThemeStateSnapshot,
+  AuthorStateSnapshot,
   ClaudeKeyPrefsSnapshot,
   SelectionFormat, SelectionFormatStateSnapshot,
   PinEntry, NavPinEntry,
@@ -32,6 +33,9 @@ import type {
 export interface ElectronEnv {
   HOME: string
   SHELL: string
+  /** OS username — used as the default human author identity when
+   *  localStorage('duo:author') hasn't been set yet (BUG-138 Phase 2). */
+  USER: string
   /** Duo's package.json `version` field, populated at preload time
    *  via `app.getVersion()`. Surfaces in the titlebar so the user
    *  can confirm which build is running before a smoke walk. */
@@ -475,6 +479,15 @@ export interface ElectronClaudeKeyPrefsAPI {
   onSet: (cb: (prefs: Partial<ClaudeKeyPrefsSnapshot>) => void) => () => void
 }
 
+/** BUG-138 Phase 2 — author identity bridge. Same pattern as
+ *  ElectronThemeAPI: renderer owns localStorage; main caches the
+ *  current value via pushState so `duo author` can read without a
+ *  renderer round-trip; CLI overrides re-broadcast via onSet. */
+export interface ElectronAuthorAPI {
+  pushState: (snapshot: AuthorStateSnapshot) => void
+  onSet: (cb: (author: string) => void) => () => void
+}
+
 // Stage 27 — DuoEvent producer surface for the renderer. Main owns
 // the EventBus singleton; renderer is a producer-only client. Used by
 // the canvas-action `duo:event` verb; future renderer hooks (editor
@@ -863,6 +876,8 @@ export interface ElectronAPI {
   layout: ElectronLayoutAPI
   workingAux: ElectronWorkingAuxAPI
   theme: ElectronThemeAPI
+  // BUG-138 Phase 2 — author identity (CriticMarkup attribution).
+  author: ElectronAuthorAPI
   // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences.
   claudeKeyPrefs: ElectronClaudeKeyPrefsAPI
   selectionFormat: ElectronSelectionFormatAPI

@@ -652,6 +652,23 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'author': {
+        // BUG-138 Phase 2 \u2014 `duo author` reads the current author
+        // identity; `duo author "<name>"` sets it (persisted in
+        // renderer localStorage). Agents set their own attribution via
+        // the DUO_AUTHOR env var on per-op verbs (Phase 3); this verb
+        // is for the human user's identity only.
+        const author = rest[0]
+        if (author === undefined) {
+          out(await send('author'))
+        } else {
+          if (author.length === 0) {
+            die('Usage: duo author [<name>]')
+          }
+          out(await send('author', { author }))
+        }
+        break
+      }
       case 'claude-return': {
         // Sprint 16 / v0.6.15 \u2014 `duo claude-return [submit|newline]`.
         // Toggles Claude-tab plain Return behavior. Default: 'submit'
@@ -1807,6 +1824,13 @@ COMMANDS
   theme [system|light|dark]       Print the current theme (mode +
                                   effective), or set it if a mode is
                                   provided. Persists across relaunches.
+  author [<name>]                 BUG-138 Phase 2 — read or set the
+                                  human author identity used for
+                                  CriticMarkup mark attribution
+                                  (insertions / deletions / comments).
+                                  No arg = print state (JSON). With a
+                                  name = persist + print. Agents set
+                                  their own via the DUO_AUTHOR env var.
   claude-return [submit|newline]  v0.6.15 — toggle Claude-tab plain
                                   Return behavior. Default 'submit'
                                   (xterm passthrough; Claude submits).

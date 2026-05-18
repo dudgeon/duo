@@ -204,6 +204,14 @@ export type DuoCommandName =
   // the agent loop instead of devtools UI. While active, the
   // selection observer's Send → Duo pill is suppressed (mode lock).
   | 'inspect'
+  // BUG-138 Phase 2 — `duo author [<name>]` reads or sets the human
+  // author identity used when stamping CriticMarkup marks. Renderer
+  // owns localStorage('duo:author'); main caches for CLI reads. No
+  // arg → JSON `{ author: string }`. Empty / missing name on first
+  // read defaults to `$USER` env var so untouched setups still get
+  // attribution. CLI agent invocations set their own author via the
+  // `DUO_AUTHOR` env var, not this verb.
+  | 'author'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -1055,6 +1063,18 @@ export interface ThemeStateSnapshot {
   effective: 'light' | 'dark'
 }
 
+// BUG-138 Phase 2 — author identity used when stamping CriticMarkup
+// marks (track-changes insert/delete/substitute, comments). Same
+// renderer-owner / main-cache pattern as the theme + claude-key-prefs
+// surfaces. `duo author` (no arg) reads the cached value; `duo author
+// "<name>"` dispatches AUTHOR_SET back to the renderer which persists
+// to localStorage('duo:author'). Agent invocations set their own
+// author via the DUO_AUTHOR env var — Phase 3's `duo doc *` verbs
+// honor it without going through this verb.
+export interface AuthorStateSnapshot {
+  author: string
+}
+
 // Stage 15 G19 — Send → Duo payload format. Renderer is the source of
 // truth (persisted in localStorage); main keeps a cache for `duo
 // selection-format` reads. Same shape as theme: pushState from renderer
@@ -1397,6 +1417,12 @@ export const IPC = {
   // Stage 11 § D33d — theme state + agent override
   THEME_STATE_PUSH: 'theme:state-push',  // renderer → main (cache state)
   THEME_SET: 'theme:set',                // main → renderer (CLI-driven override)
+
+  // BUG-138 Phase 2 — author identity (used for CriticMarkup mark
+  // attribution). Same shape as THEME_*: renderer caches in main;
+  // main re-broadcasts CLI overrides.
+  AUTHOR_STATE_PUSH: 'author:state-push',  // renderer → main
+  AUTHOR_SET: 'author:set',                // main → renderer
 
   // Sprint 16 / v0.6.15 — Claude-tab Enter key preferences. Same
   // shape as THEME_*: renderer caches state in main; main re-broadcasts

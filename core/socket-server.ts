@@ -43,6 +43,7 @@ import type {
   HtmlCommentsListResult,
   ThemeMode,
   ThemeStateSnapshot,
+  AuthorStateSnapshot,
   ClaudeReturnMode,
   ShiftReturnMode,
   ClaudeKeyPrefsSnapshot,
@@ -88,6 +89,10 @@ export interface NavBridge {
   getTheme: () => ThemeStateSnapshot
   /** Stage 11 § D33d — CLI-driven theme override. */
   setTheme: (mode: ThemeMode) => { ok: boolean; error?: string }
+  /** BUG-138 Phase 2 — current author identity (renderer → main cache). */
+  getAuthor: () => AuthorStateSnapshot
+  /** BUG-138 Phase 2 — CLI-driven author override. */
+  setAuthor: (author: string) => { ok: boolean; error?: string }
   /** Sprint 16 / v0.6.15 — current Claude-tab Enter key prefs
    *  (renderer \u2192 main cache). */
   getClaudeKeyPrefs: () => ClaudeKeyPrefsSnapshot
@@ -861,6 +866,24 @@ export class SocketServer {
             // updates asynchronously via THEME_STATE_PUSH but mode is the
             // reliable signal to report back.
             result = { ...this.nav.getTheme(), mode }
+          }
+          break
+        }
+        case 'author': {
+          // BUG-138 Phase 2 — `duo author` reads the cached human-author
+          // identity; `duo author "<name>"` overrides + persists in the
+          // renderer's localStorage. Agent invocations use the
+          // DUO_AUTHOR env var directly, not this verb.
+          const author = args['author'] as string | undefined
+          if (author === undefined) {
+            result = this.nav.getAuthor()
+          } else {
+            if (typeof author !== 'string') {
+              throw new Error('author must be a string')
+            }
+            const setResult = this.nav.setAuthor(author)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'author set failed')
+            result = { author: author.trim() }
           }
           break
         }

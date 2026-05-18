@@ -91,6 +91,8 @@ import {
   serializeWithCriticMarkup,
   preprocessSubstitutions
 } from './markdownCriticMarkup'
+import { migrateSidecarCommentsToInline } from './migrateSidecarComments'
+import { useAuthor } from '../../hooks/useAuthor'
 
 interface Props {
   path: string
@@ -293,6 +295,13 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
+  // BUG-138 Phase 2 — current human author identity. Used when
+  // stamping new CriticMarkup marks (comments today; Phase 4
+  // track-changes inserts/deletes). Mirrors localStorage('duo:author')
+  // and the `duo author` CLI verb. Falls back to '$USER' on a fresh
+  // install via the hook's default.
+  const { author: currentAuthor } = useAuthor()
+  const authorOrLegacy = currentAuthor.trim().length > 0 ? currentAuthor.trim() : 'user'
   // Sprint 10 ENH-103 — last save failure (separate from `error`,
   // which surfaces read/load errors via the banner). Drives the
   // SaveControl pill's "Failed — retry" state. Cleared on next edit
@@ -795,30 +804,45 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     setActiveThreadId(null)
     setNewCommentAt(null)
 
-    // Read the sidecar in parallel with the body. Comments don't
-    // block the prose render — they apply once both have resolved.
-    void readSidecar(path).then((sc) => {
-      if (cancelled || pathRef.current !== path) return
-      if (sc) sidecarRef.current = sc
-      // Re-apply any marks now if the body has already loaded;
-      // otherwise the body-load branch below handles it.
-      if (lastSavedBodyRef.current.length > 0 || (editor.state.doc.content.size > 2)) {
-        applyCommentMarksFromSidecar(editor, sidecarRef.current)
-      }
-      setThreadsTick(v => v + 1)
-    })
-
-    window.electron.files.read(path).then(
-      (res) => {
+    // BUG-138 Phase 2 — read the sidecar AND the body together. The
+    // sidecar→inline migration (if eligible) needs both before deciding
+    // whether to splice CriticMarkup tokens into the body. Pre-Phase-2
+    // these ran in parallel with the body rendering immediately and the
+    // sidecar layering marks in when it resolved, but the migration is
+    // a body-mutating step that must happen BEFORE setContent.
+    Promise.all([
+      window.electron.files.read(path),
+      readSidecar(path)
+    ]).then(
+      ([res, sc]) => {
         if (cancelled || pathRef.current !== path) return
         const text = decodeUtf8(res.bytes)
         const split = splitFrontmatter(text)
         frontmatterRef.current = split.frontmatter
         eolRef.current = split.eol
 
+        const initialSidecar = sc ?? emptySidecar()
+
+        // BUG-138 Phase 2 — silent auto-migrate sidecar comments to
+        // inline CriticMarkup when the body has no CM tokens yet.
+        // Locked decisions (BUG-138 playground Q5+Q6): silent migration
+        // on first load; read-both-until-touched. The body we hand to
+        // setContent below is the migrated form; the sidecar gets
+        // rewritten with successfully-migrated entries removed.
+        const migration = migrateSidecarCommentsToInline(split.body, initialSidecar)
+        if (migration.migrated > 0) {
+          console.info(
+            `[duo-md] migrated ${migration.migrated} sidecar comment thread(s) to inline CriticMarkup` +
+            (migration.orphans > 0 ? ` (${migration.orphans} orphan(s) kept in sidecar)` : '')
+          )
+        } else if (migration.orphans > 0) {
+          console.warn(`[duo-md] ${migration.orphans} sidecar comment(s) could not be re-anchored; kept as orphans`)
+        }
+        sidecarRef.current = migration.sidecar
+
         // Second-arg `false` suppresses an update event so the initial load
         // doesn't count as a user edit.
-        editor.commands.setContent(preprocessSubstitutions(split.body), false)
+        editor.commands.setContent(preprocessSubstitutions(migration.body), false)
 
         // BUG-138 Phase 1b — convert CriticMarkup tokens in the loaded
         // body to TipTap marks. Must run BEFORE the markdown-baseline
@@ -834,12 +858,33 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         // state the instant the user types a single character.
         lastSavedBodyRef.current = serializeWithCriticMarkup(editor)
 
-        // Sprint 6 Phase 4 — re-apply comment marks now the body is in
-        // the doc. Idempotent if the sidecar branch already ran (it
-        // skips comments whose marks already exist). Bumps tick so
-        // the rail recomputes against the marks we just stamped.
+        // Re-apply comment marks for any sidecar entries that didn't
+        // migrate (orphans, or — pre-Phase-2 — when migration was
+        // skipped because the body already had CM tokens). Idempotent;
+        // the load-side applyCriticMarkupFromText pass already stamped
+        // marks for the inline-migrated comments.
         applyCommentMarksFromSidecar(editor, sidecarRef.current)
         setThreadsTick(v => v + 1)
+
+        // BUG-138 Phase 2 — flush the migration to disk. Write the
+        // migrated body back to the .md file AND the cleared sidecar
+        // back to .duo.json. Run async after the editor is set up;
+        // failure to persist isn't catastrophic (re-runs on next load).
+        if (migration.bodyChanged) {
+          const migratedFullText = joinFrontmatter(frontmatterRef.current, migration.body, eolRef.current)
+          trackRecentlyWritten(normalizeForEchoCompare(migration.body))
+          void window.electron.files
+            .write(path, encodeUtf8(migratedFullText))
+            .then(() => {
+              if (cancelled) return
+              if (migration.sidecarChanged) {
+                return writeSidecar(path, migration.sidecar)
+              }
+            })
+            .catch((err) => {
+              console.warn('[duo-md] failed to persist sidecar→inline migration:', err)
+            })
+        }
 
         setLoaded(true)
         consumePendingFocus()
@@ -1462,7 +1507,11 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // migration step + Phase 1b's serializer will phase the sidecar
     // out. During the transition window both stores hold the data.
     const ts = new Date().toISOString()
-    const author = 'user'
+    // BUG-138 Phase 2 — stamp the live identity from useAuthor instead
+    // of the legacy 'user' literal. Falls back to 'user' when the
+    // author hook hasn't resolved a value yet (e.g. first launch
+    // before localStorage is touched, $USER env var also empty).
+    const author = authorOrLegacy
     editor.commands.applyCommentMark({
       commentId: at.commentId,
       author,
@@ -1500,20 +1549,22 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     const entry: SidecarComment = {
       id: `cmt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
       anchorId: threadId,
-      author: 'user',
+      // BUG-138 Phase 2 — live identity from useAuthor.
+      author: authorOrLegacy,
       ts: new Date().toISOString(),
       body: trimmed
     }
     persistSidecarMutation(sidecarWithComment(sidecarRef.current, entry))
-  }, [persistSidecarMutation])
+  }, [persistSidecarMutation, authorOrLegacy])
 
   const handleResolveThread = useCallback((threadId: string) => {
     if (!editor) return
-    persistSidecarMutation(sidecarWithResolvedThread(sidecarRef.current, threadId, 'user'))
+    // BUG-138 Phase 2 — record the live identity in the resolution marker.
+    persistSidecarMutation(sidecarWithResolvedThread(sidecarRef.current, threadId, authorOrLegacy))
     // Visual cleanup — strip the anchor decoration once resolved
     // (parallel to the canvas's resolved-thread behavior).
     editor.commands.removeCommentMark(threadId)
-  }, [editor, persistSidecarMutation])
+  }, [editor, persistSidecarMutation, authorOrLegacy])
 
   const handleReopenThread = useCallback((threadId: string) => {
     if (!editor) return

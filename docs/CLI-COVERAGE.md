@@ -99,6 +99,7 @@ for the authoritative usage text.
 | Verb | What it does |
 |---|---|
 | `duo theme [system\|light\|dark]` | Read or set theme mode |
+| `duo author [<name>]` | **BUG-138 Phase 2** — read or set the human author identity used to stamp CriticMarkup marks (track-changes insert/delete/substitute/comment). No arg → JSON `{author}`; with a name → persist + print. Defaults to `$USER` on first read. Stored in renderer localStorage `duo:author`. Agents stamp their own attribution via the `DUO_AUTHOR` env var on per-op verbs (Phase 3); this verb is for the human user. |
 | `duo claude-return [submit\|newline]` | **v0.6.15** — Claude-tab plain Return behavior. Default `submit` (xterm passthrough). `newline` activates the ENH-127 v2 override (writes ESC+CR; Claude reads as multi-line newline; ⌘Return submits). Stored in localStorage `duo.claudeReturn.v1`. |
 | `duo shift-return [submit\|newline]` | **v0.6.15** — Claude-tab Shift+Return behavior. Default `newline` (matches Slack/Discord/claude.ai-web). `submit` disables the override. Stored in localStorage `duo.shiftReturn.v1`. |
 | `duo split <pct\|preset>` | **ENH-014 + ENH-099** — set split-pane percentage (terminal column as % of split container; clamped 20–80). Numeric arg or named preset (`even`, `terminal-heavy`, `canvas-heavy`, `terminal`, `canvas`, `3way`). The `3way` preset is the on-demand sibling of ENH-126: snaps to outer 33/67 + inner aux 50/50 (canonical 3-pane even). Mirrors View → Pane size menu and ⌘⌥1/2/3/4/0/9. |
