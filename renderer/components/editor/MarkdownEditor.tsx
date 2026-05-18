@@ -42,6 +42,7 @@ import { MarkdownLinkShortcuts } from './extensions/MarkdownLinkShortcuts'
 import { InsertionMark } from './extensions/InsertionMark'
 import { DeletionMark } from './extensions/DeletionMark'
 import { HighlightMark } from './extensions/HighlightMark'
+import { SuggestingMode } from './extensions/SuggestingMode'
 import { FencedCodeBlockEnter } from './extensions/FencedCodeBlockEnter'
 import { FindBar } from './FindBar'
 import { CodeBlockCopyButton } from './extensions/CodeBlockCopyButton'
@@ -564,6 +565,10 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       InsertionMark,
       DeletionMark,
       HighlightMark,
+      // BUG-138 Phase 4b/4c — auto-wrap intercept. The extension's
+      // storage flags (enabled + getAuthor) get updated below on
+      // every render so changes flow through without a remount.
+      SuggestingMode,
       // ENH-096 (B1) — Wikilink decoration plugin. Recognizes
       // `[[Page Name]]` patterns in the doc and renders them as
       // styled clickable spans. cmd+click fires `duo-wikilink-open`
@@ -1614,6 +1619,19 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // current state (without re-running editorActions useMemo
   // unnecessarily).
   toggleSuggestingRef.current = toggleSuggestingMode
+
+  // BUG-138 Phase 4b — sync the SuggestingMode extension's storage
+  // with live state on every render. This is how the plugin's
+  // appendTransaction sees the latest enabled-flag + author without
+  // a remount (extension storage is mutable across renders).
+  useEffect(() => {
+    if (!editor) return
+    const storage = editor.storage.suggestingMode as
+      | { enabled: boolean; getAuthor: () => string } | undefined
+    if (!storage) return
+    storage.enabled = suggestingMode
+    storage.getAuthor = () => authorOrLegacy
+  }, [editor, suggestingMode, authorOrLegacy])
 
   useEffect(() => {
     const handler = () => handleStartNewComment()
