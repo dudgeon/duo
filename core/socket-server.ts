@@ -453,6 +453,10 @@ export class SocketServer {
           // path; bare hostnames are pre-resolved by the CLI's
           // resolveOpenTarget() before we ever see them.
           let resolvedLocally = false
+          // BUG-129 — track file:// URLs that DON'T resolve so we can
+          // emit an explicit "file not found" error instead of falling
+          // through to openTab (which would just render a blank tab).
+          let missingFilePath: string | null = null
           if (url.startsWith('file://')) {
             try {
               const localPath = decodeURI(url.slice('file://'.length))
@@ -474,16 +478,27 @@ export class SocketServer {
                   result = { ok: true, url, routedTo }
                   resolvedLocally = true
                 }
+              } else {
+                missingFilePath = localPath
               }
             } catch {
-              // Fall through to the browser-tab path on decode / fs failure.
+              // Fall through to the browser-tab path on decode failure.
             }
+          }
+          // BUG-129 — file:// URL with a missing target: surface a
+          // friendly error to the CLI instead of opening a blank tab.
+          // The dominant cause is agent-authored relative paths that
+          // resolve against the wrong cwd (e.g. `duo open
+          // docs/research/foo.html` from a terminal in the parent
+          // dir). Returning an error here lets the agent self-correct.
+          if (!resolvedLocally && missingFilePath !== null) {
+            result = { ok: false, error: `File not found: ${missingFilePath}` }
+            break
           }
           let openedTabId: number | null = null
           if (!resolvedLocally) {
             // http(s) URLs + bare hostnames (already https://-prefixed by
-            // resolveOpenTarget on the CLI side) all land here. Also a
-            // last-resort path for file:// URLs that failed to resolve.
+            // resolveOpenTarget on the CLI side) all land here.
             const browserResult = await this.browser.openTab(url)
             openedTabId = browserResult.id
             result = { ...browserResult, routedTo: 'browser' }

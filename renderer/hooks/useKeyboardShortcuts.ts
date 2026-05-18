@@ -343,6 +343,23 @@ export function useKeyboardShortcuts(opts: Options) {
     // the canvas-iframe forwarder (which synthesizes events here) all
     // route through this single point.
     const documentHandler = (e: KeyboardEvent) => {
+      // BUG-131 — ⌘A in inputs/textareas should select all the text.
+      // Electron's `role: 'selectAll'` accelerator on the Edit menu
+      // should do this natively, but real-world testing shows it's a
+      // no-op in modal-anchored inputs (Clone modal URL field, etc.).
+      // Explicit fallback: when ⌘A fires AND the focused element is
+      // an INPUT or TEXTAREA, select its contents directly. Skip
+      // contentEditable surfaces (TipTap, canvas) — those have their
+      // own select-all paths.
+      if (e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && e.code === 'KeyA') {
+        const active = document.activeElement as HTMLElement | null
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+          e.preventDefault()
+          e.stopPropagation()
+          ;(active as HTMLInputElement | HTMLTextAreaElement).select()
+          return
+        }
+      }
       const ctx = { inEditableSurface: isInEditableSurface(document) }
       const match = matchGlobalShortcut(e, ctx)
       if (!match) return
