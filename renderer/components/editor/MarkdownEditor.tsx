@@ -28,7 +28,8 @@ import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
 import { SuggestingBanner } from './SuggestingBanner'
-import { countTrackedChanges } from './trackedChanges'
+import { TrackedChangesRail } from './TrackedChangesRail'
+import { collectTrackedChanges, countTrackedChanges, type TrackedRange } from './trackedChanges'
 import { useAutosavePreference } from './autosavePreference'
 import { buildTiptapEditorActions } from './tiptapEditorActions'
 import type { EditorActions } from './EditorActions'
@@ -1425,6 +1426,26 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toolbarVersion, editor])
 
+  /** BUG-138 Phase 4e — full collected list of tracked-change ranges
+   *  for the rail. Same toolbarVersion gate as the count above. */
+  const trackedChangesList = useMemo<TrackedRange[]>(() => {
+    if (!editor) return []
+    return collectTrackedChanges(editor.state.doc)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toolbarVersion, editor])
+
+  /** Scroll the editor to a track-change range. Same pattern as
+   *  scrollToCommentAnchor but for ins/del/highlight ranges. */
+  const handleJumpToTrackedChange = useCallback((range: TrackedRange) => {
+    if (!editor) return
+    const view = editor.view
+    const dom = view.domAtPos(range.from)
+    const node = dom.node.nodeType === 1
+      ? (dom.node as HTMLElement)
+      : (dom.node.parentElement as HTMLElement | null)
+    node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [editor])
+
   /** Adapt to the CommentRail primitive's expected shape. Number is
    *  1-based document order, mirroring the canvas convention. */
   const railThreads = useMemo<CommentThread[]>(() => {
@@ -2450,6 +2471,17 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             <span className="font-mono">#</span>
           </button>
         </div>
+        {/* BUG-138 Phase 4e — per-suggestion track-changes rail.
+            Stacked above the comment rail in the right-side strip.
+            Hidden in isNew mode (no sidecar / no file yet) and when
+            empty. */}
+        {!isNew && trackedChangesList.length > 0 && (
+          <TrackedChangesRail
+            editor={editor}
+            ranges={trackedChangesList}
+            onJumpTo={handleJumpToTrackedChange}
+          />
+        )}
         {/* Sprint 6 Phase 4 / MISSING-001 — comment rail. Mirrors the
             canvas's gating: hidden in isNew mode (no sidecar) and
             when threads are empty. Reuses the shared CommentRail
