@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Markdown comments + track-changes via CriticMarkup — BUG-138 + Stage 14b–d</title>
+<style>
+/* ===== Atelier kernel (inlined) ===== */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 980px; margin: 0 auto; }
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px; margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 {
+  font-family: -apple-system, system-ui, sans-serif;
+  font-weight: 600; margin: 22px 0 8px; font-size: 15px;
+}
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px; background: var(--paper-deep);
+  padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes {
+  width: 100%; background: var(--paper);
+  border: 1px solid var(--paper-rule); border-radius: 4px;
+  padding: 8px 10px; font-family: inherit; font-size: 12.5px;
+  color: var(--ink); resize: vertical; min-height: 50px; margin-top: 8px;
+}
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar {
+  position: sticky; bottom: 0;
+  margin: 32px -40px -96px; padding: 16px 40px;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+}
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button {
+  background: var(--accent); color: white; border: none;
+  border-radius: 5px; padding: 9px 18px; font-family: inherit;
+  font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s;
+}
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ===== Per-playground overrides ===== */
+
+/* Visual: rendered CriticMarkup examples */
+.cm-render { background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-size: 13.5px; }
+.cm-render h4 { font-size: 12px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 6px; }
+.cm-render .insert { background: color-mix(in srgb, var(--pass) 12%, transparent); color: #2c5524; border-bottom: 1px solid #5a8a4a; padding: 0 2px; }
+.cm-render .delete { background: color-mix(in srgb, var(--fail) 12%, transparent); color: #7d2622; text-decoration: line-through; padding: 0 2px; }
+.cm-render .highlight { background: color-mix(in srgb, var(--warn) 22%, transparent); padding: 0 2px; }
+.cm-render .commented { background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 0 2px; border-radius: 2px; }
+.cm-render .comment-marker {
+  display: inline-block; vertical-align: super; font-size: 10px;
+  color: var(--accent); font-weight: 700;
+  background: var(--accent-soft); padding: 1px 5px; border-radius: 3px;
+  margin-left: 2px; cursor: help;
+}
+
+/* Comparison: current vs proposed */
+.compare {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0;
+}
+.compare-cell { padding: 14px; background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; }
+.compare-cell.bad { border-color: color-mix(in srgb, var(--fail) 40%, var(--paper-rule)); }
+.compare-cell.good { border-color: color-mix(in srgb, var(--pass) 40%, var(--paper-rule)); }
+.compare-cell h4 { margin: 0 0 8px; font-size: 13px; }
+.compare-cell.bad h4 { color: var(--fail); }
+.compare-cell.good h4 { color: var(--pass); }
+.compare-cell pre { font-size: 11px; padding: 10px 12px; margin: 6px 0; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Markdown comments + track-changes via CriticMarkup</h1>
+  <div class="meta">
+    <span class="pill">BUG-138</span>
+    <span class="pill">Stage 14b–d</span>
+    Sprint 18 architectural gate. 6 decisions owed before code.
+  </div>
+</header>
+
+<div class="intro">
+  <strong>Why this is urgent.</strong> v0.7.0 ships markdown comments stored in a sidecar <code>&lt;file&gt;.md.duo.json</code>. Owner: <em>"comments that sit outside the file will not be obvious to the agent when it inspects the file."</em> Comments are also lost when the markdown file moves without its sidecar, and invisible in any other editor.
+  <br><br>
+  <strong>What this gate decides.</strong> Migrating to <strong>CriticMarkup</strong> — the standard markdown convention for comments + track-changes — solves agent-visibility, portability, and unifies the parser/serializer for Stage 14b (track changes) + 14c (Suggesting toolbar) + 14d (agent CLI verbs). Pulling all of Stage 14 forward as one coherent chapter. <strong>This playground locks the 6 architectural decisions before we start coding.</strong>
+</div>
+
+<h2>CriticMarkup — the standard syntax</h2>
+
+<p>CriticMarkup defines four edit operations + a comment marker. Already implemented in Obsidian, Marked, Ulysses, IA Writer, and other markdown tools. Going inline means Duo's comments + track-changes round-trip through any compatible editor + are visible in raw markdown.</p>
+
+<div class="cm-render">
+  <h4>The five operations</h4>
+  <p><code>{++inserted text++}</code> renders as <span class="insert">inserted text</span> (insertion).</p>
+  <p><code>{--deleted text--}</code> renders as <span class="delete">deleted text</span> (deletion).</p>
+  <p><code>{~~old text~&gt;new text~~}</code> renders as <span class="delete">old text</span><span class="insert">new text</span> (substitution).</p>
+  <p><code>{==highlighted text==}</code> renders as <span class="highlight">highlighted text</span> (highlight; pairs with comment for anchoring).</p>
+  <p><code>{&gt;&gt;comment body&lt;&lt;}</code> renders as <span class="comment-marker">💬</span> at the position (comment). Body shown in rail / hover.</p>
+  <p><code>{==anchor text==}{&gt;&gt;comment body&lt;&lt;}</code> renders as <span class="commented">anchor text</span><span class="comment-marker">💬</span> (comment anchored to a highlighted range).</p>
+</div>
+
+<h3>Current vs proposed</h3>
+
+<div class="compare">
+  <div class="compare-cell bad">
+    <h4>❌ Current (v0.6.7+ via sidecar JSON)</h4>
+    <pre>foo.md
+─────────────────
+This is the body text.
+The agent reads only this.
+
+foo.md.duo.json  (separate file)
+─────────────────
+{
+  "comments": [{
+    "id": "c-01",
+    "body": "Reconsider this section",
+    "excerpt": "body text",
+    "author": "dudgeon",
+    ...
+  }]
+}</pre>
+    <ul>
+      <li><strong>Lost</strong> when foo.md moves without sidecar.</li>
+      <li><strong>Invisible</strong> to the agent doing <code>Read foo.md</code>.</li>
+      <li><strong>Not portable</strong> — other md editors render clean text.</li>
+    </ul>
+  </div>
+  <div class="compare-cell good">
+    <h4>✅ Proposed (inline CriticMarkup)</h4>
+    <pre>foo.md
+─────────────────
+This is the {==body text==}{>>id:c-01|author:dudgeon|ts:2026-05-18T12:34:56Z|Reconsider this section<<}.
+The agent reads {++ALL of++} this.
+
+foo.md.duo.json  (sidecar — for non-comment metadata only)
+─────────────────
+{
+  "version": 1,
+  "recentEdits": [...]
+}</pre>
+    <ul>
+      <li><strong>Travels with the file.</strong></li>
+      <li><strong>Visible</strong> to the agent + any other markdown reader.</li>
+      <li><strong>Portable</strong> — works in Obsidian / IA Writer / etc.</li>
+    </ul>
+  </div>
+</div>
+
+<h2>Decisions to lock</h2>
+
+<div class="decision-card" data-q-id="body-shape">
+  <div class="q-title">Q1 · Metadata body structure</div>
+  <div class="q-prompt">How do we embed Duo-specific metadata (id, author, timestamp, reply-to) inside CriticMarkup's body?</div>
+  <div class="q-context">CriticMarkup itself doesn't define metadata. We need an opinionated extension. The body must round-trip through any CriticMarkup-aware reader without breaking — readers should still see SOMETHING reasonable.</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-body-shape" value="A-pipe"><div class="q-option-body">
+      <div class="q-option-title">A · Pipe-delimited prefix <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">
+        <code>{&gt;&gt;id:c-01|author:claude|ts:2026-05-18T12:34:56Z|reply-to:c-00?|body text<&lt;}</code>.
+        Fixed metadata fields come first; body is everything after the last <code>|</code>. Simple parser; readers that don't understand the prefix still see the body (slightly cluttered but readable). Bodies CAN contain <code>|</code> — the parser just splits the first N <code>|</code>s for metadata.
+      </div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-body-shape" value="B-html-comment"><div class="q-option-body">
+      <div class="q-option-title">B · HTML comment + body</div>
+      <div class="q-option-rationale">
+        <code>{&gt;&gt;&lt;!-- id="c-01" author="claude" ts="..." --&gt; body text&lt;&lt;}</code>.
+        Metadata in an HTML comment (which markdown renderers ignore). Bodies are unconstrained. Slightly more verbose; some readers may render the HTML comment markers visibly.
+      </div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-body-shape" value="C-json"><div class="q-option-body">
+      <div class="q-option-title">C · JSON-encoded</div>
+      <div class="q-option-rationale">
+        <code>{&gt;&gt;{"id":"c-01","author":"claude","ts":"...","body":"body text"}&lt;&lt;}</code>.
+        Fully structured; easy to parse. Readers that don't understand see raw JSON — ugly.
+      </div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-body-shape" value="D-bare-with-sidecar"><div class="q-option-body">
+      <div class="q-option-title">D · Bare CriticMarkup + sidecar metadata</div>
+      <div class="q-option-rationale">
+        <code>{&gt;&gt;body text&lt;&lt;}</code> in the file; metadata (id, author, ts, replies) stays in the sidecar JSON. <em>Doesn't actually solve the agent-visibility problem</em> — the metadata is still invisible. Not recommended.
+      </div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="Notes / alternative shape you'd want…"></textarea>
+</div>
+
+<div class="decision-card" data-q-id="track-scope">
+  <div class="q-title">Q2 · Track-changes scope for v1</div>
+  <div class="q-prompt">Which CriticMarkup operations ship in the v1 chapter?</div>
+  <div class="q-context">All four operations + comments use the same parser/serializer. Shipping all five is roughly the same coding effort as shipping the parser/serializer for one. The trade-off is UI surface — Suggesting toolbar mode (Stage 14c) per-operation.</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-track-scope" value="A-all-five"><div class="q-option-body">
+      <div class="q-option-title">A · All five (comment + insert + delete + substitute + highlight) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Parser/serializer covers all CriticMarkup ops; UI surfaces them. Maximum value from the architectural lift. Stage 14b–d shipped together.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-track-scope" value="B-comment-only"><div class="q-option-body">
+      <div class="q-option-title">B · Comment + highlight only (defer insert/delete/substitute)</div>
+      <div class="q-option-rationale">Focus on the bug fix (BUG-138). Track-changes stays Stage 14b for later. Less risk; smaller surface; defers the suggested-edits UX questions.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-track-scope" value="C-comment-insert-delete"><div class="q-option-body">
+      <div class="q-option-title">C · Comment + insert + delete (skip substitute + highlight-only)</div>
+      <div class="q-option-rationale">The three operations the agent actually needs to record edits. Substitute is just delete+insert; highlight-alone (no comment) is rare. Smaller scope than A; covers the agent-CLI use case.</div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="Scope concerns / specific ops you'd want first…"></textarea>
+</div>
+
+<div class="decision-card" data-q-id="author-model">
+  <div class="q-title">Q3 · Author attribution model</div>
+  <div class="q-prompt">Who authored an edit / comment? How do we encode it?</div>
+  <div class="q-context">Owner directive: <em>"will need author attribution at least for human and agent."</em> Question is granularity — bare two-role, name-aware, or fully free-form.</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-author-model" value="A-two-role"><div class="q-option-body">
+      <div class="q-option-title">A · Two roles: <code>human</code> + <code>agent</code></div>
+      <div class="q-option-rationale">Minimal; matches owner's directive. UI distinguishes the two via color / icon (e.g. blue=human, orange=agent). No identity beyond that.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-author-model" value="B-named"><div class="q-option-body">
+      <div class="q-option-title">B · Named (<code>dudgeon</code> + <code>claude</code> / <code>codex</code> / etc.) <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">User-visible name plus agent-runtime name. Human name from a <code>duo author</code> setting (defaults to <code>$USER</code>). Agent name from the agent's context (Claude sets it via <code>--append-system-prompt</code> equivalent). Forward-compatible with multi-agent flows.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-author-model" value="C-free"><div class="q-option-body">
+      <div class="q-option-title">C · Free-form string per author</div>
+      <div class="q-option-rationale">Any string the caller wants. Most flexible; least disciplined. No UI-side role differentiation; can't easily filter "show only my comments" vs "show only agent edits."</div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="Author UX / identity questions…"></textarea>
+</div>
+
+<div class="decision-card" data-q-id="agent-verb">
+  <div class="q-title">Q4 · Agent CLI verb shape (Stage 14d)</div>
+  <div class="q-prompt">How does the agent record its own changes as tracked edits via the CLI?</div>
+  <div class="q-context">Owner directive: <em>"need a duo verb for the agent to use track changes for own changes."</em> Question is API ergonomics — explicit per-op verbs, flag on existing write, or auto-diff.</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-agent-verb" value="A-per-op"><div class="q-option-body">
+      <div class="q-option-title">A · Explicit per-operation verbs <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">
+        <code>duo doc insert &lt;file&gt; --at &lt;anchor&gt; --text "…"</code><br>
+        <code>duo doc delete &lt;file&gt; --range &lt;anchor-pair&gt;</code><br>
+        <code>duo doc substitute &lt;file&gt; --range &lt;anchor-pair&gt; --with "…"</code><br>
+        <code>duo doc comment &lt;file&gt; --anchor &lt;anchor&gt; --body "…"</code><br>
+        <code>duo doc accept &lt;file&gt; --range &lt;anchor-pair&gt;</code> / <code>--reject</code><br>
+        Anchor format same as existing Stage 11 verbs: <code>heading:"X"</code> / <code>line:42</code> / <code>text:"exact"</code>. Explicit, scriptable, agents discover via help.
+      </div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-agent-verb" value="B-write-flag"><div class="q-option-body">
+      <div class="q-option-title">B · Flag on existing write (<code>--as-tracked</code>)</div>
+      <div class="q-option-rationale"><code>duo edit &lt;file&gt; --as-tracked</code> + a Write call. Duo diffs against current content and wraps changes in CriticMarkup. Less granular but matches the agent's normal Read-then-Write workflow.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-agent-verb" value="C-auto-diff"><div class="q-option-body">
+      <div class="q-option-title">C · Auto-diff every agent write</div>
+      <div class="q-option-rationale">When the active document has track-changes mode ON, every <code>Write</code> from a duo PTY is auto-diffed against the prior version and wrapped in CriticMarkup. Most ergonomic; least explicit. Requires per-doc track-mode state.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-agent-verb" value="D-both-A-and-B"><div class="q-option-body">
+      <div class="q-option-title">D · Both A + B</div>
+      <div class="q-option-rationale">Per-op verbs for surgical edits; <code>--as-tracked</code> flag for bulk rewrites. Ergonomic for both styles; doubles surface area.</div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="API shape / specific verbs you'd want…"></textarea>
+</div>
+
+<div class="decision-card" data-q-id="migration">
+  <div class="q-title">Q5 · Migration trigger for existing sidecar comments</div>
+  <div class="q-prompt">v0.6.7+ users have comments in sidecars. How do we migrate them to inline CriticMarkup?</div>
+  <div class="q-context">Each file with sidecar-comments needs a one-shot migration. The re-anchor logic to find where each comment goes in the markdown body already exists; we just need to write the CriticMarkup at those positions.</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-migration" value="A-auto-silent"><div class="q-option-body">
+      <div class="q-option-title">A · Auto-migrate on first load, silent</div>
+      <div class="q-option-rationale">User opens a file; if sidecar has comments AND body has no CriticMarkup, migrate immediately. Sidecar's <code>comments[]</code> cleared post-write. No UI; user just sees their comments now inline.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-migration" value="B-auto-toast"><div class="q-option-body">
+      <div class="q-option-title">B · Auto-migrate + small toast <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">Same as A but with a 5-second toast: <em>"Migrated N comments to inline format. Comments now travel with the file."</em> User isn't surprised by the change; can read up if curious.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-migration" value="C-banner-confirm"><div class="q-option-body">
+      <div class="q-option-title">C · Banner prompt — user confirms</div>
+      <div class="q-option-rationale">Banner above the editor: <em>"This file has N comments stored in a sidecar. Migrate to inline CriticMarkup? [Migrate] [Keep sidecar]"</em>. User opts in. More conservative; some users may never click and stay on the broken architecture forever.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-migration" value="D-cli-verb"><div class="q-option-body">
+      <div class="q-option-title">D · CLI verb only (<code>duo doc migrate-comments &lt;file&gt;</code>)</div>
+      <div class="q-option-rationale">Pure CLI. UI doesn't auto-prompt. Useful for bulk migration but most users won't discover it. Defeats the bug-fix urgency.</div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="Migration UX questions…"></textarea>
+</div>
+
+<div class="decision-card" data-q-id="backward-read">
+  <div class="q-title">Q6 · Backward-read tolerance</div>
+  <div class="q-prompt">Once Sprint 18 ships, how does Duo treat OLD sidecar-only comments (e.g. on a file the user hasn't opened since v0.6.x)?</div>
+  <div class="q-context">If we hard-cut, files with sidecar-only comments lose them on first open until they get re-migrated. If we tolerate forever, we ship dual-read code for the long haul.</div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q-backward" value="A-tolerate-until-touched"><div class="q-option-body">
+      <div class="q-option-title">A · Read both until file is touched; on next save, only inline <span class="recommend-tag">Recommended</span></div>
+      <div class="q-option-rationale">First open: read CriticMarkup from body + comments from sidecar; merge. First save: write CriticMarkup only; clear sidecar's <code>comments[]</code>. No user-visible behavior change beyond the migration. Sidecar reading deprecated in v0.9.0 (1 minor cycle).</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-backward" value="B-hard-cut"><div class="q-option-body">
+      <div class="q-option-title">B · Hard cut — only read inline CriticMarkup</div>
+      <div class="q-option-rationale">v0.7.1+: sidecar's <code>comments[]</code> field is ignored. Files opened without prior migration LOSE their comments. Forces aggressive migration but high data-loss risk for users who don't open every file.</div>
+    </div></label>
+
+    <label class="q-option"><input type="radio" name="q-backward" value="C-forever"><div class="q-option-body">
+      <div class="q-option-title">C · Read both forever</div>
+      <div class="q-option-rationale">Sidecar reading stays. New writes go inline; old sidecar entries are merged. Most conservative; carries dual-read code indefinitely.</div>
+    </div></label>
+  </div>
+
+  <textarea class="q-notes" placeholder="Backward-compat concerns…"></textarea>
+</div>
+
+<h2>Out of scope (for this gate)</h2>
+
+<ul>
+  <li><strong>Canvas (HTML) comments architecture.</strong> Same agent-visibility argument applies but the migration shape differs — HTML can persist comments in custom attrs or comment elements. Sibling decision deferred to a separate playground after BUG-138 lands.</li>
+  <li><strong>Suggesting toolbar mode visual (Stage 14c).</strong> When user toggles "Suggesting on," edits are wrapped as track-changes by default; visual treatment matches Google Docs / Word. Locks in implementation once the parser/serializer is done — visual decisions can wait.</li>
+  <li><strong>Side-by-side diff view.</strong> Some users will want "view with all suggestions applied" / "view with all rejected" / "side-by-side." Pure UI feature; can come after the data model is stable.</li>
+</ul>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 6 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+  const radios = document.querySelectorAll('input[type="radio"]')
+  const answeredEl = document.getElementById('answered-count')
+  const copyBtn = document.getElementById('copy-btn')
+
+  function refreshAnswered() {
+    const groups = new Set()
+    radios.forEach(r => { if (r.checked) groups.add(r.name) })
+    answeredEl.textContent = String(groups.size)
+  }
+  radios.forEach(r => r.addEventListener('change', refreshAnswered))
+
+  copyBtn.addEventListener('click', async () => {
+    const cards = document.querySelectorAll('.decision-card')
+    const lines = []
+    cards.forEach(card => {
+      const qTitle = card.querySelector('.q-prompt').textContent.trim()
+      const checked = card.querySelector('input[type="radio"]:checked')
+      const value = checked ? checked.value : 'UNANSWERED'
+      const optionTitle = checked ? checked.closest('.q-option').querySelector('.q-option-title').textContent.trim() : '—'
+      const notes = card.querySelector('.q-notes')?.value.trim() ?? ''
+      lines.push(`[${value}] ${qTitle}`)
+      lines.push(`  → ${optionTitle}`)
+      if (notes) lines.push(`  notes: ${notes}`)
+      lines.push('')
+    })
+    const payload = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(payload)
+      copyBtn.textContent = 'Copied ✓'
+      copyBtn.classList.add('copied')
+      setTimeout(() => { copyBtn.textContent = 'Copy decisions'; copyBtn.classList.remove('copied') }, 1800)
+    } catch (e) {
+      alert('Copy failed: ' + e.message)
+    }
+  })
+
+  refreshAnswered()
+</script>
+
+</body>
+</html>

@@ -6463,9 +6463,11 @@ Also caught + filed:
 
 ---
 
-### BUG-138: Markdown comments persisted in sidecar JSON instead of in-file CriticMarkup — invisible to agent and lost when file moves
+### BUG-138 / Stage 14b–d: Markdown comments + track-changes via CriticMarkup — agent-visible + portable + unified Stage 14 chapter
 
-**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.0-cut).** Sprint 18 **HIGH priority** — architectural correctness + agent-visibility violation.
+**Status:** 🟡 **Awaiting owner-decision gate** — 6 decisions in [`docs/research/markdown-criticmarkup-comments-trackchanges.html`](docs/research/markdown-criticmarkup-comments-trackchanges.html). Filed 2026-05-18. Sprint 18 anchor item. **HIGH priority** — architectural correctness + agent-visibility violation.
+
+**Scope expanded 2026-05-18 (owner directive).** *"If it makes sense to pull in track changes intent and knock all of these out together, let's do that (incl a duo verb for the agent to use track changes for own changes — so will need author attribution at least for human and agent)."* This ticket now covers what was previously Stage 14b (track-changes parser/serializer + visual), 14c (Suggesting toolbar mode), and 14d (agent CLI surface) — all of which share CriticMarkup machinery with BUG-138's comment-storage migration. One coherent v0.7.1+ chapter rather than four staged pieces.
 
 **Symptom.** Owner: *"you did not build markdown comments correctly; comments are supposed to be persisted in the markdown file itself, using criticMarkup notation (and adding opinionated extensions if needed) — NOT as a separate json file that needs to travel with the markdown file or be lost. even more worrying, comments that sit outside the file will not be obvious to the agent when it inspects the file!!"*
 
