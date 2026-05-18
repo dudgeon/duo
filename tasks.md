@@ -6407,7 +6407,14 @@ Verified the gap empirically:
 
 ### ENH-163: Rename "Send → Duo" pill to "Send → agent"
 
-**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut prep).**
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut prep, rev6-rev2 fix).** Three implementations — owner rev6 walk caught two I had missed:
+1. [`renderer/components/editor/primitives/SendToDuoPill.tsx`](renderer/components/editor/primitives/SendToDuoPill.tsx) — the React component used by canvas + markdown editor + BrowserRenderer (renamed in rev6-rev1).
+2. [`electron/cdp-bridge.ts § SELECTION_OBSERVER_IIFE`](electron/cdp-bridge.ts) — CDP-injected pill that runs INSIDE every browser-pane page. Text was `Send → Duo ↗` (with trailing arrow). **Renamed in rev6-rev2.**
+3. [`electron/cdp-bridge.ts § INSPECT_OBSERVER_IIFE`](electron/cdp-bridge.ts) — separate pill for the ⌘⇧C inspect-mode flow (ENH-159). Text was `Send to Duo`. **Renamed in rev6-rev2.**
+
+All three now read `Send → agent` with no trailing arrow. Lesson filed as `feedback_grep_all_implementations_before_rename.md`.
+
+Also caught + filed:
 
 **Source:** Owner idle-thought 2026-05-17: *"'send to duo' pill should say 'send to agent' (really claude, but we don't know if user is running codex/other agent)."*
 
@@ -6465,7 +6472,11 @@ Defer until post-cut. No user impact today; pure clarity refactor.
 
 ### BUG-131: `⌘A` is a no-op inside playground text fields — should select all text
 
-**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev6 pull).** Added a capture-phase fallback in [`renderer/hooks/useKeyboardShortcuts.ts`](renderer/hooks/useKeyboardShortcuts.ts): when ⌘A fires AND `document.activeElement` is an INPUT or TEXTAREA, explicitly call `.select()`. Skips contentEditable surfaces (TipTap, canvas) which have their own select-all. Root cause was inconclusive — Electron's `role:'selectAll'` accelerator should have worked but didn't in modal-anchored inputs; the explicit fallback is defense in depth.
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev6-rev2 fix).** Two-part fix because the bug exists at TWO layers:
+1. **Renderer-side inputs (rev6-rev1 fix):** Added a capture-phase fallback in [`renderer/hooks/useKeyboardShortcuts.ts`](renderer/hooks/useKeyboardShortcuts.ts): when ⌘A fires AND `document.activeElement` is an INPUT or TEXTAREA, explicitly call `.select()`.
+2. **Browser-pane inputs (rev6-rev2 fix):** Owner clarified the real failing surface — TEXTAREAs in the SMOKE WALK PAGE (rendered in the browser pane via file://), not the renderer's modal inputs. Root cause: [`electron/browser-manager.ts § wireKeyForwarding`](electron/browser-manager.ts)'s `isDuoShortcut` list had `input.code === 'KeyA'` unconditional — meant for ⌘⇧A (tab-search palette) but caught plain ⌘A too, forwarding it to the renderer (which has no plain-⌘A handler) → no-op. Fix: gate on `input.shift && input.code === 'KeyA'`. Plain ⌘A now falls through to Chromium's native textarea selectAll.
+
+Owner directive that produced rev2: *"you misunderstood this intent. the cmd-a fail was in the comment sections of the smoke walk pages, like the one I am typing in now -- which is still a no op!!!"*
 
 Originally filed:
 **Priority:** Medium — basic-affordance gap. Owner used the Clone modal's URL/parent inputs and reported ⌘A doesn't select all text in those fields.
