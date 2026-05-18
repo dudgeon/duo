@@ -6405,6 +6405,31 @@ Verified the gap empirically:
 
 ---
 
+### ENH-164: `duo terminal new --kind claude` CLI verb
+
+**Status:** 🟡 **Filed 2026-05-18 (POST-CUT).** Surfaced by `feedback_spawn_claude_for_testing_when_needed.md`.
+
+**Why:** Today there's no deterministic CLI verb to spawn a fresh Claude terminal. Agent-side testing of claudePresence-gated features (Send→agent pill click chain, ENH-013 surfaces) requires either an existing Claude session OR writing `claude\n` into an active shell terminal via `duo send` — the latter is brittle (depends on what's in front).
+
+**Shape:**
+- `duo terminal new` — spawns a fresh shell terminal tab (kind:'shell').
+- `duo terminal new --kind claude` — spawns a Claude terminal tab (kind:'claude'). Equivalent of the renderer's `+` button with kind=claude.
+- `--cwd <path>` — optional starting cwd (defaults to current Navigator cwd).
+- Returns `{ok: true, id: <tab-uuid>, kind: 'claude' | 'shell'}` so callers can poll for claudePresence detection.
+
+**Plumbing checklist (per CLAUDE.md § 4):**
+- `shared/types.ts` — add to `DuoCommandName`.
+- `electron/preload.ts` — bridge.
+- `electron/main.ts` — ipcMain handler dispatching to renderer (terminal-create lives renderer-side today).
+- `electron/socket-server.ts` — new case in command switch.
+- `cli/duo.ts` — verb + `printHelp()` update. Rebuild binary.
+- `skill/SKILL.md` + `agents/duo.md` cheat-sheet entries.
+- `docs/CLI-COVERAGE.md` — inventory update.
+
+**Pairs with:** `feedback_spawn_claude_for_testing_when_needed.md` — agents should be able to set up live-Claude test conditions without relying on the user.
+
+---
+
 ### ENH-163: Rename "Send → Duo" pill to "Send → agent"
 
 **Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut prep, rev6-rev2 fix).** Three implementations — owner rev6 walk caught two I had missed:
