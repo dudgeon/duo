@@ -149,7 +149,7 @@ describe('INSPECT_OBSERVER_IIFE — ENH-159b structural invariants', () => {
     // element. Owner directive: orange pill matches brand kernel.
     expect(INSPECT_OBSERVER_IIFE).toContain('function ensurePill()')
     expect(INSPECT_OBSERVER_IIFE).toContain('function positionPill(')
-    expect(INSPECT_OBSERVER_IIFE).toContain('Send to Duo')
+    expect(INSPECT_OBSERVER_IIFE).toContain('Send → agent')
     // Pill click calls shipAndExit (the ship-and-clear-state path).
     const pillBlock = INSPECT_OBSERVER_IIFE.match(/function ensurePill\(\) \{([\s\S]*?)\n  \}/)![1]
     expect(pillBlock).toContain('shipAndExit(frozen)')

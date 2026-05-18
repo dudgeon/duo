@@ -6446,7 +6446,9 @@ Verified the gap empirically:
 
 ### FOLLOWUP-026: Rename `files.openExternal` → `files.openPath` for clarity
 
-**Status:** 🟡 **Open** (post-cut).
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev6 pull).** Mechanical rename across 8 files: IPC channel `FILES_OPEN_EXTERNAL` → `FILES_OPEN_PATH` (`'files:open-path'`), `FilesService.openExternal()` → `openPath()`, `window.electron.files.openExternal` → `openPath`, type signature in host-api.ts, and 3 call sites (FileRenderers, FileTree open-with-default, ImageView). Agent-side URL helper (`openExternalUrl` → `shell.openExternal`) stays as-is — it was always correctly named.
+
+Originally filed:
 
 **Why:** During BUG-132 investigation, `files.openExternal` was a footgun — sounded like `shell.openExternal` (URL opener) but was actually `shell.openPath` (local file opener). One renderer caller had been using it for URLs and silently failing for who knows how long.
 
@@ -6463,7 +6465,9 @@ Defer until post-cut. No user impact today; pure clarity refactor.
 
 ### BUG-131: `⌘A` is a no-op inside playground text fields — should select all text
 
-**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 FOLLOWUP-025 walk).
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev6 pull).** Added a capture-phase fallback in [`renderer/hooks/useKeyboardShortcuts.ts`](renderer/hooks/useKeyboardShortcuts.ts): when ⌘A fires AND `document.activeElement` is an INPUT or TEXTAREA, explicitly call `.select()`. Skips contentEditable surfaces (TipTap, canvas) which have their own select-all. Root cause was inconclusive — Electron's `role:'selectAll'` accelerator should have worked but didn't in modal-anchored inputs; the explicit fallback is defense in depth.
+
+Originally filed:
 **Priority:** Medium — basic-affordance gap. Owner used the Clone modal's URL/parent inputs and reported ⌘A doesn't select all text in those fields.
 **Filed:** 2026-05-17.
 
@@ -6486,7 +6490,14 @@ Defer until post-cut. No user impact today; pure clarity refactor.
 
 ### ENH-162: Clone modal — handle destination-already-contains-repo collision
 
-**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 FOLLOWUP-025 walk).
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev6 pull) — v1.** Three additions to [`renderer/components/CloneModal.tsx`](renderer/components/CloneModal.tsx):
+1. **Pre-flight collision check** — debounced (300ms) `files.dirExists` + `files.exists` on the would-be target path. Re-runs when URL or parent changes.
+2. **Amber warning panel** above the inputs when collision detected. Shows the colliding path + "Reveal existing folder in Finder" button. Disables Clone button until the user changes the parent or repo name.
+3. **Friendlier error render** — when the clone DID fire and stderr matches `/already exists|not an empty directory/i`, render a cleaner "That folder already exists" message with the Reveal-in-Finder button instead of raw gh/git stderr.
+
+**Deferred to v0.7.1 (ENH-162 v2):** match-existing-repo detection (check if existing folder is already a clone of the same URL → offer "Open existing folder" instead of cloning). Needs a new IPC for `git remote get-url` on the existing folder; not worth the scope for v0.7.0.
+
+Originally filed:
 **Priority:** Medium — error path is currently bare ("Clone failed" with whatever gh/git emitted, which may be cryptic).
 **Filed:** 2026-05-17.
 
@@ -6544,7 +6555,9 @@ Compare with **canvas mode** (kind: 'page'): canvas mounts a contentEditable ifr
 
 ### BUG-129: `duo open` / file-tab open should error when target file doesn't exist, not silently render a blank page
 
-**Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev2 walk handoff).
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev6 pull).** Added a `file://` stat check in [`core/socket-server.ts § case 'open'`](core/socket-server.ts): when the local path doesn't exist, return `{ok:false, error:"File not found: <path>"}` instead of falling through to `browser.openTab` (which produces the silent-blank-tab symptom). Note: v1 fixes only the CLI socket path. UI-side (Navigator clicks, did-fail-load fallback in BrowserRenderer) deferred — agent typo is the dominant case and the CLI fix closes it. Filed FOLLOWUP entry if the UI gap matters in practice.
+
+Originally filed:
 **Priority:** Medium — silent-fail-as-blank-page wastes the user's time and is a class of bug rather than a one-shot ("did the playground break?" vs "is the path wrong?").
 **Filed:** 2026-05-17.
 

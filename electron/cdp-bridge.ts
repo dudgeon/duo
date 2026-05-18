@@ -87,9 +87,9 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
   function ensurePill() {
     if (pill) return pill;
     pill = document.createElement('button');
-    pill.setAttribute('aria-label', 'Send → Duo');
+    pill.setAttribute('aria-label', 'Send → agent');
     pill.setAttribute('data-duo-send-pill', '1');
-    pill.textContent = 'Send → Duo ↗';
+    pill.textContent = 'Send → agent';
     var s = pill.style;
     s.setProperty('position', 'fixed', 'important');
     s.setProperty('z-index', '2147483647', 'important');
@@ -165,7 +165,7 @@ export const SELECTION_OBSERVER_IIFE = `(function () {
     // Runtime.evaluate whenever the renderer's claudeLive state
     // flips (cdp-bridge § setClaudeLive method below). When false
     // (no Claude tab active in the terminal pane), the pill never
-    // renders — clicking "Send → Duo" with no destination is dead
+    // renders — clicking "Send → agent" with no destination is dead
     // UI noise. Owner has reported this recurringly across walks;
     // gating at the page-DOM-creation level is the correct layer
     // (the renderer-side onSendToDuo gate already prevents the
@@ -426,7 +426,7 @@ export const INSPECT_OBSERVER_IIFE = `(function () {
     if (pill) return pill;
     pill = document.createElement('button');
     pill.setAttribute('data-duo-inspect-pill', '1');
-    pill.textContent = 'Send to Duo';
+    pill.textContent = 'Send → agent';
     var s = pill.style;
     s.setProperty('position', 'fixed', 'important');
     s.setProperty('z-index', '2147483647', 'important');

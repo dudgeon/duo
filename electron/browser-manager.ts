@@ -1029,7 +1029,14 @@ export class BrowserManager {
         // but no-op'd from browser-pane focus — and once the palette
         // had been used once (focus moves to WCV after pick) it stopped
         // working entirely.
-        input.code === 'KeyA' ||
+        //
+        // BUG-131 (v0.7.0 rev6) — gated on `input.shift` so we ONLY
+        // intercept ⌘⇧A (the palette), NOT plain ⌘A (which should
+        // fall through to Chromium's native select-all for the focused
+        // input/textarea). Pre-fix: this intercepted both, which is why
+        // ⌘A in textareas of browser-pane pages (smoke-walk inputs, any
+        // playground form field) was a no-op.
+        (input.shift && input.code === 'KeyA') ||
         // ENH-159b — ⌘⇧C toggles inspect mode (Chrome devtools parity).
         // Without forwarding, Chromium routes ⌘⇧C to its own developer-
         // tools shortcut, which doesn't surface in WebContentsView, so
