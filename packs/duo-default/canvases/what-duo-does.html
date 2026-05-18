@@ -333,6 +333,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="inspect mode element pick hover freeze enh-159 cmd shift c command-shift-c devtools-parity ship-and-exit pill anchored frozen three-state machine claude selector outline">
+  <div class="num">13c</div>
+  <div>
+    <h3>Inspect an element on the page and send it to Claude</h3>
+    <p class="why"><strong>v0.7.0:</strong> ⌘⇧C (or <code>duo inspect</code>) puts the browser pane into element-inspect mode. Hover any element on the page to outline it; click to freeze the selection and pin a "Send → agent" pill anchored to the element. ⌘D (or click the pill) ships the element's snapshot — tag name, computed selector, inner text, attributes, page title — to your active Claude terminal. ESC unfreezes without shipping. Three-state machine: idle → hovering → frozen → ship-and-exit. Same egress as text selection's Send → agent pill.</p>
+    <p class="how"><strong>UI</strong>⌘⇧C → hover → click to freeze → ⌘D to ship · or <code>duo inspect</code> from the CLI to toggle.</p>
+  </div>
+</article>
+
 <h2 class="cat">Files & navigation</h2>
 <p class="cat-tagline">The left column is your workspace. The breadcrumb tells you where you are.</p>
 
@@ -387,6 +396,42 @@
     <h3>Open a file from Finder into Duo</h3>
     <p class="why">Duo registers as a macOS Open With candidate for <code>.md</code> and <code>.html</code> files. Right-click any markdown or HTML file in Finder → <strong>Open With</strong> → <strong>Duo</strong>, and the file lands in the working pane via the same smart-routing path as <code>duo open</code> (markdown → editor; HTML → canvas, or browser if its <code>duo-open-in</code> meta says so). Set Duo as the default for an extension via Get Info → Open With → Change All. Cold-start is supported — opening a file from Finder while Duo is closed launches the app and routes the file once the renderer mounts. <strong>v0.6.5+ (signed DMG only)</strong></p>
     <p class="how"><strong>UI</strong>Right-click a file in Finder → Open With → Duo, or set Duo as default for the extension.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="git status ribbon branch dirty ahead behind navigator chip enh-152a peer-repo modified-option-b lucide git-branch icon hover popover">
+  <div class="num">17c</div>
+  <div>
+    <h3>See git status at a glance in the Navigator</h3>
+    <p class="why"><strong>v0.7.0:</strong> when the Navigator's cwd is inside a git repo, a slim ribbon at the top of the tree shows the branch + dirty / ahead / behind counts (`main · 3 modified · 2 ahead`). Right-click the ribbon for repo-level menu items. When the cwd contains MULTIPLE child folders that are repo roots (e.g. `~/Documents/GitHub` with `duo/`, `figma-cli-skill/`, etc.), each child gets a small right-aligned <code>⎇</code> Lucide git-branch icon — hover the icon to reveal the same chip in a popover below the row. Icon color reflects state: ink-mute (clean), accent (dirty), warn (diverged).</p>
+    <p class="how"><strong>UI</strong>Ribbon + per-folder icon are automatic. Hover the icon to see the chip; right-click for context menu.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="dirty dot per-file modified untracked staged deleted renamed unmerged tooltip status-diff enh-152b navigator">
+  <div class="num">17d</div>
+  <div>
+    <h3>Dirty-file dots on changed files</h3>
+    <p class="why"><strong>v0.7.0:</strong> any file in the Navigator that's dirty per <code>git status</code> gets a small orange dot to the right of its name. Hover the dot for the STATUS-DIFF tooltip — e.g. "Modified · +42 / -7". Refresh is fsevents-driven so dots update within ~150ms of a save (bounded depth, common caches like <code>.next</code> / <code>node_modules</code> ignored). Repo-root folders show their roll-up via the ribbon (item 17c); individual files show their own status.</p>
+    <p class="how"><strong>UI</strong>Visible automatically when in a repo; hover the dot for diff stats.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="open on github right click context menu copy github url enh-155 enterprise github company">
+  <div class="num">17e</div>
+  <div>
+    <h3>Open a file or folder on GitHub from the Navigator</h3>
+    <p class="why"><strong>v0.7.0:</strong> right-click any file or folder inside a GitHub-remote repo. Two new menu items: <strong>Open on GitHub</strong> (opens the file's blob page or folder's tree page in your default browser) and <strong>Copy GitHub URL</strong> (clipboard, no browser). Works for github.com AND Enterprise hosts (<code>github.&lt;company&gt;.com</code> auto-detected from the remote URL). Same items show up when right-clicking the git ribbon at the top of the tree.</p>
+    <p class="how"><strong>UI</strong>Right-click → "Open on GitHub" or "Copy GitHub URL".</p>
+  </div>
+</article>
+
+<article class="item" data-keys="clone github modal file menu cmd shift k command-shift-k repo url owner-repo gh auth probe destination collision pre-flight followup-025 enh-162">
+  <div class="num">17f</div>
+  <div>
+    <h3>Clone a GitHub repo from inside Duo</h3>
+    <p class="why"><strong>v0.7.0:</strong> File menu → <strong>Clone from GitHub…</strong> opens a modal. Paste a URL (<code>https://github.com/owner/repo</code> or <code>owner/repo</code>) plus a parent directory; the repo name is derived. The Navigator's current cwd is the default parent. Pre-flight collision check fires while you type — if the target folder already exists, an amber warning shows above the inputs with a "Reveal existing folder in Finder" button and the Clone button stays disabled. On success, the Navigator jumps to the new folder. Right-click any folder in the Navigator for "Clone GitHub repo here…" to skip the parent-dir picker.</p>
+    <p class="how"><strong>UI</strong>File menu → Clone from GitHub… · or right-click in the Navigator → Clone GitHub repo here… · or <code>duo git clone &lt;url&gt; --target-dir &lt;path&gt;</code> for the CLI surface.</p>
   </div>
 </article>
 
@@ -463,7 +508,7 @@
   <div class="num">22</div>
   <div>
     <h3>Send a selection to your active terminal</h3>
-    <p class="why">Highlight text in the markdown editor, the browser pane, or the HTML canvas — a "Send → Duo" pill appears. Click it; the selection lands in your active terminal as quoted text with a path / URL trail so Claude knows where it came from. <strong>v0.5.1+:</strong> the pill only shows when your front terminal has Claude actually running; if you're at a shell prompt the pill stays hidden so you don't accidentally pipe text into a non-Claude session.</p>
+    <p class="why">Highlight text in the markdown editor, the browser pane, or the HTML canvas — a "Send → agent" pill appears. Click it; the selection lands in your active terminal as quoted text with a path / URL trail so Claude knows where it came from. <strong>v0.5.1+:</strong> the pill only shows when your front terminal has Claude actually running; if you're at a shell prompt the pill stays hidden so you don't accidentally pipe text into a non-Claude session. <strong>v0.7.0:</strong> renamed from "Send → Duo" — generic across whichever agent is in your active terminal (Claude / Codex / etc.).</p>
     <p class="how"><strong>UI</strong>Select text → click the pill (when visible).</p>
   </div>
 </article>
@@ -625,8 +670,17 @@
   <div class="num">55</div>
   <div>
     <h3>Smart <code>duo open</code> for local files</h3>
-    <p class="why"><code>duo open ~/path/to/file.md</code> now opens in the markdown editor (was: always the browser pane). HTML files with <code>&lt;meta name="duo-open-in" content="browser"&gt;</code> still open in the browser; HTML without that meta opens in the editor. Web URLs (http/https) unchanged. The CLI response includes a <code>routedTo</code> field (<code>"editor"</code> or <code>"browser"</code>) so agents know where the file landed.</p>
+    <p class="why"><code>duo open ~/path/to/file.md</code> opens in the markdown editor. HTML files open in the browser pane by default (was: gated on <code>&lt;meta duo-open-in&gt;</code> in v0.6.x; <strong>v0.7.0:</strong> verb-driven). Web URLs (http/https) unchanged. The CLI response includes a <code>routedTo</code> field (<code>"editor"</code> or <code>"browser"</code>) so agents know where the file landed. <strong>v0.7.0:</strong> when the target file doesn't exist, returns <code>{ok:false, error:"File not found: ..."}</code> instead of opening a blank tab.</p>
     <p class="how"><strong>CLI</strong><code>duo open &lt;path-or-url&gt;</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="duo edit open canvas html source view modify enh-156 verb-driven routing">
+  <div class="num">55b</div>
+  <div>
+    <h3>Edit HTML source in canvas mode with <code>duo edit</code></h3>
+    <p class="why"><code>duo open foo.html</code> shows the rendered page in the browser pane (scripts run, buttons fire, you interact with the result). <code>duo edit foo.html</code> opens the SAME file in canvas mode (source-editable, scripts blocked, buttons render but clicks place a cursor) so you can modify the HTML. New in v0.7.0 (ENH-156) — the verb decides surface, not a meta tag.</p>
+    <p class="how"><strong>CLI</strong><code>duo open foo.html</code> (browser) · <code>duo edit foo.html</code> (canvas) · <code>--canvas</code> / <code>--browser</code> flag override either default.</p>
   </div>
 </article>
 

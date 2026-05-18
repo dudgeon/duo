@@ -18,6 +18,36 @@
 
 ---
 
+## 2026-05-18 (v0.7.0 cut — Sprint 17 release; rev6-rev2 + rev7 + rev8 walks closed)
+
+**v0.7.0 cut as [`v0.7.0` tag](https://github.com/dudgeon/duo/releases/tag/v0.7.0).** Theme: GitHub-integration cluster + multi-pane Send → agent polish. 60 commits since v0.6.15.
+
+### Rev6 pull (BUG-131, BUG-129, FOLLOWUP-026, ENH-162) + rev6-rev2 corrections
+
+Owner picked all 4 pull items pre-cut. Rev6 walk caught 2 wrong-target fixes:
+- **ENH-163 rev2** — I had renamed only the React `SendToDuoPill` component default. Owner walk surfaced two MORE pill implementations in `cdp-bridge.ts` (SELECTION_OBSERVER_IIFE + INSPECT_OBSERVER_IIFE) still saying "Send → Duo ↗". Filed `feedback_grep_all_implementations_before_rename.md` — user-visible strings often have 3+ copies (React + CDP-injected IIFEs + test fixtures); grep ALL before declaring rename done.
+- **BUG-131 rev2** — I had added a renderer-document keydown fallback. Owner clarified the real failing surface was textareas in the SMOKE-WALK PAGE (rendered in browser pane WebContentsView, not renderer DOM). Root cause: `browser-manager.ts § wireKeyForwarding` had `input.code === 'KeyA'` unconditional in its isDuoShortcut list — caught plain ⌘A too. Gated on `input.shift` so plain ⌘A falls through to Chromium's native textarea select-all.
+
+### Rev7 — BUG-133 + BUG-134 architectural fixes
+
+Owner walked rev6-rev2 and caught two FAIL classes the rename had exposed:
+- **BUG-133** — `__duoClaudeLive` page-side gate was stale on browser tabs that weren't the active CDP target. `setClaudeLive` only pushed to `this.wc` (single primary). New `BrowserManager.broadcastClaudeLive(live)` iterates all tabs via `webContents.executeJavaScript`. Round-2: when live flips false, payload also force-hides any visible pill DOM node.
+- **BUG-134** — Send → agent pill click was a no-op on non-CDP-attached tabs. `CdpBridge.attach` used to detach the prior WC, removing its `window.duoSendToDuoClick` binding. Removed the detach — all browser tabs' debuggers stay attached with listeners + bindings live. `BrowserManager.addTab` also calls `cdp.attach` on every new tab.
+
+### Rev8 walk-2 — 2 PASS, cut unblocked
+
+Owner ran the rev8 scenario with a real Claude session running. Both items PASS:
+1. **ENH-163-GATE** — pill auto-hides when no Claude in front terminal (main + aux + immediate hide on Claude-exit).
+2. **ENH-163-CLICK** — pill click in main + aux both ship the selection to Claude terminal.
+
+Owner directive on the test-setup labor: *"there is no reason for you to not activate a claude session if it is needed for testing."* Filed `feedback_spawn_claude_for_testing_when_needed.md`. Also filed ENH-164 (a deterministic `duo terminal new --kind claude` verb) as post-cut follow-up.
+
+### Next sprint queued
+
+BUG-130 (browser pane file:// auto-reload — architectural, on roadmap), ENH-148 (multi-select v2: ⇧-click + ⌘-A + CLI parity), ENH-157 (browser-pane comments), FOLLOWUP-021 (`duo install --clean`), ENH-137 (Beginner's Guide), ENH-164.
+
+---
+
 ## 2026-05-17 (v0.7.0 cycle close-out — walk-revs 2→3→4→5, GH-cluster Phase 1+2, 6 dismissal audit, modified-B occlusion fix; 15 commits)
 
 **Marathon session.** Started post-rev1-walk with 4 PRD playgrounds + 3 walk-FAILs filed; ended with all v0.7.0 decision gates closed, walk-revs 2 through 5 walked, and the chip-occlusion fix shipped same-session. Major incident mid-session: owner caught me silently dismissing 6 of 20 locked playground decisions across the cycle. Memory filed; new structural rule.

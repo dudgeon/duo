@@ -21,7 +21,26 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.6.15 cut 2026-05-11)*
+> *(empty — v0.7.0 cut 2026-05-18)*
+
+---
+
+## v0.7.0 — 2026-05-18 — Sprint 17: GitHub-integration cluster + multi-pane Send → agent polish
+
+**Why this version lands here.** Sprint 17 was the "GitHub-integration cluster" sprint — bringing first-class git status + clone + per-folder peer-repo affordances into the Navigator, plus the inspect / send-to-agent surface in the browser pane. v0.7.0 closes the chapter where Duo learned how to be a Git-and-GitHub-aware shell for the agent.
+
+MINOR bump (0.6.15 → 0.7.0) rather than PATCH because the new chapter ships meaningfully new user-visible capabilities — clone-from-GitHub UI, inspect mode, peer-repo affordances, Send → agent rename. The bug fixes underneath are the close-out tail, not the headline.
+
+**Key design decisions baked in.**
+
+1. **HTML routing is now verb-driven (ENH-156).** `<meta duo-open-in>` is no longer consulted. `duo open` defaults to browser; `duo edit` defaults to canvas. Cleaner mental model than the meta-tag-or-verb hybrid that v0.6.x carried.
+2. **The CDP-injected pill is the source of truth for browser-pane "Send → agent."** The React `SendToDuoPill` component still serves canvas + markdown editor surfaces, but browser-pane pages get the CDP-injected pill. v0.7.0's BUG-133/134 closes the gaps that made the CDP pill a second-class citizen — stale gate on non-active CDP-attached tabs and click no-op on aux pane.
+3. **Peer-repo icon is the small-right-aligned glyph + hover-reveal popover (ENH-152a v2 modified-Option-B).** Owner walked a 5-option playground and picked modified-B (right-aligned git icon + chip popover on icon-hover, not row-hover). Five implementation rounds — inline chip → modified-B → portal escape from overflow → reposition below the row → swap to the Lucide `git-branch` SVG — locked the final shape.
+4. **`files.openExternal` was a footgun (FOLLOWUP-026 + BUG-132).** The name suggested URL opening; it actually wrapped `shell.openPath` for local files. One renderer caller passed a URL to it and silently failed for who knows how long (the "Open on GitHub" right-click menu item). Renamed to `files.openPath`; added a distinct `files.openExternalUrl` for URLs.
+
+**Walk arc — eight rev-walks closed this sprint.** Rev1 walked the initial v0.7.0 manifest (4 PASS / 9 FAIL / 5 SKIP). Rev2–rev5 worked through the four 🟡 decision gates (BUG-125 v2, FOLLOWUP-025 v2, ENH-159 v2, GH-cluster v2 + prototype + chip-occlusion fix). Rev6 pulled four cleanup items (BUG-129, BUG-131, FOLLOWUP-026, ENH-162) — rev6-rev2 caught two missed pill implementations + the wrong-surface BUG-131 fix. Rev7 caught the multi-pane gate + click bugs (BUG-133, BUG-134). Rev8 closed both with two PASSes. The walk arc reinforced a hard rule: when renaming a user-visible primitive, grep ALL implementations (React + CDP-injected IIFEs + native menus + test fixtures) — `feedback_grep_all_implementations_before_rename.md` filed.
+
+**What this is and isn't.** This is the Navigator's GitHub-awareness chapter closing — clone, status overlays, right-click menus, peer-repo signals. It is NOT the "Duo as Chrome extension" exploration (still on its own branch, non-gating) and NOT the Backlinks / graph view Obsidian-cluster next-tier (queued for after wikilinks-autocomplete usage tells us whether demand is real). The Send → agent pill is now correctly named + multi-pane-correct; the next chapter for that surface is composer-window / anti-accidental-submit UX experimentation.
 
 ---
 

@@ -19,7 +19,58 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.6.15 cut 2026-05-11. Sprint 17+ work accumulates here.
+> Empty — v0.7.0 cut 2026-05-18.
+
+## [0.7.0] — 2026-05-18
+
+Sprint 17 — GitHub-integration cluster + multi-pane Send → agent
+polish. Navigator becomes Git-and-GitHub-aware (status overlays,
+clone modal, per-folder peer-repo affordances, right-click "Open
+on GitHub"). Browser-pane "Send → Duo" pill becomes "Send → agent"
+and the multi-pane gate + click bugs that made the CDP-injected
+pill a second-class citizen are closed.
+
+### Added
+
+- ENH-156 — HTML verb-split. `duo open <html>` lands in browser, `duo edit <html>` lands in canvas. Replaces `<meta duo-open-in>` as the routing source of truth.
+- ENH-158 — Boot-time self-healing CLI shim; `SHIM_DIR/duo` is the sole canonical install location and gets rebuilt automatically (PR #52).
+- ENH-159 — Browser send-to-Claude carries DOM context + inspect mode (⌘⇧C / `duo inspect`). Three-state freeze machine with anchored pill; ⌘D ships and exits (PR #51).
+- ENH-160 — `scripts/build-pkg.sh` Path-1 `.pkg` installer wrapper for distro packs (PR #50, closes Stage 21d-ii deferral).
+- ENH-151 / ENH-152a — CLI surface for git status + clone + `gh auth` probe. New verbs: `duo git status`, `duo git clone`, `duo gh-auth`.
+- ENH-152a v2 — Navigator shows a `⎇` Lucide git-branch icon on every repo-root folder row; hover reveals a chip popover (branch + dirty/ahead/behind). Five implementation rounds locked the final shape.
+- ENH-152b — Per-file dirty dot in Navigator with STATUS-DIFF tooltip.
+- ENH-152c — fsevents-driven Navigator git status invalidation (bounded depth, ignored caches).
+- ENH-155 — Right-click "Open on GitHub" + "Copy GitHub URL" in Navigator + Git ribbon. Supports `github.com` + Enterprise `github.<company>.com`.
+- ENH-146 — `skill/references/duo-atelier.css` kernel + class library doc. Closes the ~200-line CSS authoring tax per playground.
+- ENH-147 v1 — Navigator multi-select. ⌘-click toggles non-contiguous; right-click → "Move N items to Trash…".
+- FOLLOWUP-020 — `duo close-tab` CLI parity for the active working/terminal tab.
+- FOLLOWUP-025 + v2 — File → "Clone from GitHub…" modal. Right-click "Clone GitHub repo here…". Atelier tokens; default-cwd from Navigator; in-progress + success panels; WCV-park on modal-open.
+- ENH-162 — Clone modal pre-flight destination-collision check. Amber warning above the inputs + "Reveal existing folder in Finder" button. Clone button disabled until the collision resolves. Friendlier error when the clone still hits a collision.
+- ENH-163 — "Send → Duo" pill renamed to **Send → agent** across all three implementations (React component + 2 CDP-injected IIFEs). Trailing `↗` removed.
+
+### Changed
+
+- ENH-144 — Close-tab focus shifts to the LEFT-neighbor file tab (Chrome / VS Code parity), right-neighbor fallback when leftmost was closed.
+- FOLLOWUP-026 — Internal rename `files.openExternal` → `files.openPath`. The old name suggested URL opening but actually wrapped `shell.openPath` (local files). New `files.openExternalUrl` exposes the actual `shell.openExternal` for URLs.
+
+### Fixed
+
+- BUG-123 — Table-cell CellSelection now paints (Duo never imported `prosemirror-tables/style/tables.css`); 9-line CSS fix with Atelier accent overlay.
+- BUG-124 — `~/.claude/duo/logs/` mkdir-p at boot to silence `writeConflictLog` ENOENT flood.
+- BUG-125 — Symlink-resolved watcher path remap; canvas skill guidance + escape-hatch (PR #49).
+- BUG-125 v2 — New `core/html/duo-normalize.ts` strips `data-duo-*` attrs + `[data-duo-style]` elements + re-serializes via outerHTML. Canvas reload on external write stays silent when the buffer is clean.
+- BUG-126 — Canvas `⌘F` find stopped narrowing after the first character; rewrote via `findMatchesInDoc` + CSS Custom Highlight API; auto-scrolls current match.
+- BUG-127 — Markdown paste landed in a code block instead of rendering; two rounds (force-close inline slice + `transformPastedHTML` for wrapped-markdown HTML).
+- BUG-129 — `duo open <missing-file>` previously rendered a blank tab; now returns `{ok:false, error:"File not found: <path>"}` and no tab is opened.
+- BUG-131 — ⌘A is now a real select-all in both (a) renderer modal inputs (Clone modal URL/parent) AND (b) browser-pane textareas (smoke walk pages, any playground form). Two-layer fix: capture-phase fallback in `useKeyboardShortcuts.ts` + un-broaden `KeyA` shortcut interception in `browser-manager.ts` to require `Shift`.
+- BUG-132 + rev2 — Navigator right-click "Open on GitHub" was a no-op. Root cause: `files.openExternal` was `shell.openPath` (local files only), not URL-aware. New `FILES_OPEN_EXTERNAL_URL` IPC. Rev2 handled the peer-repo case where the parent dir is itself an unrelated repo — handler now prefers `childRepoMap[target]` over outer `gitSnap`.
+- BUG-133 — `__duoClaudeLive` page-side gate was stale on browser tabs that weren't the active CDP target. New `BrowserManager.broadcastClaudeLive(live)` iterates all browser tabs via `webContents.executeJavaScript` (no CDP required). Round-2: payload also force-hides any visible pill DOM node when live flips false.
+- BUG-134 — Send → agent pill click no-op on non-CDP-attached tabs. `CdpBridge.attach` no longer detaches the previous WC; all browser tabs' debuggers stay attached with their listeners + bindings live. `BrowserManager.addTab` also attaches CDP on every new tab.
+
+### Filed (not yet shipped)
+
+- BUG-130 — Browser pane `file://` tabs don't auto-reload when the underlying file is mutated via CLI. Elevated to architectural; on roadmap.
+- ENH-164 — `duo terminal new --kind claude` CLI verb (post-cut).
 
 ## [0.6.15] — 2026-05-11
 
@@ -1331,7 +1382,9 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.6.14...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/dudgeon/duo/releases/tag/v0.7.0
+[0.6.15]: https://github.com/dudgeon/duo/releases/tag/v0.6.15
 [0.6.14]: https://github.com/dudgeon/duo/releases/tag/v0.6.14
 [0.6.1]: https://github.com/dudgeon/duo/releases/tag/v0.6.1
 [0.6.0]: https://github.com/dudgeon/duo/releases/tag/v0.6.0
