@@ -85,9 +85,19 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
     setResult(null)
     setBusy(false)
     void window.electron.git.ghAuth().then(setAuth).catch(() => setAuth(null))
+    // BUG-136 — re-probe gh auth on window focus. If the user runs
+    // `gh auth login` in a Duo terminal while the modal is open, the
+    // banner should clear without the user dismissing + re-opening the
+    // modal. Cheap (one execFile call); only fires when focus returns
+    // to the Duo window.
+    const onFocus = () => { void window.electron.git.ghAuth().then(setAuth).catch(() => setAuth(null)) }
+    window.addEventListener('focus', onFocus)
     // Focus the URL field on next tick so the modal mount completes first.
     const h = setTimeout(() => urlInputRef.current?.focus(), 0)
-    return () => clearTimeout(h)
+    return () => {
+      clearTimeout(h)
+      window.removeEventListener('focus', onFocus)
+    }
     // defaultParent intentionally omitted from deps — see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])

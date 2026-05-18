@@ -6463,6 +6463,28 @@ Also caught + filed:
 
 ---
 
+### BUG-136: Clone modal shows false "gh not authenticated" banner — execGit doesn't find `gh` on macOS Electron's stripped PATH
+
+**Status:** ✅ **Shipped 2026-05-18 (post-v0.7.0-cut).**
+
+**Symptom.** Owner screenshot: Clone modal showed amber banner "gh not authenticated. Private repos won't clone." Owner had just successfully run `gh auth login` in a Duo PTY (terminal output visible at left: *"✓ Authentication complete · ✓ Logged in as dudgeon"*). `gh auth status` from the user's shell reports the auth correctly.
+
+**Root cause.** `execGit('gh', ['auth', 'status'])` returned `ghNotFound: true` (ENOENT) — the spawned subprocess couldn't find `gh` on PATH. Verified empirically via diagnostic. Two cases produce this:
+1. **Packaged Electron launched from Finder/Dock** inherits the macOS LaunchServices PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), NOT the user's interactive PATH from `.zshrc`. Homebrew installs `gh` to `/opt/homebrew/bin` (Apple Silicon) or `/usr/local/bin` (Intel), neither of which is on LaunchServices PATH.
+2. **Dev launched from a shell without homebrew on PATH** has the same symptom transiently.
+
+The PTY surface inherits the user's interactive shell (zsh loads .zshrc) → finds `gh` fine. So `gh auth login` worked in the PTY. But Duo's main process spawning via `execFile` doesn't go through a shell, so doesn't pick up homebrew PATH.
+
+**Fix.** [`core/git/exec.ts`](core/git/exec.ts) — added `augmentedEnv(base)` that prepends well-known dev-tool dirs (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`) to PATH before passing to `execFile`. Same pattern `resolve-claude.ts` already uses for the `claude` binary. Tests can still override env via `opts.env`.
+
+**Companion fix in [`renderer/components/CloneModal.tsx`](renderer/components/CloneModal.tsx).** Added re-probe on `window.addEventListener('focus', ...)` — if the user `gh auth login`s in a Duo terminal while the modal is open, the banner clears on next focus return without requiring dismiss + reopen.
+
+**Verified live.** `duo dom --js "window.electron.git.ghAuth()"` returns `{ghInstalled:true, authenticated:true, host:"github.com", user:"dudgeon"}` after the fix.
+
+**Cross-ref.** Same class as ENH-141 (install-path hardening for `duo` CLI), BUG-035 (resolve-claude PATH fallback). Future work: consider extending `augmentedEnv` to use the resolve-claude-style shell-fallback if a binary still isn't found after PATH augmentation.
+
+---
+
 ### BUG-135: Git ribbon (and dependent menu actions) activate for navigator cwd even when cwd is not a repo root
 
 **Status:** 🆕 **Filed 2026-05-18 (post-v0.7.0-cut).** Sprint 18 pull (owner-confirmed 2026-05-18).
