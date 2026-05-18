@@ -896,12 +896,16 @@ export class BrowserManager {
    *  Uses webContents.executeJavaScript (no CDP required) so it works
    *  on every browser tab regardless of CDP attachment state. */
   broadcastClaudeLive(live: boolean): void {
-    const expr = `window.__duoClaudeLive = ${JSON.stringify(live)};`
+    // BUG-133 — when live=false, ALSO force-hide any currently-visible
+    // pill. The page-side IIFE re-checks __duoClaudeLive only on
+    // selectionchange/scroll/resize, so a pill that was visible while
+    // Claude was live stays visible after Claude exits until the user
+    // triggers one of those events. Hiding inline closes that gap.
+    const hideExpr = live ? '' : `var __p=document.querySelector('[data-duo-send-pill]');if(__p)__p.style.setProperty('display','none','important');`
+    const expr = `window.__duoClaudeLive=${JSON.stringify(live)};${hideExpr}`
     for (const { view } of this.tabs) {
       const wc = view.webContents
       if (wc.isDestroyed()) continue
-      // executeJavaScript may reject (page navigated away mid-call,
-      // crashed, etc.). Soft-fail per-tab.
       wc.executeJavaScript(expr, true).catch(() => { /* ignore */ })
     }
   }
