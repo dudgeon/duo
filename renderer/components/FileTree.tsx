@@ -758,7 +758,26 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
             void popupMenu(e, ribbonEntry, false)
           }}
         >
-          <span className="text-accent" aria-hidden="true">⎇</span>
+          {/* Owner directive 2026-05-18 — match the per-folder
+              repo-chip icon. Same Lucide git-branch SVG as
+              FolderRepoChip, sized to fit the ribbon's text. */}
+          <span className="text-accent inline-flex items-center" aria-hidden="true">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="6" x2="6" y1="3" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+          </span>
           <span className="font-medium text-ink">{repoName || 'repo'}</span>
           <span className="text-ink-mute">·</span>
           <span className="truncate flex-1">{gitChip}</span>

@@ -56,7 +56,12 @@ export function EditorToolbar({
 
   return (
     <div className="flex flex-col shrink-0 border-b border-border bg-surface-1">
-      <div className="flex items-center h-10 gap-1 px-2 text-zinc-300 text-sm overflow-x-auto">
+      {/* `flex-nowrap` + per-Btn `shrink-0` keep the toolbar on a
+          single horizontal line on narrow canvases — the row scrolls
+          horizontally via overflow-x-auto rather than wrapping (which
+          would break the fixed h-10 height contract). Owner directive
+          2026-05-18. */}
+      <div className="flex flex-nowrap items-center h-10 gap-1 px-2 text-zinc-300 text-sm overflow-x-auto">
         <select
           value={currentBlock}
           onChange={(e) => setBlock(e.target.value)}
@@ -169,22 +174,22 @@ export function EditorToolbar({
           </>
         )}
 
-        {/* BUG-138 Phase 4a — Suggesting mode toggle. When on, typing
-            wraps as CriticMarkup insertions and deletions as deletions
-            (the actual intercept lands in 4b/4c). For 4a the button
-            is visible + persists state per-doc so the owner can see
-            the front door before the typing intercept ships. */}
+        {/* BUG-138 Phase 4 — Suggesting mode toggle. Fixed-width icon
+            button (matches the rest of the toolbar's footprint) so
+            narrow canvases don't wrap the toolbar. Active state goes
+            through the standard Btn `active` prop → accent color +
+            surface-3 fill, matching every other toggle. The little
+            corner dot on the icon makes the "ON" state legible from
+            a glance even before the color cue lands. */}
         {actions.toggleSuggesting && (
           <>
             <Sep />
             <Btn
               onMouseDown={() => actions.toggleSuggesting?.()}
-              title={actions.suggestingOn ? 'Suggesting: ON — typing wraps as track-changes (⌘⌥T)' : 'Suggesting: off (⌘⌥T)'}
-              data-active={actions.suggestingOn ? 'true' : 'false'}
+              active={!!actions.suggestingOn}
+              title={actions.suggestingOn ? 'Suggesting: ON — typing wraps as track-changes (⌘⌥T)' : 'Suggesting (⌘⌥T)'}
             >
-              <span className={`text-[11px] font-medium ${actions.suggestingOn ? 'text-accent' : ''}`}>
-                {actions.suggestingOn ? '✎ Suggesting' : '✎ Suggest'}
-              </span>
+              <SuggestIcon active={!!actions.suggestingOn} />
             </Btn>
           </>
         )}
@@ -260,7 +265,7 @@ function Btn({
         small
           ? 'min-w-7 h-6 px-1.5 flex items-center justify-center rounded text-[11px]'
           : 'w-7 h-7 flex items-center justify-center rounded',
-        'hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent',
+        'shrink-0 hover:bg-surface-3 disabled:opacity-40 disabled:hover:bg-transparent',
         active ? 'bg-surface-3 text-accent' : 'text-zinc-300'
       ].join(' ')}
     >
@@ -270,7 +275,7 @@ function Btn({
 }
 
 function Sep() {
-  return <div className="w-px h-5 bg-border mx-1" />
+  return <div className="w-px h-5 shrink-0 bg-border mx-1" />
 }
 
 function LinkIcon() {
@@ -278,6 +283,32 @@ function LinkIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  )
+}
+
+// BUG-138 Phase 4 — Suggesting mode icon. Lucide pencil-line + an
+// accent indicator dot at the tip when active so the ON state is
+// visible at a glance (Btn's accent color cue handles the rest).
+function SuggestIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {/* Pencil body — diagonal stroke down to the page line. */}
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+      {active && (
+        // Small fill dot near the pencil tip — readable from a glance.
+        <circle cx="4.5" cy="19.5" r="1.4" fill="currentColor" stroke="none" />
+      )}
     </svg>
   )
 }

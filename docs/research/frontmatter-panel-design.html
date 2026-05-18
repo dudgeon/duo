@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>Frontmatter Panel — design options (BUG-139 follow-up)</title>
+<style>
+/* — Atelier kernel (inlined from skill/references/duo-atelier.css) — */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* — Per-playground: panel mockup styles (matches Duo's dark editor chrome) — */
+.mockup {
+  background: #1a1815;
+  border: 1.5px solid #2c2722;
+  border-radius: 8px;
+  margin: 8px 0 0;
+  overflow: hidden;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+}
+.mockup-toolbar {
+  height: 28px;
+  background: #221e1a;
+  border-bottom: 1px solid #2c2722;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: #6f665a;
+  font-size: 10px;
+}
+.mockup-toolbar::after { content: "Toolbar ▸"; }
+.mockup-panel {
+  background: #1a1815;
+  border-bottom: 1px solid #2c2722;
+  padding: 6px 12px;
+  color: #cfc9bf;
+  font-size: 12px;
+}
+.mockup-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6f665a;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 0;
+}
+.mockup-panel-header .chev { color: var(--accent); }
+.mockup-panel-header .edit-raw {
+  margin-left: auto;
+  color: #6f665a;
+  font-size: 10px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: #2c2722;
+}
+.mockup-panel-body { padding: 4px 0 6px; }
+.mockup-body-stub {
+  background: #1a1815;
+  padding: 10px 14px;
+  color: #88827a;
+  font-family: "New York", Georgia, serif;
+  font-size: 11.5px;
+  font-style: italic;
+  line-height: 1.5;
+}
+.mockup-body-stub::before { content: "(prose below the panel)"; }
+
+/* Row variants — used inside .mockup-panel-body */
+.row { font-size: 12px; padding: 1.5px 0; line-height: 1.5; }
+.row .k { font-weight: 600; color: #e6e0d4; display: inline-block; }
+.row .v { color: #98917f; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+
+/* Variant: A · current (one line, key column 100px) */
+.row.density-current .k { min-width: 100px; }
+.row.density-current .v { margin-left: 12px; }
+
+/* Variant: B · wider two-column */
+.row.density-wide-col .k { min-width: 160px; }
+.row.density-wide-col .v { margin-left: 12px; }
+
+/* Variant: C · stacked */
+.row.density-stacked { padding: 4px 0 6px; line-height: 1.4; }
+.row.density-stacked .k { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: #6f665a; font-weight: 600; }
+.row.density-stacked .v { display: block; margin-left: 0; color: #cfc9bf; }
+
+/* Type-styled values */
+.v.bool-true { color: #6b9c63; }
+.v.bool-false { color: #98917f; font-style: italic; }
+.v.null { color: #88827a; font-style: italic; }
+.v.date { color: #c89259; }
+.v.array-chip {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.v.array-chip > span {
+  background: #2c2722;
+  color: #cfc9bf;
+  border-radius: 3px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+/* Truncation comparison */
+.row.trunc-static .v { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 480px; vertical-align: bottom; }
+.row.trunc-tooltip .v::after { content: " ⓘ"; color: #6f665a; }
+.row.trunc-expand { cursor: pointer; }
+.row.trunc-expand .v {
+  white-space: normal;
+  display: block;
+  margin-left: 100px;
+  border-left: 2px solid #2c2722;
+  padding-left: 8px;
+  margin-top: 2px;
+}
+.row.trunc-copy .v::after { content: " ⧉"; color: #6f665a; }
+
+/* Inline-edit mockup */
+.row.inline-edit { background: #221e1a; border-left: 2px solid var(--accent); padding-left: 8px; }
+.row.inline-edit input { background: #1a1815; color: #cfc9bf; border: 1px solid #2c2722; border-radius: 3px; padding: 2px 6px; font-size: 11.5px; font-family: ui-monospace, "SF Mono", Menlo, monospace; width: 260px; }
+.row.inline-edit::after { content: " ⏎ to save · esc to cancel"; color: #6f665a; font-size: 10px; }
+
+/* Add-row affordance */
+.row.add-row { padding: 4px 0; color: var(--accent); font-size: 11px; cursor: pointer; }
+.row.add-row::before { content: "＋ "; }
+
+/* Hover delete on edit-rows */
+.row.editable-delete { display: flex; align-items: center; }
+.row.editable-delete .k { min-width: 100px; }
+.row.editable-delete .v { flex: 1; margin-left: 12px; }
+.row.editable-delete .del { margin-left: 8px; color: #b13e3a; font-size: 10px; opacity: 0.5; }
+.row.editable-delete:hover .del { opacity: 1; }
+
+/* Mockup framing wrapper for side-by-side */
+.mockup-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 10px 0 14px;
+}
+.mockup-row .mockup { margin-top: 0; }
+.mockup-label { font-size: 11px; color: var(--ink-mute); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.mockup-row .stack-item { display: flex; flex-direction: column; }
+.full-width { grid-column: 1 / -1; }
+
+/* Collapsed-default mockup */
+.mockup-panel.collapsed .mockup-panel-body { display: none; }
+
+/* Edit-raw textarea visual */
+.mockup-edit-raw {
+  background: #221e1a;
+  padding: 6px 8px;
+  margin: 4px 0;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: #cfc9bf;
+  white-space: pre;
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Frontmatter Panel — design options</h1>
+  <div class="meta">
+    <span class="pill">BUG-139 follow-up</span>
+    Five decisions to refine the panel that shipped Sprint 18 (commit 5f09077).
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> BUG-139's v1 shipped with locked-in defaults (one-line rows, compact-JSON for complex values, raw-YAML edit only, always-expanded, simple truncation). Now that you've used it, pick refinements for v1.1. Each card has 2–4 options with visual mockups of the actual panel chrome — radio-pick + free-form notes + the Copy-decisions footer at the bottom.
+</div>
+
+<h2>1 · Row density / key-column layout</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1</div>
+  <h3 class="q-prompt">How dense should the property rows be?</h3>
+  <p class="q-context">v1 uses a 100px key column + value in mono on the same line. Long keys ("frontmatterPanelCollapsed") wrap awkwardly; short value-heavy entries (booleans) leave lots of whitespace.</p>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="A">
+      <span class="q-option-body">
+        <span class="q-option-title">A · Keep one-line, 100px key column <span class="recommend-tag">v1 default</span></span>
+        <p class="q-option-rationale">No change. Compact for short docs; gets cramped past ~5 properties.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (4)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current"><span class="k">title</span><span class="v">Hello world</span></div>
+              <div class="row density-current"><span class="k">author</span><span class="v">dudgeon</span></div>
+              <div class="row density-current"><span class="k">published</span><span class="v">true</span></div>
+              <div class="row density-current"><span class="k">tags</span><span class="v">["markdown","test"]</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d1" value="B">
+      <span class="q-option-body">
+        <span class="q-option-title">B · Wider key column (160px)</span>
+        <p class="q-option-rationale">Same row layout but longer keys breathe. Costs ~60px of value-column width on the same canvas.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (4)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-wide-col"><span class="k">title</span><span class="v">Hello world</span></div>
+              <div class="row density-wide-col"><span class="k">frontmatterPanelCollapsed</span><span class="v">false</span></div>
+              <div class="row density-wide-col"><span class="k">published</span><span class="v">true</span></div>
+              <div class="row density-wide-col"><span class="k">tags</span><span class="v">["markdown","test"]</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d1" value="C">
+      <span class="q-option-body">
+        <span class="q-option-title">C · Stacked (key uppercase label above value)</span>
+        <p class="q-option-rationale">Notion-style. Each property is two-line: tiny-cap key + full-width value below. Long keys + long values both breathe; vertical footprint is ~2× per row.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (4)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-stacked"><span class="k">title</span><span class="v">Hello world</span></div>
+              <div class="row density-stacked"><span class="k">author</span><span class="v">dudgeon</span></div>
+              <div class="row density-stacked"><span class="k">published</span><span class="v">true</span></div>
+              <div class="row density-stacked"><span class="k">tags</span><span class="v">["markdown","test"]</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes (optional): which surface this matters most on, edge cases…"></textarea>
+</section>
+
+<h2>2 · Type-specific value rendering</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2</div>
+  <h3 class="q-prompt">Should values be styled by type, or stay uniform mono?</h3>
+  <p class="q-context">v1 renders every value as monospace gray text. Booleans / nulls / dates / arrays could be more legible with type-aware styling — but that's a contract: people see "true" in green and assume it's actionable.</p>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="A">
+      <span class="q-option-body">
+        <span class="q-option-title">A · Stay uniform mono <span class="recommend-tag">v1 default</span></span>
+        <p class="q-option-rationale">No type-styling. Predictable; nothing screams "click me". Compact JSON for complex.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (5)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current"><span class="k">published</span><span class="v">true</span></div>
+              <div class="row density-current"><span class="k">draft</span><span class="v">false</span></div>
+              <div class="row density-current"><span class="k">deleted_at</span><span class="v">null</span></div>
+              <div class="row density-current"><span class="k">created</span><span class="v">2026-05-18T12:00:00Z</span></div>
+              <div class="row density-current"><span class="k">tags</span><span class="v">["foo","bar","baz"]</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d2" value="B">
+      <span class="q-option-body">
+        <span class="q-option-title">B · Type-styled, no behavior change</span>
+        <p class="q-option-rationale">Booleans get color (true=green, false=mute), nulls italic, dates accent-warm, arrays render as compact chips. Pure read-only styling — still raw-YAML to edit.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (5)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current"><span class="k">published</span><span class="v bool-true">true</span></div>
+              <div class="row density-current"><span class="k">draft</span><span class="v bool-false">false</span></div>
+              <div class="row density-current"><span class="k">deleted_at</span><span class="v null">∅ null</span></div>
+              <div class="row density-current"><span class="k">created</span><span class="v date">2026-05-18T12:00:00Z</span></div>
+              <div class="row density-current"><span class="k">tags</span><span class="v array-chip"><span>foo</span><span>bar</span><span>baz</span></span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d2" value="C">
+      <span class="q-option-body">
+        <span class="q-option-title">C · Subset (just arrays + nulls)</span>
+        <p class="q-option-rationale">Arrays as chips (the most legibility-impactful change); nulls italicized as "∅"; booleans + dates stay mono. Minimal departure from uniform.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (5)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current"><span class="k">published</span><span class="v">true</span></div>
+              <div class="row density-current"><span class="k">draft</span><span class="v">false</span></div>
+              <div class="row density-current"><span class="k">deleted_at</span><span class="v null">∅</span></div>
+              <div class="row density-current"><span class="k">created</span><span class="v">2026-05-18T12:00:00Z</span></div>
+              <div class="row density-current"><span class="k">tags</span><span class="v array-chip"><span>foo</span><span>bar</span><span>baz</span></span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes…"></textarea>
+</section>
+
+<h2>3 · Per-property edit affordance (v1.1)</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3</div>
+  <h3 class="q-prompt">How should the user edit individual properties (not the whole YAML block)?</h3>
+  <p class="q-context">v1 only has the "Edit raw" textarea for the whole block. Quick fixes ("flip `published: true → false`") still require opening + editing + saving raw YAML.</p>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="A">
+      <span class="q-option-body">
+        <span class="q-option-title">A · Click row → inline-edit just that value <span class="recommend-tag">Notion / Obsidian parity</span></span>
+        <p class="q-option-rationale">Click the value cell, it becomes an input. ⏎ saves, esc cancels. Simple for single-key edits; the raw-YAML textarea stays for multi-line / structural changes.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (3)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current"><span class="k">title</span><span class="v">Hello world</span></div>
+              <div class="row inline-edit density-current"><span class="k">published</span><input value="false"></div>
+              <div class="row density-current"><span class="k">tags</span><span class="v">["markdown"]</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d3" value="B">
+      <span class="q-option-body">
+        <span class="q-option-title">B · Inline edit + add/remove rows</span>
+        <p class="q-option-rationale">Same as A, plus: "+ Add property" affordance under the row list, hover-× on each row for remove. Full per-property CRUD without ever opening Edit raw.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (3)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row editable-delete density-current"><span class="k">title</span><span class="v">Hello world</span><span class="del">×</span></div>
+              <div class="row editable-delete density-current"><span class="k">published</span><span class="v">true</span><span class="del">×</span></div>
+              <div class="row editable-delete density-current"><span class="k">tags</span><span class="v">["markdown"]</span><span class="del">×</span></div>
+              <div class="row add-row">Add property</div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d3" value="C">
+      <span class="q-option-body">
+        <span class="q-option-title">C · Keep raw-YAML only <span class="recommend-tag">v1 default</span></span>
+        <p class="q-option-rationale">No per-row edit. Every property change goes through Edit raw. Simplest contract; less polished but no inline-input edge cases (nested types, validation per row).</p>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes…"></textarea>
+</section>
+
+<h2>4 · Default expanded / collapsed state</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4</div>
+  <h3 class="q-prompt">Should the panel default to expanded or collapsed for new files?</h3>
+  <p class="q-context">v1 defaults to expanded. The chevron-state persists per-doc so once you collapse a file's panel, it stays collapsed. But the FIRST open of any new file shows the full panel — even if the file has 12 properties and you mostly want to see prose.</p>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="A">
+      <span class="q-option-body">
+        <span class="q-option-title">A · Always expanded on first open <span class="recommend-tag">v1 default</span></span>
+        <p class="q-option-rationale">Discoverability first. New users see properties exist; collapse is one click.</p>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d4" value="B">
+      <span class="q-option-body">
+        <span class="q-option-title">B · Always collapsed on first open</span>
+        <p class="q-option-rationale">Prose first. Header row with "Properties (N)" is still visible; click to expand. Friendlier for prose-heavy workflows where frontmatter is metadata you rarely touch.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel collapsed">
+            <div class="mockup-panel-header"><span class="chev">▸</span>Properties (4)<span class="edit-raw">Edit raw</span></div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d4" value="C">
+      <span class="q-option-body">
+        <span class="q-option-title">C · Auto-collapse when ≥ 6 properties</span>
+        <p class="q-option-rationale">Threshold-based. Short frontmatter (≤5 props) stays open; long frontmatter (a Hugo-style 20-key block) defaults collapsed so it doesn't push the prose down two screens.</p>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes…"></textarea>
+</section>
+
+<h2>5 · Long-value truncation behavior</h2>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5</div>
+  <h3 class="q-prompt">What happens when a value is too long to fit one line?</h3>
+  <p class="q-context">v1 truncates with ellipsis; the title attribute holds the full value (so a hover-tooltip shows it). No click-to-expand. Long descriptions / URLs get clipped.</p>
+
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5" value="A">
+      <span class="q-option-body">
+        <span class="q-option-title">A · Static truncate + title-attr tooltip <span class="recommend-tag">v1 default</span></span>
+        <p class="q-option-rationale">Single line; hover for full. No click interaction.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (2)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current trunc-static"><span class="k">description</span><span class="v" title="A very long description that runs past the visible row width and needs to be truncated…">A very long description that runs past the visible row width and needs to be tr…</span></div>
+              <div class="row density-current"><span class="k">canonical_url</span><span class="v">https://example.com/very/long/path/with/many/segments…</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d5" value="B">
+      <span class="q-option-body">
+        <span class="q-option-title">B · Click to expand row inline</span>
+        <p class="q-option-rationale">Single line by default; click → expand the row to multi-line view with the full value visible (border accent on the left). Click again to collapse.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (2)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current trunc-expand"><span class="k">description</span><span class="v">A very long description that runs past the visible row width and now wraps cleanly across multiple lines because the row was clicked to expand inline.</span></div>
+              <div class="row density-current trunc-static"><span class="k">canonical_url</span><span class="v">https://example.com/very/long/path/with/many/segments…</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d5" value="C">
+      <span class="q-option-body">
+        <span class="q-option-title">C · Click to copy value to clipboard</span>
+        <p class="q-option-rationale">Truncate stays single-line; a small ⧉ glyph appears on hover; clicking copies the full value. Use case: URLs, IDs, hashes — values you want as clipboard payloads.</p>
+        <div class="mockup">
+          <div class="mockup-toolbar"></div>
+          <div class="mockup-panel">
+            <div class="mockup-panel-header"><span class="chev">▾</span>Properties (2)<span class="edit-raw">Edit raw</span></div>
+            <div class="mockup-panel-body">
+              <div class="row density-current trunc-copy"><span class="k">description</span><span class="v" title="A very long description…">A very long description that runs past the visible row width and needs to be tr…</span></div>
+              <div class="row density-current trunc-copy"><span class="k">canonical_url</span><span class="v">https://example.com/very/long/path/with/many/segments…</span></div>
+            </div>
+          </div>
+          <div class="mockup-body-stub"></div>
+        </div>
+      </span>
+    </label>
+
+    <label class="q-option">
+      <input type="radio" name="d5" value="D">
+      <span class="q-option-body">
+        <span class="q-option-title">D · Wrap on multiple lines by default (no truncation)</span>
+        <p class="q-option-rationale">Every long value wraps to as many lines as it needs. Panel grows tall; no hidden state. Simplest behavior, least UI surface area.</p>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes…"></textarea>
+</section>
+
+<div class="copy-bar">
+  <span class="copy-meta">
+    <span id="answered-count">0</span> / 5 decisions answered
+  </span>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const counter = document.getElementById('answered-count')
+  const btn = document.getElementById('copy-btn')
+  const total = document.querySelectorAll('.decision-card').length
+
+  function tally() {
+    const answered = new Set()
+    document.querySelectorAll('input[type="radio"]:checked').forEach(r => answered.add(r.name))
+    counter.textContent = answered.size
+  }
+  document.addEventListener('change', tally)
+  tally()
+
+  btn.addEventListener('click', () => {
+    const lines = []
+    document.querySelectorAll('.decision-card').forEach(card => {
+      const title = card.querySelector('.q-prompt')?.textContent?.trim() || ''
+      const chosen = card.querySelector('input[type="radio"]:checked')
+      const value = chosen?.value ?? '—'
+      const optTitle = chosen?.closest('.q-option')?.querySelector('.q-option-title')?.textContent?.replace(/\s+v1 default\b|\s+Notion\b.*$/, '').trim() ?? '(no pick)'
+      const notes = card.querySelector('.q-notes')?.value?.trim() ?? ''
+      lines.push('[' + value + '] ' + title)
+      lines.push('    → ' + optTitle)
+      if (notes) lines.push('    notes: ' + notes.replace(/\n/g, '\n           '))
+      lines.push('')
+    })
+    const payload = lines.join('\n').trim()
+    navigator.clipboard.writeText(payload).then(() => {
+      btn.classList.add('copied')
+      btn.textContent = 'Copied ✓'
+      setTimeout(() => {
+        btn.classList.remove('copied')
+        btn.textContent = 'Copy decisions'
+      }, 1800)
+    }).catch(err => {
+      btn.textContent = 'Copy failed (open in Duo)'
+      console.warn('clipboard write failed:', err)
+    })
+  })
+})()
+</script>
+
+</body>
+</html>
