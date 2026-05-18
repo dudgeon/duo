@@ -7569,7 +7569,28 @@ Owner's "delete current tab" phrasing might mean:
 
 ### BUG-122: Markdown editor "file changed on disk" banner re-surfaces in v0.6.14
 
-**Status:** 🟢 **Defensive hardening shipped Sprint 16 commit 7 (2026-05-11); deeper-fix gate awaiting next-repro diagnostic.** Three changes target the hypotheses (2)+(3)+(4) cluster without committing to a specific root cause:
+**Status:** 🔴 **NEXT-REPRO DIAGNOSTIC CAPTURED 2026-05-18 (v0.7.2 smoke walk) — hypothesis 4 confirmed.** Owner hit the banner while adding a comment to `/tmp/walk-v0.7.2-frontmatter.md` (fixture written by Claude's `Write` tool for the v0.7.2 walk). Diagnostic log:
+
+```
+{
+  "path": "/tmp/walk-v0.7.2-frontmatter.md",
+  "trigger": "save-pre-reconcile",
+  "diskLength": 433, "baselineLength": 432,
+  "diskTail":     "` row\nshould pretty-print the JSON with 2-space indent. Click again to collapse.",
+  "baselineTail": "` row should pretty-print the JSON with 2-space indent. Click again to collapse.",
+  "firstDiffOffset": 104, "appVersion": "0.7.2"
+}
+```
+
+**Root cause confirmed:** tiptap-markdown round-trip is not byte-exact for markdown's "soft-break inside a paragraph" syntax. The fixture had a `\n` mid-paragraph (Claude's `Write` tool wrapped lines for readability). tiptap loaded that as a soft-break inside one paragraph and serialized it BACK as a single space. The baselined (post-serialize) body diverges from the on-disk body by exactly one char (`\n` → ` `) per soft-break-wrapped line. Save-pre-reconcile diffs disk vs baseline, sees the divergence, fires the false-positive banner.
+
+**Fix needed (next sprint):** extend `normalizeForEchoCompare` in `renderer/utils/conflictDiagnostic.ts` to collapse intra-paragraph soft-breaks (`\n` not preceded by `\n` and not followed by `\n` or markdown-block leading char) to single space before the compare. Or — more aggressive — normalize ALL `\s+` runs to single space inside non-code-block context. Caveat: must NOT collapse newlines in fenced code blocks (` ``` `), indented code (4-space prefix), or markdown list-marker breaks. Safer to do a structural normalize: parse both sides as markdown, serialize both back via tiptap-markdown, then compare — round-trips through the same lossy serializer cancel out.
+
+**Owner-side workaround until fix lands:** click "Keep mine" — Duo's editor body is the source of truth; the disk-vs-baseline divergence is purely cosmetic whitespace. No data loss.
+
+---
+
+**Original Sprint 16 hardening (kept for context):** 🟢 **Defensive hardening shipped Sprint 16 commit 7 (2026-05-11); deeper-fix gate awaiting next-repro diagnostic.** Three changes target the hypotheses (2)+(3)+(4) cluster without committing to a specific root cause:
 
 1. **TTL bump 2s → 5s** in `recentlyWrittenBodiesRef` + `recentlyWrittenHtmlRef` echo-set cleanup math (`MarkdownEditor.tsx` + `PageTab.tsx`). Hypothesis 3 fix if the work machine's fs sync was slow enough to push chokidar past the prior 2s window. Cheap; no downside if not the root cause.
 2. **Widened echo normalization** via new shared helper `renderer/utils/conflictDiagnostic.ts § normalizeForEchoCompare`. Replaces the inline `.replace(/\s+$/, '')` trailing-only normalize at all 4 sites (markdown watcher + markdown save + canvas watcher + canvas save). New normalize covers: BOM (`﻿`) stripping, CRLF→LF, per-line trailing whitespace, doc-end trailing whitespace. Hypothesis 2+4 partial fix — cloud-sync agents that add BOM or rewrite line endings are now treated as echoes. Conservative: no internal-whitespace or unicode-NFC normalization (those would mask real conflicts; gated on next-repro showing they're needed).
