@@ -9,7 +9,8 @@ import type { SidecarComment, SidecarV1 } from '../Page/sidecar'
 import {
   bodyHasCriticMarkup,
   collapseRepliesIntoBody,
-  migrateSidecarCommentsToInline
+  migrateSidecarCommentsToInline,
+  parseRepliesFromBody
 } from './migrateSidecarComments'
 
 function comment(over: Partial<SidecarComment>): SidecarComment {
@@ -228,6 +229,82 @@ describe('migrateSidecarCommentsToInline', () => {
     const result = migrateSidecarCommentsToInline('body', sc)
     expect(result.migrated).toBe(0)
     expect(result.orphans).toBe(1)
+  })
+
+  // ── BUG-138 Phase 5 — parseRepliesFromBody (inverse of collapseRepliesIntoBody) ──
+
+  describe('parseRepliesFromBody', () => {
+    it('returns leadBody only when no separators present', () => {
+      const r = parseRepliesFromBody('just a lead comment')
+      expect(r.leadBody).toBe('just a lead comment')
+      expect(r.replies).toEqual([])
+    })
+
+    it('handles empty body', () => {
+      const r = parseRepliesFromBody('')
+      expect(r.leadBody).toBe('')
+      expect(r.replies).toEqual([])
+    })
+
+    it('splits one reply (newline separator — migration output)', () => {
+      const body = 'lead text\n↪ @geoff 2026-05-18T12:01:00Z: reply text'
+      const r = parseRepliesFromBody(body)
+      expect(r.leadBody).toBe('lead text')
+      expect(r.replies).toEqual([
+        { author: 'geoff', ts: '2026-05-18T12:01:00Z', body: 'reply text' }
+      ])
+    })
+
+    it('splits one reply (space separator — post-markdown-roundtrip)', () => {
+      // tiptap-markdown serialization through markdown-it collapses soft
+      // breaks inside `{>>…<<}` tokens to spaces by the time the body
+      // lands in a mark attr. The parser must handle both shapes.
+      const body = 'lead text ↪ @geoff 2026-05-18T12:01:00Z: reply text'
+      const r = parseRepliesFromBody(body)
+      expect(r.leadBody).toBe('lead text')
+      expect(r.replies).toEqual([
+        { author: 'geoff', ts: '2026-05-18T12:01:00Z', body: 'reply text' }
+      ])
+    })
+
+    it('splits multiple replies', () => {
+      const body = 'lead\n↪ @a 2026-05-18T12:01:00Z: first reply\n↪ @b 2026-05-18T12:02:00Z: second reply'
+      const r = parseRepliesFromBody(body)
+      expect(r.leadBody).toBe('lead')
+      expect(r.replies).toHaveLength(2)
+      expect(r.replies[0]).toEqual({ author: 'a', ts: '2026-05-18T12:01:00Z', body: 'first reply' })
+      expect(r.replies[1]).toEqual({ author: 'b', ts: '2026-05-18T12:02:00Z', body: 'second reply' })
+    })
+
+    it('round-trips through collapseRepliesIntoBody', () => {
+      const entries = [
+        comment({ anchorId: 'c-1', author: 'dudgeon', ts: '2026-05-18T12:00:00Z', body: 'first thought' }),
+        comment({ anchorId: 'c-1', author: 'claude',  ts: '2026-05-18T12:01:00Z', body: 'agreed' }),
+        comment({ anchorId: 'c-1', author: 'dudgeon', ts: '2026-05-18T12:02:00Z', body: 'ship it' })
+      ]
+      const joined = collapseRepliesIntoBody(entries)
+      const parsed = parseRepliesFromBody(joined)
+      expect(parsed.leadBody).toBe('first thought')
+      expect(parsed.replies).toEqual([
+        { author: 'claude',  ts: '2026-05-18T12:01:00Z', body: 'agreed' },
+        { author: 'dudgeon', ts: '2026-05-18T12:02:00Z', body: 'ship it' }
+      ])
+    })
+
+    it('does not trip on prose containing ↪ but not at line start', () => {
+      const body = 'lead with an ↪ arrow mid-line still works'
+      const r = parseRepliesFromBody(body)
+      expect(r.leadBody).toBe('lead with an ↪ arrow mid-line still works')
+      expect(r.replies).toEqual([])
+    })
+
+    it('does not trip on malformed separators (missing ts)', () => {
+      // The regex requires both author and ts non-empty; a bare `\n↪ @author: body` should not match.
+      const body = 'lead\n↪ @geoff something not the right shape'
+      const r = parseRepliesFromBody(body)
+      expect(r.leadBody).toBe(body)
+      expect(r.replies).toEqual([])
+    })
   })
 
   it('preserves other sidecar fields untouched', () => {

@@ -44,6 +44,7 @@ import type { Node as PMNode } from '@tiptap/pm/model'
 import type { EditorView } from '@tiptap/pm/view'
 import type { SidecarComment, SidecarV1 } from '../Page/sidecar'
 import { collectCommentRanges } from './extensions/CommentMark'
+import { parseRepliesFromBody } from './migrateSidecarComments'
 
 const CONTEXT_CHARS = 40
 
@@ -92,10 +93,56 @@ export function buildMarkdownThreads(
   const orderIndexById = new Map<string, number>()
   sortedIds.forEach((id, i) => orderIndexById.set(id, i))
 
+  // BUG-138 Phase 5 — unify inline marks + sidecar entries. The mark
+  // (when present) is canonical for the LEAD entry + any replies that
+  // were body-joined into it during Phase 2 migration. Sidecar entries
+  // for the same anchorId are post-migration replies (or, during the
+  // transition window where new comments are still dual-written, the
+  // lead — we de-dup that case via (author, ts) match).
+  const allThreadIds = new Set<string>([...byAnchor.keys(), ...ranges.keys()])
   const threads: BuiltMarkdownThread[] = []
-  for (const [threadId, entries] of byAnchor.entries()) {
+  for (const threadId of allThreadIds) {
     const live = ranges.get(threadId) ?? null
-    const fallbackExcerpt = entries[entries.length - 1]?.excerpt ?? ''
+    const sidecarEntries = byAnchor.get(threadId) ?? []
+    let entries: SidecarComment[]
+    if (live && live.attrs.commentId && typeof live.attrs.body === 'string') {
+      // Mark canonical path — synthesize lead + replies from the mark.
+      const parsed = parseRepliesFromBody(live.attrs.body)
+      const leadAuthor = live.attrs.author ?? sidecarEntries[0]?.author ?? 'unknown'
+      const leadTs = live.attrs.ts ?? sidecarEntries[0]?.ts ?? ''
+      const lead: SidecarComment = {
+        id: `mark_${threadId}`,
+        anchorId: threadId,
+        author: leadAuthor,
+        ts: leadTs,
+        body: parsed.leadBody,
+        excerpt: live.text,
+        contextBefore: '',
+        contextAfter: ''
+      }
+      const inlineReplies: SidecarComment[] = parsed.replies.map((r, i) => ({
+        id: `mark_${threadId}_r${i}`,
+        anchorId: threadId,
+        author: r.author,
+        ts: r.ts,
+        body: r.body,
+        excerpt: live.text,
+        contextBefore: '',
+        contextAfter: ''
+      }))
+      // De-dup sidecar entries that look like the lead (dual-write
+      // window — same author + same ts == identical event).
+      const sidecarRepliesOnly = sidecarEntries.filter(s =>
+        !(s.author === leadAuthor && s.ts === leadTs)
+      )
+      entries = [lead, ...inlineReplies, ...sidecarRepliesOnly]
+      entries.sort((a, b) => a.ts.localeCompare(b.ts))
+    } else {
+      // Orphan path — mark missing; rely on sidecar entries only.
+      entries = sidecarEntries
+    }
+    if (entries.length === 0) continue
+    const fallbackExcerpt = sidecarEntries[sidecarEntries.length - 1]?.excerpt ?? ''
     threads.push({
       threadId,
       entries,

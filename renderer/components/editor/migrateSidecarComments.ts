@@ -250,3 +250,75 @@ export function collapseRepliesIntoBody(entries: SidecarComment[]): string {
 function collapseBodyToSingleParagraph(body: string): string {
   return body.replace(/\r\n?/g, '\n').replace(/\n{2,}/g, '\n')
 }
+
+/**
+ * BUG-138 Phase 5 — inverse of `collapseRepliesIntoBody`. Given a
+ * comment body that may contain `\n↪ @<author> <ts>: <body>` reply
+ * separators (the format produced by Phase 2's migration), split it
+ * back into a lead body + an ordered list of replies.
+ *
+ * Tolerant of bodies with no separators (returns `{ leadBody: body,
+ * replies: [] }`). Tolerant of malformed separators (anything that
+ * doesn't match the strict regex stays inside the previous segment,
+ * so prose accidentally starting with `↪` doesn't break the parse).
+ *
+ * The separator's `↪` is preceded by either start-of-string or
+ * whitespace — the migration's `collapseRepliesIntoBody` emits `\n↪`,
+ * but markdown serialization through tiptap-markdown often collapses
+ * the soft-break newline to a space by the time the body lands in a
+ * mark attribute. Both shapes parse the same way.
+ *
+ * `<ts>` is ISO 8601 (no whitespace); `<author>` is anything except
+ * whitespace. Bodies containing `↪` mid-prose without a following
+ * `@author ts:` shape are NOT separators — the strict shape filters
+ * those out.
+ */
+export interface ParsedReply {
+  author: string
+  ts: string
+  body: string
+}
+export interface ParsedThreadedBody {
+  leadBody: string
+  replies: ParsedReply[]
+}
+const REPLY_SEPARATOR_REGEX = /(?:^|\s)↪ @(\S+) (\S+): /
+
+export function parseRepliesFromBody(body: string): ParsedThreadedBody {
+  if (typeof body !== 'string' || body.length === 0) {
+    return { leadBody: '', replies: [] }
+  }
+  // Find all separator positions. Walk the body once, collecting
+  // (matchIndex, author, ts) for each separator + the slice ranges
+  // between them.
+  const matches: { index: number; matchLength: number; author: string; ts: string }[] = []
+  let cursor = 0
+  // Use a fresh global regex so lastIndex iteration works.
+  const re = new RegExp(REPLY_SEPARATOR_REGEX.source, 'g')
+  let m: RegExpExecArray | null
+  while ((m = re.exec(body)) !== null) {
+    matches.push({
+      index: m.index,
+      matchLength: m[0].length,
+      author: m[1],
+      ts: m[2]
+    })
+    // Don't move re.lastIndex backwards even if matchLength is 0; the
+    // regex requires non-empty match by construction so this is safe.
+    cursor = m.index + m[0].length
+  }
+  if (matches.length === 0) return { leadBody: body, replies: [] }
+  const leadBody = body.slice(0, matches[0].index)
+  const replies: ParsedReply[] = []
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index + matches[i].matchLength
+    const end = i + 1 < matches.length ? matches[i + 1].index : body.length
+    replies.push({
+      author: matches[i].author,
+      ts: matches[i].ts,
+      body: body.slice(start, end)
+    })
+  }
+  void cursor // silence unused-variable lint
+  return { leadBody, replies }
+}

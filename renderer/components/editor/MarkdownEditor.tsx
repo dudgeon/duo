@@ -891,9 +891,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         sidecarRef.current = migration.sidecar
         // BUG-138 Phase 4 — sync Suggesting state from sidecar on load.
         setSuggestingMode(migration.sidecar.suggestingMode === true)
-        // BUG-139 — sync the Properties panel state from sidecar +
-        // the just-loaded frontmatter string.
-        setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed === true)
+        // BUG-139 v1.1 — sync the Properties panel state from sidecar +
+        // the just-loaded frontmatter string. Q4 (locked from walk-1
+        // playground): default to COLLAPSED when the sidecar field is
+        // undefined — only render expanded when the user has explicitly
+        // toggled it expanded (sidecar === false).
+        setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed !== false)
         setFrontmatterState(split.frontmatter)
 
         // Second-arg `false` suppresses an update event so the initial load

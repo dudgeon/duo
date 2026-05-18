@@ -498,6 +498,54 @@ while the editor in the running dev session has it open — even if
 the new content is "essentially the same." The byte-level diff
 triggers the watcher's reconciliation path correctly.
 
+### 7e. REQUEST ELECTRON ACCESS AT SESSION START when any UI work is on the table
+
+**HARD RULE — if the session has any meaningful UI work on the table
+(BUG- / ENH- touching `renderer/`, TipTap extensions, CSS, keyboard
+handling, modals, popovers, focus, cursor, mark-application, paste,
+IME, drag-drop, scroll, visual state — anything where verification
+needs eyes on the running app), call `request_access` with
+`applications: ["Electron"]` BEFORE writing any code.** Don't wait
+for a smoke walk to fail. Don't wait for the third repeat bug.
+
+The app name is **"Electron"** (the running dev target), NOT "Duo"
+(which resolves to the packaged `/Applications/Duo.app`). Both apps
+appear in the granted-applications list; you want the dev one.
+
+**The mechanics — first turn of the session:**
+
+1. Identify the work area. If it's UI-shaped (per the list above),
+   request Electron access in the same turn as the first
+   investigation / planning move. Same turn — not after the first
+   commit, not after the first walk failure.
+2. If the user denies access: state explicitly in the next response —
+   *"owner denied Electron access; I'll work without live
+   verification but won't claim anything done without smoke-walk
+   paste-back."* Then proceed with extra caution and explicit
+   `request_access` re-asks any time the absence of eyes-on bites.
+3. If access is granted (default): every feature shipped in the
+   session that touches the UI must be verified by:
+   - `screenshot` to see the current state of Electron.
+   - Synthesize the user-side interaction (keystroke / click /
+     drag) that exercises the new code.
+   - Re-screenshot to confirm the expected post-state.
+   - Only after that round-trip clean can the change be called
+     "done" or handed to a smoke walk.
+
+**Why this is a session-start rule, not a "when bugs appear" rule.**
+Sprint 18 closed with three failed walks of the same Backspace + ⌘K
+bugs because I shipped each fix without exercising the keystrokes
+myself. Both root causes (`Selection.near(state.doc)` rejecting after
+`addMark`; `window.prompt` throwing in Electron renderers) surfaced
+in minutes once I had eyes on the running app. The pattern the memory
+rule `feedback_use_computer_use_for_keystroke_tests.md` codifies is
+now elevated to the SESSION-START default — owner directive 2026-05-18.
+
+This rule is symbiotic with 7c (verify clean state before handoff)
+and 7b (always run smoke walks via the skill). It moves the
+verification work UP-FUNNEL — closer to "I just wrote the code"
+instead of "the user just walked it and FAILed."
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits

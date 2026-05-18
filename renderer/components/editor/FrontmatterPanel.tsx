@@ -23,6 +23,25 @@ import {
   type FrontmatterValue
 } from '../../../core/markdown/frontmatterParser'
 
+/**
+ * BUG-139 v1.1 Q5 — expanded-row display formatter.
+ *
+ * Strings render verbatim (preserves newlines if any).
+ * Arrays + objects pretty-print with 2-space indent so the multi-line
+ * expansion gives the user something readable. Falls back to
+ * `displayValue` for primitives.
+ */
+function expandedValue(value: FrontmatterValue): string {
+  if (value === null || value === undefined) return '∅'
+  if (typeof value === 'string') return value
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value)
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
+}
+
 interface Props {
   /** Current YAML frontmatter text (without the `---` fences). `null`
    *  means the file has no frontmatter block. */
@@ -43,6 +62,19 @@ export function FrontmatterPanel({ frontmatter, onChange, collapsed, onToggleCol
   const [parseError, setParseError] = useState<string>('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
+  // BUG-139 v1.1 Q5 — per-row expand state for click-to-expand long
+  // values. Ephemeral; not persisted to the sidecar. Reset on
+  // remount, which is acceptable — the typical expand session is
+  // measured in seconds.
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set())
+  const toggleRow = useCallback((key: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   // Sync draft from props whenever we enter edit mode or the
   // frontmatter changes externally (e.g. an agent writes the file).
@@ -228,7 +260,13 @@ export function FrontmatterPanel({ frontmatter, onChange, collapsed, onToggleCol
               </div>
             ) : (
               entries.map(([key, value]) => (
-                <PropertyRow key={key} k={key} v={value} />
+                <PropertyRow
+                  key={key}
+                  k={key}
+                  v={value}
+                  expanded={expandedRows.has(key)}
+                  onToggle={() => toggleRow(key)}
+                />
               ))
             )}
           </div>
@@ -241,17 +279,39 @@ export function FrontmatterPanel({ frontmatter, onChange, collapsed, onToggleCol
 interface RowProps {
   k: string
   v: FrontmatterValue
+  expanded: boolean
+  onToggle: () => void
 }
 
-function PropertyRow({ k, v }: RowProps) {
+function PropertyRow({ k, v, expanded, onToggle }: RowProps) {
+  // BUG-139 v1.1 Q5 — clicking the row toggles expanded state.
+  // Collapsed: existing single-line truncated display.
+  // Expanded: multi-line view with a left accent border; arrays /
+  // objects pretty-print with 2-space indent.
+  const handleClick = useCallback(() => onToggle(), [onToggle])
   return (
     <div
-      className="flex items-baseline gap-3 text-[12px] py-0.5"
+      className={
+        'flex gap-3 text-[12px] py-0.5 rounded -mx-1 px-1 cursor-pointer ' +
+        'hover:bg-surface-2/50 transition-colors ' +
+        (expanded
+          ? 'items-start border-l-2 border-accent/60 pl-2 bg-surface-2/30'
+          : 'items-baseline')
+      }
       data-duo-frontmatter-row="1"
       data-duo-key={k}
+      data-duo-expanded={expanded ? 'true' : 'false'}
+      onClick={handleClick}
+      title={expanded ? 'Click to collapse' : 'Click to expand'}
     >
-      <span className="font-medium text-zinc-300 min-w-[100px]">{k}</span>
-      <span className="text-zinc-400 font-mono truncate flex-1">{displayValue(v)}</span>
+      <span className="font-medium text-zinc-300 min-w-[100px] shrink-0">{k}</span>
+      {expanded ? (
+        <pre className="text-zinc-300 font-mono flex-1 whitespace-pre-wrap break-words m-0 leading-snug">
+          {expandedValue(v)}
+        </pre>
+      ) : (
+        <span className="text-zinc-400 font-mono truncate flex-1">{displayValue(v)}</span>
+      )}
     </div>
   )
 }
