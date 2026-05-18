@@ -6426,6 +6426,36 @@ Also caught + filed:
 
 ---
 
+### BUG-133: `__duoClaudeLive` gate stale on non-attached browser tabs
+
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev7 FAIL fix).**
+
+**Symptom.** Owner rev7 walk: *"in main panel browser, selected text shows 'sent → agent' even when no claude terminal open."* The Send→agent pill's claude-live gate (`window.__duoClaudeLive`) was stale on browser tabs that weren't the currently-active CDP target. User saw the pill on the main pane while the actual front terminal had no Claude — because CdpBridge had attached to aux (or another tab) and `setClaudeLive` only pushed to the attached WC.
+
+**Root cause.** `CdpBridge.setClaudeLive` uses `Runtime.evaluate` on `this.wc` (the single currently-attached WebContents). Other browser tabs never get the push and retain whatever `__duoClaudeLive` value they had last (often `true` from a prior Claude-live state).
+
+**Fix.** Added [`BrowserManager.broadcastClaudeLive(live)`](electron/browser-manager.ts) which iterates `this.tabs` and calls `webContents.executeJavaScript('window.__duoClaudeLive = <bool>;')` on each. Wired into [`main.ts § claudePresence.onChange`](electron/main.ts) alongside the existing `cdpBridge.setClaudeLive` call. `executeJavaScript` works regardless of CDP attachment state, so every browser tab's gate stays current.
+
+---
+
+### BUG-134: Send→agent pill click no-op on non-CDP-attached tab
+
+**Status:** ✅ **Shipped 2026-05-17 (v0.7.0 cut-prep, rev7 FAIL fix).**
+
+**Symptom.** Owner rev7 walk: *"with claude terminal open, main panel browser 'send → agent' pill is STILL a no op."* With Claude live AND the pill showing on main pane, clicking the pill did nothing.
+
+**Root cause.** The page-side pill's mousedown handler calls `window.duoSendToDuoClick(payload)` — a CDP binding registered when `CdpBridge.attach` runs on that WebContents. But `attach` previously DETACHED the previous WC's debugger on switch, which removed that tab's binding. So when CdpBridge was attached to aux (or any other tab), clicking the main pane pill fired into a non-existent binding.
+
+**Fix.** Two changes to keep bindings live on every browser tab:
+1. [`CdpBridge.attach`](electron/cdp-bridge.ts) no longer detaches the previous WC. Every tab we've attached to stays attached. Each debugger keeps its own `message` listener routing to `handleCdpEvent` — so binding-call events from any tab reach the handler.
+2. [`BrowserManager.addTab`](electron/browser-manager.ts) now calls `cdp.attach(view.webContents)` on every new tab (best-effort, soft-fail). Guarantees aux-pinned tabs (created without going through `switchTab`) also have CDP attached + the binding registered.
+
+**Verified.** Two browser tabs open, switched between them with `duo tab N`, confirmed `typeof window.duoSendToDuoClick === 'function'` on BOTH tabs. Pre-fix: only the currently-attached tab had the binding.
+
+**Memory cost.** Each tab's debugger consumes some memory. Trade-off accepted — pill clicks failing silently was a real UX failure; the per-tab debugger overhead is small.
+
+---
+
 ### BUG-132: Right-click "Open on GitHub" was a no-op — wrong IPC
 
 **Status:** ✅ **Fixed 2026-05-17 (Sprint 17 / v0.7.0 rev5 walk-blocker).**
