@@ -60,6 +60,13 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   const [result, setResult] = useState<CloneResult | null>(null)
   const [auth, setAuth] = useState<GhAuthStatus | null>(null)
   const urlInputRef = useRef<HTMLInputElement>(null)
+  // ENH-162 — pre-flight collision check. When the target dir already
+  // exists, surface a warning above the inputs so the user catches the
+  // collision BEFORE clicking Clone (instead of getting a cryptic gh/git
+  // "destination path already exists" error post-attempt).
+  // null = check pending / not run; 'free' = path doesn't exist; 'exists' = collision.
+  const [collisionState, setCollisionState] = useState<null | 'free' | 'exists'>(null)
+  const [collisionAbsPath, setCollisionAbsPath] = useState<string>('')
 
   // Reset state on the open-transition (false → true) ONLY. The
   // `defaultParent` is intentionally NOT in the dep array — it changes
@@ -95,6 +102,40 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
     setRepoName(deriveRepoName(url))
   }, [url])
 
+  // ENH-162 — debounced pre-flight collision check. Runs window.electron
+  // .files.stat on the would-be target dir; if it exists, flips
+  // collisionState to 'exists' and disables Clone. 300ms debounce so
+  // we don't IPC-spam while the user is typing the URL/parent.
+  useEffect(() => {
+    if (!open || !repoName) {
+      setCollisionState(null)
+      setCollisionAbsPath('')
+      return
+    }
+    const home = (window.electron as { env?: { HOME?: string } }).env?.HOME ?? '/tmp'
+    const expanded = `${targetParent.replace(/\/$/, '')}/${repoName}`.replace(/^~/, home)
+    setCollisionAbsPath(expanded)
+    let cancelled = false
+    const handle = setTimeout(async () => {
+      try {
+        // ENH-162 — file.stat returns null for directories, so use
+        // dirExists + exists in parallel to catch both file-collision
+        // and folder-collision cases.
+        const [isDir, isFile] = await Promise.all([
+          window.electron.files.dirExists(expanded),
+          window.electron.files.exists(expanded)
+        ])
+        if (!cancelled) setCollisionState(isDir || isFile ? 'exists' : 'free')
+      } catch {
+        if (!cancelled) setCollisionState('free')
+      }
+    }, 300)
+    return () => {
+      cancelled = true
+      clearTimeout(handle)
+    }
+  }, [open, targetParent, repoName])
+
   // Close on Escape, submit on Enter (when not busy + URL present).
   useEffect(() => {
     if (!open) return
@@ -110,7 +151,15 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
   if (!open) return null
 
   const targetDir = repoName ? `${targetParent.replace(/\/$/, '')}/${repoName}` : ''
-  const canClone = !busy && !!url.trim() && !!repoName
+  // ENH-162 — block Clone when the pre-flight check says the target
+  // already exists. Owner can change the parent dir or repoName to
+  // unstick the button.
+  const canClone = !busy && !!url.trim() && !!repoName && collisionState !== 'exists'
+
+  // ENH-162 — recognize the "destination path already exists" stderr
+  // class so we can render a clearer error than the raw gh/git output.
+  const isCollisionError = !!(result && !result.ok && result.error &&
+    /already exists|not an empty directory/i.test(result.error))
 
   const handleClone = async () => {
     if (!canClone) return
@@ -202,6 +251,31 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
           disabled={busy}
           className="w-full px-2 py-1 mb-3 bg-paper-deep border border-border rounded text-sm font-mono text-ink placeholder-ink-ghost focus:outline-accent"
         />
+
+        {collisionState === 'exists' && !busy && !result?.ok && (
+          // ENH-162 — pre-flight collision warning. Surfaces BEFORE the
+          // user clicks Clone so they can edit the parent or rename
+          // without round-tripping through a cryptic gh/git failure.
+          <div className="mb-3 px-3 py-2 rounded text-xs bg-amber-950/30 border border-amber-700/40 text-amber-200">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-300 leading-none mt-0.5" aria-hidden="true">⚠</span>
+              <div className="flex-1 min-w-0">
+                <strong className="font-semibold">A folder already exists at that path.</strong>
+                <div className="font-mono text-[11px] mt-1 break-all opacity-80">{collisionAbsPath}</div>
+                <div className="mt-1 opacity-90">
+                  Change the parent directory or rename — the clone won't overwrite an existing folder.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void window.electron.files.revealInFinder(collisionAbsPath)}
+                  className="mt-1.5 text-[11px] underline text-amber-300 hover:text-amber-200"
+                >
+                  Reveal existing folder in Finder
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <label className="block text-xs text-ink-mute mb-1" htmlFor="clone-target">
           Parent directory (final path: {targetDir || <em className="opacity-50">enter a URL first</em>})
@@ -296,12 +370,36 @@ export function CloneModal({ open, defaultParent, onClose, onCloned }: CloneModa
         )}
         {result && !result.ok && (
           <div className="mb-3 px-3 py-2 rounded text-xs bg-red-950/30 border border-red-700/40 text-red-200">
-            <strong>Clone failed ({result.errorKind ?? 'unknown'}):</strong>{' '}
-            {result.error ?? 'no detail'}
-            {result.errorKind === 'auth-missing' && (
-              <div className="mt-1 opacity-80">
-                Run <code className="font-mono">gh auth login</code> in a Duo terminal, then retry.
-              </div>
+            {isCollisionError ? (
+              // ENH-162 — friendlier render when stderr matches the
+              // "destination already exists" pattern.
+              <>
+                <strong>That folder already exists.</strong>
+                <div className="font-mono text-[11px] mt-1 break-all opacity-80">{collisionAbsPath || targetDir}</div>
+                <div className="mt-1 opacity-90">
+                  Pick a different parent directory, rename the repo folder,
+                  or remove the existing folder first.
+                </div>
+                {collisionAbsPath && (
+                  <button
+                    type="button"
+                    onClick={() => void window.electron.files.revealInFinder(collisionAbsPath)}
+                    className="mt-1.5 text-[11px] underline text-red-300 hover:text-red-200"
+                  >
+                    Reveal existing folder in Finder
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <strong>Clone failed ({result.errorKind ?? 'unknown'}):</strong>{' '}
+                {result.error ?? 'no detail'}
+                {result.errorKind === 'auth-missing' && (
+                  <div className="mt-1 opacity-80">
+                    Run <code className="font-mono">gh auth login</code> in a Duo terminal, then retry.
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
