@@ -23,6 +23,49 @@
 > prune candidate: closed BUG-018..BUG-040 era entries once their
 > lessons similarly internalize.
 
+## Recent (v0.7.1 cut + v1.1 carry-forward — 2026-05-18)
+
+### BUG-139 v1.1: Properties panel design decisions Q4 + Q5 (walk-1 locked, code owed)
+
+**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Owner walked the design-options playground at [`docs/research/frontmatter-panel-design.html`](docs/research/frontmatter-panel-design.html) and locked 4 of 5 decisions. Q2 (uniform mono) + Q3 (raw-YAML-only editing) match v1 — no-op. Q4 + Q5 need code changes for v1.1. Q1 (row density) deferred — no owner preference.
+
+**Q4 — Default collapsed on first open.** Currently `sidecar.frontmatterPanelCollapsed === undefined` defaults to `false` (expanded). Locked: default to `true` (collapsed) for new files; explicit user toggle persists either way.
+
+**Implementation:** [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx) — find `setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed === true)` and flip the default: `setFrontmatterCollapsed(migration.sidecar.frontmatterPanelCollapsed !== false)`. Reasoning: when the sidecar field is absent OR true, collapsed; explicit `false` from a prior user-toggle preserves the user's choice. Same logic at the `isNew` path — currently `setFrontmatterCollapsed(false)`, flip to `setFrontmatterCollapsed(true)`.
+
+**Q5 — Click-to-expand long values inline.** Currently long values truncate with ellipsis (CSS `white-space: nowrap; overflow: hidden; text-overflow: ellipsis`); hover-tooltip via `title` attr. Locked: row-click toggles between single-line ellipsis and multi-line wrapped view with a left accent border indicating the expanded state.
+
+**Implementation:** [`renderer/components/editor/FrontmatterPanel.tsx`](renderer/components/editor/FrontmatterPanel.tsx) — add `expandedRows: Set<string>` state to PropertyRow's parent; PropertyRow takes `expanded: boolean` + `onToggle: () => void` props; row's `<span class="v">` wraps with `border-l-2 border-accent pl-2` + `whitespace: normal` when expanded. Click anywhere on the row toggles. Single-line state preserves the current ellipsis + tooltip.
+
+**Cross-ref:** [BUG-139 main entry](#bug-139-markdown-editor-hides-yaml-frontmatter--user-cant-see-or-edit-it) for v1 background. [docs/research/frontmatter-panel-design.html](docs/research/frontmatter-panel-design.html) for the walked playground.
+
+**Estimate:** Half a session. Mostly mechanical edits in 2 files.
+
+---
+
+### BUG-138 Phase 5: Inline standalone-comment atom node (replies + threading)
+
+**Status:** 🟡 **Filed 2026-05-18 (post-v0.7.1 cut, provisional).** Not blocking; owner did not raise this as a pain point. File-and-defer.
+
+**Why this exists.** Phase 2's sidecar→inline migration collapses multi-entry threads (a comment + N replies) into one anchored comment with `↪ @author <ts>: body` separators inside the lead's body. Round-trips cleanly through markdown but loses the threaded display — the rail shows one card per anchored comment, not one card per message in the thread.
+
+**Phase 5 shape (provisional, owner walk required before shipping).**
+
+1. **New TipTap inline atom node `StandaloneCommentNode`** — renders inline in the editor body without text content (it's an atom — like a Mention). Carries metadata: `commentId`, `author`, `ts`, `body`, `replyTo`. Visual: small inline chip styled like the existing comment-anchor decoration but with a different shape (e.g. a smaller dot + author initial) so a reader can tell anchored-comment-with-text apart from standalone-reply-no-text.
+2. **Parser update in [`renderer/components/editor/markdownCriticMarkup.ts`](renderer/components/editor/markdownCriticMarkup.ts)** — when `applyCriticMarkupFromText` encounters a standalone `{>>...<<}` op (no preceding `{==anchor==}`), insert the atom node instead of dropping it (current v1 behavior).
+3. **Serializer update in `materializeCriticMarkupToJSON`** — when emitting a standalone-comment atom, write `{>>id:...|author:...|ts:...|reply-to:...|body<<}` at the node's position.
+4. **Rail update in [`renderer/components/editor/markdownComments.ts`](renderer/components/editor/markdownComments.ts)** — `buildMarkdownThreads` already collects entries by `anchorId`; extend to include standalone replies (matched by `meta.replyTo === anchor.commentId`).
+5. **Migration update in [`renderer/components/editor/migrateSidecarComments.ts`](renderer/components/editor/migrateSidecarComments.ts)** — instead of collapsing replies into the lead's body, emit anchored-lead + N standalone-reply atom nodes adjacent.
+
+**Decisions to walk before code:**
+- **Visual shape of the atom node** — dot + initial / pill with body preview / unobtrusive marker only.
+- **Position of the atom** — inline right after the anchor / on its own line / in a margin.
+- **Round-trip with v1.1 files** — if a v1.1 file has the collapsed-prose form already, do we leave it alone or re-split on next save?
+
+**Cross-ref:** [BUG-138 Phase 2](#bug-138-phase-2-walk-1-current) for the current collapse behavior. [docs/research/markdown-criticmarkup-comments-trackchanges.html](docs/research/markdown-criticmarkup-comments-trackchanges.html) for the locked Phase 1-4 decisions (Phase 5 was out of scope for v0.7.1).
+
+---
+
 ## Recent (v0.7.1 walk-1 fixes — 2026-05-18)
 
 ### BUG-138 walk-1 FAIL: Phase 4b — typed text wraps as one-CM-token-per-character

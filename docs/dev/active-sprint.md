@@ -1,190 +1,113 @@
-# Active sprint state — Sprint 18 / v0.7.1 "Markdown source-of-truth + browser-pane completion"
+# Active sprint state — between sprints (post-v0.7.1, pre-Sprint 19)
 
-**Theme:** Make markdown files self-describing — comments, track-changes, and frontmatter all visible inline (no sidecar JSON, no hidden YAML). Bundle the unified Stage 14 chapter (BUG-138) with frontmatter UX (BUG-139) since both are "content invisible via the editor" architectural-class fixes. Plus the smaller browser-pane carry-forwards.
-
-> **Status (2026-05-18 evening):** Phase 1 of BUG-138 SHIPPED ([429b024](https://github.com/dudgeon/duo/commit/429b024)). All gates locked. Delivery plan finalized below — ready for compaction + continuation.
+**Status (2026-05-18 evening):** v0.7.1 cut + tag pushed + GitHub release published with signed DMG. Sprint 18 chapter closed. Next sprint not yet scoped.
 
 ---
 
 ## 🔥 Post-compaction me: read this first
 
-**v0.7.0 cut 2026-05-18** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.0)). Sprint 18 is the next-MINOR (v0.7.1) cycle.
+**v0.7.1 cut as [`v0.7.1` tag](https://github.com/dudgeon/duo/releases/tag/v0.7.1).** Theme: markdown source-of-truth — comments + track-changes + frontmatter all visible inline. 30 commits since v0.7.0. `package.json` already bumped to v0.7.2 for next sprint.
 
-**What's already shipped this sprint** (since v0.7.0 tag):
-- BUG-136 — `gh` PATH augmentation in `execGit` (Clone modal false-negative fix).
-- BUG-137 — Markdown `[text](url)` input rule + ⌘K shortcut.
-- **BUG-138 Phase 1** — CriticMarkup parser/serializer + 4 TipTap marks + tiptap-markdown integration + visual rendering. **65 unit tests passing.** Owner verified Phase 1 rendering visually with `/tmp/bug-138-roundtrip-2.md`.
-- ENH-163 round-2 — pill rename + 2 CDP-pill copies missed in v0.7.0 (rev6-rev2 fix).
-- Multiple v0.7.0 doc-refreshes.
+**No active sprint plan.** Owner has not yet locked the v0.7.2 / Sprint 19 scope. If owner asks "what's next?", consult the carry-forward queue below + the `tasks.md § 🟡 Filed` entries; offer 3–5 candidates rather than picking unilaterally.
 
-**Delivery order from here (LOCKED 2026-05-18):**
+**Two things absolutely owed before next strong-trigger work:**
 
-| # | Item | Why this order |
-|---|---|---|
-| 1 | **BUG-138 Phase 2** — sidecar→inline migration + `duo author [<name>]` verb | Foundational. Migration MUST land before users save modified files (else sidecar comments clobbered). Author identity is required for Phase 3 + Phase 4 marks to carry real attribution. |
-| 2 | **BUG-138 Phase 3** — agent CLI verbs (`duo doc insert / delete / substitute / comment / accept / reject`) | Agent-side surface. Independent of UI. Lets the agent ACTUALLY USE the new architecture for tracked edits. Useful sanity-check before Phase 4 lands. Uses author identity from Phase 2. |
-| 3 | **BUG-138 Phase 4** — Suggesting toolbar toggle + Accept/Reject UX (rail + bulk banner) | The visible payoff of the entire BUG-138 chapter. Builds on Phases 1–3. Without it, Phase 1's marks are renderer-only and have no user-facing invocation path. |
-| 4 | **BUG-139** — Frontmatter Properties panel (B locked) | Orthogonal to BUG-138 chapter; same architectural class. Owner said "don't rush." Land after BUG-138 is fully cohesive. |
-| 5 | **BUG-135** — Git ribbon strictness | Small, isolated. Path-traversal heuristic. |
-| 6 | **ENH-164** — `duo terminal new --kind claude` verb | Small, isolated. Plumbing checklist. |
-| 7 | **ENH-148** — Multi-select v2 (⇧-click range + ⌘-A + CLI parity) | Small, isolated. |
-| 8 | **BUG-130** — Browser pane `file://` auto-reload | Architectural; may slip to Sprint 19 if 1–7 fills the sprint. |
+1. **BUG-139 v1.1** — owner walked the design-options playground and locked 4 of 5 picks:
+   - **Q2=A** (uniform mono values, no type styling) — already matches v1, no-op
+   - **Q3=C** (raw-YAML-only editing, no per-row inline edit) — already matches v1, no-op
+   - **Q4=B** (default collapsed on first open) — code change owed: flip `sidecar.frontmatterPanelCollapsed === true` default to `true` when the field is undefined (currently undefined ⇒ false)
+   - **Q5=B** (click-to-expand long values inline) — code change owed: replace static ellipsis with row-click → expand row to multi-line view with left accent border, click again to collapse
+   - Q1 (row density) deferred — owner had no strong preference.
 
-**Cut target:** v0.7.1. MINOR if BUG-138 lands fully; PATCH if only the smaller items.
+2. **BUG-138 Phase 5 (provisional)** — inline standalone-comment rendering. v0.7.1 Phase 2's migration collapses multi-entry threads into one anchored comment with `↪ @author <ts>:` separators in the body. Phase 5 would split these back apart with an inline atom node for standalone replies (better threaded display). NOT urgent; on Owner walk it didn't surface as a blocker. File this as the next BUG-138 carry-forward, don't ship without owner pull.
 
 ---
 
-## BUG-138 — locked plan (Markdown comments + track-changes via CriticMarkup)
+## Carry-forward queue (most-recent first; not in priority order)
 
-Locked decisions from [`docs/research/markdown-criticmarkup-comments-trackchanges.html`](../research/markdown-criticmarkup-comments-trackchanges.html):
+Owner-walked + decided but not yet implemented:
 
-- **Q1 body shape:** A · Pipe-delimited prefix (`{>>id:c-01|author:claude|ts:…|reply-to:c-00?|body<<}`).
-- **Q2 scope:** A · All five CriticMarkup operations (comment + insert + delete + substitute + highlight).
-- **Q3 author:** B · Named (`dudgeon` / `claude` / etc.).
-- **Q4 CLI:** A · Explicit per-op verbs.
-- **Q5 migration:** A · Silent auto-migrate on first load.
-- **Q6 backward read:** A · Read-both-until-touched; sidecar comments deprecated v0.9.0.
+- **BUG-139 v1.1** — Q4 (default collapsed) + Q5 (click-to-expand long values). See above.
+- **BUG-138 Phase 5** — inline standalone-comment atom node for replies. See above.
 
-### Phase 1 — Parser/serializer + 4 marks + visual rendering ✅ shipped 2026-05-18
+Filed during v0.7.1 cycle, not blocking the cut, awaiting prioritization:
 
-- `core/markdown/criticmarkup.ts` — pure parser/serializer, 53 tests.
-- `extensions/InsertionMark.ts`, `extensions/DeletionMark.ts`, `extensions/HighlightMark.ts` — new TipTap marks.
-- `extensions/CommentMark.ts` rewritten with full metadata (id, author, ts, body, replyTo).
-- `markdownCriticMarkup.ts` — bridge: `applyCriticMarkupFromText` (load-side) + `materializeCriticMarkupToJSON` + `serializeWithCriticMarkup` + `preprocessSubstitutions` (strikethrough collision shield).
-- Wired into MarkdownEditor.tsx's load + save boundaries.
-- CSS rendering for the 4 marks (insert=green / delete=red strike / highlight=amber / comment-anchor=accent).
-- Total: 65 vitest cases passing.
-
-### Phase 2 — Migration + `duo author` (next up)
-
-**Migration helper** (`migrateSidecarCommentsToInline.ts` or fold into `markdownComments.ts`):
-- On file load, if `sidecar.comments[]` has entries AND the body has zero CriticMarkup tokens:
-  - For each sidecar comment, find its re-anchor position in the body (reuse the existing excerpt/context matching from `applyCommentMarksFromSidecar`).
-  - Wrap the matched range as `{==…==}{>>id:<sidecar-id>|author:<sidecar-author>|ts:<sidecar-ts>|body<<}`.
-  - Splice into the body text.
-  - Update `lastSavedBodyRef` so the migration write doesn't false-positive as dirty.
-  - Write the migrated file via the existing autosave path.
-  - Clear `sidecar.comments[]` from the JSON sidecar.
-- Idempotent (re-run on a migrated file no-ops).
-- Tolerant of orphan comments (where re-anchor fails) — leave in sidecar, log a warning.
-
-**`duo author [<name>]` CLI verb:**
-- Plumbing checklist per CLAUDE.md § 4: shared/types DuoCommandName, preload bridge, ipcMain handler, socket-server case, cli/duo.ts, printHelp(), skill/SKILL.md, agents/duo.md cheat-sheet, docs/CLI-COVERAGE.md.
-- Storage: `localStorage['duo:author']` for the human author. Defaults to `$USER` env var on first read.
-- Agent author: populated automatically from agent-context (CLI tool sets via env var `DUO_AUTHOR` or arg; default `agent` if neither present).
-- Read mode (`duo author` with no arg): prints `{ "author": "dudgeon" }`.
-- Write mode (`duo author "name"`): persists + echoes.
-
-### Phase 3 — Agent CLI verbs
-
-**Six verbs** per Q4·A:
-- `duo doc insert <file> --at <anchor> --text "…"` — wraps insertion at anchor, attributed to agent.
-- `duo doc delete <file> --range <anchor-pair>` — wraps deletion mark over the resolved range.
-- `duo doc substitute <file> --range <anchor-pair> --with "…"` — emits `{~~old~>new~~}`.
-- `duo doc comment <file> --anchor <anchor> --body "…" [--reply-to <c-id>]` — anchored comment.
-- `duo doc accept <file> --range <anchor-pair>` — strip insertion mark OR delete struck text OR resolve substitution to new.
-- `duo doc reject <file> --range <anchor-pair>` — inverse of accept.
-
-**Anchor formats** (reuse Stage 11 parsing in `core/anchorResolver.ts`):
-- `heading:"Risks"` — first heading whose text matches
-- `line:42` — 1-indexed source line
-- `text:"exact match"` — first occurrence
-- `range:from-to` — char offsets (for `--range`)
-
-**Implementation:** each verb reads the file, parses CriticMarkup ops, resolves the anchor, computes a new file content (inserts new CM token / strips existing one / etc.), writes atomically. Uses the existing `core/markdown/criticmarkup.ts` helpers for token construction.
-
-**Plumbing per verb** — full CLAUDE.md § 4 checklist.
-
-### Phase 4 — Suggesting toolbar + Accept/Reject UX
-
-**Suggesting toggle:**
-- New toolbar control near the existing 💬 comment button. Three states (visible label):
-  - "Suggesting: off" (default) — typing edits doc directly.
-  - "Suggesting: on" — typing wraps as track-changes:
-    - New text → `{++…++}` insertion at cursor; mark applied to typed text.
-    - Backspace / Delete with selection → `{--…--}` deletion mark; struck text stays visible.
-    - Type over selection → emits substitute (parser auto-folds del+ins at serialize).
-- Per-doc state stored in `sidecar.v1.suggestingMode = true|false`.
-- Chord: ⌘⌥T toggles.
-- Author of each auto-wrapped mark = current author from `duo author` setting.
-
-**Accept/Reject controls:**
-- **Rail-side per-suggestion** — each tracked change appears as a row in the existing comment rail (Stage 14a rail extends to track-changes). Row shows author + op type + ✓ / ✗ buttons.
-- **Inline hover ✓/✗ flyout** — small floating button when hovering a CM mark in the editor body. v1 = rail-only (per BUG-138 playground "Out of scope" note "Inline ✓/✗ flyout vs rail-only — my pick: rail-only for v1").
-- **Bulk banner** — top of editor when ≥1 suggestion present: "N suggestions · Accept all · Reject all".
-- **Author-filter chips** — rail filter row: "All / mine / agent / others".
-
-**Implementation:**
-- New `extensions/SuggestingMode.ts` extension that intercepts `Transaction.steps` and wraps newly-inserted/deleted text in the corresponding mark when mode is on.
-- Extend `extensions/CommentMark.ts`'s rail-thread builder to ALSO collect insertion/deletion/highlight marks.
-- Banner component: `components/editor/SuggestingBanner.tsx` (mount above the editor when `getTrackedChangeCount(doc) > 0`).
+- **BUG-079** — tab-cycle latency. Needs production repro (synthetic test in Sprint 17 ruled out 3 hypotheses; new H4 + H5 leads).
+- **BUG-093** — split crash (filed Sprint 17).
+- **BUG-122** — save-conflict banner deeper fix. v0.6.15 hardened the diagnostic + widened the normalize window; waiting on owner-side log from next repro.
+- **BUG-124** — `writeConflictLog` logs-dir mkdir gap (filed Sprint 17).
+- **BUG-129** — `duo open` nonexistent file UI side (CLI side fixed Sprint 17; navigator-click + did-fail-load fallback in BrowserRenderer deferred).
+- **BUG-131** — ⌘A no-op in playground inputs (filed Sprint 17).
+- **ENH-084 v4** — aux glow. Owner walk owed (60s click-around). Diagnostic instrumentation already shipped Sprint 17.
+- **ENH-118** — image-type handling. Animate GIFs vs freeze first-frame; SVG safety review; HEIC/RAW reject vs convert. Owner decision needed before any code.
+- **ENH-127** — composer-window direction for accidental-submit. Defer further unless pain re-surfaces (ENH-142 v0.6.15 per-pref toggle covers the common case).
+- **ENH-137** — Beginner's Guide. New pack content; defer until BUG-139 v1.1 + BUG-138 Phase 5 land or owner explicitly pulls.
+- **ENH-141** enterprise smoke — agent-side dev verification of the Sprint 16 install-path hardening (BUG-121 area).
+- **ENH-148 v2** — once owner walks v1 (just shipped), the cross-boundary cell selection variant from BUG-123 v2 may re-surface. Wait for owner ping.
+- **ENH-157** — browser-pane comments. Architectural follow-up to Sprint 17 inspect. Defer.
+- **ENH-162** — Clone modal destination-collision UX (filed Sprint 17). Polish — defer.
+- **FOLLOWUP-020** — `duo close-tab` CLI parity for active working/terminal tab.
+- **FOLLOWUP-021** — `duo install --clean` to wipe + reinstall the shim + SessionStart hook (use case: enterprise machines with stale state).
+- **BUG-024** follow-up — combine Send → Duo + Comment pills (single split-pill or hover flyout). Defer.
+- **17a.5** — template gallery (canvas templates as a discoverable surface). Defer.
+- **Backlinks panel / graph view** (Obsidian cluster). Waiting on wikilinks-autocomplete (v0.6.10 shipped) usage signal to confirm demand.
 
 ---
 
-## BUG-139 — locked plan (Frontmatter Properties panel)
+## Open questions awaiting owner input
 
-**Fix shape:** B · Collapsible Properties panel + raw-YAML toggle.
-
-**UX:**
-- Always-visible panel above the editor body (between toolbar and text area). Renders YAML frontmatter as key:value rows.
-- Each row: bold key on the left, value on the right (read-only inline text in v1).
-- Panel header: "Properties (N)" with a chevron to collapse. Persisted per-doc state (collapsed/expanded) in `sidecar.v1.frontmatterPanelCollapsed`.
-- "Edit raw" button (top-right of panel) flips the body of the panel into a `<textarea>` with the raw YAML. Save button or click-outside commits.
-- Empty/no-frontmatter case: small "+ Add properties" button creates an empty YAML frontmatter block.
-
-**Data flow:**
-- On file load: `splitFrontmatter` already runs; frontmatter captured in `frontmatterRef`. ADD: parse the YAML into a `Record<string, unknown>` for the structured display.
-- On edit (raw textarea): parse the textarea text as YAML, validate (highlight parse errors inline). On commit, write back to `frontmatterRef`.
-- On save: existing `joinFrontmatter` path; unchanged.
-
-**Implementation:**
-- New `components/editor/FrontmatterPanel.tsx`.
-- New `markdown/frontmatterParser.ts` — wraps `js-yaml` (already a dep, used elsewhere) with a defensive parse that returns `{ valid: boolean, parsed: object | null, error: string | null }`.
-- Wire into `MarkdownEditor.tsx` between toolbar and editor body, fed from `frontmatterRef`.
+| Question | Priority |
+|---|---|
+| **Next sprint scope** — pull BUG-139 v1.1 + Phase 5 first, or pick from the broader carry-forward queue? | Whenever owner ready to scope Sprint 19 |
+| **BUG-118 image-type handling direction** | Before any image-polish sprint |
+| **ENH-127** composer-window direction (declined / Duo-side composer / anti-accidental-submit heuristic / upstream feature request) | If accidental-submit pain re-surfaces |
+| **Backlinks / graph view** (Obsidian cluster) — Sprint 19+ anchor? Or defer further? | When wikilinks usage tells us demand |
+| **17a.5 template gallery** directions A/E | Before any code work on templates |
 
 ---
 
-## Carry-forward backlog items (lower urgency)
-
-### BUG-135 — Git ribbon strictness
-
-Locked plan in [tasks.md § BUG-135](../../tasks.md): walk path from cwd up to gitSnap.workTreeRoot; suppress ribbon when ≥2 peer-repo children in any intermediate level.
-
-### ENH-164 — `duo terminal new --kind claude`
-
-Locked plan in [tasks.md § ENH-164](../../tasks.md): plumbing checklist + `--cwd` flag + returns tab id.
-
-### ENH-148 — Multi-select v2 (⇧-click range + ⌘-A + CLI parity)
-
-Locked plan in [tasks.md § ENH-148](../../tasks.md): VS Code-style range; ⌘-A capped at "current directory + immediate children"; NavStateSnapshot extends with `selectedPaths: string[]`.
-
-### BUG-130 — Browser pane `file://` auto-reload
-
-May slip to Sprint 19. Architectural; on roadmap. Plan: fsevents watcher on file:// URLs in browser tabs; reload via `webContents.reload()` on change with a debounce.
-
----
-
-## Locked memories from this sprint
+## Locked memories from Sprint 18
 
 | Memory | What it captures |
 |---|---|
+| [feedback_use_computer_use_for_keystroke_tests](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_use_computer_use_for_keystroke_tests.md) | When a smoke-walk item needs real keystrokes (Backspace intercept, ⌘K, paste, IME), request computer-use access (apps: `["Electron"]`) and verify live BEFORE handoff. Three failed walks of the same bug is the symptom this rule prevents. |
+| [feedback_always_open_playgrounds_in_duo](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_always_open_playgrounds_in_duo.md) | Claude desktop preview panel lacks `navigator.clipboard` → Copy-decisions silently fails; always `duo open` instead. |
+| [feedback_spawn_claude_for_testing_when_needed](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_spawn_claude_for_testing_when_needed.md) | When verification needs live-Claude (claudeLive=true), spawn one yourself via `duo new-tab --claude --cwd <path>`. |
 | [feedback_grep_all_implementations_before_rename](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_grep_all_implementations_before_rename.md) | User-visible strings often have 3+ copies (React + CDP IIFEs + test fixtures); grep all before declaring rename done. |
-| [feedback_spawn_claude_for_testing_when_needed](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_spawn_claude_for_testing_when_needed.md) | Agent should start `claude` itself when verification needs claudeLive=true. |
-| [feedback_always_open_playgrounds_in_duo](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_always_open_playgrounds_in_duo.md) | Claude desktop preview panel lacks navigator.clipboard; ALWAYS `duo open` instead. |
+
+---
+
+## What shipped this sprint (inventory)
+
+For the prose narrative, see [docs/RELEASES.md § v0.7.1](../RELEASES.md). For the one-line inventory, see [CHANGELOG.md § [0.7.1]](../../CHANGELOG.md). For the per-commit detail, see [docs/dev/session-log.md § 2026-05-18 v0.7.1 cut](session-log.md).
+
+Headlines:
+
+- **BUG-138** (4 phases, 147 unit tests) — markdown comments + track-changes via inline CriticMarkup. Parser/serializer + 4 TipTap marks + tiptap-markdown integration; silent sidecar→inline migration + `duo author` verb; 6 agent CLI verbs (`duo doc {insert,delete,substitute,comment,accept,reject}`); Suggesting toolbar toggle + auto-wrap-typed/Backspace + bulk banner + per-suggestion rail + filter chips + collapsible chevron.
+- **BUG-139** — Frontmatter Properties panel above editor body. Chevron-collapse persisted per-doc; Edit raw textarea with live parse-error feedback; "+ Add properties" affordance.
+- **ENH-148** — Multi-select v2: ⇧-click range + ⌘-A select-all + `nav-state.selectedPaths` CLI parity.
+- **BUG-130** — Browser-pane `file://` auto-reload via chokidar watcher per tab.
+- **BUG-135** — Git ribbon strictness (suppresses on peer-repo-container crossings).
+- **BUG-136** — `gh-auth` PATH augmentation.
+- **BUG-137** — Markdown link editing: 3 walks of fixes. Final shape: custom InputRule (no markInputRule) + `LinkPromptModal` (Electron renderers throw on `window.prompt`) + Link extension extended for tooltip + extendMarkRange before setLink.
+- **BUG-141** — Settings.json banner wording reworded.
+- **ENH-164** — Closed as already-shipped via `duo new-tab --claude`.
+- **Walk-1 follow-ups:** Suggest toolbar icon (Lucide pencil), TC rail collapse, ribbon icon parity, frontmatter design-options playground.
 
 ---
 
 ## Compaction-safe pointer table
 
-After compaction, the new agent should read:
+After compaction, the new agent should read (in order):
 
 | To know | Read |
 |---|---|
-| What ships next | This file's "Delivery order" table above (Phase 2 of BUG-138 is up). |
-| What Phase 1 of BUG-138 already does | [`renderer/components/editor/markdownCriticMarkup.ts`](../../renderer/components/editor/markdownCriticMarkup.ts) + the 4 mark extensions in `extensions/` |
-| Locked playground decisions | [tasks.md § BUG-138](../../tasks.md) Decision table (Q1–Q6). |
-| Locked BUG-139 shape | [tasks.md § BUG-139](../../tasks.md) — option B is locked. |
-| Memory rules added this sprint | [MEMORY.md](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/MEMORY.md) — last 3 entries. |
-| v0.7.0 release | [release notes](https://github.com/dudgeon/duo/releases/tag/v0.7.0) + the v0.7.0 entry in [`docs/RELEASES.md`](../RELEASES.md). |
+| **The cut just happened** | This file's "🔥 Post-compaction me" block above. v0.7.1 is out; no active sprint scoped yet. |
+| **What shipped in v0.7.1** | This file's "What shipped this sprint" section + [docs/RELEASES.md § v0.7.1](../RELEASES.md) for the prose. |
+| **What's owed before next strong work** | This file's "🔥 Post-compaction me" — BUG-139 v1.1 (Q4 + Q5) and provisional BUG-138 Phase 5. |
+| **Carry-forward backlog** | This file's "Carry-forward queue" section. |
+| **Memory rules from this sprint** | The "Locked memories" table above + [MEMORY.md](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/MEMORY.md). |
+| **Current package.json version** | `0.7.2` (post-cut bump). Dev build titlebar paints `0.7.2 ·dev`. |
+| **GitHub release** | https://github.com/dudgeon/duo/releases/tag/v0.7.1 |
 
-**What's running:** Sprint-18 dev session, v0.7.1 in package.json. `/tmp/bug-138-roundtrip-2.md` is the live Phase-1 verification fixture (owner confirmed visuals 2026-05-18).
+**What's running:** dev session under v0.7.2 ·dev. Test fixtures in `/tmp/` from the 4 smoke-walk revs (`/tmp/walk-bug137-rev*.md`, `/tmp/walk-bug138-rev*.md`, `/tmp/walk-link-final.md`) can be deleted at owner's discretion.

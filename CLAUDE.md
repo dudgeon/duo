@@ -629,32 +629,50 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 18 / v0.7.1 "Markdown source-of-truth + browser-pane completion"
+## Active sprint — between sprints (post-v0.7.1 cut, pre-Sprint 19)
 
 > **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state; this section is a one-paragraph mirror.
 
-**Status (2026-05-18 evening):** **Phase 1 of BUG-138 SHIPPED** ([429b024](https://github.com/dudgeon/duo/commit/429b024) — CriticMarkup parser + 4 TipTap marks + visual rendering, 65 tests). Owner verified visuals. **All gates locked + plan documented** for compaction continuation. See [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) for the full delivery order + per-phase implementation plans.
+**Status (2026-05-18 evening):** **v0.7.1 cut + tag pushed + [GitHub release](https://github.com/dudgeon/duo/releases/tag/v0.7.1)** with signed+notarized DMG. Sprint 18 closed the markdown source-of-truth chapter (30 commits, 147 new unit tests, 4 smoke-walk revs). `package.json` already bumped to v0.7.2 for next sprint. **No active sprint plan** — owner has not yet scoped Sprint 19.
 
-**Sprint 18 delivery order (LOCKED 2026-05-18):**
+**Two follow-ups owed before next strong work** (from BUG-139 walk-1 decisions + BUG-138 Phase 5 provisional):
 
-1. **BUG-138 Phase 2** — sidecar→inline migration + `duo author [<name>]` verb. Foundational; must land before users save modified files.
-2. **BUG-138 Phase 3** — agent CLI verbs (`duo doc insert / delete / substitute / comment / accept / reject`). Uses author identity from Phase 2.
-3. **BUG-138 Phase 4** — Suggesting toolbar toggle + Accept/Reject UX (rail + bulk banner). The visible payoff of the whole chapter.
-4. **BUG-139** — Frontmatter Properties panel. Option B locked (collapsible panel + raw-YAML toggle). Same architectural class as BUG-138 (content invisible via editor).
-5. **BUG-135** — Git ribbon strictness (path-traversal heuristic).
-6. **ENH-164** — `duo terminal new --kind claude` verb.
-7. **ENH-148** — Multi-select v2 (⇧-click + ⌘-A + CLI parity).
-8. **BUG-130** — Browser pane `file://` auto-reload (architectural; may slip to Sprint 19).
+1. **BUG-139 v1.1** — Q4 (flip default to collapsed-first when sidecar field undefined) + Q5 (click-to-expand long values with row-expansion + accent border). Q2 + Q3 are no-ops (match v1). Q1 deferred — no owner preference.
+2. **BUG-138 Phase 5 (provisional)** — inline standalone-comment atom node for replies. Phase 2 migration currently collapses multi-entry threads into one anchored comment with `↪ @author <ts>:` separators in the body. Phase 5 would split these back apart with richer threaded display. Not urgent — file as BUG-138 carry-forward; wait for owner pull.
 
-Locked decisions from [`docs/research/markdown-criticmarkup-comments-trackchanges.html`](docs/research/markdown-criticmarkup-comments-trackchanges.html): pipe-delimited body, all-5 ops, named author, per-op CLI, silent auto-migrate, read-both-until-touched.
+**Carry-forward queue** (most-recent first; not prioritized):
+BUG-079 (tab-cycle latency — needs prod repro) · BUG-093 (split crash) · BUG-122 (deeper save-conflict fix) · BUG-124 (writeConflictLog mkdir gap) · BUG-129 (file-not-found UI side) · BUG-131 (⌘A no-op in playground inputs) · ENH-084 v4 (aux glow — owner 60s walk owed) · ENH-118 (image-type handling decision) · ENH-127 (composer-window direction) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 (cross-boundary selection — wait for owner ping) · ENH-157 (browser-pane comments) · ENH-162 (Clone modal collision UX) · FOLLOWUP-020 (`duo close-tab` CLI parity) · FOLLOWUP-021 (`duo install --clean`) · BUG-024 follow-up (combined Send + Comment pill) · 17a.5 (template gallery) · Backlinks/graph view.
 
-**Cut target:** v0.7.1. MINOR if BUG-138 lands fully; PATCH if only the smaller items.
+**Open questions awaiting owner input** (see [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) for the full table):
+Next sprint scope (BUG-139 v1.1 + Phase 5 first OR broader carry-forward pick) · BUG-118 image direction · ENH-127 if pain re-surfaces · Backlinks Sprint 19+ anchor · 17a.5 directions A/E.
 
-**Theme:** Close the browser-pane-as-first-class-surface story Sprint 17 opened (Send → agent + inspect + clone + GH menu). Sprint 18 finishes the chapter with auto-reload, comments-in-page, multi-select polish, and an agent-side claude-spawn verb. **Cut goal: v0.7.1.**
+---
 
-**Stretch (if BUG-130 lands fast):** BUG-079 (tab-cycle latency — needs prod repro), FOLLOWUP-021 (`duo install --clean`).
+### Previously — Sprint 18 / v0.7.1 (shipped 2026-05-18)
 
-**Deferred (need decision walks first):** ENH-118 image handling · ENH-127 composer-window direction · BUG-123 v2 cross-boundary cell selection · Stage 17a.5 template gallery · Backlinks/graph view · ENH-137 Beginner's Guide · ENH-141 enterprise smoke.
+**Markdown source-of-truth chapter** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.1)). 30 commits, 147 new unit tests, 4 smoke-walk revs. Cut commit [b42fea7](https://github.com/dudgeon/duo/commit/b42fea7); bump to v0.7.2 in [587c478](https://github.com/dudgeon/duo/commit/587c478).
+
+**What shipped:**
+
+| ID | Headline |
+|---|---|
+| **BUG-138 Phase 1** | CriticMarkup parser + 4 TipTap marks + tiptap-markdown integration. 65 tests. |
+| **BUG-138 Phase 2** | Silent sidecar→inline migration + `duo author [<name>]` verb. 22 migration tests. |
+| **BUG-138 Phase 3** | 6 agent CLI verbs: `duo doc {insert,delete,substitute,comment,accept,reject}`. 31 tests. |
+| **BUG-138 Phase 4** | Suggesting toolbar toggle (⌘⌥T) + auto-wrap typed/Backspace + bulk banner + per-suggestion rail with ✓/✗ + author-filter chips + collapsible rail. |
+| **BUG-139** | Frontmatter Properties panel above editor body. 17 parser tests. 4 of 5 design decisions locked via walk-1 playground (v1.1 follow-up). |
+| **ENH-148** | Multi-select v2: ⇧-click range + ⌘-A select-all + `nav-state.selectedPaths` CLI parity. |
+| **BUG-130** | Browser-pane `file://` auto-reload via chokidar watcher per tab. |
+| **BUG-135** | Git ribbon suppresses on peer-repo-container crossings. |
+| **BUG-136** | `gh-auth` PATH augmentation (`WELL_KNOWN_BIN_DIRS` prepend). |
+| **BUG-137** | Markdown link editing — 3 walks of fixes: custom InputRule + LinkPromptModal (Electron renderers throw on window.prompt) + link tooltip + extendMarkRange-before-setLink. |
+| **BUG-141** | Settings.json banner wording reworded. |
+| **ENH-164** | Closed as already-shipped via `duo new-tab --claude`. |
+| **3 follow-ups** | Suggest toolbar icon (Lucide pencil) · collapsible TC rail · git ribbon icon parity · frontmatter design-options playground. |
+
+**Smoke-walk arc (4 revs):** rev1 6P 3F 2S → rev2 2P 2F 2S → rev3 2F 2S → rev4 1P. The last three blocked on two recurring same-day bugs (BUG-137 ⌘K + BUG-138 Phase 4c Backspace). Both root-caused via computer-use after walk-3: `window.prompt` throws unconditionally in Electron renderers (built LinkPromptModal as the replacement); `Transaction.setSelection` threw `RangeError` because my code resolved against `state.doc` instead of post-`addMark` `tr.doc`. **Memory rule filed** ([feedback_use_computer_use_for_keystroke_tests](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_use_computer_use_for_keystroke_tests.md)): when a smoke-walk item needs real keystrokes, request computer-use access (apps: `["Electron"]`) and verify live BEFORE handoff.
+
+**New tracked items filed during the cycle:** BUG-141 (banner wording — shipped same-day).
 
 ---
 
