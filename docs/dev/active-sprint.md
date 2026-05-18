@@ -39,7 +39,7 @@ Filed during v0.7.1 cycle, not blocking the cut, awaiting prioritization:
 - **BUG-129** — `duo open` nonexistent file UI side (CLI side fixed Sprint 17; navigator-click + did-fail-load fallback in BrowserRenderer deferred).
 - **BUG-131** — ⌘A no-op in playground inputs (filed Sprint 17).
 - **ENH-084 v4** — aux glow. Owner walk owed (60s click-around). Diagnostic instrumentation already shipped Sprint 17.
-- **ENH-118** — image-type handling. Animate GIFs vs freeze first-frame; SVG safety review; HEIC/RAW reject vs convert. Owner decision needed before any code.
+- **ENH-128** — HEIC/RAW image paste/drop convert. Walk-4 fix landed 2026-05-10 (macOS `sips` fallback added when `nativeImage.createFromBuffer` returns empty); awaiting owner verification with the same iPhone HEIC source that failed walk-3. Code is in place; this is purely a verification gate, not "decision needed." Was previously misfiled as "ENH-118 image-type handling — owner decision needed" — the ENH-118 conversation closed 2026-05-10 with four locked picks (GIFs animate, SVG `<img>` inert, HEIC→ENH-128, PDF→ENH-129 shipped). Carry-forward note corrected 2026-05-18.
 - **ENH-127** — composer-window direction for accidental-submit. Defer further unless pain re-surfaces (ENH-142 v0.6.15 per-pref toggle covers the common case).
 - **ENH-137** — Beginner's Guide. New pack content; defer until BUG-139 v1.1 + BUG-138 Phase 5 land or owner explicitly pulls.
 - **ENH-141** enterprise smoke — agent-side dev verification of the Sprint 16 install-path hardening (BUG-121 area).
@@ -58,8 +58,8 @@ Filed during v0.7.1 cycle, not blocking the cut, awaiting prioritization:
 
 | Question | Priority |
 |---|---|
-| **Next sprint scope** — pull BUG-139 v1.1 + Phase 5 first, or pick from the broader carry-forward queue? | Whenever owner ready to scope Sprint 19 |
-| **BUG-118 image-type handling direction** | Before any image-polish sprint |
+| **Next sprint scope** — pick from the carry-forward queue. BUG-139 v1.1 + Phase 5 shipped 2026-05-18 ([2bd6925](https://github.com/dudgeon/duo/commit/2bd6925)). | Whenever owner ready to scope Sprint 19 |
+| **ENH-128 walk-4** — verify HEIC drag-drop from Photos.app works end-to-end with the sips fallback. ~2 min owner walk. | Closes the image-handling cluster |
 | **ENH-127** composer-window direction (declined / Duo-side composer / anti-accidental-submit heuristic / upstream feature request) | If accidental-submit pain re-surfaces |
 | **Backlinks / graph view** (Obsidian cluster) — Sprint 19+ anchor? Or defer further? | When wikilinks usage tells us demand |
 | **17a.5 template gallery** directions A/E | Before any code work on templates |
