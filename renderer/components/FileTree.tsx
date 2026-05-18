@@ -495,7 +495,10 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
           })
           if (!result.url) return
           if (chosenId === 'open-on-github') {
-            await window.electron.files.openExternal(result.url)
+            // BUG-132 — must use openExternalUrl (shell.openExternal)
+            // for URLs, NOT openExternal (which is shell.openPath for
+            // local file paths). The latter silently fails on URLs.
+            await window.electron.files.openExternalUrl(result.url)
           } else {
             try { await window.electron.clipboard.writeText(result.url) } catch { /* permission */ }
           }

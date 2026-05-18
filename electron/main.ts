@@ -1074,6 +1074,14 @@ function setupIPC(): void {
     return filesService.openExternal(p)
   })
 
+  // BUG-132 — distinct from FILES_OPEN_EXTERNAL (which is shell.openPath
+  // for local files). This routes URLs through shell.openExternal with
+  // the same scheme guard the agent path uses (openExternalUrl). The
+  // Navigator's right-click "Open on GitHub" came through here.
+  ipcMain.handle(IPC.FILES_OPEN_EXTERNAL_URL, (_event, { url }: { url: string }) => {
+    return openExternalUrl(url)
+  })
+
   ipcMain.handle(IPC.FILES_REVEAL_IN_FINDER, (_event, { path: p }: { path: string }) => {
     filesService.revealInFinder(p)
   })

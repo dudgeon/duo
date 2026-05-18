@@ -1219,6 +1219,7 @@ export const IPC = {
   FILES_READ: 'files:read',
   FILES_WRITE: 'files:write',            // Stage 11 — editor-driven save
   FILES_OPEN_EXTERNAL: 'files:open-external',
+  FILES_OPEN_EXTERNAL_URL: 'files:open-external-url',  // BUG-132 — shell.openExternal for http/https/mailto URLs (distinct from FILES_OPEN_EXTERNAL which opens local paths via shell.openPath)
   FILES_REVEAL_IN_FINDER: 'files:reveal-in-finder',
   FILES_GET_HTML_META: 'files:get-html-meta',  // pre-flight for <meta duo-open-in> routing
   // Stage 26 item 6 — file-mutation actions from the navigator

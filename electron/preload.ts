@@ -233,6 +233,8 @@ const api: ElectronAPI = {
 
     openExternal: (p) => ipcRenderer.invoke(IPC.FILES_OPEN_EXTERNAL, { path: p }),
 
+    openExternalUrl: (url) => ipcRenderer.invoke(IPC.FILES_OPEN_EXTERNAL_URL, { url }),
+
     revealInFinder: (p) => ipcRenderer.invoke(IPC.FILES_REVEAL_IN_FINDER, { path: p }),
 
     getHtmlMeta: (p) => ipcRenderer.invoke(IPC.FILES_GET_HTML_META, { path: p }),

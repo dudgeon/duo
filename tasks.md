@@ -6405,6 +6405,46 @@ Verified the gap empirically:
 
 ---
 
+### BUG-132: Right-click "Open on GitHub" was a no-op — wrong IPC
+
+**Status:** ✅ **Fixed 2026-05-17 (Sprint 17 / v0.7.0 rev5 walk-blocker).**
+
+**Surface:** Navigator right-click on a file/folder inside a GitHub repo → "Open on GitHub" menu item. Click did nothing. Owner caught it in rev5 walk: *"right click 'open on github' is a no op; rest appear to work"*.
+
+**Root cause:** The renderer's handler called `window.electron.files.openExternal(result.url)`, which routes through `FilesService.openExternal` → `shell.openPath(absPath)`. `shell.openPath` is for local filesystem paths; passing it `https://...` returns an error string (not a thrown exception), which the IPC handler swallows. The renderer's outer try/catch then completes silently — perfect no-op symptom.
+
+**Fix:** Added a distinct `FILES_OPEN_EXTERNAL_URL` IPC routed through the existing `openExternalUrl(url)` helper in `electron/main.ts` (which uses `shell.openExternal` with an http/https/mailto scheme guard — the same agent-side helper the CLI already uses for `duo open <url>`). Renderer caller switched to `window.electron.files.openExternalUrl(result.url)`.
+
+**Files touched:**
+- [`shared/types.ts`](shared/types.ts) — new `FILES_OPEN_EXTERNAL_URL` IPC channel constant.
+- [`electron/main.ts`](electron/main.ts) — `ipcMain.handle` wiring → `openExternalUrl(url)`.
+- [`electron/preload.ts`](electron/preload.ts) — `window.electron.files.openExternalUrl(url)` bridge.
+- [`shared/host-api.ts`](shared/host-api.ts) — `ElectronFilesAPI.openExternalUrl` type signature.
+- [`renderer/components/FileTree.tsx`](renderer/components/FileTree.tsx) — handler swap at the "Open on GitHub" branch.
+
+**Verification:** `duo dom --js "window.electron.files.openExternalUrl('https://github.com/dudgeon/duo')"` returns `{ok:true,opened:"https://github.com/dudgeon/duo"}` and browser opens. Clipboard path (`Copy GitHub URL` → `clipboard.writeText`) was always fine; verified via `pbpaste`.
+
+**Class of issue:** the misnamed `files.openExternal` (which is actually `shell.openPath` for local files) was an attractive footgun. Other callers (FileRenderers, ImageView, FileTree:438) are all using it correctly for local paths. Long-term cleanup possibility: rename `files.openExternal` → `files.openPath` for clarity. Filed as FOLLOWUP-026 (post-cut).
+
+---
+
+### FOLLOWUP-026: Rename `files.openExternal` → `files.openPath` for clarity
+
+**Status:** 🟡 **Open** (post-cut).
+
+**Why:** During BUG-132 investigation, `files.openExternal` was a footgun — sounded like `shell.openExternal` (URL opener) but was actually `shell.openPath` (local file opener). One renderer caller had been using it for URLs and silently failing for who knows how long.
+
+**Scope:**
+1. Rename the IPC channel `FILES_OPEN_EXTERNAL` → `FILES_OPEN_PATH`.
+2. Rename `FilesService.openExternal()` → `FilesService.openPath()`.
+3. Rename `window.electron.files.openExternal` → `window.electron.files.openPath`.
+4. Update 3 call sites: `FileRenderers.tsx:31`, `FileTree.tsx:438`, `ImageView.tsx:182`.
+5. Keep `openExternalUrl` as-is (already correctly named).
+
+Defer until post-cut. No user impact today; pure clarity refactor.
+
+---
+
 ### BUG-131: `⌘A` is a no-op inside playground text fields — should select all text
 
 **Status:** 🆕 Filed 2026-05-17 (discovered during v0.7.0-rev4 FOLLOWUP-025 walk).
