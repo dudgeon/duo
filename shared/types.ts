@@ -212,6 +212,16 @@ export type DuoCommandName =
   // attribution. CLI agent invocations set their own author via the
   // `DUO_AUTHOR` env var, not this verb.
   | 'author'
+  // BUG-138 Phase 3 — agent CriticMarkup verbs. Single command with
+  // a discriminated `op` arg: insert / delete / substitute /
+  // comment / accept / reject. Each verb reads the .md file on disk,
+  // applies the CriticMarkup mutation via pure helpers in
+  // core/markdown/docEdit.ts, then writes atomically. When the file
+  // is open in the editor, the autosave reconciliation flow surfaces
+  // the change. Author resolution: `args.author` ?? `$DUO_AUTHOR` ??
+  // 'agent'. v1: anchor / target resolution is by literal text match
+  // on the stripped-CM view of the body; `--occurrence N` disambiguates.
+  | 'doc-edit'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a

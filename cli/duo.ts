@@ -954,8 +954,102 @@ async function main(): Promise<void> {
             }
             die(`Could not read ${logPath}: ${err?.message ?? err}`)
           }
+        } else if (
+          sub === 'insert' || sub === 'delete' || sub === 'substitute' ||
+          sub === 'comment' || sub === 'accept' || sub === 'reject'
+        ) {
+          // BUG-138 Phase 3 — agent CriticMarkup verbs. Each subcommand
+          // parses its own flag set, then routes through the single
+          // `doc-edit` socket command with a discriminated `op` arg.
+          // The file path is the first positional that isn't a flag value.
+          //
+          // Author is passed via the DUO_AUTHOR env var (defaults to
+          // 'agent' on the receiver side). The CLI doesn't read it
+          // here — the socket-server resolves the value to keep all
+          // attribution decisions in one place.
+          const positionals: string[] = []
+          for (let i = 0; i < subRest.length; i++) {
+            const t = subRest[i]
+            if (t === '--after' || t === '--before' || t === '--text' ||
+                t === '--with' || t === '--anchor' || t === '--body' ||
+                t === '--reply-to' || t === '--match' || t === '--id' ||
+                t === '--occurrence' || t === '--at-line') {
+              i += 1 // skip the value
+              continue
+            }
+            if (t.startsWith('--')) continue
+            positionals.push(t)
+          }
+          const target = positionals[0]
+          if (!target) die(`Usage: duo doc ${sub} <file> [flags] — see duo --help`)
+          const resolved = resolveFilePath(target)
+          const payload: Record<string, unknown> = { path: resolved, op: sub }
+
+          const dupAuthor = process.env.DUO_AUTHOR
+          if (dupAuthor) payload.author = dupAuthor
+          const occStr = flagValue(subRest, '--occurrence')
+          if (occStr !== undefined) {
+            const n = Number(occStr)
+            if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+              die('--occurrence requires a positive integer')
+            }
+            payload.occurrence = n
+          }
+
+          if (sub === 'insert') {
+            const after = flagValue(subRest, '--after')
+            const before = flagValue(subRest, '--before')
+            const atLine = flagValue(subRest, '--at-line')
+            const text = flagValue(subRest, '--text')
+            if (!text) die('Usage: duo doc insert <file> --text "…" (--after "X" | --before "X" | --at-line N)')
+            if ([after, before, atLine].filter(v => v !== undefined).length !== 1) {
+              die('duo doc insert requires exactly one of --after / --before / --at-line')
+            }
+            payload.text = text
+            if (after !== undefined) payload.after = after
+            if (before !== undefined) payload.before = before
+            if (atLine !== undefined) {
+              const n = Number(atLine)
+              if (!Number.isFinite(n) || n < 1 || !Number.isInteger(n)) {
+                die('--at-line requires a positive integer')
+              }
+              payload.atLine = n
+            }
+          } else if (sub === 'delete') {
+            const text = flagValue(subRest, '--text')
+            if (!text) die('Usage: duo doc delete <file> --text "<target>"')
+            payload.text = text
+          } else if (sub === 'substitute') {
+            const text = flagValue(subRest, '--text')
+            const withText = flagValue(subRest, '--with')
+            if (!text || withText === undefined) {
+              die('Usage: duo doc substitute <file> --text "<old>" --with "<new>"')
+            }
+            payload.text = text
+            payload.with = withText
+          } else if (sub === 'comment') {
+            const anchor = flagValue(subRest, '--anchor')
+            const body = flagValue(subRest, '--body')
+            const replyTo = flagValue(subRest, '--reply-to')
+            if (!anchor || !body) {
+              die('Usage: duo doc comment <file> --anchor "<text>" --body "<comment>" [--reply-to <c-id>]')
+            }
+            payload.anchor = anchor
+            payload.body = body
+            if (replyTo !== undefined) payload.replyTo = replyTo
+          } else if (sub === 'accept' || sub === 'reject') {
+            const match = flagValue(subRest, '--match')
+            const id = flagValue(subRest, '--id')
+            if (!match && !id) {
+              die(`Usage: duo doc ${sub} <file> (--id <c-id> | --match "<text>")`)
+            }
+            if (match) payload.match = match
+            if (id) payload.id = id
+          }
+
+          out(await send('doc-edit', payload))
         } else {
-          die('Usage: duo doc <write|read|goto|find|conflict-log> [...]')
+          die('Usage: duo doc <write|read|goto|find|conflict-log|insert|delete|substitute|comment|accept|reject> [...]')
         }
         break
       }
@@ -1831,6 +1925,40 @@ COMMANDS
                                   No arg = print state (JSON). With a
                                   name = persist + print. Agents set
                                   their own via the DUO_AUTHOR env var.
+  doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N)
+                                  BUG-138 Phase 3 — insert "X" as a
+                                  CriticMarkup insertion ({++X++}) at
+                                  the anchor. --after/--before take a
+                                  literal text anchor; --at-line takes
+                                  a 1-indexed line number. Add
+                                  --occurrence N to disambiguate
+                                  duplicate anchors.
+  doc delete <file> --text "X"    BUG-138 Phase 3 — wrap "X" as a
+                                  CriticMarkup deletion ({--X--}). Use
+                                  --occurrence N to disambiguate.
+                                  Refuses if the target overlaps an
+                                  existing CM token.
+  doc substitute <file> --text "X" --with "Y"
+                                  BUG-138 Phase 3 — wrap "X→Y" as a
+                                  CriticMarkup substitution ({~~X~>Y~~}).
+                                  --with may be empty (= delete).
+  doc comment <file> --anchor "X" --body "B" [--reply-to <c-id>]
+                                  BUG-138 Phase 3 — anchor a comment
+                                  ({==X==}{>>id|author|ts|B<<}) to the
+                                  matched text. Author = $DUO_AUTHOR
+                                  ?? 'agent'. Comment id auto-minted.
+  doc accept <file> (--id <c-id> | --match "X")
+                                  BUG-138 Phase 3 — accept a CM op:
+                                  insertion = keep text; deletion =
+                                  drop text; substitution = keep new;
+                                  comment = keep anchor. Identify by
+                                  --id (comments only) or by --match
+                                  literal text.
+  doc reject <file> (--id <c-id> | --match "X")
+                                  BUG-138 Phase 3 — reject a CM op:
+                                  insertion = drop text; deletion =
+                                  keep text; substitution = keep old;
+                                  comment = keep anchor.
   claude-return [submit|newline]  v0.6.15 — toggle Claude-tab plain
                                   Return behavior. Default 'submit'
                                   (xterm passthrough; Claude submits).

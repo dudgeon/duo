@@ -408,6 +408,109 @@ export class SocketServer {
     onUnsub(unsub)
   }
 
+  /**
+   * BUG-138 Phase 3 — apply a CriticMarkup operation to a markdown
+   * file on disk. Routes through the pure helpers in
+   * core/markdown/docEdit.ts. Disk-only in v1: when the file is open
+   * in the editor, the autosave reconciliation flow picks up the
+   * external change (BUG-085 path).
+   */
+  private async handleDocEdit(args: Record<string, unknown>): Promise<{
+    ok: boolean
+    changed: boolean
+    reason: string
+    op: string
+    path: string
+  }> {
+    const docEdit = await import('./markdown/docEdit')
+    const frontmatter = await import('./markdown/frontmatter')
+
+    const path = args['path'] as string | undefined
+    const op = args['op'] as string | undefined
+    if (!path || typeof path !== 'string') throw new Error('doc-edit requires a path arg')
+    if (!op || typeof op !== 'string') throw new Error('doc-edit requires an op arg')
+    if (!path.endsWith('.md')) {
+      throw new Error(`doc-edit only supports .md files (got ${path})`)
+    }
+    const validOps = ['insert', 'delete', 'substitute', 'comment', 'accept', 'reject']
+    if (!validOps.includes(op)) {
+      throw new Error(`doc-edit op must be one of: ${validOps.join(', ')}`)
+    }
+
+    const occurrence = typeof args['occurrence'] === 'number' ? args['occurrence'] as number : undefined
+    const opts = occurrence !== undefined ? { occurrence } : {}
+
+    // Read the file from disk via the FilesService (consistent with
+    // other socket commands — respects the MAX_READ_BYTES cap, etc.).
+    const readResult = await this.files.read(path)
+    const text = new TextDecoder('utf-8').decode(readResult.bytes)
+    const split = frontmatter.splitFrontmatter(text)
+
+    let editResult: { body: string; changed: boolean; reason: string }
+
+    if (op === 'insert') {
+      const newText = args['text'] as string | undefined
+      const after = args['after'] as string | undefined
+      const before = args['before'] as string | undefined
+      const atLine = args['atLine'] as number | undefined
+      if (typeof newText !== 'string') throw new Error('insert requires --text')
+      if ([after, before, atLine].filter(v => v !== undefined).length !== 1) {
+        throw new Error('insert requires exactly one of --after / --before / --at-line')
+      }
+      if (after !== undefined) editResult = docEdit.insertAfter(split.body, after, newText, opts)
+      else if (before !== undefined) editResult = docEdit.insertBefore(split.body, before, newText, opts)
+      else editResult = docEdit.insertAtLine(split.body, atLine as number, newText)
+    } else if (op === 'delete') {
+      const target = args['text'] as string | undefined
+      if (typeof target !== 'string') throw new Error('delete requires --text')
+      editResult = docEdit.deleteText(split.body, target, opts)
+    } else if (op === 'substitute') {
+      const oldText = args['text'] as string | undefined
+      const newText = args['with'] as string | undefined
+      if (typeof oldText !== 'string') throw new Error('substitute requires --text')
+      if (typeof newText !== 'string') throw new Error('substitute requires --with')
+      editResult = docEdit.substituteText(split.body, oldText, newText, opts)
+    } else if (op === 'comment') {
+      const anchor = args['anchor'] as string | undefined
+      const body = args['body'] as string | undefined
+      const replyTo = args['replyTo'] as string | undefined
+      const authorArg = args['author'] as string | undefined
+      if (typeof anchor !== 'string') throw new Error('comment requires --anchor')
+      if (typeof body !== 'string') throw new Error('comment requires --body')
+      const author = authorArg ?? process.env.DUO_AUTHOR ?? this.nav.getAuthor().author ?? 'agent'
+      const ts = new Date().toISOString()
+      const commentId = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      editResult = docEdit.addAnchoredComment(split.body, {
+        anchorText: anchor,
+        commentBody: body,
+        author,
+        ts,
+        commentId,
+        replyTo,
+        occurrence
+      })
+    } else if (op === 'accept' || op === 'reject') {
+      const id = args['id'] as string | undefined
+      const match = args['match'] as string | undefined
+      if (!id && !match) throw new Error(`${op} requires --id or --match`)
+      const ident = { id, match, occurrence }
+      editResult = op === 'accept'
+        ? docEdit.acceptOp(split.body, ident)
+        : docEdit.rejectOp(split.body, ident)
+    } else {
+      throw new Error(`unhandled op: ${op}`)
+    }
+
+    if (!editResult.changed) {
+      return { ok: true, changed: false, reason: editResult.reason, op, path }
+    }
+
+    const fullText = frontmatter.joinFrontmatter(split.frontmatter, editResult.body, split.eol)
+    const bytes = new TextEncoder().encode(fullText)
+    await this.files.write(path, bytes)
+    return { ok: true, changed: true, reason: '', op, path }
+  }
+
   private async handle(req: DuoRequest): Promise<DuoResponse> {
     const { id, cmd, args } = req
     try {
@@ -791,6 +894,14 @@ export class SocketServer {
           }
           const path = args['path'] as string | undefined
           result = await this.nav.docWrite({ text, mode, path })
+          break
+        }
+        case 'doc-edit': {
+          // BUG-138 Phase 3 — agent CriticMarkup verbs. Disk-only in
+          // v1: reads the file, applies the op, writes atomically.
+          // When the file is open in the editor, the autosave
+          // reconciliation flow surfaces the external change.
+          result = await this.handleDocEdit(args)
           break
         }
         case 'image-insert': {
