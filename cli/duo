@@ -721,7 +721,7 @@ async function main() {
             }
             die(`Could not read ${logPath}: ${err?.message ?? err}`);
           }
-        } else if (sub === "insert" || sub === "delete" || sub === "substitute" || sub === "comment" || sub === "accept" || sub === "reject") {
+        } else if (sub === "insert" || sub === "delete" || sub === "substitute" || sub === "highlight" || sub === "comment" || sub === "accept" || sub === "reject") {
           const positionals = [];
           for (let i = 0; i < subRest.length; i++) {
             const t = subRest[i];
@@ -769,6 +769,10 @@ async function main() {
             const text = flagValue(subRest, "--text");
             if (!text) die('Usage: duo doc delete <file> --text "<target>"');
             payload.text = text;
+          } else if (sub === "highlight") {
+            const text = flagValue(subRest, "--text");
+            if (!text) die('Usage: duo doc highlight <file> --text "<target>"');
+            payload.text = text;
           } else if (sub === "substitute") {
             const text = flagValue(subRest, "--text");
             const withText = flagValue(subRest, "--with");
@@ -798,7 +802,7 @@ async function main() {
           }
           out(await send("doc-edit", payload));
         } else {
-          die("Usage: duo doc <write|read|goto|find|conflict-log|insert|delete|substitute|comment|accept|reject> [...]");
+          die("Usage: duo doc <write|read|goto|find|conflict-log|insert|delete|substitute|highlight|comment|accept|reject> [...]");
         }
         break;
       }
@@ -1511,6 +1515,11 @@ COMMANDS
                                   BUG-138 Phase 3 \u2014 wrap "X\u2192Y" as a
                                   CriticMarkup substitution ({~~X~>Y~~}).
                                   --with may be empty (= delete).
+  doc highlight <file> --text "X" v0.7.2 \u2014 wrap "X" as a CriticMarkup
+                                  highlight ({==X==}). CLI parity for
+                                  the existing HighlightMark; sibling
+                                  to delete. --occurrence N supported.
+                                  Refuses if target overlaps existing CM.
   doc comment <file> --anchor "X" --body "B" [--reply-to <c-id>]
                                   BUG-138 Phase 3 \u2014 anchor a comment
                                   ({==X==}{>>id|author|ts|B<<}) to the

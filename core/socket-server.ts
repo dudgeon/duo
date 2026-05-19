@@ -432,7 +432,7 @@ export class SocketServer {
     if (!path.endsWith('.md')) {
       throw new Error(`doc-edit only supports .md files (got ${path})`)
     }
-    const validOps = ['insert', 'delete', 'substitute', 'comment', 'accept', 'reject']
+    const validOps = ['insert', 'delete', 'substitute', 'highlight', 'comment', 'accept', 'reject']
     if (!validOps.includes(op)) {
       throw new Error(`doc-edit op must be one of: ${validOps.join(', ')}`)
     }
@@ -470,6 +470,12 @@ export class SocketServer {
       if (typeof oldText !== 'string') throw new Error('substitute requires --text')
       if (typeof newText !== 'string') throw new Error('substitute requires --with')
       editResult = docEdit.substituteText(split.body, oldText, newText, opts)
+    } else if (op === 'highlight') {
+      // BUG-138 family — close the CLI parity gap. HighlightMark exists
+      // in the editor; this verb wraps existing text as `{==X==}`.
+      const target = args['text'] as string | undefined
+      if (typeof target !== 'string') throw new Error('highlight requires --text')
+      editResult = docEdit.highlightText(split.body, target, opts)
     } else if (op === 'comment') {
       const anchor = args['anchor'] as string | undefined
       const body = args['body'] as string | undefined

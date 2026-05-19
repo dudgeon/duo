@@ -1019,13 +1019,20 @@ html.dark {
     background: rgba(198, 106, 46, 0.16);
   }
   .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
-    background: rgba(198, 106, 46, 0.22);
+    /* BUG-083 markdown side / v0.7.2 polish — the active-state was
+       wired by BUG-087 but the alpha bump (0.12 → 0.22) was too
+       subtle. Owner couldn't reliably tell which inline mark a rail
+       thread anchored to. Bumped to 0.42 + outline pop so the
+       visual association reads at a glance. */
+    background: rgba(198, 106, 46, 0.42);
     /* Literal hex — `var(--duo-accent)` resolves to `#C66A2E` not
        an RGB triplet, so `rgb(var(--duo-accent))` was invalid CSS
        and the rule silently fell back to the inactive border color.
        FOLLOWUP-008 will migrate the token system to RGB-triplet
        form so `rgb()` + alpha modifiers work app-wide. */
     border-bottom-color: #C66A2E;
+    box-shadow: 0 0 0 1px rgba(198, 106, 46, 0.55);
+    border-radius: 2px;
   }
 }
 
@@ -1042,8 +1049,12 @@ html.dark {
   background: rgba(224, 143, 74, 0.22);
 }
 [data-theme="dark"] .ProseMirror [data-duo-comment-id][data-duo-comment-active="1"] {
-  background: rgba(224, 143, 74, 0.32);
+  /* BUG-083 markdown side / v0.7.2 polish — dark-mode parity with
+     the light-mode bump. 0.32 → 0.52 + matching outline pop. */
+  background: rgba(224, 143, 74, 0.52);
   border-bottom-color: #E08F4A;
+  box-shadow: 0 0 0 1px rgba(224, 143, 74, 0.65);
+  border-radius: 2px;
 }
 
 /* ─────────────────────────────────────────────────────────────────────

@@ -289,6 +289,49 @@ export function deleteText(
   }
 }
 
+// ── Highlights ─────────────────────────────────────────────────────────────
+
+/**
+ * BUG-138 family — CLI parity for `{==X==}` highlight ops. The
+ * `HighlightMark` already exists in the TipTap editor (parsed +
+ * serialized via `applyCriticMarkupFromText` / `materializeCriticMarkupToJSON`);
+ * this verb closes the gap where the user could highlight in the UI but
+ * the agent couldn't.
+ *
+ * Shape is identical to `deleteText` — pick the Nth occurrence of
+ * `targetText` in the stripped-CM view, refuse if the range overlaps
+ * an existing CM token (split the operation), wrap the source slice
+ * with `{==…==}`. Author/ts attrs land null on load and stay null
+ * unless the user later edits the marked text (where SuggestingMode's
+ * appendTransaction would stamp them) — consistent with how
+ * `duo doc insert/delete/substitute` behave.
+ */
+export function highlightText(
+  body: string,
+  targetText: string,
+  opts: DocEditOpts = {}
+): DocEditResult {
+  if (!targetText) return { body, changed: false, reason: 'target text is empty' }
+  const occurrence = opts.occurrence ?? 1
+  const view = buildStrippedView(body)
+  const idxStripped = nthIndexOf(view.stripped, targetText, occurrence)
+  if (idxStripped < 0) {
+    return { body, changed: false, reason: `text "${targetText}" not found (occurrence ${occurrence})` }
+  }
+  const headSource = view.strippedToSource[idxStripped]
+  const tailSource = view.strippedToSource[idxStripped + targetText.length]
+  if (rangeOverlapsExistingOp(body, headSource, tailSource)) {
+    return { body, changed: false, reason: 'text overlaps existing CriticMarkup — split the operation' }
+  }
+  const slice = body.slice(headSource, tailSource)
+  const token = `{==${slice}==}`
+  return {
+    body: body.slice(0, headSource) + token + body.slice(tailSource),
+    changed: true,
+    reason: ''
+  }
+}
+
 // ── Substitutions ──────────────────────────────────────────────────────────
 
 export function substituteText(

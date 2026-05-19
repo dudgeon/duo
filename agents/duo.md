@@ -191,6 +191,7 @@ empty.
 | `duo doc insert <file> --text "X" (--after "Y" \| --before "Y" \| --at-line N)` | **BUG-138 Phase 3** — wrap X as a CriticMarkup insertion at the anchor. Anchor matching uses the stripped-CM view so anchors spanning existing tokens still resolve. `--occurrence N` for duplicates. Disk write; editor reconciles via watcher. |
 | `duo doc delete <file> --text "X"` | **BUG-138 Phase 3** — wrap X as a CM deletion. `changed=false` if X overlaps an existing CM token (split the op). |
 | `duo doc substitute <file> --text "X" --with "Y"` | **BUG-138 Phase 3** — wrap X→Y as CM substitution. Empty `--with` = effective delete. |
+| `duo doc highlight <file> --text "X"` | **v0.7.2** — wrap X as CM highlight (`{==X==}`). CLI parity for HighlightMark; lighter than comment / track-change. `--occurrence N` + overlap-guard match delete. |
 | `duo doc comment <file> --anchor "X" --body "B" [--reply-to <c-id>]` | **BUG-138 Phase 3** — anchored comment with pipe-delimited metadata. Author = `$DUO_AUTHOR` (default `agent`). Comment id auto-minted. Body collapsed to single paragraph. |
 | `duo doc accept <file> (--id <c-id> \| --match "X")` | **BUG-138 Phase 3** — accept a CM op (insertion=keep, deletion=drop, substitution=keep new, comment=keep anchor). `--id` for comments, `--match` for inner text. |
 | `duo doc reject <file> (--id <c-id> \| --match "X")` | **BUG-138 Phase 3** — reject (insertion=drop, deletion=keep, substitution=keep old, comment=keep anchor). |

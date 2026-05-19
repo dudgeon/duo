@@ -45,6 +45,16 @@ Original entry kept for context: 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Ow
 
 ---
 
+### FOLLOWUP-022: `duo doc highlight <file> --text "X"` — close BUG-138 family CLI parity gap
+
+**Status:** ✅ **Shipped v0.7.2 2026-05-18** ([this session](https://github.com/dudgeon/duo)). The `HighlightMark` already existed in the TipTap editor (parsed via `applyCriticMarkupFromText`, serialized back to `{==X==}`), but the agent CLI shipped `duo doc {insert,delete,substitute,comment,accept,reject}` without a parity `highlight` verb. Closes a CLAUDE.md § 4 CLI-parity rule violation in the BUG-138 family. Verified end-to-end live: `DUO_AUTHOR=claude duo doc highlight /tmp/...md --text "..."` → file body grows `{==...==}` token → editor renders the orange highlight inline + adds `★ hl` row to the per-suggestion rail with Accept/Reject controls. 6 new vitest fixtures in `core/markdown/docEdit.test.ts` (37 total) cover the round-trip + overlap guard + occurrence + missing target. Plumbed through `core/socket-server.ts § doc-edit op` validator + dispatch, `cli/duo.ts § case 'doc'` subcommand + printHelp, skill/SKILL.md, agents/duo.md, docs/CLI-COVERAGE.md. CLI binary rebuilt + committed.
+
+**Filed:** 2026-05-18. **Shipped:** 2026-05-18.
+
+**Cross-ref:** [BUG-138 chapter](#bug-138--stage-14b-d-markdown-comments--track-changes-via-criticmarkup--agent-visible--portable--unified-stage-14-chapter) (parent), [CLAUDE.md § 4](CLAUDE.md) (CLI-parity rule that produced this gap).
+
+---
+
 ### BUG-139 v1.2: Edit-raw textarea auto-grow to up to 10 lines (walk-1 OTHER NOTES)
 
 **Status:** ✅ **Shipped same session 2026-05-18.** Owner walk-1 note: *"when the user clicks 'edit' and the front matter is long, the edit pane should expand to accommodate up to 10 lines."* Fix: dynamic `rows={Math.max(4, Math.min(10, draft.split('\n').length))}` on the textarea in [`FrontmatterPanel.tsx`](renderer/components/editor/FrontmatterPanel.tsx). Below 4 lines keeps the pane usable for small blocks; above 10 the scrollbar takes over. `resize-y` still allows manual override.
@@ -482,7 +492,9 @@ Plumbing: `shared/types.ts § IPC.LAYOUT_3WAY_EVEN` + `LAYOUT_3WAY_EVEN` discrim
 
 ### ENH-102: ⌘⇧⌫ delete current file (with confirm)
 
-**Status:** 🟡 **LANDED in Sprint 9 (2026-05-07)** — UI smoke verification owed. Chord matcher + dispatch + browser-pane allowlist + App.tsx callback all wired and type-clean. 6 vitest fixtures green for the matcher (⌘⇧⌫ matches; plain ⌫ / ⌘⌫ alone / ⇧⌫ alone / ⌘⌥⇧⌫ all fall through; chord still matches inside editable surfaces because file deletion is a higher intent than line-edit).
+**Status:** ✅ **Verified shipped 2026-05-18** (v0.7.2 cut-prep). Live computer-use walk: ⌘⇧⌫ on the active editor tab pops the Electron native dialog `Move "<filename>" to Trash? — Cancel / Move to Trash`. Click Cancel → file preserved on disk. The Sprint 9 plumbing works as designed; this entry was the missing verification gate. Status flipped + paper-trail kept below.
+
+Old status (kept for context): 🟡 **LANDED in Sprint 9 (2026-05-07)** — UI smoke verification owed. Chord matcher + dispatch + browser-pane allowlist + App.tsx callback all wired and type-clean. 6 vitest fixtures green for the matcher (⌘⇧⌫ matches; plain ⌫ / ⌘⌫ alone / ⇧⌫ alone / ⌘⌥⇧⌫ all fall through; chord still matches inside editable surfaces because file deletion is a higher intent than line-edit).
 **Priority:** Medium (matches macOS file-management muscle memory; closes a gap where the only delete path is right-click → Move to Trash via the navigator or the tab strip).
 **Filed:** 2026-05-06 (idle-thoughts sweep).
 **Implementation summary (Sprint 9 Phase 4, 2026-05-07).**
@@ -5193,7 +5205,9 @@ The hover Comment pill goes away entirely. Send → Duo pill stays as-is (it's t
 
 ### BUG-083: Comments in rail have no visual association with the text they comment on
 
-**Status:** 🟡 **PARTIAL** in v0.6.7 (Sprint 6 Phase 3, 2026-05-04). Heading-level + paragraph-level anchors work; smoke walk surfaced three follow-up issues filed as BUG-088 / BUG-089 / BUG-090. Decision: hold the v0.6.7 cut until these land. Original three concerns:
+**Status:** ✅ **Markdown-side polished v0.7.2 2026-05-18** ([this session](https://github.com/dudgeon/duo)) — the active-thread wiring was already shipped via BUG-087 (markdown editor sets `[data-duo-comment-active="1"]` on matching CommentMark spans on every PM transaction), but the CSS bump from default-state (`rgba(198,106,46,0.12)`) to active-state (`rgba(198,106,46,0.22)`) was too subtle — owner couldn't reliably tell which inline mark a rail thread anchored to. v0.7.2 polish bumped the active alpha to 0.42 + added a 1px accent `box-shadow` outline + `border-radius: 2px` in both light + dark themes ([globals.css § markdown comment-anchor styling](renderer/styles/globals.css)). Clicking a rail thread now visibly pops the corresponding `{>>...<<}` text. The canvas-side variant of this entry is tracked separately under the original v0.6.7 partial fix (kept below).
+
+Old status (kept for context): 🟡 **PARTIAL** in v0.6.7 (Sprint 6 Phase 3, 2026-05-04). Heading-level + paragraph-level anchors work; smoke walk surfaced three follow-up issues filed as BUG-088 / BUG-089 / BUG-090. Decision: hold the v0.6.7 cut until these land. Original three concerns:
 - **Anchor decoration in canvas body.** New `data-duo-has-comment` attribute stamped on the anchor element (separate from the existing badge sibling) by `paintAnchors`. CSS rule (in the iframe-side stylesheet — see below) applies a subtle accent-soft background tint + bottom border so the user sees which text the comment attaches to. Resolved threads don't decorate (the visual would be noise).
 - **Bidirectional click-to-focus.** Rail → anchor was already wired via `handleJumpToThread → scrollToAnchor`. New `installAnchorClickListener` adds the reverse: a delegated click on the iframe body catches clicks on `[data-duo-has-comment]` (or any descendant) and calls `setActiveThreadId(threadId)`. Walks up via `closest()` so clicking inline text inside a commented `<p>` still focuses the thread.
 - **Active-thread emphasis.** New `data-duo-comment-active` attribute stamped on the active anchor (same pass as `data-duo-has-comment`). Stronger background — Google Docs' "this is the one we're looking at" affordance. Rail-side active styling was already wired in `CommentRail` via `duo-comment-thread--active`.

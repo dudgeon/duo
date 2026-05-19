@@ -956,6 +956,7 @@ async function main(): Promise<void> {
           }
         } else if (
           sub === 'insert' || sub === 'delete' || sub === 'substitute' ||
+          sub === 'highlight' ||
           sub === 'comment' || sub === 'accept' || sub === 'reject'
         ) {
           // BUG-138 Phase 3 — agent CriticMarkup verbs. Each subcommand
@@ -1019,6 +1020,12 @@ async function main(): Promise<void> {
             const text = flagValue(subRest, '--text')
             if (!text) die('Usage: duo doc delete <file> --text "<target>"')
             payload.text = text
+          } else if (sub === 'highlight') {
+            // BUG-138 family — `{==X==}` highlight, CLI-parity sibling
+            // to delete. Same flag shape.
+            const text = flagValue(subRest, '--text')
+            if (!text) die('Usage: duo doc highlight <file> --text "<target>"')
+            payload.text = text
           } else if (sub === 'substitute') {
             const text = flagValue(subRest, '--text')
             const withText = flagValue(subRest, '--with')
@@ -1049,7 +1056,7 @@ async function main(): Promise<void> {
 
           out(await send('doc-edit', payload))
         } else {
-          die('Usage: duo doc <write|read|goto|find|conflict-log|insert|delete|substitute|comment|accept|reject> [...]')
+          die('Usage: duo doc <write|read|goto|find|conflict-log|insert|delete|substitute|highlight|comment|accept|reject> [...]')
         }
         break
       }
@@ -1942,6 +1949,11 @@ COMMANDS
                                   BUG-138 Phase 3 — wrap "X→Y" as a
                                   CriticMarkup substitution ({~~X~>Y~~}).
                                   --with may be empty (= delete).
+  doc highlight <file> --text "X" v0.7.2 — wrap "X" as a CriticMarkup
+                                  highlight ({==X==}). CLI parity for
+                                  the existing HighlightMark; sibling
+                                  to delete. --occurrence N supported.
+                                  Refuses if target overlaps existing CM.
   doc comment <file> --anchor "X" --body "B" [--reply-to <c-id>]
                                   BUG-138 Phase 3 — anchor a comment
                                   ({==X==}{>>id|author|ts|B<<}) to the

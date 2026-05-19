@@ -7,6 +7,7 @@ import {
   insertAtLine,
   deleteText,
   substituteText,
+  highlightText,
   addAnchoredComment,
   acceptOp,
   rejectOp
@@ -94,6 +95,50 @@ describe('deleteText', () => {
     const result = deleteText('foo foo foo', 'foo', { occurrence: 2 })
     expect(result.changed).toBe(true)
     expect(result.body).toBe('foo {--foo--} foo')
+  })
+})
+
+describe('highlightText', () => {
+  it('wraps the target text as {==…==}', () => {
+    const result = highlightText('Mark this phrase please.', 'this phrase')
+    expect(result.changed).toBe(true)
+    expect(result.body).toBe('Mark {==this phrase==} please.')
+  })
+
+  it('returns changed=false when target is empty', () => {
+    const result = highlightText('Some text.', '')
+    expect(result.changed).toBe(false)
+    expect(result.reason).toContain('empty')
+  })
+
+  it('returns changed=false when target text is not found', () => {
+    const result = highlightText('Some text.', 'missing')
+    expect(result.changed).toBe(false)
+    expect(result.reason).toContain('not found')
+  })
+
+  it('returns changed=false when target overlaps existing CM', () => {
+    const body = 'a {++inserted++} word'
+    const result = highlightText(body, 'inserted word')
+    expect(result.changed).toBe(false)
+    expect(result.reason).toContain('overlaps existing CriticMarkup')
+  })
+
+  it('picks the Nth occurrence', () => {
+    const result = highlightText('foo foo foo', 'foo', { occurrence: 2 })
+    expect(result.changed).toBe(true)
+    expect(result.body).toBe('foo {==foo==} foo')
+  })
+
+  it('finds anchors that span an existing CM token in stripped view', () => {
+    // Stripped: 'review final draft' — 'final draft' anchor should hit
+    // even though the source has an insertion mark on 'final'.
+    const body = 'review {++final++} draft'
+    const result = highlightText(body, 'final draft')
+    expect(result.changed).toBe(false)
+    // Overlap guard fires — splitting the highlight across an existing
+    // insertion is correctly refused (consistent with deleteText).
+    expect(result.reason).toContain('overlaps existing CriticMarkup')
   })
 })
 
