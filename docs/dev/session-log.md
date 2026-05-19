@@ -18,6 +18,40 @@
 
 ---
 
+## 2026-05-19 (v0.7.3 cut — unified annotation rail + agent comment-reply ergonomics)
+
+**v0.7.3 cut.** Theme: editor UX polish + bug-report cluster from a written bug report. Single session, two waves, one cut. Both waves driven by direct owner pushback rather than a planned sprint scope. 655/655 vitest tests green (649 → 655; 6 new BUG-143 fixtures), typecheck clean.
+
+### What landed (v0.7.3 inventory — 9 deliverables)
+
+- **ENH-166 v2 — unified annotation rail.** Owner kickoff: *"in 0.7.2, comments and tracked changes live in their own rails; this takes up too much width; we need to combine these into a single rail."* v1 stacked the two existing rails inside one 280px column but kept them as separate sections (containerless CommentRail nested inside a TrackedChangesRail-wrapping aside). Owner pushback on v1: *"this is close, but you have just stacked the rails — bad UX; items should coexist in a single rail, e.g. [comment 1, addition 1, comment 2, deletion 1, comment 3], in the order that they appear in the document."* v2 introduced [`UnifiedAnnotationRail.tsx`](../../renderer/components/editor/UnifiedAnnotationRail.tsx) — merges `TrackedRange[]` (`from` as sort key) + `BuiltMarkdownThread[]` (`thread.range?.from` as sort key) into one PM-position-sorted list with a single header, merged "All / Mine / Agent / Others" filter chips that span both kinds via the existing `classifyAuthor` helper, and 1-based comment numbering reassigned post-sort. Each card keeps its kind-specific shape — `TrackedChangeCard` and `CommentThreadCard` were exported as named exports for reuse, no duplication. Live-verified: rail reads top-to-bottom as `[comment-1, +ins, −del, comment-2]` matching the source document.
+
+- **BUG-142..147 bug-report cluster + BUG-148 + FOLLOWUP-023.** Bug report at `/tmp/duo-bug-report-comment-reply.md` documented an agent burning 16 shell calls + ~2 minutes to reply to a single CriticMarkup comment. Six numbered bugs + one surfaced live during the session.
+
+  - **BUG-142 — `doc-edit` not propagated to live editor.** Triaged live: insert / delete / substitute / highlight / accept / reject DO refresh via the existing BUG-085 chokidar reconciliation. The reported "no editor update" was specific to `--reply-to` corrupting the parent token. Closed by BUG-143.
+  - **BUG-143 — `--reply-to` requires `--anchor`.** New pure function [`addCommentReply`](../../core/markdown/docEdit.ts) finds the parent comment by id, appends `\n↪ @<author> <ts>: <body>` inside the parent's `{>>…<<}` body — the format `parseRepliesFromBody` already reads. Socket-server branches on `--reply-to + no --anchor`. CLI validation loosens. 6 new vitest fixtures (37 → 43 docEdit; 649 → 655 total). Live-verified twice in-session: both replies show in the unified rail.
+  - **BUG-144 — `duo layout` / `doc read` active-editor mismatch.** Root cause: every mounted MarkdownEditor's path-mismatch IPC branch did an error-reply, so the bogus error from a non-matching editor raced and won. Fix: silent `return` on mismatch in all four handlers (`onDocRead`, `onDocGoto`, `onDocFind`, `onDocWrite`). Live-verified with two `.md` files open.
+  - **BUG-145 — `duo doc <sub> --help` focused help.** New `printDocHelp(sub?)` helper. ~15-line list vs. the ~200-line global help. Live-verified.
+  - **BUG-146 — skill canvas-vs-editor decision tree.** Added a "Comment disambiguation" decision tree to [`skill/SKILL.md § Leave a comment or track-change`](../../skill/SKILL.md), keyed on `duo layout § main.kind`.
+  - **BUG-147 — `skill/references/comments.md`.** New file. Covers surface decision, on-disk CriticMarkup shape, anchor / reply / accept / reject patterns with runnable examples each, the 3-call expected agent path, and live-editor refresh semantics. Linked from SKILL.md.
+  - **BUG-148 — Main-process EPIPE crash dialog.** Surfaced live during dev restarts under `nohup`: dev-only renderer-console forwarder at [`electron/main.ts:651`](../../electron/main.ts) calls `console.log` on every renderer log line; when the parent's stdout pipe closes, the next write throws EPIPE → uncaught exception → user-visible dialog. Fix: canonical Node-on-broken-pipe handlers on `process.stdout` / `process.stderr` at the top of `electron/main.ts`. Live-verified.
+  - **FOLLOWUP-023 — chokidar reload misclassification.** Surfaced live: chokidar reload after `--reply-to` write applies `applyCriticMarkupFromText` on top of an already-marked buffer, briefly classifying existing `{==X==}` anchors as new `+ ins` cards. Close-reopen the file → renders correctly. Lower priority; workaround documented in the new comments reference page.
+
+### Smoke-walk arc (none — agent-walked end-to-end)
+
+This cut shipped without a formal smoke walk. Both waves were live-verified during the session via computer-use screenshots + CLI exercise of the canonical paths. The bug report's "expected 3-call path" was reproduced in-session: `duo layout` → `duo doc read` (with grep for `id:`) → `duo doc comment --reply-to <id> --body "X"` returned ok:true in ~3 seconds wall-clock. Owner walked the unified rail v2 in the live Electron after the v1 → v2 reframe.
+
+### Process improvements
+
+- Skill `references/comments.md` is now the canonical first-encounter doc for any agent doing comment work. Pairs with the SKILL.md decision tree (Bug 3 fix). The 3-call expected path is documented as a common-task cheat-sheet so agents bypass `--help` paging entirely.
+- BUG-148's stdout EPIPE handler turned a recurring dev-loop blocker into a non-event. The pattern (don't crash on broken pipe) is well-known but had to be added explicitly.
+
+### Carry-forward to v0.7.4+
+
+Same queue as post-v0.7.2 plus FOLLOWUP-023: BUG-079, BUG-093, BUG-122 hypothesis 2/3, ENH-084 v4 aux glow, ENH-127 composer-window, ENH-137 Beginner's Guide, ENH-141 enterprise smoke, ENH-148 v2, ENH-157 browser-pane comments, FOLLOWUP-021 `duo install --clean`, FOLLOWUP-023 (new), BUG-024 follow-up, 17a.5 template gallery, Backlinks panel / graph view.
+
+---
+
 ## 2026-05-18 (v0.7.2 cut — editor UX polish + agent CLI parity + save-conflict reliability)
 
 **v0.7.2 cut.** Theme: polish wave that closes adjacent items from v0.7.1's chapter. 8 commits since v0.7.1 (cut earlier same day). Single smoke walk (4/4 PASS), one walk-1 spot-check bug surfaced + fixed same session, then 3 more pulls before the cut.

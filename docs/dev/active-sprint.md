@@ -1,16 +1,47 @@
-# Active sprint state — between sprints (post-v0.7.2, pre-Sprint 19)
+# Active sprint state — Sprint 19 / v0.7.3 in flight
 
-**Status (2026-05-18 evening):** v0.7.2 cut + tag pushed + [GitHub release](https://github.com/dudgeon/duo/releases/tag/v0.7.2) published with signed DMG. v0.7.2 polish wave closed adjacent items from v0.7.1's Sprint 18 markdown chapter. Next sprint not yet scoped.
+**Status (2026-05-19):** Sprint 19 mid-flight. Two waves shipped this session: (1) ENH-166 unified annotation rail; (2) BUG-142..147 cluster from the bug-report on `duo doc comment --reply-to` ergonomics + live-editor sync. One follow-up filed (FOLLOWUP-023). Smoke walk + cut owed.
 
 ---
 
 ## 🔥 Post-compaction me: read this first
 
-**v0.7.2 cut as [`v0.7.2` tag](https://github.com/dudgeon/duo/releases/tag/v0.7.2).** Theme: editor UX polish + agent CLI parity + save-conflict reliability. 8 commits since v0.7.1 (cut earlier same day). `package.json` already bumped to v0.7.3 for next sprint.
+**ENH-166 v2 unified annotation rail (shipped + live verified).** Owner kickoff: *"in 0.7.2, comments and tracked changes live in their own rails; this takes up too much width; we need to combine these into a single rail."* Owner feedback after v1: *"you have just stacked the comment and track changes rails — bad UX; I specifically said items should coexist in a single rail, e.g. [comment 1, addition 1, comment 2, deletion 1, comment 3], in the order that they appear in the document."* v2 introduces `UnifiedAnnotationRail.tsx` that merges TrackedRange[] + BuiltMarkdownThread[] into one PM-position-sorted list with a single header, merged filter chips (Mine/Agent/Others span both kinds), and 1-based comment numbering reassigned post-sort. Live-verified: the rail reads top-to-bottom as `[comment-1, +ins, −del, comment-2]` matching document order. Prose column gets ~280px back.
 
-**No active sprint plan.** Owner has not yet locked the v0.7.3 / Sprint 19 scope. If owner asks "what's next?", consult the carry-forward queue below + the `tasks.md § 🟡 Filed` entries; offer 3–5 candidates rather than picking unilaterally.
+**BUG-142..147 cluster (shipped + live verified).** Bug report at [/tmp/duo-bug-report-comment-reply.md](/tmp/duo-bug-report-comment-reply.md) — agent took 2 min + 16 shell calls to reply to a single CriticMarkup comment.
 
-**Nothing owed before next strong-trigger work.** Both v0.7.1 follow-ups (BUG-139 v1.1 Q4+Q5 + BUG-138 Phase 5) shipped in v0.7.2. Single smoke walk (4/4 PASS) closed cleanly. All 🟡 owner-decision gates closed.
+- **BUG-142** — `doc-edit` not propagated to live editor. ROOT CAUSE: the reported "no update" was specific to the `--reply-to` codepath corrupting the parent token (insert/delete/etc. DO refresh via the existing BUG-085 chokidar path). Closed via BUG-143 fix.
+- **BUG-143** — `--reply-to` ergonomics. New pure function `addCommentReply` finds the parent comment by id, appends `\n↪ @<author> <ts>: <body>` inside the parent's `{>>…<<}` body. Socket-server branches on `--reply-to + no --anchor`. CLI loosens validation. 6 new vitest fixtures.
+- **BUG-144** — `duo layout` vs `doc read` active-editor mismatch. ROOT CAUSE: each mounted editor error-replied on path mismatch instead of silently ignoring; the bogus error from a non-matching editor raced and won. Fix: silent `return` on mismatch in all four IPC handlers (`onDocRead`, `onDocGoto`, `onDocFind`, `onDocWrite`).
+- **BUG-145** — `duo doc --help` / `duo doc <sub> --help` returns focused per-subcommand help (~15 lines vs. the ~200-line global help).
+- **BUG-146** — "Where is the comment?" decision tree added to `skill/SKILL.md`, keyed on `duo layout § main.kind`.
+- **BUG-147** — `skill/references/comments.md` covering the comment lifecycle, on-disk shape, and the 3-call expected agent path.
+- **BUG-148** — Electron main-process EPIPE crash. Surfaced live during dev restarts: `npm run dev` under `nohup` detaches; once the parent stdout closes, the dev-only renderer-console forwarder at `electron/main.ts:651` throws EPIPE → user-visible error dialog. Fix: canonical Node-on-broken-pipe stdout/stderr handlers at the top of `electron/main.ts`.
+
+**Test counts:** 649 → 655 vitest tests, all green. Typecheck ✅. Skill synced via `npm run sync:claude`.
+
+**Open follow-up:** [FOLLOWUP-023](../../tasks.md) — chokidar reload after a reply leaves the tracked-changes rail momentarily misclassified (highlights show as insertions); close-reopen renders correctly. Lower priority since the headline (reply visible) is fixed and documented in the new reference page.
+
+**Files touched this session (9 + 1 new):**
+- [`electron/main.ts`](../../electron/main.ts) — BUG-148 EPIPE handlers
+- [`renderer/components/editor/UnifiedAnnotationRail.tsx`](../../renderer/components/editor/UnifiedAnnotationRail.tsx) — NEW (v2)
+- [`renderer/components/editor/TrackedChangesRail.tsx`](../../renderer/components/editor/TrackedChangesRail.tsx) — export `TrackedChangeCard` + `FilterChip` + `classifyAuthor` for reuse
+- [`renderer/components/editor/primitives/CommentRail.tsx`](../../renderer/components/editor/primitives/CommentRail.tsx) — export `CommentThreadCard` (v2) + `containerless` prop (v1, retained)
+- [`renderer/components/editor/MarkdownEditor.tsx`](../../renderer/components/editor/MarkdownEditor.tsx) — swap v1 two-section wrapper for `<UnifiedAnnotationRail />`; drop the now-dead `railThreads` adapter; 4× BUG-144 silent-ignore fixes
+- [`renderer/styles/globals.css`](../../renderer/styles/globals.css) — `.duo-unified-rail`
+- [`core/markdown/docEdit.ts`](../../core/markdown/docEdit.ts) — `addCommentReply`
+- [`core/markdown/docEdit.test.ts`](../../core/markdown/docEdit.test.ts) — 6 new tests
+- [`core/socket-server.ts`](../../core/socket-server.ts) — branched comment op
+- [`cli/duo.ts`](../../cli/duo.ts) — `printDocHelp` + validation
+- [`skill/SKILL.md`](../../skill/SKILL.md) — decision tree + updated example
+- [`skill/references/comments.md`](../../skill/references/comments.md) — NEW
+
+**Smoke walk owed (one rev, all of):**
+- ENH-166: open `.md` with mixed CriticMarkup → unified rail in 280px column.
+- BUG-142/143: `duo doc comment --reply-to <id> --body "X"` (no --anchor) → reply appears in thread after close-reopen.
+- BUG-144: two `.md` files open; `duo doc read <non-active path>` returns that file (no spurious error).
+- BUG-145: `duo doc --help` and `duo doc comment --help` return focused help.
+- BUG-146/147: open `skill/SKILL.md` + `skill/references/comments.md` → decision tree + reference both readable.
 
 ---
 

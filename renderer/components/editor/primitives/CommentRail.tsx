@@ -75,6 +75,12 @@ export interface CommentRailProps {
   /** Optional: user clicked Reopen on a resolved thread. If omitted,
    *  resolved threads only show their resolved state — no reopen UX. */
   onReopen?: (threadId: string) => void
+  /** ENH-166 — render without the outer `<aside class="duo-comment-rail">`
+   *  chrome. Used when a host (markdown editor) wraps this primitive in
+   *  a shared rail container alongside other annotation kinds (e.g.
+   *  tracked changes). The outer `<aside>` becomes a chrome-less `<div>`;
+   *  width, border, and background come from the parent. */
+  containerless?: boolean
 }
 
 export function CommentRail({
@@ -83,7 +89,8 @@ export function CommentRail({
   onJumpTo,
   onReply,
   onResolve,
-  onReopen
+  onReopen,
+  containerless = false
 }: CommentRailProps) {
   // ENH-007 — when EVERY thread is resolved, the rail collapses to a
   // small "N resolved" chip on the right edge. Click expands it back to
@@ -97,9 +104,17 @@ export function CommentRail({
   const allResolved = threads.length > 0 && threads.every((t) => t.resolved)
   const resolvedCount = threads.filter((t) => t.resolved).length
 
+  // ENH-166 — when nested in a parent rail container, render as a plain
+  // `<div>` so the parent's chrome (width, border, background) takes over.
+  const Outer = containerless ? 'div' : 'aside'
+  const outerClass = containerless ? 'duo-comment-rail__nested' : 'duo-comment-rail'
+  const collapsedOuterClass = containerless
+    ? 'duo-comment-rail__nested duo-comment-rail__nested--collapsed'
+    : 'duo-comment-rail duo-comment-rail--collapsed'
+
   if (allResolved && !expanded) {
     return (
-      <aside className="duo-comment-rail duo-comment-rail--collapsed" aria-label="Comments — all resolved">
+      <Outer className={collapsedOuterClass} aria-label="Comments — all resolved">
         <button
           type="button"
           className="duo-comment-rail__resolved-chip"
@@ -108,12 +123,12 @@ export function CommentRail({
         >
           {resolvedCount} resolved
         </button>
-      </aside>
+      </Outer>
     )
   }
 
   return (
-    <aside className="duo-comment-rail" aria-label="Comments">
+    <Outer className={outerClass} aria-label="Comments">
       <div className="duo-comment-rail__header">
         <span className="duo-comment-rail__count">
           {threads.length === 0
@@ -152,11 +167,11 @@ export function CommentRail({
           ))
         )}
       </div>
-    </aside>
+    </Outer>
   )
 }
 
-interface CardProps {
+export interface CardProps {
   thread: CommentThread
   active: boolean
   onJumpTo: CommentRailProps['onJumpTo']
@@ -165,7 +180,7 @@ interface CardProps {
   onReopen?: CommentRailProps['onReopen']
 }
 
-function CommentThreadCard({ thread, active, onJumpTo, onReply, onResolve, onReopen }: CardProps) {
+export function CommentThreadCard({ thread, active, onJumpTo, onReply, onResolve, onReopen }: CardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null)
   const [replyOpen, setReplyOpen] = useState(false)
   const [replyText, setReplyText] = useState('')

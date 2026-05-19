@@ -790,6 +790,40 @@ html.dark {
     color: var(--duo-accent);
     border-color: var(--duo-accent);
   }
+  /* ENH-166 — when CommentRail is rendered with `containerless`, the outer
+     element becomes a chrome-less `<div>` so a parent rail container
+     (e.g. MarkdownEditor's unified rail wrapping tracked-changes +
+     comments) owns the width, border, and background. */
+  .duo-comment-rail__nested {
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+  }
+  .duo-comment-rail__nested--collapsed {
+    padding: 10px 6px;
+    align-items: center;
+  }
+  /* ENH-166 — unified annotation rail (markdown editor). Single 280px
+     column hosting both the tracked-changes section and the comment
+     threads section, replacing the two side-by-side rails that
+     consumed ~560px combined. */
+  .duo-unified-rail {
+    width: 280px;
+    max-width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--duo-paper-edge);
+    background: var(--duo-paper-deep);
+    color: var(--duo-ink);
+    font-family: theme('fontFamily.sans');
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+  }
   .duo-comment-thread {
     background: var(--duo-paper);
     border: 1px solid var(--duo-paper-edge);

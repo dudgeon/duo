@@ -23,7 +23,295 @@
 > prune candidate: closed BUG-018..BUG-040 era entries once their
 > lessons similarly internalize.
 
+## Sprint 19 / v0.7.3 — in flight
+
+### Bug cluster — `duo doc comment --reply-to` ergonomics + live-editor sync (BUG-142..147)
+
+**Origin.** Owner-on-behalf-of-agent bug report 2026-05-19 at [/tmp/duo-bug-report-comment-reply.md](/tmp/duo-bug-report-comment-reply.md). A fresh agent took 2 min and 16 shell calls to reply to a single CriticMarkup comment. Six distinct bugs surfaced across CLI ergonomics, server↔editor sync, active-editor identity, help discoverability, and skill docs.
+
+**Cluster.**
+
+- [BUG-142](#bug-142-doc-edit-not-propagated-to-live-editor-buffer) — `duo doc comment` writes to disk but the open editor's TipTap buffer isn't refreshed.
+- [BUG-143](#bug-143---reply-to-should-make---anchor-optional) — `--reply-to` requires `--anchor`; only the parent comment ID coincidentally works.
+- [BUG-144](#bug-144-duo-layout-and-doc-read-disagree-about-active-editor) — `duo layout` and `duo doc read <path>` return contradictory "active editor" values.
+- [BUG-145](#bug-145-duo-doc-verb-lacks-focused-per-subcommand---help) — `duo doc --help` doesn't exist; agent has to page the global help.
+- [BUG-146](#bug-146-skill-missing-canvas-vs-editor-comment-decision-tree) — skill has no "where is the comment?" routing; user's word "canvas" is ambiguous.
+- [BUG-147](#bug-147-skill-missing-comments-reference-page) — no `references/comments.md` for the comment lifecycle.
+- [BUG-148](#bug-148-electron-main-process-crashes-with-epipe-when-stdout-is-closed) — main-process EPIPE crash dialog when stdout is closed (surfaced live during this session's dev restarts).
+
+**Target outcome.** The bug report's expected agent behavior: a 3-call task (`duo layout` → `duo doc read` → `duo doc comment --reply-to <id> --body "X"`) where the live editor immediately reflects the reply.
+
+**Shipped status (2026-05-19, this session).** All six bugs closed. End-to-end live verified: the 3-call expected path now works; the reply appears in the editor's thread after close-reopen of the file. One follow-up filed:
+
+- [FOLLOWUP-023](#followup-023-chokidar-reload-after-reply-misclassifies-criticmarkup) — chokidar reload after a reply leaves the tracked-changes rail momentarily misclassified; close-reopen the file → renders correctly. Lower priority since the headline (reply visible) is fixed.
+
+---
+
+### BUG-142: doc-edit not propagated to live editor buffer (closed via BUG-143)
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session) — closed as part of [BUG-143](#bug-143---reply-to-should-make---anchor-optional).
+
+**Symptom (reported).** `duo doc comment` returns `ok:true, changed:true` but the open editor's TipTap buffer doesn't update. Agent and user see divergent state; agent has no signal that anything went wrong.
+
+**Root cause.** Live test (this session) showed that `duo doc insert / delete / substitute / highlight / accept / reject` DO refresh the open editor via the existing BUG-085 chokidar reconciliation path. The reported "no editor update" was specific to the `--reply-to` codepath: the agent (per the bug report's repro) passed the parent comment id as `--anchor` text. `addAnchoredComment` then created a nested `{==id==}{>>NEW<<}` token inside the existing `{>>…<<}` body — corrupting the parent comment. The disk file changed, the editor reloaded, but rendered the corrupted structure (no visible reply).
+
+**Fix:** Adding [BUG-143](#bug-143---reply-to-should-make---anchor-optional)'s proper `addCommentReply` path (canonical `↪ @author ts: body` separator inside the parent token) closes BUG-142 by construction — the chokidar reload now applies a well-formed update.
+
+**Carry-forward:** [FOLLOWUP-023](#followup-023-chokidar-reload-after-reply-misclassifies-criticmarkup) — the chokidar reload for newline-containing comment-body changes occasionally leaves the rail mis-classified until close-reopen. The reply IS written and parsed correctly on remount; the in-place refresh has a transient inconsistency.
+
+---
+
+### BUG-143: --reply-to should make --anchor optional
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session). Closes both BUG-142 (headline visibility) and BUG-143 (CLI ergonomics).
+
+**Symptom (reported).** `duo doc comment --reply-to <c-id> --body "X"` requires `--anchor`. The natural attempts both fail:
+
+- `--anchor "<parent's anchor text>"` → `"anchor overlaps existing CriticMarkup — split the operation"`. Wrong error for a reply: the overlap IS the point.
+- omitting `--anchor` → CLI usage error.
+
+The only thing that worked was `--anchor "<parent-comment-id>"`, which corrupted the parent token with a nested `{==id==}{>>NEW<<}` body. Agents only got there by guessing.
+
+**Fix shape.**
+
+- New pure function [`addCommentReply`](core/markdown/docEdit.ts) — finds the parent comment by id, appends `\n↪ @<author> <ts>: <body>` inside the parent's `{>>…<<}` body. Single-paragraph guard collapses multi-line replies. Re-serializes the parent token with the extended body. 6 new vitest fixtures cover lead+1 reply, lead+chained replies, standalone (un-anchored) parents, missing-id error, multi-line collapse, empty-input rejection.
+- Socket-server's `doc-edit comment` op now branches: `--reply-to + no --anchor` → `addCommentReply` path; `--anchor + (optional --reply-to)` → existing `addAnchoredComment` path. Error message updated: *"comment requires --anchor (or --reply-to to reply to an existing thread)"*.
+- CLI's `cli/duo.ts § case 'doc' / sub === 'comment'` validation loosened: requires `--body`, then requires EITHER `--anchor` OR `--reply-to`. Usage banner emits both shapes.
+- `printHelp` doc-comment entry now lists both forms; `printDocHelp('comment')` (BUG-145) gives the focused signature.
+
+**Live verification:**
+
+```
+$ DUO_AUTHOR=claude duo doc comment /tmp/enh-166-walk.md \
+    --reply-to cmt_enh166_a --body "agent reply via BUG-143 fix"
+{ "ok": true, "changed": true, "reason": "", "op": "comment", "path": "/tmp/enh-166-walk.md" }
+```
+
+On-disk result (parent comment's body now joined with `\n↪`):
+
+```
+{==a highlight==}{>>id:cmt_enh166_a|author:geoffreydudgeon|ts:T0|first thread
+↪ @claude T1: agent reply via BUG-143 fix<<}
+```
+
+The editor's comment thread rail (after close-reopen) renders both entries threaded under the lead.
+
+**Files touched:**
+
+- [`core/markdown/docEdit.ts`](core/markdown/docEdit.ts) — `addCommentReply` + `CommentReplyParams`
+- [`core/markdown/docEdit.test.ts`](core/markdown/docEdit.test.ts) — 6 new BUG-143 cases (37 → 43 docEdit tests; 649 → 655 total)
+- [`core/socket-server.ts`](core/socket-server.ts) — branched `comment` op
+- [`cli/duo.ts`](cli/duo.ts) — validation + help text
+- [`skill/SKILL.md`](skill/SKILL.md) — example flipped to the canonical `--reply-to`-only form
+- [`skill/references/comments.md`](skill/references/comments.md) — full lifecycle reference (BUG-147)
+
+---
+
+### BUG-144: duo layout and doc read disagree about active editor
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session).
+
+**Symptom (reported).** `duo layout` reported `main.kind = editor, path = X`. Immediately after, `duo doc read X` errored: *"Active editor is at <Y>, not <X>"*. Two CLI verbs returning contradictory active-editor values is a trust problem.
+
+**Root cause.** Each mounted MarkdownEditor instance subscribes to `editor:doc-read` (and `doc-goto`, `doc-find`, `doc-write`) via an IPC broadcast. The four handlers had path-mismatch branches that ERROR-REPLY when `req.path` was supplied but didn't match the editor's own `path`. With multiple editors open, every non-matching editor races to error-reply; the matching editor's success-reply loses the race because the CLI accepts the first response (the bogus error from a non-matching editor) and ignores duplicates.
+
+**Fix:** silently `return` on path mismatch instead of error-replying. Now only the editor whose `path` matches the request responds; absence of any matching editor causes a timeout (the visible failure we want), not a misleading "active editor is at Y" error.
+
+**Verified live:** with two .md files open (`/tmp/enh-166-walk.md` active, `/tmp/bug144-second.md` background), `duo doc read /tmp/bug144-second.md` now returns the second file's content (pre-fix: would error with the active file's path).
+
+**Files touched:** [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx) — four `if (req.path && req.path !== path) { reply(error) }` blocks reduced to `if (req.path && req.path !== path) return`.
+
+---
+
+### BUG-145: duo doc verb lacks focused per-subcommand --help
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session).
+
+**Symptom (reported).** `duo --help` is ~200 lines of dense prose. Finding `doc comment` ergonomics required two paginated `sed` reads. For an agent on first encounter, this is the bulk of the wall-clock cost.
+
+**Fix:** new `printDocHelp(sub?)` helper. `duo doc --help` lists every doc subcommand (~15 lines). `duo doc <sub> --help` (e.g. `duo doc comment --help`) gives the focused signature for that subcommand only. Sections cover read / write / goto / find / insert / delete / substitute / highlight / comment / accept / reject / conflict-log.
+
+**Verified live:** `duo doc --help` returns 16 lines; `duo doc comment --help` returns 5 lines listing both the NEW form (`--anchor + --body`) and the REPLY form (`--reply-to + --body`).
+
+**Files touched:** [`cli/duo.ts`](cli/duo.ts) — `printDocHelp` function + early-exit branches in the `doc` case.
+
+---
+
+### BUG-146: skill missing canvas-vs-editor comment decision tree
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session).
+
+**Symptom (reported).** User says "the comment in the canvas"; the word "canvas" is ambiguous — could be CriticMarkup in the markdown editor OR `html comment` annotations on an HTML canvas. Agent burned ~6 calls into `duo html comment` / `duo html comments` before pivoting to the markdown verb cluster.
+
+**Fix:** Added a "Comment disambiguation" decision tree to [`skill/SKILL.md § Leave a comment or track-change`](skill/SKILL.md). The table keys on `duo layout § main.kind`:
+
+| `main.kind` | Surface | Verbs |
+|---|---|---|
+| `editor` (`.md`) | Markdown editor | `duo doc comment` |
+| `page` (`.html`) | HTML canvas source | `duo html comment` |
+| `browser` (`file://…html`) | HTML canvas playground | `duo html comment` (planned via ENH-157) |
+
+Rule: agent runs `duo layout` FIRST when the surface is ambiguous, then picks the verb cluster.
+
+**Files touched:** [`skill/SKILL.md`](skill/SKILL.md) — new decision-tree section.
+
+---
+
+### BUG-147: skill missing comments reference page
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session).
+
+**Symptom (reported).** No `skill/references/comments.md` covering the comment lifecycle. Agent has to reconstruct the API from `--help` paging and trial-and-error.
+
+**Fix:** Wrote [`skill/references/comments.md`](skill/references/comments.md) covering:
+
+- Surface decision (`main.kind` table — also linked from SKILL.md).
+- On-disk shape table: insertion / deletion / substitution / highlight / anchored comment / standalone comment / reply format.
+- Add a NEW top-level comment (anchor + body), constraints, occurrence flag.
+- Reply to an existing comment (`--reply-to` alone, BUG-143 form). Pre-v0.7.3 workaround documented as DO-NOT-USE for historical context.
+- List comments / threads on a file (no dedicated verb; grep `id:` pattern).
+- Accept / reject (`--id` for comments, `--match` for ins/del/sub/highlight).
+- Live-editor refresh semantics (clean-buffer silent reload vs. dirty-buffer conflict banner).
+- The 3-call expected agent path that closes the bug report's scenario.
+
+**Files touched:** new file at `skill/references/comments.md`.
+
+---
+
+### BUG-148: Electron main-process crashes with EPIPE when stdout is closed
+
+**Status:** ✅ **Shipped v0.7.3 2026-05-19** (this session).
+
+**Symptom (reported live).** Recurring "A JavaScript error occurred in the main process / Error: write EPIPE" dialog. Stack:
+
+```
+at afterWriteDispatched (node:internal/stream_base_commons:161:15)
+at writeOrBuffer (node:internal/streams/writable:572:12)
+at console.value / console.log
+at WebContents.<anonymous> (out/main/index.js:7713:15)
+```
+
+**Root cause.** [`electron/main.ts:651`](electron/main.ts) installs a dev-only `'console-message'` listener on the main window's WebContents that forwards renderer logs to the main-process stdout via `console.log`. When the launching parent (`npm`, `electron-vite`, or the terminal) detaches or closes its stdout pipe, the next write throws EPIPE → uncaught exception → user-visible error dialog. The dialog fires once per forwarded renderer log line, so dismissing it just re-arms the next write.
+
+This bit twice in the session: first after I respawned the dev with `nohup ... > /tmp/duo-dev.log 2>&1 & disown` (the original npm parent had exited cleanly), and again after a second restart cycle.
+
+**Fix.** Install canonical Node-on-broken-pipe handlers at the top of `electron/main.ts`:
+
+```ts
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return
+  throw err
+})
+process.stderr.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return
+  throw err
+})
+```
+
+Same pattern as `node script.js | head` — when `head` exits early, subsequent stdout writes need to be silently absorbed instead of crashing the process. Non-EPIPE errors still propagate so we don't mask unrelated stream failures.
+
+**Verified live.** Dev session respawned three times this session under `nohup` redirection; pre-fix the EPIPE dialog returned after every restart. Post-fix the app boots clean and the dialog doesn't reappear. Existing logging paths (renderer console-forwarder, `[BUG-085 reload]` debug lines, etc.) still emit normally when stdout is alive.
+
+**Files touched:** [`electron/main.ts`](electron/main.ts) — handlers at top of file, ahead of the protocol-register block.
+
+---
+
+### FOLLOWUP-023: chokidar reload after reply misclassifies CriticMarkup
+
+**Status:** 🆕 **Filed 2026-05-19** (this session). Sub-bug surfaced while verifying BUG-143 live.
+
+**Symptom.** Right after `duo doc comment --reply-to` writes the parent token with an extended body containing `\n↪`, the editor's chokidar watcher fires, `setContent + applyCriticMarkupFromText` runs, and the tracked-changes rail temporarily shows pre-existing `{==X==}` highlights as new `+ ins` cards (e.g. "TRACK CHANGES (2)" became "(4)" with the comment-anchor highlights misclassified as insertions). Close-reopen the file → rail renders correctly.
+
+**Likely cause.** `applyCriticMarkupFromText` re-parses the new body but applies marks on top of an already-marked buffer, not into a clean state. Existing comment-anchor highlights get a second-pass insertion mark applied. On full remount, marks are parsed from scratch and are correct.
+
+**Fix path (not yet implemented):** before `applyCriticMarkupFromText` on reload, clear all existing CriticMarkup marks from the buffer first (or use `editor.commands.setContent` with a strict mark-rebuild pass). Alternative: detect newline-containing comment-body changes and force a full remount of the editor tab.
+
+**Priority:** Low. The headline (reply visible) is fixed via close-reopen workaround. Documented in [`skill/references/comments.md`](skill/references/comments.md) so agents know to close-reopen if a reply doesn't show immediately.
+
+---
+
+### ENH-166 v2: Interleave comment + tracked-changes items by document position
+
+**Status:** ⏳ **Filed + implemented 2026-05-19** (this session, post-v1-feedback). Owner feedback after walking v1: *"this is close, but you have just stacked the comment and track changes rails — this is a bad UX; I specifically said that comments and tracked changes should coexist in a single rail, e.g. [comment 1, addition 1, comment 2, deletion 1, comment 3], in the order that they appear in the document."*
+
+**Reframe.** v1 put both rails in one 280px column but kept them as two STACKED sections (TrackedChangesRail on top, comment threads below). v2 merges them into ONE sorted list keyed on PM document position — items truly coexist.
+
+**Implementation.** New component [`renderer/components/editor/UnifiedAnnotationRail.tsx`](renderer/components/editor/UnifiedAnnotationRail.tsx):
+
+- Merges `TrackedRange[]` (sortKey = `range.from`) + `BuiltMarkdownThread[]` (sortKey = `thread.range?.from ?? MAX_SAFE_INTEGER` — sidecar-only threads sort to the end).
+- Renders a single header (`"{N} ANNOTATIONS"`), one row of merged filter chips (**All / Mine / Agent / Others**) that span both kinds via the existing `classifyAuthor` helper, then the sorted card list.
+- Each card keeps its kind-specific shape — `TrackedChangeCard` from TrackedChangesRail (✓/✗ buttons, kind chip) and `CommentThreadCard` from CommentRail (reply form, Resolve / Reopen). Both were exported as named exports for reuse.
+- Comment thread numbers are reassigned 1-based AFTER the sort so the badge reflects document order across mixed kinds.
+
+**Files touched (v2 delta):**
+
+- `renderer/components/editor/UnifiedAnnotationRail.tsx` — NEW
+- [`renderer/components/editor/TrackedChangesRail.tsx`](renderer/components/editor/TrackedChangesRail.tsx) — export `TrackedChangeCard` + `FilterChip` + `classifyAuthor` + `AnnotationFilter` type for reuse
+- [`renderer/components/editor/primitives/CommentRail.tsx`](renderer/components/editor/primitives/CommentRail.tsx) — export `CommentThreadCard` + `CardProps`
+- [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx) — swap the v1 two-section wrapper for one `<UnifiedAnnotationRail />`; drop the now-dead `railThreads` adapter useMemo + the `CommentThread` type import
+- ⬇ The v1 `containerless` prop on `CommentRail` and the `.duo-comment-rail__nested` CSS class remain — harmless dead surface that other hosts (canvas / PageTab) could opt into later. The `.duo-unified-rail` CSS class is still load-bearing (the new component uses it).
+
+**Live-verified shape** (fixture with 2 tracked changes + 2 comments at staggered positions):
+
+```
+4 ANNOTATIONS
+All 4  Mine  Agent 1  Others 1
+[ 1 "a highlight" ─ geoffreydudgeon "first thread" + ✨ claude reply ]   ← PM ~120
+[ + ins (unattributed) "an inserted phrase" ]                            ← PM ~250
+[ − del (unattributed) "a deleted phrase" ]                              ← PM ~380
+[ 2 "another highlight" ─ ✨ claude lead + ✨ claude reply ]              ← PM ~510
+```
+
+**Originally**
+
+### ENH-166: Unify comment + tracked-changes rails into one column
+
+**Status:** ⏳ **Filed + implemented 2026-05-19** (this session). Owner directive: *"in 0.7.2, comments and tracked changes live in their own rails; this takes up too much width; we need to combine these into a single rail, where comments and tracked changes coexist."*
+
+**Symptom (v0.7.2 and prior).** The markdown editor renders TWO side-by-side rails as flex children of the prose+rails row in [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx): the BUG-138 Phase 4e per-suggestion track-changes rail (~variable width, no explicit cap) AND the Sprint 6 Phase 4 / MISSING-001 comment rail (`.duo-comment-rail` = 280px fixed). When a file has both a tracked change and a comment, ~560px of horizontal width disappears from the prose column on a typical wide-editor session.
+
+**Fix shape.** Single 280px column hosting both sections, replacing the two flex children. Tracked changes section renders on top (its own collapsible header + "Mine / Agent / Others" filter chips intact); comment threads section renders below (in `containerless` mode so the unified `<aside>` owns the chrome). Each card preserves its kind-specific shape — no card refactoring; only the container changes.
+
+**Implementation (this session).**
+
+- [`renderer/components/editor/primitives/CommentRail.tsx`](renderer/components/editor/primitives/CommentRail.tsx) — new optional `containerless: boolean` prop. When true, the outer element becomes a chrome-less `<div>` (CSS class `duo-comment-rail__nested`) so a parent rail container owns width, border, and background. Both the normal rail render and the all-resolved collapsed-chip render honor the flag.
+- [`renderer/styles/globals.css`](renderer/styles/globals.css) — new `.duo-comment-rail__nested` rule (inline-display, inherits color/font from parent) + new `.duo-unified-rail` rule (280px fixed, max-width 320px, paper-deep background, paper-edge left border — same chrome the old comment rail had; this becomes the unified container).
+- [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx:2547) — the two side-by-side rail renders collapse into a single `<aside className="duo-unified-rail">` with both `<TrackedChangesRail />` and `<CommentRail containerless />` nested inside. Visibility gate is `(!isNew && (trackedChangesList.length > 0 || railThreads.length > 0))` — same as the union of the prior two gates.
+
+**Smoke walk paths to exercise.**
+
+1. Open a `.md` file with comments only → unified rail shows only the comment section + threads, header reads "{N} comments".
+2. Open a `.md` with tracked changes only → unified rail shows only the tracked-changes section + cards.
+3. Open a `.md` with BOTH → both sections render stacked in one 280px column. Prose column gets ~280px back compared to v0.7.2.
+4. Resolve all comments → the "{N} resolved" chip appears nested in the unified column (not a separate floating chip), inside the unified rail's chrome.
+5. Toggle the tracked-changes collapse chevron → the cards collapse but the comment threads section remains rendered below.
+6. Filter chips (Mine / Agent / Others) still work; ✓ / ✗ accept/reject still works; click-to-jump still works.
+
+**Plumbing-checklist disposition.** No new tab kind, no new CLI verb, no new page op — pure renderer composition. Skill / agents docs unchanged (rails are visual chrome, no agent-driven verbs).
+
+**Editor-canvas parity disposition.** **(b) Skipped — surface-specific.** The HTML canvas (PageTab) doesn't currently render a tracked-changes rail (BUG-138 family was markdown-only). When canvas grows tracked-change support, the same unification pattern transfers — the `containerless` prop is already there for reuse.
+
+**Verification status.** Typecheck ✅. Live verification deferred — packaged Duo v0.7.2 is currently running on the only socket path; restarting into dev would lose the user's working state. Smoke walk runs when the user is ready to switch to `npm run dev`.
+
+**Carry-forward.** If the unified column feels visually crowded once both sections are non-empty (e.g. the two headers competing), a v2 could merge them into a single "Annotations ({total})" header above an inline-mixed list sorted by source position. Defer pending owner walk.
+
+---
+
 ## Recent (v0.7.2 cut — polish wave — 2026-05-18)
+
+### ENH-165: Lock the screenshot-annotation style for Duo docs
+
+**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Owner started writing Duo docs (`docs/about-duo.md` + two raw screenshots in `docs/`) and wants annotated screenshots that are "tasteful but visually striking." Rather than build a Duo annotation feature (corner-case use), elicit a style spec once via playground → reuse the spec per-screenshot.
+
+**Playground:** [`docs/research/screenshot-annotation-style.html`](docs/research/screenshot-annotation-style.html). Five fully-formed annotation styles rendered as SVG overlays on the same reference screenshot (`docs/image-20260518-105715-661d.png`) with the same three callout targets. Four owner-decision blocks: (1) style direction A–E, (2) frame treatment, (3) numbering convention, (4) output format (HTML+SVG re-editable / flattened PNG / both). Recommended picks: A (editorial atelier) · hairline frame · contextual numbering · both formats.
+
+**Why this exists.** The "tasteful + striking" target is personal aesthetic — not derivable from the atelier kernel alone. Locking it once lets future "annotate this screenshot" requests skip the style-debate and just produce the SVG overlay matching the agreed look.
+
+**Once walked.** Locked style becomes a comment block in the playground's `.html` source (or a sibling markdown spec). Per-screenshot workflow: agent reads the spec → generates `<name>.annot.html` with SVG overlay → optionally rasterizes to `<name>.annot.png` via headless Chrome → owner tweaks coordinates via natural language ("move callout 2 up and left").
+
+**Carry-forward rule:** this entry surfaces in every smoke walk until the owner Copy-decisions back and closes the gate.
+
+---
 
 ### BUG-139 v1.1: Properties panel design decisions Q4 + Q5 (walk-1 locked, code owed)
 

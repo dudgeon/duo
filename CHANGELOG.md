@@ -19,7 +19,71 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.2 cut 2026-05-18.
+> Empty — v0.7.3 cut 2026-05-19.
+
+## [0.7.3] — 2026-05-19
+
+### Added
+
+- **Unified annotation rail in the markdown editor** (ENH-166). Replaces the two
+  side-by-side rails (tracked-changes + comments, each ~280px wide) with one
+  280px column where items interleave by document position. Cards keep their
+  kind-specific shape (✓/✗ for tracked changes; reply/resolve for comment
+  threads); one header + merged "All / Mine / Agent / Others" filter chips
+  span both kinds. Comment thread numbering reassigns 1-based after the merge
+  sort so badges reflect document order across mixed kinds. Net effect:
+  ~280px of horizontal real estate reclaimed for the prose column. New
+  component at `renderer/components/editor/UnifiedAnnotationRail.tsx`.
+- **`duo doc comment --reply-to <c-id>` no longer requires `--anchor`** (BUG-143).
+  New `addCommentReply` pure function finds the parent token by id and
+  appends `↪ @<author> <ts>: <body>` inside the parent's `{>>…<<}` body —
+  the canonical threading format `parseRepliesFromBody` already reads. 6 new
+  vitest fixtures (37 → 43 docEdit cases; 649 → 655 total). Closes the bug
+  report where an agent burned 16 shell calls + 2 minutes guessing the right
+  anchor shape.
+- **Focused per-verb help via `duo doc --help` and `duo doc <sub> --help`**
+  (BUG-145). ~15-line subcommand list vs. the ~200-line global help. Sections
+  cover read / write / goto / find / insert / delete / substitute / highlight
+  / comment / accept / reject / conflict-log.
+- **`skill/references/comments.md`** (BUG-147). Full comment lifecycle
+  reference — surface decision table, on-disk CriticMarkup shape, anchor /
+  reply / accept / reject patterns with one runnable example each, the
+  3-call expected agent path, and the live-editor refresh semantics.
+- **`skill/SKILL.md § "Comment disambiguation"`** (BUG-146). New decision tree
+  keyed on `duo layout § main.kind` that disambiguates the user's word
+  "canvas" — markdown editor (`duo doc comment`) vs. HTML canvas (`duo html
+  comment`) — before the agent picks a verb cluster.
+
+### Fixed
+
+- **`duo doc read <path>` (and `doc goto / find / write`) on non-active editors**
+  (BUG-144). Each mounted MarkdownEditor's path-mismatch IPC branch used to
+  error-reply, so with multiple files open the wrong editor would race and
+  win the reply — the CLI saw a bogus "Active editor is at Y, not X" error.
+  Path-mismatch is now a silent ignore; only the matching editor responds.
+- **Main-process EPIPE crash dialog when parent stdout closes** (BUG-148).
+  The dev-only renderer-console forwarder at `electron/main.ts:651` calls
+  `console.log` on every renderer log line; when the launching parent (npm /
+  electron-vite / terminal) detaches its stdout pipe, the next write threw
+  EPIPE → uncaught exception → user-visible JavaScript error dialog.
+  Installs canonical Node-on-broken-pipe handlers on `process.stdout` /
+  `process.stderr` that suppress EPIPE silently while still propagating
+  other stream errors.
+
+### Changed
+
+- **`skill/SKILL.md § "Leave a comment or track-change"`** — example flipped
+  from the v1 `--anchor + --reply-to` form (which corrupted the parent
+  token) to the canonical `--reply-to` alone (BUG-143).
+
+### Known issues
+
+- **FOLLOWUP-023** — chokidar reload after a reply leaves the tracked-
+  changes rail momentarily misclassified (existing `{==X==}` anchors render
+  as `+ ins` cards until the file is closed + reopened). Reply IS written
+  correctly to disk and parses correctly on remount; only the in-place
+  re-render path has a transient inconsistency. Documented in the new
+  comments reference page so agents know the close-reopen workaround.
 
 ## [0.7.2] — 2026-05-18
 
@@ -1498,7 +1562,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.3...HEAD
+[0.7.3]: https://github.com/dudgeon/duo/releases/tag/v0.7.3
 [0.7.2]: https://github.com/dudgeon/duo/releases/tag/v0.7.2
 [0.7.1]: https://github.com/dudgeon/duo/releases/tag/v0.7.1
 [0.7.0]: https://github.com/dudgeon/duo/releases/tag/v0.7.0

@@ -21,7 +21,78 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.2 cut 2026-05-18)*
+> *(empty — v0.7.3 cut 2026-05-19)*
+
+---
+
+## v0.7.3 — 2026-05-19 — Unified annotation rail + agent comment-reply ergonomics
+
+**Why this version lands here.** Two coherent surfaces shipped on the same
+day, both driven by direct owner pushback rather than a planned sprint. The
+markdown editor's two annotation rails (BUG-138 Phase 4e tracked-changes +
+Sprint 6 Phase 4 comments) had been visually parallel since v0.7.1 and ate
+~560px of horizontal width when both had items. Owner directive:
+*"comments and tracked changes should coexist in a single rail, in the
+order that they appear in the document."* A separate written bug report
+the same day documented an agent burning 16 shell calls + 2 minutes to
+reply to a single CriticMarkup comment, with five further issues stacked
+underneath (active-editor identity confusion, opaque help, missing skill
+docs, ambiguous "canvas" wording, and a recurring main-process EPIPE
+crash). Both surfaces wanted closing in one wave.
+
+**Three design decisions baked in.**
+
+1. **Interleave by document position, not by kind.** v1 of the unified
+   rail stacked tracked-changes on top of comments in one column —
+   technically "one rail" but still two sections. Owner: *"this is close,
+   but you have just stacked the rails — bad UX."* v2 reframed: each
+   comment thread carries a live PM position (`buildMarkdownThreads`
+   already had it), each tracked range carries `from`, so merge + sort
+   by position. Reading the rail top-to-bottom now mirrors reading the
+   document.
+2. **Replies don't get their own CriticMarkup token.** Pre-v0.7.3 the
+   only `--reply-to` shape that worked was passing the parent comment id
+   as `--anchor` text, which created a nested `{==id==}{>>NEW<<}`
+   inside the parent's body — visible as corruption on next remount. The
+   fix appends `\n↪ @<author> <ts>: <body>` inside the parent's existing
+   `{>>…<<}` body — the format `parseRepliesFromBody` already reads.
+   One canonical thread shape, one parse path.
+3. **Path-mismatch on editor IPC is a silent ignore, not an error reply.**
+   With multiple `.md` files open, every non-matching editor's
+   `onDocRead` / `onDocGoto` / `onDocFind` / `onDocWrite` listener used
+   to error-reply — the bogus error from the first responder raced and
+   won, masking the matching editor's success. Path-uniqueness is a
+   strong invariant; only the matching editor should respond, and
+   absence is the visible failure (a timeout), not a misleading error.
+
+**What this is and isn't.** This is editor UX polish + agent ergonomics
+on top of v0.7.1's markdown source-of-truth chapter. It is NOT a new
+capability surface — comments and tracked changes were already in v0.7.1;
+this cut is about reading them in less space and writing replies in
+fewer keystrokes. The next chapter is queued via the v0.7.2 carry-forward
+queue (BUG-079 tab-cycle latency, BUG-093 split crash, ENH-084 v4 aux
+glow, ENH-148 v2 cross-boundary selection, ENH-157 browser-pane
+comments) — Sprint 20 scope locks when the owner picks from that queue.
+
+**One follow-up worth flagging on the cover.** FOLLOWUP-023 — the
+chokidar reload path doesn't fully reconcile CriticMarkup marks on a
+reply-write while the editor stays open. Close-reopen the file and it
+parses correctly. Lower priority than the headline (reply visible) and
+documented in the new `skill/references/comments.md` so agents know the
+workaround without having to learn it the hard way.
+
+**Bug-cluster inventory (BUG-142..148 + FOLLOWUP-023):**
+
+| ID | What | Status |
+|---|---|---|
+| BUG-142 | `doc-edit` not propagated to live editor | ✅ closed via BUG-143 |
+| BUG-143 | `--reply-to` no-anchor reply path | ✅ live-verified (6 tests) |
+| BUG-144 | `layout` / `doc read` active-editor identity | ✅ live-verified |
+| BUG-145 | `duo doc <sub> --help` focused help | ✅ live-verified |
+| BUG-146 | skill canvas-vs-editor decision tree | ✅ |
+| BUG-147 | `skill/references/comments.md` | ✅ new file |
+| BUG-148 | Main-process EPIPE handler | ✅ live-verified |
+| FOLLOWUP-023 | chokidar reload misclassification | 🆕 open (workaround documented) |
 
 ---
 

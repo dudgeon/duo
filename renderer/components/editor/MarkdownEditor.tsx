@@ -28,7 +28,7 @@ import type { Editor } from '@tiptap/react'
 
 import { EditorToolbar } from './EditorToolbar'
 import { SuggestingBanner } from './SuggestingBanner'
-import { TrackedChangesRail } from './TrackedChangesRail'
+import { UnifiedAnnotationRail } from './UnifiedAnnotationRail'
 import { collectTrackedChanges, countTrackedChanges, type TrackedRange } from './trackedChanges'
 import { FrontmatterPanel } from './FrontmatterPanel'
 import { useAutosavePreference } from './autosavePreference'
@@ -57,7 +57,6 @@ import { AtMention } from './extensions/AtMention'
 import { useVaultIndex, rankVaultFiles } from './vaultIndex'
 import { WriteWarningBanner } from './primitives/WriteWarningBanner'
 import { SendToDuoPill } from './primitives/SendToDuoPill'
-import { CommentRail, type CommentThread } from './primitives/CommentRail'
 import { NewCommentComposer } from './primitives/NewCommentComposer'
 import { formatSendPayload } from './sendFormat'
 import { useSelectionFormat } from '../../hooks/useSelectionFormat'
@@ -1439,9 +1438,9 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   // ── Comment threads (Sprint 6 Phase 4 / MISSING-001) ──────────────────────
 
   /** Build threads off the live ProseMirror doc + the sidecar. The
-   *  rail gates on `railThreads.length > 0`, so this also drives the
-   *  rail's mount/unmount. Recomputed on every threadsTick bump
-   *  (sidecar mutation, file load, mark application). */
+   *  unified rail consumes BuiltMarkdownThread directly (range.from
+   *  feeds the document-order sort). Recomputed on every threadsTick
+   *  bump (sidecar mutation, file load, mark application). */
   const builtThreads = useMemo(() => {
     if (!editor) return []
     return buildMarkdownThreads(editor.state.doc, sidecarRef.current)
@@ -1478,23 +1477,6 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       : (dom.node.parentElement as HTMLElement | null)
     node?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [editor])
-
-  /** Adapt to the CommentRail primitive's expected shape. Number is
-   *  1-based document order, mirroring the canvas convention. */
-  const railThreads = useMemo<CommentThread[]>(() => {
-    return builtThreads.map((t, i) => ({
-      id: t.threadId,
-      number: i + 1,
-      excerpt: t.excerpt,
-      resolved: t.resolved,
-      entries: t.entries.map(e => ({
-        id: e.id,
-        author: e.author,
-        ts: e.ts,
-        body: e.body
-      }))
-    }))
-  }, [builtThreads])
 
   /** Persist a sidecar mutation through the same autosave path as
    *  body edits. Mirrors PageTab's persistSidecarMutation. */
@@ -1758,14 +1740,16 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onDocRead((req) => {
-      if (req.path && req.path !== path) {
-        window.electron.editor.replyDocRead({
-          reqId: req.reqId,
-          ok: false,
-          error: `Active editor is at ${path}, not ${req.path}`
-        })
-        return
-      }
+      // BUG-144 — when a path filter is supplied, silently ignore on
+      // mismatch so only the editor whose `path` matches replies. The
+      // prior behavior replied with an error from EVERY non-matching
+      // mounted editor; with multiple editors open, whichever bogus
+      // error reached the socket first won the race and the matching
+      // editor's success reply was discarded by the CLI as a duplicate.
+      // No reply at all on mismatch is the right shape — the matching
+      // editor still replies; absence of any matching editor will time
+      // out, which is the visible failure we want.
+      if (req.path && req.path !== path) return
       if (!req.path && !isActiveRef.current) return // no path filter, not active → ignore
       try {
         const body = serializeWithCriticMarkup(editor)
@@ -1802,13 +1786,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onDocGoto(async (req) => {
-      if (req.path && req.path !== path) {
-        window.electron.editor.replyDocGoto({
-          reqId: req.reqId, ok: false,
-          error: `Active editor is at ${path}, not ${req.path}`
-        })
-        return
-      }
+      // BUG-144 — silent ignore on path mismatch (see onDocRead).
+      if (req.path && req.path !== path) return
       try {
         const heading = req.heading
         const anchor = req.anchor
@@ -2140,13 +2119,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onDocFind((req) => {
-      if (req.path && req.path !== path) {
-        window.electron.editor.replyDocFind({
-          reqId: req.reqId, ok: false,
-          error: `Active editor is at ${path}, not ${req.path}`
-        })
-        return
-      }
+      // BUG-144 — silent ignore on path mismatch (see onDocRead).
+      if (req.path && req.path !== path) return
       try {
         const body = serializeWithCriticMarkup(editor)
         const lines = body.split('\n')
@@ -2301,14 +2275,8 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
   useEffect(() => {
     if (!editor || isNew) return
     return window.electron.editor?.onDocWrite((req) => {
-      if (req.path && req.path !== path) {
-        window.electron.editor.replyDocWrite({
-          reqId: req.reqId,
-          ok: false,
-          error: `Active editor is at ${path}, not ${req.path}`
-        })
-        return
-      }
+      // BUG-144 — silent ignore on path mismatch (see onDocRead).
+      if (req.path && req.path !== path) return
 
       // Stage 13b — gate dirty-buffer writes behind the warning banner.
       if (dirtyRef.current) {
@@ -2544,27 +2512,23 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
             <span className="font-mono">#</span>
           </button>
         </div>
-        {/* BUG-138 Phase 4e — per-suggestion track-changes rail.
-            Stacked above the comment rail in the right-side strip.
-            Hidden in isNew mode (no sidecar / no file yet) and when
-            empty. */}
-        {!isNew && trackedChangesList.length > 0 && (
-          <TrackedChangesRail
+        {/* ENH-166 v2 — unified annotation rail. v1 (this morning) put
+            both rails inside one 280px column but kept them as two
+            stacked sections. Owner pushback: items should INTERLEAVE
+            by document position so reading the rail mirrors reading
+            the document. UnifiedAnnotationRail merges tracked changes
+            + comment threads into one sorted list keyed on PM
+            position. Hidden in isNew mode (no sidecar / no file yet)
+            and when both lists are empty. */}
+        {!isNew && (trackedChangesList.length > 0 || builtThreads.length > 0) && (
+          <UnifiedAnnotationRail
             editor={editor}
             ranges={trackedChangesList}
-            onJumpTo={handleJumpToTrackedChange}
+            threads={builtThreads}
             currentAuthor={authorOrLegacy}
-          />
-        )}
-        {/* Sprint 6 Phase 4 / MISSING-001 — comment rail. Mirrors the
-            canvas's gating: hidden in isNew mode (no sidecar) and
-            when threads are empty. Reuses the shared CommentRail
-            primitive — same styling, same interaction surface. */}
-        {!isNew && railThreads.length > 0 && (
-          <CommentRail
-            threads={railThreads}
             activeThreadId={activeThreadId}
-            onJumpTo={handleJumpToThread}
+            onJumpToRange={handleJumpToTrackedChange}
+            onJumpToThread={handleJumpToThread}
             onReply={handleReplyToThread}
             onResolve={handleResolveThread}
             onReopen={handleReopenThread}

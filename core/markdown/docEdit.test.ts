@@ -9,6 +9,7 @@ import {
   substituteText,
   highlightText,
   addAnchoredComment,
+  addCommentReply,
   acceptOp,
   rejectOp
 } from './docEdit'
@@ -222,6 +223,88 @@ describe('addAnchoredComment', () => {
       commentId: ID_FIXED
     })
     expect(result.changed).toBe(false)
+  })
+})
+
+describe('addCommentReply (BUG-143)', () => {
+  const REPLY_TS = '2026-05-19T13:00:00Z'
+
+  it('appends `↪ @author ts: body` to the parent comment body', () => {
+    const body = 'Hello {==world==}{>>id:cmt_a|author:dudgeon|ts:2026-05-19T12:00:00Z|first thread<<}.'
+    const result = addCommentReply(body, {
+      replyTo: 'cmt_a',
+      replyBody: 'agent reply',
+      author: 'claude',
+      ts: REPLY_TS
+    })
+    expect(result.changed).toBe(true)
+    expect(result.body).toBe(
+      'Hello {==world==}{>>id:cmt_a|author:dudgeon|ts:2026-05-19T12:00:00Z|first thread\n↪ @claude ' + REPLY_TS + ': agent reply<<}.'
+    )
+  })
+
+  it('appends a reply to a standalone (unanchored) comment', () => {
+    const body = 'note. {>>id:cmt_s|author:claude|ts:2026-05-19T12:00:00Z|standalone<<} continues.'
+    const result = addCommentReply(body, {
+      replyTo: 'cmt_s',
+      replyBody: 'a reply',
+      author: 'dudgeon',
+      ts: REPLY_TS
+    })
+    expect(result.changed).toBe(true)
+    expect(result.body).toContain('|standalone\n↪ @dudgeon ' + REPLY_TS + ': a reply<<}')
+  })
+
+  it('chains multiple replies (second reply finds parent body already grown)', () => {
+    const start = 'X {==target==}{>>id:cmt_a|author:a|ts:t1|lead<<}.'
+    const first = addCommentReply(start, {
+      replyTo: 'cmt_a',
+      replyBody: 'first reply',
+      author: 'claude',
+      ts: 't2'
+    })
+    expect(first.changed).toBe(true)
+    const second = addCommentReply(first.body, {
+      replyTo: 'cmt_a',
+      replyBody: 'second reply',
+      author: 'dudgeon',
+      ts: 't3'
+    })
+    expect(second.changed).toBe(true)
+    expect(second.body).toContain('lead\n↪ @claude t2: first reply\n↪ @dudgeon t3: second reply<<}')
+  })
+
+  it('returns changed=false with "not found" reason when reply-to id is missing', () => {
+    const body = 'X {==target==}{>>id:cmt_a|author:a|ts:t|lead<<}.'
+    const result = addCommentReply(body, {
+      replyTo: 'cmt_does_not_exist',
+      replyBody: 'reply',
+      author: 'claude',
+      ts: REPLY_TS
+    })
+    expect(result.changed).toBe(false)
+    expect(result.reason).toContain('not found')
+  })
+
+  it('collapses multi-line reply bodies to a single line (paragraph guard)', () => {
+    const body = 'X {==t==}{>>id:cmt_a|author:a|ts:t|lead<<}.'
+    const result = addCommentReply(body, {
+      replyTo: 'cmt_a',
+      replyBody: 'line1\n\nline2\nline3',
+      author: 'claude',
+      ts: REPLY_TS
+    })
+    expect(result.changed).toBe(true)
+    expect(result.body).toContain(': line1 line2 line3<<}')
+    expect(result.body.split('\n').length).toBe(2) // lead\n↪ ...
+  })
+
+  it('rejects empty body / empty author / missing replyTo', () => {
+    const body = 'X {==t==}{>>id:cmt_a|author:a|ts:t|lead<<}.'
+    expect(addCommentReply(body, { replyTo: '', replyBody: 'x', author: 'a', ts: 't' }).changed).toBe(false)
+    expect(addCommentReply(body, { replyTo: 'cmt_a', replyBody: '', author: 'a', ts: 't' }).changed).toBe(false)
+    expect(addCommentReply(body, { replyTo: 'cmt_a', replyBody: 'x', author: '', ts: 't' }).changed).toBe(false)
+    expect(addCommentReply(body, { replyTo: 'cmt_a', replyBody: 'x', author: 'a', ts: '' }).changed).toBe(false)
   })
 })
 

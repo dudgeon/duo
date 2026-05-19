@@ -3,6 +3,24 @@ import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
 import * as nodePath from 'path'
 
+// BUG-148 — suppress EPIPE on stdout/stderr. When the parent process
+// (npm / electron-vite / the launching terminal) detaches or closes
+// its pipe, the next write throws EPIPE → uncaught exception → a
+// user-visible "JavaScript error occurred in the main process"
+// dialog. The dev console-forwarder at the bottom of createMainWindow
+// fires once per renderer console.log, so a closed pipe makes the
+// dialog re-appear after every dismissal until the app is killed.
+// This is the canonical Node-on-broken-pipe pattern (mirror of what
+// `node script.js | head` needs to survive head's early exit).
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return
+  throw err
+})
+process.stderr.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') return
+  throw err
+})
+
 // ENH-108 / ENH-111 (Sprint 12 walk-1 fix) — register the `duo-asset://`
 // custom protocol BEFORE app.whenReady so the renderer can load local
 // files via `<img src="duo-asset://abs/path/to/file.png">`. The renderer

@@ -414,6 +414,79 @@ export function addAnchoredComment(
   }
 }
 
+// ── Reply (BUG-143) ────────────────────────────────────────────────────────
+
+/** Parameters for appending a reply to an existing comment thread.
+ *  No anchor text — replies attach to the parent comment by id, and the
+ *  reply body is appended inside the parent's `{>>…<<}` token using the
+ *  `↪ @author ts: body` separator that `parseRepliesFromBody` reads. */
+export interface CommentReplyParams {
+  /** Parent comment's id (the `id:` field inside its `{>>…<<}` body). */
+  replyTo: string
+  /** Reply body text. Single-paragraph (newlines collapsed). */
+  replyBody: string
+  /** Reply author display name. */
+  author: string
+  /** ISO 8601 timestamp for the reply. */
+  ts: string
+}
+
+/** BUG-143 — append a reply entry to an existing comment thread.
+ *
+ *  Pre-fix the only way an agent could "reply" was to call
+ *  `addAnchoredComment` with the parent id smuggled as the anchor text,
+ *  which corrupted the parent token (nested `{==id==}{>>NEW<<}` inside
+ *  the existing `{>>…<<}` body) and broke the editor's thread render.
+ *
+ *  Post-fix this is the canonical path: find the parent by id, append
+ *  `\n↪ @<author> <ts>: <body>` to the parent's body, re-serialize. The
+ *  editor's existing `parseRepliesFromBody` (BUG-138 Phase 5) splits the
+ *  joined body back into thread entries at render time. */
+export function addCommentReply(
+  body: string,
+  params: CommentReplyParams
+): DocEditResult {
+  if (!params.replyTo) return { body, changed: false, reason: 'reply-to is required' }
+  if (!params.replyBody) return { body, changed: false, reason: 'reply body is empty' }
+  if (!params.author) return { body, changed: false, reason: 'author is required' }
+  if (!params.ts) return { body, changed: false, reason: 'ts is required' }
+
+  const ops = parseCriticMarkup(body)
+  const target = ops.find(
+    (op): op is CmOp & { kind: 'comment' } =>
+      op.kind === 'comment' && op.meta.id === params.replyTo
+  )
+  if (!target) {
+    return { body, changed: false, reason: `comment with id "${params.replyTo}" not found` }
+  }
+
+  // Single-paragraph guard — match collapseRepliesIntoBody's rule. The
+  // `{>>…<<}` token must stay in one markdown paragraph or the editor
+  // splits the token across paragraphs at parse time.
+  const safeReplyBody = params.replyBody
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .replace(/\n/g, ' ')
+    .trim()
+
+  const newBody = `${target.body}\n↪ @${params.author} ${params.ts}: ${safeReplyBody}`
+  const newInner = serializeCommentBody(target.meta, newBody)
+  const newToken = target.anchor !== undefined
+    ? `{==${target.anchor}==}{>>${newInner}<<}`
+    : `{>>${newInner}<<}`
+
+  // For anchored comments, target.start covers the `{==anchor==}{>>…<<}`
+  // range (the parser folds the highlight+comment pair into a single op
+  // with start = highlight's start, end = comment's closing). For
+  // standalone comments, start/end cover just `{>>…<<}`. Either way,
+  // body.slice(start, end) gives us the exact token to replace.
+  return {
+    body: body.slice(0, target.start) + newToken + body.slice(target.end),
+    changed: true,
+    reason: ''
+  }
+}
+
 // ── Accept / Reject ────────────────────────────────────────────────────────
 
 function findOpByIdentifier(

@@ -481,20 +481,35 @@ export class SocketServer {
       const body = args['body'] as string | undefined
       const replyTo = args['replyTo'] as string | undefined
       const authorArg = args['author'] as string | undefined
-      if (typeof anchor !== 'string') throw new Error('comment requires --anchor')
       if (typeof body !== 'string') throw new Error('comment requires --body')
       const author = authorArg ?? process.env.DUO_AUTHOR ?? this.nav.getAuthor().author ?? 'agent'
       const ts = new Date().toISOString()
-      const commentId = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-      editResult = docEdit.addAnchoredComment(split.body, {
-        anchorText: anchor,
-        commentBody: body,
-        author,
-        ts,
-        commentId,
-        replyTo,
-        occurrence
-      })
+      // BUG-143 — when --reply-to is supplied without --anchor, route to
+      // the proper reply path (append `↪ @author ts: body` to the parent
+      // token). Pre-fix the agent had to pass the parent id as anchor
+      // text, which corrupted the parent comment with a nested token.
+      if (typeof replyTo === 'string' && replyTo.length > 0 && typeof anchor !== 'string') {
+        editResult = docEdit.addCommentReply(split.body, {
+          replyTo,
+          replyBody: body,
+          author,
+          ts
+        })
+      } else {
+        if (typeof anchor !== 'string') {
+          throw new Error('comment requires --anchor (or --reply-to to reply to an existing thread)')
+        }
+        const commentId = `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        editResult = docEdit.addAnchoredComment(split.body, {
+          anchorText: anchor,
+          commentBody: body,
+          author,
+          ts,
+          commentId,
+          replyTo,
+          occurrence
+        })
+      }
     } else if (op === 'accept' || op === 'reject') {
       const id = args['id'] as string | undefined
       const match = args['match'] as string | undefined

@@ -25,11 +25,11 @@ interface Props {
   currentAuthor?: string
 }
 
-type Filter = 'all' | 'mine' | 'agent' | 'others'
+export type AnnotationFilter = 'all' | 'mine' | 'agent' | 'others'
 
-const AGENT_NAMES = new Set(['agent', 'claude'])
+export const AGENT_NAMES = new Set(['agent', 'claude'])
 
-function classifyAuthor(author: string | null, currentAuthor: string): 'mine' | 'agent' | 'other' | 'none' {
+export function classifyAuthor(author: string | null, currentAuthor: string): 'mine' | 'agent' | 'other' | 'none' {
   if (!author || author.trim().length === 0) return 'none'
   const a = author.trim()
   if (currentAuthor && a === currentAuthor.trim()) return 'mine'
@@ -50,7 +50,7 @@ const KIND_CLASS: Record<TrackedRange['kind'], string> = {
 }
 
 export function TrackedChangesRail({ editor, ranges, onJumpTo, currentAuthor = '' }: Props) {
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<AnnotationFilter>('all')
   // BUG-138 walk-1 follow-up — owner ask: way to collapse the
   // track-changes rail. Same chevron pattern as the Properties panel.
   // State is transient (component-local) — re-mounts when ranges go
@@ -132,7 +132,7 @@ export function TrackedChangesRail({ editor, ranges, onJumpTo, currentAuthor = '
   )
 }
 
-interface FilterChipProps {
+export interface FilterChipProps {
   label: string
   count: number
   active: boolean
@@ -140,7 +140,7 @@ interface FilterChipProps {
   onSelect: () => void
 }
 
-function FilterChip({ label, count, active, disabled, onSelect }: FilterChipProps) {
+export function FilterChip({ label, count, active, disabled, onSelect }: FilterChipProps) {
   return (
     <button
       type="button"
@@ -171,7 +171,7 @@ interface CardProps {
   onJumpTo?: (range: TrackedRange) => void
 }
 
-function TrackedChangeCard({ editor, range, onJumpTo }: CardProps) {
+export function TrackedChangeCard({ editor, range, onJumpTo }: CardProps) {
   const author = range.author && range.author.trim().length > 0
     ? range.author
     : '(unattributed)'

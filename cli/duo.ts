@@ -858,6 +858,22 @@ async function main(): Promise<void> {
         // `duo doc <subcmd>` for editor doc operations.
         const sub = rest[0]
         const subRest = rest.slice(1)
+        // BUG-145 — focused per-verb help so the agent doesn't have to
+        // page through the ~200-line global --help. `duo doc --help` or
+        // `duo doc <subcmd> --help` returns just the doc-verb section.
+        if (sub === '--help' || sub === '-h' || !sub) {
+          if (!sub && rest.length === 0) {
+            // Original behavior: bare `duo doc` falls through to the
+            // usage error below. Preserve that.
+          } else {
+            printDocHelp(undefined)
+            break
+          }
+        }
+        if (subRest.includes('--help') || subRest.includes('-h')) {
+          printDocHelp(sub)
+          break
+        }
         if (sub === 'write') {
           const replaceAll = subRest.includes('--replace-all')
           const textIdx = subRest.indexOf('--text')
@@ -1038,10 +1054,16 @@ async function main(): Promise<void> {
             const anchor = flagValue(subRest, '--anchor')
             const body = flagValue(subRest, '--body')
             const replyTo = flagValue(subRest, '--reply-to')
-            if (!anchor || !body) {
-              die('Usage: duo doc comment <file> --anchor "<text>" --body "<comment>" [--reply-to <c-id>]')
+            // BUG-143 — --anchor is required for NEW comments only.
+            // For replies (--reply-to <c-id>), --anchor is optional; the
+            // server appends `↪ @author ts: body` to the parent token.
+            if (!body) {
+              die('Usage:\n  Add comment:  duo doc comment <file> --anchor "<text>" --body "<comment>"\n  Reply to:     duo doc comment <file> --reply-to <c-id> --body "<reply>"')
             }
-            payload.anchor = anchor
+            if (!anchor && !replyTo) {
+              die('Usage:\n  Add comment:  duo doc comment <file> --anchor "<text>" --body "<comment>"\n  Reply to:     duo doc comment <file> --reply-to <c-id> --body "<reply>"')
+            }
+            if (anchor) payload.anchor = anchor
             payload.body = body
             if (replyTo !== undefined) payload.replyTo = replyTo
           } else if (sub === 'accept' || sub === 'reject') {
@@ -1753,6 +1775,66 @@ async function runDoctor(): Promise<void> {
   process.exit(unixOk || tcpOk ? 0 : 1)
 }
 
+// BUG-145 — focused help for the `doc` verb cluster. The global
+// printHelp() lists every verb (~200 lines); on first encounter an
+// agent had to page that to find `doc comment` ergonomics. This
+// returns just the doc-subcommand section (or one specific subcommand
+// when `sub` is set).
+function printDocHelp(sub?: string): void {
+  const sections: Record<string, string> = {
+    read: `duo doc read [<file>]
+  Read the markdown editor's current buffer (no <file> = active editor;
+  <file> = match by path against any open editor tab).
+  Output is the full file body including CriticMarkup tokens.`,
+    write: `duo doc write [--text "X" | --replace-all] [--text "X"]
+  Replace the editor's current selection (default) or its full body
+  (--replace-all). Without --text the body is read from stdin.`,
+    goto: `duo doc goto [<file>] (--heading "X" | --line N | --anchor "X")
+  Scroll + place caret at the target. Buffer-staleness defense reads
+  disk first when the editor's clean.`,
+    find: `duo doc find [<file>] --query "X" [--case-sensitive]
+  Count + locate matches in the editor's serialized body.`,
+    insert: `duo doc insert <file> --text "X" (--after "Y" | --before "Y" | --at-line N) [--occurrence N]
+  Wrap NEW text as a CriticMarkup insertion ({++X++}) at the chosen anchor.`,
+    delete: `duo doc delete <file> --text "X" [--occurrence N]
+  Wrap existing text as a CriticMarkup deletion ({--X--}).`,
+    substitute: `duo doc substitute <file> --text "X" --with "Y" [--occurrence N]
+  Wrap "X→Y" as a substitution ({~~X~>Y~~}). --with may be empty (= delete).`,
+    highlight: `duo doc highlight <file> --text "X" [--occurrence N]
+  Wrap "X" as a highlight ({==X==}). Refuses if target overlaps an existing
+  CriticMarkup token.`,
+    comment: `duo doc comment <file> --anchor "X" --body "B"           # add NEW comment
+duo doc comment <file> --reply-to <c-id> --body "B"      # REPLY (BUG-143)
+  Author = $DUO_AUTHOR ?? 'agent'. For replies, omit --anchor — the server
+  appends '↪ @author ts: B' inside the parent token's body. The editor's
+  chokidar watcher then refreshes the live buffer automatically.`,
+    accept: `duo doc accept <file> (--id <c-id> | --match "X") [--occurrence N]
+  Accept a CM op: insertion = keep text; deletion = drop text;
+  substitution = keep new; comment = keep anchor.`,
+    reject: `duo doc reject <file> (--id <c-id> | --match "X") [--occurrence N]
+  Reject a CM op: insertion = drop; deletion = keep; substitution = keep
+  old; comment = drop anchor wrapper (body untouched).`,
+    'conflict-log': `duo doc conflict-log
+  BUG-122 — print the latest save-conflict diagnostic
+  (~/.claude/duo/logs/last-conflict.log).`
+  }
+  const lines: string[] = []
+  if (sub && sections[sub]) {
+    lines.push(sections[sub])
+  } else {
+    lines.push('duo doc <subcmd> — markdown editor doc operations.')
+    lines.push('')
+    lines.push('Subcommands:')
+    for (const key of Object.keys(sections)) {
+      const firstLine = sections[key].split('\n')[0]
+      lines.push('  ' + firstLine.replace(/^duo /, ''))
+    }
+    lines.push('')
+    lines.push('Use `duo doc <subcmd> --help` for the focused help on one subcommand.')
+  }
+  process.stdout.write(lines.join('\n') + '\n')
+}
+
 function printHelp(): void {
   console.log(`
 duo ${VERSION} — CLI bridge to the Duo desktop app
@@ -1954,11 +2036,16 @@ COMMANDS
                                   the existing HighlightMark; sibling
                                   to delete. --occurrence N supported.
                                   Refuses if target overlaps existing CM.
-  doc comment <file> --anchor "X" --body "B" [--reply-to <c-id>]
+  doc comment <file> --anchor "X" --body "B"
                                   BUG-138 Phase 3 — anchor a comment
                                   ({==X==}{>>id|author|ts|B<<}) to the
                                   matched text. Author = $DUO_AUTHOR
                                   ?? 'agent'. Comment id auto-minted.
+  doc comment <file> --reply-to <c-id> --body "B"
+                                  BUG-143 — append a reply to an existing
+                                  comment thread. Finds the parent token
+                                  by id, appends '↪ @author ts: B' to its
+                                  body. No --anchor required.
   doc accept <file> (--id <c-id> | --match "X")
                                   BUG-138 Phase 3 — accept a CM op:
                                   insertion = keep text; deletion =

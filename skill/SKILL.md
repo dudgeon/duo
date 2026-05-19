@@ -314,19 +314,41 @@ the CriticMarkup verbs. They write inline tokens (`{++ins++}`,
 suggestions in the editor — the user accepts or rejects each one
 from the right-side rail.
 
+> **Quick reference:** see [references/comments.md](references/comments.md)
+> for the full comment lifecycle (anchor, reply, accept/reject, on-disk
+> shape) and one runnable example per pattern.
+
+**"Comment" disambiguation — two systems, look at the surface first (BUG-146).**
+
+The user's word "canvas" or "this document" is ambiguous. Run `duo layout`
+and consult `main.kind`:
+
+| `main.kind` | Surface | Comment system | Verbs |
+|---|---|---|---|
+| `editor` (and path ends `.md`) | Markdown editor (TipTap) | CriticMarkup tokens stored INLINE in the file | `duo doc comment` / `doc accept` / `doc reject` |
+| `page` (and path ends `.html`) | HTML canvas (source-edit) | Sidecar JSON annotations on DOM elements | `duo html comment` / `duo html comments` |
+| `browser` (`file://…html`) | HTML canvas (playground mode) | Browser-pane comment overlay (ENH-157, partial — markdown-editor remains the primary canonical comment surface) | `duo html comment` (planned) |
+
+If you're unsure → `duo layout` FIRST, then pick the verb cluster. Do not
+guess from the user's wording; the same file can be opened in either
+surface depending on which verb was used (`duo edit` → editor, `duo open`
+→ browser).
+
 **Attribution is via the `DUO_AUTHOR` env var on the calling shell.**
 Default is `agent` if unset. Set it once per session (or per call)
 so the comments/marks are clearly stamped as YOURS, not the user's:
 
 ```bash
-# Anchor a comment to specific text. Author = `claude` here.
+# Anchor a NEW comment to specific text. Author = `claude` here.
 DUO_AUTHOR=claude duo doc comment ~/projects/foo/prd.md \
   --anchor "we'll ship this Q2" \
   --body "Stretch — Q2 has only 8 working weeks after the offsite."
 
-# Reply to an existing thread (id from the rail or a prior `duo doc comment`).
+# Reply to an existing thread (BUG-143, v0.7.3+). NO --anchor needed —
+# the server finds the parent token by id and appends the reply inside
+# its `{>>…<<}` body using the canonical `↪ @author ts: body` separator.
+# The editor's chokidar watcher refreshes the live buffer automatically.
 DUO_AUTHOR=claude duo doc comment ~/projects/foo/prd.md \
-  --anchor "we'll ship this Q2" \
   --reply-to c-1779148158987 \
   --body "Pushed scope to v0.2 per yesterday's standup; reopening this."
 
@@ -348,15 +370,19 @@ DUO_AUTHOR=claude duo doc substitute ~/projects/foo/prd.md \
 - **Always pass `DUO_AUTHOR`** with a meaningful name (`claude`,
   `claude-research`, etc.) so the user sees a ✨ agent badge in the
   rail and can filter your suggestions vs. their own.
-- **Replies need `--reply-to <comment-id>`** to thread under the
-  parent. Pull the id from the live rail OR from a prior verb's
-  JSON output. v0.7.2's Phase 5 splits the body's `↪`-joined entries
-  back into separate rail bubbles so threads display nicely.
+- **Replies use `--reply-to <comment-id>` alone** (no `--anchor`). Pull
+  the id from the live rail OR from a prior verb's JSON output. The
+  editor's `parseRepliesFromBody` splits the joined body back into
+  thread entries so replies display threaded under the lead.
 
-The verbs are disk-only — if the user has the file open in Duo,
-their next save reconciles your write through the autosave path.
-No need to `duo edit` first; you can drive the comment flow from a
-side terminal while the user is reading.
+The verbs are disk-only — when the user has the file open in Duo, the
+editor's chokidar watcher detects the on-disk change and reloads
+transparently (silent on clean buffer; banner-prompted on dirty buffer).
+You don't need to `duo edit` first; you can drive the comment flow
+from a side terminal while the user is reading.
+
+**Get focused help:** `duo doc --help` lists the doc subcommands;
+`duo doc comment --help` gives just the comment-verb signature (BUG-145).
 
 ### Read or edit a Google Doc
 
