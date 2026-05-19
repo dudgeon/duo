@@ -23,7 +23,7 @@
 > prune candidate: closed BUG-018..BUG-040 era entries once their
 > lessons similarly internalize.
 
-## Recent (v0.7.1 cut + v1.1 carry-forward — 2026-05-18)
+## Recent (v0.7.2 cut — polish wave — 2026-05-18)
 
 ### BUG-139 v1.1: Properties panel design decisions Q4 + Q5 (walk-1 locked, code owed)
 

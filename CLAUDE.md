@@ -677,22 +677,45 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — between sprints (post-v0.7.1 cut, pre-Sprint 19)
+## Active sprint — between sprints (post-v0.7.2 cut, pre-Sprint 19)
 
 > **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state; this section is a one-paragraph mirror.
 
-**Status (2026-05-18 evening):** **v0.7.1 cut + tag pushed + [GitHub release](https://github.com/dudgeon/duo/releases/tag/v0.7.1)** with signed+notarized DMG. Sprint 18 closed the markdown source-of-truth chapter (30 commits, 147 new unit tests, 4 smoke-walk revs). `package.json` already bumped to v0.7.2 for next sprint. **No active sprint plan** — owner has not yet scoped Sprint 19.
+**Status (2026-05-18 evening):** **v0.7.2 cut + tag pushed + [GitHub release](https://github.com/dudgeon/duo/releases/tag/v0.7.2)** with signed+notarized DMG. v0.7.2 was the polish wave that closed v0.7.1's adjacent items (14 deliverables · 8 commits · single 4/4 PASS smoke walk · 649 vitest tests). `package.json` already bumped to v0.7.3 for next sprint. **No active sprint plan** — owner has not yet scoped Sprint 19 / v0.7.3.
 
-**Two follow-ups owed before next strong work** (from BUG-139 walk-1 decisions + BUG-138 Phase 5 provisional):
-
-1. **BUG-139 v1.1** — Q4 (flip default to collapsed-first when sidecar field undefined) + Q5 (click-to-expand long values with row-expansion + accent border). Q2 + Q3 are no-ops (match v1). Q1 deferred — no owner preference.
-2. **BUG-138 Phase 5 (provisional)** — inline standalone-comment atom node for replies. Phase 2 migration currently collapses multi-entry threads into one anchored comment with `↪ @author <ts>:` separators in the body. Phase 5 would split these back apart with richer threaded display. Not urgent — file as BUG-138 carry-forward; wait for owner pull.
+**Nothing owed before next strong work.** Both v0.7.1 follow-ups (BUG-139 v1.1 Q4+Q5 + BUG-138 Phase 5) shipped in v0.7.2. All 🟡 owner-decision gates closed.
 
 **Carry-forward queue** (most-recent first; not prioritized):
 BUG-079 (tab-cycle latency — needs prod repro) · BUG-093 (split crash — needs clean repro) · BUG-122 hypothesis 2/3 (Notion-race, OneDrive xattr — next-repro log gated; hyp 4 soft-break ≡ space shipped v0.7.2) · ENH-084 v4 (aux glow — owner 60s walk owed) · ENH-127 (composer-window direction) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 (cross-boundary selection — wait for owner ping) · ENH-157 (browser-pane comments) · FOLLOWUP-021 (`duo install --clean`) · BUG-024 follow-up (combined Send + Comment pill) · 17a.5 (template gallery) · Backlinks/graph view.
 
 **Open questions awaiting owner input** (see [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) for the full table):
-Next sprint scope (BUG-139 v1.1 + Phase 5 first OR broader carry-forward pick) · BUG-118 image direction · ENH-127 if pain re-surfaces · Backlinks Sprint 19+ anchor · 17a.5 directions A/E.
+Next sprint scope (carry-forward pick) · ENH-127 if pain re-surfaces · Backlinks Sprint 19+ anchor · 17a.5 directions A/E.
+
+---
+
+### Previously — v0.7.2 polish wave (shipped 2026-05-18)
+
+**Editor UX polish + agent CLI parity + save-conflict reliability** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.2)). 8 commits since v0.7.1 (cut earlier same day). 14 deliverables. Cut commit [d3d7c16](https://github.com/dudgeon/duo/commit/d3d7c16); bump to v0.7.3 in [3087e80](https://github.com/dudgeon/duo/commit/3087e80).
+
+**What shipped:**
+
+| ID | Headline |
+|---|---|
+| **BUG-139 v1.1 Q4+Q5** | Properties panel defaults collapsed-first; click row to expand long values with accent border + JSON pretty-print. |
+| **BUG-139 v1.2** | Edit-raw textarea auto-grows up to 10 lines (walk-1 owner note). |
+| **BUG-138 Phase 5** | Threaded comment rail. `parseRepliesFromBody` splits `↪`-joined bodies; `buildMarkdownThreads` reads inline marks + sidecar (de-duped). Closes silent regression. 8 new tests. |
+| **BUG-083 markdown polish** | Active-thread visual highlight bumped 0.22 → 0.42 alpha + 1px accent box-shadow. Both themes. |
+| **BUG-122 hypothesis 4** | `normalizeForEchoCompare` collapses soft-breaks before disk-vs-baseline compare. Closes false-positive banner. 15 new tests. |
+| **FOLLOWUP-022** | New CLI verb `duo doc highlight <file> --text "X"`. Closes BUG-138 family CLI parity. 6 new tests. |
+| **ENH-128 walk-4** | HEIC drag-drop verified live with iPhone HEIC + sips fallback. Image cluster closed. |
+| **ENH-102 verified** | ⌘⇧⌫ delete current file confirm dialog walked. |
+| **BUG-091 verified** | Right-click "Move to Split View" already shipped via Phase 3c; paper-trail flipped. |
+| **CLAUDE.md § 7e** | Session-start Electron access rule (elevates memory rule to project default). |
+| **Skill update** | New "Leave a comment or track-change" block documenting `DUO_AUTHOR` + `--reply-to` patterns. |
+| **6 stale git/status tests** | Updated to match shipped formatter; CI green. |
+| **Carry-forward sweep** | 6 already-shipped v0.7.0 items removed from post-compaction queue. |
+
+**Memories codified:** [feedback_use_computer_use_for_keystroke_tests](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_use_computer_use_for_keystroke_tests.md) elevated to CLAUDE.md § 7e.
 
 ---
 
