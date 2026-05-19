@@ -19,7 +19,73 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.1 cut 2026-05-18.
+> Empty — v0.7.2 cut 2026-05-18.
+
+## [0.7.2] — 2026-05-18
+
+### Added
+
+- **`duo doc highlight <file> --text "X"` CLI verb** — closes a CLI-parity
+  gap in the BUG-138 family. HighlightMark already existed in the editor;
+  agents now have `{==X==}` symmetric with insert / delete / substitute /
+  comment. 6 new vitest fixtures (FOLLOWUP-022).
+- **CLAUDE.md § 7e — session-start Electron access rule.** Codifies the
+  v0.7.1 walk-3 lesson: any UI-touching session calls
+  `request_access(["Electron"])` BEFORE writing code, not after the third
+  failed smoke walk.
+- **Skill — comment attribution patterns.** New `skill/SKILL.md § Leave a
+  comment or track-change` documents the `DUO_AUTHOR` env-var pattern for
+  agent-stamped comments + the `--reply-to` threading shape.
+
+### Changed
+
+- **Properties panel — default collapsed on first open** (BUG-139 v1.1 Q4).
+  Sidecar field undefined → collapsed; explicit user toggle still persists.
+- **Properties panel — click row to expand long values inline** with a left
+  accent border + JSON pretty-print for arrays/objects (BUG-139 v1.1 Q5).
+- **Properties panel — Edit-raw textarea auto-grows up to 10 lines** when
+  frontmatter is long (BUG-139 v1.2, walk-1 owner note).
+- **Comment rail — threaded display restored for `↪`-joined bodies**
+  (BUG-138 Phase 5). `buildMarkdownThreads` now reads inline CommentMarks +
+  sidecar entries (de-duped by author+ts); `parseRepliesFromBody` splits
+  body-joined reply chains back into separate rail bubbles. Closes a silent
+  regression where post-Phase-2 inline-only files showed an empty rail.
+- **Markdown editor — active-thread visual highlight visibly pops**
+  (BUG-083 markdown polish). Active CommentMark alpha bumped 0.22 → 0.42 +
+  1px accent box-shadow + border-radius. Both light + dark themes.
+
+### Fixed
+
+- **Save-conflict false-positive banner on soft-break-wrapped markdown**
+  (BUG-122 hypothesis 4). `normalizeForEchoCompare` now collapses single
+  newlines between non-blank lines to spaces before the disk-vs-baseline
+  compare. CommonMark equates them; tiptap-markdown does the same on
+  serialize round-trip. Real external edits (added paragraph break,
+  added / changed content) still surface as a banner.
+- **ENH-128 walk-4 — HEIC drag-drop from Photos.app converts to JPEG and
+  embeds inline.** Walk-4 verified live with a real iPhone HEIC; image-
+  handling cluster closed. (Code shipped 2026-05-10; this cut closes the
+  verification gate.)
+- **ENH-102 — ⌘⇧⌫ delete current file with confirm.** Sprint 9 plumbing
+  verified live via computer-use; native dialog fires + Cancel preserves
+  the file on disk. (Code shipped 2026-05-07.)
+- **BUG-091 — right-click "Move to Split View" in WorkingTabStrip.**
+  Already shipped silently via Sprint 7 Phase 3c plumbing; flipped status
+  with code-confirmed paper trail.
+
+### Internal
+
+- 6 stale `core/git/status.test.ts` assertions updated to match the
+  shipped `formatGitStatusChip` (counts prefix; ref-only when clean —
+  v0.7.0 walk rejected the empty-on-clean rule). All 10 tests green.
+- Carry-forward queue cleanup — post-compaction queue in CLAUDE.md +
+  docs/dev/active-sprint.md had 6 already-shipped v0.7.0 items listed as
+  open; swept.
+- BUG-122 diagnostic capture — owner's walk-1 spot-check captured the
+  hypothesis-4 repro live; `~/.claude/duo/logs/last-conflict.log` payload
+  pinned the soft-break-vs-space root cause deterministically.
+- 29 new vitest cases total (parseRepliesFromBody · normalize · highlight
+  · git-status formatter realignment). 649 total, all green.
 
 ## [0.7.1] — 2026-05-18
 
@@ -1432,7 +1498,8 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/dudgeon/duo/releases/tag/v0.7.2
 [0.7.1]: https://github.com/dudgeon/duo/releases/tag/v0.7.1
 [0.7.0]: https://github.com/dudgeon/duo/releases/tag/v0.7.0
 [0.6.15]: https://github.com/dudgeon/duo/releases/tag/v0.6.15

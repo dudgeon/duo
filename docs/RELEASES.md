@@ -21,7 +21,72 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.0 cut 2026-05-18)*
+> *(empty — v0.7.2 cut 2026-05-18)*
+
+---
+
+## v0.7.2 — 2026-05-18 — Editor UX polish + agent CLI parity + save-conflict reliability
+
+**Why this version lands here.** v0.7.1 closed the markdown source-of-truth
+chapter (Sprint 18 — comments + track-changes inline). v0.7.2 is the polish
+wave that closes the adjacent items: the Properties panel design decisions
+the owner walked but hadn't yet been coded, the threaded comment display
+that surfaced as a silent regression on post-migration files, a real
+save-conflict false-positive that was firing every time you spot-checked a
+soft-break-wrapped fixture, and the CLI parity gap that left HighlightMark
+agent-invisible. Plus a session-start rule that should prevent the
+"three failed walks of the same bug" pattern from recurring.
+
+**Three design decisions baked in.**
+
+1. **Soft-break-vs-space equivalence is a normalize-on-compare problem,
+   not a serializer problem.** tiptap-markdown collapses soft-breaks to
+   spaces on round-trip; the file on disk keeps the original `\n`. The
+   conflict detector used to fire on every byte-level diff. v0.7.2 extends
+   `normalizeForEchoCompare` to collapse single intra-paragraph newlines
+   to spaces on both sides before comparing — real external edits
+   (paragraph breaks, content changes) still surface; cosmetic-only
+   whitespace flips silently no-op. Cheaper and lower-risk than rewriting
+   the serializer.
+
+2. **Threaded display is rendering-side, not file-format-side.** Sprint 18
+   Phase 2 migration body-joins multi-entry threads into one anchored
+   comment via `↪ @author <ts>:` separators. The originally-planned Phase
+   5 was a TipTap atom node for standalone replies — a file-format change.
+   v0.7.2 takes the smaller path: `buildMarkdownThreads` reads inline
+   marks (it was sidecar-only); `parseRepliesFromBody` splits the body
+   back into separate `CommentEntry` records for the rail. File format
+   stays reversible; the visual win lands without locking the format in.
+
+3. **Agent-process rules belong in the project file, not in a memory
+   doc.** v0.7.1 walk-3 ended with the owner saying "use computer use so
+   you don't waste my time three times with the same bug." The memory
+   rule `feedback_use_computer_use_for_keystroke_tests.md` captured the
+   lesson; v0.7.2's CLAUDE.md § 7e elevates it to a session-start default
+   — UI-touching session → `request_access(["Electron"])` BEFORE writing
+   code. Memory rules deal with recurring frictions; project rules
+   prevent them.
+
+**What this is and isn't.** It IS a polish + reliability + agent-
+ergonomics cut — 14 distinct deliverables, balanced across editor UX (5),
+agent docs (3), reliability (1 big fix), feature closures (2), and
+housekeeping (3). It ISN'T a new chapter — Sprint 18 was the chapter; this
+cut closes its adjacent surfaces. Next chapter is still being scoped;
+likely candidates include the Beginner's Guide (ENH-137), the Backlinks
+panel (Obsidian cluster), or browser-pane comments (ENH-157), each of
+which is a multi-session sprint anchor. v0.7.3 will be the next polish
+wave; v0.8.0 the next chapter cut.
+
+**Carry-forward to v0.7.3 or later.** BUG-079 (tab-cycle latency — needs
+production repro), BUG-093 (split-view crash — needs clean repro),
+BUG-122 hypothesis 2/3 (Notion-race, OneDrive xattr — next-repro log
+gated), ENH-084 v4 (aux glow — owner 60s walk owed), ENH-127 composer-
+window direction (defer further), ENH-137 Beginner's Guide (multi-day
+pack content), ENH-141 enterprise smoke, ENH-148 v2 (cross-boundary
+selection — wait for owner ping), ENH-157 browser-pane comments
+(architectural, multi-day), FOLLOWUP-021 `duo install --clean`, BUG-024
+follow-up (combined Send + Comment pill), 17a.5 template gallery,
+Backlinks panel / graph view (Obsidian cluster).
 
 ---
 

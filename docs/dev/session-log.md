@@ -18,6 +18,40 @@
 
 ---
 
+## 2026-05-18 (v0.7.2 cut — editor UX polish + agent CLI parity + save-conflict reliability)
+
+**v0.7.2 cut.** Theme: polish wave that closes adjacent items from v0.7.1's chapter. 8 commits since v0.7.1 (cut earlier same day). Single smoke walk (4/4 PASS), one walk-1 spot-check bug surfaced + fixed same session, then 3 more pulls before the cut.
+
+### What landed (v0.7.2 inventory — 14 deliverables)
+
+- **BUG-139 v1.1 (Q4 + Q5)** — Properties panel defaults to collapsed on first open ([MarkdownEditor.tsx](../../renderer/components/editor/MarkdownEditor.tsx) one-line flip: `=== true` → `!== false`); click row to expand long values with left accent border + JSON pretty-print ([FrontmatterPanel.tsx](../../renderer/components/editor/FrontmatterPanel.tsx) per-row `expandedRows: Set<string>`).
+- **BUG-139 v1.2** — Edit-raw textarea auto-grows up to 10 lines (walk-1 owner note). Dynamic `rows={Math.max(4, Math.min(10, draft.split('\n').length))}`.
+- **BUG-138 Phase 5** — Threaded rail display. Pivoted from the originally-planned TipTap atom node (file-format change) to a renderer-only fix: [`parseRepliesFromBody`](../../renderer/components/editor/migrateSidecarComments.ts) splits `↪`-joined bodies back into entries; [`buildMarkdownThreads`](../../renderer/components/editor/markdownComments.ts) now reads inline CommentMarks + sidecar (de-duped by author+ts for the dual-write window). Closes silent regression where post-Phase-2 inline-only files showed an empty rail. 8 new vitest fixtures.
+- **BUG-083 markdown side polish** — Active-thread visual highlight bumped 0.22 → 0.42 alpha + 1px accent box-shadow + border-radius:2px ([globals.css](../../renderer/styles/globals.css)) in both light + dark themes.
+- **BUG-122 hypothesis 4 fix** — `normalizeForEchoCompare` collapses single intra-paragraph newlines to spaces before disk-vs-baseline compare. Confirmed hypothesis 4 live via walk-1 spot-check (`firstDiffOffset: 104, disk "row\nshould" vs baseline "row should"`); fix shipped same session. 15 new vitest cases.
+- **ENH-128 walk-4 verified** — HEIC drag-drop from Photos.app converts to JPEG via the sips fallback; verified live by owner. Image-handling cluster closed.
+- **ENH-102 verified** — ⌘⇧⌫ delete current file confirm dialog (Sprint 9 plumbing); live computer-use walk passed.
+- **BUG-091 verified** — Right-click "Move to Split View" in WorkingTabStrip; code-confirmed already shipped via Phase 3c, status flipped.
+- **FOLLOWUP-022** — New CLI verb `duo doc highlight <file> --text "X"` closes BUG-138 family CLI-parity gap. Symmetric `{==X==}` with insert/delete/substitute. 6 new vitest fixtures. Plumbed through docEdit.ts + socket-server validator + cli/duo.ts dispatch + skill/SKILL.md + agents/duo.md + docs/CLI-COVERAGE.md + printHelp. CLI binary rebuilt.
+- **CLAUDE.md § 7e** — Session-start Electron access rule. UI-touching session → `request_access(["Electron"])` BEFORE writing code; codifies the v0.7.1 walk-3 lesson as a project default (not just a memory rule).
+- **Skill update — comment attribution** — New `skill/SKILL.md § Leave a comment or track-change` block documents `DUO_AUTHOR=claude duo doc comment` + `--reply-to` threading.
+- **6 stale git/status tests greened** — assertions drifted from the shipped formatter during Sprint 17 GH-cluster work; updated to match.
+- **Carry-forward queue cleanup** — post-compaction queue had 6 already-shipped v0.7.0 items listed as open; swept.
+
+### Smoke-walk arc (1 rev)
+
+- **rev1** (4 items): 4 PASS. Three items agent-walked first per CLAUDE.md § 7e (BUG-139 Q4 + Q5 + Phase 5 verified live via computer-use round-trip BEFORE handoff); ENH-128 owner-only walk closed cleanly. Walk-1 OTHER NOTES surfaced BUG-139 v1.2 (textarea auto-grow) + skill comment-attribution doc ask, both shipped same-session. Spot-check on procedure-1 hit the BUG-122 hypothesis-4 false-positive banner — captured the diagnostic, root-caused, fixed + tested in the same session.
+
+### Process improvements
+
+- CLAUDE.md § 7e — session-start Electron access rule (elevation of `feedback_use_computer_use_for_keystroke_tests.md` from memory to project rule). v0.7.2 ran cleanly end-to-end on this rule: every UI item that shipped was screenshot-verified live before commit; no smoke-walk-after-the-fact catches.
+
+### Next sprint queued
+
+Carry-forward to v0.7.3+ (corrected after the stale-entries sweep): BUG-079, BUG-093, BUG-122 hypothesis 2/3, ENH-084 v4 aux glow, ENH-127 composer-window direction, ENH-137 Beginner's Guide, ENH-141 enterprise smoke, ENH-148 v2, ENH-157 browser-pane comments, FOLLOWUP-021 `duo install --clean`, BUG-024 follow-up, 17a.5 template gallery, Backlinks panel / graph view.
+
+---
+
 ## 2026-05-18 (v0.7.1 cut — Sprint 18: markdown source-of-truth chapter — 4 smoke-walk revs)
 
 **v0.7.1 cut.** Theme: comments + track-changes + frontmatter all visible inline. 30 commits since v0.7.0 (cut earlier same day). Four smoke-walk revs to converge; the last three blocked on two recurring same-day bugs in the Suggesting + link-edit flows.
