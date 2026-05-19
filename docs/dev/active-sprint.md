@@ -32,25 +32,21 @@ Owner-walked + decided but not yet implemented:
 
 Filed during v0.7.1 cycle, not blocking the cut, awaiting prioritization:
 
+**Note (2026-05-18 sweep):** the post-compaction queue below was rebuilt with several entries that turned out to be already-shipped under v0.7.0 — BUG-131 (⌘A in playground inputs), BUG-124 (`writeConflictLog` mkdir gap), BUG-129 (`duo open` nonexistent file — CLI side), ENH-162 (Clone collision UX), FOLLOWUP-020 (`duo close-tab` parity), and BUG-091 (right-click "Move to Split View" entry) all verified shipped during the v0.7.2 cut-prep. Their tasks.md entries are flipped to ✅; the queue below is the cleaned remainder.
+
 - **BUG-079** — tab-cycle latency. Needs production repro (synthetic test in Sprint 17 ruled out 3 hypotheses; new H4 + H5 leads).
-- **BUG-093** — split crash (filed Sprint 17).
-- **BUG-122** — save-conflict banner deeper fix. v0.6.15 hardened the diagnostic + widened the normalize window; waiting on owner-side log from next repro.
-- **BUG-124** — `writeConflictLog` logs-dir mkdir gap (filed Sprint 17).
-- **BUG-129** — `duo open` nonexistent file UI side (CLI side fixed Sprint 17; navigator-click + did-fail-load fallback in BrowserRenderer deferred).
-- **BUG-131** — ⌘A no-op in playground inputs (filed Sprint 17).
+- **BUG-093** — split crash. Filed + instrumented; clean repro owed.
+- **BUG-122** — save-conflict banner deeper fix. Hypothesis 4 (soft-break ≡ space) shipped v0.7.2 ([1834065](https://github.com/dudgeon/duo/commit/1834065)). Hypotheses 2/3 (Notion-race, OneDrive xattr race) remain open; next-repro `~/.claude/duo/logs/last-conflict.log` will tell us which is live if it fires again.
 - **ENH-084 v4** — aux glow. Owner walk owed (60s click-around). Diagnostic instrumentation already shipped Sprint 17.
-- **ENH-128** — HEIC/RAW image paste/drop convert. Walk-4 fix landed 2026-05-10 (macOS `sips` fallback added when `nativeImage.createFromBuffer` returns empty); awaiting owner verification with the same iPhone HEIC source that failed walk-3. Code is in place; this is purely a verification gate, not "decision needed." Was previously misfiled as "ENH-118 image-type handling — owner decision needed" — the ENH-118 conversation closed 2026-05-10 with four locked picks (GIFs animate, SVG `<img>` inert, HEIC→ENH-128, PDF→ENH-129 shipped). Carry-forward note corrected 2026-05-18.
 - **ENH-127** — composer-window direction for accidental-submit. Defer further unless pain re-surfaces (ENH-142 v0.6.15 per-pref toggle covers the common case).
-- **ENH-137** — Beginner's Guide. New pack content; defer until BUG-139 v1.1 + BUG-138 Phase 5 land or owner explicitly pulls.
+- **ENH-137** — Beginner's Guide. New pack content; multi-day. Defer until owner explicitly pulls.
 - **ENH-141** enterprise smoke — agent-side dev verification of the Sprint 16 install-path hardening (BUG-121 area).
-- **ENH-148 v2** — once owner walks v1 (just shipped), the cross-boundary cell selection variant from BUG-123 v2 may re-surface. Wait for owner ping.
-- **ENH-157** — browser-pane comments. Architectural follow-up to Sprint 17 inspect. Defer.
-- **ENH-162** — Clone modal destination-collision UX (filed Sprint 17). Polish — defer.
-- **FOLLOWUP-020** — `duo close-tab` CLI parity for active working/terminal tab.
-- **FOLLOWUP-021** — `duo install --clean` to wipe + reinstall the shim + SessionStart hook (use case: enterprise machines with stale state).
+- **ENH-148 v2** — once owner walks v1, the cross-boundary cell selection variant from BUG-123 v2 may re-surface. Wait for owner ping.
+- **ENH-157** — browser-pane comments. Architectural follow-up to Sprint 17 inspect. Multi-day; defer.
+- **FOLLOWUP-021** — `duo install --clean` to wipe + reinstall the shim + SessionStart hook. Low priority; gated on real user pain.
 - **BUG-024** follow-up — combine Send → Duo + Comment pills (single split-pill or hover flyout). Defer.
 - **17a.5** — template gallery (canvas templates as a discoverable surface). Defer.
-- **Backlinks panel / graph view** (Obsidian cluster). Waiting on wikilinks-autocomplete (v0.6.10 shipped) usage signal to confirm demand.
+- **Backlinks panel / graph view** (Obsidian cluster). Waiting on wikilinks-autocomplete usage signal.
 
 ---
 
