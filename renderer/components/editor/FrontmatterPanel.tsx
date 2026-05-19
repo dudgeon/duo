@@ -225,6 +225,11 @@ export function FrontmatterPanel({ frontmatter, onChange, collapsed, onToggleCol
             <textarea
               ref={textareaRef}
               value={draft}
+              // BUG-139 v1.2 (walk-1 owner note) — auto-grow the edit
+              // pane up to 10 lines when the frontmatter is long.
+              // Clamp [4, 10]; below 4 keeps the pane usable when
+              // editing a small block, above 10 scrollbars take over.
+              rows={Math.max(4, Math.min(10, draft.split('\n').length))}
               onChange={(e) => {
                 setDraft(e.target.value)
                 // Re-validate live so the error message clears as

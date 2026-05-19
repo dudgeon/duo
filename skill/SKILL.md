@@ -304,6 +304,59 @@ Opens in the rich editor with a centered prose column, toolbar, and
 auto-discovered frontmatter. Internal links to other `.md` files are
 followed as new editor tabs.
 
+### Leave a comment or track-change on a markdown file (with attribution)
+
+When you want to **suggest** an edit, **leave a note**, or **flag a
+question** in a `.md` file without overwriting the user's prose, use
+the CriticMarkup verbs. They write inline tokens (`{++ins++}`,
+`{--del--}`, `{~~old~>new~~}`, `{>>comment<<}`) that render as
+suggestions in the editor — the user accepts or rejects each one
+from the right-side rail.
+
+**Attribution is via the `DUO_AUTHOR` env var on the calling shell.**
+Default is `agent` if unset. Set it once per session (or per call)
+so the comments/marks are clearly stamped as YOURS, not the user's:
+
+```bash
+# Anchor a comment to specific text. Author = `claude` here.
+DUO_AUTHOR=claude duo doc comment ~/projects/foo/prd.md \
+  --anchor "we'll ship this Q2" \
+  --body "Stretch — Q2 has only 8 working weeks after the offsite."
+
+# Reply to an existing thread (id from the rail or a prior `duo doc comment`).
+DUO_AUTHOR=claude duo doc comment ~/projects/foo/prd.md \
+  --anchor "we'll ship this Q2" \
+  --reply-to c-1779148158987 \
+  --body "Pushed scope to v0.2 per yesterday's standup; reopening this."
+
+# Track-change: suggest an insertion (renders as a green-underline pill).
+DUO_AUTHOR=claude duo doc insert ~/projects/foo/prd.md \
+  --text " (target: 1.2× baseline)" --after "throughput"
+
+# Track-change: suggest a substitution (renders red-strikethrough + green inline).
+DUO_AUTHOR=claude duo doc substitute ~/projects/foo/prd.md \
+  --text "TBD" --with "Geoff D."
+```
+
+**Rules of thumb:**
+
+- **Use comments** when the change is a *question* or *opinion* the
+  user should weigh in on (a comment never alters their prose).
+- **Use track-changes (insert / delete / substitute)** when you have
+  a concrete proposed edit. The user accepts/rejects per-suggestion.
+- **Always pass `DUO_AUTHOR`** with a meaningful name (`claude`,
+  `claude-research`, etc.) so the user sees a ✨ agent badge in the
+  rail and can filter your suggestions vs. their own.
+- **Replies need `--reply-to <comment-id>`** to thread under the
+  parent. Pull the id from the live rail OR from a prior verb's
+  JSON output. v0.7.2's Phase 5 splits the body's `↪`-joined entries
+  back into separate rail bubbles so threads display nicely.
+
+The verbs are disk-only — if the user has the file open in Duo,
+their next save reconciles your write through the autosave path.
+No need to `duo edit` first; you can drive the comment flow from a
+side terminal while the user is reading.
+
 ### Read or edit a Google Doc
 
 Google Docs renders into a `<canvas>`, so the usual extractors (`duo

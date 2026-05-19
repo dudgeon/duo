@@ -27,7 +27,9 @@
 
 ### BUG-139 v1.1: Properties panel design decisions Q4 + Q5 (walk-1 locked, code owed)
 
-**Status:** 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Owner walked the design-options playground at [`docs/research/frontmatter-panel-design.html`](docs/research/frontmatter-panel-design.html) and locked 4 of 5 decisions. Q2 (uniform mono) + Q3 (raw-YAML-only editing) match v1 — no-op. Q4 + Q5 need code changes for v1.1. Q1 (row density) deferred — no owner preference.
+**Status:** ✅ **Shipped v0.7.2 walk-1 PASS 2026-05-18** ([2bd6925](https://github.com/dudgeon/duo/commit/2bd6925)). Q4 collapsed-first + Q5 click-to-expand both live; owner confirmed PASS. Walk-1 OTHER NOTES surfaced v1.2 follow-up — see BUG-139 v1.2 below.
+
+Original entry kept for context: 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Owner walked the design-options playground at [`docs/research/frontmatter-panel-design.html`](docs/research/frontmatter-panel-design.html) and locked 4 of 5 decisions. Q2 (uniform mono) + Q3 (raw-YAML-only editing) match v1 — no-op. Q4 + Q5 need code changes for v1.1. Q1 (row density) deferred — no owner preference.
 
 **Q4 — Default collapsed on first open.** Currently `sidecar.frontmatterPanelCollapsed === undefined` defaults to `false` (expanded). Locked: default to `true` (collapsed) for new files; explicit user toggle persists either way.
 
@@ -43,9 +45,17 @@
 
 ---
 
+### BUG-139 v1.2: Edit-raw textarea auto-grow to up to 10 lines (walk-1 OTHER NOTES)
+
+**Status:** ✅ **Shipped same session 2026-05-18.** Owner walk-1 note: *"when the user clicks 'edit' and the front matter is long, the edit pane should expand to accommodate up to 10 lines."* Fix: dynamic `rows={Math.max(4, Math.min(10, draft.split('\n').length))}` on the textarea in [`FrontmatterPanel.tsx`](renderer/components/editor/FrontmatterPanel.tsx). Below 4 lines keeps the pane usable for small blocks; above 10 the scrollbar takes over. `resize-y` still allows manual override.
+
+---
+
 ### BUG-138 Phase 5: Inline standalone-comment atom node (replies + threading)
 
-**Status:** 🟡 **Filed 2026-05-18 (post-v0.7.1 cut, provisional).** Not blocking; owner did not raise this as a pain point. File-and-defer.
+**Status:** ✅ **Shipped v0.7.2 walk-1 PASS 2026-05-18** ([2bd6925](https://github.com/dudgeon/duo/commit/2bd6925)). Implementation pivoted from the original v1 "atom node" sketch — instead of a new TipTap node + format change, the fix is purely renderer-side: `buildMarkdownThreads` now reads inline CommentMarks (was sidecar-only); `parseRepliesFromBody` (new) splits the `↪`-joined body back into multiple entries; de-dup by (author, ts) handles the dual-write window. Closes a silent regression where post-Phase-2 inline-only files showed an empty rail. Owner walk-1 PASS with note: *"this is great; please make sure the duo skill (or a linked reference inside the skill) advise duo on how to apply comments with attribution."* Skill update shipped same session ([skill/SKILL.md § Leave a comment or track-change](skill/SKILL.md)) with `DUO_AUTHOR=claude duo doc comment` patterns + reply-to threading guidance.
+
+Original entry kept for context: 🟡 **Filed 2026-05-18 (post-v0.7.1 cut, provisional).** Not blocking; owner did not raise this as a pain point. File-and-defer.
 
 **Why this exists.** Phase 2's sidecar→inline migration collapses multi-entry threads (a comment + N replies) into one anchored comment with `↪ @author <ts>: body` separators inside the lead's body. Round-trips cleanly through markdown but loses the threaded display — the rail shows one card per anchored comment, not one card per message in the thread.
 
@@ -5982,7 +5992,9 @@ Disk has 3 bytes MORE than the editor's baseline. Same first-60-char head — th
 
 ### ENH-128: HEIC / RAW image paste / drop — convert to PNG/JPEG via Electron nativeImage
 
-**Status:** 🟢 **Walk-4 fix landed 2026-05-10** — added macOS `sips` fallback in `convertImageBytes` for the HEIC/HEIF/RAW family when `nativeImage.createFromBuffer` returns empty. Verified `sips` present at `/usr/bin/sips` on owner's Mac. Awaiting walk-4 owner verification with the same iPhone HEIC source that failed walk-3.
+**Status:** ✅ **Walk-4 PASS verified 2026-05-18** (v0.7.2 smoke walk). Owner dragged a real iPhone HEIC from Photos.app; converted to JPEG via the `sips` fallback path; landed inline + on disk with correct extension. Image-handling cluster closed.
+
+Old status (kept for context): 🟢 **Walk-4 fix landed 2026-05-10** — added macOS `sips` fallback in `convertImageBytes` for the HEIC/HEIF/RAW family when `nativeImage.createFromBuffer` returns empty. Verified `sips` present at `/usr/bin/sips` on owner's Mac. Awaiting walk-4 owner verification with the same iPhone HEIC source that failed walk-3.
 
 **Walk-4 fix details (electron/files-service.ts § convertImageBytes + transcodeViaSips):**
 - Layered fallback: nativeImage decode (fast path) → if empty AND macOS AND HEIC/HEIF/RAW MIME → write bytes to `os.tmpdir()/duo-convert-in-<stamp>.<ext>`, run `sips -s format jpeg <in> --out <out>`, read converted bytes back, clean up both temps. JPEG @ default quality (sips' own; matches Apple Photos export behavior).
