@@ -1,6 +1,8 @@
 # Active sprint state — Sprint 20 / v0.7.7 IN FLIGHT
 
-**Status (2026-05-22):** Build green-lit by owner 2026-05-22 with a same-turn ENH-172 add ("an ENH to the view menu for show/hide hidden files/folders in the navigator"). Scope now 4 ENHs / 8 items. v0.7.6 cut + DMG published earlier 2026-05-22 ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6)).
+**Status (2026-05-22):** 1 of 4 ENHs shipped (ENH-172 at [600d16e](https://github.com/dudgeon/duo/commit/600d16e)). Build green-lit by owner 2026-05-22 with a same-turn ENH-172 add. Scope: 4 ENHs / 8 items. v0.7.6 cut + DMG published earlier 2026-05-22 ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6)).
+
+**Attack order (locked AUQ 2026-05-22):** ✅ ENH-172 → ⬜ ENH-170 (Settings menu) → ⬜ ENH-169 (Navigator new-file UX) → ⬜ ENH-171 (Workspace switcher).
 
 **Theme.** *"Smaller daily-driver actions become first-class menu / chord surfaces."* Four coherent ENHs covering navigator-side file creation, the first Settings menu, the workspace switcher decided in ENH-168, and the navigator's existing-but-buried show/hide-dotfiles toggle.
 
@@ -8,17 +10,18 @@
 
 ## Sprint 20 scope (4 ENHs, 8 items)
 
-### ENH-172 — Show / hide hidden files & folders in the navigator
+### ✅ ENH-172 — Show / hide hidden files & folders in the navigator (shipped [600d16e](https://github.com/dudgeon/duo/commit/600d16e))
 
-Owner ask 2026-05-22 (same turn as the sprint green-light). Surfaces the existing `showDotfiles` navigator state (renderer-local since Stage 10, no UI / chord / CLI today) as a first-class user-facing toggle. Three triggers, one shared state:
+Owner ask 2026-05-22 (same turn as the sprint green-light). All four surfaces wired + live-verified:
 
-1. **View menu** → new checkbox *"Show Hidden Files"* (mirrors Cozy-mode's checkmark-echo pattern via a new `HIDDEN_FILES_STATE_PUSH` IPC channel).
-2. **Keyboard chord** ⌘⇧. — verified free in `globalShortcuts.ts`. Finder convention.
-3. **CLI verb** `duo hidden-files [show|hide|toggle]` + extend `duo nav-state` to include `showDotfiles: boolean`.
+1. ✅ **View menu** → new checkbox *"Show Hidden Files"* (echo via `NAV_STATE_PUSH` — reused the existing channel since `showDotfiles` joined `NavStateSnapshot`).
+2. ✅ **Keyboard chord** ⌘⇧. — accelerator bound on the menu item; `e.code === 'Period'` fallback matcher in `globalShortcuts.ts` for WCV-focus paths.
+3. ✅ **CLI verb** `duo hidden-files [show|hide|toggle]` + `duo nav-state` now returns `showDotfiles: boolean`.
+4. ✅ Renderer state persisted to localStorage `duo.nav.showDotfiles`. `.claude` + `.obsidian` carve-outs stay (this toggle controls generic dotfiles only). 660 tests green, typecheck clean, skill + agent docs synced.
 
-Persist via localStorage (today it's a `useState` default-false; promote to persisted so the checkbox doesn't reset each dev cycle). The `.claude` and `.obsidian` always-visible carve-outs ([`shouldShow`](renderer/components/FileTree.tsx:1471)) stay — this toggle controls generic dotfiles only.
+**Dev-mode note (not a bug):** localStorage in `npm run dev` doesn't survive Electron restarts in some configurations — confirmed with a separate test marker. Production DMG builds use a stable userData dir and persist normally. Worth a smoke-walk pass once the cut DMG is built to confirm cross-launch persistence.
 
-Files likely touched: `shared/types.ts` (`DuoCommandName` + IPC channel + nav-state snapshot field), `electron/preload.ts` (bridge API), `electron/main.ts` (menu item + ipcMain + getter/setter), `electron/socket-server.ts` (command switch case), `cli/duo.ts` (verb + printHelp), `renderer/hooks/useNavigator.ts` (localStorage persistence + bridge subscribe), `renderer/App.tsx` (chord wiring), `renderer/keyboard/globalShortcuts.ts` (new `toggleHiddenFiles` ShortcutId), `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md`.
+Files touched (16): `shared/types.ts`, `shared/host-api.ts`, `core/socket-server.ts`, `electron/main.ts`, `electron/preload.ts`, `cli/duo.ts` + `cli/duo` (binary), `renderer/hooks/useNavigator.ts`, `renderer/hooks/useKeyboardShortcuts.ts`, `renderer/keyboard/globalShortcuts.ts`, `renderer/App.tsx`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`, `tasks.md`, `docs/dev/active-sprint.md`.
 
 ### ENH-169 — Navigator-side new-file / new-folder UX
 

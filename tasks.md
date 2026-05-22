@@ -232,7 +232,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-172: Show / hide hidden files & folders in the navigator (View menu + chord + CLI verb)
 
-**Status:** ⬜ Planned — Sprint 20 / v0.7.7. Owner ask 2026-05-22.
+**Status:** ✅ **Shipped 2026-05-22** at [600d16e](https://github.com/dudgeon/duo/commit/600d16e). All four surfaces (View menu checkbox, ⌘⇧. accelerator, CLI verb, `duo nav-state` field) live-verified in the dev session. 16 files, +260/-8 LOC. 660 tests green, typecheck clean, skill + agent docs synced. **Dev-mode caveat:** localStorage doesn't persist across `npm run dev` Electron restarts in some configurations (test marker also failed to persist) — production DMG should be fine; flag for the cut-DMG smoke walk.
 
 **Scope.** Surface the existing `showDotfiles` navigator state (a renderer-local toggle implemented in [`renderer/hooks/useNavigator.ts`](renderer/hooks/useNavigator.ts) since Stage 10) as a first-class user-facing surface. Three triggers, one shared state:
 
