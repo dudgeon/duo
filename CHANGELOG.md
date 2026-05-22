@@ -19,7 +19,25 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.3 cut 2026-05-19.
+> Empty — v0.7.4 cut 2026-05-21.
+
+## [0.7.4] — 2026-05-21
+
+### Added
+
+- **Workspace-as-file** (ENH-167) — round-trip Duo's open tabs + terminals + browser pane state to a user-saved `.duo-workspace` file. New File menu items: `New Workspace`, `Save Workspace…`, `Save Workspace As…`, `Open Workspace…`, `Open Recent Workspace ▸` (10 entries, prune-missing-on-open) + `Clear Recent Workspaces`. CLI parity: `duo workspace <save|open|list-recent|current|new>`.
+- **Title-bar workspace-name badge** (ENH-167 v1.2) — when a workspace is loaded, its name appears right of the macOS traffic lights; blank when untitled. Tracks live across Save / Save As / Open / Open Recent / New Workspace via a new `WORKSPACE_FILE_ACTIVE_CHANGED` push channel.
+- **Autosave continues to mirror the active workspace** (ENH-167 v1.2) — every autosave flush writes both `~/.claude/duo/session-state.json` AND the active `.duo-workspace`. The `.duo-workspace` is the LIVE workspace, not a snapshot of last-manual-save. No-op when untitled.
+
+### Changed
+
+- **New Workspace = workspace reset, not just pointer-clear** (ENH-167 v1.1) — when anything is open, File > New Workspace now prompts Save / Don't Save / Cancel; on Don't Save it resets in-place into ONE fresh shell terminal at the **live CWD** (lsof-based, spawn-CWD fallback) of the previously-frontmost terminal, with every working-pane tab dropped EXCEPT pinned (file + browser pins both survive via existing boot-time hooks).
+- **In-place reset replaces `app.relaunch()`** for Open Workspace + New Workspace (ENH-167 v1.1.1) — close browser WCVs + dispose PTYs + reload renderer. Works uniformly in dev and packaged; faster (~200ms vs ~2s).
+- `SessionStateService.setMirrorHook()` — services can inject a secondary write that runs inside `flush()`, debounced by the same 250ms as the primary write. Used by the autosave mirror above.
+
+### Notes
+
+- The Stage 21c "session" terminology (autosave file `session-state.json`, type `SessionState`, service `sessionStateService`) is preserved internally — only the new user-facing surface uses "workspace". Decision rationale in [`docs/prd/enh-167-workspace-as-file.md`](docs/prd/enh-167-workspace-as-file.md) § Naming.
 
 ## [0.7.3] — 2026-05-19
 

@@ -826,6 +826,24 @@
   </div>
 </article>
 
+<article class="item" data-keys="workspace save open recent .duo-workspace file menu enh-167 named workspaces bookmark tabs terminals reset new pinned">
+  <div class="num">37a</div>
+  <div>
+    <h3>Save your workspace as a file you can re-open later</h3>
+    <p class="why"><strong>v0.7.4+</strong> Duo's autosave already persists every open tab and terminal across relaunches — but that's a single rolling state. <strong>Workspace-as-file</strong> lets you bookmark a specific configuration of tabs + terminals + browser pane + splits as a <code>.duo-workspace</code> file you can save anywhere on disk and reopen later. Use it to put down one workspace and pick up another. Title-bar badge shows the loaded workspace's name (right of the macOS traffic lights); blank when untitled. Autosave continues to mirror the active <code>.duo-workspace</code> on every state change, so the file IS the live workspace (not a snapshot of last manual save).</p>
+    <p class="how"><strong>UI</strong>File menu → <strong>Save Workspace…</strong> / <strong>Save Workspace As…</strong> / <strong>Open Workspace…</strong> / <strong>Open Recent Workspace ▸</strong> (last 10, pruned for missing files). Open shows a Save current? prompt (Save / Don't Save / Cancel) before swapping in the loaded workspace.<br><strong>CLI</strong> <code>duo workspace save [&lt;path&gt;] [--name &lt;n&gt;]</code> · <code>duo workspace open &lt;path&gt;</code> · <code>duo workspace list-recent</code> · <code>duo workspace current</code> · <code>duo workspace new</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="new workspace reset live cwd lsof shell terminal pinned tabs survive in-place reset enh-167 v1.1">
+  <div class="num">37b</div>
+  <div>
+    <h3>Start a fresh workspace from where you are</h3>
+    <p class="why"><strong>v0.7.4+</strong> File &gt; <strong>New Workspace</strong> resets the workspace in-place. When anything is open, it prompts Save / Don't Save / Cancel; on Don't Save, Duo collapses to <strong>one fresh shell terminal at the live CWD</strong> of the previously-frontmost terminal (where you actually <code>cd</code>'d to, not just where the tab spawned), plus any <strong>pinned tabs</strong> (file + browser pins both survive). Active workspace pointer clears, title-bar badge goes blank. Faster than a relaunch (~200ms) and works in dev + packaged builds the same way.</p>
+    <p class="how"><strong>UI</strong>File menu → <strong>New Workspace</strong>.<br><strong>CLI</strong> <code>duo workspace new</code> (skips the GUI prompt; agents are presumed deliberate).</p>
+  </div>
+</article>
+
 <article class="item" data-keys="claude.md global managed block duo-managed marker hook-independent enterprise non-duo terminal vs code iterm agent worktree session start">
   <div class="num">40b</div>
   <div>

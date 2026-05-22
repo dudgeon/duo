@@ -18,6 +18,20 @@
 
 ---
 
+## 2026-05-21 (v0.7.4 cut — workspace-as-file: Save / Open / Open Recent + autosave mirror)
+
+**v0.7.4 cut.** Single-session build of ENH-167 from owner kickoff through cut, including same-day rename (session → workspace) and three sub-versions (v1.1 New Workspace reset, v1.1.1 in-place reset fix for dev blank-window, v1.2 title-bar badge + autosave mirror). All 14 smoke-walk items pre-walked via computer-use; typecheck clean throughout.
+
+Three new core services (`workspace-file-service`, `workspace-history-service`, `active-workspace-service`); five new IPC channels; new CLI verb `duo workspace <op>`; new File menu items (`New Workspace`, `Save Workspace…`, `Save Workspace As…`, `Open Workspace…`, `Open Recent Workspace ▸`); `.duo-workspace` file extension; title-bar badge driven by a new push channel. Autosave mirror extends `SessionStateService` with an optional `setMirrorHook()` that runs inside `flush()` (250ms debounce, no extra mechanism). New Workspace uses `lsof -a -d cwd -p <pid> -Fn` for live-CWD detection of the previously-frontmost terminal.
+
+Late-session "session" → "workspace" rename when owner caught the collision with Claude session: *"I'm worried that 'session' is the wrong mental model/term and a user may think that 'new session' is like a new Claude session."* Internal Stage 21c types (`SessionState`, `sessionStateService`, `session-state.json`) preserve original naming as they predate this work; user-facing surface is uniformly "workspace".
+
+Mid-build dev blank-window bug (v1 used `app.relaunch() + app.exit(0)`, which kills the Vite dev server in dev mode) replaced with an in-place reset: close browser WCVs cleanly, dispose PTYs, re-arm BUG-057 pin-restore on next `did-finish-load`, reload renderer. Faster (~200ms vs ~2s) and uniform across dev/packaged.
+
+Full ADR at `docs/prd/enh-167-workspace-as-file.md`.
+
+---
+
 ## 2026-05-19 (v0.7.3 cut — unified annotation rail + agent comment-reply ergonomics)
 
 **v0.7.3 cut.** Theme: editor UX polish + bug-report cluster from a written bug report. Single session, two waves, one cut. Both waves driven by direct owner pushback rather than a planned sprint scope. 655/655 vitest tests green (649 → 655; 6 new BUG-143 fixtures), typecheck clean.

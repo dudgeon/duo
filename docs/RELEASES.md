@@ -21,7 +21,93 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.3 cut 2026-05-19)*
+> *(empty — v0.7.4 cut 2026-05-21)*
+
+---
+
+## v0.7.4 — 2026-05-21 — Workspace-as-file (Save / Open / Open Recent + autosave mirror)
+
+**Why this version lands here.** Duo's autosave (Stage 21c, v0.4.2) persists
+every tab/terminal change to `~/.claude/duo/session-state.json` so a relaunch
+picks up exactly where the user left off. Good for crash resilience, but the
+user had no way to bookmark a configuration as "the X workspace" they could
+return to later, switch between named workspaces without manual rebuilding,
+or share/back up a setup as a portable artifact. Owner kickoff: *"I want to
+be able to save a 'session' (file > save session, file > open session); the
+session is basically the autosave data that duo uses to reload all open tabs
+when you quit and restart — but we will expose this as a file type, allowing
+a person to put down one session, and pick up another; we should also have
+'open recent'."*
+
+The build collapsed into a single day. Four sub-versions in one wave: v1
+(the file-type surface), v1.1 (New Workspace reframed as a workspace reset),
+v1.1.1 (in-place reset replaces `app.relaunch()` after the dev blank-window
+bug), and v1.2 (title-bar badge + autosave mirror). Plus the late same-day
+"session" → "workspace" rename when the owner caught the collision with
+Claude session.
+
+**Four design decisions baked in.**
+
+1. **Workspace, not session.** v1 used "session" terminology (matched the
+   underlying `SessionState` autosave shape). Owner caught the collision:
+   *"I'm worried that 'session' is the wrong mental model/term and a user
+   may think that 'new session' is like a new Claude session."* Renamed
+   same-day to "workspace" — IDE convention (VS Code `.code-workspace`,
+   JetBrains Workspace), no verbal overlap with Claude session, unambiguous
+   in voice. Internal Stage 21c types (`SessionState`,
+   `sessionStateService`, `session-state.json`) preserve original naming as
+   they predate this work.
+
+2. **In-place reset, not `app.relaunch()`.** v1 used
+   `app.relaunch() + app.exit(0)` — works in packaged builds, blank-windows
+   in dev (the Vite dev server dies along with Electron; relaunched
+   Electron tries to load `localhost:5173`, gets `ERR_CONNECTION_REFUSED`).
+   Replaced with an in-place reset: close browser WCVs cleanly, dispose
+   PTYs, re-arm BUG-057's pin-restore on the next `did-finish-load`, reload
+   the renderer. Faster (~200ms vs ~2s) and uniform across dev / packaged.
+
+3. **New Workspace resets, doesn't just clear.** v1's New Workspace just
+   "cleared the active-workspace pointer." Owner pushback after the smoke
+   walk: *"new session should actually clear the current session…clear the
+   terminal tabs (only one terminal tab remains w current CWD from front
+   most terminal tab pre new session), all canvas tabs gone except
+   pinned."* New Workspace now spawns one fresh shell at the **live CWD**
+   (via `lsof -a -d cwd -p <pid> -Fn`, spawn-CWD fallback) of the
+   previously-frontmost terminal, with every working-pane tab dropped
+   EXCEPT pinned (both file and browser pins survive via existing
+   boot-time hooks).
+
+4. **The .duo-workspace IS the live state, not a snapshot.** Owner
+   stretch ask: *"auto save should continue to function, updating the
+   current session if saved or unsaved."* Extended `SessionStateService`
+   with an optional `mirrorHook` that runs inside `flush()` — every
+   autosave write to `session-state.json` also writes the active
+   `.duo-workspace` (no-op when untitled). Same 250ms debounce; no extra
+   mechanism. There's no "are we synced with the file?" question — the
+   file is always up to date.
+
+**What this is and isn't.**
+
+- **Is**: a workspace bookmark you save to disk. Open it later to resume
+  the same tabs + terminals + browser pane + splits. Use `Open Recent
+  Workspace` to bounce between recent workspaces; the title-bar badge
+  tells you which one you're in.
+- **Isn't**: cross-machine sync. Workspaces persist absolute paths so
+  opening one on a different machine silently drops paths that don't
+  exist (existing BUG-039 logic handles file tabs; terminals fall back to
+  `$HOME`). Path-rewriting on load is a future addition if cross-machine
+  demand surfaces.
+- **Isn't**: workspace-aware Claude session restore. Each `claude`
+  terminal still starts fresh on workspace load — Claude Code does the
+  conversation persistence on its own side, and Duo doesn't interfere.
+
+**Validation.** All 14 smoke-walk items pre-walked via computer-use,
+covering the native Save/Open dialogs, the Save / Don't Save / Cancel
+modal, the file picker, the title-bar badge, the live-CWD detection
+(verified with `cd /tmp` → New Workspace → new terminal lands at
+`/private/tmp`, not the spawn `/stoop`), the autosave mirror (file
+mtime advances on every tab open/close), and pin survival across
+resets. Full ADR at [`docs/prd/enh-167-workspace-as-file.md`](prd/enh-167-workspace-as-file.md).
 
 ---
 
