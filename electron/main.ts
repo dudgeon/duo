@@ -2197,19 +2197,40 @@ export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: b
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
+
+  // BUG-151 (Sprint 20 / v0.7.7) — force-flush the current workspace
+  // before loading the target. The autosave mirror hook
+  // (`sessionStateService.setMirrorHook`) writes the latest state to
+  // the active `.duo-workspace` on every flush, so this guarantees the
+  // user's current work is persisted to its file BEFORE the switch.
+  // Pre-fix: we instead PROMPTED the user with "Save current workspace?"
+  // but clicking Save wrote to the wrong file (the current active, not
+  // the target) — see BUG-151 entry in tasks.md. Drop the prompt; rely
+  // on the mirror hook + explicit flush. The `skipPrompt` opt no longer
+  // affects behavior but stays in the signature for back-compat with
+  // CLI callers.
+  const currentActive = activeWorkspaceService.get()
+  if (currentActive) {
+    try {
+      const snapshot = await dispatchSessionSnapshot()
+      if (snapshot) {
+        sessionStateService.save(snapshot)
+        await sessionStateService.flush()
+      }
+    } catch (err) {
+      // Best-effort — if the flush fails the user's latest state may
+      // not have been mirrored, but the load proceeds either way.
+      // Surface as a log line so it shows up in `~/.claude/duo/logs/`
+      // if anyone investigates.
+      console.warn('[BUG-151] pre-switch flush failed:', err)
+    }
+  }
+
   const envelope = await workspaceFileService.load(filePath)
   if (!envelope) {
     await workspaceHistoryService.forget(filePath)
     void rebuildAppMenu()
     return { ok: false, error: `Failed to read workspace file: ${filePath}` }
-  }
-
-  // Owner Q2 — prompt to save the current workspace before replacing.
-  // Skipped for explicit CLI use (the agent caller is presumed to
-  // know what it's doing) and for paths we just saved (saveAs).
-  if (!opts.skipPrompt) {
-    const proceed = await promptToSaveCurrentWorkspace()
-    if (!proceed) return { ok: false, error: 'cancelled' }
   }
 
   // Stamp the loaded SessionState's savedAt + appVersion so the next
@@ -2237,8 +2258,9 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
   if (!mainWindow || mainWindow.isDestroyed()) {
     return { ok: false, error: 'Duo window not ready' }
   }
-  const proceed = await promptToSaveCurrentWorkspace()
-  if (!proceed) return { ok: false, error: 'cancelled' }
+  // BUG-151 — no pre-switch prompt; the openWorkspaceFile call below
+  // force-flushes the current workspace via the mirror hook. The Open
+  // dialog is the user's intent to switch — no need to confirm save first.
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Open Workspace',
     properties: ['openFile'],
@@ -2262,9 +2284,17 @@ async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: stri
 //  - 'new'  → "before starting a new one?" (New Workspace)
 async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Promise<boolean> {
   if (!mainWindow || mainWindow.isDestroyed()) return false
+  // BUG-151 (Sprint 20 / v0.7.7) — this prompt is now ONLY reachable
+  // from `newWorkspaceReset` (the "wipe everything and start fresh"
+  // flow). Workspace switching no longer prompts; it relies on the
+  // autosave mirror hook + explicit pre-switch flush in
+  // openWorkspaceFile. Name the active workspace explicitly so the
+  // user knows which file is being saved when they click Save.
+  const activeName = activeWorkspaceService.get()?.name
+  const currentLabel = activeName ? `'${activeName}'` : 'the current workspace'
   const message = action === 'new'
-    ? 'Save current workspace before starting a new one?'
-    : 'Save current workspace before opening another?'
+    ? `Save unsaved changes to ${currentLabel} before starting a new workspace?`
+    : `Save unsaved changes to ${currentLabel} before opening another?`
   const detail = action === 'new'
     ? 'Your current tabs and terminals will be replaced with a fresh workspace (one shell terminal at the focused tab’s working directory, plus any pinned tabs).'
     : 'Your current tabs, terminals, and browser tabs will be replaced.'

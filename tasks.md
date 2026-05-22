@@ -230,6 +230,37 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-151: Workspace switch loses perceived state via the "Save current workspace?" prompt
+
+**Status:** 🟡 In flight 2026-05-22. Owner-reported during Sprint 20 close-out — *"the session switcher tab deleted my session; I saved my session, then added a new session, then when I switched back it was gone."*
+
+**Symptom (forensic-reconstructed 2026-05-22).** Owner's flow:
+1. Click dropdown → "+ New Workspace" → Save As dialog → `new-session.duo-workspace` saved at **15:52:12** (captured current state at that moment).
+2. Click dropdown → "session" in Recent → `openWorkspaceFile(/Desktop/session.duo-workspace)` fires.
+3. [`openWorkspaceFile`](electron/main.ts:2196) at line 2210-2213 calls [`promptToSaveCurrentWorkspace`](electron/main.ts:2263) with three buttons: **Save / Don't Save / Cancel**.
+4. Owner clicked **Save** expecting "save my recent changes." But the Save wrote to the **CURRENT** active workspace (`new-session.duo-workspace`), NOT to the target session they were about to switch to.
+5. `session.duo-workspace` then loaded with its OLDER snapshot (no smoke walk tab) → owner perceived their work as "deleted from session."
+6. Subsequent autosave at 15:53:28 wrote the new full state into `session.duo-workspace` (post-switch state), but the misperception had already landed.
+
+**Both files are intact** — no actual data loss. But the UX bug is real: the prompt's "Save" button does the wrong thing relative to user expectations, AND the prompt is redundant because the autosave mirror hook ([`main.ts:290-294`](electron/main.ts:290)) already persists every state change to the active workspace.
+
+**Fix (shipped 2026-05-22, three-part):**
+
+1. **(a) Drop the prompt-to-save in workspace-switch paths.** [`openWorkspaceFile`](electron/main.ts:2196) and [`openWorkspaceFileWithDialog`](electron/main.ts:2236) no longer call `promptToSaveCurrentWorkspace()`. The autosave mirror hook already writes every state change to the current `.duo-workspace`; the prompt was a misleading double-confirmation that wrote to the wrong file when user clicked Save expecting to capture their target's content.
+
+2. **(c) Force-flush the current state before loading target.** Right before `workspaceFileService.load(targetPath)`, the switcher now (i) snapshots live renderer state via `dispatchSessionSnapshot()`, (ii) calls `sessionStateService.save(snapshot) + flush()` — the mirror hook fires and writes the freshest state to the current active workspace file. Guarantees no race where unsaved state is lost between the last autosave debounce and the switch.
+
+3. **(b) Reword `newWorkspaceReset`'s prompt to name workspaces clearly.** The "you're about to wipe everything" prompt (which IS still legitimate — `newWorkspaceReset` actively clears state, unlike a switch) now reads *"Save unsaved changes to '<current-name>' before starting a new workspace?"* so the user knows which file is being saved.
+
+**Verification owed (smoke walk):**
+- Repro path: Save current state as workspace A → click "+ New Workspace" → Save As "test-workspace-B" → click dropdown → A in Recent → confirm A loads with **the full current state**, not an older snapshot. No prompt should appear during switch.
+- File menu > Open Workspace → confirm same (no prompt during a switch via the file picker).
+- File menu > New Workspace → confirm the reset prompt now names the current workspace clearly in the dialog.
+
+**Cross-ref:** ENH-167 (workspace-as-file foundation), ENH-171 (workspace switcher dropdown), [`sessionStateService.setMirrorHook`](electron/main.ts:290) (the autosave-to-active-workspace mechanism this bug exposes).
+
+---
+
 ### BUG-150: Install service leaves orphan unmarked Duo-command entries in `~/.claude/settings.json`
 
 **Status:** 🟡 In flight 2026-05-22. Owner-reported during Sprint 20 close-out — the FirstLaunchBanner's "Heads-up: your ~/.claude/settings.json already had other SessionStart hooks…" note kept appearing on every Update click.
