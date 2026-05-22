@@ -1344,6 +1344,41 @@ export function App() {
     return () => { offNew(); offFolder() }
   }, [newMarkdownFile, newFolder])
 
+  // ENH-173 (Sprint 20 / v0.7.7) — UnknownFilePreview's "Navigate
+  // here" button (rendered when the tab's path is a directory) fires
+  // a CustomEvent that we route to nav.actions.navigateTo + close
+  // the now-redundant dead-end tab. Closes the dead-end loop where
+  // `duo view <folder>` lands users in the no-preview canvas.
+  useEffect(() => {
+    const onNavHere = (e: Event) => {
+      const ce = e as CustomEvent<{ path: string; tabId: string }>
+      const targetPath = ce.detail?.path
+      const rawTabId = ce.detail?.tabId
+      if (!targetPath || !rawTabId) return
+      // WorkingPane wraps file-tab ids with an `f:` prefix when it
+      // hands them to leaf renderers (see `stringifyFileId` in
+      // WorkingPane.tsx). Our App-level fileTabs[] uses the raw
+      // UUID without the prefix, so strip it before filtering.
+      const tabId = rawTabId.startsWith('f:') ? rawTabId.slice(2) : rawTabId
+      nav.actions.navigateTo(targetPath)
+      // Close the canvas tab we just made redundant.
+      setFileTabs(prev => prev.filter(t => t.id !== tabId))
+      setActiveWorking(prev => {
+        if (prev.kind === 'file' && prev.id === tabId) {
+          // The closed tab WAS active — fall back to the browser pane
+          // (the default ActiveWorking shape when no file tab is active).
+          return { kind: 'browser' }
+        }
+        return prev
+      })
+      // Surface the reveal chip so the user knows the navigator moved
+      // (consistent with the `duo reveal` CLI flow).
+      setRevealChip(targetPath)
+    }
+    window.addEventListener('duo-navigate-here', onNavHere)
+    return () => window.removeEventListener('duo-navigate-here', onNavHere)
+  }, [nav.actions])
+
   // ENH-169 (Sprint 20) — breadcrumb right-click context menu.
   // Surfaced on either an empty area of the breadcrumb (target =
   // current cwd) OR on a specific segment button (target = that

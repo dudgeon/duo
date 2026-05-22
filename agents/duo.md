@@ -140,7 +140,7 @@ empty.
 | Verb | Purpose |
 |---|---|
 | `duo url` / `duo title` | Current URL / title (orient) |
-| `duo navigate <url>` | Active tab → URL |
+| `duo navigate <url>` | Active **BROWSER** tab → URL. **URLs only** — does NOT move the file navigator. For path-shaped intent ("navigate to ~/Documents") use **`duo reveal <path>`** instead. BUG-149 lesson: the verb-name clash trips agents; `duo navigate <path>` now hard-errors with this redirect. |
 | `duo open <path-or-url> [--canvas] [--reveal]` | **ENH-156** — HTML lands in browser pane (interactive, scripts run). Non-HTML routes to natural surface. `--canvas` forces canvas-mode override for HTML (inspect source without firing scripts). Web URLs always → browser tab. |
 | `duo reload` | Reload the active browser tab in place (no URL needed; pair for `navigate`) |
 | `duo external <url>` | Open in macOS default browser (listed hostnames only) |
@@ -178,7 +178,7 @@ empty.
 | `duo html click --id <duo-id>` / `--selector <css>` | ENH-055 (v0.6.2) — programmatic click. Triggers the canvas-action dispatcher just like a user click — `data-duo-action` verbs fire, events emit, downstream paint ops execute. Used by lesson fly-through harnesses to walk a playground without manual clicking. Returns `{id, tag}`. |
 | `duo html comment --id <duo-id> --body "…"` | Stage 17d — add a sidecar comment anchored to the matched element's nearest `data-duo-id` ancestor. Anchor via `--id`, `--selector <css>`, or `--text "<substring>"`. Body via flag or stdin. Stored in `<file>.duo.json § comments[]`; never modifies the `.html`. Returns `{ok, commentId, anchorId}`. |
 | `duo html comments [--filter all\|open\|resolved]` | Stage 17d — list comment threads on the active canvas, sorted in document order. Each thread: `{id, number, excerpt, resolved, entries: [{id, author, ts, body}]}`. |
-| `duo reveal <path>` | Move file navigator to path; flash chip |
+| `duo reveal <path>` | **Move file navigator to path** (folder = move tree; file = move + select). Flash chip. **This is the navigator-move verb** — when the user says "navigate to X" with a filesystem path, reach for `duo reveal`, NOT `duo navigate` (which is browser-pane URL change only). |
 | `duo selection [--pane auto\|editor\|browser\|canvas]` | Active surface's selection (use when goal references "this", "selected", "here"). `canvas` returns `{kind:'page', path, text, html, anchorId, anchorPath, range, surrounding}` for the active page tab. |
 | `duo doc read [path]` | Live editor buffer (frontmatter + body, including unsaved edits) |
 | `duo doc write [--replace-selection\|--replace-all]` | Apply text to active editor (stdin or `--text`) |

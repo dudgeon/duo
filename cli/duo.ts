@@ -336,7 +336,15 @@ async function main(): Promise<void> {
   try {
     switch (cmd) {
       case 'navigate': {
-        const url = rest[0] ?? die('Usage: duo navigate <url>')
+        // BUG-149 (Sprint 20 / v0.7.7) — `duo navigate` is a BROWSER-
+        // PANE verb (URLs only). The verb name reads like a navigator-
+        // pane move, so users + agents sometimes pass a path. Catch
+        // that here with a helpful redirect — same message the socket
+        // would emit, but the CLI catches it before a round-trip.
+        const url = rest[0] ?? die('Usage: duo navigate <url>\n\nNote: \'duo navigate\' is a BROWSER-PANE verb (URLs only). To move the file navigator to a path, use \'duo reveal <path>\'. To open a local file, use \'duo open <path>\' or \'duo edit <path>\'.')
+        if (url.startsWith('/') || url.startsWith('~') || url.startsWith('./') || url.startsWith('../')) {
+          die(`'duo navigate' expects a URL (this is a BROWSER-PANE verb). To move the file navigator to '${url}', use 'duo reveal ${url}'. To open it as a file, use 'duo open ${url}' (browser-mode) or 'duo edit ${url}' (canvas-/editor-mode).`)
+        }
         out(await send('navigate', { url }))
         break
       }
@@ -1897,7 +1905,10 @@ USAGE
   duo <command> [options]
 
 COMMANDS
-  navigate <url>                  Navigate active tab to URL
+  navigate <url>                  Navigate the active BROWSER tab to URL.
+                                  URLs only — use 'duo reveal <path>' to
+                                  move the file navigator, 'duo open
+                                  <path>' to open a local file.
   open <path-or-url> [--canvas]   Open a local file or URL. HTML files
        [--reveal]                  default to the browser pane (scripts run,
                                    interactive) — use this when showing the

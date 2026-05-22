@@ -561,8 +561,18 @@ export class SocketServer {
           break
         }
         case 'navigate': {
+          // BUG-149 (Sprint 20 / v0.7.7) — `duo navigate` is a
+          // BROWSER-PANE verb (dispatches CDP Page.navigate). The
+          // verb name reads like a navigator-pane move, so users
+          // (+ agents) sometimes pass a filesystem path. We hard-
+          // error with a helpful redirect at `duo reveal <path>`
+          // (the canonical navigator-move verb). Recognized path
+          // shapes: starts with `/`, `~`, or `./` `../`.
           const url = args['url'] as string
           if (!url) throw new Error('navigate requires a url arg')
+          if (url.startsWith('/') || url.startsWith('~') || url.startsWith('./') || url.startsWith('../')) {
+            throw new Error(`'duo navigate' expects a URL (this is a BROWSER-PANE verb). To move the file navigator to a path, use 'duo reveal <path>'. To open a local file, use 'duo open <path>' (browser-mode) or 'duo edit <path>' (canvas-/editor-mode).`)
+          }
           result = await this.browser.navigate(url)
           break
         }
