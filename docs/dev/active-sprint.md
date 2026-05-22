@@ -1,57 +1,91 @@
-# Active sprint state — Sprint 19 / v0.7.3 in flight
+# Active sprint state — Sprint 20 / v0.7.7 PLANNED
 
-**Status (2026-05-21):** Sprint 19 mid-flight. Three waves shipped this session: (1) ENH-166 unified annotation rail (2026-05-19); (2) BUG-142..147 cluster from the bug-report on `duo doc comment --reply-to` ergonomics + live-editor sync (2026-05-19); (3) **ENH-167 workspace-as-file** (2026-05-21) — File > Save Workspace / Open Workspace / Open Recent Workspace + `duo workspace <save|open|list-recent|current|new>` CLI parity. **Originally shipped as "session" terminology, renamed same-day to "workspace"** to avoid collision with Claude session (the agent loop in a terminal). One follow-up filed (FOLLOWUP-023). All 14 smoke-walk items pre-walked via computer-use; cut ready.
+**Status (2026-05-22):** Planned, not yet started. Decisions locked via AskUserQuestion 2026-05-22; build pending owner go-ahead. v0.7.6 cut + DMG published 2026-05-22 ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6)).
 
-**ENH-167 wave (2026-05-21).** Owner kickoff: *"please make a new feature for duo: I want to be able to save a 'session' (file > save session, file > open session); the session is basically the autosave data that duo uses to reload all open tabs when you quit and restart — but we will expose this as a file type, allowing a person to put down one session, and pick up another; we should also have 'open recent'."* AskUserQuestion resolved 4 design questions: (1) autosave shape + name; (2) Replace current + Save / Don't Save / Cancel prompt; (3) `.duo-session` extension at user-picked path; (4) 10-entry Open Recent, prune-missing-on-open. Three new core services (`session-file-service`, `session-history-service`, `active-session-service`). Save Session uses a fresh IPC pair (`SESSION_STATE_SNAPSHOT_REQUEST` / `_RESULT`) to bypass the autosave debounce. Full File menu items + CLI `session` verb with 5 sub-ops + docs synced.
+**Theme.** *"Smaller daily-driver actions become first-class menu / chord surfaces."* Three coherent ENHs covering navigator-side file creation, the first Settings menu, and the workspace switcher decided in ENH-168.
 
-**ENH-167 v1.1 (2026-05-21, post-walk).** Reframed `New Session` from "clear pointer" to "reset workspace": prompt to save, then collapse to one fresh shell terminal at the **live CWD** (`lsof`-based with spawn-CWD fallback) of the previously-frontmost terminal, drop every working-pane tab EXCEPT pinned (file + browser pins both survive via the existing boot-time hooks), clear active-session pointer. Same in-place reset path used for Open Session.
+---
 
-**ENH-167 v1.1.1 (2026-05-21, blank-window fix).** Replaced `app.relaunch() + app.exit(0)` (which kills the Vite dev server in dev mode → blank window) with an in-place reset: close all browser WCVs cleanly + dispose all PTYs + re-arm the BUG-057 pin-restore listener + `webContents.reload()`. Works uniformly in dev and packaged; faster than relaunch (~200ms vs ~2s).
+## Sprint 20 scope (3 ENHs, 7 items)
 
-**ENH-167 v1.2 (2026-05-21, stretch).** Two owner-asked additions: (1) **title-bar session-name badge** in the renderer (right of macOS traffic lights), subscribes to a new `SESSION_FILE_ACTIVE_CHANGED` push channel; (2) **autosave mirror** — `SessionStateService.setMirrorHook()` lets main mirror every flush to the active `.duo-session` file (no-op when untitled). The `.duo-session` is now the LIVE session, not a snapshot.
+### ENH-169 — Navigator-side new-file / new-folder UX
 
-**Pre-walked all 12 smoke-walk items via computer-use** (2026-05-21) — every item PASSes including the v1.1 live-CWD reset (`cd /tmp` → New Session → new terminal lands at `/private/tmp`, not the spawn `/stoop`). The v1.2 additions add 2 more verification items.
+Three triggers, one shared flow:
+
+1. **Breadcrumb right-click** → context menu with `New file here…` / `New folder here…` / `Reveal in Finder` / `Open terminal here`. Default location = the dir of the segment that was right-clicked.
+2. **File menu** → `New File…` / `New Folder…`. Default location = currently-focused navigator dir.
+3. **Keyboard chords** ⌘N (New File) / ⌘⇧N (New Folder). Same default-location logic as #2.
+
+All three reuse the same modal (asks for name, validates filename collision, creates via existing `FilesService` + `NAV_REVEAL` to scroll the new entry into view). Sub-question to resolve during build: does ⌘N collide with anything in the renderer's `globalShortcuts` registry? Likely free but verify before binding.
+
+Files likely touched: `electron/main.ts` (menu items), `renderer/keyboard/globalShortcuts.ts` (chord registry), `renderer/components/FileTree.tsx` or breadcrumb component (right-click handler), `renderer/components/NewFileModal.tsx` (new component or extend existing wikilink-create modal pattern).
+
+### ENH-170 — Settings menu (Return-key prefs)
+
+First Settings menu surface. Two toggles in v1, exposing the existing `duo claude-return` + `duo shift-return` CLI flags as GUI controls.
+
+**Setting label (owner-locked):** *"Return → line break in Claude"*
+
+| Toggle | Off (default) | On |
+|---|---|---|
+| **Return → line break in Claude** | Return submits to Claude (terminal default) | Return inserts a literal newline (multi-line composer) |
+| **Shift+Return → submit in Claude** | Shift+Return inserts newline (Slack default) | Shift+Return submits |
+
+Menu placement sub-question (resolve during build): `App > Settings…` is the macOS convention; `Tools > Settings` is a fallback. Both are acceptable; prefer the former. Modal vs new BrowserWindow vs Cozy-mode-style panel: smallest path is a renderer modal (no new window).
+
+Files likely touched: `electron/main.ts` (menu item), new `renderer/components/SettingsModal.tsx`, wires to existing `IPC.CLAUDE_KEY_PREFS_SET` + `useClaudeKeyPrefs()` hook (already shipped Sprint 16).
+
+### ENH-171 — Workspace switcher (title-bar dropdown)
+
+Per locked ENH-168 decisions:
+
+- **Q1 Position:** A — Title-bar dropdown (the existing workspace name badge becomes the click target).
+- **Q2 Gesture:** a — Dropdown menu (single click → list).
+- **Q3 Identification:** a — Name only (today).
+- **Q4 Create:** b — "+ New Workspace" inline at the top of the dropdown opens the full native **Save Workspace As** dialog (no new modal).
+
+Sprint-20 addition:
+
+- **Keyboard chord** — `⌘\` to open the dropdown without clicking (additions Q3 #8).
+
+Dropdown contents (in order):
+1. `+ New Workspace` (opens Save As dialog)
+2. Recent workspaces (same data as File > Open Recent Workspace, sorted by `lastOpenedAt`, capped 10, prune-missing)
+3. Separator
+4. `Clear Recent Workspaces`
+
+Files likely touched: `renderer/App.tsx` § titlebar block (click handler on the workspace-name badge), new `renderer/components/WorkspaceSwitcherDropdown.tsx`, `renderer/keyboard/globalShortcuts.ts` (chord), reuses `window.electron.workspaceFile.listRecent()` + `openRecent()` + `save({saveAs:true})`.
+
+---
+
+## Locked decisions (2026-05-22 AskUserQuestion)
+
+| Q | Answer |
+|---|---|
+| Return-key toggle label | "Return → line break in Claude" (single-toggle framing — on = newline, off = submit; owner picked "Other" over the four proposed labels) |
+| Workspace "+" behavior | Full native Save dialog (reuses Save Workspace As flow) |
+| Sprint-20 additions to include | #5 Shift+Return companion · #6 ⌘N/⌘⇧N chords · #8 workspace-switcher chord (skipped #7 file-template defaults) |
+| Output format for this plan | Update `docs/dev/active-sprint.md` (markdown) |
+
+## Owner-decision gate cleared
+
+- **ENH-168 — workspace switcher design playground** at [`docs/research/workspace-switcher.html`](docs/research/workspace-switcher.html) — owner walked + decided 2026-05-22. Decisions baked into ENH-171 above. Playground stays in `docs/research/` as the design record.
 
 ---
 
 ## 🔥 Post-compaction me: read this first
 
-**ENH-166 v2 unified annotation rail (shipped + live verified).** Owner kickoff: *"in 0.7.2, comments and tracked changes live in their own rails; this takes up too much width; we need to combine these into a single rail."* Owner feedback after v1: *"you have just stacked the comment and track changes rails — bad UX; I specifically said items should coexist in a single rail, e.g. [comment 1, addition 1, comment 2, deletion 1, comment 3], in the order that they appear in the document."* v2 introduces `UnifiedAnnotationRail.tsx` that merges TrackedRange[] + BuiltMarkdownThread[] into one PM-position-sorted list with a single header, merged filter chips (Mine/Agent/Others span both kinds), and 1-based comment numbering reassigned post-sort. Live-verified: the rail reads top-to-bottom as `[comment-1, +ins, −del, comment-2]` matching document order. Prose column gets ~280px back.
+Sprint 20 (v0.7.7) is **planned but not started**. Three ENHs locked via AskUserQuestion 2026-05-22:
 
-**BUG-142..147 cluster (shipped + live verified).** Bug report at [/tmp/duo-bug-report-comment-reply.md](/tmp/duo-bug-report-comment-reply.md) — agent took 2 min + 16 shell calls to reply to a single CriticMarkup comment.
+- **ENH-169** — Navigator new-file/new-folder UX (breadcrumb right-click + File menu + ⌘N/⌘⇧N chords).
+- **ENH-170** — Settings menu, first occupant: Return-key prefs ("Return → line break in Claude" + companion Shift+Return toggle).
+- **ENH-171** — Workspace switcher (title-bar dropdown per ENH-168 decisions + ⌘\ chord).
 
-- **BUG-142** — `doc-edit` not propagated to live editor. ROOT CAUSE: the reported "no update" was specific to the `--reply-to` codepath corrupting the parent token (insert/delete/etc. DO refresh via the existing BUG-085 chokidar path). Closed via BUG-143 fix.
-- **BUG-143** — `--reply-to` ergonomics. New pure function `addCommentReply` finds the parent comment by id, appends `\n↪ @<author> <ts>: <body>` inside the parent's `{>>…<<}` body. Socket-server branches on `--reply-to + no --anchor`. CLI loosens validation. 6 new vitest fixtures.
-- **BUG-144** — `duo layout` vs `doc read` active-editor mismatch. ROOT CAUSE: each mounted editor error-replied on path mismatch instead of silently ignoring; the bogus error from a non-matching editor raced and won. Fix: silent `return` on mismatch in all four IPC handlers (`onDocRead`, `onDocGoto`, `onDocFind`, `onDocWrite`).
-- **BUG-145** — `duo doc --help` / `duo doc <sub> --help` returns focused per-subcommand help (~15 lines vs. the ~200-line global help).
-- **BUG-146** — "Where is the comment?" decision tree added to `skill/SKILL.md`, keyed on `duo layout § main.kind`.
-- **BUG-147** — `skill/references/comments.md` covering the comment lifecycle, on-disk shape, and the 3-call expected agent path.
-- **BUG-148** — Electron main-process EPIPE crash. Surfaced live during dev restarts: `npm run dev` under `nohup` detaches; once the parent stdout closes, the dev-only renderer-console forwarder at `electron/main.ts:651` throws EPIPE → user-visible error dialog. Fix: canonical Node-on-broken-pipe stdout/stderr handlers at the top of `electron/main.ts`.
+Scope detail in the "Sprint 20 scope" section above. The owner has not given the green-light to build yet; do not implement without confirmation.
 
-**Test counts:** 649 → 655 vitest tests, all green. Typecheck ✅. Skill synced via `npm run sync:claude`.
+**Last cut: v0.7.6** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6), 2026-05-22). Includes the BUG-122 hypothesis 6 fix (HTML-entity decode in `normalizeForEchoCompare`) and the ENH-168 workspace switcher design playground. Full ADR for the v0.7.4 workspace-as-file foundation at [`docs/prd/enh-167-workspace-as-file.md`](../prd/enh-167-workspace-as-file.md).
 
-**Open follow-up:** [FOLLOWUP-023](../../tasks.md) — chokidar reload after a reply leaves the tracked-changes rail momentarily misclassified (highlights show as insertions); close-reopen renders correctly. Lower priority since the headline (reply visible) is fixed and documented in the new reference page.
-
-**Files touched this session (9 + 1 new):**
-- [`electron/main.ts`](../../electron/main.ts) — BUG-148 EPIPE handlers
-- [`renderer/components/editor/UnifiedAnnotationRail.tsx`](../../renderer/components/editor/UnifiedAnnotationRail.tsx) — NEW (v2)
-- [`renderer/components/editor/TrackedChangesRail.tsx`](../../renderer/components/editor/TrackedChangesRail.tsx) — export `TrackedChangeCard` + `FilterChip` + `classifyAuthor` for reuse
-- [`renderer/components/editor/primitives/CommentRail.tsx`](../../renderer/components/editor/primitives/CommentRail.tsx) — export `CommentThreadCard` (v2) + `containerless` prop (v1, retained)
-- [`renderer/components/editor/MarkdownEditor.tsx`](../../renderer/components/editor/MarkdownEditor.tsx) — swap v1 two-section wrapper for `<UnifiedAnnotationRail />`; drop the now-dead `railThreads` adapter; 4× BUG-144 silent-ignore fixes
-- [`renderer/styles/globals.css`](../../renderer/styles/globals.css) — `.duo-unified-rail`
-- [`core/markdown/docEdit.ts`](../../core/markdown/docEdit.ts) — `addCommentReply`
-- [`core/markdown/docEdit.test.ts`](../../core/markdown/docEdit.test.ts) — 6 new tests
-- [`core/socket-server.ts`](../../core/socket-server.ts) — branched comment op
-- [`cli/duo.ts`](../../cli/duo.ts) — `printDocHelp` + validation
-- [`skill/SKILL.md`](../../skill/SKILL.md) — decision tree + updated example
-- [`skill/references/comments.md`](../../skill/references/comments.md) — NEW
-
-**Smoke walk owed (one rev, all of):**
-- ENH-166: open `.md` with mixed CriticMarkup → unified rail in 280px column.
-- BUG-142/143: `duo doc comment --reply-to <id> --body "X"` (no --anchor) → reply appears in thread after close-reopen.
-- BUG-144: two `.md` files open; `duo doc read <non-active path>` returns that file (no spurious error).
-- BUG-145: `duo doc --help` and `duo doc comment --help` return focused help.
-- BUG-146/147: open `skill/SKILL.md` + `skill/references/comments.md` → decision tree + reference both readable.
+**For prior-sprint detail** (v0.7.3 ENH-166 unified rail + BUG-142..147 + v0.7.4 ENH-167 workspace-as-file + v0.7.5 FOLLOWUP-024 + v0.7.6 BUG-122-h6) — see `docs/dev/session-log.md` § entries dated 2026-05-19 through 2026-05-22.
 
 ---
 
@@ -79,9 +113,11 @@ Filed but not blocking, awaiting prioritization or external trigger:
 
 | Question | Priority |
 |---|---|
-| **Next sprint scope** — pick from the carry-forward queue. v0.7.2 closed v0.7.1's owed follow-ups. | Whenever owner ready to scope Sprint 19 / v0.7.3 |
-| **ENH-127** composer-window direction (declined / Duo-side composer / anti-accidental-submit heuristic / upstream feature request) | If accidental-submit pain re-surfaces |
-| **Backlinks / graph view** (Obsidian cluster) — Sprint 19+ anchor? Or defer further? | When wikilinks usage tells us demand |
+| **Sprint 20 start signal** — three ENHs scoped above; build pending owner go-ahead. | When owner has time to scope the next ~1.5 days of work |
+| **ENH-170 Settings menu placement** — `App > Settings…` (macOS convention) vs `Tools > Settings`? My lean: App > Settings, modal in renderer. | Resolvable during build (rule 6 state-and-proceed candidate) |
+| **ENH-169 ⌘N chord availability** — verify `globalShortcuts.ts` has it free before binding. | During build |
+| **ENH-127** composer-window direction (declined / Duo-side composer / anti-accidental-submit heuristic / upstream request) | If accidental-submit pain re-surfaces |
+| **Backlinks / graph view** (Obsidian cluster) — anchor for a future sprint? Or defer further? | When wikilinks usage tells us demand |
 | **17a.5 template gallery** directions A/E | Before any code work on templates |
 
 ---

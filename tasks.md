@@ -230,9 +230,74 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### ENH-168: Workspace switcher — always-visible UI for bouncing between workspaces
+### ENH-171: Workspace switcher — implementation (title-bar dropdown)
 
-**Status:** 🟡 Awaiting owner decisions (4 owner-AUQs locked in the playground).
+**Status:** ⬜ Planned — Sprint 20 / v0.7.7. Locked design from ENH-168.
+
+**Scope.** Convert the existing title-bar workspace-name badge into a click target. Click → dropdown menu with:
+1. `+ New Workspace` (opens full native Save Workspace As dialog)
+2. Recent workspaces list (10, sorted by `lastOpenedAt`, prune-missing — same data as File > Open Recent Workspace)
+3. Separator
+4. `Clear Recent Workspaces`
+
+Plus a **`⌘\` keyboard chord** to open the dropdown without clicking (Sprint 20 addition).
+
+**Owner-locked decisions (from ENH-168):** title-bar dropdown · single-click list · name only (no color tags / emoji / thumbnails in v1) · "+" opens native Save As (reuses existing flow).
+
+**Files likely touched:** `renderer/App.tsx` (titlebar block — click handler on workspace badge), new `renderer/components/WorkspaceSwitcherDropdown.tsx` (component), `renderer/keyboard/globalShortcuts.ts` (chord). Reuses `window.electron.workspaceFile.listRecent()` / `openRecent()` / `save({saveAs:true})`.
+
+**Cross-ref:** ENH-167 (workspace-as-file foundation), ENH-168 (design playground archived).
+
+---
+
+### ENH-170: Settings menu — Return-key prefs (first occupant)
+
+**Status:** ⬜ Planned — Sprint 20 / v0.7.7.
+
+**Scope.** New Settings menu surface (placement TBD during build — recommendation: `App > Settings…` macOS convention, opens a renderer modal). v1 ships two toggles, exposing existing CLI-only flags as GUI controls:
+
+| Toggle | Off (default) | On |
+|---|---|---|
+| **Return → line break in Claude** | Return submits to Claude (terminal default) | Return inserts a literal newline (multi-line composer) |
+| **Shift+Return → submit in Claude** | Shift+Return inserts newline (Slack default) | Shift+Return submits |
+
+Label "Return → line break in Claude" picked by owner via AUQ 2026-05-22 (over four proposed alternatives — single-toggle framing won over verbose Submit/Newline pairs).
+
+**Wires to existing plumbing:** `IPC.CLAUDE_KEY_PREFS_SET` + `useClaudeKeyPrefs()` hook (Sprint 16 / v0.6.15). No new IPC channels needed; renderer toggles map to existing `claude-return [submit|newline]` + `shift-return [submit|newline]` state.
+
+**Files likely touched:** `electron/main.ts` (menu item registration), new `renderer/components/SettingsModal.tsx`, possibly minor styling in `renderer/styles/globals.css`. Skill + CLI docs update if any new pref-related verbs land (unlikely for v1).
+
+**v2 stretch (not Sprint 20):** surface other CLI-only flags — `duo author`, `duo selection-format`, default new-terminal kind.
+
+**Cross-ref:** ENH-127 (composer-window backstory), ENH-142 (v0.6.15 toggle defaults). [feedback_ask_about_surface_choice](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_ask_about_surface_choice.md) memory applies (clarify modal-vs-window with owner if uncertain).
+
+---
+
+### ENH-169: Navigator-side new-file / new-folder UX
+
+**Status:** ⬜ Planned — Sprint 20 / v0.7.7.
+
+**Scope.** Three triggers, one shared modal+flow for creating files/folders in the navigator:
+
+1. **Breadcrumb right-click** → context menu: `New file here…` / `New folder here…` / `Reveal in Finder` / `Open terminal here`. Default location = the dir of the segment that was right-clicked.
+2. **File menu** → `New File…` / `New Folder…`. Default location = currently-focused navigator dir.
+3. **Keyboard chords** `⌘N` (New File) / `⌘⇧N` (New Folder). Same default-location logic.
+
+All three reuse the same modal (asks for name, validates filename collision, creates via existing `FilesService` IPC, scrolls the new entry into view via `NAV_REVEAL`).
+
+**Open sub-question (resolve during build):** does `⌘N` collide with any existing chord in `renderer/keyboard/globalShortcuts.ts`? Likely free but verify before binding.
+
+**Files likely touched:** `electron/main.ts` (File menu items), `renderer/keyboard/globalShortcuts.ts` (chord registry), navigator breadcrumb component (right-click handler), new `renderer/components/NewFileModal.tsx` or extension of existing wikilink-create modal pattern, plus the existing `FilesService.create*` IPC handlers.
+
+**Cross-ref:** ENH-016 (existing "New folder…" navigator action), ENH-039 (path-link handling), `[skill]: vocabulary.md` (file kind classification — `.md` opens in editor, `.html` opens in canvas via `duo edit` vs `duo open` after creation).
+
+---
+
+### ENH-168: Workspace switcher — design playground (decisions locked 2026-05-22)
+
+**Status:** ✅ Design locked 2026-05-22. Decisions baked into ENH-171 (implementation). Playground archived in place.
+
+**Decisions (owner, 2026-05-22):** Q1 Position = **A — Title-bar dropdown** · Q2 Gesture = **a — Dropdown menu (single click → list)** · Q3 Identification = **a — Name only (today)** · Q4 Create = **b — "+" inline → full native Save dialog**.
 
 **Trigger.** Sprint planning conversation 2026-05-22 (post-v0.7.5). Owner directive: *"workspace v2 polish based on actual daily use — workspace sidebar switcher (Arc-style), workspace metadata, save-to-GitHub gesture, path rewriting on workspace load — very interested in this, please make me an html playground with some options (incl mockups)."*
 
