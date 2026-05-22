@@ -1,8 +1,15 @@
-# Active sprint state — Sprint 20 / v0.7.7 IN FLIGHT
+# Active sprint state — Sprint 20 / v0.7.7 READY-TO-WALK
 
-**Status (2026-05-22):** 1 of 4 ENHs shipped (ENH-172 at [600d16e](https://github.com/dudgeon/duo/commit/600d16e)). Build green-lit by owner 2026-05-22 with a same-turn ENH-172 add. Scope: 4 ENHs / 8 items. v0.7.6 cut + DMG published earlier 2026-05-22 ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6)).
+**Status (2026-05-22):** **All 4 ENHs shipped + live-verified.** Smoke walk + cut owed.
 
-**Attack order (locked AUQ 2026-05-22):** ✅ ENH-172 → ⬜ ENH-170 (Settings menu) → ⬜ ENH-169 (Navigator new-file UX) → ⬜ ENH-171 (Workspace switcher).
+| ENH | Commit | Triggers verified live |
+|---|---|---|
+| **ENH-172** Show / hide hidden files | [600d16e](https://github.com/dudgeon/duo/commit/600d16e) | View menu checkbox · ⌘⇧. chord · `duo hidden-files` CLI · `duo nav-state` field |
+| **ENH-171** Workspace switcher dropdown | [2bde2f6](https://github.com/dudgeon/duo/commit/2bde2f6) | Title-bar "Workspaces ▾" trigger · empty-state tooltip |
+| **ENH-170** Settings menu (Return-key prefs) | [026d4d2](https://github.com/dudgeon/duo/commit/026d4d2) | App > Settings… click · ⌘, accelerator · bidirectional sync with `duo claude-return` / `duo shift-return` |
+| **ENH-169** Navigator new-file / new-folder UX | [ce50e78](https://github.com/dudgeon/duo/commit/ce50e78) | File menu New File…/New Folder… · ⌘N / ⌘⇧N chords · Breadcrumb right-click (New file/folder here…, Reveal in Finder, Open terminal here) |
+
+**Attack order (locked AUQ 2026-05-22):** ✅ ENH-172 → ✅ ENH-170 → ✅ ENH-169 → ✅ ENH-171 (helper finished ENH-171 in parallel, so it actually closed before ENH-170/169 — order delta noted).
 
 **Theme.** *"Smaller daily-driver actions become first-class menu / chord surfaces."* Four coherent ENHs covering navigator-side file creation, the first Settings menu, the workspace switcher decided in ENH-168, and the navigator's existing-but-buried show/hide-dotfiles toggle.
 
