@@ -47,6 +47,7 @@ export interface FocusContext {
 export type ShortcutId =
   | 'newBrowserTab'
   | 'newMarkdownFile'
+  | 'newFolder'
   | 'newClaudeTab'
   | 'closeTab'
   // FOLLOWUP-025 — File → Clone… modal trigger. ⌘⇧K binds it from
@@ -203,6 +204,14 @@ export function matchGlobalShortcut(
   // fires globally (no editor consumes it for letter formatting).
   if (meta && !shift && !alt && !ctrl && key === 'n') {
     return { id: 'newMarkdownFile' }
+  }
+
+  // ENH-169 (Sprint 20) — ⌘⇧N: new folder in the navigator's current
+  // cwd. Mirrors macOS Finder. Owner ask: "new file menu actions for
+  // new file, new folder (inherits navigator focus as default
+  // location)" — the chord parity for the File menu items.
+  if (meta && shift && !alt && !ctrl && key === 'n') {
+    return { id: 'newFolder' }
   }
 
   // ⌘W — close tab.

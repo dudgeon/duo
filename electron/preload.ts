@@ -351,6 +351,21 @@ const api: ElectronAPI = {
     // place (App.tsx's onOpenCloneModal subscriber).
     openCloneModal: (opts?: { path?: string }) => {
       ipcRenderer.send(IPC.NAV_OPEN_CLONE_MODAL_REQUEST, opts ?? null)
+    },
+
+    // ENH-169 (Sprint 20) — File → New File… / New Folder… clicks
+    // fire these channels. Renderer's App.tsx subscribes and routes
+    // to newMarkdownFile / newFolder (same callbacks the chords
+    // and breadcrumb right-click menu use).
+    onNewFileRequest: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NEW_FILE_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.NEW_FILE_REQUEST, handler)
+    },
+    onNewFolderRequest: (cb: () => void) => {
+      const handler = () => cb()
+      ipcRenderer.on(IPC.NEW_FOLDER_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.NEW_FOLDER_REQUEST, handler)
     }
   },
 

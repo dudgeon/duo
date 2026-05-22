@@ -335,6 +335,7 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
     return () => window.removeEventListener('duo-tree-start-rename', handler)
   }, [])
 
+
   const onCommitRename = async (entry: DirEntry, newName: string): Promise<boolean> => {
     const trimmed = newName.trim()
     if (trimmed === '' || trimmed === entry.name) {
@@ -470,6 +471,38 @@ export function FileTree({ state, actions, onOpenFile, onOpenTerminalHere, onOpe
       window.alert(`Couldn't create folder: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
+
+  // ENH-169 (Sprint 20) — external trigger points (File menu →
+  // New File… / New Folder…, ⌘N / ⌘⇧N chords, breadcrumb right-
+  // click context menu) all dispatch `duo-tree-new-file-here` /
+  // `duo-tree-new-folder-here` CustomEvents with a `{ parentPath }`
+  // detail. Listening here keeps the file-creation logic (pick
+  // unique name + mkdir/seed + auto-expand + refresh + setRenamingPath)
+  // in one place — the same flow the right-click "New folder here…"
+  // menu item drives. Ref pattern so we always call through to the
+  // LATEST closures (which capture current state/actions).
+  const newHandlersRef = useRef({ newFile: handleNewFile, newFolder: handleNewFolder })
+  newHandlersRef.current = { newFile: handleNewFile, newFolder: handleNewFolder }
+  useEffect(() => {
+    const onNewFile = (e: Event) => {
+      const ce = e as CustomEvent<{ parentPath: string }>
+      if (typeof ce.detail?.parentPath === 'string') {
+        void newHandlersRef.current.newFile(ce.detail.parentPath)
+      }
+    }
+    const onNewFolder = (e: Event) => {
+      const ce = e as CustomEvent<{ parentPath: string }>
+      if (typeof ce.detail?.parentPath === 'string') {
+        void newHandlersRef.current.newFolder(ce.detail.parentPath)
+      }
+    }
+    window.addEventListener('duo-tree-new-file-here', onNewFile)
+    window.addEventListener('duo-tree-new-folder-here', onNewFolder)
+    return () => {
+      window.removeEventListener('duo-tree-new-file-here', onNewFile)
+      window.removeEventListener('duo-tree-new-folder-here', onNewFolder)
+    }
+  }, [])
 
   // ENH-050 — central handler that maps a chosen menu id back to an
   // action against the given target entry. Stable ids keep the menu

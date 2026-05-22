@@ -302,6 +302,14 @@ export interface ElectronNavAPI {
    *  trigger paths (CLI / native menu / right-click) converge on
    *  App.tsx's onOpenCloneModal subscriber. */
   openCloneModal: (opts?: { path?: string }) => void
+  /** ENH-169 (Sprint 20) — File → New File… clicked. Renderer
+   *  dispatches to its `newMarkdownFile` callback (same one the ⌘N
+   *  chord drives). Default location = navigator's current cwd. */
+  onNewFileRequest: (cb: () => void) => () => void
+  /** ENH-169 (Sprint 20) — File → New Folder… clicked. Renderer
+   *  dispatches to its `newFolder` callback (same one the ⌘⇧N
+   *  chord drives). Default location = navigator's current cwd. */
+  onNewFolderRequest: (cb: () => void) => () => void
 }
 
 export interface ElectronEditorAPI {

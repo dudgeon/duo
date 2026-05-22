@@ -57,6 +57,10 @@ interface FilesPaneProps {
    *  menu picks "Open in Split View". App.tsx routes to
    *  splitViewMoveTabByPath. */
   onOpenInSplit?: (path: string) => void
+  /** ENH-169 (Sprint 20) \u2014 fired when a breadcrumb segment or its
+   *  whitespace is right-clicked. App.tsx pops the context menu
+   *  scoped to the given folder path. */
+  onBreadcrumbContextMenu?: (folderPath: string, x: number, y: number) => void
 }
 
 export interface FilesPaneHandle {
@@ -83,7 +87,8 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
   openFilePaths,
   activeFilePath = null,
   onRevealFile,
-  onOpenInSplit
+  onOpenInSplit,
+  onBreadcrumbContextMenu
 }: FilesPaneProps, ref) {
   const breadcrumbRef = useRef<BreadcrumbHandle | null>(null)
   useImperativeHandle(ref, () => ({
@@ -148,6 +153,7 @@ export const FilesPane = forwardRef<FilesPaneHandle, FilesPaneProps>(function Fi
                 home={home}
                 onNavigate={actions.navigateTo}
                 onRevealFile={onRevealFile}
+                onSegmentContextMenu={onBreadcrumbContextMenu}
               />
             </div>
             <PinButton pinned={state.pinned} onClick={actions.togglePinned} />

@@ -21,6 +21,13 @@ interface BreadcrumbProps {
    *  to `selectAndReveal` — navigate to parent folder + select the
    *  file in the tree. */
   onRevealFile?: (path: string) => void
+  /** ENH-169 (Sprint 20) — fired on right-click of a breadcrumb
+   *  segment OR the empty whitespace. Host pops a context menu via
+   *  window.electron.menu.popup with "New file here…" / "New folder
+   *  here…" / "Reveal in Finder" / "Open terminal here", scoped to
+   *  the given folder path. Empty whitespace right-click defaults
+   *  to the current cwd. */
+  onSegmentContextMenu?: (folderPath: string, clientX: number, clientY: number) => void
 }
 
 export interface BreadcrumbHandle {
@@ -30,7 +37,7 @@ export interface BreadcrumbHandle {
 }
 
 export const Breadcrumb = forwardRef<BreadcrumbHandle, BreadcrumbProps>(
-  function Breadcrumb({ cwd, home, onNavigate, onRevealFile }, ref) {
+  function Breadcrumb({ cwd, home, onNavigate, onRevealFile, onSegmentContextMenu }, ref) {
     const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState('')
     const [error, setError] = useState<string | null>(null)
@@ -182,12 +189,27 @@ export const Breadcrumb = forwardRef<BreadcrumbHandle, BreadcrumbProps>(
             startEdit()
           }
         }}
+        onContextMenu={(e) => {
+          // ENH-169 (Sprint 20) — right-click on whitespace pops the
+          // breadcrumb context menu scoped to the current cwd. Right-
+          // click on a segment button (below) uses that segment's path.
+          if (e.target === e.currentTarget && onSegmentContextMenu) {
+            e.preventDefault()
+            onSegmentContextMenu(cwd, e.clientX, e.clientY)
+          }
+        }}
         title="Click empty area or press ⌘⇧G to type a path"
       >
         {segments.map((seg, i) => (
           <div key={seg.path} className="flex items-center gap-0.5 min-w-0 shrink-0">
             <button
               onClick={(e) => { e.stopPropagation(); onNavigate(seg.path) }}
+              onContextMenu={(e) => {
+                if (!onSegmentContextMenu) return
+                e.preventDefault()
+                e.stopPropagation()
+                onSegmentContextMenu(seg.path, e.clientX, e.clientY)
+              }}
               className={[
                 'px-1 rounded hover:text-zinc-100 hover:bg-surface-3 transition-colors truncate max-w-[160px]',
                 // ENH-029 — last segment renders bolder + brighter so

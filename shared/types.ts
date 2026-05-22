@@ -1561,6 +1561,14 @@ export const IPC = {
   // renderer opens the modal. One-way push; no payload.
   SETTINGS_MODAL_OPEN: 'settings:modal-open',
 
+  // ENH-169 (Sprint 20) — File menu items for New File… / New
+  // Folder… Main pushes when the menu items fire (their accelerators
+  // ⌘N / ⌘⇧N own the chords at the app-menu level). Renderer
+  // dispatches to newMarkdownFile / newFolder. Payload-free —
+  // default location is always the navigator's current cwd.
+  NEW_FILE_REQUEST: 'file:new-file-request',     // main → renderer
+  NEW_FOLDER_REQUEST: 'file:new-folder-request', // main → renderer
+
   // Stage 15 G19 — Send → Duo payload format (agent-tunable runtime knob)
   SELECTION_FORMAT_STATE_PUSH: 'selection-format:state-push',  // renderer → main
   SELECTION_FORMAT_SET: 'selection-format:set',                // main → renderer

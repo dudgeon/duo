@@ -1304,6 +1304,96 @@ export function App() {
     setFocusedColumn('working')
   }, [nav.state.cwd, fileTabs])
 
+  // ENH-169 (Sprint 20 / v0.7.7) — ⌘⇧N OR File → New Folder… OR
+  // breadcrumb right-click "New folder here…" all route through
+  // FileTree's existing inline-rename handleNewFolder via the
+  // `duo-tree-new-folder-here` window event (subscribed by
+  // FileTree, which owns pickUniquePath + mkdir + auto-expand +
+  // refresh + setRenamingPath). One source of truth for the
+  // creation flow; this callback just dispatches the event with
+  // the target parent dir. Default parent = navigator's cwd.
+  const newFolder = useCallback((parentPath?: string) => {
+    const target = parentPath ?? nav.state.cwd
+    window.dispatchEvent(new CustomEvent('duo-tree-new-folder-here', { detail: { parentPath: target } }))
+  }, [nav.state.cwd])
+
+  // ENH-169 (Sprint 20) — same event-dispatch pattern for "New file
+  // here…" on the breadcrumb / File menu — they route through
+  // FileTree's inline-rename handleNewFile (creates untitled.md +
+  // flips into rename mode), distinct from ⌘N's existing
+  // `newMarkdownFile` which opens an unsaved tab interstitial. The
+  // intent: breadcrumb / menu paths prefer in-tree creation; ⌘N
+  // preserves muscle memory for the inline-tab flow shipped Stage 11.
+  const newFileInTree = useCallback((parentPath?: string) => {
+    const target = parentPath ?? nav.state.cwd
+    window.dispatchEvent(new CustomEvent('duo-tree-new-file-here', { detail: { parentPath: target } }))
+  }, [nav.state.cwd])
+
+  // ENH-169 (Sprint 20) — File menu New File… / New Folder… push
+  // these channels when their menu items fire. Same callbacks the
+  // ⌘N / ⌘⇧N chords use; native menu accelerators own the chords
+  // at the app-menu level (electron/main.ts).
+  useEffect(() => {
+    // File → New File… uses the existing inline-tab interstitial
+    // (newMarkdownFile) — preserves muscle memory for ⌘N from
+    // Stage 11. File → New Folder… routes through FileTree's
+    // inline-rename pattern via the newFolder helper above. Both
+    // default to the navigator's current cwd.
+    const offNew = window.electron.nav.onNewFileRequest(() => { newMarkdownFile() })
+    const offFolder = window.electron.nav.onNewFolderRequest(() => { newFolder() })
+    return () => { offNew(); offFolder() }
+  }, [newMarkdownFile, newFolder])
+
+  // ENH-169 (Sprint 20) — breadcrumb right-click context menu.
+  // Surfaced on either an empty area of the breadcrumb (target =
+  // current cwd) OR on a specific segment button (target = that
+  // segment's resolved path). Reuses the same window.electron.menu.
+  // popup primitive FileTree uses, with a small folder-scoped
+  // menu. The "new file" / "new folder" entries route through the
+  // same callbacks ⌘N / ⌘⇧N use, but pre-set the navigator's cwd
+  // to the right-clicked segment first so the new entry lands in
+  // the right folder.
+  const onBreadcrumbContextMenu = useCallback(async (folderPath: string, clientX: number, clientY: number) => {
+    const items: { id: string; label: string }[] = [
+      { id: 'new-file', label: 'New file here…' },
+      { id: 'new-folder', label: 'New folder here…' }
+    ]
+    items.push({ id: 'sep1', label: '-' } as never) // separator placeholder; converted below
+    items.push({ id: 'reveal-in-finder', label: 'Reveal in Finder' })
+    items.push({ id: 'open-terminal-here', label: 'Open terminal here' })
+
+    // Convert separator placeholder to the menu primitive's shape.
+    type MenuItem = { id: string; label?: string; type?: 'separator' }
+    const template: MenuItem[] = items.map(it =>
+      it.id === 'sep1' ? { id: 'sep1', type: 'separator' } : { id: it.id, label: it.label }
+    )
+
+    const result = await window.electron.menu.popup({ items: template, x: clientX, y: clientY })
+    if (!result.chosenId) return
+    switch (result.chosenId) {
+      case 'new-file': {
+        // Breadcrumb path uses FileTree's inline-rename creation
+        // (untitled.md + rename mode in-tree), scoped to the
+        // right-clicked segment. Pass parent explicitly — no need
+        // to navigate first.
+        newFileInTree(folderPath)
+        return
+      }
+      case 'new-folder': {
+        newFolder(folderPath)
+        return
+      }
+      case 'reveal-in-finder': {
+        await window.electron.files.revealInFinder(folderPath)
+        return
+      }
+      case 'open-terminal-here': {
+        openTerminalHere(folderPath)
+        return
+      }
+    }
+  }, [newFileInTree, newFolder, openTerminalHere])
+
   // Finalize a new-file tab: write the seed bytes at the resolved path,
   // then update tab metadata so subsequent autosaves write through.
   //
@@ -2258,6 +2348,10 @@ export function App() {
       })
     },
     newMarkdownFile,
+    // ENH-169 (Sprint 20) — ⌘⇧N creates a folder in the navigator's
+    // cwd (or selected folder). Inline-rename pattern via mkdir +
+    // refresh + reveal chip. Same pattern as FileTree right-click.
+    newFolder,
     closeTab: () => {
       if (focusedColumn === 'working') {
         // § D29 — close whichever working-pane tab is currently active.
@@ -2964,6 +3058,10 @@ export function App() {
               })
             }}
             onOpenInSplit={splitViewMoveTabByPath}
+            // ENH-169 (Sprint 20) — breadcrumb right-click context
+            // menu. Folder-scoped: New file/folder here…, Reveal in
+            // Finder, Open terminal here.
+            onBreadcrumbContextMenu={onBreadcrumbContextMenu}
           />
         </div>
 

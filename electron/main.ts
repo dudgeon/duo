@@ -1781,6 +1781,26 @@ function installAppMenu(): void {
       // both call the same openCloneModal() IPC path.
       label: 'File',
       submenu: [
+        // ENH-169 (Sprint 20 / v0.7.7) — File menu items for new
+        // file / new folder. Default location = navigator's
+        // currently-focused dir (resolved in the renderer's
+        // newMarkdownFile / newFolder callbacks via nav.state.cwd).
+        // Accelerators mirror the chord plumbing already in
+        // globalShortcuts.ts so a single binding owns each chord
+        // (menu accelerators win over renderer matchers at the
+        // app-menu level — they fire even when WebContentsView has
+        // focus).
+        {
+          label: 'New File…',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => mainWindow?.webContents.send(IPC.NEW_FILE_REQUEST)
+        },
+        {
+          label: 'New Folder…',
+          accelerator: 'CmdOrCtrl+Shift+N',
+          click: () => mainWindow?.webContents.send(IPC.NEW_FOLDER_REQUEST)
+        },
+        { type: 'separator' },
         // ENH-167 — workspace-as-file. Save the open tabs + terminals
         // to a `.duo-workspace`; open one to switch contexts (Duo
         // resets in-place and rehydrates from the loaded state).

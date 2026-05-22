@@ -32,6 +32,13 @@ interface Options {
   newShellTab: () => void
   newBrowserTab: () => void
   newMarkdownFile?: () => void
+  /** ENH-169 (Sprint 20) — ⌘⇧N creates an `untitled-folder` (or
+   *  `untitled-folder-N`) in the navigator's current cwd, then puts
+   *  the new row into rename mode so the user types the name. Same
+   *  inline-rename pattern as FileTree's right-click "New folder
+   *  here…" item. App.tsx owns the callback because it needs nav
+   *  access (state.cwd + actions.refresh + rename-target set). */
+  newFolder?: () => void
   closeTab: () => void
   tabs: TabSession[]
   activeTabId: string
@@ -169,6 +176,9 @@ export function useKeyboardShortcuts(opts: Options) {
           return
         case 'newMarkdownFile':
           opts.newMarkdownFile?.()
+          return
+        case 'newFolder':
+          opts.newFolder?.()
           return
         case 'closeTab':
           opts.closeTab()
@@ -426,6 +436,7 @@ export function useKeyboardShortcuts(opts: Options) {
     opts.newShellTab,
     opts.newBrowserTab,
     opts.newMarkdownFile,
+    opts.newFolder,
     opts.closeTab,
     opts.tabs,
     opts.activeTabId,
