@@ -1747,6 +1747,17 @@ function installAppMenu(): void {
           submenu: [
             { role: 'about' as const },
             { type: 'separator' as const },
+            // ENH-170 (Sprint 20) — Settings menu. macOS convention is
+            // `App > Settings…` with ⌘, accelerator. Click pushes to
+            // the renderer which opens a modal. v1 has Claude key
+            // prefs only; future panels (author, selection-format,
+            // theme) extend the same modal.
+            {
+              label: 'Settings…',
+              accelerator: 'CmdOrCtrl+,',
+              click: () => mainWindow?.webContents.send(IPC.SETTINGS_MODAL_OPEN)
+            },
+            { type: 'separator' as const },
             { role: 'services' as const },
             { type: 'separator' as const },
             { role: 'hide' as const },

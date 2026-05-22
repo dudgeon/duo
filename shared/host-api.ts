@@ -428,6 +428,14 @@ export interface ElectronHiddenFilesAPI {
   onSet: (cb: (value: boolean | 'toggle') => void) => () => void
 }
 
+// ENH-170 (Sprint 20 / v0.7.7) — Settings modal API. Main fires
+// `onOpen` when App → Settings… is clicked. Renderer subscribes and
+// flips its `settingsModalOpen` state. v1 carries no payload (modal
+// opens at the only available tab — Return-key prefs).
+export interface ElectronSettingsAPI {
+  onOpen: (cb: () => void) => () => void
+}
+
 export interface ElectronLayoutAPI {
   /** ENH-014 — fires when View → Pane size menu, the ⌘⌥1/2/3/0/9
    *  accelerators, or `duo split <pct>` set the split percentage.
@@ -909,6 +917,8 @@ export interface ElectronAPI {
   cozy: ElectronCozyAPI
   /** ENH-172 (Sprint 20) — show/hide hidden-files toggle. */
   hiddenFiles: ElectronHiddenFilesAPI
+  /** ENH-170 (Sprint 20) — Settings modal open signal. */
+  settings: ElectronSettingsAPI
   layout: ElectronLayoutAPI
   workingAux: ElectronWorkingAuxAPI
   theme: ElectronThemeAPI

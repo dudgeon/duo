@@ -1556,6 +1556,11 @@ export const IPC = {
   CLAUDE_KEY_PREFS_STATE_PUSH: 'claude-key-prefs:state-push',  // renderer → main
   CLAUDE_KEY_PREFS_SET: 'claude-key-prefs:set',                // main → renderer
 
+  // ENH-170 (Sprint 20) — Settings menu. Main pushes when the user
+  // clicks App > Settings… or hits ⌘, (the macOS-standard accelerator);
+  // renderer opens the modal. One-way push; no payload.
+  SETTINGS_MODAL_OPEN: 'settings:modal-open',
+
   // Stage 15 G19 — Send → Duo payload format (agent-tunable runtime knob)
   SELECTION_FORMAT_STATE_PUSH: 'selection-format:state-push',  // renderer → main
   SELECTION_FORMAT_SET: 'selection-format:set',                // main → renderer
