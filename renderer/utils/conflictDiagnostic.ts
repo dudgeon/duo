@@ -38,6 +38,14 @@ import { encodeUtf8 } from '../components/editor/markdown-io'
  *     disk still has the original `\n`. Without this step the conflict
  *     detector fires a false-positive banner on every save after the
  *     first load of any file whose source has soft-breaks.
+ *   - **HTML-entity escape on round-trip** (BUG-122 hypothesis 6,
+ *     confirmed 2026-05-22 on `docs/about-duo.md`) — tiptap-markdown
+ *     escapes `<`, `>`, `&`, `"`, and `'` in raw text on serialize
+ *     (`<!--` → `&lt;!--`, `-->` → `--&gt;`, `<select>` → `&lt;select&gt;`).
+ *     Files with literal `<` / `>` (HTML comments, technical docs that
+ *     mention HTML tags inline) diverge from the editor baseline on the
+ *     FIRST save. Decoding the five named entities on both sides cancels
+ *     the round-trip while preserving detection of real divergence.
  *
  * Conservative — doesn't touch real paragraph breaks (`\n\n+`), unicode
  * normalization (NFC/NFD), or other whitespace runs. Preserves enough
@@ -53,6 +61,18 @@ export function normalizeForEchoCompare(s: string): string {
     .replace(/\r\n/g, '\n')         // CRLF → LF
     .replace(/[ \t]+$/gm, '')       // per-line trailing whitespace
     .replace(/([^\n])\n(?!\n)/g, '$1 ') // soft-break inside paragraph → space
+    // BUG-122 hypothesis 6 (2026-05-22 about-duo.md repro) — decode the
+    // five named HTML entities so tiptap-markdown's escape-on-serialize
+    // doesn't fire a false-positive banner. tiptap escapes <, >, &, ",
+    // and ' in raw text on round-trip, producing `&lt;!--` / `--&gt;`
+    // baselines from disk's literal `<!--` / `-->`. Decoding both sides
+    // cancels the round-trip. Order: `&amp;` last so doubly-encoded
+    // strings (`&amp;lt;`) survive one decode level.
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
     .replace(/\s+$/, '')            // document-end trailing whitespace
 }
 

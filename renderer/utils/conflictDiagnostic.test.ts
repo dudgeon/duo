@@ -82,6 +82,38 @@ describe('normalizeForEchoCompare — BUG-122 hypothesis 4 (soft-break ≡ space
   })
 })
 
+describe('normalizeForEchoCompare — BUG-122 hypothesis 6 (HTML-entity escape)', () => {
+  it('repro from docs/about-duo.md (2026-05-22): disk literal `-->` ≡ baseline `--&gt;`', () => {
+    const disk = '<!-- Feature deep dives — coming soon. -->'
+    const baseline = '&lt;!-- Feature deep dives — coming soon. --&gt;'
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('decodes &lt; / &gt; / &amp; / &quot; / &#39; consistently on both sides', () => {
+    const disk = `<select> & "quotes" 'apos'`
+    const baseline = `&lt;select&gt; &amp; &quot;quotes&quot; &#39;apos&#39;`
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('doubly-encoded &amp;lt; preserves one level of encoding (does not collapse to <)', () => {
+    // If the user's source really had `&lt;` (as literal characters), tiptap
+    // serializes that as `&amp;lt;`. Decoding once should give `&lt;`, not `<`.
+    expect(normalizeForEchoCompare('&amp;lt;')).toBe('&lt;')
+  })
+
+  it('does NOT mask real divergence in content alongside entities', () => {
+    const before = '<div>same</div>'
+    const after = '<div>DIFFERENT</div>'
+    expect(normalizeForEchoCompare(before)).not.toBe(normalizeForEchoCompare(after))
+  })
+
+  it('combined: soft-break + HTML-entity divergence still normalizes equal', () => {
+    const disk = 'line1\nline2 <tag>'
+    const baseline = 'line1 line2 &lt;tag&gt;'
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+})
+
 describe('computeFirstDiffOffset', () => {
   it('returns null when strings are identical', () => {
     expect(computeFirstDiffOffset('abc', 'abc')).toBeNull()

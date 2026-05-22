@@ -230,6 +230,20 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-168: Workspace switcher — always-visible UI for bouncing between workspaces
+
+**Status:** 🟡 Awaiting owner decisions (4 owner-AUQs locked in the playground).
+
+**Trigger.** Sprint planning conversation 2026-05-22 (post-v0.7.5). Owner directive: *"workspace v2 polish based on actual daily use — workspace sidebar switcher (Arc-style), workspace metadata, save-to-GitHub gesture, path rewriting on workspace load — very interested in this, please make me an html playground with some options (incl mockups)."*
+
+**Playground.** [`docs/research/workspace-switcher.html`](docs/research/workspace-switcher.html) — five candidate positions with HTML+CSS mini-Duo mockups (title-bar dropdown / horizontal tabs / left vertical rail / floating dock / palette-only), plus four owner-decision cards (Position / Switch gesture / Identification / Create gesture) and a copy-decisions footer. The deferred section keeps cross-machine path rewriting, multi-tag categories, save-to-GitHub gesture, and auto-workspace-by-directory parked for later versions.
+
+**Gate.** Owner walks the playground via `duo open docs/research/workspace-switcher.html`, picks a radio for each decision card, hits Copy decisions, pastes back. Implementation is blocked until decisions land.
+
+**Surfaces this is NOT touching in v1** (per deferred section): cross-machine portability, workspace tags / categories, save-to-GitHub publishing, auto-workspace-by-directory, workspace-aware Claude session restore.
+
+---
+
 ### FOLLOWUP-024: Paste-image should land as a block, not inline
 
 **Status:** ✅ Shipped 2026-05-22 in v0.7.5. Picked option B (block-by-construction): `DuoImage` now declares `group: 'block'` + `inline: false`, so paste / drag-drop / `duo image insert` all produce block-level images with the GFM-required blank-line spacing automatically. Verified live: `duo image insert /tmp/test-image.png` into a paragraph yielded `![alt](path)` on its own line with a blank line above. Two-line change in [`renderer/components/editor/extensions/DuoImage.ts`](renderer/components/editor/extensions/DuoImage.ts) § extend block.
@@ -7974,7 +7988,25 @@ Owner's "delete current tab" phrasing might mean:
 
 ### BUG-122: Markdown editor "file changed on disk" banner re-surfaces in v0.6.14
 
-**Status:** 🟢 **HYPOTHESIS 4 FIX SHIPPED 2026-05-18 (v0.7.2 walk session).** Extended `normalizeForEchoCompare` in `renderer/utils/conflictDiagnostic.ts` to collapse intra-paragraph soft-breaks (single `\n` between non-blank lines) to a single space before the disk-vs-baseline compare. 15 new vitest tests in `conflictDiagnostic.test.ts` (8 BUG-122 hypothesis-4 cases + 4 pre-existing-invariant cases + 3 computeFirstDiffOffset cases — all pass). Real-edit detection unchanged: added paragraph break, added content, changed content all still flip the banner.
+**Status:** 🟢 **HYPOTHESIS 6 FIX SHIPPED 2026-05-22 (v0.7.6).** Fresh repro captured today on `docs/about-duo.md` after the v0.7.5 cut. Conflict log:
+
+```
+{
+  "diskTail":     "...Browser), CLI — coming soon. -->",
+  "baselineTail": "...Browser), CLI — coming soon. --&gt;",
+  "firstDiffOffset": 433, "diskLength": 3286, "baselineLength": 3310
+}
+```
+
+Root cause: tiptap-markdown escapes `<`, `>`, `&`, `"`, `'` in raw text on serialize. File with literal `<!--` / `-->` (HTML comments, or technical docs mentioning HTML tags like `<select>` inline) gets a baseline of `&lt;!--` / `--&gt;` after the first open-and-serialize. On next save, save-pre-reconcile diffs disk (literal) vs baseline (escaped), divergence detected, banner fires.
+
+**Fix.** Extended `normalizeForEchoCompare` in [`renderer/utils/conflictDiagnostic.ts`](renderer/utils/conflictDiagnostic.ts:50) to decode the five named HTML entities (`&lt;`, `&gt;`, `&amp;`, `&quot;`, `&#39;`) on both sides before the compare. Order: `&amp;` last so doubly-encoded strings (`&amp;lt;`) survive one decode level. 5 new vitest tests covering the about-duo.md repro, the five-entity round-trip, doubly-encoded preservation, real-divergence preservation, and the combined soft-break + HTML-entity case. 20/20 tests passing.
+
+**Hypothesis 2 (Notion-race) + 3 (OneDrive xattr)** are stale gating-on-repro entries — the v0.7.6 fix likely covers most production repros (HTML in raw markdown is far more common than the cloud-sync scenarios). Re-open if a new repro shows a non-entity diff.
+
+Old status (kept for context):
+
+🟢 **HYPOTHESIS 4 FIX SHIPPED 2026-05-18 (v0.7.2 walk session).** Extended `normalizeForEchoCompare` in `renderer/utils/conflictDiagnostic.ts` to collapse intra-paragraph soft-breaks (single `\n` between non-blank lines) to a single space before the disk-vs-baseline compare. 15 new vitest tests in `conflictDiagnostic.test.ts` (8 BUG-122 hypothesis-4 cases + 4 pre-existing-invariant cases + 3 computeFirstDiffOffset cases — all pass). Real-edit detection unchanged: added paragraph break, added content, changed content all still flip the banner.
 
 Old status (kept for context):
 

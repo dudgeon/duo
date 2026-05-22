@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Workspace switcher — design playground</title>
+<style>
+/* Atelier kernel — inlined from skill/references/duo-atelier.css */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 1080px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* Playground-specific: mockup gallery */
+.mockup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin: 18px 0 28px;
+}
+.mockup-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px;
+}
+.mockup-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+.mockup-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--ink);
+}
+.mockup-note {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin: 8px 0 0;
+  line-height: 1.5;
+}
+
+/* Mini-Duo window — stylized */
+.duo-window {
+  background: #fff;
+  border: 1px solid var(--paper-rule);
+  border-radius: 8px;
+  overflow: hidden;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 9px;
+  position: relative;
+}
+.duo-titlebar {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: #f3ede0;
+  border-bottom: 1px solid var(--paper-rule);
+  gap: 8px;
+  font-size: 9px;
+}
+.duo-traffic {
+  display: flex;
+  gap: 4px;
+}
+.duo-traffic span {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #d9cea8;
+}
+.duo-traffic span:nth-child(1) { background: #ed6a5e; }
+.duo-traffic span:nth-child(2) { background: #f5bd4f; }
+.duo-traffic span:nth-child(3) { background: #62c554; }
+.duo-titlebar-right { margin-left: auto; color: var(--ink-mute); font-size: 9px; }
+.duo-body {
+  display: grid;
+  grid-template-columns: 60px 1fr 1fr;
+  height: 130px;
+}
+.duo-pane {
+  border-right: 1px solid var(--paper-rule);
+  padding: 4px 6px;
+  color: var(--ink-mute);
+  font-size: 8px;
+  overflow: hidden;
+}
+.duo-pane:last-child { border-right: none; }
+.duo-pane-label {
+  font-weight: 600;
+  color: var(--ink-soft);
+  font-size: 8px;
+  margin-bottom: 4px;
+}
+.duo-tab-strip {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #f9f5e8;
+  border-bottom: 1px solid var(--paper-rule);
+}
+.duo-tab-strip .tab {
+  font-size: 8px;
+  padding: 1px 6px;
+  background: #fff;
+  border: 1px solid var(--paper-rule);
+  border-radius: 3px;
+  color: var(--ink-mute);
+}
+.duo-tab-strip .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+
+/* Highlight switcher in accent so eye is drawn */
+.switcher-highlight {
+  background: var(--accent);
+  color: #fff !important;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.left-rail {
+  background: linear-gradient(to bottom, #f3ede0, #e8e0cb);
+  border-right: 1px solid var(--paper-rule);
+  padding: 6px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.rail-pip {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--paper-edge);
+  border: 1px solid var(--paper-rule);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-mute);
+}
+.rail-pip.active { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.rail-pip.alt { background: #4a7d3e; color: #fff; border-color: #4a7d3e; }
+.rail-pip.alt2 { background: #6b5fb5; color: #fff; border-color: #6b5fb5; }
+.rail-plus {
+  width: 22px; height: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+  color: var(--ink-ghost);
+}
+
+.duo-floating-dock {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 9px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  border: 1px solid var(--accent);
+}
+
+.duo-cmdk-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(43, 38, 32, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 28px;
+}
+.duo-cmdk-palette {
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  width: 220px;
+  padding: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+  font-size: 9px;
+}
+.duo-cmdk-input {
+  display: block;
+  padding: 4px 6px;
+  background: var(--paper-deep);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-weight: 600;
+}
+.duo-cmdk-row {
+  padding: 3px 6px;
+  border-radius: 3px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--ink-mute);
+}
+.duo-cmdk-row.active { background: var(--accent-soft); color: var(--ink); }
+
+/* Identification mockups (Q3) */
+.id-row {
+  display: flex;
+  gap: 16px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+.id-sample {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--paper);
+  border: 1px solid var(--paper-rule);
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.id-swatch {
+  width: 12px; height: 12px;
+  border-radius: 3px;
+}
+.id-thumb {
+  width: 24px; height: 16px;
+  background: linear-gradient(135deg, #4a7d3e 0%, #c46a1c 100%);
+  border-radius: 2px;
+  border: 1px solid var(--paper-rule);
+}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Workspace switcher — design playground</h1>
+  <p class="meta"><span class="pill">ENH-167 v2</span> 2026-05-22 · post-v0.7.5 · 4 owner decisions</p>
+</header>
+
+<div class="intro">
+  <strong>Context.</strong> v0.7.4 shipped workspaces as a file type, with Save / Open / Open Recent in the File menu and a name badge in the title bar. After a day of real use, the next question is whether to add an <strong>always-visible switcher</strong> for the workspaces you bounce between most — and if so, where it lives, how it looks, and what gestures it supports. Five mockups below show the candidate positions; four decision cards below those distill the choices into pickable options. <strong>The mockups are stylized — they show position and shape, not pixel-final visuals.</strong>
+</div>
+
+<h2>Mockup gallery — five candidate positions</h2>
+
+<div class="mockup-grid">
+
+  <div class="mockup-card">
+    <div class="mockup-label">Mockup 1 · A</div>
+    <div class="mockup-title">Title-bar dropdown (extends current badge)</div>
+    <div class="duo-window">
+      <div class="duo-titlebar">
+        <div class="duo-traffic"><span></span><span></span><span></span></div>
+        <span class="switcher-highlight">▾ enh-167-walk</span>
+        <span class="duo-titlebar-right">0.7.5 ·dev</span>
+      </div>
+      <div class="duo-body">
+        <div class="duo-pane"><div class="duo-pane-label">Files</div>tasks.md<br>about-duo.md</div>
+        <div class="duo-pane"><div class="duo-pane-label">Terminal</div>$ duo doctor</div>
+        <div class="duo-pane"><div class="duo-pane-label">Working</div>tasks.md</div>
+      </div>
+    </div>
+    <p class="mockup-note">Existing name badge becomes a click target. Dropdown lists recent workspaces + actions (Save / Save As / New). Smallest visual cost; reuses the surface that already shows the active name.</p>
+  </div>
+
+  <div class="mockup-card">
+    <div class="mockup-label">Mockup 2 · B</div>
+    <div class="mockup-title">Horizontal tabs (Chrome-style)</div>
+    <div class="duo-window">
+      <div class="duo-titlebar">
+        <div class="duo-traffic"><span></span><span></span><span></span></div>
+        <span class="duo-titlebar-right">0.7.5 ·dev</span>
+      </div>
+      <div class="duo-tab-strip">
+        <span class="tab active">enh-167-walk</span>
+        <span class="tab">about-duo</span>
+        <span class="tab">stoop-dev</span>
+        <span class="tab" style="color:var(--ink-ghost);">＋</span>
+      </div>
+      <div class="duo-body">
+        <div class="duo-pane"><div class="duo-pane-label">Files</div>tasks.md<br>about-duo.md</div>
+        <div class="duo-pane"><div class="duo-pane-label">Terminal</div>$ duo doctor</div>
+        <div class="duo-pane"><div class="duo-pane-label">Working</div>tasks.md</div>
+      </div>
+    </div>
+    <p class="mockup-note">A dedicated tab strip under the title bar, one tab per workspace. Always visible, click-to-switch. Costs ~28px of vertical space. Loses meaning quickly if &gt; 6 workspaces.</p>
+  </div>
+
+  <div class="mockup-card">
+    <div class="mockup-label">Mockup 3 · C</div>
+    <div class="mockup-title">Left vertical rail (Arc-style)</div>
+    <div class="duo-window">
+      <div class="duo-titlebar">
+        <div class="duo-traffic"><span></span><span></span><span></span></div>
+        <span class="duo-titlebar-right">0.7.5 ·dev</span>
+      </div>
+      <div class="duo-body" style="grid-template-columns: 32px 60px 1fr 1fr;">
+        <div class="left-rail">
+          <div class="rail-pip active">W</div>
+          <div class="rail-pip alt">A</div>
+          <div class="rail-pip alt2">S</div>
+          <div class="rail-plus">＋</div>
+        </div>
+        <div class="duo-pane"><div class="duo-pane-label">Files</div>tasks.md<br>about-duo.md</div>
+        <div class="duo-pane"><div class="duo-pane-label">Terminal</div>$ duo doctor</div>
+        <div class="duo-pane"><div class="duo-pane-label">Working</div>tasks.md</div>
+      </div>
+    </div>
+    <p class="mockup-note">Vertical strip on the very left edge, one colored pip per workspace. Click-to-switch; hover for name tooltip. Doesn't compete with the title bar; scales gracefully to 10+ workspaces. Adds a 4th column to the layout.</p>
+  </div>
+
+  <div class="mockup-card">
+    <div class="mockup-label">Mockup 4 · D</div>
+    <div class="mockup-title">Floating dock (bottom-left)</div>
+    <div class="duo-window">
+      <div class="duo-titlebar">
+        <div class="duo-traffic"><span></span><span></span><span></span></div>
+        <span class="duo-titlebar-right">0.7.5 ·dev</span>
+      </div>
+      <div class="duo-body">
+        <div class="duo-pane"><div class="duo-pane-label">Files</div>tasks.md<br>about-duo.md</div>
+        <div class="duo-pane"><div class="duo-pane-label">Terminal</div>$ duo doctor</div>
+        <div class="duo-pane"><div class="duo-pane-label">Working</div>tasks.md</div>
+      </div>
+      <div class="duo-floating-dock">⇄ enh-167-walk</div>
+    </div>
+    <p class="mockup-note">A small floating chip in the bottom-left corner. Click expands to a workspace list popover. Compact; doesn't add chrome. Less discoverable than 1–3; first-time users may not notice it.</p>
+  </div>
+
+  <div class="mockup-card">
+    <div class="mockup-label">Mockup 5 · E</div>
+    <div class="mockup-title">⌘K palette only (no permanent UI)</div>
+    <div class="duo-window">
+      <div class="duo-titlebar">
+        <div class="duo-traffic"><span></span><span></span><span></span></div>
+        <span class="duo-titlebar-right">0.7.5 ·dev</span>
+      </div>
+      <div class="duo-body">
+        <div class="duo-pane"><div class="duo-pane-label">Files</div>tasks.md<br>about-duo.md</div>
+        <div class="duo-pane"><div class="duo-pane-label">Terminal</div>$ duo doctor</div>
+        <div class="duo-pane"><div class="duo-pane-label">Working</div>tasks.md</div>
+      </div>
+      <div class="duo-cmdk-overlay">
+        <div class="duo-cmdk-palette">
+          <div class="duo-cmdk-input">enh|</div>
+          <div class="duo-cmdk-row active"><span>enh-167-walk</span><span style="color:var(--accent);">↵</span></div>
+          <div class="duo-cmdk-row"><span>enh-148-multiselect</span><span></span></div>
+        </div>
+      </div>
+    </div>
+    <p class="mockup-note">No permanent UI. ⌘K (or similar) opens a search-and-switch palette. Power-user oriented; zero chrome cost; lowest discoverability. Could be added alongside any of A–D as a parallel gesture.</p>
+  </div>
+
+</div>
+
+<h2>Decisions</h2>
+
+<div class="decision-card" data-q="q1-position">
+  <p class="q-title">Q1 — Position</p>
+  <p class="q-prompt">Where does the always-visible switcher live?</p>
+  <p class="q-context">This is the dominant call. The five mockups above are the candidates. Pick one (or "Combination: A + E" / similar) — palette-only is also a valid no-permanent-UI answer.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q1-position" value="A — Title-bar dropdown">
+      <span class="q-option-body">
+        <span class="q-option-title">A — Title-bar dropdown <span class="recommend-tag">recommended</span></span>
+        <span class="q-option-rationale">Reuses the existing name badge. Smallest chrome cost. Click the name → dropdown shows recent workspaces + actions. Natural macOS UX. (See Mockup 1.)</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q1-position" value="B — Horizontal tabs">
+      <span class="q-option-body">
+        <span class="q-option-title">B — Horizontal tabs under title bar</span>
+        <span class="q-option-rationale">Always visible, click-to-switch. Costs ~28px vertical. Conflicts with the working-pane tab strip below — two tab strips on screen may confuse users. (Mockup 2.)</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q1-position" value="C — Left vertical rail">
+      <span class="q-option-body">
+        <span class="q-option-title">C — Left vertical rail (Arc-style)</span>
+        <span class="q-option-rationale">Adds a 4th column. Colored pips, hover for name. Doesn't fight the title bar; scales to many workspaces. Most distinctive visually; biggest layout change. (Mockup 3.)</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q1-position" value="D — Floating dock">
+      <span class="q-option-body">
+        <span class="q-option-title">D — Floating dock (bottom-left)</span>
+        <span class="q-option-rationale">Compact chip in the corner; expands on click. Low chrome cost. Lower discoverability — first-time users may not notice. (Mockup 4.)</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q1-position" value="E — Palette only">
+      <span class="q-option-body">
+        <span class="q-option-title">E — ⌘K palette only (no permanent UI)</span>
+        <span class="q-option-rationale">Keyboard-shortcut-only switching. Zero chrome cost; lowest discoverability. Stand-alone OR pair with A–D as a power-user gesture. (Mockup 5.)</span>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes (e.g. 'A + E', 'C if we can ship colored pips at the same time', etc.)"></textarea>
+</div>
+
+<div class="decision-card" data-q="q2-gesture">
+  <p class="q-title">Q2 — Switch gesture</p>
+  <p class="q-prompt">How does clicking the switcher actually swap workspaces?</p>
+  <p class="q-context">Independent of Q1 — applies to whichever position you picked. The "click → in-place reset" follows the existing Open Workspace flow (prompt to save current, then load).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q2-gesture" value="a — Dropdown menu (single click → list)">
+      <span class="q-option-body">
+        <span class="q-option-title">a — Dropdown menu (single click → list) <span class="recommend-tag">recommended</span></span>
+        <span class="q-option-rationale">Click the switcher → menu with recent workspaces + "New Workspace" + "Save Workspace As…". Click an entry → existing prompt-to-save flow → in-place reset. Familiar; one round-trip per switch.</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q2-gesture" value="b — Direct switch (each workspace is its own button)">
+      <span class="q-option-body">
+        <span class="q-option-title">b — Direct switch (each workspace is its own button)</span>
+        <span class="q-option-rationale">Tabs / rail-pips that are always visible — click any to switch directly, no intermediate menu. Faster for &lt; 6 workspaces; awkward beyond. Pairs naturally with B or C.</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q2-gesture" value="c — Search palette (⌘K + filter)">
+      <span class="q-option-body">
+        <span class="q-option-title">c — Search palette (⌘K + filter)</span>
+        <span class="q-option-rationale">Type to filter, Enter to switch. Scales to many workspaces. Pairs with Q1=E as the entire gesture, or with A–D as a parallel power-user gesture.</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q2-gesture" value="d — Hover preview before commit">
+      <span class="q-option-body">
+        <span class="q-option-title">d — Hover preview before commit</span>
+        <span class="q-option-rationale">Hover a workspace → small popover with a thumbnail / metadata. Click to commit the switch. Discoverable but UX heavy; thumbnail capture is a separate v2 problem.</span>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes — e.g. 'a + c parallel (a is the primary, c is the power-user)'"></textarea>
+</div>
+
+<div class="decision-card" data-q="q3-identification">
+  <p class="q-title">Q3 — Identification</p>
+  <p class="q-prompt">How do users tell workspaces apart at a glance?</p>
+  <p class="q-context">Today: name only. Listed in order of "saved at" → "lastOpenedAt". For switchers with limited width (rail pips, floating chip), a name-only display can be cryptic — color or emoji helps.</p>
+
+  <div class="id-row">
+    <div class="id-sample">enh-167-walk</div>
+    <div class="id-sample"><span class="id-swatch" style="background:var(--accent);"></span>enh-167-walk</div>
+    <div class="id-sample">🧪&nbsp;enh-167-walk</div>
+    <div class="id-sample"><span class="id-thumb"></span>enh-167-walk</div>
+  </div>
+
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q3-identification" value="a — Name only (today)">
+      <span class="q-option-body">
+        <span class="q-option-title">a — Name only (today's behavior)</span>
+        <span class="q-option-rationale">No new metadata. Cheapest. Works well in dropdown / tabs / palette where names are spelled out; awkward for rail pips (need a one-letter abbreviation).</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q3-identification" value="b — Name + color tag">
+      <span class="q-option-body">
+        <span class="q-option-title">b — Name + color tag <span class="recommend-tag">recommended</span></span>
+        <span class="q-option-rationale">User picks a color at Save time (8-color palette). Rendered as a 12×12 swatch next to the name OR as the rail-pip background color. Most legible at a glance; small metadata addition (one string field on <code>WorkspaceFile</code>).</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q3-identification" value="c — Name + emoji prefix">
+      <span class="q-option-body">
+        <span class="q-option-title">c — Name + emoji prefix</span>
+        <span class="q-option-rationale">Type an emoji in the save dialog. Fun and expressive; unicode complexity (color emoji rendering varies). Possible cross-platform inconsistencies down the road.</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q3-identification" value="d — Name + auto-thumbnail">
+      <span class="q-option-body">
+        <span class="q-option-title">d — Name + auto-generated thumbnail</span>
+        <span class="q-option-rationale">Capture a screenshot of the working area on save. Most visual; biggest implementation cost (capture path, storage, refresh logic). Probably v3.</span>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes — e.g. 'b but with a default if user doesn't pick a color'"></textarea>
+</div>
+
+<div class="decision-card" data-q="q4-create">
+  <p class="q-title">Q4 — Creating a new workspace</p>
+  <p class="q-prompt">How does a new workspace get created from the switcher?</p>
+  <p class="q-context">Today: File menu → Save Workspace As… (or untitled state + Save Workspace…). The switcher could either reuse that path or offer an inline create gesture.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="q4-create" value="a — Reuse File menu (no new gesture)">
+      <span class="q-option-body">
+        <span class="q-option-title">a — Reuse File menu (no new gesture)</span>
+        <span class="q-option-rationale">Switcher doesn't add a Create path; users still go File → Save Workspace As…. Smallest diff; familiar. Switcher's "New Workspace" item just calls the existing menu action.</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q4-create" value="b — '+' button inline in the switcher">
+      <span class="q-option-body">
+        <span class="q-option-title">b — "+" button inline in the switcher <span class="recommend-tag">recommended</span></span>
+        <span class="q-option-rationale">"+" entry at the end of the switcher list. Click → standard Save dialog (or a smaller name-only modal). Discoverable; mirrors browser tab UX. Pairs with all of Q1.</span>
+      </span>
+    </label>
+    <label class="q-option"><input type="radio" name="q4-create" value="c — Quick-save: type in the switcher field">
+      <span class="q-option-body">
+        <span class="q-option-title">c — Quick-save: type a name in the switcher</span>
+        <span class="q-option-rationale">If the switcher has a search field (Q2-c), typing a name that doesn't match any existing workspace + Enter creates it. Fastest; least UI; least discoverable for new users.</span>
+      </span>
+    </label>
+  </div>
+  <textarea class="q-notes" placeholder="Notes — e.g. 'b for v1; c if we ship the palette later'"></textarea>
+</div>
+
+<details class="deferred">
+  <summary>Deferred / out-of-scope for v2 (open if interested)</summary>
+  <div class="deferred-body">
+    <ul>
+      <li><strong>Cross-machine path rewriting</strong> on workspace open. Today: absolute paths persist; opening on a different machine silently drops missing ones. Separate ENH; rewriting requires a per-workspace "root" hint or fuzzy-match logic.</li>
+      <li><strong>Workspace tags / categories</strong> (multi-tag classification, like Notion). v2 ships a single color tag at most; multi-tag is a v3 thing if it becomes useful.</li>
+      <li><strong>"Save workspace to GitHub" gesture</strong> — commit the `.duo-workspace` directly via `gh repo create` or `gh release upload`. Useful for shareable named setups but a separate command, not a switcher concern.</li>
+      <li><strong>Auto-workspace by directory</strong> — open Duo from `~/Projects/foo` → auto-load the workspace named "foo" if it exists. Convenient but pre-supposes a strong convention.</li>
+      <li><strong>Workspace-aware Claude session restore</strong> — each `claude` terminal still starts fresh on workspace load. Claude Code does conversation persistence; out of scope for Duo.</li>
+    </ul>
+  </div>
+</details>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 4 decisions answered</div>
+  <button id="copy-btn">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  const cards = document.querySelectorAll('.decision-card');
+  const countEl = document.getElementById('answered-count');
+  const btn = document.getElementById('copy-btn');
+
+  function updateCount() {
+    let answered = 0;
+    cards.forEach(card => {
+      const checked = card.querySelector('input[type="radio"]:checked');
+      if (checked) answered++;
+    });
+    countEl.textContent = answered;
+  }
+
+  cards.forEach(card => {
+    card.addEventListener('change', updateCount);
+    card.addEventListener('input', updateCount);
+  });
+
+  btn.addEventListener('click', async () => {
+    const lines = [];
+    lines.push('WORKSPACE SWITCHER — owner decisions (2026-05-22)');
+    lines.push('=================================================');
+    lines.push('');
+    cards.forEach(card => {
+      const qTitle = card.querySelector('.q-title').textContent.trim();
+      const qPrompt = card.querySelector('.q-prompt').textContent.trim();
+      const checked = card.querySelector('input[type="radio"]:checked');
+      const notes = card.querySelector('.q-notes').value.trim();
+      lines.push(`[${qTitle}] ${qPrompt}`);
+      lines.push(`  Pick: ${checked ? checked.value : '(no choice)'}`);
+      if (notes) {
+        lines.push(`  Notes: ${notes.replace(/\n/g, '\n         ')}`);
+      }
+      lines.push('');
+    });
+    const out = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(out);
+      btn.textContent = 'Copied ✓';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = 'Copy decisions';
+        btn.classList.remove('copied');
+      }, 1500);
+    } catch (err) {
+      alert('Copy failed: ' + err.message + '\n\nManual copy:\n\n' + out);
+    }
+  });
+
+  updateCount();
+})();
+</script>
+
+</body>
+</html>
