@@ -792,10 +792,25 @@ export class InstallService {
               hookInstalled = true
               hookVersion = marker
             } else {
-              // Some other SessionStart hook present — note the
-              // conflict so we can surface "your priming will run
-              // alongside whatever else you had" in the banner.
-              hookConflict = true
+              // BUG-150 (Sprint 20 / v0.7.7) — before flagging as
+              // foreign, check whether this unmarked entry is just a
+              // command-equivalent orphan of OUR hook from a pre-marker
+              // install. The next reinstall removes it (see
+              // installSessionStartHook below); meanwhile the banner
+              // shouldn't keep claiming "other hooks present" because
+              // there ARE no other hooks — it's just our own ghost.
+              const inner = e.hooks
+              const isDuoCommandOrphan = Array.isArray(inner) && inner.some(h =>
+                h && typeof h === 'object' &&
+                typeof (h as Record<string, unknown>).command === 'string' &&
+                ((h as Record<string, unknown>).command as string) === HOOK_COMMAND
+              )
+              if (!isDuoCommandOrphan) {
+                // A genuinely-foreign SessionStart hook — note the
+                // conflict so the banner surfaces "your priming will
+                // run alongside whatever else you had".
+                hookConflict = true
+              }
             }
           }
         }
@@ -964,12 +979,35 @@ exec "$REAL_CLAUDE" --append-system-prompt "$(cat "$PRIMING_FILE")" "$@"
 
     const existing = Array.isArray(hooks.SessionStart) ? hooks.SessionStart as unknown[] : []
 
-    // Drop any prior duo-tagged entry; preserve everything else.
+    // BUG-150 (Sprint 20 / v0.7.7) — drop:
+    //   (a) any prior duo-marked entry (the existing behavior; replaced by
+    //       the fresh entry below so the version-suffix stays current), AND
+    //   (b) any orphan unmarked entry that's command-equivalent to our hook
+    //       — these are leftovers from earlier installs that wrote the
+    //       hook BEFORE the `_duo` marker convention shipped (Stage 19b
+    //       pre-marker), OR from a manual edit that mirrored our command.
+    //       Without (b), every reinstall left the orphan in place and the
+    //       priming would `cat priming.md` TWICE per session — and the
+    //       install banner perpetually showed "you have other SessionStart
+    //       hooks" since the orphan looked foreign.
+    const isDuoCommand = (entry: unknown): boolean => {
+      if (!entry || typeof entry !== 'object') return false
+      const inner = (entry as Record<string, unknown>).hooks
+      if (!Array.isArray(inner)) return false
+      return inner.some(h =>
+        h && typeof h === 'object' &&
+        typeof (h as Record<string, unknown>).command === 'string' &&
+        ((h as Record<string, unknown>).command as string) === HOOK_COMMAND
+      )
+    }
     const filtered = existing.filter(entry => {
       if (!entry || typeof entry !== 'object') return true
       const e = entry as Record<string, unknown>
       const marker = e[HOOK_MARKER_KEY]
-      return !(typeof marker === 'string' && marker.startsWith(HOOK_MARKER_PREFIX))
+      const isMarkedDuo = typeof marker === 'string' && marker.startsWith(HOOK_MARKER_PREFIX)
+      const isOrphanDuoCommand = !isMarkedDuo && isDuoCommand(entry)
+      // Drop both — we'll re-add a single freshly-marked entry below.
+      return !(isMarkedDuo || isOrphanDuoCommand)
     })
 
     const duoEntry = {

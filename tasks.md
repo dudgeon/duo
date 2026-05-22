@@ -230,6 +230,26 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-150: Install service leaves orphan unmarked Duo-command entries in `~/.claude/settings.json`
+
+**Status:** 🟡 In flight 2026-05-22. Owner-reported during Sprint 20 close-out — the FirstLaunchBanner's "Heads-up: your ~/.claude/settings.json already had other SessionStart hooks…" note kept appearing on every Update click.
+
+**Symptom (reproduced 2026-05-22).** Owner's `~/.claude/settings.json § hooks.SessionStart` had TWO **identical** Duo-command hook entries — same `[ -n "$DUO_SESSION" ] && cat "$HOME/.claude/duo/priming.md" 2>/dev/null || true` command. Only ONE had the `_duo: managed-v0.7.7` marker; the other was a marker-less orphan. The conflict detector at [`electron/install-service.ts` § `detectInstallStatus`](electron/install-service.ts:786-799) flipped `hookConflict = true` for the orphan because it didn't carry the marker → banner forever claimed "you have other SessionStart hooks" even though there were no genuinely-foreign hooks. Worse: the priming.md was being `cat`-ed TWICE into Claude on every Duo session start (both hooks fire).
+
+**Root cause.** [`installSessionStartHook`](electron/install-service.ts:948) only removes prior entries that carry the `_duo` marker. Entries with the same shell command but no marker (left over from a pre-marker install, or from any other source mirroring our command) survived every reinstall — the new marked entry was appended next to them, never replacing them.
+
+**Fix (shipped 2026-05-22):**
+
+1. **`installSessionStartHook` — actively dedupe orphans.** The filter now drops BOTH (a) any prior `_duo`-marked entry AND (b) any unmarked entry whose `hooks[].command` equals our `HOOK_COMMAND` constant. Single freshly-marked entry is re-added. Idempotent — re-running the installer cleans up the user's existing state without manual intervention.
+
+2. **`detectInstallStatus` — defensive: don't false-flag unmarked Duo-command orphans.** When iterating SessionStart entries, the unmarked-but-command-equivalent check now suppresses `hookConflict = true` for ghost copies of our own hook. The banner stops claiming "other hooks present" the moment the next install runs (and even before that — the next status query won't report the false positive).
+
+**Verification owed (smoke walk):** click the Update / Install button on the banner with the dev build → observe the banner success state, then re-run `python3 -c 'import json; print(json.dumps(json.load(open("/Users/geoffreydudgeon/.claude/settings.json"))["hooks"]["SessionStart"], indent=2))'` to confirm the orphan is gone (single entry only, with current `_duo: managed-v0.7.7` marker).
+
+**Cross-ref:** [`installed-packs-service.ts`](electron/install-service.ts) (companion install plumbing), Stage 19b (`_duo` marker introduction), `FirstLaunchBanner.tsx:201-205` (the surfaced note).
+
+---
+
 ### BUG-149: `duo navigate <path>` errors instead of moving the navigator
 
 **Status:** 🆕 Filed 2026-05-22. Owner ask via idle-thoughts: *"Bug: 'duo navigate {path}' is a no op"*.
