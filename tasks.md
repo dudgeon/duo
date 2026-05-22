@@ -230,7 +230,24 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### ENH-167: Workspace-as-file (Save / Open / Open Recent)
+### FOLLOWUP-024: Paste-image should land as a block, not inline
+
+**Status:** ⬜ Filed 2026-05-22.
+
+**Symptom.** Pasting an image into the markdown editor while the cursor is mid-paragraph (or at the start of a paragraph) produces markdown that squishes the image and surrounding text into a single line — `![](image.png)In my average workflow...` — with no blank line separating them. GitHub's markdown renderer then puts the image and text on the same visual row, which looks broken on github.com. Surfaced 2026-05-22 by [docs/about-duo.md](docs/about-duo.md) authored in Duo's editor.
+
+**Root cause.** [`renderer/components/editor/MarkdownEditor.tsx`](renderer/components/editor/MarkdownEditor.tsx) § paste handler line 258 calls TipTap's `setImage({ src })`, which uses the default `@tiptap/extension-image` (extended by [`DuoImage`](renderer/components/editor/extensions/DuoImage.ts)) — an INLINE node. Insertion at the cursor lands the image inside the active paragraph; no surrounding block padding.
+
+**Fix options.**
+
+- **A. Pad on paste.** Wrap the `setImage` call with empty paragraphs:
+  ```ts
+  focused().insertContent('<p></p>').setImage({ src }).insertContent('<p></p>').run()
+  ```
+  Smallest diff; addresses paste flow specifically. Drag-drop has the same issue, so the same pattern needs to apply there.
+- **B. Block-by-construction.** Change DuoImage from `group: 'inline'` to `'block'`. Fixes paste + drag-drop + `duo image insert` in one place. Rules out inline-icon-mid-text usage, which is rare in docs-shaped content. (Recommended.)
+
+**v1 workaround.** Author manually adds a blank line above + below pasted images. Edited about-duo.md uses this workaround pending the fix.
 
 > **Rename note (2026-05-21):** Originally shipped as "session" terminology. Same-day owner directive: rename to **"workspace"** to avoid collision with Claude session (the agent loop inside a terminal). All public surfaces now read "workspace" — File menu, CLI verb (`duo workspace …`), file extension (`.duo-workspace`), types (`WorkspaceFile`, `ActiveWorkspace`), services (`WorkspaceFileService`, etc.). Historic owner-quotes below preserve the original "session" wording. See `docs/prd/enh-167-workspace-as-file.md` § Naming for the design call.
 
