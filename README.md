@@ -17,6 +17,9 @@ BYO-harness.
 > principles, and the flagship Google Docs bet — lives in
 > [docs/VISION.md](docs/VISION.md).
 
+For the longer narrative — the workflow problem that motivated this and a tour
+of the four main features — see **[docs/about-duo.md](docs/about-duo.md)**.
+
 ---
 
 ## Who this is for

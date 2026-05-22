@@ -218,6 +218,24 @@ const buildNodeView = (options: { getDocPath: () => string | null; cache: ImageB
 export const DuoImage = Image.extend<DuoImageOptions>({
   name: 'image',
 
+  // FOLLOWUP-024 (v0.7.5) — block image, not inline. The base
+  // @tiptap/extension-image ships inline by default (matches HTML's
+  // `<img>` semantics) but that produces broken Markdown for the
+  // docs-shaped editor: pasting an image while the cursor sits inside
+  // a paragraph yields `text![](foo.png)more text` on one line, which
+  // GitHub renders as image-and-text-on-the-same-row. Block images get
+  // their own paragraph in the serialized Markdown with blank lines
+  // around them — the GFM convention.
+  //
+  // Trade-off: inline-image-mid-sentence (`Click the ![icon](foo.png)
+  // button`) is no longer supported. Acceptable for Duo's use case
+  // (notes / specs / READMEs / canvases — screenshots between
+  // paragraphs is the 95% case). If anyone authored inline images
+  // pre-v0.7.5, those parse as bare image nodes at the top level on
+  // re-open (paragraph splits at the image).
+  group: 'block',
+  inline: false,
+
   addOptions() {
     return {
       ...this.parent?.(),

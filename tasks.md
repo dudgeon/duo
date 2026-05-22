@@ -232,7 +232,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### FOLLOWUP-024: Paste-image should land as a block, not inline
 
-**Status:** ⬜ Filed 2026-05-22.
+**Status:** ✅ Shipped 2026-05-22 in v0.7.5. Picked option B (block-by-construction): `DuoImage` now declares `group: 'block'` + `inline: false`, so paste / drag-drop / `duo image insert` all produce block-level images with the GFM-required blank-line spacing automatically. Verified live: `duo image insert /tmp/test-image.png` into a paragraph yielded `![alt](path)` on its own line with a blank line above. Two-line change in [`renderer/components/editor/extensions/DuoImage.ts`](renderer/components/editor/extensions/DuoImage.ts) § extend block.
 
 **Symptom.** Pasting an image into the markdown editor while the cursor is mid-paragraph (or at the start of a paragraph) produces markdown that squishes the image and surrounding text into a single line — `![](image.png)In my average workflow...` — with no blank line separating them. GitHub's markdown renderer then puts the image and text on the same visual row, which looks broken on github.com. Surfaced 2026-05-22 by [docs/about-duo.md](docs/about-duo.md) authored in Duo's editor.
 
