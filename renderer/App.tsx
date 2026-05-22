@@ -12,6 +12,7 @@ import { UpdateAvailableBanner } from './components/UpdateAvailableBanner'
 import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import { CloneModal } from './components/CloneModal'
 import { LinkPromptModal } from './components/editor/LinkPromptModal'
+import { WorkspaceSwitcherDropdown } from './components/WorkspaceSwitcherDropdown'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
@@ -468,6 +469,11 @@ export function App() {
     void window.electron.workspaceFile.active().then(setActiveWorkspace)
     return window.electron.workspaceFile.onActiveChanged(setActiveWorkspace)
   }, [])
+
+  // ENH-171 (Sprint 20) — workspace switcher dropdown. Triggered by
+  // clicking the workspace-name badge in the titlebar.
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
+  const workspaceBadgeRef = useRef<HTMLButtonElement | null>(null)
 
   // Subscribe to BrowserManager's tab broadcasts so `browserTabs`
   // tracks main's view of the browser tab list. Used by the save
@@ -2796,19 +2802,33 @@ export function App() {
           traffic lights are positioned over this row by
           `trafficLightPosition` without a DOM spacer. */}
       <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center pr-2 gap-1">
-        {/* ENH-167 v1.2 — session-name badge. macOS traffic lights sit at
-            x=16 (96px reserved); session name floats next to them.
-            Blank when there's no active session (untitled = no badge). */}
+        {/* ENH-167 v1.2 + ENH-171 (Sprint 20) — workspace-name badge.
+            macOS traffic lights sit at x=16 (96px reserved); the badge
+            floats next to them and is now a click target that opens
+            the workspace switcher dropdown (ENH-171). When untitled,
+            still shows a clickable "Workspaces ▾" affordance so the
+            user can switch / open / create from the cold-launch state
+            (no active workspace yet). */}
         <div className="flex items-center pl-[96px] flex-1 min-w-0">
-          {activeWorkspace && (
-            <span
-              className="titlebar-nodrag text-[12px] text-zinc-600 select-none truncate"
-              title={`Session: ${activeWorkspace.name} — ${activeWorkspace.path}`}
-            >
-              {activeWorkspace.name}
-            </span>
-          )}
+          <button
+            ref={workspaceBadgeRef}
+            type="button"
+            onClick={() => setWorkspaceMenuOpen(o => !o)}
+            className="titlebar-nodrag text-[12px] text-zinc-600 select-none truncate px-2 py-0.5 rounded hover:bg-accent/10 cursor-pointer"
+            title={activeWorkspace
+              ? `Workspace: ${activeWorkspace.name} — ${activeWorkspace.path}`
+              : 'No workspace loaded — click to open or create one'}
+          >
+            {activeWorkspace ? activeWorkspace.name : 'Workspaces'}
+            <span className="ml-1 text-zinc-400">▾</span>
+          </button>
         </div>
+        <WorkspaceSwitcherDropdown
+          open={workspaceMenuOpen}
+          anchorRef={workspaceBadgeRef}
+          activeWorkspace={activeWorkspace}
+          onClose={() => setWorkspaceMenuOpen(false)}
+        />
         {/* v0.5.4 sprint — running version badge. Glanceable confirmation
             for "am I smoke-walking the build I think I am?" — surfaced
             after a v0.5.4-final walk where it was non-trivial to tell
