@@ -21,7 +21,26 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.4 cut 2026-05-21)*
+> *(empty — v0.7.5 cut 2026-05-22)*
+
+---
+
+## v0.7.5 — 2026-05-22 — Block-image paste + About Duo
+
+**Why this version lands here.** Surfaced in the same session that cut v0.7.4: authoring `docs/about-duo.md` in Duo's markdown editor produced GitHub-broken output. Pasted images jammed against the following paragraph (`![](foo.png)In my average workflow...`), and GitHub rendered them on the same visual row instead of as block illustrations. Owner ask: *"should the paste_image function have pasted with more whitespace, or should the user just add an extra line break?"*
+
+**Two design decisions baked in.**
+
+1. **Block-by-construction over per-call-site padding.** The bug had two natural fix options: (A) wrap the `setImage` call in `insertContent('<p></p>')` at every insertion site (paste, drag-drop, `duo image insert`), or (B) declare `DuoImage` as a block node so the right behavior happens automatically everywhere. Picked B — one fix point covers all current and future insertion paths. Trade-off accepted: inline-image-mid-sentence (`Click the ![icon](foo.png) button`) is no longer supported. Acceptable for Duo's docs-shaped editor where screenshots between paragraphs is the 95% case.
+
+2. **About Duo is a real page now, not just a stub.** The narrative intro is the kind of asset that wants a permanent home on the GitHub README — not deep behind a docs/ link nobody finds. Linked from `README.md` near the top, right after the "Why a CLI?" callout where readers are oriented but ready for more context. Images compressed from 4.3 MB total to 1.6 MB so the first-paint experience is responsive even on slower connections.
+
+**What this is and isn't.**
+
+- **Is**: a quality-fix release — corrects a paste-image regression that produced broken GitHub-rendered markdown, plus the docs surface that triggered the report.
+- **Isn't**: a new feature surface. No new menu items, no new CLI verbs. Strictly bug-fix + docs.
+
+**Validation.** The DuoImage block fix verified live: `duo image insert /tmp/test-image.png --alt "Block test"` into a markdown doc with an existing paragraph at the cursor → image landed on its own line with a blank line above. about-duo.md visually re-walked on the published GitHub URL after the v0.7.4 push to confirm the manual paragraph-padding workaround rendered correctly; v0.7.5's fix means future paste sessions don't need the workaround.
 
 ---
 

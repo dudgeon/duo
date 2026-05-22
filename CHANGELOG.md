@@ -19,7 +19,17 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.4 cut 2026-05-21.
+> Empty — v0.7.5 cut 2026-05-22.
+
+## [0.7.5] — 2026-05-22
+
+### Fixed
+
+- **FOLLOWUP-024** — Pasted, drag-dropped, and agent-inserted images now land as block nodes in the markdown editor. Previously inserted as inline images at the cursor, producing markdown like `![](foo.png)text` on a single line — GitHub rendered the image and text running together. `DuoImage` now declares `group: 'block'` + `inline: false`; paste / drag-drop / `duo image insert` all produce block images with the GFM-required blank-line spacing automatically. Trade-off: inline-image-mid-sentence (`Click the ![icon](foo.png) button`) is no longer supported; acceptable for Duo's docs-shaped editor.
+
+### Docs
+
+- Added [`docs/about-duo.md`](docs/about-duo.md) — narrative "why Duo exists" intro for new visitors to the GitHub repo. Linked from `README.md` near the top. Images compressed (4.3 MB → 1.6 MB total, 63% smaller) for faster github.com page loads.
 
 ## [0.7.4] — 2026-05-21
 

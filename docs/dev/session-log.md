@@ -18,6 +18,18 @@
 
 ---
 
+## 2026-05-22 (v0.7.5 cut — block-image paste + About Duo)
+
+**v0.7.5 cut.** Same-session follow-up to v0.7.4. Authoring `docs/about-duo.md` in Duo's markdown editor surfaced a long-standing paste-image bug: pasted images landed as inline TipTap nodes at the cursor, producing markdown like `![](foo.png)text` on a single line. GitHub rendered the image and text running together — visibly broken on the published doc.
+
+Two-line fix in `DuoImage`: declared `group: 'block'` + `inline: false`. All insertion paths (paste, drag-drop, `duo image insert`) now produce block-level images with GFM-required blank-line spacing automatically. Trade-off: no inline-icon-mid-sentence support — acceptable for Duo's docs-shaped editor.
+
+Also shipped `docs/about-duo.md` as a real README-linked asset (compressed images 4.3 MB → 1.6 MB, alt text added, empty Feature Deep Dives stubs replaced with HTML comment).
+
+FOLLOWUP-024 ✅ closed. No new feature surfaces; quality-fix release.
+
+---
+
 ## 2026-05-21 (v0.7.4 cut — workspace-as-file: Save / Open / Open Recent + autosave mirror)
 
 **v0.7.4 cut.** Single-session build of ENH-167 from owner kickoff through cut, including same-day rename (session → workspace) and three sub-versions (v1.1 New Workspace reset, v1.1.1 in-place reset fix for dev blank-window, v1.2 title-bar badge + autosave mirror). All 14 smoke-walk items pre-walked via computer-use; typecheck clean throughout.
