@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, nativeTheme, pr
 import type { MenuItemConstructorOptions, WebContents } from 'electron'
 import * as nodeFs from 'fs/promises'
 import * as nodePath from 'path'
+import { execSync } from 'child_process'
 
 // BUG-148 — suppress EPIPE on stdout/stderr. When the parent process
 // (npm / electron-vite / the launching terminal) detaches or closes
@@ -70,6 +71,9 @@ import {
 import { UpdateChecker } from '../core/update-checker'
 import { initAutoUpdater } from './auto-updater'
 import { SessionStateService } from '../core/session-state-service'
+import { WorkspaceFileService } from '../core/workspace-file-service'
+import { WorkspaceHistoryService } from '../core/workspace-history-service'
+import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { ClaudePresenceProbe } from '../core/claude-presence'
 import { BrowserHistoryService } from '../core/browser-history-service'
@@ -151,6 +155,11 @@ const imageInsertPending = new Map<string, (res: import('../shared/types').Image
 // awaiting a renderer reply. Same Map-pairing pattern as htmlOpPending.
 const htmlCommentPending = new Map<string, (res: HtmlCommentResult) => void>()
 const htmlCommentsListPending = new Map<string, (res: HtmlCommentsListResult) => void>()
+
+// ENH-167 — pending snapshot requests. main asks the renderer for the
+// live SessionState (bypassing the autosave debounce) before writing a
+// .duo-workspace file (legacy: was ".duo-session", renamed v1.3).
+const sessionSnapshotPending = new Map<string, (state: import('../shared/types').SessionState) => void>()
 
 // Stage 11 \u00a7 D33d \u2014 most recent theme state pushed by the renderer.
 // Drives `duo theme` reads. Renderer is the source of truth.
@@ -259,6 +268,26 @@ const updateChecker = new UpdateChecker(app.getVersion())
 // when the renderer asks; subsequent calls return cached results.
 void updateChecker.loadCache()
 const sessionStateService = new SessionStateService()
+// ENH-167 — workspace-as-file singletons. workspaceFileService is
+// stateless (just save/load a .duo-workspace envelope);
+// workspaceHistoryService lazy-loads on first read;
+// activeWorkspaceService loads at boot in createWindow so the title
+// bar can reflect the loaded workspace name.
+const workspaceFileService = new WorkspaceFileService()
+const workspaceHistoryService = new WorkspaceHistoryService()
+const activeWorkspaceService = new ActiveWorkspaceService()
+
+// ENH-167 v1.2 — autosave mirror. Every flush of session-state.json
+// also writes the active .duo-workspace if one is loaded. The hook
+// runs inside sessionStateService.flush(), so it's debounced by the
+// same 250ms — no extra debouncer needed. Owner directive: "auto
+// save should continue to function, updating the current workspace
+// if saved or unsaved."
+sessionStateService.setMirrorHook(async (state) => {
+  const active = activeWorkspaceService.get()
+  if (!active) return
+  await workspaceFileService.save(active.path, active.name, state, app.getVersion())
+})
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
 let externalDomainsService: ExternalDomainsService | null = null
@@ -308,6 +337,13 @@ async function createWindow(): Promise<void> {
       ]
     }
   })
+
+  // ENH-167 — load active-workspace pointer and reflect into the window
+  // title. The boot-time load is synchronous-feeling because we
+  // `await` it before any other window setup; subsequent updates
+  // (after Save / Open) call applyWindowTitle() to mutate live.
+  await activeWorkspaceService.load()
+  applyWindowTitle()
 
   // Move A2 — PtyManager talks to the UI through an EventSink. The
   // adapter is one line in Electron (webContents.send); a future
@@ -458,7 +494,13 @@ async function createWindow(): Promise<void> {
     },
     pushNavPinsChanged: (pins) => {
       mainWindow?.webContents.send(IPC.NAV_PINS_CHANGED, pins)
-    }
+    },
+    // ENH-167 — workspace-as-file CLI parity.
+    workspaceSave: async (opts) => saveWorkspaceFile(opts),
+    workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
+    workspaceListRecent: async () => workspaceHistoryService.listSorted(),
+    workspaceCurrent: async () => { await activeWorkspaceService.load(); return activeWorkspaceService.get() },
+    workspaceNew: async () => newWorkspaceReset({ skipPrompt: true })
   }, navPinsService, eventBus, packLoader)
   // Stage 12 close — wire the renderer event sink so the socket
   // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
@@ -745,6 +787,12 @@ app.whenReady().then(async () => {
 
   setupIPC()
   installAppMenu()
+  // ENH-167 — populate File > Open Recent with persisted entries.
+  // installAppMenu() above runs synchronously with whatever is in
+  // workspaceHistoryService.getEntriesSync() (empty before
+  // ensureLoaded()); the async rebuild here repaints the submenu
+  // once the file is parsed.
+  void rebuildAppMenu()
   // ENH-031 — global right-click context menu for every WebContents
   // (main renderer + every WebContentsView Duo creates). Default items
   // cover Cut / Copy / Paste / Select All / Spell-check / Look Up /
@@ -923,6 +971,7 @@ app.on('before-quit', async () => {
   await filesService.dispose()
   await sessionStateService.flush()
   await browserHistory.flush()
+  await workspaceHistoryService.flush()
 })
 
 app.on('window-all-closed', () => {
@@ -1403,6 +1452,34 @@ function setupIPC(): void {
     sessionStateService.save(state)
   })
 
+  // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
+  // here; CLI verbs reach the same helpers via NavBridge).
+  ipcMain.handle(IPC.WORKSPACE_FILE_SAVE, async (_event, opts: { saveAs?: boolean }) => {
+    return saveWorkspaceFile({ saveAs: opts?.saveAs === true })
+  })
+  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN, async () => {
+    return openWorkspaceFileWithDialog()
+  })
+  ipcMain.handle(IPC.WORKSPACE_FILE_OPEN_RECENT, async (_event, opts: { path: string }) => {
+    return openWorkspaceFile(opts.path)
+  })
+  ipcMain.handle(IPC.WORKSPACE_FILE_LIST_RECENT, () => {
+    return workspaceHistoryService.listSorted()
+  })
+  ipcMain.handle(IPC.WORKSPACE_FILE_ACTIVE, async () => {
+    await activeWorkspaceService.load()
+    return activeWorkspaceService.get()
+  })
+  ipcMain.handle(IPC.WORKSPACE_FILE_NEW, async () => {
+    return newWorkspaceReset()
+  })
+  ipcMain.handle(IPC.WORKSPACE_FILE_CLEAR_RECENT, async () => {
+    await workspaceHistoryService.clear()
+    await workspaceHistoryService.flush()
+    void rebuildAppMenu()
+    return { ok: true }
+  })
+
   // Stage 18 — first-launch self-install.
   ipcMain.handle(IPC.INSTALL_STATUS, () => {
     return installService.status()
@@ -1538,6 +1615,15 @@ function setupIPC(): void {
     }
   })
 
+  // ENH-167 — renderer replies to a session-state snapshot request.
+  ipcMain.on(IPC.SESSION_STATE_SNAPSHOT_RESULT, (_event, payload: { reqId: string; state: import('../shared/types').SessionState }) => {
+    const resolver = sessionSnapshotPending.get(payload.reqId)
+    if (resolver) {
+      sessionSnapshotPending.delete(payload.reqId)
+      resolver(payload.state)
+    }
+  })
+
   // Stage 11 \u00a7 D33d \u2014 theme state push from the renderer.
   // BUG-017 fix (v0.3.1) \u2014 also sync nativeTheme.themeSource with the
   // user's mode so the renderer's `prefers-color-scheme` media query
@@ -1663,6 +1749,33 @@ function installAppMenu(): void {
       // both call the same openCloneModal() IPC path.
       label: 'File',
       submenu: [
+        // ENH-167 — workspace-as-file. Save the open tabs + terminals
+        // to a `.duo-workspace`; open one to switch contexts (Duo
+        // resets in-place and rehydrates from the loaded state).
+        // Recent submenu shows up to 10 entries (prune-missing on
+        // read). "Workspace" (not "session") to avoid collision with
+        // Claude session terminology.
+        {
+          label: 'New Workspace',
+          click: async () => { await newWorkspaceReset() }
+        },
+        {
+          label: 'Save Workspace…',
+          click: async () => { await saveWorkspaceFile({ saveAs: false }) }
+        },
+        {
+          label: 'Save Workspace As…',
+          click: async () => { await saveWorkspaceFile({ saveAs: true }) }
+        },
+        {
+          label: 'Open Workspace…',
+          click: async () => { await openWorkspaceFileWithDialog() }
+        },
+        {
+          label: 'Open Recent Workspace',
+          submenu: buildRecentWorkspacesSubmenu()
+        },
+        { type: 'separator' },
         {
           label: 'Clone from GitHub…',
           accelerator: 'CmdOrCtrl+Shift+K',
@@ -1851,6 +1964,410 @@ function installAppMenu(): void {
 
   const menu = Menu.buildFromTemplate(template)
   Menu.setApplicationMenu(menu)
+}
+
+// ENH-167 — rebuild the entire app menu. Called after any change that
+// affects the File > Open Recent submenu (save/open/clear). Cheap
+// enough to do every time — the menu template is rebuilt from scratch
+// on every install too.
+async function rebuildAppMenu(): Promise<void> {
+  await workspaceHistoryService.ensureLoaded()
+  installAppMenu()
+}
+
+// ENH-167 — Open Recent submenu items, read synchronously from the
+// already-loaded history. The wrapper rebuildAppMenu() awaits
+// ensureLoaded() before calling installAppMenu(), so by the time
+// installAppMenu() runs, the entries are already in memory.
+//
+// We can't await fs.existsSync filtering here without making the menu
+// builder async, so prune-on-render falls to the next listSorted()
+// call. The user clicking a stale entry will surface a clean error
+// from openWorkspaceFile + remove the entry. The window where this
+// matters is small (file deleted between two menu builds).
+function buildRecentWorkspacesSubmenu(): MenuItemConstructorOptions[] {
+  // Read cached entries synchronously. rebuildAppMenu() awaits
+  // ensureLoaded() before calling installAppMenu(), so by the time
+  // this runs the entries[] is populated. First-launch boot before
+  // any session has been saved → empty list → just shows
+  // "Clear Recent Workspaces" (disabled).
+  const cached = workspaceHistoryService.getEntriesSync()
+  const sorted = [...cached].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)
+  const items: MenuItemConstructorOptions[] = sorted.map(entry => ({
+    label: `${entry.name}`,
+    sublabel: entry.path,
+    click: async () => { await openWorkspaceFile(entry.path) }
+  }))
+  if (items.length > 0) {
+    items.push({ type: 'separator' })
+  }
+  items.push({
+    label: 'Clear Recent Workspaces',
+    enabled: sorted.length > 0,
+    click: async () => {
+      await workspaceHistoryService.clear()
+      await workspaceHistoryService.flush()
+      void rebuildAppMenu()
+    }
+  })
+  return items
+}
+
+// ENH-167 — set the window title from the active workspace pointer.
+// "Duo — <name>" when a session is loaded; bare "Duo" when untitled.
+// ENH-167 v1.2 — also pushes ACTIVE_CHANGED to the renderer so the
+// in-app titlebar badge tracks live (Duo's `titleBarStyle:
+// 'hiddenInset'` hides the OS title, so the renderer paints its own).
+function applyWindowTitle(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  const active = activeWorkspaceService.get()
+  if (active) {
+    mainWindow.setTitle(`Duo — ${active.name}`)
+  } else {
+    mainWindow.setTitle('Duo')
+  }
+  // Push to renderer (drives the in-app titlebar badge).
+  try {
+    mainWindow.webContents.send(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, active)
+  } catch (err) {
+    // Renderer not ready yet (boot path) — harmless; the renderer
+    // pulls via `sessionFile.active()` on mount.
+  }
+}
+
+// ENH-167 — ask the renderer for the live SessionState (bypassing the
+// autosave debounce). 3 s timeout — the renderer's reply is purely
+// CPU-bound (no I/O) so this is generous.
+const SESSION_SNAPSHOT_TIMEOUT_MS = 3000
+async function dispatchSessionSnapshot(): Promise<import('../shared/types').SessionState | null> {
+  if (!mainWindow || mainWindow.isDestroyed()) return null
+  const reqId = `ss_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  return new Promise<import('../shared/types').SessionState | null>((resolve) => {
+    const timer = setTimeout(() => {
+      sessionSnapshotPending.delete(reqId)
+      console.warn('[workspace-file] snapshot request timed out')
+      resolve(null)
+    }, SESSION_SNAPSHOT_TIMEOUT_MS)
+    sessionSnapshotPending.set(reqId, (state) => {
+      clearTimeout(timer)
+      resolve(state)
+    })
+    mainWindow!.webContents.send(IPC.SESSION_STATE_SNAPSHOT_REQUEST, { reqId })
+  })
+}
+
+// ENH-167 — save the current workspace to a .duo-workspace file.
+//   - `saveAs=true` → always show the Save dialog.
+//   - `saveAs=false` and an active workspace pointer exists → write
+//     silently to its path (Standard ⌘S semantic).
+//   - `saveAs=false` and no active pointer → behave as Save As.
+//   - `targetPath` set (from CLI) → write to that path directly,
+//     skipping the GUI dialog.
+export async function saveWorkspaceFile(opts: { saveAs?: boolean; targetPath?: string; name?: string }): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  await activeWorkspaceService.load()
+  let targetPath = opts.targetPath
+  let suggestedName = opts.name ?? activeWorkspaceService.get()?.name ?? 'Untitled'
+
+  // Pick a destination unless one was supplied.
+  if (!targetPath) {
+    const active = activeWorkspaceService.get()
+    if (!opts.saveAs && active) {
+      targetPath = active.path
+      suggestedName = active.name
+    } else {
+      const defaultPath = active?.path
+        ?? join(homedir(), `${suggestedName.replace(/[^A-Za-z0-9_-]+/g, '-') || 'Untitled'}.duo-workspace`)
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Save Workspace',
+        defaultPath,
+        filters: [
+          { name: 'Duo Workspace', extensions: ['duo-workspace'] }
+        ]
+      })
+      if (result.canceled || !result.filePath) {
+        return { ok: false, error: 'cancelled' }
+      }
+      targetPath = result.filePath
+      // Derive the name from the filename if the user didn't supply
+      // one explicitly. Strip a single trailing `.duo-workspace`.
+      const base = nodePath.basename(targetPath)
+      suggestedName = base.endsWith('.duo-workspace') ? base.slice(0, -'.duo-workspace'.length) : base
+    }
+  }
+
+  // Gather the live state via the renderer snapshot. If the renderer
+  // doesn't reply (no window, hung), fall back to the on-disk autosave.
+  let state = await dispatchSessionSnapshot()
+  if (!state) {
+    await sessionStateService.flush()
+    state = await sessionStateService.load()
+  }
+
+  try {
+    await workspaceFileService.save(targetPath, suggestedName, state, app.getVersion())
+  } catch (err) {
+    return { ok: false, error: (err as Error)?.message ?? String(err) }
+  }
+  await activeWorkspaceService.set({ path: targetPath, name: suggestedName })
+  await workspaceHistoryService.record({ path: targetPath, name: suggestedName, savedAt: new Date().toISOString() })
+  applyWindowTitle()
+  void rebuildAppMenu()
+  return { ok: true, path: targetPath, name: suggestedName }
+}
+
+// ENH-167 — open a `.duo-workspace` file: writes its embedded state to
+// the autosave path + active-workspace pointer, then `app.relaunch()`.
+// The cleanest way to replace the running workspace's tabs/terminals/
+// browser tabs is to re-enter the existing boot-time restore — no
+// in-place reset machinery needed. macOS apps switch workspaces this
+// way regularly; the visual reset is unambiguous.
+export async function openWorkspaceFile(filePath: string, opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  const envelope = await workspaceFileService.load(filePath)
+  if (!envelope) {
+    await workspaceHistoryService.forget(filePath)
+    void rebuildAppMenu()
+    return { ok: false, error: `Failed to read workspace file: ${filePath}` }
+  }
+
+  // Owner Q2 — prompt to save the current workspace before replacing.
+  // Skipped for explicit CLI use (the agent caller is presumed to
+  // know what it's doing) and for paths we just saved (saveAs).
+  if (!opts.skipPrompt) {
+    const proceed = await promptToSaveCurrentWorkspace()
+    if (!proceed) return { ok: false, error: 'cancelled' }
+  }
+
+  // Stamp the loaded SessionState's savedAt + appVersion so the next
+  // boot sees "loaded just now" diagnostics (the autosave loop will
+  // overwrite within 500 ms regardless).
+  const stamped: import('../shared/types').SessionState = {
+    ...envelope.state,
+    savedAt: new Date().toISOString(),
+    appVersion: app.getVersion()
+  }
+  // Set active pointer + history BEFORE applying so the window title
+  // reflects the new name as soon as the renderer reload finishes.
+  await activeWorkspaceService.set({ path: filePath, name: envelope.name })
+  applyWindowTitle()
+  await workspaceHistoryService.record({ path: filePath, name: envelope.name, savedAt: envelope.savedAt })
+  await workspaceHistoryService.flush()
+  void rebuildAppMenu()
+  await applyNewSessionState(stamped)
+  return { ok: true, path: filePath, name: envelope.name }
+}
+
+// ENH-167 — Open Workspace dialog flow. Shows the prompt-to-save
+// modal first, then a file picker.
+async function openWorkspaceFileWithDialog(): Promise<{ ok: boolean; path?: string; name?: string; error?: string }> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  const proceed = await promptToSaveCurrentWorkspace()
+  if (!proceed) return { ok: false, error: 'cancelled' }
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Open Workspace',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Duo Workspace', extensions: ['duo-workspace'] }
+    ]
+  })
+  if (result.canceled || result.filePaths.length === 0) {
+    return { ok: false, error: 'cancelled' }
+  }
+  return openWorkspaceFile(result.filePaths[0], { skipPrompt: true })
+}
+
+// ENH-167 — prompt the user to save the current workspace before
+// replacing it. Returns `false` when the user cancels OR when the
+// chained Save dialog gets cancelled. Returns `true` to proceed.
+// Owner Q2 — Save / Don't Save / Cancel.
+//
+// `action` parametrizes the prompt copy:
+//  - 'open' → "before opening another?" (Open Workspace / Open Recent)
+//  - 'new'  → "before starting a new one?" (New Workspace)
+async function promptToSaveCurrentWorkspace(action: 'open' | 'new' = 'open'): Promise<boolean> {
+  if (!mainWindow || mainWindow.isDestroyed()) return false
+  const message = action === 'new'
+    ? 'Save current workspace before starting a new one?'
+    : 'Save current workspace before opening another?'
+  const detail = action === 'new'
+    ? 'Your current tabs and terminals will be replaced with a fresh workspace (one shell terminal at the focused tab’s working directory, plus any pinned tabs).'
+    : 'Your current tabs, terminals, and browser tabs will be replaced.'
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'question',
+    title: 'Save current workspace?',
+    message,
+    detail,
+    buttons: ['Save', "Don't Save", 'Cancel'],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true
+  })
+  if (result.response === 2) return false                   // Cancel
+  if (result.response === 1) return true                    // Don't Save → proceed
+  // Save → if active, save silently; else open Save dialog. If the
+  // save itself fails or is cancelled, abort.
+  const save = await saveWorkspaceFile({ saveAs: false })
+  if (!save.ok) return false
+  return true
+}
+
+// ENH-167 — best-effort live CWD for a PTY's process. macOS-only via
+// `lsof`. Returns null on any failure (lsof missing, permission
+// denied, dead pid, unreadable) — caller falls back to the spawn CWD.
+// The 1-second timeout keeps a hung lsof from blocking the menu.
+function getLiveCwdForPid(pid: number): string | null {
+  try {
+    const out = execSync(`lsof -a -d cwd -p ${pid} -Fn`, {
+      encoding: 'utf8',
+      timeout: 1000,
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).toString()
+    const line = out.split('\n').find(l => l.startsWith('n'))
+    if (!line) return null
+    const cwd = line.slice(1).trim()
+    return cwd || null
+  } catch {
+    return null
+  }
+}
+
+// ENH-167 — apply a new SessionState to the running Duo without
+// app.relaunch(). Tears down current PTYs + browser WCVs, writes the
+// new state to disk, reloads the renderer (which re-runs the boot-
+// time session-restore against the now-current state), and re-arms
+// the pin-restore for browser tabs (which is the `once`d listener on
+// `did-finish-load` in createWindow).
+//
+// In-place because `app.relaunch() + app.exit()` breaks the Vite dev
+// server (npm run dev → electron-vite dev forks Electron; exiting
+// kills both). In packaged mode it works, but the in-place path is
+// faster (~200ms vs ~2s) and uniform across dev/prod. Owner reported
+// "whole window disappeared, relaunched blank window" on 2026-05-21
+// — that was the relaunch surfacing the dev-mode break.
+async function applyNewSessionState(state: import('../shared/types').SessionState): Promise<void> {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+
+  // Save the new state so the reloaded renderer reads it.
+  sessionStateService.save(state)
+  await sessionStateService.flush()
+
+  // Tear down current browser tabs. Closing each tab cleanly via
+  // BrowserManager preserves CDP/closed-tabs/aux state correctly,
+  // unlike dispose() which would also detach CDP and break the
+  // reused BrowserManager.
+  if (browserManager) {
+    const currentTabs = [...browserManager.getTabs()]
+    for (const tab of currentTabs.reverse()) {
+      try { await browserManager.closeTab(tab.id) } catch { /* ignore */ }
+    }
+  }
+
+  // Kill all PTYs. The renderer reload will trigger fresh PTY creation
+  // via the normal pty:create IPC for each terminal in the new state.
+  ptyManager.dispose()
+
+  // Re-arm the browser-pin-restore for the NEXT did-finish-load
+  // (the one that fires after this reload). The createWindow path's
+  // `once` listener already consumed for the initial boot.
+  mainWindow.webContents.once('did-finish-load', async () => {
+    try {
+      const pinnedEntries = await pinsService.list()
+      const browserPins = pinnedEntries.filter(p => p.kind === 'browser')
+      if (browserPins.length > 0 && browserManager) {
+        const currentUrls = new Set(browserManager.getTabs().map(t => t.url))
+        for (const pin of browserPins) {
+          if (!currentUrls.has(pin.ref)) browserManager.addTab(pin.ref)
+        }
+      }
+    } catch (err) {
+      console.warn('[apply-session] pinned browser tab restore failed:', (err as Error)?.message ?? err)
+    }
+  })
+
+  // Reload the renderer. Fresh React mount → session-restore reads
+  // session-state.json → 1 terminal at the captured CWD + pinned
+  // file tabs auto-open via App.tsx's pinAutoOpenRanRef.
+  mainWindow.webContents.reload()
+}
+
+// ENH-167 — File > New Workspace resets the workspace in-place.
+// Locked semantics (owner answers 2026-05-21):
+//   1. Whenever any terminal or file tab is open → prompt
+//      Save / Don't Save / Cancel (parametrized 'new' copy).
+//   2. Always spawn one fresh shell terminal at the live CWD of the
+//      previously-frontmost terminal (lsof, with the persisted
+//      spawn cwd as fallback).
+//   3. Drop every working-pane tab (file + browser) — pinned tabs
+//      auto-restore on the next boot via the existing pin-restore
+//      paths (browser pins in main.ts § did-finish-load BUG-057
+//      block; file pins in App.tsx § pinAutoOpenRanRef).
+//   4. Clear the active-workspace pointer (window title back to "Duo").
+//   5. In-place reset — same mechanism as Open Workspace: write the
+//      skeleton state to session-state.json + clear the active
+//      pointer, then restart so the existing boot-time restore in
+//      App.tsx re-runs against the skeleton.
+//
+// `skipPrompt` is for CLI callers (`duo session new`) — the agent
+// is presumed deliberate, same convention as `duo session open`.
+export async function newWorkspaceReset(opts: { skipPrompt?: boolean } = {}): Promise<{ ok: boolean; error?: string }> {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+
+  // Snapshot the live renderer state so we can pick the frontmost
+  // terminal's CWD and gate the prompt on "is there anything to lose".
+  const state = await dispatchSessionSnapshot()
+  if (!state) return { ok: false, error: 'snapshot failed' }
+
+  const anythingOpen = state.terminals.length > 0 || state.fileTabs.length > 0
+  if (anythingOpen && !opts.skipPrompt) {
+    const proceed = await promptToSaveCurrentWorkspace('new')
+    if (!proceed) return { ok: false, error: 'cancelled' }
+  }
+
+  // Pick the frontmost terminal's CWD. Prefer the live CWD via lsof;
+  // fall back to the persisted spawn CWD if lsof can't read it (no
+  // permission, dead pid). If there were no terminals to begin with,
+  // land on $HOME.
+  let frontCwd = ''
+  const idx = state.activeTerminalIndex
+  if (idx >= 0 && idx < state.terminals.length) {
+    const spawnCwd = state.terminals[idx].cwd
+    const pid = activeTerminalId ? ptyManager.getPid(activeTerminalId) : null
+    const liveCwd = pid ? getLiveCwdForPid(pid) : null
+    frontCwd = liveCwd ?? spawnCwd
+  }
+  if (!frontCwd) frontCwd = homedir()
+
+  // Skeleton state — one shell at frontCwd, empty tab arrays. Pinned
+  // tabs come back via the boot-time pin-restore paths.
+  const title = nodePath.basename(frontCwd) || frontCwd
+  const skeleton: import('../shared/types').SessionState = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    appVersion: app.getVersion(),
+    terminals: [{ cwd: frontCwd, kind: 'shell', title }],
+    activeTerminalIndex: 0,
+    browserTabs: [],
+    activeBrowserIndex: -1,
+    fileTabs: [],
+    activeWorking: null,
+    navigatorPath: '',
+    aux: null
+  }
+  await activeWorkspaceService.clear()
+  applyWindowTitle()
+  void rebuildAppMenu()
+  await workspaceHistoryService.flush()
+  await applyNewSessionState(skeleton)
+  return { ok: true }
 }
 
 // Helpers exposed to SocketServer via `NavBridge` (passed below).

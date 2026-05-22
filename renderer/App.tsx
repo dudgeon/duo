@@ -29,7 +29,7 @@ import { useSelectionFormat } from './hooks/useSelectionFormat'
 import { htmlBoilerplate } from './components/Page/htmlBoilerplate'
 import { encodeUtf8 } from './components/editor/markdown-io'
 import { findVaultRoot, resolveWikilinkInVault } from './components/editor/wikilinkResolver'
-import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab } from '@shared/types'
+import type { TabSession, DirEntry, TerminalTabKind, NewTabResult, PinEntry, SessionState, BrowserTab, ActiveWorkspace } from '@shared/types'
 
 // Stage 10 § D32: auto-collapse the Files column on windows narrower than
 // this. The user can manually re-expand; we don't re-collapse again unless
@@ -460,6 +460,14 @@ export function App() {
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const sessionLoadStartedRef = useRef(false)
   const [browserTabs, setBrowserTabs] = useState<BrowserTab[]>([])
+  // ENH-167 v1.2 — active session pointer for the in-app titlebar
+  // badge. Loaded once on mount; pushed live on every Save / Open /
+  // New so the badge tracks main's authoritative state.
+  const [activeWorkspace, setActiveWorkspace] = useState<ActiveWorkspace | null>(null)
+  useEffect(() => {
+    void window.electron.workspaceFile.active().then(setActiveWorkspace)
+    return window.electron.workspaceFile.onActiveChanged(setActiveWorkspace)
+  }, [])
 
   // Subscribe to BrowserManager's tab broadcasts so `browserTabs`
   // tracks main's view of the browser tab list. Used by the save
@@ -644,45 +652,63 @@ export function App() {
   // renderer + 250ms in main coalesces bursty edits into a single
   // disk write.
   const sessionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // ENH-167 — build the live SessionState snapshot. Shared by the
+  // autosave debounce AND the on-demand snapshot-request handler that
+  // backs File > Save Session. Closure re-created on every state
+  // change so the snapshot reflects the latest state.
+  const buildSessionSnapshot = (): SessionState => {
+    const activeTerminalIndex = tabs.findIndex(t => t.id === activeTabId)
+    const activeBrowserIndex = browserTabs.findIndex(b => b.isActive)
+    const activeFileTab = activeWorking.kind === 'file'
+      ? fileTabs.find(f => f.id === activeWorking.id)
+      : undefined
+    return {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      appVersion: '0.4.1',
+      terminals: tabs.map(t => ({ cwd: t.cwd, kind: t.kind, title: t.title })),
+      activeTerminalIndex: activeTerminalIndex >= 0 ? activeTerminalIndex : -1,
+      browserTabs: browserTabs.map(b => ({ url: b.url, title: b.title })),
+      activeBrowserIndex: activeBrowserIndex >= 0 ? activeBrowserIndex : -1,
+      fileTabs: fileTabs.map(f => ({ path: f.path, type: f.type, mime: f.mime })),
+      activeWorking: activeWorking.kind === 'browser'
+        ? { kind: 'browser', index: activeBrowserIndex >= 0 ? activeBrowserIndex : 0 }
+        : (activeFileTab ? { kind: 'file', path: activeFileTab.path } : null),
+      navigatorPath: '',  // useNavigator owns this via localStorage (Stage 10 Phase 4)
+      // Sprint 3 Phase 3c — Split View persistence. Mirrors the
+      // additive aux field on SessionState. null when the split is
+      // closed; populated with the local auxState shape otherwise.
+      aux: auxState && auxState.paths.length > 0
+        ? {
+            paths: [...auxState.paths],
+            activeIndex: auxState.activeIndex,
+            splitPct: auxState.splitPct
+          }
+        : null
+    }
+  }
   useEffect(() => {
     if (!sessionHydrated) return
     if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
     sessionSaveTimerRef.current = setTimeout(() => {
-      const activeTerminalIndex = tabs.findIndex(t => t.id === activeTabId)
-      const activeBrowserIndex = browserTabs.findIndex(b => b.isActive)
-      const activeFileTab = activeWorking.kind === 'file'
-        ? fileTabs.find(f => f.id === activeWorking.id)
-        : undefined
-
-      const state: SessionState = {
-        version: 1,
-        savedAt: new Date().toISOString(),
-        appVersion: '0.4.1',
-        terminals: tabs.map(t => ({ cwd: t.cwd, kind: t.kind, title: t.title })),
-        activeTerminalIndex: activeTerminalIndex >= 0 ? activeTerminalIndex : -1,
-        browserTabs: browserTabs.map(b => ({ url: b.url, title: b.title })),
-        activeBrowserIndex: activeBrowserIndex >= 0 ? activeBrowserIndex : -1,
-        fileTabs: fileTabs.map(f => ({ path: f.path, type: f.type, mime: f.mime })),
-        activeWorking: activeWorking.kind === 'browser'
-          ? { kind: 'browser', index: activeBrowserIndex >= 0 ? activeBrowserIndex : 0 }
-          : (activeFileTab ? { kind: 'file', path: activeFileTab.path } : null),
-        navigatorPath: '',  // useNavigator owns this via localStorage (Stage 10 Phase 4)
-        // Sprint 3 Phase 3c — Split View persistence. Mirrors the
-        // additive aux field on SessionState. null when the split is
-        // closed; populated with the local auxState shape otherwise.
-        aux: auxState && auxState.paths.length > 0
-          ? {
-              paths: [...auxState.paths],
-              activeIndex: auxState.activeIndex,
-              splitPct: auxState.splitPct
-            }
-          : null
-      }
-      void window.electron.sessionState.save(state)
+      void window.electron.sessionState.save(buildSessionSnapshot())
     }, 500)
     return () => {
       if (sessionSaveTimerRef.current) clearTimeout(sessionSaveTimerRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionHydrated, tabs, activeTabId, fileTabs, activeWorking, browserTabs, auxState])
+
+  // ENH-167 — answer main's snapshot-request from Save Session. Re-
+  // subscribes on every state change so the closure over the build
+  // closure always sees the latest values. Cheap; events are rare.
+  useEffect(() => {
+    if (!sessionHydrated) return
+    const unsubscribe = window.electron.sessionState.onSnapshotRequest((reqId) => {
+      window.electron.sessionState.snapshotReply({ reqId, state: buildSessionSnapshot() })
+    })
+    return unsubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionHydrated, tabs, activeTabId, fileTabs, activeWorking, browserTabs, auxState])
 
   // Stage 10 Phase 6 § D16 — dismissible chip when the agent drives the
@@ -2758,7 +2784,20 @@ export function App() {
           right (theme toggle) escape the drag via .titlebar-nodrag. macOS
           traffic lights are positioned over this row by
           `trafficLightPosition` without a DOM spacer. */}
-      <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center justify-end pr-2 gap-1">
+      <div className="h-10 shrink-0 bg-surface-1 border-b border-border titlebar-drag flex items-center pr-2 gap-1">
+        {/* ENH-167 v1.2 — session-name badge. macOS traffic lights sit at
+            x=16 (96px reserved); session name floats next to them.
+            Blank when there's no active session (untitled = no badge). */}
+        <div className="flex items-center pl-[96px] flex-1 min-w-0">
+          {activeWorkspace && (
+            <span
+              className="titlebar-nodrag text-[12px] text-zinc-600 select-none truncate"
+              title={`Session: ${activeWorkspace.name} — ${activeWorkspace.path}`}
+            >
+              {activeWorkspace.name}
+            </span>
+          )}
+        </div>
         {/* v0.5.4 sprint — running version badge. Glanceable confirmation
             for "am I smoke-walking the build I think I am?" — surfaced
             after a v0.5.4-final walk where it was non-trivial to tell

@@ -862,6 +862,27 @@ export interface ElectronSessionStateAPI {
   /** Push the current state. Coalesced + debounced in main; safe to
    *  call on every state change without thrash. */
   save: (state: SessionState) => Promise<void>
+  /** ENH-167 — main pushes a snapshot-request when it needs the
+   *  live SessionState (Save Session bypasses the autosave debounce).
+   *  Renderer replies via `snapshotReply(reqId, state)`. */
+  onSnapshotRequest: (cb: (reqId: string) => void) => () => void
+  snapshotReply: (payload: { reqId: string; state: SessionState }) => void
+}
+
+// ENH-167 — workspace-as-file. Mirrors the File menu surface: Save /
+// Save As (via opts.saveAs) / Open / Open Recent / New, plus list +
+// active queries + clear-recent for the submenu's housekeeping.
+export interface ElectronWorkspaceFileAPI {
+  save: (opts?: { saveAs?: boolean }) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>
+  open: () => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>
+  openRecent: (path: string) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>
+  listRecent: () => Promise<import('./types').WorkspaceHistoryEntry[]>
+  active: () => Promise<import('./types').ActiveWorkspace | null>
+  newWorkspace: () => Promise<{ ok: boolean }>
+  clearRecent: () => Promise<{ ok: boolean }>
+  /** ENH-167 v1.2 — main pushes when activeWorkspaceService changes
+   *  (Save, Save As, Open, New). Drives the in-app titlebar badge. */
+  onActiveChanged: (cb: (active: import('./types').ActiveWorkspace | null) => void) => () => void
 }
 
 export interface ElectronAPI {
@@ -896,6 +917,8 @@ export interface ElectronAPI {
   // context-menu click handlers.
   clipboard: ElectronClipboardAPI
   sessionState: ElectronSessionStateAPI
+  // ENH-167 — workspace-as-file (Save / Open / Open Recent menu).
+  workspaceFile: ElectronWorkspaceFileAPI
   events: ElectronEventsAPI
   // ENH-151 / ENH-152a — GitHub integration: status (Navigator root
   // chip) + clone (File → Clone… modal) + ghAuth (auth probe).

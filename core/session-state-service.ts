@@ -54,6 +54,17 @@ export class SessionStateService {
   private pending: SessionState | null = null
   private writeTimer: NodeJS.Timeout | null = null
   private writing = false
+  // ENH-167 v1.2 — optional secondary write hook. Called inside
+  // flush() with the same state that was just written to
+  // session-state.json, so the active .duo-session can mirror the
+  // autosave (owner-stated: "auto save should continue to function,
+  // updating the current session if saved or unsaved"). Hook is
+  // optional; null = no mirroring (default).
+  private mirrorHook: ((state: SessionState) => Promise<void>) | null = null
+
+  setMirrorHook(fn: ((state: SessionState) => Promise<void>) | null): void {
+    this.mirrorHook = fn
+  }
 
   /** Read the persisted state. Best-effort: corrupt / missing file
    *  resolves with the empty state so the renderer doesn't crash. */
@@ -147,6 +158,17 @@ export class SessionStateService {
       const tmp = SESSION_PATH + '.tmp'
       await fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf8')
       await fs.rename(tmp, SESSION_PATH)
+      // ENH-167 v1.2 — mirror to the active .duo-session if there is
+      // one. Owner directive: autosave updates the loaded session
+      // file alongside session-state.json. Fire-and-forget; the hook
+      // owns its own error handling.
+      if (this.mirrorHook) {
+        try {
+          await this.mirrorHook(state)
+        } catch (err) {
+          console.warn('[session-state] mirror hook failed:', (err as Error)?.message ?? err)
+        }
+      }
     } catch (err) {
       // Persistent failure — log and move on. We don't bubble; the
       // renderer doesn't have a meaningful response to "save failed."

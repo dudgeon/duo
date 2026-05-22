@@ -222,6 +222,14 @@ export type DuoCommandName =
   // 'agent'. v1: anchor / target resolution is by literal text match
   // on the stripped-CM view of the body; `--occurrence N` disambiguates.
   | 'doc-edit'
+  // ENH-167 — workspace-as-file. Save / open / list-recent /
+  // current / new verbs round-trip the running tabs + terminals +
+  // browser tabs to a `.duo-workspace` file. Single 'workspace'
+  // command with a discriminated `op` arg (mirrors 'file',
+  // 'nav-pin'). See WorkspaceFileOp below for the op union.
+  // Naming: "workspace" (not "session") to avoid collision with
+  // Claude session terminology (the agent loop inside a terminal).
+  | 'workspace'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -602,6 +610,67 @@ export interface SessionState {
    *  for backward compatibility: pre-Phase-3c saves don't include
    *  this field, and load() defaults to null in that case. */
   aux?: SessionStateAux | null
+}
+
+// ENH-167 — workspace-as-file. A `.duo-workspace` is a SessionState
+// wrapped with a name, savedAt, appVersion, and an explicit
+// schemaVersion bump so a future format change can roll forward
+// without breaking older files. v1 is a thin envelope: same restore
+// code path as the autosave (App.tsx's session-load effect re-runs
+// against the loaded state after the in-place reset), so the file
+// format is functionally equivalent to ~/.claude/duo/session-state.json
+// with one extra `name` field.
+//
+// Naming: "workspace" (not "session") to avoid collision with Claude
+// session terminology — see ENH-167 ADR for the design call. The
+// inner `state` field still uses the SessionState type because that's
+// the pre-existing Stage 21c autosave shape.
+//
+// File extension `.duo-workspace`. User picks the path; the filename
+// (sans extension) seeds the workspace name field if the user
+// doesn't override it.
+export interface WorkspaceFile {
+  /** Schema version. Bumped on breaking changes. v1 = current. */
+  schemaVersion: 1
+  /** Human-readable name shown in the title bar and Open Recent menu.
+   *  Defaults to the filename (sans `.duo-workspace`). */
+  name: string
+  /** ISO timestamp of when this workspace file was last saved. */
+  savedAt: string
+  /** `app.getVersion()` at save time. Diagnostic. */
+  appVersion: string
+  /** The actual workspace state — identical shape to the autosave. */
+  state: SessionState
+}
+
+// ENH-167 — discriminated op union for `duo workspace <op>`.
+export type WorkspaceFileOp =
+  | { op: 'save'; path?: string; name?: string }     // path omitted → CLI errors (Save dialog is GUI-only)
+  | { op: 'open'; path: string }
+  | { op: 'list-recent' }
+  | { op: 'current' }
+  | { op: 'new' }                                     // clears active-workspace pointer + resets to fresh shell
+
+// ENH-167 — Open Recent entry. Mirrors BrowserHistoryService's shape.
+// `lastOpenedAt` is the LRU sort key; `savedAt` is informational.
+export interface WorkspaceHistoryEntry {
+  /** Absolute path to the .duo-workspace file. */
+  path: string
+  /** Workspace name at the time of the last open / save. */
+  name: string
+  /** Epoch ms of the most recent open OR save of this workspace. */
+  lastOpenedAt: number
+  /** ISO timestamp from the file's `savedAt` field at last access. */
+  savedAt: string
+}
+
+// ENH-167 — pointer to the workspace file the currently-open Duo
+// instance was loaded from (or last saved to). Persisted at
+// ~/.claude/duo/active-workspace.json. null state ("untitled")
+// means nothing has been opened or saved.
+export interface ActiveWorkspace {
+  path: string
+  name: string
 }
 
 /** Empty/default state for first launches and corrupt-file recovery. */
@@ -1316,6 +1385,34 @@ export const IPC = {
   // resuming, not starting over.
   SESSION_STATE_LOAD: 'session-state:load',
   SESSION_STATE_SAVE: 'session-state:save',
+
+  // ENH-167 — workspace-as-file. Save / open / list-recent / active
+  // / new APIs for the File > Save Workspace / Open Workspace / Open
+  // Recent Workspace menu chain (and `duo workspace <op>` CLI parity).
+  //
+  // Save flow: main → renderer SNAPSHOT_REQUEST (renderer rebuilds the
+  // live SessionState shape from React state and replies via
+  // SNAPSHOT_RESULT). Open flow: main writes the loaded state to
+  // session-state.json + active-workspace.json, then triggers an
+  // in-place reset (PTY dispose + WCV close + renderer reload).
+  WORKSPACE_FILE_SAVE: 'workspace-file:save',                  // renderer-initiated (menu click)
+  WORKSPACE_FILE_OPEN: 'workspace-file:open',
+  WORKSPACE_FILE_OPEN_RECENT: 'workspace-file:open-recent',
+  WORKSPACE_FILE_LIST_RECENT: 'workspace-file:list-recent',
+  WORKSPACE_FILE_ACTIVE: 'workspace-file:active',              // read current ActiveWorkspace (or null)
+  WORKSPACE_FILE_NEW: 'workspace-file:new',                    // clear active pointer + reset workspace
+  WORKSPACE_FILE_CLEAR_RECENT: 'workspace-file:clear-recent',  // wipe workspace-history.json
+  // ENH-167 v1.2 — main → renderer push when activeWorkspaceService
+  // changes (Save, Save As, Open, Open Recent, New Workspace).
+  // Drives the in-app titlebar workspace-name badge so it tracks live.
+  WORKSPACE_FILE_ACTIVE_CHANGED: 'workspace-file:active-changed',
+  // Snapshot request/reply pair so Save can capture the live state
+  // bypassing the autosave debounce (which would otherwise lag the
+  // last burst of user activity). Keeps the SESSION_STATE_* prefix
+  // because the underlying autosave shape is still SessionState
+  // (Stage 21c terminology); only the user-facing concept is renamed.
+  SESSION_STATE_SNAPSHOT_REQUEST: 'session-state:snapshot-request',  // main → renderer
+  SESSION_STATE_SNAPSHOT_RESULT: 'session-state:snapshot-result',    // renderer → main
 
   // Stage 18 — first-launch self-install (skill + subagent + provenance).
   INSTALL_STATUS: 'install:status',

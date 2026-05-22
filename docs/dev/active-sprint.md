@@ -1,6 +1,16 @@
 # Active sprint state — Sprint 19 / v0.7.3 in flight
 
-**Status (2026-05-19):** Sprint 19 mid-flight. Two waves shipped this session: (1) ENH-166 unified annotation rail; (2) BUG-142..147 cluster from the bug-report on `duo doc comment --reply-to` ergonomics + live-editor sync. One follow-up filed (FOLLOWUP-023). Smoke walk + cut owed.
+**Status (2026-05-21):** Sprint 19 mid-flight. Three waves shipped this session: (1) ENH-166 unified annotation rail (2026-05-19); (2) BUG-142..147 cluster from the bug-report on `duo doc comment --reply-to` ergonomics + live-editor sync (2026-05-19); (3) **ENH-167 workspace-as-file** (2026-05-21) — File > Save Workspace / Open Workspace / Open Recent Workspace + `duo workspace <save|open|list-recent|current|new>` CLI parity. **Originally shipped as "session" terminology, renamed same-day to "workspace"** to avoid collision with Claude session (the agent loop in a terminal). One follow-up filed (FOLLOWUP-023). All 14 smoke-walk items pre-walked via computer-use; cut ready.
+
+**ENH-167 wave (2026-05-21).** Owner kickoff: *"please make a new feature for duo: I want to be able to save a 'session' (file > save session, file > open session); the session is basically the autosave data that duo uses to reload all open tabs when you quit and restart — but we will expose this as a file type, allowing a person to put down one session, and pick up another; we should also have 'open recent'."* AskUserQuestion resolved 4 design questions: (1) autosave shape + name; (2) Replace current + Save / Don't Save / Cancel prompt; (3) `.duo-session` extension at user-picked path; (4) 10-entry Open Recent, prune-missing-on-open. Three new core services (`session-file-service`, `session-history-service`, `active-session-service`). Save Session uses a fresh IPC pair (`SESSION_STATE_SNAPSHOT_REQUEST` / `_RESULT`) to bypass the autosave debounce. Full File menu items + CLI `session` verb with 5 sub-ops + docs synced.
+
+**ENH-167 v1.1 (2026-05-21, post-walk).** Reframed `New Session` from "clear pointer" to "reset workspace": prompt to save, then collapse to one fresh shell terminal at the **live CWD** (`lsof`-based with spawn-CWD fallback) of the previously-frontmost terminal, drop every working-pane tab EXCEPT pinned (file + browser pins both survive via the existing boot-time hooks), clear active-session pointer. Same in-place reset path used for Open Session.
+
+**ENH-167 v1.1.1 (2026-05-21, blank-window fix).** Replaced `app.relaunch() + app.exit(0)` (which kills the Vite dev server in dev mode → blank window) with an in-place reset: close all browser WCVs cleanly + dispose all PTYs + re-arm the BUG-057 pin-restore listener + `webContents.reload()`. Works uniformly in dev and packaged; faster than relaunch (~200ms vs ~2s).
+
+**ENH-167 v1.2 (2026-05-21, stretch).** Two owner-asked additions: (1) **title-bar session-name badge** in the renderer (right of macOS traffic lights), subscribes to a new `SESSION_FILE_ACTIVE_CHANGED` push channel; (2) **autosave mirror** — `SessionStateService.setMirrorHook()` lets main mirror every flush to the active `.duo-session` file (no-op when untitled). The `.duo-session` is now the LIVE session, not a snapshot.
+
+**Pre-walked all 12 smoke-walk items via computer-use** (2026-05-21) — every item PASSes including the v1.1 live-CWD reset (`cd /tmp` → New Session → new terminal lands at `/private/tmp`, not the spawn `/stoop`). The v1.2 additions add 2 more verification items.
 
 ---
 

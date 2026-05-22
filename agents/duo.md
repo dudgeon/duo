@@ -216,6 +216,11 @@ empty.
 | `duo gh-auth` | **ENH-151** — probe `gh auth status`. Returns `{ ghInstalled, authenticated, host, user, ghNotFound }`. Use before `duo clone` on a private repo to know whether auth needs to happen first. |
 | `duo close-tab` | **FOLLOWUP-020** — close the focused working-pane tab (file/canvas/viewer/browser-mode HTML). CLI parity for the ⌘W chord on the working strip. Pinned-tab gating still routes through a `dialog.confirm`. Returns `{ ok }`. |
 | `duo close-terminal-tab [<n>]` | **FOLLOWUP-020** — close a terminal tab. No arg → focused tab; `<n>` (1-indexed) → that specific terminal tab. Returns `{ ok }`. |
+| `duo workspace save [<path>] [--name <n>] [--save-as]` | **ENH-167** — write the open tabs + terminals + browser tabs to a `.duo-workspace` file. `<path>` omitted writes to the active workspace (Save); with `<path>` (Save As). `--name` overrides the human-readable name. Autosave mirror keeps the file in sync — no extra writes needed. Returns `{ path, name }`. |
+| `duo workspace open <path>` | **ENH-167** — load a `.duo-workspace` and **in-place reset Duo** so the saved tabs/terminals replace the current ones. CLI skips the GUI "Save current?" prompt. Returns `{ path, name, switching: true }`. |
+| `duo workspace list-recent` | **ENH-167** — JSON list of recent workspaces, sorted by `lastOpenedAt`, capped at 10, missing files pruned. |
+| `duo workspace current` | **ENH-167** — `{ path, name }` of the loaded workspace, or `null` when untitled. |
+| `duo workspace new` | **ENH-167** — **resets the workspace in-place.** One fresh shell terminal at the live CWD of the previously-frontmost terminal; every working-pane tab dropped except pinned (file + browser pins survive); active-workspace pointer cleared. CLI skips the GUI Save-current prompt. Returns `{ ok }`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

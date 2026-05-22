@@ -205,6 +205,14 @@ export interface NavBridge {
    *  after a CLI-driven mutation (the IPC handler broadcasts itself;
    *  this is the socket-server's path to the same channel). */
   pushNavPinsChanged: (pins: NavPinEntry[]) => void
+  /** ENH-167 — session-as-file CLI parity. Wraps the main-process
+   *  helpers so `duo session <op>` can drive the same Save / Open /
+   *  Open Recent flows as the File menu. */
+  workspaceSave: (opts: { targetPath?: string; name?: string; saveAs?: boolean }) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>
+  workspaceOpen: (path: string) => Promise<{ ok: boolean; path?: string; name?: string; error?: string }>
+  workspaceListRecent: () => Promise<import('../shared/types').WorkspaceHistoryEntry[]>
+  workspaceCurrent: () => Promise<import('../shared/types').ActiveWorkspace | null>
+  workspaceNew: () => Promise<{ ok: boolean }>
 }
 
 export class SocketServer {
@@ -1430,6 +1438,54 @@ export class SocketServer {
           // specific tab.
           const n = args['n'] as number | undefined
           result = this.nav.closeTerminalTab(n)
+          break
+        }
+        case 'workspace': {
+          // ENH-167 — workspace-as-file. Discriminated op union:
+          //   save [path] [--name <name>] — write current state to path
+          //     (or to the active workspace's path if omitted); explicit
+          //     --save-as forces the path argument.
+          //   open <path> — load + in-place reset.
+          //   list-recent — list the Open Recent entries (pruned).
+          //   current — { path, name } of the active workspace, or null.
+          //   new — clear the active-workspace pointer + reset workspace.
+          const op = args['op'] as string | undefined
+          if (op === 'save') {
+            const path = args['path'] as string | undefined
+            const name = args['name'] as string | undefined
+            const saveAs = args['save-as'] === true
+            // CLI save without an explicit --path AND no active workspace
+            // is ambiguous (we'd otherwise pop the GUI Save dialog from
+            // a headless agent context). Require either an active
+            // workspace OR an explicit path.
+            const current = await this.nav.workspaceCurrent()
+            if (!path && !current && !saveAs) {
+              throw new Error('duo workspace save requires either a path or an active workspace. Use `duo workspace save <path> --name <name>` for first save.')
+            }
+            const saveRes = await this.nav.workspaceSave({ targetPath: path, name, saveAs })
+            if (!saveRes.ok) throw new Error(saveRes.error ?? 'save failed')
+            result = { path: saveRes.path, name: saveRes.name }
+          } else if (op === 'open') {
+            const path = args['path'] as string | undefined
+            if (!path) throw new Error('duo workspace open requires a path')
+            const openRes = await this.nav.workspaceOpen(path)
+            if (!openRes.ok) throw new Error(openRes.error ?? 'open failed')
+            // Note: in-place reset means the response generally
+            // reaches the client cleanly; flagged `switching: true`
+            // so CLI consumers know workspace state is being
+            // replaced.
+            result = { path: openRes.path, name: openRes.name, switching: true }
+          } else if (op === 'list-recent') {
+            result = await this.nav.workspaceListRecent()
+          } else if (op === 'current') {
+            result = await this.nav.workspaceCurrent()
+          } else if (op === 'new') {
+            const newRes = await this.nav.workspaceNew()
+            if (!newRes.ok) throw new Error('workspace new failed')
+            result = { ok: true }
+          } else {
+            throw new Error(`Unknown workspace op: ${op}. Expected save|open|list-recent|current|new.`)
+          }
           break
         }
 

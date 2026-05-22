@@ -1496,6 +1496,43 @@ async function main(): Promise<void> {
         out(await send('close-terminal-tab', n !== undefined ? { n } : {}))
         break
       }
+      case 'workspace': {
+        // ENH-167 — workspace-as-file.
+        //   duo workspace save [<path>] [--name <name>] [--save-as]
+        //   duo workspace open <path>
+        //   duo workspace list-recent [--json]
+        //   duo workspace current [--json]
+        //   duo workspace new
+        const sub = rest[0]
+        if (!sub) {
+          die('Usage: duo workspace <save|open|list-recent|current|new> [args]')
+        }
+        if (sub === 'save') {
+          const subRest = rest.slice(1)
+          // First non-flag positional = path (optional).
+          const path = subRest.find(a => !a.startsWith('-'))
+          const name = flagValue(subRest, '--name')
+          const saveAs = subRest.includes('--save-as')
+          const payload: Record<string, unknown> = { op: 'save' }
+          if (path) payload.path = path
+          if (name) payload.name = name
+          if (saveAs) payload['save-as'] = true
+          out(await send('workspace', payload))
+        } else if (sub === 'open') {
+          const path = rest[1]
+          if (!path) die('Usage: duo workspace open <path>')
+          out(await send('workspace', { op: 'open', path }))
+        } else if (sub === 'list-recent') {
+          out(await send('workspace', { op: 'list-recent' }))
+        } else if (sub === 'current') {
+          out(await send('workspace', { op: 'current' }))
+        } else if (sub === 'new') {
+          out(await send('workspace', { op: 'new' }))
+        } else {
+          die(`Unknown workspace sub-op: ${sub}. Expected save|open|list-recent|current|new.`)
+        }
+        break
+      }
 
       default:
         die(`Unknown command: ${cmd}\nRun duo --help for usage`)
@@ -2300,6 +2337,38 @@ COMMANDS
                                   tab. No arg closes the focused
                                   one; <n> (1-indexed) closes that
                                   specific terminal tab.
+
+  workspace <sub> [args]          ENH-167 — workspace-as-file. Round-
+                                  trip the open tabs + terminals +
+                                  browser tabs to a .duo-workspace
+                                  file.
+    workspace save [<path>]         Write current workspace to <path>
+       [--name <name>] [--save-as]  (or the active workspace's path
+                                    if omitted). --name overrides
+                                    the name; --save-as forces
+                                    dialog semantics. CLI without an
+                                    active workspace requires <path>.
+    workspace open <path>           Load <path> and in-place reset
+                                    so the saved tabs/terminals
+                                    replace the current ones. Wraps
+                                    the File > Open Workspace menu
+                                    flow, minus the GUI Save-current
+                                    prompt (agent caller is presumed
+                                    deliberate).
+    workspace list-recent           JSON list of recent workspaces
+                                    ({path, name, savedAt,
+                                    lastOpenedAt}). Pruned for files
+                                    that no longer exist.
+    workspace current               JSON {path, name} of the active
+                                    workspace, or null when untitled.
+    workspace new                   Reset workspace in-place: one
+                                    fresh shell terminal at the live
+                                    CWD of the previously-frontmost
+                                    terminal, every working-pane tab
+                                    dropped except pinned (file +
+                                    browser pins survive), active
+                                    pointer cleared. CLI skips the
+                                    GUI Save-current prompt.
 
 FLAGS
   --version, -v    Print version

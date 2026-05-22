@@ -36,6 +36,8 @@ import type {
   NavPinEntry,
   ExternalRedirectedPush,
   SessionState,
+  WorkspaceHistoryEntry,
+  ActiveWorkspace,
   ClaudePresenceState,
   BrowserFindResult
 } from '../shared/types'
@@ -667,7 +669,36 @@ const api: ElectronAPI = {
 
   sessionState: {
     load: () => ipcRenderer.invoke(IPC.SESSION_STATE_LOAD) as Promise<SessionState>,
-    save: (state) => ipcRenderer.invoke(IPC.SESSION_STATE_SAVE, state) as Promise<void>
+    save: (state) => ipcRenderer.invoke(IPC.SESSION_STATE_SAVE, state) as Promise<void>,
+    // ENH-167 — subscribe to main's snapshot-request push; reply with
+    // the freshly-built SessionState. Used by Save Session to bypass
+    // the autosave debounce.
+    onSnapshotRequest: (cb) => {
+      const handler = (_: IpcRendererEvent, payload: { reqId: string }) => cb(payload.reqId)
+      ipcRenderer.on(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.SESSION_STATE_SNAPSHOT_REQUEST, handler)
+    },
+    snapshotReply: (payload) => ipcRenderer.send(IPC.SESSION_STATE_SNAPSHOT_RESULT, payload)
+  },
+
+  // ENH-167 — workspace-as-file menu actions (renderer triggers from
+  // the title-bar menu or future File menu shortcuts). Save / open /
+  // open-recent / list-recent / active / new / clear-recent.
+  workspaceFile: {
+    save: (opts?: { saveAs?: boolean }) => ipcRenderer.invoke(IPC.WORKSPACE_FILE_SAVE, opts ?? {}) as Promise<{ ok: boolean; path?: string; name?: string; error?: string }>,
+    open: () => ipcRenderer.invoke(IPC.WORKSPACE_FILE_OPEN) as Promise<{ ok: boolean; path?: string; name?: string; error?: string }>,
+    openRecent: (path: string) => ipcRenderer.invoke(IPC.WORKSPACE_FILE_OPEN_RECENT, { path }) as Promise<{ ok: boolean; path?: string; name?: string; error?: string }>,
+    listRecent: () => ipcRenderer.invoke(IPC.WORKSPACE_FILE_LIST_RECENT) as Promise<WorkspaceHistoryEntry[]>,
+    active: () => ipcRenderer.invoke(IPC.WORKSPACE_FILE_ACTIVE) as Promise<ActiveWorkspace | null>,
+    newWorkspace: () => ipcRenderer.invoke(IPC.WORKSPACE_FILE_NEW) as Promise<{ ok: boolean }>,
+    clearRecent: () => ipcRenderer.invoke(IPC.WORKSPACE_FILE_CLEAR_RECENT) as Promise<{ ok: boolean }>,
+    // ENH-167 v1.2 — push when activeWorkspaceService changes.
+    // Drives the in-app titlebar badge.
+    onActiveChanged: (cb) => {
+      const handler = (_: IpcRendererEvent, active: ActiveWorkspace | null) => cb(active)
+      ipcRenderer.on(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, handler)
+      return () => { ipcRenderer.removeListener(IPC.WORKSPACE_FILE_ACTIVE_CHANGED, handler) }
+    }
   },
 
   install: {

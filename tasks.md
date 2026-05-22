@@ -230,6 +230,78 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-167: Workspace-as-file (Save / Open / Open Recent)
+
+> **Rename note (2026-05-21):** Originally shipped as "session" terminology. Same-day owner directive: rename to **"workspace"** to avoid collision with Claude session (the agent loop inside a terminal). All public surfaces now read "workspace" — File menu, CLI verb (`duo workspace …`), file extension (`.duo-workspace`), types (`WorkspaceFile`, `ActiveWorkspace`), services (`WorkspaceFileService`, etc.). Historic owner-quotes below preserve the original "session" wording. See `docs/prd/enh-167-workspace-as-file.md` § Naming for the design call.
+
+
+**Status:** ⏳ **Filed + implemented 2026-05-21** (this session, owner ask via natural-language prompt).
+
+**Headline.** Round-trip the running Duo workspace (terminals at CWDs, file tabs, browser tabs, navigator path, split state) to a user-saved `.duo-session` file. Exposes the autosave-already-shipped restore mechanism (Stage 21c Phase 2) as a first-class file type — user "puts down one session and picks up another."
+
+**v1.1 update (same-day 2026-05-21):** owner kickoff after walking the smoke page — *"new session should actually clear the current session (with warning if current session unsaved); clear the terminal tabs (only one terminal tab remains w current CWD from front most terminal tab pre new session), all canvas tabs gone except pinned"*. Reframes `New Session` from "clear active pointer" to "reset workspace to a clean state". v1.1 decisions (4 owner AUQs locked): (1) prompt buttons Save / Don't Save / Cancel (consistent with Open Session); (2) prompt fires whenever any terminal or file tab is open; (3) surviving terminal is always a shell (no claude auto-spawn); (4) pinned browser tabs survive alongside pinned file tabs.
+
+**v1.2 update (same-day 2026-05-21, post-walk):** owner ask — *"for a saved session, adding the session name to the top bar of the app (and just blank if file new session but no save)…auto save should continue to function, updating the current session if saved or unsaved"*. Two stretch features:
+
+1. **Title-bar session-name badge** in the renderer (Duo's `titleBarStyle: 'hiddenInset'` hides the OS title, so the renderer paints its own). Badge sits right of the macOS traffic lights ([App.tsx:2779](renderer/App.tsx:2779) titlebar block). Subscribes to a new `SESSION_FILE_ACTIVE_CHANGED` push channel — main pushes whenever `activeSessionService.set/clear` fires, so the badge stays live across Save / Save As / Open / Open Recent / New Session without polling.
+2. **Autosave mirror to `.duo-session`** — extended `SessionStateService` with an optional `mirrorHook` that runs inside `flush()` (so it's debounced by the same 250 ms as the primary session-state.json write). Main wires the hook to `sessionFileService.save(active.path, active.name, state, version)` if there's an active session, no-op when untitled. Result: every workspace change autosaves to BOTH `~/.claude/duo/session-state.json` AND the loaded `.duo-session` file. Owner-stated semantic: the file IS the live session, not a snapshot of "last manual save".
+
+**Files modified for v1.2 (5):** [shared/types.ts](shared/types.ts) (new `SESSION_FILE_ACTIVE_CHANGED` IPC channel), [shared/host-api.ts](shared/host-api.ts) (`onActiveChanged` on `ElectronSessionFileAPI`), [electron/preload.ts](electron/preload.ts) (subscribe API), [electron/main.ts](electron/main.ts) (push from `applyWindowTitle()`, mirror hook wired in service-singleton block), [core/session-state-service.ts](core/session-state-service.ts) (mirror hook), [renderer/App.tsx](renderer/App.tsx) (state + subscribe + badge in titlebar).
+
+**Shape of v1 (owner-confirmed via AskUserQuestion, 4 answers locked):**
+
+| Q | Answer |
+|---|---|
+| 1 — Contents of the session file | **Autosave shape + session name.** Same `SessionState` envelope as `~/.claude/duo/session-state.json` plus a `name` field (defaults to filename sans `.duo-session`). |
+| 2 — What happens to current tabs on Open | **Replace current session entirely**, but prompt to Save current first (Save / Don't Save / Cancel modal via `dialog.showMessageBox`). |
+| 3 — File location + extension | **User picks anywhere** via standard Save / Open dialog. Extension `.duo-session`. |
+| 4 — Open Recent | **10 entries**, prune-missing-on-open (entries whose file no longer exists are silently dropped). |
+
+**Architecture.**
+
+- **Three new core services** (mirror existing patterns):
+  - [`core/session-file-service.ts`](core/session-file-service.ts) — atomic save (tmp + rename) and defensive load of a `.duo-session` envelope (schemaVersion + name + savedAt + appVersion + state). Same defensive field-by-field validation as `SessionStateService.load()`.
+  - [`core/session-history-service.ts`](core/session-history-service.ts) — Open Recent backing store at `~/.claude/duo/session-history.json`. Lazy-load, atomic write, LRU by `lastOpenedAt`, capped at 10. Mirrors `BrowserHistoryService` to the bit.
+  - [`core/active-session-service.ts`](core/active-session-service.ts) — pointer at `~/.claude/duo/active-session.json` to the currently-loaded session. Read at boot so the window title reflects the session name.
+- **Open Session = `app.relaunch()`.** When the user picks a `.duo-session`, main writes its `state` to the autosave path + the active-session pointer, then `app.relaunch()` + `app.exit(0)`. The existing boot-time restore in [`renderer/App.tsx:492`](renderer/App.tsx:492) re-runs against the new state — no in-place reset machinery needed. Clean and unambiguous; macOS apps switch workspaces this way regularly.
+- **Save Session bypasses the autosave debounce.** New IPC pair `SESSION_STATE_SNAPSHOT_REQUEST` (main → renderer) / `SESSION_STATE_SNAPSHOT_RESULT` (renderer → main) lets main capture the live state without waiting for the 500ms + 250ms debounce. Renderer extracts a `buildSessionSnapshot()` closure shared with the autosave effect.
+- **File menu items** (`electron/main.ts` § installAppMenu): `New Session`, `Save Session…`, `Save Session As…`, `Open Session…`, `Open Recent Session ▸ {recent...} / — / Clear Recent Sessions`, separator, then existing `Clone from GitHub…`. No accelerators (avoid clash with editor ⌘S / browser-pane ⌘O).
+- **Window title.** `Duo — <name>` when a session is loaded, bare `Duo` when untitled. Set via `mainWindow.setTitle()` on boot + after every save/open/new.
+- **CLI parity.** New `session` verb with discriminated ops:
+  - `duo session save [<path>] [--name <name>] [--save-as]`
+  - `duo session open <path>` (relaunches Duo)
+  - `duo session list-recent` (JSON)
+  - `duo session current` (JSON or null)
+  - `duo session new` (clear active pointer; no relaunch)
+
+**Plumbing checklist (touched all 8):**
+
+1. [`shared/types.ts`](shared/types.ts) — added `SessionFile` / `SessionFileOp` / `SessionHistoryEntry` / `ActiveSession` types + IPC channels (`SESSION_FILE_SAVE`, `SESSION_FILE_OPEN`, `SESSION_FILE_OPEN_RECENT`, `SESSION_FILE_LIST_RECENT`, `SESSION_FILE_ACTIVE`, `SESSION_FILE_NEW`, `SESSION_FILE_CLEAR_RECENT`, `SESSION_STATE_SNAPSHOT_REQUEST`, `SESSION_STATE_SNAPSHOT_RESULT`) + `DuoCommandName` `| 'session'`.
+2. [`electron/preload.ts`](electron/preload.ts) — `sessionState.onSnapshotRequest` / `snapshotReply` + new `sessionFile` API (save/open/openRecent/listRecent/active/newSession/clearRecent).
+3. [`electron/main.ts`](electron/main.ts) — service singletons, IPC handlers, snapshot reply handler, dispatch helper, `saveSessionFile()` / `openSessionFile()` / `openSessionFileWithDialog()` / `promptToSaveCurrentSession()` / `applyWindowTitle()` / `rebuildAppMenu()` / `buildRecentSessionsSubmenu()`, NavBridge methods, before-quit flush, File menu items.
+4. [`core/socket-server.ts`](core/socket-server.ts) — new `case 'session':` with op union dispatch + NavBridge interface extension.
+5. [`cli/duo.ts`](cli/duo.ts) — `case 'session':` verb + printHelp entry. Rebuilt binary (`npm run build:cli`).
+6. [`skill/SKILL.md`](skill/SKILL.md) — five new rows in the verb cheat-sheet. Synced via `npm run sync:claude`.
+7. [`agents/duo.md`](agents/duo.md) — same five rows. Synced.
+8. [`docs/CLI-COVERAGE.md`](docs/CLI-COVERAGE.md) — five new rows in the inventory.
+
+**Files added (3):** `core/session-file-service.ts`, `core/session-history-service.ts`, `core/active-session-service.ts`. **Files modified (7):** `shared/types.ts`, `shared/host-api.ts`, `electron/preload.ts`, `electron/main.ts`, `core/socket-server.ts`, `cli/duo.ts`, `renderer/App.tsx`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md`, `tasks.md`, `docs/dev/active-sprint.md`.
+
+**Smoke checks owed:**
+1. New Session menu item works — closes any active session pointer, title returns to bare "Duo".
+2. Save Session… for untitled session → dialog appears, user picks path, file written, title updates to `Duo — <name>`, Recent submenu picks up entry.
+3. Save Session… for titled session → silently writes to current path, no dialog.
+4. Save Session As… for titled session → always shows dialog.
+5. Open Session… → prompts to save current → on Save proceeds, on Don't Save proceeds, on Cancel aborts.
+6. Open Session… loads tabs and terminals exactly as saved after relaunch.
+7. Open Recent submenu renders the 10 most-recent entries; clicking one drives Open with the prompt-to-save modal.
+8. Deleting a `.duo-session` then clicking its Open Recent entry surfaces a clean error + removes from history.
+9. `duo session save </tmp/foo.duo-session>` from a fresh untitled Duo → file written; subsequent `duo session current` returns the right `{ path, name }`.
+10. `duo session open </tmp/foo.duo-session>` → app relaunches into the saved state.
+11. `duo session list-recent` and `duo session new` round-trip cleanly.
+
+---
+
 ### ENH-166 v2: Interleave comment + tracked-changes items by document position
 
 **Status:** ⏳ **Filed + implemented 2026-05-19** (this session, post-v1-feedback). Owner feedback after walking v1: *"this is close, but you have just stacked the comment and track changes rails — this is a bad UX; I specifically said that comments and tracked changes should coexist in a single rail, e.g. [comment 1, addition 1, comment 2, deletion 1, comment 3], in the order that they appear in the document."*
