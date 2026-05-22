@@ -19,7 +19,17 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.5 cut 2026-05-22.
+> Empty — v0.7.6 cut 2026-05-22.
+
+## [0.7.6] — 2026-05-22
+
+### Fixed
+
+- **BUG-122 hypothesis 6** — Save-pre-reconcile no longer fires a false-positive "file changed on disk" banner on every save of files containing literal `<`, `>`, `&`, `"`, or `'` characters (HTML comments, technical docs mentioning HTML tags inline). tiptap-markdown escapes these in raw text on serialize (`<!--` → `&lt;!--`, `-->` → `--&gt;`), creating a baseline that diverges from disk on the first save. `normalizeForEchoCompare` now decodes the five named HTML entities on both sides before the compare. Caught via fresh repro on `docs/about-duo.md`. 5 new vitest tests; 20/20 in `conflictDiagnostic.test.ts` passing.
+
+### Added
+
+- **ENH-168** — Workspace switcher design playground at [`docs/research/workspace-switcher.html`](docs/research/workspace-switcher.html). Five candidate UI positions (title-bar dropdown / horizontal tabs / left vertical rail / floating dock / ⌘K palette) with inline HTML+CSS mockups, four owner-decision cards (Position / Switch gesture / Identification / Create gesture), and a copy-decisions footer. Implementation gated on owner walk + decisions.
 
 ## [0.7.5] — 2026-05-22
 

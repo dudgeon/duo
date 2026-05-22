@@ -18,6 +18,16 @@
 
 ---
 
+## 2026-05-22 (v0.7.6 cut — BUG-122 hypothesis 6 + workspace switcher playground)
+
+**v0.7.6 cut.** Sprint-planning conversation produced two parallel threads. Thread 1: BUG-122 caught a new hypothesis (HTML-entity escape on tiptap-markdown round-trip) — `docs/about-duo.md` triggered it because my v0.7.4 edit added an HTML comment, then the owner opened the file in the editor and every save fired the banner. Diagnostic log captured the diff cleanly (`-->` vs `--&gt;`). Fix: extend `normalizeForEchoCompare` to decode the five named HTML entities on both sides; 5 new vitest tests; 20/20 passing.
+
+Thread 2: workspace switcher design playground filed at `docs/research/workspace-switcher.html` per owner ask. Five candidate UI positions with HTML+CSS mockups (title-bar dropdown, horizontal tabs, left vertical rail, floating dock, ⌘K palette), four owner-decision cards (Position / Switch gesture / Identification / Create gesture), copy-decisions footer. ENH-168 gates implementation on owner walk-back.
+
+Filed FOLLOWUP-024 fix in v0.7.5 as a parallel observation — block-image paste already shipped.
+
+---
+
 ## 2026-05-22 (v0.7.5 cut — block-image paste + About Duo)
 
 **v0.7.5 cut.** Same-session follow-up to v0.7.4. Authoring `docs/about-duo.md` in Duo's markdown editor surfaced a long-standing paste-image bug: pasted images landed as inline TipTap nodes at the cursor, producing markdown like `![](foo.png)text` on a single line. GitHub rendered the image and text running together — visibly broken on the published doc.

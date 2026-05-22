@@ -21,7 +21,30 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.5 cut 2026-05-22)*
+> *(empty — v0.7.6 cut 2026-05-22)*
+
+---
+
+## v0.7.6 — 2026-05-22 — Conflict-banner false-positive on HTML-entity round-trip + workspace switcher playground
+
+**Why this version lands here.** Caught a fresh BUG-122 repro on the same `docs/about-duo.md` that drove v0.7.5. After v0.7.5 cut, owner opened the file in Duo's editor for further work, hit save, got the "file changed on disk" banner. Pulled `~/.claude/duo/logs/last-conflict.log`:
+
+```
+diskTail:     "Browser), CLI — coming soon. -->"
+baselineTail: "Browser), CLI — coming soon. --&gt;"
+firstDiffOffset: 433
+```
+
+**Root cause confirmed (hypothesis 6, new entry to the BUG-122 family).** tiptap-markdown's serializer escapes `<`, `>`, `&`, `"`, and `'` in raw text on round-trip. The HTML comment `<!-- ... -->` I added at v0.7.5 cut time became `&lt;!-- ... --&gt;` after the editor loaded and re-serialized. From then on, every save diff'd disk (literal) vs baseline (escaped) and fired the banner.
+
+**Fix.** Extended `normalizeForEchoCompare` to decode the five named entities on both sides before the compare. Same pattern as the v0.7.2 fix for hypothesis 4 (soft-break ≡ space): make the compare tolerant of round-trip-stable cosmetic differences so the banner only fires on real divergence. Order matters — `&amp;` decodes last so doubly-encoded strings (`&amp;lt;`) survive one decode level. 5 new vitest tests; the regression class is now covered.
+
+**Also shipped.** Workspace switcher design playground at [`docs/research/workspace-switcher.html`](research/workspace-switcher.html) — owner's response to "talk through options for the next sprint" included *"workspace sidebar switcher (Arc-style), very interested in this, please make me an html playground with some options (incl mockups)."* Five candidate positions (title-bar dropdown, horizontal tabs, left vertical rail, floating dock, ⌘K palette) with inline HTML+CSS mini-Duo mockups. Four owner-decision cards (Position / Switch gesture / Identification / Create gesture) + deferred section listing cross-machine path rewriting, multi-tag categories, save-to-GitHub gesture, auto-workspace-by-directory. Implementation gated on owner walk.
+
+**What this is and isn't.**
+
+- **Is**: a quality-fix release plus the v2 workspace design gate. Closes a recurring annoyance (BUG-122 has now had four hypotheses confirmed across multiple sprints — v0.6.15, v0.7.2, v0.7.6) and queues up the next big design conversation.
+- **Isn't**: implementation of workspace v2. That's blocked on the playground decisions.
 
 ---
 
