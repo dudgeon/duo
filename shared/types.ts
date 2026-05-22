@@ -230,6 +230,11 @@ export type DuoCommandName =
   // Naming: "workspace" (not "session") to avoid collision with
   // Claude session terminology (the agent loop inside a terminal).
   | 'workspace'
+  // ENH-172 (Sprint 20 / v0.7.7) — surface the existing showDotfiles
+  // navigator-local state as a first-class CLI verb. Bare reads the
+  // current value; `show` / `hide` / `toggle` writes. View-menu
+  // checkbox + ⌘⇧. chord are the GUI counterparts.
+  | 'hidden-files'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -763,6 +768,13 @@ export interface NavStateSnapshot {
   selectedPaths?: { path: string; kind: 'file' | 'folder' }[]
   expanded: string[]                    // absolute paths
   pinned: boolean
+  /** ENH-172 (Sprint 20 / v0.7.7) — current `showDotfiles` navigator
+   *  toggle state. False by default; flipped via View → Show Hidden
+   *  Files, the ⌘⇧. chord, or `duo hidden-files show|toggle`. The
+   *  `.claude` / `.obsidian` carve-outs in FileTree.tsx § shouldShow
+   *  are unaffected — they remain always-visible regardless of this
+   *  flag. Optional for back-compat with older snapshot consumers. */
+  showDotfiles?: boolean
 }
 
 // Stage 11 § D29a — Renderer pushes the active editor's selection state so
@@ -1559,6 +1571,15 @@ export const IPC = {
   // Stage 9 — cozy mode
   COZY_TOGGLE: 'cozy:toggle',            // main → renderer (menu clicked)
   COZY_STATE_PUSH: 'cozy:state-push',    // renderer → main (update menu checkmark)
+
+  // ENH-172 (Sprint 20 / v0.7.7) — show/hide hidden files in the
+  // navigator. Main → renderer carries the new value (true|false|toggle).
+  // Renderer applies via useNavigator's setShowDotfiles + persists to
+  // localStorage. The View-menu checkmark stays in sync via the
+  // existing NAV_STATE_PUSH channel (showDotfiles is a field in
+  // NavStateSnapshot since ENH-172). No dedicated state-push channel
+  // needed.
+  HIDDEN_FILES_SET: 'hidden-files:set',  // main → renderer ({ value: boolean | 'toggle' })
 
   // Cmd-shortcuts pressed while the browser WebContentsView has focus.
   // Forwarded so the renderer can process them identically to native

@@ -883,9 +883,14 @@ export function App() {
       selected: nav.state.selected,
       selectedPaths,
       expanded: [...nav.state.expanded],
-      pinned: nav.state.pinned
+      pinned: nav.state.pinned,
+      // ENH-172 — surface the showDotfiles flag in nav-state for
+      // CLI consumers (`duo nav-state` returns it) AND for the
+      // View → Show Hidden Files menu-checkmark sync (main reads
+      // this off the snapshot in the NAV_STATE_PUSH handler).
+      showDotfiles: nav.state.showDotfiles
     })
-  }, [nav.state.cwd, nav.state.selected, nav.state.selectedItems, nav.state.expanded, nav.state.pinned])
+  }, [nav.state.cwd, nav.state.selected, nav.state.selectedItems, nav.state.expanded, nav.state.pinned, nav.state.showDotfiles])
 
   // ── File-open from the navigator ───────────────────────────────────────────
 
@@ -2317,6 +2322,12 @@ export function App() {
     deleteCurrentFile,
     // Sprint 11 ENH-096 B.4 — ⌘O opens the vault quick switcher.
     openVaultQuickSwitcher: () => setVaultQuickSwitcherOpen(true),
+    // ENH-172 (Sprint 20) — ⌘⇧. toggles show-hidden-files. The View
+    // menu accelerator owns this at the app-menu level; this is the
+    // renderer-side fallback. nav.toggleShowDotfiles flips the hook
+    // state, the localStorage-persist effect fires, and the
+    // NAV_STATE_PUSH effect carries the new value back to main.
+    toggleHiddenFiles: nav.actions.toggleShowDotfiles,
     // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
     // aux slot; ⌘⇧\ promotes aux back to main (closes the split AND
     // keeps the file open — mirrors the ⇤ button in the aux header).

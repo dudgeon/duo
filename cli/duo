@@ -523,6 +523,18 @@ async function main() {
         }
         break;
       }
+      case "hidden-files": {
+        const mode = rest[0];
+        if (mode === void 0) {
+          out(await send("hidden-files"));
+        } else {
+          if (mode !== "show" && mode !== "hide" && mode !== "toggle") {
+            die("Usage: duo hidden-files [show|hide|toggle]");
+          }
+          out(await send("hidden-files", { mode }));
+        }
+        break;
+      }
       case "focus-pane": {
         const target = rest[0];
         if (target !== "terminal" && target !== "main" && target !== "aux") {
@@ -1653,6 +1665,13 @@ COMMANDS
                                   web). 'submit' disables the override
                                   (xterm passthrough). No arg = print
                                   state.
+  hidden-files [show|hide|toggle] ENH-172 (Sprint 20 / v0.7.7) \u2014 show or
+                                  hide dotfiles in the navigator. CLI
+                                  parity with View \u2192 Show Hidden Files
+                                  (\u2318\u21E7.). Persists in localStorage.
+                                  .claude + .obsidian are always
+                                  visible regardless. No arg = print
+                                  { showDotfiles: boolean }.
   focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) \u2014 jump keyboard
                                   focus to the named pane. CLI parity
                                   with the \u2318\u2325L (terminal) / \u2318\u2325;

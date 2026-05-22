@@ -121,7 +121,11 @@ let navState: NavStateSnapshot = {
   cwd: process.env.HOME ?? '/',
   selected: null,
   expanded: [],
-  pinned: false
+  pinned: false,
+  // ENH-172 — showDotfiles defaults to false; gets overwritten by
+  // the first NAV_STATE_PUSH from the renderer (which reads the
+  // persisted value out of localStorage).
+  showDotfiles: false
 }
 
 // Stage 11 \u00a7 D29a — most recent selection snapshot from the active editor.
@@ -310,6 +314,11 @@ const installedPacksService = new InstalledPacksService()
 let cozyActiveTab = false
 let cozyMenuItemId: string | null = null
 
+// ENH-172 (Sprint 20) — the View → Show Hidden Files checkmark
+// reflects `navState.showDotfiles` (renderer-authoritative, pushed
+// via NAV_STATE_PUSH). No separate cache needed — read from navState.
+let hiddenFilesMenuItemId: string | null = null
+
 async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -457,6 +466,8 @@ async function createWindow(): Promise<void> {
     getClaudeKeyPrefs: getClaudeKeyPrefsState,
     setClaudeReturn: setClaudeReturnMode,
     setShiftReturn: setShiftReturnMode,
+    // ENH-172 (Sprint 20) — show/hide hidden-files toggle.
+    setHiddenFiles: setHiddenFiles,
     setSplit: setSplit,
     setLayout3wayEven: setLayout3wayEven,
     queryRendererDom: queryRendererDom,
@@ -1525,6 +1536,15 @@ function setupIPC(): void {
 
   ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
     navState = snapshot
+    // ENH-172 — keep the View → Show Hidden Files checkmark in sync
+    // with the authoritative renderer state. The renderer pushes
+    // NAV_STATE_PUSH on every nav-state change (including showDotfiles
+    // flips), so this is the same channel the menu checkmark rides.
+    const menu = Menu.getApplicationMenu()
+    if (menu && hiddenFilesMenuItemId) {
+      const item = menu.getMenuItemById(hiddenFilesMenuItemId)
+      if (item) item.checked = snapshot.showDotfiles === true
+    }
   })
 
   // FOLLOWUP-025 v2 — renderer-initiated Clone modal trigger
@@ -1718,6 +1738,7 @@ function setupIPC(): void {
 function installAppMenu(): void {
   const isMac = process.platform === 'darwin'
   cozyMenuItemId = 'cozy-toggle'
+  hiddenFilesMenuItemId = 'hidden-files-toggle'
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -1844,6 +1865,23 @@ function installAppMenu(): void {
             // Renderer flips authoritative state, then echoes back via
             // COZY_STATE_PUSH so the checkmark tracks the truth.
             mainWindow?.webContents.send(IPC.COZY_TOGGLE)
+          }
+        },
+        {
+          // ENH-172 (Sprint 20 / v0.7.7) — show/hide hidden files in
+          // the navigator. Renderer is the source of truth; the
+          // checkmark is reconciled from NAV_STATE_PUSH (see the
+          // handler above). Accelerator ⌘⇧. matches the Finder /
+          // VS Code convention. `.claude` + `.obsidian` are always
+          // visible regardless of this toggle (see FileTree §
+          // shouldShow carve-outs).
+          id: hiddenFilesMenuItemId,
+          label: 'Show Hidden Files',
+          type: 'checkbox',
+          checked: navState.showDotfiles === true,
+          accelerator: 'CmdOrCtrl+Shift+.',
+          click: () => {
+            setHiddenFiles('toggle')
           }
         },
         {
@@ -2508,6 +2546,22 @@ export function setShiftReturnMode(mode: import('../shared/types').ShiftReturnMo
     return { ok: false, error: 'Duo window not ready' }
   }
   mainWindow.webContents.send(IPC.CLAUDE_KEY_PREFS_SET, { shiftReturn: mode })
+  return { ok: true }
+}
+
+// ENH-172 (Sprint 20 / v0.7.7) — `duo hidden-files [show|hide|toggle]`
+// CLI verb backing AND the View → Show Hidden Files menu click. Pushes
+// the new value to the renderer; renderer's useNavigator hook updates
+// localStorage + emits a fresh NAV_STATE_PUSH (which our handler uses
+// to refresh the menu checkmark).
+export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?: string } {
+  if (value !== true && value !== false && value !== 'toggle') {
+    return { ok: false, error: `Invalid hidden-files value: ${String(value)}. Expected true|false|'toggle'.` }
+  }
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.HIDDEN_FILES_SET, { value })
   return { ok: true }
 }
 

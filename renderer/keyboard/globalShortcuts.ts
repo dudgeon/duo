@@ -150,6 +150,14 @@ export type ShortcutId =
   // + key attrs) to the active terminal. ESC exits without picking.
   // CLI parity: `duo inspect [--on|--off]`.
   | 'toggleInspectMode'
+  // ENH-172 (Sprint 20 / v0.7.7) — ⌘⇧. toggles the navigator's
+  // showDotfiles flag (Finder / VS Code convention). The same View
+  // menu accelerator owns the chord at the app-menu level, so this
+  // matcher is a backup for cases where the menu accelerator isn't
+  // reached (e.g. WebContentsView focus). Uses `e.code === 'Period'`
+  // — Shift+. produces '>' as e.key on US layouts, so the layout-
+  // dependent path would miss it (same gotcha as ⌘⇧A `KeyA`).
+  | 'toggleHiddenFiles'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -411,6 +419,19 @@ export function matchGlobalShortcut(
   // combo so the chord reaches the renderer even when WCV has focus.
   if (meta && shift && !alt && !ctrl && e.code === 'KeyC') {
     return { id: 'toggleInspectMode' }
+  }
+
+  // ENH-172 (Sprint 20 / v0.7.7) — ⌘⇧. toggles show/hide hidden
+  // files in the navigator (Finder / VS Code convention). Uses
+  // `e.code === 'Period'` for layout-safety — Shift+. produces '>'
+  // as e.key on US layouts. Note the View menu also binds this
+  // accelerator at the app-menu level (electron/main.ts), so most
+  // keystrokes are intercepted there before reaching this matcher;
+  // this is the backup for cases where the menu doesn't see the
+  // chord (WebContentsView focus paths, future renderer-only
+  // dispatch paths).
+  if (meta && shift && !alt && !ctrl && e.code === 'Period') {
+    return { id: 'toggleHiddenFiles' }
   }
 
   return null

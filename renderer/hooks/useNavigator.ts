@@ -19,6 +19,9 @@ import type { DirEntry } from '@shared/types'
 const LS_KEY_CWD = 'duo.nav.cwd'
 const LS_KEY_EXPANDED = 'duo.nav.expanded'
 const LS_KEY_PINNED = 'duo.nav.pinned'
+// ENH-172 (Sprint 20) — persist the show-hidden-files toggle so the
+// View menu checkbox / ⌘⇧. chord / CLI verb survive relaunches.
+const LS_KEY_SHOW_DOTFILES = 'duo.nav.showDotfiles'
 
 export interface NavigatorState {
   cwd: string
@@ -97,7 +100,10 @@ export function useNavigator(initialCwd: string) {
   const [pinned, setPinned] = useState<boolean>(() => {
     try { return localStorage.getItem(LS_KEY_PINNED) === '1' } catch { return false }
   })
-  const [showDotfiles, setShowDotfiles] = useState<boolean>(false)
+  const [showDotfiles, setShowDotfiles] = useState<boolean>(() => {
+    // ENH-172 — hydrate from localStorage; '1' = show, anything else = hide.
+    try { return localStorage.getItem(LS_KEY_SHOW_DOTFILES) === '1' } catch { return false }
+  })
   const [listings, setListings] = useState<NavigatorState['listings']>(() => new Map())
 
   // Persist whenever relevant state changes. Debounce is minimal because
@@ -111,6 +117,22 @@ export function useNavigator(initialCwd: string) {
   useEffect(() => {
     try { localStorage.setItem(LS_KEY_PINNED, pinned ? '1' : '0') } catch { /* ignore */ }
   }, [pinned])
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY_SHOW_DOTFILES, showDotfiles ? '1' : '0') } catch { /* ignore */ }
+  }, [showDotfiles])
+
+  // ENH-172 — subscribe to main-process pushes from the View menu
+  // checkbox and `duo hidden-files` CLI verb. 'toggle' flips current.
+  useEffect(() => {
+    if (!window.electron?.hiddenFiles) return
+    return window.electron.hiddenFiles.onSet(value => {
+      if (value === 'toggle') {
+        setShowDotfiles(s => !s)
+      } else {
+        setShowDotfiles(value === true)
+      }
+    })
+  }, [])
 
   // Shared helper that (lazily) fetches a directory listing and caches it.
   const ensureListing = useCallback((path: string) => {

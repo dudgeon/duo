@@ -77,6 +77,13 @@ interface Options {
    *  a vault, the overlay still opens but renders an empty-state
    *  hint pointing at the vault requirement. */
   openVaultQuickSwitcher?: () => void
+  /** ENH-172 (Sprint 20) — ⌘⇧. toggles the navigator's showDotfiles
+   *  flag. App.tsx wires this to `nav.toggleShowDotfiles()`. The
+   *  View → Show Hidden Files menu accelerator owns this chord
+   *  at the app-menu level (electron/main.ts), so this hook
+   *  handler is the backup for cases where the menu accelerator
+   *  isn't reached (WebContentsView focus path). */
+  toggleHiddenFiles?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -200,6 +207,13 @@ export function useKeyboardShortcuts(opts: Options) {
           // BROWSER_INSPECT_MODE back so any UI subscriber (toolbar
           // toggle button when it lands) updates.
           window.electron.browser.setInspectMode('toggle')
+          return
+        }
+        case 'toggleHiddenFiles': {
+          // ENH-172 (Sprint 20) — ⌘⇧. flips showDotfiles. The View
+          // menu accelerator owns this at the app-menu level; this
+          // handler covers the focus paths the menu doesn't reach.
+          opts.toggleHiddenFiles?.()
           return
         }
         case 'startComment': {

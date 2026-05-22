@@ -100,6 +100,11 @@ export interface NavBridge {
   setClaudeReturn: (mode: ClaudeReturnMode) => { ok: boolean; error?: string }
   /** Sprint 16 / v0.6.15 — CLI-driven Shift+Return override. */
   setShiftReturn: (mode: ShiftReturnMode) => { ok: boolean; error?: string }
+  /** ENH-172 (Sprint 20 / v0.7.7) — CLI-driven show/hide hidden-files
+   *  toggle. `value` is true (show) / false (hide) / 'toggle' (flip).
+   *  Reads the current value out of `getState().showDotfiles` rather
+   *  than a dedicated getter — the renderer pushes nav-state already. */
+  setHiddenFiles: (value: boolean | 'toggle') => { ok: boolean; error?: string }
   /** ENH-014 — CLI-driven split-pane percentage (clamped 20–80). */
   setSplit: (pct: number) => { ok: boolean; pct?: number; error?: string }
   /** ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
@@ -1054,6 +1059,34 @@ export class SocketServer {
             const setResult = this.nav.setShiftReturn(mode as ShiftReturnMode)
             if (!setResult.ok) throw new Error(setResult.error ?? 'shift-return set failed')
             result = { ...this.nav.getClaudeKeyPrefs(), shiftReturn: mode }
+          }
+          break
+        }
+        case 'hidden-files': {
+          // ENH-172 (Sprint 20 / v0.7.7) — `duo hidden-files [show|hide|toggle]`.
+          // Bare reads the current value (from cached NavStateSnapshot);
+          // arg writes. The `.claude` / `.obsidian` always-visible
+          // carve-outs in FileTree's shouldShow() function are NOT
+          // controlled by this flag — they remain visible regardless.
+          const mode = args['mode'] as string | undefined
+          const current = this.nav.getState().showDotfiles === true
+          if (mode === undefined) {
+            result = { showDotfiles: current }
+          } else {
+            let target: boolean | 'toggle'
+            if (mode === 'show') target = true
+            else if (mode === 'hide') target = false
+            else if (mode === 'toggle') target = 'toggle'
+            else throw new Error('hidden-files mode must be show|hide|toggle')
+            const setResult = this.nav.setHiddenFiles(target)
+            if (!setResult.ok) throw new Error(setResult.error ?? 'hidden-files set failed')
+            // Resolve final value: for 'toggle' the new value is the
+            // inverse of the cached current. For show/hide, it's the
+            // explicit target. The renderer's NAV_STATE_PUSH echo
+            // updates the cache shortly after, but reporting the
+            // intended target gives the CLI caller a deterministic answer.
+            const newValue = target === 'toggle' ? !current : target
+            result = { showDotfiles: newValue }
           }
           break
         }

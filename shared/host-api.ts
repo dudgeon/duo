@@ -415,6 +415,19 @@ export interface ElectronCozyAPI {
   pushState: (cozy: boolean) => void
 }
 
+// ENH-172 (Sprint 20 / v0.7.7) — show/hide hidden files toggle. Main
+// fires `onSet` when the View → Show Hidden Files menu is clicked OR
+// when the `duo hidden-files` CLI verb writes. Renderer subscribes,
+// applies via useNavigator's setShowDotfiles, persists to localStorage,
+// and pushes nav-state. Main reads `showDotfiles` from the next
+// NAV_STATE_PUSH to refresh the menu checkmark.
+export interface ElectronHiddenFilesAPI {
+  /** Subscribe to View → Show Hidden Files clicks and CLI-driven sets.
+   *  `value` is true (show) / false (hide) / 'toggle' (renderer flips
+   *  the current value). */
+  onSet: (cb: (value: boolean | 'toggle') => void) => () => void
+}
+
 export interface ElectronLayoutAPI {
   /** ENH-014 — fires when View → Pane size menu, the ⌘⌥1/2/3/0/9
    *  accelerators, or `duo split <pct>` set the split percentage.
@@ -894,6 +907,8 @@ export interface ElectronAPI {
   editor: ElectronEditorAPI
   canvas: ElectronCanvasAPI
   cozy: ElectronCozyAPI
+  /** ENH-172 (Sprint 20) — show/hide hidden-files toggle. */
+  hiddenFiles: ElectronHiddenFilesAPI
   layout: ElectronLayoutAPI
   workingAux: ElectronWorkingAuxAPI
   theme: ElectronThemeAPI

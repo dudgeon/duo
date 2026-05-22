@@ -703,6 +703,23 @@ async function main(): Promise<void> {
         }
         break
       }
+      case 'hidden-files': {
+        // ENH-172 (Sprint 20 / v0.7.7) \u2014 `duo hidden-files [show|hide|toggle]`.
+        // Surfaces the navigator's showDotfiles flag for agent control.
+        // Bare reads; arg writes. The View menu checkbox + \u2318\u21e7. chord
+        // are the GUI counterparts. The `.claude` / `.obsidian` carve-outs
+        // in FileTree's shouldShow() are NOT controlled by this flag.
+        const mode = rest[0]
+        if (mode === undefined) {
+          out(await send('hidden-files'))
+        } else {
+          if (mode !== 'show' && mode !== 'hide' && mode !== 'toggle') {
+            die('Usage: duo hidden-files [show|hide|toggle]')
+          }
+          out(await send('hidden-files', { mode }))
+        }
+        break
+      }
       case 'focus-pane': {
         // ENH-098 (Sprint 9) \u2014 CLI parity with the \u2318\u2325L/;/' chord set.
         // Distinct from `duo focus <selector>` (CDP focus on a CSS
@@ -2108,6 +2125,13 @@ COMMANDS
                                   web). 'submit' disables the override
                                   (xterm passthrough). No arg = print
                                   state.
+  hidden-files [show|hide|toggle] ENH-172 (Sprint 20 / v0.7.7) — show or
+                                  hide dotfiles in the navigator. CLI
+                                  parity with View → Show Hidden Files
+                                  (⌘⇧.). Persists in localStorage.
+                                  .claude + .obsidian are always
+                                  visible regardless. No arg = print
+                                  { showDotfiles: boolean }.
   focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) — jump keyboard
                                   focus to the named pane. CLI parity
                                   with the ⌘⌥L (terminal) / ⌘⌥;

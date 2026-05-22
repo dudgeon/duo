@@ -467,6 +467,20 @@ const api: ElectronAPI = {
     }
   },
 
+  hiddenFiles: {
+    // ENH-172 (Sprint 20) — main → renderer push when the View menu
+    // checkbox is clicked OR `duo hidden-files` CLI verb writes. The
+    // payload's `value` is true|false|'toggle'; renderer maps 'toggle'
+    // to !currentValue. NAV_STATE_PUSH (existing channel) carries
+    // the new value back to main, which uses it to refresh the
+    // checkmark.
+    onSet: (cb: (value: boolean | 'toggle') => void) => {
+      const handler = (_: IpcRendererEvent, payload: { value: boolean | 'toggle' }) => cb(payload.value)
+      ipcRenderer.on(IPC.HIDDEN_FILES_SET, handler)
+      return () => ipcRenderer.removeListener(IPC.HIDDEN_FILES_SET, handler)
+    }
+  },
+
   theme: {
     pushState: (snapshot: ThemeStateSnapshot) => {
       ipcRenderer.send(IPC.THEME_STATE_PUSH, snapshot)

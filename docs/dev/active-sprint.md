@@ -56,9 +56,10 @@ Per locked ENH-168 decisions:
 - **Q3 Identification:** a — Name only (today).
 - **Q4 Create:** b — "+ New Workspace" inline at the top of the dropdown opens the full native **Save Workspace As** dialog (no new modal).
 
-Sprint-20 addition:
+Sprint-20 addition (revised):
 
-- **Keyboard chord** — `⌘\` to open the dropdown without clicking (additions Q3 #8).
+- ~~**Keyboard chord** — `⌘\` to open the dropdown without clicking (additions Q3 #8).~~
+  **Owner-locked 2026-05-22 AUQ:** no chord in v1. ⌘\\ collides with 1Password autofill (BUG-075 lesson); deferred to a follow-up if click-only proves clunky.
 
 Dropdown contents (in order):
 1. `+ New Workspace` (opens Save As dialog)
@@ -77,7 +78,7 @@ Two of the four sprint items collide with the existing registry. State-and-proce
 | Sprint item | Conflict | Proposed resolution |
 |---|---|---|
 | **ENH-169** ⌘N New File | `⌘N` already maps to `newMarkdownFile` in `globalShortcuts.ts:196`. **Likely the same intent** — current behavior creates a new markdown file via App.tsx § `onCommitNewFile`. | Re-use the existing chord; ENH-169 generalizes `newMarkdownFile` from "navigator's currently-focused dir, .md only" to "selected breadcrumb/dir, kind-aware (.md or .html or folder)". No new ShortcutId — keep `newMarkdownFile` (or rename to `newFile` if grep-ALL plumbing per CLAUDE.md/feedback memory holds). |
-| **ENH-171** ⌘\\ Workspace switcher | BUG-075 (v0.6.5) abandoned `⌘\\` for splitView because **1Password's system-level autofill grab eats it before Chromium sees the keystroke**. Re-binding now would have the same fate on most users' machines. | Proposed re-pick: `⌘⌥W` (no current owner; `W` already overloaded with role-binding gymnastics in `electron/main.ts:1950` but the meta+alt variant is free). Alternates: `⌘⇧S` (free; mnemonic "switch"), `⌘⇧B` (mnemonic "between workspaces"). Decision needed before ENH-171 plumbing lands. |
+| **ENH-171** ⌘\\ Workspace switcher | BUG-075 (v0.6.5) abandoned `⌘\\` for splitView because **1Password's system-level autofill grab eats it before Chromium sees the keystroke**. Re-binding now would have the same fate on most users' machines. | **Owner-locked 2026-05-22 AUQ:** **no chord in v1**. Ship workspace switcher as click-only (title-bar badge → dropdown). Revisit chord in a follow-up if usage warrants it. |
 | **ENH-172** ⌘⇧. Show Hidden | Free — `Period` is not bound anywhere. Use `e.code === 'Period'` per the layout-defensive pattern. | No conflict; proceed. |
 | **ENH-170** Settings menu | Owner chose macOS-native `App > Settings…` (no accelerator by default — system convention is `⌘,` but defer chord binding until owner asks). | No conflict; proceed. |
 

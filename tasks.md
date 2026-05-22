@@ -276,7 +276,7 @@ Persistence: localStorage (today `showDotfiles` is a `useState` default-false; p
 3. Separator
 4. `Clear Recent Workspaces`
 
-Plus a **`⌘\` keyboard chord** to open the dropdown without clicking (Sprint 20 addition).
+**No chord in v1** — owner-locked 2026-05-22 AUQ. The originally-proposed `⌘\` chord (Sprint 20 addition) was withdrawn because it collides with 1Password's system-level autofill grab (same lesson as BUG-075 v0.6.5 splitView re-pick). Click-only for v1; revisit if click-only proves clunky.
 
 **Owner-locked decisions (from ENH-168):** title-bar dropdown · single-click list · name only (no color tags / emoji / thumbnails in v1) · "+" opens native Save As (reuses existing flow).
 
