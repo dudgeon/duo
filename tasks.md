@@ -230,6 +230,50 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-149: `duo navigate <path>` errors instead of moving the navigator
+
+**Status:** 🆕 Filed 2026-05-22. Owner ask via idle-thoughts: *"Bug: 'duo navigate {path}' is a no op"*.
+
+**Symptom (reproduced live 2026-05-22).** `duo navigate ~/Documents` and `duo navigate /` both error with `duo: ERR_INVALID_URL (-300) loading ''`. URL arguments (`duo navigate https://example.com`) work correctly.
+
+**Root cause.** `duo navigate <url>` (documented in `cli/duo.ts` printHelp + skill/SKILL.md as "Navigate active tab to URL") is a BROWSER-PANE verb — it dispatches `Page.navigate` to the active browser-pane CDP target. When passed a filesystem path, it short-circuits to `''` somewhere in the URL normalization and the CDP rejects empty URLs.
+
+**The naming clash.** "Navigate" reads as a NAVIGATOR verb to users (and matches the Files navigator pane's name) — but the actual navigator-move verb is `duo reveal <path>` (which moves the file tree + flashes a chip). The owner's bug report is shaped against the natural reading: a path-typed argument should move the navigator, not error.
+
+**Owner-decision-shaped fix (three options):**
+
+- **A. Make `duo navigate <path>` route to the navigator** — detect local path (starts with `~`, `/`, or `.`) → forward to `nav.reveal()`. URL arguments keep current browser-pane behavior. Cheap one-handler-switch. Breaks the "navigate = browser tab URL change" mental model for agents already trained on the docs.
+- **B. Hard-error on non-URL with helpful redirect** — keep the current verb URL-only, but return `{ ok: false, error: "duo navigate expects a URL; use 'duo reveal <path>' to move the navigator" }` instead of the cryptic ERR_INVALID_URL. Smallest behavior change; surfaces the verb-naming-clash for the user.
+- **C. Auto-detect AND warn** — accept paths AND URLs; print a deprecation hint on path use pointing at `duo reveal`. Bridge the mental models during transition; remove path-acceptance in a later release.
+
+**Recommendation:** **B** (smallest blast radius, no semantic surprises). The verb has been browser-only since Stage 3; agents have learned that. The fix is a better error message, not a behavior change.
+
+**Files likely touched:** `core/socket-server.ts` § `case 'navigate'` (input validation), `cli/duo.ts` § `case 'navigate'` (matching error message), `skill/SKILL.md` (cross-reference `duo reveal` from the navigate row).
+
+**Cross-ref:** `duo reveal <path>` (the existing navigator-move verb), `duo open <path-or-url>` (the smart router that already handles both).
+
+---
+
+### ENH-173: `duo view <folder>` no-preview fallback should also offer "Navigate here"
+
+**Status:** 🆕 Filed 2026-05-22. Owner ask via idle-thoughts: *"Eth 'duo view {path to folder}' opens in canvas with 'open with default app' should also have button for 'navigate here'"*.
+
+**Symptom (reproduced live 2026-05-22).** `duo view /Users/geoffreydudgeon/Documents/GitHub/duo/docs` opens a new working-pane tab labeled `docs` showing the no-preview fallback: folder icon + path + `application/octet-stream` mime + "Duo doesn't have a preview for this file type." + a single "Open with default app" button. The fallback is a UX dead-end for FOLDERS specifically — Finder is the only escape hatch.
+
+**Owner ask.** Add a second button: **"Navigate here"** (or "Move navigator here") that calls `nav.actions.navigateTo(path)`. Same affordance the navigator already exposes via clicking a folder row, but reachable from the working-pane dead-end where the user landed.
+
+**Recommended scope.** Detect `mime === 'application/octet-stream'` AND target path resolves to a directory → render BOTH buttons:
+- **Navigate here** (primary, accent-tone) — calls `window.electron.nav.reveal(path)` or directly `nav.actions.navigateTo(path)` via a prop callback. Closes the canvas tab afterwards (no longer needed once the navigator moved).
+- **Open with default app** (secondary, current button) — unchanged.
+
+**Files likely touched:** `renderer/components/FileRenderers.tsx` (the fallback render around line 52-59 — add a folder-detection branch + the second button), possibly `renderer/App.tsx` (thread the navigate callback into FileRenderers if it doesn't already have it).
+
+**Open sub-question (resolve during build):** should `duo view <folder>` SHORT-CIRCUIT to `duo reveal <folder>` instead — i.e., never land in the canvas at all? Cleaner from a "verb does the right thing" perspective. The owner ask implies adding the button to the fallback, NOT removing the fallback; but the short-circuit is the bigger win. Carry both options to owner.
+
+**Cross-ref:** `duo reveal <path>` (the canonical navigator-move verb), [BUG-149](#bug-149-duo-navigate-path-errors-instead-of-moving-the-navigator) (sibling verb-naming-clash issue — same theme: navigator-move verbs should be easy to reach).
+
+---
+
 ### ENH-172: Show / hide hidden files & folders in the navigator (View menu + chord + CLI verb)
 
 **Status:** ✅ **Shipped 2026-05-22** at [600d16e](https://github.com/dudgeon/duo/commit/600d16e). All four surfaces (View menu checkbox, ⌘⇧. accelerator, CLI verb, `duo nav-state` field) live-verified in the dev session. 16 files, +260/-8 LOC. 660 tests green, typecheck clean, skill + agent docs synced. **Dev-mode caveat:** localStorage doesn't persist across `npm run dev` Electron restarts in some configurations (test marker also failed to persist) — production DMG should be fine; flag for the cut-DMG smoke walk.
