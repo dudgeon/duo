@@ -1,12 +1,24 @@
-# Active sprint state — Sprint 20 / v0.7.7 PLANNED
+# Active sprint state — Sprint 20 / v0.7.7 IN FLIGHT
 
-**Status (2026-05-22):** Planned, not yet started. Decisions locked via AskUserQuestion 2026-05-22; build pending owner go-ahead. v0.7.6 cut + DMG published 2026-05-22 ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6)).
+**Status (2026-05-22):** Build green-lit by owner 2026-05-22 with a same-turn ENH-172 add ("an ENH to the view menu for show/hide hidden files/folders in the navigator"). Scope now 4 ENHs / 8 items. v0.7.6 cut + DMG published earlier 2026-05-22 ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.6)).
 
-**Theme.** *"Smaller daily-driver actions become first-class menu / chord surfaces."* Three coherent ENHs covering navigator-side file creation, the first Settings menu, and the workspace switcher decided in ENH-168.
+**Theme.** *"Smaller daily-driver actions become first-class menu / chord surfaces."* Four coherent ENHs covering navigator-side file creation, the first Settings menu, the workspace switcher decided in ENH-168, and the navigator's existing-but-buried show/hide-dotfiles toggle.
 
 ---
 
-## Sprint 20 scope (3 ENHs, 7 items)
+## Sprint 20 scope (4 ENHs, 8 items)
+
+### ENH-172 — Show / hide hidden files & folders in the navigator
+
+Owner ask 2026-05-22 (same turn as the sprint green-light). Surfaces the existing `showDotfiles` navigator state (renderer-local since Stage 10, no UI / chord / CLI today) as a first-class user-facing toggle. Three triggers, one shared state:
+
+1. **View menu** → new checkbox *"Show Hidden Files"* (mirrors Cozy-mode's checkmark-echo pattern via a new `HIDDEN_FILES_STATE_PUSH` IPC channel).
+2. **Keyboard chord** ⌘⇧. — verified free in `globalShortcuts.ts`. Finder convention.
+3. **CLI verb** `duo hidden-files [show|hide|toggle]` + extend `duo nav-state` to include `showDotfiles: boolean`.
+
+Persist via localStorage (today it's a `useState` default-false; promote to persisted so the checkbox doesn't reset each dev cycle). The `.claude` and `.obsidian` always-visible carve-outs ([`shouldShow`](renderer/components/FileTree.tsx:1471)) stay — this toggle controls generic dotfiles only.
+
+Files likely touched: `shared/types.ts` (`DuoCommandName` + IPC channel + nav-state snapshot field), `electron/preload.ts` (bridge API), `electron/main.ts` (menu item + ipcMain + getter/setter), `electron/socket-server.ts` (command switch case), `cli/duo.ts` (verb + printHelp), `renderer/hooks/useNavigator.ts` (localStorage persistence + bridge subscribe), `renderer/App.tsx` (chord wiring), `renderer/keyboard/globalShortcuts.ts` (new `toggleHiddenFiles` ShortcutId), `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md`.
 
 ### ENH-169 — Navigator-side new-file / new-folder UX
 
@@ -57,6 +69,17 @@ Dropdown contents (in order):
 Files likely touched: `renderer/App.tsx` § titlebar block (click handler on the workspace-name badge), new `renderer/components/WorkspaceSwitcherDropdown.tsx`, `renderer/keyboard/globalShortcuts.ts` (chord), reuses `window.electron.workspaceFile.listRecent()` + `openRecent()` + `save({saveAs:true})`.
 
 ---
+
+## Chord-conflict findings (scanned `globalShortcuts.ts` 2026-05-22)
+
+Two of the four sprint items collide with the existing registry. State-and-proceed (rule 6) candidates that need owner ack — surfaced here before the corresponding ENH starts:
+
+| Sprint item | Conflict | Proposed resolution |
+|---|---|---|
+| **ENH-169** ⌘N New File | `⌘N` already maps to `newMarkdownFile` in `globalShortcuts.ts:196`. **Likely the same intent** — current behavior creates a new markdown file via App.tsx § `onCommitNewFile`. | Re-use the existing chord; ENH-169 generalizes `newMarkdownFile` from "navigator's currently-focused dir, .md only" to "selected breadcrumb/dir, kind-aware (.md or .html or folder)". No new ShortcutId — keep `newMarkdownFile` (or rename to `newFile` if grep-ALL plumbing per CLAUDE.md/feedback memory holds). |
+| **ENH-171** ⌘\\ Workspace switcher | BUG-075 (v0.6.5) abandoned `⌘\\` for splitView because **1Password's system-level autofill grab eats it before Chromium sees the keystroke**. Re-binding now would have the same fate on most users' machines. | Proposed re-pick: `⌘⌥W` (no current owner; `W` already overloaded with role-binding gymnastics in `electron/main.ts:1950` but the meta+alt variant is free). Alternates: `⌘⇧S` (free; mnemonic "switch"), `⌘⇧B` (mnemonic "between workspaces"). Decision needed before ENH-171 plumbing lands. |
+| **ENH-172** ⌘⇧. Show Hidden | Free — `Period` is not bound anywhere. Use `e.code === 'Period'` per the layout-defensive pattern. | No conflict; proceed. |
+| **ENH-170** Settings menu | Owner chose macOS-native `App > Settings…` (no accelerator by default — system convention is `⌘,` but defer chord binding until owner asks). | No conflict; proceed. |
 
 ## Locked decisions (2026-05-22 AskUserQuestion)
 

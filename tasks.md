@@ -230,6 +230,42 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-172: Show / hide hidden files & folders in the navigator (View menu + chord + CLI verb)
+
+**Status:** ⬜ Planned — Sprint 20 / v0.7.7. Owner ask 2026-05-22.
+
+**Scope.** Surface the existing `showDotfiles` navigator state (a renderer-local toggle implemented in [`renderer/hooks/useNavigator.ts`](renderer/hooks/useNavigator.ts) since Stage 10) as a first-class user-facing surface. Three triggers, one shared state:
+
+1. **View menu** → new checkbox entry *"Show Hidden Files"* between `Cozy mode — current tab` and the existing `Toggle pane focus`. Default off (matches current state). Checkmark reflects current value, echoes back when toggled from any of the other triggers (mirrors Cozy-mode's COZY_STATE_PUSH pattern).
+2. **Keyboard chord** ⌘⇧. (Finder convention) — verified free in [`renderer/keyboard/globalShortcuts.ts`](renderer/keyboard/globalShortcuts.ts) (Period not bound anywhere).
+3. **CLI verb** `duo hidden-files [show|hide|toggle]` — state-and-set pattern per CLAUDE.md rule 4. Bare `duo hidden-files` reads current value.
+
+Persistence: localStorage (today `showDotfiles` is a `useState` default-false; promote to persisted-state so the View checkbox doesn't reset every dev cycle).
+
+**The dotfile rule's special-case carve-outs stay** — `.claude` and `.obsidian` directories remain always-visible per the existing [`shouldShow`](renderer/components/FileTree.tsx:1471) function. The new toggle ONLY controls the visibility of generic dotfiles (e.g. `.gitignore`, `.env`, `.vscode/`, `.DS_Store`).
+
+**`duo nav-state` CLI parity** — extend the JSON snapshot to include `showDotfiles: boolean` (mirrors how `selectedPaths`, `navigatorCollapsed`, etc. are exposed for agent inspection per [`docs/CLI-COVERAGE.md`](docs/CLI-COVERAGE.md)).
+
+**Plumbing checklist (per CLAUDE.md rule 4):**
+
+1. `shared/types.ts` — add `DuoCommandName` entry for `hidden-files`; add IPC channel constant (`HIDDEN_FILES_TOGGLE` / `HIDDEN_FILES_STATE_PUSH`) and `hiddenFilesState` field to the nav-state snapshot.
+2. `electron/preload.ts` — expose `hiddenFiles: { get(), set(value), subscribe(cb) }` bridge API mirroring `cozyMode`.
+3. `electron/main.ts` — ipcMain handlers; new View menu item with checkbox (id `hiddenFilesMenuItemId` mirroring `cozyMenuItemId`); main-process getter/setter feeding back into the menu checkmark.
+4. `electron/socket-server.ts` — new case in command switch: `case 'hidden-files'` routes the read/set value through to renderer state.
+5. `cli/duo.ts` — `case 'hidden-files'` verb (no-arg read; `show` / `hide` / `toggle` write). Update `printHelp()`.
+6. `renderer/hooks/useNavigator.ts` — persist `showDotfiles` to localStorage (`navigator:showDotfiles`); subscribe to main-process pushes; existing `toggleShowDotfiles` keeps working.
+7. `renderer/App.tsx` — wire the global-shortcut handler for `id: 'toggleHiddenFiles'` (new ShortcutId in `globalShortcuts.ts`) to call the bridge.
+8. `renderer/keyboard/globalShortcuts.ts` — add `toggleHiddenFiles` ShortcutId + matcher for ⌘⇧. (`e.code === 'Period'` to defend against layout / shift-affected-key gotchas, same pattern as ⌘⇧A `KeyA`).
+9. `skill/SKILL.md` — agent discovery (run `npm run sync:claude` after).
+10. `agents/duo.md` — verb cheat-sheet entry under "Verb cheat-sheet".
+11. `docs/CLI-COVERAGE.md` — keep the inventory current.
+
+**Files likely touched:** all of the above plus possibly minor `docs/dev/smoke-checklist.md` if a new smoke item lands.
+
+**Cross-ref:** ENH-109 (`.obsidian` always-visible carve-out, Sprint 11) — confirms the special-case set this toggle does NOT touch. CLAUDE.md § Working style item 4 (CLI parity with UI rule) — the plumbing checklist this entry follows. Pattern source for Cozy-mode-style menu echo: [`electron/main.ts:1839`](electron/main.ts:1839) `cozyMenuItemId` block.
+
+---
+
 ### ENH-171: Workspace switcher — implementation (title-bar dropdown)
 
 **Status:** ⬜ Planned — Sprint 20 / v0.7.7. Locked design from ENH-168.
