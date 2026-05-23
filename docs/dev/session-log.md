@@ -18,6 +18,25 @@
 
 ---
 
+## 2026-05-23 (v0.7.7 cut — Daily-driver upgrades + ⌘Z reopen + send-pill variants)
+
+**v0.7.7 cut.** Sprint 20 close-out. Theme: smaller daily-driver actions become first-class menu / chord / CLI surfaces. Four planned ENHs (169 navigator new-file/folder, 170 v2 top-level Settings menu, 171 workspace switcher dropdown, 172 show/hide hidden files) shipped clean. Five polish ENHs (173 Navigate-here button, 174 autolink off, 175 navigate-or-focus tabs, 176 send-pill variants, 179 ⌘Z reopen) closed real friction points the owner had been hitting daily. Six sprint-close fixes accumulated around them (BUG-149 / 150 / 151 / 152 / 154 / 155).
+
+Two larger ENHs (177 claude session resume banner, 178 browser blocklist three-mode refactor) built but didn't get their owner walks in time, so both were **reverted before cut** ([f351719](https://github.com/dudgeon/duo/commit/f351719)/[49f4644](https://github.com/dudgeon/duo/commit/49f4644) for 177; [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da)/[5295849](https://github.com/dudgeon/duo/commit/5295849) for 178). Their changes remain in git history for cherry-pick next sprint.
+
+The session-rename follow-up (ENH-180) ships as a PRD only — `docs/prd/enh-180-session-rename.html` (canonical HTML) + a [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review. Owner picks 4 design decisions (visibility footprint, title source, quality threshold, idle gate) before re-shipping ENH-177 + building.
+
+**Notable mechanism finds during ENH-180 PRD research:**
+- `/rename` is interactive-only — `claude -p "/rename Foo"` returns *"isn't available in this environment"*.
+- `--name` flag on `--resume` doesn't visibly persist + costs ~$0.73 (loads full session context at Opus default).
+- Writing `\r/rename <title>\n` directly to a live claude PTY works: $0 cost, ~0s latency, writes to canonical `sessions-index.json`.
+
+**For Sprint 21 / v0.7.8:** review ENH-180 PRD on phone → paste decisions → re-ship ENH-177 + ENH-178 with owner-walked verification → build ENH-180 (~3h after decisions lock).
+
+Tests: 687 green (35 files). Typecheck clean.
+
+---
+
 ## 2026-05-22 (v0.7.6 cut — BUG-122 hypothesis 6 + workspace switcher playground)
 
 **v0.7.6 cut.** Sprint-planning conversation produced two parallel threads. Thread 1: BUG-122 caught a new hypothesis (HTML-entity escape on tiptap-markdown round-trip) — `docs/about-duo.md` triggered it because my v0.7.4 edit added an HTML comment, then the owner opened the file in the editor and every save fired the banner. Diagnostic log captured the diff cleanly (`-->` vs `--&gt;`). Fix: extend `normalizeForEchoCompare` to decode the five named HTML entities on both sides; 5 new vitest tests; 20/20 passing.

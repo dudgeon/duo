@@ -360,6 +360,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="navigate focus existing tab url duplicate switch reuse active enh-175">
+  <div class="num">13d</div>
+  <div>
+    <h3>Send Claude to a URL without losing your current tab</h3>
+    <p class="why"><strong>v0.7.7:</strong> when an agent runs <code>duo navigate &lt;url&gt;</code>, it opens the URL in a new browser tab or focuses an existing matching one (match strips hash + trailing slash). Your active tab stays where you left it. Useful when Claude is doing a side-investigation and you don't want to lose the docs you were reading. The renderer's address bar keeps its older reuse-active-tab behavior — that's an explicit user override.</p>
+    <p class="how"><strong>CLI</strong><code>duo navigate &lt;url&gt;</code> (returns <code>{ok, url, title, reused}</code> — <code>reused: true</code> means a matching tab existed).</p>
+  </div>
+</article>
+
 <h2 class="cat">Files & navigation</h2>
 <p class="cat-tagline">The left column is your workspace. The breadcrumb tells you where you are.</p>
 
@@ -453,6 +462,33 @@
   </div>
 </article>
 
+<article class="item" data-keys="new file folder navigator breadcrumb right-click cmd-n untitled rename inline enh-169">
+  <div class="num">17g</div>
+  <div>
+    <h3>Create a new file or folder from the navigator</h3>
+    <p class="why"><strong>v0.7.7:</strong> three ways to create a new file or folder without leaving the navigator. Right-click the breadcrumb for <strong>New file here…</strong> / <strong>New folder here…</strong> (uses the right-clicked segment's directory as the default location). File menu has the same two entries (defaults to the currently-focused navigator dir). Or use the chord — <code>⌘N</code> for new file, <code>⌘⇧N</code> for new folder. All three triggers reuse the same flow: inline rename on the new row, validates filename collision, scrolls into view.</p>
+    <p class="how"><strong>UI</strong>Right-click the breadcrumb → New file/folder here · File menu → New File… / New Folder… · <code>⌘N</code> / <code>⌘⇧N</code> chords.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="hidden dotfiles show hide gitignore env config dotfile navigator view menu enh-172">
+  <div class="num">17h</div>
+  <div>
+    <h3>Show or hide hidden files (dotfiles)</h3>
+    <p class="why"><strong>v0.7.7:</strong> the navigator hides dotfiles (<code>.gitignore</code>, <code>.env</code>, <code>.DS_Store</code>, etc.) by default. Toggle via the View menu's <strong>Show Hidden Files</strong> checkbox, the <code>⌘⇧.</code> chord (Finder convention), or the CLI verb. The <code>.claude</code> and <code>.obsidian</code> directories stay always-visible regardless (Duo + Obsidian-vault workflow needs them).</p>
+    <p class="how"><strong>UI</strong>View menu → Show Hidden Files · <code>⌘⇧.</code> · <strong>CLI</strong><code>duo hidden-files [show|hide|toggle]</code></p>
+  </div>
+</article>
+
+<article class="item" data-keys="reopen closed tab cmd z undo restore recently closed file browser terminal lifo ring enh-179">
+  <div class="num">17i</div>
+  <div>
+    <h3>Reopen the tab you just closed</h3>
+    <p class="why"><strong>v0.7.7:</strong> <code>⌘Z</code> reopens the most recently closed tab — works for file tabs (markdown editor / canvas / image / PDF), browser tabs, and terminal tabs. Smart-routed so text undo still wins inside the editor, address bar, dialogs, and the browser pane's own inputs. Bounded to the 10 most recently closed tabs per session.</p>
+    <p class="how"><strong>UI</strong><code>⌘Z</code> when no text field is focused.</p>
+  </div>
+</article>
+
 <h2 class="cat">Terminal & Claude</h2>
 <p class="cat-tagline">Multiple terminal tabs. Each one knows it's running inside Duo.</p>
 
@@ -498,6 +534,15 @@
     <h3>Tune the Return key in Claude tabs</h3>
     <p class="why">Inside Claude Code tabs only: by default plain <strong>Return</strong> submits (universal terminal behavior); <strong>Shift+Return</strong> inserts a soft newline (matches Slack / Discord / claude.ai-web). If you want the v0.6.13 behavior where Return inserts a newline and ⌘Return submits, you can flip that pref. Shell tabs are never affected. <strong>v0.6.15+</strong></p>
     <p class="how"><strong>CLI</strong><code>duo claude-return [submit|newline]</code> to flip plain Return; <code>duo shift-return [submit|newline]</code> to flip Shift+Return. No-arg = print current state. Each pref persists per-user in localStorage.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="settings menu cmd return claude submit toggle bug-154 enh-170 v2 shell tab claudepresence">
+  <div class="num">19d</div>
+  <div>
+    <h3>Toggle ⌘Return for Claude submit from the Settings menu</h3>
+    <p class="why"><strong>v0.7.7:</strong> the new top-level <strong>Settings</strong> menu (between Edit and View) carries one item: <strong>⌘Return for Claude submit</strong>. Click to toggle. When checked, plain Return inserts a newline and ⌘Return submits — same wire as the CLI override above, just visible. Works in any terminal tab running <code>claude</code> (dedicated <code>kind='claude'</code> tabs and shell tabs where you typed <code>claude</code> by hand — broadened in BUG-154).</p>
+    <p class="how"><strong>UI</strong>Settings menu → ⌘Return for Claude submit.</p>
   </div>
 </article>
 
@@ -841,6 +886,15 @@
     <h3>Start a fresh workspace from where you are</h3>
     <p class="why"><strong>v0.7.4+</strong> File &gt; <strong>New Workspace</strong> resets the workspace in-place. When anything is open, it prompts Save / Don't Save / Cancel; on Don't Save, Duo collapses to <strong>one fresh shell terminal at the live CWD</strong> of the previously-frontmost terminal (where you actually <code>cd</code>'d to, not just where the tab spawned), plus any <strong>pinned tabs</strong> (file + browser pins both survive). Active workspace pointer clears, title-bar badge goes blank. Faster than a relaunch (~200ms) and works in dev + packaged builds the same way.</p>
     <p class="how"><strong>UI</strong>File menu → <strong>New Workspace</strong>.<br><strong>CLI</strong> <code>duo workspace new</code> (skips the GUI prompt; agents are presumed deliberate).</p>
+  </div>
+</article>
+
+<article class="item" data-keys="workspace switcher dropdown title bar recent workspaces clear enh-171 click open switch">
+  <div class="num">37c</div>
+  <div>
+    <h3>Switch workspaces from the title-bar dropdown</h3>
+    <p class="why"><strong>v0.7.7:</strong> click the workspace-name badge in the title bar to drop down a switcher. Top of the list: <strong>+ New Workspace</strong> (opens the native Save Workspace As dialog). Below that: your 10 most-recently-opened workspaces (sorted by last-opened-at, missing files silently pruned). At the bottom: <strong>Clear Recent Workspaces</strong>. Click-only for v1 — a chord is queued but the obvious candidates collide with 1Password and other system-level grabs.</p>
+    <p class="how"><strong>UI</strong>Click the workspace-name badge in the title bar (right of the macOS traffic lights).</p>
   </div>
 </article>
 

@@ -21,7 +21,28 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.6 cut 2026-05-22)*
+> *(empty — v0.7.7 cut 2026-05-23)*
+
+---
+
+## v0.7.7 — 2026-05-23 — Daily-driver upgrades + ⌘Z reopen + send-pill variants
+
+Sprint 20's close-out. Theme: smaller daily-driver actions become first-class menu / chord / CLI surfaces — navigator file creation ([ENH-169](../tasks.md)), the first Settings menu ([ENH-170 v2](../tasks.md)), the workspace switcher decided in [ENH-168](../tasks.md) ([ENH-171](../tasks.md)), the navigator's show/hide-dotfiles toggle ([ENH-172](../tasks.md)), `⌘Z` reopen of recently-closed tabs ([ENH-179](../tasks.md)), and send-pill variants behind feature flags ([ENH-176](../tasks.md)).
+
+**Why this lands here.** The four planned ENHs (169 / 170 / 171 / 172) shipped clean; six sprint-close fixes accumulated around them (149 / 150 / 151 / 152 / 154 / 155); two larger ENHs (177 claude session resume banner, 178 browser blocklist refactor) built but didn't get their owner walks in time, so they were reverted and queued for next sprint. The session-rename follow-up ([ENH-180](../tasks.md)) ships as a [PRD](prd/enh-180-session-rename.html) only — [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review.
+
+**Four design decisions baked in:**
+
+1. **ENH-170 v2 over the modal.** First Settings landed as a top-level menu with one native checkbox, replacing the rejected modal. Future Settings items follow the same shape — owner-locked 2026-05-22.
+2. **ENH-175 navigate-or-focus over reuse-active.** CLI `duo navigate <url>` no longer clobbers the user's active tab; the renderer address-bar keeps reuse-active semantics. Intentional asymmetry: address bar = explicit override, CLI = ambient agent.
+3. **ENH-176 feature flags via localStorage only.** No UI surface for the send-pill variants until validated. Imperative setters exported for future CLI verbs. Default agent ON / terminal OFF preserves Sprint 16 behavior.
+4. **ENH-179 ⌘Z over ⌘⇧T.** ⌘⇧T is taken by `newClaudeTab`. Owner picked ⌘Z with smart routing — text undo wins inside any text-input surface via a new `inAnyTextInput` gate in `FocusContext`.
+
+**What this is and isn't.** This is a polish cut — incremental usability across navigation, tab creation, and selection. It is NOT the foundation for [ENH-180](prd/enh-180-session-rename.html) (auto-rename sessions via `/rename` PTY injection) — that depends on ENH-177 landing first, which is queued for next sprint. The PRD captures the 4 design decisions Sprint 21 needs to lock; the Notion mirror is so the owner can walk it on phone.
+
+**Tests:** 687 green (35 test files). Typecheck clean. Pre-cut reverts of ENH-177 + ENH-178 left their git history intact for cherry-pick.
+
+**For Sprint 21 / v0.7.8:** review the ENH-180 PRD on phone → paste decisions back → re-ship ENH-177 + ENH-178 with owner-walked verification → build ENH-180 (~3h after decisions lock).
 
 ---
 

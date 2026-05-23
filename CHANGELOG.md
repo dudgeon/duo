@@ -19,7 +19,39 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.6 cut 2026-05-22.
+> Empty — v0.7.7 cut 2026-05-23.
+
+## [0.7.7] — 2026-05-23
+
+### Added
+
+- **ENH-169** Navigator new-file / new-folder UX — breadcrumb right-click (`New file here…` / `New folder here…`), File menu entries, `⌘N` / `⌘⇧N` chords. Same default-location logic across all three triggers.
+- **ENH-170 v2** Top-level **Settings** menu (between Edit and View). Single checkbox: *"⌘Return for Claude submit"*. Native menu primitive — no modal, no overlay hacks. v1's modal-occlusion class (BUG-153) deleted alongside the modal.
+- **ENH-171** Workspace switcher dropdown — click the workspace-name badge in the title bar for recent workspaces + "+ New Workspace" + "Clear Recent Workspaces". Click-only v1; chord deferred (1Password conflict).
+- **ENH-172** Show / hide hidden files in the navigator — View menu checkbox, `⌘⇧.` (Finder convention), `duo hidden-files [show|hide|toggle]` CLI verb, `duo nav-state` returns `showDotfiles`. `.claude` + `.obsidian` stay always-visible (carve-outs).
+- **ENH-173** `duo view <folder>` no-preview fallback now offers a primary **Navigate here** button alongside Open with default app.
+- **ENH-175** `duo navigate <url>` opens a new browser tab OR focuses an existing matching tab (strips hash + trailing slash for the match). **Never clobbers** the active tab — ambient agent navigation no longer steals owner-open panes. Renderer address bar keeps reuse-active semantics (intentional asymmetry).
+- **ENH-176** Send-pill variants — two independent localStorage feature flags: `duo.sendPill.agent` (default ON, current behavior) and `duo.sendPill.terminal` (default OFF, new opt-in). Claude wins when both could fire. No visible UI surface; setters exposed for future CLI verbs.
+- **ENH-179** `⌘Z` reopens the most-recently-closed tab (file / browser / terminal). Smart-routed via new `inAnyTextInput` gate — text undo wins inside contentEditable, `<input>` / `<textarea>`, dialogs, address bar, browser-pane focus. LIFO ring bounded at 10 entries.
+
+### Changed
+
+- **ENH-174** TipTap `autolink` disabled. Bare URL-shaped text (`prd.md`, `example.com`, `foo.org/path`) no longer auto-converts to markdown links on parse. Users link via `⌘K`, direct `[text](url)`, or paste-on-selection. Closes the disk-mutation half of the autolink-round-trip false-positive class.
+
+### Fixed
+
+- **BUG-149** `duo navigate <path>` now returns a helpful error redirecting to `duo reveal <path>` (the navigator-move verb) instead of the cryptic `ERR_INVALID_URL`.
+- **BUG-150** Install service dedupes orphan unmarked Duo-command hook entries in `~/.claude/settings.json`. The recurring "Heads-up: your settings.json already had other SessionStart hooks…" banner stops firing on every Update click.
+- **BUG-151** Workspace switch dropped the misleading "Save current workspace?" prompt. Autosave mirror hook + explicit pre-switch flush handles persistence correctly; the prompt was a redundant double-confirmation that wrote to the wrong file when clicked.
+- **BUG-152** Workspace switch now restores ALL browser tabs from the loaded `.duo-workspace` state (was previously only restoring pinned tabs).
+- **BUG-154** ⌘Return override now fires in `kind='shell'` tabs running `claude` (broadened gate via claudePresence). Pre-fix the override only worked in dedicated `kind='claude'` tabs.
+- **BUG-155** False-positive "file changed on disk" dialog from tiptap-markdown autolink round-trip — extended `normalizeForEchoCompare` with autolink-collapse regex. Belt-and-suspenders alongside ENH-174's source fix.
+
+### Known issues / queued for next sprint
+
+- **ENH-177** Claude session resume banner across workspace switch — built + reverted before cut ([f351719](https://github.com/dudgeon/duo/commit/f351719) / [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Awaiting owner walk before re-ship.
+- **ENH-178** Browser blocklist refactor (three modes + `local-only` default) — built + reverted before cut ([b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) / [5295849](https://github.com/dudgeon/duo/commit/5295849)). Awaiting owner walk before re-ship.
+- **ENH-180** Auto-rename Claude sessions via `/rename` PTY injection — PRD filed at `docs/prd/enh-180-session-rename.html` + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review. Owner picks 4 decisions then build (~3h).
 
 ## [0.7.6] — 2026-05-22
 
