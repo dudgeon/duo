@@ -184,13 +184,12 @@ type ClosedTabEntry =
   | { kind: 'browser'; url: string; closedAt: number }
   | { kind: 'terminal'; cwd: string; ptyKind: TerminalTabKind; closedAt: number }
 
-function makeTab(cwd: string, kind: TerminalTabKind, home: string, lastClaudeSession?: TabSession['lastClaudeSession']): TabSession {
+function makeTab(cwd: string, kind: TerminalTabKind, home: string): TabSession {
   return {
     id: crypto.randomUUID(),
     title: tabTitle(kind, cwd, home),
     cwd,
-    kind,
-    ...(lastClaudeSession ? { lastClaudeSession } : {})
+    kind
   }
 }
 
@@ -554,7 +553,7 @@ export function App() {
       // initial state. Empty list (first launch) → keep the default
       // single shell tab the constructor seeded.
       if (state.terminals.length > 0) {
-        const restored = state.terminals.map(t => makeTab(t.cwd, t.kind, home, t.lastClaudeSession ?? null))
+        const restored = state.terminals.map(t => makeTab(t.cwd, t.kind, home))
         setTabs(restored)
         const idx = state.activeTerminalIndex
         if (Number.isInteger(idx) && idx >= 0 && idx < restored.length) {
@@ -718,14 +717,7 @@ export function App() {
       version: 1,
       savedAt: new Date().toISOString(),
       appVersion: '0.4.1',
-      terminals: tabs.map(t => ({
-        cwd: t.cwd,
-        kind: t.kind,
-        title: t.title,
-        // ENH-177 — passthrough; main's enrichBeforePersistHook overwrites
-        // with the current detected session before disk write.
-        lastClaudeSession: t.lastClaudeSession ?? null
-      })),
+      terminals: tabs.map(t => ({ cwd: t.cwd, kind: t.kind, title: t.title })),
       activeTerminalIndex: activeTerminalIndex >= 0 ? activeTerminalIndex : -1,
       browserTabs: browserTabs.map(b => ({ url: b.url, title: b.title })),
       activeBrowserIndex: activeBrowserIndex >= 0 ? activeBrowserIndex : -1,

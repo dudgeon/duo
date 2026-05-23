@@ -1,5 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
-import { ClaudeResumeBanner } from './ClaudeResumeBanner'
+import { useRef, useEffect } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -160,20 +159,6 @@ interface TerminalPaneProps {
 export function TerminalPane({
   tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective, onTerminalFocus
 }: TerminalPaneProps) {
-  // ENH-177 — claudePresence + dismissed banners drive the Resume
-  // overlay. State scoped to TerminalPane so dismissals survive tab
-  // switches within a session, but reset on full reload (matches
-  // owner intent: "non-annoying banner", not "permanent dismiss").
-  const claudePresence = useClaudePresence()
-  const [dismissedBanners, setDismissedBanners] = useState<Set<string>>(() => new Set())
-  const activeTab = tabs.find(t => t.id === activeTabId) ?? null
-  const showResumeBanner = !!(
-    activeTab &&
-    activeTab.lastClaudeSession?.id &&
-    !dismissedBanners.has(activeTab.id) &&
-    claudePresence !== 'claude' &&
-    claudePresence !== 'starting'
-  )
   return (
     <div className="relative w-full h-full bg-surface-0">
       {tabs.map(tab => (
@@ -188,32 +173,6 @@ export function TerminalPane({
           onTerminalFocus={onTerminalFocus}
         />
       ))}
-      {showResumeBanner && activeTab?.lastClaudeSession && (
-        <ClaudeResumeBanner
-          sessionId={activeTab.lastClaudeSession.id}
-          onResume={() => {
-            const id = activeTab.lastClaudeSession?.id
-            if (!id || !activeTab.id) return
-            // Write claude --resume <id> + newline into the PTY. Same
-            // wire as the kind='claude' auto-launch.
-            void window.electron.pty.write(activeTab.id, `claude --resume ${id}\n`)
-            // Dismiss after resume so the banner doesn't linger while
-            // the new claude process boots and claudePresence catches up.
-            setDismissedBanners(prev => {
-              const next = new Set(prev)
-              next.add(activeTab.id)
-              return next
-            })
-          }}
-          onDismiss={() => {
-            setDismissedBanners(prev => {
-              const next = new Set(prev)
-              next.add(activeTab.id)
-              return next
-            })
-          }}
-        />
-      )}
     </div>
   )
 }

@@ -61,20 +61,9 @@ export class SessionStateService {
   // updating the current session if saved or unsaved"). Hook is
   // optional; null = no mirroring (default).
   private mirrorHook: ((state: SessionState) => Promise<void>) | null = null
-  // ENH-177 (Sprint 20 / v0.7.7) — optional pre-persist enrichment.
-  // Called inside flush() BEFORE the state is stringified, so the
-  // hook can decorate the state (e.g. populate lastClaudeSession on
-  // terminals by scanning ~/.claude/projects/). Returns the
-  // potentially-enriched state. Failures are logged + the original
-  // state is used (best-effort — never block the autosave).
-  private enrichBeforePersistHook: ((state: SessionState) => Promise<SessionState>) | null = null
 
   setMirrorHook(fn: ((state: SessionState) => Promise<void>) | null): void {
     this.mirrorHook = fn
-  }
-
-  setEnrichBeforePersistHook(fn: ((state: SessionState) => Promise<SessionState>) | null): void {
-    this.enrichBeforePersistHook = fn
   }
 
   /** Read the persisted state. Best-effort: corrupt / missing file
@@ -99,32 +88,13 @@ export class SessionStateService {
         savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : '',
         appVersion: typeof parsed.appVersion === 'string' ? parsed.appVersion : '',
         terminals: Array.isArray(parsed.terminals)
-          ? parsed.terminals
-              .filter(
-                (t) =>
-                  t &&
-                  typeof t.cwd === 'string' &&
-                  (t.kind === 'shell' || t.kind === 'claude') &&
-                  typeof t.title === 'string',
-              )
-              // ENH-177 — preserve `lastClaudeSession` shape (or null) when
-              // present + valid; drop the field silently otherwise so the
-              // load path stays defensive about stored data.
-              .map((t) => {
-                const s = (t as { lastClaudeSession?: unknown }).lastClaudeSession
-                if (
-                  s &&
-                  typeof s === 'object' &&
-                  typeof (s as { id?: unknown }).id === 'string' &&
-                  typeof (s as { capturedAt?: unknown }).capturedAt === 'number'
-                ) {
-                  return {
-                    ...t,
-                    lastClaudeSession: { id: (s as { id: string }).id, capturedAt: (s as { capturedAt: number }).capturedAt }
-                  }
-                }
-                return t
-              })
+          ? parsed.terminals.filter(
+              (t) =>
+                t &&
+                typeof t.cwd === 'string' &&
+                (t.kind === 'shell' || t.kind === 'claude') &&
+                typeof t.title === 'string',
+            )
           : [],
         activeTerminalIndex: Number.isInteger(parsed.activeTerminalIndex)
           ? (parsed.activeTerminalIndex as number)
@@ -175,24 +145,13 @@ export class SessionStateService {
     if (this.writing) return // a flush is already in flight; let it complete
     if (!this.pending) return
 
-    let state = this.pending
+    const state = this.pending
     this.pending = null
     if (this.writeTimer) {
       clearTimeout(this.writeTimer)
       this.writeTimer = null
     }
     this.writing = true
-
-    // ENH-177 — run the enrichment hook (if set) before stringify so
-    // any decorations (e.g. lastClaudeSession on terminals) ride into
-    // both the autosave file AND the mirror-hook payload.
-    if (this.enrichBeforePersistHook) {
-      try {
-        state = await this.enrichBeforePersistHook(state)
-      } catch (err) {
-        console.warn('[session-state] enrichBeforePersist hook failed:', (err as Error)?.message ?? err)
-      }
-    }
 
     try {
       await fs.mkdir(SESSION_DIR, { recursive: true })

@@ -11,12 +11,6 @@ export interface TabSession {
   title: string
   cwd: string
   kind: TerminalTabKind
-  /** ENH-177 — populated when the tab was restored from a workspace
-   *  whose serialized terminal entry had a `lastClaudeSession`. The
-   *  renderer's TerminalPane surfaces a non-modal "Resume" banner
-   *  while claudePresence is NOT 'claude' and this field is set; the
-   *  banner writes `claude --resume <id>` into the PTY on click. */
-  lastClaudeSession?: { id: string; capturedAt: number } | null
 }
 
 // ── Duo socket protocol ──────────────────────────────────────────────────────
@@ -540,17 +534,6 @@ export interface SessionStateTerminal {
    *  same labels they had before the reload. New PTYs may overwrite
    *  this with a CWD-derived basename once they boot. */
   title: string
-  /** ENH-177 — last detected Claude session in this tab. Populated by
-   *  the save-side scanner when claudePresence reports 'claude' at
-   *  serialize time. `id` is the basename of the most-recently-
-   *  modified `.jsonl` under `~/.claude/projects/<encoded-cwd>/`.
-   *  `capturedAt` is a UNIX epoch ms for staleness checks. On restore,
-   *  the renderer offers a non-modal "Resume" banner if claudePresence
-   *  isn't 'claude' but `lastClaudeSession.id` is present. */
-  lastClaudeSession?: {
-    id: string
-    capturedAt: number
-  } | null
 }
 
 export interface SessionStateFileTab {

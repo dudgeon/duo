@@ -76,7 +76,6 @@ import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { ClaudePresenceProbe } from '../core/claude-presence'
-import { detectLatestClaudeSession } from './claude-session-tracker'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
@@ -292,35 +291,6 @@ sessionStateService.setMirrorHook(async (state) => {
   const active = activeWorkspaceService.get()
   if (!active) return
   await workspaceFileService.save(active.path, active.name, state, app.getVersion())
-})
-
-// ENH-177 (Sprint 20 / v0.7.7) — enrich each terminal entry with the
-// latest detected Claude session ID for its cwd before persisting.
-// Runs inside sessionStateService.flush() (debounced 250ms) so it
-// rides into BOTH the autosave file AND the mirror-hook payload.
-// Stale-cap at 24h so a months-old session-jsonl doesn't keep
-// surfacing the Resume banner.
-const CLAUDE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
-sessionStateService.setEnrichBeforePersistHook(async (state) => {
-  // Best-effort: scan in parallel. Empty terminals list short-circuits.
-  if (!state.terminals.length) return state
-  const enriched = await Promise.all(
-    state.terminals.map(async (t) => {
-      const detected = await detectLatestClaudeSession(t.cwd, CLAUDE_SESSION_MAX_AGE_MS)
-      if (!detected) {
-        // Preserve any prior stored session if scan failed but value existed —
-        // network glitch / Claude's projects/ dir transient missing should
-        // not erase a previously-captured ID.
-        if (t.lastClaudeSession) return t
-        return { ...t, lastClaudeSession: null as null }
-      }
-      return {
-        ...t,
-        lastClaudeSession: { id: detected.id, capturedAt: detected.capturedAt }
-      }
-    })
-  )
-  return { ...state, terminals: enriched }
 })
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
