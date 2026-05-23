@@ -1906,7 +1906,7 @@ function installAppMenu(): void {
       submenu: [
         {
           id: claudeReturnMenuItemId,
-          label: 'Cmd+Return for Claude submit',
+          label: '⌘Return for Claude submit',
           type: 'checkbox',
           checked: claudeKeyPrefsState.claudeReturn === 'newline',
           click: () => {

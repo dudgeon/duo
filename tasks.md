@@ -230,6 +230,28 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-154: Claude-tab Return override misses kind='shell' tabs running `claude`
+
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7). Surfaced during ENH-170 v2 smoke walk — owner: *"the ENH-170-WALK implementation is fundamentally flawed; … with cmd return for claude submit checked, return still submits."*
+
+**Symptom (verified live 2026-05-22).** With Settings → "⌘Return for Claude submit" CHECKED (so `claudeReturn='newline'`), pressing Return inside a Claude session **submitted** instead of inserting a newline. Reproduced in a kind='shell' terminal where the user had typed `claude` directly.
+
+**Root cause.** [`TerminalPane.tsx:353`](renderer/components/TerminalPane.tsx:353) gated the Sprint 16 / v0.6.15 Return-override on `tab.kind === 'claude'`. The `kind` is set at PTY spawn time — when a user runs `claude` inside a kind='shell' tab (the most common path; the dedicated kind='claude' tab requires `⌘⇧T` or `duo new-tab --claude`), the kind stays 'shell' and the override branch was skipped.
+
+**Fix (shipped 2026-05-22):** broadened the gate from `tab.kind === 'claude'` to `tab.kind === 'claude' || claudePresenceRef.current === 'claude'`. The [`ClaudePresenceProbe`](core/claude-presence.ts) (Sprint 16 ENH-013) polls every 500ms via `ps` to detect a `claude` descendant of the front terminal — already used by the Send → Duo pill's gate; now also drives the Return-override gate. Imports + ref pattern mirror the existing `claudeReturn` / `shiftReturn` refs.
+
+Also: menu label updated from `'Cmd+Return for Claude submit'` to `'⌘Return for Claude submit'` per owner ("you should have also replaced cmd with the symbol").
+
+**Live verification (computer-use):**
+1. Spawned a kind='shell' tab via `duo new-tab --shell`.
+2. Typed `claude` inside it. Claude Code v2.1.148 mounted; `duo layout` confirmed `kind=shell`.
+3. With Settings menu CHECKED (`claudeReturn='newline'`): typed `test line one` → Return → typed `test line two`. Composer showed both lines stacked — no submit.
+4. Unchecked Settings menu (`claudeReturn='submit'`). Pressed Return. Two-line content submitted; Claude replied *"I see two short test lines. What would you like me to do with them?"*.
+
+**Cross-ref:** ENH-170 v2 (the menu that exposes this toggle), Sprint 16 / v0.6.15 (`useClaudeKeyPrefs` + the original kind-gated handler), Sprint 16 ENH-013 (the `claudePresence` prober being reused as a broader gate). [feedback_open_every_modal_before_smoke_handoff](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_open_every_modal_before_smoke_handoff.md) — would have caught this if I'd actually pressed Return in a live Claude session before claiming ENH-170 v1 done.
+
+---
+
 ### BUG-153: Settings modal occluded by browser-pane WebContentsView (superseded)
 
 **Status:** ✅ **Superseded 2026-05-22.** The Settings modal that needed the `setOverlayMuted` pair no longer exists — owner-locked redesign of [ENH-170](#enh-170-top-level-settings-menu--single-cmdreturn-for-claude-submit-checkbox) v2 replaced the modal with a top-level native Settings menu. No modal, no occlusion possible. Original entry kept below as a historical record + a memory-rule citation.

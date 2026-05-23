@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import type { TabSession } from '@shared/types'
 import { matchGlobalShortcut } from '../keyboard/globalShortcuts'
 import { useClaudeKeyPrefs } from '../hooks/useClaudeKeyPrefs'
+import { useClaudePresence } from '../hooks/useClaudePresence'
 
 // scrollback defined here; shared/constants.ts uses Node.js os/path and can't be imported in renderer
 const SCROLLBACK = 10_000
@@ -207,6 +208,19 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
   claudeReturnRef.current = claudeReturn
   const shiftReturnRef = useRef(shiftReturn)
   shiftReturnRef.current = shiftReturn
+
+  // BUG-154 (Sprint 20 / v0.7.7) — broaden the Return-override gate
+  // from `tab.kind === 'claude'` to ALSO cover the case where the
+  // user typed `claude` into a regular shell tab (tab.kind stays
+  // 'shell' but Claude IS running). The claudePresence prober
+  // (ENH-013) detects live Claude in any front terminal regardless
+  // of how the PTY was spawned. Owner-reported gap on v0.7.7 walk:
+  // "with cmd return for claude submit checked, return still
+  // submits" — they were in a shell tab running claude, which the
+  // kind-gate excluded.
+  const claudePresenceState = useClaudePresence()
+  const claudePresenceRef = useRef(claudePresenceState)
+  claudePresenceRef.current = claudePresenceState
   // Track the typography state we last applied so the effect below can
   // tell a cozy/font-bump change from an initial mount and avoid
   // redundant fits. `applied` holds "cozy:bump" so either changing
@@ -350,7 +364,13 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
       //   3. Shift+Enter (no Cmd) → shiftReturn pref decides:
       //        'newline' (default) — write `\x1b\r`
       //        'submit' — pass through to xterm
-      if (tab.kind === 'claude' && e.key === 'Enter' && !e.altKey && !e.ctrlKey) {
+      // BUG-154 (Sprint 20) — gate broadened: also fire when claudePresence
+      // detects live Claude in a kind='shell' tab where the user typed
+      // `claude` directly. Pre-fix, the Return-override only applied to
+      // kind='claude' tabs (spawned via ⌘⇧T / `duo new-tab --claude`),
+      // missing the common case of typing `claude` into a normal shell.
+      const claudeIsLive = tab.kind === 'claude' || claudePresenceRef.current === 'claude'
+      if (claudeIsLive && e.key === 'Enter' && !e.altKey && !e.ctrlKey) {
         if (e.metaKey) {
           // ⌘Enter / ⌘⇧Enter — always submit. No toggle.
           if (e.type === 'keydown') window.electron.pty.write(tab.id, '\r')
