@@ -119,6 +119,11 @@ interface Props {
    *  the active terminal's PTY. `null` props the pill from rendering at
    *  all (e.g. no terminal tabs are open). */
   onSendToDuo?: ((payload: string) => void) | null
+  /** ENH-176 — label shown on the Send pill. Default is "Send → agent"
+   *  (matches the existing pill primitive default). App.tsx overrides
+   *  to "Send → Terminal" when the terminal-variant feature flag is
+   *  on and claudePresence is NOT 'claude'. */
+  pillLabel?: string
   /** FOLLOWUP-014/walk-2 — true when this editor is the active visible
    *  tab. Gates IPC handlers (currently `onImageInsert`) that should
    *  only fire on the user-facing surface. Without the gate, multiple
@@ -294,7 +299,7 @@ const NULL_ACTIONS: EditorActions = {
   inTable: () => false
 }
 
-export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo, isActive }: Props) {
+export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, onCancelNew, onSendToDuo, pillLabel, isActive }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -2539,9 +2544,12 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
         </>
       )}
       </div>
-      {/* Stage 15.1 — floating Send → Duo pill, portaled to body. */}
+      {/* Stage 15.1 — floating Send → Duo pill, portaled to body.
+          ENH-176 — label flips between "Send → agent" / "Send →
+          Terminal" depending on which feature-flag path armed the
+          pill (host computes in App.tsx). */}
       {onSendToDuo && !newCommentAt && (
-        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} label={pillLabel} />
       )}
       {/* Sprint 6 Phase 4 — new-comment composer. Anchored to the
           selection rect captured when the user invoked Comment. */}

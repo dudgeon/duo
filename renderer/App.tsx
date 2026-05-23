@@ -23,6 +23,7 @@ import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
 import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
+import { useSendPillFlags } from './hooks/useSendPillFlags'
 import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
 import { useAuthor } from './hooks/useAuthor'
@@ -738,6 +739,14 @@ export function App() {
   // grace window for a kind=='claude' tab). State pushed by main's
   // claude-presence probe.
   const claudeLive = useFrontTerminalClaudeLive()
+
+  // ENH-176 — independent feature flags for the two Send-pill
+  // variants. See `useSendPillFlags` for the locked owner spec:
+  // agent default ON, terminal default OFF; when both could fire,
+  // agent wins. Compute the (callback, label) tuple here so each
+  // editor surface gets the right wiring via `onSendToDuo` +
+  // `pillLabel`.
+  const sendPillFlags = useSendPillFlags()
 
   // Stage 15 G17 — push the active terminal id to main so `duo send`
   // can write into the right PTY. `null` covers the degenerate case
@@ -3276,14 +3285,16 @@ export function App() {
               // flip (drives the focus-ring CSS) AND OS-level focus on
               // the xterm helper-textarea so PTY keystrokes route in —
               // mirrors togglePaneFocus's terminal branch.
-              // ENH-013 — gate on the front terminal having a live
-              // Claude session. `null` causes the pill to suppress
-              // entirely (matches the legacy "no terminal tabs" path
-              // that this prop already handled). Pill flips back on
-              // automatically when the user focuses a Claude tab or
-              // launches Claude in the active tab.
+              //
+              // ENH-176 — pill firing is now governed by two
+              // independent localStorage flags (see useSendPillFlags).
+              // When both could fire (claude live AND both flags on),
+              // AGENT wins per owner-locked design 2026-05-23. When
+              // only the terminal flag is on (no claude), pill shows
+              // 'Send → Terminal' instead of 'Send → agent' but the
+              // wire is otherwise identical (PTY write, focus shift).
               onSendToDuo={
-                activeTabId && claudeLive
+                activeTabId && ((claudeLive && sendPillFlags.agent) || (sendPillFlags.terminal && !claudeLive))
                   ? (payload) => {
                       void window.electron.pty.write(activeTabId, payload)
                       setFocusedColumn('terminal')
@@ -3296,6 +3307,7 @@ export function App() {
                     }
                   : null
               }
+              pillLabel={claudeLive && sendPillFlags.agent ? 'Send → agent' : 'Send → Terminal'}
               pins={pins}
               onTogglePin={togglePin}
               onPlaygroundAction={handlePlaygroundAction}

@@ -18,9 +18,12 @@ interface BrowserRendererProps {
    *  propagates "no terminal available" and props the pill from
    *  rendering. */
   onSendToDuo?: ((payload: string) => void) | null
+  /** ENH-176 — label override for the Send pill. See MarkdownEditor.tsx
+   *  for the same prop contract. */
+  pillLabel?: string
 }
 
-export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
+export function BrowserRenderer({ onSendToDuo, pillLabel }: BrowserRendererProps = {}) {
   const { state, navigate } = useBrowserState()
   const contentRef = useRef<HTMLDivElement>(null)
   const browserSelection = useBrowserSelection()
@@ -330,7 +333,7 @@ export function BrowserRenderer({ onSendToDuo }: BrowserRendererProps = {}) {
           selection. Same primitive the editor uses; only the binding
           (selection observer + rect translation) is browser-specific. */}
       {onSendToDuo && (
-        <SendToDuoPill rect={pillAnchor} onClick={handleSendToDuoClick} />
+        <SendToDuoPill rect={pillAnchor} onClick={handleSendToDuoClick} label={pillLabel} />
       )}
     </div>
   )

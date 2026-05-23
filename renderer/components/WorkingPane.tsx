@@ -67,6 +67,11 @@ interface WorkingPaneProps {
    *  the host writes it to the active terminal's PTY. `null` props
    *  the pill from rendering at all. */
   onSendToDuo?: ((payload: string) => void) | null
+  /** ENH-176 — label override for the Send pill. Default behavior
+   *  preserved: when omitted, each surface defaults to "Send →
+   *  agent". App.tsx flips this to "Send → Terminal" when the
+   *  terminal feature flag is on and claudePresence is NOT 'claude'. */
+  pillLabel?: string
   /** 17a polish item 2 — host-supplied "open new-file interstitial"
    *  callback (mirrors ⌘N in App.tsx). Plain click on the tab-strip
    *  `+` button calls this; ⌥-click falls back to opening a new
@@ -171,6 +176,7 @@ export function WorkingPane({
   onCommitNewFile,
   focused = false,
   onSendToDuo,
+  pillLabel,
   onNewFile,
   pins,
   onTogglePin,
@@ -508,6 +514,7 @@ export function WorkingPane({
           onCommitNewFile={(p, t) => onCommitNewFile(tab.id, p, t)}
           onCancelNew={() => closeFileTab(tab.id)}
           onSendToDuo={onSendToDuo}
+          pillLabel={pillLabel}
         />
       )
     }
@@ -520,6 +527,7 @@ export function WorkingPane({
           path={tab.path}
           onDirtyChange={(d) => onTabDirtyChange(tab.id, d)}
           onSendToDuo={onSendToDuo}
+          pillLabel={pillLabel}
           onPlaygroundAction={onPlaygroundAction}
           homeDir={homeDir}
           // BUG-032 + BUG-046 — only let the iframe steal focus when
@@ -630,7 +638,7 @@ export function WorkingPane({
           // against any race that leaves activeWorking pointing at a
           // missing tab — fall back to the browser pane).
           <div className="absolute inset-0 flex flex-col">
-            <BrowserRenderer onSendToDuo={onSendToDuo} />
+            <BrowserRenderer onSendToDuo={onSendToDuo} pillLabel={pillLabel} />
           </div>
         )}
       </div>

@@ -230,9 +230,104 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-178: Browser blocklist refactor — three modes with local-only default
+
+**Status:** 🆕 **Filed 2026-05-23**. Owner directive: refactor the existing http-blocklist + redirect-to-system-browser logic into a three-mode setting. **Local-only** becomes the new default; **unfiltered** is the debug escape hatch with an IT-warning gate; **filtered-with-redirect** is the current behavior (preserved for users who explicitly enable it).
+
+**The three modes.**
+
+1. **`unfiltered`** (debug) — all URLs render in Duo's embedded `WebContentsView`, no redirects. Useful for debugging on a packaged build where DevTools alone isn't enough. Activated by `duo browser-mode unfiltered` with an IT-warning confirmation prompt — *not* easily user-discoverable.
+2. **`filtered`** (current behavior — preserved as opt-in) — Duo renders most URLs, but hostnames listed in `~/.claude/duo/external-domains.json` redirect to the system browser via `shell.openExternal`. Activated by `duo browser-mode filtered`.
+3. **`local-only`** (new default) — Duo only renders `file://*`, `http(s)://localhost(:port)`, `http(s)://127.0.0.1(:port)`, and `http(s)://[::1](:port)`. ALL other URLs pop the system browser. Activated by `duo browser-mode local-only` (the install default).
+
+**Owner-locked spec (2026-05-23):**
+
+- **Local definition (locked):** `file://` + `localhost` + `127.0.0.1` (+ `[::1]` IPv6 loopback for completeness; ports allowed).
+- Migration: existing users on `filtered` mode stay on `filtered` (preserve their current behavior). New installs default to `local-only`.
+- IT-warning prompt for `unfiltered`: explicit confirmation step (one-shot per session — re-running the verb on a clean state re-prompts).
+- CLI verb name: `duo browser-mode [show|unfiltered|filtered|local-only]`. Bare reads current mode. The mode setting persists in renderer localStorage.
+- Status quo for off-host redirects: continues to use Electron's `shell.openExternal`. No new external surface.
+
+**Plumbing checklist (per CLAUDE.md rule 4):**
+
+1. `shared/types.ts` — add `'browser-mode'` to `DuoCommandName`. Add type `BrowserMode = 'unfiltered' | 'filtered' | 'local-only'`. Add IPC channel `BROWSER_MODE_STATE_PUSH` to mirror Cozy-mode pattern.
+2. `shared/host-api.ts` — `ElectronBrowserModeAPI` with `get()`, `set(mode)`, `subscribe(cb)`.
+3. `electron/preload.ts` — bridge wiring.
+4. `electron/main.ts` — state cache + push handler.
+5. `core/socket-server.ts` — `case 'browser-mode'` in command switch.
+6. `electron/browser-manager.ts` — extend `routeOffHostIfMatched` (or sibling helper) to consult current mode + local-only filter set.
+7. `cli/duo.ts` — verb + `printHelp()` update + IT-warning prompt logic for `unfiltered`. Rebuild binary.
+8. `skill/SKILL.md` + `agents/duo.md` + `docs/CLI-COVERAGE.md` — discoverability + cheat-sheet.
+9. Renderer state: persisted to localStorage `duo.browserMode`; default = `'local-only'` (new install) OR `'filtered'` (existing user — detect via presence of `external-domains.json`).
+
+**Open sub-questions (resolve during build):**
+- Should `duo browser-mode unfiltered` warn ONCE per session, or every invocation? Going with **every invocation** for safety unless owner objects.
+- What does the IT-warning prompt say? Draft: *"WARNING: 'unfiltered' mode lets the embedded browser render any URL. Some IT departments disallow agent-driven browsing on the open internet. Confirm you've consulted your IT department before proceeding. Type 'I understand' to continue:"*.
+
+**Cross-ref:** [`electron/browser-manager.ts § routeOffHostIfMatched`](electron/browser-manager.ts), `~/.claude/duo/external-domains.json` (current blocklist surface), Stage 21d (the only doc that touches `routeOffHostIfMatched` to date).
+
+---
+
+### ENH-177: Restore Claude session across workspace switch — track + offer resume
+
+**Status:** 🆕 **Filed 2026-05-23**. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
+
+**Owner-locked spec (2026-05-23):**
+
+- **Restore UX (locked):** *banner with one-click Resume*. Non-modal banner anchored inside the restored terminal tab: `⏪ This tab had Claude session abc123 — Resume?` + primary Resume button + dismiss (×). Dismiss is once-per-tab-per-restore.
+- Clicking Resume writes `claude --resume <session-id>\n` into the PTY of the restored tab. Same wire as the `claude` auto-launch for `kind='claude'` tabs.
+- Source of session-id: Claude writes per-session JSONL files at `~/.claude/projects/<encoded-cwd>/<session-id>.jsonl` (one file per session). We scrape the most-recently-modified file matching the tab's PTY cwd at teardown time and persist the session-id in the workspace metadata.
+
+**Plumbing sketch:**
+
+1. **Track session-id on workspace save.** New main-process helper that, for each terminal tab with `claudePresence === 'claude'`, scans `~/.claude/projects/<encoded-cwd>/` and picks the most-recently-modified `*.jsonl` — that's the live session. Encoded-cwd matches Claude's own convention (slashes → dashes etc.).
+2. **Extend `SessionState.terminals[]`** with `lastClaudeSession: { id: string, capturedAt: number } | null`. Persisted in `.duo-workspace`.
+3. **On workspace load + terminal restore**, if `lastClaudeSession.id` is present + the PTY tab is back up, render the banner. Banner is a renderer-only component anchored inside `TerminalPane` (or a sibling above the xterm host).
+4. Resume button → IPC write to PTY: `claude --resume <id>\n`. Tab's `claudePresence` will detect the new `claude` process within the polling interval.
+5. Dismiss persists in transient state (not saved); re-loading the workspace prompts again unless the user resumed.
+
+**Open sub-questions (resolve during build):**
+- What if the session-id file is no longer there (claude purged it)? Banner shows but Resume errors — surface "session no longer available" inline.
+- What if the user opens the workspace on a different machine where the session ID doesn't exist? Same handling: try → fail → "session no longer available."
+- Auto-banner suppress after N session-switches without resume? Probably not v1 — let owner walk the v1 and decide.
+
+**Cross-ref:** [`core/claude-presence.ts`](core/claude-presence.ts) (probe that already detects claude descendants — same source for "this tab is currently running claude"), `~/.claude/projects/` (Claude's session-jsonl directory — undocumented but stable), Sprint 16 ENH-013 (the original claude-presence prober that enables this whole feature class).
+
+---
+
+### ENH-176: Send pill refactor — independent feature flags for agent + terminal variants
+
+**Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Two independent localStorage feature flags — `duo.sendPill.agent` (default ON, preserves Sprint 16 behavior) and `duo.sendPill.terminal` (default OFF, new opt-in). Both controlled via localStorage only (no UI surface); imperative setters exported from [`renderer/hooks/useSendPillFlags.ts`](renderer/hooks/useSendPillFlags.ts) for future CLI verbs.
+
+**Owner-locked spec (2026-05-23):**
+
+- **Pill priority (locked):** when both could fire (claude live + both flags ON), AGENT wins. The terminal variant is opt-in for the no-claude case.
+- **Flag control (locked):** localStorage only, no visible UI surface — keeps the terminal variant out of the way until validated.
+- Label changes: `Send → agent` (claude live + agent flag) vs `Send → Terminal` (terminal flag + no claude).
+- Wire is otherwise identical: PTY write of formatted payload + focus shift to terminal.
+
+**Implementation.**
+- New `renderer/hooks/useSendPillFlags.ts` reads flags from localStorage, subscribes to `storage` + custom `duo:sendPillFlagsChanged` events for cross-tab/cross-window propagation.
+- App.tsx gates `onSendToDuo` callback via `(claudeLive && agentFlag) || (terminalFlag && !claudeLive)` + computes `pillLabel` from the same condition.
+- New `pillLabel?: string` prop threaded through `WorkingPane` → `MarkdownEditor` / `PageTab` / `BrowserRenderer` → `SendToDuoPill`. Default behavior preserved when prop omitted.
+- 5 new vitest cases cover the localStorage setter contract.
+
+**Toggling via DevTools (current path):**
+```js
+localStorage.setItem('duo.sendPill.agent', 'true' | 'false')
+localStorage.setItem('duo.sendPill.terminal', 'true' | 'false')
+window.dispatchEvent(new CustomEvent('duo:sendPillFlagsChanged'))
+```
+
+**Future:** CLI verbs `duo send-pill agent [on|off]` + `duo send-pill terminal [on|off]` — not in this commit; the localStorage shape is stable so verbs can be added without renderer changes.
+
+**Cross-ref:** ENH-013 (the original Claude-presence gate that this generalizes), `SendToDuoPill` primitive (label is a prop on the primitive itself — no chrome change here).
+
+---
+
 ### ENH-175: `duo navigate <url>` opens a new browser tab (or focuses an existing matching one)
 
-**Status:** 🆕 **Filed 2026-05-23** — surfaced in BUG-149-WALK notes during smoke walk v0.7.7 rev-2. Owner: *"new ENH `duo navigate https://example.com` should open the url in a NEW browser pane, not the active one (or if the target url is already open in a tab, focus that tab)."*
+**Status:** ✅ **Shipped 2026-05-23** (v0.7.7) at [ffd798b](https://github.com/dudgeon/duo/commit/ffd798b). New `BrowserManager.navigateOrFocus(url)` + `normalizeForTabMatch` URL helper (strip hash + trailing slash). CLI's `case 'navigate'` routes through it; renderer address bar keeps reuse-active semantics. 9 vitest cases pin the URL-match contract. Agent docs + skill + CLI-COVERAGE updated. Owner: *"new ENH `duo navigate https://example.com` should open the url in a NEW browser pane, not the active one (or if the target url is already open in a tab, focus that tab)."*
 
 **Current behavior.** `duo navigate <url>` reuses the **active** browser tab — sends the URL through CDP `Page.navigate` on the currently-focused WebContentsView. If the user is on an existing page they care about (e.g. a smoke-walk page mid-walk, a docs page they're reading), it gets clobbered.
 

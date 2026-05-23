@@ -95,6 +95,9 @@ interface Props {
    *  preference), and the host writes it to the active terminal's PTY.
    *  `null` props the pill from rendering at all. */
   onSendToDuo?: ((payload: string) => void) | null
+  /** ENH-176 — label override for the Send pill. See MarkdownEditor.tsx
+   *  for the same prop contract. */
+  pillLabel?: string
   /** Stage 23 — host-supplied dispatch for `data-duo-action` clicks
    *  inside the canvas. Resolves with `{ ok, error? }`; canvasActions
    *  surfaces dispatch failures to the dev console. Omit to disable
@@ -319,7 +322,7 @@ function writeReadOnlyOverride(absPath: string, readOnly: boolean): void {
   } catch { /* private browsing / storage quota — drop silently */ }
 }
 
-export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, homeDir, focused = false, isActive = false, onUserInteract }: Props) {
+export function PageTab({ path, onDirtyChange, onSendToDuo, pillLabel, onPlaygroundAction, homeDir, focused = false, isActive = false, onUserInteract }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [initialHtml, setInitialHtml] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -2105,7 +2108,7 @@ export function PageTab({ path, onDirtyChange, onSendToDuo, onPlaygroundAction, 
           The pill rect is still tracked because handleStartNewComment
           uses it to anchor the composer popover. */}
       {onSendToDuo && pillRect && !newCommentAt && (
-        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} />
+        <SendToDuoPill rect={pillRect} onClick={handleSendToDuoClick} label={pillLabel} />
       )}
       {/* Stage 17d — new-comment composer (modal popover). Anchored to
           the selection rect captured when the user clicked Comment. */}
