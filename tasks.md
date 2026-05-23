@@ -232,7 +232,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-180: Auto-rename Claude sessions via `/rename` PTY injection
 
-**Status:** 🟡 **PRD filed 2026-05-23** — awaiting owner picks on 4 decisions. Sprint 21 candidate (build estimated ~3h after decisions).
+**Status:** 🟡 **PRD filed 2026-05-23** — awaiting owner picks on 4 decisions. Sprint 21 candidate. **Build depends on [ENH-177](#enh-177) landing first** (the banner that consumes this title). Order for next sprint: re-ship ENH-177 + ENH-178 + walk both live → owner reviews ENH-180 PRD on phone → build ENH-180 (~3h after decisions lock).
 
 **PRD:** [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) — full design + mockups + 4 decision cards (visibility footprint, title source, quality threshold, timing/idle gate).
 **Notion mirror (phone-friendly):** [ENH-180 PRD — Auto-rename Claude sessions via `/rename` injection](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — owner ticks the boxes per decision card directly on phone.
@@ -295,7 +295,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-178: Browser blocklist refactor — three modes with local-only default
 
-**Status:** 🆕 **Filed 2026-05-23**. Owner directive: refactor the existing http-blocklist + redirect-to-system-browser logic into a three-mode setting. **Local-only** becomes the new default; **unfiltered** is the debug escape hatch with an IT-warning gate; **filtered-with-redirect** is the current behavior (preserved for users who explicitly enable it).
+**Status:** 🟡 **Filed 2026-05-23 · built + reverted pre-cut 2026-05-23 — queued for re-ship next sprint.** Implementation landed at [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da); reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849) so v0.7.7 cuts without the local-only default change. CLI verb `duo browser-mode` + the `unfiltered`/`filtered`/`local-only` modes + `isLocalUrlForBrowserMode` helper + 11 vitest cases are all in the git history and can be cherry-picked back next sprint after the owner walks the behavior live. Owner directive: refactor the existing http-blocklist + redirect-to-system-browser logic into a three-mode setting. **Local-only** becomes the new default; **unfiltered** is the debug escape hatch with an IT-warning gate; **filtered-with-redirect** is the current behavior (preserved for users who explicitly enable it).
 
 **The three modes.**
 
@@ -333,7 +333,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-177: Restore Claude session across workspace switch — track + offer resume
 
-**Status:** 🆕 **Filed 2026-05-23**. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
+**Status:** 🟡 **Filed 2026-05-23 · built + reverted pre-cut 2026-05-23 — queued for re-ship next sprint.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement next sprint after owner walks the workspace-switch-and-back flow live. **ENH-180 depends on this landing first.** Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
 
 **Owner-locked spec (2026-05-23):**
 

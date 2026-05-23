@@ -245,9 +245,10 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 <h2>Context — what ENH-177 ships today and why this matters</h2>
 
 <p>
-  ENH-177 (shipped 2026-05-23 in v0.7.7) captures the most-recently-modified session UUID per terminal tab on
-  every autosave and, after a workspace switch, surfaces a banner: <em>⏪ This tab had Claude session
-  <code>17d05c98</code> — Resume?</em>.
+  ENH-177 (built + reverted before v0.7.7 cut — queued for re-ship next sprint) captures the most-recently-
+  modified session UUID per terminal tab on every autosave and, after a workspace switch, surfaces a banner:
+  <em>⏪ This tab had Claude session <code>17d05c98</code> — Resume?</em>. <strong>ENH-180 depends on
+  ENH-177 landing first.</strong>
 </p>
 <div class="banner-mock">
   <span class="arrow">⏪</span>
