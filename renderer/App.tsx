@@ -24,6 +24,7 @@ import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
 import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
 import { useSendPillFlags } from './hooks/useSendPillFlags'
+import { useBrowserMode } from './hooks/useBrowserMode'
 import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
 import { useAuthor } from './hooks/useAuthor'
@@ -755,6 +756,16 @@ export function App() {
   // editor surface gets the right wiring via `onSendToDuo` +
   // `pillLabel`.
   const sendPillFlags = useSendPillFlags()
+
+  // ENH-178 — three-mode browser URL filter. Hook mounts on App
+  // boot; first effect pushes the persisted localStorage value to
+  // main so BrowserManager.routeOffHostIfMatched is in lockstep
+  // before any URL navigation happens. Default: 'local-only' for
+  // new installs; existing values are preserved across launches.
+  // Currently the cached value is referenced only by the address-bar
+  // affordance + future Settings UI; main is the authority for
+  // off-host routing decisions.
+  useBrowserMode()
 
   // Stage 15 G17 — push the active terminal id to main so `duo send`
   // can write into the right PTY. `null` covers the degenerate case

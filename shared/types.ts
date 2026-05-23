@@ -241,6 +241,14 @@ export type DuoCommandName =
   // current value; `show` / `hide` / `toggle` writes. View-menu
   // checkbox + ⌘⇧. chord are the GUI counterparts.
   | 'hidden-files'
+  // ENH-178 (Sprint 20 / v0.7.7) — control the browser-pane URL
+  // filter mode. `unfiltered` lets ANY URL render in the embedded
+  // browser (debug-only — CLI requires IT-warning confirmation),
+  // `filtered` is the legacy behavior (consult external-domains.json
+  // for off-host redirects), `local-only` is the new default and
+  // pops the system browser for anything outside file:// + localhost
+  // + 127.0.0.1 + [::1]. Bare `duo browser-mode` reads current value.
+  | 'browser-mode'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -1202,6 +1210,23 @@ export interface AuthorStateSnapshot {
 //         requires the agent to expand via `duo selection`).
 export type SelectionFormat = 'a' | 'b' | 'c'
 
+// ENH-178 (Sprint 20 / v0.7.7) — three-mode browser URL filter.
+//
+//   - `unfiltered` — embedded browser renders ANY URL. Debug-only
+//     escape hatch. CLI requires IT-warning confirmation to engage.
+//   - `filtered` — legacy behavior. Hostnames in
+//     `~/.claude/duo/external-domains.json` redirect to the system
+//     browser; everything else renders in Duo.
+//   - `local-only` — NEW DEFAULT. Only `file://*`, `localhost:*`,
+//     `127.0.0.1:*`, `[::1]:*` render in Duo; ALL other URLs pop
+//     the system browser. Matches the "agent-driven browsing on the
+//     open internet is IT-policy-disallowed" stance some users have.
+export type BrowserMode = 'unfiltered' | 'filtered' | 'local-only'
+
+export interface BrowserModeStateSnapshot {
+  mode: BrowserMode
+}
+
 export interface SelectionFormatStateSnapshot {
   format: SelectionFormat
 }
@@ -1605,6 +1630,16 @@ export const IPC = {
   // NavStateSnapshot since ENH-172). No dedicated state-push channel
   // needed.
   HIDDEN_FILES_SET: 'hidden-files:set',  // main → renderer ({ value: boolean | 'toggle' })
+
+  // ENH-178 (Sprint 20 / v0.7.7) — browser-mode three-state filter.
+  // BROWSER_MODE_GET → returns current mode + bootstrap info.
+  // BROWSER_MODE_SET → renderer → main (persisted + applied).
+  // BROWSER_MODE_PUSH → main → renderer (echo so CLI-driven changes
+  // refresh the renderer-cached value used for the address-bar
+  // affordances).
+  BROWSER_MODE_GET: 'browser-mode:get',
+  BROWSER_MODE_SET: 'browser-mode:set',
+  BROWSER_MODE_PUSH: 'browser-mode:push',
 
   // Cmd-shortcuts pressed while the browser WebContentsView has focus.
   // Forwarded so the renderer can process them identically to native
