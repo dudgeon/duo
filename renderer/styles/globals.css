@@ -717,6 +717,83 @@ html.dark {
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* ENH-177 — Claude resume banner. Appears anchored to the top of
+     the active terminal pane when a restored tab had a captured
+     Claude session ID but no live `claude` process. Non-modal +
+     dismissable. */
+  .claude-resume-banner {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    right: 8px;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    font-family: var(--duo-font-sans, system-ui, sans-serif);
+    font-size: 12px;
+    color: var(--duo-text);
+    background: var(--duo-surface);
+    border: 1px solid var(--duo-border);
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(20, 14, 8, 0.12), 0 4px 10px rgba(20, 14, 8, 0.10);
+    animation: duo-send-pill-in 140ms ease-out;
+  }
+  .claude-resume-banner__arrow {
+    font-size: 14px;
+    line-height: 1;
+    opacity: 0.7;
+  }
+  .claude-resume-banner__text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .claude-resume-banner__sid {
+    background: rgba(20, 14, 8, 0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: var(--duo-font-mono, ui-monospace, monospace);
+    font-size: 11px;
+  }
+  .claude-resume-banner__resume {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    color: white;
+    background: var(--duo-accent, #7c6af7);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .claude-resume-banner__resume:hover { filter: brightness(1.05); }
+  .claude-resume-banner__resume:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .claude-resume-banner__dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1;
+    color: var(--duo-text);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.55;
+  }
+  .claude-resume-banner__dismiss:hover { opacity: 1; background: rgba(20, 14, 8, 0.06); }
+
   /* Stage 17d / 11d — `<CommentRail>` (editor-agnostic primitive).
      Right-side rail of threaded comments. Both the markdown editor
      (Stage 11d binding via CriticMarkup) and the HTML canvas (Stage
