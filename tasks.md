@@ -295,7 +295,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-178: Browser blocklist refactor — three modes with local-only default
 
-**Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Three-mode URL filter wired through BrowserManager + IPC + CLI verb with IT-warning gate. Default mode `local-only` (`file://` + `localhost` + `127.0.0.1` + `[::1]` render in Duo; everything else pops the system browser). Persisted in renderer localStorage `duo.browserMode`. New `duo browser-mode [unfiltered|filtered|local-only]` CLI verb (the `unfiltered` value requires `--i-understand` to bypass the IT-policy warning). 11 vitest cases pin `isLocalUrlForBrowserMode` (file://, about:, devtools://, localhost/127.0.0.1/[::1] with ports, subdomain-trick rejection, case-insensitive host matching, malformed-URL safety). Owner directive 2026-05-23. Owner directive: refactor the existing http-blocklist + redirect-to-system-browser logic into a three-mode setting. **Local-only** becomes the new default; **unfiltered** is the debug escape hatch with an IT-warning gate; **filtered-with-redirect** is the current behavior (preserved for users who explicitly enable it).
+**Status:** 🆕 **Filed 2026-05-23**. Owner directive: refactor the existing http-blocklist + redirect-to-system-browser logic into a three-mode setting. **Local-only** becomes the new default; **unfiltered** is the debug escape hatch with an IT-warning gate; **filtered-with-redirect** is the current behavior (preserved for users who explicitly enable it).
 
 **The three modes.**
 
@@ -333,7 +333,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-177: Restore Claude session across workspace switch — track + offer resume
 
-**Status:** ✅ **Shipped 2026-05-23** (v0.7.7) at [f351719](https://github.com/dudgeon/duo/commit/f351719). New `electron/claude-session-tracker.ts` (`encodeProjectDir` + `detectLatestClaudeSession`). `SessionStateService` gained an `enrichBeforePersistHook` so the autosave path can decorate state with `lastClaudeSession` before writing. Renderer mounts `ClaudeResumeBanner` in `TerminalPane` when a restored tab has a captured session ID and claudePresence isn't 'claude'. Click Resume → `claude --resume <id>\n` lands in the PTY. 6 vitest cases pin `encodeProjectDir` against real Claude Code directory names. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
+**Status:** 🆕 **Filed 2026-05-23**. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
 
 **Owner-locked spec (2026-05-23):**
 

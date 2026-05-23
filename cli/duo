@@ -538,25 +538,6 @@ async function main() {
         }
         break;
       }
-      case "browser-mode": {
-        const mode = rest[0];
-        if (mode === void 0) {
-          out(await send("browser-mode"));
-        } else if (mode !== "unfiltered" && mode !== "filtered" && mode !== "local-only") {
-          die("Usage: duo browser-mode [unfiltered|filtered|local-only]\n\nModes:\n  local-only  (default) \u2014 only file:// + localhost + 127.0.0.1 render in Duo; everything else opens in the system browser.\n  filtered    \u2014 Duo renders most URLs; hostnames in ~/.claude/duo/external-domains.json pop the system browser.\n  unfiltered  \u2014 DEBUG ONLY. All URLs render in Duo. Requires --i-understand.");
-        } else if (mode === "unfiltered" && !rest.includes("--i-understand")) {
-          die(`\u26A0\uFE0F  WARNING: 'unfiltered' mode lets Duo's embedded browser render any URL.
-
-Some IT departments disallow agent-driven browsing on the open internet.
-Consult your IT department before proceeding.
-
-To confirm, re-run:
-  duo browser-mode unfiltered --i-understand`);
-        } else {
-          out(await send("browser-mode", { mode }));
-        }
-        break;
-      }
       case "focus-pane": {
         const target = rest[0];
         if (target !== "terminal" && target !== "main" && target !== "aux") {
@@ -1699,18 +1680,6 @@ COMMANDS
                                   .claude + .obsidian are always
                                   visible regardless. No arg = print
                                   { showDotfiles: boolean }.
-  browser-mode [unfiltered|       ENH-178 (Sprint 20 / v0.7.7) \u2014 three-
-       filtered|local-only]        mode URL filter for the embedded
-                                  browser. Default 'local-only': only
-                                  file:// + localhost + 127.0.0.1 +
-                                  [::1] render in Duo; everything else
-                                  pops the system browser. 'filtered'
-                                  is the legacy behavior (consult
-                                  external-domains.json). 'unfiltered'
-                                  is DEBUG ONLY and requires
-                                  --i-understand (IT-policy warning).
-                                  Persists in renderer localStorage.
-                                  No arg = print { mode }.
   focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) \u2014 jump keyboard
                                   focus to the named pane. CLI parity
                                   with the \u2318\u2325L (terminal) / \u2318\u2325;

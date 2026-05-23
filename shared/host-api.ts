@@ -436,16 +436,6 @@ export interface ElectronHiddenFilesAPI {
   onSet: (cb: (value: boolean | 'toggle') => void) => () => void
 }
 
-// ENH-178 (Sprint 20 / v0.7.7) — browser-mode three-state filter.
-// Renderer holds the persisted value in localStorage; on boot it
-// calls `set(...)` once to push the persisted value back into main.
-// CLI changes arrive via `onPush`.
-export interface ElectronBrowserModeAPI {
-  get: () => Promise<{ mode: 'unfiltered' | 'filtered' | 'local-only' }>
-  set: (mode: 'unfiltered' | 'filtered' | 'local-only') => Promise<{ ok: boolean; mode?: string; error?: string }>
-  onPush: (cb: (mode: 'unfiltered' | 'filtered' | 'local-only') => void) => () => void
-}
-
 export interface ElectronLayoutAPI {
   /** ENH-014 — fires when View → Pane size menu, the ⌘⌥1/2/3/0/9
    *  accelerators, or `duo split <pct>` set the split percentage.
@@ -927,8 +917,6 @@ export interface ElectronAPI {
   cozy: ElectronCozyAPI
   /** ENH-172 (Sprint 20) — show/hide hidden-files toggle. */
   hiddenFiles: ElectronHiddenFilesAPI
-  /** ENH-178 (Sprint 20) — browser-mode three-state filter. */
-  browserMode: ElectronBrowserModeAPI
   layout: ElectronLayoutAPI
   workingAux: ElectronWorkingAuxAPI
   theme: ElectronThemeAPI

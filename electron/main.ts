@@ -504,8 +504,6 @@ async function createWindow(): Promise<void> {
     setShiftReturn: setShiftReturnMode,
     // ENH-172 (Sprint 20) — show/hide hidden-files toggle.
     setHiddenFiles: setHiddenFiles,
-    // ENH-178 (Sprint 20) — browser-mode push (CLI → renderer echo).
-    pushBrowserMode: pushBrowserMode,
     setSplit: setSplit,
     setLayout3wayEven: setLayout3wayEven,
     queryRendererDom: queryRendererDom,
@@ -1051,24 +1049,6 @@ function setupIPC(): void {
   ipcMain.handle(IPC.BROWSER_NAVIGATE, async (_event, { url }: { url: string }) => {
     if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
     return browserManager.navigate(url)
-  })
-
-  // ENH-178 — three-mode browser URL filter. Renderer reads + writes
-  // through these handlers; the persisted source-of-truth is the
-  // renderer's localStorage (so the value survives across Duo
-  // launches without an extra main-process JSON file). On boot the
-  // renderer pushes its persisted value via BROWSER_MODE_SET; main
-  // mirrors it onto browserManager.setBrowserMode.
-  ipcMain.handle(IPC.BROWSER_MODE_GET, async (): Promise<{ mode: import('../shared/types').BrowserMode }> => {
-    return { mode: browserManager?.getBrowserMode() ?? 'local-only' }
-  })
-  ipcMain.handle(IPC.BROWSER_MODE_SET, async (_event, { mode }: { mode: import('../shared/types').BrowserMode }) => {
-    if (!browserManager) return { ok: false, error: 'BrowserManager not ready' }
-    if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
-      return { ok: false, error: `Invalid browser mode: ${String(mode)}` }
-    }
-    browserManager.setBrowserMode(mode)
-    return { ok: true, mode }
   })
 
   ipcMain.on(IPC.BROWSER_BACK, () => {
@@ -2727,14 +2707,6 @@ export function setHiddenFiles(value: boolean | 'toggle'): { ok: boolean; error?
   }
   mainWindow.webContents.send(IPC.HIDDEN_FILES_SET, { value })
   return { ok: true }
-}
-
-// ENH-178 (Sprint 20 / v0.7.7) — broadcast a browser-mode change to
-// the renderer. Renderer caches the value in localStorage so it
-// survives reloads + is consulted by future address-bar affordances.
-export function pushBrowserMode(mode: import('../shared/types').BrowserMode): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return
-  mainWindow.webContents.send(IPC.BROWSER_MODE_PUSH, { mode })
 }
 
 // BUG-138 Phase 2 — `duo author` reads the cached value; writes

@@ -728,25 +728,6 @@ async function main(): Promise<void> {
         }
         break
       }
-      case 'browser-mode': {
-        // ENH-178 (Sprint 20 / v0.7.7) — `duo browser-mode [unfiltered|filtered|local-only]`.
-        // Bare reads current value; arg writes. `unfiltered` mode
-        // (debug-only) requires explicit IT-warning confirmation via
-        // an `--i-understand` flag — typing the literal string is the
-        // gate so a casual or accidental invocation can't silently
-        // turn off URL filtering.
-        const mode = rest[0]
-        if (mode === undefined) {
-          out(await send('browser-mode'))
-        } else if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
-          die("Usage: duo browser-mode [unfiltered|filtered|local-only]\n\nModes:\n  local-only  (default) — only file:// + localhost + 127.0.0.1 render in Duo; everything else opens in the system browser.\n  filtered    — Duo renders most URLs; hostnames in ~/.claude/duo/external-domains.json pop the system browser.\n  unfiltered  — DEBUG ONLY. All URLs render in Duo. Requires --i-understand.")
-        } else if (mode === 'unfiltered' && !rest.includes('--i-understand')) {
-          die(`⚠️  WARNING: 'unfiltered' mode lets Duo's embedded browser render any URL.\n\nSome IT departments disallow agent-driven browsing on the open internet.\nConsult your IT department before proceeding.\n\nTo confirm, re-run:\n  duo browser-mode unfiltered --i-understand`)
-        } else {
-          out(await send('browser-mode', { mode }))
-        }
-        break
-      }
       case 'focus-pane': {
         // ENH-098 (Sprint 9) \u2014 CLI parity with the \u2318\u2325L/;/' chord set.
         // Distinct from `duo focus <selector>` (CDP focus on a CSS
@@ -2164,18 +2145,6 @@ COMMANDS
                                   .claude + .obsidian are always
                                   visible regardless. No arg = print
                                   { showDotfiles: boolean }.
-  browser-mode [unfiltered|       ENH-178 (Sprint 20 / v0.7.7) — three-
-       filtered|local-only]        mode URL filter for the embedded
-                                  browser. Default 'local-only': only
-                                  file:// + localhost + 127.0.0.1 +
-                                  [::1] render in Duo; everything else
-                                  pops the system browser. 'filtered'
-                                  is the legacy behavior (consult
-                                  external-domains.json). 'unfiltered'
-                                  is DEBUG ONLY and requires
-                                  --i-understand (IT-policy warning).
-                                  Persists in renderer localStorage.
-                                  No arg = print { mode }.
   focus-pane <terminal|main|aux>  ENH-098 (Sprint 9) — jump keyboard
                                   focus to the named pane. CLI parity
                                   with the ⌘⌥L (terminal) / ⌘⌥;

@@ -4,7 +4,7 @@
 // Electron mount and is verified live.
 
 import { describe, it, expect } from 'vitest'
-import { normalizeForTabMatch, isLocalUrlForBrowserMode } from './browser-manager'
+import { normalizeForTabMatch } from './browser-manager'
 
 describe('normalizeForTabMatch — ENH-175', () => {
   it('returns null for falsy input', () => {
@@ -56,66 +56,5 @@ describe('normalizeForTabMatch — ENH-175', () => {
 
   it('trims surrounding whitespace', () => {
     expect(normalizeForTabMatch('  https://example.com  ')).toBe('https://example.com')
-  })
-})
-
-describe('isLocalUrlForBrowserMode — ENH-178', () => {
-  it('returns false for null / empty / falsy', () => {
-    expect(isLocalUrlForBrowserMode(null)).toBe(false)
-    expect(isLocalUrlForBrowserMode(undefined)).toBe(false)
-    expect(isLocalUrlForBrowserMode('')).toBe(false)
-    expect(isLocalUrlForBrowserMode('   ')).toBe(false)
-  })
-
-  it('returns true for file:// URLs', () => {
-    expect(isLocalUrlForBrowserMode('file:///tmp/foo.html')).toBe(true)
-    expect(isLocalUrlForBrowserMode('file:///Users/x/Documents/doc.md')).toBe(true)
-  })
-
-  it('returns true for about: schemes', () => {
-    expect(isLocalUrlForBrowserMode('about:blank')).toBe(true)
-    expect(isLocalUrlForBrowserMode('about:srcdoc')).toBe(true)
-  })
-
-  it('returns true for devtools:// URLs', () => {
-    expect(isLocalUrlForBrowserMode('devtools://devtools/bundled/inspector.html')).toBe(true)
-  })
-
-  it('returns true for localhost (with + without port)', () => {
-    expect(isLocalUrlForBrowserMode('http://localhost')).toBe(true)
-    expect(isLocalUrlForBrowserMode('http://localhost:3000')).toBe(true)
-    expect(isLocalUrlForBrowserMode('https://localhost:8443/path')).toBe(true)
-  })
-
-  it('returns true for 127.0.0.1', () => {
-    expect(isLocalUrlForBrowserMode('http://127.0.0.1')).toBe(true)
-    expect(isLocalUrlForBrowserMode('http://127.0.0.1:5173/vite')).toBe(true)
-  })
-
-  it('returns true for IPv6 loopback', () => {
-    expect(isLocalUrlForBrowserMode('http://[::1]:3000')).toBe(true)
-  })
-
-  it('returns false for arbitrary external hosts', () => {
-    expect(isLocalUrlForBrowserMode('https://example.com')).toBe(false)
-    expect(isLocalUrlForBrowserMode('http://google.com')).toBe(false)
-    expect(isLocalUrlForBrowserMode('https://github.com/user/repo')).toBe(false)
-  })
-
-  it('returns false for hosts that LOOK local but aren\'t (subdomain trick)', () => {
-    // `localhost.evil.com` is NOT local — only the literal `localhost` host.
-    expect(isLocalUrlForBrowserMode('http://localhost.evil.com')).toBe(false)
-    // Same for 127.0.0.1-prefix subdomain tricks.
-    expect(isLocalUrlForBrowserMode('http://127.0.0.1.evil.com')).toBe(false)
-  })
-
-  it('returns false for malformed URLs (safer to bounce externally)', () => {
-    expect(isLocalUrlForBrowserMode('://not-a-url')).toBe(false)
-    expect(isLocalUrlForBrowserMode('http://')).toBe(false)
-  })
-
-  it('is case-insensitive for hostnames', () => {
-    expect(isLocalUrlForBrowserMode('http://LocalHost:3000')).toBe(true)
-    expect(isLocalUrlForBrowserMode('https://Example.com')).toBe(false)
   })
 })

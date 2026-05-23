@@ -496,22 +496,6 @@ const api: ElectronAPI = {
     }
   },
 
-  browserMode: {
-    // ENH-178 (Sprint 20) — three-mode browser URL filter.
-    // Renderer holds the persisted value in localStorage; on boot it
-    // calls set(...) once to push the persisted value back into main
-    // so browserManager.routeOffHostIfMatched picks it up. CLI changes
-    // arrive via the onPush channel.
-    get: () => ipcRenderer.invoke(IPC.BROWSER_MODE_GET),
-    set: (mode: 'unfiltered' | 'filtered' | 'local-only') =>
-      ipcRenderer.invoke(IPC.BROWSER_MODE_SET, { mode }),
-    onPush: (cb: (mode: 'unfiltered' | 'filtered' | 'local-only') => void) => {
-      const handler = (_: IpcRendererEvent, payload: { mode: 'unfiltered' | 'filtered' | 'local-only' }) => cb(payload.mode)
-      ipcRenderer.on(IPC.BROWSER_MODE_PUSH, handler)
-      return () => ipcRenderer.removeListener(IPC.BROWSER_MODE_PUSH, handler)
-    }
-  },
-
   theme: {
     pushState: (snapshot: ThemeStateSnapshot) => {
       ipcRenderer.send(IPC.THEME_STATE_PUSH, snapshot)

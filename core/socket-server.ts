@@ -105,12 +105,6 @@ export interface NavBridge {
    *  Reads the current value out of `getState().showDotfiles` rather
    *  than a dedicated getter — the renderer pushes nav-state already. */
   setHiddenFiles: (value: boolean | 'toggle') => { ok: boolean; error?: string }
-  /** ENH-178 (Sprint 20 / v0.7.7) — echo CLI-driven browser-mode
-   *  changes back to the renderer so its cached value (used for
-   *  address-bar affordances + future Settings UI) stays fresh.
-   *  Optional — main can no-op if the renderer-side cache isn't
-   *  wired yet. */
-  pushBrowserMode?: (mode: import('../shared/types').BrowserMode) => void
   /** ENH-014 — CLI-driven split-pane percentage (clamped 20–80). */
   setSplit: (pct: number) => { ok: boolean; pct?: number; error?: string }
   /** ENH-099 — `duo split 3way` / `⌘⌥4` chord. Snaps to outer 33/67 +
@@ -1109,27 +1103,6 @@ export class SocketServer {
             // intended target gives the CLI caller a deterministic answer.
             const newValue = target === 'toggle' ? !current : target
             result = { showDotfiles: newValue }
-          }
-          break
-        }
-        case 'browser-mode': {
-          // ENH-178 (Sprint 20 / v0.7.7) — `duo browser-mode [unfiltered|filtered|local-only]`.
-          // Bare reads the current value; arg writes. CLI side enforces
-          // the IT-warning prompt for `unfiltered`; main accepts the
-          // value unconditionally so renderer + CLI + future Settings
-          // surfaces share one wire.
-          const mode = args['mode'] as string | undefined
-          if (mode === undefined) {
-            result = { mode: this.browser.getBrowserMode() }
-          } else {
-            if (mode !== 'unfiltered' && mode !== 'filtered' && mode !== 'local-only') {
-              throw new Error("browser-mode value must be 'unfiltered', 'filtered', or 'local-only'")
-            }
-            this.browser.setBrowserMode(mode)
-            // Echo to the renderer so its cached value (used for the
-            // address-bar affordances) stays fresh.
-            this.nav.pushBrowserMode?.(mode)
-            result = { mode }
           }
           break
         }
