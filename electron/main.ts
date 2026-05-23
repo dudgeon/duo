@@ -319,6 +319,12 @@ let cozyMenuItemId: string | null = null
 // via NAV_STATE_PUSH). No separate cache needed — read from navState.
 let hiddenFilesMenuItemId: string | null = null
 
+// ENH-170 v2 (Sprint 20) — top-level Settings → "Cmd+Return for
+// Claude submit" checkmark reflects claudeKeyPrefsState.claudeReturn
+// (renderer-authoritative, pushed via CLAUDE_KEY_PREFS_STATE_PUSH).
+// Updated in the push handler below.
+let claudeReturnMenuItemId: string | null = null
+
 async function createWindow(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -1664,8 +1670,15 @@ function setupIPC(): void {
   })
 
   // Sprint 16 / v0.6.15 — Claude-tab Enter key prefs push from the renderer.
+  // ENH-170 v2 (Sprint 20) — also sync the Settings → "Cmd+Return for
+  // Claude submit" menu checkmark to match `snapshot.claudeReturn`.
   ipcMain.on(IPC.CLAUDE_KEY_PREFS_STATE_PUSH, (_event, snapshot: import('../shared/types').ClaudeKeyPrefsSnapshot) => {
     claudeKeyPrefsState = snapshot
+    const menu = Menu.getApplicationMenu()
+    if (menu && claudeReturnMenuItemId) {
+      const item = menu.getMenuItemById(claudeReturnMenuItemId)
+      if (item) item.checked = snapshot.claudeReturn === 'newline'
+    }
   })
 
   // BUG-138 Phase 2 — author identity push from the renderer.
@@ -1739,6 +1752,7 @@ function installAppMenu(): void {
   const isMac = process.platform === 'darwin'
   cozyMenuItemId = 'cozy-toggle'
   hiddenFilesMenuItemId = 'hidden-files-toggle'
+  claudeReturnMenuItemId = 'claude-return-toggle'
 
   const template: MenuItemConstructorOptions[] = [
     ...(isMac
@@ -1746,17 +1760,6 @@ function installAppMenu(): void {
           label: app.name,
           submenu: [
             { role: 'about' as const },
-            { type: 'separator' as const },
-            // ENH-170 (Sprint 20) — Settings menu. macOS convention is
-            // `App > Settings…` with ⌘, accelerator. Click pushes to
-            // the renderer which opens a modal. v1 has Claude key
-            // prefs only; future panels (author, selection-format,
-            // theme) extend the same modal.
-            {
-              label: 'Settings…',
-              accelerator: 'CmdOrCtrl+,',
-              click: () => mainWindow?.webContents.send(IPC.SETTINGS_MODAL_OPEN)
-            },
             { type: 'separator' as const },
             { role: 'services' as const },
             { type: 'separator' as const },
@@ -1882,6 +1885,39 @@ function installAppMenu(): void {
           }
         },
         { role: 'selectAll' }
+      ]
+    },
+    {
+      // ENH-170 v2 (Sprint 20 / v0.7.7) — top-level Settings menu.
+      // Owner-locked redesign 2026-05-22 — the v1 modal approach
+      // (App > Settings… → renderer modal) was rejected as "fundamentally
+      // flawed": owner originally asked for a menu item, not a panel.
+      // v2 is a single native-menu checkbox here. Future settings get
+      // added as more menu items under this same submenu — not as
+      // panels in a hypothetical modal.
+      //
+      // The lone item flips `claudeReturn` between 'submit' (default,
+      // terminal-passthrough) and 'newline' (Return inserts newline;
+      // ⌘Return submits). Wired to the existing useClaudeKeyPrefs
+      // plumbing (Sprint 16 / v0.6.15) — same path as the CLI verb
+      // `duo claude-return`. The companion `duo shift-return` stays
+      // CLI-only (agent-tunable; not a primary user concern).
+      label: 'Settings',
+      submenu: [
+        {
+          id: claudeReturnMenuItemId,
+          label: 'Cmd+Return for Claude submit',
+          type: 'checkbox',
+          checked: claudeKeyPrefsState.claudeReturn === 'newline',
+          click: () => {
+            // Toggle: 'submit' (Return submits, default) ↔ 'newline'
+            // (Return = newline, ⌘Return = submit). The next
+            // CLAUDE_KEY_PREFS_STATE_PUSH from the renderer will
+            // update this checkmark via the handler below.
+            const next = claudeKeyPrefsState.claudeReturn === 'newline' ? 'submit' : 'newline'
+            setClaudeReturnMode(next)
+          }
+        }
       ]
     },
     {

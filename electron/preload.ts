@@ -496,17 +496,6 @@ const api: ElectronAPI = {
     }
   },
 
-  settings: {
-    // ENH-170 (Sprint 20) — main → renderer when App → Settings… is
-    // clicked (or ⌘, accelerator). Payload-free; renderer flips its
-    // settingsModalOpen state and SettingsModal renders.
-    onOpen: (cb: () => void) => {
-      const handler = () => cb()
-      ipcRenderer.on(IPC.SETTINGS_MODAL_OPEN, handler)
-      return () => ipcRenderer.removeListener(IPC.SETTINGS_MODAL_OPEN, handler)
-    }
-  },
-
   theme: {
     pushState: (snapshot: ThemeStateSnapshot) => {
       ipcRenderer.send(IPC.THEME_STATE_PUSH, snapshot)

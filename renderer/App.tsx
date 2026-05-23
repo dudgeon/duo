@@ -13,7 +13,6 @@ import { ExternalRedirectedBanner } from './components/ExternalRedirectedBanner'
 import { CloneModal } from './components/CloneModal'
 import { LinkPromptModal } from './components/editor/LinkPromptModal'
 import { WorkspaceSwitcherDropdown } from './components/WorkspaceSwitcherDropdown'
-import { SettingsModal } from './components/SettingsModal'
 import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
@@ -476,12 +475,6 @@ export function App() {
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false)
   const workspaceBadgeRef = useRef<HTMLButtonElement | null>(null)
 
-  // ENH-170 (Sprint 20) — Settings modal. Opened via App > Settings…
-  // (⌘,) menu item, which pushes SETTINGS_MODAL_OPEN over IPC.
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  useEffect(() => {
-    return window.electron.settings.onOpen(() => setSettingsOpen(true))
-  }, [])
 
   // Subscribe to BrowserManager's tab broadcasts so `browserTabs`
   // tracks main's view of the browser tab list. Used by the save
@@ -3033,10 +3026,6 @@ export function App() {
           (Electron renderers throw on the native prompt API). Self-
           contained; listens for 'duo-link-prompt-request' events. */}
       <LinkPromptModal />
-
-      {/* ENH-170 (Sprint 20) — Settings modal. Triggered by App >
-          Settings… / ⌘, via the SETTINGS_MODAL_OPEN IPC push. */}
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div

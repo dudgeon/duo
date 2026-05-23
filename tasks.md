@@ -230,9 +230,11 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### BUG-153: Settings modal occluded by browser-pane WebContentsView
+### BUG-153: Settings modal occluded by browser-pane WebContentsView (superseded)
 
-**Status:** 🟡 In flight 2026-05-22. Owner-reported on the v0.7.7 smoke walk: *"modal occluded; cannot read sufficiently to test WHY DID YOU NOT VISUALLY INSPECT THIS FEATURE BEFORE PASSING IT TO ME"* — ENH-170-WALK was marked FAIL.
+**Status:** ✅ **Superseded 2026-05-22.** The Settings modal that needed the `setOverlayMuted` pair no longer exists — owner-locked redesign of [ENH-170](#enh-170-top-level-settings-menu--single-cmdreturn-for-claude-submit-checkbox) v2 replaced the modal with a top-level native Settings menu. No modal, no occlusion possible. Original entry kept below as a historical record + a memory-rule citation.
+
+**Original status:** 🟡 In flight 2026-05-22. Owner-reported on the v0.7.7 smoke walk: *"modal occluded; cannot read sufficiently to test WHY DID YOU NOT VISUALLY INSPECT THIS FEATURE BEFORE PASSING IT TO ME"* — ENH-170-WALK was marked FAIL.
 
 **Symptom (reproduced live 2026-05-22).** Opening the Settings modal (via App > Settings… or `⌘,`) while the browser pane is showing any content (e.g. the smoke walk page) causes the modal to render BENEATH the browser-pane WebContentsView. The modal is unreadable/uninteractable; only its edges peek out around the WCV. Pre-fix: every Settings-modal interaction needed the user to first close any browser-pane tab.
 
@@ -417,26 +419,31 @@ Persistence: localStorage (today `showDotfiles` is a `useState` default-false; p
 
 ---
 
-### ENH-170: Settings menu — Return-key prefs (first occupant)
+### ENH-170: Top-level Settings menu — single "Cmd+Return for Claude submit" checkbox
 
-**Status:** ⬜ Planned — Sprint 20 / v0.7.7.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at commit pending.
 
-**Scope.** New Settings menu surface (placement TBD during build — recommendation: `App > Settings…` macOS convention, opens a renderer modal). v1 ships two toggles, exposing existing CLI-only flags as GUI controls:
+**v1 (rejected).** First shipped a Settings MODAL invoked via `App > Settings…` + `⌘,` accelerator, with two toggles ("Return → line break in Claude" + "Shift+Return → submit in Claude"). Owner rejected during smoke-walk-1: *"the ENH-170-WALK implementation is fundamentally flawed; this should not be a settings pane; I specifically asked for a menu item at the outset; eg file, edit, settings, where this live under settings menu — and only this setting matters for now 'Return → line break in Claude' (but maybe it should just say, 'cmd+return for claude submit')"*. The modal also occluded by the browser-pane WCV ([BUG-153](#bug-153-settings-modal-occluded-by-browser-pane-webcontentsview)) — a symptom of the wrong-surface decision.
 
-| Toggle | Off (default) | On |
-|---|---|---|
-| **Return → line break in Claude** | Return submits to Claude (terminal default) | Return inserts a literal newline (multi-line composer) |
-| **Shift+Return → submit in Claude** | Shift+Return inserts newline (Slack default) | Shift+Return submits |
+**v2 (shipped — owner-locked redesign 2026-05-22).** New TOP-LEVEL `Settings` menu in the menu bar (between Edit and View). One menu item: **"Cmd+Return for Claude submit"** as a native checkbox. Clicking toggles `claudeReturn` between `'submit'` (default; Return submits, terminal-passthrough) and `'newline'` (Return inserts newline; ⌘Return submits). The menu checkmark syncs to `claudeKeyPrefsState.claudeReturn` via the existing `CLAUDE_KEY_PREFS_STATE_PUSH` handler. No modal, no `setOverlayMuted` hack, no IPC channel for opening, no React component — just an Electron menu primitive wired to the Sprint 16 plumbing.
 
-Label "Return → line break in Claude" picked by owner via AUQ 2026-05-22 (over four proposed alternatives — single-toggle framing won over verbose Submit/Newline pairs).
+**Deletions (v1 → v2):**
 
-**Wires to existing plumbing:** `IPC.CLAUDE_KEY_PREFS_SET` + `useClaudeKeyPrefs()` hook (Sprint 16 / v0.6.15). No new IPC channels needed; renderer toggles map to existing `claude-return [submit|newline]` + `shift-return [submit|newline]` state.
+- `renderer/components/SettingsModal.tsx` deleted
+- `IPC.SETTINGS_MODAL_OPEN` removed from `shared/types.ts`
+- `ElectronSettingsAPI` removed from `shared/host-api.ts`
+- `settings:` bridge removed from `electron/preload.ts`
+- `App > Settings…` + `⌘,` accelerator removed from `electron/main.ts` (the macOS App menu's About → separator → services chain restored)
+- `settingsOpen` state + `<SettingsModal>` render + `window.electron.settings.onOpen` subscription removed from `renderer/App.tsx`
+- Shift+Return toggle DROPPED from the user-facing surface — owner: "only this setting matters for now." The `duo shift-return [submit|newline]` CLI verb stays (agent-tunable; not a primary user concern).
 
-**Files likely touched:** `electron/main.ts` (menu item registration), new `renderer/components/SettingsModal.tsx`, possibly minor styling in `renderer/styles/globals.css`. Skill + CLI docs update if any new pref-related verbs land (unlikely for v1).
+**Files touched (v2):** `electron/main.ts` (new top-level Settings menu + `claudeReturnMenuItemId` cache + sync in CLAUDE_KEY_PREFS_STATE_PUSH handler), `shared/types.ts` + `shared/host-api.ts` + `electron/preload.ts` (drop dead IPC/bridge), `renderer/App.tsx` (drop modal wiring), `renderer/components/SettingsModal.tsx` (deleted).
 
-**v2 stretch (not Sprint 20):** surface other CLI-only flags — `duo author`, `duo selection-format`, default new-terminal kind.
+**Verification owed (smoke walk):** menu bar shows `Electron · File · Edit · Settings · View · Window`. Settings → Cmd+Return for Claude submit. Click → checkmark appears; press Return in a live Claude tab → newline inserted; ⌘Return submits. Click again → checkmark clears; Return → submits (default).
 
-**Cross-ref:** ENH-127 (composer-window backstory), ENH-142 (v0.6.15 toggle defaults). [feedback_ask_about_surface_choice](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_ask_about_surface_choice.md) memory applies (clarify modal-vs-window with owner if uncertain).
+**Memory rules from this loop:** [feedback_ask_about_surface_choice](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_ask_about_surface_choice.md) — owner asked for a MENU at the outset, I shipped a panel anyway. [feedback_open_every_modal_before_smoke_handoff](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_open_every_modal_before_smoke_handoff.md) — would have caught the v1 occlusion before owner saw it.
+
+**Cross-ref:** ENH-127 (composer-window backstory), ENH-142 (v0.6.15 toggle defaults), Sprint 16 `useClaudeKeyPrefs` hook (the underlying state). [BUG-153](#bug-153-settings-modal-occluded-by-browser-pane-webcontentsview) — superseded; the modal that needed the setOverlayMuted fix no longer exists.
 
 ---
 

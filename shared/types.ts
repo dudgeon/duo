@@ -1556,11 +1556,6 @@ export const IPC = {
   CLAUDE_KEY_PREFS_STATE_PUSH: 'claude-key-prefs:state-push',  // renderer → main
   CLAUDE_KEY_PREFS_SET: 'claude-key-prefs:set',                // main → renderer
 
-  // ENH-170 (Sprint 20) — Settings menu. Main pushes when the user
-  // clicks App > Settings… or hits ⌘, (the macOS-standard accelerator);
-  // renderer opens the modal. One-way push; no payload.
-  SETTINGS_MODAL_OPEN: 'settings:modal-open',
-
   // ENH-169 (Sprint 20) — File menu items for New File… / New
   // Folder… Main pushes when the menu items fire (their accelerators
   // ⌘N / ⌘⇧N own the chords at the app-menu level). Renderer
