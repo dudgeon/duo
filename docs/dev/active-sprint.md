@@ -1,24 +1,24 @@
-# Active sprint state — Sprint 20 / v0.7.7 READY-TO-WALK (rev2 walk pending)
+# Active sprint state — Sprint 20 / v0.7.7 WALK-CLEAN (cut gated on ENH-174)
 
-**Status (2026-05-23):** All 4 ENHs + 6 sprint-close fixes shipped & agent-walked. Owner walked rev1 (2 PASS / 1 FAIL / 6 SKIP); rev2 walk page open, awaiting owner pass. **Owner-decision OPEN: autolink behavior (see § Open questions).** Cut blocked on rev2 + autolink decision.
+**Status (2026-05-23):** Walk-2 (rev-2) returned **5 PASS / 2 SKIP-assume-pass / 0 FAIL**. All sprint items smoke-verified. **Only blocker remaining: ENH-174** (disable TipTap autolink) — owner-locked but build-held. New ENH-175 (`duo navigate <url>` → new tab + focus-existing) filed from walk-2 notes; **deferred to next sprint, NOT a cut blocker.** Cut waits on `go on ENH-174`.
 
 ## What shipped in v0.7.7
 
-| Item | Commit | Live-verified |
+| Item | Commit | Smoke-walked |
 |---|---|---|
 | **ENH-172** Show / hide hidden files | [600d16e](https://github.com/dudgeon/duo/commit/600d16e) | ✅ owner walk-1 PASS |
-| **ENH-171** Workspace switcher dropdown | [2bde2f6](https://github.com/dudgeon/duo/commit/2bde2f6) | ⏳ owner rev2 walk owed |
-| **ENH-170 v1** Settings modal | [026d4d2](https://github.com/dudgeon/duo/commit/026d4d2) | ❌ rev1 FAIL — modal occluded by browser WCV ([BUG-153](../../tasks.md)) |
-| **ENH-170 v2** Top-level Settings menu (single checkbox) | [342020a](https://github.com/dudgeon/duo/commit/342020a) | ✅ agent walked — owner rev2 pending |
+| **ENH-171** Workspace switcher dropdown | [2bde2f6](https://github.com/dudgeon/duo/commit/2bde2f6) | ✅ owner walk-2 PASS |
+| **ENH-170 v1** Settings modal | [026d4d2](https://github.com/dudgeon/duo/commit/026d4d2) | ❌ walk-1 FAIL — superseded by v2 |
+| **ENH-170 v2** Top-level Settings menu (single checkbox) | [342020a](https://github.com/dudgeon/duo/commit/342020a) | ✅ owner walk-2 PASS (post-BUG-154 fix) |
 | **ENH-169** Navigator new-file / new-folder UX | [ce50e78](https://github.com/dudgeon/duo/commit/ce50e78) | ✅ owner walk-1 PASS |
-| **BUG-149** `duo navigate <path>` redirect | [3daf480](https://github.com/dudgeon/duo/commit/3daf480) | ✅ agent walked all 5 steps |
-| **ENH-173** `duo view <folder>` Navigate-here button | [3daf480](https://github.com/dudgeon/duo/commit/3daf480) | ✅ agent walked |
-| **BUG-150** Install service dedupes orphan hook entries | [faff37a](https://github.com/dudgeon/duo/commit/faff37a) | ✅ agent walked — settings.json single-marked entry |
-| **BUG-151** Workspace switch dropped misleading prompt | [a732731](https://github.com/dudgeon/duo/commit/a732731) | ✅ agent walked — switch silent + state preserved |
-| **BUG-152** Workspace switch restores all browser tabs | [aa4e5e3](https://github.com/dudgeon/duo/commit/aa4e5e3) | ✅ agent walked — 3-tab round-trip survives |
-| **BUG-153** Settings modal setOverlayMuted fix | [1a98385](https://github.com/dudgeon/duo/commit/1a98385) | ⊘ **Superseded by ENH-170 v2** (modal deleted) |
-| **BUG-154** Return-override fires in kind='shell' tabs running claude | [b826bf4](https://github.com/dudgeon/duo/commit/b826bf4) | ✅ agent walked end-to-end via computer-use (typed + Return + observed newline; toggled off + Return + observed submit) |
-| **BUG-155** Autolink round-trip false-positive in conflict detector | [fdffa7b](https://github.com/dudgeon/duo/commit/fdffa7b) | ✅ agent walked — typed x + backspace on about-duo.md, no conflict log update |
+| **BUG-149** `duo navigate <path>` redirect | [3daf480](https://github.com/dudgeon/duo/commit/3daf480) | ✅ owner walk-2 PASS — surfaced [ENH-175](../../tasks.md) follow-on |
+| **ENH-173** `duo view <folder>` Navigate-here button | [3daf480](https://github.com/dudgeon/duo/commit/3daf480) | ✅ owner walk-2 PASS |
+| **BUG-150** Install service dedupes orphan hook entries | [faff37a](https://github.com/dudgeon/duo/commit/faff37a) | ✅ owner walk-2 PASS |
+| **BUG-151** Workspace switch dropped misleading prompt | [a732731](https://github.com/dudgeon/duo/commit/a732731) | ⊘ owner walk-2 SKIP ("assume pass") |
+| **BUG-152** Workspace switch restores all browser tabs | [aa4e5e3](https://github.com/dudgeon/duo/commit/aa4e5e3) | ⊘ owner walk-2 SKIP ("assume pass") |
+| **BUG-153** Settings modal setOverlayMuted fix | [1a98385](https://github.com/dudgeon/duo/commit/1a98385) | ⊘ Superseded by ENH-170 v2 (modal deleted) |
+| **BUG-154** Return-override fires in kind='shell' tabs running claude | [b826bf4](https://github.com/dudgeon/duo/commit/b826bf4) | ✅ folded into ENH-170-WALK walk-2 PASS |
+| **BUG-155** Autolink round-trip false-positive (normalize) | [fdffa7b](https://github.com/dudgeon/duo/commit/fdffa7b) | ✅ agent walked end-to-end |
 
 ## Locked decisions
 
@@ -26,10 +26,13 @@
 
 ## Smoke walk state
 
-- `v0.7.7.json` (walk-1): owner walked → 2 PASS (ENH-172, ENH-169) / 1 FAIL (ENH-170 modal occluded) / 6 SKIP.
-- `v0.7.7-rev2.json`: 7 items — re-tests ENH-170 v2 (post-redesign) + the 6 SKIPs from walk-1. Generated HTML is at `docs/dev/smoke-walks/v0.7.7-rev2.html` (gitignored). **Owner has not yet walked rev2.**
-- BUG-154 (Return override broadening) folded into the rev2 ENH-170-WALK item.
+- `v0.7.7.json` (walk-1): 2 PASS (ENH-172, ENH-169) / 1 FAIL (ENH-170 v1 modal occluded) / 6 SKIP.
+- `v0.7.7-rev2.json` (walk-2, 2026-05-23): **5 PASS / 2 SKIP-assume-pass / 0 FAIL**.
+  - PASS: ENH-170-WALK · ENH-171-WALK · BUG-149-WALK · ENH-173-WALK · BUG-150-WALK
+  - SKIP (owner: "assume pass"): BUG-151-WALK · BUG-152-WALK
+- BUG-154 (Return override broadening) folded into the rev2 ENH-170-WALK PASS.
 - BUG-155 was agent-walked end-to-end; not added to rev2 manifest.
+- **Walk-2 surfaced [ENH-175](../../tasks.md)** in BUG-149-WALK notes — `duo navigate <url>` should open a NEW tab (or focus existing) rather than reusing the active tab. Filed as a tracked ENH for next sprint; not a v0.7.7 cut blocker.
 
 ## Process lessons captured as memory rules
 

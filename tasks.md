@@ -230,6 +230,28 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-175: `duo navigate <url>` opens a new browser tab (or focuses an existing matching one)
+
+**Status:** 🆕 **Filed 2026-05-23** — surfaced in BUG-149-WALK notes during smoke walk v0.7.7 rev-2. Owner: *"new ENH `duo navigate https://example.com` should open the url in a NEW browser pane, not the active one (or if the target url is already open in a tab, focus that tab)."*
+
+**Current behavior.** `duo navigate <url>` reuses the **active** browser tab — sends the URL through CDP `Page.navigate` on the currently-focused WebContentsView. If the user is on an existing page they care about (e.g. a smoke-walk page mid-walk, a docs page they're reading), it gets clobbered.
+
+**Desired behavior.**
+1. If a browser tab already has that URL open (exact match or origin+path match — to be decided), **focus that tab** instead of opening another copy.
+2. Otherwise, **open a new browser tab** with the URL — same shape as `⌘T` from inside the browser pane.
+3. Active tab stays where the user left it.
+
+**Open questions for the build:**
+- **URL match semantics.** Exact string match? Origin+path (ignore hash/query)? `file://` paths normalized?
+- **Behavior of `--active` flag (if any).** Should there be an explicit opt-in for the current "reuse active tab" behavior? Probably not — but worth flagging.
+- **Plumbing.** Likely a new `BrowserManager` method `openInNewTabOrFocus(url)` + CLI client routes `duo navigate` to it. The current `navigate` socket-server case calls `browserManager.navigate(url)` which is the reuse-active path.
+
+**Why it matters.** Pair-work pattern: agent runs `duo navigate <url>` for a side-investigation while owner is working in the browser pane → owner loses context. This is a quiet usability cliff.
+
+**Cross-ref:** [BUG-149](#) (where the `duo navigate` UX was already polished — error message points at `duo reveal` for filesystem paths). The follow-on UX nit is this ENH.
+
+---
+
 ### ENH-174: Disable TipTap autolink — bare URLs / filenames stop auto-converting to markdown links
 
 **Status:** 🆕 **Owner-locked 2026-05-23** — implementation queued. Surfaced during [BUG-155](#bug-155-false-positive-file-changed-on-disk-dialog-from-tiptap-markdown-autolink-round-trip) verification. Owner directive: *"I do want to avoid filename.md conversion false positives; I am comfortable with users needing to manually set a url as a linked url via cmd-k or direct md notation."*
@@ -321,7 +343,7 @@ Also: menu label updated from `'Cmd+Return for Claude submit'` to `'⌘Return fo
 
 ### BUG-152: Workspace switch tears down browser tabs but doesn't restore the new workspace's tabs
 
-**Status:** 🟡 In flight 2026-05-22. Surfaced during BUG-151 repro — owner asked agent to add the smoke walk page to a second workspace; the switch to that workspace returned only 1 browser tab in `duo layout` despite the source workspace file having 3+.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [aa4e5e3](https://github.com/dudgeon/duo/commit/aa4e5e3). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 SKIP, owner: "assume pass"). Surfaced during BUG-151 repro — owner asked agent to add the smoke walk page to a second workspace; the switch to that workspace returned only 1 browser tab in `duo layout` despite the source workspace file having 3+.
 
 **Symptom (reproduced 2026-05-22).** Workspace A has 3 browser tabs (`what-duo-does.html`, smoke walk, `example.com`) saved. User switches to workspace B → switches back to A. `duo layout` reports `browserTabsCount: 1` (just `what-duo-does.html`). The smoke walk + Example Domain tabs are gone. Then autosave overwrites A's `.duo-workspace` file with the 1-tab live state — destroying the saved 3-tab state on the next disk-write cycle. This was the original "the session switcher tab deleted my session" pain ([BUG-151](#bug-151-workspace-switch-loses-perceived-state-via-the-save-current-workspace-prompt)) in its DEEPER form.
 
@@ -339,7 +361,7 @@ Also: menu label updated from `'Cmd+Return for Claude submit'` to `'⌘Return fo
 
 ### BUG-151: Workspace switch loses perceived state via the "Save current workspace?" prompt
 
-**Status:** 🟡 In flight 2026-05-22. Owner-reported during Sprint 20 close-out — *"the session switcher tab deleted my session; I saved my session, then added a new session, then when I switched back it was gone."*
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [a732731](https://github.com/dudgeon/duo/commit/a732731). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 SKIP, owner: "assume pass"). Owner-reported during Sprint 20 close-out — *"the session switcher tab deleted my session; I saved my session, then added a new session, then when I switched back it was gone."*
 
 **Symptom (forensic-reconstructed 2026-05-22).** Owner's flow:
 1. Click dropdown → "+ New Workspace" → Save As dialog → `new-session.duo-workspace` saved at **15:52:12** (captured current state at that moment).
@@ -370,7 +392,7 @@ Also: menu label updated from `'Cmd+Return for Claude submit'` to `'⌘Return fo
 
 ### BUG-150: Install service leaves orphan unmarked Duo-command entries in `~/.claude/settings.json`
 
-**Status:** 🟡 In flight 2026-05-22. Owner-reported during Sprint 20 close-out — the FirstLaunchBanner's "Heads-up: your ~/.claude/settings.json already had other SessionStart hooks…" note kept appearing on every Update click.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [faff37a](https://github.com/dudgeon/duo/commit/faff37a). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 PASS). Owner-reported during Sprint 20 close-out — the FirstLaunchBanner's "Heads-up: your ~/.claude/settings.json already had other SessionStart hooks…" note kept appearing on every Update click.
 
 **Symptom (reproduced 2026-05-22).** Owner's `~/.claude/settings.json § hooks.SessionStart` had TWO **identical** Duo-command hook entries — same `[ -n "$DUO_SESSION" ] && cat "$HOME/.claude/duo/priming.md" 2>/dev/null || true` command. Only ONE had the `_duo: managed-v0.7.7` marker; the other was a marker-less orphan. The conflict detector at [`electron/install-service.ts` § `detectInstallStatus`](electron/install-service.ts:786-799) flipped `hookConflict = true` for the orphan because it didn't carry the marker → banner forever claimed "you have other SessionStart hooks" even though there were no genuinely-foreign hooks. Worse: the priming.md was being `cat`-ed TWICE into Claude on every Duo session start (both hooks fire).
 
@@ -390,7 +412,7 @@ Also: menu label updated from `'Cmd+Return for Claude submit'` to `'⌘Return fo
 
 ### BUG-149: `duo navigate <path>` errors instead of moving the navigator
 
-**Status:** 🆕 Filed 2026-05-22. Owner ask via idle-thoughts: *"Bug: 'duo navigate {path}' is a no op"*.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [3daf480](https://github.com/dudgeon/duo/commit/3daf480) (Option B — helpful error pointing at `duo reveal`). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 PASS). Owner ask via idle-thoughts: *"Bug: 'duo navigate {path}' is a no op"*. Walk-paste-back surfaced [ENH-175](#enh-175-duo-navigate-url-opens-a-new-browser-tab-or-focuses-an-existing-matching-one) (new tab + focus-existing behavior for URL args).
 
 **Symptom (reproduced live 2026-05-22).** `duo navigate ~/Documents` and `duo navigate /` both error with `duo: ERR_INVALID_URL (-300) loading ''`. URL arguments (`duo navigate https://example.com`) work correctly.
 
@@ -414,7 +436,7 @@ Also: menu label updated from `'Cmd+Return for Claude submit'` to `'⌘Return fo
 
 ### ENH-173: `duo view <folder>` no-preview fallback should also offer "Navigate here"
 
-**Status:** 🆕 Filed 2026-05-22. Owner ask via idle-thoughts: *"Eth 'duo view {path to folder}' opens in canvas with 'open with default app' should also have button for 'navigate here'"*.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [3daf480](https://github.com/dudgeon/duo/commit/3daf480) (bundled with BUG-149). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 PASS). Owner ask via idle-thoughts: *"Eth 'duo view {path to folder}' opens in canvas with 'open with default app' should also have button for 'navigate here'"*.
 
 **Symptom (reproduced live 2026-05-22).** `duo view /Users/geoffreydudgeon/Documents/GitHub/duo/docs` opens a new working-pane tab labeled `docs` showing the no-preview fallback: folder icon + path + `application/octet-stream` mime + "Duo doesn't have a preview for this file type." + a single "Open with default app" button. The fallback is a UX dead-end for FOLDERS specifically — Finder is the only escape hatch.
 
@@ -470,7 +492,7 @@ Persistence: localStorage (today `showDotfiles` is a `useState` default-false; p
 
 ### ENH-171: Workspace switcher — implementation (title-bar dropdown)
 
-**Status:** ⬜ Planned — Sprint 20 / v0.7.7. Locked design from ENH-168.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [2bde2f6](https://github.com/dudgeon/duo/commit/2bde2f6). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 PASS).
 
 **Scope.** Convert the existing title-bar workspace-name badge into a click target. Click → dropdown menu with:
 1. `+ New Workspace` (opens full native Save Workspace As dialog)
@@ -490,7 +512,7 @@ Persistence: localStorage (today `showDotfiles` is a `useState` default-false; p
 
 ### ENH-170: Top-level Settings menu — single "Cmd+Return for Claude submit" checkbox
 
-**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at commit pending.
+**Status:** ✅ **Shipped 2026-05-22** (v0.7.7) at [342020a](https://github.com/dudgeon/duo/commit/342020a). Smoke-walk-verified 2026-05-23 (walk v0.7.7 rev-2 PASS post-BUG-154 fix).
 
 **v1 (rejected).** First shipped a Settings MODAL invoked via `App > Settings…` + `⌘,` accelerator, with two toggles ("Return → line break in Claude" + "Shift+Return → submit in Claude"). Owner rejected during smoke-walk-1: *"the ENH-170-WALK implementation is fundamentally flawed; this should not be a settings pane; I specifically asked for a menu item at the outset; eg file, edit, settings, where this live under settings menu — and only this setting matters for now 'Return → line break in Claude' (but maybe it should just say, 'cmd+return for claude submit')"*. The modal also occluded by the browser-pane WCV ([BUG-153](#bug-153-settings-modal-occluded-by-browser-pane-webcontentsview)) — a symptom of the wrong-surface decision.
 
