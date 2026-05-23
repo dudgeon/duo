@@ -12,7 +12,11 @@ Dev session is now bumped to v0.7.8 for Sprint 21.
 
 ## Sprint 21 build order
 
-1. **Re-ship ENH-177** (Claude session resume banner). Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Fold in the new banner-title read: prefer `sessions-index.json § summary` > `customName` > short UUID fallback. See [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) for the live experience. Owner walks the workspace-switch → return → banner-appears → click-Resume flow live before sign-off.
+1. **Re-ship ENH-177 + ENH-181** (Claude session resume banner + inline rename + collapse toggle). Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Fold in:
+   - Banner reads `sessions-index.json` for title (prefers `customName` > `summary` > short UUID fallback).
+   - **ENH-181**: collapsed-marker-on-tab default state; tap tab to expand; click title in expanded banner to enter edit mode (gated on `claudePresence === 'claude'`); Return commits via PTY `/rename` inject; Esc cancels.
+   - See [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) for all 7 states (3 ENH-177 + 4 ENH-181).
+   - Owner walks: workspace-switch → marker on tab → tap to expand → click title → type new name → Return → confirm `/rename` lands in claude transcript → re-tap tab to collapse.
 2. **Re-ship ENH-178** (Browser blocklist three modes + local-only default). Cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da). Owner walks the local-only bounce of `https://example.com` to system browser live before sign-off.
 3. **Pick carry-forward items.** Backlog in [`active-sprint.md`](active-sprint.md).
 

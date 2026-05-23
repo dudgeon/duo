@@ -12,7 +12,7 @@ None. v0.7.7 is shipped + tagged + released. Sprint 21's first move is the ENH-1
 
 | ID | What | Source for re-ship |
 |---|---|---|
-| **ENH-177** | Claude session resume banner across workspace switch | Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` (prefers `summary` > `customName` > short UUID fallback) — see [enh-177-banner-mockup.html](../research/enh-177-banner-mockup.html). Owner walks workspace-switch → return → banner appears → click-Resume → claude resumes. |
+| **ENH-177 + ENH-181** | Claude session resume banner + inline rename + collapse toggle | Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719); fold in ENH-181 (inline rename via PTY `/rename` inject, gated on claudePresence; collapse-to-tab-marker toggle; Esc-cancel during edit). Banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` (prefers `customName` > `summary` > short UUID fallback) — see [enh-177-banner-mockup.html](../research/enh-177-banner-mockup.html) for all 7 states. Owner walks workspace-switch → marker on tab → tap to expand → click title → type new name → Return → confirm `/rename` lands in transcript → re-tap to collapse. |
 | **ENH-178** | Browser blocklist refactor (three modes + `local-only` default) | Cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da). Owner walks: set local-only → `duo open https://example.com` → confirm system browser opens instead of Duo embedded; set filtered → URL renders in Duo; set unfiltered with `--i-understand` → IT warning + acceptance. |
 
 ### Closed during planning (2026-05-23)

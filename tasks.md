@@ -230,6 +230,33 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-181: Resume-banner inline rename + collapse toggle
+
+**Status:** 🟡 **Filed 2026-05-23.** Sprint 21 candidate; folds into ENH-177's re-ship. Scope split between the banner UI and the PTY injection wire.
+
+**What it does.** The resume banner ENH-177 paints (post-workspace-switch) gains two new affordances:
+
+1. **Inline rename via PTY `/rename` injection.** User clicks the title in the banner → it becomes a contentEditable field → user types a new name → presses Return → Duo writes `\r/rename <new-name>\n` to the active claude PTY in that tab → claude processes the slash command → `sessions-index.json § customName` updates → banner re-renders with the new title. **Gated on `claudePresence === 'claude'`** in the tab — if no live claude in this tab, the title is non-editable (cursor: not-allowed, tooltip explains).
+2. **Collapse toggle.** Default state on workspace switch is a small marker indicator on the terminal tab itself (subtle "⏪" dot/chip). Tapping the tab expands the full banner inside the terminal pane (title + Resume + ×). Tapping again collapses back to marker. Collapse state persists per-tab across the session (lost on Duo quit; fresh workspace switch starts collapsed).
+
+**Esc handling.** While in edit mode, Esc cancels the edit and reverts the title to its prior value. Return commits. Click-outside also commits (consistent with most contentEditable UX).
+
+**Mechanism (path 2 from owner directive 2026-05-23):** PTY injection, not direct `sessions-index.json` write. Trade-off: 2-line transcript footprint per rename + only works when claude is live, BUT zero schema coupling — claude owns the write and our injection survives any schema change. Owner: *"I want path 2 and if needed we can limit to only when Claude is active."*
+
+**Plumbing sketch:**
+
+1. Banner JSX — title becomes `<span contentEditable={isEditing}>` with `onBlur`/`onKeyDown` handlers.
+2. New IPC: `duo.session.rename(tabId, newTitle)` → writes `\r/rename <title>\n` to `PtyManager.write(tabId, ...)`.
+3. Banner reads `claudePresence` (already wired by ENH-177) to enable/disable edit.
+4. Collapse state: `useState<Record<tabId, boolean>>` in `TerminalPane` or workspace-level. Tab strip renders the "⏪" marker chip when `lastClaudeSession` exists AND `collapsed === true`; banner renders inside the terminal when `collapsed === false`.
+5. CLI parity (per CLAUDE.md § 4): `duo session rename <tabId> "<title>"` for agent-driven rename, same PTY inject path.
+
+**Mockup:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) — extended with collapsed-tab state, expanded-banner state, edit-mode state, post-commit state.
+
+**Cross-ref:** [ENH-177](#) (the banner this extends) · [ENH-180](#enh-180) (closed; the PTY-injection mechanism survives here in user-driven form) · [ENH-082](#) (Terminal Context Bar — another consumer of session titles).
+
+---
+
 ### ENH-180: Auto-rename Claude sessions via `/rename` PTY injection — CLOSED 2026-05-23
 
 **Status:** ✅ **Closed same-day as filed** (2026-05-23). Owner observation killed the question this ENH was built to answer: Claude Code already auto-writes a Haiku-generated summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` once a session has had a few exchanges. Duo doesn't need its own title generator. The clean scope is just "ENH-177's banner reads `sessions-index.json` (prefers `summary` > `customName` > short UUID fallback), `/rename` remains the user's manual override." That folds into ENH-177's re-ship as a ~20-line detail.

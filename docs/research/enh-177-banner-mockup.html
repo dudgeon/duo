@@ -476,6 +476,210 @@ pre code { background: transparent; padding: 0; color: inherit; font-size: inher
     Doesn't appear on a cold spawn (no prior session to resume).</li>
 </ul>
 
+<!-- ════════════════════════════════════════════════════════════════════
+     ENH-181 — inline rename + collapse toggle
+     ════════════════════════════════════════════════════════════════════ -->
+
+<h2 style="margin-top: 56px;">ENH-181 — inline rename + collapse toggle</h2>
+
+<div class="intro">
+  <strong>What's new.</strong> ENH-181 (folded into ENH-177's re-ship) gives the banner two affordances:
+  <strong>tap-to-toggle collapse</strong> (the banner starts collapsed as a small marker on the terminal
+  tab; tap to expand) and <strong>click-to-rename</strong> (click the title in the expanded banner, type
+  a new one, press Return — Duo injects <code>/rename</code> into the live claude PTY). Both behaviors
+  fail-soft: rename is only enabled when claude is currently active in the tab.
+</div>
+
+<!-- ─────── ENH-181 State 1 — Collapsed marker on the tab ─────── -->
+<h3>State 1 — Default: collapsed marker on the tab</h3>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active" style="position:relative; padding-right:24px;">
+      ~/projects/duo
+      <span style="position:absolute; right:6px; top:50%; transform:translateY(-50%);
+                   background:#c46a1c; color:white; font-size:9px; padding:1px 4px 1px 3px;
+                   border-radius:7px; font-family:-apple-system; line-height:1.1; font-weight:600;">⏪</span>
+    </span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ # banner is collapsed — tap the tab marker to expand</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">ENH-181 State 1</div>
+  <div class="state-headline">Banner collapsed to a marker on the tab</div>
+  <div class="state-sub">
+    On workspace switch, instead of injecting the full banner into every terminal pane that has a
+    resume-able session, we paint a small ⏪ chip on the tab itself. The terminal area stays clean. Most
+    users glance at the chip, know "there's something to resume here", and decide later whether they
+    want to.
+  </div>
+  <div class="when">
+    <strong>Tap target:</strong> the terminal tab in the tab strip. Tap once → expand to full banner.
+    Tap again → collapse back to marker. State persists per-tab across the session.
+  </div>
+</div>
+
+<!-- ─────── ENH-181 State 2 — Expanded with edit affordance ─────── -->
+<h3>State 2 — Expanded (claude is live in this tab)</h3>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="duo-banner">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had:</span>
+    <span class="title" style="border-bottom:1px dashed #6f6557; padding-bottom:1px; cursor:text;">
+      "Implementing the workspace switcher dropdown"
+    </span>
+    <span style="margin-left:6px; color:#6f6557; cursor:pointer; font-size:11px;">✎</span>
+    <span class="spacer"></span>
+    <span class="resume-btn">Resume</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 47203)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">ENH-181 State 2</div>
+  <div class="state-headline">Title is editable — dashed underline + pencil icon</div>
+  <div class="state-sub">
+    Because claude is currently alive in this PTY, the title becomes a tap/click target. Dashed underline +
+    a pencil glyph signal it. Hover (desktop) → cursor changes to text. Tap (mobile/laptop) → enter edit
+    mode (State 3).
+  </div>
+  <span class="data-source">enabled when claudePresence === 'claude'</span>
+  <div class="when">
+    <strong>If claude isn't running here:</strong> dashed underline disappears, pencil grays out, cursor
+    shows not-allowed. Tooltip on hover: "Title editing requires a live claude session in this tab."
+  </div>
+</div>
+
+<!-- ─────── ENH-181 State 3 — Edit mode ─────── -->
+<h3>State 3 — Edit mode (user clicked, cursor active)</h3>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="duo-banner">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had:</span>
+    <span style="background:#1a1814; color:#fbf8f1; padding:2px 7px; border:1.5px solid #c46a1c;
+                 border-radius:3px; font-style:italic; font-family:inherit; min-width:280px;
+                 display:inline-block;">
+      Workspace switcher polish<span style="display:inline-block; width:1px; height:13px;
+                                            background:#fbf8f1; margin-left:1px;
+                                            vertical-align:middle; animation:blink 1.1s steps(2,end) infinite;"></span>
+    </span>
+    <span class="spacer"></span>
+    <span style="color:#6f6557; font-size:11px; margin-right:10px;">
+      <kbd style="background:#3a342d; color:#d4cbb8; padding:1px 5px; border-radius:3px; font-size:10px;">↵</kbd>
+      save ·
+      <kbd style="background:#3a342d; color:#d4cbb8; padding:1px 5px; border-radius:3px; font-size:10px;">esc</kbd>
+      cancel
+    </span>
+    <span class="resume-btn" style="opacity:0.5;">Resume</span>
+    <span class="dismiss" style="opacity:0.3;">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 47203)</span><br>
+    <span class="prompt">~/projects/duo $</span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">ENH-181 State 3</div>
+  <div class="state-headline">Editing — Return commits, Esc cancels</div>
+  <div class="state-sub">
+    Title becomes a contentEditable span with accent-bordered focus state. Resume + dismiss dim to indicate
+    they're disabled until edit-mode resolves. Keyboard hint shown to the right.
+  </div>
+  <ul style="margin: 8px 0; font-size: 12.5px; color: var(--ink-soft);">
+    <li><strong>Return</strong> → commit. Duo writes <code>\r/rename Workspace switcher polish\n</code> to
+      the live PTY. Claude processes it, updates <code>sessions-index.json § customName</code>, banner
+      re-renders (State 4).</li>
+    <li><strong>Esc</strong> → cancel. Title reverts to its prior value. No PTY write. Banner returns to
+      State 2.</li>
+    <li><strong>Click-outside</strong> → commit (same as Return). Consistent with most contentEditable UX
+      in the app.</li>
+  </ul>
+  <span class="data-source">commits via: PtyManager.write(tabId, '\r/rename ...\n')</span>
+</div>
+
+<!-- ─────── ENH-181 State 4 — Post-commit (saved) ─────── -->
+<h3>State 4 — Post-commit (saved, new title showing)</h3>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="duo-banner">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had:</span>
+    <span class="title">"Workspace switcher polish"</span>
+    <span style="color:#4a7d3e; margin-left:6px; font-size:11px;">✓ saved</span>
+    <span class="spacer"></span>
+    <span class="resume-btn">Resume</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body" style="font-size:11px;">
+    <span class="ghost">$ claude</span><br>
+    <span style="color:#9a9080;">&gt; /rename Workspace switcher polish</span><br>
+    <span style="color:#4a7d3e;">  ✓ Session renamed to "Workspace switcher polish"</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">ENH-181 State 4</div>
+  <div class="state-headline">Save confirmed — transcript shows the 2-line footprint</div>
+  <div class="state-sub">
+    Claude's confirmation arrives in the PTY ~0.1s after the inject. Banner shows a small green ✓ saved
+    indicator for 2s, then fades. The transcript shows the <code>/rename</code> line + claude's
+    acknowledgement — the entire UX cost of using path 2.
+  </div>
+  <span class="data-source">written by claude to sessions-index.json § customName</span>
+</div>
+
+<!-- ─────── Mechanism summary ─────── -->
+<h3>Why path 2 (PTY inject) instead of direct file write</h3>
+
+<div class="callout-note">
+  <strong>Zero schema coupling.</strong> If Claude Code's <code>sessions-index.json</code> shape ever
+  changes — new fields, renamed fields, format migration — our PTY injection still works because Claude
+  itself does the write. A direct <code>fs.writeFile</code> to the JSON would be faster + zero-transcript,
+  but bakes in our assumptions about Claude's storage format. Path 2 is the safer long-term choice.
+</div>
+
+<p>
+  The 2-line transcript footprint is acceptable because it only fires on explicit user action (clicking
+  the title) — never auto-fires. The case where this would have been a tax (auto-rename on every new
+  session) was the original ENH-180, which is now closed.
+</p>
+
+<!-- ─────── CLI parity ─────── -->
+<h3>CLI parity (per CLAUDE.md § 4)</h3>
+
+<pre><code>duo session rename &lt;tabId&gt; "&lt;title&gt;"   # programmatic, same PTY-inject path
+duo session collapse &lt;tabId&gt;            # toggle collapse state
+duo session expand   &lt;tabId&gt;            # explicit-expand variant</code></pre>
+
 <!-- ─────── Closes ENH-180 ─────── -->
 <h2>What this closes</h2>
 
