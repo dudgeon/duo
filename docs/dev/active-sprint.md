@@ -1,15 +1,51 @@
-# Active sprint state — Sprint 20 / v0.7.7 READY-TO-WALK
+# Active sprint state — Sprint 20 / v0.7.7 READY-TO-WALK (rev2 walk pending)
 
-**Status (2026-05-22):** **All 4 ENHs shipped + live-verified.** Smoke walk + cut owed.
+**Status (2026-05-23):** All 4 ENHs + 6 sprint-close fixes shipped & agent-walked. Owner walked rev1 (2 PASS / 1 FAIL / 6 SKIP); rev2 walk page open, awaiting owner pass. **Owner-decision OPEN: autolink behavior (see § Open questions).** Cut blocked on rev2 + autolink decision.
 
-| ENH | Commit | Triggers verified live |
+## What shipped in v0.7.7
+
+| Item | Commit | Live-verified |
 |---|---|---|
-| **ENH-172** Show / hide hidden files | [600d16e](https://github.com/dudgeon/duo/commit/600d16e) | View menu checkbox · ⌘⇧. chord · `duo hidden-files` CLI · `duo nav-state` field |
-| **ENH-171** Workspace switcher dropdown | [2bde2f6](https://github.com/dudgeon/duo/commit/2bde2f6) | Title-bar "Workspaces ▾" trigger · empty-state tooltip |
-| **ENH-170** Settings menu (Return-key prefs) | [026d4d2](https://github.com/dudgeon/duo/commit/026d4d2) | App > Settings… click · ⌘, accelerator · bidirectional sync with `duo claude-return` / `duo shift-return` |
-| **ENH-169** Navigator new-file / new-folder UX | [ce50e78](https://github.com/dudgeon/duo/commit/ce50e78) | File menu New File…/New Folder… · ⌘N / ⌘⇧N chords · Breadcrumb right-click (New file/folder here…, Reveal in Finder, Open terminal here) |
+| **ENH-172** Show / hide hidden files | [600d16e](https://github.com/dudgeon/duo/commit/600d16e) | ✅ owner walk-1 PASS |
+| **ENH-171** Workspace switcher dropdown | [2bde2f6](https://github.com/dudgeon/duo/commit/2bde2f6) | ⏳ owner rev2 walk owed |
+| **ENH-170 v1** Settings modal | [026d4d2](https://github.com/dudgeon/duo/commit/026d4d2) | ❌ rev1 FAIL — modal occluded by browser WCV ([BUG-153](../../tasks.md)) |
+| **ENH-170 v2** Top-level Settings menu (single checkbox) | [342020a](https://github.com/dudgeon/duo/commit/342020a) | ✅ agent walked — owner rev2 pending |
+| **ENH-169** Navigator new-file / new-folder UX | [ce50e78](https://github.com/dudgeon/duo/commit/ce50e78) | ✅ owner walk-1 PASS |
+| **BUG-149** `duo navigate <path>` redirect | [3daf480](https://github.com/dudgeon/duo/commit/3daf480) | ✅ agent walked all 5 steps |
+| **ENH-173** `duo view <folder>` Navigate-here button | [3daf480](https://github.com/dudgeon/duo/commit/3daf480) | ✅ agent walked |
+| **BUG-150** Install service dedupes orphan hook entries | [faff37a](https://github.com/dudgeon/duo/commit/faff37a) | ✅ agent walked — settings.json single-marked entry |
+| **BUG-151** Workspace switch dropped misleading prompt | [a732731](https://github.com/dudgeon/duo/commit/a732731) | ✅ agent walked — switch silent + state preserved |
+| **BUG-152** Workspace switch restores all browser tabs | [aa4e5e3](https://github.com/dudgeon/duo/commit/aa4e5e3) | ✅ agent walked — 3-tab round-trip survives |
+| **BUG-153** Settings modal setOverlayMuted fix | [1a98385](https://github.com/dudgeon/duo/commit/1a98385) | ⊘ **Superseded by ENH-170 v2** (modal deleted) |
+| **BUG-154** Return-override fires in kind='shell' tabs running claude | [b826bf4](https://github.com/dudgeon/duo/commit/b826bf4) | ✅ agent walked end-to-end via computer-use (typed + Return + observed newline; toggled off + Return + observed submit) |
+| **BUG-155** Autolink round-trip false-positive in conflict detector | [fdffa7b](https://github.com/dudgeon/duo/commit/fdffa7b) | ✅ agent walked — typed x + backspace on about-duo.md, no conflict log update |
 
-**Attack order (locked AUQ 2026-05-22):** ✅ ENH-172 → ✅ ENH-170 → ✅ ENH-169 → ✅ ENH-171 (helper finished ENH-171 in parallel, so it actually closed before ENH-170/169 — order delta noted).
+## OPEN owner-decision
+
+**Autolink behavior (decision needed before cut).** During BUG-155 verification, discovered TipTap's autolink doesn't just confuse the conflict detector — it also **persists the link form to disk on save**. Bare `prd.md` in user's source gets rewritten to `[prd.md](http://prd.md)` (with synthesized `http://` scheme) on every autosave. Three options:
+
+- **A.** Ship BUG-155 only — the false-positive dialog is gone but bare URL-shaped text still gets mutated on first save. User can manually revert via git.
+- **B.** Disable TipTap's autolink extension — source stays byte-stable. Trade-off: typing `example.com` in the editor won't auto-link (would need ⌘K to make a link). **Agent's recommendation.**
+- **C.** Both — disable autolink AND keep BUG-155 normalize as belt-and-suspenders.
+
+## Smoke walk state
+
+- `v0.7.7.json` (walk-1): owner walked → 2 PASS (ENH-172, ENH-169) / 1 FAIL (ENH-170 modal occluded) / 6 SKIP.
+- `v0.7.7-rev2.json`: 7 items — re-tests ENH-170 v2 (post-redesign) + the 6 SKIPs from walk-1. Generated HTML is at `docs/dev/smoke-walks/v0.7.7-rev2.html` (gitignored). **Owner has not yet walked rev2.**
+- BUG-154 (Return override broadening) folded into the rev2 ENH-170-WALK item.
+- BUG-155 was agent-walked end-to-end; not added to rev2 manifest.
+
+## Process lessons captured as memory rules
+
+| Rule | Trigger |
+|---|---|
+| [feedback_open_every_modal_before_smoke_handoff](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_open_every_modal_before_smoke_handoff.md) | BUG-153 — agent didn't open Settings modal via computer-use before claiming ENH-170 v1 done; owner caught the occlusion |
+
+## My CLI-driving etiquette for the rest of the session
+
+- Avoid `duo edit --reveal` and computer-use clicks unless owner is actively expecting eyes-on; both steal focus.
+- Prefer `duo doc read` (read-only) over `duo edit` for inspection.
+- Restart Duo only when main-process changes need it; warn-then-ask before kill.
 
 **Theme.** *"Smaller daily-driver actions become first-class menu / chord surfaces."* Four coherent ENHs covering navigator-side file creation, the first Settings menu, the workspace switcher decided in ENH-168, and the navigator's existing-but-buried show/hide-dotfiles toggle.
 
