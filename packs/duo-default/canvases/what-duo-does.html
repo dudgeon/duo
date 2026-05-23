@@ -369,6 +369,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="browser mode local-only filtered unfiltered blocklist enh-178 it policy security default external">
+  <div class="num">13e</div>
+  <div>
+    <h3>Switch what the embedded browser is allowed to render</h3>
+    <p class="why"><strong>v0.7.8:</strong> Duo's embedded browser ships with three URL-filter modes. <strong>local-only</strong> (new default for fresh installs) only renders <code>file://</code> / <code>localhost</code> / <code>127.0.0.1</code> / <code>[::1]</code>; every other URL pops your system browser. <strong>filtered</strong> preserves the legacy behavior — domains listed in <code>~/.claude/duo/external-domains.json</code> pop the system browser, the rest render in Duo. <strong>unfiltered</strong> is the debug escape hatch — any URL renders inside Duo. Switching to <code>unfiltered</code> requires <code>--i-understand</code> on the CLI to bypass an IT-policy warning, because some enterprise environments restrict agent-driven browsing on the open internet.</p>
+    <p class="how"><strong>CLI</strong><code>duo browser-mode</code> reads the current mode. <code>duo browser-mode local-only</code> / <code>filtered</code> sets it. <code>duo browser-mode unfiltered --i-understand</code> sets the debug mode after the IT-warning gate.</p>
+  </div>
+</article>
+
 <h2 class="cat">Files & navigation</h2>
 <p class="cat-tagline">The left column is your workspace. The breadcrumb tells you where you are.</p>
 

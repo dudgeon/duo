@@ -18,6 +18,26 @@
 
 ---
 
+## 2026-05-23 (v0.7.8 cut — Browser blocklist three modes, local-only default)
+
+**v0.7.8 cut.** Single focused behavior change: **ENH-178** re-ship via cherry-pick of [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (originally reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849) before the v0.7.7 cut to keep that release focused). Three-mode URL filter: `local-only` becomes the new default; `filtered` preserves legacy externalDomains-list behavior as opt-in; `unfiltered` is the debug escape hatch gated behind `--i-understand` to bypass the IT-policy warning. New `duo browser-mode [show|local-only|filtered|unfiltered]` CLI verb. 11 vitest cases pin `isLocalUrlForBrowserMode`; 698 tests green total.
+
+Existing users on `filtered` mode (i.e. those with `external-domains.json` configured) keep their setup. The `local-only` default only fires for fresh installs that never set the mode. The mode lives in renderer localStorage `duo.browserMode`.
+
+**Also in the cut (docs-only):**
+
+- **ENH-180 closed same-day as filed.** Owner observation: Claude Code already auto-writes Haiku summaries to `~/.claude/projects/<encoded-cwd>/sessions-index.json` — Duo doesn't need to generate its own title. The cleaner scope is just "ENH-177's banner reads `sessions-index.json` (prefers `customName` > `summary` > UUID fallback); `/rename` remains the manual override." Folds into ENH-177's re-ship next sprint as a ~20-line detail. PRD preserved at `docs/prd/enh-180-session-rename.html` with closure banner + historical empirics under `<details>` (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
+- **ENH-181 filed.** Banner inline rename via PTY `/rename` injection (gated on `claudePresence === 'claude'`), tap-tab-to-toggle collapse, Esc cancels mid-edit. Owner directive (path 2 mechanism, gated on live claude). Mockup at `docs/research/enh-177-banner-mockup.html` shows all 7 states (3 ENH-177 + 4 ENH-181). Folds into ENH-177's re-ship next sprint.
+
+**Mechanism quirk noted during ENH-178 verification.** When `local-only` mode blocks a remote URL passed to `duo open`, Duo briefly creates an empty tab whose URL the filter strips (it ends up as `about:blank` in the embedded view; the system browser still pops correctly with the actual URL). Cosmetic, not data-loss. Worth a FOLLOWUP after the smoke walk to short-circuit tab creation when the URL would be filtered.
+
+**Owner directives this session:**
+
+- "I thought 178 shipped already; let's prioritize knocking that out now, we'll cut a version, update the docs, compact, then do the rest" — drives the v0.7.8 cadence.
+- "I want path 2 and if needed we can limit to only when Claude is active. Agree this is Enh 181, and also bundle in a collapse function: tapping on tab exposes it hides the description. Esc while editing name should cancel/revert." — locks ENH-181 scope.
+
+---
+
 ## 2026-05-23 (v0.7.7 cut — Daily-driver upgrades + ⌘Z reopen + send-pill variants)
 
 **v0.7.7 cut.** Sprint 20 close-out. Theme: smaller daily-driver actions become first-class menu / chord / CLI surfaces. Four planned ENHs (169 navigator new-file/folder, 170 v2 top-level Settings menu, 171 workspace switcher dropdown, 172 show/hide hidden files) shipped clean. Five polish ENHs (173 Navigate-here button, 174 autolink off, 175 navigate-or-focus tabs, 176 send-pill variants, 179 ⌘Z reopen) closed real friction points the owner had been hitting daily. Six sprint-close fixes accumulated around them (BUG-149 / 150 / 151 / 152 / 154 / 155).

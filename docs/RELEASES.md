@@ -21,7 +21,32 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.7 cut 2026-05-23)*
+> *(empty — v0.7.8 cut 2026-05-23)*
+
+---
+
+## v0.7.8 — 2026-05-23 — Browser blocklist three modes (`local-only` default)
+
+A focused single-behavior release. **ENH-178** ships the three-mode URL filter that was built but pulled out of the v0.7.7 cut to keep that release focused. Cherry-picked back as the only behavior change in v0.7.8 — same code as the original [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da), reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849), re-applied as [d851296](https://github.com/dudgeon/duo/commit/d851296).
+
+**Why a separate cut for one feature.** v0.7.7 shipped 12+ items and the right cadence was to land that wave, then ship the deferred behavior change cleanly. The `local-only`-by-default flip is also a posture change worth announcing on its own: by default, Duo's embedded browser only renders local URLs. Everything else pops the system browser. That's a sane new-install default for enterprise environments where some IT departments disallow agent-driven browsing on the open internet.
+
+**Three modes.**
+
+- **`local-only`** (new default) — `file://`, `localhost`, `127.0.0.1`, `[::1]` (any port) render in Duo. All other URLs pop the system browser via `shell.openExternal`.
+- **`filtered`** — legacy behavior preserved. Hostnames listed in `~/.claude/duo/external-domains.json` pop the system browser; everything else renders in Duo.
+- **`unfiltered`** — debug-only escape hatch. `duo browser-mode unfiltered` requires `--i-understand` to bypass the IT-policy warning prompt. Useful for debugging on packaged builds where DevTools alone isn't enough.
+
+**Existing users.** v0.7.8 doesn't migrate anyone off `filtered` mode silently. The mode lives in renderer localStorage; existing installs that had `external-domains.json` configured keep their setup. The `local-only` default only fires for fresh installs that have never set the mode.
+
+**Also in the cut (docs-only).** Two ENH-class items landed as planning artifacts:
+
+- **ENH-180 closed same-day as filed.** PRD for auto-rename via `/rename` PTY injection. Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json`, so Duo doesn't need its own title generator. Folds into ENH-177's re-ship next sprint as a ~20-line detail (banner reads `customName` > `summary` > UUID fallback).
+- **ENH-181 filed.** Banner inline rename via PTY `/rename` injection (gated on `claudePresence`), tap-tab-to-toggle collapse, Esc cancels mid-edit. Mockup at [`docs/research/enh-177-banner-mockup.html`](../docs/research/enh-177-banner-mockup.html) shows all 7 states. Folds into ENH-177's re-ship next sprint.
+
+**One known quirk.** When `local-only` mode blocks a remote URL passed to `duo open`, Duo briefly creates an empty tab whose URL the filter strips (it ends up as `about:blank` in the embedded view; the system browser still pops correctly with the actual URL). Cosmetic, not data-loss. A FOLLOWUP after the v0.7.8 smoke walk will tighten this so the tab-creation short-circuits when the URL would be filtered.
+
+**What this is and isn't.** This is a posture release — `local-only` becomes the default and the agent gets a CLI verb to switch modes. It is NOT yet a Settings UI (deferred until there's surface pressure beyond CLI). It is NOT yet wired to a fresh-install gating dialog ("which mode do you want?" on first launch — also deferred unless owner-asks).
 
 ---
 

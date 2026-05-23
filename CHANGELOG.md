@@ -19,7 +19,23 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.7 cut 2026-05-23.
+> Empty — v0.7.8 cut 2026-05-23.
+
+## [0.7.8] — 2026-05-23
+
+### Added
+
+- **ENH-178 (re-ship)** Browser blocklist three modes — `local-only` (new default; only `file://` + `localhost` + `127.0.0.1` + `[::1]` render in Duo; everything else pops the system browser via `shell.openExternal`), `filtered` (legacy externalDomains-list behavior preserved as opt-in), `unfiltered` (debug escape hatch; `duo browser-mode unfiltered` requires `--i-understand` to bypass the IT-policy warning). New `duo browser-mode [show|local-only|filtered|unfiltered]` CLI verb. Original build ([b03a8da](https://github.com/dudgeon/duo/commit/b03a8da)) was reverted before v0.7.7's cut to keep that release focused; cherry-picked back as the single behavior change in v0.7.8.
+
+### Changed
+
+- **ENH-180** Closed same-day as filed. Owner observation: Claude Code already auto-writes Haiku summaries to `~/.claude/projects/<encoded-cwd>/sessions-index.json` — Duo doesn't need to generate its own title. Folds into ENH-177's re-ship next sprint as a ~20-line detail (banner reads `customName` > `summary` > UUID fallback). PRD preserved with closure banner + historical empirics under `<details>`.
+- **ENH-181** Filed — banner inline rename via PTY `/rename` injection (gated on live `claudePresence`), collapsed-marker-on-tab default state, tap-tab-to-expand toggle, Esc cancels mid-edit. Folds into ENH-177's re-ship next sprint. Mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) shows all 7 states.
+
+### Known issues / queued for next sprint
+
+- **ENH-177 + ENH-181** Claude session resume banner + inline rename + collapse toggle (bundle).
+- **About:blank artifact** when `local-only` mode blocks a remote URL passed to `duo open` — Duo briefly creates an empty tab whose URL the filter strips. Cosmetic, not data-loss; the system browser still pops correctly. Worth a FOLLOWUP after smoke walk.
 
 ## [0.7.7] — 2026-05-23
 
@@ -49,9 +65,9 @@ notarized distribution (Stage 21).
 
 ### Known issues / queued for next sprint
 
-- **ENH-177** Claude session resume banner across workspace switch — built + reverted before cut ([f351719](https://github.com/dudgeon/duo/commit/f351719) / [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Awaiting owner walk before re-ship.
-- **ENH-178** Browser blocklist refactor (three modes + `local-only` default) — built + reverted before cut ([b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) / [5295849](https://github.com/dudgeon/duo/commit/5295849)). Awaiting owner walk before re-ship.
-- **ENH-180** Auto-rename Claude sessions via `/rename` PTY injection — PRD filed at `docs/prd/enh-180-session-rename.html` + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review. Owner picks 4 decisions then build (~3h).
+- **ENH-177** Claude session resume banner across workspace switch — built + reverted before cut ([f351719](https://github.com/dudgeon/duo/commit/f351719) / [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Re-shipping next sprint bundled with ENH-181.
+- **ENH-178** Browser blocklist refactor (three modes + `local-only` default) — built + reverted before cut ([b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) / [5295849](https://github.com/dudgeon/duo/commit/5295849)). **Shipped in v0.7.8.**
+- **ENH-180** Auto-rename Claude sessions via `/rename` PTY injection — PRD filed at `docs/prd/enh-180-session-rename.html` + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review. **Closed in v0.7.8** (folded into ENH-177's re-ship).
 
 ## [0.7.6] — 2026-05-22
 
