@@ -228,19 +228,40 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 <header class="page-head">
   <h1>ENH-180 — Auto-rename Claude sessions via <code>/rename</code> PTY injection</h1>
   <div class="meta">
-    <span class="pill">PRD</span>
-    <span class="pill">Owner-decision gate</span>
-    Filed 2026-05-23 · Sprint 21 candidate · Author: Claude (with owner-validated empirics)
+    <span class="pill" style="background: #f1e1d2; color: #8b3f0f;">Closed — scope collapsed</span>
+    Filed 2026-05-23 · Closed 2026-05-23 (same day) · Author: Claude
   </div>
 </header>
 
-<div class="intro">
-  <strong>What this is.</strong> Decision PRD for an ENH-177 follow-on: instead of showing a UUID in the
-  resume banner, set a real session title using Claude Code's own <code>/rename</code> slash command. The
-  title persists to <code>sessions-index.json</code> (Claude-canonical) and shows up everywhere Claude already
-  consumes it — <code>/resume</code> picker, terminal title, our banner. Four design decisions need owner
-  picks before build. Build estimated ~2h after decisions land.
+<div class="intro" style="background: #f6e7d4; border-color: #d9b78b;">
+  <strong>Status: closed 2026-05-23.</strong> Owner observation killed the question that this PRD was built
+  to answer. Claude Code <em>already</em> writes a Haiku-generated summary to
+  <code>sessions-index.json</code> automatically once a session has had a few exchanges. The four decisions
+  below (title source, quality threshold, idle timing, visibility footprint) only mattered if Duo was going
+  to produce its <em>own</em> title — but it doesn't need to. The simpler scope:
+  <strong>ENH-177's banner reads the existing <code>sessions-index.json</code> summary; falls back to UUID
+  for very-new sessions; <code>/rename</code> remains the user's manual override.</strong> That folds into
+  ENH-177's re-ship in Sprint 21 as a ~20-line detail (one JSON read + a fallback). ENH-180 itself is closed
+  with no follow-up build owed.
 </div>
+
+<div class="intro" style="background: var(--paper-deep);">
+  <strong>What carries forward into ENH-177's re-ship</strong> — see the
+  <a href="../research/enh-177-banner-mockup.html">mockup</a> for the live experience:
+  <ul style="margin: 8px 0 0; padding-left: 22px;">
+    <li>Banner reads <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code> and prefers
+      <code>summary</code> > <code>customName</code> &gt; first 8 chars of UUID.</li>
+    <li>If <code>sessions-index.json</code> has no entry yet (first few seconds of a fresh session), banner
+      shows the short UUID. Users see a real title once Claude's own summarizer fires.</li>
+    <li>Banner cycles automatically — no Duo-side polling or rewriting needed.</li>
+  </ul>
+</div>
+
+<details style="margin-bottom: 24px;">
+  <summary style="cursor: pointer; color: var(--ink-mute); font-size: 13px;">
+    Historical PRD content (preserved for the empirics — <code>/rename</code> mechanics, costs, write-paths)
+  </summary>
+  <div style="margin-top: 12px; opacity: 0.85;">
 
 <h2>Context — what ENH-177 ships today and why this matters</h2>
 
@@ -726,8 +747,12 @@ the constructor signature first…</span>
 
 <p style="font-size: 11px; color: var(--ink-mute); margin-top: 32px; padding-top: 14px; border-top: 1px dashed var(--paper-edge);">
   PRD path: <code>docs/prd/enh-180-session-rename.html</code> · Cross-ref: ENH-177 (banner) · ENH-082
-  (terminal context bar, future integration) · Sprint 21 candidate.
+  (terminal context bar, future integration) · <strong>Closed 2026-05-23</strong> — scope folded into
+  ENH-177's re-ship.
 </p>
+
+  </div>
+</details>
 
 </body>
 </html>

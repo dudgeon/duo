@@ -230,38 +230,15 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### ENH-180: Auto-rename Claude sessions via `/rename` PTY injection
+### ENH-180: Auto-rename Claude sessions via `/rename` PTY injection — CLOSED 2026-05-23
 
-**Status:** 🟡 **PRD filed 2026-05-23** — awaiting owner picks on 4 decisions. Sprint 21 candidate. **Build depends on [ENH-177](#enh-177) landing first** (the banner that consumes this title). Order for next sprint: re-ship ENH-177 + ENH-178 + walk both live → owner reviews ENH-180 PRD on phone → build ENH-180 (~3h after decisions lock).
+**Status:** ✅ **Closed same-day as filed** (2026-05-23). Owner observation killed the question this ENH was built to answer: Claude Code already auto-writes a Haiku-generated summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` once a session has had a few exchanges. Duo doesn't need its own title generator. The clean scope is just "ENH-177's banner reads `sessions-index.json` (prefers `summary` > `customName` > short UUID fallback), `/rename` remains the user's manual override." That folds into ENH-177's re-ship as a ~20-line detail.
 
-**PRD:** [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) — full design + mockups + 4 decision cards (visibility footprint, title source, quality threshold, timing/idle gate).
-**Notion mirror (phone-friendly):** [ENH-180 PRD — Auto-rename Claude sessions via `/rename` injection](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — owner ticks the boxes per decision card directly on phone.
+**PRD preserved at** [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block. The `/rename` mechanics + `claude -p` cost empirics are preserved in case a v2 ever revisits.
 
-**Owner ask context.** Surfaced via ENH-177 verification turn 2026-05-23 (owner: *"could we generate these programmatically on initial session save, and/or have a button to refresh the first prompt based session store for novel sessions post initial save?"*). When I costed `claude -p` summarization (~$0.10/session for API users; quota burn for subscription users), owner countered: *"What about firing `/rename` in the Claude session?"* — i.e., use Claude Code's own slash command to write the title, no separate LLM needed.
+**Mockup of the simplified experience for ENH-177's re-ship:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html).
 
-**Empirics verified live 2026-05-23.** `/rename` is TUI-only (refuses in `-p` mode). `--name` flag on `--resume` doesn't visibly persist + is expensive ($0.73 per call at Opus default). The PTY-injection path is free, ~0s, and writes to `sessions-index.json` (Claude-canonical) which our existing ENH-177 banner can read via tier-1 priority.
-
-**Proposed v1 mechanism.**
-1. On the autosave tick, for tabs with `claudePresence === 'claude'` whose session ID isn't yet renamed, extract first user prompt from the JSONL, truncate.
-2. Wait for the PTY idle gate to clear.
-3. Inject `\r/rename <title>\n` via `PtyManager.write`.
-4. Mark renamed in `~/.claude/duo/renamed-sessions.json`.
-5. ENH-177 banner picks up the title via `sessions-index.json` read on next workspace-switch.
-
-**Visibility cost:** ~2 lines in the user's transcript per session (the `/rename` line + Claude's confirmation). That's the only UX trade-off.
-
-**4 decisions blocking build:**
-
-| ID | Question | Recommendation |
-|---|---|---|
-| D1 | Visibility footprint — default-on or opt-in? | A (opt-in, Settings checkbox default OFF) |
-| D2 | Title source — first-prompt truncation, `claude -p` Haiku, or both? | A or C (first-prompt for v1) |
-| D3 | Quality threshold — when to skip? | B (moderate: ≥6 words OR ≥40 chars, denylist for "hi/ok/go on") |
-| D4 | Timing / idle gate — generous / snappy / on-end / manual-only? | B (snappy: 2s idle, 3s steady) |
-
-**Cross-ref:** [ENH-177](#) (the banner that benefits) · [ENH-082](#) (Terminal Context Bar — would consume the same title for its "Job statement" auto-populate when built).
-
-**Filing convention.** Per [feedback_research_reports_must_file_review_task](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_research_reports_must_file_review_task.md): this entry surfaces in every smoke walk until the owner closes the gate (paste decisions back to Claude).
+**Cross-ref:** [ENH-177](#) (the banner that absorbs this work) · [ENH-082](#) (Terminal Context Bar — would consume the same title for its "Job statement" auto-populate when built).
 
 ---
 
@@ -333,7 +310,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-177: Restore Claude session across workspace switch — track + offer resume
 
-**Status:** 🟡 **Filed 2026-05-23 · built + reverted pre-cut 2026-05-23 — queued for re-ship next sprint.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement next sprint after owner walks the workspace-switch-and-back flow live. **ENH-180 depends on this landing first.** Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
+**Status:** 🟡 **Filed 2026-05-23 · built + reverted pre-cut 2026-05-23 — queued for re-ship next sprint with ENH-180 folded in.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement Sprint 21 after owner walks the workspace-switch-and-back flow live. **ENH-180 closed and absorbed into this re-ship** — banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` for its title (prefers `summary` > `customName` > short UUID fallback); see [mockup](docs/research/enh-177-banner-mockup.html). Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
 
 **Owner-locked spec (2026-05-23):**
 

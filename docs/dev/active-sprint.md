@@ -1,11 +1,10 @@
 # Active sprint state — Sprint 21 / v0.7.8 (post-v0.7.7-cut; planning open)
 
-**Status (2026-05-23):** v0.7.7 cut + tagged locally; not yet pushed to remote (owner blesses `git push --tags`). Sprint 21 is unbooked beyond two required carry-forwards (ENH-177 re-ship + ENH-178 re-ship) and one PRD-gated build (ENH-180, ~3h after owner picks 4 decisions on phone). Real Sprint 21 scope-pick happens on owner's return.
+**Status (2026-05-23):** v0.7.7 cut + tagged + pushed; GitHub Release live with signed+notarized DMG attached. Sprint 21 known scope is two required re-ships (ENH-177 + ENH-178) plus a small detail folded into ENH-177's re-ship (banner reads `sessions-index.json` for title; ENH-180 closed). Real Sprint 21 scope-pick beyond those happens when owner returns.
 
 ## Immediate sprint-start tasks
 
-1. **Owner pushes the v0.7.7 tag + creates the GitHub Release** with `dist/Duo-0.7.7-arm64.dmg` (104 MB, signed + notarized). Cut-version skill § 6.5 has the canonical sequence.
-2. **Owner walks the ENH-180 PRD on phone** ([Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d)) and pastes 4 decision picks back. PRD source-of-truth: [`docs/prd/enh-180-session-rename.html`](../prd/enh-180-session-rename.html).
+None. v0.7.7 is shipped + tagged + released. Sprint 21's first move is the ENH-177 re-ship.
 
 ## Sprint 21 candidate scope
 
@@ -13,14 +12,14 @@
 
 | ID | What | Source for re-ship |
 |---|---|---|
-| **ENH-177** | Claude session resume banner across workspace switch | Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Owner walks workspace-switch → return → banner appears → click-Resume → claude resumes. **Blocks ENH-180.** |
+| **ENH-177** | Claude session resume banner across workspace switch | Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` (prefers `summary` > `customName` > short UUID fallback) — see [enh-177-banner-mockup.html](../research/enh-177-banner-mockup.html). Owner walks workspace-switch → return → banner appears → click-Resume → claude resumes. |
 | **ENH-178** | Browser blocklist refactor (three modes + `local-only` default) | Cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da). Owner walks: set local-only → `duo open https://example.com` → confirm system browser opens instead of Duo embedded; set filtered → URL renders in Duo; set unfiltered with `--i-understand` → IT warning + acceptance. |
 
-### Conditional builds
+### Closed during planning (2026-05-23)
 
-| ID | What | Trigger |
-|---|---|---|
-| **ENH-180** | Auto-rename Claude sessions via `/rename` PTY injection | Owner pastes 4 decision picks back from the Notion PRD review. Build ~3h after decisions lock. **Depends on ENH-177 landing first.** |
+| ID | Outcome |
+|---|---|
+| **ENH-180** | Closed same-day. Owner observation: Claude Code already writes a Haiku summary to `sessions-index.json` automatically — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD at [`docs/prd/enh-180-session-rename.html`](../prd/enh-180-session-rename.html) preserved with closure banner + historical empirics under `<details>` (for the `/rename` mechanics + cost research, in case a v2 ever revisits). |
 
 ### Carry-forward backlog (not yet picked for Sprint 21)
 
@@ -82,6 +81,6 @@
 
 ## When you next have context
 
-1. Confirm owner's pushed the tag + DMG (or do it together).
-2. Owner walks ENH-180 PRD on phone → pastes decisions → re-ship 177 + 178 in order → build 180.
+1. Re-ship ENH-177 first (folds in the `sessions-index.json` read for banner title).
+2. Re-ship ENH-178.
 3. Pick Sprint 21 carry-forward items from the backlog above.

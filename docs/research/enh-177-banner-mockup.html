@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ENH-177 banner — title-from-sessions-index mockup</title>
+<style>
+/* ─── Atelier kernel ─── */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 1040px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px; background: var(--paper-deep);
+  padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+/* ─── Mockup-specific ─── */
+
+/* Terminal mockup backdrop — looks like Duo's terminal tab */
+.terminal-mock {
+  background: #1a1814;
+  border-radius: 8px;
+  border: 1px solid #3a342d;
+  margin: 14px 0 6px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.terminal-mock .tab-strip {
+  background: #25221d;
+  border-bottom: 1px solid #3a342d;
+  padding: 6px 10px 0;
+  display: flex;
+  gap: 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.terminal-mock .tab-strip .tab {
+  background: #2f2b25;
+  color: #9a9080;
+  padding: 6px 14px 7px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #3a342d;
+  border-bottom: none;
+}
+.terminal-mock .tab-strip .tab.active {
+  background: #1a1814;
+  color: #e8e0cb;
+}
+
+/* Banner — the actual UI being mocked */
+.duo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  background: #2a2620;
+  border-bottom: 1px solid #3a342d;
+  color: #e8e0cb;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 12.5px;
+}
+.duo-banner .arrow {
+  color: #c46a1c;
+  font-size: 14px;
+}
+.duo-banner .prefix { color: #9a9080; }
+.duo-banner .title {
+  color: #fbf8f1;
+  font-weight: 500;
+  font-style: italic;
+}
+.duo-banner .uuid {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: #d9cea8;
+  font-size: 11.5px;
+}
+.duo-banner .spacer { flex: 1; }
+.duo-banner .resume-btn {
+  background: #c46a1c;
+  color: white;
+  border-radius: 4px;
+  padding: 4px 11px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.duo-banner .dismiss {
+  color: #6f6557;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* Fake xterm content beneath the banner */
+.terminal-mock .term-body {
+  padding: 14px 16px 24px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: #d4cbb8;
+  line-height: 1.55;
+  min-height: 90px;
+}
+.terminal-mock .term-body .ghost { color: #5a5247; }
+.terminal-mock .term-body .prompt { color: #c46a1c; }
+.terminal-mock .term-body .cursor {
+  background: #c46a1c;
+  display: inline-block;
+  width: 7px;
+  height: 12px;
+  vertical-align: middle;
+  animation: blink 1.1s steps(2, end) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* State annotation card */
+.state-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px 16px;
+  margin: 22px 0;
+}
+.state-card .state-label {
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.state-card .state-headline {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.state-card .state-sub {
+  font-size: 12.5px;
+  color: var(--ink-mute);
+  margin: 0 0 6px;
+}
+.state-card .data-source {
+  display: inline-block;
+  margin-top: 8px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.state-card .when {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 8px;
+  border-top: 1px dashed var(--paper-rule);
+  padding-top: 8px;
+}
+
+/* Fallback ladder diagram */
+.ladder {
+  margin: 20px 0;
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ladder .rung {
+  display: grid;
+  grid-template-columns: 70px 1fr 220px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--paper-rule);
+  background: var(--paper);
+}
+.ladder .rung:last-child { border-bottom: none; }
+.ladder .rung .priority {
+  font-weight: 700;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+.ladder .rung .label {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  color: var(--ink);
+}
+.ladder .rung .label .field {
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+.ladder .rung .when-rendered {
+  font-size: 11.5px;
+  color: var(--ink-mute);
+  text-align: right;
+  font-style: italic;
+}
+
+.callout-note {
+  background: var(--paper);
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 16px 0;
+}
+.callout-note strong { color: var(--ink); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>ENH-177 banner — title-from-<code>sessions-index.json</code> mockup</h1>
+  <div class="meta">
+    <span class="pill">Mockup</span>
+    Filed 2026-05-23 · For ENH-177 re-ship in Sprint 21 · Closes ENH-180
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A faithful render of the banner ENH-177 will show on workspace-switch
+  return, after we fold in the (formerly-ENH-180) detail of <em>reading the session title from Claude's
+  own <code>sessions-index.json</code></em>. Three states below: Claude's auto-summary, the user's
+  <code>/rename</code>-set custom name, and the UUID fallback for very-new sessions. The mockup is
+  visual-only — no logic. The point is to confirm the experience before code lands.
+</div>
+
+<!-- ─────── STATE A — Haiku summary ─────── -->
+<h2>State A — Claude's auto-summary (the common case)</h2>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="duo-banner">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had:</span>
+    <span class="title">"Implementing the workspace switcher dropdown"</span>
+    <span class="spacer"></span>
+    <span class="resume-btn">Resume</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ # terminal idle — claude not currently running here</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">State A</div>
+  <div class="state-headline">Title comes from Claude's own Haiku summary</div>
+  <div class="state-sub">
+    Claude Code auto-summarizes every session after a few exchanges and writes the result to
+    <code>sessions-index.json</code> under the <code>summary</code> field. The banner reads this directly —
+    no Duo-side LLM call, no extra cost, no transcript pollution.
+  </div>
+  <span class="data-source">sessions-index.json § summary</span>
+  <div class="when">
+    <strong>When this fires:</strong> any session that's run for more than a few minutes
+    (~95% of return visits).
+  </div>
+</div>
+
+<!-- ─────── STATE B — customName ─────── -->
+<h2>State B — User-set title via <code>/rename</code></h2>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="duo-banner">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had:</span>
+    <span class="title">"Sprint 19 polish wave"</span>
+    <span class="spacer"></span>
+    <span class="resume-btn">Resume</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ # terminal idle — claude not currently running here</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">State B</div>
+  <div class="state-headline">Title was set by the user via <code>/rename</code></div>
+  <div class="state-sub">
+    If the user previously typed <code>/rename Sprint 19 polish wave</code> inside this Claude session,
+    that title takes precedence over Claude's auto-summary. The banner reads the same JSON, just a
+    different field.
+  </div>
+  <span class="data-source">sessions-index.json § customName</span>
+  <div class="when">
+    <strong>When this fires:</strong> any session the user manually titled. Rare but high-value — these
+    are the sessions the user explicitly considered important.
+  </div>
+</div>
+
+<!-- ─────── STATE C — UUID fallback ─────── -->
+<h2>State C — UUID fallback (very fresh session)</h2>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="duo-banner">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had Claude session</span>
+    <span class="uuid">17d05c98</span>
+    <span class="spacer"></span>
+    <span class="resume-btn">Resume</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ # terminal idle — claude not currently running here</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">State C</div>
+  <div class="state-headline">UUID fallback — session was brand-new</div>
+  <div class="state-sub">
+    When a session has only had one or two exchanges, Claude's summarizer hasn't fired yet — there's no
+    entry in <code>sessions-index.json</code>. We show the first 8 chars of the session UUID. Resume still
+    works (it reads the UUID directly from the per-session JSONL filename). The next time the user comes
+    back, Claude's summary will have landed and the banner shows the real title.
+  </div>
+  <span class="data-source">fallback: first 8 chars of session UUID</span>
+  <div class="when">
+    <strong>When this fires:</strong> very short sessions — first workspace-switch within minutes of
+    spawning claude. Edge case.
+  </div>
+</div>
+
+<!-- ─────── Fallback ladder ─────── -->
+<h2>Fallback ladder</h2>
+
+<p>
+  The banner's title-rendering is a tiny priority chain — three reads against the same JSON object,
+  with the UUID as the final fallback:
+</p>
+
+<div class="ladder">
+  <div class="rung">
+    <span class="priority">1st</span>
+    <span class="label"><span class="field">customName</span> — user-set via <code>/rename</code></span>
+    <span class="when-rendered">"Sprint 19 polish wave"</span>
+  </div>
+  <div class="rung">
+    <span class="priority">2nd</span>
+    <span class="label"><span class="field">summary</span> — Claude's Haiku auto-summary</span>
+    <span class="when-rendered">"Implementing the workspace switcher dropdown"</span>
+  </div>
+  <div class="rung">
+    <span class="priority">3rd</span>
+    <span class="label">UUID first-8 — derived from JSONL filename</span>
+    <span class="when-rendered">"17d05c98"</span>
+  </div>
+</div>
+
+<div class="callout-note">
+  <strong>Why customName wins over summary.</strong> If the user explicitly renamed the session, they
+  picked that title intentionally. Claude's summarizer might write something different next time it
+  fires; the user's choice is authoritative.
+</div>
+
+<!-- ─────── Data shape ─────── -->
+<h2>The JSON shape we're reading</h2>
+
+<p>
+  Path: <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code>. Encoded-cwd uses
+  Claude's slashes-to-dashes convention (e.g. <code>-Users-geoff-projects-duo</code> for
+  <code>/Users/geoff/projects/duo</code>). The file is a JSON map keyed by session UUID:
+</p>
+
+<pre><code>{
+  "<span style="color:#c46a1c;">17d05c98</span>-...-...": {
+    "<span style="color:#c46a1c;">summary</span>": "Implementing the workspace switcher dropdown",
+    "<span style="color:#c46a1c;">customName</span>": null,
+    "lastUsed": "2026-05-22T19:14:08.300Z",
+    "messageCount": 47,
+    "forkedFrom": null
+  },
+  "<span style="color:#c46a1c;">a83f4e21</span>-...-...": {
+    "summary": "Sprint 19 polish wave — BUG-138 phase 4 cleanup",
+    "<span style="color:#c46a1c;">customName</span>": "Sprint 19 polish wave",
+    "lastUsed": "2026-05-21T22:08:11.890Z",
+    "messageCount": 112,
+    "forkedFrom": null
+  }
+}</code></pre>
+
+<p style="color: var(--ink-mute); font-size: 12.5px;">
+  Banner read sequence: load JSON → look up the tab's session UUID → return
+  <code>entry.customName ?? entry.summary ?? uuid.slice(0,8)</code>. If the file or entry doesn't exist
+  (very fresh session), fall through straight to the UUID slice.
+</p>
+
+<!-- ─────── Dismiss + Resume behavior ─────── -->
+<h2>Interaction unchanged from ENH-177's first build</h2>
+
+<ul>
+  <li><strong>Resume click</strong> → write <code>claude --resume &lt;uuid&gt;\n</code> into the PTY. Same
+    wire as ENH-177's original implementation; the title change is display-only.</li>
+  <li><strong>Dismiss (×)</strong> → hide the banner for this tab + this workspace-load. Coming back next
+    time still shows it (intentional — easy to dismiss accidentally).</li>
+  <li><strong>Tab focus</strong> → banner appears only when the tab is restored from a workspace-switch.
+    Doesn't appear on a cold spawn (no prior session to resume).</li>
+</ul>
+
+<!-- ─────── Closes ENH-180 ─────── -->
+<h2>What this closes</h2>
+
+<p>
+  This mockup is the experience that <strong>ENH-180 is no longer needed</strong> to produce. The four
+  decisions in the ENH-180 PRD (visibility footprint, title source, quality threshold, idle gate) all
+  asked variations of "how do we generate a title?" — but Claude already does it. We just read.
+</p>
+
+<p style="font-size: 11px; color: var(--ink-mute); margin-top: 32px; padding-top: 14px;
+          border-top: 1px dashed var(--paper-edge);">
+  Path: <code>docs/research/enh-177-banner-mockup.html</code> · Cross-ref:
+  <a href="../prd/enh-180-session-rename.html">ENH-180 PRD (closed)</a> ·
+  Sprint 21 / ENH-177 re-ship reference.
+</p>
+
+</body>
+</html>

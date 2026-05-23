@@ -681,25 +681,26 @@ routed around ad hoc.
 
 > **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
 
-**Status (2026-05-23, post-cut):** v0.7.7 cut + tagged locally 2026-05-23. Not yet pushed (owner blesses `git push --tags`). `dist/Duo-0.7.7-arm64.dmg` signed + notarized + validated. Dev session bumped to v0.7.8.
+**Status (2026-05-23, post-cut):** v0.7.7 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.7) live with signed+notarized DMG attached. Dev session bumped to v0.7.8.
 
 **Sprint 21 known scope:**
 
-1. **Re-ship ENH-177** (Claude session resume banner across workspace switch) — cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719) (reverted in [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Owner walks the workspace-switch → return → banner → click-Resume flow live before sign-off.
+1. **Re-ship ENH-177** (Claude session resume banner across workspace switch) — cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719) (reverted in [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Fold in banner-title read: prefer `~/.claude/projects/<encoded-cwd>/sessions-index.json § summary` > `customName` > short UUID fallback. See mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html). Owner walks workspace-switch → return → banner → click-Resume live before sign-off.
 2. **Re-ship ENH-178** (Browser blocklist three modes + `local-only` default) — cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (reverted in [5295849](https://github.com/dudgeon/duo/commit/5295849)). Owner walks the local-only bounce of `https://example.com` to system browser live.
-3. **Build ENH-180** (auto-rename Claude sessions via `/rename` PTY injection) — gated on owner picking 4 decisions on phone. PRD: [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html). **Phone-friendly Notion mirror for the 4 decisions:** [ENH-180 PRD on Notion](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d). Build estimated ~3h after decisions land. Depends on ENH-177 landing first (banner that consumes the title).
+
+**Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
 
 **Carry-forward queue** (not yet picked into Sprint 21; most-recent first):
 BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
 
 **Open questions awaiting owner input:**
-v0.7.7 tag push + GitHub Release upload · ENH-180 phone-walked decision picks (4) · Sprint 21 carry-forward pick beyond the 3 required builds above.
+Sprint 21 carry-forward pick beyond ENH-177 + ENH-178.
 
 ---
 
 ### Previously — Sprint 20 / v0.7.7 (shipped 2026-05-23)
 
-**Daily-driver upgrades + ⌘Z reopen + send-pill variants** ([commit e940e6c](https://github.com/dudgeon/duo/commit/e940e6c), [tag v0.7.7](https://github.com/dudgeon/duo/releases/tag/v0.7.7)). 4 planned ENHs + 5 polish ENHs + 6 sprint-close fixes. ENH-177 + ENH-178 built + reverted pre-cut (queued for re-ship Sprint 21 after owner walks). ENH-180 PRD shipped only.
+**Daily-driver upgrades + ⌘Z reopen + send-pill variants** ([commit e940e6c](https://github.com/dudgeon/duo/commit/e940e6c), [tag v0.7.7](https://github.com/dudgeon/duo/releases/tag/v0.7.7)). 4 planned ENHs + 5 polish ENHs + 6 sprint-close fixes. ENH-177 + ENH-178 built + reverted pre-cut (queued for re-ship Sprint 21 after owner walks). ENH-180 PRD shipped + closed same-day (folded into ENH-177's re-ship — owner spotted that Claude already auto-writes summaries to `sessions-index.json`).
 
 **What shipped:**
 

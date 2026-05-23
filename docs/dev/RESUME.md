@@ -4,46 +4,25 @@
 
 ## Where we are
 
-**v0.7.7 cut + tagged 2026-05-23.** Not yet pushed to remote — owner has not yet given `git push --tags` approval. `dist/Duo-0.7.7-arm64.dmg` exists (signed + notarized + validated). GitHub Release for the DMG is gated on the tag push.
+**v0.7.7 shipped 2026-05-23.** Cut + tagged + pushed to origin; GitHub Release live at https://github.com/dudgeon/duo/releases/tag/v0.7.7 with signed+notarized `Duo-0.7.7-arm64.dmg` (104 MB) attached.
+
+**ENH-180 closed same day** — see § "Closed during planning" below.
 
 Dev session is now bumped to v0.7.8 for Sprint 21.
 
-## Immediate next steps (when owner returns)
+## Sprint 21 build order
 
-### 1. Push tag + create GitHub Release
-
-```bash
-git push                          # push the cut commit + bump commit
-git push --tags                   # push v0.7.7 tag (owner must bless)
-gh release create v0.7.7 \
-  --title "Duo v0.7.7 — Daily-driver upgrades + ⌘Z reopen + send-pill variants" \
-  --notes "$(awk -v v='0.7.7' '/^## v/ { if (capture) exit; if (== \"v\" v) capture=1 } capture { print }' docs/RELEASES.md)" \
-  dist/Duo-0.7.7-arm64.dmg
-```
-
-Cut-version skill § 6.5 has the canonical text + alternative `gh` flags.
-
-### 2. **Review the ENH-180 PRD on phone — 4 decisions need owner picks**
-
-- **HTML (in repo):** [`docs/prd/enh-180-session-rename.html`](../prd/enh-180-session-rename.html)
-- **Notion mirror (phone-friendly, with checkboxes):** https://www.notion.so/36945f48854f810ca7f9dfa275c4389d
-
-The 4 decisions:
-
-| # | Question | Default recommendation |
-|---|---|---|
-| **D1** | Visibility footprint — default-on or opt-in for the 2-line `/rename` transcript appearance? | A — Opt-in (Settings checkbox, default OFF) |
-| **D2** | Title source — first-prompt truncation, `claude -p` Haiku summary, or both? | A or C — first-prompt for v1 |
-| **D3** | Quality threshold — when do we skip renaming a session? | B — moderate (≥6 words OR ≥40 chars + small-talk denylist) |
-| **D4** | Timing / idle gate — generous / snappy / on-session-end / manual-only? | B — snappy (2s idle, 3s steady) |
-
-Decisions block the ENH-180 build (~3h after they lock). ENH-180 itself blocks on **ENH-177 landing first** — that's the banner that consumes the title.
-
-### 3. Sprint 21 build order (after owner pastes decisions back)
-
-1. **Re-ship ENH-177** (Claude session resume banner). Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Owner walks the workspace-switch → return → banner-appears → click-Resume flow live before sign-off.
+1. **Re-ship ENH-177** (Claude session resume banner). Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Fold in the new banner-title read: prefer `sessions-index.json § summary` > `customName` > short UUID fallback. See [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) for the live experience. Owner walks the workspace-switch → return → banner-appears → click-Resume flow live before sign-off.
 2. **Re-ship ENH-178** (Browser blocklist three modes + local-only default). Cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da). Owner walks the local-only bounce of `https://example.com` to system browser live before sign-off.
-3. **Build ENH-180** per locked decisions. Estimated ~3h. New `electron/claude-session-renamer.ts` + Settings checkbox (if D1 picks opt-in) + idle-gate state machine + denylist + 12-15 vitest fixtures + live walk via computer-use.
+3. **Pick carry-forward items.** Backlog in [`active-sprint.md`](active-sprint.md).
+
+## Closed during planning (2026-05-23)
+
+**ENH-180 (auto-rename Claude sessions via `/rename` PTY injection)** is closed. Owner observation: Claude Code already writes a Haiku summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` automatically after a session has had a few exchanges — Duo doesn't need to generate its own title. The cleaner scope is just "ENH-177's banner reads `sessions-index.json`, falls back to UUID, `/rename` remains the manual override." That folds into ENH-177's re-ship as a ~20-line detail.
+
+PRD preserved at [`docs/prd/enh-180-session-rename.html`](../prd/enh-180-session-rename.html) with a closure banner at top + the historical empirics (`/rename` write paths, `claude -p` cost numbers, idle-gate state machine, denylist) collapsed into a `<details>` block. The 4 decision cards are now moot — no owner action needed.
+
+Mockup of the simplified banner experience for ENH-177's re-ship: [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) (also mirrored to the Notion page).
 
 ## All Sprint 20 / v0.7.7 commits (since v0.7.6 tag)
 
