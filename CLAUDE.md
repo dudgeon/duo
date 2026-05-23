@@ -677,24 +677,29 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 21 / v0.7.8 (post-v0.7.7-cut)
+## Active sprint — Sprint 21 / v0.7.9 (post-v0.7.8-cut)
 
 > **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
 
-**Status (2026-05-23, post-cut):** v0.7.7 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.7) live with signed+notarized DMG attached. Dev session bumped to v0.7.8.
+**Status (2026-05-23, post-cut):** v0.7.8 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized DMG attached. ENH-178 (browser blocklist three modes, `local-only` default) was the single behavior change. Dev session bumped to v0.7.9.
 
-**Sprint 21 known scope:**
+**Sprint 21 remaining scope:**
 
 1. **Re-ship ENH-177 + ENH-181** (Claude session resume banner + inline rename + collapse toggle) — cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719) (reverted in [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Fold in: (a) banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` (prefers `customName` > `summary` > UUID fallback), and (b) **ENH-181** — collapsed-marker-on-tab default state, tap to expand, click title to enter edit mode (gated on `claudePresence === 'claude'`), Return commits via PTY `/rename` inject, Esc cancels. Mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) shows all 7 states.
-2. **Re-ship ENH-178** (Browser blocklist three modes + `local-only` default) — cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (reverted in [5295849](https://github.com/dudgeon/duo/commit/5295849)). Owner walks the local-only bounce of `https://example.com` to system browser live.
 
 **Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
 
 **Carry-forward queue** (not yet picked into Sprint 21; most-recent first):
-BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
+BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view · **FOLLOWUP-027** (about:blank artifact when local-only blocks a remote URL via `duo open` — short-circuit tab creation when filtered).
 
 **Open questions awaiting owner input:**
-Sprint 21 carry-forward pick beyond ENH-177 + ENH-178.
+Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
+
+---
+
+### Previously — v0.7.8 (shipped 2026-05-23)
+
+**Browser blocklist three modes (`local-only` default)** ([commit 6628220](https://github.com/dudgeon/duo/commit/6628220), [tag v0.7.8](https://github.com/dudgeon/duo/releases/tag/v0.7.8)). Single-focus cut: ENH-178 re-shipped via cherry-pick of [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (originally reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849) before the v0.7.7 cut). Plus docs-only follow-through: ENH-180 closed same-day (folded into ENH-177's re-ship), ENH-181 filed (banner inline rename + collapse toggle, mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html)).
 
 ---
 

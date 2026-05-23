@@ -928,6 +928,16 @@ Original entry kept for context: 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Ow
 
 ---
 
+### FOLLOWUP-027: Short-circuit tab creation when `local-only` would block a remote URL
+
+**Status:** 🟡 **Filed 2026-05-23** (v0.7.8 cut session). When the user (or agent) runs `duo open https://example.com` while `browserMode === 'local-only'`, the system browser DOES pop correctly via `shell.openExternal`. But the embedded BrowserManager still creates a new tab in Duo whose URL the filter strips — it ends up as `about:blank`. Cosmetic, not data-loss; the actual URL renders in the system browser as expected.
+
+**Fix path:** in `BrowserManager.openInNewTab(url)` (or wherever `duo open` lands), consult `routeOffHostIfMatched(url)` BEFORE creating the WebContentsView tab. If it returns true (URL will be filtered), skip the tab creation entirely and return the same `{ok, routedTo: 'system-browser'}` shape via a new code path. Update `cli/duo.ts § case 'open'` to surface `routedTo: 'system-browser'` in the JSON response when this happens so the caller knows the URL didn't render in Duo.
+
+**Cross-ref:** [ENH-178](#enh-178-browser-blocklist-refactor--three-modes-with-local-only-default) (shipped v0.7.8 — this artifact noted during the verification turn).
+
+---
+
 ### FOLLOWUP-022: `duo doc highlight <file> --text "X"` — close BUG-138 family CLI parity gap
 
 **Status:** ✅ **Shipped v0.7.2 2026-05-18** ([this session](https://github.com/dudgeon/duo)). The `HighlightMark` already existed in the TipTap editor (parsed via `applyCriticMarkupFromText`, serialized back to `{==X==}`), but the agent CLI shipped `duo doc {insert,delete,substitute,comment,accept,reject}` without a parity `highlight` verb. Closes a CLAUDE.md § 4 CLI-parity rule violation in the BUG-138 family. Verified end-to-end live: `DUO_AUTHOR=claude duo doc highlight /tmp/...md --text "..."` → file body grows `{==...==}` token → editor renders the orange highlight inline + adds `★ hl` row to the per-suggestion rail with Accept/Reject controls. 6 new vitest fixtures in `core/markdown/docEdit.test.ts` (37 total) cover the round-trip + overlap guard + occurrence + missing target. Plumbed through `core/socket-server.ts § doc-edit op` validator + dispatch, `cli/duo.ts § case 'doc'` subcommand + printHelp, skill/SKILL.md, agents/duo.md, docs/CLI-COVERAGE.md. CLI binary rebuilt + committed.

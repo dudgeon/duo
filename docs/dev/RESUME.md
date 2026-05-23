@@ -1,24 +1,31 @@
-# Resume after compaction — Sprint 21 / v0.7.8 start (post-cut)
+# Resume after compaction — Sprint 21 / v0.7.9 start (post-v0.7.8-cut)
 
 **Read this first** if you came in cold via context compaction. Then read [`active-sprint.md`](active-sprint.md) for full inventory.
 
 ## Where we are
 
-**v0.7.7 shipped 2026-05-23.** Cut + tagged + pushed to origin; GitHub Release live at https://github.com/dudgeon/duo/releases/tag/v0.7.7 with signed+notarized `Duo-0.7.7-arm64.dmg` (104 MB) attached.
+**v0.7.8 shipped 2026-05-23.** Cut + tagged + pushed to origin; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized `Duo-0.7.8-arm64.dmg` (104 MB) attached. Single-focus release: **ENH-178** browser blocklist three modes (`local-only` default). Plus docs-only follow-through: ENH-180 closed (folded into ENH-177's re-ship), ENH-181 filed (banner inline rename + collapse toggle).
 
-**ENH-180 closed same day** — see § "Closed during planning" below.
+Dev session is now bumped to v0.7.9 for the rest of Sprint 21.
 
-Dev session is now bumped to v0.7.8 for Sprint 21.
-
-## Sprint 21 build order
+## Sprint 21 remaining build order
 
 1. **Re-ship ENH-177 + ENH-181** (Claude session resume banner + inline rename + collapse toggle). Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Fold in:
    - Banner reads `sessions-index.json` for title (prefers `customName` > `summary` > short UUID fallback).
    - **ENH-181**: collapsed-marker-on-tab default state; tap tab to expand; click title in expanded banner to enter edit mode (gated on `claudePresence === 'claude'`); Return commits via PTY `/rename` inject; Esc cancels.
    - See [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) for all 7 states (3 ENH-177 + 4 ENH-181).
    - Owner walks: workspace-switch → marker on tab → tap to expand → click title → type new name → Return → confirm `/rename` lands in claude transcript → re-tap tab to collapse.
-2. **Re-ship ENH-178** (Browser blocklist three modes + local-only default). Cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da). Owner walks the local-only bounce of `https://example.com` to system browser live before sign-off.
-3. **Pick carry-forward items.** Backlog in [`active-sprint.md`](active-sprint.md).
+2. **Pick carry-forward items.** Backlog in [`active-sprint.md`](active-sprint.md).
+
+## Shipped this sprint so far (commit chain)
+
+| Commit | Item |
+|---|---|
+| [6628220](https://github.com/dudgeon/duo/commit/6628220) | `release: v0.7.8` (cut commit + tag v0.7.8) |
+| [d851296](https://github.com/dudgeon/duo/commit/d851296) | feat(ENH-178 re-ship): browser blocklist three modes — cherry-pick of b03a8da |
+| [4a3241b](https://github.com/dudgeon/duo/commit/4a3241b) | docs(ENH-181): file banner inline-rename + collapse toggle |
+| [39a8d63](https://github.com/dudgeon/duo/commit/39a8d63) | docs(ENH-180): close + fold into ENH-177; banner mockup |
+| [221b6a4](https://github.com/dudgeon/duo/commit/221b6a4) | docs(sprint-21): post-cut compaction-safe handoff (from v0.7.7 cycle) |
 
 ## Closed during planning (2026-05-23)
 
@@ -70,8 +77,8 @@ ce50e78 feat(ENH-169): navigator new-file/new-folder UX
 
 ## Dev session running
 
-- One Electron instance (last spawn during ENH-178 verification, restarted).
-- Now identifies as v0.7.8 ·dev (post-cut bump).
+- One Electron instance (last spawn during v0.7.8 cut, restarted before the cut).
+- Now identifies as v0.7.9 ·dev (post-v0.7.8-cut bump).
 
 ## Mechanism notes worth keeping from ENH-180 PRD research
 
