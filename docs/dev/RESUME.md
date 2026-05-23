@@ -15,15 +15,9 @@
 - Walk-1 PASS items dropped per the never-re-walk rule: ENH-172, ENH-169.
 - To re-open: `duo open /Users/geoffreydudgeon/Documents/GitHub/duo/docs/dev/smoke-walks/v0.7.7-rev2.html`.
 
-### 2. Owner-decision on TipTap autolink (BUG-155 follow-up)
+### 2. Ship ENH-174 — disable TipTap autolink
 
-During BUG-155 verification, discovered TipTap's `autolink: true` doesn't just confuse the conflict-detector — it also **persists the link form to disk on save**. Bare `prd.md` in source becomes `[prd.md](http://prd.md)` on autosave. Three paths:
-
-- **A.** Ship BUG-155 only (false-positive dialog gone; mutation remains)
-- **B.** Disable TipTap autolink entirely (source byte-stable; ⌘K needed to make links). **Recommended.**
-- **C.** Both (B + BUG-155 normalize as belt-and-suspenders).
-
-**Status:** owner has not yet picked. Don't cut until they do.
+Owner-locked 2026-05-23 (Option B/C). Single config change: `Link.configure({ autolink: false, ... })` at [`renderer/components/editor/MarkdownEditor.tsx:498`](../../renderer/components/editor/MarkdownEditor.tsx:498). BUG-155 normalize stays as belt-and-suspenders. See [tasks.md § ENH-174](../../tasks.md) for the full plumbing checklist + verification steps. Owner said "just lock the decision; don't start the build" — implementation is owner-gated, do not start without explicit go.
 
 ## All Sprint 20 commits (since v0.7.6 tag)
 

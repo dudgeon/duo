@@ -230,6 +230,35 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-174: Disable TipTap autolink — bare URLs / filenames stop auto-converting to markdown links
+
+**Status:** 🆕 **Owner-locked 2026-05-23** — implementation queued. Surfaced during [BUG-155](#bug-155-false-positive-file-changed-on-disk-dialog-from-tiptap-markdown-autolink-round-trip) verification. Owner directive: *"I do want to avoid filename.md conversion false positives; I am comfortable with users needing to manually set a url as a linked url via cmd-k or direct md notation."*
+
+**Scope.** Set `autolink: false` in `Link.configure({})` at [`renderer/components/editor/MarkdownEditor.tsx:498`](renderer/components/editor/MarkdownEditor.tsx:498). Bare URL-shaped text (`prd.md`, `example.com`, `foo.org/path`) will no longer be auto-converted to a link mark on parse, so it stays as plain text on serialize. Source markdown stays byte-stable.
+
+**Trade-off (owner-accepted).** Users can no longer rely on auto-linking when typing bare URLs in the editor. To make a link they use one of:
+- ⌘K — opens the LinkPromptModal (already shipped)
+- Direct markdown notation: `[text](http://url)`
+- Paste a URL onto selected text (TipTap's paste-as-link behavior is independent of autolink — should still work; verify during build)
+
+**Why it matters.** Solves the disk-mutation half of BUG-155. Pre-fix: on every autosave of a file containing bare URL-shaped text, TipTap mutated the source from `prd.md` to `[prd.md](http://prd.md)`. Post-fix: source stays as the user typed it.
+
+**Belt-and-suspenders.** BUG-155's `normalizeForEchoCompare` autolink-collapse stays in place — even with autolink disabled in this configuration, the normalize is a defensive net if any other code path (a future extension, a plugin, a TipTap upgrade resetting defaults) re-introduces autolink behavior.
+
+**Plumbing checklist (per CLAUDE.md rule 4):**
+
+1. `renderer/components/editor/MarkdownEditor.tsx` — `Link.configure({ autolink: false, openOnClick: false, ... })`. Confirm `openOnClick: false` is also set (already is, per current config — verify during build).
+2. **Verify paste-as-link still works** — selecting text then pasting a URL should still wrap the selection in a link. This is a separate TipTap path from autolink.
+3. **Verify clicking existing links still works** — files that already have `[text](url)` notation should keep their links rendering / opening correctly.
+4. **Live test on `docs/about-duo.md`** — type 'x', backspace, autosave. Confirm `prd.md` stays as bare text on disk (no rewrite to `[prd.md](http://prd.md)`).
+5. **Add a vitest fixture** for the autolink-off behavior if one doesn't exist (regression coverage).
+
+**Files likely touched:** `renderer/components/editor/MarkdownEditor.tsx` (config), possibly `renderer/components/editor/extensions/MarkdownLinkShortcuts.ts` if any of its logic assumed autolink-on.
+
+**Cross-ref:** [BUG-155](#bug-155-false-positive-file-changed-on-disk-dialog-from-tiptap-markdown-autolink-round-trip) (the false-positive normalize fix that surfaced this), [ENH-137](#) (markdown editor general polish), ⌘K LinkPromptModal (existing UX path for manual linking).
+
+---
+
 ### BUG-155: False-positive "file changed on disk" dialog from tiptap-markdown autolink round-trip
 
 **Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Owner-reported: *"I just had a false positive 'This file changed on disk while you were editing'"* during a markdown edit session.

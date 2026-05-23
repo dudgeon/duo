@@ -20,13 +20,9 @@
 | **BUG-154** Return-override fires in kind='shell' tabs running claude | [b826bf4](https://github.com/dudgeon/duo/commit/b826bf4) | ✅ agent walked end-to-end via computer-use (typed + Return + observed newline; toggled off + Return + observed submit) |
 | **BUG-155** Autolink round-trip false-positive in conflict detector | [fdffa7b](https://github.com/dudgeon/duo/commit/fdffa7b) | ✅ agent walked — typed x + backspace on about-duo.md, no conflict log update |
 
-## OPEN owner-decision
+## Locked decisions
 
-**Autolink behavior (decision needed before cut).** During BUG-155 verification, discovered TipTap's autolink doesn't just confuse the conflict detector — it also **persists the link form to disk on save**. Bare `prd.md` in user's source gets rewritten to `[prd.md](http://prd.md)` (with synthesized `http://` scheme) on every autosave. Three options:
-
-- **A.** Ship BUG-155 only — the false-positive dialog is gone but bare URL-shaped text still gets mutated on first save. User can manually revert via git.
-- **B.** Disable TipTap's autolink extension — source stays byte-stable. Trade-off: typing `example.com` in the editor won't auto-link (would need ⌘K to make a link). **Agent's recommendation.**
-- **C.** Both — disable autolink AND keep BUG-155 normalize as belt-and-suspenders.
+**Autolink behavior** — locked 2026-05-23 to **Option B/C: disable TipTap autolink, keep BUG-155 normalize as belt-and-suspenders**. Owner directive: *"I do want to avoid filename.md conversion false positives; I am comfortable with users needing to manually set a url as a linked url via cmd-k or direct md notation."* Filed as **[ENH-174](../../tasks.md)** — queued for build, NOT yet implemented. Cut blocked on ENH-174 ship + verification.
 
 ## Smoke walk state
 
