@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-editable" content="false">
+<title>ENH-180 — Auto-rename Claude sessions via `/rename` PTY injection</title>
+<style>
+/* ─── Atelier kernel ─── */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px; background: var(--paper-deep);
+  padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.5;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 16px 18px; margin: 18px 0;
+}
+.decision-card .q-title {
+  font-weight: 700; font-size: 13px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px;
+}
+.decision-card .q-prompt {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 500; font-size: 17px; color: var(--ink);
+  margin: 0 0 12px; line-height: 1.35;
+}
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option {
+  display: block; background: var(--paper);
+  border: 1.5px solid var(--paper-rule); border-radius: 5px;
+  padding: 10px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option-body { display: inline-block; vertical-align: top; width: 100%; }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.choice-field {
+  background: color-mix(in srgb, var(--accent) 8%, var(--paper));
+  border: 1.5px dashed var(--accent);
+  border-radius: 5px; padding: 10px 12px; margin: 12px 0 0;
+  font-size: 13px;
+}
+.choice-field .label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--accent); display: block; margin-bottom: 4px;
+}
+.choice-field .ph { color: var(--ink-ghost); font-style: italic; }
+
+/* ─── Per-playground patterns ─── */
+
+/* Diagram-friendly pre */
+pre.diagram { line-height: 1.35; background: var(--paper-deep); color: var(--ink); border: 1px solid var(--paper-rule); }
+
+/* Banner mockup — what the user sees inside Duo's terminal pane */
+.banner-mock {
+  background: #f8f4ea; border: 1px solid #e2d8bc; border-radius: 6px;
+  padding: 8px 12px; margin: 12px 0;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 1px 2px rgba(20, 14, 8, .12), 0 4px 10px rgba(20, 14, 8, .10);
+  font-size: 12.5px; color: var(--ink);
+}
+.banner-mock .arrow { font-size: 14px; opacity: .7; }
+.banner-mock .sid {
+  background: rgba(20, 14, 8, .06); padding: 1px 5px;
+  border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px;
+}
+.banner-mock .resume-btn {
+  background: var(--accent); color: white; padding: 3px 10px;
+  border-radius: 4px; font-size: 11px; font-weight: 500;
+  display: inline-block;
+}
+.banner-mock .dismiss { opacity: .55; margin-left: 4px; }
+
+/* Terminal-transcript mockup */
+.transcript {
+  background: #0e0c08; color: #e8e0cb;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.4;
+  padding: 14px 16px; border-radius: 6px;
+  margin: 12px 0;
+  white-space: pre-wrap;
+}
+.transcript .user { color: #8ab4f8; }
+.transcript .system { color: #c46a1c; }
+.transcript .assistant { color: #e8e0cb; }
+.transcript .duo-inject {
+  background: rgba(196, 106, 28, 0.18);
+  color: #f4d9b6; padding: 0 4px; border-radius: 2px;
+}
+
+/* Two-up comparison */
+.compare {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin: 16px 0;
+}
+.compare > div {
+  background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 12px 14px;
+}
+.compare > div h4 {
+  margin: 0 0 8px; font-size: 12.5px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--ink-mute); font-weight: 700;
+}
+
+/* Pipeline / sequence boxes */
+.pipeline {
+  display: grid; gap: 12px;
+  grid-template-columns: 1fr; margin: 16px 0;
+}
+.pipeline .step {
+  border-left: 3px solid var(--accent); padding: 10px 14px;
+  background: var(--paper-deep); border-radius: 0 5px 5px 0;
+}
+.pipeline .step strong { color: var(--accent); }
+.pipeline .step .num {
+  font-weight: 700; color: var(--accent); margin-right: 6px;
+}
+
+/* Risk callouts */
+.risk-card {
+  background: color-mix(in srgb, var(--fail) 4%, var(--paper));
+  border-left: 3px solid var(--fail); padding: 10px 14px;
+  border-radius: 0 5px 5px 0; margin: 12px 0;
+  font-size: 13px;
+}
+.risk-card strong { color: var(--fail); }
+
+/* Note callouts */
+.note-card {
+  background: color-mix(in srgb, var(--accent) 4%, var(--paper));
+  border-left: 3px solid var(--accent); padding: 10px 14px;
+  border-radius: 0 5px 5px 0; margin: 12px 0;
+  font-size: 13px;
+}
+.note-card strong { color: var(--accent); }
+
+/* Tables */
+table.compact {
+  border-collapse: collapse; width: 100%; margin: 10px 0;
+  font-size: 12.5px;
+}
+table.compact th, table.compact td {
+  border: 1px solid var(--paper-rule); padding: 6px 9px; text-align: left;
+  vertical-align: top;
+}
+table.compact th { background: var(--paper-deep); font-weight: 600; }
+
+details.deferred {
+  margin: 22px 0; padding: 12px 16px;
+  background: var(--paper-deep); border: 1px dashed var(--paper-rule);
+  border-radius: 6px;
+}
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>ENH-180 — Auto-rename Claude sessions via <code>/rename</code> PTY injection</h1>
+  <div class="meta">
+    <span class="pill">PRD</span>
+    <span class="pill">Owner-decision gate</span>
+    Filed 2026-05-23 · Sprint 21 candidate · Author: Claude (with owner-validated empirics)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> Decision PRD for an ENH-177 follow-on: instead of showing a UUID in the
+  resume banner, set a real session title using Claude Code's own <code>/rename</code> slash command. The
+  title persists to <code>sessions-index.json</code> (Claude-canonical) and shows up everywhere Claude already
+  consumes it — <code>/resume</code> picker, terminal title, our banner. Four design decisions need owner
+  picks before build. Build estimated ~2h after decisions land.
+</div>
+
+<h2>Context — what ENH-177 ships today and why this matters</h2>
+
+<p>
+  ENH-177 (shipped 2026-05-23 in v0.7.7) captures the most-recently-modified session UUID per terminal tab on
+  every autosave and, after a workspace switch, surfaces a banner: <em>⏪ This tab had Claude session
+  <code>17d05c98</code> — Resume?</em>.
+</p>
+<div class="banner-mock">
+  <span class="arrow">⏪</span>
+  This tab had Claude session <code class="sid">17d05c98</code>
+  <span style="flex:1"></span>
+  <span class="resume-btn">Resume</span>
+  <span class="dismiss">×</span>
+</div>
+<p>
+  The UUID is functional but generic. The owner's stated need: <em>"to help users better manage multiple
+  terminal tabs"</em> — i.e., distinguish a tab that was running "Refactor PTY env vars" from one running
+  "Compile design notes". UUIDs don't communicate that.
+</p>
+
+<h2>Empirics — what we verified on disk and via CLI</h2>
+
+<h3>Disk layout (sessions storage)</h3>
+<table class="compact">
+  <thead><tr><th>File</th><th>Present</th><th>Shape</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>~/.claude/projects/&lt;encoded-cwd&gt;/&lt;uuid&gt;.jsonl</code></td>
+      <td>Always (one per session)</td>
+      <td>NDJSON. Line 1 varies — sometimes <code>type: summary</code> (older Claude), sometimes <code>type: last-prompt</code> (current). Body contains <code>type: user/assistant/system</code> entries.</td>
+    </tr>
+    <tr>
+      <td><code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code></td>
+      <td>Per-project, populated by Claude Code on certain events (manual <code>/rename</code> writes here; auto-Haiku-summarization also writes here)</td>
+      <td>JSON. <code>{ version, entries: [{ sessionId, fullPath, summary, firstPrompt, messageCount, created, modified, gitBranch, isSidechain }], originalPath }</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Claude CLI behavior (verified live 2026-05-23)</h3>
+<table class="compact">
+  <thead>
+    <tr><th>Invocation</th><th>Result</th><th>Cost (API)</th><th>Cost (sub)</th><th>Latency</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>claude -p "/rename Foo"</code></td>
+      <td><strong>Doesn't work.</strong> Returns "<em>/rename isn't available in this environment</em>". Slash commands are TUI-only.</td>
+      <td>—</td><td>—</td><td>—</td>
+    </tr>
+    <tr>
+      <td><code>claude -p &lt;prompt&gt;</code> (default)</td>
+      <td>Generates a response. Spawns a fresh session JSONL.</td>
+      <td>~$0.135 (107K cache tokens)</td>
+      <td>Free (quota)</td><td>~5s</td>
+    </tr>
+    <tr>
+      <td><code>claude -p --tools "" --disable-slash-commands</code></td>
+      <td>Same as above. Marginally cheaper.</td>
+      <td>~$0.105 (83K cache tokens)</td>
+      <td>Free (quota)</td><td>~4.5s</td>
+    </tr>
+    <tr>
+      <td><code>claude -p --bare ...</code></td>
+      <td><strong>Refuses OAuth.</strong> Requires explicit <code>ANTHROPIC_API_KEY</code>.</td>
+      <td>~$0.001</td>
+      <td>Doesn't apply</td><td>0.2s</td>
+    </tr>
+    <tr>
+      <td><code>claude --resume &lt;id&gt; --name "X" -p ""</code></td>
+      <td><strong>--name does not visibly persist.</strong> Also: re-loading the resumed session is expensive — 117K cache tokens at <em>Opus</em> default pricing.</td>
+      <td>~$0.73 (!!)</td>
+      <td>Quota burn</td><td>~7s</td>
+    </tr>
+    <tr>
+      <td>Write <code>\r/rename &lt;title&gt;\n</code> into a live claude PTY</td>
+      <td><strong>Works.</strong> Slash command is processed locally inside the TUI; writes to <code>sessions-index.json</code>; visible in subsequent <code>/resume</code> picker and our banner.</td>
+      <td>$0 (no LLM)</td><td>$0</td><td>~0s</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="note-card">
+  <strong>Decisive insight.</strong> The PTY-injection path is free, fast, and writes to the canonical store.
+  The only catch is that <code>/rename</code> requires an <em>active</em> claude TUI — we can rename live
+  sessions but not historical ones. That's actually fine: we set the title <em>while the session is alive</em>,
+  so by the time it closes (and ENH-177's banner needs to display it), the title is already in
+  <code>sessions-index.json</code>.
+</div>
+
+<h2>Proposed mechanism — end-to-end flow</h2>
+
+<div class="pipeline">
+  <div class="step">
+    <span class="num">1</span><strong>Detect.</strong> On every <code>enrichBeforePersistHook</code> tick
+    (the 250ms autosave debounce that ENH-177 already runs), iterate the live terminal tabs. For each tab
+    with <code>claudePresence === 'claude'</code>, look up the session ID. If we've already renamed this
+    session ID (tracked in <code>~/.claude/duo/renamed-sessions.json</code>) OR
+    <code>sessions-index.json</code> already has a non-empty <code>summary</code> for it, skip.
+  </div>
+  <div class="step">
+    <span class="num">2</span><strong>Generate title.</strong> Read the session JSONL, find first
+    <code>type: user</code> message, extract text content, truncate to a sentence-friendly window. If the
+    candidate fails the quality threshold (Decision 3), skip.
+  </div>
+  <div class="step">
+    <span class="num">3</span><strong>Idle-gate.</strong> Only fire if the PTY has had no user input in the
+    last <em>N</em> seconds AND claudePresence has been steady-state for <em>M</em> seconds (Decision 4 picks
+    the timings). Avoids mid-typing interruption.
+  </div>
+  <div class="step">
+    <span class="num">4</span><strong>Inject.</strong> Write <code>\r/rename &lt;title&gt;\n</code> via
+    <code>PtyManager.write(tabId, ...)</code>. Claude processes the slash command, updates
+    <code>sessions-index.json</code>, prints a brief confirmation in the transcript.
+  </div>
+  <div class="step">
+    <span class="num">5</span><strong>Mark renamed.</strong> Add the session ID to
+    <code>~/.claude/duo/renamed-sessions.json</code> so we don't re-fire on the next tick.
+  </div>
+  <div class="step">
+    <span class="num">6</span><strong>Banner read priority (extends ENH-177).</strong>
+    <code>sessions-index.json</code> entry's <code>summary</code> → our local cache → first-prompt
+    truncation → UUID. The banner gets the rendered title automatically; no banner change needed beyond
+    reading the new tier.
+  </div>
+</div>
+
+<h3>Mockup — before vs after</h3>
+<div class="compare">
+  <div>
+    <h4>Before (ENH-177 today)</h4>
+    <div class="banner-mock">
+      <span class="arrow">⏪</span>
+      This tab had Claude session <code class="sid">17d05c98</code>
+      <span style="flex:1"></span>
+      <span class="resume-btn">Resume</span>
+      <span class="dismiss">×</span>
+    </div>
+  </div>
+  <div>
+    <h4>After (ENH-180)</h4>
+    <div class="banner-mock">
+      <span class="arrow">⏪</span>
+      <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+        <strong>Refactor PTY manager env vars</strong>
+      </span>
+      <span class="resume-btn">Resume</span>
+      <span class="dismiss">×</span>
+    </div>
+  </div>
+</div>
+
+<h2>What the user actually sees in the terminal transcript</h2>
+
+<p>
+  This is the visibility footprint. When we inject <code>/rename</code>, claude prints a small
+  acknowledgement line. Owner's eye-level mock-up below.
+</p>
+
+<div class="transcript"><span class="user">&gt; hello claude</span>
+
+<span class="assistant">Ready to help. What are we working on?</span>
+
+<span class="user">&gt; refactor PtyManager so we can inject env vars per spawn</span>
+
+<span class="assistant">I'll start by reading the PtyManager source. Let me check
+the constructor signature first…</span>
+
+<span class="duo-inject">&gt; /rename Refactor PTY manager env vars</span>
+<span class="system">  ✓ Session renamed to "Refactor PTY manager env vars"</span>
+
+<span class="user">&gt; let me know when you've found the env-var entry point</span></div>
+
+<p style="font-size: 12px; color: var(--ink-mute); margin-top: 4px;">
+  The orange-highlighted line is Duo's inject. Claude's confirmation line follows. The user's next prompt
+  picks up normally. Total noise: 2 lines.
+</p>
+
+<h2>Decisions to lock</h2>
+
+<!-- ─────── Decision 1 ─────── -->
+<div class="decision-card" id="d1">
+  <div class="q-title">Decision 1 — Visibility footprint</div>
+  <div class="q-prompt">Default-on or opt-in?</div>
+  <div class="q-context">
+    The PTY inject costs the user two lines in their transcript per session. That's the entire UX trade-off.
+    Default-on means new users get titles automatically (good); they also see slash-command noise they didn't
+    explicitly enable (mixed). Opt-in means zero noise by default but most users will never discover the
+    feature.
+  </div>
+
+  <div class="q-options">
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">A. Opt-in (Settings menu checkbox, default OFF)<span class="recommend-tag">Recommended for v1</span></div>
+        <div class="q-option-rationale">
+          New checkbox in the Settings menu: <em>"Auto-name Claude sessions"</em>. Default OFF. Owner walks it,
+          flips on, validates the footprint feels OK. Risk: low — no surprise transcript content. Cost: low
+          discoverability — most users won't find it until we promote it.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">B. Default-on with the same Settings checkbox</div>
+        <div class="q-option-rationale">
+          Same surface, default ON. Every user gets titles automatically. First-time noise is explained by a
+          one-liner under the resume banner: <em>"Duo auto-names your sessions — disable in Settings."</em>
+          Risk: surprise on first install; complaints from users who don't read the disclaimer.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">C. Default-on with a one-time FTUX confirmation</div>
+        <div class="q-option-rationale">
+          On first claude tab spawn, modal: <em>"Duo can auto-name your Claude sessions using /rename. Each
+          rename adds two lines to your transcript. Enable now?"</em> [Yes, default] / [No, ask again next
+          time] / [Off]. Adds one modal to the FTUX surface. Most considerate of the three.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="choice-field">
+    <span class="label">My pick — Decision 1</span>
+    <div class="ph">[ A / B / C — fill in on Notion ]</div>
+  </div>
+</div>
+
+<!-- ─────── Decision 2 ─────── -->
+<div class="decision-card" id="d2">
+  <div class="q-title">Decision 2 — Title source</div>
+  <div class="q-prompt">Where does the title come from?</div>
+  <div class="q-context">
+    All three options write the result via <code>/rename</code>. They differ only in how the title string is
+    generated <em>before</em> the inject. Quality vs. cost vs. latency trade-off.
+  </div>
+
+  <div class="q-options">
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">A. First-prompt truncation (free, instant)<span class="recommend-tag">Recommended for v1</span></div>
+        <div class="q-option-rationale">
+          Read the JSONL, find first <code>type: user</code> message, take the first sentence or ~50 chars.
+          Apply small heuristic cleanups: drop leading "hey claude" / "hi claude" / punctuation. Quality:
+          medium — captures intent when first prompt is meaningful; produces mediocre titles when first
+          prompt is small-talk. Cost: $0. Latency: ~0s.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">B. <code>claude -p</code> Haiku summarization</div>
+        <div class="q-option-rationale">
+          Spawn <code>claude -p --tools "" --disable-slash-commands --model claude-haiku-4-5-20251001</code>
+          with the first ~10 messages and a tight system prompt. Quality: high — real summary. Cost: $0 for
+          subscription users (quota); ~$0.10 per session for API-key-only users. Latency: ~5s. Stage 1 still
+          uses first-prompt for instant display.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">C. Both — first-prompt for v1, Haiku as an opt-in upgrade later</div>
+        <div class="q-option-rationale">
+          Ship A first. File a follow-up ENH for B that gates Haiku behind a separate localStorage flag
+          (so cost-sensitive users can stay on free titles). Adds zero complexity to v1 build.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="choice-field">
+    <span class="label">My pick — Decision 2</span>
+    <div class="ph">[ A / B / C — fill in on Notion ]</div>
+  </div>
+</div>
+
+<!-- ─────── Decision 3 ─────── -->
+<div class="decision-card" id="d3">
+  <div class="q-title">Decision 3 — Quality threshold for skipping</div>
+  <div class="q-prompt">When should we <em>not</em> rename a session?</div>
+  <div class="q-context">
+    Some first prompts make terrible titles ("hi", "ok", "go on", "what's next"). We need a skip rule so we
+    don't pollute <code>sessions-index.json</code> with garbage. Looser rule = more titles; tighter rule =
+    fewer but better.
+  </div>
+
+  <div class="q-options">
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">A. Liberal — rename anything ≥ 3 words and ≥ 15 chars</div>
+        <div class="q-option-rationale">
+          Most sessions get titled. "Hello claude how are you" passes ("Hello Claude How Are You"). Owner-rename
+          via <code>/rename</code> overrides ours anyway. Risk: sessions-index.json has some cringe titles.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">B. Moderate — rename when ≥ 6 words OR ≥ 40 chars, AND not in a small-talk denylist<span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">
+          Skip "hi/hello/ok/go on/what's next/keep going/continue/help" and similar (small canonicalized list,
+          ~15 entries). Otherwise rename. Catches the obvious junk while still being permissive enough for
+          real work prompts. Owner can edit the denylist later (or a CLI verb).
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">C. Strict — require ≥ 8 words AND clear sentence shape (subject + verb)</div>
+        <div class="q-option-rationale">
+          Light NLP — check for at least one verb-shaped token (heuristic, not full parser). Most short
+          sessions stay unnamed. Higher signal-to-noise on what does get titled.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="choice-field">
+    <span class="label">My pick — Decision 3</span>
+    <div class="ph">[ A / B / C — fill in on Notion ]</div>
+  </div>
+</div>
+
+<!-- ─────── Decision 4 ─────── -->
+<div class="decision-card" id="d4">
+  <div class="q-title">Decision 4 — Timing / idle gate</div>
+  <div class="q-prompt">When during a session should we fire the inject?</div>
+  <div class="q-context">
+    The PTY is shared with the user — if we inject while they're typing or while claude is streaming a long
+    response, the slash command lands in the wrong place. We need an idle gate: wait for both sides to be
+    quiet, then inject.
+  </div>
+
+  <div class="q-options">
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">A. Generous gate — fire when PTY has been idle for ≥ 5s AND claudePresence has been steady-state for ≥ 10s</div>
+        <div class="q-option-rationale">
+          Conservative timing. Almost never interrupts. Cost: titles can lag many minutes behind session start
+          on a busy session that never goes idle for 5s.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">B. Snappy gate — 2s idle AND 3s steady<span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">
+          Strikes a balance. Most sessions get a title within the first minute of normal work (user types
+          prompt → claude responds → 3-second gap before next user prompt = inject window). Some collision
+          risk during very rapid back-and-forth.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">C. On-session-end — fire only when claudePresence drops from 'claude' to anything else</div>
+        <div class="q-option-rationale">
+          Never interrupts. Title is set at the very last moment when claude is closing. Risk: if the user
+          closes the terminal hard (⌘W before claude exits cleanly), we miss the inject. Title visibility is
+          deferred — the user doesn't see "Refactor PTY env vars" in their <code>/resume</code> picker until
+          AFTER they end the session.
+        </div>
+      </div>
+    </div>
+    <div class="q-option">
+      <div class="q-option-body">
+        <div class="q-option-title">D. Manual only — never auto-fire; surface a "Rename this session" button in Duo</div>
+        <div class="q-option-rationale">
+          No auto-fire ever. The Settings checkbox becomes a manual command. New UI element: a small
+          icon in the terminal tab's chrome that runs the rename when clicked. Highest user control, lowest
+          surprise. Probably underused without strong discoverability.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="choice-field">
+    <span class="label">My pick — Decision 4</span>
+    <div class="ph">[ A / B / C / D — fill in on Notion ]</div>
+  </div>
+</div>
+
+<h2>Plumbing checklist (per CLAUDE.md § 4)</h2>
+
+<ol>
+  <li><code>shared/types.ts</code> — extend <code>SessionStateTerminal.lastClaudeSession</code> with an
+    optional <code>title?: string | null</code> field (so the banner gets it for free). Add
+    <code>'session-rename'</code> to <code>DuoCommandName</code> if a CLI verb lands.</li>
+  <li><code>electron/claude-session-tracker.ts</code> — add <code>readSessionMetadata(cwd, id)</code> that
+    reads <code>sessions-index.json</code> (if present), falling through to the JSONL line-1
+    <code>type: summary</code> field, falling through to first-user-message scan. Returns
+    <code>{ title?: string, firstPrompt?: string, messageCount?: number }</code>.</li>
+  <li>New file <code>electron/claude-session-renamer.ts</code> — owns the rename logic:
+    <ol>
+      <li>Tracks renamed session IDs at <code>~/.claude/duo/renamed-sessions.json</code>.</li>
+      <li>Implements the idle gate (subscribes to PTY input + claudePresence events).</li>
+      <li>Implements the quality threshold + small-talk denylist.</li>
+      <li>Calls <code>PtyManager.write(tabId, '\r/rename ' + title + '\n')</code>.</li>
+    </ol>
+  </li>
+  <li><code>electron/main.ts</code> — wire the renamer into the autosave-tick path; settings menu toggle that
+    flips the localStorage <code>duo.autoRename.enabled</code> flag.</li>
+  <li><code>renderer/components/ClaudeResumeBanner.tsx</code> — extend the banner to render <code>title</code>
+    when present; fall back to truncated UUID.</li>
+  <li><code>renderer/hooks/useAutoRenameFlag.ts</code> (new) — localStorage subscription + setter. Mirrors
+    <code>useSendPillFlags</code>.</li>
+  <li><code>cli/duo.ts</code> — new verb <code>duo session-rename [auto|manual|off|status]</code> for
+    agent-controlled toggling. Update <code>printHelp()</code>. Rebuild binary.</li>
+  <li><code>skill/SKILL.md</code> + <code>agents/duo.md</code> + <code>docs/CLI-COVERAGE.md</code> — entries
+    for the new verb.</li>
+  <li><code>vitest</code> — fixtures for the small-talk denylist, the read-priority chain, the idle gate
+    state machine. Probably 12-15 new tests.</li>
+</ol>
+
+<h2>Risks &amp; limitations</h2>
+
+<div class="risk-card">
+  <strong>Slash-command rejection in non-interactive modes.</strong> If a tab is somehow running claude in
+  a mode that doesn't accept slash commands (e.g. behind a script or wrapper), the inject lands as literal
+  text in the user's prompt. Mitigation: only fire when <code>claudePresence === 'claude'</code> (which means
+  the interactive TUI is the foreground), and confirm via <code>sessions-index.json</code> growth that the
+  rename took effect. If not, mark the session as "no auto-rename" and don't retry.
+</div>
+
+<div class="risk-card">
+  <strong>Race with user typing.</strong> Mitigated by the idle gate (Decision 4). Adversarial cases (user
+  types furiously, never idle for 2s) will still miss the inject window — that's fine; we'll try again on
+  the next autosave tick.
+</div>
+
+<div class="risk-card">
+  <strong>Claude Code version drift.</strong> If a future Claude Code version changes
+  <code>/rename</code>'s syntax or removes the slash command entirely, our inject becomes literal text in
+  the transcript. Mitigation: probe Claude version at install time + skip auto-rename for unrecognized
+  versions. Also: every release-walk verifies a fresh claude install renames correctly.
+</div>
+
+<div class="risk-card">
+  <strong>Privacy.</strong> The first-prompt-truncation path reads the user's prompt content. The
+  <code>claude -p</code> path sends conversation content through the user's own claude install (same auth
+  path they already use — no new exposure). Both paths only act on sessions the user is currently running;
+  we never touch sessions from other projects or other users.
+</div>
+
+<details class="deferred">
+  <summary>Deferred decisions / non-blocking notes</summary>
+  <div class="deferred-body">
+    <ul>
+      <li>Per-cwd opt-out (project-level disable). Wait until at least one user asks.</li>
+      <li>Refresh button for already-renamed sessions (re-summarize over the now-larger conversation). Not in v1.</li>
+      <li>Garbage-collect Duo-spawned summary jsonls (only relevant if we pick Decision 2.B or 2.C). File as a follow-up once we see actual clutter.</li>
+      <li>CLI verb for one-shot rename of a specific session UUID. Defer to v2 — covered by Claude's own <code>/rename</code> already.</li>
+    </ul>
+  </div>
+</details>
+
+<h2>Build order (after decisions land)</h2>
+
+<ol>
+  <li>Settings checkbox + localStorage flag + useAutoRenameFlag hook. 30 min.</li>
+  <li>claude-session-renamer module + idle gate state machine + denylist. 45 min.</li>
+  <li>sessions-index.json read tier in claude-session-tracker. 20 min.</li>
+  <li>Banner title rendering. 10 min.</li>
+  <li>CLI verb + docs sync. 20 min.</li>
+  <li>vitest fixtures. 30 min.</li>
+  <li>Live walk via computer-use (claude tab spawn → idle → observe rename in transcript → check sessions-index.json + banner). 20 min.</li>
+</ol>
+
+<p>Total: ~3h. Owner walks after build.</p>
+
+<h2>Owner pick recording</h2>
+<p>
+  Per turn (2026-05-23, owner directive): <em>"add a section for me to indicate my choice per decision (ie
+  we will not be using the copy for Claude button pattern)."</em> Each decision card above has a "My pick"
+  field. The Notion mirror of this PRD has the same fields — fill them in directly. When ready, paste this
+  PRD URL (or the choice list) back to Claude and we'll lock the decisions.
+</p>
+
+<p style="font-size: 11px; color: var(--ink-mute); margin-top: 32px; padding-top: 14px; border-top: 1px dashed var(--paper-edge);">
+  PRD path: <code>docs/prd/enh-180-session-rename.html</code> · Cross-ref: ENH-177 (banner) · ENH-082
+  (terminal context bar, future integration) · Sprint 21 candidate.
+</p>
+
+</body>
+</html>

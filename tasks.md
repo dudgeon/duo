@@ -230,6 +230,41 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-180: Auto-rename Claude sessions via `/rename` PTY injection
+
+**Status:** 🟡 **PRD filed 2026-05-23** — awaiting owner picks on 4 decisions. Sprint 21 candidate (build estimated ~3h after decisions).
+
+**PRD:** [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) — full design + mockups + 4 decision cards (visibility footprint, title source, quality threshold, timing/idle gate).
+**Notion mirror (phone-friendly):** [ENH-180 PRD — Auto-rename Claude sessions via `/rename` injection](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — owner ticks the boxes per decision card directly on phone.
+
+**Owner ask context.** Surfaced via ENH-177 verification turn 2026-05-23 (owner: *"could we generate these programmatically on initial session save, and/or have a button to refresh the first prompt based session store for novel sessions post initial save?"*). When I costed `claude -p` summarization (~$0.10/session for API users; quota burn for subscription users), owner countered: *"What about firing `/rename` in the Claude session?"* — i.e., use Claude Code's own slash command to write the title, no separate LLM needed.
+
+**Empirics verified live 2026-05-23.** `/rename` is TUI-only (refuses in `-p` mode). `--name` flag on `--resume` doesn't visibly persist + is expensive ($0.73 per call at Opus default). The PTY-injection path is free, ~0s, and writes to `sessions-index.json` (Claude-canonical) which our existing ENH-177 banner can read via tier-1 priority.
+
+**Proposed v1 mechanism.**
+1. On the autosave tick, for tabs with `claudePresence === 'claude'` whose session ID isn't yet renamed, extract first user prompt from the JSONL, truncate.
+2. Wait for the PTY idle gate to clear.
+3. Inject `\r/rename <title>\n` via `PtyManager.write`.
+4. Mark renamed in `~/.claude/duo/renamed-sessions.json`.
+5. ENH-177 banner picks up the title via `sessions-index.json` read on next workspace-switch.
+
+**Visibility cost:** ~2 lines in the user's transcript per session (the `/rename` line + Claude's confirmation). That's the only UX trade-off.
+
+**4 decisions blocking build:**
+
+| ID | Question | Recommendation |
+|---|---|---|
+| D1 | Visibility footprint — default-on or opt-in? | A (opt-in, Settings checkbox default OFF) |
+| D2 | Title source — first-prompt truncation, `claude -p` Haiku, or both? | A or C (first-prompt for v1) |
+| D3 | Quality threshold — when to skip? | B (moderate: ≥6 words OR ≥40 chars, denylist for "hi/ok/go on") |
+| D4 | Timing / idle gate — generous / snappy / on-end / manual-only? | B (snappy: 2s idle, 3s steady) |
+
+**Cross-ref:** [ENH-177](#) (the banner that benefits) · [ENH-082](#) (Terminal Context Bar — would consume the same title for its "Job statement" auto-populate when built).
+
+**Filing convention.** Per [feedback_research_reports_must_file_review_task](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_research_reports_must_file_review_task.md): this entry surfaces in every smoke walk until the owner closes the gate (paste decisions back to Claude).
+
+---
+
 ### ENH-179: ⌘Z reopens the most recently closed tab
 
 **Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Owner ask: *"cmd+z reopens recently closed tab if tab"*.
