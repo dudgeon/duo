@@ -230,6 +230,24 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-155: False-positive "file changed on disk" dialog from tiptap-markdown autolink round-trip
+
+**Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Owner-reported: *"I just had a false positive 'This file changed on disk while you were editing'"* during a markdown edit session.
+
+**Root cause (forensic-confirmed 2026-05-23).** Conflict log at `~/.claude/duo/logs/last-conflict.log` captured `path: /docs/about-duo.md`, `diskLength: 3543`, `baselineLength: 3560`, `firstDiffOffset: 804`. Disk hadn't been externally modified (matched committed version). The 17-char divergence traces to **tiptap-markdown's link extension having `autolink: true` by default** — bare URL-shaped text in the source (e.g. `prd.md`, `example.com`, `foo.org/path`) is detected on parse and converted to a markdown link `[X](http://X)` with the scheme synthesized. On serialize the link form is preserved.
+
+For `about-duo.md`, the source had one bare `prd.md` reference (6 chars). TipTap's parse → serialize round-trip produced `[prd.md](http://prd.md)` (23 chars). Difference: **17 chars** — matches the conflict log exactly. First save after load hit save-pre-reconcile, the normalize didn't cancel the autolink transform, comparison failed, conflict dialog fired.
+
+**Fix (shipped 2026-05-23).** Extended `normalizeForEchoCompare` to cancel autolink round-trips: regex `\[([^\]\n]+)\]\(https?:\/\/\1\)` collapses `[X](http(s)?://X)` to `X` when the link text exactly equals the URL minus the scheme. Conservative — links with different display text (`[Click here](http://example.com)`) are preserved; subdomain mismatches (`[example.com](http://www.example.com)`) are preserved. 6 new vitest cases cover the contract.
+
+**Why the existing normalize didn't catch this.** Prior BUG-122 hypotheses handled BOM, CRLF, trailing-whitespace, soft-break-≡-space (h4), HTML-entity escape (h6). The autolink round-trip is structurally different — it's a content-level transformation (not whitespace / encoding), but it's still a TipTap-side artifact that any user of bare-URL-style references in their markdown would hit.
+
+**Verification owed (live):** open `docs/about-duo.md` in the editor → make any small edit → autosave should NOT surface the file-changed-on-disk dialog. (Pre-fix: dialog fired on every first save after load of this file.)
+
+**Cross-ref:** [BUG-107](#) (the original false-positive class), [BUG-122](#) hypotheses 1-6 (prior normalize extensions), `renderer/utils/conflictDiagnostic.ts` (the normalize fn), `renderer/components/editor/MarkdownEditor.tsx:1175` (the save-pre-reconcile callsite).
+
+---
+
 ### BUG-154: Claude-tab Return override misses kind='shell' tabs running `claude`
 
 **Status:** ✅ **Shipped 2026-05-22** (v0.7.7). Surfaced during ENH-170 v2 smoke walk — owner: *"the ENH-170-WALK implementation is fundamentally flawed; … with cmd return for claude submit checked, return still submits."*

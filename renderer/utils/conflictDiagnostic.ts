@@ -73,6 +73,23 @@ export function normalizeForEchoCompare(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, '&')
+    // BUG-155 (Sprint 20 / v0.7.7) — tiptap-markdown's link extension
+    // has autolink ON by default. Bare URL-shaped text in source (e.g.
+    // `prd.md`, `example.com`, `foo.org/path`) is detected on parse
+    // and converted to a markdown link `[X](http://X)` with the
+    // scheme synthesized. On serialize, the link form is preserved.
+    // Result: a single `prd.md` (6 chars) in disk source becomes
+    // `[prd.md](http://prd.md)` (23 chars) in the editor's baseline —
+    // 17 chars added that aren't a real edit. Without this step,
+    // every save-after-load of a file containing bare URL/filename
+    // references fires a false-conflict banner.
+    //
+    // Cancel the round-trip by stripping `[X](https?://X)` to just `X`
+    // where the link text equals the URL minus the http(s):// scheme.
+    // Conservative: links with display text differing from the URL
+    // (`[Click here](http://example.com)`) are preserved. Confirmed
+    // 2026-05-23 on `docs/about-duo.md` repro.
+    .replace(/\[([^\]\n]+)\]\(https?:\/\/\1\)/g, '$1')
     .replace(/\s+$/, '')            // document-end trailing whitespace
 }
 

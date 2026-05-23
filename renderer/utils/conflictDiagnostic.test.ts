@@ -114,6 +114,48 @@ describe('normalizeForEchoCompare — BUG-122 hypothesis 6 (HTML-entity escape)'
   })
 })
 
+describe('normalizeForEchoCompare — BUG-155 (tiptap autolink round-trip)', () => {
+  it('cancels [X](http://X) → X — the exact about-duo.md repro', () => {
+    // 2026-05-23 owner repro: disk has bare `prd.md`, baseline has
+    // `[prd.md](http://prd.md)` (tiptap autolinker added the link form
+    // on parse). 17-char divergence → false-positive conflict banner.
+    const disk = 'see prd.md for details'
+    const baseline = 'see [prd.md](http://prd.md) for details'
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('cancels https://-scheme autolinks too', () => {
+    const disk = 'visit example.com'
+    const baseline = 'visit [example.com](https://example.com)'
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('cancels autolinks with path segments', () => {
+    const disk = 'reference docs.duo.dev/api'
+    const baseline = 'reference [docs.duo.dev/api](http://docs.duo.dev/api)'
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+
+  it('PRESERVES links where display text differs from URL (real intent)', () => {
+    const text = '[Click here](http://example.com)'
+    // Should NOT collapse to "Click here" — preserving the link form
+    // is correct because it represents real authoring intent.
+    expect(normalizeForEchoCompare(text)).toBe(text)
+  })
+
+  it('PRESERVES links where URL has subdomain not in display text', () => {
+    const text = '[example.com](http://www.example.com)'
+    // Different domains — preserve.
+    expect(normalizeForEchoCompare(text)).toBe(text)
+  })
+
+  it('combined: HTML-entity + autolink round-trip', () => {
+    const disk = 'see <prd.md>'
+    const baseline = 'see &lt;[prd.md](http://prd.md)&gt;'
+    expect(normalizeForEchoCompare(disk)).toBe(normalizeForEchoCompare(baseline))
+  })
+})
+
 describe('computeFirstDiffOffset', () => {
   it('returns null when strings are identical', () => {
     expect(computeFirstDiffOffset('abc', 'abc')).toBeNull()
