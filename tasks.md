@@ -230,6 +230,24 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-153: Settings modal occluded by browser-pane WebContentsView
+
+**Status:** 🟡 In flight 2026-05-22. Owner-reported on the v0.7.7 smoke walk: *"modal occluded; cannot read sufficiently to test WHY DID YOU NOT VISUALLY INSPECT THIS FEATURE BEFORE PASSING IT TO ME"* — ENH-170-WALK was marked FAIL.
+
+**Symptom (reproduced live 2026-05-22).** Opening the Settings modal (via App > Settings… or `⌘,`) while the browser pane is showing any content (e.g. the smoke walk page) causes the modal to render BENEATH the browser-pane WebContentsView. The modal is unreadable/uninteractable; only its edges peek out around the WCV. Pre-fix: every Settings-modal interaction needed the user to first close any browser-pane tab.
+
+**Root cause.** Electron's `WebContentsView` composites ABOVE the renderer's DOM regardless of CSS z-index — a known platform quirk documented in [`shared/host-api.ts:84`](shared/host-api.ts:84). Existing overlays (CloneModal, VaultQuickSwitcher, TabSearchPalette) pair `setOverlayMuted(true)` on open with `setOverlayMuted(false)` on close so main can temporarily hide / mute the WCV. The new `SettingsModal` (shipped with ENH-170) skipped that pairing — its `useEffect` for ESC dismissal landed but the overlay-mute pair didn't.
+
+**Fix (shipped 2026-05-22):** `SettingsModal` now adds a paired `useEffect` that calls `window.electron.browser.setOverlayMuted(true)` on open and the false-counterpart on close. Matches the pattern in App.tsx's `TabSearchPalette + VaultQuickSwitcher` mute effect (line 1666). Verified live: modal renders fully visible over a muted WCV; closing the modal restores the browser-pane content.
+
+**Process lesson (owner directive).** The smoke-walk skill §5b.5 — "Exercise the FIRST failure-prone visual step" — was not honored. Settings modal is opened via menu + chord + modal mount; that's exactly the failure-prone visual step the rule was written for. Agent screenshot the smoke-walk PAGE in clean state but never opened the Settings modal itself to confirm visual rendering. Will pre-walk visual-rendering items in every future smoke walk (per the HARD RULE at the top of `.claude/skills/smoke-walk/SKILL.md`).
+
+**Verification owed (smoke-walk rev2):** open Settings via `⌘,`, confirm both toggles + descriptions + Done button + close X are fully visible. Flip both toggles to confirm pointer events reach the modal (not the muted WCV underneath). Close modal — browser-pane content returns immediately.
+
+**Cross-ref:** ENH-170 (the Settings modal feature), BUG-047 (the original overlay-mute mechanism), [`renderer/App.tsx:1666`](renderer/App.tsx:1666) (the prior overlay-mute usage pattern).
+
+---
+
 ### BUG-152: Workspace switch tears down browser tabs but doesn't restore the new workspace's tabs
 
 **Status:** 🟡 In flight 2026-05-22. Surfaced during BUG-151 repro — owner asked agent to add the smoke walk page to a second workspace; the switch to that workspace returned only 1 browser tab in `duo layout` despite the source workspace file having 3+.

@@ -40,6 +40,20 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  // BUG-153 (Sprint 20 / v0.7.7) — WebContentsView (the browser pane)
+  // composites ABOVE renderer DOM regardless of z-index. Without
+  // muting the overlay, the browser-pane WCV sits on top of this
+  // modal and the user can't see / interact with the toggles. Pair
+  // setOverlayMuted(true) on open with setOverlayMuted(false) on
+  // close — same pattern CloneModal / VaultQuickSwitcher / the
+  // TabSearch palette use (see App.tsx line 1666 + globals.css
+  // line 1218 for the lineage).
+  useEffect(() => {
+    if (!open) return
+    window.electron.browser.setOverlayMuted(true)
+    return () => { window.electron.browser.setOverlayMuted(false) }
+  }, [open])
+
   if (!open) return null
 
   // The toggle semantic — `true` on the switch means "newline mode".
