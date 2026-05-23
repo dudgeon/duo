@@ -152,7 +152,7 @@ declare friction sites once and stop fighting them.
 
 | Command | Purpose | Output |
 |---|---|---|
-| `duo navigate <url>` | Navigate the **active BROWSER tab** to URL. **URLs only** — does NOT move the file navigator (BUG-149 lesson: the verb name reads navigator-pane-ish but it's actually a browser-pane URL change). To move the file navigator to a folder, use **[`duo reveal <path>`](#duo-reveal-path)** instead. To open a local file, use `duo open <path>` (or `duo edit <path>` for in-place editing). | JSON: `{ok, url, title}` |
+| `duo navigate <url>` | Open URL in a **NEW browser tab**, or focus an existing tab whose URL matches (ENH-175 — match strips hash + trailing slash). **URLs only** — does NOT move the file navigator (BUG-149 lesson). Does NOT clobber the currently-active tab. To move the file navigator to a folder, use **[`duo reveal <path>`](#duo-reveal-path)** instead. To open a local file, use `duo open <path>` (or `duo edit <path>` for in-place editing). | JSON: `{ok, url, title, reused}` |
 | `duo open <path-or-url> [--canvas] [--reveal]` | Open a local file or URL. **HTML always lands in the browser pane** (ENH-156 verb-driven: scripts run, buttons fire, the user **interacts** with the running surface). Non-HTML routes to its natural surface (`.md` → editor, image → viewer). `--canvas` is a rare override that forces canvas-mode mount for HTML (inspect source without firing scripts). The legacy `<meta duo-open-in>` declaration is no longer consulted. | JSON: `{ok, url, routedTo}` |
 | `duo reload` | Reload the active browser tab in place (no URL). Pair for `duo navigate` in iteration loops — agent edits an artifact, user runs `duo reload` to see the result without typing the URL again. | JSON: `{ok, url, title}` |
 | `duo external <url>` | Open `<url>` in the **macOS default browser** (via Electron's `shell.openExternal`). Used for hostnames listed in `~/.claude/duo/external-domains.json` — sites that don't render well in Duo's embedded `WebContentsView` (Claude.ai, ChatGPT, banking, sites that block Electron UAs). NOT the default route — Duo handles everything not on the list. http(s) and mailto schemes only. | JSON: `{ok, opened}` |
@@ -571,23 +571,25 @@ duo screenshot --out /tmp/countdown.png
 ```
 
 **Iterating.** Once the artifact is open and the user asks for a
-change, rewrite the same file and reload the same tab by re-navigating:
+change, rewrite the same file and reload — either by re-running
+`duo navigate` (ENH-175: finds the open tab by URL match and focuses
+it, then a `duo reload` refreshes contents), or by calling `duo reload`
+directly while the artifact tab is active:
 
 ```bash
 # rewrite /tmp/countdown.html with the new styles…
-duo navigate "file:///tmp/countdown.html"   # targets the ACTIVE tab
+duo navigate "file:///tmp/countdown.html"   # focuses existing tab if it matches
+duo reload                                  # refreshes its contents
 ```
-
-The active tab is the artifact you just opened, so `duo navigate`
-reloads in place — no new tabs accumulate.
 
 **When to use `duo open` vs `duo navigate`:**
 
 - `duo open <path-or-url>` — first load of a new artifact, or any time
   you want a fresh tab. Use this for "show me X" and "open that".
-- `duo navigate <url>` — replaces the URL of the currently-active tab.
-  Use this for iterating on the prototype in place, or for navigating
-  an existing tab to a different page.
+- `duo navigate <url>` (ENH-175) — opens the URL in a NEW tab, or
+  focuses an existing matching tab. Does not clobber the active tab.
+  Use this for switching the browser pane to a known URL without
+  losing wherever the user has been browsing.
 
 `duo open` accepts the same URL schemes as `duo navigate` (http(s),
 file, about, data, etc.), plus local file paths with `~/` or relative

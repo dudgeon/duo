@@ -26,7 +26,7 @@ for the authoritative usage text.
 
 | Verb | What it does |
 |---|---|
-| `duo navigate <url>` | Navigate the active browser tab |
+| `duo navigate <url>` | **ENH-175** — Open URL in a new browser tab, or focus an existing matching tab. Does NOT clobber the active tab. Match normalizes by stripping hash + trailing slash. |
 | `duo open <path-or-url> [--canvas] [--reveal]` | **ENH-156** — verb-driven mode. HTML files → browser pane (interactive, scripts run). Non-HTML files → natural surface (.md → editor, image → viewer). Web URLs → new browser tab. `--canvas` is a rare override that forces canvas-mode mount for HTML (inspect source without firing scripts). The legacy `<meta duo-open-in>` declaration is no longer consulted. |
 | `duo reload` | Reload the active browser tab in place — pair for `navigate` without a URL (Stage 20) |
 | `duo external <url>` | Opens the URL in the macOS default browser via Electron `shell.openExternal`. Used by the `duo` subagent for hostnames listed in `~/.claude/duo/external-domains.json` — sites known not to render well in the embedded `WebContentsView` (Claude.ai, ChatGPT, banking sites, etc.). NOT used for general navigation; the default route is always Duo. http(s) and mailto schemes only. |

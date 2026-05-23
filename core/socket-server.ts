@@ -568,12 +568,18 @@ export class SocketServer {
           // error with a helpful redirect at `duo reveal <path>`
           // (the canonical navigator-move verb). Recognized path
           // shapes: starts with `/`, `~`, or `./` `../`.
+          //
+          // ENH-175 (2026-05-23) — route through `navigateOrFocus`
+          // so an existing tab matching `url` is focused; otherwise
+          // a new tab is opened. Active tab is NOT clobbered. The
+          // renderer's address bar keeps the older reuse-active
+          // semantics via the BROWSER_NAVIGATE IPC path.
           const url = args['url'] as string
           if (!url) throw new Error('navigate requires a url arg')
           if (url.startsWith('/') || url.startsWith('~') || url.startsWith('./') || url.startsWith('../')) {
             throw new Error(`'duo navigate' expects a URL (this is a BROWSER-PANE verb). To move the file navigator to a path, use 'duo reveal <path>'. To open a local file, use 'duo open <path>' (browser-mode) or 'duo edit <path>' (canvas-/editor-mode).`)
           }
-          result = await this.browser.navigate(url)
+          result = await this.browser.navigateOrFocus(url)
           break
         }
         case 'open': {

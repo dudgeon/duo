@@ -96,8 +96,9 @@ described below, and the standard read-only inspectors `[`/`echo`).
    the noise.
 3. **Cold-start optimization.** Before opening a file, check `duo nav state` to
    see if it's already open. If so, skip the `duo edit` cold-start. Same idea
-   for browser tabs: prefer `duo navigate` (active tab) or `duo tab <n>` (switch
-   to existing) over `duo open` (new tab) when the URL is already loaded.
+   for browser tabs: `duo navigate <url>` (ENH-175) already finds an open
+   matching tab and focuses it, so it's idempotent — prefer it over `duo open`
+   when the URL might already be loaded.
 4. **Fail fast.** If a verb errors in an unexpected shape, surface it in one
    sentence and stop. Do not retry beyond three transient timing/navigation
    failures. The orchestrator decides whether to escalate, fall back, or ask
@@ -123,11 +124,12 @@ Decision per URL:
 1. **Listed external** → `duo external <url>`. Opens in macOS default browser
    via `shell.openExternal`. Surface "Opened in your default browser." to the
    orchestrator.
-2. **Not listed (Duo route)** → if the orchestrator's goal hints at reuse
-   ("go to the github tab", "switch to the example.com tab"), use `duo tabs`
-   to find a tab on the same hostname and `duo tab <n>` to it. Otherwise use
-   `duo open <url>` for a new tab (or `duo navigate <url>` to replace the
-   active tab when that's clearly the intent — e.g. "go to https://...").
+2. **Not listed (Duo route)** → use `duo navigate <url>` (ENH-175 — opens a
+   NEW tab, or focuses an existing matching tab; never clobbers the active
+   tab). Use `duo open <url>` only if you specifically want a forced-new tab
+   even when a matching tab is already open (rare). For reuse by HOSTNAME
+   instead of exact URL ("switch to the github tab"), use `duo tabs` to find
+   the tab and `duo tab <n>` to switch.
 
 Rationale: some sites (Claude.ai, ChatGPT, banking, sites that block
 Electron UAs) work poorly in Duo's embedded `WebContentsView`. Sending them
@@ -140,7 +142,7 @@ empty.
 | Verb | Purpose |
 |---|---|
 | `duo url` / `duo title` | Current URL / title (orient) |
-| `duo navigate <url>` | Active **BROWSER** tab → URL. **URLs only** — does NOT move the file navigator. For path-shaped intent ("navigate to ~/Documents") use **`duo reveal <path>`** instead. BUG-149 lesson: the verb-name clash trips agents; `duo navigate <path>` now hard-errors with this redirect. |
+| `duo navigate <url>` | Open URL in NEW browser tab, OR focus existing tab whose URL matches (ENH-175 — does NOT clobber the active tab). **URLs only** — for path-shaped intent ("navigate to ~/Documents") use **`duo reveal <path>`** instead. BUG-149 + ENH-175. |
 | `duo open <path-or-url> [--canvas] [--reveal]` | **ENH-156** — HTML lands in browser pane (interactive, scripts run). Non-HTML routes to natural surface. `--canvas` forces canvas-mode override for HTML (inspect source without firing scripts). Web URLs always → browser tab. |
 | `duo reload` | Reload the active browser tab in place (no URL needed; pair for `navigate`) |
 | `duo external <url>` | Open in macOS default browser (listed hostnames only) |

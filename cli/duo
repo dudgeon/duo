@@ -1440,10 +1440,12 @@ USAGE
   duo <command> [options]
 
 COMMANDS
-  navigate <url>                  Navigate the active BROWSER tab to URL.
-                                  URLs only \u2014 use 'duo reveal <path>' to
-                                  move the file navigator, 'duo open
-                                  <path>' to open a local file.
+  navigate <url>                  Open URL in a NEW browser tab, or focus
+                                  an existing tab whose URL matches (ENH-
+                                  175). URLs only \u2014 use 'duo reveal <path>'
+                                  to move the file navigator, 'duo open
+                                  <path>' to open a local file. Does NOT
+                                  clobber the currently-active tab.
   open <path-or-url> [--canvas]   Open a local file or URL. HTML files
        [--reveal]                  default to the browser pane (scripts run,
                                    interactive) \u2014 use this when showing the

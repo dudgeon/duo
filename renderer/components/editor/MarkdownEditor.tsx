@@ -497,16 +497,18 @@ export function MarkdownEditor({ path, onDirtyChange, isNew, onCommitNewFile, on
       Underline,
       Link.configure({
         openOnClick: false,
-        autolink: true,
+        // ENH-174 (2026-05-23) — autolink OFF. Bare URL-shaped text
+        // (`prd.md`, `example.com`, `foo.org/path`) no longer gets
+        // auto-converted to a link mark on parse. Closes the disk-
+        // mutation half of BUG-155 (the false-positive conflict
+        // dialog was patched in normalizeForEchoCompare; this stops
+        // the source rewrite at the source). Users still link via
+        // ⌘K (LinkPromptModal), direct markdown `[text](url)`, or
+        // paste-on-selection (linkOnPaste below — independent path).
+        autolink: false,
         linkOnPaste: true,
         // BUG-137 walk-1 follow-up — render the href on each anchor's
         // `title` so hover surfaces the URL as a native tooltip.
-        // mergeAttributes (in Link.renderHTML) merges these into the
-        // per-mark attrs, so each `<a>` gets its own dynamic title via
-        // the attrs path below (overridden by attrs.title when present;
-        // since Link only sets `href`, the static title here would be
-        // applied uniformly — we want the per-link href as title, so
-        // we override renderHTML on the extension instance).
         HTMLAttributes: { rel: 'noopener noreferrer', class: 'duo-link' }
       }).extend({
         renderHTML({ HTMLAttributes }) {

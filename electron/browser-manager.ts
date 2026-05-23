@@ -36,6 +36,24 @@ function newTabUrl(): string {
   return 'about:blank'
 }
 
+/**
+ * ENH-175 — normalize URLs for tab-match comparison in `navigateOrFocus`.
+ *
+ * Conservative: strip trailing slash + strip hash fragment. Keep query
+ * string intact (`?id=1` vs `?id=2` are different pages). Returns `null`
+ * for falsy / unparseable inputs (so the matcher skips empty-string
+ * about:blank tabs, etc.).
+ */
+export function normalizeForTabMatch(url: string | undefined | null): string | null {
+  if (!url) return null
+  let u = url.trim()
+  if (!u || u === 'about:blank') return null
+  const hashIdx = u.indexOf('#')
+  if (hashIdx >= 0) u = u.slice(0, hashIdx)
+  if (u.length > 1 && u.endsWith('/')) u = u.slice(0, -1)
+  return u
+}
+
 type StateCallback = (state: BrowserState) => void
 type TabsCallback = (tabs: BrowserTab[]) => void
 
@@ -556,6 +574,45 @@ export class BrowserManager {
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
+
+  /**
+   * ENH-175 (2026-05-23) — find an existing browser tab whose URL matches
+   * `url` (after light normalization: strip trailing slash + strip hash);
+   * if found, switch to it and return its handle. Otherwise open a new
+   * tab loading the URL.
+   *
+   * Differs from `navigate()` (which reuses the active tab — kept for the
+   * address-bar's in-tab override semantics). The CLI's `duo navigate
+   * <url>` routes through this method so an ambient agent action does
+   * NOT clobber whatever the owner has open in the active tab.
+   */
+  async navigateOrFocus(url: string): Promise<{ ok: boolean; url: string; title: string; reused: boolean }> {
+    const target = normalizeForTabMatch(url)
+    if (target) {
+      for (const t of this.tabs) {
+        const tabUrl = normalizeForTabMatch(t.view.webContents.getURL())
+        if (tabUrl && tabUrl === target) {
+          try { await this.switchTab(t.id) } catch { /* best-effort */ }
+          return {
+            ok: true,
+            url: t.view.webContents.getURL() || url,
+            title: t.view.webContents.getTitle() || '',
+            reused: true
+          }
+        }
+      }
+    }
+    // No match — open as a new tab. Off-host gate fires inside addTab
+    // via the wireEvents will-navigate handler if the URL is blocklisted.
+    const entry = this.addTab(url)
+    try { await this.switchTab(entry.id) } catch { /* best-effort */ }
+    return {
+      ok: true,
+      url: entry.view.webContents.getURL() || url,
+      title: entry.view.webContents.getTitle() || '',
+      reused: false
+    }
+  }
 
   async navigate(url: string): Promise<{ ok: boolean; url: string; title: string }> {
     // BUG-121 self-heal — typing a URL into the address bar in the
