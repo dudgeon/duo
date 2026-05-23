@@ -677,19 +677,55 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 19 / v0.7.3 in flight
+## Active sprint — Sprint 21 / v0.7.8 (post-v0.7.7-cut)
 
-> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state; this section is a one-paragraph mirror.
+> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
 
-**Status (2026-05-19):** Three waves shipped this session. **Wave 1** — [ENH-166](tasks.md) unified annotation rail v1 (stacked sections in one column); owner feedback drove **wave 1b: ENH-166 v2** — new `UnifiedAnnotationRail.tsx` merges TrackedRange[] + BuiltMarkdownThread[] into one PM-position-sorted list with merged filter chips; items now interleave by document order (e.g. `[comment-1, +ins, −del, comment-2]`). **Wave 2** — bug-report cluster BUG-142..147 + BUG-148 + FOLLOWUP-023 closing the *"agent took 2 min and 16 shell calls to reply to a comment"* report: new `addCommentReply` pure function + `--reply-to`-without-`--anchor` CLI path + BUG-144 silent-ignore on path mismatch + `duo doc <sub> --help` focused help + skill decision tree + new `skill/references/comments.md` + main-process EPIPE crash handler. 649 → 655 tests green. One follow-up open (FOLLOWUP-023 chokidar-refresh-on-reply). Smoke walk + cut owed.
+**Status (2026-05-23, post-cut):** v0.7.7 cut + tagged locally 2026-05-23. Not yet pushed (owner blesses `git push --tags`). `dist/Duo-0.7.7-arm64.dmg` signed + notarized + validated. Dev session bumped to v0.7.8.
 
-**Nothing owed before next strong work.** Both v0.7.1 follow-ups (BUG-139 v1.1 Q4+Q5 + BUG-138 Phase 5) shipped in v0.7.2. All 🟡 owner-decision gates closed.
+**Sprint 21 known scope:**
 
-**Carry-forward queue** (most-recent first; not prioritized):
-BUG-079 (tab-cycle latency — needs prod repro) · BUG-093 (split crash — needs clean repro) · BUG-122 hypothesis 2/3 (Notion-race, OneDrive xattr — next-repro log gated; hyp 4 soft-break ≡ space shipped v0.7.2) · ENH-084 v4 (aux glow — owner 60s walk owed) · ENH-127 (composer-window direction) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 (cross-boundary selection — wait for owner ping) · ENH-157 (browser-pane comments) · FOLLOWUP-021 (`duo install --clean`) · BUG-024 follow-up (combined Send + Comment pill) · 17a.5 (template gallery) · Backlinks/graph view.
+1. **Re-ship ENH-177** (Claude session resume banner across workspace switch) — cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719) (reverted in [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Owner walks the workspace-switch → return → banner → click-Resume flow live before sign-off.
+2. **Re-ship ENH-178** (Browser blocklist three modes + `local-only` default) — cherry-pick from [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (reverted in [5295849](https://github.com/dudgeon/duo/commit/5295849)). Owner walks the local-only bounce of `https://example.com` to system browser live.
+3. **Build ENH-180** (auto-rename Claude sessions via `/rename` PTY injection) — gated on owner picking 4 decisions on phone. PRD: [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html). **Phone-friendly Notion mirror for the 4 decisions:** [ENH-180 PRD on Notion](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d). Build estimated ~3h after decisions land. Depends on ENH-177 landing first (banner that consumes the title).
 
-**Open questions awaiting owner input** (see [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) for the full table):
-Next sprint scope (carry-forward pick) · ENH-127 if pain re-surfaces · Backlinks Sprint 19+ anchor · 17a.5 directions A/E.
+**Carry-forward queue** (not yet picked into Sprint 21; most-recent first):
+BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
+
+**Open questions awaiting owner input:**
+v0.7.7 tag push + GitHub Release upload · ENH-180 phone-walked decision picks (4) · Sprint 21 carry-forward pick beyond the 3 required builds above.
+
+---
+
+### Previously — Sprint 20 / v0.7.7 (shipped 2026-05-23)
+
+**Daily-driver upgrades + ⌘Z reopen + send-pill variants** ([commit e940e6c](https://github.com/dudgeon/duo/commit/e940e6c), [tag v0.7.7](https://github.com/dudgeon/duo/releases/tag/v0.7.7)). 4 planned ENHs + 5 polish ENHs + 6 sprint-close fixes. ENH-177 + ENH-178 built + reverted pre-cut (queued for re-ship Sprint 21 after owner walks). ENH-180 PRD shipped only.
+
+**What shipped:**
+
+| ID | Headline |
+|---|---|
+| **ENH-169** | Navigator new-file / new-folder UX — breadcrumb right-click + File menu + ⌘N/⌘⇧N chords |
+| **ENH-170 v2** | Top-level Settings menu (single ⌘Return-for-Claude-submit checkbox; v1 modal rejected + deleted) |
+| **ENH-171** | Workspace switcher dropdown in title bar |
+| **ENH-172** | Show / hide hidden files (View menu + ⌘⇧. + `duo hidden-files`) |
+| **ENH-173** | `duo view <folder>` Navigate-here button |
+| **ENH-174** | Disable TipTap autolink (no more bare-URL → markdown-link rewrite) |
+| **ENH-175** | `duo navigate <url>` opens new tab or focuses existing — never clobbers active |
+| **ENH-176** | Send-pill agent + terminal variants behind localStorage feature flags |
+| **ENH-179** | ⌘Z reopens last-closed tab (file / browser / terminal) — smart text-undo routing via new `inAnyTextInput` gate |
+| **BUG-149** | `duo navigate <path>` helpful error pointing at `duo reveal` |
+| **BUG-150** | Installer dedupes orphan unmarked settings.json hook entries |
+| **BUG-151** | Workspace switch dropped misleading Save prompt |
+| **BUG-152** | Workspace switch restores all browser tabs |
+| **BUG-154** | ⌘Return override fires in `kind='shell'` tabs running claude (broadened gate via claudePresence) |
+| **BUG-155** | False-positive conflict dialog from tiptap-markdown autolink round-trip — normalize widened |
+
+**Reverted pre-cut, queued for Sprint 21:** ENH-177 (claude session resume banner; [f351719](https://github.com/dudgeon/duo/commit/f351719)/[49f4644](https://github.com/dudgeon/duo/commit/49f4644)), ENH-178 (browser blocklist three modes; [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da)/[5295849](https://github.com/dudgeon/duo/commit/5295849)).
+
+**PRD-only:** ENH-180 (auto-rename via `/rename` PTY injection) — [PRD](docs/prd/enh-180-session-rename.html) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
+
+**Memory rule locked this sprint:** [feedback_open_every_modal_before_smoke_handoff](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_open_every_modal_before_smoke_handoff.md) (BUG-153 root-cause).
 
 ---
 
