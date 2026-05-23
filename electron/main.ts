@@ -2375,7 +2375,24 @@ async function applyNewSessionState(state: import('../shared/types').SessionStat
   // Re-arm the browser-pin-restore for the NEXT did-finish-load
   // (the one that fires after this reload). The createWindow path's
   // `once` listener already consumed for the initial boot.
+  //
+  // BUG-152 (Sprint 20 / v0.7.7) — ALSO restore the new workspace's
+  // browser tabs here. Pre-fix, only the boot-time createWindow path
+  // called `browserManager.restoreFromSession(persistedAtBoot.…)` and
+  // `persistedAtBoot` was a closure variable captured ONCE at boot.
+  // Workspace switches tore down existing tabs (line 2364) but never
+  // restored the new workspace's tabs because the boot-time restore
+  // didn't re-fire and applyNewSessionState only handled pinned tabs.
+  // Result: switching workspaces lost ALL non-pinned browser tabs —
+  // the smoke walk + Example Domain etc. disappeared on switch.
   mainWindow.webContents.once('did-finish-load', async () => {
+    try {
+      if (browserManager && state.browserTabs && state.browserTabs.length > 0) {
+        await browserManager.restoreFromSession(state.browserTabs, state.activeBrowserIndex)
+      }
+    } catch (err) {
+      console.warn('[apply-session] workspace browser-tab restore failed:', (err as Error)?.message ?? err)
+    }
     try {
       const pinnedEntries = await pinsService.list()
       const browserPins = pinnedEntries.filter(p => p.kind === 'browser')

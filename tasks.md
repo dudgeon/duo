@@ -230,6 +230,24 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### BUG-152: Workspace switch tears down browser tabs but doesn't restore the new workspace's tabs
+
+**Status:** 🟡 In flight 2026-05-22. Surfaced during BUG-151 repro — owner asked agent to add the smoke walk page to a second workspace; the switch to that workspace returned only 1 browser tab in `duo layout` despite the source workspace file having 3+.
+
+**Symptom (reproduced 2026-05-22).** Workspace A has 3 browser tabs (`what-duo-does.html`, smoke walk, `example.com`) saved. User switches to workspace B → switches back to A. `duo layout` reports `browserTabsCount: 1` (just `what-duo-does.html`). The smoke walk + Example Domain tabs are gone. Then autosave overwrites A's `.duo-workspace` file with the 1-tab live state — destroying the saved 3-tab state on the next disk-write cycle. This was the original "the session switcher tab deleted my session" pain ([BUG-151](#bug-151-workspace-switch-loses-perceived-state-via-the-save-current-workspace-prompt)) in its DEEPER form.
+
+**Root cause.** [`applyNewSessionState`](electron/main.ts:2353) tears down existing browser tabs (line 2364-2369) before reloading the renderer. After reload, the only restore path that ran was for **pinned** browser tabs (line 2378-2391). The boot-time non-pinned restore at [`main.ts:567-574`](electron/main.ts:567-574) uses `persistedAtBoot` — a closure variable captured ONCE during `createWindow`. On subsequent workspace switches, that closure is stale; the freshly-loaded workspace's `browserTabs[]` never reached `browserManager.restoreFromSession()`.
+
+**Fix (shipped 2026-05-22):** the `did-finish-load` handler in `applyNewSessionState` now also calls `browserManager.restoreFromSession(state.browserTabs, state.activeBrowserIndex)` before the pinned-tab restore. The `state` argument is the freshly-loaded workspace's SessionState, so the right tabs end up restored. The pinned-tab dedupe (`new Set(browserManager.getTabs().map(t => t.url))`) continues to work because it runs AFTER the non-pinned restore.
+
+**Verification owed (smoke walk):**
+- Repro path: workspace A with 3 browser tabs → switch to B → switch back to A → `duo layout` should report `browserTabsCount: 3` and all original tabs visible.
+- Cross-check that pinned tabs still come back on top of the restored set (no duplicates).
+
+**Cross-ref:** [BUG-151](#bug-151-workspace-switch-loses-perceived-state-via-the-save-current-workspace-prompt) (sibling — both surface as "switch lost my state"; this one is the deeper layer), ENH-167 (workspace-as-file foundation), Stage 21c Phase 2 (the original session-restore mechanism).
+
+---
+
 ### BUG-151: Workspace switch loses perceived state via the "Save current workspace?" prompt
 
 **Status:** 🟡 In flight 2026-05-22. Owner-reported during Sprint 20 close-out — *"the session switcher tab deleted my session; I saved my session, then added a new session, then when I switched back it was gone."*
