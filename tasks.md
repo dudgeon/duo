@@ -230,6 +230,34 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-179: ⌘Z reopens the most recently closed tab
+
+**Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Owner ask: *"cmd+z reopens recently closed tab if tab"*.
+
+**Design.** Three close paths feed a single LIFO ring (bounded at 10 entries): file tabs (via `closeFileTab`), terminal tabs (via the renderer's `closeTab`), and browser tabs (via the `onTabsChange` diff). ⌘Z (matched in `globalShortcuts.ts`) pops the most recent entry and restores via the canonical open path (`openFileSmart` / `browser.addTab` / `makeTab + setTabs`).
+
+**Smart routing.** ⌘Z is gated on a new `inAnyTextInput` field in `FocusContext` so text undo wins in:
+- Contentless contentEditables (TipTap markdown editor + canvas)
+- `<input>` / `<textarea>` (address bar, breadcrumb edit, dialogs, modals)
+- Browser-pane focus (the forwarder always sets `inAnyTextInput: true` — the WCV's own ⌘Z handles text undo inside its inputs natively)
+
+**Chord choice.** ⌘⇧T is the standard browser convention for reopen-last-closed-tab, but Duo already binds that to `newClaudeTab` (post-BUG-008). Owner picked ⌘Z; the matcher's `inAnyTextInput` gate keeps text undo intact everywhere it matters.
+
+**Caveats.**
+- Terminal-tab restore spawns a NEW PTY at the same cwd + kind. PTY state (scrollback, running process) is NOT preserved. A tab at the right cwd is usually what muscle memory expects.
+- File tabs marked `isNew: true` (created via ⌘N but never saved) are NOT pushed to the ring — there's no path to restore them.
+- About:blank browser tabs are skipped (no useful URL to restore).
+
+**Files touched:**
+- `renderer/keyboard/globalShortcuts.ts` — new `reopenLastClosedTab` ShortcutId + `inAnyTextInput?: boolean` field on FocusContext + matcher branch + new `isInAnyTextInput(doc)` helper.
+- `renderer/hooks/useKeyboardShortcuts.ts` — option + dispatcher case + ctx wiring (document handler + browser-pane forwarder both updated).
+- `renderer/App.tsx` — `ClosedTabEntry` type + `closedTabsRef` + push logic in three close paths + `reopenLastClosedTab` callback + handoff to useKeyboardShortcuts.
+- 7 new vitest cases in `globalShortcuts.test.ts` cover the matcher branch (smart-routing gates + chord-modifier specificity + back-compat for older callers).
+
+**Cross-ref:** ENH-180 (deferred) — if owner asks for terminal-PTY-restore-with-state, file as a separate ENH. v1 is path-only.
+
+---
+
 ### ENH-178: Browser blocklist refactor — three modes with local-only default
 
 **Status:** ✅ **Shipped 2026-05-23** (v0.7.7). Three-mode URL filter wired through BrowserManager + IPC + CLI verb with IT-warning gate. Default mode `local-only` (`file://` + `localhost` + `127.0.0.1` + `[::1]` render in Duo; everything else pops the system browser). Persisted in renderer localStorage `duo.browserMode`. New `duo browser-mode [unfiltered|filtered|local-only]` CLI verb (the `unfiltered` value requires `--i-understand` to bypass the IT-policy warning). 11 vitest cases pin `isLocalUrlForBrowserMode` (file://, about:, devtools://, localhost/127.0.0.1/[::1] with ports, subdomain-trick rejection, case-insensitive host matching, malformed-URL safety). Owner directive 2026-05-23. Owner directive: refactor the existing http-blocklist + redirect-to-system-browser logic into a three-mode setting. **Local-only** becomes the new default; **unfiltered** is the debug escape hatch with an IT-warning gate; **filtered-with-redirect** is the current behavior (preserved for users who explicitly enable it).

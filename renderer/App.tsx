@@ -174,6 +174,17 @@ function tabTitle(kind: TerminalTabKind, cwd: string, home: string): string {
   return kind === 'claude' ? `claude · ${basename}` : (basename || 'Terminal')
 }
 
+/**
+ * ENH-179 — recently-closed-tab entry shape. ⌘Z (when not in a
+ * text-input surface) pops the most-recent entry off App.tsx's
+ * `closedTabsRef` ring and restores via the same open-path used by
+ * other entry vectors (openFileSmart / browser.addTab / makeTab).
+ */
+type ClosedTabEntry =
+  | { kind: 'file'; path: string; closedAt: number }
+  | { kind: 'browser'; url: string; closedAt: number }
+  | { kind: 'terminal'; cwd: string; ptyKind: TerminalTabKind; closedAt: number }
+
 function makeTab(cwd: string, kind: TerminalTabKind, home: string, lastClaudeSession?: TabSession['lastClaudeSession']): TabSession {
   return {
     id: crypto.randomUUID(),
@@ -464,6 +475,17 @@ export function App() {
   const [sessionHydrated, setSessionHydrated] = useState(false)
   const sessionLoadStartedRef = useRef(false)
   const [browserTabs, setBrowserTabs] = useState<BrowserTab[]>([])
+
+  // ENH-179 (Sprint 20 / v0.7.7) — recently-closed-tabs LIFO ring for
+  // ⌘Z reopen. Three kinds (file / browser / terminal); the chord
+  // pops the most-recent entry regardless of kind. Bounded at 10
+  // entries — long-tail "I closed something an hour ago" use cases
+  // aren't what muscle memory expects from ⌘Z.
+  const closedTabsRef = useRef<ClosedTabEntry[]>([])
+  const CLOSED_TABS_MAX = 10
+  // Snapshot the prior browserTabs list inside the onTabsChange diff
+  // so we can detect which tab(s) were closed and push to the ring.
+  const browserTabsRef = useRef<BrowserTab[]>([])
   // ENH-167 v1.2 — active session pointer for the in-app titlebar
   // badge. Loaded once on mount; pushed live on every Save / Open /
   // New so the badge tracks main's authoritative state.
@@ -484,6 +506,27 @@ export function App() {
   // effect below.
   useEffect(() => {
     return window.electron.browser.onTabsChange((tabs) => {
+      // ENH-179 — diff prev vs new to detect a browser-tab close.
+      // Any URL/title pairs present in `prev` but missing from `tabs`
+      // (by stable `id`) are closed; push the most-recent one onto
+      // the ring. (Usually exactly one per fire, but defensive in
+      // case of batched closes.) about:blank tabs are skipped — a
+      // blank tab isn't a useful restore target.
+      const prev = browserTabsRef.current
+      const currentIds = new Set(tabs.map(t => t.id))
+      for (const old of prev) {
+        if (!currentIds.has(old.id) && old.url && !old.url.startsWith('about:blank')) {
+          const entry: ClosedTabEntry = {
+            kind: 'browser',
+            url: old.url,
+            closedAt: Date.now()
+          }
+          const ring = closedTabsRef.current
+          ring.push(entry)
+          if (ring.length > CLOSED_TABS_MAX) ring.shift()
+        }
+      }
+      browserTabsRef.current = tabs
       setBrowserTabs(tabs)
       // Sprint 7 Phase 3c — keep aux-browser-tab state consistent
       // with main's view of browser tabs. When the pinned browser
@@ -880,6 +923,23 @@ export function App() {
         const idx = prev.findIndex(t => t.id === id)
         setActiveTabId(next[Math.max(0, idx - 1)].id)
       }
+      // ENH-179 — push the closed terminal tab onto the ring. Note:
+      // restoring a terminal tab spawns a NEW PTY at the same cwd
+      // (PTY state is not preserved across close + reopen); but a
+      // tab at the right cwd + kind is usually what muscle memory
+      // expects from ⌘Z.
+      const closed = prev.find(t => t.id === id)
+      if (closed) {
+        const entry: ClosedTabEntry = {
+          kind: 'terminal',
+          cwd: closed.cwd,
+          ptyKind: closed.kind,
+          closedAt: Date.now()
+        }
+        const ring = closedTabsRef.current
+        ring.push(entry)
+        if (ring.length > CLOSED_TABS_MAX) ring.shift()
+      }
       return next
     })
   }, [activeTabId])
@@ -1032,6 +1092,20 @@ export function App() {
   const closeFileTab = useCallback((id: string) => {
     setFileTabs(prev => {
       const closedIdx = prev.findIndex(t => t.id === id)
+      const closed = closedIdx >= 0 ? prev[closedIdx] : null
+      // ENH-179 — push the closed file tab onto the LIFO ring before
+      // it disappears from state. Skip un-saved-yet tabs (isNew: true)
+      // because we don't have a real path to restore.
+      if (closed && !closed.isNew && closed.path) {
+        const entry: ClosedTabEntry = {
+          kind: 'file',
+          path: closed.path,
+          closedAt: Date.now()
+        }
+        const ring = closedTabsRef.current
+        ring.push(entry)
+        if (ring.length > CLOSED_TABS_MAX) ring.shift()
+      }
       const next = prev.filter(t => t.id !== id)
       // If we closed the active file tab, shift focus to the LEFT neighbor
       // (the file tab immediately preceding the closed one in tab order),
@@ -1497,6 +1571,38 @@ export function App() {
     const name = path.slice(path.lastIndexOf('/') + 1) || path
     void openFileSmart(path, name)
   }, [openFileSmart])
+
+  // ENH-179 (Sprint 20 / v0.7.7) — pop the most-recently-closed tab
+  // off the ring and restore. ⌘Z fires this via globalShortcuts (the
+  // chord is gated on inAnyTextInput, so text undo still wins inside
+  // contentEditables / inputs / dialogs). No-op when the ring is
+  // empty.
+  const reopenLastClosedTab = useCallback(() => {
+    const ring = closedTabsRef.current
+    const entry = ring.pop()
+    if (!entry) return
+    if (entry.kind === 'file') {
+      const name = entry.path.slice(entry.path.lastIndexOf('/') + 1) || entry.path
+      void openFileSmart(entry.path, name)
+    } else if (entry.kind === 'browser') {
+      void window.electron.browser.addTab(entry.url).then(async () => {
+        // After the new tab lands, switch to it so the user actually
+        // sees the restored URL. BrowserManager.addTab auto-activates,
+        // but bring the working pane in front for the file/browser
+        // mixed close case.
+        setActiveWorking({ kind: 'browser' })
+        setFocusedColumn('working')
+      })
+    } else if (entry.kind === 'terminal') {
+      const tab = makeTab(entry.cwd, entry.ptyKind, home)
+      setTabs(prev => [...prev, tab])
+      setActiveTabId(tab.id)
+      setFocusedColumn('terminal')
+      if (entry.ptyKind === 'claude') {
+        void dispatchPostSpawnWrite(tab.id, 'claude')
+      }
+    }
+  }, [openFileSmart, home, dispatchPostSpawnWrite])
 
   // Stage 10 Phase 6: `duo reveal <path>` from the CLI. Move the navigator
   // to that path and surface a dismissible chip.
@@ -2492,6 +2598,9 @@ export function App() {
     // state, the localStorage-persist effect fires, and the
     // NAV_STATE_PUSH effect carries the new value back to main.
     toggleHiddenFiles: nav.actions.toggleShowDotfiles,
+    // ENH-179 — ⌘Z pop + restore. Chord matcher gates on
+    // inAnyTextInput so we won't clobber text undo.
+    reopenLastClosedTab,
     // Sprint 3 Phase 3b — ⌘\ moves the active main file tab into the
     // aux slot; ⌘⇧\ promotes aux back to main (closes the split AND
     // keeps the file open — mirrors the ⇤ button in the aux header).

@@ -39,6 +39,16 @@ export interface FocusContext {
    *  (markdown editor, HTML canvas body) — these surfaces "own" letter
    *  shortcuts like ⌘B/⌘I/⌘U for formatting. */
   inEditableSurface: boolean
+  /** ENH-179 (Sprint 20 / v0.7.7) — true when focus is in any
+   *  text-accepting host (contentEditable OR `<input>` OR
+   *  `<textarea>`). Used to gate ⌘Z reopen-last-closed-tab so text
+   *  undo wins inside dialogs, address bars, breadcrumb edit, etc.
+   *  Browser-pane forwarder always sets this to `true` for safety
+   *  (the WCV's own undo wins on the browser side). Optional for
+   *  back-compat: callers that omit this default to "no info"
+   *  (falsy → matcher treats it as `!inAnyTextInput`, so older
+   *  shortcuts behave unchanged). */
+  inAnyTextInput?: boolean
 }
 
 /** A typed registry of every global shortcut. Adding a row gives every
@@ -159,6 +169,12 @@ export type ShortcutId =
   // — Shift+. produces '>' as e.key on US layouts, so the layout-
   // dependent path would miss it (same gotcha as ⌘⇧A `KeyA`).
   | 'toggleHiddenFiles'
+  // ENH-179 (Sprint 20 / v0.7.7) — ⌘Z reopen the most recently closed
+  // tab (file / browser / terminal). Gated on `inAnyTextInput` so
+  // text undo wins inside contentEditables, `<input>`/`<textarea>`,
+  // dialogs, address bar, breadcrumb edit, browser-pane focus.
+  // Owner ask: "cmd+z reopens recently closed tab if tab".
+  | 'reopenLastClosedTab'
 
 export interface ShortcutMatch {
   id: ShortcutId
@@ -217,6 +233,16 @@ export function matchGlobalShortcut(
   // ⌘W — close tab.
   if (meta && !shift && !alt && !ctrl && key === 'w') {
     return { id: 'closeTab' }
+  }
+
+  // ENH-179 (Sprint 20 / v0.7.7) — ⌘Z reopen the most recently closed
+  // tab (file / browser / terminal). Yields to text undo whenever
+  // focus is in a text-input surface (contentEditable, `<input>`,
+  // `<textarea>`) — see FocusContext.inAnyTextInput. ⌘⇧T isn't free
+  // (it spawns a new Claude tab — newClaudeTab above), so ⌘Z is the
+  // owner-picked chord with smart routing.
+  if (meta && !shift && !alt && !ctrl && key === 'z' && !ctx.inAnyTextInput) {
+    return { id: 'reopenLastClosedTab' }
   }
 
   // ⌘L — focus address bar (Chrome parity).
@@ -456,4 +482,19 @@ export function isInEditableSurface(doc: Document): boolean {
   if (!active) return false
   if (active.isContentEditable) return true
   return active.closest('[contenteditable="true"]') !== null
+}
+
+/**
+ * ENH-179 — superset of `isInEditableSurface` that ALSO returns true
+ * when focus is in an `<input>` or `<textarea>`. Used to gate ⌘Z
+ * reopen-last-closed-tab so text-undo wins in dialogs, address bars,
+ * breadcrumb edit, and any other plain text-input surface.
+ */
+export function isInAnyTextInput(doc: Document): boolean {
+  if (isInEditableSurface(doc)) return true
+  const active = doc.activeElement as HTMLElement | null
+  if (!active) return false
+  const tag = active.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return true
+  return false
 }

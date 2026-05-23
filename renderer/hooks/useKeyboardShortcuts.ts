@@ -20,6 +20,7 @@ import type { TabSession } from '@shared/types'
 import {
   matchGlobalShortcut,
   isInEditableSurface,
+  isInAnyTextInput,
   type ShortcutId
 } from '../keyboard/globalShortcuts'
 import { cycleNext } from '../keyboard/tabCycle'
@@ -91,6 +92,11 @@ interface Options {
    *  handler is the backup for cases where the menu accelerator
    *  isn't reached (WebContentsView focus path). */
   toggleHiddenFiles?: () => void
+  /** ENH-179 (Sprint 20) — ⌘Z reopens the most recently closed tab
+   *  (file / browser / terminal — whichever was closed last). App.tsx
+   *  owns the ring + restore action. Chord matcher already gates on
+   *  inAnyTextInput, so this fires only outside text-input surfaces. */
+  reopenLastClosedTab?: () => void
   // BUG-001 fix — pane-focus signal lets ⌃Tab / ⌃⇧Tab cycle terminal
   // tabs when the terminal is focused, browser tabs otherwise.
   activePaneFocus?: 'files' | 'terminal' | 'working'
@@ -224,6 +230,14 @@ export function useKeyboardShortcuts(opts: Options) {
           // menu accelerator owns this at the app-menu level; this
           // handler covers the focus paths the menu doesn't reach.
           opts.toggleHiddenFiles?.()
+          return
+        }
+        case 'reopenLastClosedTab': {
+          // ENH-179 (Sprint 20) — ⌘Z pops the most recently closed
+          // tab off App.tsx's ring. Matcher already gated on
+          // inAnyTextInput so we won't fire inside text-input
+          // surfaces (TipTap / canvas / inputs / browser pane).
+          opts.reopenLastClosedTab?.()
           return
         }
         case 'startComment': {
@@ -392,7 +406,11 @@ export function useKeyboardShortcuts(opts: Options) {
           return
         }
       }
-      const ctx = { inEditableSurface: isInEditableSurface(document) }
+      const ctx = {
+        inEditableSurface: isInEditableSurface(document),
+        // ENH-179 — gate ⌘Z reopen-last-closed-tab on this superset.
+        inAnyTextInput: isInAnyTextInput(document)
+      }
       const match = matchGlobalShortcut(e, ctx)
       if (!match) return
       e.preventDefault()
@@ -422,7 +440,14 @@ export function useKeyboardShortcuts(opts: Options) {
         shiftKey: forward.shift,
         altKey: forward.alt
       })
-      const ctx = { inEditableSurface: false } // browser is not editable surface for our purposes
+      // ENH-179 — browser pane forwarder cannot inspect the WCV's
+      // own DOM focus state, so we conservatively set
+      // `inAnyTextInput: true`. That means ⌘Z fires reopen-tab only
+      // when the OUTER renderer has focus (navigator / working strip
+      // / etc.), never from inside the browser pane — which is the
+      // safe choice because the WCV's native ⌘Z handles text undo
+      // for any `<input>` inside the page.
+      const ctx = { inEditableSurface: false, inAnyTextInput: true }
       const match = matchGlobalShortcut(synthetic, ctx)
       if (match) dispatch(match.id, match.arg, 'working')
     })

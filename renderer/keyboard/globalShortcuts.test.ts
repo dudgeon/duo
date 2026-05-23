@@ -237,3 +237,68 @@ describe('matchGlobalShortcut — ENH-102 delete current file (Sprint 9)', () =>
     expect(m).toEqual({ id: 'deleteCurrentFile' })
   })
 })
+
+describe('matchGlobalShortcut — ENH-179 ⌘Z reopen last closed tab (Sprint 20)', () => {
+  it('matches ⌘Z → reopenLastClosedTab when not in a text input', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'z', meta: true }),
+      { inEditableSurface: false, inAnyTextInput: false }
+    )
+    expect(m).toEqual({ id: 'reopenLastClosedTab' })
+  })
+
+  it('does NOT match ⌘Z when inAnyTextInput is true (text undo wins)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'z', meta: true }),
+      { inEditableSurface: false, inAnyTextInput: true }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('does NOT match ⌘Z inside a contentEditable (TipTap / canvas — undo wins)', () => {
+    // Common path: focus inside the markdown editor; isInEditableSurface
+    // and isInAnyTextInput both return true. We pass inAnyTextInput
+    // because that's the gate the matcher reads.
+    const m = matchGlobalShortcut(
+      chord({ key: 'z', meta: true }),
+      { inEditableSurface: true, inAnyTextInput: true }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('does NOT match ⌘⇧Z (no reopen-redo collision — undo/redo stays text-side)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'z', meta: true, shift: true }),
+      { inEditableSurface: false, inAnyTextInput: false }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('does NOT match ⌘⌥Z (alt-modified ⌘Z reserved for future intent)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'z', meta: true, alt: true }),
+      { inEditableSurface: false, inAnyTextInput: false }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('does NOT match plain Z (no meta)', () => {
+    const m = matchGlobalShortcut(
+      chord({ key: 'z' }),
+      { inEditableSurface: false, inAnyTextInput: false }
+    )
+    expect(m).toBeNull()
+  })
+
+  it('treats omitted inAnyTextInput as falsy (back-compat with older callers)', () => {
+    // Callers that haven't been migrated still get the matcher; the
+    // optional field defaults to undefined → falsy → !inAnyTextInput
+    // is true → ⌘Z still fires reopen. (Acceptable: the only such
+    // surfaces are non-text contexts that shouldn't text-undo.)
+    const m = matchGlobalShortcut(
+      chord({ key: 'z', meta: true }),
+      { inEditableSurface: false }
+    )
+    expect(m).toEqual({ id: 'reopenLastClosedTab' })
+  })
+})
