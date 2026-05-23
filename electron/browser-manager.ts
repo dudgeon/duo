@@ -44,6 +44,36 @@ function newTabUrl(): string {
  * for falsy / unparseable inputs (so the matcher skips empty-string
  * about:blank tabs, etc.).
  */
+/**
+ * ENH-178 — return true when `url` references a local target that
+ * `local-only` browser mode allows in the embedded view. Owner-locked
+ * 2026-05-23 spec: `file://`, `localhost`, `127.0.0.1`, `[::1]` (ports
+ * allowed). Everything else returns false → local-only mode pops it
+ * to the system browser.
+ *
+ * Conservative parse: URL constructor handles port/userinfo/path
+ * normalization for us; malformed URLs return false (safer to bounce
+ * unparseable URLs externally than render them in the embedded view).
+ */
+export function isLocalUrlForBrowserMode(url: string | undefined | null): boolean {
+  if (!url) return false
+  const trimmed = url.trim()
+  if (!trimmed) return false
+  // about:blank and devtools:// are local-context schemes that should
+  // always work in the embedded view regardless of mode (devtools is
+  // how the user inspects Duo itself).
+  if (trimmed.startsWith('about:') || trimmed.startsWith('devtools://')) return true
+  if (trimmed.startsWith('file://')) return true
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return false
+  }
+  const host = parsed.hostname.toLowerCase()
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+}
+
 export function normalizeForTabMatch(url: string | undefined | null): string | null {
   if (!url) return null
   let u = url.trim()
@@ -98,6 +128,11 @@ export class BrowserManager {
   // setWindowOpenHandler consult the service and route matching URLs
   // through shell.openExternal instead of the embedded browser.
   private externalDomains: ExternalDomainsService | null = null
+  // ENH-178 — three-mode URL filter. Default 'local-only' for new
+  // installs; the renderer pushes the actual user value (or 'filtered'
+  // for upgrade-path users who already had an external-domains.json)
+  // shortly after boot via setBrowserMode.
+  private browserMode: import('../shared/types').BrowserMode = 'local-only'
   // BUG-130 — per-tab file:// watcher. Browser-pane tabs showing
   // local file:// URLs auto-reload when the underlying file is
   // mutated (canvas-mode has the equivalent via PageTab's external-
@@ -804,7 +839,46 @@ export class BrowserManager {
     this.fileWatchers.delete(tabId)
   }
 
+  /** ENH-178 — current browser-mode setting. Driven by `setBrowserMode`. */
+  getBrowserMode(): import('../shared/types').BrowserMode {
+    return this.browserMode
+  }
+
+  /** ENH-178 — change the mode. Caller is responsible for the
+   *  IT-warning prompt (CLI side); main-process accepts the value
+   *  unconditionally so the renderer / CLI / future Settings menu
+   *  all share one wire. */
+  setBrowserMode(mode: import('../shared/types').BrowserMode): void {
+    this.browserMode = mode
+  }
+
   private routeOffHostIfMatched(url: string): boolean {
+    // ENH-178 — three-mode filter wraps the existing
+    // externalDomains check.
+    //
+    //   unfiltered  → never route off-host (return false)
+    //   local-only  → route everything that isn't isLocalUrlForBrowserMode
+    //   filtered    → fall through to the legacy externalDomains check
+    if (this.browserMode === 'unfiltered') return false
+    if (this.browserMode === 'local-only') {
+      if (isLocalUrlForBrowserMode(url)) return false
+      // Off-host route for any non-local URL. Banner shape is the same
+      // as the filtered-mode redirect so the renderer UI stays
+      // consistent.
+      void shell.openExternal(url).catch(() => null)
+      if (this.window && !this.window.isDestroyed()) {
+        try {
+          const host = new URL(url).hostname
+          const push: ExternalRedirectedPush = { host, reason: 'local-only' }
+          this.window.webContents.send(IPC.EXTERNAL_REDIRECTED, push)
+        } catch {
+          /* malformed URL — already routed; banner is best-effort */
+        }
+      }
+      return true
+    }
+    // 'filtered' — legacy behavior. Falls through to the existing
+    // external-domains.json match.
     if (!this.externalDomains) return false
     const result = this.externalDomains.matchUrl(url)
     if (!result.matched) return false
