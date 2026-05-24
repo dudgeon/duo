@@ -202,6 +202,74 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 .tag.exists { background: #cfe0c7; color: #3a6030; }
 .tag.missing { background: #f1c9c7; color: #8e302c; }
 .tag.rec { background: var(--accent-soft); color: var(--accent); }
+
+/* ── Interactive filter-layer demo ── */
+.demo-wrap { margin: 16px 0 8px; }
+.demo-controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px 6px 0 0; border-bottom: none; padding: 9px 14px; font-size: 12px; }
+.demo-controls .grp { display: flex; align-items: center; gap: 7px; }
+.demo-controls .grp > span { color: var(--ink-mute); font-weight: 600; }
+.demo-controls label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; color: var(--ink-soft); padding: 2px 8px; border-radius: 12px; border: 1px solid transparent; }
+.demo-controls label:has(input:checked) { background: color-mix(in srgb, var(--accent) 12%, var(--paper)); border-color: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.demo-controls input { accent-color: var(--accent); margin: 0; }
+.demo-controls .hint { color: var(--ink-ghost); font-size: 11.5px; margin-left: auto; }
+
+.demo { border: 1px solid var(--paper-rule); border-radius: 0 0 9px 9px; overflow: hidden; background: var(--paper); box-shadow: 0 3px 14px rgba(43,38,32,0.10); }
+.demo .duo-titlebar { border-radius: 0; }
+.demo .demo-stage { display: flex; height: 248px; }
+.demo.rail-right .demo-stage { flex-direction: row-reverse; }
+.demo.rail-right .r-work { border-left: none; border-right: 1px solid var(--paper-rule); }
+
+.demo-rail { width: 54px; flex: 0 0 54px; background: var(--accent-soft); display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 11px 0; }
+.demo.rail-right .demo-rail { order: 9; }
+.demo-rail .tile { width: 36px; height: 36px; border-radius: 9px; background: var(--paper); border: 1px solid var(--paper-rule); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: var(--ink-mute); cursor: pointer; transition: all 0.18s; user-select: none; }
+.demo-rail .tile.all { height: 30px; border-radius: 7px; font-size: 11px; }
+.demo-rail .tile:hover { border-color: var(--ink-ghost); }
+.demo-rail .tile[data-proj="Wd"] { color: #c46a1c; } .demo-rail .tile[data-proj="Mk"] { color: #2f7d72; } .demo-rail .tile[data-proj="Ap"] { color: #6a4ea3; }
+.demo-rail .sep { width: 28px; height: 1px; background: var(--paper-rule); }
+.demo[data-focus="all"] .tile.all { background: var(--ink); color: #fff; border-color: var(--ink); }
+.demo[data-focus="Wd"] .tile[data-proj="Wd"] { background: #c46a1c; color: #fff; border-color: #c46a1c; box-shadow: 0 0 0 2px color-mix(in srgb, #c46a1c 30%, transparent); }
+.demo[data-focus="Mk"] .tile[data-proj="Mk"] { background: #2f7d72; color: #fff; border-color: #2f7d72; box-shadow: 0 0 0 2px color-mix(in srgb, #2f7d72 30%, transparent); }
+.demo[data-focus="Ap"] .tile[data-proj="Ap"] { background: #6a4ea3; color: #fff; border-color: #6a4ea3; box-shadow: 0 0 0 2px color-mix(in srgb, #6a4ea3 30%, transparent); }
+
+.demo .r-nav { width: 150px; flex: 0 0 150px; background: var(--paper); padding: 9px 10px; font-size: 11px; }
+.demo .r-nav .rlabel { font-size: 8px; font-weight: 700; letter-spacing: 0.06em; color: var(--ink-ghost); text-transform: uppercase; }
+.demo .r-nav .root { font-weight: 700; margin: 7px 0 5px; color: var(--ink); transition: color 0.2s; }
+.demo[data-focus="Wd"] .r-nav .root { color: #c46a1c; } .demo[data-focus="Mk"] .r-nav .root { color: #2f7d72; } .demo[data-focus="Ap"] .r-nav .root { color: #6a4ea3; }
+.demo .r-nav .nrow { display: flex; align-items: center; gap: 6px; padding: 2px 0; color: var(--ink-soft); }
+.demo .r-nav .nrow .pd { width: 7px; height: 7px; border-radius: 2px; margin-left: auto; }
+.demo .r-nav .nrow .ic { width: 9px; height: 8px; border-radius: 1.5px; background: var(--accent-soft); }
+
+.demo .r-term { flex: 1; min-width: 0; background: var(--code-bg); color: var(--code-ink); padding: 9px 10px; }
+.demo .r-work { width: 33%; flex: 0 0 33%; background: var(--paper); border-left: 1px solid var(--paper-rule); padding: 9px 10px; }
+.demo .strip { display: flex; gap: 5px; min-height: 24px; }
+.demo .chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; padding: 3px 9px; border-radius: 5px; font-size: 10px; background: var(--paper-deep); border: 1px solid var(--paper-rule); color: var(--ink-mute); max-width: 120px; opacity: 1; transition: max-width 0.42s cubic-bezier(.5,0,.1,1), opacity 0.32s, padding 0.42s, margin 0.42s, transform 0.32s, filter 0.3s; }
+.demo .r-term .chip { background: #34302a; border-color: #403a32; color: #b8b0a2; }
+.demo .chip .pd { width: 6px; height: 6px; border-radius: 2px; flex: 0 0 auto; }
+.demo .chip[data-proj="Wd"] .pd { background: #c46a1c; } .demo .chip[data-proj="Mk"] .pd { background: #2f7d72; } .demo .chip[data-proj="Ap"] .pd { background: #6a4ea3; }
+/* hidden state — three transition styles */
+.demo .chip.hide { max-width: 0; opacity: 0; padding-left: 0; padding-right: 0; margin-left: -5px; border-width: 0; }
+.demo.t-dim .chip.hide { max-width: 120px; opacity: 0.32; padding: 3px 9px; margin-left: 0; filter: grayscale(1); border-width: 1px; }
+.demo.t-fade .chip.hide { max-width: 120px; opacity: 0; padding: 3px 9px; margin-left: 0; transform: translateY(-4px); border-width: 1px; }
+.demo .termbody { font-family: ui-monospace, Menlo, monospace; font-size: 10px; margin-top: 10px; line-height: 1.7; }
+.demo .termbody .pr { color: #8fbf7a; } .demo .termbody .dim { color: #8a8275; }
+.demo .pagebody { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 5px; height: calc(100% - 34px); margin-top: 8px; padding: 9px; }
+.demo .pagebody .pt { font-family: Georgia, serif; font-size: 12px; color: var(--ink); }
+.demo .focuschip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; opacity: 0; transition: opacity 0.25s; }
+.demo[data-focus="all"] .focuschip { opacity: 0; }
+.demo:not([data-focus="all"]) .focuschip { opacity: 1; }
+.demo .allhint { font-size: 11px; color: var(--ink-ghost); transition: opacity 0.2s; }
+.demo:not([data-focus="all"]) .allhint { display: none; }
+.demo .focuschip .x { cursor: pointer; opacity: 0.7; }
+.demo .focuschip .x:hover { opacity: 1; }
+
+.enterprise-note { background: color-mix(in srgb, #6a4ea3 8%, var(--paper)); border: 1px solid #d9cdeb; border-left: 4px solid #6a4ea3; border-radius: 6px; padding: 12px 16px; margin: 20px 0; font-size: 13px; }
+.enterprise-note b { color: #5a3f8e; }
+.gif-figure { margin: 14px 0 6px; border: 1px solid var(--paper-rule); border-radius: 8px; overflow: hidden; background: var(--paper-deep); }
+.gif-figure img { display: block; width: 100%; height: auto; }
+.two-up { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+.two-up figure { margin: 0; } .two-up img { width: 100%; border: 1px solid var(--paper-rule); border-radius: 6px; }
+.two-up figcaption { font-size: 11.5px; color: var(--ink-mute); margin-top: 4px; text-align: center; }
+@media (max-width: 680px) { .two-up { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -219,12 +287,13 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <strong>What this is.</strong> A design exploration of refactoring Duo so a
   <em>project</em> becomes a first-class organizing primitive — a project
   switcher, with a session's files, terminals, and browser tabs hanging off a
-  project parent. It compares whole-window directions and the thorny edge cases,
-  weighs pros and cons, grounds the options in how mature IDEs and SaaS tools
-  model "project / workspace / folder," and ends each theme with an inline
-  owner-decision card. Decide as you read; hit <strong>Copy decisions</strong>
-  at the bottom and paste back. <em>No code has been written — this is a
-  decision artifact.</em>
+  project parent. It compares whole-window directions, then makes the case for
+  the real payoff — <strong>projects as a filter layer</strong> (§5, with a live
+  demo + animated mockups) — works the thorny edge cases, weighs pros and cons,
+  and grounds it all in how mature IDEs and SaaS tools model
+  "project / workspace / folder." Each theme ends with an inline owner-decision
+  card. Decide as you read; hit <strong>Copy decisions</strong> at the bottom and
+  paste back. <em>No code has been written — this is a decision artifact.</em>
 </div>
 
 <div class="toc">
@@ -232,9 +301,10 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <a href="#fork">2 · The core fork: gated vs. progressive</a><br>
   <a href="#what">3 · What <em>is</em> a Duo project? (the 4-way map)</a><br>
   <a href="#layouts">4 · Full-layout directions (mockups A–D)</a><br>
-  <a href="#edges">5 · The thorny edges (micro-mockups)</a><br>
-  <a href="#workspaces">6 · What happens to workspaces</a><br>
-  <a href="#proscons">7 · Pros &amp; cons, and why it's additive</a>
+  <a href="#filter">5 · Projects as a filter layer (the payoff) ★</a><br>
+  <a href="#edges">6 · The thorny edges (micro-mockups)</a><br>
+  <a href="#workspaces">7 · What happens to workspaces</a><br>
+  <a href="#proscons">8 · Pros &amp; cons, and why it's additive</a>
 </div>
 
 <div class="tldr">
@@ -247,12 +317,16 @@ table.rel .part { color: var(--warn); font-weight: 600; }
     <li><b>A project is "any folder, that Duo names and remembers."</b>
       Created implicitly; enriched progressively; aware of — but not
       defined by — its git repo and its Claude Code project dir.</li>
-    <li><b>Switch via the title-bar dropdown you already shipped</b>
-      (extend <code>WorkspaceSwitcherDropdown</code>) + a ⌘P type-ahead.
-      Defer the thin left rail until many-project parallel work is proven.</li>
-    <li><b>One active project at a time; switching is cheap.</b> Tabs from
-      other projects are tagged, not hidden — a session can span projects
-      without a confusing multi-root mode.</li>
+    <li><b>The payoff — projects as a filter layer (§5).</b> A workspace still
+      holds many projects at once (today's default); a thin, auto-populated rail
+      lets you <em>focus</em> one — unrelated terminal + canvas tabs collapse
+      away and the navigator re-roots — and <b>All</b> brings everything back.
+      Recommended flavor: left (Slack-style) rail, collapse-&amp;-reflow
+      transition, pop-to-All on the out-of-project corner case for v1.</li>
+    <li><b>Enter / switch via the title-bar dropdown you already shipped</b>
+      (extend <code>WorkspaceSwitcherDropdown</code>) + a ⌘P type-ahead; the rail
+      handles focus. The filter reframe makes multi-project sessions the default
+      rather than a confusing multi-root mode.</li>
     <li><b>Workspaces survive as an optional super-container</b> (a workspace
       holds one-or-more projects) — but that tier is a later decision.</li>
   </ul>
@@ -641,7 +715,323 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 </section>
 
 <!-- ════════════════════════════════════════════════════════════ -->
-<h2 id="edges">5 · The thorny edges (micro-mockups)</h2>
+<h2 id="filter">5 · Projects as a filter layer (the payoff)</h2>
+
+<p>
+  The directions above treat a project as a <em>switcher</em> — one active
+  context you swap between. But the bigger UX win is to treat a project as a
+  <strong>filter / lens</strong> over a multi-project workspace. The default
+  (today's modality) stays: one workspace holds files, terminals, and canvas
+  tabs from <em>many</em> projects, all at once. The new power is the ability to
+  <strong>focus</strong>.
+</p>
+
+<p>
+  <strong>How it works.</strong> Every time you open a file that belongs to a
+  project — declared, <em>or</em> implicitly declared (the root of a GitHub repo
+  and/or a folder with <code>CLAUDE.md</code> / <code>.claude/</code>) — that
+  project is auto-added to a thin rail as a tile (initials of its first two
+  words). Clicking a tile enters <strong>focus mode</strong>: every terminal and
+  canvas tab <em>not</em> belonging to that project collapses away, and the
+  navigator re-roots to the project's folder. An always-present
+  <strong>All</strong> button releases the filter and brings everything back.
+  Focus is a non-destructive lens — nothing closes, it just hides.
+</p>
+
+<p class="note">
+  This <strong>reframes Direction A</strong> (§4): the rail isn't a switcher you
+  swap to — it's a filter where every open project is simultaneously present and
+  focus is the lens. And it largely <strong>subsumes Decision 4</strong>: the
+  multi-project session becomes the default, and focus is how you tame it.
+</p>
+
+<h3>Try it — live (click the rail tiles)</h3>
+<div class="demo-wrap">
+  <div class="demo-controls">
+    <div class="grp"><span>Click a tile →</span></div>
+    <div class="grp"><span>Transition</span>
+      <label><input type="radio" name="demo-trans" value="collapse" checked> Collapse &amp; reflow</label>
+      <label><input type="radio" name="demo-trans" value="dim"> Dim then drop</label>
+      <label><input type="radio" name="demo-trans" value="fade"> Fade in place</label>
+    </div>
+    <div class="grp"><span>Rail</span>
+      <label><input type="radio" name="demo-rail" value="left" checked> Left</label>
+      <label><input type="radio" name="demo-rail" value="right"> Right</label>
+    </div>
+    <span class="hint">interactive when opened in Duo</span>
+  </div>
+  <div class="demo t-collapse rail-left" id="filterDemo" data-focus="all">
+    <div class="duo-titlebar">
+      <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+      <span class="tb-switch"><span class="dot"></span>my-workspace</span>
+      <span class="allhint">All projects · 3 active</span>
+      <span class="focuschip" id="demoChip"></span>
+    </div>
+    <div class="demo-stage">
+      <div class="demo-rail">
+        <div class="tile all" data-set="all">All</div>
+        <div class="sep"></div>
+        <div class="tile" data-proj="Wd" data-set="Wd">Wd</div>
+        <div class="tile" data-proj="Mk" data-set="Mk">Mk</div>
+        <div class="tile" data-proj="Ap" data-set="Ap">Ap</div>
+      </div>
+      <div class="r-nav">
+        <div class="rlabel">Navigator</div>
+        <div class="root" id="demoRoot">~/work</div>
+        <div id="demoNav"></div>
+      </div>
+      <div class="r-term">
+        <div class="strip">
+          <span class="chip" data-proj="Wd"><span class="pd"></span>claude</span>
+          <span class="chip" data-proj="Wd"><span class="pd"></span>build</span>
+          <span class="chip" data-proj="Mk"><span class="pd"></span>dev</span>
+          <span class="chip" data-proj="Ap"><span class="pd"></span>zsh</span>
+        </div>
+        <div class="termbody"><div><span class="pr" id="demoPrompt">~/work &gt;</span> claude</div><div class="dim">● working…</div></div>
+      </div>
+      <div class="r-work">
+        <div class="strip">
+          <span class="chip" data-proj="Wd"><span class="pd"></span>spec.md</span>
+          <span class="chip" data-proj="Mk"><span class="pd"></span>preview</span>
+          <span class="chip" data-proj="Ap"><span class="pd"></span>readme</span>
+        </div>
+        <div class="pagebody"><div class="pt" id="demoPage">widgets / spec.md</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap">Live demo (works when this page is opened in Duo via <code>duo open</code>). The three transition options + left/right rail are the toggles above. Static GIFs below for environments that don't run the interaction.</p>
+
+<script>
+(function () {
+  var demo = document.getElementById("filterDemo");
+  if (!demo) return;
+  var PROJ = { Wd:{name:"Widgets",color:"#c46a1c"}, Mk:{name:"Mktg-site",color:"#2f7d72"}, Ap:{name:"App-api",color:"#6a4ea3"} };
+  var navAll =
+    '<div class="nrow">widgets<span class="pd" style="background:#c46a1c"></span></div>' +
+    '<div class="nrow">mktg-site<span class="pd" style="background:#2f7d72"></span></div>' +
+    '<div class="nrow">app-api<span class="pd" style="background:#6a4ea3"></span></div>' +
+    '<div class="nrow"><span class="ic" style="background:#9a9080"></span>notes.md</div>';
+  var navProj =
+    '<div class="nrow"><span class="ic"></span>src</div>' +
+    '<div class="nrow"><span class="ic" style="background:#9a9080"></span>spec.md</div>' +
+    '<div class="nrow"><span class="ic" style="background:#9a9080"></span>README.md</div>';
+  var roots = { all:"~/work", Wd:"widgets", Mk:"mktg-site", Ap:"app-api" };
+  var pages = { all:"widgets / spec.md", Wd:"widgets / spec.md", Mk:"mktg-site / preview", Ap:"app-api / readme" };
+  function setFocus(f) {
+    demo.setAttribute("data-focus", f);
+    demo.querySelectorAll(".chip").forEach(function (c) {
+      var p = c.getAttribute("data-proj");
+      if (f === "all" || p === f) c.classList.remove("hide"); else c.classList.add("hide");
+    });
+    document.getElementById("demoRoot").textContent = roots[f];
+    document.getElementById("demoNav").innerHTML = (f === "all") ? navAll : navProj;
+    document.getElementById("demoPrompt").textContent = roots[f] + " >";
+    document.getElementById("demoPage").textContent = (f === "all") ? "widgets / spec.md" : pages[f];
+    var chip = document.getElementById("demoChip");
+    if (f === "all") { chip.innerHTML = ""; chip.style.background = ""; }
+    else {
+      var pr = PROJ[f];
+      chip.innerHTML = '<span class="pd" style="width:7px;height:7px;border-radius:2px;background:' + pr.color + '"></span>Focus · ' + pr.name + ' <span class="x" data-set="all">×</span>';
+      chip.style.background = pr.color + "22";
+      chip.style.color = pr.color;
+    }
+  }
+  demo.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-set]");
+    if (t) setFocus(t.getAttribute("data-set"));
+  });
+  document.querySelectorAll('input[name="demo-trans"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      demo.classList.remove("t-collapse", "t-dim", "t-fade");
+      demo.classList.add("t-" + this.value);
+    });
+  });
+  document.querySelectorAll('input[name="demo-rail"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      demo.classList.remove("rail-left", "rail-right");
+      demo.classList.add("rail-" + this.value);
+    });
+  });
+  setFocus("all");
+})();
+</script>
+
+<h3>The transition — All ↔ focus</h3>
+<figure class="gif-figure"><img src="assets/project-filter/filter-transition.gif" alt="Transition from all-projects view to a single-project focus and back"></figure>
+<p class="mock-cap"><b>Collapse &amp; reflow:</b> clicking <b>Wd</b> highlights the tile, the non-Widgets terminal + canvas tabs shrink and slide out, the navigator re-roots to <code>widgets</code>, and a focus chip appears in the title bar. <b>All</b> reverses it.</p>
+
+<h3>The corner case — opening an out-of-project file while focused</h3>
+<figure class="gif-figure"><img src="assets/project-filter/corner-case.gif" alt="Opening a file outside the focused project pops back to the all-projects view"></figure>
+<p class="mock-cap">v1 behavior: while focused on <b>Widgets</b>, opening a file from another project (here <code>mktg-site/hero.html</code>) <b>pops back to All</b> — everything returns, the new tab lands active, and a toast explains why. A more elegant mechanism (e.g. silently switching focus to the new project) is a future refinement — see Decision 11.</p>
+
+<h3>Rail placement — left (Slack-style) vs right</h3>
+<div class="two-up">
+  <figure><img src="assets/project-filter/rail-left.png" alt="Filter rail on the left"><figcaption>Left rail — mimics the Slack workspaces rail.</figcaption></figure>
+  <figure><img src="assets/project-filter/rail-right.png" alt="Filter rail on the right"><figcaption>Right rail — your original "thin right rail."</figcaption></figure>
+</div>
+
+<div class="enterprise-note">
+  <b>Note for later — distro packs.</b> Projects + their filtered view may be a
+  useful tool for building bundles/packs in enterprise distros. A pack could ship
+  as a <em>pre-declared project</em> (its <code>CLAUDE.md</code>, skills, and
+  starting tabs bundled), and "focus" becomes the natural way an enterprise user
+  drops into a curated pack without seeing unrelated work. Filed as
+  <strong>FOLLOWUP-028</strong> for when distro-pack work resumes.
+</div>
+
+<section class="decision-card">
+  <div class="q-title">Decision 8 · the reframe</div>
+  <h3 class="q-prompt">Is a project a switcher, or a filter/lens?</h3>
+  <p class="q-context">This is the conceptual fork the whole filter idea turns on. It interacts with D3 (switcher surface) and largely answers D4 (multi-project sessions).</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d8" value="filter">
+      <div class="q-option-body">
+        <div class="q-option-title">Filter / lens — many projects present, focus hides the rest <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The default is the current multi-project workspace; the rail auto-populates from open items; focus is a non-destructive filter. Delivers a real UX payoff and makes multi-project work first-class.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d8" value="switcher">
+      <div class="q-option-body">
+        <div class="q-option-title">Switcher — one active project, you swap between them</div>
+        <div class="q-option-rationale">Simpler model (Directions B/C). No "all" state; switching re-points everything. Loses the multi-project-at-once strength.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d8" value="both">
+      <div class="q-option-body">
+        <div class="q-option-title">Both — a switcher for "active", a filter for "focus"</div>
+        <div class="q-option-rationale">Most flexible, most concepts. Risk of confusing "active project" vs "focused project" — two overlapping notions.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d8" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 9 · the rail</div>
+  <h3 class="q-prompt">Where does the filter rail live, and how is it populated?</h3>
+  <p class="q-context">You floated a "thin right rail" of project initials, then mused the "thin left rail could mimic the Slack workspaces rail." Both are mocked above.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d9" value="left-auto">
+      <div class="q-option-body">
+        <div class="q-option-title">Left rail, auto-populated (Slack-style) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Tiles appear as projects gain open items; the All button sits on top. Familiar idiom, reads as "spaces." Distinct from a left view-rail since Duo has none.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d9" value="right-auto">
+      <div class="q-option-body">
+        <div class="q-option-title">Right rail, auto-populated</div>
+        <div class="q-option-rationale">Your original framing. Keeps the left edge for the navigator; the rail sits near the canvas it filters. Less conventional but avoids any left-edge crowding.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d9" value="no-rail">
+      <div class="q-option-body">
+        <div class="q-option-title">No rail — filter chips in the title bar instead</div>
+        <div class="q-option-rationale">Project chips live in the title bar; click to focus. Zero rail chrome, but fewer projects fit and it's less glanceable.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d9" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 10 · filter scope</div>
+  <h3 class="q-prompt">What does focus actually hide?</h3>
+  <p class="q-context">Your spec: hide unrelated terminal + canvas tabs, and set the navigator to the project root.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d10" value="tabs-reroot">
+      <div class="q-option-body">
+        <div class="q-option-title">Hide unrelated terminal + canvas tabs; re-root the navigator <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Exactly your spec. Navigator jumps to the project root (or deeper if a descendant is already selected). Browser-mode tabs follow the canvas rule (they're working tabs).</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d10" value="also-nav-scope">
+      <div class="q-option-body">
+        <div class="q-option-title">Also scope the navigator tree to the project subtree</div>
+        <div class="q-option-rationale">Harder filter — the file tree only shows the project's files, not just re-rooted. Cleaner focus, but loses quick cross-project file access.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d10" value="soft-dim">
+      <div class="q-option-body">
+        <div class="q-option-title">Soft focus — dim unrelated tabs instead of hiding</div>
+        <div class="q-option-rationale">The "Dim then drop" transition's first beat, made permanent. Less jarring, keeps everything reachable, but doesn't reclaim space.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d10" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 11 · the corner case</div>
+  <h3 class="q-prompt">In focus mode, what happens when you open a file outside the project?</h3>
+  <p class="q-context">Demoed above. You proposed pop-to-All for v1, with room for something more elegant later.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d11" value="pop-all">
+      <div class="q-option-body">
+        <div class="q-option-title">Pop back to All (v1) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Unambiguous and trivial to build; the toast explains why. Ships the feature without solving every edge perfectly.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d11" value="auto-switch">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-switch focus to the new file's project</div>
+        <div class="q-option-rationale">More elegant: if the file belongs to another known project, focus shifts there. Needs the new file's project to be resolvable + can feel like the view "jumped."</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d11" value="badge-stray">
+      <div class="q-option-body">
+        <div class="q-option-title">Stay focused; show the stray tab with a "+1 outside" badge</div>
+        <div class="q-option-rationale">Keeps your focus intact, surfaces the out-of-scope tab explicitly. Most complex; reintroduces a little of the multi-root ambiguity.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d11" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 12 · rail lifecycle</div>
+  <h3 class="q-prompt">When do project tiles appear and disappear?</h3>
+  <p class="q-context">The rail auto-populates from open items — but what's its persistence rule?</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d12" value="auto">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-add on first open; auto-remove when the last item closes <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">The rail always reflects "projects with something open." Zero management; never goes stale. Matches the filter mental model.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d12" value="session">
+      <div class="q-option-body">
+        <div class="q-option-title">Persist for the session even after items close</div>
+        <div class="q-option-rationale">Tiles stick around as quick re-entry points until you quit. Risk: the rail accumulates stale tiles.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d12" value="pin">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-add, but let the user pin tiles to keep them</div>
+        <div class="q-option-rationale">Best of both — auto for the common case, pin for projects you return to. More UI (pin affordance, overflow).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d12" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="edges">6 · The thorny edges (micro-mockups)</h2>
 
 <h3>Edge 1 — declaring a project / a folder with no <code>CLAUDE.md</code></h3>
 <div class="modal">
@@ -788,7 +1178,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 </section>
 
 <!-- ════════════════════════════════════════════════════════════ -->
-<h2 id="workspaces">6 · What happens to workspaces</h2>
+<h2 id="workspaces">7 · What happens to workspaces</h2>
 
 <p>
   You flagged this as a future decision and floated "we might still want
@@ -831,7 +1221,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 </section>
 
 <!-- ════════════════════════════════════════════════════════════ -->
-<h2 id="proscons">7 · Pros &amp; cons, and why it's additive</h2>
+<h2 id="proscons">8 · Pros &amp; cons, and why it's additive</h2>
 
 <div class="hl">
   <div class="pro"><b>Pros of going project-centric</b><ul>
@@ -873,7 +1263,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 </p>
 
 <div class="copy-bar">
-  <div class="copy-meta"><span id="answered-count">0</span> / 7 decisions answered</div>
+  <div class="copy-meta"><span id="answered-count">0</span> / 12 decisions answered</div>
   <button id="copy-btn" type="button">Copy decisions</button>
 </div>
 
@@ -886,9 +1276,14 @@ table.rel .part { color: var(--warn); font-weight: 600; }
     d4: "D4 · Multi-project session model",
     d5: "D5 · Nested-project active scope",
     d6: "D6 · Clone GitHub repo → project",
-    d7: "D7 · Workspaces' fate"
+    d7: "D7 · Workspaces' fate",
+    d8: "D8 · Switcher vs. filter/lens (the reframe)",
+    d9: "D9 · Filter rail placement + population",
+    d10: "D10 · Filter scope (what focus hides)",
+    d11: "D11 · Out-of-project-file corner case",
+    d12: "D12 · Rail lifecycle (appear/disappear)"
   };
-  var ORDER = ["d1","d2","d3","d4","d5","d6","d7"];
+  var ORDER = ["d1","d2","d3","d8","d9","d10","d11","d12","d4","d5","d6","d7"];
 
   function answeredCount() {
     var n = 0;

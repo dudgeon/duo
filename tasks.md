@@ -241,11 +241,19 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 - *Current project/cwd/git detection* — **no `Project` object, no `~/.claude/projects/` read (ENH-177 reverted), no CLAUDE.md parsing.** "Where am I" is three loosely-linked signals (`TabSession.cwd`, `nav.state.cwd` + follow-mode, on-demand `getGitStatus(cwd)→workTreeRoot`) plus an orthogonal `claudePresence` probe. Git remotes string-parsed for "Open on GitHub" only; no API.
 - *IDE prior art* — implicit folder-as-project is the modern default (VS Code/Sublime/Zed/GitHub Desktop); JetBrains/Xcode "explicit declaration" is heavier; VS Code multi-root is the canonical multi-project confusion tale; AI-first editors (Cursor/Windsurf/Zed) scope the agent to the project boundary, trending toward git-worktree-per-task; lowest-risk switcher primitive is recent-list + ⌘P top-left.
 
-**Seven owner decisions in the playground:** D1 gated vs. progressive (the spine) · D2 what *is* a Duo project · D3 switcher surface (layout A–D) · D4 multi-project session model · D5 nested-project active scope · D6 clone→project · D7 workspaces' fate.
+**Filter-layer expansion (2026-05-24, walk-2 of the artifact).** Owner critique: the v1 draft proposed the low-risk *primitive* but no UX *payoff*. Owner's proposed payoff — **projects as a filter layer**: a workspace holds items from many projects (default/today); opening a file from a declared/implicit project auto-adds it to a thin rail (initials); clicking a tile enters **focus** (collapses unrelated terminal + canvas tabs, re-roots the navigator); an **All** button unfilters; out-of-project-file corner case pops back to All for v1. New §5 "Projects as a filter layer" added with: a **live interactive demo** (CSS/JS — click tiles, toggle transition style + rail side), and **animated GIFs** generated headlessly (resvg + gifenc pipeline, build tooling outside the repo) at `docs/research/assets/project-filter/` — `filter-transition.gif` (All↔focus collapse-&-reflow), `corner-case.gif` (open-external→pop-to-All), `rail-left.png` / `rail-right.png` (placement options). Five new decisions added (D8–D12).
 
-**Pre-walk scope locked via AskUserQuestion 2026-05-24:** report+mockups only (no code) · full layouts + micro-mockups · positioning = project-is-any-folder with progressive (non-mandatory) CLAUDE.md/agents.md/git enrichment, clone-repo prompts a project decision · workspaces = future decision, leaning workspace-contains-projects.
+**Twelve owner decisions now:** D1 gated vs. progressive · D2 what *is* a Duo project · D3 switcher surface (layout A–D) · **D8 switcher vs. filter/lens (the reframe)** · **D9 filter-rail placement + population** · **D10 filter scope** · **D11 out-of-project corner case** · **D12 rail lifecycle** · D4 multi-project model (largely subsumed by D8) · D5 nested-project scope · D6 clone→project · D7 workspaces' fate.
+
+**Pre-walk scope locked via AskUserQuestion 2026-05-24:** report+mockups only (no code) · full layouts + micro-mockups + animated transitions · positioning = project-is-any-folder with progressive (non-mandatory) CLAUDE.md/agents.md/git enrichment, clone-repo prompts a project decision · workspaces = future decision, leaning workspace-contains-projects.
 
 **Next:** owner walks the playground, Copy-decisions-back; locked decisions become a PRD + sprint scope. The destructive switch-reload path is the one piece flagged as more-than-additive.
+
+---
+
+### FOLLOWUP-028: Projects + filtered view as a distro-pack authoring tool
+
+**Status:** 🆕 **Filed 2026-05-24** (owner note-for-later during ENH-182 filter-layer expansion). Idea: once projects-as-filter-layer (ENH-182 §5 / D8) exists, a distro pack could ship as a **pre-declared project** (its `CLAUDE.md`, skills, and starting tabs bundled), and "focus" becomes the natural way an enterprise user drops into a curated pack without seeing unrelated work. Revisit when distro-pack work resumes (pairs with 21d / ENH-112 / `/pack-builder`). No action until ENH-182 decisions land.
 
 ---
 
