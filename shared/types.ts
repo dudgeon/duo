@@ -1788,7 +1788,10 @@ export const IPC = {
   // means the renderer recomputes via this call on every banner
   // render. The cost is bounded by readJsonlLines' head+tail caps.
   SESSION_READ_BANNER_TITLE: 'session:read-banner-title',
-  SESSION_READ_MESSAGE_COUNT: 'session:read-message-count'
+  SESSION_READ_MESSAGE_COUNT: 'session:read-message-count',
+  // ENH-183 C6 — list prior `<uuid>.jsonl` sessions in a CWD for the
+  // S1 resume-pills surface.
+  SESSION_LIST_PRIOR: 'session:list-prior'
 } as const
 
 

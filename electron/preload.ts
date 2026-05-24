@@ -712,14 +712,17 @@ const api: ElectronAPI = {
     }
   },
 
-  // ENH-183 C5 — banner-title + message-count lookups against Claude's
-  // JSONL store. Both calls are stateless reads (D9 invariant); the
-  // renderer recomputes via these on every banner render.
+  // ENH-183 C5/C6 — banner-title + message-count + prior-sessions
+  // lookups against Claude's JSONL store. All stateless reads (D9
+  // invariant); the renderer recomputes via these on every banner
+  // render.
   session: {
     readBannerTitle: (uuid, cwd) =>
       ipcRenderer.invoke(IPC.SESSION_READ_BANNER_TITLE, { uuid, cwd }) as Promise<import('../shared/host-api').BannerTitleResult>,
     readMessageCount: (uuid, cwd) =>
-      ipcRenderer.invoke(IPC.SESSION_READ_MESSAGE_COUNT, { uuid, cwd }) as Promise<number>
+      ipcRenderer.invoke(IPC.SESSION_READ_MESSAGE_COUNT, { uuid, cwd }) as Promise<number>,
+    listPrior: (cwd, opts) =>
+      ipcRenderer.invoke(IPC.SESSION_LIST_PRIOR, { cwd, opts: opts ?? {} }) as Promise<import('../shared/host-api').PriorSessionListing[]>
   },
 
   sessionState: {

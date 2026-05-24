@@ -65,4 +65,68 @@ describe('computeSessionHeaderState', () => {
       dismissedBanner: false,
     })).toBe('S3')
   })
+
+  it('S1 — no UUID + no claude + prior sessions exist → resume pills', () => {
+    expect(computeSessionHeaderState({
+      lastClaudeSession: null,
+      claudePresence: 'shell',
+      dismissedBanner: false,
+      priorSessionsCount: 3,
+    })).toBe('S1')
+  })
+
+  it('S1 — no UUID + no claude + many prior sessions → still S1', () => {
+    expect(computeSessionHeaderState({
+      lastClaudeSession: null,
+      claudePresence: 'no-pty',
+      dismissedBanner: false,
+      priorSessionsCount: 80,
+    })).toBe('S1')
+  })
+
+  it('S0 — no UUID + claude already live → no pills (would be redundant)', () => {
+    expect(computeSessionHeaderState({
+      lastClaudeSession: null,
+      claudePresence: 'claude',
+      dismissedBanner: false,
+      priorSessionsCount: 5,
+    })).toBe('S0')
+  })
+
+  it('S0 — no UUID + no prior sessions → no header at all', () => {
+    expect(computeSessionHeaderState({
+      lastClaudeSession: null,
+      claudePresence: 'shell',
+      dismissedBanner: false,
+      priorSessionsCount: 0,
+    })).toBe('S0')
+  })
+
+  it('S2 takes precedence over S1 when both could apply', () => {
+    // Captured UUID + claude live + prior sessions exist → S2 wins.
+    expect(computeSessionHeaderState({
+      lastClaudeSession: { id: 'abc', capturedAt: 1 },
+      claudePresence: 'claude',
+      dismissedBanner: false,
+      priorSessionsCount: 5,
+    })).toBe('S2')
+  })
+
+  it('S3 takes precedence over S1 when both could apply', () => {
+    expect(computeSessionHeaderState({
+      lastClaudeSession: { id: 'abc', capturedAt: 1 },
+      claudePresence: 'shell',
+      dismissedBanner: false,
+      priorSessionsCount: 5,
+    })).toBe('S3')
+  })
+
+  it('dismissedBanner overrides everything', () => {
+    expect(computeSessionHeaderState({
+      lastClaudeSession: null,
+      claudePresence: 'shell',
+      dismissedBanner: true,
+      priorSessionsCount: 10,
+    })).toBe('S0')
+  })
 })

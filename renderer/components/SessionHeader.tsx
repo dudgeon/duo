@@ -22,8 +22,8 @@
 // `renderer/store/sessionHeader.ts` as in-memory only. Nothing
 // persists to disk; restart wipes dismissal + collapse + edit state.
 
-import { useState, useSyncExternalStore, useEffect } from 'react'
-import type { ClaudePresenceState, BannerTitleResult } from '@shared/host-api'
+import { useState, useSyncExternalStore, useEffect, useMemo } from 'react'
+import type { ClaudePresenceState, BannerTitleResult, PriorSessionListing } from '@shared/host-api'
 import {
   getSessionHeaderState,
   setSessionHeaderState,
@@ -47,23 +47,38 @@ interface SessionHeaderProps {
 
 export type SessionHeaderState = 'S0' | 'S1' | 'S2' | 'S3'
 
-/** Pure state computation — no React, no side effects. Exported for tests. */
+/** Pure state computation — no React, no side effects. Exported for tests.
+ *
+ * State priority:
+ *   - dismissedBanner → S0 (suppress everything)
+ *   - lastClaudeSession.id + claude live → S2 (named banner)
+ *   - lastClaudeSession.id + claude not running → S3 (restore offer)
+ *   - no captured UUID + claude not running + priorSessionsCount > 0 → S1 (pills)
+ *   - everything else → S0
+ */
 export function computeSessionHeaderState(args: {
   lastClaudeSession: LastClaudeSession
   claudePresence: ClaudePresenceState
   dismissedBanner: boolean
+  /** Number of prior `<uuid>.jsonl` files in the active CWD's
+   *  `~/.claude/projects/` dir (refreshed async by S1 fetch in
+   *  SessionHeader). Defaults to 0 if the fetch hasn't returned yet
+   *  or the CWD has no prior sessions. */
+  priorSessionsCount?: number
 }): SessionHeaderState {
-  const { lastClaudeSession, claudePresence, dismissedBanner } = args
-  if (!lastClaudeSession?.id) return 'S0'
+  const { lastClaudeSession, claudePresence, dismissedBanner, priorSessionsCount = 0 } = args
   if (dismissedBanner) return 'S0'
-  // C5 will distinguish S2 (claude running with customTitle) from
-  // pure "claude is up" no-op. For now: claude live → S0 (no header
-  // until C5 lights up S2's named-banner surface).
-  if (claudePresence === 'claude' || claudePresence === 'starting') return 'S2'
-  // C6 will distinguish S1 (no captured UUID but prior sessions exist
-  // in CWD) from S3 (captured UUID, restore offer). Only one of those
-  // two reaches this branch today: S3 (we have a captured UUID).
-  return 'S3'
+  if (lastClaudeSession?.id) {
+    if (claudePresence === 'claude' || claudePresence === 'starting') return 'S2'
+    return 'S3'
+  }
+  // No captured UUID. If claude is already live in the tab we have
+  // nothing to offer — the live session will itself become S2 once
+  // its UUID gets captured (C9 first-capture trigger). When claude
+  // is NOT running, offer the prior-sessions pills if any exist.
+  if (claudePresence === 'claude' || claudePresence === 'starting') return 'S0'
+  if (priorSessionsCount > 0) return 'S1'
+  return 'S0'
 }
 
 export function SessionHeader({
@@ -73,14 +88,58 @@ export function SessionHeader({
     subscribeSessionHeader,
     () => getSessionHeaderState(tabId),
   )
+
+  // S1 gate — we only fetch the prior-sessions list when the tab is
+  // in a state that could become S1 (no captured UUID, claude not
+  // live). Avoids unnecessary I/O on S2/S3/S0 paths.
+  const couldBeS1 = !lastClaudeSession?.id &&
+    claudePresence !== 'claude' &&
+    claudePresence !== 'starting' &&
+    !ui.dismissedBanner
+
+  const [priorSessions, setPriorSessions] = useState<PriorSessionListing[]>([])
+  useEffect(() => {
+    if (!couldBeS1) {
+      setPriorSessions([])
+      return
+    }
+    let cancelled = false
+    void window.electron.session.listPrior(cwd, { limit: 10, excludeUuid: lastClaudeSession?.id })
+      .then((rows) => { if (!cancelled) setPriorSessions(rows) })
+      .catch(() => { if (!cancelled) setPriorSessions([]) })
+    return () => { cancelled = true }
+  }, [couldBeS1, cwd, lastClaudeSession?.id])
+
+  // Auto-dismiss S1 pills on first claude spawn — the user committed
+  // to starting fresh, no reason to keep offering the older list.
+  useEffect(() => {
+    if (claudePresence === 'claude' || claudePresence === 'starting') {
+      if (ui.pillsVisible) setSessionHeaderState(tabId, { pillsVisible: false })
+    }
+  }, [claudePresence, ui.pillsVisible, tabId])
+
   const state = computeSessionHeaderState({
     lastClaudeSession,
     claudePresence,
     dismissedBanner: ui.dismissedBanner,
+    priorSessionsCount: priorSessions.length,
   })
 
   if (state === 'S0') return null
-  if (state === 'S1') return null // placeholder — C6
+
+  if (state === 'S1') {
+    if (!ui.pillsVisible) return null
+    return (
+      <SessionPillsList
+        sessions={priorSessions}
+        onPickSession={(uuid) => {
+          void window.electron.pty.write(tabId, `claude --resume ${uuid}\n`)
+          setSessionHeaderState(tabId, { pillsVisible: false })
+        }}
+        onDismiss={() => setSessionHeaderState(tabId, { pillsVisible: false })}
+      />
+    )
+  }
 
   // S2 — claude is live in this tab AND we have a captured session
   // UUID. Default collapsed (small dot on TabBar marker, handled
@@ -163,6 +222,73 @@ interface RestoreOfferBannerProps {
   cwd: string
   onResume: () => void
   onDismiss: () => void
+}
+
+interface SessionPillsListProps {
+  sessions: PriorSessionListing[]
+  onPickSession: (uuid: string) => void
+  onDismiss: () => void
+}
+
+/** S1 — vertical mini-list of prior sessions for this CWD. D10 = Variant B,
+ *  D11 = 3 visible + "show all". Header copy locked: "Resume previous session". */
+function SessionPillsList({ sessions, onPickSession, onDismiss }: SessionPillsListProps) {
+  const [showAll, setShowAll] = useState(false)
+  const visible = useMemo(() => showAll ? sessions : sessions.slice(0, 3), [sessions, showAll])
+  const hiddenCount = sessions.length - visible.length
+  return (
+    <div className="claude-resume-banner claude-resume-banner--pills" data-session-header-state="S1">
+      <div className="claude-resume-banner__pills-header">Resume previous session</div>
+      <div className="claude-resume-banner__pills-list">
+        {visible.map((s) => (
+          <button
+            key={s.uuid}
+            type="button"
+            className="claude-resume-banner__pill-row"
+            onClick={() => onPickSession(s.uuid)}
+            title={`${s.title} · ${s.messageCount} msg${s.messageCount === 1 ? '' : 's'} · resume`}
+            data-session-uuid={s.uuid}
+          >
+            <span className="claude-resume-banner__pill-icon">↻</span>
+            <span className="claude-resume-banner__pill-title">{s.title}</span>
+            <span className="claude-resume-banner__pill-msgs">{s.messageCount} msg{s.messageCount === 1 ? '' : 's'}</span>
+            <span className="claude-resume-banner__pill-when">{relativeWhen(s.modifiedAt)}</span>
+          </button>
+        ))}
+      </div>
+      <div className="claude-resume-banner__pills-footer">
+        <span>
+          {hiddenCount > 0
+            ? <>
+                {hiddenCount} older session{hiddenCount === 1 ? '' : 's'} ·{' '}
+                <button
+                  type="button"
+                  className="claude-resume-banner__pills-showall"
+                  onClick={() => setShowAll(true)}
+                >show all</button>
+              </>
+            : null}
+        </span>
+        <button
+          type="button"
+          className="claude-resume-banner__pills-dismiss"
+          onClick={onDismiss}
+        >Dismiss · keep new session</button>
+      </div>
+    </div>
+  )
+}
+
+/** "5h ago", "2d ago" — single-unit relative time. */
+function relativeWhen(modifiedAtMs: number): string {
+  const diffMs = Date.now() - modifiedAtMs
+  const m = Math.floor(diffMs / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  return `${d}d ago`
 }
 
 function RestoreOfferBanner({ sessionId, cwd, onResume, onDismiss }: RestoreOfferBannerProps) {

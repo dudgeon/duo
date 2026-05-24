@@ -1531,6 +1531,10 @@ function setupIPC(): void {
     const { readMessageCount } = await import('./claude-session-tracker')
     return readMessageCount(payload.uuid, payload.cwd)
   })
+  ipcMain.handle(IPC.SESSION_LIST_PRIOR, async (_event, payload: { cwd: string; opts?: { limit?: number; excludeUuid?: string } }) => {
+    const { listPriorSessions } = await import('./claude-session-tracker')
+    return listPriorSessions(payload.cwd, payload.opts)
+  })
 
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
   // here; CLI verbs reach the same helpers via NavBridge).

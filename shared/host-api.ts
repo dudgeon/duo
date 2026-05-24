@@ -569,9 +569,17 @@ export type ClaudePresenceState = 'no-pty' | 'shell' | 'claude' | 'starting'
 // cache, D9 invariant). Backed by electron/claude-session-tracker.ts.
 export type BannerTitleSource = 'customTitle' | 'aiTitle' | 'jsonl-firstmsg' | 'uuid'
 export interface BannerTitleResult { title: string; source: BannerTitleSource }
+export interface PriorSessionListing {
+  uuid: string
+  title: string
+  source: BannerTitleSource
+  messageCount: number
+  modifiedAt: number
+}
 export interface ElectronSessionAPI {
   readBannerTitle: (uuid: string, cwd: string) => Promise<BannerTitleResult>
   readMessageCount: (uuid: string, cwd: string) => Promise<number>
+  listPrior: (cwd: string, opts?: { limit?: number; excludeUuid?: string }) => Promise<PriorSessionListing[]>
 }
 
 /** Issue #27 — URL-bar autocomplete suggestion shape. Returned by

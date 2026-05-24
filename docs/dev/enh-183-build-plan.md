@@ -24,7 +24,7 @@
 - [x] **C3** — Refactor `ClaudeResumeBanner` → polymorphic `SessionHeader`
 - [x] **C4** — Read ladder (D5) + session-tracker JSONL fallback (D13)
 - [x] **C5** — S2 named banner (collapsed dot + expanded)
-- [ ] **C6** — S1 pills (Variant B, 3-visible, "Resume previous session" copy)
+- [x] **C6** — S1 pills (Variant B, 3-visible, "Resume previous session" copy)
 - [x] **C7** — S3 restore-offer banner
 - [ ] **C8** — `session-hydrator.ts` + T1 idle trigger + D8 derivation
 - [ ] **C9** — T2 manual-save + T3 first-capture triggers

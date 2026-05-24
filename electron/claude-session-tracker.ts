@@ -297,6 +297,69 @@ function shortUuid(uuid: string): string {
   return uuid.length > 8 ? uuid.slice(0, 8) : uuid
 }
 
+// ---------------------------------------------------------------------------
+// ENH-183 C6 — list prior sessions in a CWD for the S1 resume pills
+// ---------------------------------------------------------------------------
+
+export interface PriorSessionListing {
+  uuid: string
+  title: string
+  source: BannerTitleSource
+  /** JSONL line count of `type:"user"` entries. */
+  messageCount: number
+  /** Mtime of the JSONL file in ms epoch. */
+  modifiedAt: number
+}
+
+/**
+ * List the N most-recently-modified Claude sessions in a CWD. Each
+ * entry includes a derived banner title (via the D5 read ladder) +
+ * user-message count + JSONL mtime.
+ *
+ * Best-effort: bad reads degrade to short UUID titles. Excluded UUIDs
+ * (e.g. the live `lastClaudeSession.id` already captured in workspace
+ * metadata) are filtered out so the pills don't duplicate S3's offer.
+ */
+export async function listPriorSessions(
+  cwd: string,
+  opts?: { limit?: number; excludeUuid?: string }
+): Promise<PriorSessionListing[]> {
+  const limit = opts?.limit ?? 10
+  const exclude = opts?.excludeUuid
+  try {
+    const projectDir = path.join(os.homedir(), '.claude', 'projects', encodeProjectDir(cwd))
+    const entries = await fs.readdir(projectDir, { withFileTypes: true })
+    const candidates: Array<{ uuid: string; modifiedAt: number }> = []
+    for (const e of entries) {
+      if (!e.isFile() || !e.name.endsWith('.jsonl')) continue
+      const uuid = e.name.slice(0, -'.jsonl'.length)
+      if (!uuid || uuid === exclude) continue
+      const stat = await fs.stat(path.join(projectDir, e.name)).catch(() => null)
+      if (!stat) continue
+      candidates.push({ uuid, modifiedAt: stat.mtimeMs })
+    }
+    candidates.sort((a, b) => b.modifiedAt - a.modifiedAt)
+    const top = candidates.slice(0, limit)
+    const out: PriorSessionListing[] = []
+    for (const c of top) {
+      const [titleR, msgCount] = await Promise.all([
+        readBannerTitle(c.uuid, cwd).catch(() => ({ title: c.uuid.slice(0, 8), source: 'uuid' as const })),
+        readMessageCount(c.uuid, cwd).catch(() => 0),
+      ])
+      out.push({
+        uuid: c.uuid,
+        title: titleR.title,
+        source: titleR.source,
+        messageCount: msgCount,
+        modifiedAt: c.modifiedAt,
+      })
+    }
+    return out
+  } catch {
+    return []
+  }
+}
+
 /** Pull out the human-typed text from a `type:"user"` JSONL entry.
  *  Claude Code's user-role entries are nested:
  *    { type: "user", message: { content: "...", role: "user" } }

@@ -794,6 +794,89 @@ html.dark {
   }
   .claude-resume-banner__dismiss:hover { opacity: 1; background: rgba(20, 14, 8, 0.06); }
 
+  /* ENH-183 C6 — S1 pills variant. D10 = Variant B (vertical mini-list),
+     D11 = 3 visible + "show all". Header copy: "Resume previous session". */
+  .claude-resume-banner--pills {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 8px 10px 6px;
+  }
+  .claude-resume-banner__pills-header {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--duo-text-mute, rgba(20, 14, 8, 0.55));
+    margin-bottom: 6px;
+  }
+  .claude-resume-banner__pills-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .claude-resume-banner__pill-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 5px 6px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    text-align: left;
+    color: var(--duo-text);
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .claude-resume-banner__pill-row:hover {
+    background: rgba(20, 14, 8, 0.04);
+  }
+  .claude-resume-banner__pill-icon {
+    color: var(--duo-accent, #7c6af7);
+    font-size: 11px;
+  }
+  .claude-resume-banner__pill-title {
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .claude-resume-banner__pill-msgs {
+    font-family: var(--duo-font-mono, ui-monospace, monospace);
+    font-size: 10.5px;
+    color: var(--duo-text-mute, rgba(20, 14, 8, 0.55));
+  }
+  .claude-resume-banner__pill-when {
+    font-size: 10.5px;
+    color: var(--duo-text-mute, rgba(20, 14, 8, 0.45));
+  }
+  .claude-resume-banner__pills-footer {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(20, 14, 8, 0.10);
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--duo-text-mute, rgba(20, 14, 8, 0.55));
+  }
+  .claude-resume-banner__pills-showall,
+  .claude-resume-banner__pills-dismiss {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: var(--duo-accent, #7c6af7);
+    font: inherit;
+  }
+  .claude-resume-banner__pills-showall:hover,
+  .claude-resume-banner__pills-dismiss:hover {
+    text-decoration: underline;
+  }
+  .claude-resume-banner__pills-dismiss {
+    color: var(--duo-text-mute, rgba(20, 14, 8, 0.55));
+  }
+
   /* Stage 17d / 11d — `<CommentRail>` (editor-agnostic primitive).
      Right-side rail of threaded comments. Both the markdown editor
      (Stage 11d binding via CriticMarkup) and the HTML canvas (Stage
