@@ -115,10 +115,28 @@ export function SessionHeader({
     return () => { cancelled = true }
   }, [couldBeS1, cwd, lastClaudeSession?.id])
 
-  // Auto-dismiss S1 pills on first claude spawn — the user committed
-  // to starting fresh, no reason to keep offering the older list.
+  // Auto-dismiss S1 pills only when THIS tab transitions INTO a
+  // claude-running state — i.e. the user actually spawned claude in
+  // this tab. Without the prev-tracking + same-tabId check, we'd
+  // dismiss on:
+  //   1. initial mount (prev presence undefined, current happens to
+  //      be 'claude' because useClaudePresence cached the previous
+  //      front-terminal's value during the ~100ms probe lag)
+  //   2. cross-tab switches (component instance persists across
+  //      activeTab changes; prev presence was the OLD tab's state)
+  // Both of those were observed by the owner on a fresh shell tab in
+  // a CWD with prior sessions — S1 should have fired but didn't.
+  const prevTransitionRef = useRef<{ tabId: string; presence: ClaudePresenceState } | null>(null)
   useEffect(() => {
-    if (claudePresence === 'claude' || claudePresence === 'starting') {
+    const prev = prevTransitionRef.current
+    prevTransitionRef.current = { tabId, presence: claudePresence }
+    if (
+      prev &&
+      prev.tabId === tabId &&
+      prev.presence !== 'claude' &&
+      prev.presence !== 'starting' &&
+      (claudePresence === 'claude' || claudePresence === 'starting')
+    ) {
       if (ui.pillsVisible) setSessionHeaderState(tabId, { pillsVisible: false })
     }
   }, [claudePresence, ui.pillsVisible, tabId])
