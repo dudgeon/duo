@@ -232,33 +232,35 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-183: Claude session description lifecycle (supersedes ENH-177 + ENH-181 + reopens ENH-180 in limited form)
 
-**Status:** 🟡 **Filed 2026-05-24.** Sprint 21 marquee. Owner-locked PRD with 8 of 12 decisions locked; 4 open for owner pick before implementation.
+**Status:** 🟢 **All 13 decisions locked 2026-05-24. Ready to build (C1 Step-0 empirics gates).** Sprint 21 marquee. PRD lifecycle: filed 2026-05-24, owner walk → D9 architectural invariant added (no Duo-side sidecars) → D2-D8 locked in initial draft → Notion comments locked D10-D13 + D2 educational-banner addition.
 
 **What it does.** Reframes the original ENH-177 (workspace-resume banner) + ENH-181 (inline rename + collapse) PRD around the **session description as a core feature**, not a workspace-resume affordance. Adds:
 
-- **Polymorphic session header** above each terminal tab — 4 states: S0 (quiet), S1 (resume pills before first message), S2 (named banner with USER/HAIKU/AUTO provenance + click-to-rename + collapse), S3 (restore-offer banner after workspace switch).
-- **Resume pills** (S1) — when starting a fresh Claude session in a CWD with prior history, the header offers prior sessions as one-click resume targets. Auto-dismiss on first Return committed to the new session. 3 visual variants in PRD; owner picks.
+- **Polymorphic session header** above each terminal tab — 4 states: S0 (quiet), S1 (resume pills before first message), S2 (named banner with click-to-rename + collapse), S3 (restore-offer banner after workspace switch). **No provenance badge** per D9 — once title is in `customName`, Duo doesn't track who wrote it.
+- **Resume pills** (S1) — when starting a fresh Claude session in a CWD with prior history, the header offers prior sessions as one-click resume targets. Auto-dismiss on first Return. **Locked variant:** B (vertical mini-list) with copy "Resume previous session"; 3 visible + "show all" link.
 - **`/rename` as the universal write primitive** — Duo invokes `/rename` via PTY injection in both user-driven mode (click banner title → inline edit) and **Duo-driven mode** (hydration triggers fire D8 derivation ladder + inject). Reopens ENH-180's scope in limited form: Duo derives titles from cheap signals (first user message in JSONL) — no LLM call.
-- **Three hydration triggers** — T1 (idle-threshold: messageCount ≥ 3 + unnamed), T2 (manual workspace save), T3 (first session-UUID capture into workspace metadata). Autosave never triggers hydration.
+- **Three hydration triggers** — T1 (idle-threshold: messageCount ≥ 3 + unnamed via JSONL `type:'user'` count per D13), T2 (manual workspace save), T3 (first session-UUID capture into workspace metadata). Autosave never triggers hydration.
+- **First-time educational banner** (Notion comment 2026-05-24) — once per install, dismissable: *"Duo named this from your first message; type `/rename` in Claude any time."* Single boolean in renderer prefs; not per-session.
 - **CLI parity** — 7 new `duo session ...` verbs covering list / resume / rename / hydrate / collapse / expand / dismiss-pills / auto-hydrate toggle.
 
-**Canonical PRD:** [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) — 18 sections, lifecycle diagram, 3 pill mockup variants, 8 locked + 4 open decisions with override controls per decision, mechanism empirics table with re-verify flags, 8 risk cards, 15 acceptance criteria, 3-step implementation plan with Step 0 verification gate. Sticky review-bar footer with Copy-review button (works in Duo browser pane; `navigator.clipboard` is unavailable in Claude preview).
+**Canonical PRD:** [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) — 18 sections, lifecycle diagram, 3 pill mockup variants, 13 locked decisions (D10–D13 collapsed to "show original options" details element since owner picked), mechanism empirics table, 8 risk cards, 15 acceptance criteria + D9-invariant ACs, 3-step implementation plan.
+
+**Build plan:** [`docs/dev/enh-183-build-plan.md`](docs/dev/enh-183-build-plan.md) — 13 commits (C1 Step-0 empirics → C13 smoke walk → propose cut). Each commit has scope, files touched, ACs, checkbox.
 
 **Children (folded in):** [ENH-177](#) (workspace-resume banner — becomes S3) · [ENH-181](#enh-181) (inline rename + collapse — becomes S2 mechanics) · [ENH-180](#enh-180) (Duo-driven /rename — limited form reopened per D4 + D8).
 
-**Cherry-pick base:** [commit f351719](https://github.com/dudgeon/duo/commit/f351719) (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). 9 files, ~412 LOC. Step 1 of the implementation plan.
+**Cherry-pick base:** [commit f351719](https://github.com/dudgeon/duo/commit/f351719) (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). 9 files, ~412 LOC. Step 1 of the build plan.
 
-**Step 0 (gating, ~15 min):** verify `/rename` PTY-injection target — the prior PRD claimed `\r/rename X\n` writes to `sessions-index.json § customName`, but a 16-project / 20-session audit found zero `customName` fields in any existing JSON. Likely Claude adds the field on first /rename, but needs a live test before implementation. Also verify the Haiku-vs-customName race (does Claude overwrite our customName when its Haiku fires after we /rename?).
+**Owner picks from Notion comments 2026-05-24:**
+- **D10** → Variant B (vertical mini-list), copy: **"Resume previous session"** (singular)
+- **D11** → option a · 3 visible + "show all"
+- **D12** → option a · small accent dot (6×6px)
+- **D13** → option a · count `type:'user'` JSONL entries (no cache per D9)
+- **D2 addition** → first-time educational banner
 
-**Open decisions awaiting owner walk (D9–D12):**
-- **D9** — Pills visual variant (A horizontal · B vertical mini-list **recommended** · C compact dropdown · other)
-- **D10** — Pills threshold visible-vs-folded (3 + show-all **recommended** · 5 + show-all · all)
-- **D11** — Tab-marker glyph (small accent dot **recommended** · "⏪" chip · "C" letter chip)
-- **D12** — messageCount derivation when sessions-index absent (count `type:'user'` JSONL entries **recommended** · no-summary-after-N-sec trigger · Duo-side counter)
+**C1 Step-0 empirics (gating, ~15 min, no code):** verify `/rename` PTY-injection target — the prior PRD claimed `\r/rename X\n` writes to `sessions-index.json § customName`, but a 16-project / 20-session audit found zero `customName` fields in any existing JSON. Likely Claude adds the field on first /rename, but needs a live test before C2 cherry-pick.
 
-**Notion mirror:** [36a45f48854f81c3aacbd50e40fc8bbd](https://www.notion.so/36a45f48854f81c3aacbd50e40fc8bbd) (fresh page under "Duo Idle Thoughts"; replaces the old [36945f48](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) ENH-177/181 page — that one now stale).
-
-**Walk:** owner opens the PRD in Duo browser pane (not Claude preview — clipboard differs), reviews each decision card, toggles "Override this decision" on any of D1–D8 they want to revisit, picks radios for D9–D12, clicks Copy review at the footer, pastes back.
+**Notion mirror:** [36a45f48854f81b49571dd1cb12a11e5](https://www.notion.so/36a45f48854f81b49571dd1cb12a11e5) (v3 page — clean, with embedded mockup PNGs + top callout summarizing the lock-ins). PNGs reachable at [`docs/research/assets/enh-183-mockups/`](docs/research/assets/enh-183-mockups/).
 
 ---
 

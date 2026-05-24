@@ -490,8 +490,8 @@ a:hover { text-decoration: underline; }
     <li><a href="#section-9">Hydration triggers (the full lifecycle)</a></li>
     <li><a href="#section-10">CLI parity</a></li>
     <li><a href="#section-11">Mechanism empirics</a></li>
-    <li><a href="#section-12">Decisions — locked (D1–D9) with override controls</a></li>
-    <li><a href="#section-13">Decisions — open (D10–D13) for owner pick</a></li>
+    <li><a href="#section-12">Decisions — originally locked (D1–D9)</a></li>
+    <li><a href="#section-13">Decisions — locked via Notion comments 2026-05-24 (D10–D13)</a></li>
     <li><a href="#section-14">Risks + edge cases</a></li>
     <li><a href="#section-15">Acceptance criteria</a></li>
     <li><a href="#section-16">Implementation plan</a></li>
@@ -1232,16 +1232,34 @@ agent must be able to do the same.</p>
 <!-- D2 -->
 <div class="decision" data-id="D2" data-status="locked">
   <div class="d-head">
-    <span class="d-id">D2 · Idle-threshold hydration (T1)</span>
+    <span class="d-id">D2 · Idle-threshold hydration (T1) + first-time educational banner</span>
     <span class="d-status locked">Locked</span>
   </div>
-  <div class="d-q">When does Duo auto-inject /rename for an unnamed session?</div>
-  <div class="d-a"><code>messageCount &ge; 3</code> AND no <code>customName</code> AND no
+  <div class="d-q">When does Duo auto-inject /rename for an unnamed session, and how does the user
+    learn they can override?</div>
+  <div class="d-a">
+    <strong>Trigger:</strong> <code>messageCount &ge; 3</code> AND no <code>customName</code> AND no
     <code>summary</code>. Title derived via D8. No Duo-side counter — read messageCount from
-    sessions-index, or derive from JSONL line count (D13).</div>
-  <div class="d-rationale">Owner: <em>"option 2 makes most sense but I don't want to make a Rube
-    Goldberg machine; is the exchange count something lightweight to maintain?"</em> Yes — Claude
-    already tracks it.</div>
+    sessions-index, or derive from JSONL line count (D13).<br>
+    <br>
+    <strong>First-time educational banner (Notion comment 2026-05-24):</strong> the very first time
+    Duo auto-hydrates a session in a given install, surface a small, dismissable banner inside the
+    session header that says something like <em>"Duo named this for you. Type <code>/rename
+    &lt;new title&gt;</code> in Claude any time to change it."</em> Banner shows once per install
+    (tracked via a single boolean flag in renderer-only persisted prefs — NOT per-session — so this
+    doesn't violate D9). Dismissal sticks across restarts via that flag. After dismissal, the
+    educational banner never re-fires.
+  </div>
+  <div class="d-rationale">
+    Owner: <em>"option 2 makes most sense but I don't want to make a Rube Goldberg machine; is the
+    exchange count something lightweight to maintain?"</em> Yes — Claude already tracks it.
+    <br><br>
+    Notion comment 2026-05-24: <em>"Add a brief banner telling the user they can always rename w
+    the /rename command in claude."</em> Auto-hydration is good UX only if the user knows they can
+    override. Banner discharges that obligation without an AUTO badge (would violate D9). Once-per-
+    install means it doesn't accumulate; renderer pref is acceptable because the flag is about
+    Duo's own UI state, not Claude's session metadata.
+  </div>
   <div class="d-input">
     <label><input type="checkbox" data-d="D2"> Override this decision</label>
     <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
@@ -1502,31 +1520,44 @@ agent must be able to do the same.</p>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
-<h2 id="section-13">13 · Decisions — open (D10–D13)</h2>
+<h2 id="section-13">13 · Decisions — now locked via Notion comments (D10–D13)</h2>
 
 <p style="font-size: 12.5px; color: var(--ink-mute);">
-  Four picks needed before implementation can start. Each open decision below has visual mockups
-  for every option. Pick a radio, optionally add notes.
+  Owner walked the Notion mirror 2026-05-24 (page
+  <a href="https://www.notion.so/36a45f48854f81b49571dd1cb12a11e5">36a45f48</a>) and locked all four
+  via inline comments. Each card below shows the locked pick + the comment that landed it. Override
+  checkbox is preserved if owner wants to change their mind.
 </p>
 
-<!-- D10 — was D9 — Pills visual variant -->
-<div class="decision open" data-id="D10" data-status="open">
+<!-- D10 — was D9 — Pills visual variant — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D10" data-status="locked">
   <div class="d-head">
     <span class="d-id">D10 · Pills visual variant</span>
-    <span class="d-status open">Open</span>
+    <span class="d-status locked">Locked</span>
   </div>
   <div class="d-q">Which visual variant ships for S1 resume pills?</div>
+  <div class="d-a">
+    <strong>Variant B · Vertical mini-list</strong>, with the section-header copy reworded from
+    "Resume one of these instead?" to <strong>"Resume previous session"</strong> (singular).
+    Reasoning: matches the user's mental model — they're picking <em>one</em> session to resume,
+    not deciding among many alternatives. Mockups remain in <a href="#section-6">§ 6 above</a>;
+    build step updates the copy.
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:48Z: <em>"Aligned with recommendation — but reword to 'resume
+    previous session'."</em>
+  </div>
   <p style="font-size: 12px; color: var(--ink-mute); margin-top: 6px;">
-    Full mockups in <a href="#section-6">§ 6 above</a> (Variant A horizontal · Variant B vertical
-    list · Variant C dropdown). Pick a radio below.
+    Non-chosen variants retained in <a href="#section-6">§ 6</a> for historical record.
   </p>
-  <div class="d-options">
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options (collapsed)</summary>
+  <div class="d-options" style="margin-top: 6px;">
     <label class="d-option"><input type="radio" name="D10" value="A">
       <span class="opt-title">A · Horizontal pill strip</span>
       <div class="opt-detail">Compact, matches existing banner space. ~3 pills visible. Titles truncate.</div>
     </label>
-    <label class="d-option"><input type="radio" name="D10" value="B">
-      <span class="opt-title">B · Vertical mini-list <span class="rec-tag">Recommended</span></span>
+    <label class="d-option"><input type="radio" name="D10" value="B" checked>
+      <span class="opt-title">B · Vertical mini-list <span class="rec-tag">Locked</span></span>
       <div class="opt-detail">Richer per-row context (msgs, recency). ~80px vertical. Honest footer for dismiss-all.</div>
     </label>
     <label class="d-option"><input type="radio" name="D10" value="C">
@@ -1538,18 +1569,32 @@ agent must be able to do the same.</p>
       <div class="opt-detail">Want a different shape entirely? Describe below.</div>
     </label>
   </div>
+  </details>
   <div class="d-input">
-    <textarea placeholder="Notes / other variant..."></textarea>
+    <label><input type="checkbox" data-d="D10"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
   </div>
 </div>
 
-<!-- D11 — was D10 — Pills threshold — visible vs. folded — WITH MOCKUPS -->
-<div class="decision open" data-id="D11" data-status="open">
+<!-- D11 — Pills threshold — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D11" data-status="locked">
   <div class="d-head">
     <span class="d-id">D11 · Pills threshold — visible vs. folded</span>
-    <span class="d-status open">Open</span>
+    <span class="d-status locked">Locked</span>
   </div>
   <div class="d-q">How many sessions show in the pills surface by default; how does overflow render?</div>
+  <div class="d-a">
+    <strong>Option a · 3 visible + "show all" link</strong>. Most CWDs have 3–10 sessions; 3 fits
+    Variant B's vertical mini-list cleanly. Sessions 4–N are revealed by clicking "show all". The
+    duo project's 80+ session count is the bad-default proof for option c.
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:48Z: <em>"Aligned."</em>
+  </div>
+  <p style="font-size: 12px; color: var(--ink-mute); margin-top: 6px;">
+    Non-chosen options' mockups are still in the gallery below for historical record.
+  </p>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options + variant mockups (collapsed)</summary>
 
   <h4 style="margin-top: 14px;">Option a · 3 visible + "show all"</h4>
   <div class="terminal-mock">
@@ -1669,8 +1714,8 @@ agent must be able to do the same.</p>
   </div>
 
   <div class="d-options">
-    <label class="d-option"><input type="radio" name="D11" value="3-show-all">
-      <span class="opt-title">a · 3 visible · "show all" link reveals the rest <span class="rec-tag">Recommended</span></span>
+    <label class="d-option"><input type="radio" name="D11" value="3-show-all" checked>
+      <span class="opt-title">a · 3 visible · "show all" link reveals the rest <span class="rec-tag">Locked</span></span>
       <div class="opt-detail">Most CWDs have 3–10 sessions; 3 fits the banner well.</div>
     </label>
     <label class="d-option"><input type="radio" name="D11" value="5-show-all">
@@ -1682,18 +1727,30 @@ agent must be able to do the same.</p>
       <div class="opt-detail">Some CWDs have 80+ sessions. Bad default; banner dominates the pane.</div>
     </label>
   </div>
+  </details>
   <div class="d-input">
-    <textarea placeholder="Notes..."></textarea>
+    <label><input type="checkbox" data-d="D11"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
   </div>
 </div>
 
-<!-- D12 — was D11 — Tab-marker glyph — WITH MOCKUPS -->
-<div class="decision open" data-id="D12" data-status="open">
+<!-- D12 — Tab-marker glyph — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D12" data-status="locked">
   <div class="d-head">
     <span class="d-id">D12 · Tab-marker glyph (collapsed S2)</span>
-    <span class="d-status open">Open</span>
+    <span class="d-status locked">Locked</span>
   </div>
   <div class="d-q">What appears on the active tab to signal "this tab has a session description"?</div>
+  <div class="d-a">
+    <strong>Option a · Small accent dot (6×6px)</strong>. Quietest signal — the banner expansion
+    does the explaining. Rendered next to the active tab on its right edge, in the Atelier accent
+    color.
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:49Z: <em>"Alogned"</em> [sic — "aligned"] on the recommended
+    option.
+  </div>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options + variant mockups (collapsed)</summary>
 
   <h4 style="margin-top: 14px;">Option a · Small accent dot (6×6px)</h4>
   <div class="terminal-mock">
@@ -1779,8 +1836,8 @@ agent must be able to do the same.</p>
   </div>
 
   <div class="d-options">
-    <label class="d-option"><input type="radio" name="D12" value="dot">
-      <span class="opt-title">a · Small accent dot · 6×6px <span class="rec-tag">Recommended</span></span>
+    <label class="d-option"><input type="radio" name="D12" value="dot" checked>
+      <span class="opt-title">a · Small accent dot · 6×6px <span class="rec-tag">Locked</span></span>
       <div class="opt-detail">Quietest signal. Banner expansion does the explaining.</div>
     </label>
     <label class="d-option"><input type="radio" name="D12" value="rewind">
@@ -1792,26 +1849,33 @@ agent must be able to do the same.</p>
       <div class="opt-detail">"Claude session" as a glanceable initial. Reads tighter than "⏪".</div>
     </label>
   </div>
+  </details>
   <div class="d-input">
-    <textarea placeholder="Notes..."></textarea>
+    <label><input type="checkbox" data-d="D12"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
   </div>
 </div>
 
-<!-- D13 — was D12 — messageCount derivation -->
-<div class="decision open" data-id="D13" data-status="open">
+<!-- D13 — messageCount derivation — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D13" data-status="locked">
   <div class="d-head">
     <span class="d-id">D13 · messageCount derivation when sessions-index.json is absent</span>
-    <span class="d-status open">Open</span>
+    <span class="d-status locked">Locked</span>
   </div>
   <div class="d-q">When the active CWD has no sessions-index.json, how does Duo compute messageCount
     for the T1 idle-threshold trigger?</div>
-  <p style="font-size: 12px; color: var(--ink-mute); margin-top: 6px;">
-    Architectural pick — no UI mockup. The options differ in where the message-count signal comes
-    from, not in what the user sees.
-  </p>
-  <div class="d-options">
-    <label class="d-option"><input type="radio" name="D13" value="jsonl-count">
-      <span class="opt-title">a · Count <code>type:'user'</code> entries in the JSONL <span class="rec-tag">Recommended</span></span>
+  <div class="d-a">
+    <strong>Option a · Count <code>type:'user'</code> entries in the JSONL.</strong> Read fresh per
+    render — no Duo-side cache per D9. OS page cache makes the re-read near-free for hot JSONLs.
+    Matches what Claude itself tracks (the values agree when sessions-index <em>is</em> present).
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:49Z: <em>"Aligned."</em>
+  </div>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options (collapsed)</summary>
+  <div class="d-options" style="margin-top: 6px;">
+    <label class="d-option"><input type="radio" name="D13" value="jsonl-count" checked>
+      <span class="opt-title">a · Count <code>type:'user'</code> entries in the JSONL <span class="rec-tag">Locked</span></span>
       <div class="opt-detail">Cheap, deterministic, matches what Claude itself tracks. Read fresh per
         render (no Duo-side cache per D9; the OS page-cache makes this near-free anyway).</div>
     </label>
@@ -1827,8 +1891,10 @@ agent must be able to do the same.</p>
         on a session-resume.</div>
     </label>
   </div>
+  </details>
   <div class="d-input">
-    <textarea placeholder="Notes..."></textarea>
+    <label><input type="checkbox" data-d="D13"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
   </div>
 </div>
 
@@ -2049,7 +2115,7 @@ clicking the radios above and Copy-review.</p>
 <p style="font-size: 11px; color: var(--ink-mute); margin-top: 32px; padding-top: 14px;
           border-top: 1px dashed var(--paper-edge);">
   Path: <code>docs/prd/enh-183-claude-session-lifecycle.html</code> · Sprint 21 / v0.7.9 ·
-  Filed 2026-05-24 · 13 decisions (D1–D9 locked, D10–D13 open for owner pick).
+  Filed 2026-05-24 · 13 decisions, all now locked (D1–D9 in initial draft; D10–D13 via owner Notion comments 2026-05-24).
 </p>
 
 <!-- ═══════════════════════════════════════════════════════════════════ -->
@@ -2057,7 +2123,7 @@ clicking the radios above and Copy-review.</p>
 <div class="review-bar">
   <div class="review-inner">
     <div class="counter">
-      <span class="num" id="ct-accepted">9</span> accepted ·
+      <span class="num" id="ct-accepted">13</span> accepted ·
       <span class="num" id="ct-overridden">0</span> overridden ·
       <span class="num" id="ct-picked">0</span>/4 open picked
     </div>
@@ -2142,17 +2208,14 @@ clicking the radios above and Copy-review.</p>
 
   function updateCounters({ overrides, picks }) {
     const overriddenCount = Object.keys(overrides).length;
-    const acceptedCount = 9 - overriddenCount;
-    const pickedCount = Object.keys(picks).length;
+    const acceptedCount = 13 - overriddenCount;
     document.getElementById('ct-accepted').textContent = acceptedCount;
     document.getElementById('ct-overridden').textContent = overriddenCount;
-    document.getElementById('ct-picked').textContent = pickedCount;
+    document.getElementById('ct-picked').textContent = 0; // legacy field; all 13 now locked
     const summary =
-      overriddenCount === 0 && pickedCount === 4
-        ? '✓ All locked decisions accepted · all open decisions picked'
-        : overriddenCount === 0 && pickedCount < 4
-        ? `${acceptedCount} locked accepted · ${4 - pickedCount} open decision${4-pickedCount===1?'':'s'} still to pick`
-        : `${overriddenCount} locked override${overriddenCount===1?'':'s'} · ${pickedCount}/4 open picked`;
+      overriddenCount === 0
+        ? '✓ All 13 decisions locked. Implementation can proceed (Step 0 verification gates).'
+        : `${overriddenCount} locked override${overriddenCount===1?'':'s'} — re-confirm with owner before building`;
     document.getElementById('review-summary').textContent = summary;
   }
 
@@ -2165,8 +2228,8 @@ clicking the radios above and Copy-review.</p>
     const { overrides, picks, notes } = gather();
     const lines = [`[ENH-183 PRD review · ${new Date().toISOString().slice(0,10)}]`, ''];
     // locked decisions
-    lines.push(`## Locked decisions (D1–D9)`);
-    ['D1','D2','D3','D4','D5','D6','D7','D8','D9'].forEach(id => {
+    lines.push(`## All 13 locked decisions (overrides flagged below)`);
+    ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13'].forEach(id => {
       if (overrides[id]) {
         lines.push(`  ${id}: OVERRIDE — ${overrides[id].split('\n').join(' ')}`);
       } else {
@@ -2175,8 +2238,18 @@ clicking the radios above and Copy-review.</p>
     });
     lines.push('');
     // open decisions
-    lines.push(`## Open decisions (D10–D13)`);
-    ['D10','D11','D12','D13'].forEach(id => {
+    // (D10–D13 are now locked too; included in the loop above)
+    lines.push(`## Owner-picked options (Notion comments 2026-05-24)`);
+    [
+      ['D10','B','vertical mini-list; copy: "Resume previous session"'],
+      ['D11','3-show-all','3 visible + show-all link'],
+      ['D12','dot','small accent dot 6×6px'],
+      ['D13','jsonl-count','count type:user JSONL entries, no cache'],
+    ].forEach(([id, val, note]) => {
+      lines.push(`  ${id}: ${val} — ${note}`);
+    });
+    // also include AC items + override loop placeholder
+    [].forEach(id => {
       const pick = picks[id] || '(not picked)';
       const note = notes[id] ? `  ${notes[id].split('\n').map(l => '    ' + l).join('\n')}` : '';
       lines.push(`  ${id}: ${pick}${note ? '\n' + note : ''}`);

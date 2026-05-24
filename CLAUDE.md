@@ -546,6 +546,80 @@ and 7b (always run smoke walks via the skill). It moves the
 verification work UP-FUNNEL — closer to "I just wrote the code"
 instead of "the user just walked it and FAILed."
 
+### 7f. VERIFY ARTIFACTS END-TO-END BEFORE CLAIMING READY
+
+**HARD RULE — after producing any artifact (Notion page, file write,
+commit, smoke-walk page, generated HTML, CLI output), don't say "ready"
+until you've read it back through the same path the user will use.**
+A successful tool response is NOT verification. The patterns:
+
+- **Wrote a file** → `Read` it back (or `Bash cat` if structural
+  concerns) and confirm content matches intent. Especially after
+  large `Write` operations or multi-edit batches.
+- **Created/updated a Notion page** → call `notion-fetch` and
+  confirm: newlines render as newlines (not `n` characters), tables
+  render as Notion tables (not escaped pipes), embedded image URLs
+  resolve (HTTP 200 OK with non-zero bytes via curl).
+- **Created a GitHub Release** → fetch the release URL and confirm
+  the body + assets are what you intended.
+- **Pushed a commit** → `git log -1` + skim the diff; confirm hash,
+  message, and file list match.
+- **Generated a smoke-walk page** → open via `duo open`, confirm
+  the page renders + Copy-results button actually copies before
+  handoff (per the existing § 7c rule).
+
+**Why this exists.** ENH-183 PRD work 2026-05-24 burned ~90 minutes
+because I trusted a `notion-update-page` 200 response and never
+fetched back. The page was a single run-on paragraph with newline
+escape sequences mangled to literal `n` characters. Owner had to
+catch it. Similar failure modes throughout the session: claiming
+FOLLOWUP-027 was "verified live" when only CLI checks ran;
+declaring smoke-walk pages ready without exercising the worksheet
+primitive (§ 7c addresses one slice; this rule is the generalization).
+
+**Litmus test.** Before writing "ready for review" / "done" /
+"shipped" in a message, ask: *did I just look at the artifact in the
+form the user will see it?* If no, do that first. If the verification
+itself reveals problems, fix them silently rather than reporting
+"done but with caveats."
+
+### 7g. REWRITE INSTEAD OF PATCH AFTER TWO ROUNDS OF MESS-FEEDBACK
+
+**HARD RULE — if the user says any variant of "you've made a mess /
+clean this up / this is wrecked / illegible / start over" on the same
+artifact, STOP layering edits and rewrite it from scratch.** Each
+patch drags stale assumptions from the layer below; the cumulative
+result is incoherent even when each individual edit was correct.
+
+The signal isn't "the user is being demanding." It's "the file is
+structurally broken in a way edits can't fix" — usually because
+the framing changed and individual replacements can't update the
+spine.
+
+**The threshold:**
+- **1st round of mess-feedback** — fine, large edit may still
+  converge. Apply the correction.
+- **2nd round of mess-feedback on the SAME artifact** — drop the
+  file. Start fresh. Don't apologize at length; just do it.
+
+**Why this exists.** ENH-183 PRD work 2026-05-24: owner said "you've
+made a bit of a mess" early. I kept patching for ~90 minutes across
+8+ edits. Then owner said "stop rushing this slop output and do the
+fucking work" — that was the 2nd-round signal. The eventual clean
+rewrite (~10 minutes once committed to it) produced a usable
+artifact on the first try. Every patch-iteration before that was
+load-bearing wasted time.
+
+**The mechanics.** Before the second-round rewrite:
+1. Acknowledge in one sentence — "doing a clean rewrite of X." No
+   long apology.
+2. Read whatever input artifacts are still useful (the user's
+   intent, decision locks, mockups, prior commits). Discard the
+   broken draft.
+3. Write the new artifact in one pass. Don't iterate against the
+   broken one.
+4. Apply § 7f verification before declaring ready.
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits
@@ -645,6 +719,75 @@ already; live in `docs/prd/<slug>.md`), session-log / active-sprint
 breadcrumbs (machine-readable, agent-consumed), `tasks.md` ledger
 entries. The HTML rule is for **owner-decision-shaped artifacts** —
 options, gates, AUQs, pick-one-from-N.
+
+### 12. NO SIDECAR ANTI-PATTERN — state lives where it belongs
+
+**HARD RULE — before introducing any Duo-owned file, cache, or
+auxiliary data structure that mirrors, annotates, or extends another
+system's state, ask: *would this introduce a filesystem ↔
+external-system drift risk?*** If the external system is the source
+of truth, Duo's parallel store will be stale the moment the external
+system mutates. Default to reading the source of truth live every
+time.
+
+**External systems Duo reads from (read-only; never shadow):**
+- **Claude Code storage:** `~/.claude/projects/<encoded-cwd>/`
+  (sessions-index.json, JSONL files), `~/.claude/settings.json`,
+  `~/.claude/skills/`, `~/.claude/agents/`.
+- **Git worktree:** `.git/`, work-tree-root, branch, dirty status,
+  remote URL. Always read live via `git` invocations.
+- **Chrome browser state** (when reading via CDP): tab URLs, titles,
+  history. Never persisted into a Duo cache.
+- **The user's filesystem:** file mtimes, directory listings,
+  inotify/fsevents. Read live; OS page cache makes this near-free.
+
+**What's acceptable in Duo-owned storage:**
+- **Pointers** into external systems. Example: workspace JSON storing
+  `lastClaudeSession.id` — that's a *pointer*, not a copy of the
+  session title. Looking up the title still goes through Claude's
+  storage live.
+- **In-memory renderer state** that resets on Duo restart: render
+  flags, throttles, modal open/closed, edit-mode flags, dismissal
+  state for the current session. Persisting this to disk converts
+  it into a sidecar — don't.
+- **Duo-owned concepts the external system doesn't track**: workspace
+  tab layout, split-pane percentages, terminal `kind` (claude vs
+  shell vs nothing), pin URLs in `~/.claude/duo/pins.json`,
+  installed-packs metadata in `~/.claude/duo/installed-packs.json`.
+  These describe Duo, not an external system.
+
+**Examples of the anti-pattern (rejected during ENH-183 PRD):**
+- *"Track which sessions Duo auto-named in
+  `~/.claude/duo/hydrated-sessions.json` so we can show an AUTO
+  badge."* — Rejected. Once Claude's storage has a `customName`,
+  there is no truth to "who wrote it" outside Claude's own write
+  history. A Duo sidecar would diverge silently any time the user
+  edited `sessions-index.json` by hand, restored from backup,
+  upgraded Claude, etc.
+- *"Cache git status in workspace metadata so we don't have to
+  re-run `git status` on every render."* — Rejected (would have
+  been). The work-tree mutates outside Duo's awareness; cache goes
+  stale the moment the user runs a shell `git checkout`.
+- *"Cache browser tab titles in workspace JSON so restore is
+  faster."* — Rejected (would have been). Page title updates after
+  load; cached value is stale by definition.
+
+**Litmus test before adding a new Duo-owned file:**
+1. Is the data in this file derivable from an external system's
+   state? → It's a sidecar. Read live instead.
+2. Is the data describing something Duo itself manages (workspace
+   layout, install state, user prefs that don't shadow OS-level
+   prefs)? → Acceptable.
+3. Is it a *pointer* (an ID) that resolves into external state on
+   demand? → Acceptable.
+
+**Why this exists.** Owner directive 2026-05-24 during ENH-183 work:
+*"session name should live in the Claude metadata, not annexed off
+in some duo specific data structure — your proposed approach risks
+file system ↔ Claude metadata drift."* The AUTO-badge proposal
+required a sidecar; the sidecar was the bug. Codified as ENH-183 §
+D9 architectural invariant; this rule generalizes it across the
+codebase.
 
 ---
 
