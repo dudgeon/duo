@@ -372,11 +372,28 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
         return { ...t, lastClaudeSession: null as null }
       }
 
-      // ENH-183 C9 — T3 trigger fires only for tabs that hosted
-      // Claude (same gate as the capture above; otherwise we'd be
-      // /rename-injecting JSONLs that belong to other tabs in the
-      // same CWD).
-      if (tabHostedClaude && tabId) {
+      // ENH-183 C9 — T3 trigger DISABLED 2026-05-24 after BUG-156
+      // (Claude spontaneously quit during the rev3 T3 walk; the
+      // user hypothesized PTY-injected /rename mid-turn as the
+      // cause). Forensics showed NO custom-title write reached the
+      // user's session JSONL — my gate "already-has-aiTitle" should
+      // have blocked any injection — but the cause is unconfirmed
+      // and the failure mode is severe (data loss + repeat crash
+      // on /resume). Killing the auto path until we have evidence
+      // it's safe to re-enable.
+      //
+      // CLI surfaces remain available — `duo session hydrate <tabId>`
+      // is explicit user action, so the same risk doesn't apply
+      // (user controls timing relative to Claude's turn state).
+      // Same for pill click + inline rename — all user-initiated.
+      //
+      // To re-enable: prove via tracer logging that /rename
+      // injections never land while Claude is mid-turn; OR add a
+      // "claude idle" gate (check `last-prompt`/`queue-operation`
+      // state in JSONL tail before injecting).
+      const T3_AUTO_HYDRATION_ENABLED = false
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (T3_AUTO_HYDRATION_ENABLED && tabHostedClaude && tabId) {
         void (async () => {
           try {
             const { maybeHydrate } = await import('./session-hydrator')
