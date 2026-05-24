@@ -23,7 +23,10 @@ export type SessionHeaderUiState = {
 
 const DEFAULT_STATE: SessionHeaderUiState = {
   dismissedBanner: false,
-  collapsed: false,
+  // S2 default is collapsed-to-dot (D12 = option a). Expansion is an
+  // explicit user gesture (click active tab) — keeps the surface
+  // quiet until the user wants to see it.
+  collapsed: true,
   pillsVisible: true,
   editingTitle: false,
 }

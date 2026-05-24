@@ -1519,6 +1519,19 @@ function setupIPC(): void {
     sessionStateService.save(state)
   })
 
+  // ENH-183 C5 — banner-title + message-count lookups against Claude's
+  // JSONL store. Both are pure reads (D9 invariant — no caching, no
+  // sidecars). Imports lazy because claude-session-tracker is read-only
+  // and the IPC fires per banner render.
+  ipcMain.handle(IPC.SESSION_READ_BANNER_TITLE, async (_event, payload: { uuid: string; cwd: string }) => {
+    const { readBannerTitle } = await import('./claude-session-tracker')
+    return readBannerTitle(payload.uuid, payload.cwd)
+  })
+  ipcMain.handle(IPC.SESSION_READ_MESSAGE_COUNT, async (_event, payload: { uuid: string; cwd: string }) => {
+    const { readMessageCount } = await import('./claude-session-tracker')
+    return readMessageCount(payload.uuid, payload.cwd)
+  })
+
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
   // here; CLI verbs reach the same helpers via NavBridge).
   ipcMain.handle(IPC.WORKSPACE_FILE_SAVE, async (_event, opts: { saveAs?: boolean }) => {

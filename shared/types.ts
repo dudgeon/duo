@@ -1780,7 +1780,15 @@ export const IPC = {
   // (used by the Navigator right-click "Clone GitHub repo here…"
   // menu item). Main echoes via NAV_OPEN_CLONE_MODAL with the same
   // payload so App.tsx's subscriber handles both paths uniformly.
-  NAV_OPEN_CLONE_MODAL_REQUEST: 'nav:open-clone-modal-request'
+  NAV_OPEN_CLONE_MODAL_REQUEST: 'nav:open-clone-modal-request',
+
+  // ENH-183 C5 — read banner title + user-message-count from the
+  // Claude JSONL store. Renderer → main; main consults JSONL only
+  // (D5 read ladder, D13 derivation). No caching — D9 invariant
+  // means the renderer recomputes via this call on every banner
+  // render. The cost is bounded by readJsonlLines' head+tail caps.
+  SESSION_READ_BANNER_TITLE: 'session:read-banner-title',
+  SESSION_READ_MESSAGE_COUNT: 'session:read-message-count'
 } as const
 
 

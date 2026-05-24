@@ -564,6 +564,16 @@ export interface ElectronTerminalAPI {
 /** ENH-013 — claude-presence state. See electron/claude-presence.ts. */
 export type ClaudePresenceState = 'no-pty' | 'shell' | 'claude' | 'starting'
 
+// ENH-183 C5 — read-only API over Claude session JSONLs for the
+// polymorphic SessionHeader. Both methods recompute on every call (no
+// cache, D9 invariant). Backed by electron/claude-session-tracker.ts.
+export type BannerTitleSource = 'customTitle' | 'aiTitle' | 'jsonl-firstmsg' | 'uuid'
+export interface BannerTitleResult { title: string; source: BannerTitleSource }
+export interface ElectronSessionAPI {
+  readBannerTitle: (uuid: string, cwd: string) => Promise<BannerTitleResult>
+  readMessageCount: (uuid: string, cwd: string) => Promise<number>
+}
+
 /** Issue #27 — URL-bar autocomplete suggestion shape. Returned by
  *  `browser.historySuggest`. */
 export interface HistorySuggestion {
@@ -952,6 +962,9 @@ export interface ElectronAPI {
   // context-menu click handlers.
   clipboard: ElectronClipboardAPI
   sessionState: ElectronSessionStateAPI
+  // ENH-183 C5 — banner-title + message-count lookups against the
+  // Claude JSONL store. Pure reads (D9 invariant).
+  session: ElectronSessionAPI
   // ENH-167 — workspace-as-file (Save / Open / Open Recent menu).
   workspaceFile: ElectronWorkspaceFileAPI
   events: ElectronEventsAPI

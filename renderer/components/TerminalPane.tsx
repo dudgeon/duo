@@ -183,6 +183,7 @@ export function TerminalPane({
         <SessionHeader
           tabId={activeTab.id}
           lastClaudeSession={activeTab.lastClaudeSession}
+          cwd={activeTab.cwd}
           claudePresence={claudePresence}
           onResume={(sessionId) => {
             void window.electron.pty.write(activeTab.id, `claude --resume ${sessionId}\n`)
