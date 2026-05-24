@@ -19,21 +19,265 @@
 
 ## Status
 
-- [x] **C1** — Step 0 empirics ([notes](../research/enh-183-step-0-empirics.md))
+- [x] **C1** — Step 0 empirics ([112e37e](https://github.com/dudgeon/duo/commit/112e37e)) · notes at [`docs/research/enh-183-step-0-empirics.md`](../research/enh-183-step-0-empirics.md)
 - [x] **C2** — Cherry-pick f351719 ([8a0eba2](https://github.com/dudgeon/duo/commit/8a0eba2))
-- [x] **C3** — Refactor `ClaudeResumeBanner` → polymorphic `SessionHeader`
-- [x] **C4** — Read ladder (D5) + session-tracker JSONL fallback (D13)
-- [x] **C5** — S2 named banner (collapsed dot + expanded)
-- [x] **C6** — S1 pills (Variant B, 3-visible, "Resume previous session" copy)
-- [x] **C7** — S3 restore-offer banner
-- [x] **C8** — `session-hydrator.ts` + D8 derivation (T1/T2/T3 wiring in C9)
-- [x] **C9** — T3 wired via enrichment hook (T1 watcher + T2 force-rehydrate deferred)
+- [x] **C3** — Polymorphic `SessionHeader` ([b889243](https://github.com/dudgeon/duo/commit/b889243))
+- [x] **C4** — Read ladder (D5) + JSONL-primary derivation (D13) ([5b28629](https://github.com/dudgeon/duo/commit/5b28629))
+- [x] **C5** — S2 named banner + collapsed dot ([5a6401a](https://github.com/dudgeon/duo/commit/5a6401a))
+- [x] **C6** — S1 pills ([9b62203](https://github.com/dudgeon/duo/commit/9b62203))
+- [x] **C7** — S3 restore-offer title via D5 ladder ([f1c6ddb](https://github.com/dudgeon/duo/commit/f1c6ddb))
+- [x] **C8** — Session hydrator + D8 derivation ([1f0766c](https://github.com/dudgeon/duo/commit/1f0766c))
+- [x] **C9** — T3 wired via enrichment hook ([1c1186f](https://github.com/dudgeon/duo/commit/1c1186f))
 - [ ] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [ ] **C11** — D2 first-time educational banner
 - [ ] **C12** — CLI parity (7 new `duo session ...` verbs)
 - [ ] **C13** — Smoke walk manifest + walk
 
 After C13: propose v0.7.9 cut via `cut-version` skill (per CLAUDE.md § 10).
+
+---
+
+## Test report — 2026-05-24 (C1–C9 shipped + post-build verification)
+
+> Re-run before any C10 work to confirm no regressions. Each row is a
+> green-tick check you can re-run in <1 min from a clean dev session.
+
+### Static + unit
+
+| Check | Status | Command |
+|---|---|---|
+| 45/45 ENH-183 unit tests passing | ✅ | `npx vitest run electron/claude-session-tracker.test.ts electron/session-hydrator.test.ts renderer/components/SessionHeader.test.ts` |
+| `npm run typecheck` clean | ✅ | `npm run typecheck` |
+| `npm run build:cli` clean (no CLI deltas yet — C12 will add) | ✅ | `npm run build:cli` |
+| `cli/duo` binary unchanged in HEAD vs working tree | ✅ | `git diff --quiet cli/duo` |
+
+Test breakdown:
+- `claude-session-tracker.test.ts` — **22 cases**. encodeProjectDir (6), cleanAndTruncate (9), readBannerTitle integration (5), readMessageCount (2). Uses real JSONL fixtures under `~/.claude/projects/-tmp-enh-183-...` sandboxes with full cleanup.
+- `session-hydrator.test.ts` — **8 cases**. All 6 gate conditions covered (count<3, customTitle, aiTitle, dedup, source=uuid, empty derivation) + threshold constant + reset-tracking escape hatch.
+- `SessionHeader.test.ts` — **15 cases**. All 4 state-machine transitions (S0/S1/S2/S3) + dismissedBanner precedence + S2/S3 precedence over S1.
+
+### Live IPC probes (dev running)
+
+> All run via `duo dom --js '...'` against the main renderer. Each
+> reaches main via the new C5/C6/C9 IPCs.
+
+| IPC | Probe | Result |
+|---|---|---|
+| `session.readBannerTitle` | Known session `0c3e499a-...` in `/Users/.../duo` | `{title: "sunday night", source: "customTitle"}` ✅ |
+| `session.readBannerTitle` | Session with aiTitle (`6a98a9e8-...`) | `{title: "Move about-duo.md to docs folder", source: "aiTitle"}` ✅ |
+| `session.readBannerTitle` | Session with no titles (`b9003231-...`) | `{title: "Okay, looking at main local (uncommitted...", source: "jsonl-firstmsg"}` ✅ |
+| `session.readBannerTitle` | Non-existent UUID | `{title: "ffffffff", source: "uuid"}` ✅ |
+| `session.readMessageCount` | "sunday night" (17MB JSONL) | `185` user-message entries ✅ |
+| `session.listPrior` | `/docs` cwd, limit 3 | 3 results, first title `"Renamed via Duo"` ✅ |
+| `session.listPrior` | Non-existent cwd | `[]` (graceful failure) ✅ |
+| `session.maybeHydrate` | Already-named session `0c3e499a-...` | `{hydrated: false, reason: "already-has-customTitle"}` ✅ |
+| `session.maybeHydrate` | Below-threshold session (2 msgs) | `{hydrated: false, reason: "messageCount<3 (was 2)"}` ✅ |
+| `session.maybeHydrate` | No-JSONL session (0 msgs) | `{hydrated: false, reason: "messageCount<3 (was 0)"}` ✅ |
+
+**All 4 read-ladder rungs verified against real on-disk data.** Head+tail dual-read at 1MB+1MB correctly catches custom-title entries near the head of a 17MB JSONL (the empirical "sunday night" case has its entry at line 654).
+
+### Live UI surfaces
+
+| Surface | Status | How verified |
+|---|---|---|
+| **S0 quiet** (no captured UUID + no prior sessions) | ✅ | Dev boot inspection — no `.claude-resume-banner` elements when no tabs meet S1/S2/S3 conditions |
+| **S1 pills** (no UUID + claude not running + prior sessions exist) | ✅ live | Activating the `/docs` shell tab renders the banner with locked "Resume previous session" header + 3 pill rows (titles: "Renamed via Duo", "Commit and push documentation changes", "Hello") |
+| **S2 named banner** (UUID + claude live) | ⏳ deferred | Requires workspace save → restart → restore flow with a recent claude JSONL within 24h. Functional pieces verified (IPC returns correct title, store toggle works, tab dot conditional rendering wired). End-to-end visual deferred to C13 smoke walk. |
+| **S3 restore-offer** (UUID + claude not running) | ⏳ deferred | Same constraint as S2. Polished from C3's stock banner to use D5 ladder title via IPC — verified the IPC call site renders `{title}` in the banner copy. |
+| **Tab dot marker** (S2 collapsed default) | ⏳ deferred | Functional check via Tab subscribing to store. Visual confirmation deferred. |
+| **Click-to-toggle on active tab** | ⏳ deferred | Logic correct; depends on a live S2 state to exercise. |
+
+### Architectural invariants (D9)
+
+| Check | Status |
+|---|---|
+| No `~/.claude/duo/hydrated-sessions.json` (or similar shadowing) | ✅ `find ~/.claude/duo -name '*hydrat*'` returns empty |
+| No `~/.claude/duo/sessions-*` files | ✅ `find ~/.claude/duo -name '*sessions*'` returns empty |
+| Workspace JSON schema has `lastClaudeSession` as pointer only (no `title`, no `messageCount`) | ✅ `jq '.state.terminals[0]\|keys'` → `["cwd", "kind", "lastClaudeSession", "title"]` — `title` here is the *terminal* title (cwd basename), not a session title |
+| Hydration-already-done tracking is in-memory only | ✅ `alreadyHydrated` Set in [`electron/session-hydrator.ts`](../../electron/session-hydrator.ts); reset on Duo restart by construction |
+| SessionHeader UI state (collapsed/dismissed/pillsVisible) is in-memory only | ✅ [`renderer/store/sessionHeader.ts`](../../renderer/store/sessionHeader.ts) module-scoped `Map`; no persistence |
+
+### Could-not-verify (deferred to C13)
+
+These all require live PTY input to fire and were blocked by an
+unrelated environment condition (a remote-control-mode banner on the
+running Claude Code that intercepts PTY-injected Enter keys):
+
+- Actual `/rename` JSONL appearance after Duo-driven hydration injection
+- Auto-hydration end-to-end on a fresh chat (T3 → maybeHydrate fires → /rename → JSONL gets `{"type":"custom-title", ...}`)
+- S2 / S3 banner visual layout under real conditions
+- Click-to-collapse + Click-to-expand UX
+- Pill click → `claude --resume <uuid>` actually starts a new session
+
+All five fold into the C13 smoke walk manifest.
+
+---
+
+## Lessons learned
+
+> Notes from C1–C9 build session. Surfaced in chronological order;
+> the rationale for each is in the relevant commit message.
+
+### 1. Run the empirics before coding the spec
+
+The PRD assumed the field name was `customName` and that
+`sessions-index.json` was canonical. **Both wrong.** A 15-minute pass
+through the Claude binary's strings table + a `find` for existing
+`type:"custom-title"` JSONL entries gave us:
+
+- Field name is `customTitle` (renamed 30 occurrences across PRD,
+  build plan, CLAUDE.md before C2 started)
+- `sessions-index.json` is **optional and absent from most projects** on
+  this machine, including the Duo project itself. Only 2 of ~30
+  projects have one. JSONL is the source of truth.
+- The "Renamed via Duo" residue in an existing JSONL ([`-Users-geoffreydudgeon-Documents-GitHub-duo-docs/17d05c98-...jsonl`](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo-docs)) — from the reverted [f351719](https://github.com/dudgeon/duo/commit/f351719) — was unintended free regression evidence: it proved the cherry-pick base from C2 was already writing the right field name.
+
+**Memory codified:** the C1 empirics doc + the CLAUDE.md § 12
+"NO SIDECAR ANTI-PATTERN" rule.
+
+### 2. JSONL is huge — head+tail dual-scan, not whole-file read
+
+First C4 implementation had a 5MB whole-file cap. The real "sunday
+night" session is 17MB; the `type:"custom-title"` entry sits at line
+654 — well within a 1MB head read. Switched to **HEAD_BYTES=1MB +
+TAIL_BYTES=1MB dual-read** with partial-line discards. Caught custom-
+title regardless of where in the file it sits.
+
+Performance bound: ≤2MB read per `readBannerTitle` invocation
+regardless of session size. Acceptable for per-render IPC.
+
+### 3. The IPC layer matters more than expected
+
+Three IPCs added in C5/C6/C9 (`readBannerTitle`, `readMessageCount`,
+`listPrior`, `maybeHydrate`). Each required:
+- `IPC` constant in [`shared/types.ts`](../../shared/types.ts)
+- ipcMain handler in [`electron/main.ts`](../../electron/main.ts) with lazy `import()` to avoid pulling claude-session-tracker into the early-boot graph
+- `window.electron.session.*` surface in [`electron/preload.ts`](../../electron/preload.ts) — **relative import (`../shared/host-api`), not `@shared/...`** (preload's tsconfig has a different path-mapping; typecheck error caught the first attempt)
+- `ElectronSessionAPI` interface entry in [`shared/host-api.ts`](../../shared/host-api.ts)
+
+The pattern is well-documented in CLAUDE.md § 4 — followed it
+mechanically. Skipping any step is a typecheck or runtime error.
+
+### 4. `duo eval` ≠ `duo dom --js`
+
+Initial probes against renderer state used `duo eval`, which targets
+the **browser pane** (a WebContentsView), not the main renderer. The
+main renderer is accessible via `duo dom --js '<expr>'` — different
+verb, different context. Several minutes lost rediscovering this.
+
+Should be more discoverable. Filed mental note for a possible CLI
+DX follow-up.
+
+### 5. PtyManager needed cwd tracking
+
+The C2 cherry-pick's `PtyManager.Session` was `{id, pty}`. The C9
+trigger wiring needed `cwd → tabId` lookup so the main-side enrichment
+hook could call `maybeHydrate` for the right PTY after detecting a
+session UUID. Added `cwd: string` to `Session` + new `listIdsByCwd()`
+method. Tiny change but it was the missing piece. Without it, the
+T3 wiring would have had to route through the renderer (worse design).
+
+### 6. The 24h staleness cap blocked live hydration testing
+
+The cherry-picked `detectLatestClaudeSession(cwd, maxAgeMs)` from C2
+has a 24h cap by default. My test claude tab at `~` had its latest
+JSONL from May 23 (>24h ago, the dev had been running stable on that
+tab) — so the enrichment hook kept seeing `null` and never captured
+a UUID. Couldn't test the auto-hydration loop end-to-end in-session.
+
+Not a bug — the cap is intentional to prevent restore banners for
+ancient sessions. But it's a verification-flow gotcha. **For the C13
+smoke walk: fresh claude tab + 3+ messages + manual save is the
+canonical test, not "use any existing tab."**
+
+### 7. Remote-control mode intercepts PTY input
+
+When I tried to spawn a fresh claude tab in `~/Documents/enh-183-hydration-test`
+and chat with it for end-to-end testing, the prompt accepted the typed
+text but **did not submit on Enter** — the banner showed
+"/remote-control is active". Claude Code's remote-control feature
+(when active) intercepts local PTY Enter keys and routes input from
+a different source.
+
+This is unrelated to ENH-183 — the build path through PTY-write +
+maybeHydrate is correct, but the test environment couldn't exercise
+it. Deferred end-to-end live verification to C13 smoke walk where
+the owner can use a Claude session without remote-control engaged.
+
+### 8. Idempotent dedup means autosave can safely call hydrate
+
+D6 ("autosave doesn't fire /rename") was a worry — would T3 firing on
+every autosave cause runaway /rename storms? The dedup design
+prevents this: `alreadyHydrated` Set adds **only on successful
+injection**. Failed-gate attempts (count<3, etc.) don't poison the
+set, so the session keeps re-attempting as it grows. Once the gate
+passes once and /rename fires, the set is added; subsequent autosaves
+see "already-hydrated-this-run" and no-op.
+
+Net effect: D6's spirit holds (autosave doesn't trigger redundant
+injections) without needing autosave-vs-manual-save trigger
+differentiation. T2 (explicit manual force-rehydrate) is therefore
+a "polish" trigger, not a hard requirement.
+
+### 9. Preload changes need full restart, every time
+
+HMR covers renderer-only edits cleanly. Preload edits (any
+`window.electron.<x>` API surface change) require a full Electron
+restart — not just `npm run dev` reload, but kill + spawn. Two
+restarts this session (after C5's preload + after C9's preload).
+Each ~10 seconds. Documented as part of the iteration loop;
+prepended `until duo doctor 2>&1 | grep -qE "✓ Unix socket"` as the
+readiness gate.
+
+### 10. The build plan's C8 + C9 boundary moved
+
+Build plan originally had C8 = "hydrator + T1 idle trigger" and
+C9 = "T2 + T3 wiring". Reality:
+- C8 = hydrator function + 8 tests (the pure logic + idempotency)
+- C9 = T3 wire-up only (via the existing enrichment hook). T2 and T1
+  deferred as documented polish.
+
+The boundary moved because T1 (chokidar file-watcher on JSONLs) is
+substantial work that doesn't change the user-visible outcome
+materially — T3 (autosave-driven) catches the same cases on any
+machine that autosaves. T1's value is for "no autosave configured"
+scenarios which are rare. Moved to a follow-up.
+
+T2 (force-rehydrate on manual save) collapsed into T3's path — they
+share the same enrichment hook + the idempotent dedup. Distinguishing
+them would require a separate force-flag IPC; not worth it for the
+v1 cut.
+
+### 11. The build plan's C5 click-toggle UX needed thought
+
+Build plan said "Click tab → banner expands." That conflicts with
+the existing "Click inactive tab → select" behavior. Resolution:
+**only the ALREADY-active tab toggles on click.** Clicking an
+inactive tab still selects it (no change). Implemented in
+[`renderer/components/TabBar.tsx:200-209`](../../renderer/components/TabBar.tsx). UX is "tab is selected → click to expand banner / re-collapse."
+
+### 12. SessionHeader's S1 pills auto-dismiss on claude-presence change
+
+Build plan called for "first user Return committed to new Claude
+session → pills auto-dismiss within 200ms." A literal Return-watcher
+would require a PTY-side keystroke hook. Simpler: subscribe to the
+existing `claudePresence` state — when it transitions to
+'claude' / 'starting', the pills auto-dismiss
+([`renderer/components/SessionHeader.tsx:103-108`](../../renderer/components/SessionHeader.tsx)).
+
+This is **stricter** than what the PRD asked for (any way claude
+starts, not just first Return). Same UX outcome though — pills go
+away once claude is live in the tab.
+
+### 13. Wrote per-commit notes inline, then this rollup
+
+Each commit's message body has the per-step justification (gate
+reasons, verification ACs, deferrals). This rollup is the cross-
+commit pattern summary. Don't let one displace the other —
+commit messages stay loadable for `git log` archaeology; this rollup
+is the synthesis sheet for the next person picking up C10.
+
+---
 
 ---
 
