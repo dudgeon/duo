@@ -295,9 +295,10 @@ The reload covers TWO classes of failure the HMR path doesn't:
 
 > **HARD RULE — verify with a DOM query that the surface the
 > manifest's first item exercises is actually mounted in the
-> renderer AFTER the reload.** Don't trust that "the code looks
-> right" — query the DOM for the data-attribute the surface
-> sets when rendered.
+> renderer AFTER the reload, AND that its computed styles aren't
+> rendering it invisible.** Don't trust that "the code looks
+> right" — query the DOM for the data-attribute AND inspect
+> computed styles on the surface root + key children.
 
 Every renderer-touching surface in ENH-XXX work MUST expose a
 stable `data-*` attribute so the smoke-walk preflight can probe
@@ -310,7 +311,21 @@ duo dom --js '(() => {
   // Click a known-good tab that triggers the surface
   // ...feature-specific selector...
   const surface = document.querySelector("[data-session-header-state]");
-  return JSON.stringify({mounted: !!surface, state: surface?.dataset.sessionHeaderState});
+  if (!surface) return JSON.stringify({mounted: false});
+  const cs = getComputedStyle(surface);
+  // CRITICAL — also probe computed styles. ENH-183 walk-1 had the
+  // surface MOUNTED with the right textContent but invisible:
+  // - bannerBg: rgba(0,0,0,0) — transparent (var(--duo-surface) undef)
+  // - text colors falling back to dark-on-dark (var(--duo-text) undef)
+  return JSON.stringify({
+    mounted: true,
+    state: surface.dataset.sessionHeaderState,
+    visible: cs.visibility !== "hidden" && cs.display !== "none",
+    bgColor: cs.backgroundColor,
+    color: cs.color,
+    position: cs.position,
+    height: surface.offsetHeight
+  });
 })()'
 ```
 
@@ -318,9 +333,61 @@ If the probe returns `{mounted: false}`, the renderer is stale OR
 the gate logic is broken. Either way, **do not hand off** until
 the probe returns the expected mounted state.
 
+**If `bgColor` is `rgba(0,0,0,0)` (transparent) OR `color` matches
+`bgColor` or any parent's bgColor, FAIL the preflight.** That's the
+"surface is mounted but invisible" failure mode from ENH-183
+walk-1. The bug was undefined CSS vars (`var(--duo-text)`,
+`var(--duo-surface)` — neither exists in Duo's actual token set);
+fallbacks resolved to dark-on-dark text. Element existence checks
+PASSED but the user saw nothing.
+
 **Manifest authors:** in your manifest's intro, list the DOM
-selectors you used to preflight each surface. Future agents
-re-walking the same manifest can re-probe identically.
+selectors AND the expected computed-style invariants for each
+surface (e.g. "background must be opaque", "primary text color
+must contrast with banner bg by ≥ 4.5:1"). Future agents
+re-walking the same manifest re-probe identically.
+
+### 4d. PROBE the renderer-state preconditions every gate depends on
+
+> **HARD RULE — when a surface's gate depends on renderer/main
+> state (workspace metadata, in-memory stores, IPC-driven flags),
+> verify that state explicitly before claiming the surface "should
+> render."** Don't just check that the surface CAN render; check
+> that the state-machine inputs are what you think they are.
+
+ENH-183 walk-1 had a second mount failure that this rule would
+catch: the user opened a fresh shell tab in a CWD with prior
+sessions, expecting S1 pills. The pills didn't render — but neither
+was the surface "broken." S3 was rendering instead because the
+autosave-driven enrichment hook had silently captured
+`lastClaudeSession.id` on the fresh tab. The discriminator was
+working correctly given its inputs; the inputs were wrong.
+
+**Probe pattern for state-dependent gates:**
+
+```bash
+# For ENH-183 specifically:
+duo dom --js '(() => {
+  // Direct introspection of the renderer-state fields the
+  // discriminator reads. Add a debug attribute in the surface
+  // component (or call window.__duoGetState() if exposed) so the
+  // preflight can see the actual inputs.
+  const banner = document.querySelector("[data-session-header-state]");
+  return JSON.stringify({
+    renderedState: banner?.dataset.sessionHeaderState,
+    expectedStateIf: "fresh shell tab + prior sessions in cwd should be S1",
+    diagnostics: banner?.dataset // any data-debug-* attrs the surface exposes
+  });
+})()'
+```
+
+When the probe shows the rendered state ≠ the expected state,
+**investigate the discriminator inputs** before assuming the
+surface is broken. The fix may not be in the renderer at all —
+it could be in main, in workspace metadata, in an IPC handler, or
+in the gate condition itself. The Walk-1 fix for ENH-183 was in
+`electron/main.ts`'s `setEnrichBeforePersistHook`, not in the
+SessionHeader component.
 
 ### 5. Open the smoke walk page in the browser pane
 

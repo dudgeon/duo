@@ -799,6 +799,38 @@ time.
 3. Is it a *pointer* (an ID) that resolves into external state on
    demand? → Acceptable.
 
+**Sub-rule — CAPTURE-ON-EVIDENCE-NOT-SPECULATION (added 2026-05-24
+post ENH-183 walk-1).** Even acceptable Duo-owned pointers must
+only be captured when there's actual evidence the tab/object the
+pointer is attached to is associated with the external thing. Don't
+"guess" a pointer for an empty slot just because the slot's
+attributes (cwd, kind) match something external.
+
+**Concrete example.** The C2 cherry-pick's workspace-save enrichment
+hook captured `lastClaudeSession.id` for every tab whose cwd had
+any recent Claude JSONL — even tabs that never ran Claude. A brand-
+new shell tab in `~/Documents/GitHub/duo/docs` inherited that
+folder's most-recent session UUID on the next autosave, just by
+existing in the right cwd. The polymorphic SessionHeader correctly
+rendered S3 ("This tab had: <title> — Resume") — but the premise
+was false; the tab never *had* that session.
+
+**Fix pattern.** A per-Duo-session in-memory set
+(`tabsThatHostedClaude: Set<tabId>`) records which tabs have
+ACTUALLY produced the evidence — claudePresence transitioned to
+'claude' or 'starting' on that tab. The pointer is only captured
+for tabs in the set OR tabs that already carry a prior pointer
+from disk (workspace-restore case is a legitimate carry-forward).
+
+**Why this matters for D9 specifically.** A "speculative" capture
+isn't sidecar storage in the literal sense — the field is on Duo's
+own object (a `TabSession`). But it's *semantically* a sidecar:
+it claims an association ("this tab had X") that Duo has no actual
+knowledge of. Surface that to the user as a UI affordance and it
+becomes misleading. The fix is the same as the sidecar rule:
+capture only on evidence; read live from the external system; if
+the external system shows nothing, surface nothing.
+
 **Why this exists.** Owner directive 2026-05-24 during ENH-183 work:
 *"session name should live in the Claude metadata, not annexed off
 in some duo specific data structure — your proposed approach risks

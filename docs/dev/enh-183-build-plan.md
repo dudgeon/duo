@@ -277,6 +277,80 @@ commit pattern summary. Don't let one displace the other —
 commit messages stay loadable for `git log` archaeology; this rollup
 is the synthesis sheet for the next person picking up C10.
 
+### 14. Walk-1 fixes (post-walk-1 owner directives, 2026-05-24)
+
+Three real bugs surfaced after the owner walked v0.7.9-rev2.
+Recording them here because each one points at a process gap that
+future enhancements should avoid.
+
+**14a — Cherry-picked CSS vars were undefined ([07d7a08](https://github.com/dudgeon/duo/commit/07d7a08)).**
+The C2 cherry-pick of f351719 referenced `var(--duo-text)`,
+`var(--duo-text-mute)`, `var(--duo-surface)` — none of which exist
+in Duo's actual CSS-var set (`--duo-ink`, `--duo-ink-mute`,
+`--duo-accent`, `--duo-paper-rule`). My C5/C6 pills additions
+inherited the broken vars + added more. Bg fell back to transparent,
+text fell back to dark on dark. Owner reported "text renders
+invisible in light mode; in dark mode I can see the text but there
+is no context." Fix: hardcoded the locked Variant B mockup palette
+(`#1a1814` bg, `#fbf8f1` titles, `#9a9080` mute, `#c46a1c` accent).
+Process gap: my pre-handoff probe checked element existence
+(`querySelector`) but not computed styles (`getComputedStyle(...).
+backgroundColor` etc.). Filed into smoke-walk SKILL.md § 4c.
+
+**14b — Banner was absolute-overlay instead of in-flow ([07d7a08](https://github.com/dudgeon/duo/commit/07d7a08)).**
+Cherry-pick inherited `position: absolute; top: 8px; left: 8px;
+right: 8px` — a floating card over xterm. Mockup wanted a panel
+between the tab strip and xterm. With Bug 14a's transparent bg,
+the shell prompt bled through where the pill row's right-side
+columns should have been. Fix: restructured TerminalPane to
+`flex-col` with SessionHeader above a `relative flex-1 min-h-0`
+terminal container. Banner is now `position: static` (in-flow).
+Process gap: should have re-read the mockup HTML during build to
+catch the layout assumption, not just the color palette.
+
+**14c — Auto-dismiss race + over-capture on fresh tabs ([2584c20](https://github.com/dudgeon/duo/commit/2584c20), [cbaeb9c](https://github.com/dudgeon/duo/commit/cbaeb9c)).**
+Owner observed: "opened new raw terminal tab in same CWD, didn't
+see resume UI." Two layers:
+
+1. **Auto-dismiss race** — my pillsVisible-dismiss `useEffect`
+   fired on initial mount when `useClaudePresence` briefly cached
+   the previous front-terminal's 'claude' value during the new
+   tab's probe lag. Fix: track `{tabId, presence}` in a ref; only
+   dismiss on actual same-tab transition.
+
+2. **Over-capture on fresh tabs** — the actual cause of the
+   user's symptom. C2's enrichment hook captured
+   `lastClaudeSession.id` for EVERY tab whose cwd had a recent
+   JSONL — even tabs that never ran Claude. Fresh shell tab in
+   `/docs` → autosave fires → hook scans `/docs/` JSONLs → captures
+   the most-recent UUID onto the fresh tab → SessionHeader
+   discriminator routes to S3 ("This tab had: …") instead of S1
+   (pills). The tab never had anything.
+
+   **Fix:** new module-level `tabsThatHostedClaude: Set<tabId>`
+   updated by `claudePresence.onChange` whenever state transitions
+   to 'claude' / 'starting' for a tab. The enrichment hook gates
+   capture on membership in the set OR a pre-existing pointer from
+   disk (preserves workspace-restore case). T3 hydration trigger
+   moves behind the same gate.
+
+   This is **the CAPTURE-ON-EVIDENCE-NOT-SPECULATION sub-rule** of
+   D9 — now codified in CLAUDE.md § 12. The capture isn't sidecar
+   storage in the literal sense (the field is on Duo's own object,
+   `TabSession`) but it's semantically a sidecar: claiming an
+   association ("this tab had X") that Duo has no actual evidence
+   of. Capture only on real evidence; read live; show nothing when
+   there's nothing to show.
+
+**Transition note on 14c.** Existing disk-state captures from the
+old rule don't reactively clear in the running renderer. To see
+the new gate take effect immediately: `File > New Workspace` OR
+`Open Workspace` a different file. Next autosave under the new
+rule will write `null` for non-hosting tabs; next workspace open
+will then surface S1 correctly. Long-term users of saved
+workspaces will see their captures naturally re-stabilize as
+autosaves overwrite old values when tabs are reopened.
+
 ---
 
 ---

@@ -1508,6 +1508,16 @@ agent must be able to do the same.</p>
       <li><strong>Consequence:</strong> no AUTO badge / no provenance tag in the UI. Once a title
         lands in <code>customTitle</code> we can't tell who wrote it — and that's fine. Title is
         title. User can click and re-rename any time.</li>
+      <li><strong>Capture-on-evidence-not-speculation (post-walk-1 addition).</strong> The single
+        Duo-owned field (<code>lastClaudeSession.id</code> in workspace metadata) is also gated:
+        Duo only captures it for a tab that <em>actually hosted</em> a Claude process during this
+        Duo session — i.e. <code>claudePresence</code> transitioned to 'claude' or 'starting' on
+        that tab. Tabs that simply exist in a CWD with recent JSONLs <em>do not</em> inherit the
+        cwd's most-recent UUID. This prevents S3 ("This tab had: …") from mis-firing on tabs that
+        never <em>had</em> anything. The renderer-side equivalent: an in-memory
+        <code>tabsThatHostedClaude: Set&lt;tabId&gt;</code> updated by the claude-presence probe.
+        Pre-existing pointers from disk (workspace-restore case) are preserved — that's the
+        only legitimate carry-forward across Duo sessions.</li>
     </ul>
   </div>
   <div class="d-rationale">Owner directive 2026-05-24: <em>"session name should live in the Claude
@@ -1517,7 +1527,14 @@ agent must be able to do the same.</p>
     If Claude's storage migrates, gets deleted, or is hand-edited, Duo reads the new state on next
     render — no stale Duo sidecar to invalidate. This invariant also applies to all OTHER fields
     we read from sessions-index.json: <code>summary</code>, <code>messageCount</code>,
-    <code>firstPrompt</code>, <code>modified</code>, etc. are read fresh, never cached.</div>
+    <code>firstPrompt</code>, <code>modified</code>, etc. are read fresh, never cached.
+    <br><br>
+    Post-walk-1 (2026-05-24): owner observed S3 firing on a brand-new shell tab in a CWD with
+    recent JSONLs. Root cause was C2's enrichment hook over-capturing for every tab whose cwd
+    had a recent JSONL, not just tabs that ran Claude. Fix gated the capture on the new
+    <code>tabsThatHostedClaude</code> set — the "evidence-not-speculation" sub-rule above. Owner
+    directive: <em>"Tighten the enrichment hook — only capture lastClaudeSession.id on a tab
+    that actually ran Claude during this Duo session."</em></div>
   <div class="d-input">
     <label><input type="checkbox" data-d="D9"> Override this decision</label>
     <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
