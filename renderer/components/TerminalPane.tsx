@@ -165,20 +165,16 @@ export function TerminalPane({
   // `renderer/store/sessionHeader.ts` (still in-memory only per D9).
   const claudePresence = useClaudePresence()
   const activeTab = tabs.find(t => t.id === activeTabId) ?? null
+  // ENH-183 (post-walk-1 fix) — render SessionHeader as an IN-FLOW
+  // panel ABOVE the terminal area so it occupies its own vertical
+  // slot (per the locked Variant B mockup at
+  // docs/research/assets/enh-183-mockups/_render-d10-pills-variants.html).
+  // Previously the cherry-picked banner used position:absolute and
+  // floated over the xterm with a transparent background — the
+  // terminal prompt bled through and the pills variant covered
+  // exactly the cells where the user would type.
   return (
-    <div className="relative w-full h-full bg-surface-0">
-      {tabs.map(tab => (
-        <TerminalInstance
-          key={tab.id}
-          tab={tab}
-          isActive={tab.id === activeTabId}
-          onTitleChange={onTitleChange}
-          cozy={cozyByTab[tab.id] ?? cozyDefault}
-          fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
-          themeEffective={themeEffective}
-          onTerminalFocus={onTerminalFocus}
-        />
-      ))}
+    <div className="relative w-full h-full bg-surface-0 flex flex-col">
       {activeTab && (
         <SessionHeader
           tabId={activeTab.id}
@@ -190,6 +186,20 @@ export function TerminalPane({
           }}
         />
       )}
+      <div className="relative flex-1 min-h-0">
+        {tabs.map(tab => (
+          <TerminalInstance
+            key={tab.id}
+            tab={tab}
+            isActive={tab.id === activeTabId}
+            onTitleChange={onTitleChange}
+            cozy={cozyByTab[tab.id] ?? cozyDefault}
+            fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
+            themeEffective={themeEffective}
+            onTerminalFocus={onTerminalFocus}
+          />
+        ))}
+      </div>
     </div>
   )
 }
