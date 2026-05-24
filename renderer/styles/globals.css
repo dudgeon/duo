@@ -759,6 +759,26 @@ html.dark {
     font-family: var(--duo-font-mono, ui-monospace, monospace);
     font-size: 11px;
   }
+  /* ENH-183 C10 — S2 inline rename. Editable cursor when claude is
+     live + active outline when actively editing. */
+  .claude-resume-banner__sid--editable {
+    cursor: text;
+    transition: background-color 90ms ease-out;
+  }
+  .claude-resume-banner__sid--editable:hover {
+    background: rgba(20, 14, 8, 0.10);
+  }
+  .claude-resume-banner__sid--editing {
+    outline: 1.5px solid var(--duo-accent, #7c6af7);
+    outline-offset: 1px;
+    background: var(--duo-surface, #fbf8f1);
+    cursor: text;
+  }
+  /* When the title is NOT editable (claude not live), make it explicit. */
+  .claude-resume-banner__sid[data-editable="false"] {
+    cursor: not-allowed;
+    opacity: 0.85;
+  }
   .claude-resume-banner__resume {
     display: inline-flex;
     align-items: center;

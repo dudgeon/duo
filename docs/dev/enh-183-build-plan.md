@@ -28,7 +28,7 @@
 - [x] **C7** — S3 restore-offer title via D5 ladder ([f1c6ddb](https://github.com/dudgeon/duo/commit/f1c6ddb))
 - [x] **C8** — Session hydrator + D8 derivation ([1f0766c](https://github.com/dudgeon/duo/commit/1f0766c))
 - [x] **C9** — T3 wired via enrichment hook ([1c1186f](https://github.com/dudgeon/duo/commit/1c1186f))
-- [ ] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
+- [x] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [ ] **C11** — D2 first-time educational banner
 - [ ] **C12** — CLI parity (7 new `duo session ...` verbs)
 - [ ] **C13** — Smoke walk manifest + walk

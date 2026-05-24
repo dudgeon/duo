@@ -22,7 +22,7 @@
 // `renderer/store/sessionHeader.ts` as in-memory only. Nothing
 // persists to disk; restart wipes dismissal + collapse + edit state.
 
-import { useState, useSyncExternalStore, useEffect, useMemo } from 'react'
+import { useState, useSyncExternalStore, useEffect, useMemo, useRef } from 'react'
 import type { ClaudePresenceState, BannerTitleResult, PriorSessionListing } from '@shared/host-api'
 import {
   getSessionHeaderState,
@@ -151,6 +151,7 @@ export function SessionHeader({
         tabId={tabId}
         sessionUuid={lastClaudeSession!.id}
         cwd={cwd}
+        claudePresence={claudePresence}
         onCollapse={() => setSessionHeaderState(tabId, { collapsed: true })}
       />
     )
@@ -176,6 +177,7 @@ interface NamedBannerProps {
   tabId: string
   sessionUuid: string
   cwd: string
+  claudePresence: ClaudePresenceState
   onCollapse: () => void
 }
 
@@ -183,10 +185,21 @@ interface NamedBannerProps {
  *  it. × re-collapses (does NOT permanently dismiss — distinguishing
  *  collapse from dismiss is part of D11/D12 owner spec).
  *
- *  C5 minimum scope: title + close (collapse) only. Inline rename
- *  (C10) and Save-workspace button (later polish) come later. */
-function NamedBanner({ tabId: _tabId, sessionUuid, cwd, onCollapse }: NamedBannerProps) {
+ *  C10 — inline rename. Click the title → contentEditable cursor +
+ *  text selected. Return commits via PTY-write `\r/rename <title>\n`;
+ *  Esc cancels; click-outside commits. Only editable when
+ *  claudePresence === 'claude' (the same gate the C8 hydrator uses
+ *  for its Duo-driven counterpart). */
+function NamedBanner({ tabId, sessionUuid, cwd, claudePresence, onCollapse }: NamedBannerProps) {
   const [titleResult, setTitleResult] = useState<BannerTitleResult | null>(null)
+  const [editing, setEditing] = useState(false)
+  const titleRef = useRef<HTMLSpanElement>(null)
+  const originalRef = useRef<string>('')
+  const reloadTickRef = useRef(0)
+
+  // Read the title from the D5 ladder. After a rename commit, bump
+  // `reloadTickRef` to re-fetch so we see Claude's actual customTitle
+  // write (rather than our optimistic preview).
   useEffect(() => {
     let cancelled = false
     void window.electron.session.readBannerTitle(sessionUuid, cwd).then((r) => {
@@ -195,14 +208,86 @@ function NamedBanner({ tabId: _tabId, sessionUuid, cwd, onCollapse }: NamedBanne
       if (!cancelled) setTitleResult({ title: sessionUuid.slice(0, 8), source: 'uuid' })
     })
     return () => { cancelled = true }
-  }, [sessionUuid, cwd])
+  }, [sessionUuid, cwd, reloadTickRef.current])
 
   const title = titleResult?.title ?? '…'
+  const canEdit = claudePresence === 'claude'
+
+  const beginEdit = () => {
+    if (!canEdit || editing) return
+    originalRef.current = title
+    setEditing(true)
+  }
+
+  // After entering edit mode, set the DOM text + select all + focus.
+  // This is imperative so React's children prop doesn't fight the
+  // contentEditable buffer.
+  useEffect(() => {
+    if (!editing || !titleRef.current) return
+    const el = titleRef.current
+    el.textContent = originalRef.current
+    el.focus()
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(range)
+  }, [editing])
+
+  const commit = () => {
+    if (!editing) return
+    const candidate = (titleRef.current?.textContent ?? '').trim()
+    if (candidate && candidate !== originalRef.current) {
+      // PTY-inject /rename. Same shape as C8 hydrator — CR + slash
+      // + LF — so Claude treats it identically to a typed command.
+      void window.electron.pty.write(tabId, `\r/rename ${candidate}\n`)
+      // Optimistic update — show the new title immediately. Re-fetch
+      // after 2s so we transition from optimism to the actual
+      // customTitle JSONL entry once Claude has processed.
+      setTitleResult({ title: candidate, source: 'customTitle' })
+      setTimeout(() => { reloadTickRef.current += 1 }, 2000)
+    }
+    setEditing(false)
+  }
+
+  const cancel = () => {
+    if (!editing) return
+    setEditing(false)
+  }
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commit()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancel()
+    }
+  }
+
   return (
     <div className="claude-resume-banner" data-session-header-state="S2">
       <span className="claude-resume-banner__arrow">●</span>
       <span className="claude-resume-banner__text">
-        Claude session: <code className="claude-resume-banner__sid">{title}</code>
+        Claude session:{' '}
+        <code
+          ref={titleRef}
+          className={[
+            'claude-resume-banner__sid',
+            canEdit ? 'claude-resume-banner__sid--editable' : '',
+            editing ? 'claude-resume-banner__sid--editing' : '',
+          ].filter(Boolean).join(' ')}
+          contentEditable={editing}
+          suppressContentEditableWarning
+          spellCheck={false}
+          onClick={beginEdit}
+          onBlur={commit}
+          onKeyDown={onKeyDown}
+          title={canEdit ? 'Click to rename' : 'Rename available when Claude is live'}
+          data-editable={canEdit ? 'true' : 'false'}
+        >
+          {editing ? null : title}
+        </code>
       </span>
       <button
         type="button"
