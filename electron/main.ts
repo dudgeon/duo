@@ -335,13 +335,21 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
   // Anything else gets `lastClaudeSession: null`. The C9 hydration
   // trigger (T3) also moves behind the same gate — Duo only
   // /rename-injects sessions that this tab actually hosts.
+  // POSITIONAL MATCHING — `state.terminals[]` carries cwd/kind/title
+  // but no tabId, so we resolve each entry to a live PTY id via cwd
+  // lookup. Multiple tabs in the same cwd (e.g. 5 shells all in
+  // /docs) all share the same `listIdsByCwd` result; without ordered
+  // consumption every entry would map to the FIRST tab and the gate
+  // would over-capture (rev2 walk regression). Track a `consumed`
+  // set so each terminals[i] claims a distinct tabId. Both arrays
+  // are in tab-creation order (renderer snapshot + PtyManager.Map
+  // preserve insertion), so positional matching aligns correctly.
+  const consumedTabIds = new Set<string>()
   const findTabIdInState = (cwd: string): string | null => {
-    // Renderer-side tab ids aren't on `state.terminals[]` (the
-    // SessionStateTerminal shape only carries cwd/kind/title/lastClaudeSession).
-    // Match by cwd through PtyManager's live tab → cwd map; same
-    // resolution C9 uses for the hydration ptyWrite target.
-    const matches = ptyManager.listIdsByCwd(cwd)
-    return matches[0] ?? null
+    const all = ptyManager.listIdsByCwd(cwd)
+    const next = all.find((id) => !consumedTabIds.has(id))
+    if (next) consumedTabIds.add(next)
+    return next ?? null
   }
 
   const enriched = await Promise.all(
