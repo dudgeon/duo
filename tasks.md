@@ -930,9 +930,13 @@ Original entry kept for context: 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Ow
 
 ### FOLLOWUP-027: Short-circuit tab creation when `local-only` would block a remote URL
 
-**Status:** 🟡 **Filed 2026-05-23** (v0.7.8 cut session). When the user (or agent) runs `duo open https://example.com` while `browserMode === 'local-only'`, the system browser DOES pop correctly via `shell.openExternal`. But the embedded BrowserManager still creates a new tab in Duo whose URL the filter strips — it ends up as `about:blank`. Cosmetic, not data-loss; the actual URL renders in the system browser as expected.
+**Status:** ✅ **Shipped 2026-05-23** (Sprint 21 / v0.7.9). `BrowserManager.openTab` and `navigateOrFocus` now call `routeOffHostIfMatched(url)` BEFORE invoking `addTab`. When the URL would be filtered (local-only mode + remote URL, or filtered mode + blocklist match), the routing's existing side effects fire (`shell.openExternal` + `EXTERNAL_REDIRECTED` banner) and the methods return `{ok: true, url, routedTo: 'system-browser'}` without creating an embedded `WebContentsView`. No more about:blank ghost-tab.
 
-**Fix path:** in `BrowserManager.openInNewTab(url)` (or wherever `duo open` lands), consult `routeOffHostIfMatched(url)` BEFORE creating the WebContentsView tab. If it returns true (URL will be filtered), skip the tab creation entirely and return the same `{ok, routedTo: 'system-browser'}` shape via a new code path. Update `cli/duo.ts § case 'open'` to surface `routedTo: 'system-browser'` in the JSON response when this happens so the caller knows the URL didn't render in Duo.
+Verified end-to-end: `duo open https://example.com` in local-only mode returns `routedTo: 'system-browser'`, system browser pops, tab count unchanged. Local URLs (`https://localhost:5173`) and unfiltered-mode remote URLs continue to create tabs normally.
+
+**Files touched:** [`electron/browser-manager.ts`](electron/browser-manager.ts) — added pre-check in `openTab` + `navigateOrFocus`; return-type union widened. [`core/socket-server.ts § case 'open'`](core/socket-server.ts) — discriminates the new shape via `'id' in browserResult` and skips the `browser:focus-gained` push when routed externally. The `case 'navigate'` path is already a pass-through of `navigateOrFocus`'s return value, so the new shape surfaces automatically.
+
+**Filed:** 2026-05-23 (v0.7.8 cut session). **Shipped:** 2026-05-23.
 
 **Cross-ref:** [ENH-178](#enh-178-browser-blocklist-refactor--three-modes-with-local-only-default) (shipped v0.7.8 — this artifact noted during the verification turn).
 

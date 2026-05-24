@@ -677,23 +677,33 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 21 / v0.7.9 (post-v0.7.8-cut)
+## Active sprint — Sprint 21 / v0.7.9 (post-v0.7.8-cut + FOLLOWUP-027)
 
-> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
+> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) carries the Sprint 21 implementation TODO with the file inventory + per-behavior implementation map for the marquee bundle. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
 
-**Status (2026-05-23, post-cut):** v0.7.8 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized DMG attached. ENH-178 (browser blocklist three modes, `local-only` default) was the single behavior change. Dev session bumped to v0.7.9.
+**Status (2026-05-24):** v0.7.8 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized DMG attached. ENH-178 (browser blocklist three modes, `local-only` default) was the single behavior change. Dev session bumped to v0.7.9. FOLLOWUP-027 shipped this session, **uncommitted on `main`** — awaiting owner call on whether to commit standalone or bundle with the marquee.
 
-**Sprint 21 remaining scope:**
+**Sprint 21 remaining scope (the marquee):**
 
-1. **Re-ship ENH-177 + ENH-181** (Claude session resume banner + inline rename + collapse toggle) — cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719) (reverted in [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Fold in: (a) banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` (prefers `customName` > `summary` > UUID fallback), and (b) **ENH-181** — collapsed-marker-on-tab default state, tap to expand, click title to enter edit mode (gated on `claudePresence === 'claude'`), Return commits via PTY `/rename` inject, Esc cancels. Mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) shows all 7 states.
+1. **ENH-177 + ENH-181 bundle** — Claude session resume banner + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle. **Full implementation TODO in [`docs/dev/active-sprint.md § Sprint 21 implementation TODO`](docs/dev/active-sprint.md)** — file inventory (9 files, ~412 LOC for the cherry-pick), per-behavior implementation map, mechanism empirics. Quick orientation:
+   - **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts.
+   - **Step 2:** Layer in 4 ENH-181 behaviors: banner title reads `sessions-index.json § customName > summary > UUID`; collapsed-marker on tab as default; inline rename via PTY `\r/rename <title>\n` (gated on `claudePresence === 'claude'`); CLI parity (`duo session rename` / `collapse` / `expand`).
+   - **Step 3:** Owner walks live. Mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) (7 states) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) (phone-readable).
 
 **Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
 
+**Shipped this session (2026-05-24):**
+**FOLLOWUP-027** — short-circuit `openTab` + `navigateOrFocus` when `routeOffHostIfMatched` would filter the URL. Eliminates the about:blank ghost-tab that appeared when `duo open https://example.com` ran in `local-only` mode (the system browser was already popping correctly; the embedded tab creation was the bug). Return shape: `{ok, url, routedTo: 'system-browser'}` — `core/socket-server.ts § case 'open'` discriminates via `'id' in browserResult` and skips the `browser:focus-gained` push. Files touched: [`electron/browser-manager.ts`](electron/browser-manager.ts), [`core/socket-server.ts`](core/socket-server.ts). Verified end-to-end live via DOM probes (`browserTabsCount` stays at 1 + EXTERNAL_REDIRECTED banner renders correctly + `routedTo` in CLI response). **Uncommitted on `main` pending owner call.**
+
+**Memory rules locked this session:**
+- [feedback_locked_mac_screenshot_pattern](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) — when every screenshot returns wallpaper AND `(name withheld)` + `com.apple.loginwindow` in the diagnostic hidden-apps list AND `left_click` errors with `"loginwindow" is not in the allowed applications` → the Mac is LOCKED. Don't debug the app; fall back to DOM probes. Burned ~30 min during FOLLOWUP-027 verification before catching this.
+
 **Carry-forward queue** (not yet picked into Sprint 21; most-recent first):
-BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view · **FOLLOWUP-027** (about:blank artifact when local-only blocks a remote URL via `duo open` — short-circuit tab creation when filtered).
+BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
 
 **Open questions awaiting owner input:**
-Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
+- Commit FOLLOWUP-027 standalone or bundle with ENH-177+181?
+- Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
 
 ---
 

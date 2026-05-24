@@ -1,21 +1,43 @@
-# Resume after compaction — Sprint 21 / v0.7.9 start (post-v0.7.8-cut)
+# Resume after compaction — Sprint 21 / v0.7.9 (post-v0.7.8-cut + FOLLOWUP-027)
 
-**Read this first** if you came in cold via context compaction. Then read [`active-sprint.md`](active-sprint.md) for full inventory.
+**Read this first** if you came in cold via context compaction. Then read [`active-sprint.md`](active-sprint.md) for the full Sprint 21 implementation TODO.
 
 ## Where we are
 
-**v0.7.8 shipped 2026-05-23.** Cut + tagged + pushed to origin; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized `Duo-0.7.8-arm64.dmg` (104 MB) attached. Single-focus release: **ENH-178** browser blocklist three modes (`local-only` default). Plus docs-only follow-through: ENH-180 closed (folded into ENH-177's re-ship), ENH-181 filed (banner inline rename + collapse toggle).
+**v0.7.8 shipped 2026-05-23.** Cut + tagged + pushed to origin; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized `Duo-0.7.8-arm64.dmg` (104 MB) attached. Single-focus release: **ENH-178** browser blocklist three modes (`local-only` default).
 
-Dev session is now bumped to v0.7.9 for the rest of Sprint 21.
+**Post-cut work this session (2026-05-24):** **FOLLOWUP-027** shipped — about:blank ghost-tab no longer appears when `local-only` filters a remote URL via `duo open` or `duo navigate`. Verified live via DOM probes. **UNCOMMITTED on `main`** — owner call needed: commit standalone, or bundle into the ENH-177+181 PR.
+
+Dev session running at v0.7.9 identity.
 
 ## Sprint 21 remaining build order
 
-1. **Re-ship ENH-177 + ENH-181** (Claude session resume banner + inline rename + collapse toggle). Cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719). Fold in:
-   - Banner reads `sessions-index.json` for title (prefers `customName` > `summary` > short UUID fallback).
-   - **ENH-181**: collapsed-marker-on-tab default state; tap tab to expand; click title in expanded banner to enter edit mode (gated on `claudePresence === 'claude'`); Return commits via PTY `/rename` inject; Esc cancels.
-   - See [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) for all 7 states (3 ENH-177 + 4 ENH-181).
-   - Owner walks: workspace-switch → marker on tab → tap to expand → click title → type new name → Return → confirm `/rename` lands in claude transcript → re-tap tab to collapse.
-2. **Pick carry-forward items.** Backlog in [`active-sprint.md`](active-sprint.md).
+### 1. ENH-177 + ENH-181 bundle (marquee)
+
+The full implementation TODO lives in [`active-sprint.md § Sprint 21 implementation TODO`](active-sprint.md) — file inventory, step-by-step, mechanism empirics. Quick orientation:
+
+- **What:** Claude session resume banner that survives workspace switches + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle.
+- **Mockup:** [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) — `duo open` it. 7 states (3 ENH-177 + 4 ENH-181).
+- **Notion mirror:** [ENH-177 + ENH-181 banner mockup page](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — phone-readable, embeds the PNG.
+- **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts. 9 files, ~412 LOC.
+- **Step 2:** Layer in ENH-181 (4 new behaviors — title-from-sessions-index, collapsed-marker default, inline rename, CLI parity verbs). See active-sprint.md for the per-behavior implementation map.
+- **Step 3:** Owner walks live (computer-use access already granted; watch for the [locked-Mac signature](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) if screenshots return wallpaper).
+
+**Mechanism empirics (locked, don't re-research):**
+- `claude -p '/rename X'` returns *"isn't available in this environment"* — TUI-only.
+- `--name` on `--resume` doesn't visibly persist + is $0.73/call.
+- Writing `\r/rename <title>\n` to a live PTY: **$0, ~0s, persists** to `sessions-index.json § customName`. The `\r` prefix is critical.
+
+### 2. Pick carry-forward items
+
+Backlog in [`active-sprint.md § Carry-forward backlog`](active-sprint.md). Most-cited candidates: BUG-079 (tab-cycle latency, needs prod repro) · ENH-148 v2 (cross-boundary selection) · ENH-128 walk-4 (HEIC drag-drop verification owed) · ENH-162 (Clone modal collision UX).
+
+## Open decisions for owner
+
+| Decision | Why |
+|---|---|
+| Commit FOLLOWUP-027 standalone or bundle with ENH-177+181? | Small standalone keeps bisect-friendly history; bundled keeps Sprint 21's commit chain compact. |
+| Sprint 21 carry-forward pick beyond ENH-177 + ENH-181 | Pick one (or two for a bigger sprint). |
 
 ## Shipped this sprint so far (commit chain)
 

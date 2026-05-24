@@ -664,8 +664,17 @@ export class SocketServer {
             // http(s) URLs + bare hostnames (already https://-prefixed by
             // resolveOpenTarget on the CLI side) all land here.
             const browserResult = await this.browser.openTab(url)
-            openedTabId = browserResult.id
-            result = { ...browserResult, routedTo: 'browser' }
+            // FOLLOWUP-027 — when local-only / filtered mode bounces the
+            // URL externally, openTab returns `{ok, url, routedTo:
+            // 'system-browser'}` without creating an embedded tab. Pass
+            // that through; skip the browser:focus-gained push below
+            // since no Duo tab opened.
+            if ('id' in browserResult) {
+              openedTabId = browserResult.id
+              result = { ...browserResult, routedTo: 'browser' }
+            } else {
+              result = browserResult
+            }
           }
           // ENH-130 — reveal already fired pre-open above (see comment
           // there). Don't fire twice — would reset focus a second time.
