@@ -31,7 +31,7 @@
 - [x] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [x] **C11** — D2 first-time educational banner
 - [x] **C12** — CLI parity (4 of 7 `duo session ...` verbs; 3 UI-state verbs deferred)
-- [ ] **C13** — Smoke walk manifest + walk
+- [x] **C13** — Smoke walk manifest authored ([`v0.7.9.json`](smoke-walks/v0.7.9.json) → 13 items); owner walk pending
 
 After C13: propose v0.7.9 cut via `cut-version` skill (per CLAUDE.md § 10).
 
