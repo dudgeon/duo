@@ -249,6 +249,15 @@ export type DuoCommandName =
   // pops the system browser for anything outside file:// + localhost
   // + 127.0.0.1 + [::1]. Bare `duo browser-mode` reads current value.
   | 'browser-mode'
+  // ENH-183 C12 (Sprint 21 / v0.7.9) — Claude session lifecycle CLI
+  // parity. Single 'session' command with a discriminated `op` arg:
+  //   list [--cwd <path>]      → list prior sessions in a CWD
+  //   resume <tabId> <uuid>    → claude --resume <uuid> in tab's PTY
+  //   rename <tabId> "<title>" → /rename <title> in tab's PTY
+  //   hydrate <tabId>          → force-attempt Duo-driven hydration
+  // Power-user opt-out + UI verbs (collapse/expand/dismiss-pills/
+  // auto-hydrate) are deferred follow-ups.
+  | 'session'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a

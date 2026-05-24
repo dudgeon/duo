@@ -79,6 +79,13 @@ export class PtyManager {
     return matches
   }
 
+  /** ENH-183 C12 — get a tab's cwd from its id. Used by CLI verbs
+   *  that take a tabId arg (`duo session hydrate <tabId>`) and need
+   *  to resolve the cwd to reach Claude's project storage. */
+  getCwd(tabId: string): string | null {
+    return this.sessions.get(tabId)?.cwd ?? null
+  }
+
   write(id: string, data: string): void {
     this.sessions.get(id)?.pty.write(data)
   }

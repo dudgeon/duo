@@ -30,7 +30,7 @@
 - [x] **C9** — T3 wired via enrichment hook ([1c1186f](https://github.com/dudgeon/duo/commit/1c1186f))
 - [x] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [x] **C11** — D2 first-time educational banner
-- [ ] **C12** — CLI parity (7 new `duo session ...` verbs)
+- [x] **C12** — CLI parity (4 of 7 `duo session ...` verbs; 3 UI-state verbs deferred)
 - [ ] **C13** — Smoke walk manifest + walk
 
 After C13: propose v0.7.9 cut via `cut-version` skill (per CLAUDE.md § 10).

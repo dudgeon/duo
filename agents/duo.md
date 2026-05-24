@@ -225,6 +225,10 @@ empty.
 | `duo workspace list-recent` | **ENH-167** — JSON list of recent workspaces, sorted by `lastOpenedAt`, capped at 10, missing files pruned. |
 | `duo workspace current` | **ENH-167** — `{ path, name }` of the loaded workspace, or `null` when untitled. |
 | `duo workspace new` | **ENH-167** — **resets the workspace in-place.** One fresh shell terminal at the live CWD of the previously-frontmost terminal; every working-pane tab dropped except pinned (file + browser pins survive); active-workspace pointer cleared. CLI skips the GUI Save-current prompt. Returns `{ ok }`. |
+| `duo session list [--cwd <path>]` | **ENH-183** — list prior Claude sessions in a CWD. Returns `[{uuid, title, source, messageCount, modifiedAt}]`. `source` ∈ `customTitle`/`aiTitle`/`jsonl-firstmsg`/`uuid`. Default cwd = active terminal's. Use this to find a session UUID to resume. |
+| `duo session resume <tabId> <uuid>` | **ENH-183** — spawn `claude --resume <uuid>` in the named tab. Get `<tabId>` from `duo layout`'s `terminal.tabs[].id`. |
+| `duo session rename <tabId> "<title>"` | **ENH-183** — PTY-inject `\r/rename <title>\n`. Multi-word titles join after tabId. Same JSONL write protocol as Duo auto-hydration. |
+| `duo session hydrate <tabId>` | **ENH-183** — force Duo-driven hydration on the tab. Same gates as the auto path (messageCount≥3, no customTitle, no aiTitle). Returns `{hydrated, reason, title?}`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

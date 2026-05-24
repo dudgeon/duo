@@ -552,6 +552,44 @@ async function createWindow(): Promise<void> {
     sendToActiveTerminal: sendToActiveTerminal,
     htmlNew: htmlNew,
     htmlOp: dispatchHtmlOp,
+    // ENH-183 C12 — Claude session lifecycle CLI verbs.
+    sessionList: async (cwd) => {
+      const { listPriorSessions } = await import('./claude-session-tracker')
+      return listPriorSessions(cwd)
+    },
+    sessionResume: (tabId, uuid) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      if (!/^[0-9a-f-]{36}$/.test(uuid)) return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
+      ptyManager.write(tabId, `claude --resume ${uuid}\n`)
+      return { ok: true }
+    },
+    sessionRename: (tabId, title) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      const trimmed = title.trim()
+      if (!trimmed) return { ok: false, error: 'title is empty after trim' }
+      // CR drops the user's input onto a fresh line + LF commits;
+      // identical to the C8 hydrator's injection shape so Claude
+      // treats both paths the same.
+      ptyManager.write(tabId, `\r/rename ${trimmed}\n`)
+      return { ok: true }
+    },
+    sessionHydrate: async (tabId) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      const { detectLatestClaudeSession } = await import('./claude-session-tracker')
+      const detected = await detectLatestClaudeSession(cwd, CLAUDE_SESSION_MAX_AGE_MS)
+      if (!detected) return { ok: false, error: 'no recent Claude session in this tab\'s cwd (24h cap)' }
+      const { maybeHydrate } = await import('./session-hydrator')
+      const result = await maybeHydrate({
+        tabId,
+        sessionUuid: detected.id,
+        cwd,
+        ptyWrite: (id, data) => ptyManager.write(id, data),
+      })
+      return { ok: true, result }
+    },
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab,
