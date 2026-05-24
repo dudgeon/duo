@@ -251,7 +251,9 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 4. Collapse state: `useState<Record<tabId, boolean>>` in `TerminalPane` or workspace-level. Tab strip renders the "⏪" marker chip when `lastClaudeSession` exists AND `collapsed === true`; banner renders inside the terminal when `collapsed === false`.
 5. CLI parity (per CLAUDE.md § 4): `duo session rename <tabId> "<title>"` for agent-driven rename, same PTY inject path.
 
-**Mockup:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) — extended with collapsed-tab state, expanded-banner state, edit-mode state, post-commit state.
+**Canonical PRD:** [`docs/prd/enh-177-181-session-resume-banner.html`](docs/prd/enh-177-181-session-resume-banner.html) — owner-locked 2026-05-24. 12 sections: scope, 7 locked decisions w/ rationale, file inventory (9 files, ~412 LOC for cherry-pick), mechanism empirics table, 6 risk cards, 10 acceptance criteria, build order, out-of-scope. Has Copy-review button at footer. [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
+
+**Visual companion:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) — the 7 states rendered interactively.
 
 **Cross-ref:** [ENH-177](#) (the banner this extends) · [ENH-180](#enh-180) (closed; the PTY-injection mechanism survives here in user-driven form) · [ENH-082](#) (Terminal Context Bar — another consumer of session titles).
 
