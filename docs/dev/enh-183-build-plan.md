@@ -22,7 +22,7 @@
 - [x] **C1** — Step 0 empirics ([notes](../research/enh-183-step-0-empirics.md))
 - [x] **C2** — Cherry-pick f351719 ([8a0eba2](https://github.com/dudgeon/duo/commit/8a0eba2))
 - [x] **C3** — Refactor `ClaudeResumeBanner` → polymorphic `SessionHeader`
-- [ ] **C4** — Read ladder (D5) + session-tracker JSONL fallback (D13)
+- [x] **C4** — Read ladder (D5) + session-tracker JSONL fallback (D13)
 - [ ] **C5** — S2 named banner (collapsed dot + expanded)
 - [ ] **C6** — S1 pills (Variant B, 3-visible, "Resume previous session" copy)
 - [ ] **C7** — S3 restore-offer banner
