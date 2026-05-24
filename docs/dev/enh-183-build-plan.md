@@ -26,7 +26,7 @@
 - [x] **C5** — S2 named banner (collapsed dot + expanded)
 - [x] **C6** — S1 pills (Variant B, 3-visible, "Resume previous session" copy)
 - [x] **C7** — S3 restore-offer banner
-- [ ] **C8** — `session-hydrator.ts` + T1 idle trigger + D8 derivation
+- [x] **C8** — `session-hydrator.ts` + D8 derivation (T1/T2/T3 wiring in C9)
 - [ ] **C9** — T2 manual-save + T3 first-capture triggers
 - [ ] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [ ] **C11** — D2 first-time educational banner
