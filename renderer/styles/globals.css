@@ -779,6 +779,57 @@ html.dark {
     cursor: not-allowed;
     opacity: 0.85;
   }
+
+  /* ENH-183 C11 — first-time rename educational tip. Renders above the
+     title row in the S2 banner. Once dismissed, never re-shows for this
+     Duo install (localStorage flag — D9 renderer-pref allowed). */
+  .claude-resume-banner[data-session-header-state="S2"] {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .claude-resume-banner__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .claude-resume-banner__tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 8px;
+    background: rgba(196, 106, 28, 0.08);
+    border: 1px solid rgba(196, 106, 28, 0.20);
+    border-radius: 4px;
+    font-size: 11.5px;
+    color: var(--duo-text);
+    line-height: 1.35;
+  }
+  .claude-resume-banner__tip-text {
+    flex: 1;
+  }
+  .claude-resume-banner__tip-code {
+    background: rgba(20, 14, 8, 0.08);
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-family: var(--duo-font-mono, ui-monospace, monospace);
+    font-size: 10.5px;
+  }
+  .claude-resume-banner__tip-dismiss {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--duo-accent, #c46a1c);
+    background: transparent;
+    border: 1px solid rgba(196, 106, 28, 0.30);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background-color 90ms ease-out;
+  }
+  .claude-resume-banner__tip-dismiss:hover {
+    background: rgba(196, 106, 28, 0.10);
+  }
   .claude-resume-banner__resume {
     display: inline-flex;
     align-items: center;

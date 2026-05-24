@@ -29,6 +29,11 @@ import {
   setSessionHeaderState,
   subscribeSessionHeader,
 } from '../store/sessionHeader'
+import {
+  getSeenRenameTip,
+  setSeenRenameTip,
+  subscribeSeenRenameTip,
+} from '../store/sessionTipPrefs'
 
 type LastClaudeSession = { id: string; capturedAt: number } | null | undefined
 
@@ -196,6 +201,11 @@ function NamedBanner({ tabId, sessionUuid, cwd, claudePresence, onCollapse }: Na
   const titleRef = useRef<HTMLSpanElement>(null)
   const originalRef = useRef<string>('')
   const reloadTickRef = useRef(0)
+  // ENH-183 C11 — first-time educational banner. Shown above the title
+  // line the FIRST time any user sees an S2 named banner on this Duo
+  // install. Dismiss persists per-install via localStorage (D9 — a
+  // renderer pref, not session-shadowing).
+  const seenRenameTip = useSyncExternalStore(subscribeSeenRenameTip, getSeenRenameTip)
 
   // Read the title from the D5 ladder. After a rename commit, bump
   // `reloadTickRef` to re-fetch so we see Claude's actual customTitle
@@ -267,37 +277,61 @@ function NamedBanner({ tabId, sessionUuid, cwd, claudePresence, onCollapse }: Na
 
   return (
     <div className="claude-resume-banner" data-session-header-state="S2">
-      <span className="claude-resume-banner__arrow">●</span>
-      <span className="claude-resume-banner__text">
-        Claude session:{' '}
-        <code
-          ref={titleRef}
-          className={[
-            'claude-resume-banner__sid',
-            canEdit ? 'claude-resume-banner__sid--editable' : '',
-            editing ? 'claude-resume-banner__sid--editing' : '',
-          ].filter(Boolean).join(' ')}
-          contentEditable={editing}
-          suppressContentEditableWarning
-          spellCheck={false}
-          onClick={beginEdit}
-          onBlur={commit}
-          onKeyDown={onKeyDown}
-          title={canEdit ? 'Click to rename' : 'Rename available when Claude is live'}
-          data-editable={canEdit ? 'true' : 'false'}
+      {!seenRenameTip && (
+        <div
+          className="claude-resume-banner__tip"
+          data-session-header-tip="rename"
+          role="status"
         >
-          {editing ? null : title}
-        </code>
-      </span>
-      <button
-        type="button"
-        className="claude-resume-banner__dismiss"
-        onClick={onCollapse}
-        aria-label="Collapse"
-        title="Collapse to tab marker"
-      >
-        ×
-      </button>
+          <span className="claude-resume-banner__tip-text">
+            Duo named this session from your first message. To change it,
+            type{' '}
+            <code className="claude-resume-banner__tip-code">/rename &lt;new title&gt;</code>
+            {' '}in Claude any time.
+          </span>
+          <button
+            type="button"
+            className="claude-resume-banner__tip-dismiss"
+            onClick={() => setSeenRenameTip(true)}
+            aria-label="Dismiss tip"
+          >
+            Got it
+          </button>
+        </div>
+      )}
+      <div className="claude-resume-banner__row">
+        <span className="claude-resume-banner__arrow">●</span>
+        <span className="claude-resume-banner__text">
+          Claude session:{' '}
+          <code
+            ref={titleRef}
+            className={[
+              'claude-resume-banner__sid',
+              canEdit ? 'claude-resume-banner__sid--editable' : '',
+              editing ? 'claude-resume-banner__sid--editing' : '',
+            ].filter(Boolean).join(' ')}
+            contentEditable={editing}
+            suppressContentEditableWarning
+            spellCheck={false}
+            onClick={beginEdit}
+            onBlur={commit}
+            onKeyDown={onKeyDown}
+            title={canEdit ? 'Click to rename' : 'Rename available when Claude is live'}
+            data-editable={canEdit ? 'true' : 'false'}
+          >
+            {editing ? null : title}
+          </code>
+        </span>
+        <button
+          type="button"
+          className="claude-resume-banner__dismiss"
+          onClick={onCollapse}
+          aria-label="Collapse"
+          title="Collapse to tab marker"
+        >
+          ×
+        </button>
+      </div>
     </div>
   )
 }
