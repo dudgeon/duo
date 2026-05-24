@@ -97,11 +97,13 @@ export function SessionHeader({
     )
   }
 
-  // S3 — restore-offer banner (reuses the cherry-picked UI verbatim).
+  // S3 — restore-offer banner. ENH-183 C7 — title now derived via D5
+  // ladder (C4 IPC), not the UUID prefix.
   const sessionId = lastClaudeSession!.id
   return (
     <RestoreOfferBanner
       sessionId={sessionId}
+      cwd={cwd}
       onResume={() => {
         onResume(sessionId)
         setSessionHeaderState(tabId, { dismissedBanner: true })
@@ -158,18 +160,36 @@ function NamedBanner({ tabId: _tabId, sessionUuid, cwd, onCollapse }: NamedBanne
 
 interface RestoreOfferBannerProps {
   sessionId: string
+  cwd: string
   onResume: () => void
   onDismiss: () => void
 }
 
-function RestoreOfferBanner({ sessionId, onResume, onDismiss }: RestoreOfferBannerProps) {
+function RestoreOfferBanner({ sessionId, cwd, onResume, onDismiss }: RestoreOfferBannerProps) {
   const [resuming, setResuming] = useState(false)
-  const idDisplay = sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId
+  // ENH-183 C7 — read the D5 ladder title so the restore offer shows
+  // a meaningful name (customTitle / aiTitle / first user message)
+  // instead of a bare UUID prefix. Falls back to short UUID if the
+  // JSONL is gone (tombstoned) or unreadable.
+  const [titleResult, setTitleResult] = useState<BannerTitleResult | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void window.electron.session.readBannerTitle(sessionId, cwd).then((r) => {
+      if (!cancelled) setTitleResult(r)
+    }).catch(() => {
+      if (!cancelled) {
+        const short = sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId
+        setTitleResult({ title: short, source: 'uuid' })
+      }
+    })
+    return () => { cancelled = true }
+  }, [sessionId, cwd])
+  const title = titleResult?.title ?? (sessionId.length > 8 ? sessionId.slice(0, 8) : sessionId)
   return (
-    <div className="claude-resume-banner">
+    <div className="claude-resume-banner" data-session-header-state="S3">
       <span className="claude-resume-banner__arrow">⏪</span>
       <span className="claude-resume-banner__text">
-        This tab had Claude session <code className="claude-resume-banner__sid">{idDisplay}</code>
+        This tab had: <code className="claude-resume-banner__sid">{title}</code>
       </span>
       <button
         type="button"
