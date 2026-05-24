@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { margin: 0; padding: 16px; background: #fbf8f1; font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-size: 13px; color: #2b2620; }
+.label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #c46a1c; margin: 16px 0 6px; }
+.label:first-child { margin-top: 0; }
+
+.terminal-mock { background: #1a1814; border-radius: 8px; border: 1px solid #3a342d; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.10); margin-bottom: 8px; }
+.tab-strip { background: #25221d; border-bottom: 1px solid #3a342d; padding: 6px 10px 0; display: flex; gap: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+.tab { background: #2f2b25; color: #9a9080; padding: 6px 14px 7px; border-radius: 4px 4px 0 0; border: 1px solid #3a342d; border-bottom: none; }
+.tab.active { background: #1a1814; color: #e8e0cb; }
+.sh { background: #2a2620; border-bottom: 1px solid #3a342d; color: #e8e0cb; font-size: 12.5px; }
+
+/* Variant A horizontal */
+.sh.A { padding: 9px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sh.A .prefix { color: #9a9080; margin-right: 4px; }
+.sh.A .pill { display: inline-flex; align-items: center; gap: 5px; background: #2f2b25; color: #d4cbb8; border: 1px solid #4a4238; border-radius: 14px; padding: 3px 11px; font-size: 11.5px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh.A .pill .icon { color: #c46a1c; font-size: 11px; }
+.sh.A .more { color: #6f6557; font-size: 11px; font-style: italic; padding: 3px 4px; }
+.sh.A .spacer { flex: 1; }
+.sh.A .dismiss { color: #6f6557; padding: 0 4px; font-size: 16px; }
+
+/* Variant B vertical */
+.sh.B { padding: 10px 14px; }
+.sh.B .prefix { color: #9a9080; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; display: block; }
+.sh.B .row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 4px; font-size: 12px; }
+.sh.B .row .icon { color: #c46a1c; }
+.sh.B .row .title { color: #fbf8f1; font-style: italic; }
+.sh.B .row .msgs { color: #9a9080; font-size: 11px; font-family: ui-monospace, monospace; }
+.sh.B .row .when { color: #6f6557; font-size: 11px; }
+.sh.B .footer { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #3a342d; font-size: 10.5px; color: #6f6557; display: flex; justify-content: space-between; }
+.sh.B .footer a { color: #c46a1c; text-decoration: none; }
+
+/* Variant C dropdown */
+.sh.C { padding: 9px 14px; display: flex; align-items: center; gap: 8px; }
+.sh.C .chevron { color: #c46a1c; font-size: 11px; }
+.sh.C .prefix { color: #d4cbb8; }
+.sh.C .count { color: #c46a1c; font-weight: 600; }
+.sh.C .spacer { flex: 1; }
+.sh.C .dismiss { color: #6f6557; padding: 0 4px; font-size: 16px; }
+
+.term-body { padding: 12px 16px 18px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #d4cbb8; line-height: 1.55; min-height: 50px; }
+.term-body .ghost { color: #5a5247; }
+.term-body .prompt { color: #c46a1c; }
+.term-body .cursor { background: #c46a1c; display: inline-block; width: 7px; height: 12px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="label">Variant A · Horizontal pill strip</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="sh A">
+    <span class="prefix">Resume previous?</span>
+    <span class="pill"><span class="icon">↻</span> Implementing workspace switcher</span>
+    <span class="pill"><span class="icon">↻</span> Sprint 19 polish wave</span>
+    <span class="pill"><span class="icon">↻</span> BUG-138 phase 4 cleanup</span>
+    <span class="more">+4 more</span>
+    <span class="spacer"></span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">Variant B · Vertical mini-list (recommended)</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="sh B">
+    <span class="prefix">Resume one of these instead?</span>
+    <div class="row"><span class="icon">↻</span><span class="title">Implementing the workspace switcher dropdown</span><span class="msgs">47 msgs</span><span class="when">2d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">Sprint 19 polish wave</span><span class="msgs">112 msgs</span><span class="when">1d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-138 phase 4 — Backspace intercept</span><span class="msgs">8 msgs</span><span class="when">5h ago</span></div>
+    <div class="footer"><span>4 older sessions · <a>show all</a></span><span>Dismiss · keep new session</span></div>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">Variant C · Compact dropdown trigger</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="sh C">
+    <span class="chevron">▾</span>
+    <span class="prefix"><span class="count">7</span> previous sessions in this folder — click to pick one to resume</span>
+    <span class="spacer"></span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+</body>
+</html>

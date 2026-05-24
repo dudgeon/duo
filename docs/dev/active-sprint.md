@@ -8,7 +8,7 @@
 
 > **Notion mirror:** [ENH-177 + ENH-181 — Claude session resume banner + inline rename + collapse toggle (Sprint 21 queued)](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — embeds the 7-state mockup PNG + ENH-181 design + build order. Phone-readable.
 >
-> **Mockup HTML:** [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) — `duo open` it for the interactive view. All 7 states (3 ENH-177 banner shapes + 4 ENH-181 rename/collapse states).
+> **Mockup HTML:** [`docs/prd/enh-183-claude-session-lifecycle.html`](../prd/enh-183-claude-session-lifecycle.html) — `duo open` it for the interactive view. All 7 states (3 ENH-177 banner shapes + 4 ENH-181 rename/collapse states).
 
 **Step 1 — Cherry-pick ENH-177 from [f351719](https://github.com/dudgeon/duo/commit/f351719).** This was the original build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) before the v0.7.7 cut. File inventory:
 
@@ -60,7 +60,7 @@ Cherry-pick procedure: `git cherry-pick -n f351719`. Resolve any conflicts (the 
 
 | ID | Outcome |
 |---|---|
-| **ENH-180** | Closed same-day. Owner observation: Claude Code already writes a Haiku summary to `sessions-index.json` automatically — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD at [`docs/prd/enh-180-session-rename.html`](../prd/enh-180-session-rename.html) preserved with closure banner + historical empirics under `<details>` (for the `/rename` mechanics + cost research, in case a v2 ever revisits). |
+| **ENH-180** | Closed same-day. Owner observation: Claude Code already writes a Haiku summary to `sessions-index.json` automatically — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD at [`docs/prd/_archive/enh-180-session-rename.html`](../prd/_archive/enh-180-session-rename.html) preserved with closure banner + historical empirics under `<details>` (for the `/rename` mechanics + cost research, in case a v2 ever revisits). |
 
 ### Carry-forward backlog (not yet picked for Sprint 21)
 

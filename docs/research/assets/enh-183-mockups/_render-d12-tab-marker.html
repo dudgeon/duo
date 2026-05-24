@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { margin: 0; padding: 16px; background: #fbf8f1; font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-size: 13px; color: #2b2620; }
+.label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #c46a1c; margin: 16px 0 6px; }
+.label:first-child { margin-top: 0; }
+
+.terminal-mock { background: #1a1814; border-radius: 8px; border: 1px solid #3a342d; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.10); margin-bottom: 8px; }
+.tab-strip { background: #25221d; border-bottom: 1px solid #3a342d; padding: 6px 10px 0; display: flex; gap: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+.tab { background: #2f2b25; color: #9a9080; padding: 6px 14px 7px; border-radius: 4px 4px 0 0; border: 1px solid #3a342d; border-bottom: none; position: relative; }
+.tab.active { background: #1a1814; color: #e8e0cb; }
+.tab.marker-dot { padding-right: 22px; }
+.tab.marker-dot::after { content: ""; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; background: #c46a1c; border-radius: 50%; }
+.tab.marker-rewind { padding-right: 30px; }
+.tab.marker-rewind::after { content: "⏪"; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: #c46a1c; color: white; font-size: 9px; padding: 1px 4px 1px 3px; border-radius: 7px; font-family: -apple-system; line-height: 1.1; font-weight: 600; }
+.tab.marker-c { padding-right: 28px; }
+.tab.marker-c::after { content: "C"; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: #c46a1c; color: white; font-size: 9px; padding: 1px 5px; border-radius: 7px; font-family: -apple-system; line-height: 1.1; font-weight: 700; }
+.term-body { padding: 12px 16px 18px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #d4cbb8; line-height: 1.55; min-height: 50px; }
+.term-body .ghost { color: #5a5247; }
+.term-body .prompt { color: #c46a1c; }
+.term-body .cursor { background: #c46a1c; display: inline-block; width: 7px; height: 12px; vertical-align: middle; }
+
+.compare { background: #1a1814; border-radius: 6px; padding: 12px; display: flex; gap: 18px; font-family: ui-monospace, monospace; font-size: 11px; align-items: center; margin-top: 4px; }
+.compare .opt { color: #6f6557; font-size: 10px; }
+.compare .demo-tab { background: #1a1814; color: #e8e0cb; padding: 6px 22px 7px 14px; border-radius: 4px 4px 0 0; border: 1px solid #3a342d; position: relative; }
+.compare .demo-tab.marker-dot::after { content: ""; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 6px; height: 6px; background: #c46a1c; border-radius: 50%; }
+.compare .demo-tab.marker-rewind { padding-right: 30px; }
+.compare .demo-tab.marker-rewind::after { content: "⏪"; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: #c46a1c; color: white; font-size: 9px; padding: 1px 4px 1px 3px; border-radius: 7px; font-family: -apple-system; line-height: 1.1; font-weight: 600; }
+.compare .demo-tab.marker-c { padding-right: 28px; }
+.compare .demo-tab.marker-c::after { content: "C"; position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: #c46a1c; color: white; font-size: 9px; padding: 1px 5px; border-radius: 7px; font-family: -apple-system; line-height: 1.1; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="label">Option a · Small accent dot · 6×6px (recommended)</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active marker-dot">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">Option b · "⏪" chip (old ENH-177 design)</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active marker-rewind">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">Option c · "C" letter chip</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active marker-c">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">All three side-by-side</div>
+<div class="compare">
+  <span class="opt">a:</span>
+  <span class="demo-tab marker-dot">~/projects/duo</span>
+  <span class="opt">b:</span>
+  <span class="demo-tab marker-rewind">~/projects/duo</span>
+  <span class="opt">c:</span>
+  <span class="demo-tab marker-c">~/projects/duo</span>
+</div>
+
+</body>
+</html>

@@ -189,11 +189,27 @@ a:hover { text-decoration: underline; }
 </head>
 <body>
 
+<div style="background: #fef3e9; border: 2px solid #b07527; border-radius: 6px;
+            padding: 14px 18px; margin-bottom: 24px; font-size: 14px;">
+  <strong style="color: #b07527; text-transform: uppercase; letter-spacing: 0.05em;
+                 font-size: 12px;">⚠ Superseded · 2026-05-24</strong>
+  <p style="margin: 6px 0 0; color: #4a4238;">
+    This PRD has been replaced by the canonical
+    <a href="../enh-183-claude-session-lifecycle.html" style="color: #c46a1c; font-weight: 600;">ENH-183
+    — Claude session description lifecycle</a> PRD, which covers the full session-description
+    lifecycle (S0 quiet · S1 resume pills · S2 named banner · S3 restore offer) and reframes the
+    work around Claude session descriptions as a core feature rather than just a workspace-resume
+    affordance. <strong>Do not act on the content below;</strong> it is preserved for historical
+    reference only. The decision tree and mockups here are partially folded into ENH-183's S2 +
+    S3 sections.
+  </p>
+</div>
+
 <header class="page-head">
   <h1>ENH-177 + ENH-181 — Claude session resume banner + inline rename + collapse toggle</h1>
   <div class="meta">
     <span class="pill locked">Owner-locked</span>
-    <span class="pill">Sprint 21 queued</span>
+    <span class="pill" style="background: #e8e0cb; color: #6f6557;">SUPERSEDED</span>
     PRD · 2026-05-24 · supersedes the closed
     <a href="enh-180-session-rename.html">ENH-180 PRD</a> (folded in)
   </div>
@@ -201,7 +217,7 @@ a:hover { text-decoration: underline; }
 
 <div class="intro">
   <strong>This is the formal PRD</strong> for the Sprint 21 marquee bundle. Design is owner-locked across 7 decisions (captured below). The
-  <a href="../research/enh-177-banner-mockup.html"><code>enh-177-banner-mockup.html</code></a> is the visual companion — open it in Duo's browser pane via <code>duo open</code> to flip through the 7 states. The
+  <a href="enh-177-banner-mockup.html"><code>enh-177-banner-mockup.html</code></a> is the visual companion — open it in Duo's browser pane via <code>duo open</code> to flip through the 7 states. The
   <a href="https://www.notion.so/36945f48854f810ca7f9dfa275c4389d">Notion mirror</a> embeds the PNG render for phone-side review.
 </div>
 
@@ -259,10 +275,10 @@ The original ENH-177 build (<a href="https://github.com/dudgeon/duo/commit/f3517
 <div class="mockup-ref">
   <div class="icon">🖼️</div>
   <div>
-    <strong><a href="../research/enh-177-banner-mockup.html">Open the mockup HTML</a></strong>
+    <strong><a href="enh-177-banner-mockup.html">Open the mockup HTML</a></strong>
     for all 7 visual states rendered interactively (3 ENH-177 banner shapes + 4 ENH-181 rename/collapse states). Best viewed in Duo's browser pane via <code>duo open docs/research/enh-177-banner-mockup.html</code>.
     <br>
-    <small style="color: var(--ink-mute);">PNG render at <a href="../research/enh-177-banner-mockup.png">enh-177-banner-mockup.png</a> (also embedded in the Notion mirror).</small>
+    <small style="color: var(--ink-mute);">PNG render at <a href="enh-177-banner-mockup.png">enh-177-banner-mockup.png</a> (also embedded in the Notion mirror).</small>
   </div>
 </div>
 
@@ -382,7 +398,7 @@ The original ENH-177 build (<a href="https://github.com/dudgeon/duo/commit/f3517
 
 <p>Owner walks: workspace-switch → marker on tab → tap to expand → click title → type new name → Return → confirm <code>/rename</code> lands in claude transcript → wait for <code>sessions-index.json § customName</code> to update → confirm banner re-renders with new title → re-tap tab to collapse.</p>
 
-<p>Computer-use access for Electron should already be granted from this session. If screenshots return only wallpaper despite Electron being granted, see the <a href="../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md">locked-Mac signature memory rule</a> — DOM probes via <code>duo dom --js</code> / <code>duo layout</code> work regardless of lock state.</p>
+<p>Computer-use access for Electron should already be granted from this session. If screenshots return only wallpaper despite Electron being granted, see the <a href="../../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md">locked-Mac signature memory rule</a> — DOM probes via <code>duo dom --js</code> / <code>duo layout</code> work regardless of lock state.</p>
 
 <h2>6 · Mechanism empirics (locked, don't re-research)</h2>
 
@@ -531,13 +547,13 @@ The original ENH-177 build (<a href="https://github.com/dudgeon/duo/commit/f3517
 <h2>12 · Cross-references</h2>
 
 <ul>
-  <li><strong>Mockup (visual companion):</strong> <a href="../research/enh-177-banner-mockup.html"><code>docs/research/enh-177-banner-mockup.html</code></a> · <a href="../research/enh-177-banner-mockup.png">PNG render</a></li>
+  <li><strong>Mockup (visual companion):</strong> <a href="enh-177-banner-mockup.html"><code>docs/research/enh-177-banner-mockup.html</code></a> · <a href="enh-177-banner-mockup.png">PNG render</a></li>
   <li><strong>Notion mirror:</strong> <a href="https://www.notion.so/36945f48854f810ca7f9dfa275c4389d">ENH-177 + ENH-181 page (Duo Idle Thoughts)</a></li>
   <li><strong>Original ENH-177 build:</strong> <a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a> (reverted at <a href="https://github.com/dudgeon/duo/commit/49f4644">49f4644</a>)</li>
   <li><strong>Closed sibling:</strong> <a href="enh-180-session-rename.html">ENH-180 PRD</a> — auto-rename was killed; PTY <code>/rename</code> mechanism survives here in user-driven form</li>
-  <li><strong>Future consumer:</strong> <a href="../research/enh-082-terminal-context-bar.md">ENH-082</a> (when built) would reuse the same <code>sessions-index.json</code> title for its "Job statement" auto-populate.</li>
-  <li><strong>tasks.md entries:</strong> <a href="../../tasks.md">tasks.md § ENH-181</a> + <a href="../../tasks.md">tasks.md § ENH-177</a></li>
-  <li><strong>Active sprint:</strong> <a href="../dev/active-sprint.md">active-sprint.md § Sprint 21 implementation TODO</a> — file inventory + per-behavior implementation map</li>
+  <li><strong>Future consumer:</strong> <a href="../../research/enh-082-terminal-context-bar.md">ENH-082</a> (when built) would reuse the same <code>sessions-index.json</code> title for its "Job statement" auto-populate.</li>
+  <li><strong>tasks.md entries:</strong> <a href="../../../tasks.md">tasks.md § ENH-181</a> + <a href="../../../tasks.md">tasks.md § ENH-177</a></li>
+  <li><strong>Active sprint:</strong> <a href="../../dev/active-sprint.md">active-sprint.md § Sprint 21 implementation TODO</a> — file inventory + per-behavior implementation map</li>
 </ul>
 
 <div class="review-bar">

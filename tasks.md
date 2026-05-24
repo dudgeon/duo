@@ -230,9 +230,41 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### ENH-181: Resume-banner inline rename + collapse toggle
+### ENH-183: Claude session description lifecycle (supersedes ENH-177 + ENH-181 + reopens ENH-180 in limited form)
 
-**Status:** 🟡 **Filed 2026-05-23.** Sprint 21 candidate; folds into ENH-177's re-ship. Scope split between the banner UI and the PTY injection wire.
+**Status:** 🟡 **Filed 2026-05-24.** Sprint 21 marquee. Owner-locked PRD with 8 of 12 decisions locked; 4 open for owner pick before implementation.
+
+**What it does.** Reframes the original ENH-177 (workspace-resume banner) + ENH-181 (inline rename + collapse) PRD around the **session description as a core feature**, not a workspace-resume affordance. Adds:
+
+- **Polymorphic session header** above each terminal tab — 4 states: S0 (quiet), S1 (resume pills before first message), S2 (named banner with USER/HAIKU/AUTO provenance + click-to-rename + collapse), S3 (restore-offer banner after workspace switch).
+- **Resume pills** (S1) — when starting a fresh Claude session in a CWD with prior history, the header offers prior sessions as one-click resume targets. Auto-dismiss on first Return committed to the new session. 3 visual variants in PRD; owner picks.
+- **`/rename` as the universal write primitive** — Duo invokes `/rename` via PTY injection in both user-driven mode (click banner title → inline edit) and **Duo-driven mode** (hydration triggers fire D8 derivation ladder + inject). Reopens ENH-180's scope in limited form: Duo derives titles from cheap signals (first user message in JSONL) — no LLM call.
+- **Three hydration triggers** — T1 (idle-threshold: messageCount ≥ 3 + unnamed), T2 (manual workspace save), T3 (first session-UUID capture into workspace metadata). Autosave never triggers hydration.
+- **CLI parity** — 7 new `duo session ...` verbs covering list / resume / rename / hydrate / collapse / expand / dismiss-pills / auto-hydrate toggle.
+
+**Canonical PRD:** [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) — 18 sections, lifecycle diagram, 3 pill mockup variants, 8 locked + 4 open decisions with override controls per decision, mechanism empirics table with re-verify flags, 8 risk cards, 15 acceptance criteria, 3-step implementation plan with Step 0 verification gate. Sticky review-bar footer with Copy-review button (works in Duo browser pane; `navigator.clipboard` is unavailable in Claude preview).
+
+**Children (folded in):** [ENH-177](#) (workspace-resume banner — becomes S3) · [ENH-181](#enh-181) (inline rename + collapse — becomes S2 mechanics) · [ENH-180](#enh-180) (Duo-driven /rename — limited form reopened per D4 + D8).
+
+**Cherry-pick base:** [commit f351719](https://github.com/dudgeon/duo/commit/f351719) (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). 9 files, ~412 LOC. Step 1 of the implementation plan.
+
+**Step 0 (gating, ~15 min):** verify `/rename` PTY-injection target — the prior PRD claimed `\r/rename X\n` writes to `sessions-index.json § customName`, but a 16-project / 20-session audit found zero `customName` fields in any existing JSON. Likely Claude adds the field on first /rename, but needs a live test before implementation. Also verify the Haiku-vs-customName race (does Claude overwrite our customName when its Haiku fires after we /rename?).
+
+**Open decisions awaiting owner walk (D9–D12):**
+- **D9** — Pills visual variant (A horizontal · B vertical mini-list **recommended** · C compact dropdown · other)
+- **D10** — Pills threshold visible-vs-folded (3 + show-all **recommended** · 5 + show-all · all)
+- **D11** — Tab-marker glyph (small accent dot **recommended** · "⏪" chip · "C" letter chip)
+- **D12** — messageCount derivation when sessions-index absent (count `type:'user'` JSONL entries **recommended** · no-summary-after-N-sec trigger · Duo-side counter)
+
+**Notion mirror:** [36a45f48854f81c3aacbd50e40fc8bbd](https://www.notion.so/36a45f48854f81c3aacbd50e40fc8bbd) (fresh page under "Duo Idle Thoughts"; replaces the old [36945f48](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) ENH-177/181 page — that one now stale).
+
+**Walk:** owner opens the PRD in Duo browser pane (not Claude preview — clipboard differs), reviews each decision card, toggles "Override this decision" on any of D1–D8 they want to revisit, picks radios for D9–D12, clicks Copy review at the footer, pastes back.
+
+---
+
+### ENH-181: Resume-banner inline rename + collapse toggle — folded into ENH-183
+
+**Status:** 🟡 **Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2026-05-24.** Original scope below preserved for historical reference. The inline rename + collapse toggle behaviors now live in ENH-183 § S2 (collapsed/expanded/edit mode).
 
 **What it does.** The resume banner ENH-177 paints (post-workspace-switch) gains two new affordances:
 
@@ -251,9 +283,9 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 4. Collapse state: `useState<Record<tabId, boolean>>` in `TerminalPane` or workspace-level. Tab strip renders the "⏪" marker chip when `lastClaudeSession` exists AND `collapsed === true`; banner renders inside the terminal when `collapsed === false`.
 5. CLI parity (per CLAUDE.md § 4): `duo session rename <tabId> "<title>"` for agent-driven rename, same PTY inject path.
 
-**Canonical PRD:** [`docs/prd/enh-177-181-session-resume-banner.html`](docs/prd/enh-177-181-session-resume-banner.html) — owner-locked 2026-05-24. 12 sections: scope, 7 locked decisions w/ rationale, file inventory (9 files, ~412 LOC for cherry-pick), mechanism empirics table, 6 risk cards, 10 acceptance criteria, build order, out-of-scope. Has Copy-review button at footer. [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
+**Canonical PRD:** [`docs/prd/_archive/enh-177-181-session-resume-banner.html`](docs/prd/_archive/enh-177-181-session-resume-banner.html) **(archived — superseded by [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html))** — owner-locked 2026-05-24. 12 sections: scope, 7 locked decisions w/ rationale, file inventory (9 files, ~412 LOC for cherry-pick), mechanism empirics table, 6 risk cards, 10 acceptance criteria, build order, out-of-scope. Has Copy-review button at footer. [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
 
-**Visual companion:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) — the 7 states rendered interactively.
+**Visual companion:** [`docs/prd/_archive/enh-177-banner-mockup.html`](docs/prd/_archive/enh-177-banner-mockup.html) (archived) — the 7 states rendered interactively.
 
 **Cross-ref:** [ENH-177](#) (the banner this extends) · [ENH-180](#enh-180) (closed; the PTY-injection mechanism survives here in user-driven form) · [ENH-082](#) (Terminal Context Bar — another consumer of session titles).
 
@@ -263,9 +295,9 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 **Status:** ✅ **Closed same-day as filed** (2026-05-23). Owner observation killed the question this ENH was built to answer: Claude Code already auto-writes a Haiku-generated summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` once a session has had a few exchanges. Duo doesn't need its own title generator. The clean scope is just "ENH-177's banner reads `sessions-index.json` (prefers `summary` > `customName` > short UUID fallback), `/rename` remains the user's manual override." That folds into ENH-177's re-ship as a ~20-line detail.
 
-**PRD preserved at** [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block. The `/rename` mechanics + `claude -p` cost empirics are preserved in case a v2 ever revisits.
+**PRD preserved at** [`docs/prd/_archive/enh-180-session-rename.html`](docs/prd/_archive/enh-180-session-rename.html) (archived) with closure banner at top + the four-decision body collapsed into a `<details>` block. The `/rename` mechanics + `claude -p` cost empirics are preserved in case a v2 ever revisits.
 
-**Mockup of the simplified experience for ENH-177's re-ship:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html).
+**Mockup of the simplified experience for ENH-177's re-ship:** [`docs/prd/_archive/enh-177-banner-mockup.html`](docs/prd/_archive/enh-177-banner-mockup.html) (archived).
 
 **Cross-ref:** [ENH-177](#) (the banner that absorbs this work) · [ENH-082](#) (Terminal Context Bar — would consume the same title for its "Job statement" auto-populate when built).
 
@@ -337,9 +369,11 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### ENH-177: Restore Claude session across workspace switch — track + offer resume
+### ENH-177: Restore Claude session across workspace switch — folded into ENH-183
 
-**Status:** 🟡 **Filed 2026-05-23 · built + reverted pre-cut 2026-05-23 — queued for re-ship next sprint with ENH-180 folded in.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement Sprint 21 after owner walks the workspace-switch-and-back flow live. **ENH-180 closed and absorbed into this re-ship** — banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` for its title (prefers `customName` > `summary` > short UUID fallback); see [mockup](docs/research/enh-177-banner-mockup.html). **ENH-181 also bundled** — inline rename via PTY `/rename` (gated on claudePresence), collapse-to-tab-marker toggle, Esc cancels edit. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
+**Status:** 🟡 **Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2026-05-24.** Original ENH-177 scope (workspace-resume banner) now lives as **S3 (restore-offer)** in the ENH-183 canonical PRD. Implementation still cherry-picks [f351719](https://github.com/dudgeon/duo/commit/f351719) as Step 1; ENH-183 then layers the S0/S1/S2 states + hydration triggers on top. Original entry text below preserved for historical reference.
+
+**[Original entry — historical] · 2026-05-23 · built + reverted pre-cut — queued for re-ship next sprint with ENH-180 folded in.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement Sprint 21 after owner walks the workspace-switch-and-back flow live. **ENH-180 closed and absorbed into this re-ship** — banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` for its title (prefers `customName` > `summary` > short UUID fallback); see [mockup](docs/prd/_archive/enh-177-banner-mockup.html) (archived). **ENH-181 also bundled** — inline rename via PTY `/rename` (gated on claudePresence), collapse-to-tab-marker toggle, Esc cancels edit. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
 
 **Owner-locked spec (2026-05-23):**
 

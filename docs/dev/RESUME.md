@@ -17,7 +17,7 @@ Dev session running at v0.7.9 identity.
 The full implementation TODO lives in [`active-sprint.md § Sprint 21 implementation TODO`](active-sprint.md) — file inventory, step-by-step, mechanism empirics. Quick orientation:
 
 - **What:** Claude session resume banner that survives workspace switches + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle.
-- **Mockup:** [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) — `duo open` it. 7 states (3 ENH-177 + 4 ENH-181).
+- **Mockup:** [`docs/prd/enh-183-claude-session-lifecycle.html`](../prd/enh-183-claude-session-lifecycle.html) — `duo open` it. 7 states (3 ENH-177 + 4 ENH-181).
 - **Notion mirror:** [ENH-177 + ENH-181 banner mockup page](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — phone-readable, embeds the PNG.
 - **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts. 9 files, ~412 LOC.
 - **Step 2:** Layer in ENH-181 (4 new behaviors — title-from-sessions-index, collapsed-marker default, inline rename, CLI parity verbs). See active-sprint.md for the per-behavior implementation map.
@@ -53,9 +53,9 @@ Backlog in [`active-sprint.md § Carry-forward backlog`](active-sprint.md). Most
 
 **ENH-180 (auto-rename Claude sessions via `/rename` PTY injection)** is closed. Owner observation: Claude Code already writes a Haiku summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` automatically after a session has had a few exchanges — Duo doesn't need to generate its own title. The cleaner scope is just "ENH-177's banner reads `sessions-index.json`, falls back to UUID, `/rename` remains the manual override." That folds into ENH-177's re-ship as a ~20-line detail.
 
-PRD preserved at [`docs/prd/enh-180-session-rename.html`](../prd/enh-180-session-rename.html) with a closure banner at top + the historical empirics (`/rename` write paths, `claude -p` cost numbers, idle-gate state machine, denylist) collapsed into a `<details>` block. The 4 decision cards are now moot — no owner action needed.
+PRD preserved at [`docs/prd/_archive/enh-180-session-rename.html`](../prd/_archive/enh-180-session-rename.html) with a closure banner at top + the historical empirics (`/rename` write paths, `claude -p` cost numbers, idle-gate state machine, denylist) collapsed into a `<details>` block. The 4 decision cards are now moot — no owner action needed.
 
-Mockup of the simplified banner experience for ENH-177's re-ship: [`docs/research/enh-177-banner-mockup.html`](../research/enh-177-banner-mockup.html) (also mirrored to the Notion page).
+Mockup of the simplified banner experience for ENH-177's re-ship: [`docs/prd/enh-183-claude-session-lifecycle.html`](../prd/enh-183-claude-session-lifecycle.html) (also mirrored to the Notion page).
 
 ## All Sprint 20 / v0.7.7 commits (since v0.7.6 tag)
 

@@ -42,7 +42,7 @@ A focused single-behavior release. **ENH-178** ships the three-mode URL filter t
 **Also in the cut (docs-only).** Two ENH-class items landed as planning artifacts:
 
 - **ENH-180 closed same-day as filed.** PRD for auto-rename via `/rename` PTY injection. Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json`, so Duo doesn't need its own title generator. Folds into ENH-177's re-ship next sprint as a ~20-line detail (banner reads `customName` > `summary` > UUID fallback).
-- **ENH-181 filed.** Banner inline rename via PTY `/rename` injection (gated on `claudePresence`), tap-tab-to-toggle collapse, Esc cancels mid-edit. Mockup at [`docs/research/enh-177-banner-mockup.html`](../docs/research/enh-177-banner-mockup.html) shows all 7 states. Folds into ENH-177's re-ship next sprint.
+- **ENH-181 filed.** Banner inline rename via PTY `/rename` injection (gated on `claudePresence`), tap-tab-to-toggle collapse, Esc cancels mid-edit. Mockup at [`docs/prd/_archive/enh-177-banner-mockup.html`](../docs/prd/_archive/enh-177-banner-mockup.html) shows all 7 states. Folds into ENH-177's re-ship next sprint.
 
 **One known quirk.** When `local-only` mode blocks a remote URL passed to `duo open`, Duo briefly creates an empty tab whose URL the filter strips (it ends up as `about:blank` in the embedded view; the system browser still pops correctly with the actual URL). Cosmetic, not data-loss. A FOLLOWUP after the v0.7.8 smoke walk will tighten this so the tab-creation short-circuits when the URL would be filtered.
 
@@ -54,7 +54,7 @@ A focused single-behavior release. **ENH-178** ships the three-mode URL filter t
 
 Sprint 20's close-out. Theme: smaller daily-driver actions become first-class menu / chord / CLI surfaces — navigator file creation ([ENH-169](../tasks.md)), the first Settings menu ([ENH-170 v2](../tasks.md)), the workspace switcher decided in [ENH-168](../tasks.md) ([ENH-171](../tasks.md)), the navigator's show/hide-dotfiles toggle ([ENH-172](../tasks.md)), `⌘Z` reopen of recently-closed tabs ([ENH-179](../tasks.md)), and send-pill variants behind feature flags ([ENH-176](../tasks.md)).
 
-**Why this lands here.** The four planned ENHs (169 / 170 / 171 / 172) shipped clean; six sprint-close fixes accumulated around them (149 / 150 / 151 / 152 / 154 / 155); two larger ENHs (177 claude session resume banner, 178 browser blocklist refactor) built but didn't get their owner walks in time, so they were reverted and queued for next sprint. The session-rename follow-up ([ENH-180](../tasks.md)) ships as a [PRD](prd/enh-180-session-rename.html) only — [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review.
+**Why this lands here.** The four planned ENHs (169 / 170 / 171 / 172) shipped clean; six sprint-close fixes accumulated around them (149 / 150 / 151 / 152 / 154 / 155); two larger ENHs (177 claude session resume banner, 178 browser blocklist refactor) built but didn't get their owner walks in time, so they were reverted and queued for next sprint. The session-rename follow-up ([ENH-180](../tasks.md)) ships as a [PRD](prd/_archive/enh-180-session-rename.html) only — [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) for phone review.
 
 **Four design decisions baked in:**
 
@@ -63,7 +63,7 @@ Sprint 20's close-out. Theme: smaller daily-driver actions become first-class me
 3. **ENH-176 feature flags via localStorage only.** No UI surface for the send-pill variants until validated. Imperative setters exported for future CLI verbs. Default agent ON / terminal OFF preserves Sprint 16 behavior.
 4. **ENH-179 ⌘Z over ⌘⇧T.** ⌘⇧T is taken by `newClaudeTab`. Owner picked ⌘Z with smart routing — text undo wins inside any text-input surface via a new `inAnyTextInput` gate in `FocusContext`.
 
-**What this is and isn't.** This is a polish cut — incremental usability across navigation, tab creation, and selection. It is NOT the foundation for [ENH-180](prd/enh-180-session-rename.html) (auto-rename sessions via `/rename` PTY injection) — that depends on ENH-177 landing first, which is queued for next sprint. The PRD captures the 4 design decisions Sprint 21 needs to lock; the Notion mirror is so the owner can walk it on phone.
+**What this is and isn't.** This is a polish cut — incremental usability across navigation, tab creation, and selection. It is NOT the foundation for [ENH-180](prd/_archive/enh-180-session-rename.html) (auto-rename sessions via `/rename` PTY injection) — that depends on ENH-177 landing first, which is queued for next sprint. The PRD captures the 4 design decisions Sprint 21 needs to lock; the Notion mirror is so the owner can walk it on phone.
 
 **Tests:** 687 green (35 test files). Typecheck clean. Pre-cut reverts of ENH-177 + ENH-178 left their git history intact for cherry-pick.
 
