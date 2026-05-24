@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<title>Project-centric UX — design exploration (ENH-182)</title>
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Atelier kernel (inlined verbatim from
+   ~/.claude/skills/duo/references/duo-atelier.css per CLAUDE.md § 11)
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 96px; max-width: 920px; margin: 0 auto; }
+header.page-head { border-bottom: 1px solid var(--paper-rule); padding-bottom: 16px; margin-bottom: 24px; }
+header.page-head h1 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-style: italic; font-weight: 500; margin: 0 0 4px; font-size: 24px; }
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 6px; }
+.intro { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 14px 18px; margin-bottom: 28px; font-size: 13.5px; color: var(--ink-soft); }
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 600; margin: 36px 0 12px; font-size: 19px; border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px; }
+h3 { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { margin: 16px 0 6px; font-size: 13.5px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0; padding-left: 24px; }
+li { margin: 4px 0; }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; background: var(--paper-deep); padding: 1px 5px; border-radius: 3px; }
+pre { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; line-height: 1.5; background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 6px; overflow-x: auto; }
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.decision-card { background: var(--paper-deep); border: 1.5px solid var(--paper-rule); border-radius: 6px; padding: 16px 18px; margin: 18px 0; }
+.decision-card .q-title { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); margin: 0 0 6px; }
+.decision-card .q-prompt { font-family: "New York", "Iowan Old Style", Georgia, serif; font-weight: 500; font-size: 17px; color: var(--ink); margin: 0 0 12px; line-height: 1.35; }
+.decision-card .q-context { font-size: 13px; color: var(--ink-mute); margin: 0 0 14px; }
+.q-options { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0 0 12px; }
+.q-option { display: block; background: var(--paper); border: 1.5px solid var(--paper-rule); border-radius: 5px; padding: 10px 12px; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+.q-option:hover { border-color: var(--ink-ghost); }
+.q-option input[type="radio"] { margin-right: 8px; cursor: pointer; accent-color: var(--accent); }
+.q-option:has(input[type="radio"]:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--paper)); }
+.q-option-body { display: inline-block; vertical-align: top; width: calc(100% - 22px); }
+.q-option-title { font-weight: 600; font-size: 13.5px; color: var(--ink); margin: 0 0 3px; }
+.q-option-title .recommend-tag { font-size: 10px; background: var(--accent-soft); color: var(--accent); text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; padding: 1px 6px; border-radius: 8px; margin-left: 6px; }
+.q-option-rationale { font-size: 12px; color: var(--ink-soft); line-height: 1.45; margin: 3px 0 0; }
+.q-notes { width: 100%; background: var(--paper); border: 1px solid var(--paper-rule); border-radius: 4px; padding: 8px 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); resize: vertical; min-height: 50px; }
+.q-notes:focus { outline: 1.5px solid var(--accent); }
+details.deferred { margin: 22px 0; padding: 12px 16px; background: var(--paper-deep); border: 1px dashed var(--paper-rule); border-radius: 6px; }
+details.deferred summary { cursor: pointer; font-weight: 600; color: var(--ink-soft); font-size: 13.5px; }
+details.deferred[open] summary { color: var(--ink); }
+details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(--ink-soft); }
+.copy-bar { position: sticky; bottom: 0; margin: 32px -40px -96px; padding: 16px 40px; background: color-mix(in srgb, var(--paper-deep) 96%, transparent); border-top: 1.5px solid var(--paper-rule); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.copy-bar .copy-meta { font-size: 12.5px; color: var(--ink-soft); }
+.copy-bar #answered-count { color: var(--accent); font-weight: 700; }
+.copy-bar button { background: var(--accent); color: white; border: none; border-radius: 5px; padding: 9px 18px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+.copy-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.copy-bar button.copied { background: var(--pass); }
+
+/* ─────────────────────────────────────────────────────────────
+   Per-playground styles (after the kernel)
+   ───────────────────────────────────────────────────────────── */
+
+/* TL;DR / recommendation banner */
+.tldr { background: color-mix(in srgb, var(--accent) 8%, var(--paper)); border: 1.5px solid var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 6px; padding: 14px 18px; margin: 18px 0 28px; font-size: 13.5px; }
+.tldr h3 { margin: 0 0 8px; color: var(--accent); font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
+.tldr ul { margin: 6px 0 0; }
+
+/* Section anchor nav */
+.toc { font-size: 12.5px; color: var(--ink-mute); background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 6px; padding: 10px 16px; margin-bottom: 24px; columns: 2; column-gap: 28px; }
+.toc a { color: var(--ink-soft); text-decoration: none; }
+.toc a:hover { color: var(--accent); text-decoration: underline; }
+
+/* ── Duo window mockup primitives ── */
+.duo-win { border: 1px solid var(--paper-rule); border-radius: 9px; overflow: hidden; background: var(--paper); box-shadow: 0 3px 14px rgba(43,38,32,0.10); margin: 14px 0 6px; }
+.duo-titlebar { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 12px; background: var(--paper-deep); border-bottom: 1px solid var(--paper-rule); font-size: 11.5px; color: var(--ink-soft); }
+.tl { display: flex; gap: 6px; flex: 0 0 auto; }
+.tl i { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.tl .r { background: #ec6a5e; } .tl .y { background: #f4bf4f; } .tl .g { background: #61c454; }
+.tb-switch { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 6px; background: var(--paper); border: 1px solid var(--paper-rule); font-weight: 600; color: var(--ink); }
+.tb-switch.hot { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+.tb-switch .chev { color: var(--ink-mute); font-size: 9px; }
+.tb-switch .dot { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); display: inline-block; }
+.tb-bc { color: var(--ink-ghost); }
+.tb-spacer { flex: 1; }
+.tb-ghost { color: var(--ink-ghost); }
+
+.duo-stage { display: flex; height: 214px; }
+.region { padding: 9px 10px; font-size: 10.5px; overflow: hidden; position: relative; }
+.region .rlabel { text-transform: uppercase; letter-spacing: 0.06em; font-size: 8px; font-weight: 700; color: var(--ink-ghost); margin-bottom: 7px; }
+
+.r-rail { width: 50px; background: var(--accent-soft); border-right: 1px solid var(--paper-rule); display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 11px 0; }
+.r-rail .pj { width: 32px; height: 32px; border-radius: 9px; background: var(--paper); border: 1px solid var(--paper-rule); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: var(--ink-mute); position: relative; }
+.r-rail .pj.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.r-rail .pj.add { color: var(--ink-ghost); font-size: 16px; border-style: dashed; }
+.r-rail .raillbl { font-size: 7px; color: var(--ink-mute); margin-top: -5px; }
+.r-rail .collapse { margin-top: auto; color: var(--ink-mute); font-size: 13px; }
+
+.r-nav { width: 154px; background: var(--paper); border-right: 1px solid var(--paper-rule); }
+.r-term { flex: 1; background: var(--code-bg); color: var(--code-ink); }
+.r-term .rlabel { color: #8a8275; }
+.r-work { width: 38%; background: var(--paper); border-left: 1px solid var(--paper-rule); }
+
+.ctx-grp { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 5px; padding: 5px 7px; margin-bottom: 7px; }
+.ctx-grp .ctx-h { font-size: 8.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.04em; }
+.frow { display: flex; align-items: center; gap: 5px; padding: 1.5px 0; color: var(--ink-soft); }
+.frow .ic { color: var(--ink-ghost); }
+.frow.sel { background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 3px; padding-left: 3px; margin-left: -3px; color: var(--ink); }
+.frow .dirty { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+
+.tabstrip { display: flex; gap: 4px; margin-bottom: 7px; flex-wrap: wrap; }
+.tab { padding: 2px 8px; border-radius: 5px 5px 0 0; background: var(--paper-deep); border: 1px solid var(--paper-rule); border-bottom: none; font-size: 9.5px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 4px; }
+.tab.on { background: var(--paper); color: var(--ink); font-weight: 600; }
+.r-term .tab { background: #3a352e; border-color: #4a443b; color: #b8b0a2; }
+.r-term .tab.on { background: var(--code-bg); color: var(--code-ink); }
+.tab .ptag { font-size: 7.5px; background: var(--accent-soft); color: var(--accent); border-radius: 6px; padding: 0 4px; font-weight: 700; }
+.r-term .tab .ptag { background: #5a4327; color: #f0c489; }
+.tab .ptag.b { background: #cfe0c7; color: #3a6030; }
+.r-term .tab .ptag.b { background: #34492c; color: #a9d39a; }
+
+.tln { font-family: ui-monospace, Menlo, monospace; font-size: 9px; line-height: 1.7; }
+.tln .pr { color: #7fae6f; }
+.tln .dim { color: #8a8275; }
+.tln .cur { background: #c9b88f; color: var(--code-bg); }
+
+.workblock { background: var(--paper-deep); border: 1px solid var(--paper-rule); border-radius: 5px; height: calc(100% - 24px); padding: 8px; color: var(--ink-mute); font-size: 9.5px; }
+.workblock .bigtitle { font-family: Georgia, serif; font-size: 13px; color: var(--ink); margin-bottom: 5px; }
+.workbar { font-size: 9px; }
+
+/* substrip for two-tier mockup */
+.substrip { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 12px; background: var(--paper); border-bottom: 1px solid var(--paper-rule); font-size: 10px; }
+.substrip .ptab { padding: 2px 9px; border-radius: 12px; background: var(--paper-deep); border: 1px solid var(--paper-rule); color: var(--ink-mute); display: inline-flex; align-items: center; gap: 4px; }
+.substrip .ptab.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.substrip .ptab .gd { width: 7px; height: 7px; border-radius: 2px; background: currentColor; opacity: .7; }
+.substrip .lbl { color: var(--ink-ghost); font-size: 8.5px; text-transform: uppercase; letter-spacing: .05em; margin-right: 2px; }
+
+/* command palette overlay mock */
+.palette { background: var(--paper); border: 1.5px solid var(--accent); border-radius: 8px; box-shadow: 0 8px 30px rgba(43,38,32,0.28); width: 64%; margin: 26px auto; }
+.palette .pq { padding: 9px 12px; border-bottom: 1px solid var(--paper-rule); font-size: 11px; color: var(--ink-mute); }
+.palette .pq b { color: var(--ink); }
+.palette .prow { padding: 6px 12px; font-size: 10.5px; display: flex; align-items: center; gap: 8px; color: var(--ink-soft); }
+.palette .prow.on { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--ink); }
+.palette .prow .path { margin-left: auto; color: var(--ink-ghost); font-size: 9px; }
+.palette-shell { background: color-mix(in srgb, var(--ink) 30%, transparent); border-radius: 9px; padding: 1px; }
+
+/* mock highlight + caption */
+.mock-cap { font-size: 12px; color: var(--ink-mute); margin: 2px 0 10px; }
+.mock-cap b { color: var(--ink-soft); }
+.hl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 22px; margin: 8px 0 6px; }
+.hl .pro, .hl .con { font-size: 12px; }
+.hl .pro b { color: var(--pass); } .hl .con b { color: var(--fail); }
+.hl ul { margin: 4px 0; padding-left: 18px; }
+@media (max-width: 680px) { .hl { grid-template-columns: 1fr; } .toc { columns: 1; } }
+
+/* the 4-way relationship table */
+table.rel { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; }
+table.rel th, table.rel td { border: 1px solid var(--paper-rule); padding: 7px 9px; text-align: left; vertical-align: top; }
+table.rel th { background: var(--paper-deep); font-size: 11px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--ink-mute); }
+table.rel .yes { color: var(--pass); font-weight: 600; }
+table.rel .no { color: var(--fail); font-weight: 600; }
+table.rel .part { color: var(--warn); font-weight: 600; }
+
+/* venn-ish mapping diagram */
+.relmap { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0; }
+.relmap .layer { flex: 1; min-width: 150px; border: 1.5px solid var(--paper-rule); border-radius: 7px; padding: 10px 12px; background: var(--paper-deep); }
+.relmap .layer h4 { margin: 0 0 4px; color: var(--accent); font-size: 12px; }
+.relmap .layer .who { font-size: 10.5px; color: var(--ink-ghost); margin-bottom: 6px; }
+.relmap .layer p { font-size: 11.5px; margin: 0; color: var(--ink-soft); }
+.relmap .layer.core { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, var(--paper)); }
+
+/* small inline modal mock for micro-mockups */
+.modal { border: 1.5px solid var(--paper-rule); border-radius: 8px; background: var(--paper); box-shadow: 0 6px 22px rgba(43,38,32,0.18); padding: 14px 16px; max-width: 380px; margin: 12px 0; }
+.modal .mh { font-family: Georgia, serif; font-size: 14px; color: var(--ink); margin-bottom: 4px; }
+.modal .mb { font-size: 12px; color: var(--ink-soft); margin-bottom: 10px; }
+.modal .opt { display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; padding: 4px 0; color: var(--ink-soft); }
+.modal .opt .box { width: 13px; height: 13px; border: 1.5px solid var(--paper-rule); border-radius: 3px; margin-top: 1px; flex: 0 0 auto; }
+.modal .opt .box.ck { background: var(--accent); border-color: var(--accent); position: relative; }
+.modal .btns { display: flex; gap: 8px; margin-top: 12px; }
+.modal .btns .b { font-size: 11px; padding: 5px 12px; border-radius: 5px; border: 1px solid var(--paper-rule); background: var(--paper-deep); color: var(--ink-soft); }
+.modal .btns .b.pri { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+
+.note { font-size: 12.5px; color: var(--ink-mute); border-left: 3px solid var(--paper-rule); padding: 2px 0 2px 12px; margin: 10px 0; }
+.tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 9px; }
+.tag.exists { background: #cfe0c7; color: #3a6030; }
+.tag.missing { background: #f1c9c7; color: #8e302c; }
+.tag.rec { background: var(--accent-soft); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Project-centric UX — a design exploration</h1>
+  <div class="meta">
+    <span class="pill">Research</span>
+    <span class="pill">ENH-182</span>
+    Duo · 2026-05-24 · owner-decision playground
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> A design exploration of refactoring Duo so a
+  <em>project</em> becomes a first-class organizing primitive — a project
+  switcher, with a session's files, terminals, and browser tabs hanging off a
+  project parent. It compares whole-window directions and the thorny edge cases,
+  weighs pros and cons, grounds the options in how mature IDEs and SaaS tools
+  model "project / workspace / folder," and ends each theme with an inline
+  owner-decision card. Decide as you read; hit <strong>Copy decisions</strong>
+  at the bottom and paste back. <em>No code has been written — this is a
+  decision artifact.</em>
+</div>
+
+<div class="toc">
+  <a href="#today">1 · Where Duo is today</a><br>
+  <a href="#fork">2 · The core fork: gated vs. progressive</a><br>
+  <a href="#what">3 · What <em>is</em> a Duo project? (the 4-way map)</a><br>
+  <a href="#layouts">4 · Full-layout directions (mockups A–D)</a><br>
+  <a href="#edges">5 · The thorny edges (micro-mockups)</a><br>
+  <a href="#workspaces">6 · What happens to workspaces</a><br>
+  <a href="#proscons">7 · Pros &amp; cons, and why it's additive</a>
+</div>
+
+<div class="tldr">
+  <h3>The short version (recommended path)</h3>
+  <ul>
+    <li><b>Folder-first, not gated.</b> Let people work in any folder
+      immediately; <em>declaring</em> a project is a lightweight, optional
+      upgrade that unlocks (never forces) <code>CLAUDE.md</code> /
+      <code>agents.md</code> / <code>git init</code>.</li>
+    <li><b>A project is "any folder, that Duo names and remembers."</b>
+      Created implicitly; enriched progressively; aware of — but not
+      defined by — its git repo and its Claude Code project dir.</li>
+    <li><b>Switch via the title-bar dropdown you already shipped</b>
+      (extend <code>WorkspaceSwitcherDropdown</code>) + a ⌘P type-ahead.
+      Defer the thin left rail until many-project parallel work is proven.</li>
+    <li><b>One active project at a time; switching is cheap.</b> Tabs from
+      other projects are tagged, not hidden — a session can span projects
+      without a confusing multi-root mode.</li>
+    <li><b>Workspaces survive as an optional super-container</b> (a workspace
+      holds one-or-more projects) — but that tier is a later decision.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="today">1 · Where Duo is today</h2>
+
+<p>
+  The refactor is unusually low-risk for one reason: <strong>there is nothing
+  to tear out.</strong> Duo has no <code>Project</code> object, no project
+  registry, and no project switcher. "Where am I" is answered by three
+  independently-computed signals that are only loosely linked, plus an
+  orthogonal "is Claude running" probe:
+</p>
+
+<pre>  TabSession.cwd          per-terminal-tab launch dir   (each tab its own)
+  nav.state.cwd           navigator root, localStorage  ('duo.nav.cwd')
+        └─ follow-mode ──▸ moves to the active tab's cwd, UNLESS pinned
+  getGitStatus(cwd)       on-demand `git rev-parse --show-toplevel`
+        └─ workTreeRoot, branch, dirty — recomputed per navigator folder
+
+  claudePresence          process-tree probe: is the `claude` binary alive
+                          in the front tab?  (no-pty | shell | claude)
+                          ── orthogonal to all of the above ──</pre>
+
+<p>
+  And today's <strong>"workspace" is not a runtime object either</strong> —
+  it's a thin named envelope (<code>WorkspaceFile</code>) wrapping the
+  session-restore snapshot (<code>SessionState</code>: a flat list of
+  terminals, browser tabs, file tabs, the navigator path, split state).
+  Switching workspaces force-flushes state, kills every PTY, tears down browser
+  tabs, and <em>reloads the renderer</em>. The switcher
+  (<code>WorkspaceSwitcherDropdown.tsx</code>, ENH-171) is a title-bar dropdown
+  with a recent list — exactly the chrome a project switcher would reuse.
+</p>
+
+<p>What does <strong>not</strong> exist today (all confirmed in-tree):</p>
+<ul>
+  <li><span class="tag missing">missing</span> Any <code>Project</code> type / registry / persisted list of known projects.</li>
+  <li><span class="tag missing">missing</span> Any reading of <code>~/.claude/projects/&lt;encoded-cwd&gt;</code> or <code>sessions-index.json</code> (ENH-177 built it, then reverted pre-cut — not in the tree).</li>
+  <li><span class="tag missing">missing</span> Any <code>CLAUDE.md</code> parsing or marker-based "this folder is a project" classification. (<code>ProjectClaudeContext</code> only checks for the <em>existence</em> of <code>CLAUDE.md</code> / <code>.claude</code> / <code>tasks.md</code> / <code>AGENTS.md</code> to render a collapsible context group — cosmetic.)</li>
+  <li><span class="tag missing">missing</span> Any GitHub API integration (Duo only string-parses <code>git remote get-url origin</code> for "Open on GitHub" links).</li>
+  <li><span class="tag exists">exists &amp; reusable</span> Git work-tree-root detection, peer-repo scanning (BUG-135), per-file dirty dots, the navigator + follow-mode, and the title-bar switcher pattern.</li>
+</ul>
+
+<p class="note">
+  Upshot: a project primitive is a <em>new first-class anchor</em> that the
+  three location signals would derive from — additive, not a rewrite. The hard
+  part is product/UX, not plumbing. That's why the rest of this doc is mostly
+  decisions, not code.
+</p>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="fork">2 · The core fork — gated vs. progressive</h2>
+
+<p>
+  You named the biggest decision yourself: <em>"should we let a user use Duo
+  in arbitrary folders / repos / CC-dirs without declaring / creating /
+  selecting a project?"</em> Everything else hangs off this. The prior art is
+  lopsided: the modern default (VS Code, Sublime, Zed, GitHub Desktop) is
+  <strong>open a folder and that folder IS your project — zero ceremony</strong>.
+  The heavier "you must create/import a project" models (JetBrains, Xcode) pay
+  for richer per-project state with an explicit setup step that would land
+  hardest on Duo's non-engineer PM.
+</p>
+
+<p>
+  But "no concept at all" is what Duo has now, and it's fragmented. The
+  middle path — <strong>progressive</strong> — lets you work instantly in any
+  folder, while gently offering to "remember this as a project" so the switcher,
+  per-project context, and one-click <code>CLAUDE.md</code>/git scaffolding
+  become available when wanted.
+</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 1 · the spine</div>
+  <h3 class="q-prompt">Must a Duo session belong to a declared project, or can you work in any folder undeclared?</h3>
+  <p class="q-context">This sets the ceremony floor for every new user and every "just poke around this folder" moment. It also decides whether multi-project sessions are even expressible.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d1" value="progressive">
+      <div class="q-option-body">
+        <div class="q-option-title">Progressive / ungated <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Work in any folder immediately; "Use as a project" is an always-available, never-required upgrade that turns on the switcher entry + per-project context + optional scaffolding. Matches your stated instinct and the dominant IDE model.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="soft-gate">
+      <div class="q-option-body">
+        <div class="q-option-title">Soft-gate (nudge, don't block)</div>
+        <div class="q-option-rationale">Same as progressive, but Duo shows a persistent "this folder isn't a project — declare one?" prompt until dismissed. More organizational pressure; slightly more nagging.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d1" value="gated">
+      <div class="q-option-body">
+        <div class="q-option-title">Gated (must select/create a project first)</div>
+        <div class="q-option-rationale">A project picker is the front door; you can't reach terminals/files without choosing one. Cleanest data model and switcher, but adds a setup wall — risky for the PM persona and for "just look at this folder."</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="what">3 · What <em>is</em> a Duo project? (the 4-way map)</h2>
+
+<p>
+  You asked specifically about the relationship between a Duo project, a GitHub
+  repo, and a Claude Code project. They're four different things that usually —
+  but not always — line up on the same folder:
+</p>
+
+<div class="relmap">
+  <div class="layer">
+    <h4>Folder</h4>
+    <div class="who">the filesystem</div>
+    <p>A path on disk. Always exists. May or may not be a git repo; may or may not have a <code>CLAUDE.md</code>.</p>
+  </div>
+  <div class="layer">
+    <h4>Git repo</h4>
+    <div class="who">git / GitHub</div>
+    <p>A folder with <code>.git/</code>. Has a work-tree root, branch, optional <code>origin</code> remote → a GitHub repo. Can be nested (repo-in-repo, submodules, monorepo).</p>
+  </div>
+  <div class="layer">
+    <h4>Claude Code project</h4>
+    <div class="who">Claude Code</div>
+    <p>Implicit: CC keys sessions/history off the cwd, stored at <code>~/.claude/projects/&lt;encoded-cwd&gt;</code>. Plus <code>CLAUDE.md</code> / <code>.claude/</code> as context markers.</p>
+  </div>
+  <div class="layer core">
+    <h4>Duo project</h4>
+    <div class="who">the new primitive</div>
+    <p><b>A folder Duo has named and remembers</b>, that <em>knows about</em> its repo and its CC dir but isn't defined by either. The anchor the three location signals derive from.</p>
+  </div>
+</div>
+
+<table class="rel">
+  <tr><th>Concept</th><th>Defined by</th><th>Duo knows it today?</th><th>Relationship to a "Duo project"</th></tr>
+  <tr>
+    <td><b>Folder</b></td><td>a path existing on disk</td>
+    <td><span class="yes">Yes</span> — nav root + per-tab cwd</td>
+    <td>1:1 — a Duo project <em>is</em> a folder (its root). The lowest common denominator.</td>
+  </tr>
+  <tr>
+    <td><b>Git repo</b></td><td><code>.git/</code> + work-tree root</td>
+    <td><span class="part">Partly</span> — detects root/branch/dirty per cwd; parses remote URL; no API</td>
+    <td>Often the same folder, but: a project may have <em>no</em> git; a repo may contain <em>several</em> projects (monorepo); a project may span repos. Loose, not identity.</td>
+  </tr>
+  <tr>
+    <td><b>Claude Code project</b></td><td>cwd → <code>~/.claude/projects/&lt;enc&gt;</code>; <code>CLAUDE.md</code></td>
+    <td><span class="no">No</span> — reverted ENH-177; no CLAUDE.md parsing</td>
+    <td>A Duo project's root cwd <em>determines</em> which CC project history applies. Declaring a Duo project is the natural moment to offer "add a <code>CLAUDE.md</code>."</td>
+  </tr>
+  <tr>
+    <td><b>GitHub repo</b></td><td>remote <code>origin</code> on github.com</td>
+    <td><span class="part">Partly</span> — remote-URL string only</td>
+    <td>An attribute of a project's repo, not the project itself. Cloning one is a strong <em>signal</em> to create a project (see Decision 6).</td>
+  </tr>
+</table>
+
+<section class="decision-card">
+  <div class="q-title">Decision 2 · the primitive</div>
+  <h3 class="q-prompt">What, precisely, is a "Duo project"?</h3>
+  <p class="q-context">This decides what gets persisted, how creation works, and how PM-friendly the surface stays. Your instinct ("a project can be any folder; Duo then knows it might want CLAUDE.md/agents.md/git later, made easy but not mandatory") maps to the recommended option.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d2" value="named-folder">
+      <div class="q-option-body">
+        <div class="q-option-title">Any folder Duo names &amp; remembers — implicit creation, progressive enrichment <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Point at a folder → a project record exists (name = folder basename, editable). It tracks its root, optionally a git repo + CC dir. One-click (never forced) "add CLAUDE.md / agents.md / init git." App-owned named entity, PM-friendly, no required config file.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="git-repo">
+      <div class="q-option-body">
+        <div class="q-option-title">Project = git repo (repo-centric)</div>
+        <div class="q-option-rationale">Like GitHub Desktop/GitKraken. Clean 1:1 when work maps to repos; breaks for non-git folders (most PM scratch dirs) and monorepos. Too narrow for the PM persona.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d2" value="cc-project">
+      <div class="q-option-body">
+        <div class="q-option-title">Project = Claude Code project (CLAUDE.md / <code>~/.claude/projects</code>)</div>
+        <div class="q-option-rationale">Bind identity to CC's own notion. Tight agent integration, but excludes folders with no CLAUDE.md and couples Duo's UX to a CC internal that shifts. Better as a <em>derived</em> attribute than the identity.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="layouts">4 · Full-layout directions</h2>
+
+<p>
+  Four end-to-end window mockups for <em>where the project switcher lives</em>.
+  First, today's baseline for contrast.
+</p>
+
+<h3>Baseline — today (no project concept)</h3>
+<div class="duo-win">
+  <div class="duo-titlebar">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="tb-switch"><span class="dot"></span>my-workspace <span class="chev">▾</span></span>
+    <span class="tb-ghost">— workspace = flat snapshot of tabs</span>
+  </div>
+  <div class="duo-stage">
+    <div class="region r-nav">
+      <div class="rlabel">Navigator (follows active tab)</div>
+      <div class="ctx-grp"><div class="ctx-h">Context</div><div class="frow"><span class="ic">▸</span> CLAUDE.md</div></div>
+      <div class="frow"><span class="ic">▾</span> ~/duo</div>
+      <div class="frow sel"><span class="ic">📄</span> App.tsx</div>
+      <div class="frow"><span class="ic">📄</span> roadmap.html</div>
+    </div>
+    <div class="region r-term">
+      <div class="rlabel">Terminal</div>
+      <div class="tabstrip"><span class="tab on">claude</span><span class="tab">zsh</span></div>
+      <div class="tln"><span class="pr">~/duo ❯</span> claude</div>
+      <div class="tln dim">● ready</div>
+      <div class="tln"><span class="cur">&nbsp;</span></div>
+    </div>
+    <div class="region r-work">
+      <div class="rlabel">Working pane</div>
+      <div class="tabstrip"><span class="tab on">roadmap.html</span></div>
+      <div class="workblock"><div class="bigtitle">Roadmap</div>browser / editor / page…</div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap"><b>Today:</b> the title-bar badge names a <em>workspace</em>; there's no project. Navigator root drifts to follow whichever terminal tab is active.</p>
+
+<h3>Direction A — thin collapsible project rail (far left)</h3>
+<div class="duo-win">
+  <div class="duo-titlebar">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="tb-bc">Duo</span>
+    <span class="tb-ghost">— rail owns project identity</span>
+  </div>
+  <div class="duo-stage">
+    <div class="region r-rail">
+      <div class="pj on">D</div>
+      <div class="pj">A</div>
+      <div class="pj">W</div>
+      <div class="pj add">+</div>
+      <div class="collapse">⟨</div>
+    </div>
+    <div class="region r-nav">
+      <div class="rlabel">duo · navigator</div>
+      <div class="ctx-grp"><div class="ctx-h">Project · duo</div><div class="frow"><span class="ic">▸</span> CLAUDE.md</div></div>
+      <div class="frow sel"><span class="ic">📄</span> App.tsx <span class="dirty"></span></div>
+      <div class="frow"><span class="ic">📄</span> roadmap.html</div>
+    </div>
+    <div class="region r-term">
+      <div class="rlabel">Terminal</div>
+      <div class="tabstrip"><span class="tab on">claude</span><span class="tab">zsh</span></div>
+      <div class="tln"><span class="pr">~/duo ❯</span> <span class="cur">&nbsp;</span></div>
+    </div>
+    <div class="region r-work">
+      <div class="rlabel">Working pane</div>
+      <div class="tabstrip"><span class="tab on">roadmap</span></div>
+      <div class="workblock"><div class="bigtitle">Roadmap</div></div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap"><b>A:</b> a ~50px rail of project tiles (letter/folder glyphs), active highlighted, <code>+</code> to add a folder, collapses to a hairline. Slack / Linear / VS&nbsp;Code-Activity-Bar idiom.</p>
+<div class="hl">
+  <div class="pro"><b>Pros</b><ul><li>Always-visible; one-click switch; scales to many projects.</li><li>Strong "projects are the spine" signal.</li></ul></div>
+  <div class="con"><b>Cons</b><ul><li>Local folders have no natural icon → ambiguous letter-avatars.</li><li>Eats horizontal space Duo needs for term+browser.</li><li>Collides with the VS Code mental model (that rail switches <em>views</em>, not projects).</li></ul></div>
+</div>
+
+<h3>Direction B — title-bar project switcher <span class="tag rec">recommended</span></h3>
+<div class="duo-win">
+  <div class="duo-titlebar">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="tb-switch hot"><span class="dot"></span>duo <span class="chev">▾</span></span>
+    <span class="tb-bc">▸ App.tsx</span>
+    <span class="tb-spacer"></span>
+    <span class="tb-ghost">⌘P to switch</span>
+  </div>
+  <div class="duo-stage">
+    <div class="region r-nav">
+      <div class="rlabel">duo · navigator</div>
+      <div class="ctx-grp"><div class="ctx-h">Project · duo</div><div class="frow"><span class="ic">▸</span> CLAUDE.md</div><div class="frow"><span class="ic">▸</span> .claude</div></div>
+      <div class="frow sel"><span class="ic">📄</span> App.tsx <span class="dirty"></span></div>
+      <div class="frow"><span class="ic">📄</span> roadmap.html</div>
+    </div>
+    <div class="region r-term">
+      <div class="rlabel">Terminal</div>
+      <div class="tabstrip"><span class="tab on">claude</span><span class="tab">zsh</span></div>
+      <div class="tln"><span class="pr">~/duo ❯</span> claude</div>
+      <div class="tln dim">● working…</div>
+      <div class="tln"><span class="cur">&nbsp;</span></div>
+    </div>
+    <div class="region r-work">
+      <div class="rlabel">Working pane</div>
+      <div class="tabstrip"><span class="tab on">roadmap</span><span class="tab">App.tsx</span></div>
+      <div class="workblock"><div class="bigtitle">Roadmap</div></div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap"><b>B:</b> the project name lives where the workspace badge is today (extend <code>WorkspaceSwitcherDropdown</code>). Click → recent projects + "Open folder…" + "New project…". Optional breadcrumb <code>project ▸ file</code>. Zed / Notion / GitHub-Desktop idiom.</p>
+<div class="hl">
+  <div class="pro"><b>Pros</b><ul><li>Reuses a shipped component — lowest build cost.</li><li>Zero added horizontal chrome.</li><li>Top-left switch anchor is the universal convention.</li></ul></div>
+  <div class="con"><b>Cons</b><ul><li>Less glanceable than a rail for rapid many-project hopping.</li><li>Switching is a click-into-menu, not a single visible target.</li></ul></div>
+</div>
+
+<h3>Direction C — ⌘P command-palette quick-switch</h3>
+<div class="palette-shell">
+  <div class="palette">
+    <div class="pq">Switch project &nbsp; <b>wid</b><span class="cur">|</span></div>
+    <div class="prow on"><span>📁</span> widgets <span class="path">~/work/acme/widgets</span></div>
+    <div class="prow"><span>📁</span> widget-marketing-site <span class="path">~/work/acme/mktg</span></div>
+    <div class="prow"><span style="opacity:.5">＋</span> Open folder as project… <span class="path">⌘O</span></div>
+  </div>
+</div>
+<p class="mock-cap"><b>C:</b> no persistent chrome — ⌘P opens a type-ahead over recent projects (+ "open folder"). Pairs with a small current-project chip in the title bar so it stays discoverable. Sublime / Tower / Linear-⌘K idiom. The research's <em>lowest-risk</em> primitive.</p>
+<div class="hl">
+  <div class="pro"><b>Pros</b><ul><li>Zero screen cost; keyboard-fast; scales infinitely.</li><li>Cheap to add <em>alongside</em> B.</li></ul></div>
+  <div class="con"><b>Cons</b><ul><li>Discoverability for a PM who won't memorize ⌘P (mitigated by the chip + recent list).</li></ul></div>
+</div>
+
+<h3>Direction D — two-tier: workspace ▸ projects</h3>
+<div class="duo-win">
+  <div class="duo-titlebar">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="tb-switch"><span class="dot"></span>Acme launch <span class="chev">▾</span></span>
+    <span class="tb-ghost">workspace</span>
+  </div>
+  <div class="substrip">
+    <span class="lbl">Projects</span>
+    <span class="ptab on"><span class="gd"></span> widgets</span>
+    <span class="ptab"><span class="gd"></span> marketing-site</span>
+    <span class="ptab" style="border-style:dashed">＋ add</span>
+  </div>
+  <div class="duo-stage" style="height:184px">
+    <div class="region r-nav">
+      <div class="rlabel">widgets · navigator</div>
+      <div class="frow sel"><span class="ic">📄</span> index.ts</div>
+      <div class="frow"><span class="ic">📄</span> README.md</div>
+    </div>
+    <div class="region r-term">
+      <div class="rlabel">Terminal</div>
+      <div class="tabstrip"><span class="tab on">claude <span class="ptag">widgets</span></span><span class="tab">zsh <span class="ptag b">mktg</span></span></div>
+      <div class="tln"><span class="pr">widgets ❯</span> <span class="cur">&nbsp;</span></div>
+    </div>
+    <div class="region r-work">
+      <div class="rlabel">Working</div>
+      <div class="tabstrip"><span class="tab on">spec</span></div>
+      <div class="workblock"><div class="bigtitle">Spec</div></div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap"><b>D:</b> the title bar switches <em>workspaces</em>; a sub-strip switches <em>projects</em> within the active workspace. Tabs carry a project tag. Honors your "a workspace contains one-or-more projects" idea and makes multi-project sessions explicit. Xcode (workspace=pointer-list) idiom.</p>
+<div class="hl">
+  <div class="pro"><b>Pros</b><ul><li>Directly expresses the two-tier model you floated.</li><li>Multi-project sessions become first-class and visible.</li></ul></div>
+  <div class="con"><b>Cons</b><ul><li>Two switchers = two concepts to learn (the VS Code multi-root confusion risk).</li><li>Heaviest to build; best deferred until the project tier proves itself.</li></ul></div>
+</div>
+
+<section class="decision-card">
+  <div class="q-title">Decision 3 · the switcher surface</div>
+  <h3 class="q-prompt">Where does the project switcher live in v1?</h3>
+  <p class="q-context">Mockups A–D above. These aren't fully exclusive — B and C compose well; A and D are bigger bets. Pick the v1 primary.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d3" value="titlebar-palette">
+      <div class="q-option-body">
+        <div class="q-option-title">B + C: title-bar dropdown, also opens on ⌘P <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Reuse the shipped switcher; add a ⌘P type-ahead for free. Lowest cost, universal convention, discoverable + keyboard-fast. Defer rail/two-tier.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="rail">
+      <div class="q-option-body">
+        <div class="q-option-title">A: thin collapsible left rail</div>
+        <div class="q-option-rationale">Best if you expect users juggling many projects at a glance. Costs horizontal space + an icon-ambiguity problem; collides with the VS Code Activity-Bar mental model.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d3" value="two-tier">
+      <div class="q-option-body">
+        <div class="q-option-title">D: two-tier workspace ▸ project strip</div>
+        <div class="q-option-rationale">Pick only if the workspace tier (Decision 7) is also a "yes now." Most expressive, most concepts, most build.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="edges">5 · The thorny edges (micro-mockups)</h2>
+
+<h3>Edge 1 — declaring a project / a folder with no <code>CLAUDE.md</code></h3>
+<div class="modal">
+  <div class="mh">Use <b>~/Documents/q3-research</b> as a project?</div>
+  <div class="mb">Duo will remember it in your switcher. Optional — set up later, anytime:</div>
+  <div class="opt"><span class="box ck"></span> Add a <b>CLAUDE.md</b> (project context for Claude)</div>
+  <div class="opt"><span class="box"></span> Add an <b>agents.md</b></div>
+  <div class="opt"><span class="box"></span> Initialize <b>git</b></div>
+  <div class="btns"><span class="b pri">Use as project</span><span class="b">Just browse</span></div>
+</div>
+<p class="mock-cap">A folder needs no marker to become a project. Declaring it is the natural moment to <em>offer</em> (pre-checked-optional) the scaffolding — never required. "Just browse" honors the progressive model (Decision 1): you keep working, undeclared.</p>
+
+<h3>Edge 2 — nested Claude Code projects (repo-in-repo / monorepo)</h3>
+<div class="duo-win">
+  <div class="duo-titlebar">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="tb-switch"><span class="dot"></span>monorepo <span class="chev">▾</span></span>
+    <span class="tb-bc">▸ packages/ui ▸ active root</span>
+  </div>
+  <div class="duo-stage" style="height:150px">
+    <div class="region r-nav" style="width:auto;flex:1">
+      <div class="rlabel">navigator — nested roots detected</div>
+      <div class="frow"><span class="ic">▾</span> monorepo <span style="margin-left:auto;font-size:8px;color:var(--accent)">root</span></div>
+      <div class="frow" style="padding-left:14px"><span class="ic">▾</span> packages</div>
+      <div class="frow sel" style="padding-left:28px"><span class="ic">▾</span> ui <span style="margin-left:auto;font-size:8px;color:var(--accent)">● active CLAUDE.md</span></div>
+      <div class="frow" style="padding-left:28px"><span class="ic">▸</span> api <span style="margin-left:auto;font-size:8px;color:var(--ink-ghost)">CLAUDE.md</span></div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap">Duo already detects peer-repo containers (BUG-135). Extend that: when a project contains nested markers, <em>pick a sensible active root</em> (the deepest marker enclosing the focused file) and make it visible + switchable in the breadcrumb. The prior-art lesson is unanimous: <b>detect the boundaries, surface them, but never force the user to resolve the hierarchy up front.</b></p>
+
+<h3>Edge 3 — a session spanning two projects</h3>
+<div class="duo-win">
+  <div class="duo-titlebar">
+    <div class="tl"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+    <span class="tb-switch hot"><span class="dot"></span>widgets <span class="chev">▾</span></span>
+    <span class="tb-ghost">active project</span>
+  </div>
+  <div class="duo-stage" style="height:150px">
+    <div class="region r-term" style="flex:1">
+      <div class="rlabel">Terminal — tabs tagged by project</div>
+      <div class="tabstrip">
+        <span class="tab on">claude <span class="ptag">widgets</span></span>
+        <span class="tab">build <span class="ptag">widgets</span></span>
+        <span class="tab">claude <span class="ptag b">mktg-site</span></span>
+      </div>
+      <div class="tln"><span class="pr">widgets ❯</span> <span class="cur">&nbsp;</span></div>
+      <div class="tln dim">switching the active project re-points the navigator + ⌘N seed,</div>
+      <div class="tln dim">but leaves every tab exactly where it is.</div>
+    </div>
+  </div>
+</div>
+<p class="mock-cap">Your hard requirement: a session must be able to span projects. The recommended model — <b>one active project, cheap switch, tabs tagged not hidden</b> — keeps "which project am I acting on?" unambiguous (the VS Code multi-root failure was invisible scope) while letting tabs from other projects coexist. Decision 4 picks between this and a true simultaneous multi-root.</p>
+
+<h3>Edge 4 — cloning a GitHub repo</h3>
+<div class="modal">
+  <div class="mh">Cloned <b>acme/widgets</b> ✓</div>
+  <div class="mb">to <code>~/work/acme/widgets</code>. Make it a Duo project?</div>
+  <div class="btns"><span class="b pri">Create project "widgets"</span><span class="b">Not now</span></div>
+</div>
+<p class="mock-cap">Per your note, a clone is a strong signal but not an auto-decision. Prompt once (the repo name pre-fills the project name); "Not now" still leaves the files browsable. Symmetric with Edge 1.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 4 · multi-project sessions</div>
+  <h3 class="q-prompt">How does a session that spans projects behave?</h3>
+  <p class="q-context">Your constraint: spanning projects must never be a barrier. The question is whether "active project" is a single pointer or a true multi-root set.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d4" value="single-active">
+      <div class="q-option-body">
+        <div class="q-option-title">Single active project, cheap switch, tabs tagged <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">One project is "active" (drives navigator root + new-tab cwd seed). Tabs belonging to other projects stay open, badged with their project. Switching is instant and non-destructive. Avoids the multi-root scope-confusion trap.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d4" value="multi-root">
+      <div class="q-option-body">
+        <div class="q-option-title">True multi-root (several projects simultaneously "in" the session)</div>
+        <div class="q-option-rationale">Navigator shows multiple roots at once (Zed "Add folder to project"). More powerful for cross-project work; this is exactly where VS Code multi-root gets confusing (which root am I acting on?).</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d4" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 5 · nesting</div>
+  <h3 class="q-prompt">When a project contains nested projects/repos, what's the active scope?</h3>
+  <p class="q-context">Monorepos, submodules, repo-in-repo. Duo already has peer-repo detection to build on.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d5" value="auto-deepest">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-pick the deepest enclosing marker; show + allow override <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Follow the focused file: the deepest <code>CLAUDE.md</code>/<code>.git</code> enclosing it becomes the active root, shown in the breadcrumb, switchable. Detect, surface, don't force.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="outermost">
+      <div class="q-option-body">
+        <div class="q-option-title">Always the outermost declared project</div>
+        <div class="q-option-rationale">Simpler mental model; the project root is fixed. But Claude's context then ignores the nested <code>CLAUDE.md</code> the user is actually working in.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d5" value="prompt">
+      <div class="q-option-body">
+        <div class="q-option-title">Prompt the user to choose the root on first nested encounter</div>
+        <div class="q-option-rationale">Explicit and unambiguous, but adds a decision wall exactly when someone is trying to get work done — the ceremony the PM persona dislikes.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d5" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision 6 · clone → project</div>
+  <h3 class="q-prompt">When the user clones a GitHub repo, does it become a project?</h3>
+  <p class="q-context">Edge 4 above. You leaned "should likely trigger a decision."</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d6" value="prompt">
+      <div class="q-option-body">
+        <div class="q-option-title">Prompt once (repo name pre-fills) <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">A clone is a strong signal but not consent. One non-blocking prompt; "Not now" leaves files browsable. Symmetric with the declare-a-folder flow.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="auto">
+      <div class="q-option-body">
+        <div class="q-option-title">Auto-create the project</div>
+        <div class="q-option-rationale">Frictionless, but creates project records the user didn't ask for — clutter in the switcher for throwaway clones.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d6" value="never">
+      <div class="q-option-body">
+        <div class="q-option-title">Never auto — only via the normal "declare" path</div>
+        <div class="q-option-rationale">No special-casing; clone is just files until declared. Simplest, but misses an obvious moment of intent.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d6" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="workspaces">6 · What happens to workspaces</h2>
+
+<p>
+  You flagged this as a future decision and floated "we might still want
+  workspaces, which could contain one or more projects." Today's workspace is
+  just a saved snapshot of tabs (§1) — it isn't a project container at all. The
+  options range from retiring it to promoting it into the super-container tier
+  (Direction D). Because today's workspace owns no project concept, none of
+  these is blocked by existing data — but the more we keep, the more concepts
+  the user juggles.
+</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision 7 · workspaces' fate</div>
+  <h3 class="q-prompt">Do workspaces survive once projects exist?</h3>
+  <p class="q-context">Marked a future call — answer "lean" if you just want a direction recorded, not locked.</p>
+  <div class="q-options">
+    <label class="q-option">
+      <input type="radio" name="d7" value="defer-twotier">
+      <div class="q-option-body">
+        <div class="q-option-title">Defer; lean toward "workspace = optional super-container of projects" <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-rationale">Ship projects first as the parent of tabs. Keep workspaces as-is (a saved layout) for now; revisit promoting them into a project-container (Direction D) once the project tier has earned its keep. Lowest commitment.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d7" value="replace">
+      <div class="q-option-body">
+        <div class="q-option-title">Replace: project becomes the parent primitive, workspace retired</div>
+        <div class="q-option-rationale">Your original framing. One fewer concept; cleanest model. Needs a one-time migration (each saved workspace → a project + its restored tabs). Commit now.</div>
+      </div>
+    </label>
+    <label class="q-option">
+      <input type="radio" name="d7" value="twotier-now">
+      <div class="q-option-body">
+        <div class="q-option-title">Build the two-tier hierarchy now (Direction D)</div>
+        <div class="q-option-rationale">Workspace-contains-projects from day one. Most expressive; most concepts + build cost up front; carries the multi-root confusion risk before we know we need it.</div>
+      </div>
+    </label>
+  </div>
+  <textarea class="q-notes" data-decision="d7" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════ -->
+<h2 id="proscons">7 · Pros &amp; cons, and why it's additive</h2>
+
+<div class="hl">
+  <div class="pro"><b>Pros of going project-centric</b><ul>
+    <li>One coherent answer to "where am I" — replaces three loosely-linked location signals with a single anchor they derive from.</li>
+    <li>Becomes the natural <em>scope for Claude's context</em> (the Cursor/Windsurf/Zed lesson): per-project CLAUDE.md, history, skills, and — later — agent memory.</li>
+    <li>A real home for per-project state Duo can't cleanly hang anywhere today (pinned nav root, recent files, per-project browser tabs).</li>
+    <li>A genuine switcher + recent list — the single most-expected primitive, and a big legibility win for the PM.</li>
+    <li>The obvious hook for one-click "add CLAUDE.md / agents.md / git" onboarding.</li>
+  </ul></div>
+  <div class="con"><b>Cons / risks</b><ul>
+    <li>A new top-level concept for a persona who wanted <em>fewer</em> concepts — mitigated only if creation stays implicit and ungated.</li>
+    <li>Multi-root/two-tier is a proven confusion generator; easy to over-build.</li>
+    <li>Nested markers + non-git folders + monorepos are genuinely fiddly to get right.</li>
+    <li>Touches the most central surfaces (navigator root, new-tab cwd, session restore, the title bar) — broad blast radius even though it's additive.</li>
+    <li>Per-project persistence means a new store + migration discipline (and the session-restore reload path is destructive today).</li>
+  </ul></div>
+</div>
+
+<details class="deferred">
+  <summary>Why this is additive, not a rewrite (feasibility note — not a build plan)</summary>
+  <div class="deferred-body">
+    <p>From the code map: there's no project logic to replace. A project record would be a new store (e.g. <code>~/.claude/duo/projects.json</code>), and the three existing location signals get a new <em>source of truth</em> to derive from:</p>
+    <ul>
+      <li><b>Navigator root</b> already lives in one place (<code>useNavigator</code>, <code>duo.nav.cwd</code>) — point it at <code>activeProject.root</code> instead of free localStorage + follow-mode.</li>
+      <li><b>New-tab cwd</b> seeds from nav state today — seed from the active project instead.</li>
+      <li><b>Git + CC-dir</b> are already computed per-cwd — attach the results to the project as derived attributes; no new detection needed beyond reading <code>~/.claude/projects/&lt;encoded&gt;</code> (the reverted ENH-177 work is a starting point).</li>
+      <li><b>The switcher</b> is the shipped <code>WorkspaceSwitcherDropdown</code> generalized from "recent workspaces" to "recent projects."</li>
+      <li><b>CLI parity</b> (CLAUDE.md § 4) would add a <code>duo project</code> verb family mirroring the UI — out of scope for this doc, but the existing <code>duo workspace</code> verbs are the template.</li>
+    </ul>
+    <p>The riskiest existing behavior to revisit is that <em>switching today does a destructive renderer reload</em>; a project switch wants to be a live, non-destructive re-point (Decision 4's "cheap switch"). That's the one piece that's more than additive.</p>
+  </div>
+</details>
+
+<p class="note">
+  Related prior playgrounds worth a glance:
+  <code>docs/research/workspace-switcher.html</code> (ENH-171 design),
+  <code>docs/research/link-folder-to-repo.html</code>, and
+  <code>docs/research/integration-primitive-design.html</code>.
+</p>
+
+<div class="copy-bar">
+  <div class="copy-meta"><span id="answered-count">0</span> / 7 decisions answered</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function () {
+  var TITLES = {
+    d1: "D1 · Gated vs. progressive (the spine)",
+    d2: "D2 · What is a Duo project (the primitive)",
+    d3: "D3 · Switcher surface (layout direction)",
+    d4: "D4 · Multi-project session model",
+    d5: "D5 · Nested-project active scope",
+    d6: "D6 · Clone GitHub repo → project",
+    d7: "D7 · Workspaces' fate"
+  };
+  var ORDER = ["d1","d2","d3","d4","d5","d6","d7"];
+
+  function answeredCount() {
+    var n = 0;
+    ORDER.forEach(function (k) {
+      if (document.querySelector('input[name="' + k + '"]:checked')) n++;
+    });
+    return n;
+  }
+  function refresh() {
+    document.getElementById("answered-count").textContent = answeredCount();
+  }
+  document.querySelectorAll('.q-option input[type="radio"]').forEach(function (r) {
+    r.addEventListener("change", refresh);
+  });
+
+  function buildPayload() {
+    var lines = ["# ENH-182 · Project-centric UX — decisions", ""];
+    ORDER.forEach(function (k) {
+      var checked = document.querySelector('input[name="' + k + '"]:checked');
+      var notesEl = document.querySelector('.q-notes[data-decision="' + k + '"]');
+      var notes = notesEl ? notesEl.value.trim() : "";
+      var val = checked ? checked.value : "—UNANSWERED—";
+      lines.push("[" + val + "] " + TITLES[k]);
+      if (notes) {
+        notes.split("\n").forEach(function (ln) { lines.push("    " + ln); });
+      }
+      lines.push("");
+    });
+    return lines.join("\n");
+  }
+
+  var btn = document.getElementById("copy-btn");
+  btn.addEventListener("click", function () {
+    var payload = buildPayload();
+    function done() {
+      btn.classList.add("copied");
+      var prev = btn.textContent;
+      btn.textContent = "Copied ✓";
+      setTimeout(function () { btn.classList.remove("copied"); btn.textContent = prev; }, 1800);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payload).then(done, function () {
+        window.prompt("Copy the decisions below:", payload);
+      });
+    } else {
+      window.prompt("Copy the decisions below:", payload);
+    }
+  });
+
+  refresh();
+})();
+</script>
+
+</body>
+</html>
