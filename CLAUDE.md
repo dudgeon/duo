@@ -759,7 +759,7 @@ time.
 **Examples of the anti-pattern (rejected during ENH-183 PRD):**
 - *"Track which sessions Duo auto-named in
   `~/.claude/duo/hydrated-sessions.json` so we can show an AUTO
-  badge."* — Rejected. Once Claude's storage has a `customName`,
+  badge."* — Rejected. Once Claude's storage has a `customTitle`,
   there is no truth to "who wrote it" outside Claude's own write
   history. A Duo sidecar would diverge silently any time the user
   edited `sessions-index.json` by hand, restored from backup,
@@ -830,7 +830,7 @@ routed around ad hoc.
 
 1. **ENH-177 + ENH-181 bundle** — Claude session resume banner + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle. **Full implementation TODO in [`docs/dev/active-sprint.md § Sprint 21 implementation TODO`](docs/dev/active-sprint.md)** — file inventory (9 files, ~412 LOC for the cherry-pick), per-behavior implementation map, mechanism empirics. Quick orientation:
    - **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts.
-   - **Step 2:** Layer in 4 ENH-181 behaviors: banner title reads `sessions-index.json § customName > summary > UUID`; collapsed-marker on tab as default; inline rename via PTY `\r/rename <title>\n` (gated on `claudePresence === 'claude'`); CLI parity (`duo session rename` / `collapse` / `expand`).
+   - **Step 2:** Layer in 4 ENH-181 behaviors: banner title reads JSONL `customTitle` > `aiTitle` > first user message > UUID (C1 empirics — see [`docs/research/enh-183-step-0-empirics.md`](docs/research/enh-183-step-0-empirics.md)); collapsed-marker on tab as default; inline rename via PTY `\r/rename <title>\n` (gated on `claudePresence === 'claude'`); CLI parity (`duo session rename` / `collapse` / `expand`).
    - **Step 3:** Owner walks live. Mockup at [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) (7 states) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) (phone-readable).
 
 **Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/_archive/enh-180-session-rename.html`](docs/prd/_archive/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).

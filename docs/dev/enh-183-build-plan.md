@@ -19,7 +19,7 @@
 
 ## Status
 
-- [ ] **C1** — Step 0 empirics
+- [x] **C1** — Step 0 empirics ([notes](../research/enh-183-step-0-empirics.md))
 - [ ] **C2** — Cherry-pick f351719
 - [ ] **C3** — Refactor `ClaudeResumeBanner` → polymorphic `SessionHeader`
 - [ ] **C4** — Read ladder (D5) + session-tracker JSONL fallback (D13)
@@ -37,36 +37,35 @@ After C13: propose v0.7.9 cut via `cut-version` skill (per CLAUDE.md § 10).
 
 ---
 
-## C1 — Step 0 empirics (gating, ~15 min, no code)
+## C1 — Step 0 empirics — ✅ COMPLETE
 
-**What.** Verify the assumptions Step 0 in the PRD identifies. Output is a short notes doc
-under `docs/research/enh-183-step-0-empirics.md` capturing actual `/rename` behavior so we don't
-build on unverified ground.
+**Output:** [`docs/research/enh-183-step-0-empirics.md`](../research/enh-183-step-0-empirics.md).
 
-**Procedure.**
+**Headline findings (read before C2):**
 
-1. Spawn fresh terminal tab in Duo (`duo new-tab --claude`).
-2. Send one message to register a session UUID.
-3. Inspect `~/.claude/projects/<encoded-cwd>/sessions-index.json` — note state + schema.
-4. **Manual /rename test:** PTY-inject `\r/rename test-A\n` via `duo eval` or computer-use.
-   Re-read JSON + JSONL. **Capture:** which file got the write, which field name.
-5. **Programmatic /rename test:** invoke the same injection through a Bash script (no
-   keyboard). Confirm round-trip is identical.
-6. **Haiku-vs-customName race test:** send 3 exchanges so Haiku fires, then inject `/rename
-   test-B`. After Claude's next response, confirm `customName` survives (or note if Haiku
-   overwrites — would require a workaround).
-7. **messageCount derivation cross-check:** count `type:'user'` JSONL entries vs.
-   `sessions-index.messageCount` for a session that has both — confirm agreement.
+- **Field name is `customTitle`, not `customName`** — all 30 occurrences across PRD + this
+  build plan + CLAUDE.md have been mechanically renamed. C4/C8 implementation work uses
+  `customTitle` throughout.
+- **JSONL is the primary store, not `sessions-index.json`** — that file is absent from most
+  projects on this machine, including the Duo project itself. The PRD's D5 read ladder has
+  been reworded to read JSONL entries directly (`type:"custom-title"` for renames,
+  `type:"ai-title"` for Haiku summaries). `sessions-index.json` is no longer consulted; D13
+  is now the primary read path, not a fallback.
+- **`/rename` writes a JSONL entry** of shape
+  `{"type":"custom-title","customTitle":"...","sessionId":"..."}`. Confirmed by Claude binary
+  strings table (regex pattern + literal prefix) plus 5 real on-disk examples from past
+  usage (one tagged "Renamed via Duo" — residue from the reverted f351719 commit; cherry-pick
+  base of C2 is already correct on the write shape).
+- **Haiku-vs-customTitle race is a non-issue** — the read ladder picks `customTitle` when
+  present regardless of which entry was appended later. No workaround needed; D8 ships as
+  designed.
 
-**Output:**
-- Notes doc with verified field names + race behavior + line-count agreement.
-- Update PRD § 11 empirics rows from "NEEDS VERIFY" to "VERIFIED" (or surface workarounds).
-- If `customName` is NOT the actual field, update D5 read ladder + D8 write ladder before C2.
-
-**AC for C1:**
-- [ ] Notes doc written.
-- [ ] PRD empirics table updated.
-- [ ] All "NEEDS VERIFY" rows resolved.
+**AC status:**
+- [x] Notes doc written.
+- [x] PRD empirics-table rows flipped to VERIFIED CORRECTED (D5/D8 reworded, schema row
+      updated, sessions-index row pivoted from REVISED → VERIFIED CORRECTED).
+- [x] All blocking unknowns resolved without a live test (5 real on-disk examples were
+      enough).
 
 ---
 
@@ -126,18 +125,20 @@ according to the PRD state machine.
 
 ---
 
-## C4 — Read ladder (D5) + JSONL fallback derivation (D13)
+## C4 — Read ladder (D5) + JSONL primary derivation (D13)
 
-**What.** Implement the 4-rung read ladder. Extend `claude-session-tracker` to handle the case
-where `sessions-index.json` is absent (the active duo project's case): live-derive title from
-first user message in JSONL.
+**What.** Implement the 4-rung read ladder. Per C1 empirics, the read ladder reads
+JSONL entries directly — `sessions-index.json` is not consulted (it doesn't exist for most
+projects on this machine).
 
 **Files:**
 - `electron/claude-session-tracker.ts`
   - `readBannerTitle(sessionUuid, cwd)`: walks the ladder; returns
-    `{ title: string, source: 'customName' | 'summary' | 'jsonl-firstmsg' | 'uuid' }`
-  - `readMessageCount(sessionUuid, cwd)`: prefers sessions-index, falls back to JSONL line count
-    (filtered to `type:'user'` entries). No cache (per D9).
+    `{ title: string, source: 'customTitle' | 'aiTitle' | 'jsonl-firstmsg' | 'uuid' }`. Reads
+    via reverse-scan of JSONL — pick the latest `type:"custom-title"` entry, else latest
+    `type:"ai-title"`, else `cleanAndTruncate(firstUserMessage)`, else short UUID.
+  - `readMessageCount(sessionUuid, cwd)`: JSONL line count filtered to `type:"user"` entries.
+    No cache (per D9). No sessions-index.json preference path — JSONL is primary.
   - `cleanAndTruncate(rawFirstPrompt)`: shared with C8 derivation logic; strips
     `<ide_opened_file>…</ide_opened_file>`, drops "please " / "could you " / "can you " prefixes,
     collapses whitespace, truncates to 60 chars on word boundary with "…" suffix.
@@ -221,7 +222,8 @@ yet running → "This tab had: <title> — Resume?" with primary Resume button.
 ## C8 — Session hydrator (T1 idle trigger + D8 derivation)
 
 **What.** Implement Duo-driven `/rename` injection. Triggered when `messageCount ≥ 3` AND no
-`customName` AND no `summary`.
+existing `type:"custom-title"` JSONL entry AND no existing `type:"ai-title"` JSONL entry
+(both gates checked via JSONL reverse-scan, per C1 empirics).
 
 **Files:**
 - `electron/session-hydrator.ts` (NEW)
@@ -248,8 +250,9 @@ yet running → "This tab had: <title> — Resume?" with primary Resume button.
 
 **Files:**
 - `electron/workspace-manager.ts`
-  - `handleManualSave()`: after UUID capture, for each captured tab with no `customName` + no
-    `summary`, call `sessionHydrator.maybeHydrate()` fire-and-forget.
+  - `handleManualSave()`: after UUID capture, for each captured tab with no
+    `type:"custom-title"` + no `type:"ai-title"` JSONL entry, call
+    `sessionHydrator.maybeHydrate()` fire-and-forget.
   - `handleSessionTrackerNewSessionUuid()`: on first observation of a session UUID for a tab,
     call `maybeHydrate()` before persisting workspace metadata.
 - **Autosave path unchanged** — does NOT call the hydrator (D6).

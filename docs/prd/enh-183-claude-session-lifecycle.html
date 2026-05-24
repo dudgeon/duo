@@ -589,7 +589,7 @@ a:hover { text-decoration: underline; }
         │ S1       │ ────────────────────────────────────────────▶ ┌──────────────────────────┐
         │ Pills    │                                               │ S2 · Named               │
         └──────────┘                                               │  read ladder picks title │
-              ▲ claude spawns; no CWD history                      │   customName > summary   │
+              ▲ claude spawns; no CWD history                      │   customTitle > summary   │
               │                                                    │   > UUID fallback        │
               │                                                    └──────────┬───────────────┘
               │                                                               │
@@ -600,7 +600,7 @@ a:hover { text-decoration: underline; }
 
 <p style="font-size: 12.5px; color: var(--ink-mute);">
   <strong>Note on provenance.</strong> S2 has no provenance badge and no sub-states. Once a title
-  lands in Claude's storage (in <code>customName</code> via user-driven or Duo-driven
+  lands in Claude's storage (in <code>customTitle</code> via user-driven or Duo-driven
   <code>/rename</code>, or in <code>summary</code> via Claude's Haiku) it's just a title. Duo
   does not track who wrote it — see <strong>D9</strong> for the architectural invariant. If the
   user wants to change the title, they click it and re-rename. The same affordance handles all
@@ -662,14 +662,16 @@ a:hover { text-decoration: underline; }
 <table>
   <thead><tr><th>Rung</th><th>Source</th><th>Notes</th></tr></thead>
   <tbody>
-    <tr><td>1</td><td><code>customName</code> from sessions-index.json</td><td>Set by either
-      user-driven or Duo-driven <code>/rename</code>. <strong>Duo doesn't track which</strong> —
-      see D9. Title is just a title.</td></tr>
-    <tr><td>2</td><td><code>summary</code> from sessions-index.json</td><td>Claude's Haiku
-      auto-summary. ~80% coverage empirically.</td></tr>
-    <tr><td>3</td><td>First user message from JSONL (live-read, no persistence)</td><td>Fallback
-      when sessions-index.json is absent or both above fields are empty. Read fresh every render;
-      not cached.</td></tr>
+    <tr><td>1</td><td>Latest <code>{"type":"custom-title","customTitle":"..."}</code> JSONL
+      entry</td><td>Set by either user-driven or Duo-driven <code>/rename</code>. <strong>Duo
+      doesn't track which</strong> — see D9. Title is just a title. Scan JSONL in reverse, pick
+      the last match (most recent rename wins).</td></tr>
+    <tr><td>2</td><td>Latest <code>{"type":"ai-title","aiTitle":"..."}</code> JSONL entry</td>
+      <td>Claude's Haiku auto-summary. Surfaces as <code>summary</code> field if a derived
+      <code>sessions-index.json</code> exists (legacy projects only — most newer projects don't
+      maintain that file; see C1 empirics).</td></tr>
+    <tr><td>3</td><td>First user message from JSONL (live-read, no persistence)</td><td>Used when
+      both above entry types are absent. Read fresh every render; not cached (D9).</td></tr>
     <tr><td>4</td><td>Short UUID (first 8 chars of session UUID)</td><td>Last resort for very-new
       sessions with no user message yet.</td></tr>
   </tbody>
@@ -678,7 +680,7 @@ a:hover { text-decoration: underline; }
 <h3>Write ladder (D8) — what title Duo injects when hydrating</h3>
 
 <ol>
-  <li><strong>Skip — already hydrated.</strong> If <code>customName</code> or <code>summary</code>
+  <li><strong>Skip — already hydrated.</strong> If <code>customTitle</code> or <code>summary</code>
     already exists, no /rename is needed.</li>
   <li><strong>First user message from JSONL,</strong> cleaned + truncated. Cleaning: strip
     <code>&lt;ide_opened_file&gt;…&lt;/ide_opened_file&gt;</code> wrappers, collapse whitespace,
@@ -936,7 +938,7 @@ a:hover { text-decoration: underline; }
   <div class="state-headline">Same banner as user-named — no AUTO badge, no sidecar</div>
   <div class="state-sub">When a hydration trigger fires (D2 / D6 / T3), Duo computes a title from
     the D8 ladder, injects <code>/rename &lt;derived&gt;</code> via the live PTY, and the banner
-    re-renders by reading the new <code>customName</code> from Claude's storage. <strong>The
+    re-renders by reading the new <code>customTitle</code> from Claude's storage. <strong>The
     banner shape is identical to a user-named session</strong> — there is no visual distinction
     between a user-named title and a Duo-hydrated title, because Duo does not track who wrote it
     (D9 architectural invariant). The transcript shows the <code>/rename</code> line and Claude's
@@ -979,7 +981,7 @@ a:hover { text-decoration: underline; }
   <div class="state-sub">
     <ul>
       <li><strong>Return</strong> → injects <code>\r/rename &lt;typed&gt;\n</code>; on Claude's ack,
-        banner re-renders by reading the new <code>customName</code> from Claude's storage. No
+        banner re-renders by reading the new <code>customTitle</code> from Claude's storage. No
         provenance tracked.</li>
       <li><strong>Esc</strong> → reverts to the prior title; no PTY write.</li>
       <li><strong>Click-outside</strong> → commits (same as Return). Standard contentEditable UX.</li>
@@ -1043,7 +1045,7 @@ a:hover { text-decoration: underline; }
   <tbody>
     <tr>
       <td><strong>T1 · Idle-threshold</strong></td>
-      <td><code>messageCount &ge; 3</code> AND no <code>customName</code> AND no <code>summary</code></td>
+      <td><code>messageCount &ge; 3</code> AND no <code>customTitle</code> AND no <code>summary</code></td>
       <td>D12 ladder (first user message from JSONL)</td>
     </tr>
     <tr>
@@ -1104,19 +1106,19 @@ agent must be able to do the same.</p>
   <tbody>
     <tr>
       <td><code>sessions-index.json</code> is canonical title source</td>
-      <td class="revised">REVISED</td>
-      <td>Only 2 of 20 projects in <code>~/.claude/projects/</code> have one. The active duo project
-        does NOT. Likely generated lazily (on <code>/resume</code> picker invocation or graceful exit).
-        Implication: read ladder needs the JSONL-fallback rung; write ladder uses JSONL extraction.</td>
+      <td class="verified">VERIFIED CORRECTED — C1</td>
+      <td><strong>It isn't canonical at all.</strong> Only 2 of ~30 projects have one on this
+        machine; both are pre-2026-02. Modern Claude appears to have stopped maintaining it (or
+        only writes it under conditions we don't trigger). The JSONL is the source of truth.
+        Read ladder reads JSONL entries directly (D5 rung 1 + 2); sessions-index.json is not
+        consulted. See <a href="../research/enh-183-step-0-empirics.md"><code>docs/research/enh-183-step-0-empirics.md</code></a>.</td>
     </tr>
     <tr>
-      <td>Schema is UUID-keyed map <code>{uuid: {summary, customName, ...}}</code></td>
-      <td class="revised">WRONG</td>
-      <td>Actual schema is <code>{version: 1, entries: [...]}</code>. Each entry has
-        <code>sessionId</code>, <code>summary</code>, <code>firstPrompt</code>,
-        <code>messageCount</code>, <code>created</code>, <code>modified</code>,
-        <code>fileMtime</code>, <code>gitBranch</code>, <code>projectPath</code>,
-        <code>isSidechain</code>. Banner reads need array scan.</td>
+      <td>Schema is UUID-keyed map <code>{uuid: {summary, customTitle, ...}}</code></td>
+      <td class="revised">WRONG (legacy file)</td>
+      <td>For the 2 projects that have one, schema is <code>{version: 1, entries: [...]}</code>
+        — never includes <code>customTitle</code> even when JSONL has <code>type:"custom-title"</code>
+        entries. Confirms sessions-index.json is a partial cache, not the authority.</td>
     </tr>
     <tr>
       <td>Claude auto-writes Haiku summary</td>
@@ -1126,11 +1128,14 @@ agent must be able to do the same.</p>
         reliable but not universal — Duo hydration via D12 covers the long tail.</td>
     </tr>
     <tr>
-      <td><code>/rename X</code> via PTY injection writes to <code>customName</code></td>
-      <td class="needs-recheck">NEEDS VERIFY</td>
-      <td>Zero of 20 existing sessions have a <code>customName</code> field. PTY-injection
-        mechanism is sound (no errors), but write location needs a live test on a fresh session.
-        Step 0 of the implementation plan is gating.</td>
+      <td><code>/rename X</code> via PTY injection writes to <code>customTitle</code></td>
+      <td class="verified">VERIFIED CORRECTED — C1</td>
+      <td><strong>Writes a JSONL entry:</strong>
+        <code>{"type":"custom-title","customTitle":"X","sessionId":"&lt;uuid&gt;"}</code>.
+        Confirmed via Claude binary strings table (regex pattern
+        <code>"customTitle":"([^"]+)"</code> + entry-type literals) AND 5 real on-disk
+        examples from past usage (incl. one tagged <code>"Renamed via Duo"</code> — residue
+        from the reverted f351719 ENH-177 commit). No PTY test needed.</td>
     </tr>
     <tr>
       <td><code>messageCount</code> is reliable + free</td>
@@ -1238,7 +1243,7 @@ agent must be able to do the same.</p>
   <div class="d-q">When does Duo auto-inject /rename for an unnamed session, and how does the user
     learn they can override?</div>
   <div class="d-a">
-    <strong>Trigger:</strong> <code>messageCount &ge; 3</code> AND no <code>customName</code> AND no
+    <strong>Trigger:</strong> <code>messageCount &ge; 3</code> AND no <code>customTitle</code> AND no
     <code>summary</code>. Title derived via D8. No Duo-side counter — read messageCount from
     sessions-index, or derive from JSONL line count (D13).<br>
     <br>
@@ -1311,7 +1316,7 @@ agent must be able to do the same.</p>
   <div class="d-q">What does the banner display when the user opens an expanded view?</div>
   <div class="d-a">
     <ol>
-      <li><code>customName</code> from sessions-index.json — set by user-driven OR Duo-driven
+      <li><code>customTitle</code> from sessions-index.json — set by user-driven OR Duo-driven
         <code>/rename</code>. <strong>No tag, no provenance tracking</strong> (D9 invariant).</li>
       <li><code>summary</code> from sessions-index.json — Claude's Haiku auto-summary.</li>
       <li>First user message from JSONL — live-read, shown as fallback until a hydration trigger
@@ -1328,7 +1333,7 @@ agent must be able to do the same.</p>
     <thead><tr><th style="width: 80px;">Rung</th><th>Banner</th></tr></thead>
     <tbody>
       <tr>
-        <td><strong>1 · customName</strong></td>
+        <td><strong>1 · customTitle</strong></td>
         <td>
           <div style="background: #2a2620; color: #e8e0cb; padding: 8px 12px; border-radius: 4px;
                       font-size: 12px; display: flex; align-items: center; gap: 10px;">
@@ -1430,7 +1435,7 @@ agent must be able to do the same.</p>
   <div class="d-q">What title does Duo inject when hydrating an unnamed session?</div>
   <div class="d-a">
     <ol>
-      <li>If <code>summary</code> or <code>customName</code> already populated → skip (no injection).</li>
+      <li>If <code>summary</code> or <code>customTitle</code> already populated → skip (no injection).</li>
       <li>First user message from JSONL, cleaned + truncated to ~60 chars.</li>
       <li>Other JSONL signals (first assistant message, first non-system entry) if user-msg
         extraction yields nothing — rare.</li>
@@ -1501,7 +1506,7 @@ agent must be able to do the same.</p>
         flag, edit-mode flag) is allowed but never persisted to a Duo-owned file. Resets on Duo
         restart.</li>
       <li><strong>Consequence:</strong> no AUTO badge / no provenance tag in the UI. Once a title
-        lands in <code>customName</code> we can't tell who wrote it — and that's fine. Title is
+        lands in <code>customTitle</code> we can't tell who wrote it — and that's fine. Title is
         title. User can click and re-rename any time.</li>
     </ul>
   </div>
@@ -1911,7 +1916,7 @@ agent must be able to do the same.</p>
   <div class="risk-card">
     <div class="risk-title">R2 · /rename writes elsewhere than expected</div>
     <div class="risk-body">Step 0 verification is gating. If <code>/rename</code> writes to a
-      field other than <code>customName</code>, both D5 read ladder and D8 derivation target
+      field other than <code>customTitle</code>, both D5 read ladder and D8 derivation target
       need adjustment.</div>
   </div>
   <div class="risk-card">
@@ -1950,8 +1955,8 @@ agent must be able to do the same.</p>
   <div class="risk-card">
     <div class="risk-title">R8 · Race — Haiku writes while Duo hydrates</div>
     <div class="risk-body">Claude's Haiku writes <code>summary</code> at the same moment Duo
-    writes <code>customName</code> via /rename. Both fields end up populated; customName wins in
-    the read ladder. But if Haiku writes AFTER our /rename, could Claude overwrite our customName?
+    writes <code>customTitle</code> via /rename. Both fields end up populated; customTitle wins in
+    the read ladder. But if Haiku writes AFTER our /rename, could Claude overwrite our customTitle?
     Step 0 verification must cover this race.</div>
   </div>
 </div>
@@ -2003,8 +2008,8 @@ agent must be able to do the same.</p>
     JSONL. Confirm which file got the write + which field.</li>
   <li><strong>Duo-driven /rename test:</strong> invoke same injection programmatically (via
     <code>duo session rename</code> once the verb exists). Confirm identical round-trip behavior.</li>
-  <li><strong>Haiku vs customName race:</strong> send 3 exchanges (Haiku fires), then inject
-    /rename. Confirm customName survives subsequent Haiku writes.</li>
+  <li><strong>Haiku vs customTitle race:</strong> send 3 exchanges (Haiku fires), then inject
+    /rename. Confirm customTitle survives subsequent Haiku writes.</li>
   <li>Update D5, D7, D8 with verified field name and write location.</li>
 </ol>
 
@@ -2047,8 +2052,8 @@ workspace JSON schema after Sprint 20's workspace switcher landed).</p>
     <tr><td>T1 idle-threshold</td><td>NEW <code>electron/session-hydrator.ts</code>: watches
       messageCount (D13 derivation) by re-reading sessions-index.json or the JSONL on each
       file-watch tick (no Duo-side cache per D9). On crossing threshold while still unnamed (i.e.
-      <code>customName</code> + <code>summary</code> both empty in current Claude storage), runs
-      the D8 ladder and injects /rename. Once Claude persists customName, subsequent renders
+      <code>customTitle</code> + <code>summary</code> both empty in current Claude storage), runs
+      the D8 ladder and injects /rename. Once Claude persists customTitle, subsequent renders
       simply read the new value — there's nothing for Duo to track or remember.</td></tr>
     <tr><td>T2 manual save</td><td><code>workspace-manager § handleManualSave</code>: after UUID
       capture, for each unnamed live session, invoke session-hydrator. Fire-and-forget.</td></tr>
@@ -2074,7 +2079,7 @@ clicking the radios above and Copy-review.</p>
     user just clicks the banner and re-renames — no badge needed because no provenance is tracked
     (D9).</li>
   <li><strong>Provenance tracking / AUTO badge.</strong> Per D9. Once a title lands in
-    <code>customName</code>, Duo doesn't track who wrote it. The PRD considered an
+    <code>customTitle</code>, Duo doesn't track who wrote it. The PRD considered an
     <code>~/.claude/duo/hydrated-sessions.json</code> sidecar to power a "Duo guessed this" badge;
     that was rejected as filesystem ↔ Claude-metadata drift risk.</li>
   <li><strong>Cross-CWD session search.</strong> Pills only show CWD-local prior sessions.
