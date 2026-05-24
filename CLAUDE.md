@@ -392,21 +392,39 @@ If you find yourself about to write "once you restart the dev
 environment...", stop, restart it yourself, then write the followup.
 
 ### 7b. End every UI sprint with a generated smoke-walk page
-After 7 confirms the work runs locally, hand the user-side
-verification to them via the **`smoke-walk` skill**
-(`.claude/skills/smoke-walk/`). The skill:
 
-- Generates an interactive HTML page with one row per shipped item
+**HARD RULE — ALWAYS invoke the `/smoke-walk` skill via the Skill
+tool. Do NOT bypass by calling `.claude/skills/smoke-walk/generate.mjs`
+or any of the skill's other scripts directly.** The skill's
+SKILL.md has procedural rules (renderer reload, surface re-probe,
+pref reset, re-walk-FAIL-only manifest, agent-walks-CLI-items)
+that the generator script alone doesn't enforce. Bypassing them is
+how regressions sneak through to the owner walk.
+
+How to invoke: call the `Skill` tool with `skill: "smoke-walk"`.
+The skill then walks the agent through:
+
+- Generating an interactive HTML page with one row per shipped item
   (description, repro steps, Pass / Fail / Skip toggle, notes textbox).
-- Opens the page in Duo's browser pane via `duo open <path>`.
+- Opening the page in Duo's browser pane via `duo open <path>`.
+- **Forcing a renderer hard-reload + re-probing every surface the
+  manifest exercises** (post-walk-1 of ENH-183 added this — HMR
+  staleness silently broke the v0.7.9 walk; see § 4b of the skill).
+- **Resetting feature-specific renderer prefs** so the owner walks
+  a fresh first-time experience (also from ENH-183 walk-1).
 - The user clicks each item, marks pass/fail, hits "Copy results,"
   and pastes the structured output back into the chat.
-- Claude parses the result, flips tasks.md statuses, decides whether
-  to advance to the `cut-version` skill.
+- Claude parses the result, flips tasks.md statuses, decides
+  whether to advance to the `cut-version` skill.
 
-**Use the skill, don't ad-hoc this.** A consistent format for
-sprint-to-sprint smoke walks is part of the data — drift defeats
-the point. Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
+**Violations are auditable.** If you find yourself running
+`node .claude/skills/smoke-walk/generate.mjs ...` directly, stop
+and re-do it through the Skill tool. Future audits search the
+transcript for `Skill` tool invocations against `smoke-walk`; an
+unmatched generator call is a process failure even if the output
+looks right.
+
+Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
 (gitignored by default; the skill's SKILL.md has the format spec).
 
 ### 7c. VERIFY CLEAN APP STATE BEFORE asking the user to smoke walk

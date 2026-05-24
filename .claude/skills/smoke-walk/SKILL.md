@@ -247,6 +247,81 @@ socket"; do sleep 2; done` (clamped 60s) before proceeding.
 > ships). See `references/restart-and-preflight.md` for the full
 > rules + violation history + socket-cleanup gotcha.
 
+### 4b. ALWAYS force a hard reload of the main renderer
+
+> **HARD RULE — after any sequence of dev restarts during this
+> sprint's build, force a hard reload of the renderer BEFORE
+> handoff.** HMR through multiple restarts can leave the renderer
+> bundle pinned to an older module graph than what's on disk; the
+> agent's pre-handoff DOM probes might see the new code while the
+> user (who hasn't reloaded since) sees the old.
+
+This rule was added 2026-05-24 after ENH-183 v0.7.9 walk-1 returned
+2 FAILs on the foundational S1 visual surface ("I don't see
+anything"). Root cause: the SessionHeader module had been edited 7
+times across C3/C5/C6/C7/C9/C10/C11; the agent restarted dev twice
+for IPC changes; renderer HMR settled into a state where the
+TerminalPane was rendering xterms cleanly but the SessionHeader
+child wasn't producing any DOM. Agent's pre-handoff probe (before
+the user walk) had seen the live S1 banner, so the agent thought
+it was clean. After the user reported "I don't see anything", the
+agent injected a debug span on the S0 branch — still no DOM. Then
+`window.location.reload()` on the main renderer: immediately the
+S1 banner rendered correctly with all 3 pill rows. The code was
+always right; the running renderer was stale.
+
+**Required commands** (run after every dev restart and once more
+right before handoff):
+
+```bash
+duo dom --js 'window.location.reload()'
+# Wait for renderer to come back. The IPCs become unavailable for
+# ~1-2s during reload — poll until a known IPC returns success.
+sleep 3
+until duo dom --js 'typeof window.electron?.session' 2>&1 | grep -q object; do
+  sleep 1
+done
+```
+
+The reload covers TWO classes of failure the HMR path doesn't:
+1. **Module-pinning staleness** — the case described above, where
+   HMR partially reapplied a re-exported component.
+2. **localStorage drift** — if a renderer pref was set by a debug
+   probe (e.g. a tip dismissed during agent verification),
+   reloading doesn't reset it. **You also reset any pref the
+   manifest exercises** (see § 5b item 7).
+
+### 4c. PROBE the actual surface in the live renderer
+
+> **HARD RULE — verify with a DOM query that the surface the
+> manifest's first item exercises is actually mounted in the
+> renderer AFTER the reload.** Don't trust that "the code looks
+> right" — query the DOM for the data-attribute the surface
+> sets when rendered.
+
+Every renderer-touching surface in ENH-XXX work MUST expose a
+stable `data-*` attribute so the smoke-walk preflight can probe
+it. Example for ENH-183:
+
+```bash
+# Open a known-good cwd that should fire the surface, then probe.
+duo dom --js '(() => {
+  const tabs = document.querySelectorAll("[role=tab]");
+  // Click a known-good tab that triggers the surface
+  // ...feature-specific selector...
+  const surface = document.querySelector("[data-session-header-state]");
+  return JSON.stringify({mounted: !!surface, state: surface?.dataset.sessionHeaderState});
+})()'
+```
+
+If the probe returns `{mounted: false}`, the renderer is stale OR
+the gate logic is broken. Either way, **do not hand off** until
+the probe returns the expected mounted state.
+
+**Manifest authors:** in your manifest's intro, list the DOM
+selectors you used to preflight each surface. Future agents
+re-walking the same manifest can re-probe identically.
+
 ### 5. Open the smoke walk page in the browser pane
 
 ```bash
@@ -297,6 +372,16 @@ Quick-pass version:
    edit /tmp/preflight-X.md`).
 6. Restart on uncertainty if many changes since last verified
    clean state.
+7. **Force a hard renderer reload** (per § 4b) AND re-probe the
+   surfaces the manifest's items exercise (per § 4c). The reload
+   flushes module-pinning HMR staleness; the re-probe confirms
+   the surface mounts AFTER the reload, not just at the moment
+   you wrote the manifest.
+8. **Reset any feature-specific renderer prefs** that the manifest
+   exercises. Examples for ENH-183: `duo dom --js 'localStorage.
+   removeItem("duo:enh-183:seen-rename-tip")'`. The user should
+   walk a fresh first-time experience, not pick up your debug-
+   probe state.
 
 ### 6. Hand off to the user
 
