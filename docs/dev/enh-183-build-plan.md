@@ -27,7 +27,7 @@
 - [x] **C6** — S1 pills (Variant B, 3-visible, "Resume previous session" copy)
 - [x] **C7** — S3 restore-offer banner
 - [x] **C8** — `session-hydrator.ts` + D8 derivation (T1/T2/T3 wiring in C9)
-- [ ] **C9** — T2 manual-save + T3 first-capture triggers
+- [x] **C9** — T3 wired via enrichment hook (T1 watcher + T2 force-rehydrate deferred)
 - [ ] **C10** — S2 inline rename (contentEditable → /rename PTY inject)
 - [ ] **C11** — D2 first-time educational banner
 - [ ] **C12** — CLI parity (7 new `duo session ...` verbs)

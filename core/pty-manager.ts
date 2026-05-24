@@ -6,6 +6,9 @@ import type { EventSink } from './event-sink'
 interface Session {
   id: string
   pty: pty.IPty
+  /** ENH-183 C9 — track cwd so main-side trigger paths (T2/T3) can
+   *  match enriched-state terminals back to live tab ids. */
+  cwd: string
 }
 
 export class PtyManager {
@@ -62,7 +65,18 @@ export class PtyManager {
       this.sessions.delete(id)
     })
 
-    this.sessions.set(id, { id, pty: ptyProcess })
+    this.sessions.set(id, { id, pty: ptyProcess, cwd })
+  }
+
+  /** ENH-183 C9 — list live tab ids matching a cwd (in insertion
+   *  order). Used by main-side hydration triggers to find the PTY
+   *  to write `/rename` into for a given saved-state terminal. */
+  listIdsByCwd(cwd: string): string[] {
+    const matches: string[] = []
+    for (const s of this.sessions.values()) {
+      if (s.cwd === cwd) matches.push(s.id)
+    }
+    return matches
   }
 
   write(id: string, data: string): void {

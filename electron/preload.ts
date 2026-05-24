@@ -722,7 +722,9 @@ const api: ElectronAPI = {
     readMessageCount: (uuid, cwd) =>
       ipcRenderer.invoke(IPC.SESSION_READ_MESSAGE_COUNT, { uuid, cwd }) as Promise<number>,
     listPrior: (cwd, opts) =>
-      ipcRenderer.invoke(IPC.SESSION_LIST_PRIOR, { cwd, opts: opts ?? {} }) as Promise<import('../shared/host-api').PriorSessionListing[]>
+      ipcRenderer.invoke(IPC.SESSION_LIST_PRIOR, { cwd, opts: opts ?? {} }) as Promise<import('../shared/host-api').PriorSessionListing[]>,
+    maybeHydrate: (tabId, sessionUuid, cwd) =>
+      ipcRenderer.invoke(IPC.SESSION_MAYBE_HYDRATE, { tabId, sessionUuid, cwd }) as Promise<import('../shared/host-api').MaybeHydrateResult>
   },
 
   sessionState: {

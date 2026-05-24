@@ -314,6 +314,31 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
         if (t.lastClaudeSession) return t
         return { ...t, lastClaudeSession: null as null }
       }
+
+      // ENH-183 C9 — T3 trigger: every observation of a session UUID
+      // for a live tab attempts auto-hydration. Idempotent via the
+      // hydrator's in-memory dedup, so autosaves are no-op after the
+      // first successful hydration (D6 — autosave doesn't re-attempt
+      // already-hydrated sessions). Fire-and-forget; save flow isn't
+      // blocked by hydration latency or errors.
+      const tabIds = ptyManager.listIdsByCwd(t.cwd)
+      if (tabIds.length > 0) {
+        void (async () => {
+          try {
+            const { maybeHydrate } = await import('./session-hydrator')
+            await maybeHydrate({
+              tabId: tabIds[0],
+              sessionUuid: detected.id,
+              cwd: t.cwd,
+              ptyWrite: (id, data) => ptyManager.write(id, data),
+            })
+          } catch {
+            // Hydration is a quality-of-life trigger; never let it
+            // disrupt the save path.
+          }
+        })()
+      }
+
       return {
         ...t,
         lastClaudeSession: { id: detected.id, capturedAt: detected.capturedAt }
@@ -1534,6 +1559,21 @@ function setupIPC(): void {
   ipcMain.handle(IPC.SESSION_LIST_PRIOR, async (_event, payload: { cwd: string; opts?: { limit?: number; excludeUuid?: string } }) => {
     const { listPriorSessions } = await import('./claude-session-tracker')
     return listPriorSessions(payload.cwd, payload.opts)
+  })
+
+  // ENH-183 C9 — Duo-driven /rename injection. Renderer triggers this
+  // from T2 (manual workspace save success) and T3 (first observation
+  // that a tab's lastClaudeSession.id became non-null). Per D6, the
+  // autosave path explicitly does NOT call this — that's enforced at
+  // the renderer call site.
+  ipcMain.handle(IPC.SESSION_MAYBE_HYDRATE, async (_event, payload: { tabId: string; sessionUuid: string; cwd: string }) => {
+    const { maybeHydrate } = await import('./session-hydrator')
+    return maybeHydrate({
+      tabId: payload.tabId,
+      sessionUuid: payload.sessionUuid,
+      cwd: payload.cwd,
+      ptyWrite: (id, data) => ptyManager.write(id, data),
+    })
   })
 
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
