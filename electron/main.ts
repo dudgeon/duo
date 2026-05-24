@@ -212,6 +212,19 @@ let activeTerminalId: string | null = null
 // changes so the renderer's Send → Duo pill gates correctly.
 const claudePresence = new ClaudePresenceProbe()
 
+// ENH-183 (post-walk-1 owner directive) — per-Duo-session set of tab
+// ids that have ever hosted a live Claude process. The workspace-save
+// enrichment hook consults this so it only captures
+// `lastClaudeSession.id` for tabs that *actually* ran Claude during
+// this Duo run — fresh shell tabs in a CWD with recent JSONLs no
+// longer inherit a UUID just by being there. Without this gate, the
+// enrichment hook over-captures and S3's "This tab had: …" banner
+// fires on tabs that never *had* anything. Reset on Duo restart by
+// construction (in-memory only, D9 invariant); on the next run, only
+// tabs whose lastClaudeSession was persisted to workspace state from
+// a prior run survive as S3-eligible.
+const tabsThatHostedClaude = new Set<string>()
+
 // Stage 19c D27 — pending `duo new-tab` requests awaiting a renderer
 // reply. Shape mirrors docWritePending / docReadPending.
 const newTabPending = new Map<string, (res: NewTabResult) => void>()
@@ -304,37 +317,69 @@ const CLAUDE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
 sessionStateService.setEnrichBeforePersistHook(async (state) => {
   // Best-effort: scan in parallel. Empty terminals list short-circuits.
   if (!state.terminals.length) return state
+
+  // ENH-183 (post-walk-1 owner directive) — only capture
+  // `lastClaudeSession.id` for tabs that ACTUALLY ran Claude during
+  // this Duo session. Pre-fix, the hook captured the most-recent
+  // JSONL UUID for every tab whose cwd had ANY recent JSONL — fresh
+  // shell tabs in `/docs` inherited a UUID just by being in that
+  // CWD when an autosave fired, causing S3 ("This tab had: …") to
+  // mis-fire on tabs that never *had* anything. Eligibility is now:
+  //   1. The tab id is in `tabsThatHostedClaude` (claudePresence
+  //      transitioned to 'claude' or 'starting' on this tab during
+  //      this Duo run), OR
+  //   2. The tab carries a prior `lastClaudeSession` from disk — the
+  //      workspace restored a tab that hosted Claude in a previous
+  //      run, and we preserve that pointer so S3 still surfaces on
+  //      restore.
+  // Anything else gets `lastClaudeSession: null`. The C9 hydration
+  // trigger (T3) also moves behind the same gate — Duo only
+  // /rename-injects sessions that this tab actually hosts.
+  const findTabIdInState = (cwd: string): string | null => {
+    // Renderer-side tab ids aren't on `state.terminals[]` (the
+    // SessionStateTerminal shape only carries cwd/kind/title/lastClaudeSession).
+    // Match by cwd through PtyManager's live tab → cwd map; same
+    // resolution C9 uses for the hydration ptyWrite target.
+    const matches = ptyManager.listIdsByCwd(cwd)
+    return matches[0] ?? null
+  }
+
   const enriched = await Promise.all(
     state.terminals.map(async (t) => {
+      const tabId = findTabIdInState(t.cwd)
+      const tabHostedClaude = tabId ? tabsThatHostedClaude.has(tabId) : false
+      const hadPriorCapture = t.lastClaudeSession?.id != null
+
+      if (!tabHostedClaude && !hadPriorCapture) {
+        // Tab never ran Claude this session AND has no prior
+        // captured pointer from disk. Leave null — S1 pills will
+        // surface for this tab if its cwd has prior JSONLs.
+        return { ...t, lastClaudeSession: null as null }
+      }
+
       const detected = await detectLatestClaudeSession(t.cwd, CLAUDE_SESSION_MAX_AGE_MS)
       if (!detected) {
-        // Preserve any prior stored session if scan failed but value existed —
-        // network glitch / Claude's projects/ dir transient missing should
-        // not erase a previously-captured ID.
+        // Preserve a prior stored value if scan failed transiently.
         if (t.lastClaudeSession) return t
         return { ...t, lastClaudeSession: null as null }
       }
 
-      // ENH-183 C9 — T3 trigger: every observation of a session UUID
-      // for a live tab attempts auto-hydration. Idempotent via the
-      // hydrator's in-memory dedup, so autosaves are no-op after the
-      // first successful hydration (D6 — autosave doesn't re-attempt
-      // already-hydrated sessions). Fire-and-forget; save flow isn't
-      // blocked by hydration latency or errors.
-      const tabIds = ptyManager.listIdsByCwd(t.cwd)
-      if (tabIds.length > 0) {
+      // ENH-183 C9 — T3 trigger fires only for tabs that hosted
+      // Claude (same gate as the capture above; otherwise we'd be
+      // /rename-injecting JSONLs that belong to other tabs in the
+      // same CWD).
+      if (tabHostedClaude && tabId) {
         void (async () => {
           try {
             const { maybeHydrate } = await import('./session-hydrator')
             await maybeHydrate({
-              tabId: tabIds[0],
+              tabId,
               sessionUuid: detected.id,
               cwd: t.cwd,
               ptyWrite: (id, data) => ptyManager.write(id, data),
             })
           } catch {
-            // Hydration is a quality-of-life trigger; never let it
-            // disrupt the save path.
+            // Hydration is quality-of-life; never block the save.
           }
         })()
       }
@@ -642,6 +687,13 @@ async function createWindow(): Promise<void> {
   // — the visual pill itself was the source of confusion).
   claudePresence.start()
   claudePresence.onChange((state) => {
+    // ENH-183 (post-walk-1) — record any tab that ever hosts Claude.
+    // The enrichment hook (sessionStateService below) gates UUID
+    // capture on membership in this set; without it, S3 fires on
+    // tabs that never actually ran Claude.
+    if ((state === 'claude' || state === 'starting') && activeTerminalId) {
+      tabsThatHostedClaude.add(activeTerminalId)
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     }
