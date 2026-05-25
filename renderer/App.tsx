@@ -17,6 +17,7 @@ import type { FileTab, ActiveWorking } from './components/WorkingPane'
 import { classifyFile } from './components/fileClassifier'
 import { FilesPane, type FilesPaneHandle } from './components/FilesPane'
 import { CollapsedPaneRail } from './components/CollapsedPaneRail'
+import { ProjectRail } from './components/ProjectRail'
 import { ThemeToggle } from './components/ThemeToggle'
 import { ClaudePresenceDot } from './components/ClaudePresenceDot'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -24,6 +25,7 @@ import { useNavigator, computePendingCwd } from './hooks/useNavigator'
 import { useUserClaudeNavigator } from './hooks/useUserClaudeNavigator'
 import { useFrontTerminalClaudeLive } from './hooks/useClaudePresence'
 import { useSendPillFlags } from './hooks/useSendPillFlags'
+import { useProjects } from './hooks/useProjects'
 import { useBrowserMode } from './hooks/useBrowserMode'
 import { useNavPins } from './hooks/useNavPins'
 import { useTheme } from './hooks/useTheme'
@@ -809,6 +811,34 @@ export function App() {
   // affordance + future Settings UI; main is the authority for
   // off-host routing decisions.
   useBrowserMode()
+
+  // ENH-182 Phase 1 — derive the project list from open tabs +
+  // terminals + nav listings + (eventually) persisted pins. The rail
+  // mounts at the left edge of the main flex row below; clicking a
+  // tile is a no-op in Phase 1 (read-only). Phase 2 wires
+  // `focusedProject` + filter behavior. `pinnedFileTabPaths` excludes
+  // pinned reference tabs from "working in" qualification (D2).
+  const pinnedFileTabPaths = useMemo(
+    () => new Set(pins.filter((p) => p.kind === 'file').map((p) => p.ref)),
+    [pins]
+  )
+  const projectTerminals = useMemo(
+    () => tabs.map((t) => ({ id: t.id, cwd: t.cwd })),
+    [tabs]
+  )
+  const projectWorkingTabs = useMemo(
+    () =>
+      fileTabs
+        .filter((t) => !!t.path && !t.isNew)
+        .map((t) => ({ id: t.id, path: t.path })),
+    [fileTabs]
+  )
+  const { projects: railProjects } = useProjects({
+    terminals: projectTerminals,
+    workingTabs: projectWorkingTabs,
+    pinnedTabPaths: pinnedFileTabPaths,
+    navListings: nav.state.listings
+  })
 
   // Stage 15 G17 — push the active terminal id to main so `duo send`
   // can write into the right PTY. `null` covers the degenerate case
@@ -3165,6 +3195,11 @@ export function App() {
       <LinkPromptModal />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
+        {/* ENH-182 Phase 1 — read-only project rail. Hidden by the
+            component itself when no projects have surfaced yet.
+            Phase 2 wires `focusedProject` + `onFocus` to actually
+            filter the file / terminal / working surfaces. */}
+        <ProjectRail projects={railProjects} focusedProject={null} />
         <div
           className="h-full shrink-0 min-w-0"
           onMouseDown={() => setFocusedColumn('files')}

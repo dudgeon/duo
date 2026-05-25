@@ -88,6 +88,20 @@
   --duo-term-fg: #F0E9D6;
   --duo-term-cozy-bg: #FBF8EE;    /* cozy mode flips to paper canvas */
   --duo-term-cozy-fg: #1A1410;
+
+  /* ENH-182 — project color system (canonical palette mirrored from
+     skill/references/duo-atelier.css). Six muted "studio" hues for the
+     project filter rail. Evenly spaced around the wheel but with the
+     orange/amber band (~15–55°) deliberately skipped so no project
+     reads as the burnt-orange app accent. Mid-value + moderate-chroma
+     so white text on each clears large-text AA. Locked via R1/R2/R3 of
+     docs/research/project-rail-style-study.html. */
+  --duo-project-pine:   #2E7D74;  /* hue 173° — teal-green */
+  --duo-project-harbor: #3C6E93;  /* hue 206° — slate blue */
+  --duo-project-iris:   #5B57A6;  /* hue 243° — indigo */
+  --duo-project-plum:   #87508F;  /* hue 291° — violet */
+  --duo-project-rose:   #A4506A;  /* hue 345° — dusty rose */
+  --duo-project-moss:   #69763A;  /* hue  75° — olive */
 }
 
 /* Dark variant — warm dark, not the cool gray of the previous Warp×Linear theme */
@@ -112,6 +126,16 @@ html.dark {
   --duo-term-fg: #E9DEC2;
   --duo-term-cozy-bg: #1A1611;
   --duo-term-cozy-fg: #F0E9D6;
+
+  /* ENH-182 — project color system (dark variant). Same hues as the
+     light variant since the rail's filled / "bloom" state always pairs
+     white text on the hue (high contrast on both paper colors). */
+  --duo-project-pine:   #2E7D74;
+  --duo-project-harbor: #3C6E93;
+  --duo-project-iris:   #5B57A6;
+  --duo-project-plum:   #87508F;
+  --duo-project-rose:   #A4506A;
+  --duo-project-moss:   #69763A;
 }
 
 @layer base {
