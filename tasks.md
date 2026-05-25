@@ -325,6 +325,54 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
+### ENH-182: Project-centric UX — design exploration (decision playground)
+
+**Status:** 🟢 **Decisions LOCKED 2026-05-25** (owner walk via AskUserQuestion; gate closed). Research artifact only — **no code yet**. All 12 decisions + R1/R2/R3 answered; outcomes recorded in the playgrounds (per-card `Locked ✓` tags + top summary banner) and below. Next step is a PRD + sprint scope — no longer surfaces in smoke walks.
+
+**What it is.** Owner asked: "given what Duo supports today, what would a full refactor to a Claude-Code-project-centric UX look like?" — a project selector/switcher with files + terminal + browser tabs nested under a project parent. Canonical playground at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) (open via `duo open`) + rail-style deep-dive [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html); PRD + build plan at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md). (Notion mirror retired 2026-05-25 — repo is the single source of truth.) The playground evolved through the walk from four layout mockups (A–D) into the locked filter-layer model below.
+
+**Grounding (3 research streams, this session):**
+- *Current workspace model* — a workspace is a thin `WorkspaceFile` envelope around a `SessionState` snapshot (flat tabs/terminals/browser-tabs); switching = force-flush + kill PTYs + teardown browser tabs + renderer reload. No runtime workspace object.
+- *Current project/cwd/git detection* — **no `Project` object, no `~/.claude/projects/` read (ENH-177 reverted), no CLAUDE.md parsing.** "Where am I" is three loosely-linked signals (`TabSession.cwd`, `nav.state.cwd` + follow-mode, on-demand `getGitStatus(cwd)→workTreeRoot`) plus an orthogonal `claudePresence` probe. Git remotes string-parsed for "Open on GitHub" only; no API.
+- *IDE prior art* — implicit folder-as-project is the modern default (VS Code/Sublime/Zed/GitHub Desktop); JetBrains/Xcode "explicit declaration" is heavier; VS Code multi-root is the canonical multi-project confusion tale; AI-first editors (Cursor/Windsurf/Zed) scope the agent to the project boundary, trending toward git-worktree-per-task; lowest-risk switcher primitive is recent-list + ⌘P top-left.
+
+**Filter-layer expansion (2026-05-24, walk-2 of the artifact).** Owner critique: the v1 draft proposed the low-risk *primitive* but no UX *payoff*. Owner's proposed payoff — **projects as a filter layer**: a workspace holds items from many projects (default/today); opening a file from a declared/implicit project auto-adds it to a thin rail (initials); clicking a tile enters **focus** (collapses unrelated terminal + canvas tabs, re-roots the navigator); an **All** button unfilters; out-of-project-file corner case pops back to All for v1. New §5 "Projects as a filter layer" added with: a **live interactive demo** (CSS/JS — click tiles, toggle transition style + rail side), and **animated GIFs** generated headlessly (resvg + gifenc pipeline, build tooling outside the repo) at `docs/research/assets/project-filter/` — `filter-transition.gif` (All↔focus collapse-&-reflow), `corner-case.gif` (open-external→pop-to-All), `rail-left.png` / `rail-right.png` (placement options). Five new decisions added (D8–D12).
+
+**LOCKED 2026-05-25 (R1 / D9 tile style):** rail treatment = **B "quiet bloom"** (colored initials + underline; focused project blooms to full-hue fill + white notch). The **project color system** developed here is now **canonical** — six `--project-*` tokens added to the Atelier kernel `skill/references/duo-atelier.css` `:root`, documented in `skill/references/atelier-css.md § Project color system`, and cross-referenced from the design source-of-truth `docs/design/atelier/README.md § Extensions`.
+
+**Rail style study (2026-05-25, D9 deep-dive).** Owner picked left/Slack-style rail; commissioned a focused visual study at [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html). Delivers (a) a **project color system** — 6 muted "studio" hues (Pine/Harbor/Iris/Plum/Rose/Moss), evenly spaced but deliberately skipping the orange/amber band so no project reads as the burnt-orange app accent; hash-stable assignment per project root + manual override; shade-variant rotation past 6 — and (b) **four live tile treatments** (A Painted · B Quiet-bloom *recommended* · C Color-bar · D Dot-minimal) with a tile-anatomy/state sub-study (identity + selection v1, optional "claude live here" dot, defer count/git-dirty badges). Three sub-decisions R1 (tile style) · R2 (color assignment) · R3 (tile state). Stills: `assets/project-filter/palette-swatches.png`, `rail-styles.png`. Cross-linked from §5/D9.
+
+**Twelve owner decisions now:** D1 gated vs. progressive · D2 what *is* a Duo project · D3 switcher surface (layout A–D) · **D8 switcher vs. filter/lens (the reframe)** · **D9 filter-rail placement + population** · **D10 filter scope** · **D11 out-of-project corner case** · **D12 rail lifecycle** · D4 multi-project model (largely subsumed by D8) · D5 nested-project scope · D6 clone→project · D7 workspaces' fate.
+
+**Pre-walk scope locked via AskUserQuestion 2026-05-24:** report+mockups only (no code) · full layouts + micro-mockups + animated transitions · positioning = project-is-any-folder with progressive (non-mandatory) CLAUDE.md/agents.md/git enrichment, clone-repo prompts a project decision · workspaces = future decision, leaning workspace-contains-projects.
+
+**LOCKED DECISIONS (owner walk 2026-05-25)** — several refined beyond the original radios:
+- **D1 (spine):** projecthood gated, app open — work in any folder (view-all always exists); a folder becomes a *project* only if it's a git-repo root *or* has `CLAUDE.md`/`.claude/` *and* you're working in it. Not a front-door gate.
+- **D2 (primitive):** project = folder you're actively working in (terminal CWD / non-pinned tabs there) **and** (git-repo root **or** has `CLAUDE.md`/`.claude/`). Navigator right-click "New project" drops a `.claude/`.
+- **D3 (surface):** left filter rail only for v1 — ⌘P palette + title-bar breadcrumb deferred.
+- **D4 (multi-project):** resolved by D8 — multi-project is the default; no single "active project" pointer, only the focus lens.
+- **D5 (nesting):** deepest qualifying folder you're working in.
+- **D6 (clone→project):** automatic via D2 (git-root + working-in qualifies); no separate prompt.
+- **D7 (workspaces):** defer; lean "workspace ⊃ projects" later.
+- **D8 (reframe):** filter/lens, not a switcher. View-all default; click tile to focus; click active tile or All to release; Ctrl-Tab cycles only visible tabs while focused.
+- **D9 (rail):** left, auto-populated, Slack-style; "quiet bloom" tile (locked earlier 2026-05-25).
+- **D10 (scope):** hide unrelated terminal + canvas (incl. browser-mode) tabs; re-root navigator (not a hard tree filter).
+- **D11 (corner case):** auto-switch focus to the opened file's project.
+- **D12 (lifecycle):** auto add/remove **+ user pin**. **Tile right-click menu:** Pin/Unpin + "Close N terminals and M tabs" (bulk-close everything in that project with a live count; confirm when a terminal has a live process). Closing all tabs of an unpinned project drops its tile.
+- **R2 (color):** hash-stable per project root + manual override. **R3 (tile state v1):** minimal — identity + selection only (live-dot + count deferred).
+
+**Next:** locked decisions → PRD + sprint scope. The destructive switch-reload path is the one piece flagged as more-than-additive. New rendered still this walk: `assets/project-filter/tile-state.png` (R3 options); also `corner-case.gif` re-used for D11.
+
+---
+
+### FOLLOWUP-029: Projects + filtered view as a distro-pack authoring tool
+
+> **Renumbered 2026-05-25** from FOLLOWUP-028 at merge time — `main` had concurrently filed FOLLOWUP-028 (T3 auto-hydrator re-enable design).
+
+**Status:** 🆕 **Filed 2026-05-24** (owner note-for-later during ENH-182 filter-layer expansion). Idea: once projects-as-filter-layer (ENH-182 §5 / D8) exists, a distro pack could ship as a **pre-declared project** (its `CLAUDE.md`, skills, and starting tabs bundled), and "focus" becomes the natural way an enterprise user drops into a curated pack without seeing unrelated work. Revisit when distro-pack work resumes (pairs with 21d / ENH-112 / `/pack-builder`). No action until ENH-182 decisions land.
+
+---
+
 ### ENH-183: Claude session description lifecycle (supersedes ENH-177 + ENH-181 + reopens ENH-180 in limited form)
 
 **Status:** 🟢 **All 13 decisions locked 2026-05-24. Ready to build (C1 Step-0 empirics gates).** Sprint 21 marquee. PRD lifecycle: filed 2026-05-24, owner walk → D9 architectural invariant added (no Duo-side sidecars) → D2-D8 locked in initial draft → Notion comments locked D10-D13 + D2 educational-banner addition.
