@@ -155,11 +155,11 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;backgro
       band</b> so no project ever reads as the app accent. Assigned
       <b>hash-stable</b> per project root (same folder → same color, always),
       with manual override.</li>
-    <li><b>Tile style: B — "quiet bloom."</b> Every tile shows its color
-      quietly (colored initials + a thin color underline) so you can scan the
-      rail; the <b>focused</b> project blooms to a full color fill with the
-      Slack-style white left notch. Respects Atelier's restraint while keeping
-      color identity legible.</li>
+    <li><b>Tile style: B — "quiet bloom." ✓ LOCKED (2026-05-25).</b> Every tile
+      shows its color quietly (colored initials + a thin color underline) so you
+      can scan the rail; the <b>focused</b> project blooms to a full color fill
+      with the Slack-style white left notch. Respects Atelier's restraint while
+      keeping color identity legible.</li>
     <li><b>v1 state on a tile:</b> identity + selection only, plus an optional
       small "Claude is live here" dot. Defer tab-count badges.</li>
   </ul>
@@ -328,11 +328,11 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;backgro
 </div>
 
 <section class="decision-card">
-  <div class="q-title">Decision R1 · tile style</div>
+  <div class="q-title">Decision R1 · tile style · ✓ LOCKED</div>
   <h3 class="q-prompt">Which rail tile treatment?</h3>
-  <p class="q-context">All are the same left Slack-style rail; they differ in color loudness + focus marking.</p>
+  <p class="q-context"><b>Locked 2026-05-25 → B (Quiet bloom).</b> The other options are kept below for the record. All are the same left Slack-style rail; they differ in color loudness + focus marking.</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="r1" value="B"><div class="q-option-body"><div class="q-option-title">B · Quiet bloom <span class="rec">Recommended</span></div><div class="q-option-rationale">Colored initials + underline on every tile; focused project blooms to full fill + white notch. Best Atelier fit, still scannable.</div></div></label>
+    <label class="q-option"><input type="radio" name="r1" value="B" checked><div class="q-option-body"><div class="q-option-title">B · Quiet bloom <span class="rec">Locked ✓</span></div><div class="q-option-rationale">Colored initials + underline on every tile; focused project blooms to full fill + white notch. Best Atelier fit, still scannable.</div></div></label>
     <label class="q-option"><input type="radio" name="r1" value="A"><div class="q-option-body"><div class="q-option-title">A · Painted</div><div class="q-option-rationale">Every tile fully colored. Loudest, most glanceable by color; risks fighting the cream/accent palette at 6+ projects.</div></div></label>
     <label class="q-option"><input type="radio" name="r1" value="C"><div class="q-option-body"><div class="q-option-title">C · Color-bar</div><div class="q-option-rationale">Neutral tiles, left color stripe; focused = full wash. Tidiest, most literal Slack feel.</div></div></label>
     <label class="q-option"><input type="radio" name="r1" value="D"><div class="q-option-body"><div class="q-option-title">D · Dot-minimal</div><div class="q-option-rationale">Ink initials + corner dot. Most restrained; color barely registers — least scannable by color.</div></div></label>

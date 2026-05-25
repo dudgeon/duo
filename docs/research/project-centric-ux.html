@@ -870,9 +870,10 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <figure><img src="assets/project-filter/rail-left.png" alt="Filter rail on the left"><figcaption>Left rail — mimics the Slack workspaces rail.</figcaption></figure>
   <figure><img src="assets/project-filter/rail-right.png" alt="Filter rail on the right"><figcaption>Right rail — your original "thin right rail."</figcaption></figure>
 </div>
-<p class="note">Owner picked <b>left, Slack-style</b>. Deep-dive — the rail's visual
-  treatment (four options) + the project <b>color system</b> that harmonizes
-  with Atelier — lives in a focused study:
+<p class="note">Owner picked <b>left, Slack-style</b>; tile treatment <b>locked to
+  "quiet bloom" (2026-05-25)</b> and the project <b>color system</b> is now in
+  the canonical Atelier kernel (<code>skill/references/duo-atelier.css</code> →
+  <code>--project-*</code>). Full derivation + the four options compared:
   <code>docs/research/project-rail-style-study.html</code> (Decision 9).</p>
 
 <div class="enterprise-note">
@@ -922,8 +923,8 @@ table.rel .part { color: var(--warn); font-weight: 600; }
     <label class="q-option">
       <input type="radio" name="d9" value="left-auto">
       <div class="q-option-body">
-        <div class="q-option-title">Left rail, auto-populated (Slack-style) <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">Tiles appear as projects gain open items; the All button sits on top. Familiar idiom, reads as "spaces." Distinct from a left view-rail since Duo has none.</div>
+        <div class="q-option-title">Left rail, auto-populated (Slack-style) <span class="recommend-tag">Locked ✓</span></div>
+        <div class="q-option-rationale">Locked 2026-05-25. Tiles appear as projects gain open items; the All button sits on top. Familiar idiom, reads as "spaces." Tile treatment + color system locked in the <code>project-rail-style-study.html</code> deep-dive.</div>
       </div>
     </label>
     <label class="q-option">

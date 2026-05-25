@@ -81,6 +81,18 @@ The chat transcript (`chats/chat1.md`) is the source of intent. Highlights:
 4. **Cross-check the chat** for any "must keep" / "must lose" hints
    that are easy to miss in the static code.
 
+## Extensions (post-handoff)
+
+- **Project color system** (2026-05-25, ENH-182 / D9) — a categorical 6-hue
+  palette (Pine / Harbor / Iris / Plum / Rose / Moss) for project-coded UI,
+  added to complement the handoff's sequential paper/ink + single accent. It
+  deliberately reserves the orange/amber band so no project collides with
+  `--accent`. **Canonical tokens live in the living kernel**
+  (`skill/references/duo-atelier.css` `:root` → `--project-*`), documented in
+  `skill/references/atelier-css.md § Project color system`. Derivation +
+  the locked rail treatment ("quiet bloom") are in
+  `docs/research/project-rail-style-study.html`.
+
 ## Status
 
 - 2026-04-26 — bundle imported; Stage 12 (Atelier visual) created in
