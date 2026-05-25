@@ -1,130 +1,110 @@
-# Resume after compaction — Sprint 21 / v0.7.9 (ENH-183 walk-3 in-flight)
+# Resume after compaction — Sprint 22 / v0.8.0 (next-agent handoff)
 
 **Read this first.** Then in order:
-1. [`docs/research/bug-156-terminal-stability-postmortem.md`](../research/bug-156-terminal-stability-postmortem.md) — the most recent investigation chain; lessons + the open follow-ups.
-2. [`docs/dev/enh-183-build-plan.md`](enh-183-build-plan.md) — ENH-183 C1–C13 status + § Lessons learned (now includes § 14, the walk-1/2/3 fix chain).
-3. [`tasks.md`](../../tasks.md) — current open work at the top of Sprint 21 section. BUG-156 closed; FOLLOWUP-028 + BUG-157 open.
+
+1. [`docs/dev/active-sprint.md`](active-sprint.md) — Sprint 22 starting scope + carry-forward queue.
+2. [`CLAUDE.md`](../../CLAUDE.md) § Active sprint — same content, shorter form.
+3. [`tasks.md`](../../tasks.md) — the running ledger. Top of the file is most-current.
 
 ## Where we are
 
-**ENH-183 implementation complete** (C1–C13 all landed). Smoke walk **rev3 in progress**, partial paste-back captured:
+**v0.7.9 just shipped** (2026-05-25) — see [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.9). Cut + tag + signed DMG + GitHub Release all live. Dev session bumped to v0.8.0. Two commits on `main` since the cut: `6a8525e` (release) + `835f373` (bump) + `acf2bff` (merge with parallel ENH-182 docs that landed during the cut).
 
-| Walk-3 item | Status |
-|---|---|
-| ENH-183-S1-VISIBLE | ✅ PASS |
-| ENH-183-S1-MORE-THAN-3 | ✅ PASS |
-| ENH-183-S1-FRESH-TAB-NOT-OVERCAPTURED | ✅ PASS |
-| ENH-183-T3-AUTO-HYDRATION | ❌ FAIL → BUG-156 root-caused + fixed; T3 defensively OFF |
-| ENH-183-S2-EXPANDED | ⏸ SKIP (cascade) |
-| ENH-183-S2-COLLAPSED-DOT through ENH-183-CLI-HYDRATE | ⏸ NOT REACHED (owner stopped walk after T3 crash) |
+**ENH-183 mid-cycle pare-back was the main event.** Started as a four-state polymorphic session header (S0/S1/S2/S3) with auto-hydration + inline rename + educational tip + four CLI verbs. Owner directed Option A pare after walking rev3-rev5: dropped S2 named banner + C11 educational tip + T3 auto-hydration + S2 inline rename + force-rename CLI (~600 LOC). Kept S1 resume pills + S3 restore offer + D5 read ladder + `duo session list/resume`. Full rationale at [`tasks.md § ENH-183 PARED 2026-05-25 (Option A)`](../../tasks.md#enh-183-pared-2026-05-25-option-a--s2--c11--t3--force-rename-dropped).
 
-8 items still need owner verification. The fix that unblocks them is [afb590c](https://github.com/dudgeon/duo/commit/afb590c) (`PtyManager.resize` zero guard + defense-in-depth at three renderer sites).
+## Sprint 22 starts here
 
-## Recent commit chain (last 10)
+### Top of the queue: ENH-184 (finish the in-flight work first)
+
+**Owner intent.** Render the title-bar workspace pill as a **passive label** — no dropdown, no caret, no click. All workspace operations route through File menu.
+
+**Working tree state (uncommitted, intentionally left for Sprint 22):**
 
 ```
-65e3a01  docs(BUG-156): terminal-stability postmortem + FOLLOWUP-028 + BUG-157
-afb590c  fix(BUG-156): pty.resize(0,0) crashed Claude — root-cause + defense-in-depth guard
-076e221  hotfix(ENH-183 BUG-156): disable T3 auto-hydrator after Claude crash during rev3 walk
-60f5957  fix(ENH-183): positional matching in enrichment hook tab-id lookup
-e4e826f  docs(ENH-183): capture-on-evidence sub-rule across PRD + CLAUDE.md + skill
-cbaeb9c  fix(ENH-183 post-walk-1): only capture lastClaudeSession.id for tabs that hosted Claude
-2584c20  fix(ENH-183): only auto-dismiss S1 pills on actual same-tab claude transition
-07d7a08  fix(ENH-183 walk-1): S1 banner visual + layout — terminal palette + in-flow
-6c1ceeb  docs(smoke-walk): require Skill-tool invocation + fix HMR-staleness gap
-182969c  chore(ENH-183 C13): smoke-walk manifest for v0.7.9 ready (gitignored)
+M renderer/App.tsx                                  (flag declared, not consumed)
+M renderer/components/WorkspaceSwitcherDropdown.tsx (+ handler fix complete)
+?? renderer/hooks/useWorkspacePillMenuFlag.ts       (new flag hook, default OFF)
 ```
 
-## Likely next moves (pick by owner direction)
+**Next steps:**
+1. Read [`docs/dev/active-sprint.md`](active-sprint.md) § ENH-184 for full detail.
+2. Wire `workspacePillMenuEnabled` in `App.tsx` to gate the pill's `onClick` + caret render. ~5 lines.
+3. CLI parity verb `duo workspace-pill-menu [on|off]` (optional but matches CLAUDE.md § 4).
+4. Update [`packs/duo-default/canvases/what-duo-does.html`](../../packs/duo-default/canvases/what-duo-does.html) §37c which still describes the click-to-open behavior.
+5. Smoke-walk it via the `/smoke-walk` skill (CLAUDE.md § 7b — MUST invoke via Skill tool).
 
-### A. Continue the rev3 walk
+### Second in queue: ENH-182 (PRD locked, ready to build)
 
-The 8 unreached items are unblocked by [afb590c](https://github.com/dudgeon/duo/commit/afb590c). To resume:
-1. The walk page is at `docs/dev/smoke-walks/v0.7.9-rev3.html` (gitignored). Regenerate via `node .claude/skills/smoke-walk/generate.mjs docs/dev/smoke-walks/v0.7.9-rev3.json docs/dev/smoke-walks/v0.7.9-rev3.html` if needed — though prefer the Skill-tool path (see below).
-2. **MUST invoke `/smoke-walk` skill via the Skill tool** (not the generator directly) — see [CLAUDE.md § 7b](../../CLAUDE.md). Audit-trail requirement; the skill's preflight (§ 4b reload, § 4c surface probe, § 4d state-precondition probe, § 5b items 7+8) catches the failure modes from walks 1–3.
-3. ENH-183-T3-AUTO-HYDRATION stays a known SKIP — pre-mark in the intro. Owner can exercise the same flow manually via `duo session hydrate <tabId>` (ENH-183-CLI-HYDRATE item).
-4. After paste-back: parse → flip tasks.md → propose `cut-version` for v0.7.9 if all green.
-
-### B. Address FOLLOWUP-028 (T3 re-enable design)
-
-T3 auto-hydrator is OFF. To re-enable, the design needs:
-- Replace `\r` with `\n` in the hydrator's PTY-write (don't force-submit user's partial input).
-- Add JSONL idle-gate: only inject when last assistant entry is terminated.
-- Add tracer log (per BUG-156 convention) — every PTY synthesis without explicit user gesture must record `(timestamp, tabId, sessionUuid, payload)`.
-
-Flag toggle at `T3_AUTO_HYDRATION_ENABLED = false` in [`electron/main.ts`](../../electron/main.ts) § `setEnrichBeforePersistHook`.
-
-### C. Address BUG-157 (sibling fit-then-resize audit)
-
-Pre-emptive — the BUG-156 pattern (measure DOM → write to backing system via IPC, no zero-dim guard) likely exists in other components:
-- `renderer/components/ImageView.tsx:95` — ResizeObserver
-- `renderer/components/BrowserRenderer.tsx:57` — bounds → WCV
-- `renderer/components/AuxBrowserSlot.tsx:111` — bounds → WCV
-- `renderer/hooks/useTerminal.ts:42` — likely dead code; verify + remove
-
-For each: identify the IPC boundary, defensively reject zero/negative dimensions in main (mirrors `PtyManager.resize` guard).
+[`docs/prd/enh-182-project-centric-ux.md`](../prd/enh-182-project-centric-ux.md) — locked 2026-05-25, design assets + file:line code map included. Spec-complete; pick up when ENH-184 closes.
 
 ## Critical guardrails for the next agent
 
-Read these BEFORE touching the codebase — they're failure modes I hit this session that will re-bite a fresh agent.
+These are the failure modes I (or the agent before me) hit during the cycle. Read before touching the codebase.
 
-### 1. Use `/smoke-walk` skill via the Skill tool
+### 1. Verify the artifact BEFORE filing fixes from verbal symptom reports
 
-CLAUDE.md § 7b hard rule (strengthened 2026-05-24). Do NOT run `.claude/skills/smoke-walk/generate.mjs` directly. The skill's procedural rules (§ 4b renderer reload, § 4c computed-style probes, § 4d state-precondition probes, § 5b 8-item checklist) are what catches the regressions that bit walks 1–3. Bypassing them is auditable as a process failure even if output looks right.
+BUG-159 lesson: owner reported `/rename CLI rename test successful` sitting in claude's input buffer "un-submitted." I jumped to a "LF doesn't commit" hypothesis + shipped a defensive CR-terminator fix. JSONL inspection AFTER the fix showed two `custom-title` entries proving the rename WAS committing — the owner-visible artifact was Claude TUI render timing, not a Duo bug. The fix became moot in the pare anyway, but the process gap stays: **before filing a fix based on a verbal "looks broken" report, check the artifact (file on disk, JSONL entry, network response — whatever the supposed-broken code writes) and confirm the broken behavior is real.** Existing memory rule `feedback_verify_current_behavior_before_proposing_fix.md` applies — extend it from "what's the impact?" framing to "is this even a bug?" framing.
 
-### 2. SIGHUP = process-group teardown, not stdin content
+### 2. Symlink-encoding gotcha (BUG-158 root cause, now fixed)
 
-If Claude crashes with `zsh: warning: 1 jobs SIGHUPed`, **don't chase stdin/PTY-content theories first.** SIGHUP comes from PTY destruction or process-group signal — audit `pty.kill` / `pty.dispose` / `pty.resize` paths before assuming bad input. BUG-156 burned ~30 min on a stdin-content hypothesis before pivoting; the signal type was the right first clue.
+macOS `/tmp/X` is a symlink to `/private/tmp/X`. The shell resolves before passing cwd to Claude, so any session started at a `/tmp/...` path writes to `~/.claude/projects/-private-tmp-X/`. Duo's `encodeProjectDir` now calls `realpathSync()` before encoding (with ENOENT fallback to literal). Don't bypass it for new FS-touching call sites. If you add a new function that reads from `~/.claude/projects/<encoded-cwd>/`, use `encodeProjectDir` not a hand-rolled string transform.
 
-### 3. `duo eval` vs `duo dom --js`
+### 3. Capture-on-evidence rule (CLAUDE.md § 12)
 
-`duo eval` targets the **browser pane** (WebContentsView). `duo dom --js` targets the **main renderer** (the React shell). When probing renderer state, use `duo dom --js`. Burning 15 minutes rediscovering this is a session-1 trap.
+The `tabsThatHostedClaude` Set in `electron/main.ts` is the gate for `lastClaudeSession.id` capture. Tabs only get the pointer captured when `claudePresence` actually transitions to `'claude'` for them during THIS Duo run (OR they carry a prior pointer from disk on restore). Don't add new code paths that capture pointers based on cwd-attribute heuristics — that's the BUG that walk-1 surfaced.
 
-### 4. Force a renderer reload after dev restarts
+### 4. Always invoke `/smoke-walk` via the Skill tool (CLAUDE.md § 7b)
 
-Multiple dev restarts during a sprint can leave HMR in a stale state where the source on disk doesn't match what the renderer is running. After ANY dev kill+spawn cycle, run:
+Hard rule. Don't run `.claude/skills/smoke-walk/generate.mjs` directly. The skill's procedural steps (renderer reload, surface re-probe, pref reset, agent-walks-CLI-items) are not in the generator script.
 
+### 5. Renderer reload after dev restarts
+
+After any `npm run dev` kill+spawn cycle, run:
 ```bash
 duo dom --js 'window.location.reload()'
 sleep 3
 until duo dom --js 'typeof window.electron?.session' 2>&1 | grep -q object; do sleep 1; done
 ```
+HMR through multiple restarts can leave the renderer pinned to an older module graph. ENH-183 walk-1 was burned ~30 min by this.
 
-Skill § 4b enforces this; it was added 2026-05-24 because walks 1–2 hit HMR-staleness and gave false PASS on agent probes.
+### 6. Computer-use access at session start for UI work (CLAUDE.md § 7e)
 
-### 5. Don't sidecar speculative pointers
+If the session has any meaningful UI work on the table (renderer/, TipTap, CSS, keyboard, modals, etc.), call `request_access` with `applications: ["Electron"]` BEFORE writing code. Don't wait for a smoke walk to fail. The app name is **"Electron"** (the dev target), NOT "Duo" (which resolves to the packaged `.app` in /Applications).
 
-CLAUDE.md § 12 (capture-on-evidence sub-rule, added 2026-05-24). If you're tempted to "guess" a Duo-owned pointer for a tab/object based on its attributes (cwd, kind), don't. Only capture on actual evidence the association exists (e.g. `claudePresence` transitioned to 'claude' for THIS tab during THIS Duo run). Walk-1's over-capture bug was exactly this pattern.
+### 7. Owner walks the smoke walk; agent walks the CLI
 
-### 6. Verify computed styles, not just element existence
-
-Skill § 4c. A surface can be `mounted: true` with the right `textContent` and still be invisible (transparent background, dark-on-dark text). Probe `getComputedStyle(...).backgroundColor` + `.color` on the surface root + key children, not just `querySelector`. ENH-183 walk-1 had this exact failure mode (undefined CSS vars → transparent + dark-on-dark).
-
-### 7. TerminalPane wrapper is now `flex-col` with `min-h-0` on the child
-
-ENH-183 walk-2 fix [07d7a08](https://github.com/dudgeon/duo/commit/07d7a08). The SessionHeader is in-flow above TerminalInstance children. `min-h-0` is required for `flex-1` to take remaining space (CSS gotcha) — **don't** remove it. The latent zero-dim resize bug it exposed is now guarded at the API boundary in `PtyManager.resize` (BUG-156). If you re-touch TerminalPane, the resize guards must stay.
+For any smoke-walk item that's runnable via `duo <verb>` without a mouse click or visual judgment, the agent walks it before handoff (CLAUDE.md § 7b → smoke-walk skill § "Walk every CLI-testable step yourself before handoff"). Mark agent-walked items as known-PASS in the manifest intro so the owner can skip them.
 
 ## State at-a-glance
 
-- **Branch:** `main` (no feature branch in flight)
-- **Git status:** all ENH-183 work pushed through [65e3a01](https://github.com/dudgeon/duo/commit/65e3a01)
-- **Dev:** restarted at [afb590c](https://github.com/dudgeon/duo/commit/afb590c); renderer reloaded; `duo doctor` clean
-- **Active workspace:** `/Users/geoffreydudgeon/Desktop/session.duo-workspace` (test workspace; 5+ shell tabs in `/docs` cwd)
-- **Smoke walk page open:** `docs/dev/smoke-walks/v0.7.9-rev3.html` as the active browser tab
-- **T3 hydrator:** `T3_AUTO_HYDRATION_ENABLED = false` (flag in main.ts; OFF pending FOLLOWUP-028)
-- **45 ENH-183 unit tests passing.** typecheck clean.
+- **Branch:** `main` at `acf2bff` (merge commit). v0.7.9 tag at `6a8525e`. Bump commit at `835f373`. ENH-182 docs commits at `d10bdd2` + `a353f2f`.
+- **Git status:** working tree has the 3 ENH-184 files uncommitted. That's intentional — Sprint 22 picks them up.
+- **Dev session:** if running, it's on pre-cut code. Next agent should kill + respawn to get the pared SessionHeader.
+- **Package version:** 0.8.0 (dev).
+- **Pack version:** `packs/duo-default/PACK.json` is 1.0.13 (bumped during the cut to re-fire the in-app "what's new" surface).
+- **Smoke walks:** rev3-rev6 manifests in `docs/dev/smoke-walks/` are gitignored; safe to ignore.
 
 ## What NOT to do
 
-- Don't re-enable T3 without FOLLOWUP-028 design landing (input-buffer race + idle-gate + tracer).
-- Don't run the smoke-walk generator script directly — use the Skill tool.
-- Don't assume HMR caught up — always force a renderer reload after dev restarts.
-- Don't propose a v0.7.9 cut until the 8 unreached walk items have owner verification (cut-version skill's Step 0 will block on this anyway).
-- Don't remove the `min-h-0` from TerminalPane's wrapper — it's required for the mockup-locked SessionHeader slot.
+- Don't re-build the S2 banner / inline rename / C11 tip / T3 auto-hydration. They were intentionally dropped. Adding them back would require a fresh owner conversation.
+- Don't reach for `duo session rename` or `duo session hydrate` — those verbs are gone. Type `/rename <title>` in Claude's TUI directly.
+- Don't bypass `encodeProjectDir` for direct `~/.claude/projects/<dir>/` lookups — use the helper so the BUG-158 fix applies.
+- Don't push commits to `main` without checking for parallel work (Geoff may commit ENH-182-style docs on the web while you're working).
 
-## Reading order if you're picking up the smoke walk specifically
+## Quick orientation commands
 
-1. [`docs/dev/smoke-walks/v0.7.9-rev3.json`](smoke-walks/v0.7.9-rev3.json) — current manifest (13 items)
-2. [`docs/research/bug-156-terminal-stability-postmortem.md`](../research/bug-156-terminal-stability-postmortem.md) — § Walk-3 results table for what's PASS/FAIL/SKIP/NOT-REACHED
-3. [`.claude/skills/smoke-walk/SKILL.md`](../../.claude/skills/smoke-walk/SKILL.md) — § 4b/4c/4d/5b — pre-handoff checks (latest additions catch BUG-156-style failures)
-4. The walk page is open in Duo's browser pane; `duo url` to confirm.
+```bash
+# Confirm everything is current
+git log --oneline -5
+duo doctor
+cat package.json | grep version
+ls -lh dist/Duo-0.7.9-arm64.dmg
+
+# Read ENH-184's full state
+sed -n '/^### ENH-184/,/^---$/p' tasks.md | head -50
+
+# See what's queued
+sed -n '/^## Sprint 22/,/^## /p' docs/dev/active-sprint.md
+```
+
+Welcome aboard.

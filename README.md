@@ -125,21 +125,24 @@ the browser for you. From there:
 - Generate an HTML artifact (chart, dashboard, prototype); `duo open
   <file>.html` shows it live.
 
-Help and FAQ are inside Duo too — the in-app help opens to
-[help/faq.html](help/faq.html).
+Help is inside Duo too — the **What Duo Does** canvas (opens automatically
+on first launch, also via the "What Duo Does" tab in the right pane) lists
+every shipped capability with the CLI verb that drives it.
 
 ---
 
 ## Getting help · reporting bugs
 
-- **In-app help** — `Help → FAQ` from the menu bar, or the home tab's
-  Help link. Same file as
-  [help/faq.html](help/faq.html).
+- **In-app capability reference** — open the **What Duo Does** tab in
+  Duo's right pane (auto-pinned on install). Source at
+  [packs/duo-default/canvases/what-duo-does.html](packs/duo-default/canvases/what-duo-does.html).
 - **Bug reports + feature requests** — open an issue at
   [github.com/dudgeon/duo/issues](https://github.com/dudgeon/duo/issues).
-- **What's new in each release** — top of the in-app FAQ, mirrored at
-  [help/faq.html § What's new](help/faq.html), with the prose log at
-  [docs/RELEASES.md](docs/RELEASES.md).
+- **What's new in each release** — inventory in
+  [CHANGELOG.md](CHANGELOG.md), prose log in
+  [docs/RELEASES.md](docs/RELEASES.md). The What Duo Does canvas's pack
+  version bumps on each cut, re-firing the in-app "new capabilities"
+  surface for existing users.
 
 ---
 

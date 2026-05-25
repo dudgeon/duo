@@ -451,11 +451,26 @@ a:hover { text-decoration: underline; }
 <header class="page-head">
   <h1>ENH-183 — Claude session description lifecycle</h1>
   <div class="meta">
-    <span class="pill">PRD · canonical</span>
+    <span class="pill">PRD · canonical (PARED)</span>
     Supersedes ENH-177 + ENH-181 PRD · Reopens ENH-180 (in limited form) ·
-    Sprint 21 / v0.7.9 · Filed 2026-05-24
+    Sprint 21 / v0.7.9 · Filed 2026-05-24 · Pared 2026-05-25
   </div>
 </header>
+
+<div class="callout" style="border-left-color: var(--warn, #c46a1c); background: rgba(196, 106, 28, 0.08); margin-bottom: 1rem;">
+  <strong>PARED 2026-05-25 (Option A, shipped v0.7.9).</strong> Owner directed a mid-cycle pare-back after walking
+  rev3-rev5. <strong>What shipped:</strong> S1 resume pills + S3 restore-offer banner + D5 read ladder +
+  <code>duo session list/resume</code> CLI. <strong>What got cut:</strong> S2 named banner, C11 educational
+  tip, T3 auto-hydration, S2 inline rename, <code>duo session rename</code>, <code>duo session hydrate</code>.
+  Rationale: empirics showed Haiku auto-titles 100% of test sessions before the hydrator gate opens — S2
+  duplicated info already in Claude Code's <code>✳ &lt;title&gt;</code> tab prefix; T3 caused BUG-156.
+  ~600 LOC removed. See
+  <a href="../../tasks.md#enh-183-pared-2026-05-25-option-a--s2--c11--t3--force-rename-dropped"><code>tasks.md § ENH-183 PARED</code></a>
+  for the full rationale + file inventory. <strong>This PRD is preserved as historical record of the original
+  design.</strong> Sections referencing dropped surfaces (D2, D8, D12, D13, S2 mockups, C5/C8/C9/C10/C11/C12
+  in the build plan) describe what was built, not what shipped. The empirics table (§ 11) has two new rows
+  documenting BUG-158 and the Haiku-wins finding.
+</div>
 
 <div class="intro">
   <strong>What this is.</strong> The single canonical PRD for how Duo represents a Claude session

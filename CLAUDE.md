@@ -870,33 +870,36 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 21 / v0.7.9 (post-v0.7.8-cut + FOLLOWUP-027)
+## Active sprint — Sprint 22 / v0.8.0 (post-v0.7.9-cut)
 
-> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) carries the Sprint 21 implementation TODO with the file inventory + per-behavior implementation map for the marquee bundle. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
+> **First-read after compaction**: [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation. [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) carries the Sprint 22 implementation pointers + carry-forward queue.
 
-**Status (2026-05-24):** v0.7.8 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized DMG attached. ENH-178 (browser blocklist three modes, `local-only` default) was the single behavior change. Dev session bumped to v0.7.9. FOLLOWUP-027 shipped this session, **uncommitted on `main`** — awaiting owner call on whether to commit standalone or bundle with the marquee.
+**Status (2026-05-25):** v0.7.9 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.9) live with signed+notarized DMG attached. **ENH-183** shipped pared (Option A) — S1 resume pills + S3 restore offer + D5 read ladder + `duo session list/resume` CLI. Mid-cycle pare-back dropped S2 named banner, C11 educational tip, T3 auto-hydration, S2 inline rename, force-rename CLI (~600 LOC). Three real bugs caught + fixed: BUG-158 (symlink encoding in `encodeProjectDir`), BUG-160 (discriminator dismissedBanner scoping), FOLLOWUP-027 (about:blank ghost-tab). Dev session bumped to v0.8.0.
 
-**Sprint 21 remaining scope (the marquee):**
+**Sprint 22 starting scope:**
 
-1. **ENH-177 + ENH-181 bundle** — Claude session resume banner + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle. **Full implementation TODO in [`docs/dev/active-sprint.md § Sprint 21 implementation TODO`](docs/dev/active-sprint.md)** — file inventory (9 files, ~412 LOC for the cherry-pick), per-behavior implementation map, mechanism empirics. Quick orientation:
-   - **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts.
-   - **Step 2:** Layer in 4 ENH-181 behaviors: banner title reads JSONL `customTitle` > `aiTitle` > first user message > UUID (C1 empirics — see [`docs/research/enh-183-step-0-empirics.md`](docs/research/enh-183-step-0-empirics.md)); collapsed-marker on tab as default; inline rename via PTY `\r/rename <title>\n` (gated on `claudePresence === 'claude'`); CLI parity (`duo session rename` / `collapse` / `expand`).
-   - **Step 3:** Owner walks live. Mockup at [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) (7 states) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) (phone-readable).
+1. **ENH-184** — Workspace pill defeaturing + `+ New Workspace` handler routing fix. **Half-done in working tree (uncommitted on `main`):** new [`renderer/hooks/useWorkspacePillMenuFlag.ts`](renderer/hooks/useWorkspacePillMenuFlag.ts) hook (default OFF), flag declared in [`renderer/App.tsx`](renderer/App.tsx) but NOT YET CONSUMED (dead code), `+` handler in [`renderer/components/WorkspaceSwitcherDropdown.tsx`](renderer/components/WorkspaceSwitcherDropdown.tsx) changed from `save({saveAs:true})` → `newWorkspace()` (complete). **Finish:** wire the flag to gate the pill's `onClick` + caret render in App.tsx (~5 lines). CLI parity verb optional (`duo workspace-pill-menu [on|off]`). Owner intent: render pill as passive label; all workspace ops route through File menu.
 
-**Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/_archive/enh-180-session-rename.html`](docs/prd/_archive/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
+2. **ENH-182** — Project-centric UX. PRD locked 2026-05-25 (owner walk); design artifacts + code map at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md). Spec-complete, ready to build. Project rail style study at [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html).
 
-**Shipped this session (2026-05-24):**
-**FOLLOWUP-027** — short-circuit `openTab` + `navigateOrFocus` when `routeOffHostIfMatched` would filter the URL. Eliminates the about:blank ghost-tab that appeared when `duo open https://example.com` ran in `local-only` mode (the system browser was already popping correctly; the embedded tab creation was the bug). Return shape: `{ok, url, routedTo: 'system-browser'}` — `core/socket-server.ts § case 'open'` discriminates via `'id' in browserResult` and skips the `browser:focus-gained` push. Files touched: [`electron/browser-manager.ts`](electron/browser-manager.ts), [`core/socket-server.ts`](core/socket-server.ts). Verified end-to-end live via DOM probes (`browserTabsCount` stays at 1 + EXTERNAL_REDIRECTED banner renders correctly + `routedTo` in CLI response). **Uncommitted on `main` pending owner call.**
-
-**Memory rules locked this session:**
-- [feedback_locked_mac_screenshot_pattern](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) — when every screenshot returns wallpaper AND `(name withheld)` + `com.apple.loginwindow` in the diagnostic hidden-apps list AND `left_click` errors with `"loginwindow" is not in the allowed applications` → the Mac is LOCKED. Don't debug the app; fall back to DOM probes. Burned ~30 min during FOLLOWUP-027 verification before catching this.
-
-**Carry-forward queue** (not yet picked into Sprint 21; most-recent first):
+**Carry-forward queue** (not yet picked, most-recent first):
 BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
 
-**Open questions awaiting owner input:**
-- Commit FOLLOWUP-027 standalone or bundle with ENH-177+181?
-- Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
+**Closed during v0.7.9 cycle:** FOLLOWUP-028 (T3 re-enable design — T3 dropped); BUG-159 (rename terminator — wrong diagnosis; rename committed via `\n`, owner-visible artifact was Claude TUI render timing).
+
+**Memory rules locked during the cycle:**
+- [feedback_locked_mac_screenshot_pattern](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) — locked-Mac detection signature for screenshot+click failure mode.
+- BUG-159 lesson (logged in tasks.md, candidate for future memory file): verify the artifact (JSONL on disk) BEFORE filing fixes based on owner verbal symptom reports — the "is this even a bug?" question deserves the same empirical check as the "what's the impact?" question.
+
+**Open questions for the next agent:** none blocking. Owner is hands-off until Sprint 22 work picks up momentum.
+
+---
+
+### Previously — Sprint 21 / v0.7.9 (shipped 2026-05-25)
+
+**Claude session resume affordances, pared scope (Option A)** ([release](https://github.com/dudgeon/duo/releases/tag/v0.7.9)). First cut where we pared a feature mid-cycle based on walk-driven empirics. ENH-183 began as a four-state polymorphic session header (S0/S1/S2/S3) with T3 auto-hydration + inline rename + C11 educational tip + four CLI verbs. Walked rev3-rev5 across two days, owner observed the S2 banner duplicated info already in Claude Code's `✳ <haiku>` tab title; empirics confirmed `duo session hydrate` returned `{hydrated: false, reason: 'already-has-aiTitle'}` 100% — Haiku always wins. Pared S2 + C11 + T3 + inline-rename + force-rename CLI (~600 LOC removed). Three real bugs caught + fixed by the walk process: BUG-158 (symlink encoding), BUG-160 (discriminator scoping), FOLLOWUP-027 (about:blank ghost-tab). One bug filed mid-walk (BUG-159) turned out to be wrong diagnosis — closed as superseded.
+
+**Walk arc:** rev3 (3 PASS / 1 FAIL → BUG-156 `pty.resize(0,0)` crash, root-caused + fixed defense-in-depth at three layers); rev4 (1 FAIL → BUG-158 realpath fix); rev5 (S3-RESTORE walked, BUG-160 surfaced + fixed); rev6 (pared-scope confirmation, 3 PASS / 1 SKIP covered by regression test). Cut + DMG (signed+notarized) + GitHub Release on 2026-05-25.
 
 ---
 
