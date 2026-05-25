@@ -45,6 +45,57 @@ playground and gain visual consistency across the body of work for free.
 | Collapsed extras | `details.deferred` + `details.deferred summary` + `details.deferred .deferred-body` | "Click to expand" block for reasoning that should be present but not shown by default. |
 | Copy footer | `.copy-bar` + `.copy-bar .copy-meta` + `.copy-bar #answered-count` + `.copy-bar button` (+ `.copied` modifier) | Sticky bottom bar with answered-count + Copy-decisions button. |
 
+## Project color system (categorical palette)
+
+The kernel's `:root` carries a categorical palette for **project-coded UI** —
+the project filter rail (ENH-182), per-tab and per-navigator project dots, and
+focus chips. It complements Atelier's sequential paper/ink ramp + the single
+`--accent` with six distinguishable-but-harmonious project hues.
+
+| Token | Hex | Hue | Name |
+|---|---|---|---|
+| `--project-pine` | `#2E7D74` | 173° | Pine (teal-green) |
+| `--project-harbor` | `#3C6E93` | 206° | Harbor (slate blue) |
+| `--project-iris` | `#5B57A6` | 243° | Iris (indigo) |
+| `--project-plum` | `#87508F` | 291° | Plum (violet) |
+| `--project-rose` | `#A4506A` | 345° | Rose (dusty rose) |
+| `--project-moss` | `#69763A` | 75° | Moss (olive) |
+
+**Rules (why these six):**
+
+- **The orange/amber band (~15–55°) is reserved.** `--accent` (`#c46a1c`)
+  already means "active / primary action." No project is ever assigned an
+  orange/amber hue, or a project tile would read as the accent and fight the
+  app's color language.
+- **Muted + consistent.** Moderate chroma, mid lightness — the six sit as one
+  calm family on cream rather than confetti. White text on each clears
+  large-text AA (≥ 4.3:1).
+- **Color is reinforcement, never the only signal.** Project initials carry
+  identity (for color-blind users + the closest pairs, Pine/Harbor &
+  Iris/Plum); color reinforces.
+
+**Assignment.** Hash-stable per project root — `hash(projectRoot) % 6` — so the
+same folder gets the same hue across sessions and machines, with manual
+override. Past six projects, rotate ~12% darker **shade variants** of the same
+hues before adding new ones (6 hues × 2 shades = 12).
+
+**Usage.**
+
+- **Rail tiles** — locked treatment is **"quiet bloom"** (ENH-182 / D9, 2026-05-25):
+  unfocused tiles are paper with the project hue as colored initials + a thin
+  underline; the *focused* project blooms to a full hue fill with white initials
+  + a white left "notch." Selection elsewhere still uses `--accent`.
+- **Project dots** (tab chips, navigator rows) — a 6–8px square in the project
+  hue.
+- **Focus chips / soft fills** — use the hue at a tint over paper:
+  `color-mix(in srgb, var(--project-X) 22%, var(--paper))` (≈ the middle tint
+  shown in the rail study's swatch sheet; 10% / 22% / 40% are the standard
+  steps).
+
+Reference: `docs/research/project-rail-style-study.html` (the study that
+derived this) and `docs/research/project-centric-ux.html` §5 (the filter-layer
+context).
+
 ## Patterns NOT in the kernel
 
 Author these inline AFTER the kernel block:

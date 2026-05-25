@@ -41,6 +41,23 @@
   --warn: #b07527;
   --code-bg: #2b2823;
   --code-ink: #e8e0cb;
+
+  /* Project color system — categorical palette for project-coded UI
+   * (the project filter rail, per-tab/navigator project dots, focus
+   * chips). Six muted "studio" hues, evenly spaced around the wheel but
+   * with the orange/amber band (~15–55°) RESERVED so no project ever
+   * reads as --accent. Mid-value + moderate-chroma so the six read as
+   * one calm family on cream; white text on each clears large-text AA.
+   * Assign hash-stable per project root (same folder → same hue) with
+   * manual override; past six projects, rotate ~12% darker shade
+   * variants before introducing any new hue. Locked via ENH-182 / D9;
+   * see docs/research/project-rail-style-study.html. */
+  --project-pine:   #2E7D74;  /* hue 173° — teal-green */
+  --project-harbor: #3C6E93;  /* hue 206° — slate blue */
+  --project-iris:   #5B57A6;  /* hue 243° — indigo */
+  --project-plum:   #87508F;  /* hue 291° — violet */
+  --project-rose:   #A4506A;  /* hue 345° — dusty rose */
+  --project-moss:   #69763A;  /* hue  75° — olive */
 }
 
 * { box-sizing: border-box; }

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="duo-open-in" content="browser">
+<title>Project rail — style &amp; color study (ENH-182 / D9)</title>
+<style>
+/* Atelier kernel (inlined per CLAUDE.md § 11) */
+:root{
+  --paper:#fbf8f1;--paper-deep:#f3ede0;--paper-edge:#e8e0cb;--paper-rule:#d9cea8;
+  --ink:#2b2620;--ink-soft:#4a4238;--ink-mute:#6f6557;--ink-ghost:#9a9080;
+  --accent:#c46a1c;--accent-soft:#f4d9b6;--pass:#4a7d3e;--fail:#b13e3a;--warn:#b07527;
+  --code-bg:#2b2823;--code-ink:#e8e0cb;
+  /* project color system (this study) */
+  --p-pine:#2E7D74;--p-harbor:#3C6E93;--p-iris:#5B57A6;--p-plum:#87508F;--p-rose:#A4506A;--p-moss:#69763A;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:-apple-system,"SF Pro Text","Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.55;}
+body{padding:32px 40px 96px;max-width:920px;margin:0 auto;}
+header.page-head{border-bottom:1px solid var(--paper-rule);padding-bottom:16px;margin-bottom:24px;}
+header.page-head h1{font-family:"New York","Iowan Old Style",Georgia,serif;font-style:italic;font-weight:500;margin:0 0 4px;font-size:24px;}
+header.page-head .meta{color:var(--ink-mute);font-size:13px;}
+header.page-head .meta .pill{display:inline-block;padding:2px 8px;border-radius:10px;background:var(--accent-soft);color:var(--accent);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;margin-right:6px;}
+.intro{background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:6px;padding:14px 18px;margin-bottom:28px;font-size:13.5px;color:var(--ink-soft);}
+.intro strong{color:var(--ink);font-weight:600;}
+h2{font-family:"New York","Iowan Old Style",Georgia,serif;font-weight:600;margin:36px 0 12px;font-size:19px;border-bottom:1px solid var(--paper-rule);padding-bottom:6px;}
+h3{font-weight:600;margin:22px 0 8px;font-size:15px;}
+p{margin:8px 0;}ul{margin:8px 0;padding-left:22px;}li{margin:4px 0;}
+code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;background:var(--paper-deep);padding:1px 5px;border-radius:3px;}
+.decision-card{background:var(--paper-deep);border:1.5px solid var(--paper-rule);border-radius:6px;padding:16px 18px;margin:18px 0;}
+.decision-card .q-title{font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--accent);margin:0 0 6px;}
+.decision-card .q-prompt{font-family:"New York",Georgia,serif;font-weight:500;font-size:17px;color:var(--ink);margin:0 0 12px;line-height:1.35;}
+.decision-card .q-context{font-size:13px;color:var(--ink-mute);margin:0 0 14px;}
+.q-options{display:grid;gap:10px;margin:0 0 12px;}
+.q-option{display:block;background:var(--paper);border:1.5px solid var(--paper-rule);border-radius:5px;padding:10px 12px;cursor:pointer;transition:border-color .12s,background .12s;}
+.q-option:hover{border-color:var(--ink-ghost);}
+.q-option input{margin-right:8px;accent-color:var(--accent);}
+.q-option:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,var(--paper));}
+.q-option-body{display:inline-block;vertical-align:top;width:calc(100% - 22px);}
+.q-option-title{font-weight:600;font-size:13.5px;color:var(--ink);margin:0 0 3px;}
+.q-option-title .rec{font-size:10px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:8px;margin-left:6px;}
+.q-option-rationale{font-size:12px;color:var(--ink-soft);line-height:1.45;}
+.q-notes{width:100%;background:var(--paper);border:1px solid var(--paper-rule);border-radius:4px;padding:8px 10px;font-family:inherit;font-size:12.5px;color:var(--ink);resize:vertical;min-height:46px;}
+.q-notes:focus{outline:1.5px solid var(--accent);}
+.copy-bar{position:sticky;bottom:0;margin:32px -40px -96px;padding:16px 40px;background:color-mix(in srgb,var(--paper-deep) 96%,transparent);border-top:1.5px solid var(--paper-rule);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;justify-content:space-between;align-items:center;gap:16px;}
+.copy-bar .copy-meta{font-size:12.5px;color:var(--ink-soft);}
+.copy-bar #answered-count{color:var(--accent);font-weight:700;}
+.copy-bar button{background:var(--accent);color:#fff;border:none;border-radius:5px;padding:9px 18px;font-family:inherit;font-size:13.5px;font-weight:600;cursor:pointer;}
+.copy-bar button.copied{background:var(--pass);}
+.note{font-size:12.5px;color:var(--ink-mute);border-left:3px solid var(--paper-rule);padding:2px 0 2px 12px;margin:10px 0;}
+.tldr{background:color-mix(in srgb,var(--accent) 8%,var(--paper));border:1.5px solid var(--accent-soft);border-left:4px solid var(--accent);border-radius:6px;padding:14px 18px;margin:18px 0 28px;font-size:13.5px;}
+.tldr h3{margin:0 0 8px;color:var(--accent);font-size:13px;text-transform:uppercase;letter-spacing:.05em;}
+
+/* ── color system swatches ── */
+.swatches{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0;}
+@media(max-width:680px){.swatches{grid-template-columns:repeat(2,1fr);}}
+.sw{border:1px solid var(--paper-rule);border-radius:8px;overflow:hidden;background:var(--paper);}
+.sw .band{height:54px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;letter-spacing:.02em;}
+.sw .meta{padding:8px 10px;font-size:11.5px;color:var(--ink-mute);display:flex;align-items:center;gap:8px;}
+.sw .meta .dot{width:12px;height:12px;border-radius:3px;flex:0 0 auto;}
+.sw .meta .nm{font-weight:700;color:var(--ink);}
+.sw .meta .hex{margin-left:auto;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--ink-ghost);}
+.sw .tints{display:flex;height:14px;}
+.sw .tints span{flex:1;}
+.reserved{display:flex;align-items:center;gap:12px;background:var(--paper-deep);border:1px dashed var(--paper-rule);border-radius:8px;padding:10px 14px;margin:12px 0;font-size:12.5px;color:var(--ink-soft);}
+.reserved .chip{width:34px;height:34px;border-radius:8px;background:var(--accent);flex:0 0 auto;}
+.wheel{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0;}
+.wheel .huetag{font-size:10.5px;padding:2px 8px;border-radius:10px;color:#fff;font-weight:600;}
+
+/* ── live rail style demos ── */
+.rails{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:18px 0;}
+@media(max-width:680px){.rails{grid-template-columns:repeat(2,1fr);}}
+.railcard{border:1px solid var(--paper-rule);border-radius:9px;overflow:hidden;background:var(--paper);}
+.railcard.featured{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent);}
+.railcard .rc-head{padding:8px 11px;background:var(--paper-deep);border-bottom:1px solid var(--paper-rule);font-size:12px;font-weight:700;color:var(--ink);}
+.railcard .rc-head .rec{font-size:9px;background:var(--accent-soft);color:var(--accent);text-transform:uppercase;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:5px;}
+.railcard .rc-body{display:flex;height:300px;}
+.raildemo{width:60px;flex:0 0 60px;background:var(--accent-soft);display:flex;flex-direction:column;align-items:center;gap:9px;padding:11px 0;position:relative;}
+.raildemo .tile{position:relative;width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;cursor:pointer;transition:all .18s;user-select:none;background:var(--paper);border:1px solid var(--paper-rule);color:var(--ink-mute);}
+.raildemo .tile.all{height:32px;border-radius:8px;font-size:11px;}
+.raildemo .tile:hover{filter:brightness(.97);}
+.raildemo .tile .lbl{position:absolute;left:48px;top:50%;transform:translateY(-50%);white-space:nowrap;background:var(--ink);color:var(--paper);font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;opacity:0;pointer-events:none;transition:opacity .14s;z-index:5;}
+.raildemo .tile:hover .lbl{opacity:1;}
+.raildemo .sep{width:30px;height:1px;background:var(--paper-rule);}
+/* selected = ink All */
+.raildemo .tile.all.sel{background:var(--ink);color:#fff;border-color:var(--ink);}
+.raildemo .tile.all.sel::before{content:"";position:absolute;left:-11px;top:7px;bottom:7px;width:4px;border-radius:0 3px 3px 0;background:var(--ink);}
+
+.rc-cap{padding:9px 11px;font-size:11.5px;color:var(--ink-mute);border-top:1px solid var(--paper-rule);min-height:64px;}
+.rc-cap b{color:var(--ink-soft);}
+
+/* Style A — painted */
+.sA .tile[data-pc]{background:var(--pc);border-color:var(--pc);color:#fff;filter:saturate(.82) brightness(1.02);opacity:.9;}
+.sA .tile[data-pc].sel{filter:none;opacity:1;transform:scale(1.05);box-shadow:0 0 0 3px color-mix(in srgb,var(--pc) 35%,transparent);}
+.sA .tile.sel::before{content:"";position:absolute;left:-11px;top:7px;bottom:7px;width:4px;border-radius:0 3px 3px 0;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.06);}
+/* Style B — quiet bloom (recommended) */
+.sB .tile[data-pc]{background:var(--paper);color:var(--pc);border-color:color-mix(in srgb,var(--pc) 30%,var(--paper-rule));}
+.sB .tile[data-pc]::after{content:"";position:absolute;left:8px;right:8px;bottom:5px;height:3px;border-radius:2px;background:var(--pc);}
+.sB .tile[data-pc].sel{background:var(--pc);color:#fff;border-color:var(--pc);}
+.sB .tile[data-pc].sel::after{display:none;}
+.sB .tile.sel::before{content:"";position:absolute;left:-11px;top:7px;bottom:7px;width:4px;border-radius:0 3px 3px 0;background:var(--pc);}
+/* Style C — color-bar */
+.sC .tile[data-pc]{background:var(--paper);color:var(--ink-soft);border-color:var(--paper-rule);padding-left:8px;}
+.sC .tile[data-pc]::after{content:"";position:absolute;left:5px;top:8px;bottom:8px;width:4px;border-radius:3px;background:var(--pc);}
+.sC .tile[data-pc].sel{background:color-mix(in srgb,var(--pc) 90%,#000 0%);color:#fff;border-color:var(--pc);}
+.sC .tile[data-pc].sel::after{background:#fff;}
+.sC .tile.sel::before{content:"";position:absolute;left:-11px;top:7px;bottom:7px;width:4px;border-radius:0 3px 3px 0;background:var(--pc);}
+/* Style D — dot-minimal */
+.sD .tile[data-pc]{background:var(--paper);color:var(--ink-soft);border-color:var(--paper-rule);}
+.sD .tile[data-pc]::after{content:"";position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--pc);transition:all .18s;}
+.sD .tile[data-pc].sel{background:var(--paper-deep);color:var(--ink);border-color:var(--pc);}
+.sD .tile[data-pc].sel::after{width:11px;height:11px;right:4px;top:4px;box-shadow:0 0 0 2px color-mix(in srgb,var(--pc) 28%,transparent);}
+.sD .tile.sel::before{content:"";position:absolute;left:-11px;top:7px;bottom:7px;width:4px;border-radius:0 3px 3px 0;background:var(--ink-ghost);}
+
+/* anatomy diagram */
+.anat{display:flex;gap:22px;flex-wrap:wrap;align-items:center;background:var(--paper-deep);border:1px solid var(--paper-rule);border-radius:8px;padding:16px;margin:14px 0;}
+.anat .big{position:relative;width:90px;height:90px;border-radius:18px;background:var(--p-harbor);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:30px;flex:0 0 auto;}
+.anat .big .live{position:absolute;right:-4px;top:-4px;width:18px;height:18px;border-radius:50%;background:var(--pass);border:3px solid var(--paper-deep);}
+.anat .big .ct{position:absolute;left:-6px;bottom:-6px;background:var(--ink);color:var(--paper);font-size:11px;font-weight:700;border-radius:9px;padding:1px 7px;border:2px solid var(--paper-deep);}
+.anat ul{margin:0;font-size:12.5px;}
+.gif-figure{margin:14px 0 6px;border:1px solid var(--paper-rule);border-radius:8px;overflow:hidden;background:var(--paper-deep);}
+.gif-figure img{display:block;width:100%;height:auto;}
+.hl{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px;margin:6px 0;}
+.hl .pro b{color:var(--pass);}.hl .con b{color:var(--fail);}
+.hl ul{margin:3px 0;padding-left:18px;font-size:12px;}
+@media(max-width:680px){.hl{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>Project rail — style &amp; color study</h1>
+  <div class="meta">
+    <span class="pill">Research</span><span class="pill">ENH-182 · D9</span>
+    Duo · 2026-05-25 · left, Slack-style rail
+  </div>
+</header>
+
+<div class="intro">
+  <strong>Scope.</strong> You picked the <strong>left, Slack-style rail</strong>
+  for the project filter (ENH-182 §5 / Decision 9). This study locks the two
+  things that decision left open: (1) a <strong>project color system</strong>
+  that harmonizes with Atelier and won't clash with the burnt-orange app
+  accent, and (2) the <strong>visual treatment</strong> of the rail tiles —
+  four options compared live, with a recommendation. Decide as you read; Copy
+  decisions at the bottom. <em>No code — design artifact.</em>
+</div>
+
+<div class="tldr">
+  <h3>Recommendation</h3>
+  <ul>
+    <li><b>Color system:</b> a 6-hue muted "studio" palette (Pine · Harbor ·
+      Iris · Plum · Rose · Moss) — all mid-value, moderate-chroma, evenly
+      spaced around the wheel but <b>deliberately skipping the orange/amber
+      band</b> so no project ever reads as the app accent. Assigned
+      <b>hash-stable</b> per project root (same folder → same color, always),
+      with manual override.</li>
+    <li><b>Tile style: B — "quiet bloom." ✓ LOCKED (2026-05-25).</b> Every tile
+      shows its color quietly (colored initials + a thin color underline) so you
+      can scan the rail; the <b>focused</b> project blooms to a full color fill
+      with the Slack-style white left notch. Respects Atelier's restraint while
+      keeping color identity legible.</li>
+    <li><b>v1 state on a tile:</b> identity + selection only, plus an optional
+      small "Claude is live here" dot. Defer tab-count badges.</li>
+  </ul>
+</div>
+
+<!-- ════════════════════════════════════ -->
+<h2>1 · The color system</h2>
+
+<p>
+  The hard constraint is Atelier itself: a warm cream paper (<code>#fbf8f1</code>),
+  warm near-black ink, and a single saturated <strong>burnt-orange accent</strong>
+  (<code>#c46a1c</code>) that already means "active / primary action" across the
+  app. Project colors therefore have to:
+</p>
+<ul>
+  <li><b>Skip the orange/amber band</b> (~hue 15°–55°) — otherwise a project
+    tile reads as "the accent," and the whole rail fights the app's existing
+    color language.</li>
+  <li><b>Stay muted &amp; consistent</b> — moderate chroma, mid lightness, so
+    six of them sit together as one calm family rather than a confetti of
+    saturated dots on cream.</li>
+  <li><b>Keep white initials legible</b> — each hue is dark enough that bold
+    white initials clear large-text contrast (≥ 4.3:1).</li>
+</ul>
+
+<div class="reserved">
+  <div class="chip"></div>
+  <div><b>Reserved — not a project color.</b> Burnt orange <code>#c46a1c</code>
+    stays the app accent (selection, primary buttons, focus rings). No project
+    is ever assigned an orange/amber hue, by rule.</div>
+</div>
+
+<h3>The palette — 6 muted hues, evenly spaced (orange band omitted)</h3>
+<div class="wheel">
+  <span class="huetag" style="background:var(--p-moss)">Moss 75°</span>
+  <span class="huetag" style="background:var(--p-pine)">Pine 173°</span>
+  <span class="huetag" style="background:var(--p-harbor)">Harbor 206°</span>
+  <span class="huetag" style="background:var(--p-iris)">Iris 243°</span>
+  <span class="huetag" style="background:var(--p-plum)">Plum 291°</span>
+  <span class="huetag" style="background:var(--p-rose)">Rose 345°</span>
+  <span class="huetag" style="background:var(--accent);outline:2px dashed var(--ink-ghost)">⨯ 30° reserved</span>
+</div>
+
+<div class="swatches">
+  <div class="sw"><div class="band" style="background:var(--p-pine)">Pine</div>
+    <div class="tints"><span style="background:color-mix(in srgb,var(--p-pine) 10%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-pine) 22%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-pine) 40%,var(--paper))"></span></div>
+    <div class="meta"><span class="dot" style="background:var(--p-pine)"></span><span class="nm">Pine</span><span class="hex">#2E7D74</span></div></div>
+  <div class="sw"><div class="band" style="background:var(--p-harbor)">Harbor</div>
+    <div class="tints"><span style="background:color-mix(in srgb,var(--p-harbor) 10%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-harbor) 22%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-harbor) 40%,var(--paper))"></span></div>
+    <div class="meta"><span class="dot" style="background:var(--p-harbor)"></span><span class="nm">Harbor</span><span class="hex">#3C6E93</span></div></div>
+  <div class="sw"><div class="band" style="background:var(--p-iris)">Iris</div>
+    <div class="tints"><span style="background:color-mix(in srgb,var(--p-iris) 10%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-iris) 22%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-iris) 40%,var(--paper))"></span></div>
+    <div class="meta"><span class="dot" style="background:var(--p-iris)"></span><span class="nm">Iris</span><span class="hex">#5B57A6</span></div></div>
+  <div class="sw"><div class="band" style="background:var(--p-plum)">Plum</div>
+    <div class="tints"><span style="background:color-mix(in srgb,var(--p-plum) 10%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-plum) 22%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-plum) 40%,var(--paper))"></span></div>
+    <div class="meta"><span class="dot" style="background:var(--p-plum)"></span><span class="nm">Plum</span><span class="hex">#87508F</span></div></div>
+  <div class="sw"><div class="band" style="background:var(--p-rose)">Rose</div>
+    <div class="tints"><span style="background:color-mix(in srgb,var(--p-rose) 10%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-rose) 22%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-rose) 40%,var(--paper))"></span></div>
+    <div class="meta"><span class="dot" style="background:var(--p-rose)"></span><span class="nm">Rose</span><span class="hex">#A4506A</span></div></div>
+  <div class="sw"><div class="band" style="background:var(--p-moss)">Moss</div>
+    <div class="tints"><span style="background:color-mix(in srgb,var(--p-moss) 10%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-moss) 22%,var(--paper))"></span><span style="background:color-mix(in srgb,var(--p-moss) 40%,var(--paper))"></span></div>
+    <div class="meta"><span class="dot" style="background:var(--p-moss)"></span><span class="nm">Moss</span><span class="hex">#69763A</span></div></div>
+</div>
+<p class="mock-cap note">Each card: full tile (white initials), three background tints (10% / 22% / 40% over paper — for focus chips, soft fills, hovers), and the dot used in tab chips + the navigator.</p>
+
+<h3>Assignment &amp; scaling past 6</h3>
+<ul>
+  <li><b>Hash-stable.</b> A project's color = <code>hash(projectRoot) % 6</code>.
+    The same folder always gets the same color across sessions and machines —
+    no flicker, no "why did it change." Let the user override per project.</li>
+  <li><b>Past 6 projects</b> — rotate <b>shade variants</b> of the same six
+    (a ~12% darker "deep" tone) before introducing any new hue. Keeps the
+    family tight and still avoids the orange band. (6 hues × 2 shades = 12.)</li>
+  <li><b>Color is a cue, never the only signal.</b> Initials carry identity for
+    color-blind users; color is reinforcement. (Pine/Harbor and Iris/Plum are
+    the closest pairs — initials disambiguate them.)</li>
+</ul>
+
+<!-- ════════════════════════════════════ -->
+<h2>2 · Tile style — four options (live)</h2>
+<p>Click the tiles. All four are the same left, Slack-style rail; they differ in
+  how loudly color is expressed and how the focused project is marked. Hover a
+  tile for its name flyout.</p>
+
+<div class="rails">
+  <div class="railcard">
+    <div class="rc-head">A · Painted</div>
+    <div class="rc-body"><div class="raildemo sA" data-sel="WS">
+      <div class="tile all" data-set="all">All</div><div class="sep"></div>
+      <div class="tile" data-pc="var(--p-pine)"   data-set="WS" style="--pc:var(--p-pine)">WS<span class="lbl">Widget Store</span></div>
+      <div class="tile" data-pc="var(--p-harbor)" data-set="MS" style="--pc:var(--p-harbor)">MS<span class="lbl">Marketing Site</span></div>
+      <div class="tile" data-pc="var(--p-iris)"   data-set="AG" style="--pc:var(--p-iris)">AG<span class="lbl">API Gateway</span></div>
+      <div class="tile" data-pc="var(--p-plum)"   data-set="DS" style="--pc:var(--p-plum)">DS<span class="lbl">Design System</span></div>
+    </div></div>
+    <div class="rc-cap"><b>Every tile fully painted.</b> Maximum glanceability by color; loudest against cream. Focused = full saturation + scale + white notch.</div>
+  </div>
+
+  <div class="railcard featured">
+    <div class="rc-head">B · Quiet bloom <span class="rec">rec</span></div>
+    <div class="rc-body"><div class="raildemo sB" data-sel="WS">
+      <div class="tile all" data-set="all">All</div><div class="sep"></div>
+      <div class="tile" data-pc="var(--p-pine)"   data-set="WS" style="--pc:var(--p-pine)">WS<span class="lbl">Widget Store</span></div>
+      <div class="tile" data-pc="var(--p-harbor)" data-set="MS" style="--pc:var(--p-harbor)">MS<span class="lbl">Marketing Site</span></div>
+      <div class="tile" data-pc="var(--p-iris)"   data-set="AG" style="--pc:var(--p-iris)">AG<span class="lbl">API Gateway</span></div>
+      <div class="tile" data-pc="var(--p-plum)"   data-set="DS" style="--pc:var(--p-plum)">DS<span class="lbl">Design System</span></div>
+    </div></div>
+    <div class="rc-cap"><b>Quiet until focused.</b> Colored initials + thin underline identify each; the focused project blooms to full fill + white notch. Calmest fit with Atelier.</div>
+  </div>
+
+  <div class="railcard">
+    <div class="rc-head">C · Color-bar</div>
+    <div class="rc-body"><div class="raildemo sC" data-sel="WS">
+      <div class="tile all" data-set="all">All</div><div class="sep"></div>
+      <div class="tile" data-pc="var(--p-pine)"   data-set="WS" style="--pc:var(--p-pine)">WS<span class="lbl">Widget Store</span></div>
+      <div class="tile" data-pc="var(--p-harbor)" data-set="MS" style="--pc:var(--p-harbor)">MS<span class="lbl">Marketing Site</span></div>
+      <div class="tile" data-pc="var(--p-iris)"   data-set="AG" style="--pc:var(--p-iris)">AG<span class="lbl">API Gateway</span></div>
+      <div class="tile" data-pc="var(--p-plum)"   data-set="DS" style="--pc:var(--p-plum)">DS<span class="lbl">Design System</span></div>
+    </div></div>
+    <div class="rc-cap"><b>Color contained to a stripe.</b> Neutral tiles with a left color bar; focused = full wash + white bar. Tidy; closest to Slack's selected-workspace bar.</div>
+  </div>
+
+  <div class="railcard">
+    <div class="rc-head">D · Dot-minimal</div>
+    <div class="rc-body"><div class="raildemo sD" data-sel="WS">
+      <div class="tile all" data-set="all">All</div><div class="sep"></div>
+      <div class="tile" data-pc="var(--p-pine)"   data-set="WS" style="--pc:var(--p-pine)">WS<span class="lbl">Widget Store</span></div>
+      <div class="tile" data-pc="var(--p-harbor)" data-set="MS" style="--pc:var(--p-harbor)">MS<span class="lbl">Marketing Site</span></div>
+      <div class="tile" data-pc="var(--p-iris)"   data-set="AG" style="--pc:var(--p-iris)">AG<span class="lbl">API Gateway</span></div>
+      <div class="tile" data-pc="var(--p-plum)"   data-set="DS" style="--pc:var(--p-plum)">DS<span class="lbl">Design System</span></div>
+    </div></div>
+    <div class="rc-cap"><b>Color as a whisper.</b> Ink initials + a corner dot; focused = soft fill + enlarged dot. Most Atelier-pure, least scannable by color.</div>
+  </div>
+</div>
+
+<div class="hl">
+  <div class="pro"><b>Why B is recommended</b><ul>
+    <li>Color is present on every tile (scannable) but <em>muted</em> until you focus — matches Atelier's "quiet surface, one loud moment" ethos.</li>
+    <li>The bloom-to-fill gives focus a satisfying, unmistakable state change that pairs with the §5 filter transition.</li>
+    <li>Degrades gracefully to 6+ projects without becoming a wall of saturated squares (the risk with A).</li>
+  </ul></div>
+  <div class="con"><b>When to pick another</b><ul>
+    <li><b>A</b> if you want maximum at-a-glance color sorting and don't mind a louder rail.</li>
+    <li><b>C</b> if you want the most literal Slack feel and the tidiest neutral tiles.</li>
+    <li><b>D</b> if color should stay a near-invisible accent and initials do all the work.</li>
+  </ul></div>
+</div>
+
+<h3>Static comparison + palette (for reference / Notion)</h3>
+<figure class="gif-figure"><img src="assets/project-filter/rail-styles.png" alt="Four rail style options side by side"></figure>
+<figure class="gif-figure"><img src="assets/project-filter/palette-swatches.png" alt="The six-hue project color palette against Atelier paper"></figure>
+
+<!-- ════════════════════════════════════ -->
+<h2>3 · Tile anatomy &amp; state</h2>
+<p>Beyond identity + selection, the tile is a natural place to surface a little
+  Duo-specific state. The recommendation is to keep v1 minimal and add the rest
+  only if they earn their keep.</p>
+<div class="anat">
+  <div class="big">MS<span class="live" title="claude live"></span><span class="ct">3</span></div>
+  <ul>
+    <li><b>Identity</b> — initials (first two words) + project color. <span class="note" style="border:0;display:inline;padding:0">v1</span></li>
+    <li><b>Selection</b> — full-color bloom + white left notch (focused project). <b>v1</b></li>
+    <li><b>Claude live here</b> — small green dot, top-right, when a <code>claude</code> session is running in any of that project's terminals (reuses <code>claudePresence</code>). <b>v1-optional</b></li>
+    <li><b>Open-item count</b> — small badge, bottom-left (how many tabs belong to the project). <em>Defer</em> — risks Slack-unread clutter.</li>
+    <li><b>Git-dirty</b> — a tiny warm tick if the project's repo has uncommitted changes. <em>Defer.</em></li>
+  </ul>
+</div>
+
+<section class="decision-card">
+  <div class="q-title">Decision R1 · tile style · ✓ LOCKED</div>
+  <h3 class="q-prompt">Which rail tile treatment?</h3>
+  <p class="q-context"><b>Locked 2026-05-25 → B (Quiet bloom).</b> The other options are kept below for the record. All are the same left Slack-style rail; they differ in color loudness + focus marking.</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="r1" value="B" checked><div class="q-option-body"><div class="q-option-title">B · Quiet bloom <span class="rec">Locked ✓</span></div><div class="q-option-rationale">Colored initials + underline on every tile; focused project blooms to full fill + white notch. Best Atelier fit, still scannable.</div></div></label>
+    <label class="q-option"><input type="radio" name="r1" value="A"><div class="q-option-body"><div class="q-option-title">A · Painted</div><div class="q-option-rationale">Every tile fully colored. Loudest, most glanceable by color; risks fighting the cream/accent palette at 6+ projects.</div></div></label>
+    <label class="q-option"><input type="radio" name="r1" value="C"><div class="q-option-body"><div class="q-option-title">C · Color-bar</div><div class="q-option-rationale">Neutral tiles, left color stripe; focused = full wash. Tidiest, most literal Slack feel.</div></div></label>
+    <label class="q-option"><input type="radio" name="r1" value="D"><div class="q-option-body"><div class="q-option-title">D · Dot-minimal</div><div class="q-option-rationale">Ink initials + corner dot. Most restrained; color barely registers — least scannable by color.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="r1" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<section class="decision-card">
+  <div class="q-title">Decision R2 · color assignment · ✓ LOCKED</div>
+  <h3 class="q-prompt">How is a project's color chosen?</h3>
+  <p class="q-context">From the 6-hue palette above. <b>Locked 2026-05-25 → hash-stable + override.</b></p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="r2" value="hash" checked><div class="q-option-body"><div class="q-option-title">Hash-stable per project root + manual override <span class="rec">Locked ✓</span></div><div class="q-option-rationale">Locked 2026-05-25. Deterministic (same folder → same color, every session/machine); override when two projects collide or the user prefers.</div></div></label>
+    <label class="q-option"><input type="radio" name="r2" value="order"><div class="q-option-body"><div class="q-option-title">Order of appearance</div><div class="q-option-rationale">First project gets Pine, second Harbor… Simple, but the same project can change color run-to-run depending on open order.</div></div></label>
+    <label class="q-option"><input type="radio" name="r2" value="manual"><div class="q-option-body"><div class="q-option-title">Always manual (user picks on declare)</div><div class="q-option-rationale">Full control, zero surprise — but adds a step to declaring a project and most users won't bother.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="r2" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<figure class="gif-figure"><img src="assets/project-filter/tile-state.png" alt="Three tile-state options: minimal, with a Claude-live dot, and with a live dot plus open-count badge"></figure>
+<p class="note">The three states weighed for R3, on unfocused quiet-bloom tiles.
+  <b>Minimal</b> (left) was locked for v1; the Claude-live dot and the open-count
+  badge are deferred.</p>
+
+<section class="decision-card">
+  <div class="q-title">Decision R3 · tile state (v1) · ✓ LOCKED</div>
+  <h3 class="q-prompt">What state does a tile show in v1?</h3>
+  <p class="q-context">Beyond identity + selection (both always in). <b>Locked 2026-05-25 → minimal</b> (identity + selection only; live-dot + count deferred).</p>
+  <div class="q-options">
+    <label class="q-option"><input type="radio" name="r3" value="live"><div class="q-option-body"><div class="q-option-title">Add the "Claude live here" dot only</div><div class="q-option-rationale">Reuses claudePresence; genuinely useful ("which project is the agent working in?"). <b>Deferred</b> — owner chose the cleanest rail for v1.</div></div></label>
+    <label class="q-option"><input type="radio" name="r3" value="minimal" checked><div class="q-option-body"><div class="q-option-title">Identity + selection only <span class="rec">Locked ✓</span></div><div class="q-option-rationale">Locked 2026-05-25. Cleanest rail. No live dot, no badges; add state later if asked for.</div></div></label>
+    <label class="q-option"><input type="radio" name="r3" value="rich"><div class="q-option-body"><div class="q-option-title">Live dot + open-item count badge</div><div class="q-option-rationale">Most informative; risks the Slack-unread clutter the Atelier look avoids.</div></div></label>
+  </div>
+  <textarea class="q-notes" data-decision="r3" placeholder="Notes (optional)..."></textarea>
+</section>
+
+<p class="note">Part of <b>ENH-182</b> (project-centric UX). This study resolves the
+  visual half of Decision 9; the parent playground —
+  <code>docs/research/project-centric-ux.html</code> — holds the full set of
+  filter-layer decisions. <b>R1/R2/R3 are locked</b>; the build spec is the PRD
+  at <code>docs/prd/enh-182-project-centric-ux.md</code> (§ 4 names this study
+  as the authoritative source for tile treatment + color).</p>
+
+<div class="copy-bar">
+  <div class="copy-meta">✓ <b>Locked 2026-05-25</b> — R1/R2/R3 all set (<span id="answered-count">0</span>/3 pre-selected below)</div>
+  <button id="copy-btn" type="button">Copy decisions</button>
+</div>
+
+<script>
+(function(){
+  document.querySelectorAll(".raildemo").forEach(function(rail){
+    function apply(){ var sel=rail.getAttribute("data-sel");
+      rail.querySelectorAll(".tile").forEach(function(t){ t.classList.toggle("sel", t.getAttribute("data-set")===sel); });
+    }
+    rail.addEventListener("click",function(e){ var t=e.target.closest(".tile"); if(!t)return; rail.setAttribute("data-sel",t.getAttribute("data-set")); apply(); });
+    apply();
+  });
+  var TITLES={r1:"R1 · Rail tile style",r2:"R2 · Color assignment",r3:"R3 · Tile state (v1)"};
+  var ORDER=["r1","r2","r3"];
+  function refresh(){var n=0;ORDER.forEach(function(k){if(document.querySelector('input[name="'+k+'"]:checked'))n++;});document.getElementById("answered-count").textContent=n;}
+  document.querySelectorAll('.q-option input').forEach(function(r){r.addEventListener("change",refresh);});
+  document.getElementById("copy-btn").addEventListener("click",function(){
+    var lines=["# ENH-182 / D9 · Rail style study — decisions",""];
+    ORDER.forEach(function(k){var c=document.querySelector('input[name="'+k+'"]:checked');var n=document.querySelector('.q-notes[data-decision="'+k+'"]');var nv=n?n.value.trim():"";lines.push("["+(c?c.value:"—UNANSWERED—")+"] "+TITLES[k]);if(nv)nv.split("\n").forEach(function(l){lines.push("    "+l);});lines.push("");});
+    var p=lines.join("\n");var b=document.getElementById("copy-btn");
+    function done(){b.classList.add("copied");var t=b.textContent;b.textContent="Copied ✓";setTimeout(function(){b.classList.remove("copied");b.textContent=t;},1600);}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(p).then(done,function(){window.prompt("Copy:",p);});else window.prompt("Copy:",p);
+  });
+  refresh();
+})();
+</script>
+</body>
+</html>
