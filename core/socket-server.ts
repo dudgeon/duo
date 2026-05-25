@@ -130,6 +130,14 @@ export interface NavBridge {
    *  Triggered by the native File menu entry + CLI parity for
    *  `duo clone --modal` (future). */
   openCloneModal: () => { ok: boolean; error?: string }
+  /** ENH-183 C12 — Claude session lifecycle CLI verbs. Each one
+   *  routes through PtyManager (resume/rename inject into the named
+   *  PTY) or claude-session-tracker (list reads JSONL store). The
+   *  hydrate path reuses the session-hydrator's maybeHydrate gates. */
+  sessionList: (cwd: string) => Promise<unknown>
+  sessionResume: (tabId: string, uuid: string) => { ok: boolean; error?: string }
+  sessionRename: (tabId: string, title: string) => { ok: boolean; error?: string }
+  sessionHydrate: (tabId: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>
   /** ENH-122 — query the renderer's DOM from the CLI. Mirrors the
    *  `duo eval` shape but targets the main renderer (the React shell)
    *  instead of the browser-pane CDP target. Use cases: inspect what
@@ -664,8 +672,17 @@ export class SocketServer {
             // http(s) URLs + bare hostnames (already https://-prefixed by
             // resolveOpenTarget on the CLI side) all land here.
             const browserResult = await this.browser.openTab(url)
-            openedTabId = browserResult.id
-            result = { ...browserResult, routedTo: 'browser' }
+            // FOLLOWUP-027 — when local-only / filtered mode bounces the
+            // URL externally, openTab returns `{ok, url, routedTo:
+            // 'system-browser'}` without creating an embedded tab. Pass
+            // that through; skip the browser:focus-gained push below
+            // since no Duo tab opened.
+            if ('id' in browserResult) {
+              openedTabId = browserResult.id
+              result = { ...browserResult, routedTo: 'browser' }
+            } else {
+              result = browserResult
+            }
           }
           // ENH-130 — reveal already fired pre-open above (see comment
           // there). Don't fire twice — would reset focus a second time.
@@ -1561,6 +1578,51 @@ export class SocketServer {
             result = { ok: true }
           } else {
             throw new Error(`Unknown workspace op: ${op}. Expected save|open|list-recent|current|new.`)
+          }
+          break
+        }
+        case 'session': {
+          // ENH-183 C12 — Claude session lifecycle CLI verbs. Discriminated
+          // op union:
+          //   list [--cwd <path>] — list prior sessions in the CWD.
+          //     Defaults to the active terminal's cwd (from nav state).
+          //   resume <tabId> <uuid> — spawn `claude --resume <uuid>` in
+          //     the named tab's PTY.
+          //   rename <tabId> "<title>" — inject `\r/rename <title>\n`.
+          //     User-driven counterpart to the C8 hydrator's auto path.
+          //   hydrate <tabId> — force-attempt Duo-driven hydration on
+          //     the tab. Goes through the same maybeHydrate gates as
+          //     the autosave-triggered path (T3); returns the decision.
+          const op = args['op'] as string | undefined
+          if (op === 'list') {
+            const cwd = args['cwd'] as string | undefined
+            const targetCwd = cwd ?? this.nav.getState().cwd
+            if (!targetCwd) throw new Error('duo session list: no cwd available (pass --cwd <path>)')
+            result = await this.nav.sessionList(targetCwd)
+          } else if (op === 'resume') {
+            const tabId = args['tabId'] as string | undefined
+            const uuid = args['uuid'] as string | undefined
+            if (!tabId) throw new Error('duo session resume requires <tabId>')
+            if (!uuid) throw new Error('duo session resume requires <uuid>')
+            const r = this.nav.sessionResume(tabId, uuid)
+            if (!r.ok) throw new Error(r.error ?? 'resume failed')
+            result = { ok: true }
+          } else if (op === 'rename') {
+            const tabId = args['tabId'] as string | undefined
+            const title = args['title'] as string | undefined
+            if (!tabId) throw new Error('duo session rename requires <tabId>')
+            if (!title) throw new Error('duo session rename requires <title>')
+            const r = this.nav.sessionRename(tabId, title)
+            if (!r.ok) throw new Error(r.error ?? 'rename failed')
+            result = { ok: true }
+          } else if (op === 'hydrate') {
+            const tabId = args['tabId'] as string | undefined
+            if (!tabId) throw new Error('duo session hydrate requires <tabId>')
+            const r = await this.nav.sessionHydrate(tabId)
+            if (!r.ok) throw new Error(r.error ?? 'hydrate failed')
+            result = r.result
+          } else {
+            throw new Error(`Unknown session op: ${op}. Expected list|resume|rename|hydrate.`)
           }
           break
         }

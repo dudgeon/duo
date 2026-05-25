@@ -6,6 +6,9 @@ import type { EventSink } from './event-sink'
 interface Session {
   id: string
   pty: pty.IPty
+  /** ENH-183 C9 — track cwd so main-side trigger paths (T2/T3) can
+   *  match enriched-state terminals back to live tab ids. */
+  cwd: string
 }
 
 export class PtyManager {
@@ -62,7 +65,25 @@ export class PtyManager {
       this.sessions.delete(id)
     })
 
-    this.sessions.set(id, { id, pty: ptyProcess })
+    this.sessions.set(id, { id, pty: ptyProcess, cwd })
+  }
+
+  /** ENH-183 C9 — list live tab ids matching a cwd (in insertion
+   *  order). Used by main-side hydration triggers to find the PTY
+   *  to write `/rename` into for a given saved-state terminal. */
+  listIdsByCwd(cwd: string): string[] {
+    const matches: string[] = []
+    for (const s of this.sessions.values()) {
+      if (s.cwd === cwd) matches.push(s.id)
+    }
+    return matches
+  }
+
+  /** ENH-183 C12 — get a tab's cwd from its id. Used by CLI verbs
+   *  that take a tabId arg (`duo session hydrate <tabId>`) and need
+   *  to resolve the cwd to reach Claude's project storage. */
+  getCwd(tabId: string): string | null {
+    return this.sessions.get(tabId)?.cwd ?? null
   }
 
   write(id: string, data: string): void {
@@ -70,6 +91,17 @@ export class PtyManager {
   }
 
   resize(id: string, cols: number, rows: number): void {
+    // BUG-156 (2026-05-24) — refuse 0×0 or negative resizes. A
+    // zero-dimension resize forces the child process (e.g. Claude
+    // Code's TUI) to operate on a degenerate terminal and bail
+    // out with SIGHUP. Cascade: PTY's child claude sees 0×0 →
+    // exits → zsh sees child SIGHUPed → xterm host shows
+    // "[process exited]". Surfaced when ENH-183's flex-column
+    // wrapper let the xterm host transiently shrink to 0 height
+    // during SessionHeader layout reflow; the ResizeObserver
+    // path didn't have a size guard. Defense-in-depth: guard the
+    // renderer call sites AND this main-side entry point.
+    if (cols < 1 || rows < 1) return
     this.sessions.get(id)?.pty.resize(cols, rows)
   }
 

@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { SessionHeader } from './SessionHeader'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -159,20 +160,46 @@ interface TerminalPaneProps {
 export function TerminalPane({
   tabs, activeTabId, onTitleChange, cozyByTab, cozyDefault, fontBumpByTab, fontBumpDefault, themeEffective, onTerminalFocus
 }: TerminalPaneProps) {
+  // ENH-183 — polymorphic SessionHeader replaces the C2-era
+  // ClaudeResumeBanner. Per-tab dismissal state moved into
+  // `renderer/store/sessionHeader.ts` (still in-memory only per D9).
+  const claudePresence = useClaudePresence()
+  const activeTab = tabs.find(t => t.id === activeTabId) ?? null
+  // ENH-183 (post-walk-1 fix) — render SessionHeader as an IN-FLOW
+  // panel ABOVE the terminal area so it occupies its own vertical
+  // slot (per the locked Variant B mockup at
+  // docs/research/assets/enh-183-mockups/_render-d10-pills-variants.html).
+  // Previously the cherry-picked banner used position:absolute and
+  // floated over the xterm with a transparent background — the
+  // terminal prompt bled through and the pills variant covered
+  // exactly the cells where the user would type.
   return (
-    <div className="relative w-full h-full bg-surface-0">
-      {tabs.map(tab => (
-        <TerminalInstance
-          key={tab.id}
-          tab={tab}
-          isActive={tab.id === activeTabId}
-          onTitleChange={onTitleChange}
-          cozy={cozyByTab[tab.id] ?? cozyDefault}
-          fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
-          themeEffective={themeEffective}
-          onTerminalFocus={onTerminalFocus}
+    <div className="relative w-full h-full bg-surface-0 flex flex-col">
+      {activeTab && (
+        <SessionHeader
+          tabId={activeTab.id}
+          lastClaudeSession={activeTab.lastClaudeSession}
+          cwd={activeTab.cwd}
+          claudePresence={claudePresence}
+          onResume={(sessionId) => {
+            void window.electron.pty.write(activeTab.id, `claude --resume ${sessionId}\n`)
+          }}
         />
-      ))}
+      )}
+      <div className="relative flex-1 min-h-0">
+        {tabs.map(tab => (
+          <TerminalInstance
+            key={tab.id}
+            tab={tab}
+            isActive={tab.id === activeTabId}
+            onTitleChange={onTitleChange}
+            cozy={cozyByTab[tab.id] ?? cozyDefault}
+            fontBump={fontBumpByTab[tab.id] ?? fontBumpDefault}
+            themeEffective={themeEffective}
+            onTerminalFocus={onTerminalFocus}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -506,7 +533,8 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
       }
       try { fitRef.current.fit() } catch (err) { console.warn('[duo] typography fit failed', err) }
       const { cols, rows } = termRef.current
-      window.electron.pty.resize(tab.id, cols, rows)
+      // BUG-156 — skip pty.resize on 0×0; see PtyManager.resize for context.
+      if (cols >= 1 && rows >= 1) window.electron.pty.resize(tab.id, cols, rows)
     }))
   }, [cozy, fontBump, tab.id])
 
@@ -517,7 +545,8 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
     const id = requestAnimationFrame(() => {
       fitRef.current?.fit()
       const { cols, rows } = termRef.current!
-      window.electron.pty.resize(tab.id, cols, rows)
+      // BUG-156 — skip pty.resize on 0×0; see PtyManager.resize for context.
+      if (cols >= 1 && rows >= 1) window.electron.pty.resize(tab.id, cols, rows)
       termRef.current?.focus()
     })
     return () => cancelAnimationFrame(id)
@@ -553,9 +582,18 @@ function TerminalInstance({ tab, isActive, onTitleChange, cozy, fontBump, themeE
 
     const ro = new ResizeObserver(() => {
       if (!isActive || !fitRef.current || !termRef.current) return
-      fitRef.current.fit()
+      // BUG-156 — host can transiently shrink to 0 during layout
+      // reflow (e.g. when SessionHeader appears/disappears in the
+      // ENH-183 flex-column wrapper). Skip fit + resize if the host
+      // has no usable size. Without this guard, fit() computes
+      // 0 cols / 0 rows, pty.resize(0, 0) lands in node-pty's
+      // ioctl(TIOCSWINSZ) call, and the child (Claude TUI) bails
+      // on the 0×0 terminal — SIGHUP cascade kills the session.
+      const rect = host.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      try { fitRef.current.fit() } catch (err) { console.warn('[duo] resize fit failed', err) }
       const { cols, rows } = termRef.current
-      window.electron.pty.resize(tab.id, cols, rows)
+      if (cols >= 1 && rows >= 1) window.electron.pty.resize(tab.id, cols, rows)
     })
     ro.observe(host)
     return () => ro.disconnect()

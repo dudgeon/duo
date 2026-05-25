@@ -366,7 +366,7 @@ export class BrowserManager {
     return entry
   }
 
-  async openTab(url = newTabUrl()): Promise<{ ok: true; id: number; url: string; title: string }> {
+  async openTab(url = newTabUrl()): Promise<{ ok: true; id: number; url: string; title: string } | { ok: true; url: string; routedTo: 'system-browser' }> {
     // BUG-059 (carryover from walk-1) — `duo open` goes through this
     // method, NOT through the renderer's openFileSmart. The renderer-
     // side dedup (App.tsx) catches user-initiated opens (clicking a
@@ -391,6 +391,20 @@ export class BrowserManager {
           title: existing.view.webContents.getTitle() || ''
         }
       }
+    }
+    // FOLLOWUP-027 — short-circuit BEFORE creating a tab when the URL
+    // would be filtered (e.g. local-only mode + remote URL). Without
+    // this, addTab creates a WebContentsView whose URL gets stripped to
+    // about:blank by addTab's own routeOffHostIfMatched check at line
+    // ~356 — the system browser pops correctly but Duo's tab strip
+    // accumulates a blank ghost-tab. routeOffHostIfMatched has the
+    // side effects we want (shell.openExternal + EXTERNAL_REDIRECTED
+    // banner), so we just suppress the tab creation. Safe re entrancy:
+    // when this returns false (URL passes the filter), the duplicate
+    // check inside addTab also returns false on the same input, no
+    // double-fire.
+    if (this.routeOffHostIfMatched(url)) {
+      return { ok: true, url, routedTo: 'system-browser' }
     }
     const entry = this.addTab(url)
     await this.switchTab(entry.id)
@@ -621,7 +635,7 @@ export class BrowserManager {
    * <url>` routes through this method so an ambient agent action does
    * NOT clobber whatever the owner has open in the active tab.
    */
-  async navigateOrFocus(url: string): Promise<{ ok: boolean; url: string; title: string; reused: boolean }> {
+  async navigateOrFocus(url: string): Promise<{ ok: boolean; url: string; title: string; reused: boolean } | { ok: true; url: string; routedTo: 'system-browser' }> {
     const target = normalizeForTabMatch(url)
     if (target) {
       for (const t of this.tabs) {
@@ -636,6 +650,11 @@ export class BrowserManager {
           }
         }
       }
+    }
+    // FOLLOWUP-027 — short-circuit before creating a tab if the URL
+    // would be filtered. Matches the openTab path; see comment there.
+    if (this.routeOffHostIfMatched(url)) {
+      return { ok: true, url, routedTo: 'system-browser' }
     }
     // No match — open as a new tab. Off-host gate fires inside addTab
     // via the wireEvents will-navigate handler if the URL is blocklisted.

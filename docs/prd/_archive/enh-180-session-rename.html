@@ -225,11 +225,29 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 </head>
 <body>
 
+<div style="background: #fef3e9; border: 2px solid #b07527; border-radius: 6px;
+            padding: 14px 18px; margin-bottom: 24px; font-size: 14px;">
+  <strong style="color: #b07527; text-transform: uppercase; letter-spacing: 0.05em;
+                 font-size: 12px;">⚠ Archived · Partially Superseded · 2026-05-24</strong>
+  <p style="margin: 6px 0 0; color: #4a4238;">
+    This PRD has been moved to <code>docs/prd/_archive/</code>. The
+    <strong>Duo-side LLM auto-naming</strong> scope remains closed, but the
+    <strong>PTY-injection-with-derived-title</strong> mechanism is <strong>partially reopened</strong>
+    in the canonical
+    <a href="../enh-183-claude-session-lifecycle.html" style="color: #c46a1c; font-weight: 600;">ENH-183
+    — Claude session description lifecycle</a> PRD (decisions D4 + D8 — Duo derives titles from cheap
+    free signals, no LLM call). The content below is preserved for the historical research record
+    (`/rename` write paths, `claude -p` cost numbers, idle-gate state machine).
+    <strong>Do not act on the content below without consulting ENH-183 first.</strong>
+  </p>
+</div>
+
 <header class="page-head">
   <h1>ENH-180 — Auto-rename Claude sessions via <code>/rename</code> PTY injection</h1>
   <div class="meta">
     <span class="pill" style="background: #f1e1d2; color: #8b3f0f;">Closed — scope collapsed</span>
-    Filed 2026-05-23 · Closed 2026-05-23 (same day) · Author: Claude
+    <span class="pill" style="background: #e8e0cb; color: #6f6557;">ARCHIVED</span>
+    Filed 2026-05-23 · Closed 2026-05-23 (same day) · Archived 2026-05-24 (folded into ENH-183) · Author: Claude
   </div>
 </header>
 
@@ -247,7 +265,7 @@ details.deferred .deferred-body { margin-top: 12px; font-size: 13px; color: var(
 
 <div class="intro" style="background: var(--paper-deep);">
   <strong>What carries forward into ENH-177's re-ship</strong> — see the
-  <a href="../research/enh-177-banner-mockup.html">mockup</a> for the live experience:
+  <a href="enh-177-banner-mockup.html">mockup</a> for the live experience:
   <ul style="margin: 8px 0 0; padding-left: 22px;">
     <li>Banner reads <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code> and prefers
       <code>summary</code> > <code>customName</code> &gt; first 8 chars of UUID.</li>

@@ -11,6 +11,12 @@ export interface TabSession {
   title: string
   cwd: string
   kind: TerminalTabKind
+  /** ENH-177 — populated when the tab was restored from a workspace
+   *  whose serialized terminal entry had a `lastClaudeSession`. The
+   *  renderer's TerminalPane surfaces a non-modal "Resume" banner
+   *  while claudePresence is NOT 'claude' and this field is set; the
+   *  banner writes `claude --resume <id>` into the PTY on click. */
+  lastClaudeSession?: { id: string; capturedAt: number } | null
 }
 
 // ── Duo socket protocol ──────────────────────────────────────────────────────
@@ -243,6 +249,15 @@ export type DuoCommandName =
   // pops the system browser for anything outside file:// + localhost
   // + 127.0.0.1 + [::1]. Bare `duo browser-mode` reads current value.
   | 'browser-mode'
+  // ENH-183 C12 (Sprint 21 / v0.7.9) — Claude session lifecycle CLI
+  // parity. Single 'session' command with a discriminated `op` arg:
+  //   list [--cwd <path>]      → list prior sessions in a CWD
+  //   resume <tabId> <uuid>    → claude --resume <uuid> in tab's PTY
+  //   rename <tabId> "<title>" → /rename <title> in tab's PTY
+  //   hydrate <tabId>          → force-attempt Duo-driven hydration
+  // Power-user opt-out + UI verbs (collapse/expand/dismiss-pills/
+  // auto-hydrate) are deferred follow-ups.
+  | 'session'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -542,6 +557,17 @@ export interface SessionStateTerminal {
    *  same labels they had before the reload. New PTYs may overwrite
    *  this with a CWD-derived basename once they boot. */
   title: string
+  /** ENH-177 — last detected Claude session in this tab. Populated by
+   *  the save-side scanner when claudePresence reports 'claude' at
+   *  serialize time. `id` is the basename of the most-recently-
+   *  modified `.jsonl` under `~/.claude/projects/<encoded-cwd>/`.
+   *  `capturedAt` is a UNIX epoch ms for staleness checks. On restore,
+   *  the renderer offers a non-modal "Resume" banner if claudePresence
+   *  isn't 'claude' but `lastClaudeSession.id` is present. */
+  lastClaudeSession?: {
+    id: string
+    capturedAt: number
+  } | null
 }
 
 export interface SessionStateFileTab {
@@ -1763,7 +1789,21 @@ export const IPC = {
   // (used by the Navigator right-click "Clone GitHub repo here…"
   // menu item). Main echoes via NAV_OPEN_CLONE_MODAL with the same
   // payload so App.tsx's subscriber handles both paths uniformly.
-  NAV_OPEN_CLONE_MODAL_REQUEST: 'nav:open-clone-modal-request'
+  NAV_OPEN_CLONE_MODAL_REQUEST: 'nav:open-clone-modal-request',
+
+  // ENH-183 C5 — read banner title + user-message-count from the
+  // Claude JSONL store. Renderer → main; main consults JSONL only
+  // (D5 read ladder, D13 derivation). No caching — D9 invariant
+  // means the renderer recomputes via this call on every banner
+  // render. The cost is bounded by readJsonlLines' head+tail caps.
+  SESSION_READ_BANNER_TITLE: 'session:read-banner-title',
+  SESSION_READ_MESSAGE_COUNT: 'session:read-message-count',
+  // ENH-183 C6 — list prior `<uuid>.jsonl` sessions in a CWD for the
+  // S1 resume-pills surface.
+  SESSION_LIST_PRIOR: 'session:list-prior',
+  // ENH-183 C8/C9 — Duo-driven /rename injection via the hydrator.
+  // Renderer → main. Main resolves PtyManager.write internally.
+  SESSION_MAYBE_HYDRATE: 'session:maybe-hydrate'
 } as const
 
 

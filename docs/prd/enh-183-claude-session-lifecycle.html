@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-editable" content="false">
+<title>PRD — ENH-183 — Claude session description lifecycle</title>
+<style>
+/* ─── Atelier kernel (inlined from skill/references/duo-atelier.css) ─── */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 180px; max-width: 1060px; margin: 0 auto; }
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px; margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 6px; font-size: 25px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 20px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+h4 { font-weight: 600; margin: 14px 0 6px; font-size: 13.5px; color: var(--ink-soft); }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0 12px; padding-left: 22px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px; background: var(--paper-deep);
+  padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.55;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+table {
+  border-collapse: collapse; margin: 12px 0; width: 100%;
+  font-size: 13px;
+}
+th, td {
+  border: 1px solid var(--paper-rule);
+  padding: 7px 11px; text-align: left; vertical-align: top;
+}
+th { background: var(--paper-deep); font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── Terminal mockup ─── */
+.terminal-mock {
+  background: #1a1814;
+  border-radius: 8px;
+  border: 1px solid #3a342d;
+  margin: 14px 0 8px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
+}
+.terminal-mock .tab-strip {
+  background: #25221d;
+  border-bottom: 1px solid #3a342d;
+  padding: 6px 10px 0;
+  display: flex; gap: 4px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+.terminal-mock .tab-strip .tab {
+  background: #2f2b25;
+  color: #9a9080;
+  padding: 6px 14px 7px;
+  border-radius: 4px 4px 0 0;
+  border: 1px solid #3a342d;
+  border-bottom: none;
+  position: relative;
+}
+.terminal-mock .tab-strip .tab.active {
+  background: #1a1814;
+  color: #e8e0cb;
+}
+.terminal-mock .tab-strip .tab .marker {
+  position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+  width: 6px; height: 6px;
+  background: var(--accent); border-radius: 50%;
+}
+.session-header {
+  background: #2a2620;
+  border-bottom: 1px solid #3a342d;
+  color: #e8e0cb;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 12.5px;
+}
+.session-header.named { display: flex; align-items: center; gap: 10px; padding: 9px 14px; }
+.session-header .arrow { color: var(--accent); font-size: 14px; }
+.session-header .prefix { color: #9a9080; }
+.session-header .title { color: #fbf8f1; font-weight: 500; font-style: italic; }
+.session-header .uuid { font-family: ui-monospace, monospace; color: #d9cea8; font-size: 11.5px; }
+.session-header .spacer { flex: 1; }
+.session-header .resume-btn {
+  background: var(--accent); color: white; border-radius: 4px;
+  padding: 4px 11px; font-size: 11.5px; font-weight: 600; cursor: pointer;
+}
+.session-header .ghost-btn {
+  color: #d9cea8; border: 1px solid #4a4238; border-radius: 4px;
+  padding: 3px 10px; font-size: 11.5px; cursor: pointer;
+}
+.session-header .dismiss { color: #6f6557; cursor: pointer; padding: 0 4px; font-size: 16px; }
+/* AUTO-tag class removed 2026-05-24 per D9 — no Duo-side provenance tracking */
+.term-body {
+  padding: 14px 16px 24px;
+  font-family: ui-monospace, monospace; font-size: 11.5px;
+  color: #d4cbb8; line-height: 1.55;
+  min-height: 64px;
+}
+.term-body .ghost { color: #5a5247; }
+.term-body .prompt { color: var(--accent); }
+.term-body .ok { color: var(--pass); }
+.term-body .cursor {
+  background: var(--accent);
+  display: inline-block; width: 7px; height: 12px;
+  vertical-align: middle; animation: blink 1.1s steps(2, end) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* Pills — Variant A horizontal */
+.session-header.pills-a { padding: 9px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.session-header.pills-a .pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: #2f2b25; color: #d4cbb8;
+  border: 1px solid #4a4238; border-radius: 14px;
+  padding: 3px 11px; font-size: 11.5px; cursor: pointer;
+  max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.session-header.pills-a .pill:hover { background: #3a342d; border-color: var(--accent); color: #fbf8f1; }
+.session-header.pills-a .pill .icon { color: var(--accent); font-size: 11px; }
+.session-header.pills-a .more { color: #6f6557; font-size: 11px; font-style: italic; padding: 3px 4px; cursor: pointer; }
+
+/* Pills — Variant B vertical list */
+.session-header.pills-b { padding: 10px 14px; display: block; }
+.session-header.pills-b .prefix {
+  color: #9a9080; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 8px; display: block;
+}
+.session-header.pills-b .session-row {
+  display: grid; grid-template-columns: auto 1fr auto auto;
+  gap: 10px; align-items: center;
+  padding: 6px 8px; border-radius: 4px;
+  cursor: pointer; font-size: 12px;
+}
+.session-header.pills-b .session-row:hover { background: #2f2b25; }
+.session-header.pills-b .session-row .icon { color: var(--accent); }
+.session-header.pills-b .session-row .title { color: #fbf8f1; font-style: italic; }
+.session-header.pills-b .session-row .msgs { color: #9a9080; font-size: 11px; font-family: ui-monospace, monospace; }
+.session-header.pills-b .session-row .when { color: #6f6557; font-size: 11px; }
+.session-header.pills-b .footer {
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px dashed #3a342d;
+  font-size: 10.5px; color: #6f6557;
+  display: flex; justify-content: space-between;
+}
+.session-header.pills-b .footer a { color: var(--accent); }
+
+/* Pills — Variant C compact dropdown */
+.session-header.pills-c {
+  padding: 9px 14px; display: flex; align-items: center; gap: 8px; cursor: pointer;
+}
+.session-header.pills-c:hover { background: #2f2b25; }
+.session-header.pills-c .chevron { color: var(--accent); font-size: 11px; }
+.session-header.pills-c .prefix { color: #d4cbb8; }
+.session-header.pills-c .count { color: var(--accent); font-weight: 600; }
+
+/* ─── State / explanation cards ─── */
+.state-card {
+  background: var(--paper-deep);
+  border: 1.5px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 18px 16px;
+  margin: 16px 0 22px;
+}
+.state-card .state-label {
+  font-weight: 700; font-size: 11.5px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--accent); margin-bottom: 2px;
+}
+.state-card .state-headline {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-size: 17px; font-weight: 500; color: var(--ink);
+  margin: 0 0 4px;
+}
+.state-card .state-sub { font-size: 12.5px; color: var(--ink-mute); margin: 0 0 6px; }
+.state-card .data-source {
+  display: inline-block; margin-top: 8px;
+  font-family: ui-monospace, monospace; font-size: 11.5px;
+  color: var(--accent); background: var(--accent-soft);
+  padding: 2px 8px; border-radius: 3px;
+}
+.state-card .when {
+  font-size: 12px; color: var(--ink-mute);
+  margin-top: 8px; border-top: 1px dashed var(--paper-rule);
+  padding-top: 8px;
+}
+
+/* ─── State machine table ─── */
+.states-grid {
+  display: grid; grid-template-columns: 1fr;
+  gap: 10px; margin: 18px 0;
+}
+.states-grid .state-row {
+  display: grid; grid-template-columns: 80px 1fr 1fr;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--paper-rule);
+  border-radius: 5px;
+  background: var(--paper);
+  gap: 14px;
+}
+.states-grid .state-row .state-name {
+  font-weight: 700; font-size: 11.5px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--accent);
+}
+.states-grid .state-row .when-cond { font-size: 12.5px; color: var(--ink-soft); }
+.states-grid .state-row .when-cond code { font-size: 11.5px; }
+.states-grid .state-row .what-shows { font-size: 12.5px; color: var(--ink-soft); font-style: italic; }
+
+/* ─── Lifecycle diagram ─── */
+.lifecycle {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 16px; margin: 20px 0;
+  font-family: ui-monospace, monospace; font-size: 11.5px;
+  line-height: 1.5; overflow-x: auto;
+}
+.lifecycle pre { background: transparent; color: var(--ink); padding: 0; font-size: 11.5px; }
+
+/* ─── Decision cards (one per D) with accept / override toggle ─── */
+.decision {
+  background: var(--paper-deep);
+  border-left: 4px solid var(--pass);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+  margin: 14px 0;
+}
+.decision.open { border-left-color: var(--accent); }
+.decision .d-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.decision .d-id {
+  font-weight: 700; font-size: 11.5px;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent);
+}
+.decision .d-status {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  font-weight: 700;
+  padding: 2px 8px; border-radius: 10px;
+}
+.decision .d-status.locked { background: #d4e6cf; color: var(--pass); }
+.decision .d-status.open { background: var(--accent-soft); color: var(--accent); }
+.decision .d-q { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.decision .d-a {
+  color: var(--ink-soft); font-size: 13px; margin-top: 4px;
+}
+.decision .d-a ul, .decision .d-a ol { margin: 4px 0 0; padding-left: 18px; }
+.decision .d-rationale {
+  color: var(--ink-mute); font-size: 12px; font-style: italic;
+  margin-top: 6px;
+}
+
+/* Owner-input area inside each decision */
+.decision .d-input { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--paper-rule); }
+.decision .d-input label {
+  font-size: 12px; color: var(--ink-soft); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.decision .d-input label input[type="checkbox"] {
+  accent-color: var(--accent); cursor: pointer;
+}
+.decision .d-override {
+  display: none; margin-top: 8px;
+}
+.decision.show-override .d-override { display: block; }
+.decision .d-override textarea {
+  width: 100%; min-height: 50px;
+  background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 4px; padding: 6px 9px;
+  font-family: inherit; font-size: 12.5px; color: var(--ink);
+  resize: vertical;
+}
+.decision .d-override textarea:focus { outline: 1.5px solid var(--accent); }
+
+/* Open-decision pickers (radios) */
+.d-options { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 8px 0; }
+.d-option {
+  background: var(--paper); border: 1.5px solid var(--paper-rule);
+  border-radius: 5px; padding: 9px 12px; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  display: block;
+}
+.d-option:hover { border-color: var(--ink-ghost); }
+.d-option:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.d-option input[type="radio"] {
+  margin-right: 6px; accent-color: var(--accent); cursor: pointer;
+}
+.d-option .opt-title { font-weight: 600; font-size: 13px; }
+.d-option .opt-title .rec-tag {
+  font-size: 10px; background: var(--accent-soft); color: var(--accent);
+  text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: 8px; margin-left: 6px;
+}
+.d-option .opt-detail { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+/* Variant pick cards (for the pill mockups) */
+.variant-pick {
+  background: var(--paper-deep); border: 1.5px solid var(--paper-rule);
+  border-radius: 6px; padding: 12px 16px; margin: 14px 0;
+}
+.variant-pick.recommended { border-color: var(--accent); }
+.variant-pick .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.variant-pick .pros { color: var(--pass); }
+.variant-pick .cons { color: var(--fail); }
+.variant-pick .pros strong, .variant-pick .cons strong {
+  display: block; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-bottom: 4px;
+}
+.variant-pick ul { font-size: 12px; margin: 4px 0 0; padding-left: 18px; }
+
+/* Risk grid */
+.risk-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin: 14px 0; }
+.risk-card {
+  background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 5px; padding: 12px 14px;
+}
+.risk-card .risk-title {
+  font-weight: 700; font-size: 11.5px; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--fail); margin-bottom: 4px;
+}
+.risk-card .risk-body { font-size: 12.5px; color: var(--ink-soft); }
+
+/* Empirics table */
+.empirics-table .verified { color: var(--pass); font-weight: 600; }
+.empirics-table .needs-recheck { color: var(--warn); font-weight: 600; }
+.empirics-table .revised { color: var(--fail); font-weight: 600; }
+
+/* AC checklist */
+.ac-list {
+  background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 12px 16px; margin: 14px 0;
+  list-style: none; padding-left: 16px;
+}
+.ac-list li {
+  font-size: 12.5px; color: var(--ink-soft); margin: 6px 0;
+  padding-left: 22px; position: relative;
+}
+.ac-list li::before {
+  content: "☐"; position: absolute; left: 0; top: 0;
+  color: var(--accent); font-size: 14px;
+}
+
+/* Callouts */
+.callout {
+  background: var(--paper); border-left: 3px solid var(--accent);
+  padding: 10px 14px; font-size: 13px; color: var(--ink-soft); margin: 14px 0;
+}
+.callout strong { color: var(--ink); }
+.callout.warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 6%, var(--paper)); }
+
+/* TOC */
+.toc {
+  background: var(--paper); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 10px 16px; margin: 12px 0 24px;
+  font-size: 13px;
+}
+.toc ol { margin: 4px 0 0; padding-left: 22px; }
+.toc li { margin: 2px 0; }
+
+/* Sticky review bar */
+.review-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: color-mix(in srgb, var(--paper-deep) 96%, transparent);
+  border-top: 1.5px solid var(--paper-rule);
+  backdrop-filter: blur(8px);
+  padding: 12px 32px;
+  z-index: 100;
+}
+.review-bar .review-inner {
+  max-width: 1060px; margin: 0 auto;
+  display: grid; grid-template-columns: auto 1fr auto;
+  gap: 14px; align-items: center;
+}
+.review-bar .counter {
+  font-size: 12.5px; color: var(--ink-soft); font-weight: 600;
+}
+.review-bar .counter .num { color: var(--accent); font-weight: 700; }
+.review-bar .summary-text {
+  font-size: 11.5px; color: var(--ink-mute); font-style: italic;
+}
+.review-bar button {
+  background: var(--accent); color: white; border: none;
+  border-radius: 5px; padding: 9px 18px;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background 0.12s;
+}
+.review-bar button:hover { background: color-mix(in srgb, black 8%, var(--accent)); }
+.review-bar button.copied { background: var(--pass); }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>ENH-183 — Claude session description lifecycle</h1>
+  <div class="meta">
+    <span class="pill">PRD · canonical</span>
+    Supersedes ENH-177 + ENH-181 PRD · Reopens ENH-180 (in limited form) ·
+    Sprint 21 / v0.7.9 · Filed 2026-05-24
+  </div>
+</header>
+
+<div class="intro">
+  <strong>What this is.</strong> The single canonical PRD for how Duo represents a Claude session
+  as a first-class concept attached to each terminal tab — from the moment the session is born,
+  through naming, collapse, restoration, and exit. It replaces the
+  <a href="_archive/enh-177-181-session-resume-banner.html">old ENH-177 + ENH-181 PRD</a> (which scoped only
+  workspace-resume) and reopens a narrower form of ENH-180's scope (Duo-driven <code>/rename</code>
+  injection, using free signals — no LLM call).
+</div>
+
+<div class="callout">
+  <strong>The reframe (owner directive 2026-05-24).</strong>
+  <em>"Terminal/session descriptions are a core feature and we should think through their lifecycle,
+  beyond session save/loading, which is a relatively niche feature."</em>
+  The old PRD treated the banner as a workspace-resume feature with a tab marker bolted on. This
+  PRD treats the <strong>session header</strong> as a polymorphic surface above each terminal tab —
+  workspace save/restore is one trigger on the surface, not its raison d'être.
+</div>
+
+<!-- TOC -->
+<nav class="toc">
+  <strong>Sections</strong>
+  <ol>
+    <li><a href="#section-1">Mental model</a></li>
+    <li><a href="#section-2">The state machine</a></li>
+    <li><a href="#section-3">The <code>/rename</code> primitive (write path)</a></li>
+    <li><a href="#section-4">The title-derivation ladders (read + write)</a></li>
+    <li><a href="#section-5">S0 — Quiet</a></li>
+    <li><a href="#section-6">S1 — Resume pills (3 mockup variants)</a></li>
+    <li><a href="#section-7">S2 — Named banner (collapsed + expanded + edit)</a></li>
+    <li><a href="#section-8">S3 — Restore-offer banner</a></li>
+    <li><a href="#section-9">Hydration triggers (the full lifecycle)</a></li>
+    <li><a href="#section-10">CLI parity</a></li>
+    <li><a href="#section-11">Mechanism empirics</a></li>
+    <li><a href="#section-12">Decisions — originally locked (D1–D9)</a></li>
+    <li><a href="#section-13">Decisions — locked via Notion comments 2026-05-24 (D10–D13)</a></li>
+    <li><a href="#section-14">Risks + edge cases</a></li>
+    <li><a href="#section-15">Acceptance criteria</a></li>
+    <li><a href="#section-16">Implementation plan</a></li>
+    <li><a href="#section-17">Out of scope</a></li>
+    <li><a href="#section-18">Cross-refs</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-1">1 · Mental model</h2>
+
+<p>
+  Each terminal tab in Duo has a <strong>session header</strong> — a polymorphic surface above the
+  xterm body whose contents depend on whether a Claude session is live in the tab, whether prior
+  Claude sessions exist in the tab's CWD, and what title (if any) the current session has earned.
+  Think of it as the tab title for a Claude session: <em>emergent from work, lightly user-tunable,
+  absent when the work doesn't warrant one</em>.
+</p>
+
+<p>
+  The session header is <strong>quiet by default</strong>. Generic shell tabs (no Claude, no Claude
+  history) show no header at all. Tabs that have or once had a Claude session show a small marker
+  on the tab itself and (optionally, on click) an expanded banner in the pane.
+</p>
+
+<p>
+  Writes to the session title — by user click-to-rename, by Duo's automatic hydration at trigger
+  points, or by Claude's own Haiku summary — all flow through one primitive:
+  <strong><code>/rename &lt;title&gt;</code> via PTY injection</strong>. The slash command is the
+  universal write path; Duo, the user, and Claude itself all use it. Reads are a cheap ladder over
+  <code>sessions-index.json</code> with a JSONL fallback when the index is missing.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-2">2 · The state machine</h2>
+
+<div class="states-grid">
+  <div class="state-row">
+    <span class="state-name">S0 · Quiet</span>
+    <span class="when-cond">
+      <code>claudePresence !== 'claude'</code><br>
+      AND no JSONL files exist in <code>~/.claude/projects/&lt;encoded-cwd&gt;/</code>
+    </span>
+    <span class="what-shows">No header. Terminal pane is unchanged. Most generic shell tabs.</span>
+  </div>
+  <div class="state-row">
+    <span class="state-name">S1 · Pills</span>
+    <span class="when-cond">
+      <code>claudePresence === 'claude'</code><br>
+      AND current session's <code>messageCount === 0</code><br>
+      AND ≥1 prior session JSONL exists in the CWD
+    </span>
+    <span class="what-shows">Header shows previous sessions as clickable resume pills. Auto-dismiss
+      on first Return submitted to the new session (D1). § 6 has three mockup variants.</span>
+  </div>
+  <div class="state-row">
+    <span class="state-name">S2 · Named</span>
+    <span class="when-cond">
+      <code>claudePresence === 'claude'</code><br>
+      AND a usable title exists OR Duo has auto-hydrated one
+    </span>
+    <span class="what-shows">Tab marker dot by default; click expands to the full banner (title +
+      Save workspace + dismiss). Edit mode on title click. <strong>Title is just a title</strong> —
+      no provenance badge, no sidecar tracking who wrote it (D9 architectural invariant). User can
+      click and re-rename at any time.</span>
+  </div>
+  <div class="state-row">
+    <span class="state-name">S3 · Restore offer</span>
+    <span class="when-cond">
+      <code>claudePresence !== 'claude'</code><br>
+      AND workspace metadata has a <code>lastClaudeSession.id</code> for this tab
+    </span>
+    <span class="what-shows">Header shows "This tab had: <em>&lt;title&gt;</em> — Resume?" with a
+      primary Resume button. Clicking writes <code>claude --resume &lt;uuid&gt;</code> to the PTY.
+      Once claude is running again, transitions to S2.</span>
+  </div>
+</div>
+
+<h3>Transition diagram</h3>
+
+<div class="lifecycle">
+<pre>┌──────────────────────────────┐
+│ Spawn terminal tab           │
+└─────────────┬────────────────┘
+              │ no claude, no JSONL history
+              ▼
+        ┌──────────┐    workspace restored, lastClaudeSession.id set       ┌─────────────────┐
+        │ S0       │ ◀──────────────────────────────────────────────────── │ S3 · Restore    │
+        │ Quiet    │                                                       │ offer           │
+        └────┬─────┘                                                       └────────┬────────┘
+             │ claude spawns; CWD has prior JSONL                                   │ Resume click
+             │                                                                     │ → claude --resume
+             ▼                                                                     │
+        ┌──────────┐         first Return committed to claude                      ▼
+        │ S1       │ ────────────────────────────────────────────▶ ┌──────────────────────────┐
+        │ Pills    │                                               │ S2 · Named               │
+        └──────────┘                                               │  read ladder picks title │
+              ▲ claude spawns; no CWD history                      │   customTitle > summary   │
+              │                                                    │   > UUID fallback        │
+              │                                                    └──────────┬───────────────┘
+              │                                                               │
+              │                                              user click → /rename overrides any title
+              │                                                               │
+              └─ claude exits, no workspace metadata ◀────── claude exits ◀───┘</pre>
+</div>
+
+<p style="font-size: 12.5px; color: var(--ink-mute);">
+  <strong>Note on provenance.</strong> S2 has no provenance badge and no sub-states. Once a title
+  lands in Claude's storage (in <code>customTitle</code> via user-driven or Duo-driven
+  <code>/rename</code>, or in <code>summary</code> via Claude's Haiku) it's just a title. Duo
+  does not track who wrote it — see <strong>D9</strong> for the architectural invariant. If the
+  user wants to change the title, they click it and re-rename. The same affordance handles all
+  cases.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-3">3 · The <code>/rename</code> primitive (write path)</h2>
+
+<p>
+  All session-title writes go through one mechanism: inject
+  <code>\r/rename &lt;title&gt;\n</code> into the live Claude PTY for the tab. Claude processes the
+  slash command, persists the result, and any watchers see the update on the next file-watch tick.
+</p>
+
+<p>Two invocation modes share the wire:</p>
+
+<table>
+  <thead>
+    <tr><th>Mode</th><th>Triggered by</th><th>Title source</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>User-driven</strong></td>
+      <td>Click banner title → contentEditable → Return</td>
+      <td>Whatever the user typed. Bypasses derivation.</td>
+    </tr>
+    <tr>
+      <td><strong>Duo-driven</strong></td>
+      <td>Hydration triggers in § 9 (msg-count threshold, manual workspace save, first session
+        capture)</td>
+      <td>Computed by the D8 derivation ladder — free signals (first user message from JSONL),
+        no LLM call from Duo.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <strong>Why PTY injection, not direct file write.</strong> Claude owns the persistence layer. If
+  the schema or storage location ever changes, our injection still works because Claude itself
+  performs the write. The 2-line transcript footprint (the <code>/rename</code> line + Claude's
+  ack) is the cost; zero schema coupling is the benefit. Locked in old ENH-181 PRD; carried forward
+  as <strong>D7</strong>.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-4">4 · The title-derivation ladders</h2>
+
+<p>
+  Two ladders run at different times: the <strong>read ladder</strong> (D5) executes every time the
+  banner renders; the <strong>write ladder</strong> (D8) executes when Duo needs to invoke
+  <code>/rename</code> to hydrate an unnamed session. Both ladders read exclusively from Claude's
+  own storage (<code>sessions-index.json</code> + JSONL files) — Duo does <em>not</em> maintain a
+  sidecar (D9 invariant).
+</p>
+
+<h3>Read ladder — what the banner displays</h3>
+
+<table>
+  <thead><tr><th>Rung</th><th>Source</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Latest <code>{"type":"custom-title","customTitle":"..."}</code> JSONL
+      entry</td><td>Set by either user-driven or Duo-driven <code>/rename</code>. <strong>Duo
+      doesn't track which</strong> — see D9. Title is just a title. Scan JSONL in reverse, pick
+      the last match (most recent rename wins).</td></tr>
+    <tr><td>2</td><td>Latest <code>{"type":"ai-title","aiTitle":"..."}</code> JSONL entry</td>
+      <td>Claude's Haiku auto-summary. Surfaces as <code>summary</code> field if a derived
+      <code>sessions-index.json</code> exists (legacy projects only — most newer projects don't
+      maintain that file; see C1 empirics).</td></tr>
+    <tr><td>3</td><td>First user message from JSONL (live-read, no persistence)</td><td>Used when
+      both above entry types are absent. Read fresh every render; not cached (D9).</td></tr>
+    <tr><td>4</td><td>Short UUID (first 8 chars of session UUID)</td><td>Last resort for very-new
+      sessions with no user message yet.</td></tr>
+  </tbody>
+</table>
+
+<h3>Write ladder (D8) — what title Duo injects when hydrating</h3>
+
+<ol>
+  <li><strong>Skip — already hydrated.</strong> If <code>customTitle</code> or <code>summary</code>
+    already exists, no /rename is needed.</li>
+  <li><strong>First user message from JSONL,</strong> cleaned + truncated. Cleaning: strip
+    <code>&lt;ide_opened_file&gt;…&lt;/ide_opened_file&gt;</code> wrappers, collapse whitespace,
+    drop leading "please " / "could you " filler. Truncate to ~60 chars on a word boundary.</li>
+  <li><strong>Other JSONL signals</strong> (first assistant message, first non-system entry) if
+    user-message extraction yields nothing useful — rare edge case.</li>
+  <li><strong>Don't /rename to a UUID.</strong> If the JSONL has no usable content, do nothing;
+    banner displays the UUID via the read ladder.</li>
+</ol>
+
+<div class="callout">
+  <strong>Why first-user-message is high signal.</strong> Empirical sample from this session
+  (16 projects, 20 sessions, 80% summary coverage): every unnamed session had a
+  <code>firstPrompt</code> field that read as a usable title (e.g. <em>"this is interesting -- the
+  app definitely works but the ux i..."</em>) — sometimes more direct than the Haiku summary.
+  Free signal; no LLM call needed.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-5">5 · S0 — Quiet</h2>
+
+<p>
+  No header. The terminal pane renders xterm content directly. This is the default for any tab
+  the user opens fresh in a CWD that has never hosted a Claude session. No visual, no state, no
+  CLI hook.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-6">6 · S1 — Resume pills (the new behavior)</h2>
+
+<p>
+  When the user starts a Claude session (<code>claude</code>, <code>duo new-tab --claude</code>,
+  etc.) in a CWD that has ≥1 prior Claude session JSONL, the session header offers those prior
+  sessions as pills in the same physical space the banner uses. The user can click a pill to
+  resume that session instead (Duo writes <code>claude --resume &lt;uuid&gt;</code> to the PTY).
+  If they ignore the pills and send their first message to the new session, the pills auto-dismiss
+  — the user has signaled they want the new session, not a redirect.
+</p>
+
+<h3>Three variants (owner picks via D9 below)</h3>
+
+<!-- Variant A -->
+<h4>Variant A — Horizontal pill strip</h4>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header pills-a">
+    <span class="prefix">Resume previous?</span>
+    <span class="pill"><span class="icon">↻</span> Implementing workspace switcher</span>
+    <span class="pill"><span class="icon">↻</span> Sprint 19 polish wave</span>
+    <span class="pill"><span class="icon">↻</span> BUG-138 phase 4 cleanup</span>
+    <span class="more">+4 more</span>
+    <span class="spacer"></span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+<div class="variant-pick">
+  <div class="pros-cons">
+    <div class="pros"><strong>Pros</strong>
+      <ul><li>Compact — fits banner space</li><li>One click per pill</li><li>Scannable LR</li></ul>
+    </div>
+    <div class="cons"><strong>Cons</strong>
+      <ul><li>Long titles truncate</li><li>~3 pills before overflow</li><li>No context per row (msgs, recency)</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- Variant B -->
+<h4>Variant B — Vertical mini-list</h4>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header pills-b">
+    <span class="prefix">Resume one of these instead?</span>
+    <div class="session-row">
+      <span class="icon">↻</span>
+      <span class="title">Implementing the workspace switcher dropdown</span>
+      <span class="msgs">47 msgs</span>
+      <span class="when">2d ago</span>
+    </div>
+    <div class="session-row">
+      <span class="icon">↻</span>
+      <span class="title">Sprint 19 polish wave</span>
+      <span class="msgs">112 msgs</span>
+      <span class="when">1d ago</span>
+    </div>
+    <div class="session-row">
+      <span class="icon">↻</span>
+      <span class="title">BUG-138 phase 4 — Backspace intercept</span>
+      <span class="msgs">8 msgs</span>
+      <span class="when">5h ago</span>
+    </div>
+    <div class="footer">
+      <span>4 older sessions · <a>show all</a></span>
+      <span>Dismiss · keep new session</span>
+    </div>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+<div class="variant-pick recommended">
+  <div class="pros-cons">
+    <div class="pros"><strong>Pros (recommended)</strong>
+      <ul><li>Rich context per row → easier to pick the right one</li>
+      <li>Message count + recency answer "which one do I want?"</li>
+      <li>Honest footer instead of an opaque "×"</li></ul>
+    </div>
+    <div class="cons"><strong>Cons</strong>
+      <ul><li>More vertical space (~80px vs ~32px)</li>
+      <li>Visually heavy if user wanted a quiet new session</li></ul>
+    </div>
+  </div>
+</div>
+
+<!-- Variant C -->
+<h4>Variant C — Compact dropdown trigger</h4>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header pills-c">
+    <span class="chevron">▾</span>
+    <span class="prefix"><span class="count">7</span> previous sessions in this folder — click to pick one to resume</span>
+    <span class="spacer"></span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+<div class="variant-pick">
+  <div class="pros-cons">
+    <div class="pros"><strong>Pros</strong>
+      <ul><li>Minimal one-row footprint</li><li>Scales to N sessions without overflow</li>
+      <li>Reads like a system message</li></ul>
+    </div>
+    <div class="cons"><strong>Cons</strong>
+      <ul><li>Extra click to see options</li><li>Discoverability cost</li>
+      <li>Hidden titles until expand</li></ul>
+    </div>
+  </div>
+</div>
+
+<h3>Pills mechanics (shared across variants)</h3>
+
+<ul>
+  <li><strong>Auto-dismiss:</strong> first Return committed to the new Claude session (D1).</li>
+  <li><strong>Explicit dismiss:</strong> click × (or "Dismiss · keep new session" in Variant B).
+    Pills don't reappear for this session; next fresh session in the same CWD re-shows them.</li>
+  <li><strong>Throttle:</strong> if the user dismissed pills less than 5 minutes ago in this CWD,
+    don't reshow on a Claude restart (avoids flicker on crash-restart).</li>
+  <li><strong>Pill order:</strong> most-recent first by <code>modified</code> timestamp in
+    sessions-index (or JSONL mtime when index is absent).</li>
+  <li><strong>Show how many:</strong> first 3 visible; rest behind "+ N more" / "show all" (D10).</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-7">7 · S2 — Named banner (collapsed + expanded + edit)</h2>
+
+<h3>S2 collapsed — default state once a tab has a Claude session</h3>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">
+      ~/projects/duo
+      <span class="marker"></span>
+    </span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+<div class="state-card">
+  <div class="state-label">S2 · collapsed</div>
+  <div class="state-headline">Tab marker dot; banner is folded</div>
+  <div class="state-sub">A small accent dot at the right of the tab (D11) signals "this tab has a
+    session description." Tap the tab to expand the banner.</div>
+</div>
+
+<h3>S2 expanded — title visible, click-to-rename</h3>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header named">
+    <span class="arrow">⏪</span>
+    <span class="prefix">Session:</span>
+    <span class="title" style="border-bottom: 1px dashed #6f6557; padding-bottom: 1px; cursor: text;">
+      Implementing the workspace switcher dropdown
+    </span>
+    <span style="color: #6f6557; cursor: pointer; font-size: 11px; margin-left: 4px;">✎</span>
+    <span class="spacer"></span>
+    <span class="ghost-btn">Save workspace</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+<div class="state-card">
+  <div class="state-label">S2 · expanded (USER or HAIKU)</div>
+  <div class="state-headline">Title + click-to-rename + "Save workspace" hint</div>
+  <div class="state-sub">Dashed underline + pencil glyph indicate clickable. <strong>No Resume
+    button</strong> — this is a live session, not a resume offer. The "Save workspace" button
+    surfaces the manual-save hydration trigger (§ 9).</div>
+</div>
+
+<h3>S2 expanded — Duo just hydrated (the transition moment)</h3>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header named">
+    <span class="arrow">⏪</span>
+    <span class="prefix">Session:</span>
+    <span class="title" style="border-bottom: 1px dashed #6f6557; padding-bottom: 1px; cursor: text;">
+      Refactor browser-manager for the local-only filter
+    </span>
+    <span style="color: #6f6557; cursor: pointer; font-size: 11px; margin-left: 4px;">✎</span>
+    <span class="spacer"></span>
+    <span class="ghost-btn">Save workspace</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body" style="font-size: 11px;">
+    <span class="ghost">$ claude (4 exchanges, no haiku summary yet)</span><br>
+    <span style="color: #9a9080;">&gt; /rename Refactor browser-manager for the local-only filter</span><br>
+    <span class="ok">  ✓ Session renamed</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+<div class="state-card">
+  <div class="state-label">S2 · just hydrated by Duo</div>
+  <div class="state-headline">Same banner as user-named — no AUTO badge, no sidecar</div>
+  <div class="state-sub">When a hydration trigger fires (D2 / D6 / T3), Duo computes a title from
+    the D8 ladder, injects <code>/rename &lt;derived&gt;</code> via the live PTY, and the banner
+    re-renders by reading the new <code>customTitle</code> from Claude's storage. <strong>The
+    banner shape is identical to a user-named session</strong> — there is no visual distinction
+    between a user-named title and a Duo-hydrated title, because Duo does not track who wrote it
+    (D9 architectural invariant). The transcript shows the <code>/rename</code> line and Claude's
+    ack — that's the only signal that Duo did the rename, and it scrolls out of view as work
+    continues. User can click and re-rename at any time.</div>
+  <span class="data-source">trigger: D2 / D6 / T3 · derivation: D8 · write: PTY /rename</span>
+</div>
+
+<h3>Edit mode — Return commits, Esc cancels</h3>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header named">
+    <span class="arrow">⏪</span>
+    <span class="prefix">Session:</span>
+    <span style="background: #1a1814; color: #fbf8f1; padding: 2px 7px;
+                 border: 1.5px solid var(--accent); border-radius: 3px;
+                 font-style: italic; min-width: 280px; display: inline-block;">
+      Workspace switcher polish<span class="cursor" style="width: 1px; margin-left: 1px;"></span>
+    </span>
+    <span class="spacer"></span>
+    <span style="color: #6f6557; font-size: 11px; margin-right: 8px;">
+      <span style="background: #3a342d; color: #d4cbb8; padding: 1px 5px;
+                   border-radius: 3px; font-size: 10px;">↵</span> save ·
+      <span style="background: #3a342d; color: #d4cbb8; padding: 1px 5px;
+                   border-radius: 3px; font-size: 10px;">esc</span> cancel
+    </span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span>
+  </div>
+</div>
+<div class="state-card">
+  <div class="state-label">S2 · edit mode</div>
+  <div class="state-headline">Inline contentEditable — commit fires the user-driven /rename</div>
+  <div class="state-sub">
+    <ul>
+      <li><strong>Return</strong> → injects <code>\r/rename &lt;typed&gt;\n</code>; on Claude's ack,
+        banner re-renders by reading the new <code>customTitle</code> from Claude's storage. No
+        provenance tracked.</li>
+      <li><strong>Esc</strong> → reverts to the prior title; no PTY write.</li>
+      <li><strong>Click-outside</strong> → commits (same as Return). Standard contentEditable UX.</li>
+    </ul>
+  </div>
+  <span class="data-source">Gated on claudePresence === 'claude'. If claude isn't live, title is non-editable.</span>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-8">8 · S3 — Restore-offer banner</h2>
+
+<p>
+  When a workspace is restored and a terminal tab has a captured <code>lastClaudeSession.id</code>
+  in workspace metadata but <code>claudePresence !== 'claude'</code> yet, the header offers the
+  user a one-click Resume.
+</p>
+
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab">~/dev/web</span>
+    <span class="tab active">~/projects/duo</span>
+    <span class="tab">~/scratch</span>
+  </div>
+  <div class="session-header named">
+    <span class="arrow">⏪</span>
+    <span class="prefix">This tab had:</span>
+    <span class="title">Implementing the workspace switcher dropdown</span>
+    <span class="spacer"></span>
+    <span class="resume-btn">Resume</span>
+    <span class="dismiss">×</span>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ # claude not currently running here</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="state-card">
+  <div class="state-label">S3 · restore offer</div>
+  <div class="state-headline">"This tab had: &lt;title&gt; — Resume?"</div>
+  <div class="state-sub">
+    Title displayed by reading current <code>sessions-index.json</code> against the captured UUID
+    (with the workspace's saved title hint as fallback when the index is gone). Resume click writes
+    <code>claude --resume &lt;uuid&gt;\n</code> to the PTY — same wire as the original ENH-177
+    build (commit <a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a>). Dismiss is
+    once-per-tab-per-restore.
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-9">9 · Hydration triggers (the full lifecycle)</h2>
+
+<p>
+  The places where Duo invokes <code>/rename</code> automatically:
+</p>
+
+<table>
+  <thead>
+    <tr><th>Trigger</th><th>Condition</th><th>Title derivation</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>T1 · Idle-threshold</strong></td>
+      <td><code>messageCount &ge; 3</code> AND no <code>customTitle</code> AND no <code>summary</code></td>
+      <td>D12 ladder (first user message from JSONL)</td>
+    </tr>
+    <tr>
+      <td><strong>T2 · Manual workspace save</strong></td>
+      <td>User clicks "Save workspace" or chord ⌘S; for each captured tab session that is unnamed</td>
+      <td>D12 ladder; fire-and-forget per-tab</td>
+    </tr>
+    <tr>
+      <td><strong>T3 · First session-UUID capture</strong></td>
+      <td>Session tracker observes a new <code>lastClaudeSession.id</code> for a tab; before
+        persisting to workspace metadata, attempts hydration if unnamed</td>
+      <td>D12 ladder; ensures restored tabs always have a name</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  <strong>Autosave does NOT trigger hydration.</strong> Captures session UUIDs only. Hydration on
+  every autosave tick would spam the PTY transcript. Save-on-demand earns the cost (D6).
+</p>
+
+<p>
+  <strong>Duo never injects /rename when claude isn't live in the tab.</strong> No claude PTY to
+  write to. Hydration only applies to live sessions.
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-10">10 · CLI parity</h2>
+
+<p>Every UI behavior has a <code>duo</code> verb. Per CLAUDE.md § 4 — if the human can do it, the
+agent must be able to do the same.</p>
+
+<table>
+  <thead><tr><th>Verb</th><th>Mirrors</th></tr></thead>
+  <tbody>
+    <tr><td><code>duo session list [--cwd &lt;path&gt;]</code></td>
+      <td>Pill state — list prior sessions in CWD with UUID/title/msgcount/recency</td></tr>
+    <tr><td><code>duo session resume &lt;tabId&gt; &lt;uuid&gt;</code></td>
+      <td>Pill click / S3 Resume button</td></tr>
+    <tr><td><code>duo session rename &lt;tabId&gt; "&lt;title&gt;"</code></td>
+      <td>S2 click-to-rename (user-driven /rename injection)</td></tr>
+    <tr><td><code>duo session hydrate &lt;tabId&gt;</code></td>
+      <td>Force a Duo-driven hydration for this tab now (D12 derive + inject)</td></tr>
+    <tr><td><code>duo session collapse &lt;tabId&gt;</code> / <code>expand</code></td>
+      <td>Tab-marker / banner toggle</td></tr>
+    <tr><td><code>duo session dismiss-pills &lt;tabId&gt;</code></td>
+      <td>Pills × button</td></tr>
+    <tr><td><code>duo session auto-hydrate [on|off]</code></td>
+      <td>Power-user toggle for T1/T2/T3 (R7 mitigation)</td></tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-11">11 · Mechanism empirics</h2>
+
+<table class="empirics-table">
+  <thead><tr><th>Claim</th><th>Status</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>sessions-index.json</code> is canonical title source</td>
+      <td class="verified">VERIFIED CORRECTED — C1</td>
+      <td><strong>It isn't canonical at all.</strong> Only 2 of ~30 projects have one on this
+        machine; both are pre-2026-02. Modern Claude appears to have stopped maintaining it (or
+        only writes it under conditions we don't trigger). The JSONL is the source of truth.
+        Read ladder reads JSONL entries directly (D5 rung 1 + 2); sessions-index.json is not
+        consulted. See <a href="../research/enh-183-step-0-empirics.md"><code>docs/research/enh-183-step-0-empirics.md</code></a>.</td>
+    </tr>
+    <tr>
+      <td>Schema is UUID-keyed map <code>{uuid: {summary, customTitle, ...}}</code></td>
+      <td class="revised">WRONG (legacy file)</td>
+      <td>For the 2 projects that have one, schema is <code>{version: 1, entries: [...]}</code>
+        — never includes <code>customTitle</code> even when JSONL has <code>type:"custom-title"</code>
+        entries. Confirms sessions-index.json is a partial cache, not the authority.</td>
+    </tr>
+    <tr>
+      <td>Claude auto-writes Haiku summary</td>
+      <td class="needs-recheck">PARTIAL — 80% coverage</td>
+      <td>16 of 20 sessions across all projects have non-empty <code>summary</code>. 4
+        high-msgcount sessions (78, 32, 22 msgs) have <code>summary: null</code>. Haiku is
+        reliable but not universal — Duo hydration via D12 covers the long tail.</td>
+    </tr>
+    <tr>
+      <td><code>/rename X</code> via PTY injection writes to <code>customTitle</code></td>
+      <td class="verified">VERIFIED CORRECTED — C1</td>
+      <td><strong>Writes a JSONL entry:</strong>
+        <code>{"type":"custom-title","customTitle":"X","sessionId":"&lt;uuid&gt;"}</code>.
+        Confirmed via Claude binary strings table (regex pattern
+        <code>"customTitle":"([^"]+)"</code> + entry-type literals) AND 5 real on-disk
+        examples from past usage (incl. one tagged <code>"Renamed via Duo"</code> — residue
+        from the reverted f351719 ENH-177 commit). No PTY test needed.</td>
+    </tr>
+    <tr>
+      <td><code>messageCount</code> is reliable + free</td>
+      <td class="verified">VERIFIED</td>
+      <td>Present on every session entry when sessions-index exists. Otherwise derivable from JSONL
+        line-count filtered to <code>type:'user'</code> entries.</td>
+    </tr>
+    <tr>
+      <td><code>firstPrompt</code> is rich enough for resume-pill subtitles</td>
+      <td class="verified">VERIFIED</td>
+      <td>Present on every session entry. Often more useful than summary for picking the right past
+        session.</td>
+    </tr>
+    <tr>
+      <td><code>claude --resume &lt;uuid&gt;</code> resumes via PTY-write</td>
+      <td class="verified">VERIFIED</td>
+      <td>Carry-forward from the original ENH-177 build at commit
+        <a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-12">12 · Decisions — locked (D1–D9)</h2>
+
+<p style="font-size: 12.5px; color: var(--ink-mute);">
+  Each locked decision has an "Override this decision" checkbox. Toggle on to reveal a notes
+  textarea — write the override reasoning. The review-bar footer counts locked-accepted,
+  locked-overridden, and open-picked.
+</p>
+
+<!-- D1 -->
+<div class="decision" data-id="D1" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D1 · Pills auto-dismiss trigger</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">When pills are shown and the user signals "own intent," when do they disappear?</div>
+  <div class="d-a">First Return submitted to the new Claude session. Pills only show in fresh
+    Claude sessions (msgCount=0) with CWD history; first message commits = redirect declined.</div>
+  <div class="d-rationale">Owner: <em>"we only pop the pills in a Claude session, not generic
+    terminal; option 2."</em></div>
+
+  <h4 style="margin-top: 14px;">Before · pills visible, user hasn't committed a message yet</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab active">~/projects/duo</span>
+    </div>
+    <div class="session-header pills-b">
+      <span class="prefix">Resume one of these instead?</span>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">Implementing the workspace switcher dropdown</span>
+        <span class="msgs">47 msgs</span>
+        <span class="when">2d ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">Sprint 19 polish wave</span>
+        <span class="msgs">112 msgs</span>
+        <span class="when">1d ago</span>
+      </div>
+      <div class="footer">
+        <span>5 older sessions · <a>show all</a></span>
+        <span>Dismiss · keep new session</span>
+      </div>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude</span><br>
+      <span style="color: #9a9080;">&gt;</span> Let me try a fresh session for this task<span class="cursor"></span>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 10px;">After · user pressed Return — pills slide away</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab active">~/projects/duo</span>
+    </div>
+    <div class="term-body" style="font-size: 11px;">
+      <span class="ghost">$ claude</span><br>
+      <span style="color: #9a9080;">&gt;</span> Let me try a fresh session for this task<br>
+      <span style="color: #d4cbb8;">  I'll help you with that. What would you like to work on?</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <p style="font-size: 12px; color: var(--ink-mute); margin-top: 6px;">
+    Header collapses to empty (will become S2 banner once Claude's storage gets a title via Haiku
+    or hydration). Pills are gone for this Claude session; next fresh session in the same CWD
+    re-shows them.
+  </p>
+
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D1"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D2 -->
+<div class="decision" data-id="D2" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D2 · Idle-threshold hydration (T1) + first-time educational banner</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">When does Duo auto-inject /rename for an unnamed session, and how does the user
+    learn they can override?</div>
+  <div class="d-a">
+    <strong>Trigger:</strong> <code>messageCount &ge; 3</code> AND no <code>customTitle</code> AND no
+    <code>summary</code>. Title derived via D8. No Duo-side counter — read messageCount from
+    sessions-index, or derive from JSONL line count (D13).<br>
+    <br>
+    <strong>First-time educational banner (Notion comment 2026-05-24):</strong> the very first time
+    Duo auto-hydrates a session in a given install, surface a small, dismissable banner inside the
+    session header that says something like <em>"Duo named this for you. Type <code>/rename
+    &lt;new title&gt;</code> in Claude any time to change it."</em> Banner shows once per install
+    (tracked via a single boolean flag in renderer-only persisted prefs — NOT per-session — so this
+    doesn't violate D9). Dismissal sticks across restarts via that flag. After dismissal, the
+    educational banner never re-fires.
+  </div>
+  <div class="d-rationale">
+    Owner: <em>"option 2 makes most sense but I don't want to make a Rube Goldberg machine; is the
+    exchange count something lightweight to maintain?"</em> Yes — Claude already tracks it.
+    <br><br>
+    Notion comment 2026-05-24: <em>"Add a brief banner telling the user they can always rename w
+    the /rename command in claude."</em> Auto-hydration is good UX only if the user knows they can
+    override. Banner discharges that obligation without an AUTO badge (would violate D9). Once-per-
+    install means it doesn't accumulate; renderer pref is acceptable because the flag is about
+    Duo's own UI state, not Claude's session metadata.
+  </div>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D2"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D3 -->
+<div class="decision" data-id="D3" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D3 · Cut shape</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">Ship the full ENH-183 reframe in one cut, or stage across two?</div>
+  <div class="d-a">Ship the entire reframe (S0–S3 + pills + auto-hydrate + workspace integration +
+    CLI parity) together in v0.7.9.</div>
+  <div class="d-rationale">Owner: <em>"All together in v0.7.9."</em></div>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D3"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D4 -->
+<div class="decision" data-id="D4" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D4 · /rename is universal write primitive</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">How does Duo write session titles into Claude's storage?</div>
+  <div class="d-a">PTY-inject <code>\r/rename &lt;title&gt;\n</code> for every write. Two modes:
+    user-driven (click-to-rename) and Duo-driven (hydration triggers). Duo never writes
+    sessions-index.json directly. ENH-180's "Duo-side LLM call" scope stays closed; the
+    "PTY-inject-with-derived-title" scope reopens here.</div>
+  <div class="d-rationale">Owner: <em>"I thought we were going to heavily rely on the rename
+    function, even selectively triggering it through injection to force it to be hydrated when
+    needed."</em></div>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D4"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D5 -->
+<div class="decision" data-id="D5" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D5 · Read-ladder for banner title</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">What does the banner display when the user opens an expanded view?</div>
+  <div class="d-a">
+    <ol>
+      <li><code>customTitle</code> from sessions-index.json — set by user-driven OR Duo-driven
+        <code>/rename</code>. <strong>No tag, no provenance tracking</strong> (D9 invariant).</li>
+      <li><code>summary</code> from sessions-index.json — Claude's Haiku auto-summary.</li>
+      <li>First user message from JSONL — live-read, shown as fallback until a hydration trigger
+        fires (so the banner doesn't show a UUID for several seconds before T1 fires).</li>
+      <li>Short UUID (first 8 chars) — last resort.</li>
+    </ol>
+  </div>
+  <div class="d-rationale">3-rung ladder in the old PRD broke because sessions-index.json isn't
+    universally present. Adding the JSONL live-read rung keeps banners human-readable even before
+    Duo hydrates.</div>
+
+  <h4 style="margin-top: 14px;">What each rung looks like when rendered</h4>
+  <table style="margin: 8px 0;">
+    <thead><tr><th style="width: 80px;">Rung</th><th>Banner</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>1 · customTitle</strong></td>
+        <td>
+          <div style="background: #2a2620; color: #e8e0cb; padding: 8px 12px; border-radius: 4px;
+                      font-size: 12px; display: flex; align-items: center; gap: 10px;">
+            <span style="color: var(--accent);">⏪</span>
+            <span style="color: #9a9080;">Session:</span>
+            <span style="color: #fbf8f1; font-style: italic;">Sprint 19 polish wave</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>2 · summary</strong></td>
+        <td>
+          <div style="background: #2a2620; color: #e8e0cb; padding: 8px 12px; border-radius: 4px;
+                      font-size: 12px; display: flex; align-items: center; gap: 10px;">
+            <span style="color: var(--accent);">⏪</span>
+            <span style="color: #9a9080;">Session:</span>
+            <span style="color: #fbf8f1; font-style: italic;">Implementing the workspace switcher dropdown</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>3 · first user message (JSONL)</strong></td>
+        <td>
+          <div style="background: #2a2620; color: #e8e0cb; padding: 8px 12px; border-radius: 4px;
+                      font-size: 12px; display: flex; align-items: center; gap: 10px;">
+            <span style="color: var(--accent);">⏪</span>
+            <span style="color: #9a9080;">Session:</span>
+            <span style="color: #fbf8f1; font-style: italic;">this is interesting -- the app works but the ux i…</span>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td><strong>4 · UUID fallback</strong></td>
+        <td>
+          <div style="background: #2a2620; color: #e8e0cb; padding: 8px 12px; border-radius: 4px;
+                      font-size: 12px; display: flex; align-items: center; gap: 10px;">
+            <span style="color: var(--accent);">⏪</span>
+            <span style="color: #9a9080;">Session:</span>
+            <span style="font-family: ui-monospace, monospace; color: #d9cea8;">a83f4e21</span>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size: 12px; color: var(--ink-mute);">
+    The banner shape (arrow + "Session:" label + italic title) is identical across rungs —
+    differences are content only. No provenance badge differentiates them.
+  </p>
+
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D5"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D6 -->
+<div class="decision" data-id="D6" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D6 · Manual save = hydration trigger, autosave is not</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">Should every workspace save run the hydration pass?</div>
+  <div class="d-a">No. Only manual save (⌘S / "Save workspace" button) fires T2. Autosave captures
+    session UUIDs only; no /rename injections. Manual-save is the intent signal that earns the
+    PTY-write cost.</div>
+  <div class="d-rationale">Owner: <em>"Saving a workspace is also a good opportunity to refresh
+    the names and/or apply names to unnamed sessions (but not every autosave)."</em></div>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D6"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D7 -->
+<div class="decision" data-id="D7" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D7 · PTY injection, not direct file write</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">Should Duo write directly to <code>sessions-index.json</code>, or go through
+    Claude's <code>/rename</code>?</div>
+  <div class="d-a">Always through Claude's <code>/rename</code> via PTY injection. Zero schema
+    coupling — Claude owns the persistence layer. 2-line transcript cost per write is acceptable;
+    auto-hydration fires at most a few times per session.</div>
+  <div class="d-rationale">Owner directive 2026-05-23 (carried forward from ENH-181 PRD): <em>"I
+    want path 2 and if needed we can limit to only when Claude is active."</em></div>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D7"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D8 -->
+<div class="decision" data-id="D8" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D8 · Derivation ladder is free-signal only</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">What title does Duo inject when hydrating an unnamed session?</div>
+  <div class="d-a">
+    <ol>
+      <li>If <code>summary</code> or <code>customTitle</code> already populated → skip (no injection).</li>
+      <li>First user message from JSONL, cleaned + truncated to ~60 chars.</li>
+      <li>Other JSONL signals (first assistant message, first non-system entry) if user-msg
+        extraction yields nothing — rare.</li>
+      <li>If JSONL has no usable content → do nothing (don't rename to a UUID; banner shows UUID via
+        the read ladder).</li>
+    </ol>
+    No LLM call from Duo.
+  </div>
+  <div class="d-rationale">Owner: <em>"no Rube Goldberg machine."</em> The first user message in
+    JSONL is empirically high-signal (sample of 20 sessions confirmed) and free to read.</div>
+
+  <h4 style="margin-top: 14px;">Concrete examples — first user message → cleaned + truncated title</h4>
+  <table style="margin: 8px 0;">
+    <thead>
+      <tr><th>Raw first user message (from JSONL)</th><th>Derived title → injected via /rename</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="font-family: ui-monospace, monospace; font-size: 11.5px;">&lt;ide_opened_file&gt;The user opened the file /Users/x/Documents/GitHub/duo/electron/browser-manager.ts in the IDE. This may or may not be related to the current task.&lt;/ide_opened_file&gt;\n\nplease prioritize the blank tab issue for non-localhost browser tabs</td>
+        <td style="font-style: italic; color: var(--ink);">prioritize the blank tab issue for non-localhost browser tabs</td>
+      </tr>
+      <tr>
+        <td style="font-family: ui-monospace, monospace; font-size: 11.5px;">this is interesting -- the app definitely works but the ux is rough; can we walk through what's broken</td>
+        <td style="font-style: italic; color: var(--ink);">this is interesting — the app works but the ux is rough; can we walk th…</td>
+      </tr>
+      <tr>
+        <td style="font-family: ui-monospace, monospace; font-size: 11.5px;">could you help me refactor browser-manager for the new local-only filter mode</td>
+        <td style="font-style: italic; color: var(--ink);">refactor browser-manager for the new local-only filter mode</td>
+      </tr>
+      <tr>
+        <td style="font-family: ui-monospace, monospace; font-size: 11.5px;">please start a new sprint, including the following:\n```\nSprint 20 plan committed at 928d5dd and pushed.\n\nSprint 20 / v0.7.7 — locked scope (3 ENHs, 7 items):\n…</td>
+        <td style="font-style: italic; color: var(--ink);">start a new sprint, including the following</td>
+      </tr>
+    </tbody>
+  </table>
+  <p style="font-size: 12px; color: var(--ink-mute);">
+    Cleaning: strip <code>&lt;ide_opened_file&gt;…&lt;/ide_opened_file&gt;</code> wrappers + leading
+    "please " / "could you " / "can you " filler + collapse whitespace. Truncate to ~60 chars on a
+    word boundary (suffix with "…" if mid-word truncation needed).
+  </p>
+
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D8"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D9 — architectural invariant (no Duo-side metadata sidecars) — NEW 2026-05-24 -->
+<div class="decision" data-id="D9" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D9 · No Duo-side metadata sidecars (architectural invariant)</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">Where does Duo store anything it knows about a Claude session — provenance,
+    title cache, message-count cache, hydration history, etc.?</div>
+  <div class="d-a">
+    <strong>Nowhere of its own.</strong> Duo does not maintain any sidecar file, cache, or auxiliary
+    data structure that mirrors, annotates, or extends Claude session metadata. Concretely:
+    <ul style="margin: 4px 0 0;">
+      <li><strong>The only Claude session writes Duo performs</strong> are via <code>/rename</code>
+        PTY injection — which Claude itself persists into its own storage (D4 + D7).</li>
+      <li><strong>All session metadata reads</strong> come live from Claude's storage
+        (<code>sessions-index.json</code> + JSONL files). Read every render; never cached on disk.</li>
+      <li><strong>Duo's workspace metadata</strong> holds <em>only</em> the per-tab
+        <code>lastClaudeSession.id</code> pointer. It does NOT cache titles, provenance, message
+        counts, hydration history, or any other derived Claude-session field.</li>
+      <li><strong>In-memory renderer state</strong> (pills-dismiss throttle, collapsed/expanded
+        flag, edit-mode flag) is allowed but never persisted to a Duo-owned file. Resets on Duo
+        restart.</li>
+      <li><strong>Consequence:</strong> no AUTO badge / no provenance tag in the UI. Once a title
+        lands in <code>customTitle</code> we can't tell who wrote it — and that's fine. Title is
+        title. User can click and re-rename any time.</li>
+      <li><strong>Capture-on-evidence-not-speculation (post-walk-1 addition).</strong> The single
+        Duo-owned field (<code>lastClaudeSession.id</code> in workspace metadata) is also gated:
+        Duo only captures it for a tab that <em>actually hosted</em> a Claude process during this
+        Duo session — i.e. <code>claudePresence</code> transitioned to 'claude' or 'starting' on
+        that tab. Tabs that simply exist in a CWD with recent JSONLs <em>do not</em> inherit the
+        cwd's most-recent UUID. This prevents S3 ("This tab had: …") from mis-firing on tabs that
+        never <em>had</em> anything. The renderer-side equivalent: an in-memory
+        <code>tabsThatHostedClaude: Set&lt;tabId&gt;</code> updated by the claude-presence probe.
+        Pre-existing pointers from disk (workspace-restore case) are preserved — that's the
+        only legitimate carry-forward across Duo sessions.</li>
+    </ul>
+  </div>
+  <div class="d-rationale">Owner directive 2026-05-24: <em>"session name should live in the Claude
+    metadata, not annexed off in some duo specific data structure — your proposed approach risks
+    file system ↔ Claude metadata drift."</em> Earlier drafts proposed
+    <code>~/.claude/duo/hydrated-sessions.json</code> to power an AUTO badge; that's been removed.
+    If Claude's storage migrates, gets deleted, or is hand-edited, Duo reads the new state on next
+    render — no stale Duo sidecar to invalidate. This invariant also applies to all OTHER fields
+    we read from sessions-index.json: <code>summary</code>, <code>messageCount</code>,
+    <code>firstPrompt</code>, <code>modified</code>, etc. are read fresh, never cached.
+    <br><br>
+    Post-walk-1 (2026-05-24): owner observed S3 firing on a brand-new shell tab in a CWD with
+    recent JSONLs. Root cause was C2's enrichment hook over-capturing for every tab whose cwd
+    had a recent JSONL, not just tabs that ran Claude. Fix gated the capture on the new
+    <code>tabsThatHostedClaude</code> set — the "evidence-not-speculation" sub-rule above. Owner
+    directive: <em>"Tighten the enrichment hook — only capture lastClaudeSession.id on a tab
+    that actually ran Claude during this Duo session."</em></div>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D9"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-13">13 · Decisions — now locked via Notion comments (D10–D13)</h2>
+
+<p style="font-size: 12.5px; color: var(--ink-mute);">
+  Owner walked the Notion mirror 2026-05-24 (page
+  <a href="https://www.notion.so/36a45f48854f81b49571dd1cb12a11e5">36a45f48</a>) and locked all four
+  via inline comments. Each card below shows the locked pick + the comment that landed it. Override
+  checkbox is preserved if owner wants to change their mind.
+</p>
+
+<!-- D10 — was D9 — Pills visual variant — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D10" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D10 · Pills visual variant</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">Which visual variant ships for S1 resume pills?</div>
+  <div class="d-a">
+    <strong>Variant B · Vertical mini-list</strong>, with the section-header copy reworded from
+    "Resume one of these instead?" to <strong>"Resume previous session"</strong> (singular).
+    Reasoning: matches the user's mental model — they're picking <em>one</em> session to resume,
+    not deciding among many alternatives. Mockups remain in <a href="#section-6">§ 6 above</a>;
+    build step updates the copy.
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:48Z: <em>"Aligned with recommendation — but reword to 'resume
+    previous session'."</em>
+  </div>
+  <p style="font-size: 12px; color: var(--ink-mute); margin-top: 6px;">
+    Non-chosen variants retained in <a href="#section-6">§ 6</a> for historical record.
+  </p>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options (collapsed)</summary>
+  <div class="d-options" style="margin-top: 6px;">
+    <label class="d-option"><input type="radio" name="D10" value="A">
+      <span class="opt-title">A · Horizontal pill strip</span>
+      <div class="opt-detail">Compact, matches existing banner space. ~3 pills visible. Titles truncate.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D10" value="B" checked>
+      <span class="opt-title">B · Vertical mini-list <span class="rec-tag">Locked</span></span>
+      <div class="opt-detail">Richer per-row context (msgs, recency). ~80px vertical. Honest footer for dismiss-all.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D10" value="C">
+      <span class="opt-title">C · Compact dropdown trigger</span>
+      <div class="opt-detail">One-row footprint. Click expands. Lowest default footprint; needs discoverability.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D10" value="OTHER">
+      <span class="opt-title">Other (describe in notes)</span>
+      <div class="opt-detail">Want a different shape entirely? Describe below.</div>
+    </label>
+  </div>
+  </details>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D10"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D11 — Pills threshold — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D11" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D11 · Pills threshold — visible vs. folded</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">How many sessions show in the pills surface by default; how does overflow render?</div>
+  <div class="d-a">
+    <strong>Option a · 3 visible + "show all" link</strong>. Most CWDs have 3–10 sessions; 3 fits
+    Variant B's vertical mini-list cleanly. Sessions 4–N are revealed by clicking "show all". The
+    duo project's 80+ session count is the bad-default proof for option c.
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:48Z: <em>"Aligned."</em>
+  </div>
+  <p style="font-size: 12px; color: var(--ink-mute); margin-top: 6px;">
+    Non-chosen options' mockups are still in the gallery below for historical record.
+  </p>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options + variant mockups (collapsed)</summary>
+
+  <h4 style="margin-top: 14px;">Option a · 3 visible + "show all"</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab">~/dev/web</span>
+      <span class="tab active">~/projects/duo</span>
+      <span class="tab">~/scratch</span>
+    </div>
+    <div class="session-header pills-b">
+      <span class="prefix">Resume one of these instead?</span>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">Implementing the workspace switcher dropdown</span>
+        <span class="msgs">47 msgs</span>
+        <span class="when">2d ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">Sprint 19 polish wave</span>
+        <span class="msgs">112 msgs</span>
+        <span class="when">1d ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">BUG-138 phase 4 — Backspace intercept</span>
+        <span class="msgs">8 msgs</span>
+        <span class="when">5h ago</span>
+      </div>
+      <div class="footer">
+        <span>4 older sessions · <a>show all</a></span>
+        <span>Dismiss · keep new session</span>
+      </div>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude (running, pid 50231)</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 14px;">Option b · 5 visible + "show all"</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab">~/dev/web</span>
+      <span class="tab active">~/projects/duo</span>
+      <span class="tab">~/scratch</span>
+    </div>
+    <div class="session-header pills-b">
+      <span class="prefix">Resume one of these instead?</span>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">Implementing the workspace switcher dropdown</span>
+        <span class="msgs">47 msgs</span>
+        <span class="when">2d ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">Sprint 19 polish wave</span>
+        <span class="msgs">112 msgs</span>
+        <span class="when">1d ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">BUG-138 phase 4 — Backspace intercept</span>
+        <span class="msgs">8 msgs</span>
+        <span class="when">5h ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">ENH-177 banner spike</span>
+        <span class="msgs">23 msgs</span>
+        <span class="when">3d ago</span>
+      </div>
+      <div class="session-row">
+        <span class="icon">↻</span>
+        <span class="title">BUG-122 hypothesis 4 — soft-break collapse</span>
+        <span class="msgs">15 msgs</span>
+        <span class="when">4d ago</span>
+      </div>
+      <div class="footer">
+        <span>2 older sessions · <a>show all</a></span>
+        <span>Dismiss · keep new session</span>
+      </div>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude (running, pid 50231)</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 14px;">Option c · All visible (no fold) — bad default for the duo project</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab">~/dev/web</span>
+      <span class="tab active">~/projects/duo</span>
+      <span class="tab">~/scratch</span>
+    </div>
+    <div class="session-header pills-b" style="max-height: 220px; overflow-y: auto;">
+      <span class="prefix">Resume one of these instead? · 86 sessions in this folder</span>
+      <div class="session-row"><span class="icon">↻</span><span class="title">Implementing workspace switcher dropdown</span><span class="msgs">47 msgs</span><span class="when">2d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">Sprint 19 polish wave</span><span class="msgs">112 msgs</span><span class="when">1d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">BUG-138 phase 4</span><span class="msgs">8 msgs</span><span class="when">5h ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">ENH-177 banner spike</span><span class="msgs">23 msgs</span><span class="when">3d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">BUG-122 hypothesis 4</span><span class="msgs">15 msgs</span><span class="when">4d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">FOLLOWUP-022 doc highlight verb</span><span class="msgs">6 msgs</span><span class="when">5d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">ENH-148 multi-select v2</span><span class="msgs">31 msgs</span><span class="when">6d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">BUG-091 right-click move-to-split</span><span class="msgs">14 msgs</span><span class="when">7d ago</span></div>
+      <div class="session-row"><span class="icon">↻</span><span class="title">… 78 more, scroll to see all</span><span class="msgs"></span><span class="when"></span></div>
+      <div class="footer">
+        <span>(scrollable list)</span>
+        <span>Dismiss · keep new session</span>
+      </div>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude (running, pid 50231) — banner has taken over the pane</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <div class="d-options">
+    <label class="d-option"><input type="radio" name="D11" value="3-show-all" checked>
+      <span class="opt-title">a · 3 visible · "show all" link reveals the rest <span class="rec-tag">Locked</span></span>
+      <div class="opt-detail">Most CWDs have 3–10 sessions; 3 fits the banner well.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D11" value="5-show-all">
+      <span class="opt-title">b · 5 visible · "show all" link reveals the rest</span>
+      <div class="opt-detail">More choice up front; ~50% larger vertical footprint.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D11" value="all">
+      <span class="opt-title">c · All visible (no fold)</span>
+      <div class="opt-detail">Some CWDs have 80+ sessions. Bad default; banner dominates the pane.</div>
+    </label>
+  </div>
+  </details>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D11"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D12 — Tab-marker glyph — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D12" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D12 · Tab-marker glyph (collapsed S2)</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">What appears on the active tab to signal "this tab has a session description"?</div>
+  <div class="d-a">
+    <strong>Option a · Small accent dot (6×6px)</strong>. Quietest signal — the banner expansion
+    does the explaining. Rendered next to the active tab on its right edge, in the Atelier accent
+    color.
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:49Z: <em>"Alogned"</em> [sic — "aligned"] on the recommended
+    option.
+  </div>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options + variant mockups (collapsed)</summary>
+
+  <h4 style="margin-top: 14px;">Option a · Small accent dot (6×6px)</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab">~/dev/web</span>
+      <span class="tab active" style="position: relative; padding-right: 22px;">
+        ~/projects/duo
+        <span style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+                     width: 6px; height: 6px; background: var(--accent); border-radius: 50%;"></span>
+      </span>
+      <span class="tab">~/scratch</span>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude (running, pid 50231)</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 14px;">Option b · "⏪" chip (the old ENH-177 design)</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab">~/dev/web</span>
+      <span class="tab active" style="position: relative; padding-right: 30px;">
+        ~/projects/duo
+        <span style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+                     background: var(--accent); color: white; font-size: 9px; padding: 1px 4px 1px 3px;
+                     border-radius: 7px; font-family: -apple-system; line-height: 1.1;
+                     font-weight: 600;">⏪</span>
+      </span>
+      <span class="tab">~/scratch</span>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude (running, pid 50231)</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 14px;">Option c · "C" letter chip</h4>
+  <div class="terminal-mock">
+    <div class="tab-strip">
+      <span class="tab">~/dev/web</span>
+      <span class="tab active" style="position: relative; padding-right: 28px;">
+        ~/projects/duo
+        <span style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+                     background: var(--accent); color: white; font-size: 9px; padding: 1px 5px;
+                     border-radius: 7px; font-family: -apple-system; line-height: 1.1;
+                     font-weight: 700; letter-spacing: 0.03em;">C</span>
+      </span>
+      <span class="tab">~/scratch</span>
+    </div>
+    <div class="term-body">
+      <span class="ghost">$ claude (running, pid 50231)</span><br>
+      <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+    </div>
+  </div>
+
+  <h4 style="margin-top: 14px;">All three side-by-side (active tab marker comparison)</h4>
+  <div style="background: #1a1814; border-radius: 6px; padding: 12px; display: flex; gap: 18px;
+              font-family: ui-monospace, monospace; font-size: 11px; align-items: center;">
+    <span style="color: #6f6557; font-size: 10px;">a:</span>
+    <span style="background: #1a1814; color: #e8e0cb; padding: 6px 22px 7px 14px; border-radius: 4px 4px 0 0;
+                 border: 1px solid #3a342d; position: relative;">
+      ~/projects/duo
+      <span style="position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+                   width: 6px; height: 6px; background: var(--accent); border-radius: 50%;"></span>
+    </span>
+    <span style="color: #6f6557; font-size: 10px;">b:</span>
+    <span style="background: #1a1814; color: #e8e0cb; padding: 6px 30px 7px 14px; border-radius: 4px 4px 0 0;
+                 border: 1px solid #3a342d; position: relative;">
+      ~/projects/duo
+      <span style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+                   background: var(--accent); color: white; font-size: 9px; padding: 1px 4px 1px 3px;
+                   border-radius: 7px; font-family: -apple-system; line-height: 1.1; font-weight: 600;">⏪</span>
+    </span>
+    <span style="color: #6f6557; font-size: 10px;">c:</span>
+    <span style="background: #1a1814; color: #e8e0cb; padding: 6px 28px 7px 14px; border-radius: 4px 4px 0 0;
+                 border: 1px solid #3a342d; position: relative;">
+      ~/projects/duo
+      <span style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
+                   background: var(--accent); color: white; font-size: 9px; padding: 1px 5px;
+                   border-radius: 7px; font-family: -apple-system; line-height: 1.1; font-weight: 700;">C</span>
+    </span>
+  </div>
+
+  <div class="d-options">
+    <label class="d-option"><input type="radio" name="D12" value="dot" checked>
+      <span class="opt-title">a · Small accent dot · 6×6px <span class="rec-tag">Locked</span></span>
+      <div class="opt-detail">Quietest signal. Banner expansion does the explaining.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D12" value="rewind">
+      <span class="opt-title">b · "⏪" chip · used in old ENH-177 design</span>
+      <div class="opt-detail">Telegraphs "previous" / "resumable." Heavier visual weight.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D12" value="c-letter">
+      <span class="opt-title">c · "C" letter chip</span>
+      <div class="opt-detail">"Claude session" as a glanceable initial. Reads tighter than "⏪".</div>
+    </label>
+  </div>
+  </details>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D12"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- D13 — messageCount derivation — LOCKED 2026-05-24 -->
+<div class="decision" data-id="D13" data-status="locked">
+  <div class="d-head">
+    <span class="d-id">D13 · messageCount derivation when sessions-index.json is absent</span>
+    <span class="d-status locked">Locked</span>
+  </div>
+  <div class="d-q">When the active CWD has no sessions-index.json, how does Duo compute messageCount
+    for the T1 idle-threshold trigger?</div>
+  <div class="d-a">
+    <strong>Option a · Count <code>type:'user'</code> entries in the JSONL.</strong> Read fresh per
+    render — no Duo-side cache per D9. OS page cache makes the re-read near-free for hot JSONLs.
+    Matches what Claude itself tracks (the values agree when sessions-index <em>is</em> present).
+  </div>
+  <div class="d-rationale">
+    Notion comment 2026-05-24 16:49Z: <em>"Aligned."</em>
+  </div>
+  <details style="margin-top: 8px;"><summary style="cursor: pointer; font-size: 12px; color: var(--ink-mute);">Show original options (collapsed)</summary>
+  <div class="d-options" style="margin-top: 6px;">
+    <label class="d-option"><input type="radio" name="D13" value="jsonl-count" checked>
+      <span class="opt-title">a · Count <code>type:'user'</code> entries in the JSONL <span class="rec-tag">Locked</span></span>
+      <div class="opt-detail">Cheap, deterministic, matches what Claude itself tracks. Read fresh per
+        render (no Duo-side cache per D9; the OS page-cache makes this near-free anyway).</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D13" value="no-summary-trigger">
+      <span class="opt-title">b · Trigger on "no summary after N seconds idle" instead</span>
+      <div class="opt-detail">Avoid JSONL parsing entirely. Noisier — short throwaway sessions
+        might still get hydrated.</div>
+    </label>
+    <label class="d-option"><input type="radio" name="D13" value="duo-counter">
+      <span class="opt-title">c · Maintain a Duo-side per-tab message counter (count Returns) — IN-MEMORY only</span>
+      <div class="opt-detail">Independent of file format changes. Adds renderer state to track. Must
+        live in memory only per D9 — resets on Duo restart, which means the trigger might fire late
+        on a session-resume.</div>
+    </label>
+  </div>
+  </details>
+  <div class="d-input">
+    <label><input type="checkbox" data-d="D13"> Override this decision</label>
+    <div class="d-override"><textarea placeholder="Override reasoning..."></textarea></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-14">14 · Risks + edge cases</h2>
+
+<div class="risk-grid">
+  <div class="risk-card">
+    <div class="risk-title">R1 · sessions-index.json missing</div>
+    <div class="risk-body">Active duo project doesn't have one. Renderer must not crash or
+      UUID-only when JSONL would have a derivable title. Mitigation: D5 rung 3 (JSONL live-read)
+      + D8 derivation ladder.</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R2 · /rename writes elsewhere than expected</div>
+    <div class="risk-body">Step 0 verification is gating. If <code>/rename</code> writes to a
+      field other than <code>customTitle</code>, both D5 read ladder and D8 derivation target
+      need adjustment.</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R3 · Pills feel noisy to repeat users</div>
+    <div class="risk-body">A user who starts new sessions often sees pills every time. Mitigation:
+      D10 caps at 3 visible + 5-min dismissal throttle. Future: per-CWD learning
+      "user dismisses X% → auto-hide."</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R4 · Restore race — claude not yet running</div>
+    <div class="risk-body">Workspace restored, captured UUID present, but PTY hasn't run
+      <code>claude --resume</code> yet. S3 (restore offer) is the correct state, not S2. The state
+      machine differentiates by <code>claudePresence</code>.</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R5 · JSONL line-count misleading</div>
+    <div class="risk-body">JSONL contains non-message entries (queue-operation, last-prompt,
+      attachment). Naive line count overestimates. Mitigation: count only <code>type:'user'</code>
+      lines (D12 option 1).</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R6 · encoded-cwd convention drift</div>
+    <div class="risk-body">Claude's path-encoding (<code>/</code> → <code>-</code>) could change.
+      <code>session-tracker</code> derives encoded-cwd from the tab's actual cwd, not a hardcoded
+      path. Already handled in the cherry-pick base.</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R7 · Auto-rename UX feels intrusive</div>
+    <div class="risk-body">If Duo auto-injects /rename for every unnamed session, the 2-line
+      transcript footprint (the /rename line + Claude's ack) accumulates and could feel noisy.
+      Mitigations: (a) D2 threshold msg ≥ 3 means short throwaway sessions never get auto-named;
+      (b) the transcript lines scroll away as work continues; (c) per D9 there is no persistent
+      AUTO badge cluttering the banner; (d) <code>duo session auto-hydrate off</code> CLI verb
+      lets power users opt out.</div>
+  </div>
+  <div class="risk-card">
+    <div class="risk-title">R8 · Race — Haiku writes while Duo hydrates</div>
+    <div class="risk-body">Claude's Haiku writes <code>summary</code> at the same moment Duo
+    writes <code>customTitle</code> via /rename. Both fields end up populated; customTitle wins in
+    the read ladder. But if Haiku writes AFTER our /rename, could Claude overwrite our customTitle?
+    Step 0 verification must cover this race.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-15">15 · Acceptance criteria</h2>
+
+<ul class="ac-list">
+  <li>S0: tab with no Claude session and no JSONL history shows no header.</li>
+  <li>S1: fresh Claude session in a CWD with ≥1 prior JSONL shows resume pills (variant per D10).</li>
+  <li>S1 auto-dismiss: pills disappear within 200ms of the first Return committed to the new
+    session.</li>
+  <li>S1 explicit dismiss: clicking × hides pills for this Claude session; same-CWD next session
+    reshows.</li>
+  <li>S2 collapsed: live Claude session shows the tab-marker (D12 glyph). Click expands the
+    banner.</li>
+  <li>S2 expanded: banner shows title from the read ladder (D5). <strong>No provenance badge</strong>
+    — banner shape is identical regardless of who wrote the title (D9 invariant).</li>
+  <li>S2 rename: clicking the title enters edit mode; Return commits via PTY <code>/rename</code>;
+    Esc reverts; click-outside commits.</li>
+  <li>S3 restore offer: restored tab with captured UUID + no live claude shows Resume button. Click
+    writes <code>claude --resume &lt;uuid&gt;</code>.</li>
+  <li>T1 (idle threshold): unnamed session with messageCount ≥ 3 gets auto-hydrated via D8 ladder
+    + /rename injection.</li>
+  <li>T2 (manual save): ⌘S runs hydration pass for every unnamed live session.</li>
+  <li>T3 (first capture): session-tracker hydrates a session at the moment its UUID is first
+    captured into workspace metadata.</li>
+  <li>Autosave does NOT trigger hydration.</li>
+  <li><strong>D9 invariant — no Duo-side sidecar.</strong> <code>~/.claude/duo/</code> contains no
+    file that mirrors, annotates, or extends Claude session metadata. <code>find ~/.claude/duo/
+    -name '*sessions*' -o -name '*hydrated*'</code> returns empty after a full sprint of use.</li>
+  <li>Workspace metadata holds only <code>lastClaudeSession.id</code> per tab — no title cache,
+    no provenance, no messageCount cache. Inspecting a saved <code>.duo-workspace</code> file
+    confirms this.</li>
+  <li>CLI parity: every UI behavior has a working <code>duo session ...</code> verb that
+    round-trips identically.</li>
+  <li>auto-hydrate toggle: <code>duo session auto-hydrate off</code> disables T1/T2/T3; banners
+    still render normally via the read ladder.</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-16">16 · Implementation plan</h2>
+
+<h3>Step 0 — Verify /rename mechanics (gating, ~15 min)</h3>
+<ol>
+  <li>Open fresh terminal tab in Duo, run <code>claude</code>. Send one message.</li>
+  <li>Inspect <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code> — note state.</li>
+  <li><strong>User /rename test:</strong> inject <code>\r/rename test-A\n</code>; re-read JSON +
+    JSONL. Confirm which file got the write + which field.</li>
+  <li><strong>Duo-driven /rename test:</strong> invoke same injection programmatically (via
+    <code>duo session rename</code> once the verb exists). Confirm identical round-trip behavior.</li>
+  <li><strong>Haiku vs customTitle race:</strong> send 3 exchanges (Haiku fires), then inject
+    /rename. Confirm customTitle survives subsequent Haiku writes.</li>
+  <li>Update D5, D7, D8 with verified field name and write location.</li>
+</ol>
+
+<h3>Step 1 — Cherry-pick ENH-177's original implementation</h3>
+<p><code>git cherry-pick -n f351719</code>. 9 files, ~412 LOC. Resolve conflicts (mostly in
+workspace JSON schema after Sprint 20's workspace switcher landed).</p>
+<table>
+  <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>electron/claude-session-tracker.ts</code></td><td>NEW. Scans
+      <code>~/.claude/projects/&lt;encoded-cwd&gt;/</code> for live and historical sessions.</td></tr>
+    <tr><td><code>electron/workspace-manager.ts</code></td><td>Captures
+      <code>lastClaudeSession.id</code> per tab on save.</td></tr>
+    <tr><td><code>shared/types.ts</code></td><td>Extends <code>SessionState.terminals[]</code>.</td></tr>
+    <tr><td><code>renderer/components/SessionHeader.tsx</code></td><td>NEW. The polymorphic surface
+      (renamed from ClaudeResumeBanner — covers S0/S1/S2/S3).</td></tr>
+    <tr><td><code>renderer/components/TerminalPane.tsx</code></td><td>Hosts the header above xterm.</td></tr>
+    <tr><td><code>renderer/store/sessionHeader.ts</code></td><td>NEW. Per-tab state (collapsed,
+      pillsVisible, editingTitle).</td></tr>
+    <tr><td><code>electron/socket-server.ts</code></td><td>New session:* IPCs.</td></tr>
+    <tr><td><code>cli/duo.ts</code></td><td>New <code>duo session ...</code> verbs.</td></tr>
+    <tr><td><code>docs/CLI-COVERAGE.md</code></td><td>Inventory updates.</td></tr>
+  </tbody>
+</table>
+
+<h3>Step 2 — Layer in the ENH-183 behaviors</h3>
+<table>
+  <thead><tr><th>Behavior</th><th>Wire</th></tr></thead>
+  <tbody>
+    <tr><td>S1 pills</td><td>SessionHeader reads <code>claudePresence + messageCount + priorSessions</code>;
+      renders pills variant per D10. New IPC <code>claude:user-message-submitted</code> fires from
+      PtyManager on first Return → toggle pillsVisible=false (in-memory only per D9).</td></tr>
+    <tr><td>S2 inline rename</td><td>Title is <code>&lt;span contentEditable&gt;</code> with
+      Return/Esc handlers. Commit → IPC <code>session:rename(tabId, title)</code> → main writes
+      <code>\r/rename &lt;title&gt;\n</code> via <code>PtyManager.write</code>. Gated on
+      <code>claudePresence === 'claude'</code>.</td></tr>
+    <tr><td>S2 collapse</td><td>Per-tab collapsed state in renderer (in-memory; not persisted to
+      disk per D9). Tab strip renders D12 glyph when collapsed AND lastClaudeSession exists. Tap
+      tab toggles.</td></tr>
+    <tr><td>T1 idle-threshold</td><td>NEW <code>electron/session-hydrator.ts</code>: watches
+      messageCount (D13 derivation) by re-reading sessions-index.json or the JSONL on each
+      file-watch tick (no Duo-side cache per D9). On crossing threshold while still unnamed (i.e.
+      <code>customTitle</code> + <code>summary</code> both empty in current Claude storage), runs
+      the D8 ladder and injects /rename. Once Claude persists customTitle, subsequent renders
+      simply read the new value — there's nothing for Duo to track or remember.</td></tr>
+    <tr><td>T2 manual save</td><td><code>workspace-manager § handleManualSave</code>: after UUID
+      capture, for each unnamed live session, invoke session-hydrator. Fire-and-forget.</td></tr>
+    <tr><td>T3 first capture</td><td>session-tracker on detect-new-session: if unnamed, hydrate
+      before persisting the UUID to workspace metadata.</td></tr>
+    <tr><td>CLI parity</td><td>7 new verbs per § 10.</td></tr>
+  </tbody>
+</table>
+
+<h3>Step 3 — Owner smoke walk</h3>
+<p>Live in Duo: confirm each state (S0 in a fresh tab, S1 by starting claude in a CWD with
+history, S2 with active session + click-to-rename, S3 by saving + restarting), each trigger (T1
+by sending 3 throwaway exchanges; T2 by clicking Save workspace with an unnamed session; T3 by
+cold-spawning a new session and saving), and the CLI parity verbs. Owner picks D10/D11/D12/D13 by
+clicking the radios above and Copy-review.</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-17">17 · Out of scope</h2>
+
+<ul>
+  <li><strong>Duo-side LLM auto-naming.</strong> Old ENH-180's full scope. D4 reopens
+    PTY-injection-with-derived-title, NOT LLM calls. If JSONL extraction yields a poor title, the
+    user just clicks the banner and re-renames — no badge needed because no provenance is tracked
+    (D9).</li>
+  <li><strong>Provenance tracking / AUTO badge.</strong> Per D9. Once a title lands in
+    <code>customTitle</code>, Duo doesn't track who wrote it. The PRD considered an
+    <code>~/.claude/duo/hydrated-sessions.json</code> sidecar to power a "Duo guessed this" badge;
+    that was rejected as filesystem ↔ Claude-metadata drift risk.</li>
+  <li><strong>Cross-CWD session search.</strong> Pills only show CWD-local prior sessions.
+    Cross-project search is a separate ENH.</li>
+  <li><strong>Persistent learning of dismiss preferences.</strong> Future ENH.</li>
+  <li><strong>Multiple Claude sessions per tab.</strong> One live session per tab. Forks not
+    tracked.</li>
+  <li><strong>Session header in browser tabs.</strong> Header is terminal-pane-only.</li>
+  <li><strong>Cross-session graph / backlinks.</strong> Future graph view.</li>
+</ul>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<h2 id="section-18">18 · Cross-refs</h2>
+
+<ul>
+  <li><a href="_archive/enh-177-181-session-resume-banner.html">ENH-177 + ENH-181 PRD</a> —
+    <strong>superseded</strong> by this PRD. Workspace-resume scope folds into S3 here; ENH-181's
+    rename + collapse fold into S2.</li>
+  <li><a href="_archive/enh-180-session-rename.html">ENH-180 PRD</a> — <strong>partially reopened</strong>.
+    D4 reopens the PTY-injection scope in a strictly free-signal form (no LLM call). The original
+    Duo-side LLM scope remains closed.</li>
+  <li><a href="_archive/enh-177-banner-mockup.html">Original ENH-177 banner mockup</a> — visual
+    companion to the OLD PRD. Note: its schema diagram (UUID-keyed map) is wrong; actual schema in
+    § 11 above.</li>
+  <li><a href="https://github.com/dudgeon/duo/commit/f351719">commit f351719</a> — original
+    ENH-177 implementation; cherry-pick base for Step 1.</li>
+  <li><a href="https://github.com/dudgeon/duo/commit/49f4644">commit 49f4644</a> — the revert.</li>
+  <li><strong>Notion mirror:</strong> <a href="https://www.notion.so/36a45f48854f81c3aacbd50e40fc8bbd">36a45f48854f81c3aacbd50e40fc8bbd</a>
+    (fresh page under "Duo Idle Thoughts"; replaces the old <a href="https://www.notion.so/36945f48854f810ca7f9dfa275c4389d">36945f48</a>
+    ENH-177/181 page).</li>
+  <li><strong>Numbering note:</strong> filed as ENH-183 (not ENH-182) because the owner has a
+    separate <a href="https://www.notion.so/36a45f48854f81799bb5f5ea9189be13">ENH-182 · Project-centric
+    UX</a> design exploration filed earlier today. These two ENHs may have overlap — Claude
+    sessions live inside Claude Code projects — but the scopes are distinct enough to keep separate
+    ledger entries.</li>
+</ul>
+
+<p style="font-size: 11px; color: var(--ink-mute); margin-top: 32px; padding-top: 14px;
+          border-top: 1px dashed var(--paper-edge);">
+  Path: <code>docs/prd/enh-183-claude-session-lifecycle.html</code> · Sprint 21 / v0.7.9 ·
+  Filed 2026-05-24 · 13 decisions, all now locked (D1–D9 in initial draft; D10–D13 via owner Notion comments 2026-05-24).
+</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- Sticky review bar -->
+<div class="review-bar">
+  <div class="review-inner">
+    <div class="counter">
+      <span class="num" id="ct-accepted">13</span> accepted ·
+      <span class="num" id="ct-overridden">0</span> overridden ·
+      <span class="num" id="ct-picked">0</span>/4 open picked
+    </div>
+    <div class="summary-text" id="review-summary">8 locked decisions accepted as-is · 4 open
+      decisions awaiting your pick</div>
+    <button id="copy-review">Copy review</button>
+  </div>
+</div>
+
+<script>
+  const LS_KEY = 'enh-183-prd-review-v2';
+
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); }
+    catch (_) { return {}; }
+  }
+  function saveState(s) {
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...s, at: new Date().toISOString() }));
+  }
+
+  // ─── wire up override checkboxes on locked decisions ───
+  const state = loadState();
+  document.querySelectorAll('.decision[data-status="locked"]').forEach(card => {
+    const id = card.dataset.id;
+    const cb = card.querySelector('input[type="checkbox"]');
+    const ta = card.querySelector('.d-override textarea');
+    if (!cb || !ta) return;
+    // restore
+    if (state.overrides && state.overrides[id]) {
+      cb.checked = true;
+      card.classList.add('show-override');
+      ta.value = state.overrides[id];
+    }
+    cb.addEventListener('change', () => {
+      card.classList.toggle('show-override', cb.checked);
+      if (!cb.checked) ta.value = '';
+      persist();
+    });
+    ta.addEventListener('input', persist);
+  });
+
+  // ─── wire up open-decision radios + notes ───
+  document.querySelectorAll('.decision[data-status="open"]').forEach(card => {
+    const id = card.dataset.id;
+    const radios = card.querySelectorAll('input[type="radio"]');
+    const ta = card.querySelector('.d-input textarea');
+    // restore
+    if (state.picks && state.picks[id]) {
+      const r = card.querySelector(`input[type="radio"][value="${state.picks[id]}"]`);
+      if (r) r.checked = true;
+    }
+    if (state.notes && state.notes[id] && ta) ta.value = state.notes[id];
+    radios.forEach(r => r.addEventListener('change', persist));
+    if (ta) ta.addEventListener('input', persist);
+  });
+
+  function gather() {
+    const overrides = {};
+    const picks = {};
+    const notes = {};
+    document.querySelectorAll('.decision[data-status="locked"]').forEach(card => {
+      const id = card.dataset.id;
+      const cb = card.querySelector('input[type="checkbox"]');
+      const ta = card.querySelector('.d-override textarea');
+      if (cb && cb.checked && ta && ta.value.trim()) overrides[id] = ta.value;
+    });
+    document.querySelectorAll('.decision[data-status="open"]').forEach(card => {
+      const id = card.dataset.id;
+      const checked = card.querySelector('input[type="radio"]:checked');
+      const ta = card.querySelector('.d-input textarea');
+      if (checked) picks[id] = checked.value;
+      if (ta && ta.value.trim()) notes[id] = ta.value;
+    });
+    return { overrides, picks, notes };
+  }
+
+  function persist() {
+    const data = gather();
+    saveState({ overrides: data.overrides, picks: data.picks, notes: data.notes });
+    updateCounters(data);
+  }
+
+  function updateCounters({ overrides, picks }) {
+    const overriddenCount = Object.keys(overrides).length;
+    const acceptedCount = 13 - overriddenCount;
+    document.getElementById('ct-accepted').textContent = acceptedCount;
+    document.getElementById('ct-overridden').textContent = overriddenCount;
+    document.getElementById('ct-picked').textContent = 0; // legacy field; all 13 now locked
+    const summary =
+      overriddenCount === 0
+        ? '✓ All 13 decisions locked. Implementation can proceed (Step 0 verification gates).'
+        : `${overriddenCount} locked override${overriddenCount===1?'':'s'} — re-confirm with owner before building`;
+    document.getElementById('review-summary').textContent = summary;
+  }
+
+  // initial counters
+  updateCounters(gather());
+
+  // ─── Copy review ───
+  const btn = document.getElementById('copy-review');
+  btn.addEventListener('click', async () => {
+    const { overrides, picks, notes } = gather();
+    const lines = [`[ENH-183 PRD review · ${new Date().toISOString().slice(0,10)}]`, ''];
+    // locked decisions
+    lines.push(`## All 13 locked decisions (overrides flagged below)`);
+    ['D1','D2','D3','D4','D5','D6','D7','D8','D9','D10','D11','D12','D13'].forEach(id => {
+      if (overrides[id]) {
+        lines.push(`  ${id}: OVERRIDE — ${overrides[id].split('\n').join(' ')}`);
+      } else {
+        lines.push(`  ${id}: ACCEPT`);
+      }
+    });
+    lines.push('');
+    // open decisions
+    // (D10–D13 are now locked too; included in the loop above)
+    lines.push(`## Owner-picked options (Notion comments 2026-05-24)`);
+    [
+      ['D10','B','vertical mini-list; copy: "Resume previous session"'],
+      ['D11','3-show-all','3 visible + show-all link'],
+      ['D12','dot','small accent dot 6×6px'],
+      ['D13','jsonl-count','count type:user JSONL entries, no cache'],
+    ].forEach(([id, val, note]) => {
+      lines.push(`  ${id}: ${val} — ${note}`);
+    });
+    // also include AC items + override loop placeholder
+    [].forEach(id => {
+      const pick = picks[id] || '(not picked)';
+      const note = notes[id] ? `  ${notes[id].split('\n').map(l => '    ' + l).join('\n')}` : '';
+      lines.push(`  ${id}: ${pick}${note ? '\n' + note : ''}`);
+    });
+    const payload = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(payload);
+      btn.textContent = '✓ Copied';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy review'; btn.classList.remove('copied'); }, 1800);
+    } catch (e) {
+      alert('Clipboard write failed (open in Duo, not Claude preview): ' + e.message);
+    }
+  });
+</script>
+
+</body>
+</html>

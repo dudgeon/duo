@@ -392,21 +392,39 @@ If you find yourself about to write "once you restart the dev
 environment...", stop, restart it yourself, then write the followup.
 
 ### 7b. End every UI sprint with a generated smoke-walk page
-After 7 confirms the work runs locally, hand the user-side
-verification to them via the **`smoke-walk` skill**
-(`.claude/skills/smoke-walk/`). The skill:
 
-- Generates an interactive HTML page with one row per shipped item
+**HARD RULE — ALWAYS invoke the `/smoke-walk` skill via the Skill
+tool. Do NOT bypass by calling `.claude/skills/smoke-walk/generate.mjs`
+or any of the skill's other scripts directly.** The skill's
+SKILL.md has procedural rules (renderer reload, surface re-probe,
+pref reset, re-walk-FAIL-only manifest, agent-walks-CLI-items)
+that the generator script alone doesn't enforce. Bypassing them is
+how regressions sneak through to the owner walk.
+
+How to invoke: call the `Skill` tool with `skill: "smoke-walk"`.
+The skill then walks the agent through:
+
+- Generating an interactive HTML page with one row per shipped item
   (description, repro steps, Pass / Fail / Skip toggle, notes textbox).
-- Opens the page in Duo's browser pane via `duo open <path>`.
+- Opening the page in Duo's browser pane via `duo open <path>`.
+- **Forcing a renderer hard-reload + re-probing every surface the
+  manifest exercises** (post-walk-1 of ENH-183 added this — HMR
+  staleness silently broke the v0.7.9 walk; see § 4b of the skill).
+- **Resetting feature-specific renderer prefs** so the owner walks
+  a fresh first-time experience (also from ENH-183 walk-1).
 - The user clicks each item, marks pass/fail, hits "Copy results,"
   and pastes the structured output back into the chat.
-- Claude parses the result, flips tasks.md statuses, decides whether
-  to advance to the `cut-version` skill.
+- Claude parses the result, flips tasks.md statuses, decides
+  whether to advance to the `cut-version` skill.
 
-**Use the skill, don't ad-hoc this.** A consistent format for
-sprint-to-sprint smoke walks is part of the data — drift defeats
-the point. Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
+**Violations are auditable.** If you find yourself running
+`node .claude/skills/smoke-walk/generate.mjs ...` directly, stop
+and re-do it through the Skill tool. Future audits search the
+transcript for `Skill` tool invocations against `smoke-walk`; an
+unmatched generator call is a process failure even if the output
+looks right.
+
+Manifests live at `docs/dev/smoke-walks/v<VERSION>.json`
 (gitignored by default; the skill's SKILL.md has the format spec).
 
 ### 7c. VERIFY CLEAN APP STATE BEFORE asking the user to smoke walk
@@ -546,6 +564,80 @@ and 7b (always run smoke walks via the skill). It moves the
 verification work UP-FUNNEL — closer to "I just wrote the code"
 instead of "the user just walked it and FAILed."
 
+### 7f. VERIFY ARTIFACTS END-TO-END BEFORE CLAIMING READY
+
+**HARD RULE — after producing any artifact (Notion page, file write,
+commit, smoke-walk page, generated HTML, CLI output), don't say "ready"
+until you've read it back through the same path the user will use.**
+A successful tool response is NOT verification. The patterns:
+
+- **Wrote a file** → `Read` it back (or `Bash cat` if structural
+  concerns) and confirm content matches intent. Especially after
+  large `Write` operations or multi-edit batches.
+- **Created/updated a Notion page** → call `notion-fetch` and
+  confirm: newlines render as newlines (not `n` characters), tables
+  render as Notion tables (not escaped pipes), embedded image URLs
+  resolve (HTTP 200 OK with non-zero bytes via curl).
+- **Created a GitHub Release** → fetch the release URL and confirm
+  the body + assets are what you intended.
+- **Pushed a commit** → `git log -1` + skim the diff; confirm hash,
+  message, and file list match.
+- **Generated a smoke-walk page** → open via `duo open`, confirm
+  the page renders + Copy-results button actually copies before
+  handoff (per the existing § 7c rule).
+
+**Why this exists.** ENH-183 PRD work 2026-05-24 burned ~90 minutes
+because I trusted a `notion-update-page` 200 response and never
+fetched back. The page was a single run-on paragraph with newline
+escape sequences mangled to literal `n` characters. Owner had to
+catch it. Similar failure modes throughout the session: claiming
+FOLLOWUP-027 was "verified live" when only CLI checks ran;
+declaring smoke-walk pages ready without exercising the worksheet
+primitive (§ 7c addresses one slice; this rule is the generalization).
+
+**Litmus test.** Before writing "ready for review" / "done" /
+"shipped" in a message, ask: *did I just look at the artifact in the
+form the user will see it?* If no, do that first. If the verification
+itself reveals problems, fix them silently rather than reporting
+"done but with caveats."
+
+### 7g. REWRITE INSTEAD OF PATCH AFTER TWO ROUNDS OF MESS-FEEDBACK
+
+**HARD RULE — if the user says any variant of "you've made a mess /
+clean this up / this is wrecked / illegible / start over" on the same
+artifact, STOP layering edits and rewrite it from scratch.** Each
+patch drags stale assumptions from the layer below; the cumulative
+result is incoherent even when each individual edit was correct.
+
+The signal isn't "the user is being demanding." It's "the file is
+structurally broken in a way edits can't fix" — usually because
+the framing changed and individual replacements can't update the
+spine.
+
+**The threshold:**
+- **1st round of mess-feedback** — fine, large edit may still
+  converge. Apply the correction.
+- **2nd round of mess-feedback on the SAME artifact** — drop the
+  file. Start fresh. Don't apologize at length; just do it.
+
+**Why this exists.** ENH-183 PRD work 2026-05-24: owner said "you've
+made a bit of a mess" early. I kept patching for ~90 minutes across
+8+ edits. Then owner said "stop rushing this slop output and do the
+fucking work" — that was the 2nd-round signal. The eventual clean
+rewrite (~10 minutes once committed to it) produced a usable
+artifact on the first try. Every patch-iteration before that was
+load-bearing wasted time.
+
+**The mechanics.** Before the second-round rewrite:
+1. Acknowledge in one sentence — "doing a clean rewrite of X." No
+   long apology.
+2. Read whatever input artifacts are still useful (the user's
+   intent, decision locks, mockups, prior commits). Discard the
+   broken draft.
+3. Write the new artifact in one pass. Don't iterate against the
+   broken one.
+4. Apply § 7f verification before declaring ready.
+
 ### 8. After editing `skill/` or `agents/`, run `npm run sync:claude`
 The repo is the canonical source; `~/.claude/skills/duo/` and
 `~/.claude/agents/duo.md` are file copies, not symlinks. Edits
@@ -646,6 +738,107 @@ breadcrumbs (machine-readable, agent-consumed), `tasks.md` ledger
 entries. The HTML rule is for **owner-decision-shaped artifacts** —
 options, gates, AUQs, pick-one-from-N.
 
+### 12. NO SIDECAR ANTI-PATTERN — state lives where it belongs
+
+**HARD RULE — before introducing any Duo-owned file, cache, or
+auxiliary data structure that mirrors, annotates, or extends another
+system's state, ask: *would this introduce a filesystem ↔
+external-system drift risk?*** If the external system is the source
+of truth, Duo's parallel store will be stale the moment the external
+system mutates. Default to reading the source of truth live every
+time.
+
+**External systems Duo reads from (read-only; never shadow):**
+- **Claude Code storage:** `~/.claude/projects/<encoded-cwd>/`
+  (sessions-index.json, JSONL files), `~/.claude/settings.json`,
+  `~/.claude/skills/`, `~/.claude/agents/`.
+- **Git worktree:** `.git/`, work-tree-root, branch, dirty status,
+  remote URL. Always read live via `git` invocations.
+- **Chrome browser state** (when reading via CDP): tab URLs, titles,
+  history. Never persisted into a Duo cache.
+- **The user's filesystem:** file mtimes, directory listings,
+  inotify/fsevents. Read live; OS page cache makes this near-free.
+
+**What's acceptable in Duo-owned storage:**
+- **Pointers** into external systems. Example: workspace JSON storing
+  `lastClaudeSession.id` — that's a *pointer*, not a copy of the
+  session title. Looking up the title still goes through Claude's
+  storage live.
+- **In-memory renderer state** that resets on Duo restart: render
+  flags, throttles, modal open/closed, edit-mode flags, dismissal
+  state for the current session. Persisting this to disk converts
+  it into a sidecar — don't.
+- **Duo-owned concepts the external system doesn't track**: workspace
+  tab layout, split-pane percentages, terminal `kind` (claude vs
+  shell vs nothing), pin URLs in `~/.claude/duo/pins.json`,
+  installed-packs metadata in `~/.claude/duo/installed-packs.json`.
+  These describe Duo, not an external system.
+
+**Examples of the anti-pattern (rejected during ENH-183 PRD):**
+- *"Track which sessions Duo auto-named in
+  `~/.claude/duo/hydrated-sessions.json` so we can show an AUTO
+  badge."* — Rejected. Once Claude's storage has a `customTitle`,
+  there is no truth to "who wrote it" outside Claude's own write
+  history. A Duo sidecar would diverge silently any time the user
+  edited `sessions-index.json` by hand, restored from backup,
+  upgraded Claude, etc.
+- *"Cache git status in workspace metadata so we don't have to
+  re-run `git status` on every render."* — Rejected (would have
+  been). The work-tree mutates outside Duo's awareness; cache goes
+  stale the moment the user runs a shell `git checkout`.
+- *"Cache browser tab titles in workspace JSON so restore is
+  faster."* — Rejected (would have been). Page title updates after
+  load; cached value is stale by definition.
+
+**Litmus test before adding a new Duo-owned file:**
+1. Is the data in this file derivable from an external system's
+   state? → It's a sidecar. Read live instead.
+2. Is the data describing something Duo itself manages (workspace
+   layout, install state, user prefs that don't shadow OS-level
+   prefs)? → Acceptable.
+3. Is it a *pointer* (an ID) that resolves into external state on
+   demand? → Acceptable.
+
+**Sub-rule — CAPTURE-ON-EVIDENCE-NOT-SPECULATION (added 2026-05-24
+post ENH-183 walk-1).** Even acceptable Duo-owned pointers must
+only be captured when there's actual evidence the tab/object the
+pointer is attached to is associated with the external thing. Don't
+"guess" a pointer for an empty slot just because the slot's
+attributes (cwd, kind) match something external.
+
+**Concrete example.** The C2 cherry-pick's workspace-save enrichment
+hook captured `lastClaudeSession.id` for every tab whose cwd had
+any recent Claude JSONL — even tabs that never ran Claude. A brand-
+new shell tab in `~/Documents/GitHub/duo/docs` inherited that
+folder's most-recent session UUID on the next autosave, just by
+existing in the right cwd. The polymorphic SessionHeader correctly
+rendered S3 ("This tab had: <title> — Resume") — but the premise
+was false; the tab never *had* that session.
+
+**Fix pattern.** A per-Duo-session in-memory set
+(`tabsThatHostedClaude: Set<tabId>`) records which tabs have
+ACTUALLY produced the evidence — claudePresence transitioned to
+'claude' or 'starting' on that tab. The pointer is only captured
+for tabs in the set OR tabs that already carry a prior pointer
+from disk (workspace-restore case is a legitimate carry-forward).
+
+**Why this matters for D9 specifically.** A "speculative" capture
+isn't sidecar storage in the literal sense — the field is on Duo's
+own object (a `TabSession`). But it's *semantically* a sidecar:
+it claims an association ("this tab had X") that Duo has no actual
+knowledge of. Surface that to the user as a UI affordance and it
+becomes misleading. The fix is the same as the sidecar rule:
+capture only on evidence; read live from the external system; if
+the external system shows nothing, surface nothing.
+
+**Why this exists.** Owner directive 2026-05-24 during ENH-183 work:
+*"session name should live in the Claude metadata, not annexed off
+in some duo specific data structure — your proposed approach risks
+file system ↔ Claude metadata drift."* The AUTO-badge proposal
+required a sidecar; the sidecar was the bug. Codified as ENH-183 §
+D9 architectural invariant; this rule generalizes it across the
+codebase.
+
 ---
 
 ## Claude Code sandbox — read before touching transport / install / CLI file I/O
@@ -677,29 +870,39 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 21 / v0.7.9 (post-v0.7.8-cut)
+## Active sprint — Sprint 21 / v0.7.9 (post-v0.7.8-cut + FOLLOWUP-027)
 
-> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) is the authoritative state. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
+> **First-read after compaction**: [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) carries the Sprint 21 implementation TODO with the file inventory + per-behavior implementation map for the marquee bundle. [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation.
 
-**Status (2026-05-23, post-cut):** v0.7.8 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized DMG attached. ENH-178 (browser blocklist three modes, `local-only` default) was the single behavior change. Dev session bumped to v0.7.9.
+**Status (2026-05-24):** v0.7.8 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized DMG attached. ENH-178 (browser blocklist three modes, `local-only` default) was the single behavior change. Dev session bumped to v0.7.9. FOLLOWUP-027 shipped this session, **uncommitted on `main`** — awaiting owner call on whether to commit standalone or bundle with the marquee.
 
-**Sprint 21 remaining scope:**
+**Sprint 21 remaining scope (the marquee):**
 
-1. **Re-ship ENH-177 + ENH-181** (Claude session resume banner + inline rename + collapse toggle) — cherry-pick or re-implement from [f351719](https://github.com/dudgeon/duo/commit/f351719) (reverted in [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Fold in: (a) banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` (prefers `customName` > `summary` > UUID fallback), and (b) **ENH-181** — collapsed-marker-on-tab default state, tap to expand, click title to enter edit mode (gated on `claudePresence === 'claude'`), Return commits via PTY `/rename` inject, Esc cancels. Mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) shows all 7 states.
+1. **ENH-177 + ENH-181 bundle** — Claude session resume banner + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle. **Full implementation TODO in [`docs/dev/active-sprint.md § Sprint 21 implementation TODO`](docs/dev/active-sprint.md)** — file inventory (9 files, ~412 LOC for the cherry-pick), per-behavior implementation map, mechanism empirics. Quick orientation:
+   - **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts.
+   - **Step 2:** Layer in 4 ENH-181 behaviors: banner title reads JSONL `customTitle` > `aiTitle` > first user message > UUID (C1 empirics — see [`docs/research/enh-183-step-0-empirics.md`](docs/research/enh-183-step-0-empirics.md)); collapsed-marker on tab as default; inline rename via PTY `\r/rename <title>\n` (gated on `claudePresence === 'claude'`); CLI parity (`duo session rename` / `collapse` / `expand`).
+   - **Step 3:** Owner walks live. Mockup at [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) (7 states) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) (phone-readable).
 
-**Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
+**Closed during planning (2026-05-23):** **ENH-180** (auto-rename Claude sessions via `/rename` PTY injection). Owner observation: Claude Code already auto-writes Haiku summaries to `sessions-index.json` — Duo doesn't need to generate its own title. The ~20-line "banner reads `sessions-index.json` and falls back to UUID" detail folds into ENH-177's re-ship. PRD preserved at [`docs/prd/_archive/enh-180-session-rename.html`](docs/prd/_archive/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block (the `/rename` mechanics + `claude -p` cost numbers are kept in case a v2 ever revisits).
+
+**Shipped this session (2026-05-24):**
+**FOLLOWUP-027** — short-circuit `openTab` + `navigateOrFocus` when `routeOffHostIfMatched` would filter the URL. Eliminates the about:blank ghost-tab that appeared when `duo open https://example.com` ran in `local-only` mode (the system browser was already popping correctly; the embedded tab creation was the bug). Return shape: `{ok, url, routedTo: 'system-browser'}` — `core/socket-server.ts § case 'open'` discriminates via `'id' in browserResult` and skips the `browser:focus-gained` push. Files touched: [`electron/browser-manager.ts`](electron/browser-manager.ts), [`core/socket-server.ts`](core/socket-server.ts). Verified end-to-end live via DOM probes (`browserTabsCount` stays at 1 + EXTERNAL_REDIRECTED banner renders correctly + `routedTo` in CLI response). **Uncommitted on `main` pending owner call.**
+
+**Memory rules locked this session:**
+- [feedback_locked_mac_screenshot_pattern](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) — when every screenshot returns wallpaper AND `(name withheld)` + `com.apple.loginwindow` in the diagnostic hidden-apps list AND `left_click` errors with `"loginwindow" is not in the allowed applications` → the Mac is LOCKED. Don't debug the app; fall back to DOM probes. Burned ~30 min during FOLLOWUP-027 verification before catching this.
 
 **Carry-forward queue** (not yet picked into Sprint 21; most-recent first):
-BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view · **FOLLOWUP-027** (about:blank artifact when local-only blocks a remote URL via `duo open` — short-circuit tab creation when filtered).
+BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
 
 **Open questions awaiting owner input:**
-Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
+- Commit FOLLOWUP-027 standalone or bundle with ENH-177+181?
+- Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
 
 ---
 
 ### Previously — v0.7.8 (shipped 2026-05-23)
 
-**Browser blocklist three modes (`local-only` default)** ([commit 6628220](https://github.com/dudgeon/duo/commit/6628220), [tag v0.7.8](https://github.com/dudgeon/duo/releases/tag/v0.7.8)). Single-focus cut: ENH-178 re-shipped via cherry-pick of [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (originally reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849) before the v0.7.7 cut). Plus docs-only follow-through: ENH-180 closed same-day (folded into ENH-177's re-ship), ENH-181 filed (banner inline rename + collapse toggle, mockup at [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html)).
+**Browser blocklist three modes (`local-only` default)** ([commit 6628220](https://github.com/dudgeon/duo/commit/6628220), [tag v0.7.8](https://github.com/dudgeon/duo/releases/tag/v0.7.8)). Single-focus cut: ENH-178 re-shipped via cherry-pick of [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (originally reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849) before the v0.7.7 cut). Plus docs-only follow-through: ENH-180 closed same-day (folded into ENH-177's re-ship), ENH-181 filed (banner inline rename + collapse toggle, mockup at [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html)).
 
 ---
 
@@ -729,7 +932,7 @@ Sprint 21 carry-forward pick beyond ENH-177 + ENH-181.
 
 **Reverted pre-cut, queued for Sprint 21:** ENH-177 (claude session resume banner; [f351719](https://github.com/dudgeon/duo/commit/f351719)/[49f4644](https://github.com/dudgeon/duo/commit/49f4644)), ENH-178 (browser blocklist three modes; [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da)/[5295849](https://github.com/dudgeon/duo/commit/5295849)).
 
-**PRD-only:** ENH-180 (auto-rename via `/rename` PTY injection) — [PRD](docs/prd/enh-180-session-rename.html) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
+**PRD-only:** ENH-180 (auto-rename via `/rename` PTY injection) — [PRD](docs/prd/_archive/enh-180-session-rename.html) + [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
 
 **Memory rule locked this sprint:** [feedback_open_every_modal_before_smoke_handoff](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_open_every_modal_before_smoke_handoff.md) (BUG-153 root-cause).
 

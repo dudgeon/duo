@@ -269,11 +269,31 @@ pre code { background: transparent; padding: 0; color: inherit; font-size: inher
 </head>
 <body>
 
+<div style="background: #fef3e9; border: 2px solid #b07527; border-radius: 6px;
+            padding: 14px 18px; margin-bottom: 24px; font-size: 14px;">
+  <strong style="color: #b07527; text-transform: uppercase; letter-spacing: 0.05em;
+                 font-size: 12px;">⚠ Archived · Superseded · 2026-05-24</strong>
+  <p style="margin: 6px 0 0; color: #4a4238;">
+    This mockup has been moved to <code>docs/prd/_archive/</code>. It was the visual companion to
+    the original ENH-177 + ENH-181 PRD (also archived). The canonical PRD covering Claude session
+    descriptions is now
+    <a href="../enh-183-claude-session-lifecycle.html" style="color: #c46a1c; font-weight: 600;">ENH-183
+    — Claude session description lifecycle</a>, which includes its own embedded mockups (S0 quiet ·
+    S1 resume pills with 3 variants · S2 named banner with provenance tags · S3 restore offer).
+    <strong>Two known issues with this old mockup:</strong> (1) the JSON schema diagram (UUID-keyed
+    map at line ~444) is <em>wrong</em> — the actual schema is <code>{version: 1, entries: [...]}</code>
+    per the empirics in ENH-183 § 11; (2) the mockup assumes <code>sessions-index.json</code> is
+    universally present, which is false (only 2 of 20 projects had one in the 2026-05-24 audit).
+    Preserved for historical reference only.
+  </p>
+</div>
+
 <header class="page-head">
   <h1>ENH-177 banner — title-from-<code>sessions-index.json</code> mockup</h1>
   <div class="meta">
     <span class="pill">Mockup</span>
-    Filed 2026-05-23 · For ENH-177 re-ship in Sprint 21 · Closes ENH-180
+    <span class="pill" style="background: #e8e0cb; color: #6f6557;">ARCHIVED</span>
+    Filed 2026-05-23 · Archived 2026-05-24 (folded into ENH-183) · Closes ENH-180
   </div>
 </header>
 
@@ -692,7 +712,7 @@ duo session expand   &lt;tabId&gt;            # explicit-expand variant</code></
 <p style="font-size: 11px; color: var(--ink-mute); margin-top: 32px; padding-top: 14px;
           border-top: 1px dashed var(--paper-edge);">
   Path: <code>docs/research/enh-177-banner-mockup.html</code> · Cross-ref:
-  <a href="../prd/enh-180-session-rename.html">ENH-180 PRD (closed)</a> ·
+  <a href="enh-180-session-rename.html">ENH-180 PRD (closed)</a> ·
   Sprint 21 / ENH-177 re-ship reference.
 </p>
 

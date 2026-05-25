@@ -76,6 +76,7 @@ import { WorkspaceHistoryService } from '../core/workspace-history-service'
 import { ActiveWorkspaceService } from '../core/active-workspace-service'
 import { BROWSER_SESSION_PARTITION } from '../core/constants'
 import { ClaudePresenceProbe } from '../core/claude-presence'
+import { detectLatestClaudeSession } from './claude-session-tracker'
 import { BrowserHistoryService } from '../core/browser-history-service'
 import { ExternalDomainsService } from '../core/external-domains-service'
 import { EventBus, type DuoEventSource } from '../core/event-bus'
@@ -211,6 +212,19 @@ let activeTerminalId: string | null = null
 // changes so the renderer's Send → Duo pill gates correctly.
 const claudePresence = new ClaudePresenceProbe()
 
+// ENH-183 (post-walk-1 owner directive) — per-Duo-session set of tab
+// ids that have ever hosted a live Claude process. The workspace-save
+// enrichment hook consults this so it only captures
+// `lastClaudeSession.id` for tabs that *actually* ran Claude during
+// this Duo run — fresh shell tabs in a CWD with recent JSONLs no
+// longer inherit a UUID just by being there. Without this gate, the
+// enrichment hook over-captures and S3's "This tab had: …" banner
+// fires on tabs that never *had* anything. Reset on Duo restart by
+// construction (in-memory only, D9 invariant); on the next run, only
+// tabs whose lastClaudeSession was persisted to workspace state from
+// a prior run survive as S3-eligible.
+const tabsThatHostedClaude = new Set<string>()
+
 // Stage 19c D27 — pending `duo new-tab` requests awaiting a renderer
 // reply. Shape mirrors docWritePending / docReadPending.
 const newTabPending = new Map<string, (res: NewTabResult) => void>()
@@ -291,6 +305,117 @@ sessionStateService.setMirrorHook(async (state) => {
   const active = activeWorkspaceService.get()
   if (!active) return
   await workspaceFileService.save(active.path, active.name, state, app.getVersion())
+})
+
+// ENH-177 (Sprint 20 / v0.7.7) — enrich each terminal entry with the
+// latest detected Claude session ID for its cwd before persisting.
+// Runs inside sessionStateService.flush() (debounced 250ms) so it
+// rides into BOTH the autosave file AND the mirror-hook payload.
+// Stale-cap at 24h so a months-old session-jsonl doesn't keep
+// surfacing the Resume banner.
+const CLAUDE_SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
+sessionStateService.setEnrichBeforePersistHook(async (state) => {
+  // Best-effort: scan in parallel. Empty terminals list short-circuits.
+  if (!state.terminals.length) return state
+
+  // ENH-183 (post-walk-1 owner directive) — only capture
+  // `lastClaudeSession.id` for tabs that ACTUALLY ran Claude during
+  // this Duo session. Pre-fix, the hook captured the most-recent
+  // JSONL UUID for every tab whose cwd had ANY recent JSONL — fresh
+  // shell tabs in `/docs` inherited a UUID just by being in that
+  // CWD when an autosave fired, causing S3 ("This tab had: …") to
+  // mis-fire on tabs that never *had* anything. Eligibility is now:
+  //   1. The tab id is in `tabsThatHostedClaude` (claudePresence
+  //      transitioned to 'claude' or 'starting' on this tab during
+  //      this Duo run), OR
+  //   2. The tab carries a prior `lastClaudeSession` from disk — the
+  //      workspace restored a tab that hosted Claude in a previous
+  //      run, and we preserve that pointer so S3 still surfaces on
+  //      restore.
+  // Anything else gets `lastClaudeSession: null`. The C9 hydration
+  // trigger (T3) also moves behind the same gate — Duo only
+  // /rename-injects sessions that this tab actually hosts.
+  // POSITIONAL MATCHING — `state.terminals[]` carries cwd/kind/title
+  // but no tabId, so we resolve each entry to a live PTY id via cwd
+  // lookup. Multiple tabs in the same cwd (e.g. 5 shells all in
+  // /docs) all share the same `listIdsByCwd` result; without ordered
+  // consumption every entry would map to the FIRST tab and the gate
+  // would over-capture (rev2 walk regression). Track a `consumed`
+  // set so each terminals[i] claims a distinct tabId. Both arrays
+  // are in tab-creation order (renderer snapshot + PtyManager.Map
+  // preserve insertion), so positional matching aligns correctly.
+  const consumedTabIds = new Set<string>()
+  const findTabIdInState = (cwd: string): string | null => {
+    const all = ptyManager.listIdsByCwd(cwd)
+    const next = all.find((id) => !consumedTabIds.has(id))
+    if (next) consumedTabIds.add(next)
+    return next ?? null
+  }
+
+  const enriched = await Promise.all(
+    state.terminals.map(async (t) => {
+      const tabId = findTabIdInState(t.cwd)
+      const tabHostedClaude = tabId ? tabsThatHostedClaude.has(tabId) : false
+      const hadPriorCapture = t.lastClaudeSession?.id != null
+
+      if (!tabHostedClaude && !hadPriorCapture) {
+        // Tab never ran Claude this session AND has no prior
+        // captured pointer from disk. Leave null — S1 pills will
+        // surface for this tab if its cwd has prior JSONLs.
+        return { ...t, lastClaudeSession: null as null }
+      }
+
+      const detected = await detectLatestClaudeSession(t.cwd, CLAUDE_SESSION_MAX_AGE_MS)
+      if (!detected) {
+        // Preserve a prior stored value if scan failed transiently.
+        if (t.lastClaudeSession) return t
+        return { ...t, lastClaudeSession: null as null }
+      }
+
+      // ENH-183 C9 — T3 trigger DISABLED 2026-05-24 after BUG-156
+      // (Claude spontaneously quit during the rev3 T3 walk; the
+      // user hypothesized PTY-injected /rename mid-turn as the
+      // cause). Forensics showed NO custom-title write reached the
+      // user's session JSONL — my gate "already-has-aiTitle" should
+      // have blocked any injection — but the cause is unconfirmed
+      // and the failure mode is severe (data loss + repeat crash
+      // on /resume). Killing the auto path until we have evidence
+      // it's safe to re-enable.
+      //
+      // CLI surfaces remain available — `duo session hydrate <tabId>`
+      // is explicit user action, so the same risk doesn't apply
+      // (user controls timing relative to Claude's turn state).
+      // Same for pill click + inline rename — all user-initiated.
+      //
+      // To re-enable: prove via tracer logging that /rename
+      // injections never land while Claude is mid-turn; OR add a
+      // "claude idle" gate (check `last-prompt`/`queue-operation`
+      // state in JSONL tail before injecting).
+      const T3_AUTO_HYDRATION_ENABLED = false
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      if (T3_AUTO_HYDRATION_ENABLED && tabHostedClaude && tabId) {
+        void (async () => {
+          try {
+            const { maybeHydrate } = await import('./session-hydrator')
+            await maybeHydrate({
+              tabId,
+              sessionUuid: detected.id,
+              cwd: t.cwd,
+              ptyWrite: (id, data) => ptyManager.write(id, data),
+            })
+          } catch {
+            // Hydration is quality-of-life; never block the save.
+          }
+        })()
+      }
+
+      return {
+        ...t,
+        lastClaudeSession: { id: detected.id, capturedAt: detected.capturedAt }
+      }
+    })
+  )
+  return { ...state, terminals: enriched }
 })
 let browserManager: BrowserManager | null = null
 let socketServer: SocketServer | null = null
@@ -497,6 +622,44 @@ async function createWindow(): Promise<void> {
     sendToActiveTerminal: sendToActiveTerminal,
     htmlNew: htmlNew,
     htmlOp: dispatchHtmlOp,
+    // ENH-183 C12 — Claude session lifecycle CLI verbs.
+    sessionList: async (cwd) => {
+      const { listPriorSessions } = await import('./claude-session-tracker')
+      return listPriorSessions(cwd)
+    },
+    sessionResume: (tabId, uuid) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      if (!/^[0-9a-f-]{36}$/.test(uuid)) return { ok: false, error: `uuid must be a UUID, got: ${uuid}` }
+      ptyManager.write(tabId, `claude --resume ${uuid}\n`)
+      return { ok: true }
+    },
+    sessionRename: (tabId, title) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      const trimmed = title.trim()
+      if (!trimmed) return { ok: false, error: 'title is empty after trim' }
+      // CR drops the user's input onto a fresh line + LF commits;
+      // identical to the C8 hydrator's injection shape so Claude
+      // treats both paths the same.
+      ptyManager.write(tabId, `\r/rename ${trimmed}\n`)
+      return { ok: true }
+    },
+    sessionHydrate: async (tabId) => {
+      const cwd = ptyManager.getCwd(tabId)
+      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
+      const { detectLatestClaudeSession } = await import('./claude-session-tracker')
+      const detected = await detectLatestClaudeSession(cwd, CLAUDE_SESSION_MAX_AGE_MS)
+      if (!detected) return { ok: false, error: 'no recent Claude session in this tab\'s cwd (24h cap)' }
+      const { maybeHydrate } = await import('./session-hydrator')
+      const result = await maybeHydrate({
+        tabId,
+        sessionUuid: detected.id,
+        cwd,
+        ptyWrite: (id, data) => ptyManager.write(id, data),
+      })
+      return { ok: true, result }
+    },
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab,
@@ -549,6 +712,13 @@ async function createWindow(): Promise<void> {
   // — the visual pill itself was the source of confusion).
   claudePresence.start()
   claudePresence.onChange((state) => {
+    // ENH-183 (post-walk-1) — record any tab that ever hosts Claude.
+    // The enrichment hook (sessionStateService below) gates UUID
+    // capture on membership in this set; without it, S3 fires on
+    // tabs that never actually ran Claude.
+    if ((state === 'claude' || state === 'starting') && activeTerminalId) {
+      tabsThatHostedClaude.add(activeTerminalId)
+    }
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(IPC.TERMINAL_CLAUDE_PRESENCE_CHANGED, state)
     }
@@ -1487,6 +1657,38 @@ function setupIPC(): void {
   })
   ipcMain.handle(IPC.SESSION_STATE_SAVE, (_event, state: import('../shared/types').SessionState) => {
     sessionStateService.save(state)
+  })
+
+  // ENH-183 C5 — banner-title + message-count lookups against Claude's
+  // JSONL store. Both are pure reads (D9 invariant — no caching, no
+  // sidecars). Imports lazy because claude-session-tracker is read-only
+  // and the IPC fires per banner render.
+  ipcMain.handle(IPC.SESSION_READ_BANNER_TITLE, async (_event, payload: { uuid: string; cwd: string }) => {
+    const { readBannerTitle } = await import('./claude-session-tracker')
+    return readBannerTitle(payload.uuid, payload.cwd)
+  })
+  ipcMain.handle(IPC.SESSION_READ_MESSAGE_COUNT, async (_event, payload: { uuid: string; cwd: string }) => {
+    const { readMessageCount } = await import('./claude-session-tracker')
+    return readMessageCount(payload.uuid, payload.cwd)
+  })
+  ipcMain.handle(IPC.SESSION_LIST_PRIOR, async (_event, payload: { cwd: string; opts?: { limit?: number; excludeUuid?: string } }) => {
+    const { listPriorSessions } = await import('./claude-session-tracker')
+    return listPriorSessions(payload.cwd, payload.opts)
+  })
+
+  // ENH-183 C9 — Duo-driven /rename injection. Renderer triggers this
+  // from T2 (manual workspace save success) and T3 (first observation
+  // that a tab's lastClaudeSession.id became non-null). Per D6, the
+  // autosave path explicitly does NOT call this — that's enforced at
+  // the renderer call site.
+  ipcMain.handle(IPC.SESSION_MAYBE_HYDRATE, async (_event, payload: { tabId: string; sessionUuid: string; cwd: string }) => {
+    const { maybeHydrate } = await import('./session-hydrator')
+    return maybeHydrate({
+      tabId: payload.tabId,
+      sessionUuid: payload.sessionUuid,
+      cwd: payload.cwd,
+      ptyWrite: (id, data) => ptyManager.write(id, data),
+    })
   })
 
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land

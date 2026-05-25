@@ -712,6 +712,21 @@ const api: ElectronAPI = {
     }
   },
 
+  // ENH-183 C5/C6 — banner-title + message-count + prior-sessions
+  // lookups against Claude's JSONL store. All stateless reads (D9
+  // invariant); the renderer recomputes via these on every banner
+  // render.
+  session: {
+    readBannerTitle: (uuid, cwd) =>
+      ipcRenderer.invoke(IPC.SESSION_READ_BANNER_TITLE, { uuid, cwd }) as Promise<import('../shared/host-api').BannerTitleResult>,
+    readMessageCount: (uuid, cwd) =>
+      ipcRenderer.invoke(IPC.SESSION_READ_MESSAGE_COUNT, { uuid, cwd }) as Promise<number>,
+    listPrior: (cwd, opts) =>
+      ipcRenderer.invoke(IPC.SESSION_LIST_PRIOR, { cwd, opts: opts ?? {} }) as Promise<import('../shared/host-api').PriorSessionListing[]>,
+    maybeHydrate: (tabId, sessionUuid, cwd) =>
+      ipcRenderer.invoke(IPC.SESSION_MAYBE_HYDRATE, { tabId, sessionUuid, cwd }) as Promise<import('../shared/host-api').MaybeHydrateResult>
+  },
+
   sessionState: {
     load: () => ipcRenderer.invoke(IPC.SESSION_STATE_LOAD) as Promise<SessionState>,
     save: (state) => ipcRenderer.invoke(IPC.SESSION_STATE_SAVE, state) as Promise<void>,

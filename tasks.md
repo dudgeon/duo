@@ -23,6 +23,101 @@
 > prune candidate: closed BUG-018..BUG-040 era entries once their
 > lessons similarly internalize.
 
+## Sprint 21 / v0.7.9 — in flight (ENH-183 walks)
+
+### FOLLOWUP-028: T3 auto-hydrator re-enable design — input-buffer race + idle-gate
+
+**Status:** 🆕 **Filed** 2026-05-24. Carries forward across compaction. Blocks T3 re-enable.
+
+**Origin.** [BUG-156](#bug-156-claude-crashed-mid-session-during-enh-183-rev3-t3-walk--root-cause-ptyresize0-0)'s defensive disable. Even though the root cause was `pty.resize(0,0)` (not the hydrator's `/rename` injection), the T3 path still has unaddressed UX risks that prevent safe re-enable:
+
+1. **`\r` force-submits user partial input.** The hydrator writes `\r/rename <title>\n`. The leading `\r` is interpreted by Claude (and any TUI) as Enter — anything in the user's input buffer gets submitted as a real prompt before the `/rename` lands. If the user is mid-typing a 3rd prompt when autosave fires + T3 gate opens, that partial becomes a Claude prompt.
+2. **Mid-turn timing.** The hydrator can fire during Claude's response to a prior prompt. Slash commands queued mid-response have unclear handling — may merge with the user's input, may be ignored, may land after Claude is idle. We don't have empirical data on which path Claude actually takes.
+3. **No idle-gate.** The current gate is messageCount + customTitle/aiTitle absence + in-memory dedup. It doesn't include "is Claude idle right now?" — which is the gate we actually need to be safe.
+
+**Proposed design.**
+- Replace `\r` with `\n` (linefeed only, no Enter-submit). The `/rename` lands on a fresh line without committing the user's partial input. Caveat: Claude's input parser may still interpret an interior `\n` as a turn boundary — verify empirically.
+- Add idle-gate: tail the session JSONL for the most-recent assistant entry's completion marker (e.g. a `stop_reason` field). Only inject when the timestamp of the last assistant turn-end is more recent than any user turn-start. Re-check every N seconds; never inject within ~500ms of an assistant entry landing.
+- Optional: also check that the user's input buffer is empty. Hard to do from main, but possible by querying xterm's `term.buffer.active.cursorY` against the prompt baseline. Renderer-side gate.
+
+**ACs for re-enable.**
+1. Empirical test: inject `/rename` while Claude is mid-turn → verify the queue handling (does it land cleanly after the assistant finishes? does it merge with the user's input? does it cause SIGHUP independent of resize?).
+2. Empirical test: `\n` vs `\r` — both should land the rename in Claude's storage. `\n` should NOT submit user's partial input.
+3. Idle-gate covers the "user is actively typing" case.
+4. Tracer log (per BUG-156 convention) records every injection so post-incident forensics work.
+
+**Where the flag lives.** `T3_AUTO_HYDRATION_ENABLED = false` in `electron/main.ts` § `setEnrichBeforePersistHook`. Flip to `true` to re-enable; restart dev to apply.
+
+---
+
+### BUG-157: Audit other fit-then-resize patterns for the same latent bug
+
+**Status:** 🆕 **Filed** 2026-05-24. Owner-callable refactor task.
+
+**Pattern.** BUG-156's root cause was renderer-side "measure DOM → write to main-process backing system via IPC" without checking whether the measured value was sane. The xterm `fit.fit()` + `pty.resize(cols, rows)` loop in TerminalPane was one instance. There are sibling instances:
+
+- `renderer/components/ImageView.tsx:95` — ResizeObserver
+- `renderer/components/BrowserRenderer.tsx:57` — ResizeObserver (browser-pane bounds → WCV)
+- `renderer/components/AuxBrowserSlot.tsx:111` — ResizeObserver (aux pane bounds → WCV)
+- `renderer/hooks/useTerminal.ts:42` — `fit.fit()` (dead code? not used by TerminalPane; grep shows no caller)
+
+**Audit ACs.**
+1. For each ResizeObserver, identify what value it computes from the host's measured bounds.
+2. Identify where that value crosses an IPC boundary (any `window.electron.*` call).
+3. Verify the receiving main-process function defensively rejects zero/negative dimensions.
+4. If not, add the guard at the main-process boundary (BUG-156's defense-in-depth pattern: authoritative check at the API border, not just at the call site).
+5. Bonus: remove `renderer/hooks/useTerminal.ts` if confirmed dead code.
+
+**Why this matters.** Any future layout-change PR (split-view resize, sidebar collapse, modal-induced reflow) can expose these latent bugs the same way ENH-183's flex-column wrapper did. Pre-emptive guards prevent the next surprise.
+
+---
+
+### BUG-156: Claude crashed mid-session during ENH-183 rev3 T3 walk — ROOT CAUSE: pty.resize(0, 0)
+
+**Status:** ✅ **Root-caused + fixed** 2026-05-24. NOT the `/rename` injection — owner hypothesis was wrong (though defensively disabling T3 first was the right call). **Actual cause:** my walk-2 fix at [07d7a08](https://github.com/dudgeon/duo/commit/07d7a08) wrapped `TerminalInstance` children in a new `<div className="relative flex-1 min-h-0">` to give SessionHeader its own in-flow slot. `min-h-0` allows the flex child to shrink to 0 during layout reflow. When the SessionHeader's height transitions (state machine flip, claudePresence change, etc.), the wrapper transiently goes through ~0 height. The xterm host's ResizeObserver fires, calls `fit.fit()` against a 0×0 host (computes 0 cols / 0 rows), then `window.electron.pty.resize(tab.id, 0, 0)` lands in `PtyManager.resize` → `pty.resize(0, 0)` → node-pty's `ioctl(TIOCSWINSZ)` writes a degenerate winsize. The child Claude TUI sees `0×0` cells, bails out cleanly, sends SIGHUP up the process group. zsh prints "1 jobs SIGHUPed". Cascade: xterm host shows `[process exited]`. `/resume` re-crashes immediately because the first-paint resize hits the same 0×0 window before the layout has settled.
+
+**Fix.** Defense-in-depth across three layers:
+1. `core/pty-manager.ts::resize()` — short-circuits if `cols < 1 || rows < 1`. Authoritative guard.
+2. `renderer/components/TerminalPane.tsx` ResizeObserver — guards on `host.getBoundingClientRect()` before fit + skip pty.resize if cols/rows < 1.
+3. The other two `pty.resize` call sites (typography effect + visibility-change effect) get the same defensive check.
+
+**Lesson.** A latent renderer bug — calling `pty.resize` after `fit.fit()` without checking the host's actual dimensions — was reachable for the first time when ENH-183's flex-column wrapper allowed transient 0-height collapse. The wrapper itself is correct (mockup-required for in-flow SessionHeader). Fix is in the layer where the bad value is generated AND defensively at the main-process API boundary.
+
+**Defensive T3 disable still in place.** [076e221](https://github.com/dudgeon/duo/commit/076e221) flagged the T3 auto-hydrator off when the owner first reported the crash. That disable was the right defensive move — even though the root cause turned out to be resize, the T3 path has its own UX issues (force-submits partial user input via `\r`, races with mid-turn state). Re-enabling T3 is a separate owner decision; current default stays OFF until we've reasoned through the input-buffer dynamics. The flag toggle lives at `T3_AUTO_HYDRATION_ENABLED` in [`electron/main.ts`](electron/main.ts).
+
+**Symptom (owner reported).** During the ENH-183-T3-AUTO-HYDRATION walk:
+1. Sent 2 prompts to a fresh Claude tab. Claude was processing the 2nd.
+2. Owner started typing a 3rd prompt to be ready to send.
+3. Claude spontaneously quit — no warning, no error message. Screenshot showed `zsh: warning: 1 jobs SIGHUPed` + `[process exited]` + return to shell.
+4. Re-initiated Claude via `/resume <prior session>` — Claude crashed AGAIN at startup.
+
+**Owner hypothesis.** ENH-183 T3 prompt injection. The C9 `setEnrichBeforePersistHook` was firing `/rename` PTY writes on every workspace autosave; the `\r/rename <title>\n` injection arriving mid-turn could:
+- Force-submit whatever was in the user's partial input buffer (the typed 3rd prompt) as a real prompt
+- Land `/rename` while Claude was queued mid-response
+- Trigger a SIGHUP path in Claude Code's input handler
+
+**Forensics (2026-05-24 evening).** Inspected all JSONL files modified in the walk window:
+- Most-recent user session in `/duo` cwd (`6226b1f8-...`): 34 user prompts; **ZERO `{"type":"custom-title", ...}` entries**. My hydrator's gate (`already-has-aiTitle`) should have prevented injection — the session had 9 ai-title entries from Haiku throughout.
+- The only `custom-title` writes today are in the agent's own session (`896d1042-...`), all `"Main live sprint"`, generated by Claude Code's own internal mechanism, not by Duo.
+
+**So either:**
+1. The hydrator never fired against the user's session (gates worked) — and Claude crashed for an unrelated reason coincidentally during the walk.
+2. The hydrator DID fire and the `/rename` write went through, but Claude crashed before persisting the JSONL entry. JSONL would not contain evidence.
+3. Some OTHER ENH-183 code path (CLI verbs, pill click, inline-rename) wrote to the PTY at an unsafe moment. None obviously trigger automatically though.
+
+**Defensive action.** Set `T3_AUTO_HYDRATION_ENABLED = false` in the enrichment hook. The `maybeHydrate` function still exists + is callable via `duo session hydrate <tabId>` (explicit user action — different risk profile). The path C9 wired (T3 autosave trigger) is dark until we have evidence it's safe.
+
+**Re-enable criteria.**
+1. Reproduce the crash in a controlled environment with traceable PTY writes.
+2. EITHER confirm the injection had nothing to do with it AND there's a separate root cause that's been fixed
+3. OR add a "Claude is idle" pre-flight gate: tail the JSONL, check for the most recent `last-prompt` / `queue-operation` entry timing relative to the latest `assistant` finish, only inject when the queue is empty.
+
+**Follow-up work.** Update ENH-183 build plan + smoke-walk skill so future PTY-injection paths require an "idle gate" by default.
+
+**Owner comment to file.** This is the kind of failure mode that's both severe (data loss + repeat crash on /resume) and hard to attribute — even with detailed forensics, causality isn't provable from JSONL artifacts alone. New convention: any code path that synthesizes input into Claude's PTY *without an explicit user gesture* must include a tracer log that records (timestamp, tabId, sessionUuid, payload) so post-incident forensics can reconstruct timing relative to Claude's process state.
+
+---
+
 ## Sprint 19 / v0.7.3 — in flight
 
 ### Bug cluster — `duo doc comment --reply-to` ergonomics + live-editor sync (BUG-142..147)
@@ -270,15 +365,51 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### FOLLOWUP-028: Projects + filtered view as a distro-pack authoring tool
+### FOLLOWUP-029: Projects + filtered view as a distro-pack authoring tool
+
+> **Renumbered 2026-05-25** from FOLLOWUP-028 at merge time — `main` had concurrently filed FOLLOWUP-028 (T3 auto-hydrator re-enable design).
 
 **Status:** 🆕 **Filed 2026-05-24** (owner note-for-later during ENH-182 filter-layer expansion). Idea: once projects-as-filter-layer (ENH-182 §5 / D8) exists, a distro pack could ship as a **pre-declared project** (its `CLAUDE.md`, skills, and starting tabs bundled), and "focus" becomes the natural way an enterprise user drops into a curated pack without seeing unrelated work. Revisit when distro-pack work resumes (pairs with 21d / ENH-112 / `/pack-builder`). No action until ENH-182 decisions land.
 
 ---
 
-### ENH-181: Resume-banner inline rename + collapse toggle
+### ENH-183: Claude session description lifecycle (supersedes ENH-177 + ENH-181 + reopens ENH-180 in limited form)
 
-**Status:** 🟡 **Filed 2026-05-23.** Sprint 21 candidate; folds into ENH-177's re-ship. Scope split between the banner UI and the PTY injection wire.
+**Status:** 🟢 **All 13 decisions locked 2026-05-24. Ready to build (C1 Step-0 empirics gates).** Sprint 21 marquee. PRD lifecycle: filed 2026-05-24, owner walk → D9 architectural invariant added (no Duo-side sidecars) → D2-D8 locked in initial draft → Notion comments locked D10-D13 + D2 educational-banner addition.
+
+**What it does.** Reframes the original ENH-177 (workspace-resume banner) + ENH-181 (inline rename + collapse) PRD around the **session description as a core feature**, not a workspace-resume affordance. Adds:
+
+- **Polymorphic session header** above each terminal tab — 4 states: S0 (quiet), S1 (resume pills before first message), S2 (named banner with click-to-rename + collapse), S3 (restore-offer banner after workspace switch). **No provenance badge** per D9 — once title is in `customName`, Duo doesn't track who wrote it.
+- **Resume pills** (S1) — when starting a fresh Claude session in a CWD with prior history, the header offers prior sessions as one-click resume targets. Auto-dismiss on first Return. **Locked variant:** B (vertical mini-list) with copy "Resume previous session"; 3 visible + "show all" link.
+- **`/rename` as the universal write primitive** — Duo invokes `/rename` via PTY injection in both user-driven mode (click banner title → inline edit) and **Duo-driven mode** (hydration triggers fire D8 derivation ladder + inject). Reopens ENH-180's scope in limited form: Duo derives titles from cheap signals (first user message in JSONL) — no LLM call.
+- **Three hydration triggers** — T1 (idle-threshold: messageCount ≥ 3 + unnamed via JSONL `type:'user'` count per D13), T2 (manual workspace save), T3 (first session-UUID capture into workspace metadata). Autosave never triggers hydration.
+- **First-time educational banner** (Notion comment 2026-05-24) — once per install, dismissable: *"Duo named this from your first message; type `/rename` in Claude any time."* Single boolean in renderer prefs; not per-session.
+- **CLI parity** — 7 new `duo session ...` verbs covering list / resume / rename / hydrate / collapse / expand / dismiss-pills / auto-hydrate toggle.
+
+**Canonical PRD:** [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html) — 18 sections, lifecycle diagram, 3 pill mockup variants, 13 locked decisions (D10–D13 collapsed to "show original options" details element since owner picked), mechanism empirics table, 8 risk cards, 15 acceptance criteria + D9-invariant ACs, 3-step implementation plan.
+
+**Build plan:** [`docs/dev/enh-183-build-plan.md`](docs/dev/enh-183-build-plan.md) — 13 commits (C1 Step-0 empirics → C13 smoke walk → propose cut). Each commit has scope, files touched, ACs, checkbox.
+
+**Children (folded in):** [ENH-177](#) (workspace-resume banner — becomes S3) · [ENH-181](#enh-181) (inline rename + collapse — becomes S2 mechanics) · [ENH-180](#enh-180) (Duo-driven /rename — limited form reopened per D4 + D8).
+
+**Cherry-pick base:** [commit f351719](https://github.com/dudgeon/duo/commit/f351719) (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). 9 files, ~412 LOC. Step 1 of the build plan.
+
+**Owner picks from Notion comments 2026-05-24:**
+- **D10** → Variant B (vertical mini-list), copy: **"Resume previous session"** (singular)
+- **D11** → option a · 3 visible + "show all"
+- **D12** → option a · small accent dot (6×6px)
+- **D13** → option a · count `type:'user'` JSONL entries (no cache per D9)
+- **D2 addition** → first-time educational banner
+
+**C1 Step-0 empirics (gating, ~15 min, no code):** verify `/rename` PTY-injection target — the prior PRD claimed `\r/rename X\n` writes to `sessions-index.json § customName`, but a 16-project / 20-session audit found zero `customName` fields in any existing JSON. Likely Claude adds the field on first /rename, but needs a live test before C2 cherry-pick.
+
+**Notion mirror:** [36a45f48854f81b49571dd1cb12a11e5](https://www.notion.so/36a45f48854f81b49571dd1cb12a11e5) (v3 page — clean, with embedded mockup PNGs + top callout summarizing the lock-ins). PNGs reachable at [`docs/research/assets/enh-183-mockups/`](docs/research/assets/enh-183-mockups/).
+
+---
+
+### ENH-181: Resume-banner inline rename + collapse toggle — folded into ENH-183
+
+**Status:** 🟡 **Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2026-05-24.** Original scope below preserved for historical reference. The inline rename + collapse toggle behaviors now live in ENH-183 § S2 (collapsed/expanded/edit mode).
 
 **What it does.** The resume banner ENH-177 paints (post-workspace-switch) gains two new affordances:
 
@@ -297,7 +428,9 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 4. Collapse state: `useState<Record<tabId, boolean>>` in `TerminalPane` or workspace-level. Tab strip renders the "⏪" marker chip when `lastClaudeSession` exists AND `collapsed === true`; banner renders inside the terminal when `collapsed === false`.
 5. CLI parity (per CLAUDE.md § 4): `duo session rename <tabId> "<title>"` for agent-driven rename, same PTY inject path.
 
-**Mockup:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html) — extended with collapsed-tab state, expanded-banner state, edit-mode state, post-commit state.
+**Canonical PRD:** [`docs/prd/_archive/enh-177-181-session-resume-banner.html`](docs/prd/_archive/enh-177-181-session-resume-banner.html) **(archived — superseded by [`docs/prd/enh-183-claude-session-lifecycle.html`](docs/prd/enh-183-claude-session-lifecycle.html))** — owner-locked 2026-05-24. 12 sections: scope, 7 locked decisions w/ rationale, file inventory (9 files, ~412 LOC for cherry-pick), mechanism empirics table, 6 risk cards, 10 acceptance criteria, build order, out-of-scope. Has Copy-review button at footer. [Notion mirror](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d).
+
+**Visual companion:** [`docs/prd/_archive/enh-177-banner-mockup.html`](docs/prd/_archive/enh-177-banner-mockup.html) (archived) — the 7 states rendered interactively.
 
 **Cross-ref:** [ENH-177](#) (the banner this extends) · [ENH-180](#enh-180) (closed; the PTY-injection mechanism survives here in user-driven form) · [ENH-082](#) (Terminal Context Bar — another consumer of session titles).
 
@@ -307,9 +440,9 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 **Status:** ✅ **Closed same-day as filed** (2026-05-23). Owner observation killed the question this ENH was built to answer: Claude Code already auto-writes a Haiku-generated summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` once a session has had a few exchanges. Duo doesn't need its own title generator. The clean scope is just "ENH-177's banner reads `sessions-index.json` (prefers `summary` > `customName` > short UUID fallback), `/rename` remains the user's manual override." That folds into ENH-177's re-ship as a ~20-line detail.
 
-**PRD preserved at** [`docs/prd/enh-180-session-rename.html`](docs/prd/enh-180-session-rename.html) with closure banner at top + the four-decision body collapsed into a `<details>` block. The `/rename` mechanics + `claude -p` cost empirics are preserved in case a v2 ever revisits.
+**PRD preserved at** [`docs/prd/_archive/enh-180-session-rename.html`](docs/prd/_archive/enh-180-session-rename.html) (archived) with closure banner at top + the four-decision body collapsed into a `<details>` block. The `/rename` mechanics + `claude -p` cost empirics are preserved in case a v2 ever revisits.
 
-**Mockup of the simplified experience for ENH-177's re-ship:** [`docs/research/enh-177-banner-mockup.html`](docs/research/enh-177-banner-mockup.html).
+**Mockup of the simplified experience for ENH-177's re-ship:** [`docs/prd/_archive/enh-177-banner-mockup.html`](docs/prd/_archive/enh-177-banner-mockup.html) (archived).
 
 **Cross-ref:** [ENH-177](#) (the banner that absorbs this work) · [ENH-082](#) (Terminal Context Bar — would consume the same title for its "Job statement" auto-populate when built).
 
@@ -381,9 +514,11 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ---
 
-### ENH-177: Restore Claude session across workspace switch — track + offer resume
+### ENH-177: Restore Claude session across workspace switch — folded into ENH-183
 
-**Status:** 🟡 **Filed 2026-05-23 · built + reverted pre-cut 2026-05-23 — queued for re-ship next sprint with ENH-180 folded in.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement Sprint 21 after owner walks the workspace-switch-and-back flow live. **ENH-180 closed and absorbed into this re-ship** — banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` for its title (prefers `customName` > `summary` > short UUID fallback); see [mockup](docs/research/enh-177-banner-mockup.html). **ENH-181 also bundled** — inline rename via PTY `/rename` (gated on claudePresence), collapse-to-tab-marker toggle, Esc cancels edit. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
+**Status:** 🟡 **Filed 2026-05-23 · folded into [ENH-183](#enh-183) 2026-05-24.** Original ENH-177 scope (workspace-resume banner) now lives as **S3 (restore-offer)** in the ENH-183 canonical PRD. Implementation still cherry-picks [f351719](https://github.com/dudgeon/duo/commit/f351719) as Step 1; ENH-183 then layers the S0/S1/S2 states + hydration triggers on top. Original entry text below preserved for historical reference.
+
+**[Original entry — historical] · 2026-05-23 · built + reverted pre-cut — queued for re-ship next sprint with ENH-180 folded in.** Implementation landed at [f351719](https://github.com/dudgeon/duo/commit/f351719); reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644) so v0.7.7 cuts without the banner. Capture path (`electron/claude-session-tracker.ts` + `enrichBeforePersistHook`) and banner UI (`ClaudeResumeBanner.tsx`) are in git history; cherry-pick or re-implement Sprint 21 after owner walks the workspace-switch-and-back flow live. **ENH-180 closed and absorbed into this re-ship** — banner reads `~/.claude/projects/<encoded-cwd>/sessions-index.json` for its title (prefers `customName` > `summary` > short UUID fallback); see [mockup](docs/prd/_archive/enh-177-banner-mockup.html) (archived). **ENH-181 also bundled** — inline rename via PTY `/rename` (gated on claudePresence), collapse-to-tab-marker toggle, Esc cancels edit. Owner ask: *"when a terminal tab _had_ an active claude session in it, and the user switches to a different workspace and come back, their claude session appears to be lost; I want us to know (eg via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session (I'm not sure if this is exposed), such that on session restart we can either run 'claude resume {session}', or remind the user that they can (with a non-annoying banner)."*
 
 **Owner-locked spec (2026-05-23):**
 
@@ -976,9 +1111,13 @@ Original entry kept for context: 🆕 **Filed 2026-05-18 (post-v0.7.1 cut).** Ow
 
 ### FOLLOWUP-027: Short-circuit tab creation when `local-only` would block a remote URL
 
-**Status:** 🟡 **Filed 2026-05-23** (v0.7.8 cut session). When the user (or agent) runs `duo open https://example.com` while `browserMode === 'local-only'`, the system browser DOES pop correctly via `shell.openExternal`. But the embedded BrowserManager still creates a new tab in Duo whose URL the filter strips — it ends up as `about:blank`. Cosmetic, not data-loss; the actual URL renders in the system browser as expected.
+**Status:** ✅ **Shipped 2026-05-23** (Sprint 21 / v0.7.9). `BrowserManager.openTab` and `navigateOrFocus` now call `routeOffHostIfMatched(url)` BEFORE invoking `addTab`. When the URL would be filtered (local-only mode + remote URL, or filtered mode + blocklist match), the routing's existing side effects fire (`shell.openExternal` + `EXTERNAL_REDIRECTED` banner) and the methods return `{ok: true, url, routedTo: 'system-browser'}` without creating an embedded `WebContentsView`. No more about:blank ghost-tab.
 
-**Fix path:** in `BrowserManager.openInNewTab(url)` (or wherever `duo open` lands), consult `routeOffHostIfMatched(url)` BEFORE creating the WebContentsView tab. If it returns true (URL will be filtered), skip the tab creation entirely and return the same `{ok, routedTo: 'system-browser'}` shape via a new code path. Update `cli/duo.ts § case 'open'` to surface `routedTo: 'system-browser'` in the JSON response when this happens so the caller knows the URL didn't render in Duo.
+Verified end-to-end: `duo open https://example.com` in local-only mode returns `routedTo: 'system-browser'`, system browser pops, tab count unchanged. Local URLs (`https://localhost:5173`) and unfiltered-mode remote URLs continue to create tabs normally.
+
+**Files touched:** [`electron/browser-manager.ts`](electron/browser-manager.ts) — added pre-check in `openTab` + `navigateOrFocus`; return-type union widened. [`core/socket-server.ts § case 'open'`](core/socket-server.ts) — discriminates the new shape via `'id' in browserResult` and skips the `browser:focus-gained` push when routed externally. The `case 'navigate'` path is already a pass-through of `navigateOrFocus`'s return value, so the new shape surfaces automatically.
+
+**Filed:** 2026-05-23 (v0.7.8 cut session). **Shipped:** 2026-05-23.
 
 **Cross-ref:** [ENH-178](#enh-178-browser-blocklist-refactor--three-modes-with-local-only-default) (shipped v0.7.8 — this artifact noted during the verification turn).
 

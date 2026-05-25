@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="duo-editable" content="false">
+<title>PRD — ENH-177 + ENH-181 — Claude session resume banner + inline rename + collapse toggle</title>
+<style>
+/* ─── Atelier kernel (inlined from skill/references/duo-atelier.css) ─── */
+:root {
+  --paper: #fbf8f1;
+  --paper-deep: #f3ede0;
+  --paper-edge: #e8e0cb;
+  --paper-rule: #d9cea8;
+  --ink: #2b2620;
+  --ink-soft: #4a4238;
+  --ink-mute: #6f6557;
+  --ink-ghost: #9a9080;
+  --accent: #c46a1c;
+  --accent-soft: #f4d9b6;
+  --pass: #4a7d3e;
+  --fail: #b13e3a;
+  --warn: #b07527;
+  --code-bg: #2b2823;
+  --code-ink: #e8e0cb;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: var(--paper); color: var(--ink);
+  font-family: -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+body { padding: 32px 40px 120px; max-width: 1060px; margin: 0 auto; }
+header.page-head {
+  border-bottom: 1px solid var(--paper-rule);
+  padding-bottom: 16px; margin-bottom: 24px;
+}
+header.page-head h1 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-style: italic; font-weight: 500; margin: 0 0 6px; font-size: 25px;
+}
+header.page-head .meta { color: var(--ink-mute); font-size: 13px; }
+header.page-head .meta .pill {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-soft); color: var(--accent);
+  font-weight: 600; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.04em; margin-right: 6px;
+}
+header.page-head .meta .pill.locked { background: #d4e6cf; color: var(--pass); }
+.intro {
+  background: var(--paper-deep); border: 1px solid var(--paper-rule);
+  border-radius: 6px; padding: 14px 18px; margin-bottom: 28px;
+  font-size: 13.5px; color: var(--ink-soft);
+}
+.intro strong { color: var(--ink); font-weight: 600; }
+h2 {
+  font-family: "New York", "Iowan Old Style", Georgia, serif;
+  font-weight: 600; margin: 36px 0 12px; font-size: 19px;
+  border-bottom: 1px solid var(--paper-rule); padding-bottom: 6px;
+}
+h3 { font-weight: 600; margin: 22px 0 8px; font-size: 15px; }
+p { margin: 8px 0; }
+ul, ol { margin: 8px 0 12px; padding-left: 22px; }
+li { margin: 4px 0; }
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px; background: var(--paper-deep);
+  padding: 1px 5px; border-radius: 3px;
+}
+pre {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; line-height: 1.55;
+  background: var(--code-bg); color: var(--code-ink);
+  padding: 14px 16px; border-radius: 6px; overflow-x: auto;
+}
+pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+table {
+  border-collapse: collapse; margin: 12px 0; width: 100%;
+  font-size: 13px;
+}
+th, td {
+  border: 1px solid var(--paper-rule);
+  padding: 7px 11px; text-align: left; vertical-align: top;
+}
+th { background: var(--paper-deep); font-weight: 600; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* Decision card — owner-locked */
+.decision-card {
+  background: var(--paper-deep);
+  border-left: 4px solid var(--pass);
+  border-radius: 4px;
+  padding: 12px 16px 14px;
+  margin: 12px 0;
+}
+.decision-card .q {
+  font-weight: 600; font-size: 14.5px; margin-bottom: 6px;
+}
+.decision-card .a {
+  color: var(--ink-soft); font-size: 13.5px;
+}
+.decision-card .rationale {
+  color: var(--ink-mute); font-size: 12.5px; font-style: italic;
+  margin-top: 5px;
+}
+.decision-card.warn { border-left-color: var(--warn); }
+
+/* Inline tags */
+.tag {
+  display: inline-block;
+  padding: 1px 7px; border-radius: 8px;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.03em;
+  background: var(--paper-edge); color: var(--ink-mute);
+}
+.tag.locked { background: #d4e6cf; color: var(--pass); }
+.tag.open { background: var(--accent-soft); color: var(--accent); }
+.tag.closed { background: #e8e0cb; color: var(--ink-mute); text-decoration: line-through; }
+
+/* Acceptance checklist */
+.checklist {
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-rule);
+  border-radius: 6px;
+  padding: 14px 22px;
+}
+.checklist li { margin: 6px 0; }
+.checklist li::marker { color: var(--accent); }
+
+/* Risk callout */
+.risk {
+  background: #fef3e9; border-left: 4px solid var(--warn);
+  border-radius: 4px; padding: 10px 14px;
+  margin: 10px 0; font-size: 13px;
+}
+.risk strong { color: var(--warn); }
+
+/* Mini-mockup callouts (linking to the full mockup) */
+.mockup-ref {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--paper-deep);
+  border: 1px dashed var(--paper-rule);
+  border-radius: 6px; padding: 12px 16px; margin: 14px 0;
+  font-size: 13px;
+}
+.mockup-ref .icon {
+  flex-shrink: 0; font-size: 22px; line-height: 1;
+}
+.mockup-ref a { font-weight: 600; }
+
+/* Review copy-bar */
+.review-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  background: var(--paper-deep);
+  border-top: 1px solid var(--paper-rule);
+  padding: 14px 24px;
+  display: flex; align-items: center; gap: 16px;
+  z-index: 10;
+  box-shadow: 0 -3px 12px rgba(0,0,0,0.05);
+}
+.review-bar .label {
+  font-weight: 600; color: var(--ink-soft); font-size: 13.5px;
+}
+.review-bar select, .review-bar input, .review-bar button, .review-bar textarea {
+  font: inherit;
+  border: 1px solid var(--paper-rule);
+  background: var(--paper);
+  border-radius: 4px;
+  padding: 5px 9px;
+}
+.review-bar textarea {
+  flex: 1; min-height: 36px; max-height: 90px;
+  resize: vertical;
+}
+.review-bar button {
+  background: var(--accent); color: white; border: none;
+  padding: 7px 16px; font-weight: 600; cursor: pointer;
+  border-radius: 4px;
+}
+.review-bar button:hover { background: #a8580f; }
+.review-bar .saved {
+  color: var(--pass); font-size: 13px; font-weight: 600;
+  margin-left: 6px; opacity: 0; transition: opacity 0.3s;
+}
+.review-bar .saved.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div style="background: #fef3e9; border: 2px solid #b07527; border-radius: 6px;
+            padding: 14px 18px; margin-bottom: 24px; font-size: 14px;">
+  <strong style="color: #b07527; text-transform: uppercase; letter-spacing: 0.05em;
+                 font-size: 12px;">⚠ Superseded · 2026-05-24</strong>
+  <p style="margin: 6px 0 0; color: #4a4238;">
+    This PRD has been replaced by the canonical
+    <a href="../enh-183-claude-session-lifecycle.html" style="color: #c46a1c; font-weight: 600;">ENH-183
+    — Claude session description lifecycle</a> PRD, which covers the full session-description
+    lifecycle (S0 quiet · S1 resume pills · S2 named banner · S3 restore offer) and reframes the
+    work around Claude session descriptions as a core feature rather than just a workspace-resume
+    affordance. <strong>Do not act on the content below;</strong> it is preserved for historical
+    reference only. The decision tree and mockups here are partially folded into ENH-183's S2 +
+    S3 sections.
+  </p>
+</div>
+
+<header class="page-head">
+  <h1>ENH-177 + ENH-181 — Claude session resume banner + inline rename + collapse toggle</h1>
+  <div class="meta">
+    <span class="pill locked">Owner-locked</span>
+    <span class="pill" style="background: #e8e0cb; color: #6f6557;">SUPERSEDED</span>
+    PRD · 2026-05-24 · supersedes the closed
+    <a href="enh-180-session-rename.html">ENH-180 PRD</a> (folded in)
+  </div>
+</header>
+
+<div class="intro">
+  <strong>This is the formal PRD</strong> for the Sprint 21 marquee bundle. Design is owner-locked across 7 decisions (captured below). The
+  <a href="enh-177-banner-mockup.html"><code>enh-177-banner-mockup.html</code></a> is the visual companion — open it in Duo's browser pane via <code>duo open</code> to flip through the 7 states. The
+  <a href="https://www.notion.so/36945f48854f810ca7f9dfa275c4389d">Notion mirror</a> embeds the PNG render for phone-side review.
+</div>
+
+<h2>1 · Why this exists</h2>
+
+<p>
+Workspace switch tears down terminal tabs and re-spawns them on restore — Claude sessions running inside those tabs <strong>don't survive</strong>. The user loses their working context with no breadcrumb back to it. Owner directive (2026-05-23):
+</p>
+
+<blockquote style="border-left: 3px solid var(--accent); margin: 12px 0; padding: 8px 16px; background: var(--paper-deep); font-style: italic; color: var(--ink-soft); font-size: 13.5px;">
+"When a terminal tab had an active claude session in it, and the user switches to a different workspace and comes back, their claude session appears to be lost. I want us to know (e.g. via workspace autosave metadata) when a given terminal tab last had an active claude session, ideally an identifier for that claude session, such that on session restart we can either run <code>claude resume {session}</code>, or remind the user that they can (with a non-annoying banner)."
+</blockquote>
+
+<p>
+The original ENH-177 build (<a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a>) shipped the banner mechanism but was reverted at <a href="https://github.com/dudgeon/duo/commit/49f4644">49f4644</a> before the v0.7.7 cut for re-ship after a proper owner walk. Sprint 21 re-ships it bundled with ENH-181 (the inline-rename + collapse-toggle behaviors that emerged from the v0.7.8 design conversation), and absorbs the closed ENH-180 (auto-rename via <code>/rename</code> — killed because Claude Code already auto-summarizes).
+</p>
+
+<h2>2 · What ships</h2>
+
+<table>
+  <thead>
+    <tr><th>Component</th><th>Source</th><th>What it does</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>ENH-177 core</strong></td>
+      <td>Cherry-pick from <a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a></td>
+      <td>Capture the most-recent claude session per terminal tab at autosave time. On workspace restore, surface a non-modal banner with title + Resume button + dismiss ×. Click Resume → writes <code>claude --resume &lt;id&gt;\n</code> to the PTY.</td>
+    </tr>
+    <tr>
+      <td><strong>Title from sessions-index</strong></td>
+      <td>ENH-180 closure detail (new)</td>
+      <td>Banner title reads <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code> with precedence <code>customName &gt; summary &gt; short(UUID)</code>. Claude Code's own auto-summary becomes the default title with zero work on Duo's side.</td>
+    </tr>
+    <tr>
+      <td><strong>Inline rename</strong></td>
+      <td>ENH-181 (new)</td>
+      <td>Click the banner title → contentEditable → type → Return → Duo writes <code>\r/rename &lt;new-title&gt;\n</code> to the live claude PTY. Esc cancels. Gated on <code>claudePresence === 'claude'</code> in the tab.</td>
+    </tr>
+    <tr>
+      <td><strong>Collapse toggle</strong></td>
+      <td>ENH-181 (new)</td>
+      <td>Default state is a small <code>⏪</code> marker chip on the terminal tab. Tapping the tab expands the full banner; tapping again collapses back. Per-tab, per-session state (lost on Duo quit).</td>
+    </tr>
+    <tr>
+      <td><strong>CLI parity</strong></td>
+      <td>ENH-181 (new)</td>
+      <td><code>duo session rename &lt;tabId&gt; "&lt;title&gt;"</code>, <code>duo session collapse &lt;tabId&gt;</code>, <code>duo session expand &lt;tabId&gt;</code> — agent-side parity per CLAUDE.md § 4.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>3 · The 7 states (visual)</h2>
+
+<div class="mockup-ref">
+  <div class="icon">🖼️</div>
+  <div>
+    <strong><a href="enh-177-banner-mockup.html">Open the mockup HTML</a></strong>
+    for all 7 visual states rendered interactively (3 ENH-177 banner shapes + 4 ENH-181 rename/collapse states). Best viewed in Duo's browser pane via <code>duo open docs/research/enh-177-banner-mockup.html</code>.
+    <br>
+    <small style="color: var(--ink-mute);">PNG render at <a href="enh-177-banner-mockup.png">enh-177-banner-mockup.png</a> (also embedded in the Notion mirror).</small>
+  </div>
+</div>
+
+<h3>Quick state inventory</h3>
+
+<table>
+  <thead><tr><th>#</th><th>State</th><th>Trigger</th></tr></thead>
+  <tbody>
+    <tr><td>A</td><td>Banner with Claude's auto-generated summary as title</td><td>Common case after &gt;3 exchanges in the prior session</td></tr>
+    <tr><td>B</td><td>Banner with user-set <code>customName</code> as title</td><td>User has previously run <code>/rename</code> in this session</td></tr>
+    <tr><td>C</td><td>Banner with short-UUID fallback as title</td><td>Brand-new session with no summary yet (very fresh)</td></tr>
+    <tr><td>1</td><td>Collapsed marker (<code>⏪</code> chip) on the terminal tab</td><td>Default state on workspace switch — banner hidden</td></tr>
+    <tr><td>2</td><td>Expanded banner with dashed-underline + pencil glyph on title</td><td>Tab tapped → banner shown + claude is alive (rename eligible)</td></tr>
+    <tr><td>3</td><td>Edit mode: contentEditable title, accent border, Resume/× dimmed</td><td>User clicked the title</td></tr>
+    <tr><td>4</td><td>Post-commit: green <code>✓ saved</code> flash for 2s</td><td>Return pressed; <code>/rename</code> wrote to PTY</td></tr>
+  </tbody>
+</table>
+
+<h2>4 · Owner-locked decisions</h2>
+
+<p>All decisions below are locked. The accompanying rationale captures why we landed where we did so future-us doesn't re-litigate.</p>
+
+<div class="decision-card">
+  <div class="q">D1 · Banner trigger — workspace switch only?</div>
+  <div class="a">✅ <strong>Yes.</strong> Banner surfaces only when a workspace-switch restore detects a prior claude session for this tab. Not on Duo cold-start (would be too noisy across many sessions over time).</div>
+  <div class="rationale">Owner spec 2026-05-23. The use case is the specific "I just switched workspaces" friction — not a general "you have old sessions" reminder.</div>
+</div>
+
+<div class="decision-card">
+  <div class="q">D2 · Title source — what does the banner say?</div>
+  <div class="a">✅ <strong>Read <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code></strong> for the matching session ID. Precedence: <code>customName &gt; summary &gt; short(UUID)</code>. Re-read on file change (debounced) so claude's own auto-summary refresh and our <code>/rename</code> write both propagate live.</div>
+  <div class="rationale">Owner observation killed ENH-180 (auto-rename via Duo-side Haiku). Claude Code already writes a Haiku summary after ~3 exchanges. We just read it. Zero schema coupling on our side.</div>
+</div>
+
+<div class="decision-card">
+  <div class="q">D3 · Manual rename mechanism — direct file write or PTY injection?</div>
+  <div class="a">✅ <strong>Path 2: PTY injection.</strong> Duo writes <code>\r/rename &lt;title&gt;\n</code> to the live claude PTY. Claude processes the slash command and updates <code>sessions-index.json § customName</code> itself.</div>
+  <div class="rationale">Trade-off accepted: 2-line transcript footprint per rename (the <code>/rename</code> command line + claude's confirmation). Benefit: zero schema coupling — claude owns the write, our injection survives any sessions-index.json format migration. Direct file write would couple us to a private file format. Empirically verified during the v0.7.8 design conversation.</div>
+</div>
+
+<div class="decision-card">
+  <div class="q">D4 · Edit gating — when is rename allowed?</div>
+  <div class="a">✅ <strong>Only when <code>claudePresence === 'claude'</code> in the tab.</strong> When claude is not alive in the tab, the title shows non-editable (<code>cursor: not-allowed</code> + tooltip explaining).</div>
+  <div class="rationale">Owner directive 2026-05-23: <em>"if needed we can limit to only when Claude is active."</em> Required by mechanism — without a live PTY, the inject has nowhere to land. Future ENH could allow rename via direct write when claude is dead, but ships separately.</div>
+</div>
+
+<div class="decision-card">
+  <div class="q">D5 · Default state after workspace switch — banner shown or marker only?</div>
+  <div class="a">✅ <strong>Collapsed marker on the tab</strong> (a small <code>⏪</code> chip). Banner hidden by default. Tapping the tab toggles between the two.</div>
+  <div class="rationale">Owner directive 2026-05-23: <em>"bundle in a collapse function: tapping on tab exposes it, hides the description."</em> The banner is high-signal but visually heavy; the marker is the always-on equivalent of "you have a session you can resume here." Tap-to-toggle keeps the discoverability without the noise.</div>
+</div>
+
+<div class="decision-card">
+  <div class="q">D6 · Esc handling — cancel-edit or dismiss-banner?</div>
+  <div class="a">✅ <strong>Esc cancels mid-edit only.</strong> Reverts the title to its prior value. Does NOT dismiss the banner. (Banner dismissal stays on the × button.)</div>
+  <div class="rationale">Owner directive 2026-05-23: <em>"Esc while editing name should cancel/revert."</em> Standard contentEditable UX; matches most rename-in-place flows.</div>
+</div>
+
+<div class="decision-card">
+  <div class="q">D7 · ENH-180 disposition — ship auto-rename via PTY?</div>
+  <div class="a">✅ <strong>Closed.</strong> Folded into ENH-177 as "banner reads sessions-index.json." The PTY <code>/rename</code> mechanism survives in ENH-181 as the user-driven case only.</div>
+  <div class="rationale">Owner observation 2026-05-23: Claude Code already writes Haiku-generated summaries to <code>sessions-index.json</code> automatically. Duo doesn't need its own title generator. Closes a 20-line read instead of a 200-line write+filter+cost-management feature. ENH-180 PRD <a href="enh-180-session-rename.html">preserved with closure banner</a> in case a v2 ever revisits.</div>
+</div>
+
+<h2>5 · Implementation plan</h2>
+
+<h3>Step 1 — Cherry-pick ENH-177 from <code>f351719</code></h3>
+
+<p>The original build is intact in git history. Cherry-pick is the cleanest path; conflicts limited to surrounding files that moved during Sprints 18–20 (App.tsx and TerminalPane.tsx especially).</p>
+
+<pre><code>git cherry-pick -n f351719   # -n: don't auto-commit; resolve conflicts first
+# resolve conflicts, then move to Step 2 BEFORE committing
+</code></pre>
+
+<p>File inventory:</p>
+
+<table>
+  <thead><tr><th>File</th><th>Type</th><th>Shape</th></tr></thead>
+  <tbody>
+    <tr><td><code>electron/claude-session-tracker.ts</code></td><td>new (~81 LOC)</td><td>Pure helpers: <code>encodeProjectDir(absPath)</code> mirrors Claude's <code>/</code> and <code>.</code> → <code>-</code> naming; <code>detectLatestClaudeSession(cwd, maxAgeMs)</code> scans <code>~/.claude/projects/&lt;encoded-cwd&gt;/</code> for newest <code>.jsonl</code>, returns session UUID.</td></tr>
+    <tr><td><code>electron/claude-session-tracker.test.ts</code></td><td>new (~36 LOC)</td><td>6 vitest cases against real on-disk directory names.</td></tr>
+    <tr><td><code>core/session-state-service.ts</code></td><td>edit (~57 LOC)</td><td>Adds <code>setEnrichBeforePersistHook</code> — async pre-write decoration hook. Runs inside <code>flush()</code> so enrichment rides both autosave file AND mirror-hook payload.</td></tr>
+    <tr><td><code>electron/main.ts</code></td><td>edit (~30 LOC)</td><td>Wires the hook to call <code>detectLatestClaudeSession</code> for every terminal entry. Stale captures (&gt;24h) dropped. Defensive: if scan fails but prior session stored, preserve (no flicker on transient errors).</td></tr>
+    <tr><td><code>renderer/components/ClaudeResumeBanner.tsx</code></td><td>new (~55 LOC)</td><td>Banner component. Click Resume → writes <code>claude --resume &lt;id&gt;\n</code> to PTY.</td></tr>
+    <tr><td><code>renderer/components/TerminalPane.tsx</code></td><td>edit (~43 LOC)</td><td>Mounts the banner per-terminal-tab when <code>lastClaudeSession</code> exists AND not yet dismissed in this session.</td></tr>
+    <tr><td><code>renderer/App.tsx</code></td><td>edit (~16 LOC)</td><td>Plumbing.</td></tr>
+    <tr><td><code>renderer/styles/globals.css</code></td><td>edit (~77 LOC)</td><td>Banner styling.</td></tr>
+    <tr><td><code>shared/types.ts</code></td><td>edit (~17 LOC)</td><td>Adds <code>lastClaudeSession?: { id: string; capturedAt: number } | null</code> field to terminal-tab persisted state.</td></tr>
+  </tbody>
+</table>
+
+<h3>Step 2 — Layer in ENH-181 (the 4 new states from the mockup)</h3>
+
+<table>
+  <thead><tr><th>Behavior</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Banner title reads <code>sessions-index.json</code></strong></td>
+      <td>In <code>claude-session-tracker.ts</code>: add <code>readSessionTitle(cwd, sessionId): Promise&lt;{ customName?: string; summary?: string }&gt;</code> reading from <code>~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code> (filter to the session id). Banner subscribes via <code>fs.watchFile</code> on the sessions-index path (debounced) and re-reads on change. UUID fallback uses first 8 chars.</td>
+    </tr>
+    <tr>
+      <td><strong>Collapsed marker on tab (default state)</strong></td>
+      <td>Lift collapse state to workspace level: <code>useState&lt;Record&lt;tabId, boolean&gt;&gt;</code> in <code>TerminalPane</code>'s parent, default <code>true</code> (collapsed) when <code>lastClaudeSession</code> first appears. Tab-strip render uses this to show the marker. Banner mount condition: <code>!collapsed[tabId]</code>.</td>
+    </tr>
+    <tr>
+      <td><strong>Inline rename via PTY <code>/rename</code> inject</strong></td>
+      <td>Banner JSX: title becomes <code>&lt;span contentEditable={isEditing}&gt;</code> with <code>onBlur</code> + <code>onKeyDown</code> handlers. New IPC <code>duo.session.rename(tabId, title)</code> → routes to existing <code>PtyManager.write(tabId, '\r/rename ' + title + '\n')</code>. Banner reads <code>claudePresence</code> (already in renderer state) to gate edit eligibility.</td>
+    </tr>
+    <tr>
+      <td><strong>CLI parity</strong></td>
+      <td>Standard plumbing per CLAUDE.md § 4: <code>shared/types.ts § DuoCommandName</code> + <code>electron/preload.ts</code> + <code>electron/main.ts</code> + <code>core/socket-server.ts</code> + <code>cli/duo.ts</code> + <code>skill/SKILL.md</code> + <code>agents/duo.md</code> + <code>docs/CLI-COVERAGE.md</code>. Rebuild + commit <code>cli/duo</code> binary.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Step 3 — Verify live</h3>
+
+<p>Owner walks: workspace-switch → marker on tab → tap to expand → click title → type new name → Return → confirm <code>/rename</code> lands in claude transcript → wait for <code>sessions-index.json § customName</code> to update → confirm banner re-renders with new title → re-tap tab to collapse.</p>
+
+<p>Computer-use access for Electron should already be granted from this session. If screenshots return only wallpaper despite Electron being granted, see the <a href="../../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md">locked-Mac signature memory rule</a> — DOM probes via <code>duo dom --js</code> / <code>duo layout</code> work regardless of lock state.</p>
+
+<h2>6 · Mechanism empirics (locked, don't re-research)</h2>
+
+<table>
+  <thead><tr><th>Approach</th><th>Cost</th><th>Latency</th><th>Persists?</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>claude -p '/rename X'</code></td>
+      <td>n/a</td>
+      <td>n/a</td>
+      <td>n/a</td>
+      <td><span class="tag" style="background: #f5d6d4; color: var(--fail);">Rejected</span> Returns <em>"isn't available in this environment"</em> — slash commands are TUI-only.</td>
+    </tr>
+    <tr>
+      <td><code>--name</code> on <code>--resume</code></td>
+      <td>$0.73/call</td>
+      <td>multi-second</td>
+      <td>Not visibly</td>
+      <td><span class="tag" style="background: #f5d6d4; color: var(--fail);">Rejected</span> Expensive (Opus default + 117K cache-token reload). Title doesn't visibly persist to sessions-index.</td>
+    </tr>
+    <tr>
+      <td>Direct write to <code>sessions-index.json</code></td>
+      <td>$0</td>
+      <td>~0s</td>
+      <td>Yes</td>
+      <td><span class="tag" style="background: #f5d6d4; color: var(--fail);">Rejected</span> Schema-coupled. Breaks if Claude Code changes the file format.</td>
+    </tr>
+    <tr>
+      <td><strong>Write <code>\r/rename &lt;title&gt;\n</code> to live PTY</strong></td>
+      <td><strong>$0</strong></td>
+      <td><strong>~0s</strong></td>
+      <td><strong>Yes</strong></td>
+      <td><span class="tag locked">✅ Chosen</span> Persists to <code>customName</code>. Visible in <code>/resume</code> picker + terminal title + the banner. Zero schema coupling. The <code>\r</code> prefix is critical — verified empirically; just <code>/rename\n</code> doesn't always commit if there's pending input on the PTY line.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>7 · Risk + edge cases</h2>
+
+<div class="risk">
+  <strong>Risk:</strong> Claude died between trigger and rename click.
+  <br>
+  <strong>Mitigation:</strong> D4's <code>claudePresence === 'claude'</code> gating. Title becomes non-editable when claude is absent; tooltip explains why. Pencil glyph and dashed underline disappear.
+</div>
+
+<div class="risk">
+  <strong>Risk:</strong> <code>sessions-index.json</code> missing or unreadable (very fresh session, permissions issue, custom Claude Code install path).
+  <br>
+  <strong>Mitigation:</strong> Fallback ladder. Title falls through to <code>short(UUID)</code> if neither <code>customName</code> nor <code>summary</code> is available. Renamed sessions appear with their UUID prefix until claude generates a summary or user runs <code>/rename</code>.
+</div>
+
+<div class="risk">
+  <strong>Risk:</strong> Multiple claude sessions in the same cwd; banner shows the wrong one.
+  <br>
+  <strong>Mitigation:</strong> ENH-177's <code>detectLatestClaudeSession</code> picks the newest <code>.jsonl</code> by mtime. Per-tab capture at autosave time means the banner shows the specific session that WAS running in this terminal tab, not the cwd's most-recent session globally.
+</div>
+
+<div class="risk">
+  <strong>Risk:</strong> User mid-edit when focus drifts to another app (e.g. iMessage notification click).
+  <br>
+  <strong>Mitigation:</strong> Click-outside also commits (consistent with most contentEditable UX). Esc explicitly cancels. No "draft in limbo" state.
+</div>
+
+<div class="risk">
+  <strong>Risk:</strong> User types <code>/rename</code> manually in the claude transcript while edit mode is open in the banner.
+  <br>
+  <strong>Mitigation:</strong> Banner re-reads <code>sessions-index.json</code> on file change. The user-typed rename takes effect immediately; the banner picks up the new title. If edit mode is open at that moment, Return-to-commit would overwrite the manual rename, but that's the user's stated intent (they're typing in the banner). No data loss path.
+</div>
+
+<div class="risk">
+  <strong>Risk:</strong> The <code>\r</code> prefix collides with some shell mid-state where another character is mid-input.
+  <br>
+  <strong>Mitigation:</strong> Verified empirically during v0.7.8 design conversation; <code>\r</code> reliably commits any pending input then submits the <code>/rename</code> line. Edge case for a paste-in-progress is theoretical and would still produce a single recoverable line in the transcript.
+</div>
+
+<h2>8 · Test plan</h2>
+
+<h3>Vitest</h3>
+
+<ul>
+  <li><strong>Carry from <code>f351719</code>:</strong> <code>electron/claude-session-tracker.test.ts</code> — 6 cases for <code>encodeProjectDir</code> + <code>detectLatestClaudeSession</code>.</li>
+  <li><strong>New:</strong> title fallback ladder (<code>customName &gt; summary &gt; short(UUID)</code>) — 3+ cases including a missing <code>sessions-index.json</code>.</li>
+  <li><strong>New:</strong> PTY rename inject — assert <code>PtyManager.write</code> called with <code>'\r/rename ' + title + '\n'</code> exactly. Test absent-claude rejection.</li>
+  <li><strong>New:</strong> <code>claudePresence</code> gating — banner edit mode rejected when presence is <code>'shell'</code> or <code>'unknown'</code>.</li>
+  <li><strong>New:</strong> CLI verb parity — <code>duo session rename</code> / <code>collapse</code> / <code>expand</code> dispatch correctly.</li>
+</ul>
+
+<h3>Smoke walk (owner-driven)</h3>
+
+<ul>
+  <li>Open a terminal tab in Workspace A; start <code>claude</code>; exchange ~3 messages so Haiku summary kicks in.</li>
+  <li>Switch to Workspace B; switch back to A.</li>
+  <li>✅ Terminal tab shows a <code>⏪</code> marker chip.</li>
+  <li>Tap the tab → banner expands with the Haiku summary as title.</li>
+  <li>✅ Title shows dashed underline + pencil glyph (claude is alive).</li>
+  <li>Click title → contentEditable, accent border, Resume/× dim.</li>
+  <li>Type "my-test-title" → Return.</li>
+  <li>✅ <code>/rename my-test-title</code> appears in the claude transcript.</li>
+  <li>✅ Within ~1s, <code>sessions-index.json § customName</code> shows the new name (verify via <code>cat ~/.claude/projects/&lt;encoded-cwd&gt;/sessions-index.json</code>).</li>
+  <li>✅ Banner re-renders with "my-test-title" as the new title; brief <code>✓ saved</code> flash.</li>
+  <li>Tap tab again → banner collapses to marker.</li>
+  <li>Tap × on a re-expanded banner → banner dismissed for this tab-session.</li>
+  <li>Re-open: <code>duo open ...</code> the workspace fresh → marker should re-appear (dismiss is per-session, not persistent).</li>
+</ul>
+
+<h2>9 · Acceptance criteria</h2>
+
+<div class="checklist">
+  <ol>
+    <li>Workspace switch → return: affected terminal tab shows <code>⏪</code> marker chip.</li>
+    <li>Tap tab → banner expands with title from <code>sessions-index.json</code> (Haiku summary or customName).</li>
+    <li>Banner title click → contentEditable + accent border (only when <code>claudePresence === 'claude'</code>).</li>
+    <li>Type new title → Return → <code>/rename</code> lands in claude transcript → <code>sessions-index.json § customName</code> updates → banner re-renders.</li>
+    <li>Esc cancels mid-edit; click-outside commits.</li>
+    <li>Tap tab a second time → banner collapses to marker.</li>
+    <li>× dismisses banner for the current tab-session only.</li>
+    <li>CLI parity: <code>duo session rename</code> / <code>collapse</code> / <code>expand</code> work as documented.</li>
+    <li>No regression: workspace switch baseline behavior (tab restore, cwd preservation) unchanged.</li>
+    <li>No regression: terminal-tab right-click menu, ⌘W close-tab, ⌘Z reopen-closed-tab unchanged.</li>
+  </ol>
+</div>
+
+<h2>10 · Out of scope (deferred)</h2>
+
+<ul>
+  <li><strong>Rename when claude is dead</strong> — D4 gates on live presence. Direct file write would allow rename-when-dead but couples us to the schema. Defer until owner sees the friction.</li>
+  <li><strong>Multiple sessions per tab UI</strong> — banner shows the single most-recent <code>.jsonl</code> by mtime. Picking among multiple priors is a future ENH.</li>
+  <li><strong>Cross-tab rename propagation</strong> — same session ID in multiple Duo windows would show separate banners. Live <code>fs.watchFile</code> means a rename in one window updates the others; race conditions on simultaneous edits in two banners are theoretical (and the second commit wins, no data loss).</li>
+  <li><strong>Resume-by-search</strong> — picking among ALL prior sessions for a cwd (not just the most-recent). This is what <code>claude /resume</code> already does in-TUI; Duo doesn't duplicate it.</li>
+  <li><strong>Rename keyboard shortcut</strong> — no <code>⌘E</code>-style chord for "enter edit mode." Click is the only path. Owner can ask for a chord post-ship if needed.</li>
+</ul>
+
+<h2>11 · Build order + commit shape</h2>
+
+<ol>
+  <li><strong>Cherry-pick</strong> <code>f351719</code> (uncommitted via <code>-n</code>). Resolve conflicts.</li>
+  <li><strong>Layer in</strong> the 4 ENH-181 behaviors per Step 2 table.</li>
+  <li><strong>Add tests</strong> per § 8.</li>
+  <li><strong>Rebuild <code>cli/duo</code></strong> and stage. Update CLAUDE.md § 4 docs.</li>
+  <li><strong>Typecheck + vitest</strong> green; restart dev session for main-process changes.</li>
+  <li><strong>Owner smoke walk</strong> per § 8.</li>
+  <li><strong>Commit shape:</strong> single <code>feat(ENH-177+ENH-181)</code> commit. Body cites the f351719 source + ENH-181 layered behaviors + closes ENH-180.</li>
+  <li><strong>Propose v0.7.9 cut</strong> via the <code>cut-version</code> skill once the smoke walk passes.</li>
+</ol>
+
+<h2>12 · Cross-references</h2>
+
+<ul>
+  <li><strong>Mockup (visual companion):</strong> <a href="enh-177-banner-mockup.html"><code>docs/research/enh-177-banner-mockup.html</code></a> · <a href="enh-177-banner-mockup.png">PNG render</a></li>
+  <li><strong>Notion mirror:</strong> <a href="https://www.notion.so/36945f48854f810ca7f9dfa275c4389d">ENH-177 + ENH-181 page (Duo Idle Thoughts)</a></li>
+  <li><strong>Original ENH-177 build:</strong> <a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a> (reverted at <a href="https://github.com/dudgeon/duo/commit/49f4644">49f4644</a>)</li>
+  <li><strong>Closed sibling:</strong> <a href="enh-180-session-rename.html">ENH-180 PRD</a> — auto-rename was killed; PTY <code>/rename</code> mechanism survives here in user-driven form</li>
+  <li><strong>Future consumer:</strong> <a href="../../research/enh-082-terminal-context-bar.md">ENH-082</a> (when built) would reuse the same <code>sessions-index.json</code> title for its "Job statement" auto-populate.</li>
+  <li><strong>tasks.md entries:</strong> <a href="../../../tasks.md">tasks.md § ENH-181</a> + <a href="../../../tasks.md">tasks.md § ENH-177</a></li>
+  <li><strong>Active sprint:</strong> <a href="../../dev/active-sprint.md">active-sprint.md § Sprint 21 implementation TODO</a> — file inventory + per-behavior implementation map</li>
+</ul>
+
+<div class="review-bar">
+  <div class="label">Owner review:</div>
+  <select id="verdict">
+    <option value="">— Verdict —</option>
+    <option value="approved">✅ Approved — ship as specified</option>
+    <option value="approved-with-notes">🟡 Approved with notes (see below)</option>
+    <option value="needs-revision">🔴 Needs revision</option>
+  </select>
+  <textarea id="notes" placeholder="Notes / concerns / changes (optional)"></textarea>
+  <button onclick="copyReview()">Copy review</button>
+  <span class="saved" id="saved">Copied!</span>
+</div>
+
+<script>
+// localStorage persist
+const verdictEl = document.getElementById('verdict');
+const notesEl = document.getElementById('notes');
+const STORAGE_KEY = 'duo.prd.enh-177-181.review';
+
+function load() {
+  try {
+    const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    if (data.verdict) verdictEl.value = data.verdict;
+    if (data.notes) notesEl.value = data.notes;
+  } catch (e) {}
+}
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({
+    verdict: verdictEl.value,
+    notes: notesEl.value
+  }));
+}
+verdictEl.addEventListener('change', save);
+notesEl.addEventListener('input', save);
+load();
+
+function copyReview() {
+  const verdict = verdictEl.value || '(no verdict selected)';
+  const notes = notesEl.value.trim() || '(no notes)';
+  const text = '## ENH-177 + ENH-181 PRD review\n\n**Verdict:** ' + verdict + '\n\n**Notes:**\n' + notes + '\n';
+  navigator.clipboard.writeText(text).then(() => {
+    const saved = document.getElementById('saved');
+    saved.classList.add('show');
+    setTimeout(() => saved.classList.remove('show'), 1800);
+  });
+}
+</script>
+
+</body>
+</html>

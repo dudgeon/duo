@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body { margin: 0; padding: 16px; background: #fbf8f1; font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-size: 13px; color: #2b2620; }
+.label { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; color: #c46a1c; margin: 16px 0 6px; }
+.label:first-child { margin-top: 0; }
+
+.terminal-mock { background: #1a1814; border-radius: 8px; border: 1px solid #3a342d; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.10); margin-bottom: 8px; }
+.tab-strip { background: #25221d; border-bottom: 1px solid #3a342d; padding: 6px 10px 0; display: flex; gap: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; }
+.tab { background: #2f2b25; color: #9a9080; padding: 6px 14px 7px; border-radius: 4px 4px 0 0; border: 1px solid #3a342d; border-bottom: none; }
+.tab.active { background: #1a1814; color: #e8e0cb; }
+.sh { background: #2a2620; border-bottom: 1px solid #3a342d; color: #e8e0cb; font-size: 12.5px; padding: 10px 14px; }
+.sh .prefix { color: #9a9080; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; display: block; }
+.sh .row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 4px; font-size: 12px; }
+.sh .row .icon { color: #c46a1c; }
+.sh .row .title { color: #fbf8f1; font-style: italic; }
+.sh .row .msgs { color: #9a9080; font-size: 11px; font-family: ui-monospace, monospace; }
+.sh .row .when { color: #6f6557; font-size: 11px; }
+.sh .footer { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #3a342d; font-size: 10.5px; color: #6f6557; display: flex; justify-content: space-between; }
+.sh .footer a { color: #c46a1c; text-decoration: none; }
+.sh.scroll { max-height: 220px; overflow-y: auto; }
+.term-body { padding: 12px 16px 18px; font-family: ui-monospace, monospace; font-size: 11.5px; color: #d4cbb8; line-height: 1.55; min-height: 50px; }
+.term-body .ghost { color: #5a5247; }
+.term-body .prompt { color: #c46a1c; }
+.term-body .cursor { background: #c46a1c; display: inline-block; width: 7px; height: 12px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<div class="label">Option a · 3 visible + "show all" (recommended)</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab active">~/projects/duo</span>
+  </div>
+  <div class="sh">
+    <span class="prefix">Resume previous session</span>
+    <div class="row"><span class="icon">↻</span><span class="title">Implementing the workspace switcher dropdown</span><span class="msgs">47 msgs</span><span class="when">2d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">Sprint 19 polish wave</span><span class="msgs">112 msgs</span><span class="when">1d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-138 phase 4 — Backspace intercept</span><span class="msgs">8 msgs</span><span class="when">5h ago</span></div>
+    <div class="footer"><span>4 older sessions · <a>show all</a></span><span>Dismiss · keep new session</span></div>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">Option b · 5 visible + "show all"</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab active">~/projects/duo</span>
+  </div>
+  <div class="sh">
+    <span class="prefix">Resume previous session</span>
+    <div class="row"><span class="icon">↻</span><span class="title">Implementing the workspace switcher dropdown</span><span class="msgs">47 msgs</span><span class="when">2d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">Sprint 19 polish wave</span><span class="msgs">112 msgs</span><span class="when">1d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-138 phase 4 — Backspace intercept</span><span class="msgs">8 msgs</span><span class="when">5h ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">ENH-177 banner spike</span><span class="msgs">23 msgs</span><span class="when">3d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-122 hypothesis 4 — soft-break collapse</span><span class="msgs">15 msgs</span><span class="when">4d ago</span></div>
+    <div class="footer"><span>2 older sessions · <a>show all</a></span><span>Dismiss · keep new session</span></div>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231)</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+<div class="label">Option c · All visible (bad default for 80-session CWDs)</div>
+<div class="terminal-mock">
+  <div class="tab-strip">
+    <span class="tab active">~/projects/duo</span>
+  </div>
+  <div class="sh scroll">
+    <span class="prefix">Resume previous session · 86 sessions in this folder</span>
+    <div class="row"><span class="icon">↻</span><span class="title">Implementing workspace switcher dropdown</span><span class="msgs">47 msgs</span><span class="when">2d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">Sprint 19 polish wave</span><span class="msgs">112 msgs</span><span class="when">1d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-138 phase 4</span><span class="msgs">8 msgs</span><span class="when">5h ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">ENH-177 banner spike</span><span class="msgs">23 msgs</span><span class="when">3d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-122 hypothesis 4</span><span class="msgs">15 msgs</span><span class="when">4d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">FOLLOWUP-022 doc highlight verb</span><span class="msgs">6 msgs</span><span class="when">5d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">ENH-148 multi-select v2</span><span class="msgs">31 msgs</span><span class="when">6d ago</span></div>
+    <div class="row"><span class="icon">↻</span><span class="title">BUG-091 right-click move-to-split</span><span class="msgs">14 msgs</span><span class="when">7d ago</span></div>
+    <div class="row" style="color: #6f6557;"><span class="icon">↻</span><span class="title">… 78 more, scroll to see all</span><span class="msgs"></span><span class="when"></span></div>
+    <div class="footer"><span>(scrollable list)</span><span>Dismiss · keep new session</span></div>
+  </div>
+  <div class="term-body">
+    <span class="ghost">$ claude (running, pid 50231) — banner has taken over the pane</span><br>
+    <span class="prompt">~/projects/duo $</span> <span class="cursor"></span>
+  </div>
+</div>
+
+</body>
+</html>

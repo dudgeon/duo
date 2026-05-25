@@ -238,6 +238,10 @@ declare friction sites once and stop fighting them.
 | `duo workspace list-recent` | **ENH-167** — JSON list of recent workspaces sorted by `lastOpenedAt`, capped at 10, pruned for missing files on disk. | JSON: `[{ path, name, savedAt, lastOpenedAt }]` |
 | `duo workspace current` | **ENH-167** — which workspace is loaded right now (Open Workspace or last Save). `null` when untitled. | JSON: `{ path, name } \| null` |
 | `duo workspace new` | **ENH-167** — **resets the workspace in-place.** Collapses to one fresh shell terminal at the live CWD of the previously-frontmost terminal; closes every working-pane tab except pinned ones (file + browser pins both restore via the existing boot-time hooks); clears the active-workspace pointer (title bar back to "Duo"). CLI skips the GUI Save-current prompt. | JSON: `{ ok }`. |
+| `duo session list [--cwd <path>]` | **ENH-183** — list prior Claude `<uuid>.jsonl` sessions in a CWD (defaults to the active terminal's cwd). Each entry has `{uuid, title, source, messageCount, modifiedAt}` where `source` is `customTitle` / `aiTitle` / `jsonl-firstmsg` / `uuid`. Mirrors the data that powers the S1 pills surface. | JSON: `PriorSessionListing[]` |
+| `duo session resume <tabId> <uuid>` | **ENH-183** — spawn `claude --resume <uuid>` in the named tab's PTY. `<tabId>` comes from `duo layout` (`terminal.tabs[].id`). | JSON: `{ ok: true }` |
+| `duo session rename <tabId> "<title>"` | **ENH-183** — user-driven counterpart to Duo auto-hydration. PTY-injects `\r/rename <title>\n` so Claude appends a `{"type":"custom-title","customTitle":"...","sessionId":"..."}` JSONL entry. Multi-word titles are joined after `<tabId>`. | JSON: `{ ok: true }` |
+| `duo session hydrate <tabId>` | **ENH-183** — force-attempt Duo-driven hydration on the named tab. Goes through the same `maybeHydrate` gates as the autosave-triggered T3 path. Useful for the agent to fire hydration after sending 3+ messages without waiting for autosave. | JSON: `{ hydrated, reason, title? }` |
 
 ## Patterns
 
