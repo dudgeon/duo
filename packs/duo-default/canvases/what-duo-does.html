@@ -880,6 +880,15 @@
   </div>
 </article>
 
+<article class="item" data-keys="claude session resume pick up where left off s1 s3 enh-183 workspace switch restore offer pills prior sessions list">
+  <div class="num">40c</div>
+  <div>
+    <h3>Pick up where you left off — resume prior Claude sessions</h3>
+    <p class="why"><strong>v0.7.9+</strong> Two affordances surface prior Claude sessions in the cwd so you don't have to remember <code>claude --resume &lt;uuid&gt;</code>. <strong>Resume pills (S1):</strong> when you open a fresh shell tab in a folder that has prior Claude sessions on disk, Duo shows a vertical list above the prompt — `Resume previous session` followed by 3 most-recent rows with title + message count + relative time, plus a `show all` link if more exist. Click a row to restore that session. <strong>Restore offer (S3):</strong> when you switch workspaces and a tab that previously hosted Claude reattaches, Duo paints a banner above its xterm — `⏪ This tab had: &lt;title&gt; — [Resume] ×`. Click Resume to fire `claude --resume &lt;uuid&gt;` in the tab. Click × to dismiss for this tab + this Duo run (in-memory only — next workspace restore brings it back). Both surfaces use the D5 read ladder for titles: prefer `customTitle` (you typed `/rename`) over `aiTitle` (Haiku's summary) over first-prompt fallback. Live Claude tabs themselves show no banner — Claude Code's own `✳ &lt;title&gt;` tab title already conveys session identity.</p>
+    <p class="how"><strong>UI</strong>Open a shell tab in a folder you've used Claude in → see the resume pills. Switch workspaces and return → see the restore offer.<br><strong>CLI</strong> <code>duo session list [--cwd &lt;path&gt;]</code> (list resumable sessions in a CWD) · <code>duo session resume &lt;tabId&gt; &lt;uuid&gt;</code> (fire `claude --resume` in the named tab — same wire as clicking a pill).</p>
+  </div>
+</article>
+
 <article class="item" data-keys="workspace save open recent .duo-workspace file menu enh-167 named workspaces bookmark tabs terminals reset new pinned">
   <div class="num">37a</div>
   <div>

@@ -372,43 +372,10 @@ sessionStateService.setEnrichBeforePersistHook(async (state) => {
         return { ...t, lastClaudeSession: null as null }
       }
 
-      // ENH-183 C9 — T3 trigger DISABLED 2026-05-24 after BUG-156
-      // (Claude spontaneously quit during the rev3 T3 walk; the
-      // user hypothesized PTY-injected /rename mid-turn as the
-      // cause). Forensics showed NO custom-title write reached the
-      // user's session JSONL — my gate "already-has-aiTitle" should
-      // have blocked any injection — but the cause is unconfirmed
-      // and the failure mode is severe (data loss + repeat crash
-      // on /resume). Killing the auto path until we have evidence
-      // it's safe to re-enable.
-      //
-      // CLI surfaces remain available — `duo session hydrate <tabId>`
-      // is explicit user action, so the same risk doesn't apply
-      // (user controls timing relative to Claude's turn state).
-      // Same for pill click + inline rename — all user-initiated.
-      //
-      // To re-enable: prove via tracer logging that /rename
-      // injections never land while Claude is mid-turn; OR add a
-      // "claude idle" gate (check `last-prompt`/`queue-operation`
-      // state in JSONL tail before injecting).
-      const T3_AUTO_HYDRATION_ENABLED = false
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-      if (T3_AUTO_HYDRATION_ENABLED && tabHostedClaude && tabId) {
-        void (async () => {
-          try {
-            const { maybeHydrate } = await import('./session-hydrator')
-            await maybeHydrate({
-              tabId,
-              sessionUuid: detected.id,
-              cwd: t.cwd,
-              ptyWrite: (id, data) => ptyManager.write(id, data),
-            })
-          } catch {
-            // Hydration is quality-of-life; never block the save.
-          }
-        })()
-      }
-
+      // ENH-183 pared 2026-05-25 (Option A) — T3 auto-hydration dropped.
+      // Haiku covers ~80% of session titles; Duo's force-rename added
+      // risk (BUG-156) for marginal coverage. Capture stays; injection
+      // gone. See tasks.md § ENH-183 status table.
       return {
         ...t,
         lastClaudeSession: { id: detected.id, capturedAt: detected.capturedAt }
@@ -634,32 +601,9 @@ async function createWindow(): Promise<void> {
       ptyManager.write(tabId, `claude --resume ${uuid}\n`)
       return { ok: true }
     },
-    sessionRename: (tabId, title) => {
-      const cwd = ptyManager.getCwd(tabId)
-      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
-      const trimmed = title.trim()
-      if (!trimmed) return { ok: false, error: 'title is empty after trim' }
-      // CR drops the user's input onto a fresh line + LF commits;
-      // identical to the C8 hydrator's injection shape so Claude
-      // treats both paths the same.
-      ptyManager.write(tabId, `\r/rename ${trimmed}\n`)
-      return { ok: true }
-    },
-    sessionHydrate: async (tabId) => {
-      const cwd = ptyManager.getCwd(tabId)
-      if (cwd === null) return { ok: false, error: `tabId not found: ${tabId}` }
-      const { detectLatestClaudeSession } = await import('./claude-session-tracker')
-      const detected = await detectLatestClaudeSession(cwd, CLAUDE_SESSION_MAX_AGE_MS)
-      if (!detected) return { ok: false, error: 'no recent Claude session in this tab\'s cwd (24h cap)' }
-      const { maybeHydrate } = await import('./session-hydrator')
-      const result = await maybeHydrate({
-        tabId,
-        sessionUuid: detected.id,
-        cwd,
-        ptyWrite: (id, data) => ptyManager.write(id, data),
-      })
-      return { ok: true, result }
-    },
+    // ENH-183 pared 2026-05-25 (Option A): sessionRename + sessionHydrate
+    // removed. Force-rename unnecessary (Haiku covers it); inline rename
+    // surface dropped with S2. Users type `/rename` directly in Claude.
     htmlComment: dispatchHtmlComment,
     htmlCommentsList: dispatchHtmlCommentsList,
     newTab: dispatchNewTab,
@@ -1676,20 +1620,8 @@ function setupIPC(): void {
     return listPriorSessions(payload.cwd, payload.opts)
   })
 
-  // ENH-183 C9 — Duo-driven /rename injection. Renderer triggers this
-  // from T2 (manual workspace save success) and T3 (first observation
-  // that a tab's lastClaudeSession.id became non-null). Per D6, the
-  // autosave path explicitly does NOT call this — that's enforced at
-  // the renderer call site.
-  ipcMain.handle(IPC.SESSION_MAYBE_HYDRATE, async (_event, payload: { tabId: string; sessionUuid: string; cwd: string }) => {
-    const { maybeHydrate } = await import('./session-hydrator')
-    return maybeHydrate({
-      tabId: payload.tabId,
-      sessionUuid: payload.sessionUuid,
-      cwd: payload.cwd,
-      ptyWrite: (id, data) => ptyManager.write(id, data),
-    })
-  })
+  // ENH-183 pared 2026-05-25 (Option A): SESSION_MAYBE_HYDRATE IPC
+  // dropped along with the hydrator + S2 inline-rename surface.
 
   // ENH-167 — workspace-as-file IPC handlers (renderer menu-clicks land
   // here; CLI verbs reach the same helpers via NavBridge).

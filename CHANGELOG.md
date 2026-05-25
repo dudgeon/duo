@@ -19,7 +19,38 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.8 cut 2026-05-23.
+> Empty — v0.7.9 cut 2026-05-25.
+
+## [0.7.9] — 2026-05-25
+
+### Added
+
+- **ENH-183** Claude session resume affordances (pared scope, Option A). **S1 resume pills** — a fresh shell tab in a CWD that has prior Claude session JSONLs surfaces a vertical list of resumable sessions in the terminal area; clicking a row writes `claude --resume <uuid>\n` to the tab's PTY. **S3 restore-offer banner** — a workspace switch reattaches a tab that previously hosted Claude; the banner reads `⏪ This tab had: <title> — [Resume] ×`; clicking Resume restores the session. Both surfaces use the **D5 read ladder** (`customTitle` > `aiTitle` > `firstPrompt` > `uuid`) for human-readable titles. Dismissal of S3's `×` is per-tab and in-memory only (resets next workspace restore, per D9 invariant).
+- **ENH-183 CLI** — `duo session list [--cwd <path>]` lists prior Claude `<uuid>.jsonl` sessions in a CWD; `duo session resume <tabId> <uuid>` programmatically resumes (same wire as S1/S3 click).
+
+### Fixed
+
+- **BUG-158** — `encodeProjectDir` now resolves symlinks before encoding. macOS `/tmp` is a symlink to `/private/tmp`, so a Claude session started at `/tmp/X` writes to `~/.claude/projects/-private-tmp-X/`. Pre-fix, Duo looked up `-tmp-X/` (literal encoding) and returned "no recent Claude session" for fresh sessions. Surfaced by ENH-183 rev4 walk when CLI-HYDRATE failed against a working `/tmp/duo-walk-hydrate` session. Fix is best-effort: ENOENT falls back to literal encoding (preserves prior behavior for non-existent paths). 2 regression tests added in `electron/claude-session-tracker.test.ts`.
+- **BUG-160** — `SessionHeader` discriminator's `dismissedBanner` flag is now scoped to the S3 branch only. Pre-fix, the flag short-circuited the entire discriminator to `S0` regardless of state — so clicking Resume on S3 (which sets `dismissedBanner: true` to prevent re-firing) would have suppressed the S2 banner. S2 has since been pared out, but the discriminator fix is correct + defensive for future state surfaces. Regression test added.
+- **FOLLOWUP-027** — `duo open <url>` and `duo navigate <url>` now short-circuit embedded-tab creation when `local-only` mode (default since v0.7.8) would filter the URL. Pre-fix, Duo briefly created an `about:blank` ghost-tab while the system browser correctly popped with the real URL. Return shape: `{ok, url, routedTo: 'system-browser'}` when routed externally.
+
+### Removed (Option A pare-back, owner directive 2026-05-25)
+
+- **S2** named banner above live Claude sessions (`● Claude session: <title>`) — Claude Code v2.x's own tab title with `✳ <haiku-title>` prefix already conveys session identity. The S2 banner duplicated information already visible.
+- **S2 inline rename** (click banner title → contentEditable → `/rename` PTY injection on Return).
+- **C11 educational tip** (`Duo named this session from your first message. To change it, type /rename...`) — depended on S2 for its mount point.
+- **T3 auto-hydration** — autosave-triggered `/rename` PTY injection for unnamed sessions. Caused BUG-156 (Claude crash via transient `pty.resize(0,0)` from a layout interaction during rev3 walk). Haiku auto-titling natively covers ~80% of sessions (per ENH-183 C1 empirics); the marginal 20% coverage gain wasn't worth the auto-injection risk surface.
+- **CLI** `duo session rename <tabId> "<title>"` and `duo session hydrate <tabId>` — supporting verbs for the pared features. Users type `/rename <title>` directly in Claude Code's TUI to set a session name.
+- ~600 LOC across `renderer/components/SessionHeader.tsx`, `electron/session-hydrator.ts` (deleted), `electron/main.ts`, `renderer/store/sessionTipPrefs.ts` (deleted), IPC plumbing in `core/socket-server.ts` + `electron/preload.ts` + `shared/types.ts` + `shared/host-api.ts`, and corresponding test files.
+
+### Closed (won't-do / superseded)
+
+- **FOLLOWUP-028** — T3 auto-hydrator re-enable design (input-buffer race + idle-gate). T3 itself dropped in the pare-back; the re-enable design is no longer needed.
+- **BUG-159** — `/rename` PTY injection terminator (`\n` → `\r`). Filed mid-walk based on owner's verbal "command sitting in input buffer" observation, but post-walk JSONL inspection proved TWO `{"type":"custom-title","customTitle":"CLI rename test successful",...}` entries had been written — the rename committed. The owner-visible artifact was a Claude TUI rendering timing detail, not a functional bug. Fix landed as a defensive CR→LF terminator but became moot when all `/rename` injection code paths were removed in the pare-back. Lesson: verify the artifact (JSONL on disk) before filing fixes based on verbal symptom reports.
+
+### Deferred (queued for Sprint 22)
+
+- **ENH-184** — Workspace pill defeaturing + `+ New Workspace` handler routing fix. Half-done in working tree (new `useWorkspacePillMenuFlag` hook + complete `+` handler fix in `WorkspaceSwitcherDropdown.tsx`, but the flag isn't yet consumed in `App.tsx`). Intentionally uncommitted to keep v0.7.9 narrow. Sprint 22 finishes the flag wire-up + CLI parity verb.
 
 ## [0.7.8] — 2026-05-23
 
@@ -1648,7 +1679,13 @@ the agent-driven HTML canvas, and the visual identity.
 - V1–V27 in-app verification walk only partially completed at cut time (V1 PASS, 19c.2 BUG-009 filed); remaining items are owed for v0.2.0 cut.
 - About:blank as the default new-tab landing in the working pane — replaced in v0.2.0 by the `faq.html` / `what-duo-does.html` reference surface.
 
-[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.3...HEAD
+[Unreleased]: https://github.com/dudgeon/duo/compare/v0.7.9...HEAD
+[0.7.9]: https://github.com/dudgeon/duo/releases/tag/v0.7.9
+[0.7.8]: https://github.com/dudgeon/duo/releases/tag/v0.7.8
+[0.7.7]: https://github.com/dudgeon/duo/releases/tag/v0.7.7
+[0.7.6]: https://github.com/dudgeon/duo/releases/tag/v0.7.6
+[0.7.5]: https://github.com/dudgeon/duo/releases/tag/v0.7.5
+[0.7.4]: https://github.com/dudgeon/duo/releases/tag/v0.7.4
 [0.7.3]: https://github.com/dudgeon/duo/releases/tag/v0.7.3
 [0.7.2]: https://github.com/dudgeon/duo/releases/tag/v0.7.2
 [0.7.1]: https://github.com/dudgeon/duo/releases/tag/v0.7.1

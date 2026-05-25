@@ -1578,14 +1578,12 @@ async function main(): Promise<void> {
         break
       }
       case 'session': {
-        // ENH-183 C12 — Claude session lifecycle.
+        // ENH-183 pared 2026-05-25 (Option A) — rename + hydrate dropped.
         //   duo session list [--cwd <path>]
         //   duo session resume <tabId> <uuid>
-        //   duo session rename <tabId> "<title>"
-        //   duo session hydrate <tabId>
         const sub = rest[0]
         if (!sub) {
-          die('Usage: duo session <list|resume|rename|hydrate> [args]')
+          die('Usage: duo session <list|resume> [args]')
         }
         if (sub === 'list') {
           const cwd = flagValue(rest, '--cwd')
@@ -1597,18 +1595,8 @@ async function main(): Promise<void> {
           const uuid = rest[2]
           if (!tabId || !uuid) die('Usage: duo session resume <tabId> <uuid>')
           out(await send('session', { op: 'resume', tabId, uuid }))
-        } else if (sub === 'rename') {
-          const tabId = rest[1]
-          // Title can be a multi-word string; join everything after tabId.
-          const title = rest.slice(2).filter(a => !a.startsWith('--')).join(' ').trim()
-          if (!tabId || !title) die('Usage: duo session rename <tabId> "<title>"')
-          out(await send('session', { op: 'rename', tabId, title }))
-        } else if (sub === 'hydrate') {
-          const tabId = rest[1]
-          if (!tabId) die('Usage: duo session hydrate <tabId>')
-          out(await send('session', { op: 'hydrate', tabId }))
         } else {
-          die(`Unknown session sub-op: ${sub}. Expected list|resume|rename|hydrate.`)
+          die(`Unknown session sub-op: ${sub}. Expected list|resume.`)
         }
         break
       }
@@ -2474,10 +2462,10 @@ COMMANDS
                                     GUI Save-current prompt.
 
   session <sub> [args]            ENH-183 — Claude session lifecycle.
-                                  Read + drive the customTitle / aiTitle
-                                  rename surface that the polymorphic
-                                  SessionHeader exposes in the UI.
-                                  Each sub-verb mirrors a UI affordance.
+                                  Read + drive the Claude session
+                                  resume surfaces (S1 pills + S3
+                                  restore offer). Each sub-verb mirrors
+                                  a UI affordance.
     session list [--cwd <path>]     List prior '<uuid>.jsonl' sessions
                                     in the CWD (defaults to the active
                                     terminal's cwd). Each entry has
@@ -2487,17 +2475,8 @@ COMMANDS
                                     a session to resume.
     session resume <tabId> <uuid>   Spawn 'claude --resume <uuid>' in
                                     the named tab's PTY. Same wire as
-                                    clicking an S1 pill.
-    session rename <tabId>          PTY-inject '\r/rename <title>\n'.
-       "<title>"                    User-driven counterpart to the
-                                    Duo auto-hydration path. Title
-                                    can be multi-word; everything
-                                    after tabId joins with spaces.
-    session hydrate <tabId>         Force-attempt Duo-driven hydration
-                                    on the tab. Goes through the same
-                                    maybeHydrate gates as the
-                                    autosave-triggered (T3) path;
-                                    returns {hydrated, reason, title?}.
+                                    clicking an S1 pill or the S3
+                                    'Resume' button.
 
 FLAGS
   --version, -v    Print version

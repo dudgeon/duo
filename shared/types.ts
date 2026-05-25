@@ -1800,10 +1800,9 @@ export const IPC = {
   SESSION_READ_MESSAGE_COUNT: 'session:read-message-count',
   // ENH-183 C6 — list prior `<uuid>.jsonl` sessions in a CWD for the
   // S1 resume-pills surface.
-  SESSION_LIST_PRIOR: 'session:list-prior',
-  // ENH-183 C8/C9 — Duo-driven /rename injection via the hydrator.
-  // Renderer → main. Main resolves PtyManager.write internally.
-  SESSION_MAYBE_HYDRATE: 'session:maybe-hydrate'
+  SESSION_LIST_PRIOR: 'session:list-prior'
+  // ENH-183 pared 2026-05-25 (Option A): SESSION_MAYBE_HYDRATE removed
+  // with the T3 auto-hydration + S2 inline-rename code paths.
 } as const
 
 

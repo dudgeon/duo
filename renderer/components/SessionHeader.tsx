@@ -1,26 +1,27 @@
-// ENH-183 (Sprint 21 / v0.7.9) — polymorphic session header.
+// ENH-183 (Sprint 21 / v0.7.9, pared 2026-05-25 Option A) — session
+// header. Computes one of S0 / S1 / S3 from per-tab signals
+// (`lastClaudeSession`, claudePresence, …) and renders the matching
+// surface.
 //
-// Replaces the cherry-picked `ClaudeResumeBanner` (C2) with a state-
-// routing component. Computes one of S0 / S1 / S2 / S3 from the
-// per-tab signals (`lastClaudeSession`, claudePresence, …) and
-// renders the matching surface.
-//
-//   S0 — quiet (no header). Default when no Claude history exists
-//        for the tab AND no captured `lastClaudeSession.id`.
-//   S1 — resume pills (Variant B vertical mini-list). Lands in C6.
-//   S2 — named banner (collapsed dot + expandable). Lands in C5.
+//   S0 — quiet (no header). Default when claude is live OR when nothing
+//        in the cwd's history warrants a banner.
+//   S1 — resume pills (Variant B vertical mini-list). Fresh shell tab
+//        in a CWD with prior Claude sessions. Click a pill → Duo writes
+//        `claude --resume <uuid>` into the PTY.
 //   S3 — restore-offer banner. Workspace restore reattaches a tab
 //        whose previous Claude session UUID was captured at save
 //        time; claude itself is not running yet. The user can click
 //        Resume to spawn `claude --resume <uuid>` into the PTY.
 //
-// C3 is a structural refactor only. S0 + S3 are wired (S3 reuses the
-// banner UI verbatim from the cherry-pick). S1 + S2 fall through to
-// S0 (no render) until C5/C6 ship the respective surfaces.
+// **Pared 2026-05-25 (Option A):** S2 named banner + inline rename +
+// C11 educational tip + T3 auto-hydration all removed — the tab title
+// already carries the live session's name (Claude Code's ✳ prefix +
+// Haiku-derived title); the standalone S2 banner just duplicated that.
+// See tasks.md § ENH-183 status table for the rationale + cuts.
 //
 // **D9 invariant** — all UI state held here lives in
 // `renderer/store/sessionHeader.ts` as in-memory only. Nothing
-// persists to disk; restart wipes dismissal + collapse + edit state.
+// persists to disk; restart wipes dismissal + pill visibility state.
 
 import { useState, useSyncExternalStore, useEffect, useMemo, useRef } from 'react'
 import type { ClaudePresenceState, BannerTitleResult, PriorSessionListing } from '@shared/host-api'
@@ -29,11 +30,9 @@ import {
   setSessionHeaderState,
   subscribeSessionHeader,
 } from '../store/sessionHeader'
-import {
-  getSeenRenameTip,
-  setSeenRenameTip,
-  subscribeSeenRenameTip,
-} from '../store/sessionTipPrefs'
+// ENH-183 pared 2026-05-25 (Option A): C11 educational-banner store +
+// S2 NamedBanner + inline-rename removed. Resume affordances (S1 + S3)
+// remain. See tasks.md § ENH-183 for the pare-back rationale.
 
 type LastClaudeSession = { id: string; capturedAt: number } | null | undefined
 
@@ -72,11 +71,17 @@ export function computeSessionHeaderState(args: {
   priorSessionsCount?: number
 }): SessionHeaderState {
   const { lastClaudeSession, claudePresence, dismissedBanner, priorSessionsCount = 0 } = args
-  if (dismissedBanner) return 'S0'
   if (lastClaudeSession?.id) {
-    if (claudePresence === 'claude' || claudePresence === 'starting') return 'S2'
-    return 'S3'
+    // ENH-183 pared 2026-05-25 (Option A): S2 dropped. The tab title
+    // (Claude Code's ✳ prefix + Haiku-derived name) already carries
+    // the session identity — no Duo banner needed when claude is live.
+    // BUG-160 fix stays: dismissedBanner only suppresses S3, never the
+    // "no banner" S0 default, so the resume offer doesn't re-fire after
+    // user clicks Resume.
+    if (claudePresence === 'claude' || claudePresence === 'starting') return 'S0'
+    return dismissedBanner ? 'S0' : 'S3'
   }
+  if (dismissedBanner) return 'S0'
   // No captured UUID. If claude is already live in the tab we have
   // nothing to offer — the live session will itself become S2 once
   // its UUID gets captured (C9 first-capture trigger). When claude
@@ -164,21 +169,8 @@ export function SessionHeader({
     )
   }
 
-  // S2 — claude is live in this tab AND we have a captured session
-  // UUID. Default collapsed (small dot on TabBar marker, handled
-  // there). Click the active tab to expand into the named banner.
-  if (state === 'S2') {
-    if (ui.collapsed) return null
-    return (
-      <NamedBanner
-        tabId={tabId}
-        sessionUuid={lastClaudeSession!.id}
-        cwd={cwd}
-        claudePresence={claudePresence}
-        onCollapse={() => setSessionHeaderState(tabId, { collapsed: true })}
-      />
-    )
-  }
+  // ENH-183 pared 2026-05-25 (Option A): S2 NamedBanner removed.
+  // Claude is live → no Duo banner; tab title carries the session name.
 
   // S3 — restore-offer banner. ENH-183 C7 — title now derived via D5
   // ladder (C4 IPC), not the UUID prefix.
@@ -196,163 +188,8 @@ export function SessionHeader({
   )
 }
 
-interface NamedBannerProps {
-  tabId: string
-  sessionUuid: string
-  cwd: string
-  claudePresence: ClaudePresenceState
-  onCollapse: () => void
-}
-
-/** S2 expanded surface. Reads the D5 ladder title via IPC and displays
- *  it. × re-collapses (does NOT permanently dismiss — distinguishing
- *  collapse from dismiss is part of D11/D12 owner spec).
- *
- *  C10 — inline rename. Click the title → contentEditable cursor +
- *  text selected. Return commits via PTY-write `\r/rename <title>\n`;
- *  Esc cancels; click-outside commits. Only editable when
- *  claudePresence === 'claude' (the same gate the C8 hydrator uses
- *  for its Duo-driven counterpart). */
-function NamedBanner({ tabId, sessionUuid, cwd, claudePresence, onCollapse }: NamedBannerProps) {
-  const [titleResult, setTitleResult] = useState<BannerTitleResult | null>(null)
-  const [editing, setEditing] = useState(false)
-  const titleRef = useRef<HTMLSpanElement>(null)
-  const originalRef = useRef<string>('')
-  const reloadTickRef = useRef(0)
-  // ENH-183 C11 — first-time educational banner. Shown above the title
-  // line the FIRST time any user sees an S2 named banner on this Duo
-  // install. Dismiss persists per-install via localStorage (D9 — a
-  // renderer pref, not session-shadowing).
-  const seenRenameTip = useSyncExternalStore(subscribeSeenRenameTip, getSeenRenameTip)
-
-  // Read the title from the D5 ladder. After a rename commit, bump
-  // `reloadTickRef` to re-fetch so we see Claude's actual customTitle
-  // write (rather than our optimistic preview).
-  useEffect(() => {
-    let cancelled = false
-    void window.electron.session.readBannerTitle(sessionUuid, cwd).then((r) => {
-      if (!cancelled) setTitleResult(r)
-    }).catch(() => {
-      if (!cancelled) setTitleResult({ title: sessionUuid.slice(0, 8), source: 'uuid' })
-    })
-    return () => { cancelled = true }
-  }, [sessionUuid, cwd, reloadTickRef.current])
-
-  const title = titleResult?.title ?? '…'
-  const canEdit = claudePresence === 'claude'
-
-  const beginEdit = () => {
-    if (!canEdit || editing) return
-    originalRef.current = title
-    setEditing(true)
-  }
-
-  // After entering edit mode, set the DOM text + select all + focus.
-  // This is imperative so React's children prop doesn't fight the
-  // contentEditable buffer.
-  useEffect(() => {
-    if (!editing || !titleRef.current) return
-    const el = titleRef.current
-    el.textContent = originalRef.current
-    el.focus()
-    const range = document.createRange()
-    range.selectNodeContents(el)
-    const sel = window.getSelection()
-    sel?.removeAllRanges()
-    sel?.addRange(range)
-  }, [editing])
-
-  const commit = () => {
-    if (!editing) return
-    const candidate = (titleRef.current?.textContent ?? '').trim()
-    if (candidate && candidate !== originalRef.current) {
-      // PTY-inject /rename. Same shape as C8 hydrator — CR + slash
-      // + LF — so Claude treats it identically to a typed command.
-      void window.electron.pty.write(tabId, `\r/rename ${candidate}\n`)
-      // Optimistic update — show the new title immediately. Re-fetch
-      // after 2s so we transition from optimism to the actual
-      // customTitle JSONL entry once Claude has processed.
-      setTitleResult({ title: candidate, source: 'customTitle' })
-      setTimeout(() => { reloadTickRef.current += 1 }, 2000)
-    }
-    setEditing(false)
-  }
-
-  const cancel = () => {
-    if (!editing) return
-    setEditing(false)
-  }
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      commit()
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      cancel()
-    }
-  }
-
-  return (
-    <div className="claude-resume-banner" data-session-header-state="S2">
-      {!seenRenameTip && (
-        <div
-          className="claude-resume-banner__tip"
-          data-session-header-tip="rename"
-          role="status"
-        >
-          <span className="claude-resume-banner__tip-text">
-            Duo named this session from your first message. To change it,
-            type{' '}
-            <code className="claude-resume-banner__tip-code">/rename &lt;new title&gt;</code>
-            {' '}in Claude any time.
-          </span>
-          <button
-            type="button"
-            className="claude-resume-banner__tip-dismiss"
-            onClick={() => setSeenRenameTip(true)}
-            aria-label="Dismiss tip"
-          >
-            Got it
-          </button>
-        </div>
-      )}
-      <div className="claude-resume-banner__row">
-        <span className="claude-resume-banner__arrow">●</span>
-        <span className="claude-resume-banner__text">
-          Claude session:{' '}
-          <code
-            ref={titleRef}
-            className={[
-              'claude-resume-banner__sid',
-              canEdit ? 'claude-resume-banner__sid--editable' : '',
-              editing ? 'claude-resume-banner__sid--editing' : '',
-            ].filter(Boolean).join(' ')}
-            contentEditable={editing}
-            suppressContentEditableWarning
-            spellCheck={false}
-            onClick={beginEdit}
-            onBlur={commit}
-            onKeyDown={onKeyDown}
-            title={canEdit ? 'Click to rename' : 'Rename available when Claude is live'}
-            data-editable={canEdit ? 'true' : 'false'}
-          >
-            {editing ? null : title}
-          </code>
-        </span>
-        <button
-          type="button"
-          className="claude-resume-banner__dismiss"
-          onClick={onCollapse}
-          aria-label="Collapse"
-          title="Collapse to tab marker"
-        >
-          ×
-        </button>
-      </div>
-    </div>
-  )
-}
+// ENH-183 pared 2026-05-25 (Option A) — NamedBanner (S2) + inline-rename
+// + C11 educational tip removed. ~160 LOC dropped. See tasks.md.
 
 interface RestoreOfferBannerProps {
   sessionId: string

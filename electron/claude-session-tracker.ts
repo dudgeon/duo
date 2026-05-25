@@ -16,7 +16,7 @@
 // Pure file system scan; no Claude internals. The shape is stable
 // (Claude Code v2.x as of 2026-05).
 
-import { promises as fs } from 'fs'
+import { promises as fs, realpathSync } from 'fs'
 import path from 'path'
 import os from 'os'
 
@@ -31,9 +31,22 @@ import os from 'os'
  *     → -Users-geoffreydudgeon--claude-skills-duo
  *   /Users/geoffreydudgeon/Documents/GitHub/duo/.claude/worktrees/X
  *     → -Users-geoffreydudgeon-Documents-GitHub-duo--claude-worktrees-X
+ *
+ * BUG-158 (2026-05-24): Claude RESOLVES SYMLINKS before encoding —
+ * `/tmp` on macOS is a symlink to `/private/tmp`, so a Claude session
+ * started at `/tmp/X` is written to `~/.claude/projects/-private-tmp-X/`,
+ * not `~/.claude/projects/-tmp-X/`. We must do the same so our lookups
+ * match. Best-effort: if realpath fails (path doesn't exist), fall back
+ * to the literal path — same encoding as before.
  */
 export function encodeProjectDir(absPath: string): string {
-  return absPath.replace(/[/.]/g, '-')
+  let resolved = absPath
+  try {
+    resolved = realpathSync(absPath)
+  } catch {
+    // Path doesn't exist or no perms — fall back to literal.
+  }
+  return resolved.replace(/[/.]/g, '-')
 }
 
 export interface DetectedClaudeSession {

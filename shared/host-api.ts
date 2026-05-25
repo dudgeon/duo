@@ -576,16 +576,12 @@ export interface PriorSessionListing {
   messageCount: number
   modifiedAt: number
 }
-export interface MaybeHydrateResult {
-  hydrated: boolean
-  reason: string
-  title?: string
-}
+// ENH-183 pared 2026-05-25 (Option A): MaybeHydrateResult removed along
+// with the entire T3 auto-hydration + S2 inline-rename code path.
 export interface ElectronSessionAPI {
   readBannerTitle: (uuid: string, cwd: string) => Promise<BannerTitleResult>
   readMessageCount: (uuid: string, cwd: string) => Promise<number>
   listPrior: (cwd: string, opts?: { limit?: number; excludeUuid?: string }) => Promise<PriorSessionListing[]>
-  maybeHydrate: (tabId: string, sessionUuid: string, cwd: string) => Promise<MaybeHydrateResult>
 }
 
 /** Issue #27 — URL-bar autocomplete suggestion shape. Returned by

@@ -18,6 +18,44 @@
 
 ---
 
+## 2026-05-25 (v0.7.9 cut — Claude session resume affordances, pared mid-cycle)
+
+**v0.7.9 cut.** First release where we **pared a feature mid-cycle** based on walk-driven empirics. ENH-183 began as a four-state polymorphic session header (S0/S1/S2/S3) with T3 auto-hydration, S2 inline rename, C11 educational tip, and four CLI verbs. After walking rev3–rev5 across multiple sessions, owner observed the S2 banner duplicated info already in Claude Code's own `✳ <haiku>` tab title. Empirics from the walks confirmed: `duo session hydrate` returned `{hydrated: false, reason: 'already-has-aiTitle'}` 100% of the time — Haiku auto-titling wins the race in practice. Plus T3 had caused BUG-156 ([afb590c](https://github.com/dudgeon/duo/commit/afb590c) — Claude crash via `pty.resize(0,0)` triggered by the in-flow flex-column wrapper's transient zero-height during layout reflow). The ~20% coverage gain from force-rename wasn't worth the risk surface or the duplicated UI. Owner directed Option A pare-back.
+
+**What ships** (the resume affordances that carry real value):
+- **S1 resume pills** — fresh shell tabs in a CWD with prior Claude JSONLs show a vertical list of resumable sessions. Click → `claude --resume <uuid>` in the tab.
+- **S3 restore-offer banner** — workspace-switch reattaches a tab that hosted Claude; banner reads `⏪ This tab had: <title> [Resume] ×`. Click Resume → restore. Click × → dismiss (per-tab, per-Duo-run, in-memory only per D9).
+- **D5 read ladder** — both surfaces resolve titles via `customTitle > aiTitle > firstPrompt > uuid` so banner labels are always human-readable.
+- **CLI parity** — `duo session list [--cwd <path>]`, `duo session resume <tabId> <uuid>`.
+
+**What got cut (~600 LOC):**
+- S2 named banner + S2 inline rename (`renderer/components/SessionHeader.tsx` § NamedBanner)
+- C11 educational tip (`renderer/store/sessionTipPrefs.ts` — deleted)
+- T3 auto-hydration (`electron/session-hydrator.ts` — deleted, `electron/session-hydrator.test.ts` — deleted)
+- CLI verbs `duo session rename`, `duo session hydrate`
+- IPC plumbing: `SESSION_MAYBE_HYDRATE` constant, `MaybeHydrateResult` type, `maybeHydrate` API surface
+- Discriminator simplifications + store field cleanup (`collapsed`, `editingTitle` no longer needed)
+
+**Three bugs caught + fixed by the walk process working as designed:**
+
+- **BUG-158** — `encodeProjectDir` did a pure string transform but macOS resolves `/tmp` symlinks to `/private/tmp` before Claude inherits cwd. Session detection broke for any `/tmp/X` path. Fix: `realpathSync(absPath)` before encoding, fallback to literal on ENOENT. 2 regression tests.
+- **BUG-160** — SessionHeader's `dismissedBanner` flag short-circuited the entire discriminator to S0 when set, suppressing the post-Resume S2 surface that should have appeared. Fix: scope the flag to the S3 branch only. Defensive correctness even now that S2 is pared. Regression test added.
+- **FOLLOWUP-027** — `duo open <remote-url>` in `local-only` mode created an `about:blank` ghost-tab in the embedded view while the system browser correctly popped with the real URL. Fix: short-circuit `openTab` + `navigateOrFocus` when `routeOffHostIfMatched` would filter; return `{ok, url, routedTo: 'system-browser'}`.
+
+**A fourth bug — BUG-159 — was the wrong diagnosis.** Filed mid-walk based on owner's verbal "command sitting in input buffer" report. Post-walk JSONL inspection proved the `/rename` WAS committing (two `custom-title` entries on disk with the intended title). The owner-visible artifact was Claude Code v2.x TUI render timing, not a Duo bug. The defensive CR-terminator fix shipped anyway, but became moot when all `/rename` injection code paths were removed. Lesson logged: verify the artifact (JSONL on disk) BEFORE filing fixes based on verbal symptom reports — `feedback_verify_current_behavior_before_proposing_fix.md` applies to "is this even a bug?" questions, not just "what's the impact?" questions.
+
+**Walk arc** (5 revs across 2 calendar days):
+- rev3 — 3 PASS (S1-VISIBLE, S1-MORE-THAN-3, S1-FRESH-TAB-NOT-OVERCAPTURED) / 1 FAIL → BUG-156 root-caused + fixed
+- rev4 — 1 FAIL on CLI-HYDRATE → BUG-158 root-caused + fixed
+- rev5 — walked partially; surfaced "no S2 banner after Resume" → BUG-160 fix; then owner directed pare-back
+- rev6 — pared-scope confirmation walk: 3 PASS / 1 SKIP (S3-DISMISS — couldn't trigger the state cleanly in live Duo; covered by BUG-160 regression test + Resume-handler-wiring identical)
+
+**Working tree leaves uncommitted:** ENH-184 (workspace pill defeaturing + `+ New Workspace` handler routing fix). Half-done — `useWorkspacePillMenuFlag` hook + handler fix complete, but flag not yet consumed in `App.tsx`. Deferred to Sprint 22.
+
+**Closed as won't-do:** FOLLOWUP-028 (T3 re-enable design — T3 itself dropped).
+
+---
+
 ## 2026-05-23 (v0.7.8 cut — Browser blocklist three modes, local-only default)
 
 **v0.7.8 cut.** Single focused behavior change: **ENH-178** re-ship via cherry-pick of [b03a8da](https://github.com/dudgeon/duo/commit/b03a8da) (originally reverted at [5295849](https://github.com/dudgeon/duo/commit/5295849) before the v0.7.7 cut to keep that release focused). Three-mode URL filter: `local-only` becomes the new default; `filtered` preserves legacy externalDomains-list behavior as opt-in; `unfiltered` is the debug escape hatch gated behind `--i-understand` to bypass the IT-policy warning. New `duo browser-mode [show|local-only|filtered|unfiltered]` CLI verb. 11 vitest cases pin `isLocalUrlForBrowserMode`; 698 tests green total.

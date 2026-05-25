@@ -1155,6 +1155,34 @@ agent must be able to do the same.</p>
       <td>Carry-forward from the original ENH-177 build at commit
         <a href="https://github.com/dudgeon/duo/commit/f351719">f351719</a>.</td>
     </tr>
+    <tr>
+      <td>Claude resolves cwd symlinks before encoding to <code>~/.claude/projects/&lt;encoded-cwd&gt;/</code></td>
+      <td class="verified">VERIFIED CORRECTED — walk-4 (BUG-158)</td>
+      <td><strong>The shell resolves symlinks before claude inherits cwd.</strong> macOS <code>/tmp</code>
+        is a symlink to <code>/private/tmp</code>, so a session started at <code>/tmp/X</code> is
+        written to <code>-private-tmp-X</code>, not <code>-tmp-X</code>. Duo's <code>encodeProjectDir</code>
+        did a pure string transform and looked up the wrong directory. Surfaced by ENH-183 rev4 walk-4
+        when owner ran CLI-HYDRATE in <code>/tmp/duo-walk-hydrate</code> and got
+        <code>"no recent Claude session in this tab's cwd (24h cap)"</code> despite a fresh session
+        existing on disk under the realpath'd encoding. Fix (<a href="https://github.com/dudgeon/duo/blob/main/electron/claude-session-tracker.ts">claude-session-tracker.ts</a>):
+        <code>encodeProjectDir</code> now calls <code>realpathSync(absPath)</code> before encoding;
+        falls back to literal on ENOENT (non-existent paths). Single point of fix; all FS-touching
+        callers (<code>detectLatestClaudeSession</code>, <code>listSessionsInCwd</code>,
+        <code>jsonlPathFor</code>, <code>readBannerTitle</code>, <code>readMessageCount</code>) benefit
+        transparently. 2 regression tests added.</td>
+    </tr>
+    <tr>
+      <td>Haiku auto-titles fast enough to beat the hydrator gate in practice</td>
+      <td class="verified">VERIFIED — walk-4 empirics</td>
+      <td><strong>The hydrator's <code>{hydrated: true, reason: 'injected'}</code> path rarely
+        fires.</strong> Walk-4: owner sent 3 messages, Haiku titled the session "✳ Knock knock joke"
+        within ~seconds. Subsequent <code>duo session hydrate</code> returned
+        <code>{hydrated: false, reason: 'already-has-aiTitle'}</code> — gate correctly deferred to
+        Haiku. The D5 read ladder still surfaces Haiku's title in the banner (rung 2 = aiTitle),
+        so the user-visible behavior is identical. The <strong>Duo-side hydration</strong>
+        injection covers only the long-tail case where Haiku doesn't title (race / disabled /
+        empty session). Walk PASS criteria for CLI-HYDRATE should accept both outcomes.</td>
+    </tr>
   </tbody>
 </table>
 

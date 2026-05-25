@@ -136,8 +136,10 @@ for the authoritative usage text.
 | `duo workspace new` | **ENH-167** — **resets the workspace in-place** (parity with File > New Workspace menu). One fresh shell terminal at the live CWD of the previously-frontmost terminal (via `lsof`, spawn-CWD fallback); every working-pane tab dropped except pinned (browser pins restored via `electron/main.ts` § BUG-057 block; file pins via `App.tsx` § `pinAutoOpenRanRef`); active-workspace pointer cleared; window title back to "Duo". CLI skips the GUI Save-current prompt; the File menu item shows the Save / Don't Save / Cancel prompt when anything is open. |
 | `duo session list [--cwd <path>]` | **ENH-183** — list prior Claude `<uuid>.jsonl` sessions in a CWD (defaults to active terminal's cwd). Returns `[{uuid, title, source, messageCount, modifiedAt}]`; `source` ∈ `customTitle`/`aiTitle`/`jsonl-firstmsg`/`uuid` (D5 read ladder). Powers the S1 pills surface in the polymorphic SessionHeader. |
 | `duo session resume <tabId> <uuid>` | **ENH-183** — spawn `claude --resume <uuid>` in the named tab's PTY. Same wire as clicking an S1 pill or S3 Resume button. `<tabId>` resolves through `PtyManager.getCwd` for cwd validation. |
-| `duo session rename <tabId> "<title>"` | **ENH-183** — PTY-inject `\r/rename <title>\n`. User-driven counterpart to the auto-hydration `/rename` path. Claude appends a `{"type":"custom-title","customTitle":"...","sessionId":"..."}` JSONL entry; the polymorphic SessionHeader's S2 banner re-reads via the D5 ladder. |
-| `duo session hydrate <tabId>` | **ENH-183** — force-attempt Duo-driven hydration on the tab. Goes through the same `maybeHydrate` gates as the autosave-triggered T3 path (messageCount ≥ 3, no customTitle, no aiTitle, in-memory dedup). Returns `{hydrated, reason, title?}`. |
+<!-- ENH-183 pared 2026-05-25 (Option A): `duo session rename` +
+     `duo session hydrate` removed. Resume affordances (S1 pills + S3
+     restore offer) remain; force-rename + auto-hydration dropped as
+     redundant with Claude's own Haiku auto-titling. -->
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 

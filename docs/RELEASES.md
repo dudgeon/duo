@@ -21,7 +21,25 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.8 cut 2026-05-23)*
+> *(empty — v0.7.9 cut 2026-05-25)*
+
+---
+
+## v0.7.9 — 2026-05-25 — Claude session resume affordances (pared scope)
+
+The first cut where we **pared a feature mid-cycle** based on walk-driven empirics. ENH-183 began as a four-state polymorphic session header (S0/S1/S2/S3) with auto-hydration, inline rename, an educational tip, and four CLI verbs. After walking it across rev3-rev5, owner observed the S2 named banner duplicated info already in Claude Code's own `✳ <haiku-title>` tab title, and the auto-hydration path had produced BUG-156 (a Claude crash via `pty.resize(0,0)` triggered by a layout interaction in the in-flow flex-column wrapper). Empirics from the walks: `duo session hydrate` returned `{hydrated: false, reason: 'already-has-aiTitle'}` 100% of the time — proving Haiku always wins the race in practice. The ~20% coverage gain from force-rename wasn't worth the risk surface or the duplicated UI.
+
+**What ships:** the two resume affordances that carry real user value — **S1 pills** (discoverability for "continue yesterday's chat from a fresh terminal") and **S3 restore** (workspace-switch one-click resume). Both backed by the **D5 read ladder** so banners display human-readable titles whether set by `/rename`, by Haiku, or derived from the first prompt. Plus two CLI verbs (`duo session list` + `duo session resume`) for agent parity.
+
+**What got cut:** S2 named banner, C11 educational tip, T3 auto-hydration, S2 inline rename, force-rename CLI verbs. ~600 LOC across `SessionHeader.tsx`, the deleted `session-hydrator.ts`, the deleted `sessionTipPrefs.ts` store, IPC plumbing across `core/socket-server.ts` + `electron/preload.ts` + `shared/types.ts` + `shared/host-api.ts`, and the corresponding tests. FOLLOWUP-028 (T3 re-enable design) closed as won't-do.
+
+**Three real bugs caught + fixed by the walk process working as designed:** **BUG-158** (symlink encoding — `/tmp/X` paths broke session detection because Duo's `encodeProjectDir` didn't follow Claude's symlink-resolving cwd handling); **BUG-160** (discriminator's `dismissedBanner` flag short-circuiting all states to S0, hiding the post-Resume banner); **FOLLOWUP-027** (about:blank ghost-tab when `local-only` mode filters a `duo open` URL). All three have regression tests.
+
+**A fourth fix (BUG-159 — rename terminator `\n` → `\r`) turned out to be the wrong diagnosis.** Filed mid-walk based on owner's verbal "command sitting in input buffer" report, but post-walk JSONL inspection proved TWO `custom-title` entries had been written with the intended title — the rename WAS committing. The owner-visible artifact was Claude Code's TUI render timing, not a Duo bug. The defensive CR-terminator change shipped anyway, but became moot when all `/rename` injection code paths were removed in the pare. Lesson logged: check the artifact (JSONL on disk) before filing fixes based on verbal symptom reports.
+
+**What this is and isn't.** This IS the Claude-session-resume release — restore your session after a workspace switch, jump back into a prior session from a fresh terminal. It is NOT a session-naming UI; type `/rename <title>` directly in Claude Code's TUI when you want to set a custom title. Duo no longer synthesizes that injection.
+
+**Queued for Sprint 22.** ENH-184 (workspace pill defeaturing + `+ New Workspace` handler routing fix) is half-done in the working tree — new `useWorkspacePillMenuFlag` hook + complete `+` handler fix landed, but the flag isn't yet consumed in `App.tsx`. Intentionally uncommitted to keep v0.7.9 narrow. Sprint 22 wires up the flag + adds CLI parity for the toggle.
 
 ---
 

@@ -351,6 +351,71 @@ will then surface S1 correctly. Long-term users of saved
 workspaces will see their captures naturally re-stabilize as
 autosaves overwrite old values when tabs are reopened.
 
+### 15. Walk-4 fix — symlink-encoding gotcha + Haiku-wins observation (2026-05-24)
+
+Walk-4 surfaced two findings: one bug, one empirical reality
+about the hydrator's actual firing rate.
+
+**15a — `encodeProjectDir` didn't resolve symlinks ([BUG-158](../../tasks.md#bug-158-duo-session-hydrate-fails-on-tmp-cwds--encodeprojectdir-didnt-resolve-symlinks)).**
+Owner walked rev4 CLI-HYDRATE: created tab at `/tmp/duo-walk-hydrate`,
+started claude, sent 3 messages (Haiku titled the session "✳ Knock
+knock joke"), ran `duo session hydrate <tabId>` — got `duo: no
+recent Claude session in this tab's cwd (24h cap)` despite a fresh
+session existing on disk.
+
+**Root cause.** macOS `/tmp` is a symlink to `/private/tmp`. The
+shell resolves symlinks before claude inherits the cwd, so Claude's
+JSONL went to `~/.claude/projects/-private-tmp-duo-walk-hydrate/`.
+Duo's `encodeProjectDir(absPath)` was a pure string transform
+(`absPath.replace(/[/.]/g, '-')`) and looked up the literal-encoded
+`~/.claude/projects/-tmp-duo-walk-hydrate/` — directory missing,
+empty result, "no recent session" error.
+
+**Fix.** `encodeProjectDir` now calls `realpathSync(absPath)` before
+encoding. Best-effort: on ENOENT (non-existent path), falls back to
+literal encoding (preserves prior behavior for that case). Single
+point of fix; all FS-touching callers — `detectLatestClaudeSession`,
+`listSessionsInCwd`, `jsonlPathFor`, `readBannerTitle`,
+`readMessageCount` — benefit transparently. 2 new regression tests
+in `electron/claude-session-tracker.test.ts` (24/24 passing).
+
+**Process gap.** ENH-183's C1 step-0 empirics scanned 16 projects'
+JSONLs but every probe used `~/Documents/GitHub/duo` (non-symlinked
+path). Tests passed. The bug was reachable only when a real user
+session lived under a symlinked cwd — exactly the scenario owner
+hit (the manifest's "fresh /tmp directory" pattern). Empirics
+should include at least one symlinked-path probe to catch this
+class of bug pre-walk.
+
+**15b — Haiku auto-titles faster than the hydrator can fire.**
+After the BUG-158 fix, re-running hydrate against the same tab
+returned `{hydrated: false, reason: 'already-has-aiTitle'}` —
+correctly deferred to Haiku's existing title. The hydrator's
+`{hydrated: true, reason: 'injected'}` path **rarely fires in
+practice**: by the time the user sends 3 messages (the T1 trigger
+threshold + manifest's prerequisite), Haiku has already written
+its aiTitle JSONL entry. The D5 read ladder rung 2 (`aiTitle`)
+surfaces it in the banner, so user-visible behavior is identical
+to the Duo-injected case.
+
+**Implication for hydrator's reason-for-being.** Duo-driven
+`/rename` injection covers only the long-tail case where Haiku
+doesn't title: race conditions, Haiku disabled, empty sessions
+that exceed the 3-msg gate without producing summarizable content.
+The original ENH-180 framing ("Duo names every unnamed session
+proactively") is correct in spirit but ~80% of the named-session
+universe is already covered by Haiku before Duo's gate opens.
+
+**Walk implication.** CLI-HYDRATE PASS criteria must accept
+**both** `{hydrated: true, reason: 'injected'}` (rare) AND
+`{hydrated: false, reason: 'already-has-aiTitle'}` (common) as
+PASS. Either response proves the verb's detection + gate logic
+works end-to-end. Rev5 manifest reflects this. T3-AUTO-HYDRATION
+(currently deferred behind [FOLLOWUP-028](../../tasks.md#followup-028-t3-auto-hydrator-re-enable-design--input-buffer-race--idle-gate))
+faces the same reality — most autosave-triggered hydration
+attempts will gate `'already-has-aiTitle'` and no-op, so the
+re-enable design's risk surface is smaller than originally framed.
+
 ---
 
 ---

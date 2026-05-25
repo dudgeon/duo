@@ -132,12 +132,13 @@ export interface NavBridge {
   openCloneModal: () => { ok: boolean; error?: string }
   /** ENH-183 C12 — Claude session lifecycle CLI verbs. Each one
    *  routes through PtyManager (resume/rename inject into the named
-   *  PTY) or claude-session-tracker (list reads JSONL store). The
-   *  hydrate path reuses the session-hydrator's maybeHydrate gates. */
+   *  PTY) or claude-session-tracker (list reads JSONL store).
+   *  ENH-183 pared 2026-05-25 (Option A): hydrate removed. */
   sessionList: (cwd: string) => Promise<unknown>
   sessionResume: (tabId: string, uuid: string) => { ok: boolean; error?: string }
-  sessionRename: (tabId: string, title: string) => { ok: boolean; error?: string }
-  sessionHydrate: (tabId: string) => Promise<{ ok: boolean; result?: unknown; error?: string }>
+  // ENH-183 pared 2026-05-25 (Option A): sessionRename + sessionHydrate
+  // removed. Force-rename unnecessary (Haiku covers it); inline rename
+  // surface dropped with S2.
   /** ENH-122 — query the renderer's DOM from the CLI. Mirrors the
    *  `duo eval` shape but targets the main renderer (the React shell)
    *  instead of the browser-pane CDP target. Use cases: inspect what
@@ -1607,22 +1608,9 @@ export class SocketServer {
             const r = this.nav.sessionResume(tabId, uuid)
             if (!r.ok) throw new Error(r.error ?? 'resume failed')
             result = { ok: true }
-          } else if (op === 'rename') {
-            const tabId = args['tabId'] as string | undefined
-            const title = args['title'] as string | undefined
-            if (!tabId) throw new Error('duo session rename requires <tabId>')
-            if (!title) throw new Error('duo session rename requires <title>')
-            const r = this.nav.sessionRename(tabId, title)
-            if (!r.ok) throw new Error(r.error ?? 'rename failed')
-            result = { ok: true }
-          } else if (op === 'hydrate') {
-            const tabId = args['tabId'] as string | undefined
-            if (!tabId) throw new Error('duo session hydrate requires <tabId>')
-            const r = await this.nav.sessionHydrate(tabId)
-            if (!r.ok) throw new Error(r.error ?? 'hydrate failed')
-            result = r.result
           } else {
-            throw new Error(`Unknown session op: ${op}. Expected list|resume|rename|hydrate.`)
+            // ENH-183 pared 2026-05-25 (Option A): rename + hydrate ops removed.
+            throw new Error(`Unknown session op: ${op}. Expected list|resume.`)
           }
           break
         }

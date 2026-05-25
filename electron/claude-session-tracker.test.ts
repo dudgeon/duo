@@ -42,6 +42,23 @@ describe('encodeProjectDir — ENH-177', () => {
     expect(encodeProjectDir('/a/.b/.c/d'))
       .toBe('-a--b--c-d')
   })
+
+  it('resolves symlinks before encoding (BUG-158)', () => {
+    // macOS: /tmp is a symlink to /private/tmp. Claude resolves
+    // symlinks before writing to ~/.claude/projects/, so a session
+    // started at /tmp/X is written to -private-tmp-X, not -tmp-X.
+    // Skip on non-darwin where /tmp may not have this symlink.
+    if (process.platform !== 'darwin') return
+    expect(encodeProjectDir('/tmp')).toBe('-private-tmp')
+  })
+
+  it('falls back to literal encoding when path does not exist (BUG-158)', () => {
+    // realpath throws ENOENT for non-existent paths — encoder should
+    // catch + fall back to literal encoding (same behavior as before
+    // the BUG-158 fix for non-existent paths).
+    expect(encodeProjectDir('/this/path/does/not/exist/abc123'))
+      .toBe('-this-path-does-not-exist-abc123')
+  })
 })
 
 describe('cleanAndTruncate — ENH-183 C4', () => {
