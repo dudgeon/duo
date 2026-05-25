@@ -545,6 +545,51 @@ export interface NavPinEntry {
   title?: string
 }
 
+// ENH-182 (Sprint 22) — project model. Decisions D1–D12 + R1–R3 locked
+// 2026-05-25; PRD at docs/prd/enh-182-project-centric-ux.md. A Project
+// is a derived view over the open tabs/terminals + a thin persisted
+// slice for pins + color overrides — not a tab or workspace.
+//
+// Qualification (D2): a folder is a project iff
+//   (isGitRepoRoot(folder) || hasMarker(folder))   // marker = CLAUDE.md or .claude/
+//   && workingIn(folder)                           // ≥1 terminal cwd or non-pinned tab path under it
+// Plus any pinned project root (D12) persists in the rail even with
+// zero open items.
+//
+// Membership (D5): a tab/terminal belongs to the *deepest* qualifying
+// root that encloses its path/cwd. A tab under no qualifying root
+// belongs to no project (shown in All, hidden by every focus).
+export interface Project {
+  /** Absolute path of the project root. Identity. */
+  root: string
+  /** Display name. Defaults to basename(root); manual override deferred
+   *  (R3 v1 = minimal). */
+  name: string
+  /** Whether `root` is a git repo's work-tree root. */
+  isGitRoot: boolean
+  /** Whether `root` contains `CLAUDE.md` or `.claude/`. */
+  hasMarker: boolean
+  /** 0..5 index into the six --project-* hues. Hash-stable per root
+   *  (R2) unless overridden in `ProjectsFile.colorOverrides`. */
+  colorIndex: number
+  /** D12 — true when this root is in the persisted pin set, so the
+   *  tile stays in the rail even when no tabs are open. */
+  pinned: boolean
+}
+
+// ENH-182 — persisted slice at ~/.claude/duo/projects.json. Pins keep
+// a project tile in the rail when no tabs reference it; color
+// overrides let the user lock a hue when the hash-stable default
+// collides with the muscle memory they want.
+export interface ProjectsFile {
+  version: number
+  /** Absolute paths of pinned project roots. Order = insertion order. */
+  pins: string[]
+  /** Map of project root → colorIndex (0..5), overriding the hash
+   *  default. Keyed by absolute path. */
+  colorOverrides: Record<string, number>
+}
+
 // Stage 21c — session state restored across Duo relaunches.
 // Persisted at ~/.claude/duo/session-state.json. Identity-bearing
 // IDs (tab UUIDs, BrowserTab numeric ids) are session-local and
