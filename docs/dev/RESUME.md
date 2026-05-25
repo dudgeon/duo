@@ -1,111 +1,130 @@
-# Resume after compaction — Sprint 21 / v0.7.9 (post-v0.7.8-cut + FOLLOWUP-027)
+# Resume after compaction — Sprint 21 / v0.7.9 (ENH-183 walk-3 in-flight)
 
-**Read this first** if you came in cold via context compaction. Then read [`active-sprint.md`](active-sprint.md) for the full Sprint 21 implementation TODO.
+**Read this first.** Then in order:
+1. [`docs/research/bug-156-terminal-stability-postmortem.md`](../research/bug-156-terminal-stability-postmortem.md) — the most recent investigation chain; lessons + the open follow-ups.
+2. [`docs/dev/enh-183-build-plan.md`](enh-183-build-plan.md) — ENH-183 C1–C13 status + § Lessons learned (now includes § 14, the walk-1/2/3 fix chain).
+3. [`tasks.md`](../../tasks.md) — current open work at the top of Sprint 21 section. BUG-156 closed; FOLLOWUP-028 + BUG-157 open.
 
 ## Where we are
 
-**v0.7.8 shipped 2026-05-23.** Cut + tagged + pushed to origin; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.8) live with signed+notarized `Duo-0.7.8-arm64.dmg` (104 MB) attached. Single-focus release: **ENH-178** browser blocklist three modes (`local-only` default).
+**ENH-183 implementation complete** (C1–C13 all landed). Smoke walk **rev3 in progress**, partial paste-back captured:
 
-**Post-cut work this session (2026-05-24):** **FOLLOWUP-027** shipped — about:blank ghost-tab no longer appears when `local-only` filters a remote URL via `duo open` or `duo navigate`. Verified live via DOM probes. **UNCOMMITTED on `main`** — owner call needed: commit standalone, or bundle into the ENH-177+181 PR.
-
-Dev session running at v0.7.9 identity.
-
-## Sprint 21 remaining build order
-
-### 1. ENH-177 + ENH-181 bundle (marquee)
-
-The full implementation TODO lives in [`active-sprint.md § Sprint 21 implementation TODO`](active-sprint.md) — file inventory, step-by-step, mechanism empirics. Quick orientation:
-
-- **What:** Claude session resume banner that survives workspace switches + inline rename via PTY `/rename` inject + collapse-to-tab-marker toggle.
-- **Mockup:** [`docs/prd/enh-183-claude-session-lifecycle.html`](../prd/enh-183-claude-session-lifecycle.html) — `duo open` it. 7 states (3 ENH-177 + 4 ENH-181).
-- **Notion mirror:** [ENH-177 + ENH-181 banner mockup page](https://www.notion.so/36945f48854f810ca7f9dfa275c4389d) — phone-readable, embeds the PNG.
-- **Step 1:** `git cherry-pick -n f351719` (the original ENH-177 build, reverted at [49f4644](https://github.com/dudgeon/duo/commit/49f4644)). Resolve conflicts. 9 files, ~412 LOC.
-- **Step 2:** Layer in ENH-181 (4 new behaviors — title-from-sessions-index, collapsed-marker default, inline rename, CLI parity verbs). See active-sprint.md for the per-behavior implementation map.
-- **Step 3:** Owner walks live (computer-use access already granted; watch for the [locked-Mac signature](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) if screenshots return wallpaper).
-
-**Mechanism empirics (locked, don't re-research):**
-- `claude -p '/rename X'` returns *"isn't available in this environment"* — TUI-only.
-- `--name` on `--resume` doesn't visibly persist + is $0.73/call.
-- Writing `\r/rename <title>\n` to a live PTY: **$0, ~0s, persists** to `sessions-index.json § customName`. The `\r` prefix is critical.
-
-### 2. Pick carry-forward items
-
-Backlog in [`active-sprint.md § Carry-forward backlog`](active-sprint.md). Most-cited candidates: BUG-079 (tab-cycle latency, needs prod repro) · ENH-148 v2 (cross-boundary selection) · ENH-128 walk-4 (HEIC drag-drop verification owed) · ENH-162 (Clone modal collision UX).
-
-## Open decisions for owner
-
-| Decision | Why |
+| Walk-3 item | Status |
 |---|---|
-| Commit FOLLOWUP-027 standalone or bundle with ENH-177+181? | Small standalone keeps bisect-friendly history; bundled keeps Sprint 21's commit chain compact. |
-| Sprint 21 carry-forward pick beyond ENH-177 + ENH-181 | Pick one (or two for a bigger sprint). |
+| ENH-183-S1-VISIBLE | ✅ PASS |
+| ENH-183-S1-MORE-THAN-3 | ✅ PASS |
+| ENH-183-S1-FRESH-TAB-NOT-OVERCAPTURED | ✅ PASS |
+| ENH-183-T3-AUTO-HYDRATION | ❌ FAIL → BUG-156 root-caused + fixed; T3 defensively OFF |
+| ENH-183-S2-EXPANDED | ⏸ SKIP (cascade) |
+| ENH-183-S2-COLLAPSED-DOT through ENH-183-CLI-HYDRATE | ⏸ NOT REACHED (owner stopped walk after T3 crash) |
 
-## Shipped this sprint so far (commit chain)
+8 items still need owner verification. The fix that unblocks them is [afb590c](https://github.com/dudgeon/duo/commit/afb590c) (`PtyManager.resize` zero guard + defense-in-depth at three renderer sites).
 
-| Commit | Item |
-|---|---|
-| [6628220](https://github.com/dudgeon/duo/commit/6628220) | `release: v0.7.8` (cut commit + tag v0.7.8) |
-| [d851296](https://github.com/dudgeon/duo/commit/d851296) | feat(ENH-178 re-ship): browser blocklist three modes — cherry-pick of b03a8da |
-| [4a3241b](https://github.com/dudgeon/duo/commit/4a3241b) | docs(ENH-181): file banner inline-rename + collapse toggle |
-| [39a8d63](https://github.com/dudgeon/duo/commit/39a8d63) | docs(ENH-180): close + fold into ENH-177; banner mockup |
-| [221b6a4](https://github.com/dudgeon/duo/commit/221b6a4) | docs(sprint-21): post-cut compaction-safe handoff (from v0.7.7 cycle) |
-
-## Closed during planning (2026-05-23)
-
-**ENH-180 (auto-rename Claude sessions via `/rename` PTY injection)** is closed. Owner observation: Claude Code already writes a Haiku summary to `~/.claude/projects/<encoded-cwd>/sessions-index.json` automatically after a session has had a few exchanges — Duo doesn't need to generate its own title. The cleaner scope is just "ENH-177's banner reads `sessions-index.json`, falls back to UUID, `/rename` remains the manual override." That folds into ENH-177's re-ship as a ~20-line detail.
-
-PRD preserved at [`docs/prd/_archive/enh-180-session-rename.html`](../prd/_archive/enh-180-session-rename.html) with a closure banner at top + the historical empirics (`/rename` write paths, `claude -p` cost numbers, idle-gate state machine, denylist) collapsed into a `<details>` block. The 4 decision cards are now moot — no owner action needed.
-
-Mockup of the simplified banner experience for ENH-177's re-ship: [`docs/prd/enh-183-claude-session-lifecycle.html`](../prd/enh-183-claude-session-lifecycle.html) (also mirrored to the Notion page).
-
-## All Sprint 20 / v0.7.7 commits (since v0.7.6 tag)
+## Recent commit chain (last 10)
 
 ```
-9728035 chore: bump to v0.7.8 for next sprint
-e940e6c release: v0.7.7                                  ← TAG: v0.7.7
-59c462a docs: flip ENH-177/178 to "built + reverted, queued for re-ship"
-49f4644 Revert "feat(ENH-177): track + offer to resume Claude sessions across workspace switch"
-5295849 Revert "feat(ENH-178): browser blocklist three modes"
-c090064 docs(ENH-180): PRD for auto-rename Claude sessions via /rename injection
-21fa66a feat(ENH-179): ⌘Z reopens the most recently closed tab
-b03a8da feat(ENH-178): browser blocklist three modes — reverted in 5295849
-f351719 feat(ENH-177): claude session resume — reverted in 49f4644
-3d331f0 feat(ENH-176): send-pill agent + terminal variants via feature flags
-ffd798b feat(ENH-174 + ENH-175): autolink off + navigate-or-focus tab
-564ebee docs(sprint-20): record walk-2 results (5P/2S/0F); file ENH-175
-23d9991 docs(ENH-174): lock owner-decision — disable TipTap autolink
-fdffa7b fix(BUG-155): false-positive conflict from tiptap-markdown autolink round-trip
-b826bf4 fix(BUG-154): Return-override fires in shell tabs running claude
-342020a feat(ENH-170 v2): top-level Settings menu — single ⌘Return checkbox
-1a98385 fix(BUG-153): Settings modal occluded — superseded by ENH-170 v2
-aa4e5e3 fix(BUG-152): workspace switch restores browser tabs
-a732731 fix(BUG-151): workspace switch dropped misleading prompt
-faff37a fix(BUG-150): installer dedupes orphan unmarked hook entries
-3daf480 fix(BUG-149) + feat(ENH-173): duo navigate redirect + Navigate-here
-ce50e78 feat(ENH-169): navigator new-file/new-folder UX
-026d4d2 feat(ENH-170 v1): Settings modal (superseded by v2 above)
-2bde2f6 feat(ENH-171): workspace switcher dropdown
-600d16e feat(ENH-172): show/hide hidden files
+65e3a01  docs(BUG-156): terminal-stability postmortem + FOLLOWUP-028 + BUG-157
+afb590c  fix(BUG-156): pty.resize(0,0) crashed Claude — root-cause + defense-in-depth guard
+076e221  hotfix(ENH-183 BUG-156): disable T3 auto-hydrator after Claude crash during rev3 walk
+60f5957  fix(ENH-183): positional matching in enrichment hook tab-id lookup
+e4e826f  docs(ENH-183): capture-on-evidence sub-rule across PRD + CLAUDE.md + skill
+cbaeb9c  fix(ENH-183 post-walk-1): only capture lastClaudeSession.id for tabs that hosted Claude
+2584c20  fix(ENH-183): only auto-dismiss S1 pills on actual same-tab claude transition
+07d7a08  fix(ENH-183 walk-1): S1 banner visual + layout — terminal palette + in-flow
+6c1ceeb  docs(smoke-walk): require Skill-tool invocation + fix HMR-staleness gap
+182969c  chore(ENH-183 C13): smoke-walk manifest for v0.7.9 ready (gitignored)
 ```
 
-## What we learned (process memory locked this sprint)
+## Likely next moves (pick by owner direction)
 
-- [feedback_open_every_modal_before_smoke_handoff](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_open_every_modal_before_smoke_handoff.md) — every modal/dropdown in a smoke-walk manifest gets opened via computer-use BEFORE handoff. Locked from BUG-153 (ENH-170 v1 modal occlusion under browser-pane WebContentsView).
+### A. Continue the rev3 walk
 
-## CLI driving etiquette (still in effect)
+The 8 unreached items are unblocked by [afb590c](https://github.com/dudgeon/duo/commit/afb590c). To resume:
+1. The walk page is at `docs/dev/smoke-walks/v0.7.9-rev3.html` (gitignored). Regenerate via `node .claude/skills/smoke-walk/generate.mjs docs/dev/smoke-walks/v0.7.9-rev3.json docs/dev/smoke-walks/v0.7.9-rev3.html` if needed — though prefer the Skill-tool path (see below).
+2. **MUST invoke `/smoke-walk` skill via the Skill tool** (not the generator directly) — see [CLAUDE.md § 7b](../../CLAUDE.md). Audit-trail requirement; the skill's preflight (§ 4b reload, § 4c surface probe, § 4d state-precondition probe, § 5b items 7+8) catches the failure modes from walks 1–3.
+3. ENH-183-T3-AUTO-HYDRATION stays a known SKIP — pre-mark in the intro. Owner can exercise the same flow manually via `duo session hydrate <tabId>` (ENH-183-CLI-HYDRATE item).
+4. After paste-back: parse → flip tasks.md → propose `cut-version` for v0.7.9 if all green.
 
-- Do NOT use `duo edit --reveal` or computer-use clicks unless owner is actively expecting eyes-on. Both steal focus.
-- Prefer `duo doc read <path>` (read-only) over `duo edit <path>` for inspection.
-- For modal/menu verification, ASK owner before invoking computer-use.
+### B. Address FOLLOWUP-028 (T3 re-enable design)
 
-## Dev session running
+T3 auto-hydrator is OFF. To re-enable, the design needs:
+- Replace `\r` with `\n` in the hydrator's PTY-write (don't force-submit user's partial input).
+- Add JSONL idle-gate: only inject when last assistant entry is terminated.
+- Add tracer log (per BUG-156 convention) — every PTY synthesis without explicit user gesture must record `(timestamp, tabId, sessionUuid, payload)`.
 
-- One Electron instance (last spawn during v0.7.8 cut, restarted before the cut).
-- Now identifies as v0.7.9 ·dev (post-v0.7.8-cut bump).
+Flag toggle at `T3_AUTO_HYDRATION_ENABLED = false` in [`electron/main.ts`](../../electron/main.ts) § `setEnrichBeforePersistHook`.
 
-## Mechanism notes worth keeping from ENH-180 PRD research
+### C. Address BUG-157 (sibling fit-then-resize audit)
 
-Useful for Sprint 21:
+Pre-emptive — the BUG-156 pattern (measure DOM → write to backing system via IPC, no zero-dim guard) likely exists in other components:
+- `renderer/components/ImageView.tsx:95` — ResizeObserver
+- `renderer/components/BrowserRenderer.tsx:57` — bounds → WCV
+- `renderer/components/AuxBrowserSlot.tsx:111` — bounds → WCV
+- `renderer/hooks/useTerminal.ts:42` — likely dead code; verify + remove
 
-- **`/rename` is interactive-only.** `claude -p '/rename Foo'` returns *"isn't available in this environment"*. Slash commands are TUI-only.
-- **`--name` on `--resume` doesn't visibly persist.** Also expensive — $0.73 per resume call due to Opus default + 117K cache tokens reload.
-- **Writing `\r/rename <title>\n` to a live claude PTY works.** $0 cost (no LLM), ~0s latency. Writes to canonical `~/.claude/projects/<encoded-cwd>/sessions-index.json`. Visible in Claude's `/resume` picker, terminal title, and our banner once ENH-177 re-ships.
+For each: identify the IPC boundary, defensively reject zero/negative dimensions in main (mirrors `PtyManager.resize` guard).
+
+## Critical guardrails for the next agent
+
+Read these BEFORE touching the codebase — they're failure modes I hit this session that will re-bite a fresh agent.
+
+### 1. Use `/smoke-walk` skill via the Skill tool
+
+CLAUDE.md § 7b hard rule (strengthened 2026-05-24). Do NOT run `.claude/skills/smoke-walk/generate.mjs` directly. The skill's procedural rules (§ 4b renderer reload, § 4c computed-style probes, § 4d state-precondition probes, § 5b 8-item checklist) are what catches the regressions that bit walks 1–3. Bypassing them is auditable as a process failure even if output looks right.
+
+### 2. SIGHUP = process-group teardown, not stdin content
+
+If Claude crashes with `zsh: warning: 1 jobs SIGHUPed`, **don't chase stdin/PTY-content theories first.** SIGHUP comes from PTY destruction or process-group signal — audit `pty.kill` / `pty.dispose` / `pty.resize` paths before assuming bad input. BUG-156 burned ~30 min on a stdin-content hypothesis before pivoting; the signal type was the right first clue.
+
+### 3. `duo eval` vs `duo dom --js`
+
+`duo eval` targets the **browser pane** (WebContentsView). `duo dom --js` targets the **main renderer** (the React shell). When probing renderer state, use `duo dom --js`. Burning 15 minutes rediscovering this is a session-1 trap.
+
+### 4. Force a renderer reload after dev restarts
+
+Multiple dev restarts during a sprint can leave HMR in a stale state where the source on disk doesn't match what the renderer is running. After ANY dev kill+spawn cycle, run:
+
+```bash
+duo dom --js 'window.location.reload()'
+sleep 3
+until duo dom --js 'typeof window.electron?.session' 2>&1 | grep -q object; do sleep 1; done
+```
+
+Skill § 4b enforces this; it was added 2026-05-24 because walks 1–2 hit HMR-staleness and gave false PASS on agent probes.
+
+### 5. Don't sidecar speculative pointers
+
+CLAUDE.md § 12 (capture-on-evidence sub-rule, added 2026-05-24). If you're tempted to "guess" a Duo-owned pointer for a tab/object based on its attributes (cwd, kind), don't. Only capture on actual evidence the association exists (e.g. `claudePresence` transitioned to 'claude' for THIS tab during THIS Duo run). Walk-1's over-capture bug was exactly this pattern.
+
+### 6. Verify computed styles, not just element existence
+
+Skill § 4c. A surface can be `mounted: true` with the right `textContent` and still be invisible (transparent background, dark-on-dark text). Probe `getComputedStyle(...).backgroundColor` + `.color` on the surface root + key children, not just `querySelector`. ENH-183 walk-1 had this exact failure mode (undefined CSS vars → transparent + dark-on-dark).
+
+### 7. TerminalPane wrapper is now `flex-col` with `min-h-0` on the child
+
+ENH-183 walk-2 fix [07d7a08](https://github.com/dudgeon/duo/commit/07d7a08). The SessionHeader is in-flow above TerminalInstance children. `min-h-0` is required for `flex-1` to take remaining space (CSS gotcha) — **don't** remove it. The latent zero-dim resize bug it exposed is now guarded at the API boundary in `PtyManager.resize` (BUG-156). If you re-touch TerminalPane, the resize guards must stay.
+
+## State at-a-glance
+
+- **Branch:** `main` (no feature branch in flight)
+- **Git status:** all ENH-183 work pushed through [65e3a01](https://github.com/dudgeon/duo/commit/65e3a01)
+- **Dev:** restarted at [afb590c](https://github.com/dudgeon/duo/commit/afb590c); renderer reloaded; `duo doctor` clean
+- **Active workspace:** `/Users/geoffreydudgeon/Desktop/session.duo-workspace` (test workspace; 5+ shell tabs in `/docs` cwd)
+- **Smoke walk page open:** `docs/dev/smoke-walks/v0.7.9-rev3.html` as the active browser tab
+- **T3 hydrator:** `T3_AUTO_HYDRATION_ENABLED = false` (flag in main.ts; OFF pending FOLLOWUP-028)
+- **45 ENH-183 unit tests passing.** typecheck clean.
+
+## What NOT to do
+
+- Don't re-enable T3 without FOLLOWUP-028 design landing (input-buffer race + idle-gate + tracer).
+- Don't run the smoke-walk generator script directly — use the Skill tool.
+- Don't assume HMR caught up — always force a renderer reload after dev restarts.
+- Don't propose a v0.7.9 cut until the 8 unreached walk items have owner verification (cut-version skill's Step 0 will block on this anyway).
+- Don't remove the `min-h-0` from TerminalPane's wrapper — it's required for the mockup-locked SessionHeader slot.
+
+## Reading order if you're picking up the smoke walk specifically
+
+1. [`docs/dev/smoke-walks/v0.7.9-rev3.json`](smoke-walks/v0.7.9-rev3.json) — current manifest (13 items)
+2. [`docs/research/bug-156-terminal-stability-postmortem.md`](../research/bug-156-terminal-stability-postmortem.md) — § Walk-3 results table for what's PASS/FAIL/SKIP/NOT-REACHED
+3. [`.claude/skills/smoke-walk/SKILL.md`](../../.claude/skills/smoke-walk/SKILL.md) — § 4b/4c/4d/5b — pre-handoff checks (latest additions catch BUG-156-style failures)
+4. The walk page is open in Duo's browser pane; `duo url` to confirm.
