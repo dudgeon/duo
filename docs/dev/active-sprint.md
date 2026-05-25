@@ -79,6 +79,7 @@ Cherry-pick procedure: `git cherry-pick -n f351719`. Resolve any conflicts (the 
 - **BUG-024 follow-up** combined Send + Comment pill
 - **17a.5** template gallery
 - **Backlinks / graph view** (Obsidian cluster)
+- **ENH-182** Project-centric UX (project-as-filter-layer rail) — **decisions locked 2026-05-25 + PRD/build plan ready** → [`docs/prd/enh-182-project-centric-ux.md`](../prd/enh-182-project-centric-ux.md) (start at §6 Phase 0; §4 names the design assets, §9 has the file:line hook points). Spec-complete — not blocked on a repro/walk, just needs a sprint slot. Playgrounds: `docs/research/project-centric-ux.html` + `project-rail-style-study.html`.
 
 (FOLLOWUP-027 shipped this session — moved out of carry-forward into "Shipped this sprint" above.)
 
