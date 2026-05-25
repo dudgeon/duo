@@ -4,9 +4,11 @@
 > ****Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`.
 > ****Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
 
-## Sprint 22 / v0.8.0 — in flight
+## Sprint 23 / v0.7.11 — starting
 
-### ENH-185: Project rail refinements (filed from v0.8.0 walk-1 notes)
+> Sprint 22 closed with the v0.7.10 cut + push + release. The "v0.8.0" working version mid-sprint was renumbered to PATCH at cut time — v0.8.0 stays reserved for the feature-complete ENH-182 capstone (Phase 2b + Phase 3 + Phase 4 + ENH-185 polish all close it). Entries below carry into Sprint 23.
+
+### ENH-185: Project rail refinements (filed from v0.7.10 walk-1 notes)
 
 **Status:** 🆕 **Filed 2026-05-25** from owner notes on ENH-182-RAIL-VISUAL walk-1 PASS. Two visual refinements:
 
@@ -15,7 +17,7 @@
 
 **Files touched (estimate):** `renderer/components/ProjectRail/ProjectRail.tsx` — two edits (`w-14 → w-[50px]` on the `<aside>`, `title={...}` rewrite on `ProjectTile`).
 
-**Priority:** Low (cosmetic polish; Phase 2 marquee already shipped). Pick up post v0.8.0 cut or fold into Phase 3.
+**Priority:** Low (cosmetic polish; Phase 2 marquee already shipped in v0.7.10). Fold into Phase 3 or land as a side commit; the v0.8.0 capstone closes ENH-182 fully.
 
 ---
 
@@ -25,9 +27,9 @@
 
 ---
 
-### ENH-182 Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn — SHIPPED + WALKED this session (2026-05-25)
+### ENH-182 Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn — SHIPPED v0.7.10 (2026-05-25)
 
-**Status:** ✅ **Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn — all shipped + owner-walked PASS (5/5 on v0.8.0 walk-1, 2026-05-25).** 8 commits ahead of `origin/main`, awaiting cut. Decisions D1–D12 + R1–R3 locked 2026-05-25 (PRD at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md)); design playgrounds at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) + [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html).
+**Status:** ✅ **Shipped v0.7.10 + walked 5/5 PASS + tagged + pushed + released on 2026-05-25.** [GitHub Release v0.7.10](https://github.com/dudgeon/duo/releases/tag/v0.7.10). Decisions D1–D12 + R1–R3 locked 2026-05-25 (PRD at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md)); design playgrounds at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) + [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html). Was a PATCH bump (0.7.9 → 0.7.10), not MINOR — v0.8.0 reserved for the feature-complete ENH-182 capstone.
 
 **What shipped:**
 - **Phase 0** ([3b49e43](https://github.com/dudgeon/duo/commit/3b49e43)) — `Project` + `ProjectsFile` types in `shared/types.ts`; pure `deriveProjects()` in `shared/projects.ts` (D2 qualification, D5 deepest-wins, D12 pinned-projects, R2 hash-stable color); `ProjectsService` persisted slice at `~/.claude/duo/projects.json`; `hasMarker(dir)` fs probe. 40 unit tests across the matrix.
@@ -43,7 +45,7 @@
 - ✅ ENH-182-CTRL-TAB · PASS · latency note appended to [BUG-079](#bug-079--ctrl-tab-cycle-latency-confirmed-repro-in-focused-mode-sprint-22-walk-1-update)
 - ✅ TABBAR-PARE-CLEANUP · PASS
 
-**What's NOT in v0.8.0 (carry into Sprint 23):**
+**What's NOT in v0.7.10 (carry into Sprint 23, all roll up to the v0.8.0 capstone):**
 - **Phase 2b** — browser-mode canvas tab (`file://`) filter by path membership.
 - **Phase 3** — D11 auto-switch + D12 lifecycle + tile right-click menu (Pin/Unpin + bulk-close).
 - **Phase 4** — `duo project list/focus/pin/unpin/close` CLI parity.
