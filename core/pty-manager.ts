@@ -91,6 +91,17 @@ export class PtyManager {
   }
 
   resize(id: string, cols: number, rows: number): void {
+    // BUG-156 (2026-05-24) — refuse 0×0 or negative resizes. A
+    // zero-dimension resize forces the child process (e.g. Claude
+    // Code's TUI) to operate on a degenerate terminal and bail
+    // out with SIGHUP. Cascade: PTY's child claude sees 0×0 →
+    // exits → zsh sees child SIGHUPed → xterm host shows
+    // "[process exited]". Surfaced when ENH-183's flex-column
+    // wrapper let the xterm host transiently shrink to 0 height
+    // during SessionHeader layout reflow; the ResizeObserver
+    // path didn't have a size guard. Defense-in-depth: guard the
+    // renderer call sites AND this main-side entry point.
+    if (cols < 1 || rows < 1) return
     this.sessions.get(id)?.pty.resize(cols, rows)
   }
 

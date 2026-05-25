@@ -25,9 +25,18 @@
 
 ## Sprint 21 / v0.7.9 — in flight (ENH-183 walks)
 
-### BUG-156: Claude crashed mid-session during ENH-183 rev3 T3 walk
+### BUG-156: Claude crashed mid-session during ENH-183 rev3 T3 walk — ROOT CAUSE: pty.resize(0, 0)
 
-**Status:** 🟡 **Investigating** 2026-05-24. Hypothesis: PTY-injected `/rename` from C9's T3 trigger arriving mid-turn caused Claude Code subprocess to exit with SIGHUP. Out-of-caution feature-flagged the T3 auto-hydration path OFF in [60f5957..](https://github.com/dudgeon/duo/commit/60f5957) (see `T3_AUTO_HYDRATION_ENABLED = false` in [`electron/main.ts`](electron/main.ts)). All C12 CLI surfaces (`duo session hydrate/rename/resume`) + pill click + inline-rename remain available — those are user-initiated so the same risk doesn't apply.
+**Status:** ✅ **Root-caused + fixed** 2026-05-24. NOT the `/rename` injection — owner hypothesis was wrong (though defensively disabling T3 first was the right call). **Actual cause:** my walk-2 fix at [07d7a08](https://github.com/dudgeon/duo/commit/07d7a08) wrapped `TerminalInstance` children in a new `<div className="relative flex-1 min-h-0">` to give SessionHeader its own in-flow slot. `min-h-0` allows the flex child to shrink to 0 during layout reflow. When the SessionHeader's height transitions (state machine flip, claudePresence change, etc.), the wrapper transiently goes through ~0 height. The xterm host's ResizeObserver fires, calls `fit.fit()` against a 0×0 host (computes 0 cols / 0 rows), then `window.electron.pty.resize(tab.id, 0, 0)` lands in `PtyManager.resize` → `pty.resize(0, 0)` → node-pty's `ioctl(TIOCSWINSZ)` writes a degenerate winsize. The child Claude TUI sees `0×0` cells, bails out cleanly, sends SIGHUP up the process group. zsh prints "1 jobs SIGHUPed". Cascade: xterm host shows `[process exited]`. `/resume` re-crashes immediately because the first-paint resize hits the same 0×0 window before the layout has settled.
+
+**Fix.** Defense-in-depth across three layers:
+1. `core/pty-manager.ts::resize()` — short-circuits if `cols < 1 || rows < 1`. Authoritative guard.
+2. `renderer/components/TerminalPane.tsx` ResizeObserver — guards on `host.getBoundingClientRect()` before fit + skip pty.resize if cols/rows < 1.
+3. The other two `pty.resize` call sites (typography effect + visibility-change effect) get the same defensive check.
+
+**Lesson.** A latent renderer bug — calling `pty.resize` after `fit.fit()` without checking the host's actual dimensions — was reachable for the first time when ENH-183's flex-column wrapper allowed transient 0-height collapse. The wrapper itself is correct (mockup-required for in-flow SessionHeader). Fix is in the layer where the bad value is generated AND defensively at the main-process API boundary.
+
+**Defensive T3 disable still in place.** [076e221](https://github.com/dudgeon/duo/commit/076e221) flagged the T3 auto-hydrator off when the owner first reported the crash. That disable was the right defensive move — even though the root cause turned out to be resize, the T3 path has its own UX issues (force-submits partial user input via `\r`, races with mid-turn state). Re-enabling T3 is a separate owner decision; current default stays OFF until we've reasoned through the input-buffer dynamics. The flag toggle lives at `T3_AUTO_HYDRATION_ENABLED` in [`electron/main.ts`](electron/main.ts).
 
 **Symptom (owner reported).** During the ENH-183-T3-AUTO-HYDRATION walk:
 1. Sent 2 prompts to a fresh Claude tab. Claude was processing the 2nd.
