@@ -6,19 +6,48 @@
 
 ## Sprint 22 / v0.8.0 — in flight
 
-### ENH-182 Phase 0 + Phase 1 + home-dir fix — SHIPPED this session (2026-05-25)
+### ENH-185: Project rail refinements (filed from v0.8.0 walk-1 notes)
 
-**Status:** ✅ **Phase 0 + Phase 1 + home-dir-exclusion fix shipped uncommitted to remote (5 commits ahead of `origin/main`).** Read-only project rail mounts at the left edge of the app shell. Decisions D1–D12 + R1–R3 locked 2026-05-25 (full PRD at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md)); design playgrounds at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) + [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html).
+**Status:** 🆕 **Filed 2026-05-25** from owner notes on ENH-182-RAIL-VISUAL walk-1 PASS. Two visual refinements:
 
-**What's live:**
+1. **10% narrower rail.** Current width is `w-14` (56px) which renders right but feels slightly heavy on the canvas. 10% off → ~50px (`w-[50px]` or `w-12` = 48px — owner picks).
+2. **Tooltip wording.** Project tile `title` currently shows `${project.name}\n${project.root}` (e.g. `duo\n/Users/.../duo`). Owner wants `Project: {project_name}` (e.g. `Project: duo`). Drop the root path from the title; keep it in the aria-label for accessibility.
+
+**Files touched (estimate):** `renderer/components/ProjectRail/ProjectRail.tsx` — two edits (`w-14 → w-[50px]` on the `<aside>`, `title={...}` rewrite on `ProjectTile`).
+
+**Priority:** Low (cosmetic polish; Phase 2 marquee already shipped). Pick up post v0.8.0 cut or fold into Phase 3.
+
+---
+
+### BUG-079 — Ctrl-Tab cycle latency CONFIRMED REPRO in focused mode (Sprint 22 walk-1 update)
+
+**Status update 2026-05-25:** owner ENH-182-CTRL-TAB walk-1 PASS with explicit note "passes, but observing some noticeable ctrl-tab latency." This is a **partial repro of the long-standing BUG-079** ("tab-cycle latency — needs prod repro"). The Phase 2 filter doesn't change the cycle implementation (we just hand `visibleTerminals` to `useKeyboardShortcuts.tabs` instead of the full `tabs`), so the latency is the same root cause as BUG-079. The Sprint 17 diagnosis at [feedback_verify_current_behavior_before_proposing_fix.md] established total renderer-keydown → switchTab return = ~15ms regardless of pacing; the latency isn't in the dispatch path. Hypotheses 4 (modifier release timing) + 5 (upstream consumer race) are still open. Owner's observation gives us a fresh chance to instrument under known conditions (focused on duo with 1 visible terminal — narrow set, should be fastest case; if it still feels slow, the latency is NOT in cycle traversal). Add to Sprint 23 carry-forward priority list.
+
+---
+
+### ENH-182 Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn — SHIPPED + WALKED this session (2026-05-25)
+
+**Status:** ✅ **Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn — all shipped + owner-walked PASS (5/5 on v0.8.0 walk-1, 2026-05-25).** 8 commits ahead of `origin/main`, awaiting cut. Decisions D1–D12 + R1–R3 locked 2026-05-25 (PRD at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md)); design playgrounds at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) + [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html).
+
+**What shipped:**
 - **Phase 0** ([3b49e43](https://github.com/dudgeon/duo/commit/3b49e43)) — `Project` + `ProjectsFile` types in `shared/types.ts`; pure `deriveProjects()` in `shared/projects.ts` (D2 qualification, D5 deepest-wins, D12 pinned-projects, R2 hash-stable color); `ProjectsService` persisted slice at `~/.claude/duo/projects.json`; `hasMarker(dir)` fs probe. 40 unit tests across the matrix.
-- **Phase 1** ([58dcc86](https://github.com/dudgeon/duo/commit/58dcc86)) — `ProjectRail` component renders the locked R1-B "quiet bloom" tile treatment (paper bg + colored initials + hue underline; focused → full-hue fill + white notch). Six `--duo-project-*` tokens mirrored from the Atelier kernel into `renderer/styles/globals.css`. `useProjects` hook drives derivation from app state. Read-only in Phase 1 (clicks no-op; `onFocus` prop wired through for Phase 2).
-- **Home-dir exclusion + IPC marker probe** ([6bd1742](https://github.com/dudgeon/duo/commit/6bd1742)) — `isExcludedFromQualification(dir, homeDir)` pure helper blocks `$HOME` and `/` from qualifying as projects (the global `~/.claude/` would otherwise false-positive the home dir on every random cwd). **Subdirectories of home (including `~/.claude/`) still qualify normally** — owner directive 2026-05-25. New IPC `projects:has-marker` replaces the nav-listings lookup so marker detection works for dirs the navigator hasn't scanned (was the gap hiding `.claude` from the rail when the user opened a file under it without navigating there). 9 new tests including 3 explicit `~/.claude editing scenario` integration tests.
+- **Phase 1** ([58dcc86](https://github.com/dudgeon/duo/commit/58dcc86)) — `ProjectRail` component renders the locked R1-B "quiet bloom" tile treatment (paper bg + colored initials + hue underline; focused → full-hue fill + white notch). Six `--duo-project-*` tokens mirrored from the Atelier kernel into `renderer/styles/globals.css`. `useProjects` hook drives derivation from app state.
+- **Home-dir exclusion + IPC marker probe** ([6bd1742](https://github.com/dudgeon/duo/commit/6bd1742)) — `isExcludedFromQualification(dir, homeDir)` pure helper blocks `$HOME` and `/` from qualifying as projects (the global `~/.claude/` would otherwise false-positive the home dir on every random cwd). **Subdirectories of home (including `~/.claude/`) still qualify normally** — owner directive 2026-05-25. New IPC `projects:has-marker` replaces the nav-listings lookup. 9 new tests including 3 explicit `~/.claude editing scenario` integration tests.
+- **Phase 2** ([2a8a885](https://github.com/dudgeon/duo/commit/2a8a885)) — focus filter (the actual payoff). Click tile → `focusedProject` state; hides non-member terminal + working tabs; re-roots navigator; title-bar focus chip; Ctrl-Tab respects filter. Active-in-hidden recovery on entry.
+- **Auto-spawn on focus** ([dfb0b52](https://github.com/dudgeon/duo/commit/dfb0b52)) — owner edge-case during walk-1: focusing on a project with no member terminals spawns a fresh terminal at the project root via `lastTabKind`. Per-focus-session ref-guard prevents double-spawn.
 
-**What's next:**
-- **Phase 2** — focus filter (the actual payoff). Click tile → `focusedProject` state; hide non-member terminal + canvas tabs; re-root navigator (D10); title-bar focus chip; Ctrl-Tab respects filter. Smoke-walkable.
-- **Phase 3** — corner case + lifecycle + tile right-click menu (D11 auto-switch focus when opening a file from another project; D12 auto add/remove + pin; bulk-close menu).
-- **Phase 4** — CLI parity (`duo project list / focus / pin / unpin / close`).
+**Walk-1 results (5/5 PASS):**
+- ✅ ENH-182-RAIL-VISUAL · PASS · refinements filed as [ENH-185](#enh-185-project-rail-refinements-filed-from-v080-walk-1-notes)
+- ✅ ENH-182-FOCUS-CLICK · PASS
+- ✅ ENH-182-FOCUS-NAV · PASS
+- ✅ ENH-182-CTRL-TAB · PASS · latency note appended to [BUG-079](#bug-079--ctrl-tab-cycle-latency-confirmed-repro-in-focused-mode-sprint-22-walk-1-update)
+- ✅ TABBAR-PARE-CLEANUP · PASS
+
+**What's NOT in v0.8.0 (carry into Sprint 23):**
+- **Phase 2b** — browser-mode canvas tab (`file://`) filter by path membership.
+- **Phase 3** — D11 auto-switch + D12 lifecycle + tile right-click menu (Pin/Unpin + bulk-close).
+- **Phase 4** — `duo project list/focus/pin/unpin/close` CLI parity.
+- **ENH-185** rail refinements (filed above).
 
 **Lessons from Phase 1 verification (both fixed):**
 1. **Promise-cancel-on-cleanup race** — `useEffect` cleanup was cancelling async git-status probes on every re-render before they could `setGitResults`, leaving the cache permanently empty. Fix: no cancel-on-cleanup; the setState merge is idempotent (each key writes the same stable result on retry) so stale-closure resolutions after re-render produce a correct state. Pattern applies to any "async probe → merge into Map state" hook with renderer state that churns.

@@ -1,6 +1,6 @@
-# Active sprint state — Sprint 22 / v0.8.0 (in flight)
+# Active sprint state — Sprint 22 / v0.8.0 (walk-1 PASS, ready to cut)
 
-**Status (2026-05-25 late session):** 5 commits ahead of `origin/main`, none pushed yet. Phase 0 + Phase 1 of ENH-182 shipped + verified live. iCloud Optimize Storage data-loss emergency hit at session start (13k+ files dataless) — recovered + permanent guard committed. TabBar.tsx ENH-183 pare leftover closed (typecheck unblocked). Suite: 786/786 green. Other-claude's ENH-184 working tree state preserved untouched.
+**Status (2026-05-25 late session):** **8 commits ahead of `origin/main`, walked + green, awaiting cut.** ENH-182 Phase 0 + Phase 1 + Phase 2 + home-dir fix + auto-spawn ALL shipped + owner-walked 5/5 PASS via the smoke-walk skill ([`docs/dev/smoke-walks/v0.8.0.json`](smoke-walks/v0.8.0.json) + `.html`). iCloud Optimize Storage data-loss emergency hit at session start (13k+ files dataless) — recovered + permanent guard committed. TabBar.tsx ENH-183 pare leftover closed (typecheck unblocked). Suite: 786/786 green. Other-claude's ENH-184 working tree state preserved untouched. Three follow-ups filed from walk-1 notes: ENH-185 (rail refinements), BUG-079 update (ctrl-tab latency partial repro). Phase 2b / Phase 3 / Phase 4 deliberately deferred to Sprint 23.
 
 ## What shipped this session
 
@@ -11,6 +11,9 @@
 | [db3829a](https://github.com/dudgeon/duo/commit/db3829a) | **iCloud Optimize Storage guard** | Recovery scripts + `predev`/`pretest` hooks + CLAUDE.md trap doc. |
 | [58dcc86](https://github.com/dudgeon/duo/commit/58dcc86) | **ENH-182 Phase 1** | Read-only ProjectRail mounts left of files. R1-B quiet bloom. Six `--duo-project-*` tokens. `useProjects` hook. |
 | [6bd1742](https://github.com/dudgeon/duo/commit/6bd1742) | **ENH-182 home-dir fix + IPC** | Pure `isExcludedFromQualification` helper (only `$HOME` itself is blocked; subdirs like `~/.claude` qualify normally). Dedicated `projects:has-marker` IPC replaces nav-listings lookup. 9 new tests. |
+| [9831cce](https://github.com/dudgeon/duo/commit/9831cce) | **Sprint 22 docs refresh** | active-sprint.md / RESUME.md / session-log.md / CLAUDE.md / tasks.md all updated with what shipped + lessons learned. |
+| [2a8a885](https://github.com/dudgeon/duo/commit/2a8a885) | **ENH-182 Phase 2 — focus filter** | Click tile → hide non-member tabs + chip + Ctrl-Tab respects filter + navigator re-roots + active-in-hidden recovery. The marquee. |
+| [dfb0b52](https://github.com/dudgeon/duo/commit/dfb0b52) | **ENH-182 Phase 2 — auto-spawn** | Owner walk-1 edge case: focusing on a project with no member terminals auto-spawns one at the project root using `lastTabKind`. Per-focus-session guard prevents double-spawn. |
 
 ## What's next in Sprint 22
 
@@ -58,9 +61,9 @@ BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 �
 
 5. **`rm + git checkout HEAD --` is the recovery for cloud-stubbed tracked files.** `git checkout HEAD --` silently no-ops on a `dataless`-flagged file (returns 0, file mtime unchanged, content stays empty). The cloud-stub must be physically removed first so git can write a fresh file. Documented in `scripts/materialize.sh § Step 5`.
 
-## Smoke walks owed
+## Smoke walks
 
-None yet — this session's 5 commits haven't been walked. Recommend smoke-walking Phase 1 + the home-dir fix + iCloud guard + TabBar fix together once Phase 2 lands (one cohesive walk before the v0.8.0 cut).
+**v0.8.0 walk-1 (2026-05-25) — 5/5 PASS.** Manifest at [`docs/dev/smoke-walks/v0.8.0.json`](smoke-walks/v0.8.0.json). Owner-walked items: ENH-182-RAIL-VISUAL · ENH-182-FOCUS-CLICK · ENH-182-FOCUS-NAV · ENH-182-CTRL-TAB · TABBAR-PARE-CLEANUP. Agent-walked PASS (auto-skipped per intro): iCloud guard scripts + predev hook + vitest 786/786 + typecheck + hash-stable colors across reload + ~/.claude qualification (3 tests). Two PASS items came with refinement notes filed as follow-ups (ENH-185, BUG-079 update). Walk complete; ready for cut.
 
 ## Open questions for the next agent
 
