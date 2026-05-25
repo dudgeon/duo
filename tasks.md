@@ -232,7 +232,7 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 ### ENH-182: Project-centric UX — design exploration (decision playground)
 
-**Status:** 🟡 **Filed 2026-05-24.** Owner-decision gate open. Research artifact only — **no code**. Surfaces in every smoke walk until the owner Copy-decisions-back closes the gate (per `feedback_research_reports_must_file_review_task` memory rule).
+**Status:** 🟢 **Decisions LOCKED 2026-05-25** (owner walk via AskUserQuestion; gate closed). Research artifact only — **no code yet**. All 12 decisions + R1/R2/R3 answered; outcomes recorded in the playgrounds (per-card `Locked ✓` tags + top summary banner) and below. Next step is a PRD + sprint scope — no longer surfaces in smoke walks.
 
 **What it is.** Owner asked: "given what Duo supports today, what would a full refactor to a Claude-Code-project-centric UX look like?" — a project selector/switcher with files + terminal + browser tabs nested under a project parent. Playground at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) (open via `duo open`); [Notion mirror](https://www.notion.so/36a45f48854f81799bb5f5ea9189be13). HTML decision artifact per CLAUDE.md § 11: four full-window layout mockups (A thin left rail · B title-bar switcher *recommended* · C ⌘P palette · D two-tier workspace▸project), five micro-mockups for the thorny edges (declare-a-folder / no-CLAUDE.md, nested CC projects, multi-project session, clone→project), the 4-way Duo-project ↔ folder ↔ git-repo ↔ Claude-Code-project map, pros/cons, and an additive-feasibility note.
 
@@ -251,7 +251,22 @@ Same pattern as `node script.js | head` — when `head` exits early, subsequent 
 
 **Pre-walk scope locked via AskUserQuestion 2026-05-24:** report+mockups only (no code) · full layouts + micro-mockups + animated transitions · positioning = project-is-any-folder with progressive (non-mandatory) CLAUDE.md/agents.md/git enrichment, clone-repo prompts a project decision · workspaces = future decision, leaning workspace-contains-projects.
 
-**Next:** owner walks the playground, Copy-decisions-back; locked decisions become a PRD + sprint scope. The destructive switch-reload path is the one piece flagged as more-than-additive.
+**LOCKED DECISIONS (owner walk 2026-05-25)** — several refined beyond the original radios:
+- **D1 (spine):** projecthood gated, app open — work in any folder (view-all always exists); a folder becomes a *project* only if it's a git-repo root *or* has `CLAUDE.md`/`.claude/` *and* you're working in it. Not a front-door gate.
+- **D2 (primitive):** project = folder you're actively working in (terminal CWD / non-pinned tabs there) **and** (git-repo root **or** has `CLAUDE.md`/`.claude/`). Navigator right-click "New project" drops a `.claude/`.
+- **D3 (surface):** left filter rail only for v1 — ⌘P palette + title-bar breadcrumb deferred.
+- **D4 (multi-project):** resolved by D8 — multi-project is the default; no single "active project" pointer, only the focus lens.
+- **D5 (nesting):** deepest qualifying folder you're working in.
+- **D6 (clone→project):** automatic via D2 (git-root + working-in qualifies); no separate prompt.
+- **D7 (workspaces):** defer; lean "workspace ⊃ projects" later.
+- **D8 (reframe):** filter/lens, not a switcher. View-all default; click tile to focus; click active tile or All to release; Ctrl-Tab cycles only visible tabs while focused.
+- **D9 (rail):** left, auto-populated, Slack-style; "quiet bloom" tile (locked earlier 2026-05-25).
+- **D10 (scope):** hide unrelated terminal + canvas (incl. browser-mode) tabs; re-root navigator (not a hard tree filter).
+- **D11 (corner case):** auto-switch focus to the opened file's project.
+- **D12 (lifecycle):** auto add/remove **+ user pin**. **Tile right-click menu:** Pin/Unpin + "Close N terminals and M tabs" (bulk-close everything in that project with a live count; confirm when a terminal has a live process). Closing all tabs of an unpinned project drops its tile.
+- **R2 (color):** hash-stable per project root + manual override. **R3 (tile state v1):** minimal — identity + selection only (live-dot + count deferred).
+
+**Next:** locked decisions → PRD + sprint scope. The destructive switch-reload path is the one piece flagged as more-than-additive. New rendered still this walk: `assets/project-filter/tile-state.png` (R3 options); also `corner-case.gif` re-used for D11.
 
 ---
 

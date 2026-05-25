@@ -308,27 +308,50 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 </div>
 
 <div class="tldr">
-  <h3>The short version (recommended path)</h3>
+  <h3>✓ Decisions locked — owner walk 2026-05-25</h3>
+  <p style="margin:0 0 10px">All twelve decisions below are answered (plus the
+  two rail-style decisions in the deep-dive). Several were <em>refined</em>
+  during the walk beyond the original radio options — the binding outcomes are
+  recorded here; the cards below carry per-decision <span class="tag rec">Locked&nbsp;✓</span>
+  tags. This gate is <b>closed</b>.</p>
   <ul>
-    <li><b>Folder-first, not gated.</b> Let people work in any folder
-      immediately; <em>declaring</em> a project is a lightweight, optional
-      upgrade that unlocks (never forces) <code>CLAUDE.md</code> /
-      <code>agents.md</code> / <code>git init</code>.</li>
-    <li><b>A project is "any folder, that Duo names and remembers."</b>
-      Created implicitly; enriched progressively; aware of — but not
-      defined by — its git repo and its Claude Code project dir.</li>
-    <li><b>The payoff — projects as a filter layer (§5).</b> A workspace still
-      holds many projects at once (today's default); a thin, auto-populated rail
-      lets you <em>focus</em> one — unrelated terminal + canvas tabs collapse
-      away and the navigator re-roots — and <b>All</b> brings everything back.
-      Recommended flavor: left (Slack-style) rail, collapse-&amp;-reflow
-      transition, pop-to-All on the out-of-project corner case for v1.</li>
-    <li><b>Enter / switch via the title-bar dropdown you already shipped</b>
-      (extend <code>WorkspaceSwitcherDropdown</code>) + a ⌘P type-ahead; the rail
-      handles focus. The filter reframe makes multi-project sessions the default
-      rather than a confusing multi-root mode.</li>
-    <li><b>Workspaces survive as an optional super-container</b> (a workspace
-      holds one-or-more projects) — but that tier is a later decision.</li>
+    <li><b>D1 · the spine — projecthood gated, app open.</b> You can work in any
+      folder (a <b>view-all</b> state always exists); a folder becomes a
+      <em>project</em> (earns a rail tile, becomes filterable) only if it's a
+      git-repo root <em>or</em> has <code>CLAUDE.md</code>/<code>.claude/</code>
+      <em>and</em> you're actively working in it. Not a front-door gate on the app.</li>
+    <li><b>D2 · the primitive — a folder you're working in + a marker.</b> A
+      Duo project = a folder you're actively working in (a terminal CWD set
+      there, or one-or-more non-pinned tabs/browsers opened from it) <em>and</em>
+      that is a git-repo root <em>or</em> contains <code>CLAUDE.md</code>/<code>.claude/</code>.
+      Right-click a folder in the navigator → <b>"New project"</b> just drops a
+      <code>.claude/</code> (the declare action).</li>
+    <li><b>D3 · switcher surface — left filter rail only (v1).</b> No ⌘P palette,
+      no title-bar breadcrumb; both deferred.</li>
+    <li><b>D4 · multi-project sessions — resolved by D8.</b> Multi-project is the
+      default; there is no single "active project" pointer, only the focus lens.</li>
+    <li><b>D5 · nesting — deepest qualifying folder.</b> When several markers
+      nest, the active project is the <em>deepest</em> one you're working in.</li>
+    <li><b>D6 · clone → project — automatic via D2.</b> A cloned repo's root
+      qualifies the moment you work in it (git-root + working-in); no separate prompt.</li>
+    <li><b>D7 · workspaces — defer; lean "workspace ⊃ projects".</b> Ship the
+      filter first; revisit the container tier later.</li>
+    <li><b>D8 · the reframe — filter / lens, not a switcher.</b> View-all default;
+      click a tile to focus; click the active tile (or <b>All</b>) to release.
+      While focused, Ctrl-Tab cycles only the visible tabs.</li>
+    <li><b>D9 · the rail — left, auto-populated, Slack-style</b>, "quiet bloom"
+      tile treatment (locked 2026-05-25; see the rail-style deep-dive).</li>
+    <li><b>D10 · filter scope — hide unrelated terminal + canvas tabs</b> (incl.
+      browser-mode), <b>re-root</b> the navigator (not a hard tree filter).</li>
+    <li><b>D11 · corner case — auto-switch focus</b> to the opened file's project.</li>
+    <li><b>D12 · rail lifecycle — auto add/remove + user pin.</b> Tile appears
+      when you start working in a qualifying folder, disappears when its last tab
+      closes; you can pin a tile to keep it. <b>Tile right-click menu:</b>
+      Pin / Unpin, and <b>"Close N terminals and M tabs"</b> (bulk-close everything
+      in that project, with a live count; confirm when a terminal has a live process).</li>
+    <li><b>Rail style (deep-dive) — R2:</b> color = hash-stable per project root +
+      manual override. <b>R3:</b> tile state v1 = <em>minimal</em> (identity +
+      selection only; no live-dot or count badge).</li>
   </ul>
 </div>
 
@@ -405,12 +428,12 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 <section class="decision-card">
   <div class="q-title">Decision 1 · the spine</div>
   <h3 class="q-prompt">Must a Duo session belong to a declared project, or can you work in any folder undeclared?</h3>
-  <p class="q-context">This sets the ceremony floor for every new user and every "just poke around this folder" moment. It also decides whether multi-project sessions are even expressible.</p>
+  <p class="q-context">This sets the ceremony floor for every new user and every "just poke around this folder" moment. It also decides whether multi-project sessions are even expressible.<br><b style="color:var(--accent)">✓ Locked 2026-05-25 — projecthood gated, app open:</b> work in any folder (a view-all state always exists); a folder becomes a <em>project</em> only if it's a git-repo root <em>or</em> has <code>CLAUDE.md</code>/<code>.claude/</code> <em>and</em> you're working in it. A refinement of the radios below, not a clean match.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d1" value="progressive">
+      <input type="radio" name="d1" value="progressive" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Progressive / ungated <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">Progressive / ungated <span class="recommend-tag">Locked (refined) ✓</span></div>
         <div class="q-option-rationale">Work in any folder immediately; "Use as a project" is an always-available, never-required upgrade that turns on the switcher entry + per-project context + optional scaffolding. Matches your stated instinct and the dominant IDE model.</div>
       </div>
     </label>
@@ -491,12 +514,12 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 <section class="decision-card">
   <div class="q-title">Decision 2 · the primitive</div>
   <h3 class="q-prompt">What, precisely, is a "Duo project"?</h3>
-  <p class="q-context">This decides what gets persisted, how creation works, and how PM-friendly the surface stays. Your instinct ("a project can be any folder; Duo then knows it might want CLAUDE.md/agents.md/git later, made easy but not mandatory") maps to the recommended option.</p>
+  <p class="q-context">This decides what gets persisted, how creation works, and how PM-friendly the surface stays. Your instinct ("a project can be any folder; Duo then knows it might want CLAUDE.md/agents.md/git later, made easy but not mandatory") maps to the recommended option.<br><b style="color:var(--accent)">✓ Locked 2026-05-25:</b> a project = a folder you're actively working in (a terminal CWD there, or non-pinned tabs/browsers opened from it) <em>and</em> that is a git-repo root <em>or</em> contains <code>CLAUDE.md</code>/<code>.claude/</code>. Deepest qualifying folder wins (D5). Right-click a folder → <b>"New project"</b> drops a <code>.claude/</code>. Refines "named-folder" below.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d2" value="named-folder">
+      <input type="radio" name="d2" value="named-folder" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Any folder Duo names &amp; remembers — implicit creation, progressive enrichment <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">Any folder Duo names &amp; remembers — implicit creation, progressive enrichment <span class="recommend-tag">Locked (refined) ✓</span></div>
         <div class="q-option-rationale">Point at a folder → a project record exists (name = folder basename, editable). It tracks its root, optionally a git repo + CC dir. One-click (never forced) "add CLAUDE.md / agents.md / init git." App-owned named entity, PM-friendly, no required config file.</div>
       </div>
     </label>
@@ -692,15 +715,15 @@ table.rel .part { color: var(--warn); font-weight: 600; }
     <label class="q-option">
       <input type="radio" name="d3" value="titlebar-palette">
       <div class="q-option-body">
-        <div class="q-option-title">B + C: title-bar dropdown, also opens on ⌘P <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">Reuse the shipped switcher; add a ⌘P type-ahead for free. Lowest cost, universal convention, discoverable + keyboard-fast. Defer rail/two-tier.</div>
+        <div class="q-option-title">B + C: title-bar dropdown, also opens on ⌘P <span class="recommend-tag" style="background:var(--paper-edge);color:var(--ink-mute)">Deferred</span></div>
+        <div class="q-option-rationale">Reuse the shipped switcher; add a ⌘P type-ahead for free. Lowest cost, universal convention, discoverable + keyboard-fast. <b>Deferred</b> — owner chose rail-only for v1.</div>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d3" value="rail">
+      <input type="radio" name="d3" value="rail" checked>
       <div class="q-option-body">
-        <div class="q-option-title">A: thin collapsible left rail</div>
-        <div class="q-option-rationale">Best if you expect users juggling many projects at a glance. Costs horizontal space + an icon-ambiguity problem; collides with the VS Code Activity-Bar mental model.</div>
+        <div class="q-option-title">A: the left filter rail (§5/D9) is the sole v1 surface <span class="recommend-tag">Locked ✓</span></div>
+        <div class="q-option-rationale">Locked 2026-05-25. The auto-populated left filter rail is the only entry point in v1; ⌘P and the title-bar breadcrumb are both deferred.</div>
       </div>
     </label>
     <label class="q-option">
@@ -863,7 +886,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 
 <h3>The corner case — opening an out-of-project file while focused</h3>
 <figure class="gif-figure"><img src="assets/project-filter/corner-case.gif" alt="Opening a file outside the focused project pops back to the all-projects view"></figure>
-<p class="mock-cap">v1 behavior: while focused on <b>Widgets</b>, opening a file from another project (here <code>mktg-site/hero.html</code>) <b>pops back to All</b> — everything returns, the new tab lands active, and a toast explains why. A more elegant mechanism (e.g. silently switching focus to the new project) is a future refinement — see Decision 11.</p>
+<p class="mock-cap"><b>Locked v1 (D11, 2026-05-25):</b> while focused on <b>Widgets</b>, opening a file from another project (here <code>mktg-site/hero.html</code>) <b>auto-switches focus to that file's project</b> — the view re-filters so the new tab is visible and in-scope. (The GIF shows the earlier "pop back to All" option, which was <em>not</em> chosen.)</p>
 
 <h3>Rail placement — left (Slack-style) vs right</h3>
 <div class="two-up">
@@ -891,9 +914,9 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <p class="q-context">This is the conceptual fork the whole filter idea turns on. It interacts with D3 (switcher surface) and largely answers D4 (multi-project sessions).</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d8" value="filter">
+      <input type="radio" name="d8" value="filter" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Filter / lens — many projects present, focus hides the rest <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">Filter / lens — many projects present, focus hides the rest <span class="recommend-tag">Locked ✓</span></div>
         <div class="q-option-rationale">The default is the current multi-project workspace; the rail auto-populates from open items; focus is a non-destructive filter. Delivers a real UX payoff and makes multi-project work first-class.</div>
       </div>
     </label>
@@ -921,7 +944,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <p class="q-context">You floated a "thin right rail" of project initials, then mused the "thin left rail could mimic the Slack workspaces rail." Both are mocked above.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d9" value="left-auto">
+      <input type="radio" name="d9" value="left-auto" checked>
       <div class="q-option-body">
         <div class="q-option-title">Left rail, auto-populated (Slack-style) <span class="recommend-tag">Locked ✓</span></div>
         <div class="q-option-rationale">Locked 2026-05-25. Tiles appear as projects gain open items; the All button sits on top. Familiar idiom, reads as "spaces." Tile treatment + color system locked in the <code>project-rail-style-study.html</code> deep-dive.</div>
@@ -951,10 +974,10 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <p class="q-context">Your spec: hide unrelated terminal + canvas tabs, and set the navigator to the project root.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d10" value="tabs-reroot">
+      <input type="radio" name="d10" value="tabs-reroot" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Hide unrelated terminal + canvas tabs; re-root the navigator <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">Exactly your spec. Navigator jumps to the project root (or deeper if a descendant is already selected). Browser-mode tabs follow the canvas rule (they're working tabs).</div>
+        <div class="q-option-title">Hide unrelated terminal + canvas tabs; re-root the navigator <span class="recommend-tag">Locked ✓</span></div>
+        <div class="q-option-rationale">Locked 2026-05-25. Navigator jumps to the project root (or deeper if a descendant is already selected) — a re-root, not a hard tree filter. Browser-mode tabs follow the canvas rule (they're working tabs). While focused, Ctrl-Tab cycles only the visible tabs.</div>
       </div>
     </label>
     <label class="q-option">
@@ -983,15 +1006,15 @@ table.rel .part { color: var(--warn); font-weight: 600; }
     <label class="q-option">
       <input type="radio" name="d11" value="pop-all">
       <div class="q-option-body">
-        <div class="q-option-title">Pop back to All (v1) <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">Unambiguous and trivial to build; the toast explains why. Ships the feature without solving every edge perfectly.</div>
+        <div class="q-option-title">Pop back to All (v1)</div>
+        <div class="q-option-rationale">Unambiguous and trivial to build; the toast explains why. Ships the feature without solving every edge perfectly. <b>Not chosen</b> — owner picked auto-switch.</div>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d11" value="auto-switch">
+      <input type="radio" name="d11" value="auto-switch" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Auto-switch focus to the new file's project</div>
-        <div class="q-option-rationale">More elegant: if the file belongs to another known project, focus shifts there. Needs the new file's project to be resolvable + can feel like the view "jumped."</div>
+        <div class="q-option-title">Auto-switch focus to the new file's project <span class="recommend-tag">Locked ✓</span></div>
+        <div class="q-option-rationale">Locked 2026-05-25. Opening a file that belongs to another project re-filters the view to that project (focus follows the file) — consistent with the toggle model. Needs the new file's project to be resolvable.</div>
       </div>
     </label>
     <label class="q-option">
@@ -1008,13 +1031,13 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 <section class="decision-card">
   <div class="q-title">Decision 12 · rail lifecycle</div>
   <h3 class="q-prompt">When do project tiles appear and disappear?</h3>
-  <p class="q-context">The rail auto-populates from open items — but what's its persistence rule?</p>
+  <p class="q-context">The rail auto-populates from open items — but what's its persistence rule?<br><b style="color:var(--accent)">✓ Locked 2026-05-25 — tile right-click menu:</b> right-clicking a tile offers <b>Pin / Unpin</b> (the pin affordance) and <b>"Close N terminals and M tabs"</b> (a live count of everything belonging to that project — terminals + canvas/browser/editor tabs — closed in one action). Closing all of an unpinned project's tabs auto-removes its tile (per the rule below); a pinned tile stays. Terminals with a live process should confirm before closing (matches today's close-terminal behavior).</p>
   <div class="q-options">
     <label class="q-option">
       <input type="radio" name="d12" value="auto">
       <div class="q-option-body">
-        <div class="q-option-title">Auto-add on first open; auto-remove when the last item closes <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">The rail always reflects "projects with something open." Zero management; never goes stale. Matches the filter mental model.</div>
+        <div class="q-option-title">Auto-add on first open; auto-remove when the last item closes</div>
+        <div class="q-option-rationale">The rail always reflects "projects with something open." Zero management; never goes stale. <b>Superseded</b> by the pin variant below.</div>
       </div>
     </label>
     <label class="q-option">
@@ -1025,10 +1048,10 @@ table.rel .part { color: var(--warn); font-weight: 600; }
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d12" value="pin">
+      <input type="radio" name="d12" value="pin" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Auto-add, but let the user pin tiles to keep them</div>
-        <div class="q-option-rationale">Best of both — auto for the common case, pin for projects you return to. More UI (pin affordance, overflow).</div>
+        <div class="q-option-title">Auto-add, but let the user pin tiles to keep them <span class="recommend-tag">Locked ✓</span></div>
+        <div class="q-option-rationale">Locked 2026-05-25. Auto for the common case (tile appears on first open, drops when its last tab closes); a pin affordance keeps tiles you return to. Adds pin UI + overflow handling.</div>
       </div>
     </label>
   </div>
@@ -1102,7 +1125,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 <section class="decision-card">
   <div class="q-title">Decision 4 · multi-project sessions</div>
   <h3 class="q-prompt">How does a session that spans projects behave?</h3>
-  <p class="q-context">Your constraint: spanning projects must never be a barrier. The question is whether "active project" is a single pointer or a true multi-root set.</p>
+  <p class="q-context">Your constraint: spanning projects must never be a barrier. The question is whether "active project" is a single pointer or a true multi-root set.<br><b style="color:var(--accent)">✓ Resolved by D8 (filter):</b> multi-project is the default state; there is no single "active project" pointer — only the focus lens. Neither radio below applies directly.</p>
   <div class="q-options">
     <label class="q-option">
       <input type="radio" name="d4" value="single-active">
@@ -1128,9 +1151,9 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <p class="q-context">Monorepos, submodules, repo-in-repo. Duo already has peer-repo detection to build on.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d5" value="auto-deepest">
+      <input type="radio" name="d5" value="auto-deepest" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Auto-pick the deepest enclosing marker; show + allow override <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">Auto-pick the deepest enclosing marker; show + allow override <span class="recommend-tag">Locked ✓</span></div>
         <div class="q-option-rationale">Follow the focused file: the deepest <code>CLAUDE.md</code>/<code>.git</code> enclosing it becomes the active root, shown in the breadcrumb, switchable. Detect, surface, don't force.</div>
       </div>
     </label>
@@ -1155,20 +1178,20 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 <section class="decision-card">
   <div class="q-title">Decision 6 · clone → project</div>
   <h3 class="q-prompt">When the user clones a GitHub repo, does it become a project?</h3>
-  <p class="q-context">Edge 4 above. You leaned "should likely trigger a decision."</p>
+  <p class="q-context">Edge 4 above. You leaned "should likely trigger a decision."<br><b style="color:var(--accent)">✓ Locked 2026-05-25 — automatic via D2:</b> a cloned repo's root qualifies as a project the moment you work in it (git-root + working-in); no separate prompt needed. The "prompt once" mock below is superseded.</p>
   <div class="q-options">
     <label class="q-option">
       <input type="radio" name="d6" value="prompt">
       <div class="q-option-body">
-        <div class="q-option-title">Prompt once (repo name pre-fills) <span class="recommend-tag">Recommended</span></div>
-        <div class="q-option-rationale">A clone is a strong signal but not consent. One non-blocking prompt; "Not now" leaves files browsable. Symmetric with the declare-a-folder flow.</div>
+        <div class="q-option-title">Prompt once (repo name pre-fills)</div>
+        <div class="q-option-rationale">A clone is a strong signal but not consent. One non-blocking prompt; "Not now" leaves files browsable. <b>Not chosen</b> — D2's definition makes projecthood implicit, so no prompt is needed.</div>
       </div>
     </label>
     <label class="q-option">
-      <input type="radio" name="d6" value="auto">
+      <input type="radio" name="d6" value="auto" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Auto-create the project</div>
-        <div class="q-option-rationale">Frictionless, but creates project records the user didn't ask for — clutter in the switcher for throwaway clones.</div>
+        <div class="q-option-title">Automatic via the D2 definition <span class="recommend-tag">Locked ✓</span></div>
+        <div class="q-option-rationale">Locked 2026-05-25. A cloned repo's root is a git-root, so it qualifies as a project the moment you work in it (a terminal CWD there / a tab opened from it). No special-case prompt — it falls out of D2.</div>
       </div>
     </label>
     <label class="q-option">
@@ -1201,9 +1224,9 @@ table.rel .part { color: var(--warn); font-weight: 600; }
   <p class="q-context">Marked a future call — answer "lean" if you just want a direction recorded, not locked.</p>
   <div class="q-options">
     <label class="q-option">
-      <input type="radio" name="d7" value="defer-twotier">
+      <input type="radio" name="d7" value="defer-twotier" checked>
       <div class="q-option-body">
-        <div class="q-option-title">Defer; lean toward "workspace = optional super-container of projects" <span class="recommend-tag">Recommended</span></div>
+        <div class="q-option-title">Defer; lean toward "workspace = optional super-container of projects" <span class="recommend-tag">Locked ✓</span></div>
         <div class="q-option-rationale">Ship projects first as the parent of tabs. Keep workspaces as-is (a saved layout) for now; revisit promoting them into a project-container (Direction D) once the project tier has earned its keep. Lowest commitment.</div>
       </div>
     </label>
@@ -1268,7 +1291,7 @@ table.rel .part { color: var(--warn); font-weight: 600; }
 </p>
 
 <div class="copy-bar">
-  <div class="copy-meta"><span id="answered-count">0</span> / 12 decisions answered</div>
+  <div class="copy-meta">✓ <b>Locked 2026-05-25</b> — <span id="answered-count">0</span>/12 radios pre-set (D4 is subsumed by D8); the top banner is authoritative</div>
   <button id="copy-btn" type="button">Copy decisions</button>
 </div>
 

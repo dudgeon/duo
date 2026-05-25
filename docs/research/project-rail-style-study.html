@@ -341,24 +341,29 @@ code{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;backgro
 </section>
 
 <section class="decision-card">
-  <div class="q-title">Decision R2 · color assignment</div>
+  <div class="q-title">Decision R2 · color assignment · ✓ LOCKED</div>
   <h3 class="q-prompt">How is a project's color chosen?</h3>
-  <p class="q-context">From the 6-hue palette above.</p>
+  <p class="q-context">From the 6-hue palette above. <b>Locked 2026-05-25 → hash-stable + override.</b></p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="r2" value="hash"><div class="q-option-body"><div class="q-option-title">Hash-stable per project root + manual override <span class="rec">Recommended</span></div><div class="q-option-rationale">Deterministic (same folder → same color, every session/machine); override when two projects collide or the user prefers.</div></div></label>
+    <label class="q-option"><input type="radio" name="r2" value="hash" checked><div class="q-option-body"><div class="q-option-title">Hash-stable per project root + manual override <span class="rec">Locked ✓</span></div><div class="q-option-rationale">Locked 2026-05-25. Deterministic (same folder → same color, every session/machine); override when two projects collide or the user prefers.</div></div></label>
     <label class="q-option"><input type="radio" name="r2" value="order"><div class="q-option-body"><div class="q-option-title">Order of appearance</div><div class="q-option-rationale">First project gets Pine, second Harbor… Simple, but the same project can change color run-to-run depending on open order.</div></div></label>
     <label class="q-option"><input type="radio" name="r2" value="manual"><div class="q-option-body"><div class="q-option-title">Always manual (user picks on declare)</div><div class="q-option-rationale">Full control, zero surprise — but adds a step to declaring a project and most users won't bother.</div></div></label>
   </div>
   <textarea class="q-notes" data-decision="r2" placeholder="Notes (optional)..."></textarea>
 </section>
 
+<figure class="gif-figure"><img src="assets/project-filter/tile-state.png" alt="Three tile-state options: minimal, with a Claude-live dot, and with a live dot plus open-count badge"></figure>
+<p class="note">The three states weighed for R3, on unfocused quiet-bloom tiles.
+  <b>Minimal</b> (left) was locked for v1; the Claude-live dot and the open-count
+  badge are deferred.</p>
+
 <section class="decision-card">
-  <div class="q-title">Decision R3 · tile state (v1)</div>
+  <div class="q-title">Decision R3 · tile state (v1) · ✓ LOCKED</div>
   <h3 class="q-prompt">What state does a tile show in v1?</h3>
-  <p class="q-context">Beyond identity + selection (both always in).</p>
+  <p class="q-context">Beyond identity + selection (both always in). <b>Locked 2026-05-25 → minimal</b> (identity + selection only; live-dot + count deferred).</p>
   <div class="q-options">
-    <label class="q-option"><input type="radio" name="r3" value="live"><div class="q-option-body"><div class="q-option-title">Add the "Claude live here" dot only <span class="rec">Recommended</span></div><div class="q-option-rationale">Reuses claudePresence; genuinely useful ("which project is the agent working in?"). Defer counts + git-dirty.</div></div></label>
-    <label class="q-option"><input type="radio" name="r3" value="minimal"><div class="q-option-body"><div class="q-option-title">Identity + selection only</div><div class="q-option-rationale">Cleanest rail. No live dot, no badges. Add state later if asked for.</div></div></label>
+    <label class="q-option"><input type="radio" name="r3" value="live"><div class="q-option-body"><div class="q-option-title">Add the "Claude live here" dot only</div><div class="q-option-rationale">Reuses claudePresence; genuinely useful ("which project is the agent working in?"). <b>Deferred</b> — owner chose the cleanest rail for v1.</div></div></label>
+    <label class="q-option"><input type="radio" name="r3" value="minimal" checked><div class="q-option-body"><div class="q-option-title">Identity + selection only <span class="rec">Locked ✓</span></div><div class="q-option-rationale">Locked 2026-05-25. Cleanest rail. No live dot, no badges; add state later if asked for.</div></div></label>
     <label class="q-option"><input type="radio" name="r3" value="rich"><div class="q-option-body"><div class="q-option-title">Live dot + open-item count badge</div><div class="q-option-rationale">Most informative; risks the Slack-unread clutter the Atelier look avoids.</div></div></label>
   </div>
   <textarea class="q-notes" data-decision="r3" placeholder="Notes (optional)..."></textarea>
