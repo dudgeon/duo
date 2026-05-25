@@ -1,10 +1,5 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react'
+import { useEffect, useRef } from 'react'
 import type { TabSession } from '@shared/types'
-import {
-  getSessionHeaderState,
-  setSessionHeaderState,
-  subscribeSessionHeader,
-} from '../store/sessionHeader'
 
 interface TabBarProps {
   tabs: TabSession[]
@@ -183,20 +178,6 @@ interface TabProps {
 }
 
 function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCwd }: TabProps) {
-  // ENH-183 C5 — subscribe to per-tab SessionHeader UI state so we can
-  // render the S2 collapsed-dot marker AND wire click-active-tab to
-  // toggle the collapsed flag (banner expands or re-collapses).
-  const ui = useSyncExternalStore(
-    subscribeSessionHeader,
-    () => getSessionHeaderState(tab.id),
-  )
-  const showS2Dot = !!(
-    tab.kind === 'claude' &&
-    tab.lastClaudeSession?.id &&
-    ui.collapsed &&
-    !ui.dismissedBanner
-  )
-
   // ENH-115 — right-click → native context menu. Single verb today
   // ("Reveal in navigator"); leaves room for additional terminal-tab
   // verbs (Duplicate / Close others) without restructuring.
@@ -211,13 +192,7 @@ function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCw
     if (res.chosenId === 'reveal-cwd') onRevealCwd(tab.cwd)
   }
 
-  // ENH-183 C5 — clicking the ALREADY-active tab toggles S2 expansion.
-  // Clicking an inactive tab still just selects it. Either path falls
-  // through to onSelect (selecting an active tab is a no-op there).
   const onClick = () => {
-    if (isActive && tab.lastClaudeSession?.id) {
-      setSessionHeaderState(tab.id, { collapsed: !ui.collapsed })
-    }
     onSelect()
   }
 
@@ -251,18 +226,6 @@ function Tab({ tab, isActive, onSelect, onClose, canClose, buttonRef, onRevealCw
       <TabIcon kind={tab.kind} active={isActive} />
 
       <span className="truncate leading-none not-italic">{tab.title}</span>
-
-      {/* ENH-183 C5 — S2 collapsed-dot marker (D12 = option a). 6×6
-          accent dot indicates "this claude session has a named title
-          you can expand" — click the active tab to see the banner. */}
-      {showS2Dot && (
-        <span
-          aria-hidden="true"
-          data-session-header-dot="S2"
-          className="shrink-0 w-1.5 h-1.5 rounded-full bg-accent"
-          title="Claude session marker — click tab to expand"
-        />
-      )}
 
       {canClose && (
         <span
