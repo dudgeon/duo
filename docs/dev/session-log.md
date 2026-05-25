@@ -18,6 +18,99 @@
 
 ---
 
+## 2026-05-25 (Sprint 22 — ENH-182 Phase 0 + Phase 1 + iCloud emergency recovery)
+
+**Sprint 22 / v0.8.0 kicked off.** 5 commits ahead of `origin/main`, none pushed. The session was bookended by an iCloud Optimize Storage emergency at the start and a verified-live project rail at the end.
+
+### iCloud Optimize Storage data-loss event (session-start emergency)
+
+Disk had hit 94% full prior to the session. macOS's "Optimize Mac Storage" feature aggressively evicted ~13,000 files in this repo to cloud-only state — including `.git/refs/heads/main`, both packfiles, 34 source files in `renderer/components/editor/extensions/`, and most of `node_modules/`. Files reported non-zero sizes in `stat` but read as zero bytes (the `dataless` BSD file flag). Git was completely broken: `git rev-parse HEAD` returned "ambiguous argument 'HEAD'"; `git cat-file -e` exited with SIGBUS from the partially-materialized packfile; `git status` listed "short read while indexing" errors. Owner was remote and gave full autonomy to recover + add a permanent guard.
+
+**Recovery (~45 min of session time):**
+
+1. `defaults write com.apple.bird optimize-storage -bool false` + `killall bird` to stop further evictions.
+2. Force-read every file in `.git/` via parallel `find ... -print0 | xargs -0 -P 8 -n 50 cat > /dev/null` — packfiles materialized in ~5s once read.
+3. Reconstructed `.git/refs/heads/main` directly from `.git/logs/HEAD` reflog tail (the last commit hash was discoverable because the reflog log file itself materialized when read).
+4. Force-read working tree files in batch. 34 source files were stuck — their cloud copies had never synced (written too recently before eviction). Standard `git checkout HEAD --` silently no-oped because the cloud-stub blocked git's write. The recovery pattern: `rm <file> && git checkout HEAD -- <file>` (delete cloud-stub first, then checkout creates a fresh file). Worked for all 34.
+5. `npm install` to repopulate `node_modules/` cleanly — ~10 seconds vs. ~30 minutes of per-file iCloud downloads.
+6. `git remote set-head origin -a` to restore the broken `refs/remotes/origin/HEAD` symbolic ref.
+7. Truncated remaining empty `.git/logs/refs/*` reflog stragglers (append-only files; will regrow naturally as git is used).
+8. Cleaned `dist/` — deleted 11 legacy DMGs from v0.6.12–v0.7.8 (kept v0.7.9 as safety net). Freed 1.1 GB.
+
+**Permanent guard committed ([db3829a](https://github.com/dudgeon/duo/commit/db3829a)):**
+
+- [`scripts/check-materialization.sh`](../../scripts/check-materialization.sh) — fast `find ... | xargs ls -lO | grep dataless` scan across `.git` + tracked source dirs. Warn-only by default (`--strict` for CI). Reports first 5 affected files + recovery commands.
+- [`scripts/materialize.sh`](../../scripts/materialize.sh) — 6-stage recovery script: disable Optimize Storage → materialize `.git/` → working tree → `node_modules/` → `git checkout HEAD --` stuck files → final-state report.
+- `package.json` — `predev` / `pretest` / `pretest:run` hooks run the check with `--quiet || true` so each `npm run dev` warns once without blocking. New `materialize` / `check:materialization` npm scripts.
+- `CLAUDE.md § Build commands` — full trap description with symptom list + recovery commands + historical incident note.
+
+**Lessons for future agents:**
+
+1. **SIGBUS from `git cat-file -e`** is the smoking gun for a partially-materialized packfile — not git corruption. Force-read the packfile first.
+2. **`git checkout HEAD --` silently fails on cloud-stub files.** No error, no write, mtime unchanged. The cloud-stub must be `rm`d first.
+3. **`.git/refs/heads/main` is unrecoverable from cloud if written locally just before eviction.** Reconstruct from `.git/logs/HEAD` (reflogs are append-only + longer-lived → much more likely to be materialized).
+4. **`npm install` beats waiting for per-file iCloud download** when node_modules is largely dataless.
+5. **Disk pressure is the trigger.** `dist/` accumulates 100MB+ per release; keep it pruned as standard hygiene (or add automatic prune-on-cut to the cut-version skill).
+
+### TabBar.tsx pare leftover ([b3953e8](https://github.com/dudgeon/duo/commit/b3953e8))
+
+Pre-existing on `main` from the ENH-183 Option A pare. The pare dropped `collapsed` + `editingTitle` from `SessionHeaderUiState` but missed three references in `renderer/components/TabBar.tsx`: `ui.collapsed` (line 196), `setSessionHeaderState(... collapsed: !ui.collapsed)` (line 219), and the `showS2Dot` render block (line 258). All three were S2 collapsed-dot tab-marker code paths — gone with the rest of S2. With S2 dropped, the click-active-tab-to-toggle gesture is gone too; `onClick` reverts to plain `onSelect`. Fix is mechanical (drop the 3 references + 4 now-unused imports). Unblocks `npm run typecheck` repo-wide. Caught only because Phase 0 / Phase 1 work was about to run typecheck against a touched-state.
+
+**Lesson:** structural pares (dropping fields from a state interface) should grep-audit ALL consumers in the SAME commit. Codified via existing memory rule [feedback_grep_all_implementations_before_rename.md](../../.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_grep_all_implementations_before_rename.md) — broaden mental model from "user-visible string renames" to "type-field removals".
+
+### ENH-182 Phase 0 — Project model + pure derivation + persisted slice ([3b49e43](https://github.com/dudgeon/duo/commit/3b49e43))
+
+Foundation for the project-as-filter-layer UX (decisions D1–D12 + R1–R3 locked 2026-05-25). No UI; pure logic + tests.
+
+- `shared/types.ts` — `Project` + `ProjectsFile` interfaces.
+- `core/projects-service.ts` — `deriveProjects()` pure function (D2 qualification, D5 deepest-wins membership, D12 pinned-projects, R2 hash-stable color); `ProjectsService` persisted slice at `~/.claude/duo/projects.json` (atomic writes mirroring PinsService); `hasMarker(dir)` async fs probe.
+- `core/projects-service.test.ts` — 40 unit tests covering qualification, deepest-wins, hash-stable color, pinned projects, sorting, qualify() memoization, persisted-slice round-trip, defensive normalization, hasMarker semantics.
+
+### ENH-182 Phase 1 — Read-only project rail ([58dcc86](https://github.com/dudgeon/duo/commit/58dcc86))
+
+The rail mounts at the left edge of the app shell. Phase 1 is read-only by design (clicks are no-ops); `onFocus` is wired through for Phase 2.
+
+**Restructuring before the rail.** The renderer's `tsconfig.web.json` doesn't include `core/projects-service.ts`, so the renderer couldn't import the pure derivation. Split the module: pure helpers moved to `shared/projects.ts` (importable everywhere); `core/projects-service.ts` keeps the fs/Node-only parts (`ProjectsService` class + `hasMarker` async).
+
+**Design assets (locked, do not redesign):**
+- R1-B "quiet bloom" tile style: unfocused → paper bg + colored initials + hue underline; focused → full-hue fill + white left-edge notch.
+- Six `--duo-project-*` tokens mirrored from `skill/references/duo-atelier.css` into `renderer/styles/globals.css` (both light + dark variants). Hues deliberately skip the orange/amber band so no project reads as the burnt-orange `--duo-accent`.
+- ~54px rail width; hides entirely when no projects qualify.
+
+**Wiring.** `useProjects()` hook subscribes to app state (terminals, working tabs, pinned tab paths) and runs async git-status probes via existing IPC (`window.electron.git.status`). Memoized + de-duped via `inFlightRef` so re-renders don't re-probe.
+
+**Two real bugs caught during live verification (both fixed):**
+
+1. **Promise-cancel-on-cleanup race.** Initial useEffect cleanup set `cancelled = true` to abort stale promises. But every re-render of App.tsx fires the cleanup BEFORE its replacement effect runs the next probe — so the in-flight promise gets cancelled before it can `setGitResults`. Cache stayed empty forever; the rail showed zero tiles. Fix: remove the cancel; the setState merge is idempotent (each key writes the same stable result on retry) so stale-closure resolutions after re-render produce a correct state. **Pattern applies broadly** to any renderer hook doing "async probe → merge into Map state" against a parent that re-renders on common state churn.
+
+2. **Home dir false-qualified as a project.** With the navigator at `/tmp/duo-walk-hydrate`, terminal cwds were probed for ancestors. `/Users/geoffreydudgeon/` ancestor had `.claude/` in its navigator listing (the user's global config) → my hasMarker check returned true → home dir qualified as a project → rail showed "geoffreydudgeon" tile. Wrong. Fix landed in the follow-up commit (see below).
+
+### ENH-182 home-dir exclusion + dedicated marker IPC ([6bd1742](https://github.com/dudgeon/duo/commit/6bd1742))
+
+**Owner directive.** "If I am editing a file from this directory, it should count as a project; please make sure the exclusion does not disrupt this." So:
+
+- **Bar `$HOME` itself + `/` from qualification, but NOT subdirs of home.**
+- The user's global `~/.claude/` has its OWN `CLAUDE.md` inside it → qualifies normally if the user works in it (editing global skills, agents, or the global instructions file).
+- The home dir does NOT qualify even though it contains `.claude/` in its listing.
+
+**Two changes:**
+
+1. **Pure helper `isExcludedFromQualification(dir, homeDir)`** in `shared/projects.ts`. Documents the rationale + matches `dir === homeDir` (or `/^\/Users\/[^/]+\/?$/` fallback when `process.env.HOME` isn't injected). Renderer hook calls it from `qualify()` before any probe lookup. 6 + 3 new tests cover the matrix (root, home exact, regex fallback, subdirs unaffected, deeper paths unaffected, /tmp not affected) + three explicit `~/.claude editing scenario` integration tests.
+
+2. **Dedicated marker-probe IPC.** Phase 1's `hasMarker` reused `nav.state.listings`. That gap mattered for the `~/.claude` case: the navigator hadn't scanned `~/.claude`, so the listing-based check returned false. New IPC `projects:has-marker` (renderer → main) calls the existing `hasMarker(dir)` from `core/projects-service.ts` directly. Hook now has TWO probe caches (gitResults Map + markerResults Map) with the same idempotent-merge pattern.
+
+**Verified live.** With a tab open at `~/.claude/CLAUDE.md`, the rail surfaces both **CL** (`.claude`) and **DU** (`duo`) tiles, hash-stable colors stable across renderer reloads. Home dir does NOT appear despite its listing containing `.claude/`.
+
+### Process notes
+
+**Coordinated with other-claude's ENH-184 working tree** without dropping it. Their uncommitted state (`renderer/App.tsx` flag declaration + `renderer/components/WorkspaceSwitcherDropdown.tsx` handler fix + new `renderer/hooks/useWorkspacePillMenuFlag.ts`) survives intact across this session's two App.tsx-touching commits (Phase 1 + home-dir-fix). The pattern: save other-claude's WSD patch via `git diff > /tmp/...`; Edit-tool-revert their App.tsx hunks; commit my work; Edit-tool-restore their App.tsx hunks; `git apply` their WSD patch. Documented in [`docs/dev/RESUME.md § 8`](RESUME.md) for future agents who'll need the same dance.
+
+**Suite at 786/786 green** (40 + 9 from this session). Typecheck clean.
+
+**Next:** Phase 2 (focus filter — the actual payoff). Phase 1 tiles are display-only by design; clicks become functional in Phase 2.
+
+---
+
 ## 2026-05-25 (v0.7.9 cut — Claude session resume affordances, pared mid-cycle)
 
 **v0.7.9 cut.** First release where we **pared a feature mid-cycle** based on walk-driven empirics. ENH-183 began as a four-state polymorphic session header (S0/S1/S2/S3) with T3 auto-hydration, S2 inline rename, C11 educational tip, and four CLI verbs. After walking rev3–rev5 across multiple sessions, owner observed the S2 banner duplicated info already in Claude Code's own `✳ <haiku>` tab title. Empirics from the walks confirmed: `duo session hydrate` returned `{hydrated: false, reason: 'already-has-aiTitle'}` 100% of the time — Haiku auto-titling wins the race in practice. Plus T3 had caused BUG-156 ([afb590c](https://github.com/dudgeon/duo/commit/afb590c) — Claude crash via `pty.resize(0,0)` triggered by the in-flow flex-column wrapper's transient zero-height during layout reflow). The ~20% coverage gain from force-rename wasn't worth the risk surface or the duplicated UI. Owner directed Option A pare-back.

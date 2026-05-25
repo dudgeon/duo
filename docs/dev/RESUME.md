@@ -2,60 +2,80 @@
 
 **Read this first.** Then in order:
 
-1. [`docs/dev/active-sprint.md`](active-sprint.md) — Sprint 22 starting scope + carry-forward queue.
+1. [`docs/dev/active-sprint.md`](active-sprint.md) — what shipped this session + what's next.
 2. [`CLAUDE.md`](../../CLAUDE.md) § Active sprint — same content, shorter form.
-3. [`tasks.md`](../../tasks.md) — the running ledger. Top of the file is most-current.
+3. [`tasks.md`](../../tasks.md) — running ledger. Sprint 22 section is at the top.
 
 ## Where we are
 
-**v0.7.9 just shipped** (2026-05-25) — see [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.9). Cut + tag + signed DMG + GitHub Release all live. Dev session bumped to v0.8.0. Two commits on `main` since the cut: `6a8525e` (release) + `835f373` (bump) + `acf2bff` (merge with parallel ENH-182 docs that landed during the cut).
-
-**ENH-183 mid-cycle pare-back was the main event.** Started as a four-state polymorphic session header (S0/S1/S2/S3) with auto-hydration + inline rename + educational tip + four CLI verbs. Owner directed Option A pare after walking rev3-rev5: dropped S2 named banner + C11 educational tip + T3 auto-hydration + S2 inline rename + force-rename CLI (~600 LOC). Kept S1 resume pills + S3 restore offer + D5 read ladder + `duo session list/resume`. Full rationale at [`tasks.md § ENH-183 PARED 2026-05-25 (Option A)`](../../tasks.md#enh-183-pared-2026-05-25-option-a--s2--c11--t3--force-rename-dropped).
-
-## Sprint 22 starts here
-
-### Top of the queue: ENH-184 (finish the in-flight work first)
-
-**Owner intent.** Render the title-bar workspace pill as a **passive label** — no dropdown, no caret, no click. All workspace operations route through File menu.
-
-**Working tree state (uncommitted, intentionally left for Sprint 22):**
+**5 commits ahead of `origin/main`, not pushed yet.** Sprint 22 had a session-start emergency (iCloud Optimize Storage evicted 13k+ files including `.git/refs/heads/main`) that's now permanently guarded against — full chain:
 
 ```
-M renderer/App.tsx                                  (flag declared, not consumed)
-M renderer/components/WorkspaceSwitcherDropdown.tsx (+ handler fix complete)
-?? renderer/hooks/useWorkspacePillMenuFlag.ts       (new flag hook, default OFF)
+6bd1742  fix(ENH-182): home-dir exclusion + dedicated marker IPC
+58dcc86  feat(ENH-182): Phase 1 — read-only project rail mounts left of files
+db3829a  feat(sprint22): iCloud Optimize Storage data-loss guard
+b3953e8  fix(ENH-183-pare): TabBar.tsx — drop S2 collapsed-dot leftover
+3b49e43  feat(ENH-182): Phase 0 — Project model + pure derivation + persisted slice
 ```
 
-**Next steps:**
-1. Read [`docs/dev/active-sprint.md`](active-sprint.md) § ENH-184 for full detail.
-2. Wire `workspacePillMenuEnabled` in `App.tsx` to gate the pill's `onClick` + caret render. ~5 lines.
-3. CLI parity verb `duo workspace-pill-menu [on|off]` (optional but matches CLAUDE.md § 4).
-4. Update [`packs/duo-default/canvases/what-duo-does.html`](../../packs/duo-default/canvases/what-duo-does.html) §37c which still describes the click-to-open behavior.
-5. Smoke-walk it via the `/smoke-walk` skill (CLAUDE.md § 7b — MUST invoke via Skill tool).
+**ENH-182 Phase 0 + Phase 1 verified live.** Read-only project rail mounts at the left edge with R1-B quiet bloom tiles. With workspace tabs spanning the duo repo + `/tmp/duo-walk-hydrate` + `~/.claude/CLAUDE.md`, the rail correctly surfaces **CL** (`.claude`) and **DU** (`duo`) tiles. Home dir itself does NOT qualify despite containing `.claude/` (the global Claude Code config) — exclusion fires before any marker check.
 
-### Second in queue: ENH-182 (PRD locked, ready to build)
+**Phase 2 (focus filter — the actual payoff)** is the obvious next step. Phase 1 tiles are display-only by design; clicks are no-ops until Phase 2 lands.
 
-[`docs/prd/enh-182-project-centric-ux.md`](../prd/enh-182-project-centric-ux.md) — locked 2026-05-25, design assets + file:line code map included. Spec-complete; pick up when ENH-184 closes.
+## Sprint 22 picks up here
+
+### ENH-182 Phase 2 — Focus filter
+
+The rail's `onFocus` prop is already wired through to Phase 1; App.tsx currently passes `focusedProject={null}`. Phase 2 builds:
+
+1. **`focusedProject` state** in `App.tsx` — type `string | null`. Set on tile click; cleared on All tile or active-tile-again click (D8).
+2. **Filter tabs while focused** — apply to both `tabs` (terminals) and `fileTabs` (working tabs). Use the `terminalMembership` + `tabMembership` from `useProjects` (the hook already returns them; Phase 1 just doesn't consume them). Filter is visibility-only — closed tabs RETURN when focus clears (D10).
+3. **Re-root navigator** — `nav.actions.navigateTo(focusedProject)` on focus; restore previous cwd on clear. PRD § 9 area 2 has the entry point.
+4. **Ctrl-Tab respects filter** — `renderer/keyboard/tabCycle.ts cycleNext()` already operates on the array passed in; just pass the filtered array (D8).
+5. **Title-bar focus chip** — small "Focused: {projectName} ×" affordance somewhere visible. Click × to clear.
+
+PRD spec at [`docs/prd/enh-182-project-centric-ux.md § Phase 2`](../prd/enh-182-project-centric-ux.md). The §5 demo in [`docs/research/project-centric-ux.html`](../research/project-centric-ux.html) has working CSS/JS for the collapse-&-reflow transition (port it to the real components, restyled).
+
+### ENH-184 — Workspace pill defeaturing (still in-flight)
+
+Other-claude's uncommitted working tree from the prior session is preserved untouched:
+- `renderer/hooks/useWorkspacePillMenuFlag.ts` (new, untracked)
+- `renderer/App.tsx` (flag imported + declared, NOT consumed)
+- `renderer/components/WorkspaceSwitcherDropdown.tsx` (`+ New Workspace` handler fixed)
+
+Finishing work documented at [`tasks.md § ENH-184`](../../tasks.md). Whichever Claude picks it up: wire the flag to gate the pill's `onClick`, owner walk, optional CLI parity verb.
 
 ## Critical guardrails for the next agent
 
-These are the failure modes I (or the agent before me) hit during the cycle. Read before touching the codebase.
+These are the failure modes hit during this session + prior sessions. Read before touching the codebase.
 
-### 1. Verify the artifact BEFORE filing fixes from verbal symptom reports
+### 1. macOS Optimize Storage eviction (NEW — Sprint 22 emergency)
 
-BUG-159 lesson: owner reported `/rename CLI rename test successful` sitting in claude's input buffer "un-submitted." I jumped to a "LF doesn't commit" hypothesis + shipped a defensive CR-terminator fix. JSONL inspection AFTER the fix showed two `custom-title` entries proving the rename WAS committing — the owner-visible artifact was Claude TUI render timing, not a Duo bug. The fix became moot in the pare anyway, but the process gap stays: **before filing a fix based on a verbal "looks broken" report, check the artifact (file on disk, JSONL entry, network response — whatever the supposed-broken code writes) and confirm the broken behavior is real.** Existing memory rule `feedback_verify_current_behavior_before_proposing_fix.md` applies — extend it from "what's the impact?" framing to "is this even a bug?" framing.
+**Trap.** If `~/Documents` is in iCloud Drive and "Optimize Mac Storage" is ON (System Settings → Apple ID → iCloud → iCloud Drive), macOS will silently evict tracked files locally under disk pressure. The file's metadata still claims a non-zero size but the bytes are gone (the `dataless` BSD file flag).
 
-### 2. Symlink-encoding gotcha (BUG-158 root cause, now fixed)
+**Symptoms.** `git status` → "short read while indexing"; vitest → "Unexpected end of JSON input" on stub package.json files; `git rev-parse HEAD` → "ambiguous argument 'HEAD'" (when `.git/refs/heads/main` itself is evicted); `git cat-file -e` → exit 138 (SIGBUS) on partially-materialized packfile.
 
-macOS `/tmp/X` is a symlink to `/private/tmp/X`. The shell resolves before passing cwd to Claude, so any session started at a `/tmp/...` path writes to `~/.claude/projects/-private-tmp-X/`. Duo's `encodeProjectDir` now calls `realpathSync()` before encoding (with ENOENT fallback to literal). Don't bypass it for new FS-touching call sites. If you add a new function that reads from `~/.claude/projects/<encoded-cwd>/`, use `encodeProjectDir` not a hand-rolled string transform.
+**Guard.** `predev` / `pretest` npm hooks now run `bash scripts/check-materialization.sh --quiet || true` so each `npm run dev` warns once if anything is dataless. Recovery is `npm run materialize` (force-reads files to trigger iCloud download + `git checkout HEAD --` for files iCloud can't return).
 
-### 3. Capture-on-evidence rule (CLAUDE.md § 12)
+**Recovery shortcuts:**
+- `defaults write com.apple.bird optimize-storage -bool false` + `killall bird` to stop further evictions.
+- For files iCloud can't return: `rm <file> && git checkout HEAD -- <file>` (the cloud-stub must be deleted before git can write).
+- `.git/refs/heads/main` empty? Reconstruct from `.git/logs/HEAD` reflog tail (the reflog usually materializes).
+- node_modules largely dataless? `rm -rf node_modules && npm install` is faster than per-file iCloud download.
 
-The `tabsThatHostedClaude` Set in `electron/main.ts` is the gate for `lastClaudeSession.id` capture. Tabs only get the pointer captured when `claudePresence` actually transitions to `'claude'` for them during THIS Duo run (OR they carry a prior pointer from disk on restore). Don't add new code paths that capture pointers based on cwd-attribute heuristics — that's the BUG that walk-1 surfaced.
+Full doc at [`CLAUDE.md § Build commands`](../../CLAUDE.md).
+
+### 2. Promise-cancel-on-cleanup destroys async cache hooks
+
+If you write a hook that does "async probe → merge into Map state" and the host re-renders often (e.g. against `tabs` array which changes per keystroke), do NOT set `cancelled = true` in the useEffect cleanup. The cleanup fires on every re-render → cancels the in-flight promise → setState never happens → cache stays empty forever. The setState merge is idempotent for stable probe results, so stale-closure resolutions after re-render are safe. Pattern lives in `renderer/hooks/useProjects.ts` with a comment explaining the gotcha.
+
+### 3. ENH-182 home-dir exclusion (owner directive)
+
+D2 says "marker = CLAUDE.md or .claude/". `~/.claude/` IS a `.claude/` subdir of the home dir, so naively `~` qualifies — that would make every random `/tmp/...` cwd surface "geoffreydudgeon" as a project. **Excluded.** BUT — editing a file directly under `~/.claude/` (the user's global config) SHOULD make `~/.claude/` itself a project. The exclusion bars ONLY `$HOME` itself + `/`; subdirs qualify normally. See `shared/projects.ts § isExcludedFromQualification` + the three `~/.claude editing scenario` tests in `core/projects-service.test.ts`.
 
 ### 4. Always invoke `/smoke-walk` via the Skill tool (CLAUDE.md § 7b)
 
-Hard rule. Don't run `.claude/skills/smoke-walk/generate.mjs` directly. The skill's procedural steps (renderer reload, surface re-probe, pref reset, agent-walks-CLI-items) are not in the generator script.
+Hard rule. Don't run `.claude/skills/smoke-walk/generate.mjs` directly. The skill's procedural steps (renderer reload, surface re-probe, pref reset, agent-walks-CLI-items) are not in the generator script. Bypassing them is auditable as a process failure even when output looks right.
 
 ### 5. Renderer reload after dev restarts
 
@@ -65,31 +85,44 @@ duo dom --js 'window.location.reload()'
 sleep 3
 until duo dom --js 'typeof window.electron?.session' 2>&1 | grep -q object; do sleep 1; done
 ```
-HMR through multiple restarts can leave the renderer pinned to an older module graph. ENH-183 walk-1 was burned ~30 min by this.
+HMR through multiple restarts can leave the renderer pinned to an older module graph.
 
 ### 6. Computer-use access at session start for UI work (CLAUDE.md § 7e)
 
-If the session has any meaningful UI work on the table (renderer/, TipTap, CSS, keyboard, modals, etc.), call `request_access` with `applications: ["Electron"]` BEFORE writing code. Don't wait for a smoke walk to fail. The app name is **"Electron"** (the dev target), NOT "Duo" (which resolves to the packaged `.app` in /Applications).
+If the session has any meaningful UI work on the table (renderer/, TipTap, CSS, keyboard, modals, etc.), call `request_access` with `applications: ["Electron"]` BEFORE writing code. The app name is **"Electron"** (the dev target), NOT "Duo" (which resolves to the packaged `.app` in /Applications).
 
-### 7. Owner walks the smoke walk; agent walks the CLI
+### 7. Verify the artifact BEFORE filing fixes from verbal symptom reports
 
-For any smoke-walk item that's runnable via `duo <verb>` without a mouse click or visual judgment, the agent walks it before handoff (CLAUDE.md § 7b → smoke-walk skill § "Walk every CLI-testable step yourself before handoff"). Mark agent-walked items as known-PASS in the manifest intro so the owner can skip them.
+BUG-159 (ENH-183 walks) and the original Phase 1 hasMarker behavior both showed: a verbal "looks broken" report can be misleading. Check the actual artifact (file on disk, JSONL entry, network response, DOM probe — whatever the supposed-broken code writes) and confirm the broken behavior is real before designing a fix. Memory: [feedback_verify_current_behavior_before_proposing_fix.md](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_verify_current_behavior_before_proposing_fix.md).
+
+### 8. Other-claude's working tree is sacred
+
+The session's commits should NEVER touch `renderer/App.tsx`, `renderer/components/WorkspaceSwitcherDropdown.tsx`, or `renderer/hooks/useWorkspacePillMenuFlag.ts` in a way that drops their changes. This session used a temporary-revert + commit + restore dance twice (Phase 1 commit + home-dir-fix commit) to land work that touches `App.tsx` while preserving other-claude's untracked + uncommitted changes. The pattern:
+1. Save other-claude's WSD patch via `git diff > /tmp/other-claude-wsd.patch`.
+2. Use Edit tool to revert their hunks in App.tsx (small, mechanical).
+3. `git checkout HEAD -- renderer/components/WorkspaceSwitcherDropdown.tsx` to revert their WSD change.
+4. Verify typecheck + commit.
+5. Use Edit tool to restore their App.tsx hunks (matching what I just saved).
+6. `git apply /tmp/other-claude-wsd.patch` to restore WSD.
+7. Verify `git status -s` shows only their three lines: `M App.tsx`, `M WSD.tsx`, `?? useWorkspacePillMenuFlag.ts`.
 
 ## State at-a-glance
 
-- **Branch:** `main` at `acf2bff` (merge commit). v0.7.9 tag at `6a8525e`. Bump commit at `835f373`. ENH-182 docs commits at `d10bdd2` + `a353f2f`.
-- **Git status:** working tree has the 3 ENH-184 files uncommitted. That's intentional — Sprint 22 picks them up.
-- **Dev session:** if running, it's on pre-cut code. Next agent should kill + respawn to get the pared SessionHeader.
+- **Branch:** `main` at `6bd1742`. 5 commits ahead of `origin/main`. v0.7.9 tag at `6a8525e`.
+- **Git status:** working tree has the 3 ENH-184 files uncommitted (intentional; preserved from prior session).
+- **Dev session:** running under v0.8.0 identity; ProjectRail visible with CL + DU tiles. `duo doctor` clean.
 - **Package version:** 0.8.0 (dev).
-- **Pack version:** `packs/duo-default/PACK.json` is 1.0.13 (bumped during the cut to re-fire the in-app "what's new" surface).
-- **Smoke walks:** rev3-rev6 manifests in `docs/dev/smoke-walks/` are gitignored; safe to ignore.
+- **dist/:** cleaned to just `Duo-0.7.9-arm64.dmg` (104 MB) + blockmap. 11 legacy DMGs deleted this session (freed 1.1 GB).
+- **Disk free:** ~24 GB (94% used). Still tight; consider further cleanup if Optimize Storage gets re-enabled.
+- **Smoke walks:** none for this session yet — recommend walking Phase 1 + home-dir fix + iCloud guard + TabBar fix together once Phase 2 lands.
 
 ## What NOT to do
 
-- Don't re-build the S2 banner / inline rename / C11 tip / T3 auto-hydration. They were intentionally dropped. Adding them back would require a fresh owner conversation.
-- Don't reach for `duo session rename` or `duo session hydrate` — those verbs are gone. Type `/rename <title>` in Claude's TUI directly.
-- Don't bypass `encodeProjectDir` for direct `~/.claude/projects/<dir>/` lookups — use the helper so the BUG-158 fix applies.
-- Don't push commits to `main` without checking for parallel work (Geoff may commit ENH-182-style docs on the web while you're working).
+- Don't push commits to `main` without checking for parallel work (other-claude may commit ENH-184).
+- Don't bypass the materialization check — when `predev` warns, run `npm run materialize` before continuing.
+- Don't drop other-claude's ENH-184 working tree state. See guardrail § 8.
+- Don't smoke-walk Phase 1 in isolation — the rail's clicks are display-only by design until Phase 2 lands. Walking just Phase 1 invites the owner to test focus behavior that doesn't exist yet.
+- Don't toggle `optimize-storage` back to `1` unless the disk situation has changed dramatically + you understand the recurrence risk.
 
 ## Quick orientation commands
 
@@ -98,13 +131,14 @@ For any smoke-walk item that's runnable via `duo <verb>` without a mouse click o
 git log --oneline -5
 duo doctor
 cat package.json | grep version
-ls -lh dist/Duo-0.7.9-arm64.dmg
+ls -lh dist/Duo-*.dmg
+bash scripts/check-materialization.sh
 
-# Read ENH-184's full state
-sed -n '/^### ENH-184/,/^---$/p' tasks.md | head -50
+# Read sprint state
+cat docs/dev/active-sprint.md
 
-# See what's queued
-sed -n '/^## Sprint 22/,/^## /p' docs/dev/active-sprint.md
+# See the rail live
+duo dom --js 'JSON.stringify(Array.from(document.querySelectorAll("[data-project-tile]")).map(t => t.getAttribute("data-project-tile")))'
 ```
 
 Welcome aboard.

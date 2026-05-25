@@ -901,28 +901,47 @@ routed around ad hoc.
 | First-launch install | Electron permission dialog before installing CLI + skill + agent (deferred; currently manual) |
 | Distribution / cert | Stage 21a ✅ shipped v0.4.1 (signed + notarized DMG via `bash scripts/dist-signed.sh`); 21c Phase 1+2 ✅ shipped v0.4.2 (auto-update + session restore); 21c Phase 3 ✅ shipped v0.5.1 (browser history persistence + datalist autocomplete; closes [issue #27](https://github.com/dudgeon/duo/issues/27)); 21b app icon ✅ shipped v0.5.1; 21e ✅ shipped v0.5.0 (fork-friendly architecture); **21d ✅ shipped v0.6.8** (cohort distribution via distro packs — discovery + atomic install/uninstall + CLI verbs + pack-builder skill + sample template + HOW-TO-FORK Layer 2.5; reframed mid-sprint — original socket-auth + nav-notifications scope deferred to FOLLOWUP-011/012, revisit on real cross-machine demand); **ENH-112 ✅ shipped v0.6.9** (Distro Pack Builder Workshop — repo-only `distro-pack-builder/` folder, scoped CLAUDE.md + 11-step playground.md + project-scoped assistant skill; layered tutorial wrapping the canonical `/pack-builder` skill; renumbered from ENH-106 at merge time — main had filed ENH-106 = markdown lock/unlock concurrently). Still ⬜: 21b DMG background image. |
 
-## Active sprint — Sprint 22 / v0.8.0 (post-v0.7.9-cut)
+## Active sprint — Sprint 22 / v0.8.0 (in flight, 5 commits ahead of origin)
 
-> **First-read after compaction**: [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation. [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) carries the Sprint 22 implementation pointers + carry-forward queue.
+> **First-read after compaction**: [`docs/dev/RESUME.md`](docs/dev/RESUME.md) is the cold-start orientation. [`docs/dev/active-sprint.md`](docs/dev/active-sprint.md) carries the Sprint 22 progress + carry-forward queue + full lesson list.
 
-**Status (2026-05-25):** v0.7.9 shipped — cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.9) live with signed+notarized DMG attached. **ENH-183** shipped pared (Option A) — S1 resume pills + S3 restore offer + D5 read ladder + `duo session list/resume` CLI. Mid-cycle pare-back dropped S2 named banner, C11 educational tip, T3 auto-hydration, S2 inline rename, force-rename CLI (~600 LOC). Three real bugs caught + fixed: BUG-158 (symlink encoding in `encodeProjectDir`), BUG-160 (discriminator dismissedBanner scoping), FOLLOWUP-027 (about:blank ghost-tab). Dev session bumped to v0.8.0.
+**Status (2026-05-25 late session):** **5 commits ahead of `origin/main`, not pushed.** ENH-182 Phase 0 + Phase 1 shipped + verified live. iCloud Optimize Storage data-loss emergency hit at session start (13k+ files dataless including `.git/refs/heads/main`) — recovered via reflog reconstruction + `rm + git checkout HEAD --` per-file, permanent guard committed. TabBar.tsx ENH-183 pare leftover closed (typecheck unblocked). Other-claude's ENH-184 working tree preserved untouched. Suite: 786/786 green.
 
-**Sprint 22 starting scope:**
+**Commit chain this session:**
 
-1. **ENH-184** — Workspace pill defeaturing + `+ New Workspace` handler routing fix. **Half-done in working tree (uncommitted on `main`):** new [`renderer/hooks/useWorkspacePillMenuFlag.ts`](renderer/hooks/useWorkspacePillMenuFlag.ts) hook (default OFF), flag declared in [`renderer/App.tsx`](renderer/App.tsx) but NOT YET CONSUMED (dead code), `+` handler in [`renderer/components/WorkspaceSwitcherDropdown.tsx`](renderer/components/WorkspaceSwitcherDropdown.tsx) changed from `save({saveAs:true})` → `newWorkspace()` (complete). **Finish:** wire the flag to gate the pill's `onClick` + caret render in App.tsx (~5 lines). CLI parity verb optional (`duo workspace-pill-menu [on|off]`). Owner intent: render pill as passive label; all workspace ops route through File menu.
+```
+6bd1742  fix(ENH-182): home-dir exclusion + dedicated marker IPC
+58dcc86  feat(ENH-182): Phase 1 — read-only project rail mounts left of files
+db3829a  feat(sprint22): iCloud Optimize Storage data-loss guard
+b3953e8  fix(ENH-183-pare): TabBar.tsx — drop S2 collapsed-dot leftover
+3b49e43  feat(ENH-182): Phase 0 — Project model + pure derivation + persisted slice
+```
 
-2. **ENH-182** — Project-centric UX. PRD locked 2026-05-25 (owner walk); design artifacts + code map at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md). Spec-complete, ready to build. Project rail style study at [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html).
+**What's next in Sprint 22:**
+
+1. **ENH-182 Phase 2** — focus filter (the actual payoff). Click tile → `focusedProject` set; hide non-member terminal + canvas tabs; re-root navigator; title-bar focus chip; Ctrl-Tab respects filter (D8/D10). Phase 1 tiles are display-only by design until this lands.
+2. **ENH-182 Phase 3** — corner case + lifecycle + tile right-click menu (D11/D12).
+3. **ENH-182 Phase 4** — CLI parity (`duo project list/focus/pin/unpin/close`).
+4. **ENH-184** — Workspace pill defeaturing. Other-claude's working tree (uncommitted on `main`) preserved across this session's commits via revert-edit-restore dance: [`useWorkspacePillMenuFlag.ts`](renderer/hooks/useWorkspacePillMenuFlag.ts) (new), App.tsx flag declared (NOT consumed), WSD `handleNew` routing fixed (complete). Finish: wire the flag to gate the pill's `onClick`, ~5 lines.
+
+**Lessons locked this session:**
+
+1. **iCloud Optimize Storage is a class-1 dev hazard** — guards live in `scripts/check-materialization.sh` + `scripts/materialize.sh` + `predev` npm hook + CLAUDE.md § Build commands trap doc. Symptoms: "short read while indexing", SIGBUS from `git cat-file -e`, "ambiguous argument 'HEAD'". Recovery is `rm <stub> && git checkout HEAD --` (NOT just checkout — the cloud-stub blocks writes).
+2. **Promise-cancel-on-cleanup destroys async cache hooks.** Renderer hooks doing "async probe → merge into Map state" against frequently-re-rendering parents need NO cancel-on-cleanup. The setState merge is idempotent (stable probe results per key); stale-closure resolutions are safe. See `renderer/hooks/useProjects.ts § comment` for the pattern.
+3. **Owner directive on `~/.claude` qualification** — D2 marker rule blocks `$HOME` itself + `/` but NOT subdirs. Editing files under `~/.claude/` correctly surfaces it as a project. Locked via pure helper `isExcludedFromQualification(dir, homeDir)` in `shared/projects.ts` + 9 tests.
+4. **Structural pares need same-commit grep-audit of all consumers.** ENH-183 dropped `collapsed` from `SessionHeaderUiState` but left 3 references in TabBar.tsx. Apply [feedback_grep_all_implementations_before_rename.md](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_grep_all_implementations_before_rename.md) to type-field removals, not just user-visible string renames.
+5. **Coordinating with concurrent uncommitted work (other-claude's ENH-184).** Pattern: save other-claude's WSD patch → revert their App.tsx hunks via Edit tool → commit my work → restore their hunks via Edit → `git apply` their WSD patch. Documented in [`docs/dev/RESUME.md § 8`](docs/dev/RESUME.md).
 
 **Carry-forward queue** (not yet picked, most-recent first):
-BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
+BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 (`duo install --clean`) · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
 
-**Closed during v0.7.9 cycle:** FOLLOWUP-028 (T3 re-enable design — T3 dropped); BUG-159 (rename terminator — wrong diagnosis; rename committed via `\n`, owner-visible artifact was Claude TUI render timing).
+**Closed during v0.7.9 cycle:** FOLLOWUP-028 (T3 re-enable design — T3 dropped); BUG-159 (rename terminator — wrong diagnosis).
 
-**Memory rules locked during the cycle:**
+**Memory rules locked previously:**
 - [feedback_locked_mac_screenshot_pattern](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_locked_mac_screenshot_pattern.md) — locked-Mac detection signature for screenshot+click failure mode.
-- BUG-159 lesson (logged in tasks.md, candidate for future memory file): verify the artifact (JSONL on disk) BEFORE filing fixes based on owner verbal symptom reports — the "is this even a bug?" question deserves the same empirical check as the "what's the impact?" question.
+- BUG-159 lesson (still candidate for memory file): verify the artifact BEFORE filing fixes from verbal symptom reports.
 
-**Open questions for the next agent:** none blocking. Owner is hands-off until Sprint 22 work picks up momentum.
+**Open questions for the next agent:** none blocking. One product decision-shape pending if Phase 2 reveals it: what does "focused project" mean for the navigator's bottom Pinned section? (Likely: pins are global, not project-scoped — confirm during Phase 2 work.)
 
 ---
 

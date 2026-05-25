@@ -1,53 +1,69 @@
-# Active sprint state — Sprint 22 / v0.8.0 (post-v0.7.9-cut)
+# Active sprint state — Sprint 22 / v0.8.0 (in flight)
 
-**Status (2026-05-25):** v0.7.9 cut + tagged + pushed; [GitHub Release](https://github.com/dudgeon/duo/releases/tag/v0.7.9) live with signed+notarized DMG attached. The release pared ENH-183 mid-cycle (Option A) — kept the S1 + S3 resume affordances + D5 read ladder; dropped the S2 named banner + C11 educational tip + T3 auto-hydration + S2 inline rename + force-rename CLI. ~600 LOC removed. Dev session bumped to v0.8.0.
+**Status (2026-05-25 late session):** 5 commits ahead of `origin/main`, none pushed yet. Phase 0 + Phase 1 of ENH-182 shipped + verified live. iCloud Optimize Storage data-loss emergency hit at session start (13k+ files dataless) — recovered + permanent guard committed. TabBar.tsx ENH-183 pare leftover closed (typecheck unblocked). Suite: 786/786 green. Other-claude's ENH-184 working tree state preserved untouched.
 
-## Sprint 22 — what's queued
+## What shipped this session
 
-### ENH-184 (in-flight, finish first) — Workspace pill defeaturing + `+ New Workspace` routing fix
+| Commit | Item | Notes |
+|---|---|---|
+| [3b49e43](https://github.com/dudgeon/duo/commit/3b49e43) | **ENH-182 Phase 0** | Project model + pure `deriveProjects` + `ProjectsService` persisted slice + `hasMarker` fs probe. 40 unit tests. |
+| [b3953e8](https://github.com/dudgeon/duo/commit/b3953e8) | **TabBar.tsx pare leftover** | Dropped 3 references to `ui.collapsed` + render block. Unblocks `npm run typecheck`. |
+| [db3829a](https://github.com/dudgeon/duo/commit/db3829a) | **iCloud Optimize Storage guard** | Recovery scripts + `predev`/`pretest` hooks + CLAUDE.md trap doc. |
+| [58dcc86](https://github.com/dudgeon/duo/commit/58dcc86) | **ENH-182 Phase 1** | Read-only ProjectRail mounts left of files. R1-B quiet bloom. Six `--duo-project-*` tokens. `useProjects` hook. |
+| [6bd1742](https://github.com/dudgeon/duo/commit/6bd1742) | **ENH-182 home-dir fix + IPC** | Pure `isExcludedFromQualification` helper (only `$HOME` itself is blocked; subdirs like `~/.claude` qualify normally). Dedicated `projects:has-marker` IPC replaces nav-listings lookup. 9 new tests. |
 
-**Owner intent.** Render the title-bar workspace pill as a **passive label** — workspace name visible, no caret, no dropdown, no click handler. All workspace operations route through File menu (`File > New Workspace`, `File > Open Workspace`, `File > Save Workspace As…`, Recents). The pill is identity-only.
+## What's next in Sprint 22
 
-**Working tree state (uncommitted on `main`):**
-- ✅ New [`renderer/hooks/useWorkspacePillMenuFlag.ts`](../../renderer/hooks/useWorkspacePillMenuFlag.ts) — localStorage-backed flag `duo.workspacePillMenu`, default OFF, mirrors ENH-176 `useSendPillFlags` pattern.
-- ✅ Flag imported + declared in [`renderer/App.tsx`](../../renderer/App.tsx) ~line 809 as `workspacePillMenuEnabled`. **NOT YET CONSUMED — dead code until wired.**
-- ✅ `+ New Workspace` handler in [`renderer/components/WorkspaceSwitcherDropdown.tsx`](../../renderer/components/WorkspaceSwitcherDropdown.tsx) — changed `save({saveAs: true})` → `newWorkspace()`. Header comment notes Q4 supersession with reasoning. **COMPLETE.**
+### ENH-182 Phase 2 — Focus filter (the actual payoff)
 
-**Sprint 22 finishing work:**
-1. Wire `workspacePillMenuEnabled` to gate the pill's `onClick` in `App.tsx` (look around the `<WorkspaceSwitcherDropdown />` mount, ~line 3101 pre-pare; line numbers may have shifted). When flag is OFF: no caret rendered, click is a no-op. **~5 lines.**
-2. Verify on owner walk: pill displays workspace name as passive label, click does nothing, `File > New/Open/Save Workspace` all still work.
-3. CLI parity per [CLAUDE.md § 4](../../CLAUDE.md): add `duo workspace-pill-menu [on|off]` reading/setting the localStorage flag (mirrors `duo claude-return` / `duo shift-return` toggles). Optional — owner can DevTools-toggle if a CLI verb feels like overkill.
-4. Update [`packs/duo-default/canvases/what-duo-does.html`](../../packs/duo-default/canvases/what-duo-does.html) §37c (workspace switcher dropdown) — currently describes the old click-to-open behavior; update to reflect the passive-label final state.
+Phase 1 ships the rail read-only. Phase 2 is where it becomes interactive:
+- Click tile → `focusedProject` state set; click again (or "All") to clear (D8).
+- Hide non-member terminal + canvas tabs while focused (D10, visibility-only).
+- Re-root navigator to project root (D10, not a hard tree filter).
+- Title-bar focus chip with collapse-&-reflow transition.
+- Ctrl-Tab cycles only visible tabs (D8).
 
-Full origin trail at [`tasks.md § ENH-184`](../../tasks.md#enh-184-workspace-pill-defeaturing--passive-label-only--fix--handler-routing).
+PRD at [`docs/prd/enh-182-project-centric-ux.md § Phase 2`](../prd/enh-182-project-centric-ux.md). Smoke-walkable once it lands.
 
-### ENH-182 — Project-centric UX (PRD locked, ready to build)
+### ENH-182 Phase 3 — Corner case + lifecycle + tile context menu
 
-PRD locked 2026-05-25 (owner walk) at [`docs/prd/enh-182-project-centric-ux.md`](../prd/enh-182-project-centric-ux.md). Design artifacts + code map included. Project rail style study at [`docs/research/project-rail-style-study.html`](../research/project-rail-style-study.html). Spec-complete.
+D11 auto-switch focus when opening a file from another project. D12 auto add/remove + pin; tile right-click menu (Pin/Unpin + "Close N terminals and M tabs"). Uses the existing `FileTree.popupMenu()` pattern (PRD § 9 area 10).
+
+### ENH-182 Phase 4 — CLI parity
+
+`duo project list / focus [--all] / pin / unpin / close`. Full plumbing checklist per CLAUDE.md § 4.
+
+### ENH-184 — Workspace pill defeaturing (other-claude's in-flight work)
+
+Still uncommitted on `main` from the prior session — this session left it untouched:
+- `renderer/hooks/useWorkspacePillMenuFlag.ts` (untracked)
+- `renderer/App.tsx` (flag imported + declared, NOT consumed)
+- `renderer/components/WorkspaceSwitcherDropdown.tsx` (handler fix complete)
+
+Finishing work documented at [`tasks.md § ENH-184`](../../tasks.md). Whichever Claude picks it up: wire `workspacePillMenuEnabled` to gate the pill's `onClick`, owner walk, optional CLI parity verb.
 
 ### Carry-forward queue (not yet picked, most-recent first)
 
-BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
+BUG-079 (tab-cycle latency) · BUG-093 (split crash) · BUG-122 hypothesis 2/3 · ENH-084 v4 (aux glow) · ENH-127 (composer-window direction) · ENH-128 walk-4 (HEIC drag-drop) · ENH-137 (Beginner's Guide) · ENH-141 (enterprise smoke) · ENH-148 v2 · ENH-157 · ENH-162 (Clone modal collision UX) · FOLLOWUP-021 (`duo install --clean`) · BUG-024 follow-up · 17a.5 (template gallery) · Backlinks/graph view.
 
-## What just shipped (v0.7.9 — closed, do not re-walk)
+## Lessons captured this session
 
-| Item | Status |
-|---|---|
-| **ENH-183** Claude session resume affordances (pared scope) | ✅ Shipped v0.7.9. S1 pills + S3 restore + D5 ladder + `duo session list/resume`. |
-| **BUG-158** `encodeProjectDir` realpath fix | ✅ Shipped v0.7.9 with 2 regression tests. |
-| **BUG-160** Discriminator dismissedBanner scoping | ✅ Shipped v0.7.9 with regression test. |
-| **FOLLOWUP-027** about:blank ghost-tab | ✅ Shipped v0.7.9. |
-| **BUG-159** Rename terminator | ✅ Closed — wrong diagnosis (rename was committing via `\n`); code paths removed in pare. |
-| **FOLLOWUP-028** T3 re-enable design | ✅ Closed won't-do — T3 itself dropped. |
+1. **iCloud Optimize Storage is a class-1 dev hazard.** When `~/Documents` is in iCloud Drive and "Optimize Mac Storage" is ON, macOS will silently evict tracked files under disk pressure. Symptoms span the entire dev stack: `git status` → "short read while indexing"; vitest → "Unexpected end of JSON input"; `git rev-parse HEAD` → "ambiguous argument 'HEAD'"; `git cat-file -e` → SIGBUS. Recovery is 6 stages of force-read + git-checkout; some files have no cloud copy and are unrecoverable. **The guard is permanent now (`predev` hook + `npm run materialize`)** but the trap can re-fire if `optimize-storage` gets toggled back on. Full trap doc lives in [`CLAUDE.md § Build commands`](../../CLAUDE.md).
 
-## Idle thoughts queue (Notion canonical)
+2. **Promise-cancel-on-cleanup destroys async cache hooks.** Phase 1's first attempt at `useProjects` set `cancelled = true` in the useEffect cleanup; every re-render of the host component cancelled the in-flight probe BEFORE it could `setGitResults`, leaving the cache permanently empty. Fix: no cancel-on-cleanup; the setState merge is idempotent (each key writes the same stable result on retry) so stale-closure resolutions after re-render produce a correct state. Pattern applies broadly to renderer hooks doing "async probe → merge into Map state" against a parent that re-renders often (e.g. `tabs` array changing on every keystroke).
 
-One unprocessed bullet remaining at [Notion idle thoughts](https://www.notion.so/Duo-Idle-Thoughts-34d45f48854f8032ba68fae6dc0473fe):
+3. **Owner directive on `~/.claude` qualification.** D2 of the project-as-filter-layer model says "marker = `CLAUDE.md` or `.claude/`". A naive read qualifies the user's home dir as a project because the global `~/.claude/` IS a `.claude/` directory in the home dir's listing. Owner correctly flagged this would surface "geoffreydudgeon" as a project tile on every random `/tmp/...` cwd. BUT — editing a file directly under `~/.claude/` (e.g. updating the global CLAUDE.md or a skill) SHOULD make `~/.claude/` itself a project. Locked by exclusion helper that bars ONLY the home dir + filesystem root, never subdirs. Three explicit integration tests assert the desired behavior.
 
-> new ENH: when I cmd-tab in terminal focus, cwd should be same as current terminal, not same as navigator root
+4. **Pre-existing typecheck regressions block new work.** When sprint cleanup leaves typecheck broken (the ENH-183 pare missed TabBar.tsx), the next agent gets blocked OR ignores typecheck (which then masks new regressions). Fix structural-rename leftovers in the same commit as the rename. See [feedback_grep_all_implementations_before_rename](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_grep_all_implementations_before_rename.md).
 
-Not blocking; process at next idle-thoughts sweep.
+5. **`rm + git checkout HEAD --` is the recovery for cloud-stubbed tracked files.** `git checkout HEAD --` silently no-ops on a `dataless`-flagged file (returns 0, file mtime unchanged, content stays empty). The cloud-stub must be physically removed first so git can write a fresh file. Documented in `scripts/materialize.sh § Step 5`.
+
+## Smoke walks owed
+
+None yet — this session's 5 commits haven't been walked. Recommend smoke-walking Phase 1 + the home-dir fix + iCloud guard + TabBar fix together once Phase 2 lands (one cohesive walk before the v0.8.0 cut).
 
 ## Open questions for the next agent
 
-None blocking. Owner is hands-off until Sprint 22 work picks up momentum.
+None blocking. Two open product threads in case Sprint 22 has cycles:
+- ENH-184 finish (other-claude's working tree)
+- ENH-182 Phase 2 (start) — the actual filter behavior

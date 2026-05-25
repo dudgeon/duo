@@ -4,7 +4,81 @@
 > ****Reading guide.** Status field on each entry: `🆕 Filed` / `🟡` / `⏳ Open` (active work) vs. `✅ Shipped vX.Y.Z` (closed; kept for historical reference). To find what's actively open at a glance: `grep -B1 "Status:\*\* (🆕\|🟡\|⏳)"`.
 > ****Pruning policy.** Closed entries stay until the lesson migrates to [DECISIONS.md](http://DECISIONS.md) / [CLAUDE.md](http://CLAUDE.md) plumbing checklist / smoke-checklist (then they're prune candidates). The Sprint 15 cleanup pass (2026-05-10) trimmed BUG-001..BUG-017 (697 lines from the v0.3 / v0.4 era; lessons live in [DECISIONS.md](http://DECISIONS.md) / plumbing checklists / the smoke-checklist). Cross-references to those IDs may still appear inline in other entries as historical citations — see git history before commit `<v0.6.13-cleanup>` for the original writeups. Next prune candidate: closed BUG-018..BUG-040 era entries once their lessons similarly internalize.
 
-## Sprint 21 / v0.7.9 — in flight (ENH-183 walks)
+## Sprint 22 / v0.8.0 — in flight
+
+### ENH-182 Phase 0 + Phase 1 + home-dir fix — SHIPPED this session (2026-05-25)
+
+**Status:** ✅ **Phase 0 + Phase 1 + home-dir-exclusion fix shipped uncommitted to remote (5 commits ahead of `origin/main`).** Read-only project rail mounts at the left edge of the app shell. Decisions D1–D12 + R1–R3 locked 2026-05-25 (full PRD at [`docs/prd/enh-182-project-centric-ux.md`](docs/prd/enh-182-project-centric-ux.md)); design playgrounds at [`docs/research/project-centric-ux.html`](docs/research/project-centric-ux.html) + [`docs/research/project-rail-style-study.html`](docs/research/project-rail-style-study.html).
+
+**What's live:**
+- **Phase 0** ([3b49e43](https://github.com/dudgeon/duo/commit/3b49e43)) — `Project` + `ProjectsFile` types in `shared/types.ts`; pure `deriveProjects()` in `shared/projects.ts` (D2 qualification, D5 deepest-wins, D12 pinned-projects, R2 hash-stable color); `ProjectsService` persisted slice at `~/.claude/duo/projects.json`; `hasMarker(dir)` fs probe. 40 unit tests across the matrix.
+- **Phase 1** ([58dcc86](https://github.com/dudgeon/duo/commit/58dcc86)) — `ProjectRail` component renders the locked R1-B "quiet bloom" tile treatment (paper bg + colored initials + hue underline; focused → full-hue fill + white notch). Six `--duo-project-*` tokens mirrored from the Atelier kernel into `renderer/styles/globals.css`. `useProjects` hook drives derivation from app state. Read-only in Phase 1 (clicks no-op; `onFocus` prop wired through for Phase 2).
+- **Home-dir exclusion + IPC marker probe** ([6bd1742](https://github.com/dudgeon/duo/commit/6bd1742)) — `isExcludedFromQualification(dir, homeDir)` pure helper blocks `$HOME` and `/` from qualifying as projects (the global `~/.claude/` would otherwise false-positive the home dir on every random cwd). **Subdirectories of home (including `~/.claude/`) still qualify normally** — owner directive 2026-05-25. New IPC `projects:has-marker` replaces the nav-listings lookup so marker detection works for dirs the navigator hasn't scanned (was the gap hiding `.claude` from the rail when the user opened a file under it without navigating there). 9 new tests including 3 explicit `~/.claude editing scenario` integration tests.
+
+**What's next:**
+- **Phase 2** — focus filter (the actual payoff). Click tile → `focusedProject` state; hide non-member terminal + canvas tabs; re-root navigator (D10); title-bar focus chip; Ctrl-Tab respects filter. Smoke-walkable.
+- **Phase 3** — corner case + lifecycle + tile right-click menu (D11 auto-switch focus when opening a file from another project; D12 auto add/remove + pin; bulk-close menu).
+- **Phase 4** — CLI parity (`duo project list / focus / pin / unpin / close`).
+
+**Lessons from Phase 1 verification (both fixed):**
+1. **Promise-cancel-on-cleanup race** — `useEffect` cleanup was cancelling async git-status probes on every re-render before they could `setGitResults`, leaving the cache permanently empty. Fix: no cancel-on-cleanup; the setState merge is idempotent (each key writes the same stable result on retry) so stale-closure resolutions after re-render produce a correct state. Pattern applies to any "async probe → merge into Map state" hook with renderer state that churns.
+2. **Owner directive on home-dir exclusion** — D2 says "marker = CLAUDE.md or .claude/". A naive read qualified the home dir because the user's global `~/.claude/` config IS a `.claude/` subdir. But the home dir itself shouldn't be a project; only the global `~/.claude/` (which has its own CLAUDE.md inside) should. The fix is a pure helper `isExcludedFromQualification(dir, homeDir)` that excludes ONLY the dir itself, never subdirs.
+
+---
+
+### Sprint 22 cleanup — ENH-183 pare leftover in TabBar.tsx (SHIPPED 2026-05-25)
+
+**Status:** ✅ **Shipped this session** ([b3953e8](https://github.com/dudgeon/duo/commit/b3953e8)).
+
+**Origin.** The ENH-183 Option A pare dropped `collapsed` + `editingTitle` from `SessionHeaderUiState` but left three references in `renderer/components/TabBar.tsx`: `ui.collapsed` (line 196), `setSessionHeaderState(... collapsed: !ui.collapsed)` (line 219), and the `showS2Dot` render block (line 258). All three were S2 collapsed-dot tab-marker code paths. With S2 gone, the click-active-tab-to-toggle gesture is gone too. `onClick` reverts to plain `onSelect`. Pre-existing on `main` from the pare commit; blocked `npm run typecheck` repo-wide. Fix is mechanical (drop 3 references + 4 dead imports). No behavior change vs. expected post-pare state.
+
+**Lesson:** structural pares (dropping fields from a state interface) should grep-audit ALL consumers in the SAME commit. The pare commit landed the type change but missed TabBar.tsx because it didn't grep for `.collapsed` referencing `SessionHeaderUiState`. Codified going forward via the existing [feedback_grep_all_implementations_before_rename](.claude/projects/-Users-geoffreydudgeon-Documents-GitHub-duo/memory/feedback_grep_all_implementations_before_rename.md) memory rule (originally about user-visible string renames; broaden mental model to include type-field removals).
+
+---
+
+### Sprint 22 emergency — iCloud Optimize Storage data-loss guard (SHIPPED 2026-05-25)
+
+**Status:** ✅ **Shipped this session** ([db3829a](https://github.com/dudgeon/duo/commit/db3829a)).
+
+**Origin.** Sprint 22 session-start emergency: 13,000+ files in this repo (including `.git/refs/heads/main`, both packfiles, 34 source files, and most of `node_modules`) had been evicted by macOS "Optimize Mac Storage" under disk pressure (94% full). Files showed non-zero sizes in `stat` but read as zero bytes (`dataless` BSD file flag). Git was completely broken — `git rev-parse HEAD` returned "ambiguous argument 'HEAD'"; `git cat-file -e` returned SIGBUS from a partially-materialized packfile. First time across many sessions this had fired.
+
+**Recovery walked (~45 min of session time):**
+1. `defaults write com.apple.bird optimize-storage -bool false` + `killall bird` to stop further evictions.
+2. Force-read every file in `.git/` to materialize from cloud (parallel `find ... -print0 | xargs -0 -P 8 -n 50 cat > /dev/null`).
+3. Reconstructed `.git/refs/heads/main` from the reflog at `.git/logs/HEAD` (the last commit hash was `9da43ad9...` — recoverable because the log was materialized).
+4. Force-read working tree files (parallel batch). 34 source files had no cloud copy (written too recently to sync before eviction) — restored via `rm <file> && git checkout HEAD -- <file>` (the cloud-stub had to be removed before git could write fresh content).
+5. `npm install` to repopulate `node_modules/` cleanly (faster than waiting for per-file iCloud download of 440 MB).
+6. `git remote set-head origin -a` to restore the broken `refs/remotes/origin/HEAD` symbolic ref.
+7. Stubbed empty `.git/logs/refs/*` reflogs (append-only files; will regrow as git is used).
+
+**Permanent guard:**
+- [`scripts/check-materialization.sh`](scripts/check-materialization.sh) — fast scan for dataless flag in critical paths (.git, renderer, core, shared, cli, skill, electron, key config files). Warn-only by default (`--strict` for CI). Exits 0 so `predev`/`pretest` hooks don't block dev launches.
+- [`scripts/materialize.sh`](scripts/materialize.sh) — 6-stage recovery: pause Optimize Storage → materialize `.git/` → working tree → node_modules → `git checkout HEAD --` stuck files → final-state report.
+- `package.json` — new `predev` / `pretest` / `pretest:run` hooks run the check with `--quiet || true`. New `materialize` / `check:materialization` npm scripts for direct invocation.
+- [`CLAUDE.md`](CLAUDE.md) § Build commands — appended trap description, symptom list (short-read while indexing; Unexpected end of JSON input; ambiguous HEAD; SIGBUS from packfile), and recovery commands.
+
+**Lessons:**
+1. **SIGBUS from `git cat-file -e`** is the smoking gun for a partially-materialized packfile — not git corruption. If you see it, force-read the packfile (`cat .git/objects/pack/*.pack > /dev/null`) before trying anything else.
+2. **Cloud-evicted files can't be overwritten directly** — git's `checkout HEAD --` silently fails (returns 0 without writing) when the target is a cloud-stub. `rm` first, then `checkout`.
+3. **`.git/refs/heads/main` is unrecoverable from cloud if written locally just before eviction.** Reconstruct from `.git/logs/HEAD` (the reflog) which has a higher chance of materializing because it's append-only and longer-lived.
+4. **`npm install` is much faster than waiting for per-file iCloud download** when node_modules is largely dataless. Cancel the materialize pass + nuke + reinstall.
+5. **Disk pressure is the trigger.** Free space before debugging. Sprint 22 also cleaned `dist/` (11 legacy DMGs from v0.6.12–v0.7.8; freed 1.1 GB) — keep `dist/` clean as standard hygiene.
+
+---
+
+### ENH-184 — Workspace pill defeaturing (still in-flight on `main`, this session left untouched)
+
+**Status:** 🟡 **Working tree state preserved from prior session.** Other-claude was driving ENH-184 when this Sprint 22 session began; their uncommitted changes are intact on `main`:
+
+- `renderer/hooks/useWorkspacePillMenuFlag.ts` (new, untracked) — localStorage-backed flag, default OFF
+- `renderer/App.tsx` (modified) — flag imported + declared as `workspacePillMenuEnabled`, NOT YET CONSUMED
+- `renderer/components/WorkspaceSwitcherDropdown.tsx` (modified) — `handleNew` routing fix (save-as → newWorkspace)
+
+Sprint 22 finishing work for ENH-184 (handoff to whichever Claude picks it up): wire the flag to gate the pill's onClick, owner walk, optional CLI parity verb. See full plan at [`docs/dev/active-sprint.md § ENH-184`](docs/dev/active-sprint.md).
+
+---
+
+## Sprint 21 / v0.7.9 — closed (ENH-183 walks)
 
 ### ENH-183 PARED 2026-05-25 (Option A) — S2 + C11 + T3 + force-rename dropped
 
