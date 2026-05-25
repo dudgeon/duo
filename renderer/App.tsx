@@ -906,14 +906,38 @@ export function App() {
     // while focused (D10 explicitly allows free navigation).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedProject])
+  // ENH-182 Phase 2 — auto-spawn-on-focus tracker. Owner directive
+  // 2026-05-25 walk-1: focusing on a project that has working tabs
+  // but no terminals shows an empty terminal strip — confusing.
+  // Auto-spawn a fresh terminal at the project root (using the
+  // user's most-recent kind choice) so the focused state always has
+  // a usable terminal. Tracked per-focus-session so re-focusing the
+  // same project repeatedly doesn't keep spawning.
+  const autoSpawnedForRef = useRef<string | null>(null)
   // While focused, if the active terminal tab isn't visible, switch
   // to the first visible one. Same for the working pane. Keeps the
   // user from staring at an empty pane after entering focus.
   useEffect(() => {
-    if (focusedProject === null) return
+    if (focusedProject === null) {
+      autoSpawnedForRef.current = null
+      return
+    }
     const activeTerminalVisible = visibleTerminals.some((t) => t.id === activeTabId)
     if (!activeTerminalVisible && visibleTerminals.length > 0) {
       setActiveTabId(visibleTerminals[0].id)
+    } else if (
+      visibleTerminals.length === 0 &&
+      autoSpawnedForRef.current !== focusedProject
+    ) {
+      // No member terminals — spawn one at the project root. Mark
+      // the focus session as auto-spawned BEFORE the state update so
+      // the next render (with the new tab in `tabs`) doesn't re-fire.
+      autoSpawnedForRef.current = focusedProject
+      if (lastTabKind === 'claude') {
+        openClaudeIn(focusedProject)
+      } else {
+        openTerminalHere(focusedProject)
+      }
     }
     if (
       activeWorking.kind === 'file' &&
