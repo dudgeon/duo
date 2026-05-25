@@ -25,6 +25,53 @@
 
 ## Sprint 21 / v0.7.9 — in flight (ENH-183 walks)
 
+### FOLLOWUP-028: T3 auto-hydrator re-enable design — input-buffer race + idle-gate
+
+**Status:** 🆕 **Filed** 2026-05-24. Carries forward across compaction. Blocks T3 re-enable.
+
+**Origin.** [BUG-156](#bug-156-claude-crashed-mid-session-during-enh-183-rev3-t3-walk--root-cause-ptyresize0-0)'s defensive disable. Even though the root cause was `pty.resize(0,0)` (not the hydrator's `/rename` injection), the T3 path still has unaddressed UX risks that prevent safe re-enable:
+
+1. **`\r` force-submits user partial input.** The hydrator writes `\r/rename <title>\n`. The leading `\r` is interpreted by Claude (and any TUI) as Enter — anything in the user's input buffer gets submitted as a real prompt before the `/rename` lands. If the user is mid-typing a 3rd prompt when autosave fires + T3 gate opens, that partial becomes a Claude prompt.
+2. **Mid-turn timing.** The hydrator can fire during Claude's response to a prior prompt. Slash commands queued mid-response have unclear handling — may merge with the user's input, may be ignored, may land after Claude is idle. We don't have empirical data on which path Claude actually takes.
+3. **No idle-gate.** The current gate is messageCount + customTitle/aiTitle absence + in-memory dedup. It doesn't include "is Claude idle right now?" — which is the gate we actually need to be safe.
+
+**Proposed design.**
+- Replace `\r` with `\n` (linefeed only, no Enter-submit). The `/rename` lands on a fresh line without committing the user's partial input. Caveat: Claude's input parser may still interpret an interior `\n` as a turn boundary — verify empirically.
+- Add idle-gate: tail the session JSONL for the most-recent assistant entry's completion marker (e.g. a `stop_reason` field). Only inject when the timestamp of the last assistant turn-end is more recent than any user turn-start. Re-check every N seconds; never inject within ~500ms of an assistant entry landing.
+- Optional: also check that the user's input buffer is empty. Hard to do from main, but possible by querying xterm's `term.buffer.active.cursorY` against the prompt baseline. Renderer-side gate.
+
+**ACs for re-enable.**
+1. Empirical test: inject `/rename` while Claude is mid-turn → verify the queue handling (does it land cleanly after the assistant finishes? does it merge with the user's input? does it cause SIGHUP independent of resize?).
+2. Empirical test: `\n` vs `\r` — both should land the rename in Claude's storage. `\n` should NOT submit user's partial input.
+3. Idle-gate covers the "user is actively typing" case.
+4. Tracer log (per BUG-156 convention) records every injection so post-incident forensics work.
+
+**Where the flag lives.** `T3_AUTO_HYDRATION_ENABLED = false` in `electron/main.ts` § `setEnrichBeforePersistHook`. Flip to `true` to re-enable; restart dev to apply.
+
+---
+
+### BUG-157: Audit other fit-then-resize patterns for the same latent bug
+
+**Status:** 🆕 **Filed** 2026-05-24. Owner-callable refactor task.
+
+**Pattern.** BUG-156's root cause was renderer-side "measure DOM → write to main-process backing system via IPC" without checking whether the measured value was sane. The xterm `fit.fit()` + `pty.resize(cols, rows)` loop in TerminalPane was one instance. There are sibling instances:
+
+- `renderer/components/ImageView.tsx:95` — ResizeObserver
+- `renderer/components/BrowserRenderer.tsx:57` — ResizeObserver (browser-pane bounds → WCV)
+- `renderer/components/AuxBrowserSlot.tsx:111` — ResizeObserver (aux pane bounds → WCV)
+- `renderer/hooks/useTerminal.ts:42` — `fit.fit()` (dead code? not used by TerminalPane; grep shows no caller)
+
+**Audit ACs.**
+1. For each ResizeObserver, identify what value it computes from the host's measured bounds.
+2. Identify where that value crosses an IPC boundary (any `window.electron.*` call).
+3. Verify the receiving main-process function defensively rejects zero/negative dimensions.
+4. If not, add the guard at the main-process boundary (BUG-156's defense-in-depth pattern: authoritative check at the API border, not just at the call site).
+5. Bonus: remove `renderer/hooks/useTerminal.ts` if confirmed dead code.
+
+**Why this matters.** Any future layout-change PR (split-view resize, sidebar collapse, modal-induced reflow) can expose these latent bugs the same way ENH-183's flex-column wrapper did. Pre-emptive guards prevent the next surprise.
+
+---
+
 ### BUG-156: Claude crashed mid-session during ENH-183 rev3 T3 walk — ROOT CAUSE: pty.resize(0, 0)
 
 **Status:** ✅ **Root-caused + fixed** 2026-05-24. NOT the `/rename` injection — owner hypothesis was wrong (though defensively disabling T3 first was the right call). **Actual cause:** my walk-2 fix at [07d7a08](https://github.com/dudgeon/duo/commit/07d7a08) wrapped `TerminalInstance` children in a new `<div className="relative flex-1 min-h-0">` to give SessionHeader its own in-flow slot. `min-h-0` allows the flex child to shrink to 0 during layout reflow. When the SessionHeader's height transitions (state machine flip, claudePresence change, etc.), the wrapper transiently goes through ~0 height. The xterm host's ResizeObserver fires, calls `fit.fit()` against a 0×0 host (computes 0 cols / 0 rows), then `window.electron.pty.resize(tab.id, 0, 0)` lands in `PtyManager.resize` → `pty.resize(0, 0)` → node-pty's `ioctl(TIOCSWINSZ)` writes a degenerate winsize. The child Claude TUI sees `0×0` cells, bails out cleanly, sends SIGHUP up the process group. zsh prints "1 jobs SIGHUPed". Cascade: xterm host shows `[process exited]`. `/resume` re-crashes immediately because the first-paint resize hits the same 0×0 window before the layout has settled.
