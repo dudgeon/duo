@@ -190,13 +190,44 @@ User-facing guidance lives in [`skill/references/vocabulary.md`](skill/reference
 
 ```bash
 npm install          # installs deps + rebuilds node-pty for Electron
-npm run dev          # launch app in dev mode (HMR)
+npm run dev          # launch app in dev mode (HMR) — runs predev check first
 npm run build        # production build → out/
 npm run typecheck    # TypeScript type checking (no emit)
 npm run dist         # build + package as macOS DMG → dist/
 npm run build:cli    # rebuild cli/duo from cli/duo.ts (commit the binary)
 npm run sync:claude  # copy skill/ + agents/ into ~/.claude/ (dev-only)
+
+# iCloud Drive recovery (Sprint 22 trap, see below)
+npm run check:materialization   # warn if any files are dataless / cloud-evicted
+npm run materialize             # force-download evicted files + git-restore stuck
 ```
+
+### iCloud Drive trap (macOS Optimize Storage)
+
+If `~/Documents` is in iCloud Drive and "Optimize Mac Storage" is ON,
+macOS can evict tracked files to cloud-only state under disk pressure.
+The file's metadata still claims a non-zero size but its bytes are gone
+(the `dataless` BSD file flag). Symptoms:
+
+- `git status` → `short read while indexing <path>` errors.
+- `npm run dev` / vitest → `Unexpected end of JSON input` on stub
+  `package.json` files in `node_modules`.
+- `git rev-parse HEAD` → `fatal: ambiguous argument 'HEAD'` when
+  `.git/refs/heads/main` itself is evicted.
+- `git cat-file -e <sha>` → exit 138 (SIGBUS) when packfiles are
+  partially materialized.
+
+The `predev` / `pretest` npm hooks now run `scripts/check-materialization.sh
+--quiet` so each `npm run dev` warns once if anything is dataless. Recovery
+is `npm run materialize` (force-reads files to trigger iCloud download, then
+`git checkout HEAD --` for files iCloud can't return). For files that were
+written locally just before eviction and never synced, only git's packfile
+can restore them — if they're untracked, they're truly lost.
+
+Historical note: this trap fired once during Sprint 22 session-start
+2026-05-25 with 13k+ files dataless including `.git/refs/heads/main`.
+Recovery via reflog + bulk `rm + git checkout HEAD --` succeeded. The guard
+scripts were authored in response — see `scripts/{check-materialization,materialize}.sh`.
 
 ---
 

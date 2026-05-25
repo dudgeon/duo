@@ -8,6 +8,11 @@
   },
   "main": "out/main/index.js",
   "scripts": {
+    "predev": "bash scripts/check-materialization.sh --quiet || true",
+    "pretest": "bash scripts/check-materialization.sh --quiet || true",
+    "pretest:run": "bash scripts/check-materialization.sh --quiet || true",
+    "materialize": "bash scripts/materialize.sh",
+    "check:materialization": "bash scripts/check-materialization.sh",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
