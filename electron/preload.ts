@@ -828,6 +828,20 @@ const api: ElectronAPI = {
       const handler = (_e: unknown, file: import('../shared/types').ProjectsFile) => cb(file)
       ipcRenderer.on(IPC.PROJECTS_CHANGED, handler)
       return () => ipcRenderer.removeListener(IPC.PROJECTS_CHANGED, handler)
+    },
+    // ENH-182 Phase 4 — renderer pushes rail snapshot on every
+    // change; main caches for `duo project list` + name resolution.
+    pushState: (snapshot: import('../shared/types').ProjectsStateSnapshot) =>
+      ipcRenderer.send(IPC.PROJECTS_STATE_PUSH, snapshot),
+    onSetFocus: (cb: (root: string | null) => void) => {
+      const handler = (_e: unknown, payload: { root: string | null }) => cb(payload.root)
+      ipcRenderer.on(IPC.PROJECTS_SET_FOCUS, handler)
+      return () => ipcRenderer.removeListener(IPC.PROJECTS_SET_FOCUS, handler)
+    },
+    onCloseRequest: (cb: (root: string) => void) => {
+      const handler = (_e: unknown, payload: { root: string }) => cb(payload.root)
+      ipcRenderer.on(IPC.PROJECTS_CLOSE_REQUEST, handler)
+      return () => ipcRenderer.removeListener(IPC.PROJECTS_CLOSE_REQUEST, handler)
     }
   },
   git: {

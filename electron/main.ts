@@ -285,6 +285,50 @@ function broadcastProjectsChanged(file: import('../shared/types').ProjectsFile):
   if (!mainWindow || mainWindow.isDestroyed()) return
   mainWindow.webContents.send(IPC.PROJECTS_CHANGED, file)
 }
+// ENH-182 Phase 4 — cached renderer snapshot for the `duo project`
+// CLI family. Updated by PROJECTS_STATE_PUSH (renderer → main) on
+// every rail re-render. `getProjectsState()` returns it; the CLI
+// reads via socket-server.
+let projectsState: import('../shared/types').ProjectsStateSnapshot = {
+  projects: [],
+  focusedProject: null,
+  counts: {}
+}
+export function getProjectsState(): import('../shared/types').ProjectsStateSnapshot {
+  return projectsState
+}
+export function setProjectFocus(
+  root: string | null
+): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.PROJECTS_SET_FOCUS, { root })
+  return { ok: true }
+}
+export function requestProjectClose(
+  root: string
+): { ok: boolean; error?: string } {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return { ok: false, error: 'Duo window not ready' }
+  }
+  mainWindow.webContents.send(IPC.PROJECTS_CLOSE_REQUEST, { root })
+  return { ok: true }
+}
+/** Resolve a name-or-root argument against the cached project list.
+ *  Exact root match wins; otherwise case-insensitive name match
+ *  (unique). Returns null when no match or ambiguous. */
+export function resolveProjectRef(ref: string): string | null {
+  if (!ref) return null
+  // Exact root path match.
+  const exact = projectsState.projects.find((p) => p.root === ref)
+  if (exact) return exact.root
+  // Case-insensitive unique name match.
+  const lower = ref.toLowerCase()
+  const byName = projectsState.projects.filter((p) => p.name.toLowerCase() === lower)
+  if (byName.length === 1) return byName[0].root
+  return null
+}
 // Issue #27 / Stage 21c Phase 3 — browser history for URL-bar autocomplete.
 const browserHistory = new BrowserHistoryService()
 const installService = new InstallService()
@@ -635,7 +679,17 @@ async function createWindow(): Promise<void> {
     workspaceOpen: async (path) => openWorkspaceFile(path, { skipPrompt: true }),
     workspaceListRecent: async () => workspaceHistoryService.listSorted(),
     workspaceCurrent: async () => { await activeWorkspaceService.load(); return activeWorkspaceService.get() },
-    workspaceNew: async () => newWorkspaceReset({ skipPrompt: true })
+    workspaceNew: async () => newWorkspaceReset({ skipPrompt: true }),
+    // ENH-182 Phase 4 — project rail CLI parity.
+    getProjectsState: () => getProjectsState(),
+    resolveProjectRef: (ref: string) => resolveProjectRef(ref),
+    setProjectFocus: (root: string | null) => setProjectFocus(root),
+    requestProjectClose: (root: string) => requestProjectClose(root),
+    projectsTogglePin: async (root: string) => {
+      const next = await projectsService.togglePin(root)
+      broadcastProjectsChanged(next)
+      return next
+    }
   }, navPinsService, eventBus, packLoader)
   // Stage 12 close — wire the renderer event sink so the socket
   // server can push ambient cues (e.g. CLAUDE_READ_SELECTION when
@@ -1734,6 +1788,12 @@ function setupIPC(): void {
   // ── Navigator state cache (Stage 10 Phase 6) ──────────────────────────────
   // Renderer pushes its navigator state on every change; main caches the last
   // snapshot for `duo nav state` to return without a renderer round-trip.
+
+  // ENH-182 Phase 4 — renderer pushes the rail snapshot on every
+  // change. Cached for `duo project list` + name→root resolution.
+  ipcMain.on(IPC.PROJECTS_STATE_PUSH, (_event, snapshot: import('../shared/types').ProjectsStateSnapshot) => {
+    projectsState = snapshot
+  })
 
   ipcMain.on(IPC.NAV_STATE_PUSH, (_event, snapshot: NavStateSnapshot) => {
     navState = snapshot

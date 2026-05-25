@@ -233,6 +233,20 @@ export interface NavBridge {
   workspaceListRecent: () => Promise<import('../shared/types').WorkspaceHistoryEntry[]>
   workspaceCurrent: () => Promise<import('../shared/types').ActiveWorkspace | null>
   workspaceNew: () => Promise<{ ok: boolean }>
+  /** ENH-182 Phase 4 — cached rail snapshot for `duo project list`
+   *  + name→root resolution (renderer pushes via
+   *  PROJECTS_STATE_PUSH). */
+  getProjectsState: () => import('../shared/types').ProjectsStateSnapshot
+  /** ENH-182 Phase 4 — resolve a `name|root` ref against the cached
+   *  list. Returns null when no unique match. */
+  resolveProjectRef: (ref: string) => string | null
+  /** ENH-182 Phase 4 — push focus change to renderer (null = All). */
+  setProjectFocus: (root: string | null) => { ok: boolean; error?: string }
+  /** ENH-182 Phase 4 — push bulk-close request to renderer. */
+  requestProjectClose: (root: string) => { ok: boolean; error?: string }
+  /** ENH-182 Phase 4 — direct main-side pin toggle (no renderer hop).
+   *  Returns the updated persisted file. */
+  projectsTogglePin: (root: string) => Promise<import('../shared/types').ProjectsFile>
 }
 
 export class SocketServer {
@@ -1611,6 +1625,71 @@ export class SocketServer {
           } else {
             // ENH-183 pared 2026-05-25 (Option A): rename + hydrate ops removed.
             throw new Error(`Unknown session op: ${op}. Expected list|resume.`)
+          }
+          break
+        }
+
+        case 'project': {
+          // ENH-182 Phase 4 — CLI parity for the rail. Subcommands:
+          //   list                 — JSON snapshot of derived projects
+          //                          + focused root + per-project counts.
+          //   focus <name|root>    — push setFocusedProject to renderer.
+          //   focus --all          — push setFocusedProject(null).
+          //   pin <name|root>      — toggle pin via ProjectsService;
+          //                          PROJECTS_CHANGED broadcast re-derives.
+          //   unpin <name|root>    — same toggle, no-op when not pinned.
+          //   close <name|root>    — push the bulk-close request; the
+          //                          renderer fires dialog.confirm when any
+          //                          member terminal is kind:'claude'.
+          const op = args['op'] as string | undefined
+          const ref = args['ref'] as string | undefined
+          if (!op) {
+            throw new Error('duo project requires a subcommand. Expected list|focus|pin|unpin|close.')
+          }
+          if (op === 'list') {
+            result = this.nav.getProjectsState()
+            break
+          }
+          // All other subcommands need a target.
+          if (op === 'focus' && ref === '--all') {
+            const r = this.nav.setProjectFocus(null)
+            if (!r.ok) throw new Error(r.error ?? 'focus --all failed')
+            result = { ok: true, focused: null }
+            break
+          }
+          if (!ref) {
+            throw new Error(`duo project ${op} requires a <name|root> argument (or --all for focus).`)
+          }
+          const root = this.nav.resolveProjectRef(ref)
+          if (!root) {
+            throw new Error(
+              `No project matched "${ref}". Run \`duo project list\` to see available projects. Match is by exact root path or unique name.`
+            )
+          }
+          if (op === 'focus') {
+            const r = this.nav.setProjectFocus(root)
+            if (!r.ok) throw new Error(r.error ?? 'focus failed')
+            result = { ok: true, focused: root }
+          } else if (op === 'pin' || op === 'unpin') {
+            // Toggle is idempotent in user-intent terms: `pin` only adds
+            // if absent, `unpin` only removes if present. The underlying
+            // ProjectsService.togglePin is a pure flip — we read current
+            // state first to honor the verb's semantics.
+            const current = this.nav.getProjectsState().projects.find((p) => p.root === root)
+            const currentlyPinned = !!current?.pinned
+            const shouldBePinned = op === 'pin'
+            if (currentlyPinned !== shouldBePinned) {
+              const file = await this.nav.projectsTogglePin(root)
+              result = { ok: true, root, pinned: shouldBePinned, file }
+            } else {
+              result = { ok: true, root, pinned: currentlyPinned, noop: true }
+            }
+          } else if (op === 'close') {
+            const r = this.nav.requestProjectClose(root)
+            if (!r.ok) throw new Error(r.error ?? 'close failed')
+            result = { ok: true, root }
+          } else {
+            throw new Error(`Unknown project op: ${op}. Expected list|focus|pin|unpin|close.`)
           }
           break
         }

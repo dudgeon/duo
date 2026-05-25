@@ -258,6 +258,16 @@ export type DuoCommandName =
   // Power-user opt-out + UI verbs (collapse/expand/dismiss-pills/
   // auto-hydrate) are deferred follow-ups.
   | 'session'
+  // ENH-182 Phase 4 (Sprint 23 / v0.8.0) — project rail CLI parity.
+  //   list                 → JSON of derived projects + focused + counts
+  //   focus <name|root>    → set focus
+  //   focus --all          → release focus
+  //   pin <name|root>      → toggle persistent rail tile
+  //   unpin <name|root>    → opposite of pin
+  //   close <name|root>    → bulk close member terminals + tabs
+  // Routes through socket-server → NavBridge.getProjectsState /
+  // setProjectFocus / requestProjectClose / projectsTogglePin.
+  | 'project'
 
 // ── Stage 18b — Distro skill packs ───────────────────────────────────────────
 // A pack is a directory under `~/.claude/duo/packs/<name>/` carrying a
@@ -588,6 +598,23 @@ export interface ProjectsFile {
   /** Map of project root → colorIndex (0..5), overriding the hash
    *  default. Keyed by absolute path. */
   colorOverrides: Record<string, number>
+}
+
+// ENH-182 Phase 4 — renderer-authoritative snapshot of the live
+// project rail. Pushed to main on every change via
+// PROJECTS_STATE_PUSH; main caches it so `duo project list` returns
+// instantly without a renderer round-trip. Mirrors the NAV_STATE_PUSH
+// pattern. The CLI uses this to resolve `name|root` arguments before
+// firing pin/unpin/focus/close requests.
+export interface ProjectsStateSnapshot {
+  /** Derived projects in rail order (sorted by name). */
+  projects: Project[]
+  /** Currently focused project root, or null when the All tile is
+   *  active (no filter). */
+  focusedProject: string | null
+  /** Live member counts per project root, keyed by root path. Used
+   *  by `duo project list --counts` and by the CLI close confirm. */
+  counts: Record<string, { terminals: number; workingTabs: number; hasClaudeKindTerminal: boolean }>
 }
 
 // Stage 21c — session state restored across Duo relaunches.
@@ -1819,6 +1846,26 @@ export const IPC = {
   // (toggle-pin, set-color-override, or a Phase 4 CLI verb), carrying
   // the fresh ProjectsFile so subscribers can update without polling.
   PROJECTS_CHANGED: 'projects:changed',
+  // ENH-182 Phase 4 — CLI parity for `duo project` family.
+  //   PROJECTS_GET_STATE  renderer → main (well, main → renderer
+  //     async-pull): returns the rendered project list + the
+  //     currently-focused root + per-project member counts. Backs
+  //     `duo project list`; used by the CLI to resolve name → root
+  //     before any subsequent action verb.
+  //   PROJECTS_SET_FOCUS  main → renderer: setFocusedProject(root)
+  //     or null for "All". Renderer subscribes; CLI invokes via the
+  //     socket-server `project` command.
+  //   PROJECTS_CLOSE_REQUEST  main → renderer: trigger handleClose-
+  //     Project(root). Renderer subscribes; runs the same dialog
+  //     confirm + bulk-flush as the right-click "Close N/M" path.
+  PROJECTS_GET_STATE: 'projects:get-state',
+  PROJECTS_SET_FOCUS: 'projects:set-focus',
+  PROJECTS_CLOSE_REQUEST: 'projects:close-request',
+  // ENH-182 Phase 4 — renderer → main push of the live rendered
+  // project state, mirroring NAV_STATE_PUSH. Main caches the latest
+  // snapshot so `duo project list` returns instantly without a
+  // renderer round-trip.
+  PROJECTS_STATE_PUSH: 'projects:state-push',
   // ENH-151 — clone wrapper + gh auth probe. renderer → main.
   GIT_CLONE: 'git:clone',
   GH_AUTH_STATUS: 'gh:auth-status',

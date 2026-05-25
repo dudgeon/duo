@@ -230,6 +230,12 @@ empty.
 <!-- ENH-183 pared 2026-05-25 (Option A): `duo session rename` +
      `duo session hydrate` removed. Use Claude's own `/rename <title>`
      slash command inside the TUI. -->
+| `duo project list` | **ENH-182 Phase 4 (v0.8.0)** — JSON snapshot of the project rail: derived projects + focused root + per-project member counts. Run this first to discover project names before any other `duo project` verb. |
+| `duo project focus <name\|root>` | **ENH-182 Phase 4** — set the focus lens. Hides non-member tabs/terminals; re-roots navigator; shows title-bar chip. Name match is case-insensitive against unique names. |
+| `duo project focus --all` | **ENH-182 Phase 4** — release focus (back to All). |
+| `duo project pin <name\|root>` | **ENH-182 Phase 4** — pin a project so its tile survives close-all. Writes `~/.claude/duo/projects.json`. |
+| `duo project unpin <name\|root>` | **ENH-182 Phase 4** — remove from pin set. |
+| `duo project close <name\|root>` | **ENH-182 Phase 4** — bulk close every member terminal + tab. Confirms via dialog when any member is `kind: 'claude'`. |
 
 For deeper detail, the Duo skill at `~/.claude/skills/duo/` is the
 source of truth — fetch sections from it rather than guessing:

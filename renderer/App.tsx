@@ -923,6 +923,26 @@ export function App() {
   const handleTogglePin = useCallback((root: string) => {
     void window.electron.projects.togglePin(root)
   }, [])
+  // ENH-182 Phase 4 — push the rendered rail snapshot to main on
+  // every change. Main caches it for `duo project list` + name→root
+  // resolution. Tiny IPC payload (rail-sized arrays + counts map),
+  // safe to send on every relevant state change.
+  useEffect(() => {
+    window.electron.projects.pushState({
+      projects: railProjects,
+      focusedProject,
+      counts: Object.fromEntries(projectCounts)
+    })
+  }, [railProjects, focusedProject, projectCounts])
+  // ENH-182 Phase 4 — CLI `duo project focus` push. Routes through
+  // the same setFocusedProject the rail uses; downstream effects
+  // (navigator re-root, visibility filters, auto-spawn, focus chip)
+  // fire identically.
+  useEffect(() => {
+    return window.electron.projects.onSetFocus((root) => {
+      setFocusedProject(root)
+    })
+  }, [])
   // ENH-182 Phase 3c (D11) — auto-switch focus when activeWorking
   // moves to a file whose deepest project ≠ the currently-focused
   // project. Hooking off `activeWorking` (rather than `tabMembership`
@@ -1017,6 +1037,16 @@ export function App() {
       home
     ]
   )
+  // ENH-182 Phase 4 — CLI `duo project close` push. Reuses the same
+  // handleCloseProject pipeline as the right-click bulk-close, so
+  // the confirm dialog + atomic flush + focus release all fire
+  // identically. CLI calls feel like UI clicks from the renderer's
+  // perspective.
+  useEffect(() => {
+    return window.electron.projects.onCloseRequest((root) => {
+      void handleCloseProject(root)
+    })
+  }, [handleCloseProject])
   // Build the visible-terminal + visible-working-tab arrays the rest
   // of App.tsx consumes. While focused, hide tabs that belong to a
   // different project (or no project at all).

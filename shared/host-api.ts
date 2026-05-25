@@ -1003,6 +1003,13 @@ export interface ElectronProjectsAPI {
   ): Promise<import('./types').ProjectsFile>
   /** Subscribe to mutation pushes. Returns an unsubscribe fn. */
   onChange(cb: (file: import('./types').ProjectsFile) => void): () => void
+  /** Phase 4 — renderer pushes the live rail snapshot to main on
+   *  every change. Main caches it for `duo project list`. */
+  pushState(snapshot: import('./types').ProjectsStateSnapshot): void
+  /** Phase 4 — main → renderer push from `duo project focus`. */
+  onSetFocus(cb: (root: string | null) => void): () => void
+  /** Phase 4 — main → renderer push from `duo project close`. */
+  onCloseRequest(cb: (root: string) => void): () => void
 }
 
 // ENH-151 / ENH-152a — GitHub integration host API.

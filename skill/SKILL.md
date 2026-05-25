@@ -243,6 +243,12 @@ declare friction sites once and stop fighting them.
 <!-- ENH-183 pared 2026-05-25 (Option A): `duo session rename` +
      `duo session hydrate` removed. Type `/rename <title>` directly
      in the Claude TUI to set a session name. -->
+| `duo project list` | **ENH-182 Phase 4 (Sprint 23 / v0.8.0)** — JSON snapshot of the left rail. Use this first to discover project names before running any subsequent `duo project` verb. Returns derived projects (root, name, isGitRoot, hasMarker, colorIndex, pinned), the currently focused root (or `null` for All), and per-project member counts (`terminals`, `workingTabs`, `hasClaudeKindTerminal`). | JSON: `ProjectsStateSnapshot` |
+| `duo project focus <name\|root>` | **ENH-182 Phase 4** — set the focus lens to this project. Hides non-member terminals + working tabs; re-roots the navigator; shows the title-bar focus chip. Name resolution is case-insensitive against unique project names; exact root paths always resolve. | JSON: `{ ok, focused }` |
+| `duo project focus --all` | **ENH-182 Phase 4** — release focus (back to All; no filter). | JSON: `{ ok, focused: null }` |
+| `duo project pin <name\|root>` | **ENH-182 Phase 4** — pin a project so its rail tile persists across close-all. No-op when already pinned. Writes `~/.claude/duo/projects.json`. | JSON: `{ ok, root, pinned: true }` |
+| `duo project unpin <name\|root>` | **ENH-182 Phase 4** — remove from the pin set. No-op when not pinned. | JSON: `{ ok, root, pinned: false }` |
+| `duo project close <name\|root>` | **ENH-182 Phase 4** — bulk close every member terminal + working tab. The renderer fires the same dialog confirm as the right-click "Close N terminals and M tabs" menu when any member terminal is `kind: 'claude'` (live work proxy). If closing the entire focus, a fresh shell terminal is spawned at home so the strip stays non-empty. | JSON: `{ ok, root }` |
 
 ## Patterns
 

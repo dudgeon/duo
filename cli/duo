@@ -1209,6 +1209,25 @@ To confirm, re-run:
         }
         break;
       }
+      case "project": {
+        const sub = rest[0];
+        if (!sub) {
+          die("Usage: duo project <list|focus|pin|unpin|close> [args]");
+        }
+        if (sub === "list") {
+          out(await send("project", { op: "list" }));
+        } else if (sub === "focus" || sub === "pin" || sub === "unpin" || sub === "close") {
+          const ref = rest[1];
+          if (!ref) {
+            if (sub === "focus") die("Usage: duo project focus <name|root> | --all");
+            die(`Usage: duo project ${sub} <name|root>`);
+          }
+          out(await send("project", { op: sub, ref }));
+        } else {
+          die(`Unknown project sub-op: ${sub}. Expected list|focus|pin|unpin|close.`);
+        }
+        break;
+      }
       default:
         die(`Unknown command: ${cmd}
 Run duo --help for usage`);
@@ -2009,6 +2028,33 @@ COMMANDS
                                     the named tab's PTY. Same wire as
                                     clicking an S1 pill or the S3
                                     'Resume' button.
+
+  project <sub-op> [args]         ENH-182 Phase 4 (Sprint 23 / v0.8.0) \u2014
+                                  project rail CLI parity. Mirrors the
+                                  left-rail tile interactions. Name
+                                  resolution is case-insensitive against
+                                  unique names; exact root paths always
+                                  resolve.
+    project list                    JSON snapshot: derived projects in
+                                    rail order + focused root + per-
+                                    project member counts (terminals,
+                                    workingTabs, hasClaudeKindTerminal).
+                                    Use this first to discover project
+                                    names before subsequent verbs.
+    project focus <name|root>       Set the focus lens to this project.
+                                    Hides non-member terminals + working
+                                    tabs; re-roots the navigator; shows
+                                    the title-bar focus chip.
+    project focus --all             Release focus (back to All).
+    project pin <name|root>         Add this project to the persistent
+                                    pin set so its tile survives close-all.
+                                    No-op when already pinned.
+    project unpin <name|root>       Remove from the pin set. No-op when
+                                    not pinned.
+    project close <name|root>       Bulk-close every member terminal +
+                                    working tab. Fires the same confirm
+                                    dialog as the right-click menu when
+                                    any member terminal is kind:'claude'.
 
 FLAGS
   --version, -v    Print version

@@ -140,6 +140,12 @@ for the authoritative usage text.
      `duo session hydrate` removed. Resume affordances (S1 pills + S3
      restore offer) remain; force-rename + auto-hydration dropped as
      redundant with Claude's own Haiku auto-titling. -->
+| `duo project list` | **ENH-182 Phase 4 (Sprint 23 / v0.8.0)** — JSON snapshot of the left rail: derived `projects[]` (root/name/isGitRoot/hasMarker/colorIndex/pinned), the `focusedProject` root (or `null` for All), and per-project member `counts` (`terminals`, `workingTabs`, `hasClaudeKindTerminal`). Cached in main via `PROJECTS_STATE_PUSH` so the call returns instantly without a renderer round-trip. Use this first to discover project names before subsequent verbs. |
+| `duo project focus <name\|root>` | **ENH-182 Phase 4** — push `PROJECTS_SET_FOCUS` to the renderer, which calls `setFocusedProject(root)` and downstream effects (navigator re-root, visibility filters, auto-spawn, focus chip) fire identically to a tile click. Name match is case-insensitive against unique project names; exact root paths always resolve. |
+| `duo project focus --all` | **ENH-182 Phase 4** — release focus. Renderer calls `setFocusedProject(null)`. |
+| `duo project pin <name\|root>` | **ENH-182 Phase 4** — `ProjectsService.togglePin` adds the root to the persisted pin set in `~/.claude/duo/projects.json`; `PROJECTS_CHANGED` broadcast updates the renderer. Verb is idempotent in user-intent terms: pin only adds when absent. |
+| `duo project unpin <name\|root>` | **ENH-182 Phase 4** — opposite of pin. Only removes when present (no-op otherwise). |
+| `duo project close <name\|root>` | **ENH-182 Phase 4** — push `PROJECTS_CLOSE_REQUEST` to the renderer, which runs the same `handleCloseProject(root)` pipeline as the right-click "Close N terminals and M tabs" menu — including the `dialog.confirm` gate when any member terminal is `kind: 'claude'`, the atomic membership flush, and the fresh-shell spawn when closing the entire focus would leave the strip empty. |
 | `duo --version` / `-v` | Print version |
 | `duo --help` / `-h` | Usage |
 
