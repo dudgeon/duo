@@ -981,6 +981,15 @@ export interface ElectronAPI {
   // ENH-151 / ENH-152a — GitHub integration: status (Navigator root
   // chip) + clone (File → Clone… modal) + ghAuth (auth probe).
   git: ElectronGitAPI
+  // ENH-182 — project marker probe (D2). Used by useProjects to
+  // detect `CLAUDE.md` / `.claude/` markers for folders the
+  // navigator hasn't scanned (e.g. `~/.claude` when the user opens
+  // a file directly under it without navigating there first).
+  projects: ElectronProjectsAPI
+}
+
+export interface ElectronProjectsAPI {
+  hasMarker(dir: string): Promise<boolean>
 }
 
 // ENH-151 / ENH-152a — GitHub integration host API.

@@ -1804,6 +1804,12 @@ export const IPC = {
   BROWSER_RELEASE_AUX_TAB: 'browser:release-aux-tab',
   // ENH-152a — git status probe for the Navigator root chip. renderer → main.
   GIT_STATUS: 'git:status',
+  // ENH-182 — D2 marker probe. Returns true if `dir` contains a
+  // CLAUDE.md file or a .claude/ directory (a project marker per
+  // the project-as-filter-layer model). Renderer → main; called by
+  // useProjects when the navigator listing isn't sufficient (e.g.
+  // user just opened a file under ~/.claude without navigating).
+  PROJECTS_HAS_MARKER: 'projects:has-marker',
   // ENH-151 — clone wrapper + gh auth probe. renderer → main.
   GIT_CLONE: 'git:clone',
   GH_AUTH_STATUS: 'gh:auth-status',

@@ -21,6 +21,47 @@ import type { Project, ProjectsFile } from './types'
  *  rendering concern, not a derivation concern. */
 export const NUM_PROJECT_COLORS = 6
 
+// ── qualification policy ──────────────────────────────────────────
+
+/**
+ * Should this `dir` be blocked from qualifying as a project, even if
+ * it has a marker or is a git repo?
+ *
+ * The user's home dir holds the global Claude Code config (`~/.claude/`),
+ * which appears in the dir's listing AS a `.claude/` directory entry.
+ * Naively that would make `~` qualify (D2 says "has CLAUDE.md or
+ * .claude/" → marker hit). Every random `/tmp/foo` cwd would then walk
+ * up to `~` and report "home dir" as its project. That's wrong.
+ *
+ * What we DO want: a user working IN `~/.claude/` (editing skills,
+ * agents, the global CLAUDE.md, etc.) gets `~/.claude/` as the project.
+ * That works because `~/.claude/` has its OWN CLAUDE.md inside it (the
+ * user's global instructions) — marker hit, and the dir itself isn't
+ * excluded by this policy.
+ *
+ * Exclusions (only the dir itself, never subdirs):
+ *   • `/` — filesystem root.
+ *   • `$HOME` — to block the false-positive above.
+ *   • `/Users/<name>` pattern — fallback when HOME isn't injected
+ *     (renderer context doesn't always carry process.env).
+ *
+ * Subdirectories of $HOME (including `~/.claude/`, `~/Documents/`,
+ * etc.) are NOT excluded — they can qualify normally on their own
+ * merits.
+ */
+export function isExcludedFromQualification(
+  dir: string,
+  homeDir?: string | null
+): boolean {
+  if (dir === '/') return true
+  if (homeDir && dir === homeDir) return true
+  // Fallback when homeDir wasn't passed (renderer caller without
+  // process.env access). On macOS, `/Users/<name>` is always a home
+  // dir; subdirectories never match this regex.
+  if (/^\/Users\/[^/]+\/?$/.test(dir)) return true
+  return false
+}
+
 // ── path helpers (Posix only — Duo is macOS) ──────────────────────
 
 function dirname(p: string): string {

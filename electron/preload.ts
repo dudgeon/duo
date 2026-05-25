@@ -809,6 +809,12 @@ const api: ElectronAPI = {
   // ENH-151 / ENH-152a — GitHub integration. status powers the
   // Navigator root chip; clone wraps gh repo clone / git clone for
   // the File → Clone… modal; ghAuth probes gh auth status.
+  // ENH-182 — D2 marker probe. Companion to git.status; the renderer
+  // needs both to qualify a folder as a project.
+  projects: {
+    hasMarker: (dir: string) =>
+      ipcRenderer.invoke(IPC.PROJECTS_HAS_MARKER, { dir }) as Promise<boolean>
+  },
   git: {
     status: (cwd) => ipcRenderer.invoke(IPC.GIT_STATUS, { cwd }),
     clone: (req) => ipcRenderer.invoke(IPC.GIT_CLONE, req),

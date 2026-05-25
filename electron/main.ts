@@ -1469,6 +1469,16 @@ function setupIPC(): void {
     return getGitStatus(cwd)
   })
 
+  // ENH-182 — D2 marker probe (renderer → main). Returns true if
+  // `dir` contains a CLAUDE.md file or a .claude/ subdirectory.
+  // Used by useProjects to detect project markers for dirs the
+  // navigator hasn't scanned (e.g. ~/.claude when the user opens a
+  // file under it without navigating there first).
+  ipcMain.handle(IPC.PROJECTS_HAS_MARKER, async (_event, { dir }: { dir: string }) => {
+    const { hasMarker } = await import('../core/projects-service')
+    return hasMarker(dir)
+  })
+
   // ENH-151 — clone wrapper (gh + git fallback) + gh-auth probe.
   ipcMain.handle(IPC.GIT_CLONE, async (_event, req: import('../shared/host-api').CloneRequest) => {
     const { runClone } = await import('../core/git/clone')

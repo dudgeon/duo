@@ -23,6 +23,7 @@ import {
   NUM_PROJECT_COLORS,
   type QualificationResult
 } from './projects-service'
+import { isExcludedFromQualification } from '../shared/projects'
 
 // ── helpers ─────────────────────────────────────────────────────
 
@@ -420,6 +421,123 @@ describe('deriveProjects — output shape', () => {
     // Each unique ancestor probed once. The final build-step probe
     // for /repo hits the memoization cache and adds no calls.
     expect(calls).toBe(uniqueAncestors.size)
+  })
+})
+
+// ── qualification policy ────────────────────────────────────────
+
+describe('isExcludedFromQualification', () => {
+  it('excludes filesystem root', () => {
+    expect(isExcludedFromQualification('/')).toBe(true)
+  })
+
+  it('excludes the explicit home dir when provided', () => {
+    expect(isExcludedFromQualification('/Users/foo', '/Users/foo')).toBe(true)
+  })
+
+  it('excludes /Users/<name> via regex fallback when no homeDir', () => {
+    expect(isExcludedFromQualification('/Users/foo')).toBe(true)
+    expect(isExcludedFromQualification('/Users/geoff/')).toBe(true)
+  })
+
+  it('does NOT exclude subdirectories of home', () => {
+    // Owner directive 2026-05-25 — editing files under ~/.claude
+    // SHOULD count as a project. The exclusion only blocks the home
+    // dir itself, never its children.
+    expect(isExcludedFromQualification('/Users/foo/.claude', '/Users/foo')).toBe(false)
+    expect(isExcludedFromQualification('/Users/foo/Documents', '/Users/foo')).toBe(false)
+    expect(isExcludedFromQualification('/Users/foo/.claude/skills', '/Users/foo')).toBe(false)
+  })
+
+  it('does NOT exclude deeper paths under the /Users/<name> regex', () => {
+    expect(isExcludedFromQualification('/Users/foo/anything')).toBe(false)
+    expect(isExcludedFromQualification('/Users/foo/.claude/skills/duo')).toBe(false)
+  })
+
+  it('does NOT exclude /tmp or random non-home paths', () => {
+    expect(isExcludedFromQualification('/tmp/work', '/Users/foo')).toBe(false)
+    expect(isExcludedFromQualification('/opt/repo', '/Users/foo')).toBe(false)
+  })
+})
+
+describe('deriveProjects + isExcludedFromQualification — ~/.claude editing scenario', () => {
+  // The owner-stated must-work case: editing a file under ~/.claude/
+  // produces ~/.claude as the project (NOT the home dir). The
+  // exclusion blocks home itself while letting subdirs qualify on
+  // their own merits.
+  const HOME = '/Users/foo'
+
+  function qualifyWithHome(
+    map: Record<string, Partial<QualificationResult>>
+  ): (dir: string) => QualificationResult {
+    return (dir) => {
+      if (isExcludedFromQualification(dir, HOME)) {
+        return { isGitRoot: false, hasMarker: false }
+      }
+      const entry = map[dir]
+      return {
+        isGitRoot: entry?.isGitRoot ?? false,
+        hasMarker: entry?.hasMarker ?? false
+      }
+    }
+  }
+
+  it('qualifies ~/.claude when working in a file under it', () => {
+    const out = deriveProjects({
+      terminals: [],
+      workingTabs: [{ id: 'tab1', path: '/Users/foo/.claude/skills/duo/SKILL.md' }],
+      pinnedTabPaths: new Set(),
+      pinnedProjects: new Set(),
+      colorOverrides: {},
+      // Mimic the real hasMarker check: ~/.claude has a CLAUDE.md
+      // (the user's global instructions file) per the real-world
+      // layout. Home dir would ALSO match via marker (because it
+      // contains the .claude/ subdir entry in its listing) but the
+      // policy excludes it.
+      qualify: qualifyWithHome({
+        '/Users/foo/.claude': { hasMarker: true },
+        '/Users/foo': { hasMarker: true } // would match if not excluded
+      })
+    })
+
+    expect(out.projects.map((p) => p.root)).toEqual(['/Users/foo/.claude'])
+    expect(out.tabMembership.tab1).toBe('/Users/foo/.claude')
+  })
+
+  it('qualifies ~/.claude when a terminal cwd is under it', () => {
+    const out = deriveProjects({
+      terminals: [{ id: 't1', cwd: '/Users/foo/.claude/skills' }],
+      workingTabs: [],
+      pinnedTabPaths: new Set(),
+      pinnedProjects: new Set(),
+      colorOverrides: {},
+      qualify: qualifyWithHome({
+        '/Users/foo/.claude': { hasMarker: true },
+        '/Users/foo': { hasMarker: true }
+      })
+    })
+
+    expect(out.projects.map((p) => p.root)).toEqual(['/Users/foo/.claude'])
+    expect(out.terminalMembership.t1).toBe('/Users/foo/.claude')
+  })
+
+  it('does NOT surface a project when working in a random non-marker dir under home', () => {
+    // Same home dir setup, but terminal is in ~/Downloads which has
+    // no marker. The .claude subdir is what makes HOME match
+    // hasMarker — and we exclude HOME. So no project surfaces.
+    const out = deriveProjects({
+      terminals: [{ id: 't1', cwd: '/Users/foo/Downloads' }],
+      workingTabs: [],
+      pinnedTabPaths: new Set(),
+      pinnedProjects: new Set(),
+      colorOverrides: {},
+      qualify: qualifyWithHome({
+        '/Users/foo': { hasMarker: true } // global .claude/ in listing
+      })
+    })
+
+    expect(out.projects).toHaveLength(0)
+    expect(out.terminalMembership.t1).toBeNull()
   })
 })
 

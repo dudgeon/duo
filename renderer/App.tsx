@@ -836,8 +836,7 @@ export function App() {
   const { projects: railProjects } = useProjects({
     terminals: projectTerminals,
     workingTabs: projectWorkingTabs,
-    pinnedTabPaths: pinnedFileTabPaths,
-    navListings: nav.state.listings
+    pinnedTabPaths: pinnedFileTabPaths
   })
 
   // Stage 15 G17 — push the active terminal id to main so `duo send`
