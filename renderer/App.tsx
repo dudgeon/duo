@@ -1072,6 +1072,57 @@ export function App() {
     if (focusedProject === null) return undefined
     return new Set(visibleFileTabs.map((t) => t.id))
   }, [focusedProject, visibleFileTabs])
+  // ENH-182 Phase 2b — browser-mode canvas tab filter. Apply the same
+  // membership rule to `file://` browser tabs as Phase 2 does to file
+  // editor tabs. URL→project resolution: decode the file:// path,
+  // strip query+fragment, then pick the deepest project root whose
+  // path is an ancestor (or exact match).
+  //
+  // Non-file URLs (http/https/about/duo-file/etc.) have no path under
+  // a project — they're treated like reference material and stay
+  // visible across every focus, mirroring the Phase 2 "pinned file
+  // tabs cross focuses" rule. Pinned browser tabs (via Stage 24
+  // pins.json) also stay visible, by the same logic.
+  const pinnedBrowserUrls = useMemo(
+    () => new Set(pins.filter((p) => p.kind === 'browser').map((p) => p.ref)),
+    [pins]
+  )
+  const visibleBrowserTabIds = useMemo<ReadonlySet<number> | undefined>(() => {
+    if (focusedProject === null) return undefined
+    // Pre-sort project roots by descending length so the first hit
+    // in the find loop is the deepest qualifying ancestor (D5).
+    const rootsByDepth = [...railProjects.map((p) => p.root)].sort(
+      (a, b) => b.length - a.length
+    )
+    const visible = new Set<number>()
+    for (const bt of browserTabs) {
+      if (!bt.url) continue
+      if (pinnedBrowserUrls.has(bt.url)) {
+        visible.add(bt.id)
+        continue
+      }
+      if (!bt.url.startsWith('file://')) {
+        // Non-file URLs are cross-project reference material; keep
+        // visible across every focus.
+        visible.add(bt.id)
+        continue
+      }
+      let pathPart: string
+      try {
+        const u = new URL(bt.url)
+        pathPart = decodeURIComponent(u.pathname)
+      } catch {
+        continue
+      }
+      const deepest = rootsByDepth.find(
+        (r) => pathPart === r || pathPart.startsWith(r + '/')
+      )
+      if (deepest === focusedProject) {
+        visible.add(bt.id)
+      }
+    }
+    return visible
+  }, [focusedProject, browserTabs, railProjects, pinnedBrowserUrls])
   // ENH-182 Phase 2 — when the user enters focus, save the previous
   // navigator cwd so we can restore it when focus clears. Re-root the
   // navigator to the project root (D10 — not a hard tree filter; the
@@ -3773,6 +3824,7 @@ export function App() {
               // member set. Hidden tabs stay mounted (via the full
               // `fileTabs` array above) so editor state persists.
               visibleFileTabIds={visibleFileTabIds}
+              visibleBrowserTabIds={visibleBrowserTabIds}
               activeWorking={activeWorking}
               setActiveWorking={setActiveWorking}
               closeFileTab={closeFileTab}

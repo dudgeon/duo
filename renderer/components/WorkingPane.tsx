@@ -170,6 +170,11 @@ interface WorkingPaneProps {
    *  to these; mount loops below stay full-sized so editor state
    *  isn't lost for hidden tabs. `undefined` = no focus, show all. */
   visibleFileTabIds?: ReadonlySet<string>
+  /** ENH-182 Phase 2b — set of browser-tab ids (BrowserTab.id) that
+   *  belong to the focused project (via file:// path membership) OR
+   *  are non-file URLs treated as cross-project reference material.
+   *  Same `undefined` semantics as visibleFileTabIds. */
+  visibleBrowserTabIds?: ReadonlySet<number>
 }
 
 export function WorkingPane({
@@ -184,6 +189,7 @@ export function WorkingPane({
   onSendToDuo,
   pillLabel,
   visibleFileTabIds,
+  visibleBrowserTabIds,
   onNewFile,
   pins,
   onTogglePin,
@@ -366,16 +372,25 @@ export function WorkingPane({
     ...unsortedTabs.filter(t => t.pinned).sort(byOrder),
     ...unsortedTabs.filter(t => !t.pinned).sort(byOrder)
   ]
-  // ENH-182 Phase 2 — visibility filter. When `visibleFileTabIds` is
-  // present (a project focus is active), drop file tabs not in the
-  // set from the strip. Pinned tabs stay (they're cross-project
-  // refs). Browser tabs are visible regardless in Phase 2 first cut —
-  // gating browser-mode canvas tabs by file:// path membership is a
-  // Phase 2b follow-up (more complex URL→project resolution).
+  // ENH-182 Phase 2 + Phase 2b — visibility filter. When focus is
+  // active, the host passes the set of file-tab ids AND browser-tab
+  // ids that belong to the focused project (or are cross-project
+  // pinned reference material). Drop everything not in either set.
+  // Pinned-tab gate still applies (cross-project refs). Mount loops
+  // below stay full-sized so editor state isn't lost for hidden tabs.
   const mergedTabs: WorkingTab[] = visibleFileTabIds
     ? mergedTabsAll.filter((t) => {
-        if (t.type === 'browser') return true
         if (t.pinned) return true
+        if (t.type === 'browser') {
+          // Phase 2b: gate browser tabs by visibleBrowserTabIds when
+          // provided. The host computes this from file:// path mem-
+          // bership + non-file-URL passthrough; defensively allow if
+          // the host didn't supply (parity with the Phase 2 first cut
+          // behavior — no regression for callers not yet on Phase 2b).
+          if (!visibleBrowserTabIds) return true
+          const browserId = t.id.startsWith('b:') ? Number(t.id.slice(2)) : NaN
+          return Number.isFinite(browserId) && visibleBrowserTabIds.has(browserId)
+        }
         // file-tab id shape is "f:<uuid>" — strip prefix for the set lookup.
         const fileId = t.id.startsWith('f:') ? t.id.slice(2) : t.id
         return visibleFileTabIds.has(fileId)
