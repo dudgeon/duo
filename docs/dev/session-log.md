@@ -18,9 +18,17 @@
 
 ---
 
+## 2026-05-25 (v0.7.10 cut — project rail + focus filter + iCloud guard)
+
+**v0.7.10 cut + tagged locally.** Same-day-as-Sprint-22's-build cut. ENH-182 Phases 0–2 + auto-spawn (the marquee), home-dir exclusion + dedicated marker IPC, iCloud Optimize Storage data-loss guard, and the TabBar.tsx ENH-183 pare leftover cleanup all land together. Smoke walk closed 5/5 PASS via the `/smoke-walk` skill (manifest `docs/dev/smoke-walks/v0.8.0.json` — was named under the working version before the cut got renumbered to PATCH; results stand). Two PASS-with-notes filed as Sprint 23 follow-ups: ENH-185 rail refinements (10% narrower + tooltip wording per owner notes) and a BUG-079 update (Ctrl-Tab latency partial repro in focused mode — same root cause as the long-standing carry-forward, with a fresh known-good repro condition). PACK.json bumped 1.0.13 → 1.0.14 to fire the per-pack "What's new" surface for existing users on next launch (new entries 17j/17k/17l in what-duo-does.html cover the rail, the focus filter, and auto-spawn).
+
+**PATCH bump, not MINOR.** Originally drafted as v0.8.0; owner reframed to v0.7.10 mid-push. The project-as-filter-layer feature is real but partial — Phase 2b (browser-mode canvas filter), Phase 3 (lifecycle + auto-switch + tile context menu), Phase 4 (CLI parity) all still pending. Calling this v0.8.0 would imply feature-completeness; v0.7.10 is the honest framing. v0.8.0 stays reserved for the feature-complete ENH-182 capstone.
+
+---
+
 ## 2026-05-25 (Sprint 22 — ENH-182 Phase 0 + Phase 1 + iCloud emergency recovery)
 
-**Sprint 22 / v0.8.0 kicked off.** 5 commits ahead of `origin/main`, none pushed. The session was bookended by an iCloud Optimize Storage emergency at the start and a verified-live project rail at the end.
+**Sprint 22 / v0.7.10 kicked off** (working version was v0.8.0 mid-sprint; renumbered to PATCH at cut time — see the v0.7.10 cut entry above). 5 commits ahead of `origin/main`, none pushed. The session was bookended by an iCloud Optimize Storage emergency at the start and a verified-live project rail at the end.
 
 ### iCloud Optimize Storage data-loss event (session-start emergency)
 

@@ -19,7 +19,38 @@ notarized distribution (Stage 21).
 
 ## [Unreleased]
 
-> Empty — v0.7.9 cut 2026-05-25.
+> Empty — v0.7.10 cut 2026-05-25.
+
+## [0.7.10] — 2026-05-25
+
+### Added
+
+- **ENH-182 Phase 0 + Phase 1 + Phase 2 — Project rail with focus filter.** A thin left-edge rail surfaces one tile per detected project plus an "All" tile. Decisions D1–D12 + R1–R3 locked 2026-05-25 via two playgrounds (`docs/research/project-centric-ux.html` + `docs/research/project-rail-style-study.html`). **Qualification (D2):** a folder becomes a project when it's a git repo root OR contains `CLAUDE.md`/`.claude/` AND has at least one terminal cwd or non-pinned working tab under it. **Membership (D5):** tabs/terminals belong to their deepest qualifying enclosing root. **Tile treatment (R1 "quiet bloom"):** unfocused = paper bg + colored 2-letter initials + colored underline; focused = full-hue fill + white initials + white left-edge notch. **Six `--duo-project-*` color tokens** (pine / harbor / iris / plum / rose / moss) mirrored from the Atelier kernel, hash-stable per repo path (R2) — same project → same hue every run. **Focus filter (D8/D10):** clicking a tile hides non-member terminal + working tabs (visibility-only — PTYs and editor state stay alive); re-roots the navigator to the project root (soft, not a hard tree filter); shows `Focused: <project> ×` chip in the titlebar; Ctrl-Tab cycles only visible terminal tabs. Click the active tile, the All tile, or the chip × to release. Pinned cross-project tabs (Stage 24 pins.json) stay visible across every focus by design.
+- **ENH-182 auto-spawn on focus.** Focusing on a project that has working tabs but no member terminals spawns a fresh terminal at the project root, using your most-recent `lastTabKind` (shell or claude). Per-focus-session ref-guard prevents double-spawn on rapid refocus.
+- **iCloud Optimize Storage data-loss guard.** New `scripts/check-materialization.sh` (warn-only by default, `--strict` for CI) scans `.git` + tracked source dirs for the macOS `dataless` BSD file flag — the smoking gun for files cloud-evicted but still claiming size in `stat`. New `scripts/materialize.sh` runs the 6-stage recovery (pause Optimize Storage → materialize `.git/` → working tree → `node_modules/` → `git checkout HEAD --` stuck files → final report). New npm scripts `predev` / `pretest` / `pretest:run` auto-fire the check (with `--quiet || true` so it warns without blocking); new `materialize` / `check:materialization` scripts for direct invocation. Full trap symptoms + recovery commands documented in `CLAUDE.md § Build commands`.
+
+### Changed
+
+- **D2 marker probe now uses dedicated IPC** (`projects:has-marker`). Phase 1 originally reused `nav.state.listings` per the PRD's reuse-the-listing-read hint, but that gap hid markers for dirs the navigator hadn't scanned (e.g. `~/.claude` when you open a file under it without navigating). The new IPC calls `hasMarker(dir)` from `core/projects-service.ts` directly; renderer hook caches results in `markerResults: Map<string, boolean>` with the same idempotent-merge pattern as the git-status cache.
+
+### Fixed
+
+- **ENH-182 home-dir exclusion (owner directive 2026-05-25).** The user's global `~/.claude/` config dir would naively make `$HOME` itself qualify as a project (since it contains `.claude/`). New pure helper `isExcludedFromQualification(dir, homeDir)` in `shared/projects.ts` bars `$HOME` + `/` from qualifying. **Subdirs of home, including `~/.claude/` itself, qualify normally** — editing a file under `~/.claude/` correctly surfaces it as a project tile. 9 new tests including 3 explicit `~/.claude editing scenario` integration tests.
+- **ENH-183 pare leftover in TabBar.tsx.** The v0.7.9 Option A pare dropped `collapsed` + `editingTitle` from `SessionHeaderUiState` but missed three references in `renderer/components/TabBar.tsx`: the S2 `showS2Dot` predicate, the `setSessionHeaderState({ collapsed: !ui.collapsed })` toggle in `onClick`, and the dot render block. All three were S2 collapsed-dot tab-marker code paths — gone with the rest of S2. Pre-existing on `main`; was silently blocking `npm run typecheck` repo-wide. Fix is mechanical (drop 3 references + 4 now-unused imports). `onClick` reverts to plain `onSelect`.
+
+### Known issues
+
+- **BUG-079 — Ctrl-Tab cycle latency partial repro (Sprint 22 walk-1).** Owner observed noticeable Ctrl-Tab latency on `ENH-182-CTRL-TAB` while focused. Phase 2 doesn't change the cycle implementation (it just passes `visibleTerminals` to `useKeyboardShortcuts.tabs` instead of full `tabs`), so this is the same root cause as the long-standing BUG-079 carry-forward. Carries into Sprint 23 with a fresh repro condition (focused-on-duo with 1 visible terminal — narrow set; latency present even there means it's not in cycle traversal).
+- **ENH-185 — rail refinements deferred to Sprint 23.** Owner walk-1 PASS-with-notes: rail 10% narrower (`w-14 → w-[50px]`) + tooltip wording (`Project: {name}` instead of `{name}\n{root}`). Cosmetic polish; not cut-blocking.
+- **Browser-mode canvas tabs (`file://`) are NOT filtered by project focus** (Phase 2b). The visibility filter in Phase 2 covers terminal + non-browser file tabs only; HTML files opened in browser mode stay visible across every focus. Deferred because the URL→project resolution is more complex than the path-based path used for file tabs.
+- **Phase 3 + Phase 4 not built.** Phase 3 = D11 auto-switch focus when opening a file from another project + D12 lifecycle (auto add/remove + pin) + tile right-click context menu. Phase 4 = `duo project list/focus/pin/unpin/close` CLI parity. Both queued for Sprint 23.
+
+### Internal
+
+- **Pure project derivation lives in `shared/projects.ts`.** The renderer can't import from `core/` (per `tsconfig.web.json`), so the side-effect-free `deriveProjects()` + helpers (`hashColorIndex`, `ancestors`, `deepestEnclosingRoot`, `normalizeProjectsFile`, `isExcludedFromQualification`) live in `shared/`. The fs/Node-only parts (`ProjectsService` persisted slice + `hasMarker` async) stay in `core/projects-service.ts`, which re-exports from shared for backward compat with the existing test file.
+- **`shared/types.ts` — new types.** `Project` (root + name + isGitRoot + hasMarker + colorIndex + pinned) and `ProjectsFile` (version + pins + colorOverrides) persisted-slice shape.
+- **`useProjects()` renderer hook** — subscribes to terminals + working tabs + pinned tab paths; runs parallel async probes for git-root and marker via IPC; memoizes via `inFlightRef` so re-renders don't re-probe. Returns `{projects, terminalMembership, tabMembership}`. **No cancel-on-cleanup** — the setState merges are idempotent (stable probe results per key) so stale-closure resolutions after re-render are safe. Cancelling on cleanup was the bug that caused the cache to stay empty forever before this fix.
+- Test suite: 786/786 green (Phase 0 added 40; home-dir fix added 9).
 
 ## [0.7.9] — 2026-05-25
 

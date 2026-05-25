@@ -21,7 +21,31 @@
 
 ## Pending — not yet cut
 
-> *(empty — v0.7.9 cut 2026-05-25)*
+> *(empty — v0.7.10 cut 2026-05-25)*
+
+---
+
+## v0.7.10 — 2026-05-25 — Project rail + focus filter (ENH-182 Phases 0–2, partial) + iCloud data-loss guard
+
+The first cut where Duo treats **projects as first-class organizing primitives** — not as a switcher, but as a filter / lens over your existing multi-project workspace. ENH-182 had carried through 3 sprints as a markdown PRD before the two playgrounds (`docs/research/project-centric-ux.html` + `docs/research/project-rail-style-study.html`) locked 12 design decisions + 3 rail-style sub-decisions in a single owner walk on the morning of this cut. The rail itself, Phase 0's pure derivation foundation, Phase 1's read-only render, and Phase 2's focus filter (the actual payoff) all shipped same-day.
+
+**What ships.** A thin left-edge rail (~54px) renders one tile per auto-detected project plus an "All" tile. A folder qualifies as a project when it's a git repo root OR has `CLAUDE.md`/`.claude/` AND you're working in it (terminal cwd or non-pinned tab under it). Tiles render in the locked R1-B "quiet bloom" treatment — paper bg + colored initials + hue underline when unfocused, full-hue bloom with a white notch when focused. Six hash-stable hues mirrored from the Atelier kernel (`--duo-project-*` tokens) skip the burnt-orange band so no project reads as the app accent. Clicking a tile hides non-member terminal + working tabs (visibility-only — PTYs and editor state stay alive), re-roots the navigator to the project root (soft re-root, you can still navigate up/out), surfaces a `Focused: <project> ×` chip in the titlebar, and makes Ctrl-Tab cycle only the visible terminal tabs. Pinned cross-project tabs stay visible across every focus by design.
+
+**One owner edge case caught + fixed mid-walk.** Focusing on a project that has working tabs but no member terminals leaves the terminal strip empty — confusing. Fix: auto-spawn a fresh terminal at the project root in that case, using your most-recent `lastTabKind` (shell or claude). Per-focus-session ref-guard prevents double-spawn. The walk caught it on the first try with `.claude` (which had a CLAUDE.md tab open but no terminals).
+
+**One owner directive locked the qualification matrix.** The user's global `~/.claude/` config directory would naively make `$HOME` itself qualify as a project (since `~/.claude/` IS the `.claude/` marker D2 looks for). Owner's directive: bar `$HOME` itself + `/` from qualifying, **but not subdirs**. Editing a file directly under `~/.claude/` correctly surfaces it as a project tile (since `~/.claude/` has its own `CLAUDE.md` inside it). Locked in a pure helper `isExcludedFromQualification(dir, homeDir)` with three explicit `~/.claude editing scenario` integration tests so the rule survives future refactors.
+
+**A session-start emergency became a permanent guard.** When this Sprint 22 session started, macOS's "Optimize Mac Storage" feature had aggressively evicted ~13,000 files in the repo — including `.git/refs/heads/main` (git rev-parse HEAD broken), both packfiles (`git cat-file -e` exited SIGBUS on the partial materialization), and 34 source files in `renderer/components/editor/extensions/`. Recovery walked 8 stages over ~45 minutes; the key tricks turned out to be: reconstruct `.git/refs/heads/main` from `.git/logs/HEAD`'s reflog (the log file usually materializes when the ref doesn't), and use `rm <stub> && git checkout HEAD --` for source files git couldn't overwrite directly (the cloud-stub blocks writes). New `scripts/check-materialization.sh` + `scripts/materialize.sh` + a `predev` npm hook make this trap impossible to hit blind in future sessions. Full symptoms + recovery commands now live in `CLAUDE.md § Build commands`.
+
+**Plus one structural cleanup.** The v0.7.9 ENH-183 Option A pare missed three references to the dropped `SessionHeaderUiState.collapsed` field in `TabBar.tsx`. Pre-existing on `main`; was silently blocking `npm run typecheck` repo-wide. Fix is mechanical (drop 3 references + the now-unused render block + 4 dead imports). The lesson — structural pares need a same-commit grep-audit of all consumers — was codified by extending the existing `feedback_grep_all_implementations_before_rename` memory rule from "user-visible string renames" to "type-field removals."
+
+**What this is and isn't.** This IS the project-as-filter-layer release — Duo now knows what your projects are, hides irrelevant work when you focus on one, and brings the relevant terminal up automatically when you switch. It IS NOT yet a project switcher (Cmd+P palette + title-bar breadcrumb deferred per D3); IS NOT yet feature-complete (Phase 3's auto-switch-on-cross-project-open + lifecycle/pin context menu + Phase 4's CLI parity all queued for Sprint 23); IS NOT yet filtering browser-mode canvas tabs (Phase 2b — file:// URL→project resolution is more complex than the file-tab path).
+
+**Walk-1 results — 5/5 PASS** on the smoke walk (`docs/dev/smoke-walks/v0.8.0.json` — manifest was named under the working version before this cut was renumbered to PATCH; results stand). Two PASS-with-notes filed as Sprint 23 follow-ups: **ENH-185** (rail refinements: 10% narrower + tooltip wording) and a **BUG-079 update** (Ctrl-Tab latency partial repro in focused mode — same root cause as the existing carry-forward).
+
+**Why v0.7.10 and not v0.8.0.** This release is a **PATCH** (0.7.9 → 0.7.10), not a MINOR. The project-as-filter-layer feature ENH-182 is real and visible, but Phase 2b (browser-mode canvas filter), Phase 3 (lifecycle + auto-switch + tile context menu), and Phase 4 (CLI parity) are all still pending. Calling this v0.8.0 would imply feature-completeness; v0.7.10 is the honest framing — "more polish + the foundation of a new feature you'll see fully shipped in v0.8.0 once Phases 2b/3/4 land." Same logic as the v0.6.x sprint cadence (a series of PATCH bumps, then a clean MINOR for a coherent capstone).
+
+**Queued for Sprint 23.** ENH-182 Phase 2b + Phase 3 + Phase 4. ENH-185 rail refinements. BUG-079 latency investigation with the new known-good repro condition. ENH-184 workspace pill defeaturing — still uncommitted on `main` from a prior session, deliberately preserved across Sprint 22 for whichever Claude picks it up next.
 
 ---
 

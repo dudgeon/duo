@@ -498,6 +498,33 @@
   </div>
 </article>
 
+<article class="item" data-keys="project rail filter focus left bloom quiet pine harbor iris plum rose moss tile claude-md git-repo enh-182">
+  <div class="num">17j</div>
+  <div>
+    <h3>See your projects in a left-edge rail</h3>
+    <p class="why"><strong>v0.7.10:</strong> a thin left-edge rail surfaces one tile per detected project plus an "All" tile. A folder qualifies as a project when it's a git repo root OR contains <code>CLAUDE.md</code>/<code>.claude/</code> AND you're working in it (at least one terminal cwd or non-pinned tab under it). Tiles render in the locked R1-B "quiet bloom" treatment — paper bg + colored initials + same-hue underline when unfocused. The six hues (pine / harbor / iris / plum / rose / moss) are hash-stable per repo path, so the same project always lights up in the same color.</p>
+    <p class="how"><strong>UI</strong>Visible automatically when you have at least one qualifying project open. Rail hides entirely when nothing qualifies.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="focus project filter hide tabs chip cmd-tab ctrl-tab cycle navigator re-root visible terminals enh-182">
+  <div class="num">17k</div>
+  <div>
+    <h3>Focus on one project to hide unrelated tabs</h3>
+    <p class="why"><strong>v0.7.10:</strong> click any project tile to focus that project. The tile blooms to full hue + a white left-edge notch; a <code>Focused: &lt;project&gt; ×</code> chip appears in the titlebar. Visibility-only filter: non-member terminal + working tabs disappear from the strips while their PTYs and editor state stay alive in the background. Navigator re-roots to the project root (soft re-root — you can still navigate up/out). Ctrl-Tab cycles only visible terminal tabs. Pinned cross-project tabs (tasks.md, idle-thoughts.md, etc.) stay visible across every focus by design. Click the active tile, the All tile, or the chip × to release.</p>
+    <p class="how"><strong>UI</strong>Click a project tile to focus; click the active tile / All / chip × to release.</p>
+  </div>
+</article>
+
+<article class="item" data-keys="auto-spawn terminal project root focus empty strip lasttabkind enh-182">
+  <div class="num">17l</div>
+  <div>
+    <h3>Auto-spawn a terminal when focusing a project with none</h3>
+    <p class="why"><strong>v0.7.10:</strong> if you focus on a project that has working tabs but no terminals, Duo automatically spawns a fresh terminal at the project root — kind matches your most recent manual choice (shell or claude). No more empty terminal strip after a project switch. Per-focus-session guard prevents double-spawn on rapid refocus.</p>
+    <p class="how"><strong>UI</strong>Automatic. Click a project tile with no member terminals → terminal appears at the project root.</p>
+  </div>
+</article>
+
 <h2 class="cat">Terminal & Claude</h2>
 <p class="cat-tagline">Multiple terminal tabs. Each one knows it's running inside Duo.</p>
 
