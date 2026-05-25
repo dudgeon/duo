@@ -69,8 +69,11 @@ outcomes:
   **deepest** qualifying root that encloses the tab's path/cwd (D5). A tab
   under no qualifying root belongs to **no project** — it shows in All, and
   is hidden by every focus.
-- **Color (R2):** `--project-{n}` where `n = hash(rootPath) % 6`; persisted
-  override allowed. Tokens are defined once in `duo-atelier.css` (§ 4).
+- **Color (R2):** one of the six **named** `--project-*` tokens
+  (pine / harbor / iris / plum / rose / moss), chosen `hash(rootPath) % 6` in a
+  fixed order; persisted override allowed. Defined in `duo-atelier.css`; **must
+  be mirrored into the app's `globals.css`** before the rail can use them
+  (§ 9 area 9).
 - **Lifecycle (D12):** the set of rail tiles = the set of projects with ≥1
   open item, **plus** any pinned projects. Recomputed as tabs open/close.
 
@@ -154,8 +157,9 @@ code areas 1–10 (see § 9) and the § 4 design assets.
   colors (§ 4 → duo-atelier.css), **minimal** state only (§ 4 →
   tile-state.png leftmost). No focus behavior yet — tiles render, `All` is
   selected.
-- Wire `--project-*` tokens into the real app CSS if not already mirrored
-  there (area 9).
+- Mirror the six `--project-*` tokens into `renderer/styles/globals.css`
+  (area 9 confirms they're skill-reference-only today — the app CSS has only
+  `--accent`).
 - **Acceptance:** rail shows correct tiles for the open set; colors stable
   across reloads; matches rail-left.png.
 
@@ -213,9 +217,43 @@ code areas 1–10 (see § 9) and the § 4 design assets.
 - **Blast radius** — touches navigator root, new-tab cwd seed, the tab
   arrays, the title bar; all additive but central.
 
-## 9 · Code map (hook points) — filled from the code-map pass
+## 9 · Code map (hook points)
 
-> _Populated below from the repo search; build steps in § 6 reference these
-> by area number._
+> Build steps in § 6 reference these by area number. Line numbers are
+> approximate anchors (as of 2026-05-25) — confirm against the file.
 
-_(pending — appended once the code-map completes.)_
+**1 · Tab / terminal / working-tab state**
+- `shared/types.ts:9–14` — `TabSession` (`id`, `title`, `cwd`, `kind: 'shell'|'claude'`). `cwd` is the per-terminal → project-root map key.
+- `renderer/App.tsx` — live state: `tabs` (terminals) + `fileTabs` (working tabs) (~700–730); `pendingCwd` derived from navigator (`:265`). **These arrays are what Phase 2 filters** for focus mode.
+
+**2 · Navigator + re-root**
+- `renderer/hooks/useNavigator.ts:81–397`. localStorage key `duo.nav.cwd` (`:19`); `navigateTo(path)` (`:236`) is the re-root entry point (call `nav.actions.navigateTo(projectRoot)` on focus); persisted via effect (`:111`); follow-mode `pinned` (`:40`, toggled `:67`); `computePendingCwd` (`:386`).
+
+**3 · Workspace switcher (the destructive path to AVOID)**
+- `renderer/components/WorkspaceSwitcherDropdown.tsx:1–170` (ENH-171). Switch dispatches `window.electron.workspaceFile.openRecent(path)` (`:85`) → main does the destructive flush/kill-PTYs/reload. **Project focus must NOT go through this** — focus is a live visibility+nav-root toggle only.
+
+**4 · claudePresence**
+- `core/claude-presence.ts:1–150+` — `ClaudePresenceProbe`, `setTarget(pid, kind)` (`:46`), states `no-pty|shell|claude|starting`, 500ms poll (`:28`). Renderer: `renderer/hooks/useClaudePresence.ts:12–31` via `window.electron.terminal.onClaudePresenceChange()`; consumed in `TerminalPane.tsx:221`. Use for D12's "confirm before closing a terminal with a live process" (and the deferred R3 live-dot).
+
+**5 · Git detection (for `isGitRepoRoot`)**
+- `shared/host-api.ts:964–1089` — `GitStatusSnapshot` (`isRepo`, `workTreeRoot`, `branch`, `dirty`, …) (`:964`); `status(cwd)` (`:1071`); `scanReposIn()` peer-repo scan (`:1089`, BUG-135). **`isGitRepoRoot(dir) = status(dir).isRepo && status(dir).workTreeRoot === dir`.** Consumed in `FileTree.tsx:157–234` + `:630–660`.
+
+**6 · Marker detection (for `hasMarker`)**
+- `renderer/components/ProjectClaudeContext.tsx:1–180`. Candidate set at `:39` = `['CLAUDE.md', '.claude', 'tasks.md', 'AGENTS.md']`; detection at `:71–80` reads `nav.state.listings`. **For D2, `hasMarker` = presence of `CLAUDE.md` or `.claude/`** (a subset — `tasks.md`/`AGENTS.md` do NOT qualify a project on their own). Reuse the listing-read approach; currently cosmetic-only.
+
+**7 · CLI plumbing (for the `duo project` family, Phase 4)**
+- `cli/duo.ts` — verb dispatch `switch (cmd)` at `:337` (examples `:338–381`), `printHelp()` at `:1919`.
+- `core/socket-server.ts:554–700+` — `handle(req)` case dispatch (e.g. `:569` navigate, `:591` open).
+- `electron/main.ts:1000–1050+` — `ipcMain.handle(IPC.*)`.
+- `shared/types.ts:31–200+` — `DuoCommandName` union (add the new verbs here).
+- Full checklist also touches `electron/preload.ts`, `skill/SKILL.md`, `agents/duo.md`, `docs/CLI-COVERAGE.md` (CLAUDE.md § 4).
+
+**8 · New-tab cwd seeding (re-seed to project root on focus)**
+- `renderer/App.tsx` — `onNewTerminal` (`:869–881`) seeds from `pendingCwd` (`:876`, `makeTab(pendingCwd, kind, home)`); `onCommitNewFile` (`:1530`); CLI `--cwd` override at `:1186`. On project focus, set `pendingCwd` to the project root before spawn.
+
+**9 · Atelier project color tokens**
+- **Defined** in `skill/references/duo-atelier.css:45–61` — six **named** tokens: `--project-pine #2E7D74`, `--project-harbor #3C6E93`, `--project-iris #5B57A6`, `--project-plum #87508F`, `--project-rose #A4506A`, `--project-moss #69763A`.
+- ⚠️ **NOT mirrored** into the app CSS (`renderer/styles/globals.css` only has `--accent`, `:43`). **Phase 1 must add these six tokens to `globals.css`** (or import the kernel) before the rail can use them. Hash maps `hash(rootPath) % 6` → one of the six in a fixed order (R2).
+
+**10 · Context-menu pattern (for the tile right-click menu, D12)**
+- `renderer/components/FileTree.tsx` — `popupMenu()` (`:630–670`) calls `window.electron.menu.popup({ items, x, y })` (`:663`) → `handleMenuChoice()` (`:669`); template via `buildTreeMenuTemplate()` (`:853`, items like `pin`/`unpin`, multi-select aware). Also `WorkingTabStrip.tsx:149` + `Breadcrumb.tsx:24`. **The tile menu (Pin/Unpin + "Close N terminals and M tabs") follows this `MenuTemplateItem[]` → IPC popup → `chosenId` shape — do not hand-roll a menu.**
