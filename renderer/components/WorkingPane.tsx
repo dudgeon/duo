@@ -164,6 +164,12 @@ interface WorkingPaneProps {
    *  (WorkingTabStrip) keeps the confirm INSIDE the strip; we mirror
    *  that here so AuxHeader stays self-contained. */
   onAuxTrash?: (path: string) => void
+  /** ENH-182 Phase 2 — when a project focus is active, the host
+   *  passes the set of file-tab ids that belong to the focused
+   *  project (plus pinned cross-project tabs). The strip filters
+   *  to these; mount loops below stay full-sized so editor state
+   *  isn't lost for hidden tabs. `undefined` = no focus, show all. */
+  visibleFileTabIds?: ReadonlySet<string>
 }
 
 export function WorkingPane({
@@ -177,6 +183,7 @@ export function WorkingPane({
   focused = false,
   onSendToDuo,
   pillLabel,
+  visibleFileTabIds,
   onNewFile,
   pins,
   onTogglePin,
@@ -355,10 +362,25 @@ export function WorkingPane({
   // Pinned tabs sort to leftmost (Stage 24); ENH-042 layers tabOrder
   // on top, sorting WITHIN each zone independently so a user reorder
   // never crosses the pinned/unpinned boundary.
-  const mergedTabs: WorkingTab[] = [
+  const mergedTabsAll: WorkingTab[] = [
     ...unsortedTabs.filter(t => t.pinned).sort(byOrder),
     ...unsortedTabs.filter(t => !t.pinned).sort(byOrder)
   ]
+  // ENH-182 Phase 2 — visibility filter. When `visibleFileTabIds` is
+  // present (a project focus is active), drop file tabs not in the
+  // set from the strip. Pinned tabs stay (they're cross-project
+  // refs). Browser tabs are visible regardless in Phase 2 first cut —
+  // gating browser-mode canvas tabs by file:// path membership is a
+  // Phase 2b follow-up (more complex URL→project resolution).
+  const mergedTabs: WorkingTab[] = visibleFileTabIds
+    ? mergedTabsAll.filter((t) => {
+        if (t.type === 'browser') return true
+        if (t.pinned) return true
+        // file-tab id shape is "f:<uuid>" — strip prefix for the set lookup.
+        const fileId = t.id.startsWith('f:') ? t.id.slice(2) : t.id
+        return visibleFileTabIds.has(fileId)
+      })
+    : mergedTabsAll
 
   // ENH-042 — reorder a tab to land before/after a target in the same
   // zone. If source was originally to target's LEFT, insert AFTER

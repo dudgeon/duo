@@ -833,11 +833,106 @@ export function App() {
         .map((t) => ({ id: t.id, path: t.path })),
     [fileTabs]
   )
-  const { projects: railProjects } = useProjects({
+  const {
+    projects: railProjects,
+    terminalMembership,
+    tabMembership
+  } = useProjects({
     terminals: projectTerminals,
     workingTabs: projectWorkingTabs,
     pinnedTabPaths: pinnedFileTabPaths
   })
+  // ENH-182 Phase 2 — focus filter. `null` = All (no filter). Clicking
+  // a tile sets this; clicking the active tile (or All) clears it.
+  // Visibility-only: hidden tabs stay in state, just skip render.
+  const [focusedProject, setFocusedProject] = useState<string | null>(null)
+  const handleProjectFocus = useCallback(
+    (root: string | null) => {
+      // Click the active tile to release focus (D8: "click the active
+      // tile (or All) to release"). Clicking All when already on All
+      // is a no-op.
+      setFocusedProject((prev) => (prev === root ? null : root))
+    },
+    []
+  )
+  // Build the visible-terminal + visible-working-tab arrays the rest
+  // of App.tsx consumes. While focused, hide tabs that belong to a
+  // different project (or no project at all).
+  const visibleTerminals = useMemo(() => {
+    if (focusedProject === null) return tabs
+    return tabs.filter((t) => terminalMembership[t.id] === focusedProject)
+  }, [tabs, focusedProject, terminalMembership])
+  const visibleFileTabs = useMemo(() => {
+    if (focusedProject === null) return fileTabs
+    return fileTabs.filter((t) => {
+      // Pinned file tabs stay visible across focuses (they're
+      // intentionally cross-project references). Otherwise gate on
+      // project membership.
+      const isPinned = pinnedFileTabPaths.has(t.path)
+      if (isPinned) return true
+      return tabMembership[t.id] === focusedProject
+    })
+  }, [fileTabs, focusedProject, tabMembership, pinnedFileTabPaths])
+  // Set of visible file-tab ids — handed to WorkingPane to gate its
+  // internal WorkingTabStrip filter. `undefined` while All-focused
+  // tells WorkingPane to skip filtering entirely.
+  const visibleFileTabIds = useMemo<ReadonlySet<string> | undefined>(() => {
+    if (focusedProject === null) return undefined
+    return new Set(visibleFileTabs.map((t) => t.id))
+  }, [focusedProject, visibleFileTabs])
+  // ENH-182 Phase 2 — when the user enters focus, save the previous
+  // navigator cwd so we can restore it when focus clears. Re-root the
+  // navigator to the project root (D10 — not a hard tree filter; the
+  // user can still navigate up/out, the rail just sets the home cwd
+  // for the focused project).
+  const navCwdBeforeFocusRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (focusedProject) {
+      // Entering focus (or switching projects): capture cwd ONCE,
+      // then jump to project root.
+      if (navCwdBeforeFocusRef.current === null) {
+        navCwdBeforeFocusRef.current = nav.state.cwd ?? null
+      }
+      nav.actions.navigateTo(focusedProject)
+    } else if (navCwdBeforeFocusRef.current !== null) {
+      // Clearing focus: restore the pre-focus cwd, drop the saved
+      // value.
+      nav.actions.navigateTo(navCwdBeforeFocusRef.current)
+      navCwdBeforeFocusRef.current = null
+    }
+    // We intentionally OMIT `nav.actions` / `nav.state.cwd` from the
+    // dep list — including them would re-trigger this effect every
+    // time the navigator moves, fighting the user's own navigation
+    // while focused (D10 explicitly allows free navigation).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedProject])
+  // While focused, if the active terminal tab isn't visible, switch
+  // to the first visible one. Same for the working pane. Keeps the
+  // user from staring at an empty pane after entering focus.
+  useEffect(() => {
+    if (focusedProject === null) return
+    const activeTerminalVisible = visibleTerminals.some((t) => t.id === activeTabId)
+    if (!activeTerminalVisible && visibleTerminals.length > 0) {
+      setActiveTabId(visibleTerminals[0].id)
+    }
+    if (
+      activeWorking.kind === 'file' &&
+      !visibleFileTabs.some((t) => t.id === activeWorking.id)
+    ) {
+      if (visibleFileTabs.length > 0) {
+        setActiveWorking({ kind: 'file', id: visibleFileTabs[0].id })
+      } else {
+        setActiveWorking({ kind: 'browser' })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedProject, visibleTerminals, visibleFileTabs])
+  // Resolve the focused project's display name for the title-bar
+  // chip. Avoids re-searching the list on every render.
+  const focusedProjectName = useMemo(() => {
+    if (focusedProject === null) return null
+    return railProjects.find((p) => p.root === focusedProject)?.name ?? null
+  }, [focusedProject, railProjects])
 
   // Stage 15 G17 — push the active terminal id to main so `duo send`
   // can write into the right PTY. `null` covers the degenerate case
@@ -2594,7 +2689,10 @@ export function App() {
         closeTab(activeTabId)
       }
     },
-    tabs,
+    // ENH-182 Phase 2 — Ctrl-Tab respects the project filter. With
+    // no focus active, this is identical to `tabs`; while focused,
+    // cycle skips hidden tabs entirely (D8).
+    tabs: visibleTerminals,
     activeTabId,
     setActiveTabId,
     toggleFilesColumn: () => setFilesCollapsed(prev => !prev),
@@ -3125,6 +3223,23 @@ export function App() {
           activeWorkspace={activeWorkspace}
           onClose={() => setWorkspaceMenuOpen(false)}
         />
+        {/* ENH-182 Phase 2 — title-bar focus chip. Renders ONLY when
+            a project focus is active; click × (or anywhere on the
+            chip) to release. Confirms "you're filtered" + provides
+            an always-visible release affordance independent of the
+            rail's All tile. */}
+        {focusedProjectName && (
+          <button
+            type="button"
+            onClick={() => setFocusedProject(null)}
+            className="titlebar-nodrag inline-flex items-center gap-1 text-[11px] font-semibold text-accent bg-accent/10 hover:bg-accent/20 transition-colors rounded-full px-2 py-0.5 mr-1"
+            title={`Focused on ${focusedProjectName} — click to show all projects`}
+            aria-label={`Release focus (${focusedProjectName})`}
+          >
+            <span>Focused: {focusedProjectName}</span>
+            <span aria-hidden="true" className="text-accent/70">×</span>
+          </button>
+        )}
         {/* v0.5.4 sprint — running version badge. Glanceable confirmation
             for "am I smoke-walking the build I think I am?" — surfaced
             after a v0.5.4-final walk where it was non-trivial to tell
@@ -3194,11 +3309,17 @@ export function App() {
       <LinkPromptModal />
 
       <div className="flex flex-1 overflow-hidden min-w-0">
-        {/* ENH-182 Phase 1 — read-only project rail. Hidden by the
-            component itself when no projects have surfaced yet.
-            Phase 2 wires `focusedProject` + `onFocus` to actually
-            filter the file / terminal / working surfaces. */}
-        <ProjectRail projects={railProjects} focusedProject={null} />
+        {/* ENH-182 Phase 1 + Phase 2 — project rail with focus
+            filter. Hidden by the component itself when no projects
+            have surfaced yet. Phase 2: clicking a tile sets
+            `focusedProject` which gates `visibleTerminals` +
+            `visibleFileTabIds`, the navigator re-root effect, and
+            the title-bar focus chip. */}
+        <ProjectRail
+          projects={railProjects}
+          focusedProject={focusedProject}
+          onFocus={handleProjectFocus}
+        />
         <div
           className="h-full shrink-0 min-w-0"
           onMouseDown={() => setFocusedColumn('files')}
@@ -3313,7 +3434,11 @@ export function App() {
             ) : (
               <>
                 <TabBar
-                  tabs={tabs}
+                  // ENH-182 Phase 2 — only render visible (= focused-
+                  // project member) tabs in the strip. The full `tabs`
+                  // array stays passed to TerminalPane below so PTYs
+                  // for hidden tabs aren't unmounted.
+                  tabs={visibleTerminals}
                   activeTabId={activeTabId}
                   onSelect={setActiveTabId}
                   // Stage 19c D17 — split button. `+` = claude (primary,
@@ -3424,6 +3549,11 @@ export function App() {
             <ErrorBoundary inline label="WorkingPane">
             <WorkingPane
               fileTabs={fileTabs}
+              // ENH-182 Phase 2 — when a project focus is active,
+              // tells the internal WorkingTabStrip to filter to the
+              // member set. Hidden tabs stay mounted (via the full
+              // `fileTabs` array above) so editor state persists.
+              visibleFileTabIds={visibleFileTabIds}
               activeWorking={activeWorking}
               setActiveWorking={setActiveWorking}
               closeFileTab={closeFileTab}
